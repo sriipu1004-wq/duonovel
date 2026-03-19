@@ -229,6 +229,17 @@ export function usePlayLogPersistence({
     [seriesId, writeLocalResumeState],
   );
 
+  const getCurrentUserId = useCallback(async () => {
+  const { data, error } = await supabase.auth.getUser();
+
+  if (error) {
+    console.error("[usePlayLogPersistence] getUser failed:", error);
+    return null;
+  }
+
+  return data.user?.id ?? null;
+}, [supabase]);
+
   const flushPlayLog = useCallback(
     async (reason: PlayLogSaveReason) => {
       if (!initialRestoreFinishedRef.current) return;
@@ -258,19 +269,27 @@ export function usePlayLogPersistence({
         return;
       }
 
-      const nowIso = new Date().toISOString();
+      const userId = await getCurrentUserId();
 
-      const payload: Parameters<typeof savePlayLog>[1] = {
-        seriesId: snap.seriesId,
-        episodeId: snap.episodeId,
-        episodeNumber: resumeState.episodeNumber,
-        recordingId: resumeState.recordingId,
-        positionSeconds: resumeState.positionSeconds,
-        markerIndex: resumeState.markerIndex,
-        progressPercent: resumeState.progressPercent,
-        isFollowing: resumeState.isFollowing,
-        lastPlayedAt: nowIso,
-      };
+if (!userId) {
+  setStorageMode("local");
+  storageModeRef.current = "local";
+  writeToLocal(resumeState);
+  lastPersistedSignatureRef.current = signature;
+  return;
+}
+
+const payload: Parameters<typeof savePlayLog>[1] = {
+  userId,
+  seriesId: snap.seriesId,
+  episodeId: snap.episodeId,
+  episodeNumber: resumeState.episodeNumber,
+  recordingId: resumeState.recordingId,
+  positionSeconds: resumeState.positionSeconds,
+  markerIndex: resumeState.markerIndex,
+  progressPercent: resumeState.progressPercent,
+  isFollowing: resumeState.isFollowing,
+};
 
       try {
         const result = await savePlayLog(supabase, payload);
@@ -289,7 +308,7 @@ export function usePlayLogPersistence({
         console.error("[usePlayLogPersistence] savePlayLog failed:", error);
       }
     },
-    [buildResumeState, supabase, writeToLocal],
+    [buildResumeState, getCurrentUserId, supabase, writeToLocal],
   );
 
   useEffect(() => {
@@ -300,25 +319,27 @@ export function usePlayLogPersistence({
 
     const run = async () => {
       try {
-        const result = await getPlayLogBySeries(supabase, { seriesId });
+        const userId = await getCurrentUserId();
 
-        if (cancelled) return;
+if (cancelled) return;
 
-        if (extractSkipped(result)) {
-          setStorageMode("local");
-          storageModeRef.current = "local";
+if (!userId) {
+  setStorageMode("local");
+  storageModeRef.current = "local";
 
-          const localState = readLocalResumeState(seriesId);
+  const localState = readLocalResumeState(seriesId);
 
-          if (
-            localState &&
-            Number(localState.episodeNumber) === Number(episodeNumber)
-          ) {
-            onRestore(localState);
-          }
+  if (
+    localState &&
+    Number(localState.episodeNumber) === Number(episodeNumber)
+  ) {
+    onRestore(localState);
+  }
 
-          return;
-        }
+  return;
+}
+
+const result = await getPlayLogBySeries(supabase, { userId, seriesId });
 
         setStorageMode("supabase");
         storageModeRef.current = "supabase";
@@ -353,12 +374,13 @@ export function usePlayLogPersistence({
       cancelled = true;
     };
   }, [
-    seriesId,
-    episodeNumber,
-    onRestore,
-    readLocalResumeState,
-    supabase,
-  ]);
+  seriesId,
+  episodeNumber,
+  getCurrentUserId,
+  onRestore,
+  readLocalResumeState,
+  supabase,
+]);
 
   useEffect(() => {
     if (!initialRestoreFinished) return;

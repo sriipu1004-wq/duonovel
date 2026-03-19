@@ -11,6 +11,10 @@ import {
   type ChangeEvent,
 } from "react";
 import BgmController from "@/features/playback/BgmController";
+import {
+  usePlayLogPersistence,
+  type ReadResumeState,
+} from "@/hooks/usePlayLogPersistence";
 
 type EpisodePlaybackProps = {
   seriesId: string;
@@ -21,6 +25,8 @@ type EpisodePlaybackProps = {
   selectedReaderKey?: string;
   selectedReaderName?: string;
   recordingAvailable?: boolean;
+  episodeId?: string | null;
+recordingId?: string | null;
   audioStoragePath?: string | null;
   nextEpisodeHref?: string | null;
   nextEpisodeNumber?: number | null;
@@ -135,6 +141,8 @@ function SettingChip({
 
 export default function EpisodePlayback({
   seriesId,
+  episodeId,
+  recordingId,
   episodeNumber,
   seriesTitle,
   episodeTitle,
@@ -152,6 +160,65 @@ export default function EpisodePlayback({
 }: EpisodePlaybackProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingResumeRef = useRef<ReadResumeState | null>(null);
+
+const LOCAL_RESUME_PRIMARY_KEY = (targetSeriesId: string) =>
+  `duonovel:read-progress:${targetSeriesId}`;
+
+const LOCAL_RESUME_LEGACY_KEYS = (targetSeriesId: string) => [
+  LOCAL_RESUME_PRIMARY_KEY(targetSeriesId),
+  `duonovel:resume:${targetSeriesId}`,
+  `duonovel:bookmark:${targetSeriesId}`,
+  `read-progress:${targetSeriesId}`,
+  `read_resume:${targetSeriesId}`,
+];
+
+const readLocalResumeState = useCallback(
+  (targetSeriesId: string): ReadResumeState | null => {
+    if (typeof window === "undefined") return null;
+
+    for (const key of LOCAL_RESUME_LEGACY_KEYS(targetSeriesId)) {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+
+      try {
+        const parsed = JSON.parse(raw) as Partial<ReadResumeState> | null;
+        if (!parsed) continue;
+
+        const nextEpisodeNumber = Number(parsed.episodeNumber);
+        if (!Number.isFinite(nextEpisodeNumber)) continue;
+
+        return {
+          episodeNumber: nextEpisodeNumber,
+          recordingId:
+            typeof parsed.recordingId === "string" ? parsed.recordingId : null,
+          positionSeconds: Number(parsed.positionSeconds ?? 0),
+          markerIndex: Number(parsed.markerIndex ?? 0),
+          progressPercent: Number(parsed.progressPercent ?? 0),
+          isFollowing:
+            typeof parsed.isFollowing === "boolean" ? parsed.isFollowing : true,
+        };
+      } catch (error) {
+        console.error("[EpisodePlayback] local resume parse failed:", error);
+      }
+    }
+
+    return null;
+  },
+  [],
+);
+
+const writeLocalResumeState = useCallback(
+  (targetSeriesId: string, nextState: ReadResumeState) => {
+    if (typeof window === "undefined") return;
+
+    window.localStorage.setItem(
+      LOCAL_RESUME_PRIMARY_KEY(targetSeriesId),
+      JSON.stringify(nextState),
+    );
+  },
+  [],
+);
   const advanceTimeoutRef = useRef<number | null>(null);
   const sentenceRefs = useRef<Record<number, HTMLSpanElement | null>>({});
   const ignoreScrollRef = useRef(false);
@@ -249,6 +316,36 @@ export default function EpisodePlayback({
 
   const visibleMarkerSentenceIndex =
     isPlaying && autoFollow ? estimatedSentenceIndex : -1;
+    const applyRestoredPlayLog = useCallback(
+  (resumeState: ReadResumeState) => {
+    pendingResumeRef.current = resumeState;
+    setAutoFollow(resumeState.isFollowing);
+
+    if (audioRef.current && audioRef.current.readyState >= 1) {
+      const nextTime = Math.max(0, resumeState.positionSeconds);
+      audioRef.current.currentTime = nextTime;
+      setCurrentTime(nextTime);
+      pendingResumeRef.current = null;
+    }
+  },
+  [setCurrentTime]
+);
+
+const { flushPlayLog } = usePlayLogPersistence({
+  seriesId,
+  episodeId: episodeId ?? null,
+  episodeNumber,
+  recordingId: recordingId ?? null,
+  currentTime,
+  duration,
+  markerIndex: estimatedSentenceIndex >= 0 ? estimatedSentenceIndex : 0,
+  isFollowing: autoFollow,
+  isPlaying,
+  intervalMs: 4000,
+  onRestore: applyRestoredPlayLog,
+  readLocalResumeState,
+  writeLocalResumeState,
+});
 
   const lineHeightValue = useMemo(() => {
     if (lineHeightPreset === "compact") return 1.95;
@@ -350,7 +447,7 @@ export default function EpisodePlayback({
     }
   }, [seriesId, displayTheme, fontScale, lineHeightPreset]);
 
-  useEffect(() => {
+      useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -358,12 +455,31 @@ export default function EpisodePlayback({
       setDuration(audio.duration || 0);
 
       if (
+        pendingResumeRef.current &&
+        Number.isFinite(pendingResumeRef.current.positionSeconds)
+      ) {
+        const nextTime = Math.min(
+          Math.max(pendingResumeRef.current.positionSeconds, 0),
+          audio.duration || pendingResumeRef.current.positionSeconds
+        );
+
+        audio.currentTime = nextTime;
+        setCurrentTime(nextTime);
+        pendingResumeRef.current = null;
+        hasAppliedInitialSeekRef.current = true;
+        return;
+      }
+
+      if (
         !hasAppliedInitialSeekRef.current &&
         typeof initialStartAt === "number" &&
         Number.isFinite(initialStartAt) &&
         initialStartAt > 0
       ) {
-        audio.currentTime = Math.min(initialStartAt, audio.duration || initialStartAt);
+        audio.currentTime = Math.min(
+          initialStartAt,
+          audio.duration || initialStartAt
+        );
         setCurrentTime(audio.currentTime || 0);
         hasAppliedInitialSeekRef.current = true;
       }
@@ -378,6 +494,7 @@ export default function EpisodePlayback({
       setAutoFollow(false);
 
       if (nextEpisodeHref) {
+        void flushPlayLog("episode-move");
         setIsAdvancing(true);
 
         advanceTimeoutRef.current = window.setTimeout(() => {
@@ -389,10 +506,16 @@ export default function EpisodePlayback({
     const handlePause = () => {
       setIsPlaying(false);
       setAutoFollow(false);
+      void flushPlayLog("pause");
     };
 
     const handlePlay = () => {
       setIsPlaying(true);
+    };
+
+    const handleSeeked = () => {
+      setCurrentTime(audio.currentTime || 0);
+      void flushPlayLog("seek");
     };
 
     const handleError = () => {
@@ -407,6 +530,7 @@ export default function EpisodePlayback({
     audio.addEventListener("ended", handleEnded);
     audio.addEventListener("pause", handlePause);
     audio.addEventListener("play", handlePlay);
+    audio.addEventListener("seeked", handleSeeked);
     audio.addEventListener("error", handleError);
 
     return () => {
@@ -415,13 +539,14 @@ export default function EpisodePlayback({
       audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("pause", handlePause);
       audio.removeEventListener("play", handlePlay);
+      audio.removeEventListener("seeked", handleSeeked);
       audio.removeEventListener("error", handleError);
 
       if (advanceTimeoutRef.current) {
         window.clearTimeout(advanceTimeoutRef.current);
       }
     };
-  }, [initialStartAt, nextEpisodeHref, router]);
+  }, [flushPlayLog, initialStartAt, nextEpisodeHref, router]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -517,9 +642,17 @@ export default function EpisodePlayback({
     setCurrentTime(nextTime);
   }
 
-  function handleMoveNext(): void {
+    const moveToReadUrl = useCallback(
+    async (targetUrl: string) => {
+      await flushPlayLog("episode-move");
+      router.push(targetUrl);
+    },
+    [flushPlayLog, router]
+  );
+
+  async function handleMoveNext(): Promise<void> {
     if (!nextEpisodeHref) return;
-    router.push(nextEpisodeHref);
+    await moveToReadUrl(nextEpisodeHref);
   }
 
   function handleReturnToCurrentPosition(): void {
