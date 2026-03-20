@@ -343,22 +343,23 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     pickText(episodeBgmTitle, seriesBgmTitle) || (bgmSrc ? "作品BGM" : "");
 
   return (
-    <EpisodePlayback
-      seriesId={seriesId}
-      episodeNumber={currentEpisodeNumber}
-      seriesTitle={seriesTitle}
-      episodeTitle={episodeTitle}
-      body={body}
-      selectedReaderKey={selectedReaderKey || undefined}
-      selectedReaderName={selectedReaderName}
-      recordingAvailable={recordingAvailable}
-      audioStoragePath={audioStoragePath}
-      nextEpisodeHref={nextEpisodeHref}
-      nextEpisodeNumber={nextEpisodeNumber}
-      workIndexHref={workIndexHref}
-      initialStartAt={initialStartAt}
-      bgmTitle={bgmTitle || undefined}
-      bgmSrc={bgmSrc}
-    />
-  );
-}
+  <EpisodePlayback
+    seriesId={seriesId}
+    episodeId={episode.id}
+    recordingId={selectedRecording?.id ?? null}
+    episodeNumber={currentEpisodeNumber}
+    seriesTitle={seriesTitle}
+    episodeTitle={episodeTitle}
+    body={body}
+    selectedReaderKey={selectedReaderKey || undefined}
+    selectedReaderName={selectedReaderName}
+    recordingAvailable={recordingAvailable}
+    audioStoragePath={audioStoragePath}
+    nextEpisodeHref={nextEpisodeHref}
+    nextEpisodeNumber={nextEpisodeNumber}
+    workIndexHref={workIndexHref}
+    initialStartAt={initialStartAt}
+    bgmTitle={bgmTitle || undefined}
+    bgmSrc={bgmSrc}
+  />
+);}
