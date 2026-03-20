@@ -4,7 +4,11 @@ import EpisodePlayback from "@/features/playback/EpisodePlayback";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
-  searchParams?: Promise<{ readerKey?: string; readerName?: string; startAt?: string }>;
+  searchParams?: Promise<{
+    readerKey?: string;
+    readerName?: string;
+    startAt?: string;
+  }>;
 };
 
 type SeriesRow = Record<string, unknown> & {
@@ -124,6 +128,21 @@ function buildWorksHref(
   if (readerName) query.set("readerName", readerName);
 
   return `/works/${seriesId}?${query.toString()}`;
+}
+
+function buildReadHref(
+  seriesId: string,
+  episodeNumber: number,
+  readerKey?: string,
+  readerName?: string
+): string {
+  const query = new URLSearchParams();
+
+  if (readerKey) query.set("readerKey", readerKey);
+  if (readerName) query.set("readerName", readerName);
+
+  const queryString = query.toString();
+  return `/read/${seriesId}/${episodeNumber}${queryString ? `?${queryString}` : ""}`;
 }
 
 async function fetchEpisodeBySeriesAndNumber(
@@ -247,9 +266,18 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     .sort((a, b) => getEpisodeNumber(a) - getEpisodeNumber(b));
 
   const currentEpisodeNumber = getEpisodeNumber(episode) || parsedEpisodeNumber;
-  const nextEpisode = publishedEpisodes.find(
-    (item) => getEpisodeNumber(item) > currentEpisodeNumber
-  );
+
+  const prevEpisode =
+    [...publishedEpisodes]
+      .reverse()
+      .find((item) => getEpisodeNumber(item) < currentEpisodeNumber) ?? null;
+
+  const nextEpisode =
+    publishedEpisodes.find(
+      (item) => getEpisodeNumber(item) > currentEpisodeNumber
+    ) ?? null;
+
+  const prevEpisodeNumber = prevEpisode ? getEpisodeNumber(prevEpisode) : null;
   const nextEpisodeNumber = nextEpisode ? getEpisodeNumber(nextEpisode) : null;
 
   const allEpisodeRecordings = await fetchRecordingsByEpisodeId(episode.id);
@@ -300,19 +328,25 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
       episode["body_text"]
     ) || "本文がまだ登録されていません。";
 
-  let nextEpisodeHref: string | null = null;
+  const prevEpisodeHref =
+    prevEpisodeNumber !== null
+      ? buildReadHref(
+          seriesId,
+          prevEpisodeNumber,
+          selectedReaderKey,
+          selectedReaderName
+        )
+      : null;
 
-  if (nextEpisodeNumber) {
-    const query = new URLSearchParams();
-
-    if (selectedReaderKey) query.set("readerKey", selectedReaderKey);
-    if (selectedReaderName) query.set("readerName", selectedReaderName);
-
-    const queryString = query.toString();
-    nextEpisodeHref = `/read/${seriesId}/${nextEpisodeNumber}${
-      queryString ? `?${queryString}` : ""
-    }`;
-  }
+  const nextEpisodeHref =
+    nextEpisodeNumber !== null
+      ? buildReadHref(
+          seriesId,
+          nextEpisodeNumber,
+          selectedReaderKey,
+          selectedReaderName
+        )
+      : null;
 
   const workIndexHref = buildWorksHref(
     seriesId,
@@ -329,10 +363,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     (seriesData as SeriesRow)["bgmAudioPath"]
   );
 
-  const episodeBgmTitle = pickText(
-    episode.bgm_title,
-    episode["bgmTitle"]
-  );
+  const episodeBgmTitle = pickText(episode.bgm_title, episode["bgmTitle"]);
   const episodeBgmSrc = pickText(
     episode.bgm_audio_path,
     episode["bgmAudioPath"]
@@ -343,23 +374,26 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     pickText(episodeBgmTitle, seriesBgmTitle) || (bgmSrc ? "作品BGM" : "");
 
   return (
-  <EpisodePlayback
-    seriesId={seriesId}
-    episodeId={episode.id}
-    recordingId={selectedRecording?.id ?? null}
-    episodeNumber={currentEpisodeNumber}
-    seriesTitle={seriesTitle}
-    episodeTitle={episodeTitle}
-    body={body}
-    selectedReaderKey={selectedReaderKey || undefined}
-    selectedReaderName={selectedReaderName}
-    recordingAvailable={recordingAvailable}
-    audioStoragePath={audioStoragePath}
-    nextEpisodeHref={nextEpisodeHref}
-    nextEpisodeNumber={nextEpisodeNumber}
-    workIndexHref={workIndexHref}
-    initialStartAt={initialStartAt}
-    bgmTitle={bgmTitle || undefined}
-    bgmSrc={bgmSrc}
-  />
-);}
+    <EpisodePlayback
+      seriesId={seriesId}
+      episodeId={episode.id}
+      recordingId={selectedRecording?.id ?? null}
+      episodeNumber={currentEpisodeNumber}
+      seriesTitle={seriesTitle}
+      episodeTitle={episodeTitle}
+      body={body}
+      selectedReaderKey={selectedReaderKey || undefined}
+      selectedReaderName={selectedReaderName}
+      recordingAvailable={recordingAvailable}
+      audioStoragePath={audioStoragePath}
+      prevEpisodeHref={prevEpisodeHref}
+      prevEpisodeNumber={prevEpisodeNumber}
+      nextEpisodeHref={nextEpisodeHref}
+      nextEpisodeNumber={nextEpisodeNumber}
+      workIndexHref={workIndexHref}
+      initialStartAt={initialStartAt}
+      bgmTitle={bgmTitle || undefined}
+      bgmSrc={bgmSrc}
+    />
+  );
+}

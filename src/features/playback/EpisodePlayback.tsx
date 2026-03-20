@@ -26,8 +26,10 @@ type EpisodePlaybackProps = {
   selectedReaderName?: string;
   recordingAvailable?: boolean;
   episodeId?: string | null;
-recordingId?: string | null;
+  recordingId?: string | null;
   audioStoragePath?: string | null;
+  prevEpisodeHref?: string | null;
+  prevEpisodeNumber?: number | null;
   nextEpisodeHref?: string | null;
   nextEpisodeNumber?: number | null;
   workIndexHref?: string | null;
@@ -114,6 +116,40 @@ function ControlButton({
   );
 }
 
+function FooterEpisodeButton({
+  label,
+  episodeNumber,
+  disabled = false,
+  onClick,
+}: {
+  label: string;
+  episodeNumber?: number | null;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  const hasEpisodeNumber =
+    typeof episodeNumber === "number" && Number.isFinite(episodeNumber);
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        "flex min-w-[96px] flex-col rounded-2xl border px-3 py-2 text-left transition",
+        disabled
+          ? "border-white/10 bg-white/5 text-neutral-500"
+          : "border-white/10 bg-white/5 text-neutral-200 hover:bg-white/10",
+      ].join(" ")}
+    >
+      <span className="text-[11px] text-neutral-500">{label}</span>
+      <span className="text-sm font-medium">
+        {hasEpisodeNumber ? `第${episodeNumber}話` : "なし"}
+      </span>
+    </button>
+  );
+}
+
 function SettingChip({
   active,
   label,
@@ -151,6 +187,8 @@ export default function EpisodePlayback({
   selectedReaderName,
   recordingAvailable = false,
   audioStoragePath,
+  prevEpisodeHref,
+  prevEpisodeNumber,
   nextEpisodeHref,
   nextEpisodeNumber,
   workIndexHref,
@@ -161,70 +199,70 @@ export default function EpisodePlayback({
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pendingResumeRef = useRef<ReadResumeState | null>(null);
-
-const LOCAL_RESUME_PRIMARY_KEY = (targetSeriesId: string) =>
-  `duonovel:read-progress:${targetSeriesId}`;
-
-const LOCAL_RESUME_LEGACY_KEYS = (targetSeriesId: string) => [
-  LOCAL_RESUME_PRIMARY_KEY(targetSeriesId),
-  `duonovel:resume:${targetSeriesId}`,
-  `duonovel:bookmark:${targetSeriesId}`,
-  `read-progress:${targetSeriesId}`,
-  `read_resume:${targetSeriesId}`,
-];
-
-const readLocalResumeState = useCallback(
-  (targetSeriesId: string): ReadResumeState | null => {
-    if (typeof window === "undefined") return null;
-
-    for (const key of LOCAL_RESUME_LEGACY_KEYS(targetSeriesId)) {
-      const raw = window.localStorage.getItem(key);
-      if (!raw) continue;
-
-      try {
-        const parsed = JSON.parse(raw) as Partial<ReadResumeState> | null;
-        if (!parsed) continue;
-
-        const nextEpisodeNumber = Number(parsed.episodeNumber);
-        if (!Number.isFinite(nextEpisodeNumber)) continue;
-
-        return {
-          episodeNumber: nextEpisodeNumber,
-          recordingId:
-            typeof parsed.recordingId === "string" ? parsed.recordingId : null,
-          positionSeconds: Number(parsed.positionSeconds ?? 0),
-          markerIndex: Number(parsed.markerIndex ?? 0),
-          progressPercent: Number(parsed.progressPercent ?? 0),
-          isFollowing:
-            typeof parsed.isFollowing === "boolean" ? parsed.isFollowing : true,
-        };
-      } catch (error) {
-        console.error("[EpisodePlayback] local resume parse failed:", error);
-      }
-    }
-
-    return null;
-  },
-  [],
-);
-
-const writeLocalResumeState = useCallback(
-  (targetSeriesId: string, nextState: ReadResumeState) => {
-    if (typeof window === "undefined") return;
-
-    window.localStorage.setItem(
-      LOCAL_RESUME_PRIMARY_KEY(targetSeriesId),
-      JSON.stringify(nextState),
-    );
-  },
-  [],
-);
   const advanceTimeoutRef = useRef<number | null>(null);
   const sentenceRefs = useRef<Record<number, HTMLSpanElement | null>>({});
   const ignoreScrollRef = useRef(false);
   const ignoreScrollTimeoutRef = useRef<number | null>(null);
   const hasAppliedInitialSeekRef = useRef(false);
   const bookmarkToastTimeoutRef = useRef<number | null>(null);
+
+  const LOCAL_RESUME_PRIMARY_KEY = (targetSeriesId: string) =>
+    `duonovel:read-progress:${targetSeriesId}`;
+
+  const LOCAL_RESUME_LEGACY_KEYS = (targetSeriesId: string) => [
+    LOCAL_RESUME_PRIMARY_KEY(targetSeriesId),
+    `duonovel:resume:${targetSeriesId}`,
+    `duonovel:bookmark:${targetSeriesId}`,
+    `read-progress:${targetSeriesId}`,
+    `read_resume:${targetSeriesId}`,
+  ];
+
+  const readLocalResumeState = useCallback(
+    (targetSeriesId: string): ReadResumeState | null => {
+      if (typeof window === "undefined") return null;
+
+      for (const key of LOCAL_RESUME_LEGACY_KEYS(targetSeriesId)) {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) continue;
+
+        try {
+          const parsed = JSON.parse(raw) as Partial<ReadResumeState> | null;
+          if (!parsed) continue;
+
+          const nextEpisodeNumber = Number(parsed.episodeNumber);
+          if (!Number.isFinite(nextEpisodeNumber)) continue;
+
+          return {
+            episodeNumber: nextEpisodeNumber,
+            recordingId:
+              typeof parsed.recordingId === "string" ? parsed.recordingId : null,
+            positionSeconds: Number(parsed.positionSeconds ?? 0),
+            markerIndex: Number(parsed.markerIndex ?? 0),
+            progressPercent: Number(parsed.progressPercent ?? 0),
+            isFollowing:
+              typeof parsed.isFollowing === "boolean" ? parsed.isFollowing : true,
+          };
+        } catch (error) {
+          console.error("[EpisodePlayback] local resume parse failed:", error);
+        }
+      }
+
+      return null;
+    },
+    []
+  );
+
+  const writeLocalResumeState = useCallback(
+    (targetSeriesId: string, nextState: ReadResumeState) => {
+      if (typeof window === "undefined") return;
+
+      window.localStorage.setItem(
+        LOCAL_RESUME_PRIMARY_KEY(targetSeriesId),
+        JSON.stringify(nextState)
+      );
+    },
+    []
+  );
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -298,7 +336,10 @@ const writeLocalResumeState = useCallback(
   }, [audioStoragePath]);
 
   const canPlayAudio = recordingAvailable && playableAudioSrc.length > 0;
-  const hasNextEpisode = !!nextEpisodeHref && !!nextEpisodeNumber;
+  const hasPrevEpisode =
+    typeof prevEpisodeNumber === "number" && !!prevEpisodeHref;
+  const hasNextEpisode =
+    typeof nextEpisodeNumber === "number" && !!nextEpisodeHref;
 
   const estimatedSentenceIndex = useMemo(() => {
     if (!canPlayAudio) return -1;
@@ -316,36 +357,37 @@ const writeLocalResumeState = useCallback(
 
   const visibleMarkerSentenceIndex =
     isPlaying && autoFollow ? estimatedSentenceIndex : -1;
-    const applyRestoredPlayLog = useCallback(
-  (resumeState: ReadResumeState) => {
-    pendingResumeRef.current = resumeState;
-    setAutoFollow(resumeState.isFollowing);
 
-    if (audioRef.current && audioRef.current.readyState >= 1) {
-      const nextTime = Math.max(0, resumeState.positionSeconds);
-      audioRef.current.currentTime = nextTime;
-      setCurrentTime(nextTime);
-      pendingResumeRef.current = null;
-    }
-  },
-  [setCurrentTime]
-);
+  const applyRestoredPlayLog = useCallback(
+    (resumeState: ReadResumeState) => {
+      pendingResumeRef.current = resumeState;
+      setAutoFollow(resumeState.isFollowing);
 
-const { flushPlayLog } = usePlayLogPersistence({
-  seriesId,
-  episodeId: episodeId ?? null,
-  episodeNumber,
-  recordingId: recordingId ?? null,
-  currentTime,
-  duration,
-  markerIndex: estimatedSentenceIndex >= 0 ? estimatedSentenceIndex : 0,
-  isFollowing: autoFollow,
-  isPlaying,
-  intervalMs: 4000,
-  onRestore: applyRestoredPlayLog,
-  readLocalResumeState,
-  writeLocalResumeState,
-});
+      if (audioRef.current && audioRef.current.readyState >= 1) {
+        const nextTime = Math.max(0, resumeState.positionSeconds);
+        audioRef.current.currentTime = nextTime;
+        setCurrentTime(nextTime);
+        pendingResumeRef.current = null;
+      }
+    },
+    [setCurrentTime]
+  );
+
+  const { flushPlayLog } = usePlayLogPersistence({
+    seriesId,
+    episodeId: episodeId ?? null,
+    episodeNumber,
+    recordingId: recordingId ?? null,
+    currentTime,
+    duration,
+    markerIndex: estimatedSentenceIndex >= 0 ? estimatedSentenceIndex : 0,
+    isFollowing: autoFollow,
+    isPlaying,
+    intervalMs: 4000,
+    onRestore: applyRestoredPlayLog,
+    readLocalResumeState,
+    writeLocalResumeState,
+  });
 
   const lineHeightValue = useMemo(() => {
     if (lineHeightPreset === "compact") return 1.95;
@@ -447,7 +489,7 @@ const { flushPlayLog } = usePlayLogPersistence({
     }
   }, [seriesId, displayTheme, fontScale, lineHeightPreset]);
 
-      useEffect(() => {
+  useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -642,13 +684,18 @@ const { flushPlayLog } = usePlayLogPersistence({
     setCurrentTime(nextTime);
   }
 
-    const moveToReadUrl = useCallback(
+  const moveToReadUrl = useCallback(
     async (targetUrl: string) => {
       await flushPlayLog("episode-move");
       router.push(targetUrl);
     },
     [flushPlayLog, router]
   );
+
+  async function handleMovePrev(): Promise<void> {
+    if (!prevEpisodeHref) return;
+    await moveToReadUrl(prevEpisodeHref);
+  }
 
   async function handleMoveNext(): Promise<void> {
     if (!nextEpisodeHref) return;
@@ -979,58 +1026,80 @@ const { flushPlayLog } = usePlayLogPersistence({
       </div>
 
       <div className="fixed inset-x-0 bottom-0 border-t border-white/10 bg-[#0a0a0a]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-2">
-            {workIndexHref ? (
-              <Link
-                href={workIndexHref}
-                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 transition hover:bg-white/10"
-              >
-                目次
-              </Link>
-            ) : (
-              <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
-                栞
+        <div className="mx-auto max-w-3xl px-4 py-3 sm:px-6">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                {workIndexHref ? (
+                  <Link
+                    href={workIndexHref}
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 transition hover:bg-white/10"
+                  >
+                    目次
+                  </Link>
+                ) : (
+                  <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
+                    栞
+                  </div>
+                )}
+
+                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
+                  自動次話移動ON
+                </div>
               </div>
-            )}
 
-            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
-              自動次話移動ON
+              <div className="flex items-center gap-2 sm:shrink-0">
+                <FooterEpisodeButton
+                  label="前話"
+                  episodeNumber={prevEpisodeNumber}
+                  disabled={!hasPrevEpisode || isAdvancing}
+                  onClick={() => {
+                    void handleMovePrev();
+                  }}
+                />
+                <FooterEpisodeButton
+                  label="次話"
+                  episodeNumber={nextEpisodeNumber}
+                  disabled={!hasNextEpisode || isAdvancing}
+                  onClick={() => {
+                    void handleMoveNext();
+                  }}
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <ControlButton
-              label="🔖"
-              disabled={false}
-              onClick={handleSaveBookmark}
-            />
-            <ControlButton
-              label="↺15"
-              disabled={!canPlayAudio}
-              onClick={() => handleSeekBy(-15)}
-            />
-            <ControlButton
-              label={isPlaying ? "⏸" : "▶"}
-              disabled={!canPlayAudio}
-              onClick={() => {
-                void handleTogglePlay();
-              }}
-            />
-            <ControlButton
-              label="15↻"
-              disabled={!canPlayAudio}
-              onClick={() => handleSeekBy(15)}
-            />
-            <ControlButton
-              label="⚙"
-              disabled={false}
-              onClick={() => setIsSettingsOpen((prev) => !prev)}
-            />
+            <div className="flex items-center justify-end gap-2">
+              <ControlButton
+                label="🔖"
+                disabled={false}
+                onClick={handleSaveBookmark}
+              />
+              <ControlButton
+                label="↺15"
+                disabled={!canPlayAudio}
+                onClick={() => handleSeekBy(-15)}
+              />
+              <ControlButton
+                label={isPlaying ? "⏸" : "▶"}
+                disabled={!canPlayAudio}
+                onClick={() => {
+                  void handleTogglePlay();
+                }}
+              />
+              <ControlButton
+                label="15↻"
+                disabled={!canPlayAudio}
+                onClick={() => handleSeekBy(15)}
+              />
+              <ControlButton
+                label="⚙"
+                disabled={false}
+                onClick={() => setIsSettingsOpen((prev) => !prev)}
+              />
+            </div>
           </div>
         </div>
       </div>
     </main>
   );
 }
-
