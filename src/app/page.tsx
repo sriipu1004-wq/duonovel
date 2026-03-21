@@ -31,8 +31,8 @@ export default async function Home() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-300 sm:text-base">
-                タイトルやあらすじに含まれる言葉から作品を探せる最小版検索です。
-                まずは気になるワードで検索して、作品ページへ移動できる入口を作っています。
+                タイトルやあらすじから作品を探したり、人気作品ランキングから気になる作品を見つけたりできる入口です。
+                まずは検索とランキングの最小導線をまとめています。
               </p>
 
               <form
@@ -61,26 +61,36 @@ export default async function Home() {
                 >
                   検索ページへ
                 </Link>
+
+                <Link
+                  href="/ranking"
+                  className="rounded-full border border-white/10 bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
+                >
+                  ランキングを見る
+                </Link>
               </div>
             </div>
 
             <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
               <p className="text-xs tracking-[0.18em] text-neutral-500">
-                SEARCH GUIDE
+                DISCOVER GUIDE
               </p>
               <h2 className="mt-2 text-lg font-semibold text-white">
-                今の検索でできること
+                今できる発見導線
               </h2>
 
               <ul className="mt-4 space-y-3 text-sm leading-7 text-neutral-300">
                 <li className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                  作品タイトルから探せる
+                  作品タイトルから検索できる
                 </li>
                 <li className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                   あらすじ・説明文に含まれる語も拾える
                 </li>
                 <li className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                  検索結果から作品ページへ移動できる
+                  ランキング一覧から人気作品を見られる
+                </li>
+                <li className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                  一覧からそのまま作品ページへ移動できる
                 </li>
               </ul>
             </div>
