@@ -167,6 +167,23 @@ function buildWorksHref(
   return `/works/${seriesId}?${query.toString()}`;
 }
 
+function buildAuthorHref(authorId: string): string {
+  return `/authors/${encodeURIComponent(authorId)}`;
+}
+
+function buildReaderHref(readerKey: string, readerName?: string): string {
+  const encodedKey = encodeURIComponent(readerKey);
+
+  if (!readerName) {
+    return `/readers/${encodedKey}`;
+  }
+
+  const query = new URLSearchParams();
+  query.set("name", readerName);
+
+  return `/readers/${encodedKey}?${query.toString()}`;
+}
+
 async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
   const firstTry = await supabase
     .from("episodes")
@@ -474,9 +491,19 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-neutral-400">
                 <span>作者</span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-neutral-200">
-                  {authorName}
-                </span>
+
+                {authorId ? (
+                  <Link
+                    href={buildAuthorHref(authorId)}
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    {authorName}
+                  </Link>
+                ) : (
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-neutral-200">
+                    {authorName}
+                  </span>
+                )}
               </div>
 
               <p className="mt-6 whitespace-pre-wrap text-[15px] leading-8 text-neutral-300">
@@ -525,6 +552,15 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                 >
                   朗読者を見る
                 </Link>
+
+                {authorId ? (
+                  <Link
+                    href={buildAuthorHref(authorId)}
+                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    作者ページへ
+                  </Link>
+                ) : null}
               </div>
             </div>
 
@@ -565,11 +601,11 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                 </div>
 
                 <ContinueReadingCard
-  seriesId={seriesId}
-  fallbackEpisodeNumber={firstEpisodeNumber}
-  fallbackReaderKey={selectedReaderKey}
-  fallbackReaderName={selectedReaderName}
-/>
+                  seriesId={seriesId}
+                  fallbackEpisodeNumber={firstEpisodeNumber}
+                  fallbackReaderKey={selectedReaderKey}
+                  fallbackReaderName={selectedReaderName}
+                />
               </section>
 
               <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
@@ -738,9 +774,14 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                                 <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-black">
                                   #{reader.rank}
                                 </span>
-                                <h3 className="text-lg font-semibold text-white">
+
+                                <Link
+                                  href={buildReaderHref(reader.readerKey, reader.name)}
+                                  className="text-lg font-semibold text-white transition hover:text-neutral-300"
+                                >
                                   {reader.name}
-                                </h3>
+                                </Link>
+
                                 {isSelected ? (
                                   <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-xs text-sky-200">
                                     選択中
@@ -767,6 +808,13 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                             </div>
 
                             <div className="flex flex-wrap gap-2">
+                              <Link
+                                href={buildReaderHref(reader.readerKey, reader.name)}
+                                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                              >
+                                朗読者ページへ
+                              </Link>
+
                               <Link
                                 href={buildWorksHref(
                                   seriesId,
