@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -170,6 +171,22 @@ export default function BgmManageForm({
               作品共通BGMと、各話BGMをここで管理する。
               話ごとBGMが空欄なら、作品共通BGMが使われる。
             </p>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                href={`/manage/tags/${seriesId}`}
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                作品タグ管理へ
+              </Link>
+
+              <Link
+                href={`/works/${seriesId}`}
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                作品ページを見る
+              </Link>
+            </div>
           </div>
 
           <div className="grid gap-6 px-5 py-6 sm:px-8">
