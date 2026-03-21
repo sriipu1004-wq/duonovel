@@ -35,18 +35,7 @@ type SeriesSearchRow = Record<string, unknown> & {
   genreIds?: unknown;
   genre_names?: unknown;
   genreNames?: unknown;
-  tag?: string | null;
-  tag_name?: string | null;
-  tag_label?: string | null;
-  keyword?: string | null;
-  label?: string | null;
-  hashtags?: unknown;
-  hash_tags?: unknown;
-  tags?: unknown;
-  tag_names?: unknown;
-  tagNames?: unknown;
-  keywords?: unknown;
-  labels?: unknown;
+  tags?: string[] | null;
 };
 
 type TagChip = {
@@ -95,40 +84,34 @@ function toFlatStringArray(value: unknown): string[] {
     return [String(value)];
   }
 
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return [];
-    }
-
-    if (
-      (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
-      (trimmed.startsWith("{") && trimmed.endsWith("}"))
-    ) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        return toFlatStringArray(parsed);
-      } catch {
-        return trimmed
-          .split(/[,、]/)
-          .map((item) => item.trim())
-          .filter((item) => item.length > 0);
-      }
-    }
-
-    return trimmed
-      .split(/[,、]/)
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0);
+  if (typeof value !== "string") {
+    return [];
   }
 
-  if (typeof value === "object" && value !== null) {
-    return Object.values(value)
-      .flatMap((item) => toFlatStringArray(item))
-      .filter((item) => item.length > 0);
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return [];
   }
 
-  return [];
+  if (
+    (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
+    (trimmed.startsWith("{") && trimmed.endsWith("}"))
+  ) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return toFlatStringArray(parsed);
+    } catch {
+      return trimmed
+        .split(/[,、]/)
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+    }
+  }
+
+  return trimmed
+    .split(/[,、]/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }
 
 function buildSearchTarget(series: SeriesSearchRow): string {
@@ -165,22 +148,9 @@ function buildGenreTarget(series: SeriesSearchRow): string[] {
 }
 
 function buildTagTarget(series: SeriesSearchRow): string[] {
-  return [
-    pickText(series.tag),
-    pickText(series.tag_name),
-    pickText(series.tag_label),
-    pickText(series.keyword),
-    pickText(series.label),
-    ...toFlatStringArray(series.tags),
-    ...toFlatStringArray(series.tag_names),
-    ...toFlatStringArray(series.tagNames),
-    ...toFlatStringArray(series.keywords),
-    ...toFlatStringArray(series.labels),
-    ...toFlatStringArray(series.hashtags),
-    ...toFlatStringArray(series.hash_tags),
-  ]
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
+  return (series.tags ?? [])
+    .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+    .filter((tag) => tag.length > 0);
 }
 
 function pickSnippet(series: SeriesSearchRow): string {
@@ -268,6 +238,21 @@ function buildAvailableTags(seriesRows: SeriesSearchRow[]): TagChip[] {
     .slice(0, 24);
 }
 
+function buildSearchHref(params: {
+  q?: string;
+  genre?: string;
+  tag?: string;
+}): string {
+  const searchParams = new URLSearchParams();
+
+  if (params.q) searchParams.set("q", params.q);
+  if (params.genre) searchParams.set("genre", params.genre);
+  if (params.tag) searchParams.set("tag", params.tag);
+
+  const queryString = searchParams.toString();
+  return queryString ? `/search?${queryString}` : "/search";
+}
+
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const query = normalizeQuery(resolvedSearchParams?.q);
@@ -340,7 +325,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           <p className="text-xs tracking-[0.24em] text-neutral-500">SEARCH</p>
           <h1 className="mt-3 text-3xl font-bold text-white">作品検索</h1>
           <p className="mt-3 text-sm leading-7 text-neutral-300">
-            キーワード検索、ジャンル絞り込みに加えて、タグからの最小絞り込みにも対応しています。
+            キーワード検索、ジャンル絞り込みに加えて、
+            作品タグ canonical source である series.tags を使ったタグ絞り込みに対応しています。
           </p>
 
           <form
@@ -386,17 +372,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
               {selectedGenreName ? (
                 <Link
-                  href={
-                    [
-                      "/search?",
-                      query ? `q=${encodeURIComponent(query)}` : "",
-                      selectedTagName ? `tag=${encodeURIComponent(selectedTagName)}` : "",
-                    ]
-                      .filter(Boolean)
-                      .join("&")
-                      .replace("/search?&", "/search?")
-                      .replace(/\/search\?$/, "/search")
-                  }
+                  href={buildSearchHref({
+                    q: query,
+                    tag: selectedTagName,
+                  })}
                   className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 transition hover:bg-white hover:text-black"
                 >
                   ジャンル解除
@@ -410,15 +389,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 const active =
                   normalizeText(name) === normalizeText(selectedGenreName);
 
-                const params = new URLSearchParams();
-                if (query) params.set("q", query);
-                if (selectedTagName) params.set("tag", selectedTagName);
-                params.set("genre", name);
-
                 return (
                   <Link
                     key={String(genre.id)}
-                    href={`/search?${params.toString()}`}
+                    href={buildSearchHref({
+                      q: query,
+                      genre: name,
+                      tag: selectedTagName,
+                    })}
                     className={[
                       "rounded-full border px-3 py-2 text-sm transition",
                       active
@@ -441,19 +419,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
               {selectedTagName ? (
                 <Link
-                  href={
-                    [
-                      "/search?",
-                      query ? `q=${encodeURIComponent(query)}` : "",
-                      selectedGenreName
-                        ? `genre=${encodeURIComponent(selectedGenreName)}`
-                        : "",
-                    ]
-                      .filter(Boolean)
-                      .join("&")
-                      .replace("/search?&", "/search?")
-                      .replace(/\/search\?$/, "/search")
-                  }
+                  href={buildSearchHref({
+                    q: query,
+                    genre: selectedGenreName,
+                  })}
                   className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 transition hover:bg-white hover:text-black"
                 >
                   タグ解除
@@ -468,15 +437,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                   const active =
                     normalizeTagToken(tag.name) === normalizeTagToken(selectedTagName);
 
-                  const params = new URLSearchParams();
-                  if (query) params.set("q", query);
-                  if (selectedGenreName) params.set("genre", selectedGenreName);
-                  params.set("tag", tag.name);
-
                   return (
                     <Link
                       key={tag.name}
-                      href={`/search?${params.toString()}`}
+                      href={buildSearchHref({
+                        q: query,
+                        genre: selectedGenreName,
+                        tag: tag.name,
+                      })}
                       className={[
                         "rounded-full border px-3 py-2 text-sm transition",
                         active
@@ -491,7 +459,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               </div>
             ) : (
               <p className="text-sm leading-7 text-neutral-400">
-                今は表示できるタグ候補がまだありません。上の入力欄から手動で tag を試せます。
+                今は series.tags に入っているタグ候補がまだありません。上の入力欄から手動で tag を試せます。
               </p>
             )}
           </div>
