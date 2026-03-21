@@ -1,5 +1,5 @@
-// src/app/page.tsx
-import { supabase } from '@/lib/supabaseClient';
+import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
 
 type Genre = {
   id: number;
@@ -8,79 +8,126 @@ type Genre = {
 
 export default async function Home() {
   const { data: genres, error } = await supabase
-    .from('genres') // ← ここから <Genre> を消した
-    .select('id, name')
-    .order('id', { ascending: true });
+    .from("genres")
+    .select("id, name")
+    .order("id", { ascending: true });
 
   if (error) {
-    console.error('ジャンル取得エラー:', error);
+    console.error("ジャンル取得エラー:", error);
   }
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        padding: '24px',
-        backgroundColor: '#050510',
-        color: '#f5f5f5',
-        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
-      }}
-    >
-      <h1 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '8px' }}>
-        デュオノベル
-      </h1>
-      <p style={{ marginBottom: '24px', opacity: 0.8 }}>
-        ※ 接続テスト用：Supabase からジャンル一覧を表示しています
-      </p>
+    <main className="min-h-screen bg-[#050510] px-6 py-8 text-[#f5f5f5]">
+      <div className="mx-auto w-full max-w-5xl">
+        <section className="overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.04] shadow-2xl">
+          <div className="grid gap-8 px-6 py-8 lg:grid-cols-[1.15fr_0.85fr] lg:px-8 lg:py-10">
+            <div>
+              <p className="text-xs tracking-[0.24em] text-neutral-500">
+                DUONOVEL
+              </p>
 
-      {error && (
-        <div
-          style={{
-            padding: '12px 16px',
-            borderRadius: '8px',
-            backgroundColor: '#331111',
-            color: '#ffaaaa',
-            marginBottom: '16px',
-          }}
-        >
-          ジャンルの取得中にエラーが発生しました。コンソールを確認してください。
-        </div>
-      )}
+              <h1 className="mt-3 text-3xl font-bold leading-tight text-white sm:text-4xl">
+                作品を探す
+              </h1>
 
-      <section>
-        <h2 style={{ fontSize: '20px', marginBottom: '12px' }}>
-          登録されているジャンル
-        </h2>
-        <ul
-          style={{
-            listStyle: 'none',
-            padding: 0,
-            display: 'flex',
-            gap: 8,
-            flexWrap: 'wrap',
-          }}
-        >
-          {genres?.map((g: Genre) => (
-            <li
-              key={g.id}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '999px',
-                border: '1px solid #444',
-                fontSize: '14px',
-              }}
-            >
-              {g.name}
-            </li>
-          ))}
-        </ul>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-300 sm:text-base">
+                タイトルやあらすじに含まれる言葉から作品を探せる最小版検索です。
+                まずは気になるワードで検索して、作品ページへ移動できる入口を作っています。
+              </p>
 
-        {!genres?.length && !error && (
-          <p style={{ marginTop: '8px', opacity: 0.7 }}>
-            ジャンルがまだ登録されていません。
-          </p>
-        )}
-      </section>
+              <form
+                action="/search"
+                method="get"
+                className="mt-6 flex flex-col gap-3 sm:flex-row"
+              >
+                <input
+                  type="text"
+                  name="q"
+                  placeholder="作品タイトル / キーワードで検索"
+                  className="h-12 flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white outline-none placeholder:text-neutral-500 focus:border-white/30"
+                />
+                <button
+                  type="submit"
+                  className="inline-flex h-12 items-center justify-center rounded-2xl bg-white px-5 text-sm font-semibold text-black transition hover:opacity-90"
+                >
+                  検索する
+                </button>
+              </form>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Link
+                  href="/search"
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white/10"
+                >
+                  検索ページへ
+                </Link>
+              </div>
+            </div>
+
+            <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+              <p className="text-xs tracking-[0.18em] text-neutral-500">
+                SEARCH GUIDE
+              </p>
+              <h2 className="mt-2 text-lg font-semibold text-white">
+                今の検索でできること
+              </h2>
+
+              <ul className="mt-4 space-y-3 text-sm leading-7 text-neutral-300">
+                <li className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                  作品タイトルから探せる
+                </li>
+                <li className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                  あらすじ・説明文に含まれる語も拾える
+                </li>
+                <li className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                  検索結果から作品ページへ移動できる
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs tracking-[0.18em] text-neutral-500">
+                GENRES
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-white">
+                登録されているジャンル
+              </h2>
+            </div>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
+              接続確認用
+            </span>
+          </div>
+
+          {error && (
+            <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+              ジャンルの取得中にエラーが発生しました。コンソールを確認してください。
+            </div>
+          )}
+
+          <div className="mt-5">
+            <ul className="flex flex-wrap gap-2">
+              {genres?.map((genre: Genre) => (
+                <li
+                  key={genre.id}
+                  className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-sm text-neutral-200"
+                >
+                  {genre.name}
+                </li>
+              ))}
+            </ul>
+
+            {!genres?.length && !error && (
+              <p className="mt-3 text-sm text-neutral-400">
+                ジャンルがまだ登録されていません。
+              </p>
+            )}
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
