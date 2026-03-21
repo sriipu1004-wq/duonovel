@@ -2,7 +2,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 type Genre = {
-  id: number;
+  id: number | string;
   name: string;
 };
 
@@ -31,8 +31,8 @@ export default async function Home() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-300 sm:text-base">
-                タイトルやあらすじから作品を探したり、人気作品ランキングから気になる作品を見つけたりできる入口です。
-                まずは検索とランキングの最小導線をまとめています。
+                キーワード検索、ランキング、ジャンル絞り込みから作品を見つけられる最小版の発見導線です。
+                まずは作品ページへ迷わず移動できる入口を揃えています。
               </p>
 
               <form
@@ -81,13 +81,13 @@ export default async function Home() {
 
               <ul className="mt-4 space-y-3 text-sm leading-7 text-neutral-300">
                 <li className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                  作品タイトルから検索できる
-                </li>
-                <li className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                  あらすじ・説明文に含まれる語も拾える
+                  キーワードで作品を検索できる
                 </li>
                 <li className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                   ランキング一覧から人気作品を見られる
+                </li>
+                <li className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                  ジャンルから絞り込みへ入れる
                 </li>
                 <li className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                   一覧からそのまま作品ページへ移動できる
@@ -104,13 +104,17 @@ export default async function Home() {
                 GENRES
               </p>
               <h2 className="mt-2 text-xl font-semibold text-white">
-                登録されているジャンル
+                ジャンルから探す
               </h2>
             </div>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
-              接続確認用
+              最小版
             </span>
           </div>
+
+          <p className="mt-3 text-sm leading-7 text-neutral-400">
+            ジャンル名を起点に、検索ページで作品を絞り込みます。
+          </p>
 
           {error && (
             <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
@@ -121,11 +125,13 @@ export default async function Home() {
           <div className="mt-5">
             <ul className="flex flex-wrap gap-2">
               {genres?.map((genre: Genre) => (
-                <li
-                  key={genre.id}
-                  className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-sm text-neutral-200"
-                >
-                  {genre.name}
+                <li key={String(genre.id)}>
+                  <Link
+                    href={`/search?genre=${encodeURIComponent(genre.name)}`}
+                    className="inline-flex rounded-full border border-white/10 bg-black/20 px-3 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    {genre.name}
+                  </Link>
                 </li>
               ))}
             </ul>
