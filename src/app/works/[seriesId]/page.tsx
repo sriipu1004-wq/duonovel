@@ -559,8 +559,8 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                       続きから読む
                     </h2>
                   </div>
-                  <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
-                    仮実装
+                  <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">
+                    DB優先
                   </div>
                 </div>
 
