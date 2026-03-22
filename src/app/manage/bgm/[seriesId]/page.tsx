@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import BgmManageForm from "@/features/manage/BgmManageForm";
 
 type PageProps = {
@@ -39,7 +39,10 @@ function getEpisodeNumber(episode: EpisodeRow): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
+async function fetchEpisodesBySeriesId(
+  supabase: Awaited<ReturnType<typeof requireLoggedInUser>>["supabase"],
+  seriesId: string
+): Promise<EpisodeRow[]> {
   const firstTry = await supabase
     .from("episodes")
     .select("*")
@@ -63,6 +66,8 @@ async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> 
 
 export default async function ManageBgmPage({ params }: PageProps) {
   const { seriesId } = await params;
+  const nextPath = `/manage/bgm/${seriesId}`;
+  const { supabase } = await requireLoggedInUser(nextPath);
 
   const { data: seriesData, error: seriesError } = await supabase
     .from("series")
@@ -75,7 +80,7 @@ export default async function ManageBgmPage({ params }: PageProps) {
   }
 
   const series = seriesData as SeriesRow;
-  const episodes = await fetchEpisodesBySeriesId(seriesId);
+  const episodes = await fetchEpisodesBySeriesId(supabase, seriesId);
 
   const sortedEpisodes = episodes
     .slice()

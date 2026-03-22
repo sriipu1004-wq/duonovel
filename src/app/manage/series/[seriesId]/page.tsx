@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -46,7 +46,10 @@ function parseTags(raw: unknown): string[] {
   return [];
 }
 
-async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
+async function fetchEpisodesBySeriesId(
+  supabase: Awaited<ReturnType<typeof requireLoggedInUser>>["supabase"],
+  seriesId: string
+): Promise<EpisodeRow[]> {
   const firstTry = await supabase
     .from("episodes")
     .select("id")
@@ -86,9 +89,7 @@ function ManageLinkCard({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs tracking-[0.18em] text-neutral-500">
-            MANAGE
-          </p>
+          <p className="text-xs tracking-[0.18em] text-neutral-500">MANAGE</p>
           <h2 className="mt-2 text-xl font-semibold text-white transition group-hover:text-neutral-100">
             {title}
           </h2>
@@ -128,6 +129,8 @@ function StatCard({
 
 export default async function ManageSeriesHubPage({ params }: PageProps) {
   const { seriesId } = await params;
+  const nextPath = `/manage/series/${seriesId}`;
+  const { supabase } = await requireLoggedInUser(nextPath);
 
   const { data: seriesData, error: seriesError } = await supabase
     .from("series")
@@ -145,7 +148,7 @@ export default async function ManageSeriesHubPage({ params }: PageProps) {
     pickText(series.summary, series.description) ||
     "作品単位で管理機能へ入るための最小ハブ。";
   const tags = parseTags(series.tags);
-  const episodes = await fetchEpisodesBySeriesId(seriesId);
+  const episodes = await fetchEpisodesBySeriesId(supabase, seriesId);
   const hasSeriesBgm =
     pickText(series.bgm_title, series.bgm_audio_path).length > 0;
 
