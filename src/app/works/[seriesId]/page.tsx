@@ -167,6 +167,10 @@ function buildWorksHref(
   return `/works/${seriesId}?${query.toString()}`;
 }
 
+function buildManageSeriesHref(seriesId: string): string {
+  return `/manage/series/${seriesId}`;
+}
+
 function buildAuthorHref(authorId: string): string {
   return `/authors/${encodeURIComponent(authorId)}`;
 }
@@ -609,37 +613,53 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
               </section>
 
               <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  SETTINGS
-                </p>
-                <h2 className="mt-2 text-lg font-semibold text-white">
-                  配布・設定エリア
-                </h2>
+  <div className="flex items-center justify-between gap-3">
+    <div>
+      <p className="text-xs tracking-[0.18em] text-neutral-500">
+        SETTINGS / MANAGE
+      </p>
+      <h2 className="mt-2 text-lg font-semibold text-white">
+        配布・設定エリア
+      </h2>
+    </div>
 
-                <div className="mt-4 space-y-3">
-                  <button
-                    type="button"
-                    disabled
-                    className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-neutral-500"
-                  >
-                    <span>朗読音声をダウンロード</span>
-                    <span>許可制</span>
-                  </button>
+    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
+      HUB
+    </span>
+  </div>
 
-                  <button
-                    type="button"
-                    disabled
-                    className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-neutral-500"
-                  >
-                    <span>本文PDFを入手</span>
-                    <span>許可制</span>
-                  </button>
-                </div>
+  <div className="mt-4 space-y-3">
+    <Link
+      href={buildManageSeriesHref(seriesId)}
+      className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white px-4 py-3 text-left text-sm font-semibold text-black transition hover:opacity-90"
+    >
+      <span>作品管理ハブを開く</span>
+      <span>→</span>
+    </Link>
 
-                <p className="mt-4 text-sm leading-7 text-neutral-400">
-                  今は見た目だけ。あとで作者・朗読者の許可フラグと繋ぐ。
-                </p>
-              </section>
+    <button
+      type="button"
+      disabled
+      className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-neutral-500"
+    >
+      <span>朗読音声をダウンロード</span>
+      <span>許可制</span>
+    </button>
+
+    <button
+      type="button"
+      disabled
+      className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-neutral-500"
+    >
+      <span>本文PDFを入手</span>
+      <span>許可制</span>
+    </button>
+  </div>
+
+  <p className="mt-4 text-sm leading-7 text-neutral-400">
+    作品単位の管理ハブから、BGM管理とタグ管理へ入れる。権限制御は今回は広げず、入口追加だけに絞る。
+  </p>
+</section>
             </aside>
 
             <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
