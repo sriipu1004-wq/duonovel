@@ -142,6 +142,13 @@ export default function SeriesTagsManageForm({
 
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
+                href={`/manage/series/${seriesId}`}
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                管理ハブへ戻る
+              </Link>
+
+              <Link
                 href={`/manage/bgm/${seriesId}`}
                 className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
               >
@@ -174,9 +181,7 @@ export default function SeriesTagsManageForm({
 
               <div className="mt-5 grid gap-4">
                 <label className="grid gap-2">
-                  <span className="text-sm text-neutral-300">
-                    タグ入力欄
-                  </span>
+                  <span className="text-sm text-neutral-300">タグ入力欄</span>
 
                   <textarea
                     value={editorValue}
