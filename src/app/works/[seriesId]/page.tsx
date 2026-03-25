@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 import { supabase } from "@/lib/supabaseClient";
 import ContinueReadingCard from "@/features/bookmark/ContinueReadingCard";
 
@@ -322,7 +323,7 @@ function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
 
       const description =
         reader.description ||
-        `公開朗読 ${reader.recordingCount}件 / いいね ${reader.totalLikes} / 再生 ${reader.totalPlays}`;
+        `公開朗読 ${reader.recordingCount}件 / いいね ${reader.totalLikes} / 再生 ${reader.totalPlays}`;     
 
       return {
         readerKey: reader.key,
@@ -439,6 +440,19 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       author = userData as UserRow;
     }
   }
+
+  const authSupabase = await createServerClient();
+  const {
+    data: { user: currentUser },
+  } = await authSupabase.auth.getUser();
+
+  const ownerAuthorId =
+    typeof series.author_id === "string" ? series.author_id.trim() : "";
+
+  const canManageSeries =
+    !!currentUser &&
+    ownerAuthorId.length > 0 &&
+    currentUser.id === ownerAuthorId;
 
   const rawEpisodes = await fetchEpisodesBySeriesId(seriesId);
 
@@ -623,19 +637,26 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       </h2>
     </div>
 
-    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
+    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">     
       HUB
     </span>
   </div>
 
   <div className="mt-4 space-y-3">
-    <Link
-      href={buildManageSeriesHref(seriesId)}
-      className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white px-4 py-3 text-left text-sm font-semibold text-black transition hover:opacity-90"
-    >
-      <span>作品管理ハブを開く</span>
-      <span>→</span>
-    </Link>
+    {canManageSeries ? (
+      <Link
+        href={buildManageSeriesHref(seriesId)}
+        className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white px-4 py-3 text-left text-sm font-semibold text-black transition hover:opacity-90"
+      >
+        <span>作品管理ハブを開く</span>
+        <span>→</span>
+      </Link>
+    ) : (
+      <div className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-neutral-500">
+        <span>作品管理ハブ</span>
+        <span>所有者のみ</span>
+      </div>
+    )}
 
     <button
       type="button"
@@ -896,7 +917,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
         </section>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-white/10 bg-[#0a0a0a]/90 backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 border-t border-white/10 bg-[#0a0a0a]/90 backdrop-blur">      
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
             <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">

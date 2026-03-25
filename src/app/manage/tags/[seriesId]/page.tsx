@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
+import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
 import SeriesTagsManageForm from "@/features/manage/SeriesTagsManageForm";
 
 type PageProps = {
@@ -41,7 +41,7 @@ function parseInitialTags(raw: unknown): string[] {
 export default async function ManageSeriesTagsPage({ params }: PageProps) {
   const { seriesId } = await params;
   const nextPath = `/manage/tags/${seriesId}`;
-  const { supabase } = await requireLoggedInUser(nextPath);
+  const { supabase } = await requireOwnedSeries(seriesId, nextPath);
 
   const { data: seriesData, error: seriesError } = await supabase
     .from("series")

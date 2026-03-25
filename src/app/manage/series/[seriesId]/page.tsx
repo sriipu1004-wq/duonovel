@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
+import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -47,7 +47,7 @@ function parseTags(raw: unknown): string[] {
 }
 
 async function fetchEpisodesBySeriesId(
-  supabase: Awaited<ReturnType<typeof requireLoggedInUser>>["supabase"],
+  supabase: Awaited<ReturnType<typeof requireOwnedSeries>>["supabase"],
   seriesId: string
 ): Promise<EpisodeRow[]> {
   const firstTry = await supabase
@@ -89,7 +89,9 @@ function ManageLinkCard({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs tracking-[0.18em] text-neutral-500">MANAGE</p>
+          <p className="text-xs tracking-[0.18em] text-neutral-500">
+            MANAGE
+          </p>
           <h2 className="mt-2 text-xl font-semibold text-white transition group-hover:text-neutral-100">
             {title}
           </h2>
@@ -130,7 +132,7 @@ function StatCard({
 export default async function ManageSeriesHubPage({ params }: PageProps) {
   const { seriesId } = await params;
   const nextPath = `/manage/series/${seriesId}`;
-  const { supabase } = await requireLoggedInUser(nextPath);
+  const { supabase } = await requireOwnedSeries(seriesId, nextPath);
 
   const { data: seriesData, error: seriesError } = await supabase
     .from("series")
