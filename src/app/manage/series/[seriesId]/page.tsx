@@ -173,6 +173,13 @@ export default async function ManageSeriesHubPage({ params }: PageProps) {
 
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
+                href="/manage"
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                管理トップへ
+              </Link>
+
+              <Link
                 href={`/works/${seriesId}`}
                 className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
               >
