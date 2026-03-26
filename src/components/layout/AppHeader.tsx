@@ -12,7 +12,7 @@ export default function AppHeader() {
             aria-label="ホームへ戻る"
           >
             <span className="text-base leading-none">🏠</span>
-            <span>デュオノベル</span>
+            <span>LIB read</span>
           </Link>
 
           <span className="hidden text-xs text-neutral-500 dark:text-neutral-400 sm:inline">
