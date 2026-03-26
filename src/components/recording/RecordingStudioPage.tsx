@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { RecordingPermissionMode } from "@/lib/recording/recordingEntry";
+import { RecordingUploadGuardCard } from "@/components/recording/RecordingUploadGuardCard";
 
 type EpisodeItem = {
   id: string;
@@ -39,14 +40,18 @@ export function RecordingStudioPage({
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string>(
     episodes[0]?.id ?? ""
   );
-  const [recordingTitle, setRecordingTitle] = useState<string>(`${seriesTitle} 朗読`);
+  const [recordingTitle, setRecordingTitle] = useState<string>(
+    `${seriesTitle} 朗読`
+  );
   const [bgmMode, setBgmMode] = useState<"none" | "select-later">("none");
   const [showMicGuide, setShowMicGuide] = useState(true);
   const [showReadingMemo, setShowReadingMemo] = useState(true);
   const [memo, setMemo] = useState("");
 
   const selectedEpisode = useMemo(() => {
-    return episodes.find((episode) => episode.id === selectedEpisodeId) ?? episodes[0];
+    return (
+      episodes.find((episode) => episode.id === selectedEpisodeId) ?? episodes[0]
+    );
   }, [episodes, selectedEpisodeId]);
 
   return (
@@ -145,18 +150,28 @@ export function RecordingStudioPage({
         </div>
 
         <div className="mt-5 rounded-[24px] border border-amber-400/20 bg-amber-400/10 p-5 text-sm leading-7 text-amber-100">
-          <p className="text-xs tracking-[0.18em] text-amber-200">BEFORE RECORDING</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">録音開始前の最小案内</h2>
+          <p className="text-xs tracking-[0.18em] text-amber-200">
+            BEFORE RECORDING
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-white">
+            録音開始前の最小案内
+          </h2>
           <ul className="mt-3 space-y-1">
-            <li>・今回は録音UIの外枠まで。保存やアップロード本体はまだ未実装</li>
-            <li>・マイク使用前に雑音、通知音、周囲の環境音を確認する</li>
-            <li>・本文と音声の自動同期や追尾は次段階で追加する</li>
+            <li>・今回は録音保存本体ではなく、保存前に弾く土台を先に置く</li>
+            <li>
+              ・無音、極端に短い音源、声以外主体の音源は保存前に止める方向で進める
+            </li>
+            <li>
+              ・最終的には upload route 側でも再検査して、client 判定だけに依存しないようにする
+            </li>
           </ul>
         </div>
 
         <div className="mt-5">
           <p className="text-xs tracking-[0.18em] text-neutral-500">SCRIPT</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">本文を見ながら制作する</h2>
+          <h2 className="mt-2 text-xl font-semibold text-white">
+            本文を見ながら制作する
+          </h2>
           <p className="mt-3 text-sm leading-7 text-neutral-400">
             将来ここに同期ポイント、読み位置マーカー、録音状態連動を足す。
           </p>
@@ -167,7 +182,9 @@ export function RecordingStudioPage({
             <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">EPISODE</p>
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">
+                    EPISODE
+                  </p>
                   <h3 className="mt-2 text-2xl font-semibold text-white">
                     第{selectedEpisode.episodeNumber}話 {selectedEpisode.title}
                   </h3>
@@ -200,7 +217,9 @@ export function RecordingStudioPage({
 
       <aside className="space-y-6">
         <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-          <p className="text-xs tracking-[0.18em] text-neutral-500">SETTINGS</p>
+          <p className="text-xs tracking-[0.18em] text-neutral-500">
+            SETTINGS
+          </p>
           <h2 className="mt-2 text-xl font-semibold text-white">最小設定枠</h2>
           <p className="mt-3 text-sm leading-7 text-neutral-400">
             今回は保存先ではなく、設定の受け皿だけを先に置く。
@@ -211,7 +230,9 @@ export function RecordingStudioPage({
               <span className="text-sm text-neutral-300">朗読タイトル</span>
               <input
                 value={recordingTitle}
-                onChange={(event) => setRecordingTitle(event.target.value)}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                  setRecordingTitle(event.target.value)
+                }
                 placeholder="例: 第1話 しっとり読み"
                 className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
               />
@@ -221,7 +242,7 @@ export function RecordingStudioPage({
               <span className="text-sm text-neutral-300">BGM設定</span>
               <select
                 value={bgmMode}
-                onChange={(event) =>
+                onChange={(event: React.ChangeEvent<HTMLSelectElement>) =>
                   setBgmMode(event.target.value as "none" | "select-later")
                 }
                 className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
@@ -239,7 +260,9 @@ export function RecordingStudioPage({
               <input
                 type="checkbox"
                 checked={showMicGuide}
-                onChange={(event) => setShowMicGuide(event.target.checked)}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                  setShowMicGuide(Boolean(event.target.checked))
+                }
                 className="mt-1 h-4 w-4"
               />
               <span className="text-sm leading-6 text-neutral-300">
@@ -251,7 +274,9 @@ export function RecordingStudioPage({
               <input
                 type="checkbox"
                 checked={showReadingMemo}
-                onChange={(event) => setShowReadingMemo(event.target.checked)}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                  setShowReadingMemo(Boolean(event.target.checked))
+                }
                 className="mt-1 h-4 w-4"
               />
               <span className="text-sm leading-6 text-neutral-300">
@@ -264,7 +289,9 @@ export function RecordingStudioPage({
                 <span className="text-sm text-neutral-300">制作メモ</span>
                 <textarea
                   value={memo}
-                  onChange={(event) => setMemo(event.target.value)}
+                  onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) =>
+                    setMemo(event.target.value)
+                  }
                   placeholder="読み分け、間の取り方、BGM候補など"
                   rows={6}
                   className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
@@ -275,32 +302,17 @@ export function RecordingStudioPage({
         </section>
 
         <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-          <p className="text-xs tracking-[0.18em] text-neutral-500">RECORDING UI</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">録音UI外枠</h2>
+          <p className="text-xs tracking-[0.18em] text-neutral-500">
+            UPLOAD CHECK
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-white">
+            音声アップロード前チェック最小版
+          </h2>
+          <p className="mt-3 text-sm leading-7 text-neutral-400">
+            file 選択直後に仮判定を行い、保存前に止めるための UI 土台をここに置く。
+          </p>
 
-          <div className="mt-5 space-y-3">
-            <button
-              type="button"
-              disabled
-              className="w-full cursor-not-allowed rounded-full bg-white px-5 py-3 text-sm font-semibold text-black opacity-50"
-            >
-              録音開始（次回実装）
-            </button>
-
-            <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-neutral-500">
-              将来ここに
-              <br />
-              ・録音開始 / 一時停止 / 再開
-              <br />
-              ・レベルメーター / 波形
-              <br />
-              ・本文同期ポイント
-              <br />
-              ・アップロード前チェック
-              <br />
-              を置く。
-            </div>
-          </div>
+          <RecordingUploadGuardCard />
         </section>
 
         <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
@@ -311,7 +323,8 @@ export function RecordingStudioPage({
             <li>・本文を見ながら制作準備</li>
             <li>・録音開始前の最小案内</li>
             <li>・BGM素材ページへの導線</li>
-            <li>・将来設定枠と録音UI差し込み土台</li>
+            <li>・設定枠と録音UI差し込み土台</li>
+            <li>・音声ファイル選択後の最小検査 UI 土台</li>
           </ul>
         </section>
       </aside>
