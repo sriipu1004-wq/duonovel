@@ -1,11 +1,7 @@
-import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  outputFileTracingRoot: path.resolve(process.cwd()),
-  experimental: {
-    preloadEntriesOnStart: false,
-  },
+  /* config options here */
 };
 
 export default nextConfig;
