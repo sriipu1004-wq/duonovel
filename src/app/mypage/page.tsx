@@ -145,7 +145,7 @@ export default async function MyPage() {
         <section className="overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
           <div className="border-b border-white/10 px-5 py-6 sm:px-8">
             <p className="text-xs tracking-[0.22em] text-neutral-500">
-              LIB READ MYPAGE
+              LIB read MYPAGE
             </p>
 
             <h1 className="mt-3 text-3xl font-bold text-white">

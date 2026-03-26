@@ -551,7 +551,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
           <div className="grid gap-6 border-b border-white/10 px-5 py-6 lg:grid-cols-[1.6fr_0.9fr] lg:px-8 lg:py-8">
             <div>
               <p className="text-xs tracking-[0.25em] text-neutral-500">
-                DUONOVEL WORK
+                LIB read WORK
               </p>
 
               <h1 className="mt-3 text-3xl font-bold leading-tight text-white sm:text-4xl">

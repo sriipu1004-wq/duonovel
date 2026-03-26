@@ -73,11 +73,12 @@ export default function WriteSeriesForm({
     setSuccessMessage("");
 
     const summaryVariants = buildSummaryValue(summary);
-    const payloads = summaryVariants.map((summaryFields) => ({
-      title: trimmedTitle,
-      author_id: currentUserId,
-      ...summaryFields,
-    }));
+const payloads: Array<Record<string, unknown>> = summaryVariants.map(
+  (summaryFields) => ({
+    title: trimmedTitle,
+    ...summaryFields,
+  })
+);
 
     payloads.push({
       title: trimmedTitle,
@@ -131,10 +132,13 @@ export default function WriteSeriesForm({
     setSuccessMessage("");
 
     const summaryVariants = buildSummaryValue(summary);
-    const payloads = summaryVariants.map((summaryFields) => ({
-      title: trimmedTitle,
-      ...summaryFields,
-    }));
+const payloads: Array<Record<string, unknown>> = summaryVariants.map(
+  (summaryFields) => ({
+    title: trimmedTitle,
+    author_id: currentUserId,
+    ...summaryFields,
+  })
+);
 
     payloads.push({
       title: trimmedTitle,

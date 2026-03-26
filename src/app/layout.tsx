@@ -13,9 +13,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
-  title: "デュオノベル",
-  description: "テキストと朗読を行き来できる小説投稿サイト",
+  title: "LIB read",
+  description: "LIB read（ライブリード）は、テキストと朗読を行き来できる小説投稿サイト",
 };
 
 export default function RootLayout({

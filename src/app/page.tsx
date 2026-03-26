@@ -23,7 +23,7 @@ export default async function Home() {
           <div className="grid gap-8 px-6 py-8 lg:grid-cols-[1.15fr_0.85fr] lg:px-8 lg:py-10">
             <div>
               <p className="text-xs tracking-[0.24em] text-neutral-500">
-                DUONOVEL
+                LIB read
               </p>
 
               <h1 className="mt-3 text-3xl font-bold leading-tight text-white sm:text-4xl">
@@ -31,7 +31,7 @@ export default async function Home() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-300 sm:text-base">
-                キーワード検索、ランキング、ジャンル絞り込みから作品を見つけられる最小版の発見導線です。
+                LIB read（ライブリード）で、キーワード検索、ランキング、ジャンル絞り込みから作品を見つけられる最小版の発見導線です。
                 まずは作品ページへ迷わず移動できる入口を揃えています。
               </p>
 

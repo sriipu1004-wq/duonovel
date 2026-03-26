@@ -116,7 +116,9 @@ export default function WriteEpisodeForm({
   const router = useRouter();
   const [episodeNumber, setEpisodeNumber] = useState(String(initialEpisodeNumber));
   const [title, setTitle] = useState(pickText(episode?.title));
-  const [body, setBody] = useState(getEpisodeBody(episode ?? {}));
+  const [body, setBody] = useState(
+  episode ? getEpisodeBody(episode) : ""
+);
   const [isPublished, setIsPublished] = useState(
     episode ? isPublishedEpisode(episode) : false
   );
