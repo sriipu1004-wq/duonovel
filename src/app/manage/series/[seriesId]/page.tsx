@@ -6,6 +6,9 @@ type PageProps = {
   params: Promise<{ seriesId: string }>;
 };
 
+type RecordingPermissionMode = "open" | "closed" | "approval_required";
+type RequestStatus = "pending" | "approved" | "rejected" | "cancelled";
+
 type SeriesRow = Record<string, unknown> & {
   id: string;
   title?: string | null;
@@ -14,10 +17,16 @@ type SeriesRow = Record<string, unknown> & {
   tags?: string[] | string | null;
   bgm_title?: string | null;
   bgm_audio_path?: string | null;
+  recording_permission_mode?: RecordingPermissionMode | null;
 };
 
 type EpisodeRow = Record<string, unknown> & {
   id: string;
+};
+
+type RecordingRequestSummaryRow = Record<string, unknown> & {
+  id: string;
+  status?: RequestStatus | null;
 };
 
 function pickText(...values: unknown[]): string {
@@ -69,6 +78,56 @@ async function fetchEpisodesBySeriesId(
   }
 
   return [];
+}
+
+async function fetchRecordingRequestsBySeriesId(
+  supabase: Awaited<ReturnType<typeof requireOwnedSeries>>["supabase"],
+  seriesId: string
+): Promise<RecordingRequestSummaryRow[]> {
+  const { data, error } = await supabase
+    .from("series_recording_requests")
+    .select("id, status")
+    .eq("series_id", seriesId);
+
+  if (error) {
+    return [];
+  }
+
+  return (data ?? []) as RecordingRequestSummaryRow[];
+}
+
+function getRecordingPermissionLabel(
+  mode: RecordingPermissionMode | null | undefined
+): string {
+  if (mode === "open") return "無条件許可";
+  if (mode === "approval_required") return "承認制";
+  return "非許可";
+}
+
+function getRecordingPermissionSub(
+  mode: RecordingPermissionMode | null | undefined
+): string {
+  if (mode === "open") {
+    return "朗読者は申請なしで朗読制作へ進める";
+  }
+  if (mode === "approval_required") {
+    return "朗読者は申請後、承認されるまで開始できない";
+  }
+  return "朗読募集なし。朗読制作ページでは非表示想定";
+}
+
+function normalizeRequestStatus(value: unknown): RequestStatus | null {
+  if (value === "pending") return "pending";
+  if (value === "approved") return "approved";
+  if (value === "rejected") return "rejected";
+  if (value === "cancelled") return "cancelled";
+  return null;
+}
+
+function countPendingRequests(requests: RecordingRequestSummaryRow[]): number {
+  return requests.filter(
+    (request) => normalizeRequestStatus(request.status) === "pending"
+  ).length;
 }
 
 function ManageLinkCard({
@@ -153,6 +212,12 @@ export default async function ManageSeriesHubPage({ params }: PageProps) {
   const episodes = await fetchEpisodesBySeriesId(supabase, seriesId);
   const hasSeriesBgm =
     pickText(series.bgm_title, series.bgm_audio_path).length > 0;
+  const recordingPermissionMode = series.recording_permission_mode ?? "closed";
+  const recordingRequests = await fetchRecordingRequestsBySeriesId(
+    supabase,
+    seriesId
+  );
+  const pendingRequestCount = countPendingRequests(recordingRequests);
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
@@ -199,11 +264,25 @@ export default async function ManageSeriesHubPage({ params }: PageProps) {
               >
                 タグ管理へ
               </Link>
+
+              <Link
+                href={`/manage/recording-permission/${seriesId}`}
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                朗読許可管理へ
+              </Link>
+
+              <Link
+                href={`/manage/recording-requests/${seriesId}`}
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                朗読申請一覧へ
+              </Link>
             </div>
           </div>
 
           <div className="grid gap-6 px-5 py-6 sm:px-8">
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               <StatCard
                 label="EPISODES"
                 value={`${episodes.length}話`}
@@ -219,9 +298,19 @@ export default async function ManageSeriesHubPage({ params }: PageProps) {
                 value={hasSeriesBgm ? "設定あり" : "未設定"}
                 sub="作品共通BGMの現在状態"
               />
+              <StatCard
+                label="RECORDING"
+                value={getRecordingPermissionLabel(recordingPermissionMode)}
+                sub="作品ごとの朗読可否ルール"
+              />
+              <StatCard
+                label="REQUESTS"
+                value={`${pendingRequestCount}件`}
+                sub="現在 pending の申請数"
+              />
             </div>
 
-            <section className="grid gap-4 md:grid-cols-2">
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <ManageLinkCard
                 href={`/manage/bgm/${seriesId}`}
                 title="BGM管理"
@@ -235,6 +324,55 @@ export default async function ManageSeriesHubPage({ params }: PageProps) {
                 description="作品タグ canonical source の series.tags を編集する。"
                 badge="TAGS"
               />
+
+              <ManageLinkCard
+                href={`/manage/recording-permission/${seriesId}`}
+                title="朗読許可管理"
+                description="作品ごとの朗読可否を、無条件許可・非許可・承認制の3状態で管理する。"
+                badge="RECORDING"
+              />
+
+              <ManageLinkCard
+                href={`/manage/recording-requests/${seriesId}`}
+                title="朗読申請一覧"
+                description="承認制作品に届いた朗読申請を一覧で確認する。今回は閲覧まで。"
+                badge="REQUESTS"
+              />
+            </section>
+
+            <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+              <p className="text-xs tracking-[0.18em] text-neutral-500">
+                RECORDING RULE
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-white">
+                現在の朗読可否
+              </h2>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
+                現在値:{" "}
+                <span className="font-semibold text-white">
+                  {getRecordingPermissionLabel(recordingPermissionMode)}
+                </span>
+                <br />
+                {getRecordingPermissionSub(recordingPermissionMode)}
+              </div>
+            </section>
+
+            <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+              <p className="text-xs tracking-[0.18em] text-neutral-500">
+                REQUEST QUEUE
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-white">
+                朗読申請の現在地
+              </h2>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
+                pending: {pendingRequestCount} 件
+                <br />
+                総申請数: {recordingRequests.length} 件
+                <br />
+                詳細確認は「朗読申請一覧」から行う。
+              </div>
             </section>
 
             <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
@@ -263,7 +401,8 @@ export default async function ManageSeriesHubPage({ params }: PageProps) {
               </div>
 
               <p className="mt-4 text-sm leading-7 text-neutral-400">
-                今回の管理ハブは最小版。管理対象は BGM とタグの2導線に絞っている。
+                今回の管理ハブは最小版。管理対象は BGM / タグ / 朗読許可 /
+                朗読申請一覧 の4導線。
               </p>
             </section>
           </div>

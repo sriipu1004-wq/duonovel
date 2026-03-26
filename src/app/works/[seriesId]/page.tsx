@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import ContinueReadingCard from "@/features/bookmark/ContinueReadingCard";
 
 type PageProps = {
+  recording_permission_mode?: RecordingPermissionMode | null;
   params: Promise<{ seriesId: string }>;
   searchParams?: Promise<{
     tab?: string;
@@ -12,6 +13,8 @@ type PageProps = {
     readerName?: string;
   }>;
 };
+
+type RecordingPermissionMode = "open" | "closed" | "approval_required";
 
 type SeriesRow = Record<string, unknown> & {
   id: string;
@@ -187,6 +190,50 @@ function buildReaderHref(readerKey: string, readerName?: string): string {
   query.set("name", readerName);
 
   return `/readers/${encodedKey}?${query.toString()}`;
+}
+
+function buildRecordingRequestHref(seriesId: string): string {
+  return `/recording-request/${seriesId}`;
+}
+
+function getRecordingPermissionLabel(
+  mode: RecordingPermissionMode | null | undefined
+): string {
+  if (mode === "open") return "無条件許可";
+  if (mode === "approval_required") return "承認制";
+  return "非許可";
+}
+
+function getRecordingPermissionDescription(
+  mode: RecordingPermissionMode | null | undefined
+): string {
+  if (mode === "open") {
+    return "第三者朗読をそのまま開始できる作品。";
+  }
+  if (mode === "approval_required") {
+    return "第三者朗読は承認制。申請導線は今後追加予定。";
+  }
+  return "第三者朗読の募集は行っていない。";
+}
+
+function getRecordingPermissionBadgeClass(
+  mode: RecordingPermissionMode | null | undefined
+): string {
+  if (mode === "open") {
+    return "border-emerald-400/20 bg-emerald-400/10 text-emerald-200";
+  }
+  if (mode === "approval_required") {
+    return "border-amber-400/20 bg-amber-400/10 text-amber-200";
+  }
+  return "border-white/10 bg-white/5 text-neutral-300";
+}
+
+function normalizeRecordingPermissionMode(
+  value: unknown
+): RecordingPermissionMode {
+  if (value === "open") return "open";
+  if (value === "approval_required") return "approval_required";
+  return "closed";
 }
 
 async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
@@ -485,6 +532,10 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       series.catch_copy
     ) || "あらすじはまだ登録されていません。";
 
+  const recordingPermissionMode = normalizeRecordingPermissionMode(
+  series.recording_permission_mode
+);
+
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
       <div className="mx-auto w-full max-w-5xl px-4 pb-28 pt-6 sm:px-6 lg:px-8">
@@ -522,6 +573,23 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                     {authorName}
                   </span>
                 )}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <span className="text-sm text-neutral-500">朗読可否</span>
+
+                 <span
+                   className={[
+                      "rounded-full border px-3 py-1 text-sm",
+                      getRecordingPermissionBadgeClass(recordingPermissionMode),
+                    ].join(" ")}
+                  >
+                     {getRecordingPermissionLabel(recordingPermissionMode)}
+                  </span>
+
+                  <span className="text-sm text-neutral-400">
+                    {getRecordingPermissionDescription(recordingPermissionMode)}
+                  </span>
               </div>
 
               <p className="mt-6 whitespace-pre-wrap text-[15px] leading-8 text-neutral-300">
@@ -579,6 +647,14 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                     作者ページへ
                   </Link>
                 ) : null}
+                {recordingPermissionMode === "approval_required" ? (
+  <Link
+    href={buildRecordingRequestHref(seriesId)}
+    className="rounded-full border border-amber-400/20 bg-amber-400/10 px-5 py-3 text-sm text-amber-200 transition hover:bg-amber-400/20"
+  >
+    朗読申請へ
+  </Link>
+) : null}
               </div>
             </div>
 
@@ -641,6 +717,25 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       HUB
     </span>
   </div>
+
+  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+  <div className="flex flex-wrap items-center gap-3">
+    <span className="text-sm text-neutral-500">現在の朗読可否</span>
+    <span
+      className={[
+        "rounded-full border px-3 py-1 text-sm",
+        getRecordingPermissionBadgeClass(recordingPermissionMode),
+      ].join(" ")}
+    >
+
+      {getRecordingPermissionLabel(recordingPermissionMode)}
+    </span>
+  </div>
+
+  <p className="mt-3 text-sm leading-7 text-neutral-400">
+    {getRecordingPermissionDescription(recordingPermissionMode)}
+  </p>
+</div>
 
   <div className="mt-4 space-y-3">
     {canManageSeries ? (
