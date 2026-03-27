@@ -27,9 +27,47 @@ type BgmPreference = {
   volume: number;
 };
 
+type BgmErrorState = {
+  src: string;
+  message: string;
+};
+
+const DEFAULT_BGM_PREFERENCE: BgmPreference = {
+  enabled: true,
+  volume: 0.35,
+};
+
 function clampVolume(value: number): number {
   if (!Number.isFinite(value)) return 0.35;
   return Math.min(1, Math.max(0, value));
+}
+
+function readStoredBgmPreference(seriesId: string): BgmPreference {
+  if (typeof window === "undefined") {
+    return DEFAULT_BGM_PREFERENCE;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(`duonovel:bgm:${seriesId}`);
+    if (!raw) {
+      return DEFAULT_BGM_PREFERENCE;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<BgmPreference>;
+
+    return {
+      enabled:
+        typeof parsed.enabled === "boolean"
+          ? parsed.enabled
+          : DEFAULT_BGM_PREFERENCE.enabled,
+      volume:
+        typeof parsed.volume === "number"
+          ? clampVolume(parsed.volume)
+          : DEFAULT_BGM_PREFERENCE.volume,
+    };
+  } catch {
+    return DEFAULT_BGM_PREFERENCE;
+  }
 }
 
 export default function BgmController({
@@ -43,9 +81,16 @@ export default function BgmController({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeFrameRef = useRef<number | null>(null);
 
-  const [enabled, setEnabled] = useState(true);
-  const [volume, setVolume] = useState(0.35);
-  const [audioError, setAudioError] = useState("");
+  const [preference, setPreference] = useState<BgmPreference>(() =>
+    readStoredBgmPreference(seriesId)
+  );
+  const [audioError, setAudioError] = useState<BgmErrorState>({
+    src: "",
+    message: "",
+  });
+
+  const enabled = preference.enabled;
+  const volume = preference.volume;
 
   const playableBgmSrc = useMemo(() => {
     const value = (bgmSrc ?? "").trim();
@@ -57,6 +102,9 @@ export default function BgmController({
 
     return "";
   }, [bgmSrc]);
+
+  const visibleAudioError =
+    audioError.src === playableBgmSrc ? audioError.message : "";
 
   const fadeInSeconds = bgmSettings?.fadeInSeconds ?? 0;
   const fadeOutSeconds = bgmSettings?.fadeOutSeconds ?? 0;
@@ -129,23 +177,6 @@ export default function BgmController({
 
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(`duonovel:bgm:${seriesId}`);
-      if (!raw) return;
-
-      const parsed = JSON.parse(raw) as Partial<BgmPreference>;
-      if (typeof parsed.enabled === "boolean") {
-        setEnabled(parsed.enabled);
-      }
-      if (typeof parsed.volume === "number") {
-        setVolume(clampVolume(parsed.volume));
-      }
-    } catch {
-      // 読み込み失敗時はデフォルト継続
-    }
-  }, [seriesId]);
-
-  useEffect(() => {
-    try {
       const payload: BgmPreference = {
         enabled,
         volume,
@@ -175,61 +206,66 @@ export default function BgmController({
     audio.pause();
     audio.currentTime = 0;
     audio.volume = 0;
-    setAudioError("");
     audio.load();
   }, [playableBgmSrc, cancelFade]);
 
   useEffect(() => {
-const audio = audioRef.current;
-if (!audio) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
-const targetAudio = audio;
+    const targetAudio = audio;
 
-targetAudio.loop = true;
+    targetAudio.loop = true;
 
-if (!playableBgmSrc) {
-  cancelFade();
-  targetAudio.pause();
-  return;
-}
-
-if (!enabled || !isNarrationPlaying) {
-  fadeOutAndPause(fadeOutSeconds);
-  return;
-}
-
-const targetVolume = clampVolume(volume);
-let cancelled = false;
-
-async function playBgm() {
-  try {
-    setAudioError("");
-
-    if (targetAudio.paused) {
-      targetAudio.volume = fadeInSeconds > 0 ? 0 : targetVolume;
-      await targetAudio.play();
-
-      if (cancelled) {
-        targetAudio.pause();
-        return;
-      }
-
-      if (fadeInSeconds > 0) {
-        animateVolume(targetVolume, fadeInSeconds);
-      } else {
-        targetAudio.volume = targetVolume;
-      }
-
+    if (!playableBgmSrc) {
+      cancelFade();
+      targetAudio.pause();
       return;
     }
 
-    animateVolume(targetVolume, 0.12);
-  } catch {
-    setAudioError("BGMの再生を開始できなかった");
-  }
-}
+    if (!enabled || !isNarrationPlaying) {
+      fadeOutAndPause(fadeOutSeconds);
+      return;
+    }
 
-void playBgm();
+    const targetVolume = clampVolume(volume);
+    let cancelled = false;
+
+    async function playBgm() {
+      try {
+        setAudioError({
+          src: playableBgmSrc,
+          message: "",
+        });
+
+        if (targetAudio.paused) {
+          targetAudio.volume = fadeInSeconds > 0 ? 0 : targetVolume;
+          await targetAudio.play();
+
+          if (cancelled) {
+            targetAudio.pause();
+            return;
+          }
+
+          if (fadeInSeconds > 0) {
+            animateVolume(targetVolume, fadeInSeconds);
+          } else {
+            targetAudio.volume = targetVolume;
+          }
+
+          return;
+        }
+
+        animateVolume(targetVolume, 0.12);
+      } catch {
+        setAudioError({
+          src: playableBgmSrc,
+          message: "BGMの再生を開始できなかった",
+        });
+      }
+    }
+
+    void playBgm();
 
     return () => {
       cancelled = true;
@@ -254,7 +290,17 @@ void playBgm();
 
   function handleVolumeChange(event: ChangeEvent<HTMLInputElement>) {
     const nextVolume = clampVolume(Number(event.target.value));
-    setVolume(nextVolume);
+    setPreference((prev) => ({
+      ...prev,
+      volume: nextVolume,
+    }));
+  }
+
+  function handleToggleEnabled() {
+    setPreference((prev) => ({
+      ...prev,
+      enabled: !prev.enabled,
+    }));
   }
 
   if (!isOpen) {
@@ -281,7 +327,7 @@ void playBgm();
 
         <button
           type="button"
-          onClick={() => setEnabled((prev) => !prev)}
+          onClick={handleToggleEnabled}
           className={[
             "rounded-full px-4 py-2 text-sm font-medium transition",
             enabled
@@ -344,9 +390,9 @@ void playBgm();
         場面展開でのBGM切り替えは、保存枠だけ先に置いて次段でつなぐ。
       </p>
 
-      {audioError ? (
+      {visibleAudioError ? (
         <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
-          {audioError}
+          {visibleAudioError}
         </div>
       ) : null}
     </div>

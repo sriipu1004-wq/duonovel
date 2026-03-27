@@ -58,23 +58,108 @@ function getDecisionTone(decision: AudioUploadDecision): string {
   return "border-white/10 bg-white/[0.03] text-neutral-300";
 }
 
+function getStageDecisionLabel(
+  decision: AudioUploadDecision,
+  idleLabel = "未実行"
+): string {
+  if (decision === "idle") return idleLabel;
+  return getDecisionLabel(decision);
+}
+
+type UploadCheckApiResponse = {
+  ok: boolean;
+  result?: AudioUploadCheckResult;
+  error?: string;
+};
+
 export function RecordingUploadGuardCard() {
   const [selectedFileName, setSelectedFileName] = useState("");
   const [selectedFileSize, setSelectedFileSize] = useState(0);
-  const [result, setResult] = useState<AudioUploadCheckResult | null>(null);
-  const [decision, setDecision] = useState<AudioUploadDecision>("idle");
+
+  const [clientResult, setClientResult] = useState<AudioUploadCheckResult | null>(
+    null
+  );
+  const [clientDecision, setClientDecision] =
+    useState<AudioUploadDecision>("idle");
+
+  const [serverResult, setServerResult] = useState<AudioUploadCheckResult | null>(
+    null
+  );
+  const [serverDecision, setServerDecision] =
+    useState<AudioUploadDecision>("idle");
+
   const [unexpectedError, setUnexpectedError] = useState("");
 
-  const canProceed = useMemo(() => canProceedWithAudioUpload(result), [result]);
+  const finalDecision = useMemo<AudioUploadDecision>(() => {
+    if (unexpectedError) return "rejected";
+    if (serverDecision === "checking") return "checking";
+    if (serverDecision !== "idle") return serverDecision;
+    return clientDecision;
+  }, [clientDecision, serverDecision, unexpectedError]);
+
+  const canProceed = useMemo(() => {
+    return (
+      canProceedWithAudioUpload(clientResult) &&
+      serverResult?.decision === "passed"
+    );
+  }, [clientResult, serverResult]);
+
+  const resultMessage = useMemo(() => {
+    if (unexpectedError) return unexpectedError;
+    if (serverDecision === "checking") {
+      return "client 仮判定は通過。続けて server 側保存前チェックを実行中。";
+    }
+    return (
+      serverResult?.message ||
+      clientResult?.message ||
+      "ファイルを選ぶとここに判定結果が出る"
+    );
+  }, [clientResult, serverDecision, serverResult, unexpectedError]);
+
+  const retryHints = useMemo(() => {
+    if (serverResult?.retryHints?.length) return serverResult.retryHints;
+    if (clientResult?.retryHints?.length) return clientResult.retryHints;
+    return [];
+  }, [clientResult, serverResult]);
+
+  async function runServerPrecheck(file: File): Promise<void> {
+    setServerDecision("checking");
+    setServerResult(null);
+
+    const formData = new FormData();
+    formData.append("audio", file);
+
+    const response = await fetch("/api/recordings/upload-check", {
+      method: "POST",
+      body: formData,
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | UploadCheckApiResponse
+      | null;
+
+    if (payload?.result) {
+      setServerResult(payload.result);
+      setServerDecision(payload.result.decision);
+      return;
+    }
+
+    throw new Error(
+      payload?.error ||
+        "server 側保存前チェック route から想定外レスポンスが返った。"
+    );
+  }
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
     setUnexpectedError("");
-    setResult(null);
+    setClientResult(null);
+    setServerResult(null);
+    setClientDecision("idle");
+    setServerDecision("idle");
 
     if (!file) {
-      setDecision("idle");
       setSelectedFileName("");
       setSelectedFileSize(0);
       return;
@@ -82,17 +167,24 @@ export function RecordingUploadGuardCard() {
 
     setSelectedFileName(file.name);
     setSelectedFileSize(file.size);
-    setDecision("checking");
+    setClientDecision("checking");
 
     try {
-      const nextResult = await analyzeAudioUploadClient(file);
-      setResult(nextResult);
-      setDecision(nextResult.decision);
+      const nextClientResult = await analyzeAudioUploadClient(file);
+      setClientResult(nextClientResult);
+      setClientDecision(nextClientResult.decision);
+
+      if (nextClientResult.decision !== "passed") {
+        setServerDecision("idle");
+        return;
+      }
+
+      await runServerPrecheck(file);
     } catch (error) {
       console.error("audio upload validation failed", error);
-      setDecision("rejected");
+      setServerDecision("rejected");
       setUnexpectedError(
-        "検査中に想定外エラーが出た。今は安全側で保存停止にしている。"
+        "server 側保存前チェック中に想定外エラーが出た。今は安全側で保存停止にしている。"
       );
     }
   }
@@ -101,8 +193,9 @@ export function RecordingUploadGuardCard() {
     <div className="mt-5 space-y-4">
       <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
         <p className="text-sm leading-7 text-neutral-300">
-          ここでは、音声ファイル選択後に最小チェックを走らせる。今は upload 本体未実装なので、
-          実際に保存はしない。ただし UI 上は「保存前に止める」動きを先に確認できる。
+          ここでは、ファイル選択直後に client 仮判定を走らせ、そのあと server
+          側保存前チェックも通す。今は保存本体未実装なので実保存はしないが、
+          二段階で止める動きを先に確認できる。
         </p>
 
         <label className="mt-4 block">
@@ -123,7 +216,7 @@ export function RecordingUploadGuardCard() {
       </div>
 
       <div
-        className={["rounded-[24px] border p-4", getDecisionTone(decision)].join(
+        className={["rounded-[24px] border p-4", getDecisionTone(finalDecision)].join(
           " "
         )}
       >
@@ -133,7 +226,7 @@ export function RecordingUploadGuardCard() {
               UPLOAD CHECK STATUS
             </p>
             <h3 className="mt-2 text-lg font-semibold text-white">
-              保存前判定: {getDecisionLabel(decision)}
+              保存前最終判定: {getDecisionLabel(finalDecision)}
             </h3>
           </div>
 
@@ -153,20 +246,36 @@ export function RecordingUploadGuardCard() {
 
           <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
             <p className="text-xs tracking-[0.14em] text-neutral-500">RESULT</p>
-            <p className="mt-2">
-              {unexpectedError ||
-                result?.message ||
-                "ファイルを選ぶとここに仮判定が出る"}
+            <p className="mt-2">{resultMessage}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
+            <p className="text-xs tracking-[0.14em] text-neutral-500">
+              CLIENT 仮判定
+            </p>
+            <p className="mt-2 text-lg font-semibold text-white">
+              {getDecisionLabel(clientDecision)}
+            </p>
+          </div>
+
+          <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
+            <p className="text-xs tracking-[0.14em] text-neutral-500">
+              SERVER 保存前チェック
+            </p>
+            <p className="mt-2 text-lg font-semibold text-white">
+              {getStageDecisionLabel(serverDecision)}
             </p>
           </div>
         </div>
 
-        {result?.metrics ? (
+        {clientResult?.metrics ? (
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
               <p className="text-xs tracking-[0.14em] text-neutral-500">長さ</p>
               <p className="mt-2 text-lg font-semibold text-white">
-                {formatSeconds(result.metrics.durationSeconds)}
+                {formatSeconds(clientResult.metrics.durationSeconds)}
               </p>
             </div>
 
@@ -175,7 +284,7 @@ export function RecordingUploadGuardCard() {
                 声らしい区間
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
-                {formatPercent(result.metrics.speechWindowRatio)}
+                {formatPercent(clientResult.metrics.speechWindowRatio)}
               </p>
             </div>
 
@@ -184,7 +293,7 @@ export function RecordingUploadGuardCard() {
                 無音割合
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
-                {formatPercent(result.metrics.pauseRatio)}
+                {formatPercent(clientResult.metrics.pauseRatio)}
               </p>
             </div>
 
@@ -193,7 +302,7 @@ export function RecordingUploadGuardCard() {
                 音が入っている割合
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
-                {formatPercent(result.metrics.activeRatio)}
+                {formatPercent(clientResult.metrics.activeRatio)}
               </p>
             </div>
 
@@ -202,7 +311,7 @@ export function RecordingUploadGuardCard() {
                 環境音っぽさ
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
-                {formatPercent(result.metrics.noisyWindowRatio)}
+                {formatPercent(clientResult.metrics.noisyWindowRatio)}
               </p>
             </div>
 
@@ -211,19 +320,19 @@ export function RecordingUploadGuardCard() {
                 連続音っぽさ
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
-                {formatPercent(result.metrics.continuousSoundRatio)}
+                {formatPercent(clientResult.metrics.continuousSoundRatio)}
               </p>
             </div>
           </div>
         ) : null}
 
-        {result?.retryHints?.length ? (
+        {retryHints.length ? (
           <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-4">
             <p className="text-xs tracking-[0.14em] text-neutral-500">
               RETRY GUIDE
             </p>
             <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-200">
-              {result.retryHints.map((hint) => (
+              {retryHints.map((hint) => (
                 <li key={hint}>・{hint}</li>
               ))}
             </ul>
@@ -242,12 +351,12 @@ export function RecordingUploadGuardCard() {
             ].join(" ")}
           >
             {canProceed
-              ? "この音源は保存前チェック通過"
+              ? "client / server 両方の保存前チェック通過"
               : "この音源では今は保存しない"}
           </button>
 
           <span className="rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-300">
-            将来は upload route 側でも再検査する前提
+            保存本体でも server helper を再利用する前提
           </span>
         </div>
       </div>

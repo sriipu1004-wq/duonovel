@@ -70,6 +70,62 @@ type DisplayPreference = {
   lineHeight: LineHeightPreset;
 };
 
+const DEFAULT_DISPLAY_PREFERENCE: DisplayPreference = {
+  theme: "normal",
+  fontScale: 1.06,
+  lineHeight: "normal",
+};
+
+function readStoredDisplayPreference(seriesId: string): DisplayPreference {
+  if (typeof window === "undefined") {
+    return DEFAULT_DISPLAY_PREFERENCE;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(`duonovel:display:${seriesId}`);
+    if (!raw) {
+      return DEFAULT_DISPLAY_PREFERENCE;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<DisplayPreference>;
+
+    return {
+      theme:
+        parsed.theme === "normal" ||
+        parsed.theme === "invert" ||
+        parsed.theme === "sepia"
+          ? parsed.theme
+          : DEFAULT_DISPLAY_PREFERENCE.theme,
+      fontScale:
+        typeof parsed.fontScale === "number"
+          ? clampFontScale(parsed.fontScale)
+          : DEFAULT_DISPLAY_PREFERENCE.fontScale,
+      lineHeight:
+        parsed.lineHeight === "compact" ||
+        parsed.lineHeight === "normal" ||
+        parsed.lineHeight === "wide"
+          ? parsed.lineHeight
+          : DEFAULT_DISPLAY_PREFERENCE.lineHeight,
+    };
+  } catch {
+    return DEFAULT_DISPLAY_PREFERENCE;
+  }
+}
+
+function getLocalResumePrimaryKey(targetSeriesId: string): string {
+  return `duonovel:read-progress:${targetSeriesId}`;
+}
+
+function getLocalResumeLegacyKeys(targetSeriesId: string): string[] {
+  return [
+    getLocalResumePrimaryKey(targetSeriesId),
+    `duonovel:resume:${targetSeriesId}`,
+    `duonovel:bookmark:${targetSeriesId}`,
+    `read-progress:${targetSeriesId}`,
+    `read_resume:${targetSeriesId}`,
+  ];
+}
+
 function formatTime(value: number): string {
   if (!Number.isFinite(value) || value < 0) return "0:00";
 
@@ -209,22 +265,11 @@ export default function EpisodePlayback({
   const hasAppliedInitialSeekRef = useRef(false);
   const bookmarkToastTimeoutRef = useRef<number | null>(null);
 
-  const LOCAL_RESUME_PRIMARY_KEY = (targetSeriesId: string) =>
-    `duonovel:read-progress:${targetSeriesId}`;
-
-  const LOCAL_RESUME_LEGACY_KEYS = (targetSeriesId: string) => [
-    LOCAL_RESUME_PRIMARY_KEY(targetSeriesId),
-    `duonovel:resume:${targetSeriesId}`,
-    `duonovel:bookmark:${targetSeriesId}`,
-    `read-progress:${targetSeriesId}`,
-    `read_resume:${targetSeriesId}`,
-  ];
-
   const readLocalResumeState = useCallback(
     (targetSeriesId: string): ReadResumeState | null => {
       if (typeof window === "undefined") return null;
 
-      for (const key of LOCAL_RESUME_LEGACY_KEYS(targetSeriesId)) {
+      for (const key of getLocalResumeLegacyKeys(targetSeriesId)) {
         const raw = window.localStorage.getItem(key);
         if (!raw) continue;
 
@@ -260,7 +305,7 @@ export default function EpisodePlayback({
       if (typeof window === "undefined") return;
 
       window.localStorage.setItem(
-        LOCAL_RESUME_PRIMARY_KEY(targetSeriesId),
+        getLocalResumePrimaryKey(targetSeriesId),
         JSON.stringify(nextState)
       );
     },
@@ -276,10 +321,13 @@ export default function EpisodePlayback({
   const [bookmarkMessage, setBookmarkMessage] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const [displayTheme, setDisplayTheme] = useState<DisplayTheme>("normal");
-  const [fontScale, setFontScale] = useState(1.06);
-  const [lineHeightPreset, setLineHeightPreset] =
-    useState<LineHeightPreset>("normal");
+  const [displayPreference, setDisplayPreference] = useState<DisplayPreference>(
+    () => readStoredDisplayPreference(seriesId)
+  );
+
+  const displayTheme = displayPreference.theme;
+  const fontScale = displayPreference.fontScale;
+  const lineHeightPreset = displayPreference.lineHeight;
 
   const safeSeriesTitle =
     typeof seriesTitle === "string" && seriesTitle.trim().length > 0
@@ -304,21 +352,21 @@ export default function EpisodePlayback({
   }, [safeBody]);
 
   const paragraphBlocks = useMemo<ParagraphBlock[]>(() => {
-    let runningIndex = 0;
+    const sentenceGroups = paragraphs.map((paragraph) =>
+      splitParagraphIntoSentences(paragraph)
+    );
 
-    return paragraphs.map((paragraph, paragraphIndex) => {
-      const segments = splitParagraphIntoSentences(paragraph).map((text) => {
-        const segment = {
-          index: runningIndex,
-          text,
-        };
-        runningIndex += 1;
-        return segment;
-      });
+    return sentenceGroups.map((sentences, paragraphIndex) => {
+      const baseIndex = sentenceGroups
+        .slice(0, paragraphIndex)
+        .reduce((sum, group) => sum + group.length, 0);
 
       return {
         paragraphIndex,
-        segments,
+        segments: sentences.map((text, sentenceIndex) => ({
+          index: baseIndex + sentenceIndex,
+          text,
+        })),
       };
     });
   }, [paragraphs]);
@@ -392,6 +440,17 @@ export default function EpisodePlayback({
     writeLocalResumeState,
   });
 
+    const resetPlaybackViewState = useCallback(() => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setAudioError("");
+    setIsAdvancing(false);
+    setAutoFollow(true);
+    setBookmarkMessage("");
+    setIsSettingsOpen(false);
+  }, []);
+
   const lineHeightValue = useMemo(() => {
     if (lineHeightPreset === "compact") return 1.95;
     if (lineHeightPreset === "wide") return 2.45;
@@ -443,37 +502,6 @@ export default function EpisodePlayback({
     },
     [unlockProgrammaticScroll]
   );
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(`duonovel:display:${seriesId}`);
-      if (!raw) return;
-
-      const parsed = JSON.parse(raw) as Partial<DisplayPreference>;
-
-      if (
-        parsed.theme === "normal" ||
-        parsed.theme === "invert" ||
-        parsed.theme === "sepia"
-      ) {
-        setDisplayTheme(parsed.theme);
-      }
-
-      if (typeof parsed.fontScale === "number") {
-        setFontScale(clampFontScale(parsed.fontScale));
-      }
-
-      if (
-        parsed.lineHeight === "compact" ||
-        parsed.lineHeight === "normal" ||
-        parsed.lineHeight === "wide"
-      ) {
-        setLineHeightPreset(parsed.lineHeight);
-      }
-    } catch {
-      // 読み込み失敗時はデフォルト継続
-    }
-  }, [seriesId]);
 
   useEffect(() => {
     try {
@@ -612,16 +640,17 @@ export default function EpisodePlayback({
     ignoreScrollRef.current = false;
     hasAppliedInitialSeekRef.current = false;
     audio.pause();
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
-    setAudioError("");
-    setIsAdvancing(false);
-    setAutoFollow(true);
-    setBookmarkMessage("");
-    setIsSettingsOpen(false);
+
+    const resetTimer = window.setTimeout(() => {
+      resetPlaybackViewState();
+    }, 0);
+
     audio.load();
-  }, [playableAudioSrc]);
+
+    return () => {
+      window.clearTimeout(resetTimer);
+    };
+  }, [playableAudioSrc, resetPlaybackViewState]);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -747,7 +776,12 @@ export default function EpisodePlayback({
   }
 
   function handleFontScaleChange(event: ChangeEvent<HTMLInputElement>) {
-    setFontScale(clampFontScale(Number(event.target.value)));
+    const nextFontScale = clampFontScale(Number(event.target.value));
+
+    setDisplayPreference((prev) => ({
+      ...prev,
+      fontScale: nextFontScale,
+    }));
   }
 
   return (
@@ -880,17 +914,32 @@ export default function EpisodePlayback({
                     <SettingChip
                       active={displayTheme === "normal"}
                       label="通常"
-                      onClick={() => setDisplayTheme("normal")}
+                      onClick={() =>
+  setDisplayPreference((prev) => ({
+    ...prev,
+    theme: "normal",
+  }))
+}
                     />
                     <SettingChip
                       active={displayTheme === "invert"}
                       label="色反転風"
-                      onClick={() => setDisplayTheme("invert")}
+                      onClick={() =>
+  setDisplayPreference((prev) => ({
+    ...prev,
+    theme: "invert",
+  }))
+}
                     />
                     <SettingChip
                       active={displayTheme === "sepia"}
                       label="セピア"
-                      onClick={() => setDisplayTheme("sepia")}
+                      onClick={() =>
+  setDisplayPreference((prev) => ({
+    ...prev,
+    theme: "sepia",
+  }))
+}
                     />
                   </div>
                 </div>
@@ -918,17 +967,32 @@ export default function EpisodePlayback({
                     <SettingChip
                       active={lineHeightPreset === "compact"}
                       label="狭め"
-                      onClick={() => setLineHeightPreset("compact")}
+                      onClick={() =>
+  setDisplayPreference((prev) => ({
+    ...prev,
+    lineHeight: "compact",
+  }))
+}
                     />
                     <SettingChip
                       active={lineHeightPreset === "normal"}
                       label="標準"
-                      onClick={() => setLineHeightPreset("normal")}
+                      onClick={() =>
+  setDisplayPreference((prev) => ({
+    ...prev,
+    lineHeight: "normal",
+  }))
+}
                     />
                     <SettingChip
                       active={lineHeightPreset === "wide"}
                       label="広め"
-                      onClick={() => setLineHeightPreset("wide")}
+                      onClick={() =>
+  setDisplayPreference((prev) => ({
+    ...prev,
+    lineHeight: "wide",
+  }))
+}
                     />
                   </div>
                 </div>
