@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import EpisodePlayback from "@/features/playback/EpisodePlayback";
+import {
+  mergeBgmSettings,
+  parseBgmSettingsFromRow,
+} from "@/lib/bgm/bgmSettings";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -362,16 +366,28 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     (seriesData as SeriesRow).bgm_audio_path,
     (seriesData as SeriesRow)["bgmAudioPath"]
   );
+  const seriesBgmSettings = parseBgmSettingsFromRow(
+    (seriesData as SeriesRow)["bgm_settings"],
+    (seriesData as SeriesRow)["bgmSettings"]
+  );
 
   const episodeBgmTitle = pickText(episode.bgm_title, episode["bgmTitle"]);
   const episodeBgmSrc = pickText(
     episode.bgm_audio_path,
     episode["bgmAudioPath"]
   );
+  const episodeBgmSettings = parseBgmSettingsFromRow(
+    episode["bgm_settings"],
+    episode["bgmSettings"]
+  );
 
   const bgmSrc = pickText(episodeBgmSrc, seriesBgmSrc) || null;
   const bgmTitle =
     pickText(episodeBgmTitle, seriesBgmTitle) || (bgmSrc ? "作品BGM" : "");
+  const bgmSettings = mergeBgmSettings(
+    seriesBgmSettings,
+    episodeBgmSettings
+  );
 
   return (
     <EpisodePlayback
@@ -394,6 +410,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
       initialStartAt={initialStartAt}
       bgmTitle={bgmTitle || undefined}
       bgmSrc={bgmSrc}
+      bgmSettings={bgmSrc ? bgmSettings : undefined}
     />
   );
 }

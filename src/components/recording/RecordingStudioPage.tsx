@@ -12,6 +12,7 @@ type EpisodeItem = {
   body: string;
   preview: string;
   readHref: string;
+  bgmSummary: string;
 };
 
 type RecordingStudioPageProps = {
@@ -21,6 +22,7 @@ type RecordingStudioPageProps = {
   worksHref: string;
   bgmHref: string;
   episodes: EpisodeItem[];
+  manageBgmHref: string;  
 };
 
 function getPermissionLabel(mode: RecordingPermissionMode): string {
@@ -36,6 +38,7 @@ export function RecordingStudioPage({
   worksHref,
   bgmHref,
   episodes,
+  manageBgmHref,  
 }: RecordingStudioPageProps) {
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string>(
     episodes[0]?.id ?? ""
@@ -298,6 +301,23 @@ export function RecordingStudioPage({
                 />
               </label>
             ) : null}
+
+            {selectedEpisode ? (
+              <div className="rounded-[20px] border border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-300">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">
+                  EFFECTIVE BGM
+                </p>
+                <p className="mt-2">{selectedEpisode.bgmSummary}</p>
+
+                <Link
+                  href={manageBgmHref}
+                  className="mt-4 inline-block rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                >
+                  BGM管理へ移動
+                </Link>
+              </div>
+            ) : null}
+
           </div>
         </section>
 

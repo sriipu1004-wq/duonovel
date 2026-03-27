@@ -1,11 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
+import {
+  formatBgmSeconds,
+  type BgmSettings,
+} from "@/lib/bgm/bgmSettings";
 
 type BgmControllerProps = {
   seriesId: string;
   bgmSrc?: string | null;
   bgmTitle?: string;
+  bgmSettings?: BgmSettings;
   isNarrationPlaying: boolean;
   isOpen: boolean;
 };
@@ -24,10 +36,12 @@ export default function BgmController({
   seriesId,
   bgmSrc,
   bgmTitle,
+  bgmSettings,
   isNarrationPlaying,
   isOpen,
 }: BgmControllerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fadeFrameRef = useRef<number | null>(null);
 
   const [enabled, setEnabled] = useState(true);
   const [volume, setVolume] = useState(0.35);
@@ -43,6 +57,75 @@ export default function BgmController({
 
     return "";
   }, [bgmSrc]);
+
+  const fadeInSeconds = bgmSettings?.fadeInSeconds ?? 0;
+  const fadeOutSeconds = bgmSettings?.fadeOutSeconds ?? 0;
+  const sceneCueCount = bgmSettings?.sceneCues.length ?? 0;
+
+  const cancelFade = useCallback(() => {
+    if (fadeFrameRef.current !== null) {
+      window.cancelAnimationFrame(fadeFrameRef.current);
+      fadeFrameRef.current = null;
+    }
+  }, []);
+
+  const animateVolume = useCallback(
+    (targetVolume: number, durationSeconds: number, onDone?: () => void) => {
+      const audio = audioRef.current;
+      if (!audio) {
+        onDone?.();
+        return;
+      }
+
+      cancelFade();
+
+      const safeTargetVolume = clampVolume(targetVolume);
+      const safeDurationMs = Math.max(0, durationSeconds) * 1000;
+
+      if (safeDurationMs === 0) {
+        audio.volume = safeTargetVolume;
+        onDone?.();
+        return;
+      }
+
+      const startVolume = audio.volume;
+      const diff = safeTargetVolume - startVolume;
+      const startedAt = performance.now();
+
+      const step = (now: number) => {
+        const progress = Math.min((now - startedAt) / safeDurationMs, 1);
+        audio.volume = clampVolume(startVolume + diff * progress);
+
+        if (progress < 1) {
+          fadeFrameRef.current = window.requestAnimationFrame(step);
+          return;
+        }
+
+        fadeFrameRef.current = null;
+        onDone?.();
+      };
+
+      fadeFrameRef.current = window.requestAnimationFrame(step);
+    },
+    [cancelFade]
+  );
+
+  const fadeOutAndPause = useCallback(
+    (durationSeconds: number) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+
+      if (audio.paused) {
+        audio.volume = 0;
+        return;
+      }
+
+      animateVolume(0, durationSeconds, () => {
+        audio.pause();
+      });
+    },
+    [animateVolume]
+  );
 
   useEffect(() => {
     try {
@@ -81,53 +164,93 @@ export default function BgmController({
     const audio = audioRef.current;
     if (!audio) return;
 
-    audio.volume = clampVolume(volume);
     audio.loop = true;
-  }, [volume]);
+  }, []);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
+    cancelFade();
     audio.pause();
+    audio.currentTime = 0;
+    audio.volume = 0;
     setAudioError("");
     audio.load();
-  }, [playableBgmSrc]);
+  }, [playableBgmSrc, cancelFade]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+const audio = audioRef.current;
+if (!audio) return;
 
-    audio.volume = clampVolume(volume);
-    audio.loop = true;
+const targetAudio = audio;
 
-    if (!enabled || !isNarrationPlaying || !playableBgmSrc) {
-      audio.pause();
+targetAudio.loop = true;
+
+if (!playableBgmSrc) {
+  cancelFade();
+  targetAudio.pause();
+  return;
+}
+
+if (!enabled || !isNarrationPlaying) {
+  fadeOutAndPause(fadeOutSeconds);
+  return;
+}
+
+const targetVolume = clampVolume(volume);
+let cancelled = false;
+
+async function playBgm() {
+  try {
+    setAudioError("");
+
+    if (targetAudio.paused) {
+      targetAudio.volume = fadeInSeconds > 0 ? 0 : targetVolume;
+      await targetAudio.play();
+
+      if (cancelled) {
+        targetAudio.pause();
+        return;
+      }
+
+      if (fadeInSeconds > 0) {
+        animateVolume(targetVolume, fadeInSeconds);
+      } else {
+        targetAudio.volume = targetVolume;
+      }
+
       return;
     }
 
-    const targetAudio = audio;
-    let cancelled = false;
+    animateVolume(targetVolume, 0.12);
+  } catch {
+    setAudioError("BGMの再生を開始できなかった");
+  }
+}
 
-    async function playBgm() {
-      try {
-        setAudioError("");
-        await targetAudio.play();
-
-        if (cancelled) {
-          targetAudio.pause();
-        }
-      } catch {
-        setAudioError("BGMの再生を開始できなかった");
-      }
-    }
-
-    void playBgm();
+void playBgm();
 
     return () => {
       cancelled = true;
     };
-  }, [enabled, isNarrationPlaying, playableBgmSrc, volume]);
+  }, [
+    enabled,
+    isNarrationPlaying,
+    playableBgmSrc,
+    volume,
+    fadeInSeconds,
+    fadeOutSeconds,
+    animateVolume,
+    fadeOutAndPause,
+    cancelFade,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      cancelFade();
+    };
+  }, [cancelFade]);
 
   function handleVolumeChange(event: ChangeEvent<HTMLInputElement>) {
     const nextVolume = clampVolume(Number(event.target.value));
@@ -185,6 +308,18 @@ export default function BgmController({
         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
           朗読再生と連動
         </span>
+
+        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
+          fade in {formatBgmSeconds(fadeInSeconds)}
+        </span>
+
+        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
+          fade out {formatBgmSeconds(fadeOutSeconds)}
+        </span>
+
+        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
+          場面切替予約 {sceneCueCount}件
+        </span>
       </div>
 
       <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -205,7 +340,8 @@ export default function BgmController({
       </div>
 
       <p className="mt-4 text-sm leading-7 text-neutral-400">
-        今はテスト用BGM。あとで作品単位や話単位のBGM設定テーブルに差し替えられる構成。
+        今回の適用は、BGM開始時フェードインと、停止 / 再生終了時フェードアウトまで。
+        場面展開でのBGM切り替えは、保存枠だけ先に置いて次段でつなぐ。
       </p>
 
       {audioError ? (

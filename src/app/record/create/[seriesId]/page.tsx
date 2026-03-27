@@ -5,6 +5,11 @@ import {
   type RecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
 import { RecordingStudioPage } from "@/components/recording/RecordingStudioPage";
+import {
+  formatBgmSeconds,
+  mergeBgmSettings,
+  parseBgmSettingsFromRow,
+} from "@/lib/bgm/bgmSettings";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -84,29 +89,70 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
     ""
   );
 
-  const episodes = rawEpisodes
-    .map((row, index) => {
-      const episodeNumber = pickNumber(
-        row,
-        ["episode_number", "number", "sort_order", "display_order"],
-        index + 1
-      );
+const episodes = rawEpisodes
+  .map((row, index) => {
+    const episodeNumber = pickNumber(
+      row,
+      ["episode_number", "number", "sort_order", "display_order"],
+      index + 1
+    );
 
-      const title = pickString(row, ["title", "name"], `第${episodeNumber}話`);
-      const body = pickString(row, ["body", "content", "text"], "");
-      const preview =
-        body.trim().length > 140 ? `${body.trim().slice(0, 140)}...` : body.trim();
+    const title = pickString(row, ["title", "name"], `第${episodeNumber}話`);
+    const body = pickString(row, ["body", "content", "text"], "");
+    const preview =
+      body.trim().length > 140 ? `${body.trim().slice(0, 140)}...` : body.trim();
 
-      return {
-        id: String(row.id ?? `${seriesId}-${episodeNumber}`),
-        episodeNumber,
-        title,
-        body,
-        preview,
-        readHref: `/read/${seriesId}/${episodeNumber}`,
-      };
-    })
-    .sort((a, b) => a.episodeNumber - b.episodeNumber);
+    const rawEpisodeBgmTitle = pickString(row, ["bgm_title", "bgmTitle"], "");
+    const rawEpisodeBgmAudioPath = pickString(
+      row,
+      ["bgm_audio_path", "bgmAudioPath"],
+      ""
+    );
+
+    const seriesBgmTitle = pickString(
+      rawSeries,
+      ["bgm_title", "bgmTitle"],
+      ""
+    );
+    const seriesBgmAudioPath = pickString(
+      rawSeries,
+      ["bgm_audio_path", "bgmAudioPath"],
+      ""
+    );
+
+    const seriesBgmSettings = parseBgmSettingsFromRow(
+      rawSeries["bgm_settings"],
+      rawSeries["bgmSettings"]
+    );
+    const episodeBgmSettings = parseBgmSettingsFromRow(
+      row["bgm_settings"],
+      row["bgmSettings"]
+    );
+    const mergedBgmSettings = mergeBgmSettings(
+      seriesBgmSettings,
+      episodeBgmSettings
+    );
+
+    const effectiveBgmTitle = rawEpisodeBgmTitle || seriesBgmTitle;
+    const effectiveBgmAudioPath = rawEpisodeBgmAudioPath || seriesBgmAudioPath;
+
+    const bgmSummary = effectiveBgmAudioPath
+      ? `${effectiveBgmTitle || "BGMあり"} / IN ${formatBgmSeconds(
+          mergedBgmSettings.fadeInSeconds
+        )} / OUT ${formatBgmSeconds(mergedBgmSettings.fadeOutSeconds)}`
+      : "BGM未設定";
+
+    return {
+      id: String(row.id ?? `${seriesId}-${episodeNumber}`),
+      episodeNumber,
+      title,
+      body,
+      preview,
+      readHref: `/read/${seriesId}/${episodeNumber}`,
+      bgmSummary,
+    };
+  })
+  .sort((a, b) => a.episodeNumber - b.episodeNumber);
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
@@ -166,6 +212,7 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
           worksHref={buildWorkPath(seriesId)}
           bgmHref={`/bgm?from=record-create&seriesId=${seriesId}`}
           episodes={episodes}
+          manageBgmHref={`/manage/bgm/${seriesId}`}
         />
       </div>
     </main>

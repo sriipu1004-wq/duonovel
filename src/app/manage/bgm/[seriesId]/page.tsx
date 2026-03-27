@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
 import BgmManageForm from "@/features/manage/BgmManageForm";
+import { parseBgmSettingsFromRow } from "@/lib/bgm/bgmSettings";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -11,6 +12,7 @@ type SeriesRow = Record<string, unknown> & {
   title?: string | null;
   bgm_title?: string | null;
   bgm_audio_path?: string | null;
+  bgm_settings?: unknown;
 };
 
 type EpisodeRow = Record<string, unknown> & {
@@ -20,6 +22,7 @@ type EpisodeRow = Record<string, unknown> & {
   episodeNumber?: number | null;
   bgm_title?: string | null;
   bgm_audio_path?: string | null;
+  bgm_settings?: unknown;
 };
 
 function pickText(...values: unknown[]): string {
@@ -93,6 +96,10 @@ export default async function ManageBgmPage({ params }: PageProps) {
         `第${getEpisodeNumber(episode)}話`,
       bgmTitle: pickText(episode.bgm_title, episode["bgmTitle"]),
       bgmAudioPath: pickText(episode.bgm_audio_path, episode["bgmAudioPath"]),
+      bgmSettings: parseBgmSettingsFromRow(
+        episode.bgm_settings,
+        episode["bgmSettings"]
+      ),
     }));
 
   return (
@@ -103,6 +110,10 @@ export default async function ManageBgmPage({ params }: PageProps) {
       initialSeriesBgmAudioPath={pickText(
         series.bgm_audio_path,
         series["bgmAudioPath"]
+      )}
+      initialSeriesBgmSettings={parseBgmSettingsFromRow(
+        series.bgm_settings,
+        series["bgmSettings"]
       )}
       episodes={sortedEpisodes}
     />
