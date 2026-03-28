@@ -3,12 +3,18 @@
 import Link from "next/link";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import BgmLibraryPicker from "@/features/bgm/BgmLibraryPicker";
 import {
   clampBgmSeconds,
   emptyBgmSettings,
   serializeBgmSettingsForSave,
   type BgmSettings,
 } from "@/lib/bgm/bgmSettings";
+import {
+  findBgmLibraryTrack,
+  resolveBgmLibraryTrackId,
+  type BgmLibraryTrack,
+} from "@/lib/bgm/bgmLibrary";
 
 type EpisodeItem = {
   id: string;
@@ -17,6 +23,7 @@ type EpisodeItem = {
   bgmTitle: string;
   bgmAudioPath: string;
   bgmSettings: BgmSettings;
+  selectedTrackId: string;
 };
 
 type BgmManageFormProps = {
@@ -25,7 +32,15 @@ type BgmManageFormProps = {
   initialSeriesBgmTitle: string;
   initialSeriesBgmAudioPath: string;
   initialSeriesBgmSettings: BgmSettings;
-  episodes: EpisodeItem[];
+  episodes: Array<{
+    id: string;
+    episodeNumber: number;
+    title: string;
+    bgmTitle: string;
+    bgmAudioPath: string;
+    bgmSettings: BgmSettings;
+  }>;
+  libraryTracks: BgmLibraryTrack[];
 };
 
 type SaveState = "idle" | "saving" | "success" | "error";
@@ -144,10 +159,17 @@ export default function BgmManageForm({
   initialSeriesBgmAudioPath,
   initialSeriesBgmSettings,
   episodes,
+  libraryTracks,
 }: BgmManageFormProps) {
   const [seriesBgmTitle, setSeriesBgmTitle] = useState(initialSeriesBgmTitle);
   const [seriesBgmAudioPath, setSeriesBgmAudioPath] = useState(
     initialSeriesBgmAudioPath
+  );
+  const [seriesSelectedTrackId, setSeriesSelectedTrackId] = useState(() =>
+    resolveBgmLibraryTrackId(libraryTracks, {
+      title: initialSeriesBgmTitle,
+      audioPath: initialSeriesBgmAudioPath,
+    })
   );
   const [seriesBgmSettings, setSeriesBgmSettings] = useState<BgmSettings>(
     initialSeriesBgmSettings
@@ -155,11 +177,40 @@ export default function BgmManageForm({
   const [seriesSaveState, setSeriesSaveState] = useState<SaveState>("idle");
   const [seriesError, setSeriesError] = useState("");
 
-  const [episodeRows, setEpisodeRows] = useState(episodes);
+  const [episodeRows, setEpisodeRows] = useState<EpisodeItem[]>(() =>
+    episodes.map((episode) => ({
+      ...episode,
+      selectedTrackId: resolveBgmLibraryTrackId(libraryTracks, {
+        title: episode.bgmTitle,
+        audioPath: episode.bgmAudioPath,
+      }),
+    }))
+  );
   const [episodeSaveStates, setEpisodeSaveStates] = useState<
     Record<string, SaveState>
   >({});
   const [episodeErrors, setEpisodeErrors] = useState<Record<string, string>>({});
+
+  function resetSeriesSaveUi() {
+    setSeriesSaveState("idle");
+    setSeriesError("");
+  }
+
+  function handleSelectSeriesTrack(nextTrackId: string) {
+    const nextTrack = findBgmLibraryTrack(libraryTracks, nextTrackId);
+
+    setSeriesSelectedTrackId(nextTrackId);
+    setSeriesBgmTitle(nextTrack?.title ?? "");
+    setSeriesBgmAudioPath(nextTrack?.audioPath ?? "");
+    resetSeriesSaveUi();
+  }
+
+  function handleClearSeriesTrack() {
+    setSeriesSelectedTrackId("");
+    setSeriesBgmTitle("");
+    setSeriesBgmAudioPath("");
+    resetSeriesSaveUi();
+  }
 
   async function handleSaveSeries() {
     setSeriesSaveState("saving");
@@ -199,6 +250,17 @@ export default function BgmManageForm({
     setEpisodeErrors((prev) => ({
       ...prev,
       [episodeId]: "",
+    }));
+  }
+
+  function handleSelectEpisodeTrack(episodeId: string, nextTrackId: string) {
+    const nextTrack = findBgmLibraryTrack(libraryTracks, nextTrackId);
+
+    updateEpisodeRow(episodeId, (current) => ({
+      ...current,
+      selectedTrackId: nextTrackId,
+      bgmTitle: nextTrack?.title ?? "",
+      bgmAudioPath: nextTrack?.audioPath ?? "",
     }));
   }
 
@@ -299,37 +361,24 @@ export default function BgmManageForm({
               </div>
 
               <div className="mt-5 grid gap-4">
-                <label className="grid gap-2">
-                  <span className="text-sm text-neutral-300">BGMタイトル</span>
-                  <input
-                    value={seriesBgmTitle}
-                    onChange={(event) => {
-                      setSeriesBgmTitle(event.target.value);
-                      setSeriesSaveState("idle");
-                    }}
-                    placeholder="例: 作品共通BGM"
-                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                  />
-                </label>
-
-                <label className="grid gap-2">
-                  <span className="text-sm text-neutral-300">BGMパス</span>
-                  <input
-                    value={seriesBgmAudioPath}
-                    onChange={(event) => {
-                      setSeriesBgmAudioPath(event.target.value);
-                      setSeriesSaveState("idle");
-                    }}
-                    placeholder="/test-audio/demo-bgm.mp3"
-                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                  />
-                </label>
+                <BgmLibraryPicker
+                  tracks={libraryTracks}
+                  selectedTrackId={seriesSelectedTrackId}
+                  onSelectTrack={handleSelectSeriesTrack}
+                  onClear={handleClearSeriesTrack}
+                  label="作品共通BGM素材"
+                  placeholder="作品共通BGMを選ぶ"
+                  helperText="BGM素材ライブラリから選ぶ。今はサイト用意素材のみを使う前提。"
+                  clearLabel="作品共通BGMを解除"
+                  fallbackTitle={seriesBgmTitle}
+                  fallbackAudioPath={seriesBgmAudioPath}
+                />
 
                 <BgmSettingFields
                   value={seriesBgmSettings}
                   onChange={(next) => {
                     setSeriesBgmSettings(next);
-                    setSeriesSaveState("idle");
+                    resetSeriesSaveUi();
                   }}
                   fallbackText="話ごとのフェードが空欄なら、この作品共通フェードを使う。"
                 />
@@ -346,14 +395,13 @@ export default function BgmManageForm({
                   <button
                     type="button"
                     onClick={() => {
-                      setSeriesBgmTitle("");
-                      setSeriesBgmAudioPath("");
+                      handleClearSeriesTrack();
                       setSeriesBgmSettings(emptyBgmSettings());
                       setSeriesSaveState("idle");
                     }}
                     className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
                   >
-                    入力クリア
+                    BGMとフェードを初期化
                   </button>
                 </div>
 
@@ -397,35 +445,27 @@ export default function BgmManageForm({
                     </div>
 
                     <div className="mt-4 grid gap-4">
-                      <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">BGMタイトル</span>
-                        <input
-                          value={episode.bgmTitle}
-                          onChange={(event) =>
-                            updateEpisodeRow(episode.id, (current) => ({
-                              ...current,
-                              bgmTitle: event.target.value,
-                            }))
-                          }
-                          placeholder="空なら作品共通BGM"
-                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                        />
-                      </label>
-
-                      <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">BGMパス</span>
-                        <input
-                          value={episode.bgmAudioPath}
-                          onChange={(event) =>
-                            updateEpisodeRow(episode.id, (current) => ({
-                              ...current,
-                              bgmAudioPath: event.target.value,
-                            }))
-                          }
-                          placeholder="空なら作品共通BGM"
-                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                        />
-                      </label>
+                      <BgmLibraryPicker
+                        tracks={libraryTracks}
+                        selectedTrackId={episode.selectedTrackId}
+                        onSelectTrack={(nextTrackId) =>
+                          handleSelectEpisodeTrack(episode.id, nextTrackId)
+                        }
+                        onClear={() =>
+                          updateEpisodeRow(episode.id, (current) => ({
+                            ...current,
+                            selectedTrackId: "",
+                            bgmTitle: "",
+                            bgmAudioPath: "",
+                          }))
+                        }
+                        label="話ごとのBGM素材"
+                        placeholder="空なら作品共通BGM"
+                        helperText="ここが未選択なら、作品共通BGMへフォールバックする。"
+                        clearLabel="話ごとBGMを解除"
+                        fallbackTitle={episode.bgmTitle}
+                        fallbackAudioPath={episode.bgmAudioPath}
+                      />
 
                       <BgmSettingFields
                         value={episode.bgmSettings}
@@ -452,6 +492,7 @@ export default function BgmManageForm({
                           onClick={() =>
                             updateEpisodeRow(episode.id, (current) => ({
                               ...current,
+                              selectedTrackId: "",
                               bgmTitle: "",
                               bgmAudioPath: "",
                               bgmSettings: emptyBgmSettings(),
@@ -459,7 +500,7 @@ export default function BgmManageForm({
                           }
                           className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
                         >
-                          話ごとBGMを解除
+                          話ごとBGMとフェードを解除
                         </button>
                       </div>
 

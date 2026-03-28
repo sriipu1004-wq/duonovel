@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
 import WriteSeriesForm from "@/features/write/WriteSeriesForm";
 import { type EpisodeRow, type SeriesRow } from "@/features/write/writeShared";
+import { fetchBgmLibraryTracks } from "@/lib/bgm/bgmLibrary";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -11,7 +12,12 @@ async function fetchSeries(
   seriesId: string,
   supabase: Awaited<ReturnType<typeof requireOwnedSeries>>["supabase"]
 ): Promise<SeriesRow | null> {
-  const { data, error } = await supabase.from("series").select("*").eq("id", seriesId).single();
+  const { data, error } = await supabase
+    .from("series")
+    .select("*")
+    .eq("id", seriesId)
+    .single();
+
   if (error || !data) {
     return null;
   }
@@ -23,12 +29,20 @@ async function fetchEpisodes(
   seriesId: string,
   supabase: Awaited<ReturnType<typeof requireOwnedSeries>>["supabase"]
 ): Promise<EpisodeRow[]> {
-  const firstTry = await supabase.from("episodes").select("*").eq("series_id", seriesId);
+  const firstTry = await supabase
+    .from("episodes")
+    .select("*")
+    .eq("series_id", seriesId);
+
   if (!firstTry.error) {
     return (firstTry.data ?? []) as EpisodeRow[];
   }
 
-  const secondTry = await supabase.from("episodes").select("*").eq("seriesId", seriesId);
+  const secondTry = await supabase
+    .from("episodes")
+    .select("*")
+    .eq("seriesId", seriesId);
+
   if (!secondTry.error) {
     return (secondTry.data ?? []) as EpisodeRow[];
   }
@@ -38,7 +52,10 @@ async function fetchEpisodes(
 
 export default async function WriteSeriesEditPage({ params }: PageProps) {
   const { seriesId } = await params;
-  const { supabase, user } = await requireOwnedSeries(seriesId, `/write/series/${seriesId}`);
+  const { supabase, user } = await requireOwnedSeries(
+    seriesId,
+    `/write/series/${seriesId}`
+  );
 
   const series = await fetchSeries(seriesId, supabase);
   if (!series) {
@@ -46,6 +63,7 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
   }
 
   const episodes = await fetchEpisodes(seriesId, supabase);
+  const libraryTracks = await fetchBgmLibraryTracks(supabase);
 
   return (
     <WriteSeriesForm
@@ -53,6 +71,7 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
       currentUserId={user.id}
       series={series}
       episodes={episodes}
+      libraryTracks={libraryTracks}
     />
   );
 }

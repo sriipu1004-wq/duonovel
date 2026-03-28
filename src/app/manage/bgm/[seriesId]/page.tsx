@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
 import BgmManageForm from "@/features/manage/BgmManageForm";
 import { parseBgmSettingsFromRow } from "@/lib/bgm/bgmSettings";
+import { fetchBgmLibraryTracks } from "@/lib/bgm/bgmLibrary";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -82,6 +83,7 @@ export default async function ManageBgmPage({ params }: PageProps) {
     notFound();
   }
 
+  const libraryTracks = await fetchBgmLibraryTracks(supabase);
   const series = seriesData as SeriesRow;
   const episodes = await fetchEpisodesBySeriesId(supabase, seriesId);
 
@@ -116,6 +118,7 @@ export default async function ManageBgmPage({ params }: PageProps) {
         series["bgmSettings"]
       )}
       episodes={sortedEpisodes}
+      libraryTracks={libraryTracks}
     />
   );
 }

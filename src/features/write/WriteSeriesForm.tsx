@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import BgmLibraryPicker from "@/features/bgm/BgmLibraryPicker";
 import {
   pickText,
   type SeriesRow,
@@ -19,6 +20,11 @@ import {
   serializeBgmSettingsForSave,
   type BgmSettings,
 } from "@/lib/bgm/bgmSettings";
+import {
+  findBgmLibraryTrack,
+  resolveBgmLibraryTrackId,
+  type BgmLibraryTrack,
+} from "@/lib/bgm/bgmLibrary";
 
 type Mode = "create" | "edit";
 
@@ -27,6 +33,7 @@ type WriteSeriesFormProps = {
   currentUserId: string;
   series?: SeriesRow | null;
   episodes?: EpisodeRow[];
+  libraryTracks: BgmLibraryTrack[];
 };
 
 type SaveState = "idle" | "saving" | "success" | "error";
@@ -234,6 +241,7 @@ export default function WriteSeriesForm({
   currentUserId,
   series,
   episodes = [],
+  libraryTracks,
 }: WriteSeriesFormProps) {
   const router = useRouter();
 
@@ -244,6 +252,12 @@ export default function WriteSeriesForm({
   );
   const [seriesBgmAudioPath, setSeriesBgmAudioPath] = useState(
     getInitialSeriesBgmAudioPath(series)
+  );
+  const [selectedSeriesTrackId, setSelectedSeriesTrackId] = useState(() =>
+    resolveBgmLibraryTrackId(libraryTracks, {
+      title: getInitialSeriesBgmTitle(series),
+      audioPath: getInitialSeriesBgmAudioPath(series),
+    })
   );
   const [seriesBgmSettings, setSeriesBgmSettings] = useState<BgmSettings>(
     getInitialSeriesBgmSettings(series)
@@ -295,13 +309,29 @@ export default function WriteSeriesForm({
     series?.recording_permission_mode
   );
   const hasCommonBgm =
-    pickText(seriesBgmTitle, seriesBgmAudioPath).length > 0 ||
+    seriesBgmAudioPath.trim().length > 0 ||
     serializeBgmSettingsForSave(seriesBgmSettings) !== null;
 
   function resetSaveUi() {
     setSaveState("idle");
     setErrorMessage("");
     setSuccessMessage("");
+  }
+
+  function handleSelectSeriesTrack(nextTrackId: string) {
+    const nextTrack = findBgmLibraryTrack(libraryTracks, nextTrackId);
+
+    setSelectedSeriesTrackId(nextTrackId);
+    setSeriesBgmTitle(nextTrack?.title ?? "");
+    setSeriesBgmAudioPath(nextTrack?.audioPath ?? "");
+    resetSaveUi();
+  }
+
+  function handleClearSeriesTrack() {
+    setSelectedSeriesTrackId("");
+    setSeriesBgmTitle("");
+    setSeriesBgmAudioPath("");
+    resetSaveUi();
   }
 
   async function handleCreate() {
@@ -554,38 +584,21 @@ export default function WriteSeriesForm({
                     />
                   </label>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <label className="grid gap-2">
-                      <span className="text-sm text-neutral-300">作品共通BGMタイトル</span>
-                      <input
-                        value={seriesBgmTitle}
-                        onChange={(event) => {
-                          setSeriesBgmTitle(event.target.value);
-                          resetSaveUi();
-                        }}
-                        placeholder="例: メインテーマ"
-                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                      />
-                    </label>
-
-                    <label className="grid gap-2">
-                      <span className="text-sm text-neutral-300">作品共通BGMパス</span>
-                      <input
-                        value={seriesBgmAudioPath}
-                        onChange={(event) => {
-                          setSeriesBgmAudioPath(event.target.value);
-                          resetSaveUi();
-                        }}
-                        placeholder="/test-audio/demo-bgm.mp3"
-                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                      />
-                    </label>
-                  </div>
+                  <BgmLibraryPicker
+                    tracks={libraryTracks}
+                    selectedTrackId={selectedSeriesTrackId}
+                    onSelectTrack={handleSelectSeriesTrack}
+                    onClear={handleClearSeriesTrack}
+                    label="作品共通BGM素材"
+                    placeholder="作品共通BGMを選ぶ"
+                    helperText="作品ワークスペース側では、まず作品全体の空気感になるBGMをサイト用意素材から選ぶ。"
+                    clearLabel="作品共通BGMを解除"
+                    fallbackTitle={seriesBgmTitle}
+                    fallbackAudioPath={seriesBgmAudioPath}
+                  />
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <p className="text-sm font-semibold text-white">
-                      基本演出
-                    </p>
+                    <p className="text-sm font-semibold text-white">基本演出</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-400">
                       ここでは作品全体の最小演出として、共通フェードだけを扱う。
                       詳しい話ごと演出や将来のシーン切り替え演出は詳細ページへ回す。
@@ -613,6 +626,17 @@ export default function WriteSeriesForm({
                         : mode === "create"
                           ? "作品を作成してワークスペースへ"
                           : "作品ワークスペースを保存"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleClearSeriesTrack();
+                        setSeriesBgmSettings(getInitialSeriesBgmSettings(series));
+                      }}
+                      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
+                    >
+                      BGM選択を外す
                     </button>
 
                     {series?.id ? (
