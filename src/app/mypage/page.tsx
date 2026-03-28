@@ -154,7 +154,7 @@ export default async function MyPage() {
 
             <p className="mt-3 text-sm leading-7 text-neutral-400">
               ここはログイン済みユーザー向けの最小マイページ。
-              執筆や管理へ入る前に、自分の作品と行動導線をまとめて確認できる入口として使う。
+              執筆、管理、朗読など、自分の行動導線をまとめて確認できる入口として使う。
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -174,6 +174,13 @@ export default async function MyPage() {
                 className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
               >
                 管理トップへ
+              </Link>
+
+              <Link
+                href="/record"
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                朗読ページへ
               </Link>
 
               <Link
@@ -224,7 +231,7 @@ export default async function MyPage() {
               </div>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-3">
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <EntryCard
                 eyebrow="WRITE"
                 title="執筆ページ"
@@ -239,6 +246,14 @@ export default async function MyPage() {
                 description="BGM、タグ、朗読許可などの作品管理は既存の /manage に寄せる。"
                 href="/manage"
                 cta="管理トップを開く"
+              />
+
+              <EntryCard
+                eyebrow="RECORD"
+                title="朗読ページ"
+                description="朗読可能作品の確認、承認制作品への申請、申請状況確認、制作開始は /record に集約する。"
+                href="/record"
+                cta="朗読ページを開く"
               />
 
               <EntryCard
@@ -358,14 +373,11 @@ export default async function MyPage() {
                 今後ここに載せる予定のもの
               </h2>
               <p className="mt-3 text-sm leading-7 text-neutral-400">
-                今回は本体実装までは広げず、将来の会員機能を載せる受け皿だけを置く。
+                今回は朗読導線を Future Slot のままにせず、/record に切り出す。
+                ここにはまだ本体未着手のものだけ残す。
               </p>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-3">
-                <FutureSlotCard
-                  title="朗読申請"
-                  description="承認待ちや許可済みの朗読申請状況を、将来的にここへ集約できるようにする。"
-                />
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <FutureSlotCard
                   title="ブックマーク"
                   description="お気に入り作品や途中まで読んだ作品の一覧を、将来的にここへ載せられるようにする。"

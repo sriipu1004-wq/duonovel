@@ -192,8 +192,10 @@ function buildReaderHref(readerKey: string, readerName?: string): string {
   return `/readers/${encodedKey}?${query.toString()}`;
 }
 
-function buildRecordingRequestHref(seriesId: string): string {
-  return `/recording-request/${seriesId}`;
+function buildRecordHubHref(seriesId: string): string {
+  const query = new URLSearchParams();
+  query.set("seriesId", seriesId);
+  return `/record?${query.toString()}`;
 }
 
 function getRecordingPermissionLabel(
@@ -208,10 +210,10 @@ function getRecordingPermissionDescription(
   mode: RecordingPermissionMode | null | undefined
 ): string {
   if (mode === "open") {
-    return "第三者朗読をそのまま開始できる作品。";
+    return "朗読ページからそのまま制作開始できる作品。";
   }
   if (mode === "approval_required") {
-    return "第三者朗読は承認制。申請導線は今後追加予定。";
+    return "申請、承認状況確認、制作開始は朗読ページ側に集約する。";
   }
   return "第三者朗読の募集は行っていない。";
 }
@@ -647,14 +649,15 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                     作者ページへ
                   </Link>
                 ) : null}
-                {recordingPermissionMode === "approval_required" ? (
-  <Link
-    href={buildRecordingRequestHref(seriesId)}
-    className="rounded-full border border-amber-400/20 bg-amber-400/10 px-5 py-3 text-sm text-amber-200 transition hover:bg-amber-400/20"
-  >
-    朗読申請へ
-  </Link>
-) : null}
+                
+                {recordingPermissionMode !== "closed" ? (
+                  <Link
+                    href={buildRecordHubHref(seriesId)}
+                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    朗読ページへ
+                  </Link>
+                ) : null}
               </div>
             </div>
 
