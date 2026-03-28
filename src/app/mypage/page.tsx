@@ -1,59 +1,15 @@
 import Link from "next/link";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import {
-  getEpisodeNumber,
-  getSeriesSummary,
-  isPublishedEpisode,
-  pickText,
-  sortEpisodes,
-  type EpisodeRow,
-  type SeriesRow,
-} from "@/features/write/writeShared";
-
-type LoggedInResult = Awaited<ReturnType<typeof requireLoggedInUser>>;
-type SupabaseClient = LoggedInResult["supabase"];
-
-async function fetchOwnedSeries(
-  userId: string,
-  supabase: SupabaseClient
-): Promise<SeriesRow[]> {
-  const { data, error } = await supabase
-    .from("series")
-    .select("*")
-    .eq("author_id", userId)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    throw new Error(`mypage series の取得に失敗: ${error.message}`);
-  }
-
-  return (data ?? []) as SeriesRow[];
-}
-
-async function fetchEpisodesBySeriesId(
-  seriesId: string,
-  supabase: SupabaseClient
-): Promise<EpisodeRow[]> {
-  const firstTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("series_id", seriesId);
-
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as EpisodeRow[];
-  }
-
-  const secondTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("seriesId", seriesId);
-
-  if (!secondTry.error) {
-    return (secondTry.data ?? []) as EpisodeRow[];
-  }
-
-  return [];
-}
+  ProfileHero,
+  ProfileSeriesSection,
+  buildAuthorPageHref,
+  buildAuthorSeriesCards,
+  fetchAuthorById,
+  fetchSeriesByAuthorId,
+  resolveAuthorBio,
+  resolveAuthorName,
+} from "@/features/authorProfile/authorProfileShared";
 
 function EntryCard({
   eyebrow,
@@ -106,34 +62,27 @@ function FutureSlotCard({
 
 export default async function MyPage() {
   const { supabase, user } = await requireLoggedInUser("/mypage");
-  const ownedSeries = await fetchOwnedSeries(user.id, supabase);
 
-  const seriesCards = await Promise.all(
-    ownedSeries.map(async (series) => {
-      const episodes = sortEpisodes(
-        await fetchEpisodesBySeriesId(series.id, supabase)
-      );
-      const publishedCount = episodes.filter(isPublishedEpisode).length;
-      const latestEpisode = episodes.length > 0 ? episodes[episodes.length - 1] : null;
+  const [author, ownedSeries] = await Promise.all([
+    fetchAuthorById(user.id, supabase),
+    fetchSeriesByAuthorId(user.id, supabase),
+  ]);
 
-      return {
-        series,
-        episodes,
-        publishedCount,
-        latestEpisodeNumber: latestEpisode ? getEpisodeNumber(latestEpisode) : null,
-      };
-    })
-  );
+  const seriesCards = await buildAuthorSeriesCards(ownedSeries, supabase);
 
   const totalEpisodes = seriesCards.reduce(
-    (sum, card) => sum + card.episodes.length,
+    (sum, card) => sum + card.totalEpisodes,
     0
   );
+
   const totalPublished = seriesCards.reduce(
     (sum, card) => sum + card.publishedCount,
     0
   );
-  const userLabel = pickText(user.email) || "ログイン中";
+
+  const authorName = resolveAuthorName(author, user.email);
+  const authorBio = resolveAuthorBio(author);
+  const signedInLabel = user.email ?? "ログイン中";
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
@@ -142,254 +91,120 @@ export default async function MyPage() {
           <span className="text-neutral-300">マイページ</span>
         </div>
 
-        <section className="overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
-          <div className="border-b border-white/10 px-5 py-6 sm:px-8">
-            <p className="text-xs tracking-[0.22em] text-neutral-500">
-              LIB read MYPAGE
+        <ProfileHero
+          eyebrow="LIB read MYPAGE"
+          title={authorName}
+          description={`${authorBio}
+
+ここは公開作者ページとは別の、本人用活動ハブ。
+プロフィール表現と作品一覧の土台は作者ページと揃えつつ、執筆、管理、朗読、新規作成の導線はこのページ側へ集約する。`}
+          badges={[
+            { label: "本人面" },
+            { label: `signed in: ${signedInLabel}` },
+          ]}
+          actions={[
+            {
+              href: buildAuthorPageHref(user.id),
+              label: "公開作者ページを見る",
+              tone: "primary",
+            },
+            { href: "/write", label: "執筆ページへ" },
+            { href: "/manage", label: "管理トップへ" },
+            { href: "/record", label: "朗読ページへ" },
+            { href: "/write/series/new", label: "新しい作品を作る" },
+          ]}
+          stats={[
+            {
+              label: "OWNED SERIES",
+              value: seriesCards.length,
+              sub: "自分が持っている作品数",
+            },
+            {
+              label: "TOTAL EPISODES",
+              value: totalEpisodes,
+              sub: "全作品の話数合計",
+            },
+            {
+              label: "PUBLISHED",
+              value: totalPublished,
+              sub: "公開中の話数合計",
+            },
+          ]}
+          notice="公開プロフィールとして見せる面は /authors/[authorId] に残し、本人専用の行動導線は /mypage に残す。"
+        />
+
+        <div className="mt-6 grid gap-6">
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <EntryCard
+              eyebrow="WRITE"
+              title="執筆ページ"
+              description="作品作成、話追加、本文編集など、執筆作業そのものは既存の /write に寄せる。"
+              href="/write"
+              cta="執筆ページを開く"
+            />
+
+            <EntryCard
+              eyebrow="MANAGE"
+              title="管理トップ"
+              description="BGM、タグ、朗読許可などの作品管理は既存の /manage に寄せる。"
+              href="/manage"
+              cta="管理トップを開く"
+            />
+
+            <EntryCard
+              eyebrow="RECORD"
+              title="朗読ページ"
+              description="朗読可能作品の確認、承認制作品への申請、申請状況確認、制作開始は /record に集約する。"
+              href="/record"
+              cta="朗読ページを開く"
+            />
+
+            <EntryCard
+              eyebrow="PUBLIC PROFILE"
+              title="公開作者ページ"
+              description="他の読者から見える自分の公開面を確認する。公開プロフィール表現は作者ページ側で育てる。"
+              href={buildAuthorPageHref(user.id)}
+              cta="公開作者ページを見る"
+            />
+          </section>
+
+          <ProfileSeriesSection
+            eyebrow="MY SERIES"
+            title="自分の作品一覧"
+            description="ここでは自分の作品を、公開前のものも含めてまとめて確認する。公開作品としての見え方は作者ページ側に寄せる。"
+            cards={seriesCards}
+            emptyMessage="まだ作品がない。まずは「新しい作品を作る」から1本目を作成する。"
+            mode="private"
+            headerAction={{
+              href: "/write/series/new",
+              label: "作品を追加",
+            }}
+          />
+
+          <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+            <p className="text-xs tracking-[0.18em] text-neutral-500">
+              FUTURE SLOTS
             </p>
-
-            <h1 className="mt-3 text-3xl font-bold text-white">
-              自分の入口ページ
-            </h1>
-
+            <h2 className="mt-2 text-xl font-semibold text-white">
+              今後ここに載せる予定のもの
+            </h2>
             <p className="mt-3 text-sm leading-7 text-neutral-400">
-              ここはログイン済みユーザー向けの最小マイページ。
-              執筆、管理、朗読など、自分の行動導線をまとめて確認できる入口として使う。
+              今回は土台共通化までに絞る。
+              本体未着手のものだけを Future Slot として残し、本人用の拡張受け皿にする。
             </p>
 
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-neutral-300">
-                signed in: {userLabel}
-              </span>
-
-              <Link
-                href="/write"
-                className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
-              >
-                執筆ページへ
-              </Link>
-
-              <Link
-                href="/manage"
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                管理トップへ
-              </Link>
-
-              <Link
-                href="/record"
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                朗読ページへ
-              </Link>
-
-              <Link
-                href="/write/series/new"
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                新しい作品を作る
-              </Link>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <FutureSlotCard
+                title="ブックマーク"
+                description="お気に入り作品や途中まで読んだ作品の一覧を、将来的にここへ載せられるようにする。"
+              />
+              <FutureSlotCard
+                title="評価 / レビュー"
+                description="自分が付けた評価やレビュー履歴を、将来的にここへ整理して載せられるようにする。"
+              />
             </div>
-          </div>
-
-          <div className="grid gap-6 px-5 py-6 sm:px-8">
-            <section className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  OWNED SERIES
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-white">
-                  {seriesCards.length}
-                </p>
-                <p className="mt-2 text-sm text-neutral-400">
-                  自分が持っている作品数
-                </p>
-              </div>
-
-              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  TOTAL EPISODES
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-white">
-                  {totalEpisodes}
-                </p>
-                <p className="mt-2 text-sm text-neutral-400">
-                  全作品の話数合計
-                </p>
-              </div>
-
-              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  PUBLISHED
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-white">
-                  {totalPublished}
-                </p>
-                <p className="mt-2 text-sm text-neutral-400">
-                  公開中の話数合計
-                </p>
-              </div>
-            </section>
-
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <EntryCard
-                eyebrow="WRITE"
-                title="執筆ページ"
-                description="作品作成、話追加、本文編集など、執筆作業そのものは既存の /write に寄せる。"
-                href="/write"
-                cta="執筆ページを開く"
-              />
-
-              <EntryCard
-                eyebrow="MANAGE"
-                title="管理トップ"
-                description="BGM、タグ、朗読許可などの作品管理は既存の /manage に寄せる。"
-                href="/manage"
-                cta="管理トップを開く"
-              />
-
-              <EntryCard
-                eyebrow="RECORD"
-                title="朗読ページ"
-                description="朗読可能作品の確認、承認制作品への申請、申請状況確認、制作開始は /record に集約する。"
-                href="/record"
-                cta="朗読ページを開く"
-              />
-
-              <EntryCard
-                eyebrow="NEW SERIES"
-                title="新規作品作成"
-                description="まだ作品がない場合でも、ここから最短で 1 本目の作品作成へ入れる。"
-                href="/write/series/new"
-                cta="新しい作品を作る"
-              />
-            </section>
-
-            <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    MY SERIES
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
-                    自分の作品一覧
-                  </h2>
-                </div>
-
-                <Link
-                  href="/write/series/new"
-                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                >
-                  作品を追加
-                </Link>
-              </div>
-
-              <div className="mt-4 grid gap-4">
-                {seriesCards.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-7 text-neutral-400">
-                    まだ作品がない。
-                    まずは「新しい作品を作る」から 1 本目を作成する。
-                  </div>
-                ) : (
-                  seriesCards.map(
-                    ({ series, episodes, publishedCount, latestEpisodeNumber }) => (
-                      <article
-                        key={series.id}
-                        className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-4">
-                          <div className="max-w-3xl">
-                            <p className="text-xs tracking-[0.18em] text-neutral-500">
-                              SERIES
-                            </p>
-                            <h3 className="mt-2 text-2xl font-semibold text-white">
-                              {pickText(series.title) || "無題"}
-                            </h3>
-                            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-400">
-                              {getSeriesSummary(series) || "あらすじ未設定"}
-                            </p>
-                          </div>
-
-                          <div className="flex flex-wrap gap-3">
-                            <Link
-                              href={`/works/${series.id}`}
-                              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                            >
-                              作品ページ
-                            </Link>
-
-                            <Link
-                              href={`/write/series/${series.id}`}
-                              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                            >
-                              執筆を開く
-                            </Link>
-
-                            <Link
-                              href={`/manage/series/${series.id}`}
-                              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                            >
-                              管理へ
-                            </Link>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 grid gap-3 md:grid-cols-3">
-                          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
-                            総話数:{" "}
-                            <span className="font-semibold text-white">
-                              {episodes.length}
-                            </span>
-                          </div>
-
-                          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
-                            公開中:{" "}
-                            <span className="font-semibold text-white">
-                              {publishedCount}
-                            </span>
-                          </div>
-
-                          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
-                            最新話:{" "}
-                            <span className="font-semibold text-white">
-                              {latestEpisodeNumber
-                                ? `第${latestEpisodeNumber}話`
-                                : "未作成"}
-                            </span>
-                          </div>
-                        </div>
-                      </article>
-                    )
-                  )
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-              <p className="text-xs tracking-[0.18em] text-neutral-500">
-                FUTURE SLOTS
-              </p>
-              <h2 className="mt-2 text-xl font-semibold text-white">
-                今後ここに載せる予定のもの
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-neutral-400">
-                今回は朗読導線を Future Slot のままにせず、/record に切り出す。
-                ここにはまだ本体未着手のものだけ残す。
-              </p>
-
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <FutureSlotCard
-                  title="ブックマーク"
-                  description="お気に入り作品や途中まで読んだ作品の一覧を、将来的にここへ載せられるようにする。"
-                />
-                <FutureSlotCard
-                  title="評価 / レビュー"
-                  description="自分が付けた評価やレビュー履歴を、将来的にここへ整理して載せられるようにする。"
-                />
-              </div>
-            </section>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
     </main>
   );
