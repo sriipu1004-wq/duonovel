@@ -53,9 +53,7 @@ function FutureSlotCard({
     <article className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-4">
       <p className="text-sm font-semibold text-white">{title}</p>
       <p className="mt-2 text-sm leading-7 text-neutral-400">{description}</p>
-      <p className="mt-3 text-xs tracking-[0.18em] text-neutral-500">
-        PREPARED SLOT
-      </p>
+      <p className="mt-3 text-xs tracking-[0.18em] text-neutral-500">PREPARED SLOT</p>
     </article>
   );
 }
@@ -70,15 +68,8 @@ export default async function MyPage() {
 
   const seriesCards = await buildAuthorSeriesCards(ownedSeries, supabase);
 
-  const totalEpisodes = seriesCards.reduce(
-    (sum, card) => sum + card.totalEpisodes,
-    0
-  );
-
-  const totalPublished = seriesCards.reduce(
-    (sum, card) => sum + card.publishedCount,
-    0
-  );
+  const totalEpisodes = seriesCards.reduce((sum, card) => sum + card.totalEpisodes, 0);
+  const totalPublished = seriesCards.reduce((sum, card) => sum + card.publishedCount, 0);
 
   const authorName = resolveAuthorName(author, user.email);
   const authorBio = resolveAuthorBio(author);
@@ -97,7 +88,9 @@ export default async function MyPage() {
           description={`${authorBio}
 
 ここは公開作者ページとは別の、本人用活動ハブ。
-プロフィール表現と作品一覧の土台は作者ページと揃えつつ、執筆、管理、朗読、新規作成の導線はこのページ側へ集約する。`}
+プロフィール表現と作品一覧の土台は作者ページと揃えつつ、
+執筆・管理・朗読への入口をまとめる。
+新規作品作成や本文執筆の本体体験は /write 側へ寄せる。`}
           badges={[
             { label: "本人面" },
             { label: `signed in: ${signedInLabel}` },
@@ -111,7 +104,6 @@ export default async function MyPage() {
             { href: "/write", label: "執筆ページへ" },
             { href: "/manage", label: "管理トップへ" },
             { href: "/record", label: "朗読ページへ" },
-            { href: "/write/series/new", label: "新しい作品を作る" },
           ]}
           stats={[
             {
@@ -138,7 +130,7 @@ export default async function MyPage() {
             <EntryCard
               eyebrow="WRITE"
               title="執筆ページ"
-              description="作品作成、話追加、本文編集など、執筆作業そのものは既存の /write に寄せる。"
+              description="作品作成、話追加、本文編集など、書く作業の本体は /write に寄せる。新しい作品を作る入口もここを主導線にする。"
               href="/write"
               cta="執筆ページを開く"
             />
@@ -146,7 +138,7 @@ export default async function MyPage() {
             <EntryCard
               eyebrow="MANAGE"
               title="管理トップ"
-              description="BGM、タグ、朗読許可などの作品管理は既存の /manage に寄せる。"
+              description="BGM、タグ、朗読許可などの作品管理は /manage に寄せる。"
               href="/manage"
               cta="管理トップを開く"
             />
@@ -171,25 +163,21 @@ export default async function MyPage() {
           <ProfileSeriesSection
             eyebrow="MY SERIES"
             title="自分の作品一覧"
-            description="ここでは自分の作品を、公開前のものも含めてまとめて確認する。公開作品としての見え方は作者ページ側に寄せる。"
+            description="ここでは自分の作品を、公開前のものも含めてまとめて確認する。実際の執筆作業は各作品の執筆ページと /write 側へ寄せる。"
             cards={seriesCards}
-            emptyMessage="まだ作品がない。まずは「新しい作品を作る」から1本目を作成する。"
+            emptyMessage="まだ作品がない。まずは執筆ページから1本目を作成する。"
             mode="private"
             headerAction={{
-              href: "/write/series/new",
-              label: "作品を追加",
+              href: "/write",
+              label: "執筆ページへ",
             }}
           />
 
           <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-            <p className="text-xs tracking-[0.18em] text-neutral-500">
-              FUTURE SLOTS
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-white">
-              今後ここに載せる予定のもの
-            </h2>
+            <p className="text-xs tracking-[0.18em] text-neutral-500">FUTURE SLOTS</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">今後ここに載せる予定のもの</h2>
             <p className="mt-3 text-sm leading-7 text-neutral-400">
-              今回は土台共通化までに絞る。
+              今回は活動ハブとしての土台整理までに絞る。
               本体未着手のものだけを Future Slot として残し、本人用の拡張受け皿にする。
             </p>
 

@@ -7,7 +7,6 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   getEpisodeBody,
   getEpisodeNumber,
-  isPublishedEpisode,
   pickText,
   type EpisodeRow,
 } from "@/features/write/writeShared";
@@ -22,89 +21,27 @@ type WriteEpisodeFormProps = {
   initialEpisodeNumber: number;
 };
 
-type EpisodePayload = Record<string, unknown>;
+type EpisodePayload = {
+  series_id: string;
+  episode_number: number;
+  title: string;
+  body: string;
+};
 
-function createEpisodePayloads(args: {
+function createEpisodePayload(args: {
   seriesId: string;
   episodeNumber: number;
   title: string;
   body: string;
-  isPublished: boolean;
-}): EpisodePayload[] {
-  const { seriesId, episodeNumber, title, body, isPublished } = args;
+}): EpisodePayload {
+  const { seriesId, episodeNumber, title, body } = args;
 
-  return [
-    {
-      series_id: seriesId,
-      episode_number: episodeNumber,
-      title,
-      body,
-      is_published: isPublished,
-    },
-    {
-      series_id: seriesId,
-      episode_number: episodeNumber,
-      title,
-      content: body,
-      is_published: isPublished,
-    },
-    {
-      series_id: seriesId,
-      episode_number: episodeNumber,
-      title,
-      text: body,
-      is_published: isPublished,
-    },
-    {
-      series_id: seriesId,
-      episode_number: episodeNumber,
-      title,
-      novel_text: body,
-      is_published: isPublished,
-    },
-    {
-      series_id: seriesId,
-      episode_number: episodeNumber,
-      title,
-      body_text: body,
-      is_published: isPublished,
-    },
-    {
-      series_id: seriesId,
-      episode_number: episodeNumber,
-      title,
-      body,
-      published: isPublished,
-    },
-    {
-      series_id: seriesId,
-      episode_number: episodeNumber,
-      title,
-      content: body,
-      published: isPublished,
-    },
-    {
-      seriesId: seriesId,
-      episodeNumber: episodeNumber,
-      title,
-      body,
-      published: isPublished,
-    },
-    {
-      seriesId: seriesId,
-      episodeNumber: episodeNumber,
-      title,
-      content: body,
-      published: isPublished,
-    },
-    {
-      seriesId: seriesId,
-      episodeNumber: episodeNumber,
-      title,
-      text: body,
-      published: isPublished,
-    },
-  ];
+  return {
+    series_id: seriesId,
+    episode_number: episodeNumber,
+    title,
+    body,
+  };
 }
 
 export default function WriteEpisodeForm({
@@ -114,24 +51,31 @@ export default function WriteEpisodeForm({
   initialEpisodeNumber,
 }: WriteEpisodeFormProps) {
   const router = useRouter();
+
   const [episodeNumber, setEpisodeNumber] = useState(String(initialEpisodeNumber));
   const [title, setTitle] = useState(pickText(episode?.title));
-  const [body, setBody] = useState(
-  episode ? getEpisodeBody(episode) : ""
-);
-  const [isPublished, setIsPublished] = useState(
-    episode ? isPublishedEpisode(episode) : false
-  );
+  const [body, setBody] = useState(episode ? getEpisodeBody(episode) : "");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  const parsedEpisodeNumber = Number(episodeNumber);
+  const safeEpisodeNumber =
+    Number.isFinite(parsedEpisodeNumber) && parsedEpisodeNumber > 0
+      ? parsedEpisodeNumber
+      : null;
+
+  const readHref = safeEpisodeNumber ? `/read/${seriesId}/${safeEpisodeNumber}` : null;
+  const characterCount = body.length;
+  const lineCount = body.length === 0 ? 0 : body.split(/\r?\n/).length;
+  const currentEpisodeLabel =
+    mode === "edit" && episode ? `第${getEpisodeNumber(episode)}話` : safeEpisodeNumber ? `第${safeEpisodeNumber}話` : "-";
+
   async function handleSubmit() {
-    const parsedEpisodeNumber = Number(episodeNumber);
     const trimmedTitle = title.trim();
     const trimmedBody = body.trim();
 
-    if (!Number.isFinite(parsedEpisodeNumber) || parsedEpisodeNumber <= 0) {
+    if (!safeEpisodeNumber) {
       setSaveState("error");
       setErrorMessage("話数は1以上の数字で入れる。");
       setSuccessMessage("");
@@ -149,54 +93,50 @@ export default function WriteEpisodeForm({
     setErrorMessage("");
     setSuccessMessage("");
 
-    const payloads = createEpisodePayloads({
+    const payload = createEpisodePayload({
       seriesId,
-      episodeNumber: parsedEpisodeNumber,
+      episodeNumber: safeEpisodeNumber,
       title: trimmedTitle,
       body: trimmedBody,
-      isPublished,
     });
 
-    let lastError = "話の保存に失敗した。";
-
-    for (const payload of payloads) {
-      const builder =
-        mode === "create"
-          ? supabase.from("episodes").insert(payload).select("id").single()
-          : supabase.from("episodes").update(payload).eq("id", episode?.id ?? "");
-
-      const result = await builder;
+    if (mode === "create") {
+      const result = await supabase.from("episodes").insert(payload);
 
       if (!result.error) {
-        const targetEpisodeId =
-          mode === "create"
-            ? (result.data as { id?: string } | null)?.id ?? null
-            : episode?.id ?? null;
-
         setSaveState("success");
-        setSuccessMessage(mode === "create" ? "話を作成した。" : "話を保存した。");
-
-        if (targetEpisodeId) {
-          router.push(`/write/series/${seriesId}/episodes/${targetEpisodeId}`);
-        } else {
-          router.push(`/write/series/${seriesId}`);
-        }
+        setSuccessMessage("話を作成した。");
+        router.push(`/write/series/${seriesId}`);
         router.refresh();
         return;
       }
 
-      lastError = result.error.message;
+      setSaveState("error");
+      setErrorMessage(result.error.message);
+      return;
+    }
+
+    const result = await supabase
+      .from("episodes")
+      .update(payload)
+      .eq("id", episode?.id ?? "");
+
+    if (!result.error) {
+      setSaveState("success");
+      setSuccessMessage("話を保存した。");
+      router.refresh();
+      return;
     }
 
     setSaveState("error");
-    setErrorMessage(lastError);
+    setErrorMessage(result.error.message);
   }
 
   const heading = mode === "create" ? "新しい話を追加する" : "話本文を編集する";
-  const readHref =
-    mode === "edit" && Number.isFinite(Number(episodeNumber)) && Number(episodeNumber) > 0
-      ? `/read/${seriesId}/${Number(episodeNumber)}`
-      : null;
+  const sub =
+    mode === "create"
+      ? "ここでは話数、タイトル、本文を最小編集する。作成後は作品執筆ページへ戻り、一覧から新しい話を開けるようにする。"
+      : "本文、話数、タイトルをここで調整する。作品単位の話一覧や次話追加へ戻る基点にもする。";
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
@@ -209,16 +149,14 @@ export default function WriteEpisodeForm({
           <div className="border-b border-white/10 px-5 py-6 sm:px-8">
             <p className="text-xs tracking-[0.22em] text-neutral-500">LIB READ WRITE</p>
             <h1 className="mt-3 text-3xl font-bold text-white">{heading}</h1>
-            <p className="mt-3 text-sm leading-7 text-neutral-400">
-              ここでは本文と公開状態を最小編集する。作品全体設定は管理画面に分離する。
-            </p>
+            <p className="mt-3 text-sm leading-7 text-neutral-400">{sub}</p>
 
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
                 href={`/write/series/${seriesId}`}
                 className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
               >
-                作品執筆トップへ
+                作品執筆ページへ
               </Link>
 
               <Link
@@ -228,7 +166,23 @@ export default function WriteEpisodeForm({
                 作品管理へ
               </Link>
 
-              {readHref ? (
+              <Link
+                href={`/works/${seriesId}`}
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                作品ページを見る
+              </Link>
+
+              {mode === "edit" ? (
+                <Link
+                  href={`/write/series/${seriesId}/episodes/new`}
+                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                >
+                  次の話を追加
+                </Link>
+              ) : null}
+
+              {mode === "edit" && readHref ? (
                 <Link
                   href={readHref}
                   className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
@@ -287,25 +241,6 @@ export default function WriteEpisodeForm({
                     className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-8 text-white outline-none placeholder:text-neutral-500"
                   />
                 </label>
-
-                <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                  <input
-                    type="checkbox"
-                    checked={isPublished}
-                    onChange={(event) => {
-                      setIsPublished(event.target.checked);
-                      setSaveState("idle");
-                      setErrorMessage("");
-                      setSuccessMessage("");
-                    }}
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-white">公開する</p>
-                    <p className="text-sm text-neutral-400">
-                      オフなら下書き扱い。オンなら読む画面に出せる状態を狙う。
-                    </p>
-                  </div>
-                </label>
               </div>
 
               <div className="mt-5 flex flex-wrap gap-3">
@@ -317,8 +252,8 @@ export default function WriteEpisodeForm({
                   {saveState === "saving"
                     ? "保存中..."
                     : mode === "create"
-                      ? "話を作成"
-                      : "話を保存"}
+                      ? "作成して一覧へ戻る"
+                      : "保存して続ける"}
                 </button>
 
                 <Link
@@ -327,6 +262,11 @@ export default function WriteEpisodeForm({
                 >
                   一覧へ戻る
                 </Link>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-4 text-sm leading-7 text-amber-100">
+                今のDBでは公開 / 下書きの保存列がまだ無い。
+                この画面では当面、話数・タイトル・本文だけを保存する。
               </div>
 
               {errorMessage ? (
@@ -342,26 +282,104 @@ export default function WriteEpisodeForm({
               ) : null}
             </section>
 
+            <section className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">EPISODE</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{currentEpisodeLabel}</p>
+                <p className="mt-2 text-sm text-neutral-400">現在編集中の話番号</p>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">CHARACTERS</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{characterCount}</p>
+                <p className="mt-2 text-sm text-neutral-400">本文文字数の目安</p>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">LINES</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{lineCount}</p>
+                <p className="mt-2 text-sm text-neutral-400">改行ベースの行数目安</p>
+              </div>
+            </section>
+
+            <section className="grid gap-4 lg:grid-cols-3">
+              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">NEXT ACTION</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">
+                  {mode === "create" ? "まず話を作る" : "この話の修正を続ける"}
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-neutral-400">
+                  {mode === "create"
+                    ? "まず作成して作品執筆ページへ戻り、一覧から今の話を開いて続きを整える。"
+                    : "本文とタイトルを保存しながら、執筆一覧と往復して整える。"}
+                </p>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">BACK TO SERIES</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">作品全体へ戻る</h2>
+                <p className="mt-3 text-sm leading-7 text-neutral-400">
+                  話単位の編集が終わったら、作品執筆ページへ戻って一覧や次の作業を確認する。
+                </p>
+                <div className="mt-4">
+                  <Link
+                    href={`/write/series/${seriesId}`}
+                    className="inline-flex rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    作品執筆ページへ
+                  </Link>
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">PUBLIC CHECK</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">見え方を確認する</h2>
+                <p className="mt-3 text-sm leading-7 text-neutral-400">
+                  作品ページや読む画面で、保存した本文の見え方を確認する。
+                </p>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link
+                    href={`/works/${seriesId}`}
+                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    作品ページ
+                  </Link>
+
+                  {mode === "edit" && readHref ? (
+                    <Link
+                      href={readHref}
+                      className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                    >
+                      読む画面
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+
             {mode === "edit" && episode ? (
-              <section className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">EPISODE</p>
-                  <p className="mt-2 text-3xl font-semibold text-white">第{getEpisodeNumber(episode)}話</p>
-                  <p className="mt-2 text-sm text-neutral-400">現在の話数</p>
-                </div>
-
-                <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">STATUS</p>
-                  <p className="mt-2 text-3xl font-semibold text-white">
-                    {isPublished ? "公開" : "下書き"}
-                  </p>
-                  <p className="mt-2 text-sm text-neutral-400">現在の公開状態</p>
-                </div>
-
-                <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">CHARACTERS</p>
-                  <p className="mt-2 text-3xl font-semibold text-white">{body.length}</p>
-                  <p className="mt-2 text-sm text-neutral-400">本文文字数の目安</p>
+              <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">QUICK LINKS</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">このあとよく使う導線</h2>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link
+                    href={`/write/series/${seriesId}/episodes/new`}
+                    className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
+                  >
+                    次の話を追加
+                  </Link>
+                  <Link
+                    href={`/write/series/${seriesId}`}
+                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    話一覧へ戻る
+                  </Link>
+                  <Link
+                    href={`/manage/series/${seriesId}`}
+                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    管理へ
+                  </Link>
                 </div>
               </section>
             ) : null}
