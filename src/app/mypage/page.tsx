@@ -10,6 +10,7 @@ import {
   resolveAuthorBio,
   resolveAuthorName,
 } from "@/features/authorProfile/authorProfileShared";
+import BookmarkedSeriesList from "@/features/bookmark/BookmarkedSeriesList";
 
 function EntryCard({
   eyebrow,
@@ -173,25 +174,18 @@ export default async function MyPage() {
             }}
           />
 
-          <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-            <p className="text-xs tracking-[0.18em] text-neutral-500">FUTURE SLOTS</p>
-            <h2 className="mt-2 text-xl font-semibold text-white">今後ここに載せる予定のもの</h2>
-            <p className="mt-3 text-sm leading-7 text-neutral-400">
-              今回は活動ハブとしての土台整理までに絞る。
-              本体未着手のものだけを Future Slot として残し、本人用の拡張受け皿にする。
-            </p>
+<section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+  <p className="text-xs tracking-[0.18em] text-neutral-500">BOOKMARKS</p>
+  <h2 className="mt-2 text-xl font-semibold text-white">
+    お気に入り作品
+  </h2>
+  <p className="mt-3 text-sm leading-7 text-neutral-400">
+    作品ページから保存した作品をここでまとめて確認する。
+    今回は最小版として、作品一覧表示と解除までに絞る。
+  </p>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <FutureSlotCard
-                title="ブックマーク"
-                description="お気に入り作品や途中まで読んだ作品の一覧を、将来的にここへ載せられるようにする。"
-              />
-              <FutureSlotCard
-                title="評価 / レビュー"
-                description="自分が付けた評価やレビュー履歴を、将来的にここへ整理して載せられるようにする。"
-              />
-            </div>
-          </section>
+  <BookmarkedSeriesList userId={user.id} />
+</section>
         </div>
       </div>
     </main>

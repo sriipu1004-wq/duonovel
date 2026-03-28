@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { supabase } from "@/lib/supabaseClient";
 import ContinueReadingCard from "@/features/bookmark/ContinueReadingCard";
+import FavoriteBookmarkButton from "@/features/bookmark/FavoriteBookmarkButton";
 
 type PageProps = {
   recording_permission_mode?: RecordingPermissionMode | null;
@@ -598,67 +599,69 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                 {summary}
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                {firstEpisodeNumber !== null ? (
-                  <Link
-                    href={buildReadHref(
-                      seriesId,
-                      firstEpisodeNumber,
-                      selectedReaderKey,
-                      selectedReaderName
-                    )}
-                    className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
-                  >
-                    第1話から読む
-                  </Link>
-                ) : (
-                  <span className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-500">
-                    公開話なし
-                  </span>
-                )}
+<div className="mt-6 flex flex-wrap gap-3">
+  {firstEpisodeNumber !== null ? (
+    <Link
+      href={buildReadHref(
+        seriesId,
+        firstEpisodeNumber,
+        selectedReaderKey,
+        selectedReaderName
+      )}
+      className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
+    >
+      第1話から読む
+    </Link>
+  ) : (
+    <span className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-500">
+      公開話なし
+    </span>
+  )}
 
-                <Link
-                  href={buildWorksHref(
-                    seriesId,
-                    "toc",
-                    selectedReaderKey,
-                    selectedReaderName
-                  )}
-                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
-                >
-                  目次を見る
-                </Link>
+  <Link
+    href={buildWorksHref(
+      seriesId,
+      "toc",
+      selectedReaderKey,
+      selectedReaderName
+    )}
+    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
+  >
+    目次を見る
+  </Link>
 
-                <Link
-                  href={buildWorksHref(
-                    seriesId,
-                    "readers",
-                    selectedReaderKey,
-                    selectedReaderName
-                  )}
-                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
-                >
-                  朗読者を見る
-                </Link>
+  <FavoriteBookmarkButton seriesId={seriesId} />
 
-                {authorId ? (
-                  <Link
-                    href={buildAuthorHref(authorId)}
-                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    作者ページへ
-                  </Link>
-                ) : null}
-                
-                {recordingPermissionMode !== "closed" ? (
-                  <Link
-                    href={buildRecordHubHref(seriesId)}
-                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    朗読ページへ
-                  </Link>
-                ) : null}
-              </div>
+  <Link
+    href={buildWorksHref(
+      seriesId,
+      "readers",
+      selectedReaderKey,
+      selectedReaderName
+    )}
+    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
+  >
+    朗読者を見る
+  </Link>
+
+  {authorId ? (
+    <Link
+      href={buildAuthorHref(authorId)}
+      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+    >
+      作者ページへ
+    </Link>
+  ) : null}
+  
+  {recordingPermissionMode !== "closed" ? (
+    <Link
+      href={buildRecordHubHref(seriesId)}
+      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+    >
+      朗読ページへ
+    </Link>
+  ) : null}
+</div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
