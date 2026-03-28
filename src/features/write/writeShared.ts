@@ -1,3 +1,5 @@
+export type RecordingPermissionMode = "open" | "closed" | "approval_required";
+
 export type SeriesRow = Record<string, unknown> & {
   id: string;
   title?: string | null;
@@ -5,6 +7,14 @@ export type SeriesRow = Record<string, unknown> & {
   description?: string | null;
   catch_copy?: string | null;
   author_id?: string | null;
+  bgm_title?: string | null;
+  bgm_audio_path?: string | null;
+  bgm_settings?: unknown;
+  bgmTitle?: string | null;
+  bgmAudioPath?: string | null;
+  bgmSettings?: unknown;
+  tags?: string[] | string | null;
+  recording_permission_mode?: RecordingPermissionMode | null;
 };
 
 export type EpisodeRow = Record<string, unknown> & {

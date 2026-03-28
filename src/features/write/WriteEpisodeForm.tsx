@@ -69,7 +69,11 @@ export default function WriteEpisodeForm({
   const characterCount = body.length;
   const lineCount = body.length === 0 ? 0 : body.split(/\r?\n/).length;
   const currentEpisodeLabel =
-    mode === "edit" && episode ? `第${getEpisodeNumber(episode)}話` : safeEpisodeNumber ? `第${safeEpisodeNumber}話` : "-";
+    mode === "edit" && episode
+      ? `第${getEpisodeNumber(episode)}話`
+      : safeEpisodeNumber
+        ? `第${safeEpisodeNumber}話`
+        : "-";
 
   async function handleSubmit() {
     const trimmedTitle = title.trim();
@@ -135,19 +139,21 @@ export default function WriteEpisodeForm({
   const heading = mode === "create" ? "新しい話を追加する" : "話本文を編集する";
   const sub =
     mode === "create"
-      ? "ここでは話数、タイトル、本文を最小編集する。作成後は作品執筆ページへ戻り、一覧から新しい話を開けるようにする。"
-      : "本文、話数、タイトルをここで調整する。作品単位の話一覧や次話追加へ戻る基点にもする。";
+      ? "ここは作品ワークスペース配下の話作成ページ。話数、タイトル、本文を最小編集し、作成後は作品ワークスペースへ戻る。"
+      : "ここは作品ワークスペース配下の本文編集ページ。本文そのものに集中し、作品全体の設定はワークスペース側で扱う。";
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <span className="text-neutral-300">執筆ページ</span>
+          <span className="text-neutral-300">本文編集</span>
         </div>
 
         <section className="overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
           <div className="border-b border-white/10 px-5 py-6 sm:px-8">
-            <p className="text-xs tracking-[0.22em] text-neutral-500">LIB READ WRITE</p>
+            <p className="text-xs tracking-[0.22em] text-neutral-500">
+              LIB READ EPISODE EDITOR
+            </p>
             <h1 className="mt-3 text-3xl font-bold text-white">{heading}</h1>
             <p className="mt-3 text-sm leading-7 text-neutral-400">{sub}</p>
 
@@ -156,14 +162,14 @@ export default function WriteEpisodeForm({
                 href={`/write/series/${seriesId}`}
                 className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
               >
-                作品執筆ページへ
+                作品ワークスペースへ
               </Link>
 
               <Link
-                href={`/manage/series/${seriesId}`}
+                href={`/manage/bgm/${seriesId}`}
                 className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
               >
-                作品管理へ
+                BGM / 演出詳細へ
               </Link>
 
               <Link
@@ -252,7 +258,7 @@ export default function WriteEpisodeForm({
                   {saveState === "saving"
                     ? "保存中..."
                     : mode === "create"
-                      ? "作成して一覧へ戻る"
+                      ? "作成してワークスペースへ戻る"
                       : "保存して続ける"}
                 </button>
 
@@ -260,7 +266,7 @@ export default function WriteEpisodeForm({
                   href={`/write/series/${seriesId}`}
                   className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
                 >
-                  一覧へ戻る
+                  ワークスペースへ戻る
                 </Link>
               </div>
 
@@ -285,14 +291,22 @@ export default function WriteEpisodeForm({
             <section className="grid gap-4 md:grid-cols-3">
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
                 <p className="text-xs tracking-[0.18em] text-neutral-500">EPISODE</p>
-                <p className="mt-2 text-3xl font-semibold text-white">{currentEpisodeLabel}</p>
-                <p className="mt-2 text-sm text-neutral-400">現在編集中の話番号</p>
+                <p className="mt-2 text-3xl font-semibold text-white">
+                  {currentEpisodeLabel}
+                </p>
+                <p className="mt-2 text-sm text-neutral-400">
+                  現在編集中の話番号
+                </p>
               </div>
 
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
                 <p className="text-xs tracking-[0.18em] text-neutral-500">CHARACTERS</p>
-                <p className="mt-2 text-3xl font-semibold text-white">{characterCount}</p>
-                <p className="mt-2 text-sm text-neutral-400">本文文字数の目安</p>
+                <p className="mt-2 text-3xl font-semibold text-white">
+                  {characterCount}
+                </p>
+                <p className="mt-2 text-sm text-neutral-400">
+                  本文文字数の目安
+                </p>
               </div>
 
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
@@ -310,30 +324,36 @@ export default function WriteEpisodeForm({
                 </h2>
                 <p className="mt-3 text-sm leading-7 text-neutral-400">
                   {mode === "create"
-                    ? "まず作成して作品執筆ページへ戻り、一覧から今の話を開いて続きを整える。"
-                    : "本文とタイトルを保存しながら、執筆一覧と往復して整える。"}
+                    ? "まず作成して作品ワークスペースへ戻り、一覧から今の話を開いて続きを整える。"
+                    : "本文とタイトルを保存しながら、ワークスペースと往復して整える。"}
                 </p>
               </div>
 
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">BACK TO SERIES</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">作品全体へ戻る</h2>
+                <p className="text-xs tracking-[0.18em] text-neutral-500">
+                  BACK TO WORKSPACE
+                </p>
+                <h2 className="mt-2 text-xl font-semibold text-white">
+                  作品全体へ戻る
+                </h2>
                 <p className="mt-3 text-sm leading-7 text-neutral-400">
-                  話単位の編集が終わったら、作品執筆ページへ戻って一覧や次の作業を確認する。
+                  本文編集が終わったら、作品ワークスペースへ戻って次話、共通BGM、基本演出、タグ導線を確認する。
                 </p>
                 <div className="mt-4">
                   <Link
                     href={`/write/series/${seriesId}`}
                     className="inline-flex rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
                   >
-                    作品執筆ページへ
+                    作品ワークスペースへ
                   </Link>
                 </div>
               </div>
 
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
                 <p className="text-xs tracking-[0.18em] text-neutral-500">PUBLIC CHECK</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">見え方を確認する</h2>
+                <h2 className="mt-2 text-xl font-semibold text-white">
+                  見え方を確認する
+                </h2>
                 <p className="mt-3 text-sm leading-7 text-neutral-400">
                   作品ページや読む画面で、保存した本文の見え方を確認する。
                 </p>
@@ -360,7 +380,9 @@ export default function WriteEpisodeForm({
             {mode === "edit" && episode ? (
               <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
                 <p className="text-xs tracking-[0.18em] text-neutral-500">QUICK LINKS</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">このあとよく使う導線</h2>
+                <h2 className="mt-2 text-xl font-semibold text-white">
+                  このあとよく使う導線
+                </h2>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <Link
                     href={`/write/series/${seriesId}/episodes/new`}
@@ -372,13 +394,13 @@ export default function WriteEpisodeForm({
                     href={`/write/series/${seriesId}`}
                     className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
                   >
-                    話一覧へ戻る
+                    作品ワークスペースへ
                   </Link>
                   <Link
-                    href={`/manage/series/${seriesId}`}
+                    href={`/manage/bgm/${seriesId}`}
                     className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
                   >
-                    管理へ
+                    BGM / 演出詳細へ
                   </Link>
                 </div>
               </section>
