@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import ContinueReadingCard from "@/features/bookmark/ContinueReadingCard";
 import FavoriteBookmarkButton from "@/features/bookmark/FavoriteBookmarkButton";
 import SeriesReactionButton from "@/features/rating/SeriesReactionButton";
+import SeriesReviewSection from "@/features/review/SeriesReviewSection";
 
 type PageProps = {
   recording_permission_mode?: RecordingPermissionMode | null;
@@ -536,6 +537,15 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       series.catch_copy
     ) || "あらすじはまだ登録されていません。";
 
+  const workSelfHref = buildWorksHref(
+    seriesId,
+    currentTab,
+    selectedReaderKey,
+    selectedReaderName
+  );
+
+  const loginHref = `/login?next=${encodeURIComponent(workSelfHref)}`;    
+
   const recordingPermissionMode = normalizeRecordingPermissionMode(
   series.recording_permission_mode
 );
@@ -600,31 +610,31 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                 {summary}
               </p>
 
-              <div className="mt-6 max-w-2xl rounded-[28px] border border-white/10 bg-black/20 p-4">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  REACTION
-                </p>
-                <h2 className="mt-2 text-lg font-semibold text-white">
-                  この作品への応援
-                </h2>
-                <p className="mt-3 text-sm leading-7 text-neutral-400">
-                  最小版では 1ユーザー1作品1応援だけ保存する。レビュー本文や複数反応はまだ混ぜない。
-                </p>
+<div className="mt-6 max-w-2xl rounded-[28px] border border-white/10 bg-black/20 p-4">
+  <p className="text-xs tracking-[0.18em] text-neutral-500">
+    REACTION
+  </p>
+  <h2 className="mt-2 text-lg font-semibold text-white">
+    この作品への応援
+  </h2>
+  <p className="mt-3 text-sm leading-7 text-neutral-400">
+    最小版では 1ユーザー1作品1応援だけ保存する。レビュー本文や複数反応はまだ混ぜない。
+  </p>
 
-                <div className="mt-4">
-                  <SeriesReactionButton
-                    seriesId={seriesId}
-                    loginHref={`/login?next=${encodeURIComponent(
-                      buildWorksHref(
-                        seriesId,
-                        currentTab,
-                        selectedReaderKey,
-                        selectedReaderName
-                      )
-                    )}`}
-                  />
-                </div>
-              </div>
+  <div className="mt-4">
+    <SeriesReactionButton
+      seriesId={seriesId}
+      loginHref={loginHref}
+    />
+  </div>
+</div>
+
+<div className="mt-6 max-w-2xl">
+  <SeriesReviewSection
+    seriesId={seriesId}
+    loginHref={loginHref}
+  />
+</div>              
 
 <div className="mt-6 flex flex-wrap gap-3">
   {firstEpisodeNumber !== null ? (
