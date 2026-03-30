@@ -83,66 +83,74 @@ export default function WriteEpisodeForm({
     setSuccessMessage("");
   }
 
-  async function handleSubmit() {
-    const trimmedTitle = title.trim();
-    const trimmedBody = body.trim();
+async function handleSubmit(destination: "workspace" | "effects" = "workspace") {
+  const trimmedTitle = title.trim();
+  const trimmedBody = body.trim();
 
-    if (!safeEpisodeNumber) {
-      setSaveState("error");
-      setErrorMessage("話数は1以上の数字で入れる。");
-      setSuccessMessage("");
-      return;
-    }
-
-    if (!trimmedTitle) {
-      setSaveState("error");
-      setErrorMessage("話タイトルは必須。");
-      setSuccessMessage("");
-      return;
-    }
-
-    setSaveState("saving");
-    setErrorMessage("");
+  if (!safeEpisodeNumber) {
+    setSaveState("error");
+    setErrorMessage("話数は1以上の数字で入れる。");
     setSuccessMessage("");
+    return;
+  }
 
-    const payload = createEpisodePayload({
-      seriesId,
-      episodeNumber: safeEpisodeNumber,
-      title: trimmedTitle,
-      body: trimmedBody,
-    });
+  if (!trimmedTitle) {
+    setSaveState("error");
+    setErrorMessage("話タイトルは必須。");
+    setSuccessMessage("");
+    return;
+  }
 
-    if (mode === "create") {
-      const result = await supabase.from("episodes").insert(payload);
+  setSaveState("saving");
+  setErrorMessage("");
+  setSuccessMessage("");
 
-      if (!result.error) {
-        setSaveState("success");
-        setSuccessMessage("話を作成した。");
-        router.push(`/write/series/${seriesId}`);
-        router.refresh();
-        return;
-      }
+  const payload = createEpisodePayload({
+    seriesId,
+    episodeNumber: safeEpisodeNumber,
+    title: trimmedTitle,
+    body: trimmedBody,
+  });
 
-      setSaveState("error");
-      setErrorMessage(result.error.message);
-      return;
-    }
-
+  if (mode === "create") {
     const result = await supabase
       .from("episodes")
-      .update(payload)
-      .eq("id", episode?.id ?? "");
+      .insert(payload)
+      .select("id")
+      .single();
 
-    if (!result.error) {
+    if (!result.error && result.data?.id) {
       setSaveState("success");
-      setSuccessMessage("話を保存した。");
+      setSuccessMessage("話を作成した。");
+      router.push(
+        destination === "effects"
+          ? `/write/series/${seriesId}/episodes/${result.data.id}/effects`
+          : `/write/series/${seriesId}`
+      );
       router.refresh();
       return;
     }
 
     setSaveState("error");
-    setErrorMessage(result.error.message);
+    setErrorMessage(result.error?.message ?? "話作成に失敗した。");
+    return;
   }
+
+  const result = await supabase
+    .from("episodes")
+    .update(payload)
+    .eq("id", episode?.id ?? "");
+
+  if (!result.error) {
+    setSaveState("success");
+    setSuccessMessage("話を保存した。");
+    router.refresh();
+    return;
+  }
+
+  setSaveState("error");
+  setErrorMessage(result.error.message);
+}
 
   const heading = mode === "create" ? "新しい話を追加する" : "話本文を編集する";
   const sub =
@@ -179,6 +187,15 @@ export default function WriteEpisodeForm({
               >
                 作品ページを見る
               </Link>
+
+{mode === "edit" && episode ? (
+  <Link
+    href={`/write/series/${seriesId}/episodes/${episode.id}/effects`}
+    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+  >
+    この話の演出へ
+  </Link>
+) : null}              
 
               {mode === "edit" && readHref ? (
                 <Link
@@ -231,27 +248,38 @@ export default function WriteEpisodeForm({
                   </label>
                 </div>
 
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={isSaving}
-                    className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isSaving
-                      ? "保存中..."
-                      : mode === "create"
-                        ? "作成して戻る"
-                        : "保存して続ける"}
-                  </button>
+<div className="flex flex-wrap gap-3">
+  <button
+    type="button"
+    onClick={() => handleSubmit("workspace")}
+    disabled={isSaving}
+    className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+  >
+    {isSaving
+      ? "保存中..."
+      : mode === "create"
+        ? "作成してワークスペースへ戻る"
+        : "保存して続ける"}
+  </button>
 
-                  <Link
-                    href={`/write/series/${seriesId}`}
-                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    戻る
-                  </Link>
-                </div>
+  {mode === "create" ? (
+    <button
+      type="button"
+      onClick={() => handleSubmit("effects")}
+      disabled={isSaving}
+      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      作成して演出へ
+    </button>
+  ) : null}
+
+  <Link
+    href={`/write/series/${seriesId}`}
+    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+  >
+    ワークスペースへ戻る
+  </Link>
+</div>
 
                 <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-4 text-sm leading-7 text-amber-100">
                   今のDBでは公開 / 下書きの保存列がまだ無い。

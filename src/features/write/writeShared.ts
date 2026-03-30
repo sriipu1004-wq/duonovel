@@ -13,6 +13,8 @@ export type SeriesRow = Record<string, unknown> & {
   bgmTitle?: string | null;
   bgmAudioPath?: string | null;
   bgmSettings?: unknown;
+  effect_settings?: unknown;
+  effectSettings?: unknown;
   tags?: string[] | string | null;
   recording_permission_mode?: RecordingPermissionMode | null;
 };
@@ -31,6 +33,8 @@ export type EpisodeRow = Record<string, unknown> & {
   body_text?: string | null;
   series_id?: string | null;
   seriesId?: string | null;
+  effect_settings?: unknown;
+  effectSettings?: unknown;
 };
 
 export function pickText(...values: unknown[]): string {

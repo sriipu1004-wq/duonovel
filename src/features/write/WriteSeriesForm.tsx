@@ -334,7 +334,7 @@ export default function WriteSeriesForm({
     resetSaveUi();
   }
 
-  async function handleCreate() {
+  async function handleCreate(destination: "workspace" | "effects") {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       setSaveState("error");
@@ -381,7 +381,11 @@ export default function WriteSeriesForm({
       if (!result.error && result.data?.id) {
         setSaveState("success");
         setSuccessMessage("作品を作成した。");
-        router.push(`/write/series/${result.data.id}`);
+        router.push(
+  destination === "effects"
+    ? `/write/series/${result.data.id}/effects`
+    : `/write/series/${result.data.id}`
+);
         router.refresh();
         return;
       }
@@ -455,14 +459,14 @@ export default function WriteSeriesForm({
     setErrorMessage(lastError);
   }
 
-  async function handleSubmit() {
-    if (mode === "create") {
-      await handleCreate();
-      return;
-    }
-
-    await handleUpdate();
+async function handleSubmit(destination: "workspace" | "effects" = "workspace") {
+  if (mode === "create") {
+    await handleCreate(destination);
+    return;
   }
+
+  await handleUpdate();
+}
 
   const heading =
     mode === "create" ? "新しい作品を作る" : "作品ワークスペース";
@@ -601,39 +605,49 @@ export default function WriteSeriesForm({
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={handleSubmit}
-                      className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
-                    >
-                      {saveState === "saving"
-                        ? "保存中..."
-                        : mode === "create"
-                          ? "作品を作成してワークスペースへ"
-                          : "作品ワークスペースを保存"}
-                    </button>
+<div className="flex flex-wrap gap-3">
+  <button
+    type="button"
+    onClick={() => handleSubmit("workspace")}
+    className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
+  >
+    {saveState === "saving"
+      ? "保存中..."
+      : mode === "create"
+        ? "作品を作成してワークスペースへ"
+        : "作品ワークスペースを保存"}
+  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleClearSeriesTrack();
-                        setSeriesBgmSettings(getInitialSeriesBgmSettings(series));
-                      }}
-                      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
-                    >
-                      BGM選択を外す
-                    </button>
+  {mode === "create" ? (
+    <button
+      type="button"
+      onClick={() => handleSubmit("effects")}
+      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+    >
+      作品を作成して演出へ
+    </button>
+  ) : null}
 
-                    {series?.id ? (
-                      <Link
-                        href={`/write/series/${series.id}/episodes/new`}
-                        className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                      >
-                        新しい話を追加
-                      </Link>
-                    ) : null}
-                  </div>
+  <button
+    type="button"
+    onClick={() => {
+      handleClearSeriesTrack();
+      setSeriesBgmSettings(getInitialSeriesBgmSettings(series));
+    }}
+    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
+  >
+    BGM選択を外す
+  </button>
+
+  {series?.id ? (
+    <Link
+      href={`/write/series/${series.id}/episodes/new`}
+      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+    >
+      新しい話を追加
+    </Link>
+  ) : null}
+</div>
 
                   {errorMessage ? (
                     <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
@@ -681,6 +695,14 @@ export default function WriteSeriesForm({
                         RELATED SETTINGS
                       </p>
                       <div className="mt-3 grid gap-3">
+
+<WorkspaceLinkCard
+  eyebrow="EFFECTS"
+  title="演出編集"
+  description="ルビ、色、文字装飾、背景、挿絵、場面転換 cue などの保存土台をここで編集する。"
+  href={`/write/series/${series.id}/effects`}
+  cta="演出編集へ"
+/>                        
                         <WorkspaceLinkCard
                           eyebrow="DETAIL BGM"
                           title="BGM / 演出詳細"

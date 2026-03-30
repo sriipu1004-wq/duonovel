@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 
-type SeriesOwnershipRow = {
+type SeriesOwnershipRow = Record<string, unknown> & {
   id: string;
   author_id?: string | null;
   user_id?: string | null;
@@ -19,7 +19,7 @@ export async function requireOwnedSeries(
 
   const { data, error } = await supabase
     .from("series")
-    .select("id, author_id, user_id")
+    .select("*")
     .eq("id", seriesId)
     .single();
 
@@ -29,9 +29,10 @@ export async function requireOwnedSeries(
 
   const series = data as SeriesOwnershipRow;
 
-  const ownerIds = [normalizeId(series.author_id), normalizeId(series.user_id)].filter(
-    (value) => value.length > 0
-  );
+  const ownerIds = [
+    normalizeId(series.author_id),
+    normalizeId(series.user_id),
+  ].filter((value) => value.length > 0);
 
   if (ownerIds.length === 0) {
     redirect(`/login?next=${encodeURIComponent(nextPath)}`);
