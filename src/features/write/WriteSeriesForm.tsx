@@ -494,39 +494,25 @@ export default function WriteSeriesForm({
               <StatusBadge state={saveState} />
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-3">
-              <Link
-                href="/write"
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                執筆トップへ
-              </Link>
+<div className="mt-5 flex flex-wrap gap-3">
+  <Link
+    href="/write"
+    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+  >
+    作品ワークスペース一覧へ
+  </Link>
 
-              <Link
-                href="/manage"
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                管理トップへ
-              </Link>
-
-              {series?.id ? (
-                <>
-                  <Link
-                    href={`/works/${series.id}`}
-                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    作品ページを見る
-                  </Link>
-
-                  <Link
-                    href={`/manage/series/${series.id}`}
-                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    詳細管理へ
-                  </Link>
-                </>
-              ) : null}
-            </div>
+  {series?.id ? (
+    <>
+      <Link
+        href={`/works/${series.id}`}
+        className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+      >
+        作品ページを見る
+      </Link>
+    </>
+  ) : null}
+</div>
           </div>
 
           <div className="grid gap-6 px-5 py-6 sm:px-8">

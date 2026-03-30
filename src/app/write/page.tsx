@@ -92,7 +92,7 @@ function buildNextAction(seriesId: string, episodes: EpisodeRow[]) {
   }
 
   return {
-    label: "作品を開く",
+    label: "作品ワークスペースを開く",
     href: `/write/series/${seriesId}`,
     description: "作品情報と話一覧を確認する。",
   };
@@ -134,17 +134,19 @@ export default async function WriteTopPage() {
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <span className="text-neutral-300">執筆ページ</span>
+          <span className="text-neutral-300">執筆トップ</span>
         </div>
 
         <section className="overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
           <div className="border-b border-white/10 px-5 py-6 sm:px-8">
             <p className="text-xs tracking-[0.22em] text-neutral-500">LIB READ WRITE</p>
-            <h1 className="mt-3 text-3xl font-bold text-white">作品を作る・育てる場所</h1>
+            <h1 className="mt-3 text-3xl font-bold text-white">
+              作品ワークスペースへ入る場所
+            </h1>
             <p className="mt-3 text-sm leading-7 text-neutral-400">
-              ここは新規作品作成、話追加、本文編集の中心導線。
-              作品設定、タグ、BGM、朗読許可などの管理寄り項目は管理画面側へ寄せ、
-              執筆そのものはこのページから迷わず進められる形に寄せる。
+              ここは新規作品作成と、自分の作品ワークスペース一覧の入口。
+              作品ごとの実作業は `/write/series/[seriesId]` に寄せ、
+              1話目作成、次話追加、作品情報、作品共通BGM、基本演出をそこから進める。
             </p>
 
             <div className="mt-5 flex flex-wrap gap-3">
@@ -209,15 +211,17 @@ export default async function WriteTopPage() {
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-sm font-semibold text-white">2. 話を追加する</p>
+                  <p className="text-sm font-semibold text-white">
+                    2. 作品ワークスペースを開く
+                  </p>
                   <p className="mt-2 text-sm leading-7 text-neutral-400">
-                    作品ごとの執筆ページから、1話目や次話を追加する。
+                    作品ごとの作業本体へ入り、話追加や作品の肉付けを進める。
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-sm font-semibold text-white">3. 下書きか公開かを決める</p>
+                  <p className="text-sm font-semibold text-white">3. 本文編集へ進む</p>
                   <p className="mt-2 text-sm leading-7 text-neutral-400">
-                    話本文ページで公開状態を切り替えながら育てる。
+                    各話ページで本文を編集し、必要に応じてワークスペースへ戻る。
                   </p>
                 </div>
               </div>
@@ -229,7 +233,7 @@ export default async function WriteTopPage() {
                   <p className="text-xs tracking-[0.18em] text-neutral-500">MY SERIES</p>
                   <h2 className="mt-2 text-xl font-semibold text-white">自分の作品一覧</h2>
                   <p className="mt-2 text-sm leading-7 text-neutral-400">
-                    各作品カードから、その作品で今やるべき作業へ直接入れるようにする。
+                    各作品カードから、その作品のワークスペースか、今やるべき本文作業へ直接入る。
                   </p>
                 </div>
 
@@ -303,14 +307,14 @@ export default async function WriteTopPage() {
                               href={`/write/series/${series.id}`}
                               className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
                             >
-                              作品執筆ページ
+                              作品ワークスペース
                             </Link>
 
                             <Link
                               href={`/manage/series/${series.id}`}
                               className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
                             >
-                              管理へ
+                              管理導線
                             </Link>
                           </div>
                         </div>

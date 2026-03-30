@@ -43,22 +43,6 @@ function EntryCard({
   );
 }
 
-function FutureSlotCard({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <article className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-4">
-      <p className="text-sm font-semibold text-white">{title}</p>
-      <p className="mt-2 text-sm leading-7 text-neutral-400">{description}</p>
-      <p className="mt-3 text-xs tracking-[0.18em] text-neutral-500">PREPARED SLOT</p>
-    </article>
-  );
-}
-
 export default async function MyPage() {
   const { supabase, user } = await requireLoggedInUser("/mypage");
 
@@ -90,8 +74,8 @@ export default async function MyPage() {
 
 ここは公開作者ページとは別の、本人用活動ハブ。
 プロフィール表現と作品一覧の土台は作者ページと揃えつつ、
-執筆・管理・朗読への入口をまとめる。
-新規作品作成や本文執筆の本体体験は /write 側へ寄せる。`}
+作者向け実作業は作品ワークスペースへ寄せる。
+作品一覧から目的の作品ワークスペースへ入る運用を主導線にする。`}
           badges={[
             { label: "本人面" },
             { label: `signed in: ${signedInLabel}` },
@@ -102,8 +86,7 @@ export default async function MyPage() {
               label: "公開作者ページを見る",
               tone: "primary",
             },
-            { href: "/write", label: "執筆ページへ" },
-            { href: "/manage", label: "管理トップへ" },
+            { href: "/write", label: "作品ワークスペース一覧へ" },
             { href: "/record", label: "朗読ページへ" },
           ]}
           stats={[
@@ -123,25 +106,17 @@ export default async function MyPage() {
               sub: "公開中の話数合計",
             },
           ]}
-          notice="公開プロフィールとして見せる面は /authors/[authorId] に残し、本人専用の行動導線は /mypage に残す。"
+          notice="公開プロフィールとして見せる面は /authors/[authorId] に残し、本人専用の作業入口は作品ワークスペース一覧から各作品へつなぐ。"
         />
 
         <div className="mt-6 grid gap-6">
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <EntryCard
-              eyebrow="WRITE"
-              title="執筆ページ"
-              description="作品作成、話追加、本文編集など、書く作業の本体は /write に寄せる。新しい作品を作る入口もここを主導線にする。"
+              eyebrow="WORKSPACE"
+              title="作品ワークスペース一覧"
+              description="作品作成、作品ごとの作業開始、次話追加、本文編集への入口は /write に寄せる。作者向け実作業の主導線はここ。"
               href="/write"
-              cta="執筆ページを開く"
-            />
-
-            <EntryCard
-              eyebrow="MANAGE"
-              title="管理トップ"
-              description="BGM、タグ、朗読許可などの作品管理は /manage に寄せる。"
-              href="/manage"
-              cta="管理トップを開く"
+              cta="ワークスペース一覧を開く"
             />
 
             <EntryCard
@@ -164,28 +139,26 @@ export default async function MyPage() {
           <ProfileSeriesSection
             eyebrow="MY SERIES"
             title="自分の作品一覧"
-            description="ここでは自分の作品を、公開前のものも含めてまとめて確認する。実際の執筆作業は各作品の執筆ページと /write 側へ寄せる。"
+            description="ここでは自分の作品を、公開前のものも含めてまとめて確認する。作品ごとの実作業は作品ワークスペースへ寄せ、本文編集はそこから各話ページへ進める。"
             cards={seriesCards}
-            emptyMessage="まだ作品がない。まずは執筆ページから1本目を作成する。"
+            emptyMessage="まだ作品がない。まずは作品ワークスペース一覧から1本目を作成する。"
             mode="private"
             headerAction={{
               href: "/write",
-              label: "執筆ページへ",
+              label: "ワークスペース一覧へ",
             }}
           />
 
-<section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-  <p className="text-xs tracking-[0.18em] text-neutral-500">BOOKMARKS</p>
-  <h2 className="mt-2 text-xl font-semibold text-white">
-    お気に入り作品
-  </h2>
-  <p className="mt-3 text-sm leading-7 text-neutral-400">
-    作品ページから保存した作品をここでまとめて確認する。
-    今回は最小版として、作品一覧表示と解除までに絞る。
-  </p>
+          <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+            <p className="text-xs tracking-[0.18em] text-neutral-500">BOOKMARKS</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">お気に入り作品</h2>
+            <p className="mt-3 text-sm leading-7 text-neutral-400">
+              作品ページから保存した作品をここでまとめて確認する。
+              今回は最小版として、作品一覧表示と解除までに絞る。
+            </p>
 
-  <BookmarkedSeriesList userId={user.id} />
-</section>
+            <BookmarkedSeriesList userId={user.id} />
+          </section>
         </div>
       </div>
     </main>

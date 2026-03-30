@@ -174,8 +174,8 @@ function buildWorksHref(
   return `/works/${seriesId}?${query.toString()}`;
 }
 
-function buildManageSeriesHref(seriesId: string): string {
-  return `/manage/series/${seriesId}`;
+function buildWorkspaceHref(seriesId: string): string {
+  return `/write/series/${seriesId}`;
 }
 
 function buildAuthorHref(authorId: string): string {
@@ -498,13 +498,15 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     data: { user: currentUser },
   } = await authSupabase.auth.getUser();
 
-  const ownerAuthorId =
-    typeof series.author_id === "string" ? series.author_id.trim() : "";
+const ownerIds = [
+  typeof series.author_id === "string" ? series.author_id.trim() : "",
+  typeof series.user_id === "string" ? series.user_id.trim() : "",
+].filter((value) => value.length > 0);
 
-  const canManageSeries =
-    !!currentUser &&
-    ownerAuthorId.length > 0 &&
-    currentUser.id === ownerAuthorId;
+const isOwner =
+  !!currentUser &&
+  ownerIds.length > 0 &&
+  ownerIds.includes(currentUser.id);
 
   const rawEpisodes = await fetchEpisodesBySeriesId(seriesId);
 
@@ -745,54 +747,63 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                 />
               </section>
 
-              <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+<section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
   <div className="flex items-center justify-between gap-3">
     <div>
       <p className="text-xs tracking-[0.18em] text-neutral-500">
-        SETTINGS / MANAGE
+        SETTINGS / WORKSPACE
       </p>
       <h2 className="mt-2 text-lg font-semibold text-white">
         配布・設定エリア
       </h2>
     </div>
 
-    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">     
-      HUB
+    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
+      WORKSPACE
     </span>
   </div>
 
   <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-  <div className="flex flex-wrap items-center gap-3">
-    <span className="text-sm text-neutral-500">現在の朗読可否</span>
-    <span
-      className={[
-        "rounded-full border px-3 py-1 text-sm",
-        getRecordingPermissionBadgeClass(recordingPermissionMode),
-      ].join(" ")}
-    >
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="text-sm text-neutral-500">現在の朗読可否</span>
+      <span
+        className={[
+          "rounded-full border px-3 py-1 text-sm",
+          getRecordingPermissionBadgeClass(recordingPermissionMode),
+        ].join(" ")}
+      >
+        {getRecordingPermissionLabel(recordingPermissionMode)}
+      </span>
+    </div>
 
-      {getRecordingPermissionLabel(recordingPermissionMode)}
-    </span>
+    <p className="mt-3 text-sm leading-7 text-neutral-400">
+      {getRecordingPermissionDescription(recordingPermissionMode)}
+    </p>
   </div>
 
-  <p className="mt-3 text-sm leading-7 text-neutral-400">
-    {getRecordingPermissionDescription(recordingPermissionMode)}
-  </p>
-</div>
-
   <div className="mt-4 space-y-3">
-    {canManageSeries ? (
+    {isOwner ? (
       <Link
-        href={buildManageSeriesHref(seriesId)}
+        href={buildWorkspaceHref(seriesId)}
         className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white px-4 py-3 text-left text-sm font-semibold text-black transition hover:opacity-90"
       >
-        <span>作品管理ハブを開く</span>
+        <span>作品ワークスペースを開く</span>
         <span>→</span>
       </Link>
     ) : (
-      <div className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-neutral-500">
-        <span>作品管理ハブ</span>
-        <span>所有者のみ</span>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 opacity-70">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-neutral-300">
+            作品ワークスペース
+          </span>
+          <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-400">
+            作者専用
+          </span>
+        </div>
+
+        <p className="mt-3 text-sm leading-7 text-neutral-500">
+          この作品の設定変更、配布設定、本文編集は作者アカウントのみ利用できる。
+        </p>
       </div>
     )}
 
@@ -816,7 +827,8 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   </div>
 
   <p className="mt-4 text-sm leading-7 text-neutral-400">
-    作品単位の管理ハブから、BGM管理とタグ管理へ入れる。権限制御は今回は広げず、入口追加だけに絞る。
+    作者向けの実作業は作品ワークスペースへ寄せる。
+    作者本人には入口を表示し、それ以外のアカウントには作者専用であることだけを案内する。
   </p>
 </section>
             </aside>
@@ -824,9 +836,9 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
             <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    INDEX
-                  </p>
+<p className="text-xs tracking-[0.18em] text-neutral-500">
+  SETTINGS / WORKSPACE
+</p>
                   <h2 className="mt-2 text-xl font-semibold text-white">
                     目次 / 朗読者
                   </h2>

@@ -474,19 +474,14 @@ export function ProfileSeriesSection({
                     )
                   ) : (
                     <>
-                      <Link
-                        href={`/write/series/${card.series.id}`}
-                        className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                      >
-                        執筆を開く
-                      </Link>
-
-                      <Link
-                        href={`/manage/series/${card.series.id}`}
-                        className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                      >
-                        管理へ
-                      </Link>
+<>
+  <Link
+    href={`/write/series/${card.series.id}`}
+    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+  >
+    作品ワークスペースへ
+  </Link>
+</>
                     </>
                   )}
                 </div>
