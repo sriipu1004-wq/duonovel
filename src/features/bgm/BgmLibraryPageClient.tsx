@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
-import type { BgmLibraryTrack } from "@/lib/bgm/bgmLibrary";
+import {
+  sortBgmLibraryTracksByFavorites,
+  type BgmLibraryTrack,
+} from "@/lib/bgm/bgmLibrary";
 import BgmLibraryManagePanel from "@/features/bgm/BgmLibraryManagePanel";
 
 const LOOP_FILTERS = [
@@ -39,6 +42,14 @@ function includesQuery(track: BgmLibraryTrack, query: string): boolean {
   return haystack.includes(normalized);
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return "お気に入りの更新に失敗した。";
+}
+
 function FilterBadge({ children }: { children: ReactNode }) {
   return (
     <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-neutral-300">
@@ -47,19 +58,59 @@ function FilterBadge({ children }: { children: ReactNode }) {
   );
 }
 
+function FavoriteButton({
+  isFavorite,
+  isPending,
+  onClick,
+}: {
+  isFavorite: boolean;
+  isPending: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={isPending}
+      className={`rounded-full border px-4 py-2 text-sm transition ${
+        isFavorite
+          ? "border-amber-400/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20"
+          : "border-white/10 bg-white/5 text-neutral-200 hover:bg-white hover:text-black"
+      } ${isPending ? "cursor-wait opacity-60" : ""}`}
+    >
+      {isPending ? "更新中..." : isFavorite ? "★ お気に入り済み" : "☆ よく使うに保存"}
+    </button>
+  );
+}
+
 export default function BgmLibraryPageClient({
   tracks,
   canManageLibrary,
   manageableTracks,
+  isLoggedIn,
+  initialFavoriteTrackIds,
 }: {
   tracks: BgmLibraryTrack[];
   canManageLibrary: boolean;
   manageableTracks: BgmLibraryTrack[];
+  isLoggedIn: boolean;
+  initialFavoriteTrackIds: string[];
 }) {
   const [query, setQuery] = useState("");
   const [moodFilter, setMoodFilter] = useState("all");
   const [usageFilter, setUsageFilter] = useState("all");
   const [loopFilter, setLoopFilter] = useState<LoopFilter>("all");
+  const [favoriteTrackIds, setFavoriteTrackIds] = useState(initialFavoriteTrackIds);
+  const [pendingTrackId, setPendingTrackId] = useState("");
+  const [favoriteNotice, setFavoriteNotice] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  const favoriteIdSet = useMemo(
+    () => new Set(favoriteTrackIds),
+    [favoriteTrackIds]
+  );
 
   const moodOptions = useMemo(
     () => ["all", ...new Set(tracks.map((track) => track.mood))],
@@ -71,8 +122,14 @@ export default function BgmLibraryPageClient({
     [tracks]
   );
 
+  const favoriteTracks = useMemo(() => {
+    return sortBgmLibraryTracksByFavorites(tracks, favoriteTrackIds).filter((track) =>
+      favoriteIdSet.has(track.id)
+    );
+  }, [favoriteIdSet, favoriteTrackIds, tracks]);
+
   const filteredTracks = useMemo(() => {
-    return tracks.filter((track) => {
+    const nextTracks = tracks.filter((track) => {
       const matchesMood = moodFilter === "all" || track.mood === moodFilter;
       const matchesUsage = usageFilter === "all" || track.useCase === usageFilter;
 
@@ -83,7 +140,62 @@ export default function BgmLibraryPageClient({
         includesQuery(track, query)
       );
     });
-  }, [loopFilter, moodFilter, query, tracks, usageFilter]);
+
+    return sortBgmLibraryTracksByFavorites(nextTracks, favoriteTrackIds);
+  }, [favoriteTrackIds, loopFilter, moodFilter, query, tracks, usageFilter]);
+
+  async function handleToggleFavorite(trackId: string) {
+    if (!isLoggedIn || pendingTrackId) {
+      return;
+    }
+
+    const previousFavoriteTrackIds = favoriteTrackIds;
+    const wasFavorite = previousFavoriteTrackIds.includes(trackId);
+    const nextFavoriteTrackIds = wasFavorite
+      ? previousFavoriteTrackIds.filter((id) => id !== trackId)
+      : [...previousFavoriteTrackIds, trackId];
+
+    setFavoriteTrackIds(nextFavoriteTrackIds);
+    setPendingTrackId(trackId);
+    setFavoriteNotice(null);
+
+    try {
+      const response = await fetch("/api/bgm-library/favorites", {
+        method: wasFavorite ? "DELETE" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ trackId }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: unknown }
+          | null;
+
+        throw new Error(
+          typeof payload?.error === "string" && payload.error.trim().length > 0
+            ? payload.error
+            : "お気に入りの更新に失敗した。"
+        );
+      }
+
+      setFavoriteNotice({
+        type: "success",
+        message: wasFavorite
+          ? "お気に入りから外した。"
+          : "よく使うBGMに追加した。",
+      });
+    } catch (error) {
+      setFavoriteTrackIds(previousFavoriteTrackIds);
+      setFavoriteNotice({
+        type: "error",
+        message: getErrorMessage(error),
+      });
+    } finally {
+      setPendingTrackId("");
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#050510] px-4 py-6 text-[#f5f5f5] sm:px-6 lg:px-8">
@@ -104,6 +216,7 @@ export default function BgmLibraryPageClient({
 
             <p className="mt-4 max-w-3xl text-sm leading-7 text-neutral-300 sm:text-base">
               サイト側で用意したBGMだけを一覧、検索、絞り込み、試聴できる素材ページ。
+              ログイン中なら、ここから自分専用のよく使うBGM一覧を持てる。
               運営としてログインしている時だけ、この下に素材追加と公開管理の導線が出る。
             </p>
 
@@ -137,6 +250,90 @@ export default function BgmLibraryPageClient({
             {canManageLibrary ? (
               <BgmLibraryManagePanel tracks={manageableTracks} />
             ) : null}
+
+            {isLoggedIn ? (
+              <section className="rounded-[28px] border border-amber-400/20 bg-amber-400/[0.06] p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs tracking-[0.18em] text-amber-200/80">
+                      FAVORITES
+                    </p>
+                    <h2 className="mt-2 text-xl font-semibold text-white">
+                      よく使うBGM
+                    </h2>
+                    <p className="mt-2 text-sm leading-7 text-neutral-300">
+                      ここは自分専用。お気に入りにしたBGMをすぐ再確認できる。
+                    </p>
+                  </div>
+
+                  <FilterBadge>{favoriteTracks.length}件</FilterBadge>
+                </div>
+
+                {favoriteNotice ? (
+                  <div
+                    className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                      favoriteNotice.type === "error"
+                        ? "border border-red-400/20 bg-red-400/10 text-red-200"
+                        : "border border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+                    }`}
+                  >
+                    {favoriteNotice.message}
+                  </div>
+                ) : null}
+
+                {favoriteTracks.length > 0 ? (
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {favoriteTracks.map((track) => (
+                      <article
+                        key={`favorite-${track.id}`}
+                        className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <h3 className="text-base font-semibold text-white">
+                              {track.title}
+                            </h3>
+                            <p className="mt-2 text-sm leading-7 text-neutral-400">
+                              {track.description || "説明なし"}
+                            </p>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <FilterBadge>{track.mood}</FilterBadge>
+                              <FilterBadge>{track.useCase}</FilterBadge>
+                            </div>
+                          </div>
+
+                          <FavoriteButton
+                            isFavorite
+                            isPending={pendingTrackId === track.id}
+                            onClick={() => {
+                              void handleToggleFavorite(track.id);
+                            }}
+                          />
+                        </div>
+
+                        <audio
+                          controls
+                          preload="none"
+                          src={track.audioPath}
+                          className="mt-4 w-full"
+                        >
+                          お使いのブラウザは audio 要素に対応していません。
+                        </audio>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-400">
+                    まだお気に入りはない。下の一覧からよく使うBGMを保存できる。
+                  </div>
+                )}
+              </section>
+            ) : (
+              <section className="rounded-[28px] border border-white/10 bg-black/20 p-5 text-sm leading-7 text-neutral-400">
+                ログイン中だけ、自分専用のお気に入りBGMを保存できる。
+              </section>
+            )}
 
             <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -212,79 +409,105 @@ export default function BgmLibraryPageClient({
                   </select>
                 </label>
               </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                {isLoggedIn ? (
+                  <FilterBadge>お気に入り {favoriteTrackIds.length}件</FilterBadge>
+                ) : (
+                  <FilterBadge>ログインでお気に入り保存</FilterBadge>
+                )}
+                <FilterBadge>お気に入り優先表示</FilterBadge>
+              </div>
             </section>
 
             <section className="grid gap-4">
               {filteredTracks.length > 0 ? (
-                filteredTracks.map((track) => (
-                  <article
-                    key={track.id}
-                    className="rounded-[28px] border border-white/10 bg-black/20 p-5"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <p className="text-xs tracking-[0.18em] text-neutral-500">
-                          SITE BGM
-                        </p>
-                        <h2 className="mt-2 text-2xl font-semibold text-white">
-                          {track.title}
-                        </h2>
-                        <p className="mt-3 max-w-3xl text-sm leading-7 text-neutral-400">
-                          {track.description}
-                        </p>
+                filteredTracks.map((track) => {
+                  const isFavorite = favoriteIdSet.has(track.id);
+
+                  return (
+                    <article
+                      key={track.id}
+                      className="rounded-[28px] border border-white/10 bg-black/20 p-5"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <p className="text-xs tracking-[0.18em] text-neutral-500">
+                            SITE BGM
+                          </p>
+                          <h2 className="mt-2 text-2xl font-semibold text-white">
+                            {track.title}
+                          </h2>
+                          <p className="mt-3 max-w-3xl text-sm leading-7 text-neutral-400">
+                            {track.description}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-2">
+                          {isLoggedIn ? (
+                            <FavoriteButton
+                              isFavorite={isFavorite}
+                              isPending={pendingTrackId === track.id}
+                              onClick={() => {
+                                void handleToggleFavorite(track.id);
+                              }}
+                            />
+                          ) : null}
+
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {isFavorite ? <FilterBadge>お気に入り</FilterBadge> : null}
+                            <FilterBadge>{track.mood}</FilterBadge>
+                            <FilterBadge>{track.useCase}</FilterBadge>
+                            <FilterBadge>
+                              {track.loopable ? "ループ可" : "ループ不可"}
+                            </FilterBadge>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        <FilterBadge>{track.mood}</FilterBadge>
-                        <FilterBadge>{track.useCase}</FilterBadge>
-                        <FilterBadge>
-                          {track.loopable ? "ループ可" : "ループ不可"}
-                        </FilterBadge>
-                      </div>
-                    </div>
+                      <div className="mt-5 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+                        <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                          <p className="text-sm font-semibold text-white">サイト内試聴</p>
 
-                    <div className="mt-5 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-                      <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                        <p className="text-sm font-semibold text-white">サイト内試聴</p>
+                          <audio
+                            controls
+                            preload="none"
+                            src={track.audioPath}
+                            className="mt-4 w-full"
+                          >
+                            お使いのブラウザは audio 要素に対応していません。
+                          </audio>
+                        </div>
 
-                        <audio
-                          controls
-                          preload="none"
-                          src={track.audioPath}
-                          className="mt-4 w-full"
-                        >
-                          お使いのブラウザは audio 要素に対応していません。
-                        </audio>
+                        <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-neutral-300">
+                          <p className="text-sm font-semibold text-white">素材メタ情報</p>
+                          <dl className="mt-3 grid gap-2">
+                            <div>
+                              <dt className="text-neutral-500">用途</dt>
+                              <dd>{track.useCase}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-neutral-500">長さ</dt>
+                              <dd>{track.durationLabel}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-neutral-500">出所</dt>
+                              <dd>{track.sourceLabel}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-neutral-500">利用ラベル</dt>
+                              <dd>{track.rightsLabel}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-neutral-500">設定用パス</dt>
+                              <dd className="break-all text-neutral-200">{track.audioPath}</dd>
+                            </div>
+                          </dl>
+                        </div>
                       </div>
-
-                      <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-neutral-300">
-                        <p className="text-sm font-semibold text-white">素材メタ情報</p>
-                        <dl className="mt-3 grid gap-2">
-                          <div>
-                            <dt className="text-neutral-500">用途</dt>
-                            <dd>{track.useCase}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-neutral-500">長さ</dt>
-                            <dd>{track.durationLabel}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-neutral-500">出所</dt>
-                            <dd>{track.sourceLabel}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-neutral-500">利用ラベル</dt>
-                            <dd>{track.rightsLabel}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-neutral-500">設定用パス</dt>
-                            <dd className="break-all text-neutral-200">{track.audioPath}</dd>
-                          </div>
-                        </dl>
-                      </div>
-                    </div>
-                  </article>
-                ))
+                    </article>
+                  );
+                })
               ) : (
                 <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 p-6 text-sm leading-7 text-neutral-400">
                   条件に一致するBGMがまだない。

@@ -5,7 +5,9 @@ import BgmManageForm from "@/features/manage/BgmManageForm";
 import { parseBgmSettingsFromRow } from "@/lib/bgm/bgmSettings";
 import {
   fetchAllBgmLibraryTracks,
+  fetchBgmLibraryFavoriteIds,
   fetchBgmLibraryTracks,
+  sortBgmLibraryTracksByFavorites,
 } from "@/lib/bgm/bgmLibrary";
 
 type PageProps = {
@@ -88,9 +90,15 @@ export default async function ManageBgmPage({ params }: PageProps) {
   }
 
   const canUsePrivateTracks = isOperatorUser(user.email ?? null);
-  const libraryTracks = canUsePrivateTracks
+  const favoriteTrackIds = await fetchBgmLibraryFavoriteIds(supabase, user.id);
+  const rawLibraryTracks = canUsePrivateTracks
     ? await fetchAllBgmLibraryTracks(supabase)
     : await fetchBgmLibraryTracks(supabase);
+  const libraryTracks = sortBgmLibraryTracksByFavorites(
+    rawLibraryTracks,
+    favoriteTrackIds
+  );
+
   const series = seriesData as SeriesRow;
   const episodes = await fetchEpisodesBySeriesId(supabase, seriesId);
 

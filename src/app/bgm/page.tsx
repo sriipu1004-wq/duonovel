@@ -1,6 +1,7 @@
 import BgmLibraryPageClient from "@/features/bgm/BgmLibraryPageClient";
 import {
   fetchAllBgmLibraryTracks,
+  fetchBgmLibraryFavoriteIds,
   fetchBgmLibraryTracks,
 } from "@/lib/bgm/bgmLibrary";
 import { isOperatorUser } from "@/lib/auth/operator";
@@ -19,12 +20,17 @@ export default async function BgmLibraryPage() {
   const manageableTracks = canManageLibrary
     ? await fetchAllBgmLibraryTracks(supabase)
     : [];
+  const favoriteTrackIds = user
+    ? await fetchBgmLibraryFavoriteIds(supabase, user.id)
+    : [];
 
   return (
     <BgmLibraryPageClient
       tracks={tracks}
       canManageLibrary={canManageLibrary}
       manageableTracks={manageableTracks}
+      isLoggedIn={Boolean(user)}
+      initialFavoriteTrackIds={favoriteTrackIds}
     />
   );
 }

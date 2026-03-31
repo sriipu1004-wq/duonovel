@@ -15,6 +15,10 @@ type BgmLibraryRow = Record<string, unknown> & {
   sort_order?: number | null;
 };
 
+type BgmLibraryFavoriteRow = Record<string, unknown> & {
+  bgm_library_id?: string | null;
+};
+
 export type BgmLibraryTrack = {
   id: string;
   slug: string;
@@ -37,33 +41,19 @@ type SimpleQueryResult<T> = PromiseLike<{
   error: { message: string } | null;
 }>;
 
+type SimpleSupabaseSelectQuery<T> = SimpleQueryResult<T> & {
+  eq: (column: string, value: unknown) => SimpleSupabaseSelectQuery<T>;
+  order: (
+    column: string,
+    options?: { ascending?: boolean }
+  ) => SimpleSupabaseSelectQuery<T>;
+};
+
 type SimpleSupabaseLike = {
   from: (table: string) => {
-    select: (columns: string) => {
-      eq: (
-        column: string,
-        value: unknown
-      ) => {
-        order: (
-          column: string,
-          options?: { ascending?: boolean }
-        ) => {
-          order: (
-            column: string,
-            options?: { ascending?: boolean }
-          ) => SimpleQueryResult<BgmLibraryRow>;
-        };
-      };
-      order: (
-        column: string,
-        options?: { ascending?: boolean }
-      ) => {
-        order: (
-          column: string,
-          options?: { ascending?: boolean }
-        ) => SimpleQueryResult<BgmLibraryRow>;
-      };
-    };
+    select: <T = Record<string, unknown>>(
+      columns: string
+    ) => SimpleSupabaseSelectQuery<T>;
   };
 };
 
@@ -129,7 +119,7 @@ export async function fetchBgmLibraryTracks(
 ): Promise<BgmLibraryTrack[]> {
   const result = await supabase
     .from("bgm_library")
-    .select("*")
+    .select<BgmLibraryRow>("*")
     .eq("is_active", true)
     .order("sort_order", { ascending: true })
     .order("title", { ascending: true });
@@ -147,7 +137,7 @@ export async function fetchAllBgmLibraryTracks(
 ): Promise<BgmLibraryTrack[]> {
   const result = await supabase
     .from("bgm_library")
-    .select("*")
+    .select<BgmLibraryRow>("*")
     .order("sort_order", { ascending: true })
     .order("title", { ascending: true });
 
@@ -157,6 +147,53 @@ export async function fetchAllBgmLibraryTracks(
   }
 
   return (result.data ?? []).map(mapBgmLibraryRow);
+}
+
+export async function fetchBgmLibraryFavoriteIds(
+  supabase: SimpleSupabaseLike,
+  userId: string
+): Promise<string[]> {
+  if (!userId.trim()) {
+    return [];
+  }
+
+  const result = await supabase
+    .from("bgm_library_favorites")
+    .select<BgmLibraryFavoriteRow>("bgm_library_id")
+    .eq("user_id", userId);
+
+  if (result.error) {
+    console.error("bgm_library_favorites fetch failed:", result.error.message);
+    return [];
+  }
+
+  return (result.data ?? [])
+    .map((row) => pickText(row.bgm_library_id))
+    .filter((id, index, array) => id.length > 0 && array.indexOf(id) === index);
+}
+
+export function sortBgmLibraryTracksByFavorites(
+  tracks: BgmLibraryTrack[],
+  favoriteTrackIds: string[]
+): BgmLibraryTrack[] {
+  if (favoriteTrackIds.length === 0) {
+    return tracks.slice();
+  }
+
+  const favoriteSet = new Set(favoriteTrackIds);
+  const favorites: BgmLibraryTrack[] = [];
+  const others: BgmLibraryTrack[] = [];
+
+  for (const track of tracks) {
+    if (favoriteSet.has(track.id)) {
+      favorites.push(track);
+      continue;
+    }
+
+    others.push(track);
+  }
+
+  return [...favorites, ...others];
 }
 
 export function findBgmLibraryTrack(

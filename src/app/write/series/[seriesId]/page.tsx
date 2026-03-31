@@ -5,7 +5,9 @@ import WriteSeriesForm from "@/features/write/WriteSeriesForm";
 import { type EpisodeRow, type SeriesRow } from "@/features/write/writeShared";
 import {
   fetchAllBgmLibraryTracks,
+  fetchBgmLibraryFavoriteIds,
   fetchBgmLibraryTracks,
+  sortBgmLibraryTracksByFavorites,
 } from "@/lib/bgm/bgmLibrary";
 
 type PageProps = {
@@ -68,9 +70,14 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
 
   const episodes = await fetchEpisodes(seriesId, supabase);
   const canUsePrivateTracks = isOperatorUser(user.email ?? null);
-  const libraryTracks = canUsePrivateTracks
+  const favoriteTrackIds = await fetchBgmLibraryFavoriteIds(supabase, user.id);
+  const rawLibraryTracks = canUsePrivateTracks
     ? await fetchAllBgmLibraryTracks(supabase)
     : await fetchBgmLibraryTracks(supabase);
+  const libraryTracks = sortBgmLibraryTracksByFavorites(
+    rawLibraryTracks,
+    favoriteTrackIds
+  );
 
   return (
     <WriteSeriesForm
