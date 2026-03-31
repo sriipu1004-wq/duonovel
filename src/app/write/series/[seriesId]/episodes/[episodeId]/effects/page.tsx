@@ -2,9 +2,11 @@ import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
 import EffectSettingsForm from "@/features/effects/EffectSettingsForm";
 import {
+  getEpisodeBody,
   getEpisodeNumber,
   pickText,
   type EpisodeRow,
+  type SeriesRow,
 } from "@/features/write/writeShared";
 import { fetchBgmLibraryTracks } from "@/lib/bgm/bgmLibrary";
 import { parseEffectSettingsFromRow } from "@/lib/effects/effectSettings";
@@ -12,6 +14,23 @@ import { parseEffectSettingsFromRow } from "@/lib/effects/effectSettings";
 type PageProps = {
   params: Promise<{ seriesId: string; episodeId: string }>;
 };
+
+async function fetchSeries(
+  seriesId: string,
+  supabase: Awaited<ReturnType<typeof requireOwnedSeries>>["supabase"]
+): Promise<SeriesRow | null> {
+  const { data, error } = await supabase
+    .from("series")
+    .select("*")
+    .eq("id", seriesId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data as SeriesRow;
+}
 
 async function fetchEpisode(
   seriesId: string,
@@ -50,8 +69,12 @@ export default async function EpisodeEffectsPage({ params }: PageProps) {
     `/write/series/${seriesId}/episodes/${episodeId}/effects`
   );
 
-  const episode = await fetchEpisode(seriesId, episodeId, supabase);
-  if (!episode) {
+  const [series, episode] = await Promise.all([
+    fetchSeries(seriesId, supabase),
+    fetchEpisode(seriesId, episodeId, supabase),
+  ]);
+
+  if (!series || !episode) {
     notFound();
   }
 
@@ -66,13 +89,19 @@ export default async function EpisodeEffectsPage({ params }: PageProps) {
       recordId={episodeId}
       seriesId={seriesId}
       title={`${episodeLabel} の演出編集`}
-      subtitle="ここでは話単位の演出を保存する。ルビ、色、太字、斜体、挿絵、場面転換BGM cue などを話単位で持てるようにする。"
+      subtitle="ここでは話単位の演出を保存する。本文表示と演出付き本文プレビューを同じ位置で切り替えながら、ルビ、色、太字、斜体、背景などの見え方をその場で確認できるようにする。"
       backHref={`/write/series/${seriesId}/episodes/${episodeId}`}
       workspaceHref={`/write/series/${seriesId}`}
       initialSettings={parseEffectSettingsFromRow(
         episode.effect_settings,
         episode["effectSettings"]
       )}
+      inheritedSettings={parseEffectSettingsFromRow(
+        series.effect_settings,
+        series["effectSettings"]
+      )}
+      previewText={getEpisodeBody(episode)}
+      previewTextLabel={`${episodeLabel} の本文`}
       libraryTracks={libraryTracks}
     />
   );

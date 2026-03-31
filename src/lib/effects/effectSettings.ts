@@ -34,8 +34,7 @@ export type EffectBackgroundPreset =
   | (typeof EFFECT_BACKGROUND_PRESETS)[number]
   | null;
 
-export type EffectInlineMarkKind =
-  (typeof EFFECT_INLINE_MARK_KINDS)[number];
+export type EffectInlineMarkKind = (typeof EFFECT_INLINE_MARK_KINDS)[number];
 
 export type EffectIllustrationPlacement =
   (typeof EFFECT_ILLUSTRATION_PLACEMENTS)[number];
@@ -266,6 +265,30 @@ export function parseEffectSettingsFromRow(...values: unknown[]): EffectSettings
   }
 
   return emptyEffectSettings();
+}
+
+export function mergeEffectSettings(...values: unknown[]): EffectSettings {
+  return values.reduce<EffectSettings>((merged, value) => {
+    const current = normalizeEffectSettings(value);
+
+    return {
+      version: 1,
+      backgroundPreset: current.backgroundPreset ?? merged.backgroundPreset,
+      typography: {
+        fontFamily: current.typography.fontFamily ?? merged.typography.fontFamily,
+        textColor: current.typography.textColor ?? merged.typography.textColor,
+        bold: merged.typography.bold || current.typography.bold,
+        italic: merged.typography.italic || current.typography.italic,
+      },
+      inlineMarks: [...merged.inlineMarks, ...current.inlineMarks],
+      illustrations: [...merged.illustrations, ...current.illustrations],
+      sceneCues: [...merged.sceneCues, ...current.sceneCues],
+      notes: [merged.notes, current.notes]
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+        .join("\n"),
+    };
+  }, emptyEffectSettings());
 }
 
 export function serializeEffectSettingsForSave(

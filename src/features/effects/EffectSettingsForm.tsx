@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import EffectPreviewRenderer from "@/features/effects/EffectPreviewRenderer";
 import {
   EFFECT_BACKGROUND_PRESETS,
   EFFECT_ILLUSTRATION_PLACEMENTS,
   EFFECT_INLINE_MARK_KINDS,
   EFFECT_TEXT_ANIMATIONS,
+  mergeEffectSettings,
   parseEffectSettingsFromRow,
   serializeEffectSettingsForSave,
   type EffectBackgroundPreset,
@@ -29,6 +31,7 @@ type BackgroundPresetSelectValue =
 type TextAnimationSelectValue =
   "" | Exclude<EffectTextAnimationKind, null>;
 
+type PreviewMode = "text" | "preview";
 type SaveState = "idle" | "saving" | "success" | "error";
 
 type EffectSettingsFormProps = {
@@ -41,6 +44,9 @@ type EffectSettingsFormProps = {
   backHref: string;
   workspaceHref: string;
   initialSettings: EffectSettings;
+  inheritedSettings?: EffectSettings | null;
+  previewText: string;
+  previewTextLabel: string;
   libraryTracks: BgmLibraryTrack[];
 };
 
@@ -76,6 +82,44 @@ function StatusBadge({ state }: { state: SaveState }) {
   );
 }
 
+function SummaryRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-neutral-300">
+      {label}: <span className="font-semibold text-white">{value}</span>
+    </div>
+  );
+}
+
+function PreviewToggleButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-4 py-2 text-sm transition ${
+        active
+          ? "bg-white text-black"
+          : "text-neutral-300 hover:bg-white/10 hover:text-white"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function EffectSettingsForm({
   scope,
   tableName,
@@ -86,16 +130,21 @@ export default function EffectSettingsForm({
   backHref,
   workspaceHref,
   initialSettings,
+  inheritedSettings = null,
+  previewText,
+  previewTextLabel,
   libraryTracks,
 }: EffectSettingsFormProps) {
   const firstInlineMark = initialSettings.inlineMarks[0] ?? null;
   const firstIllustration = initialSettings.illustrations[0] ?? null;
   const firstSceneCue = initialSettings.sceneCues[0] ?? null;
 
-const [backgroundPreset, setBackgroundPreset] =
-  useState<BackgroundPresetSelectValue>(
-    (initialSettings.backgroundPreset ?? "") as BackgroundPresetSelectValue
-  );
+  const [previewMode, setPreviewMode] = useState<PreviewMode>("text");
+
+  const [backgroundPreset, setBackgroundPreset] =
+    useState<BackgroundPresetSelectValue>(
+      (initialSettings.backgroundPreset ?? "") as BackgroundPresetSelectValue
+    );
 
   const [fontFamily, setFontFamily] = useState(
     initialSettings.typography.fontFamily ?? ""
@@ -139,16 +188,14 @@ const [backgroundPreset, setBackgroundPreset] =
       audioPath: firstSceneCue?.nextBgmAudioPath ?? "",
     })
   );
-
-const [sceneBackgroundPreset, setSceneBackgroundPreset] =
-  useState<BackgroundPresetSelectValue>(
-    (firstSceneCue?.backgroundPreset ?? "") as BackgroundPresetSelectValue
-  );
-
-const [sceneTextAnimation, setSceneTextAnimation] =
-  useState<TextAnimationSelectValue>(
-    (firstSceneCue?.textAnimation ?? "") as TextAnimationSelectValue
-  );
+  const [sceneBackgroundPreset, setSceneBackgroundPreset] =
+    useState<BackgroundPresetSelectValue>(
+      (firstSceneCue?.backgroundPreset ?? "") as BackgroundPresetSelectValue
+    );
+  const [sceneTextAnimation, setSceneTextAnimation] =
+    useState<TextAnimationSelectValue>(
+      (firstSceneCue?.textAnimation ?? "") as TextAnimationSelectValue
+    );
 
   const [notes, setNotes] = useState(initialSettings.notes ?? "");
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -161,14 +208,10 @@ const [sceneTextAnimation, setSceneTextAnimation] =
     setSuccessMessage("");
   }
 
-  async function handleSave() {
-    setSaveState("saving");
-    setErrorMessage("");
-    setSuccessMessage("");
-
+  function buildDraftSettings(): EffectSettings {
     const selectedTrack = findBgmLibraryTrack(libraryTracks, sceneTrackId);
 
-    const nextSettings = parseEffectSettingsFromRow({
+    return parseEffectSettingsFromRow({
       version: 1,
       backgroundPreset: backgroundPreset || null,
       typography: {
@@ -219,11 +262,34 @@ const [sceneTextAnimation, setSceneTextAnimation] =
           : [],
       notes: notes.trim(),
     });
+  }
+
+  const draftSettings = buildDraftSettings();
+  const savedPreviewSettings = mergeEffectSettings(inheritedSettings, initialSettings);
+  const effectivePreviewSettings = mergeEffectSettings(
+    inheritedSettings,
+    draftSettings
+  );
+
+  const previewBody = previewText;
+  const previewCharacterCount = previewBody.length;
+  const previewLineCount =
+    previewBody.length === 0 ? 0 : previewBody.split(/\r?\n/).length;
+
+  const inheritedExists = serializeEffectSettingsForSave(inheritedSettings) !== null;
+  const hasUnsavedPreviewChanges =
+    JSON.stringify(serializeEffectSettingsForSave(draftSettings)) !==
+    JSON.stringify(serializeEffectSettingsForSave(initialSettings));
+
+  async function handleSave() {
+    setSaveState("saving");
+    setErrorMessage("");
+    setSuccessMessage("");
 
     const { error } = await supabase
       .from(tableName)
       .update({
-        effect_settings: serializeEffectSettingsForSave(nextSettings),
+        effect_settings: serializeEffectSettingsForSave(draftSettings),
       })
       .eq("id", recordId);
 
@@ -235,9 +301,7 @@ const [sceneTextAnimation, setSceneTextAnimation] =
 
     setSaveState("success");
     setSuccessMessage(
-      scope === "series"
-        ? "作品演出を保存した。"
-        : "話の演出を保存した。"
+      scope === "series" ? "作品演出を保存した。" : "話の演出を保存した。"
     );
   }
 
@@ -289,19 +353,93 @@ const [sceneTextAnimation, setSceneTextAnimation] =
           </div>
 
           <div className="grid gap-6 px-5 py-6 sm:px-8">
-            <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-              <p className="text-xs tracking-[0.18em] text-neutral-500">
-                FOUNDATION
-              </p>
-              <h2 className="mt-2 text-xl font-semibold text-white">
-                今回の保存対象
-              </h2>
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
-                今回は演出基盤の導入が目的。<br />
-                背景、文字装飾、挿絵、場面転換BGMの cue を JSON として保存できる土台までを優先する。<br />
-                プレビュー本体や高度な再生制御は次段階。
-              </div>
-            </section>
+<section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+  <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="max-w-3xl">
+      <p className="text-xs tracking-[0.18em] text-neutral-500">
+        BODY / PREVIEW
+      </p>
+      <h2 className="mt-2 text-xl font-semibold text-white">
+        本文とプレビュー
+      </h2>
+      <p className="mt-2 text-sm leading-7 text-neutral-400">
+        本文表示と演出付きプレビューを同じ位置で切り替える。
+        プレビューは保存済み設定だけでなく、今フォームに入れている未保存変更も反映する。
+      </p>
+    </div>
+
+    <div className="inline-flex rounded-full border border-white/10 bg-black/20 p-1">
+      <PreviewToggleButton
+        active={previewMode === "text"}
+        onClick={() => setPreviewMode("text")}
+      >
+        本文
+      </PreviewToggleButton>
+      <PreviewToggleButton
+        active={previewMode === "preview"}
+        onClick={() => setPreviewMode("preview")}
+      >
+        プレビュー
+      </PreviewToggleButton>
+    </div>
+  </div>
+
+  <div className="mt-4 overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03]">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
+      <div>
+        <p className="text-xs tracking-[0.18em] text-neutral-500">
+          PREVIEW SOURCE
+        </p>
+        <p className="mt-2 text-sm text-neutral-200">
+          {previewTextLabel}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-300">
+          {previewCharacterCount}文字
+        </span>
+        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-300">
+          {previewLineCount}行
+        </span>
+        <span
+          className={`rounded-full border px-3 py-1 text-xs ${
+            hasUnsavedPreviewChanges
+              ? "border-amber-400/20 bg-amber-400/10 text-amber-200"
+              : "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+          }`}
+        >
+          {hasUnsavedPreviewChanges
+            ? "未保存変更を反映中"
+            : "保存済み表示と一致"}
+        </span>
+      </div>
+    </div>
+
+    <div className="h-[560px] min-h-0 p-4 sm:p-6">
+      {previewMode === "text" ? (
+        <div className="h-full min-h-0 overflow-y-auto rounded-[28px] border border-white/10 bg-black/20 px-5 py-5">
+          {previewBody.trim().length > 0 ? (
+            <div className="whitespace-pre-wrap break-words text-sm leading-8 text-neutral-200">
+              {previewBody}
+            </div>
+          ) : (
+            <div className="text-sm leading-7 text-neutral-500">
+              まだ本文が無い。本文を保存すると、ここに本文表示とプレビュー表示を切り替えて確認できる。
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="h-full min-h-0 overflow-y-auto pr-1">
+          <EffectPreviewRenderer
+            body={previewBody}
+            settings={effectivePreviewSettings}
+          />
+        </div>
+      )}
+    </div>
+  </div>
+</section>
 
             <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <div className="grid gap-6">
@@ -319,7 +457,9 @@ const [sceneTextAnimation, setSceneTextAnimation] =
                       <select
                         value={backgroundPreset}
                         onChange={(event) => {
-                          setBackgroundPreset(event.target.value as BackgroundPresetSelectValue);
+                          setBackgroundPreset(
+                            event.target.value as BackgroundPresetSelectValue
+                          );
                           resetSaveUi();
                         }}
                         className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
@@ -341,7 +481,7 @@ const [sceneTextAnimation, setSceneTextAnimation] =
                           setFontFamily(event.target.value);
                           resetSaveUi();
                         }}
-                        placeholder="例: serif"
+                        placeholder="例: serif / 'Yu Mincho' / sans-serif"
                         className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
                       />
                     </label>
@@ -394,6 +534,10 @@ const [sceneTextAnimation, setSceneTextAnimation] =
                   <h2 className="mt-2 text-xl font-semibold text-white">
                     文字演出の最小サンプル
                   </h2>
+                  <p className="mt-2 text-sm leading-7 text-neutral-400">
+                    今回のMVPでは、対象文字列ベースで 1件ずつ見た目確認できる形を先に通す。
+                    ルビ、色、太字、斜体、点強調、線強調はここで試し見できる。
+                  </p>
 
                   <div className="mt-4 grid gap-4">
                     <label className="grid gap-2">
@@ -404,7 +548,7 @@ const [sceneTextAnimation, setSceneTextAnimation] =
                           setInlineTargetText(event.target.value);
                           resetSaveUi();
                         }}
-                        placeholder="例: 星の海"
+                        placeholder="本文中にある文字列を入れる"
                         className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
                       />
                     </label>
@@ -429,16 +573,14 @@ const [sceneTextAnimation, setSceneTextAnimation] =
                       </label>
 
                       <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">
-                          補助値
-                        </span>
+                        <span className="text-sm text-neutral-300">補助値</span>
                         <input
                           value={inlineValue}
                           onChange={(event) => {
                             setInlineValue(event.target.value);
                             resetSaveUi();
                           }}
-                          placeholder="ruby なら ふりがな、color なら 色コード"
+                          placeholder="ruby なら ふりがな / color なら 色コード"
                           className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
                         />
                       </label>
@@ -555,7 +697,7 @@ const [sceneTextAnimation, setSceneTextAnimation] =
                       }}
                       label="場面転換後BGM"
                       placeholder="場面転換後のBGMを選ぶ"
-                      helperText="今回は cue の保存だけ先に通す。再生制御本体は次段階。"
+                      helperText="今回は cue の保存とプレビュー要約だけ先に通す。再生制御本体は後段。"
                       clearLabel="場面転換BGMを解除"
                       fallbackTitle=""
                       fallbackAudioPath=""
@@ -567,9 +709,9 @@ const [sceneTextAnimation, setSceneTextAnimation] =
                         <select
                           value={sceneBackgroundPreset}
                           onChange={(event) => {
-setSceneBackgroundPreset(
-  event.target.value as BackgroundPresetSelectValue
-);
+                            setSceneBackgroundPreset(
+                              event.target.value as BackgroundPresetSelectValue
+                            );
                             resetSaveUi();
                           }}
                           className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
@@ -588,9 +730,9 @@ setSceneBackgroundPreset(
                         <select
                           value={sceneTextAnimation}
                           onChange={(event) => {
-setSceneTextAnimation(
-  event.target.value as TextAnimationSelectValue
-);
+                            setSceneTextAnimation(
+                              event.target.value as TextAnimationSelectValue
+                            );
                             resetSaveUi();
                           }}
                           className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
@@ -622,7 +764,7 @@ setSceneTextAnimation(
                       resetSaveUi();
                     }}
                     rows={6}
-                    placeholder="将来のプレビューや再生制御に回したい補足を書いておく"
+                    placeholder="将来のアニメーションや配置改善に回したい補足を書いておく"
                     className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-neutral-500"
                   />
                 </section>
@@ -640,7 +782,7 @@ setSceneTextAnimation(
                   <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
                     保存先は <code>{tableName}.effect_settings</code>。<br />
                     作品共通演出は series、話単位演出は episodes に分ける。<br />
-                    今回は配列構造まで先に持たせて、将来の演出追加に備える。
+                    プレビューでは保存済み設定に加えて、今フォームに入れている未保存変更もその場で見られる。
                   </div>
 
                   <div className="mt-5 flex flex-wrap gap-3">
@@ -671,36 +813,72 @@ setSceneTextAnimation(
                     CURRENT SUMMARY
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-white">
-                    今回保存する基盤
+                    今回の表示内容
                   </h2>
 
                   <div className="mt-4 grid gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-neutral-300">
-                      背景:{" "}
-                      <span className="font-semibold text-white">
-                        {backgroundPreset || "未設定"}
-                      </span>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-neutral-300">
-                      文字演出:{" "}
-                      <span className="font-semibold text-white">
-                        {inlineTargetText.trim() ? `${inlineKind} / 1件` : "未設定"}
-                      </span>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-neutral-300">
-                      挿絵:{" "}
-                      <span className="font-semibold text-white">
-                        {illustrationUrl.trim() ? "1件" : "未設定"}
-                      </span>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-neutral-300">
-                      場面転換 cue:{" "}
-                      <span className="font-semibold text-white">
-                        {sceneLabel.trim() || sceneTriggerText.trim() || sceneTrackId
-                          ? "1件"
-                          : "未設定"}
-                      </span>
-                    </div>
+                    <SummaryRow
+                      label="背景"
+                      value={effectivePreviewSettings.backgroundPreset ?? "未設定"}
+                    />
+                    <SummaryRow
+                      label="既定フォント"
+                      value={
+                        effectivePreviewSettings.typography.fontFamily ?? "未設定"
+                      }
+                    />
+                    <SummaryRow
+                      label="既定文字色"
+                      value={
+                        effectivePreviewSettings.typography.textColor ?? "未設定"
+                      }
+                    />
+                    <SummaryRow
+                      label="文字演出"
+                      value={`${effectivePreviewSettings.inlineMarks.length}件`}
+                    />
+                    <SummaryRow
+                      label="挿絵"
+                      value={`${effectivePreviewSettings.illustrations.length}件`}
+                    />
+                    <SummaryRow
+                      label="場面転換 cue"
+                      value={`${effectivePreviewSettings.sceneCues.length}件`}
+                    />
+                  </div>
+                </section>
+
+                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">
+                    PREVIEW COMPOSITION
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">
+                    プレビュー合成
+                  </h2>
+
+                  <div className="mt-4 grid gap-3">
+                    <SummaryRow
+                      label="表示対象"
+                      value={previewMode === "text" ? "本文" : "プレビュー"}
+                    />
+                    <SummaryRow
+                      label="共通演出の合成"
+                      value={
+                        scope === "episode"
+                          ? inheritedExists
+                            ? "作品共通 + 話単位"
+                            : "話単位のみ"
+                          : "作品共通のみ"
+                      }
+                    />
+                    <SummaryRow
+                      label="未保存変更"
+                      value={hasUnsavedPreviewChanges ? "反映中" : "なし"}
+                    />
+                    <SummaryRow
+                      label="保存済み比較"
+                      value={`${savedPreviewSettings.inlineMarks.length}件の保存済み文字演出`}
+                    />
                   </div>
                 </section>
 
@@ -715,7 +893,8 @@ setSceneTextAnimation(
                   <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
                     新規作品作成時は「作品を作成して演出へ」。<br />
                     次話投稿時は「作成して演出へ」。<br />
-                    作品ワークスペースからは常設リンクで入る。
+                    作品ワークスペースからは常設リンクで入る。<br />
+                    今回は本文 / プレビュー切替と静的演出確認を優先し、重い動的演出は後回しにする。
                   </div>
                 </section>
               </div>
