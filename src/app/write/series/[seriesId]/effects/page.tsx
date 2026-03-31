@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
+import { isOperatorUser } from "@/lib/auth/operator";
 import EffectSettingsForm from "@/features/effects/EffectSettingsForm";
 import {
   getEpisodeBody,
@@ -9,7 +10,12 @@ import {
   type EpisodeRow,
   type SeriesRow,
 } from "@/features/write/writeShared";
-import { fetchBgmLibraryTracks } from "@/lib/bgm/bgmLibrary";
+import {
+  fetchAllBgmLibraryTracks,
+  fetchBgmLibraryFavoriteIds,
+  fetchBgmLibraryTracks,
+  sortBgmLibraryTracksByFavorites,
+} from "@/lib/bgm/bgmLibrary";
 import { parseEffectSettingsFromRow } from "@/lib/effects/effectSettings";
 
 type PageProps = {
@@ -66,7 +72,7 @@ async function fetchEpisodes(
 
 export default async function SeriesEffectsPage({ params }: PageProps) {
   const { seriesId } = await params;
-  const { supabase } = await requireOwnedSeries(
+  const { supabase, user } = await requireOwnedSeries(
     seriesId,
     `/write/series/${seriesId}/effects`
   );
@@ -93,7 +99,15 @@ export default async function SeriesEffectsPage({ params }: PageProps) {
       }`
     : "本文未作成のため共通プレビュー用サンプル";
 
-  const libraryTracks = await fetchBgmLibraryTracks(supabase);
+  const canUsePrivateTracks = isOperatorUser(user.email ?? null);
+  const favoriteTrackIds = await fetchBgmLibraryFavoriteIds(supabase, user.id);
+  const rawLibraryTracks = canUsePrivateTracks
+    ? await fetchAllBgmLibraryTracks(supabase)
+    : await fetchBgmLibraryTracks(supabase);
+  const libraryTracks = sortBgmLibraryTracksByFavorites(
+    rawLibraryTracks,
+    favoriteTrackIds
+  );
 
   return (
     <EffectSettingsForm
@@ -101,8 +115,8 @@ export default async function SeriesEffectsPage({ params }: PageProps) {
       tableName="series"
       recordId={seriesId}
       seriesId={seriesId}
-      title={`${series.title ?? "無題"} の演出編集`}
-      subtitle="ここでは作品共通演出の保存と、その場での本文プレビュー確認を扱う。背景、既定文字、作品共通挿絵、場面転換 cue を作品単位で持てるようにする。"
+      title={`${series.title ?? "無題"} の基本演出`}
+      subtitle="ここでは作品共通演出の保存と、その場での本文プレビュー確認を扱う。作品共通BGMの入口もこのページ側へ寄せ、実際のBGM素材選択は専用の BGM設定ページへつなぐ。"
       backHref={`/write/series/${seriesId}`}
       workspaceHref={`/write/series/${seriesId}`}
       initialSettings={parseEffectSettingsFromRow(
