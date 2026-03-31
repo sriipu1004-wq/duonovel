@@ -27,6 +27,8 @@ type SeriesRow = Record<string, unknown> & {
   catch_copy?: string | null;
   author_id?: string | null;
   user_id?: string | null;
+  reviews_enabled?: boolean | null;
+  reviewsEnabled?: boolean | null;
 };
 
 type UserRow = Record<string, unknown> & {
@@ -233,12 +235,22 @@ function getRecordingPermissionBadgeClass(
   return "border-white/10 bg-white/5 text-neutral-300";
 }
 
-function normalizeRecordingPermissionMode(
+function resolveRecordingPermissionMode(
   value: unknown
 ): RecordingPermissionMode {
   if (value === "open") return "open";
   if (value === "approval_required") return "approval_required";
   return "closed";
+}
+
+function isSeriesReviewVisible(series: SeriesRow): boolean {
+  const raw = series.reviews_enabled ?? series.reviewsEnabled;
+
+  if (typeof raw === "boolean") {
+    return raw;
+  }
+
+  return true;
 }
 
 async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
@@ -375,7 +387,7 @@ function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
 
       const description =
         reader.description ||
-        `公開朗読 ${reader.recordingCount}件 / いいね ${reader.totalLikes} / 再生 ${reader.totalPlays}`;     
+        `公開朗読 ${reader.recordingCount}件 / いいね ${reader.totalLikes} / 再生 ${reader.totalPlays}`;
 
       return {
         readerKey: reader.key,
@@ -498,15 +510,15 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     data: { user: currentUser },
   } = await authSupabase.auth.getUser();
 
-const ownerIds = [
-  typeof series.author_id === "string" ? series.author_id.trim() : "",
-  typeof series.user_id === "string" ? series.user_id.trim() : "",
-].filter((value) => value.length > 0);
+  const ownerIds = [
+    typeof series.author_id === "string" ? series.author_id.trim() : "",
+    typeof series.user_id === "string" ? series.user_id.trim() : "",
+  ].filter((value) => value.length > 0);
 
-const isOwner =
-  !!currentUser &&
-  ownerIds.length > 0 &&
-  ownerIds.includes(currentUser.id);
+  const isOwner =
+    !!currentUser &&
+    ownerIds.length > 0 &&
+    ownerIds.includes(currentUser.id);
 
   const rawEpisodes = await fetchEpisodesBySeriesId(seriesId);
 
@@ -546,11 +558,13 @@ const isOwner =
     selectedReaderName
   );
 
-  const loginHref = `/login?next=${encodeURIComponent(workSelfHref)}`;    
+  const loginHref = `/login?next=${encodeURIComponent(workSelfHref)}`;
 
-  const recordingPermissionMode = normalizeRecordingPermissionMode(
-  series.recording_permission_mode
-);
+  const recordingPermissionMode = resolveRecordingPermissionMode(
+    series.recording_permission_mode
+  );
+
+  const reviewsVisible = isSeriesReviewVisible(series);
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
@@ -594,113 +608,115 @@ const isOwner =
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <span className="text-sm text-neutral-500">朗読可否</span>
 
-                 <span
-                   className={[
-                      "rounded-full border px-3 py-1 text-sm",
-                      getRecordingPermissionBadgeClass(recordingPermissionMode),
-                    ].join(" ")}
-                  >
-                     {getRecordingPermissionLabel(recordingPermissionMode)}
-                  </span>
+                <span
+                  className={[
+                    "rounded-full border px-3 py-1 text-sm",
+                    getRecordingPermissionBadgeClass(recordingPermissionMode),
+                  ].join(" ")}
+                >
+                  {getRecordingPermissionLabel(recordingPermissionMode)}
+                </span>
 
-                  <span className="text-sm text-neutral-400">
-                    {getRecordingPermissionDescription(recordingPermissionMode)}
-                  </span>
+                <span className="text-sm text-neutral-400">
+                  {getRecordingPermissionDescription(recordingPermissionMode)}
+                </span>
               </div>
 
               <p className="mt-6 whitespace-pre-wrap text-[15px] leading-8 text-neutral-300">
                 {summary}
               </p>
 
-<div className="mt-6 max-w-2xl rounded-[28px] border border-white/10 bg-black/20 p-4">
-  <p className="text-xs tracking-[0.18em] text-neutral-500">
-    LIKE
-  </p>
-  <h2 className="mt-2 text-lg font-semibold text-white">
-    この作品へのいいね
-  </h2>
-  <p className="mt-3 text-sm leading-7 text-neutral-400">
-    最小版では 1ユーザー1作品1いいねだけ保存する。レビュー本文やブックマークとは混ぜない。
-  </p>
+              <div className="mt-6 max-w-2xl rounded-[28px] border border-white/10 bg-black/20 p-4">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">
+                  LIKE
+                </p>
+                <h2 className="mt-2 text-lg font-semibold text-white">
+                  この作品へのいいね
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-neutral-400">
+                  最小版では 1ユーザー1作品1いいねだけ保存する。レビュー本文やブックマークとは混ぜない。
+                </p>
 
-  <div className="mt-4">
-    <SeriesReactionButton
-      seriesId={seriesId}
-      loginHref={loginHref}
-    />
-  </div>
-</div>
+                <div className="mt-4">
+                  <SeriesReactionButton
+                    seriesId={seriesId}
+                    loginHref={loginHref}
+                  />
+                </div>
+              </div>
 
-<div className="mt-6 max-w-2xl">
-  <SeriesReviewSection
-    seriesId={seriesId}
-    loginHref={loginHref}
-  />
-</div>              
+              {reviewsVisible ? (
+                <div className="mt-6 max-w-2xl">
+                  <SeriesReviewSection
+                    seriesId={seriesId}
+                    loginHref={loginHref}
+                  />
+                </div>
+              ) : null}
 
-<div className="mt-6 flex flex-wrap gap-3">
-  {firstEpisodeNumber !== null ? (
-    <Link
-      href={buildReadHref(
-        seriesId,
-        firstEpisodeNumber,
-        selectedReaderKey,
-        selectedReaderName
-      )}
-      className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
-    >
-      第1話から読む
-    </Link>
-  ) : (
-    <span className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-500">
-      公開話なし
-    </span>
-  )}
+              <div className="mt-6 flex flex-wrap gap-3">
+                {firstEpisodeNumber !== null ? (
+                  <Link
+                    href={buildReadHref(
+                      seriesId,
+                      firstEpisodeNumber,
+                      selectedReaderKey,
+                      selectedReaderName
+                    )}
+                    className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
+                  >
+                    第1話から読む
+                  </Link>
+                ) : (
+                  <span className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-500">
+                    公開話なし
+                  </span>
+                )}
 
-  <Link
-    href={buildWorksHref(
-      seriesId,
-      "toc",
-      selectedReaderKey,
-      selectedReaderName
-    )}
-    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
-  >
-    目次を見る
-  </Link>
+                <Link
+                  href={buildWorksHref(
+                    seriesId,
+                    "toc",
+                    selectedReaderKey,
+                    selectedReaderName
+                  )}
+                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
+                >
+                  目次を見る
+                </Link>
 
-  <FavoriteBookmarkButton seriesId={seriesId} />
+                <FavoriteBookmarkButton seriesId={seriesId} />
 
-  <Link
-    href={buildWorksHref(
-      seriesId,
-      "readers",
-      selectedReaderKey,
-      selectedReaderName
-    )}
-    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
-  >
-    朗読者を見る
-  </Link>
+                <Link
+                  href={buildWorksHref(
+                    seriesId,
+                    "readers",
+                    selectedReaderKey,
+                    selectedReaderName
+                  )}
+                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
+                >
+                  朗読者を見る
+                </Link>
 
-  {authorId ? (
-    <Link
-      href={buildAuthorHref(authorId)}
-      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-    >
-      作者ページへ
-    </Link>
-  ) : null}
-  
-  {recordingPermissionMode !== "closed" ? (
-    <Link
-      href={buildRecordHubHref(seriesId)}
-      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-    >
-      朗読ページへ
-    </Link>
-  ) : null}
-</div>
+                {authorId ? (
+                  <Link
+                    href={buildAuthorHref(authorId)}
+                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    作者ページへ
+                  </Link>
+                ) : null}
+
+                {recordingPermissionMode !== "closed" ? (
+                  <Link
+                    href={buildRecordHubHref(seriesId)}
+                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    朗読ページへ
+                  </Link>
+                ) : null}
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
@@ -747,98 +763,98 @@ const isOwner =
                 />
               </section>
 
-<section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-  <div className="flex items-center justify-between gap-3">
-    <div>
-      <p className="text-xs tracking-[0.18em] text-neutral-500">
-        SETTINGS / WORKSPACE
-      </p>
-      <h2 className="mt-2 text-lg font-semibold text-white">
-        配布・設定エリア
-      </h2>
-    </div>
+              <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs tracking-[0.18em] text-neutral-500">
+                      SETTINGS / WORKSPACE
+                    </p>
+                    <h2 className="mt-2 text-lg font-semibold text-white">
+                      配布・設定エリア
+                    </h2>
+                  </div>
 
-    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
-      WORKSPACE
-    </span>
-  </div>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
+                    WORKSPACE
+                  </span>
+                </div>
 
-  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-    <div className="flex flex-wrap items-center gap-3">
-      <span className="text-sm text-neutral-500">現在の朗読可否</span>
-      <span
-        className={[
-          "rounded-full border px-3 py-1 text-sm",
-          getRecordingPermissionBadgeClass(recordingPermissionMode),
-        ].join(" ")}
-      >
-        {getRecordingPermissionLabel(recordingPermissionMode)}
-      </span>
-    </div>
+                <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-sm text-neutral-500">現在の朗読可否</span>
+                    <span
+                      className={[
+                        "rounded-full border px-3 py-1 text-sm",
+                        getRecordingPermissionBadgeClass(recordingPermissionMode),
+                      ].join(" ")}
+                    >
+                      {getRecordingPermissionLabel(recordingPermissionMode)}
+                    </span>
+                  </div>
 
-    <p className="mt-3 text-sm leading-7 text-neutral-400">
-      {getRecordingPermissionDescription(recordingPermissionMode)}
-    </p>
-  </div>
+                  <p className="mt-3 text-sm leading-7 text-neutral-400">
+                    {getRecordingPermissionDescription(recordingPermissionMode)}
+                  </p>
+                </div>
 
-  <div className="mt-4 space-y-3">
-    {isOwner ? (
-      <Link
-        href={buildWorkspaceHref(seriesId)}
-        className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white px-4 py-3 text-left text-sm font-semibold text-black transition hover:opacity-90"
-      >
-        <span>作品ワークスペースを開く</span>
-        <span>→</span>
-      </Link>
-    ) : (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 opacity-70">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-medium text-neutral-300">
-            作品ワークスペース
-          </span>
-          <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-400">
-            作者専用
-          </span>
-        </div>
+                <div className="mt-4 space-y-3">
+                  {isOwner ? (
+                    <Link
+                      href={buildWorkspaceHref(seriesId)}
+                      className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white px-4 py-3 text-left text-sm font-semibold text-black transition hover:opacity-90"
+                    >
+                      <span>作品ワークスペースを開く</span>
+                      <span>→</span>
+                    </Link>
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 opacity-70">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-medium text-neutral-300">
+                          作品ワークスペース
+                        </span>
+                        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-400">
+                          作者専用
+                        </span>
+                      </div>
 
-        <p className="mt-3 text-sm leading-7 text-neutral-500">
-          この作品の設定変更、配布設定、本文編集は作者アカウントのみ利用できる。
-        </p>
-      </div>
-    )}
+                      <p className="mt-3 text-sm leading-7 text-neutral-500">
+                        この作品の設定変更、配布設定、本文編集は作者アカウントのみ利用できる。
+                      </p>
+                    </div>
+                  )}
 
-    <button
-      type="button"
-      disabled
-      className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-neutral-500"
-    >
-      <span>朗読音声をダウンロード</span>
-      <span>許可制</span>
-    </button>
+                  <button
+                    type="button"
+                    disabled
+                    className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-neutral-500"
+                  >
+                    <span>朗読音声をダウンロード</span>
+                    <span>許可制</span>
+                  </button>
 
-    <button
-      type="button"
-      disabled
-      className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-neutral-500"
-    >
-      <span>本文PDFを入手</span>
-      <span>許可制</span>
-    </button>
-  </div>
+                  <button
+                    type="button"
+                    disabled
+                    className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-neutral-500"
+                  >
+                    <span>本文PDFを入手</span>
+                    <span>許可制</span>
+                  </button>
+                </div>
 
-  <p className="mt-4 text-sm leading-7 text-neutral-400">
-    作者向けの実作業は作品ワークスペースへ寄せる。
-    作者本人には入口を表示し、それ以外のアカウントには作者専用であることだけを案内する。
-  </p>
-</section>
+                <p className="mt-4 text-sm leading-7 text-neutral-400">
+                  作者向けの実作業は作品ワークスペースへ寄せる。
+                  作者本人には入口を表示し、それ以外のアカウントには作者専用であることだけを案内する。
+                </p>
+              </section>
             </aside>
 
             <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-<p className="text-xs tracking-[0.18em] text-neutral-500">
-  SETTINGS / WORKSPACE
-</p>
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">
+                    SETTINGS / WORKSPACE
+                  </p>
                   <h2 className="mt-2 text-xl font-semibold text-white">
                     目次 / 朗読者
                   </h2>
@@ -1067,7 +1083,7 @@ const isOwner =
         </section>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-white/10 bg-[#0a0a0a]/90 backdrop-blur">      
+      <div className="fixed inset-x-0 bottom-0 border-t border-white/10 bg-[#0a0a0a]/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
             <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">

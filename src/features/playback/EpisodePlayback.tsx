@@ -37,6 +37,7 @@ type EpisodePlaybackProps = {
   workIndexHref?: string | null;
   initialStartAt?: number | null;
   loginHref?: string;
+  showComments?: boolean;
   bgmTitle?: string;
   bgmSrc?: string | null;
   bgmSettings?: BgmSettings;
@@ -254,6 +255,7 @@ export default function EpisodePlayback({
   workIndexHref,
   initialStartAt,
   loginHref,
+  showComments = true,
   bgmTitle,
   bgmSrc,
   bgmSettings,
@@ -1100,7 +1102,7 @@ export default function EpisodePlayback({
               </article>
             </div>
 
-            {episodeId ? (
+            {showComments && episodeId ? (
               <EpisodeCommentSection
                 episodeId={episodeId}
                 loginHref={loginHref}

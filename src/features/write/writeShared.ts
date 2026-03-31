@@ -17,6 +17,10 @@ export type SeriesRow = Record<string, unknown> & {
   effectSettings?: unknown;
   tags?: string[] | string | null;
   recording_permission_mode?: RecordingPermissionMode | null;
+  reviews_enabled?: boolean | null;
+  reviewsEnabled?: boolean | null;
+  episode_comments_enabled?: boolean | null;
+  episodeCommentsEnabled?: boolean | null;
 };
 
 export type EpisodeRow = Record<string, unknown> & {
@@ -37,6 +41,20 @@ export type EpisodeRow = Record<string, unknown> & {
   effectSettings?: unknown;
 };
 
+function parseBooleanFlag(value: unknown, fallback = true): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+
+  return fallback;
+}
+
 export function pickText(...values: unknown[]): string {
   for (const value of values) {
     if (typeof value === "string" && value.trim().length > 0) {
@@ -49,6 +67,20 @@ export function pickText(...values: unknown[]): string {
 
 export function getSeriesSummary(series: SeriesRow): string {
   return pickText(series.summary, series.description, series.catch_copy);
+}
+
+export function isSeriesReviewVisible(series?: SeriesRow | null): boolean {
+  return parseBooleanFlag(
+    series?.reviews_enabled ?? series?.reviewsEnabled,
+    true
+  );
+}
+
+export function isSeriesEpisodeCommentVisible(series?: SeriesRow | null): boolean {
+  return parseBooleanFlag(
+    series?.episode_comments_enabled ?? series?.episodeCommentsEnabled,
+    true
+  );
 }
 
 export function getEpisodeNumber(episode: EpisodeRow): number {

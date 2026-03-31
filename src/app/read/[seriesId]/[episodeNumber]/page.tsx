@@ -20,6 +20,8 @@ type SeriesRow = Record<string, unknown> & {
   title?: string | null;
   bgm_title?: string | null;
   bgm_audio_path?: string | null;
+  episode_comments_enabled?: boolean | null;
+  episodeCommentsEnabled?: boolean | null;
 };
 
 type EpisodeRow = Record<string, unknown> & {
@@ -91,6 +93,16 @@ function isPublishedEpisode(episode: EpisodeRow): boolean {
 function isPublicRecording(recording: RecordingRow): boolean {
   if (recording.is_public === false) return false;
   if (recording.public === false) return false;
+  return true;
+}
+
+function isSeriesEpisodeCommentVisible(series: SeriesRow): boolean {
+  const raw = series.episode_comments_enabled ?? series.episodeCommentsEnabled;
+
+  if (typeof raw === "boolean") {
+    return raw;
+  }
+
   return true;
 }
 
@@ -320,6 +332,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
   );
 
   const seriesTitle = pickText((seriesData as SeriesRow).title) || "無題";
+  const commentsVisible = isSeriesEpisodeCommentVisible(seriesData as SeriesRow);
   const episodeTitle =
     pickText(episode.title, episode["episode_title"]) || `第${currentEpisodeNumber}話`;
 
@@ -418,6 +431,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
       workIndexHref={workIndexHref}
       initialStartAt={initialStartAt}
       loginHref={loginHref}
+      showComments={commentsVisible}
       bgmTitle={bgmTitle || undefined}
       bgmSrc={bgmSrc}
       bgmSettings={bgmSrc ? bgmSettings : undefined}

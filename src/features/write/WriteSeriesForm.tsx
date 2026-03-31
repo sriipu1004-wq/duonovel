@@ -12,6 +12,8 @@ import {
   type RecordingPermissionMode,
   getEpisodeNumber,
   isPublishedEpisode,
+  isSeriesEpisodeCommentVisible,
+  isSeriesReviewVisible,
   sortEpisodes,
 } from "@/features/write/writeShared";
 import {
@@ -38,8 +40,9 @@ type WriteSeriesFormProps = {
 
 type SaveState = "idle" | "saving" | "success" | "error";
 
-function buildSummaryValue(summary: string) {
+function buildSummaryValue(summary: string): Array<Record<string, string>> {
   const trimmed = summary.trim();
+
   return [
     { summary: trimmed, description: trimmed, catch_copy: trimmed },
     { summary: trimmed },
@@ -97,11 +100,15 @@ function buildWorkspaceFields(args: {
   bgmTitle: string;
   bgmAudioPath: string;
   bgmSettings: BgmSettings;
+  reviewsEnabled: boolean;
+  episodeCommentsEnabled: boolean;
 }) {
   return {
     bgm_title: args.bgmTitle.trim() || null,
     bgm_audio_path: args.bgmAudioPath.trim() || null,
     bgm_settings: serializeBgmSettingsForSave(args.bgmSettings),
+    reviews_enabled: args.reviewsEnabled,
+    episode_comments_enabled: args.episodeCommentsEnabled,
   };
 }
 
@@ -262,6 +269,12 @@ export default function WriteSeriesForm({
   const [seriesBgmSettings, setSeriesBgmSettings] = useState<BgmSettings>(
     getInitialSeriesBgmSettings(series)
   );
+  const [reviewsEnabled, setReviewsEnabled] = useState(
+    isSeriesReviewVisible(series)
+  );
+  const [episodeCommentsEnabled, setEpisodeCommentsEnabled] = useState(
+    isSeriesEpisodeCommentVisible(series)
+  );
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -352,6 +365,8 @@ export default function WriteSeriesForm({
       bgmTitle: seriesBgmTitle,
       bgmAudioPath: seriesBgmAudioPath,
       bgmSettings: seriesBgmSettings,
+      reviewsEnabled,
+      episodeCommentsEnabled,
     });
 
     const payloads: Array<Record<string, unknown>> = summaryVariants.map(
@@ -382,10 +397,10 @@ export default function WriteSeriesForm({
         setSaveState("success");
         setSuccessMessage("作品を作成した。");
         router.push(
-  destination === "effects"
-    ? `/write/series/${result.data.id}/effects`
-    : `/write/series/${result.data.id}`
-);
+          destination === "effects"
+            ? `/write/series/${result.data.id}/effects`
+            : `/write/series/${result.data.id}`
+        );
         router.refresh();
         return;
       }
@@ -420,10 +435,13 @@ export default function WriteSeriesForm({
     setSuccessMessage("");
 
     const summaryVariants = buildSummaryValue(summary);
+
     const workspaceFields = buildWorkspaceFields({
       bgmTitle: seriesBgmTitle,
       bgmAudioPath: seriesBgmAudioPath,
       bgmSettings: seriesBgmSettings,
+      reviewsEnabled,
+      episodeCommentsEnabled,
     });
 
     const payloads: Array<Record<string, unknown>> = summaryVariants.map(
@@ -459,14 +477,14 @@ export default function WriteSeriesForm({
     setErrorMessage(lastError);
   }
 
-async function handleSubmit(destination: "workspace" | "effects" = "workspace") {
-  if (mode === "create") {
-    await handleCreate(destination);
-    return;
-  }
+  async function handleSubmit(destination: "workspace" | "effects" = "workspace") {
+    if (mode === "create") {
+      await handleCreate(destination);
+      return;
+    }
 
-  await handleUpdate();
-}
+    await handleUpdate();
+  }
 
   const heading =
     mode === "create" ? "新しい作品を作る" : "作品ワークスペース";
@@ -498,25 +516,25 @@ async function handleSubmit(destination: "workspace" | "effects" = "workspace") 
               <StatusBadge state={saveState} />
             </div>
 
-<div className="mt-5 flex flex-wrap gap-3">
-  <Link
-    href="/write"
-    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-  >
-    作品ワークスペース一覧へ
-  </Link>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                href="/write"
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                作品ワークスペース一覧へ
+              </Link>
 
-  {series?.id ? (
-    <>
-      <Link
-        href={`/works/${series.id}`}
-        className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-      >
-        作品ページを見る
-      </Link>
-    </>
-  ) : null}
-</div>
+              {series?.id ? (
+                <>
+                  <Link
+                    href={`/works/${series.id}`}
+                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    作品ページを見る
+                  </Link>
+                </>
+              ) : null}
+            </div>
           </div>
 
           <div className="grid gap-6 px-5 py-6 sm:px-8">
@@ -605,49 +623,99 @@ async function handleSubmit(destination: "workspace" | "effects" = "workspace") 
                     </div>
                   </div>
 
-<div className="flex flex-wrap gap-3">
-  <button
-    type="button"
-    onClick={() => handleSubmit("workspace")}
-    className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
-  >
-    {saveState === "saving"
-      ? "保存中..."
-      : mode === "create"
-        ? "作品を作成してワークスペースへ"
-        : "作品ワークスペースを保存"}
-  </button>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-sm font-semibold text-white">反応表示</p>
+                    <p className="mt-2 text-sm leading-7 text-neutral-400">
+                      作品ページのレビュー欄と、読む画面末尾のエピソードコメント欄を作品単位で出し分ける。
+                      機能自体は維持したまま、読者側に表示するかだけをここで切り替える。
+                    </p>
 
-  {mode === "create" ? (
-    <button
-      type="button"
-      onClick={() => handleSubmit("effects")}
-      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-    >
-      作品を作成して演出へ
-    </button>
-  ) : null}
+                    <div className="mt-4 grid gap-3">
+                      <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={reviewsEnabled}
+                          onChange={(event) => {
+                            setReviewsEnabled(event.target.checked);
+                            resetSaveUi();
+                          }}
+                          className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-white">
+                            作品レビュー欄を表示
+                          </p>
+                          <p className="mt-2 text-sm leading-7 text-neutral-400">
+                            OFF の時は作品ページでレビュー欄を出さない。
+                          </p>
+                        </div>
+                      </label>
 
-  <button
-    type="button"
-    onClick={() => {
-      handleClearSeriesTrack();
-      setSeriesBgmSettings(getInitialSeriesBgmSettings(series));
-    }}
-    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
-  >
-    BGM選択を外す
-  </button>
+                      <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={episodeCommentsEnabled}
+                          onChange={(event) => {
+                            setEpisodeCommentsEnabled(event.target.checked);
+                            resetSaveUi();
+                          }}
+                          className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-white">
+                            エピソードコメント欄を表示
+                          </p>
+                          <p className="mt-2 text-sm leading-7 text-neutral-400">
+                            OFF の時は読む画面末尾でコメント欄を出さない。
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
 
-  {series?.id ? (
-    <Link
-      href={`/write/series/${series.id}/episodes/new`}
-      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-    >
-      新しい話を追加
-    </Link>
-  ) : null}
-</div>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSubmit("workspace")}
+                      className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
+                    >
+                      {saveState === "saving"
+                        ? "保存中..."
+                        : mode === "create"
+                          ? "作品を作成してワークスペースへ"
+                          : "作品ワークスペースを保存"}
+                    </button>
+
+                    {mode === "create" ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSubmit("effects")}
+                        className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                      >
+                        作品を作成して演出へ
+                      </button>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleClearSeriesTrack();
+                        setSeriesBgmSettings(getInitialSeriesBgmSettings(series));
+                      }}
+                      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
+                    >
+                      BGM選択を外す
+                    </button>
+
+                    {series?.id ? (
+                      <Link
+                        href={`/write/series/${series.id}/episodes/new`}
+                        className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                      >
+                        新しい話を追加
+                      </Link>
+                    ) : null}
+                  </div>
 
                   {errorMessage ? (
                     <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
@@ -686,6 +754,18 @@ async function handleSubmit(destination: "workspace" | "effects" = "workspace") 
                           {recordingPermissionLabel}
                         </span>
                       </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
+                        レビュー欄:{" "}
+                        <span className="font-semibold text-white">
+                          {reviewsEnabled ? "表示" : "非表示"}
+                        </span>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
+                        コメント欄:{" "}
+                        <span className="font-semibold text-white">
+                          {episodeCommentsEnabled ? "表示" : "非表示"}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -695,14 +775,13 @@ async function handleSubmit(destination: "workspace" | "effects" = "workspace") 
                         RELATED SETTINGS
                       </p>
                       <div className="mt-3 grid gap-3">
-
-<WorkspaceLinkCard
-  eyebrow="EFFECTS"
-  title="演出編集"
-  description="ルビ、色、文字装飾、背景、挿絵、場面転換 cue などの保存土台をここで編集する。"
-  href={`/write/series/${series.id}/effects`}
-  cta="演出編集へ"
-/>                        
+                        <WorkspaceLinkCard
+                          eyebrow="EFFECTS"
+                          title="演出編集"
+                          description="ルビ、色、文字装飾、背景、挿絵、場面転換 cue などの保存土台をここで編集する。"
+                          href={`/write/series/${series.id}/effects`}
+                          cta="演出編集へ"
+                        />
                         <WorkspaceLinkCard
                           eyebrow="DETAIL BGM"
                           title="BGM / 演出詳細"
