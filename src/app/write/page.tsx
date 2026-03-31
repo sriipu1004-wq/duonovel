@@ -134,7 +134,7 @@ export default async function WriteTopPage() {
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <span className="text-neutral-300">執筆トップ</span>
+          <span className="text-neutral-300">作品ワークスペース一覧</span>
         </div>
 
         <section className="overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
@@ -146,7 +146,8 @@ export default async function WriteTopPage() {
             <p className="mt-3 text-sm leading-7 text-neutral-400">
               ここは新規作品作成と、自分の作品ワークスペース一覧の入口。
               作品ごとの実作業は `/write/series/[seriesId]` に寄せ、
-              1話目作成、次話追加、作品情報、作品共通BGM、基本演出をそこから進める。
+              本文執筆、作品情報、作品共通BGM、基本演出をそこから進める。
+              BGM管理だけは各作品カードから直接入れるように揃える。
             </p>
 
             <div className="mt-5 flex flex-wrap gap-3">
@@ -155,13 +156,6 @@ export default async function WriteTopPage() {
                 className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
               >
                 新しい作品を作る
-              </Link>
-
-              <Link
-                href="/manage"
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                管理トップへ
               </Link>
 
               <Link
@@ -203,7 +197,7 @@ export default async function WriteTopPage() {
             <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
               <p className="text-xs tracking-[0.18em] text-neutral-500">START GUIDE</p>
               <h2 className="mt-2 text-xl font-semibold text-white">このページでやること</h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div className="mt-4 grid gap-4 md:grid-cols-4">
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                   <p className="text-sm font-semibold text-white">1. 作品を作る</p>
                   <p className="mt-2 text-sm leading-7 text-neutral-400">
@@ -219,7 +213,13 @@ export default async function WriteTopPage() {
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-sm font-semibold text-white">3. 本文編集へ進む</p>
+                  <p className="text-sm font-semibold text-white">3. 必要ならBGM管理へ入る</p>
+                  <p className="mt-2 text-sm leading-7 text-neutral-400">
+                    作品カードから直接、その作品のBGM管理ページへ入れる。
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-sm font-semibold text-white">4. 本文編集へ進む</p>
                   <p className="mt-2 text-sm leading-7 text-neutral-400">
                     各話ページで本文を編集し、必要に応じてワークスペースへ戻る。
                   </p>
@@ -233,7 +233,7 @@ export default async function WriteTopPage() {
                   <p className="text-xs tracking-[0.18em] text-neutral-500">MY SERIES</p>
                   <h2 className="mt-2 text-xl font-semibold text-white">自分の作品一覧</h2>
                   <p className="mt-2 text-sm leading-7 text-neutral-400">
-                    各作品カードから、その作品のワークスペースか、今やるべき本文作業へ直接入る。
+                    各作品カードから、その作品のワークスペース、今やるべき本文作業、BGM管理へ直接入る。
                   </p>
                 </div>
 
@@ -295,28 +295,21 @@ export default async function WriteTopPage() {
                             </div>
                           </div>
 
-                          <div className="flex flex-wrap gap-3">
-                            <Link
-                              href={nextAction.href}
-                              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
-                            >
-                              {nextAction.label}
-                            </Link>
+<div className="flex flex-wrap gap-3">
+  <Link
+    href={nextAction.href}
+    className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
+  >
+    {nextAction.label}
+  </Link>
 
-                            <Link
-                              href={`/write/series/${series.id}`}
-                              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                            >
-                              作品ワークスペース
-                            </Link>
-
-                            <Link
-                              href={`/manage/series/${series.id}`}
-                              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                            >
-                              管理導線
-                            </Link>
-                          </div>
+  <Link
+    href={`/write/series/${series.id}`}
+    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+  >
+    作品ワークスペース
+  </Link>
+</div>
                         </div>
 
                         <div className="mt-4 grid gap-3 md:grid-cols-4">

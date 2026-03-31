@@ -220,30 +220,30 @@ export default function BgmLibraryPageClient({
               運営としてログインしている時だけ、この下に素材追加と公開管理の導線が出る。
             </p>
 
-            <div className="mt-5 flex flex-wrap gap-3">
-              <Link
-                href="/"
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                ホームへ
-              </Link>
+<div className="mt-5 flex flex-wrap gap-3">
+  <Link
+    href="/"
+    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+  >
+    ホームへ
+  </Link>
 
-              <Link
-                href="/manage"
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                管理トップへ
-              </Link>
+  <Link
+    href="/write"
+    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+  >
+    作品ワークスペース一覧へ
+  </Link>
 
-              {canManageLibrary ? (
-                <a
-                  href="#operator-bgm-library"
-                  className="rounded-full border border-amber-400/20 bg-amber-400/10 px-5 py-3 text-sm text-amber-100 transition hover:bg-amber-400/20"
-                >
-                  運営用BGM管理へ
-                </a>
-              ) : null}
-            </div>
+  {canManageLibrary ? (
+    <a
+      href="#operator-bgm-library"
+      className="rounded-full border border-amber-400/20 bg-amber-400/10 px-5 py-3 text-sm text-amber-100 transition hover:bg-amber-400/20"
+    >
+      運営用BGM管理へ
+    </a>
+  ) : null}
+</div>
           </div>
 
           <div className="grid gap-6 px-5 py-6 sm:px-8">

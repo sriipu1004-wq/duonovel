@@ -308,42 +308,43 @@ export default function BgmManageForm({
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <span className="text-neutral-300">BGM管理</span>
+          <span className="text-neutral-300">作品BGM管理</span>
         </div>
 
         <section className="rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
           <div className="border-b border-white/10 px-5 py-6 sm:px-8">
             <p className="text-xs tracking-[0.22em] text-neutral-500">
-              LIB READ MANAGE
+              LIB READ WORKSPACE BGM
             </p>
             <h1 className="mt-3 text-3xl font-bold text-white">{seriesTitle}</h1>
             <p className="mt-3 text-sm leading-7 text-neutral-400">
+              作品ワークスペースから入るBGM管理ページ。
               作品共通BGMと各話BGMに加えて、フェード設定の最小土台をここで持つ。
               話側が空欄なら作品共通設定へフォールバックする。
             </p>
 
-            <div className="mt-5 flex flex-wrap gap-3">
-              <Link
-                href="/manage"
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                管理トップへ
-              </Link>
+<div className="mt-5 flex flex-wrap gap-3">
+  <Link
+    href="/write"
+    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+  >
+    作品ワークスペース一覧へ
+  </Link>
 
-              <Link
-                href={`/manage/series/${seriesId}`}
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                管理ハブへ戻る
-              </Link>
+  <Link
+    href={`/write/series/${seriesId}`}
+    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+  >
+    この作品のワークスペースへ
+  </Link>
 
-              <Link
-                href={`/works/${seriesId}`}
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                作品ページを見る
-              </Link>
-            </div>
+  <Link
+    href={`/works/${seriesId}`}
+    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+  >
+    作品ページを見る
+  </Link>
+</div>
           </div>
 
           <div className="grid gap-6 px-5 py-6 sm:px-8">
