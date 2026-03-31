@@ -11,6 +11,7 @@ import {
   type ChangeEvent,
 } from "react";
 import BgmController from "@/features/playback/BgmController";
+import EpisodeCommentSection from "@/features/comment/EpisodeCommentSection";
 import {
   usePlayLogPersistence,
   type ReadResumeState,
@@ -35,6 +36,7 @@ type EpisodePlaybackProps = {
   nextEpisodeNumber?: number | null;
   workIndexHref?: string | null;
   initialStartAt?: number | null;
+  loginHref?: string;
   bgmTitle?: string;
   bgmSrc?: string | null;
   bgmSettings?: BgmSettings;
@@ -251,6 +253,7 @@ export default function EpisodePlayback({
   nextEpisodeNumber,
   workIndexHref,
   initialStartAt,
+  loginHref,
   bgmTitle,
   bgmSrc,
   bgmSettings,
@@ -1096,6 +1099,13 @@ export default function EpisodePlayback({
                 )}
               </article>
             </div>
+
+            {episodeId ? (
+              <EpisodeCommentSection
+                episodeId={episodeId}
+                loginHref={loginHref}
+              />
+            ) : null}
           </div>
         </section>
       </div>

@@ -358,6 +358,15 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     selectedReaderName
   );
 
+    const currentReadHref = buildReadHref(
+    seriesId,
+    currentEpisodeNumber,
+    selectedReaderKey,
+    selectedReaderName
+  );
+
+  const loginHref = `/login?next=${encodeURIComponent(currentReadHref)}`;
+
   const seriesBgmTitle = pickText(
     (seriesData as SeriesRow).bgm_title,
     (seriesData as SeriesRow)["bgmTitle"]
@@ -408,6 +417,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
       nextEpisodeNumber={nextEpisodeNumber}
       workIndexHref={workIndexHref}
       initialStartAt={initialStartAt}
+      loginHref={loginHref}
       bgmTitle={bgmTitle || undefined}
       bgmSrc={bgmSrc}
       bgmSettings={bgmSrc ? bgmSettings : undefined}
