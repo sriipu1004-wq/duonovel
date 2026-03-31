@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
+import { isOperatorUser } from "@/lib/auth/operator";
 import EffectSettingsForm from "@/features/effects/EffectSettingsForm";
 import {
   getEpisodeBody,
@@ -8,7 +9,13 @@ import {
   type EpisodeRow,
   type SeriesRow,
 } from "@/features/write/writeShared";
-import { fetchBgmLibraryTracks } from "@/lib/bgm/bgmLibrary";
+import {
+  fetchAllBgmLibraryTracks,
+  fetchBgmLibraryFavoriteIds,
+  fetchBgmLibraryTracks,
+  sortBgmLibraryTracksByFavorites,
+} from "@/lib/bgm/bgmLibrary";
+import { parseBgmSettingsFromRow } from "@/lib/bgm/bgmSettings";
 import { parseEffectSettingsFromRow } from "@/lib/effects/effectSettings";
 
 type PageProps = {
@@ -64,7 +71,7 @@ async function fetchEpisode(
 
 export default async function EpisodeEffectsPage({ params }: PageProps) {
   const { seriesId, episodeId } = await params;
-  const { supabase } = await requireOwnedSeries(
+  const { supabase, user } = await requireOwnedSeries(
     seriesId,
     `/write/series/${seriesId}/episodes/${episodeId}/effects`
   );
@@ -78,7 +85,16 @@ export default async function EpisodeEffectsPage({ params }: PageProps) {
     notFound();
   }
 
-  const libraryTracks = await fetchBgmLibraryTracks(supabase);
+  const canUsePrivateTracks = isOperatorUser(user.email ?? null);
+  const favoriteTrackIds = await fetchBgmLibraryFavoriteIds(supabase, user.id);
+  const rawLibraryTracks = canUsePrivateTracks
+    ? await fetchAllBgmLibraryTracks(supabase)
+    : await fetchBgmLibraryTracks(supabase);
+  const libraryTracks = sortBgmLibraryTracksByFavorites(
+    rawLibraryTracks,
+    favoriteTrackIds
+  );
+
   const episodeLabel =
     pickText(episode.title) || `第${getEpisodeNumber(episode) || 1}話`;
 
@@ -89,7 +105,7 @@ export default async function EpisodeEffectsPage({ params }: PageProps) {
       recordId={episodeId}
       seriesId={seriesId}
       title={`${episodeLabel} の演出編集`}
-      subtitle="ここでは話単位の演出を保存する。本文表示と演出付き本文プレビューを同じ位置で切り替えながら、ルビ、色、太字、斜体、背景などの見え方をその場で確認できるようにする。"
+      subtitle="ここでは話単位の演出と各話BGMを保存する。本文表示と演出付き本文プレビューを同じ位置で切り替えながら、各話ごとの見え方を確認できるようにする。"
       backHref={`/write/series/${seriesId}/episodes/${episodeId}`}
       workspaceHref={`/write/series/${seriesId}`}
       initialSettings={parseEffectSettingsFromRow(
@@ -103,6 +119,15 @@ export default async function EpisodeEffectsPage({ params }: PageProps) {
       previewText={getEpisodeBody(episode)}
       previewTextLabel={`${episodeLabel} の本文`}
       libraryTracks={libraryTracks}
+      initialBgmTitle={pickText(episode.bgm_title, episode["bgmTitle"])}
+      initialBgmAudioPath={pickText(
+        episode.bgm_audio_path,
+        episode["bgmAudioPath"]
+      )}
+      initialBgmSettings={parseBgmSettingsFromRow(
+        episode.bgm_settings,
+        episode["bgmSettings"]
+      )}
     />
   );
 }

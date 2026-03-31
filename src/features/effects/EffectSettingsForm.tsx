@@ -23,6 +23,13 @@ import {
   resolveBgmLibraryTrackId,
   type BgmLibraryTrack,
 } from "@/lib/bgm/bgmLibrary";
+import {
+  clampBgmSeconds,
+  emptyBgmSettings,
+  parseBgmSettingsFromRow,
+  serializeBgmSettingsForSave,
+  type BgmSettings,
+} from "@/lib/bgm/bgmSettings";
 import BgmLibraryPicker from "@/features/bgm/BgmLibraryPicker";
 
 type BackgroundPresetSelectValue =
@@ -48,6 +55,9 @@ type EffectSettingsFormProps = {
   previewText: string;
   previewTextLabel: string;
   libraryTracks: BgmLibraryTrack[];
+  initialBgmTitle?: string;
+  initialBgmAudioPath?: string;
+  initialBgmSettings?: BgmSettings | null;
 };
 
 function StatusBadge({ state }: { state: SaveState }) {
@@ -134,6 +144,9 @@ export default function EffectSettingsForm({
   previewText,
   previewTextLabel,
   libraryTracks,
+  initialBgmTitle = "",
+  initialBgmAudioPath = "",
+  initialBgmSettings = null,
 }: EffectSettingsFormProps) {
   const firstInlineMark = initialSettings.inlineMarks[0] ?? null;
   const firstIllustration = initialSettings.illustrations[0] ?? null;
@@ -196,6 +209,20 @@ export default function EffectSettingsForm({
     useState<TextAnimationSelectValue>(
       (firstSceneCue?.textAnimation ?? "") as TextAnimationSelectValue
     );
+
+      const [episodeBgmTitle, setEpisodeBgmTitle] = useState(initialBgmTitle);
+  const [episodeBgmAudioPath, setEpisodeBgmAudioPath] = useState(
+    initialBgmAudioPath
+  );
+  const [episodeSelectedTrackId, setEpisodeSelectedTrackId] = useState(() =>
+    resolveBgmLibraryTrackId(libraryTracks, {
+      title: initialBgmTitle,
+      audioPath: initialBgmAudioPath,
+    })
+  );
+  const [episodeBgmSettings, setEpisodeBgmSettings] = useState<BgmSettings>(
+    initialBgmSettings ?? emptyBgmSettings()
+  );
 
   const [notes, setNotes] = useState(initialSettings.notes ?? "");
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -281,16 +308,32 @@ export default function EffectSettingsForm({
     JSON.stringify(serializeEffectSettingsForSave(draftSettings)) !==
     JSON.stringify(serializeEffectSettingsForSave(initialSettings));
 
+  const bgmGuideHref =
+    scope === "series"
+      ? `/manage/bgm/${seriesId}#series-bgm`
+      : `/manage/bgm/${seriesId}#episode-${recordId}`;
+
+  const bgmGuideLabel =
+    scope === "series" ? "作品共通BGM設定へ" : "この話のBGM設定へ";    
+
   async function handleSave() {
     setSaveState("saving");
     setErrorMessage("");
     setSuccessMessage("");
 
+    const payload: Record<string, unknown> = {
+      effect_settings: serializeEffectSettingsForSave(draftSettings),
+    };
+
+    if (scope === "episode") {
+      payload.bgm_title = episodeBgmTitle.trim() || null;
+      payload.bgm_audio_path = episodeBgmAudioPath.trim() || null;
+      payload.bgm_settings = serializeBgmSettingsForSave(episodeBgmSettings);
+    }
+
     const { error } = await supabase
       .from(tableName)
-      .update({
-        effect_settings: serializeEffectSettingsForSave(draftSettings),
-      })
+      .update(payload)
       .eq("id", recordId);
 
     if (error) {
@@ -301,7 +344,7 @@ export default function EffectSettingsForm({
 
     setSaveState("success");
     setSuccessMessage(
-      scope === "series" ? "作品演出を保存した。" : "話の演出を保存した。"
+      scope === "series" ? "作品演出を保存した。" : "話の演出・BGMを保存した。"
     );
   }
 
@@ -341,6 +384,13 @@ export default function EffectSettingsForm({
                 className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
               >
                 直前の編集画面へ
+              </Link>
+
+              <Link
+                href={bgmGuideHref}
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                {bgmGuideLabel}
               </Link>
 
               <Link
@@ -445,89 +495,140 @@ export default function EffectSettingsForm({
               <div className="grid gap-6">
                 <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    BACKGROUND / TYPOGRAPHY
+                    {scope === "episode" ? "EPISODE BACKGROUND" : "DEFAULT SETTINGS"}
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-white">
-                    背景と既定文字演出
+                    {scope === "episode" ? "この話の背景設定" : "既定設定の扱い"}
                   </h2>
 
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <label className="grid gap-2">
-                      <span className="text-sm text-neutral-300">背景プリセット</span>
-                      <select
-                        value={backgroundPreset}
-                        onChange={(event) => {
-                          setBackgroundPreset(
-                            event.target.value as BackgroundPresetSelectValue
-                          );
-                          resetSaveUi();
-                        }}
-                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-                      >
-                        <option value="">未設定</option>
-                        {EFFECT_BACKGROUND_PRESETS.map((preset) => (
-                          <option key={preset} value={preset}>
-                            {preset}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="grid gap-2">
-                      <span className="text-sm text-neutral-300">既定フォント名</span>
-                      <input
-                        value={fontFamily}
-                        onChange={(event) => {
-                          setFontFamily(event.target.value);
-                          resetSaveUi();
-                        }}
-                        placeholder="例: serif / 'Yu Mincho' / sans-serif"
-                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                      />
-                    </label>
-
-                    <label className="grid gap-2">
-                      <span className="text-sm text-neutral-300">既定文字色</span>
-                      <input
-                        value={textColor}
-                        onChange={(event) => {
-                          setTextColor(event.target.value);
-                          resetSaveUi();
-                        }}
-                        placeholder="例: #f5f5f5"
-                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                      />
-                    </label>
-
-                    <div className="grid gap-3">
-                      <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={defaultBold}
+                  {scope === "episode" ? (
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="grid gap-2">
+                        <span className="text-sm text-neutral-300">背景プリセット</span>
+                        <select
+                          value={backgroundPreset}
                           onChange={(event) => {
-                            setDefaultBold(event.target.checked);
+                            setBackgroundPreset(
+                              event.target.value as BackgroundPresetSelectValue
+                            );
                             resetSaveUi();
                           }}
-                        />
-                        <span className="text-sm text-neutral-300">既定で太字</span>
+                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                        >
+                          <option value="">未設定</option>
+                          {EFFECT_BACKGROUND_PRESETS.map((preset) => (
+                            <option key={preset} value={preset}>
+                              {preset}
+                            </option>
+                          ))}
+                        </select>
                       </label>
 
-                      <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={defaultItalic}
-                          onChange={(event) => {
-                            setDefaultItalic(event.target.checked);
-                            resetSaveUi();
-                          }}
-                        />
-                        <span className="text-sm text-neutral-300">既定で斜体</span>
-                      </label>
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
+                        既定フォント、既定文字色、既定背景は既定演出設定ページで管理する。
+                        ここではこの話だけに効く背景設定として扱う。
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
+                      既定フォント、既定文字色、既定背景、共通BGMは既定演出設定ページで扱う。
+                      このページでは作品共通の追加演出とプレビュー確認を主に扱う。
+                    </div>
+                  )}
                 </section>
 
                 <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+
+                {scope === "episode" ? (
+                  <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                    <p className="text-xs tracking-[0.18em] text-neutral-500">
+                      EPISODE BGM
+                    </p>
+                    <h2 className="mt-2 text-xl font-semibold text-white">
+                      この話のBGM
+                    </h2>
+                    <p className="mt-2 text-sm leading-7 text-neutral-400">
+                      各話BGMはこの演出編集ページで扱う。未設定なら既定演出設定ページの共通BGMへフォールバックする。
+                    </p>
+
+                    <div className="mt-4 grid gap-4">
+                      <BgmLibraryPicker
+                        tracks={libraryTracks}
+                        selectedTrackId={episodeSelectedTrackId}
+                        onSelectTrack={(nextTrackId) => {
+                          const nextTrack = findBgmLibraryTrack(
+                            libraryTracks,
+                            nextTrackId
+                          );
+
+                          setEpisodeSelectedTrackId(nextTrackId);
+                          setEpisodeBgmTitle(nextTrack?.title ?? "");
+                          setEpisodeBgmAudioPath(nextTrack?.audioPath ?? "");
+                          resetSaveUi();
+                        }}
+                        onClear={() => {
+                          setEpisodeSelectedTrackId("");
+                          setEpisodeBgmTitle("");
+                          setEpisodeBgmAudioPath("");
+                          resetSaveUi();
+                        }}
+                        label="この話のBGM素材"
+                        placeholder="空なら共通BGM"
+                        helperText="お気に入りした素材が上に出る。ここが未選択なら、既定演出設定ページの共通BGMを使う。"
+                        clearLabel="この話のBGMを解除"
+                        fallbackTitle={episodeBgmTitle}
+                        fallbackAudioPath={episodeBgmAudioPath}
+                      />
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <label className="grid gap-2">
+                          <span className="text-sm text-neutral-300">フェードイン秒数</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={20}
+                            step={0.1}
+                            value={episodeBgmSettings.fadeInSeconds ?? ""}
+                            onChange={(event) => {
+                              setEpisodeBgmSettings({
+                                ...episodeBgmSettings,
+                                fadeInSeconds: clampBgmSeconds(event.target.value),
+                              });
+                              resetSaveUi();
+                            }}
+                            placeholder="例: 1.5"
+                            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                          />
+                        </label>
+
+                        <label className="grid gap-2">
+                          <span className="text-sm text-neutral-300">フェードアウト秒数</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={20}
+                            step={0.1}
+                            value={episodeBgmSettings.fadeOutSeconds ?? ""}
+                            onChange={(event) => {
+                              setEpisodeBgmSettings({
+                                ...episodeBgmSettings,
+                                fadeOutSeconds: clampBgmSeconds(event.target.value),
+                              });
+                              resetSaveUi();
+                            }}
+                            placeholder="例: 2.0"
+                            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
+                        この話のBGMとフェードが空欄なら、既定演出設定ページで保存した共通BGMと共通フェードへフォールバックする。
+                      </div>
+                    </div>
+                  </section>
+                ) : null}
+
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
                     INLINE EFFECT
                   </p>
@@ -697,7 +798,7 @@ export default function EffectSettingsForm({
                       }}
                       label="場面転換後BGM"
                       placeholder="場面転換後のBGMを選ぶ"
-                      helperText="今回は cue の保存とプレビュー要約だけ先に通す。再生制御本体は後段。"
+                      helperText="お気に入りした素材が上に出る。今回は cue の保存とプレビュー要約だけ先に通し、再生制御本体は後段で扱う。"
                       clearLabel="場面転換BGMを解除"
                       fallbackTitle=""
                       fallbackAudioPath=""

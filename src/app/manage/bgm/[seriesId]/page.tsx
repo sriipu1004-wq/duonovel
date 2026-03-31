@@ -9,27 +9,15 @@ import {
   fetchBgmLibraryTracks,
   sortBgmLibraryTracksByFavorites,
 } from "@/lib/bgm/bgmLibrary";
+import {
+  getEpisodeBody,
+  type SeriesRow,
+  type EpisodeRow,
+} from "@/features/write/writeShared";
+import { parseEffectSettingsFromRow } from "@/lib/effects/effectSettings";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
-};
-
-type SeriesRow = Record<string, unknown> & {
-  id: string;
-  title?: string | null;
-  bgm_title?: string | null;
-  bgm_audio_path?: string | null;
-  bgm_settings?: unknown;
-};
-
-type EpisodeRow = Record<string, unknown> & {
-  id: string;
-  title?: string | null;
-  episode_number?: number | null;
-  episodeNumber?: number | null;
-  bgm_title?: string | null;
-  bgm_audio_path?: string | null;
-  bgm_settings?: unknown;
 };
 
 function pickText(...values: unknown[]): string {
@@ -102,7 +90,7 @@ export default async function ManageBgmPage({ params }: PageProps) {
   const series = seriesData as SeriesRow;
   const episodes = await fetchEpisodesBySeriesId(supabase, seriesId);
 
-  const sortedEpisodes = episodes
+  const previewEpisodes = episodes
     .slice()
     .sort((a, b) => getEpisodeNumber(a) - getEpisodeNumber(b))
     .map((episode) => ({
@@ -111,12 +99,7 @@ export default async function ManageBgmPage({ params }: PageProps) {
       title:
         pickText(episode.title, episode["episode_title"]) ||
         `第${getEpisodeNumber(episode)}話`,
-      bgmTitle: pickText(episode.bgm_title, episode["bgmTitle"]),
-      bgmAudioPath: pickText(episode.bgm_audio_path, episode["bgmAudioPath"]),
-      bgmSettings: parseBgmSettingsFromRow(
-        episode.bgm_settings,
-        episode["bgmSettings"]
-      ),
+      body: getEpisodeBody(episode),
     }));
 
   return (
@@ -132,7 +115,11 @@ export default async function ManageBgmPage({ params }: PageProps) {
         series.bgm_settings,
         series["bgmSettings"]
       )}
-      episodes={sortedEpisodes}
+      initialSeriesEffectSettings={parseEffectSettingsFromRow(
+        series.effect_settings,
+        series["effectSettings"]
+      )}
+      previewEpisodes={previewEpisodes}
       libraryTracks={libraryTracks}
     />
   );

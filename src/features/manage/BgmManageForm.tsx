@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import BgmLibraryPicker from "@/features/bgm/BgmLibraryPicker";
+import EffectPreviewRenderer from "@/features/effects/EffectPreviewRenderer";
 import {
   clampBgmSeconds,
   emptyBgmSettings,
@@ -15,15 +16,23 @@ import {
   resolveBgmLibraryTrackId,
   type BgmLibraryTrack,
 } from "@/lib/bgm/bgmLibrary";
+import {
+  EFFECT_BACKGROUND_PRESETS,
+  parseEffectSettingsFromRow,
+  serializeEffectSettingsForSave,
+  type EffectBackgroundPreset,
+  type EffectSettings,
+} from "@/lib/effects/effectSettings";
 
-type EpisodeItem = {
+type PreviewMode = "text" | "preview";
+type BackgroundPresetSelectValue =
+  "" | Exclude<EffectBackgroundPreset, null>;
+
+type PreviewEpisodeItem = {
   id: string;
   episodeNumber: number;
   title: string;
-  bgmTitle: string;
-  bgmAudioPath: string;
-  bgmSettings: BgmSettings;
-  selectedTrackId: string;
+  body: string;
 };
 
 type BgmManageFormProps = {
@@ -32,14 +41,8 @@ type BgmManageFormProps = {
   initialSeriesBgmTitle: string;
   initialSeriesBgmAudioPath: string;
   initialSeriesBgmSettings: BgmSettings;
-  episodes: Array<{
-    id: string;
-    episodeNumber: number;
-    title: string;
-    bgmTitle: string;
-    bgmAudioPath: string;
-    bgmSettings: BgmSettings;
-  }>;
+  initialSeriesEffectSettings: EffectSettings;
+  previewEpisodes: PreviewEpisodeItem[];
   libraryTracks: BgmLibraryTrack[];
 };
 
@@ -74,6 +77,30 @@ function StatusBadge({ state }: { state: SaveState }) {
     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-500">
       未保存
     </span>
+  );
+}
+
+function PreviewToggleButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-4 py-2 text-sm transition ${
+        active
+          ? "bg-white text-black"
+          : "text-neutral-300 hover:bg-white/10 hover:text-white"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -139,15 +166,6 @@ function BgmSettingFields({
         <br />
         {fallbackText}
       </div>
-
-      <div className="flex flex-wrap gap-2">
-        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-300">
-          予約場面切り替え {value.sceneCues.length}件
-        </span>
-        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-400">
-          今回は保存枠のみ
-        </span>
-      </div>
     </div>
   );
 }
@@ -158,9 +176,15 @@ export default function BgmManageForm({
   initialSeriesBgmTitle,
   initialSeriesBgmAudioPath,
   initialSeriesBgmSettings,
-  episodes,
+  initialSeriesEffectSettings,
+  previewEpisodes,
   libraryTracks,
 }: BgmManageFormProps) {
+  const [previewMode, setPreviewMode] = useState<PreviewMode>("text");
+  const [selectedPreviewEpisodeId, setSelectedPreviewEpisodeId] = useState(
+    previewEpisodes[0]?.id ?? ""
+  );
+
   const [seriesBgmTitle, setSeriesBgmTitle] = useState(initialSeriesBgmTitle);
   const [seriesBgmAudioPath, setSeriesBgmAudioPath] = useState(
     initialSeriesBgmAudioPath
@@ -174,26 +198,37 @@ export default function BgmManageForm({
   const [seriesBgmSettings, setSeriesBgmSettings] = useState<BgmSettings>(
     initialSeriesBgmSettings
   );
-  const [seriesSaveState, setSeriesSaveState] = useState<SaveState>("idle");
-  const [seriesError, setSeriesError] = useState("");
 
-  const [episodeRows, setEpisodeRows] = useState<EpisodeItem[]>(() =>
-    episodes.map((episode) => ({
-      ...episode,
-      selectedTrackId: resolveBgmLibraryTrackId(libraryTracks, {
-        title: episode.bgmTitle,
-        audioPath: episode.bgmAudioPath,
-      }),
-    }))
+  const [defaultBackgroundPreset, setDefaultBackgroundPreset] =
+    useState<BackgroundPresetSelectValue>(
+      (initialSeriesEffectSettings.backgroundPreset ??
+        "") as BackgroundPresetSelectValue
+    );
+  const [defaultFontFamily, setDefaultFontFamily] = useState(
+    initialSeriesEffectSettings.typography.fontFamily ?? ""
   );
-  const [episodeSaveStates, setEpisodeSaveStates] = useState<
-    Record<string, SaveState>
-  >({});
-  const [episodeErrors, setEpisodeErrors] = useState<Record<string, string>>({});
+  const [defaultTextColor, setDefaultTextColor] = useState(
+    initialSeriesEffectSettings.typography.textColor ?? ""
+  );
 
-  function resetSeriesSaveUi() {
-    setSeriesSaveState("idle");
-    setSeriesError("");
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  const selectedPreviewEpisode =
+    previewEpisodes.find((episode) => episode.id === selectedPreviewEpisodeId) ??
+    previewEpisodes[0] ??
+    null;
+
+  const previewBody = selectedPreviewEpisode?.body ?? "";
+  const previewTextLabel = selectedPreviewEpisode
+    ? `${selectedPreviewEpisode.title} の本文`
+    : "本文未設定";
+
+  function resetSaveUi() {
+    setSaveState("idle");
+    setErrorMessage("");
+    setSuccessMessage("");
   }
 
   function handleSelectSeriesTrack(nextTrackId: string) {
@@ -202,19 +237,49 @@ export default function BgmManageForm({
     setSeriesSelectedTrackId(nextTrackId);
     setSeriesBgmTitle(nextTrack?.title ?? "");
     setSeriesBgmAudioPath(nextTrack?.audioPath ?? "");
-    resetSeriesSaveUi();
+    resetSaveUi();
   }
 
   function handleClearSeriesTrack() {
     setSeriesSelectedTrackId("");
     setSeriesBgmTitle("");
     setSeriesBgmAudioPath("");
-    resetSeriesSaveUi();
+    resetSaveUi();
   }
 
-  async function handleSaveSeries() {
-    setSeriesSaveState("saving");
-    setSeriesError("");
+  const previewSettings = useMemo(() => {
+    const next = {
+      ...initialSeriesEffectSettings,
+      backgroundPreset: defaultBackgroundPreset || null,
+      typography: {
+        ...initialSeriesEffectSettings.typography,
+        fontFamily: defaultFontFamily.trim() || null,
+        textColor: defaultTextColor.trim() || null,
+      },
+    };
+
+    return parseEffectSettingsFromRow(next);
+  }, [
+    defaultBackgroundPreset,
+    defaultFontFamily,
+    defaultTextColor,
+    initialSeriesEffectSettings,
+  ]);
+
+  async function handleSave() {
+    setSaveState("saving");
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    const effectSettingsToSave = parseEffectSettingsFromRow({
+      ...initialSeriesEffectSettings,
+      backgroundPreset: defaultBackgroundPreset || null,
+      typography: {
+        ...initialSeriesEffectSettings.typography,
+        fontFamily: defaultFontFamily.trim() || null,
+        textColor: defaultTextColor.trim() || null,
+      },
+    });
 
     const { error } = await supabase
       .from("series")
@@ -222,155 +287,172 @@ export default function BgmManageForm({
         bgm_title: seriesBgmTitle.trim() || null,
         bgm_audio_path: seriesBgmAudioPath.trim() || null,
         bgm_settings: serializeBgmSettingsForSave(seriesBgmSettings),
+        effect_settings: serializeEffectSettingsForSave(effectSettingsToSave),
       })
       .eq("id", seriesId);
 
     if (error) {
-      setSeriesSaveState("error");
-      setSeriesError(error.message);
+      setSaveState("error");
+      setErrorMessage(error.message);
       return;
     }
 
-    setSeriesSaveState("success");
-  }
-
-  function updateEpisodeRow(
-    episodeId: string,
-    updater: (current: EpisodeItem) => EpisodeItem
-  ) {
-    setEpisodeRows((prev) =>
-      prev.map((episode) =>
-        episode.id === episodeId ? updater(episode) : episode
-      )
-    );
-    setEpisodeSaveStates((prev) => ({
-      ...prev,
-      [episodeId]: "idle",
-    }));
-    setEpisodeErrors((prev) => ({
-      ...prev,
-      [episodeId]: "",
-    }));
-  }
-
-  function handleSelectEpisodeTrack(episodeId: string, nextTrackId: string) {
-    const nextTrack = findBgmLibraryTrack(libraryTracks, nextTrackId);
-
-    updateEpisodeRow(episodeId, (current) => ({
-      ...current,
-      selectedTrackId: nextTrackId,
-      bgmTitle: nextTrack?.title ?? "",
-      bgmAudioPath: nextTrack?.audioPath ?? "",
-    }));
-  }
-
-  async function handleSaveEpisode(episodeId: string) {
-    const target = episodeRows.find((episode) => episode.id === episodeId);
-    if (!target) return;
-
-    setEpisodeSaveStates((prev) => ({
-      ...prev,
-      [episodeId]: "saving",
-    }));
-    setEpisodeErrors((prev) => ({
-      ...prev,
-      [episodeId]: "",
-    }));
-
-    const { error } = await supabase
-      .from("episodes")
-      .update({
-        bgm_title: target.bgmTitle.trim() || null,
-        bgm_audio_path: target.bgmAudioPath.trim() || null,
-        bgm_settings: serializeBgmSettingsForSave(target.bgmSettings),
-      })
-      .eq("id", episodeId);
-
-    if (error) {
-      setEpisodeSaveStates((prev) => ({
-        ...prev,
-        [episodeId]: "error",
-      }));
-      setEpisodeErrors((prev) => ({
-        ...prev,
-        [episodeId]: error.message,
-      }));
-      return;
-    }
-
-    setEpisodeSaveStates((prev) => ({
-      ...prev,
-      [episodeId]: "success",
-    }));
+    setSaveState("success");
+    setSuccessMessage("既定演出設定を保存した。");
   }
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <span className="text-neutral-300">作品BGM管理</span>
+          <span className="text-neutral-300">既定演出設定ページ</span>
         </div>
 
         <section className="rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
           <div className="border-b border-white/10 px-5 py-6 sm:px-8">
-            <p className="text-xs tracking-[0.22em] text-neutral-500">
-              LIB READ WORKSPACE BGM
-            </p>
-            <h1 className="mt-3 text-3xl font-bold text-white">{seriesTitle}</h1>
-            <p className="mt-3 text-sm leading-7 text-neutral-400">
-              作品ワークスペースから入るBGM管理ページ。
-              作品共通BGMと各話BGMに加えて、フェード設定の最小土台をここで持つ。
-              話側が空欄なら作品共通設定へフォールバックする。
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-3xl">
+                <p className="text-xs tracking-[0.22em] text-neutral-500">
+                  LIB READ DEFAULT EFFECT SETTINGS
+                </p>
+                <h1 className="mt-3 text-3xl font-bold text-white">{seriesTitle}</h1>
+                <p className="mt-3 text-sm leading-7 text-neutral-400">
+                  作品共通の既定演出をここで決める。
+                  共通BGM、既定フォント、既定文字色、既定背景を作品単位で持ち、
+                  プレビュー本文には任意のエピソードを読み込んで見え方を確認する。
+                </p>
+              </div>
 
-<div className="mt-5 flex flex-wrap gap-3">
-  <Link
-    href="/write"
-    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-  >
-    作品ワークスペース一覧へ
-  </Link>
+              <StatusBadge state={saveState} />
+            </div>
 
-  <Link
-    href={`/write/series/${seriesId}`}
-    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-  >
-    この作品のワークスペースへ
-  </Link>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                href="/write"
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                作品ワークスペース一覧へ
+              </Link>
 
-  <Link
-    href={`/works/${seriesId}`}
-    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-  >
-    作品ページを見る
-  </Link>
-</div>
+              <Link
+                href={`/write/series/${seriesId}`}
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                この作品のワークスペースへ
+              </Link>
+
+              <Link
+                href={`/works/${seriesId}`}
+                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              >
+                作品ページを見る
+              </Link>
+            </div>
           </div>
 
           <div className="grid gap-6 px-5 py-6 sm:px-8">
             <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="max-w-3xl">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    SERIES BGM
+                    BODY / PREVIEW
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-white">
-                    作品共通BGM
+                    本文とプレビュー
                   </h2>
+                  <p className="mt-2 text-sm leading-7 text-neutral-400">
+                    プレビュー元のエピソードを切り替えて、本文とプレビューを同じ位置で確認する。
+                  </p>
                 </div>
-                <StatusBadge state={seriesSaveState} />
+
+                <div className="inline-flex rounded-full border border-white/10 bg-black/20 p-1">
+                  <PreviewToggleButton
+                    active={previewMode === "text"}
+                    onClick={() => setPreviewMode("text")}
+                  >
+                    本文
+                  </PreviewToggleButton>
+                  <PreviewToggleButton
+                    active={previewMode === "preview"}
+                    onClick={() => setPreviewMode("preview")}
+                  >
+                    プレビュー
+                  </PreviewToggleButton>
+                </div>
               </div>
 
-              <div className="mt-5 grid gap-4">
+              <div className="mt-4 grid gap-4">
+                <label className="grid gap-2 max-w-md">
+                  <span className="text-sm text-neutral-300">プレビュー元エピソード</span>
+                  <select
+                    value={selectedPreviewEpisodeId}
+                    onChange={(event) => setSelectedPreviewEpisodeId(event.target.value)}
+                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                  >
+                    {previewEpisodes.map((episode) => (
+                      <option key={episode.id} value={episode.id}>
+                        第{episode.episodeNumber}話 / {episode.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03]">
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
+                    <div>
+                      <p className="text-xs tracking-[0.18em] text-neutral-500">
+                        PREVIEW SOURCE
+                      </p>
+                      <p className="mt-2 text-sm text-neutral-200">
+                        {previewTextLabel}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="h-[560px] min-h-0 p-4 sm:p-6">
+                    {previewMode === "text" ? (
+                      <div className="h-full min-h-0 overflow-y-auto rounded-[28px] border border-white/10 bg-black/20 px-5 py-5">
+                        {previewBody.trim().length > 0 ? (
+                          <div className="whitespace-pre-wrap break-words text-sm leading-8 text-neutral-200">
+                            {previewBody}
+                          </div>
+                        ) : (
+                          <div className="text-sm leading-7 text-neutral-500">
+                            このエピソードには本文が無い。
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="h-full min-h-0 overflow-y-auto pr-1">
+                        <EffectPreviewRenderer
+                          body={previewBody}
+                          settings={previewSettings}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+              <p className="text-xs tracking-[0.18em] text-neutral-500">
+                DEFAULT SETTINGS
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-white">
+                既定演出設定
+              </h2>
+
+              <div className="mt-5 grid gap-5">
                 <BgmLibraryPicker
                   tracks={libraryTracks}
                   selectedTrackId={seriesSelectedTrackId}
                   onSelectTrack={handleSelectSeriesTrack}
                   onClear={handleClearSeriesTrack}
-                  label="作品共通BGM素材"
+                  label="共通BGM"
                   placeholder="作品共通BGMを選ぶ"
-                  helperText="BGM素材ライブラリから選ぶ。今はサイト用意素材のみを使う前提。"
-                  clearLabel="作品共通BGMを解除"
+                  helperText="お気に入りした素材が上に出る。ここで選んだBGMが、各話BGM未設定時の既定になる。"
+                  clearLabel="共通BGMを解除"
                   fallbackTitle={seriesBgmTitle}
                   fallbackAudioPath={seriesBgmAudioPath}
                 />
@@ -379,18 +461,67 @@ export default function BgmManageForm({
                   value={seriesBgmSettings}
                   onChange={(next) => {
                     setSeriesBgmSettings(next);
-                    resetSeriesSaveUi();
+                    resetSaveUi();
                   }}
-                  fallbackText="話ごとのフェードが空欄なら、この作品共通フェードを使う。"
+                  fallbackText="各話側のフェードが空欄なら、ここで保存した作品共通フェードを使う。"
                 />
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2">
+                    <span className="text-sm text-neutral-300">既定フォント</span>
+                    <input
+                      value={defaultFontFamily}
+                      onChange={(event) => {
+                        setDefaultFontFamily(event.target.value);
+                        resetSaveUi();
+                      }}
+                      placeholder="例: serif / 'Yu Mincho'"
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm text-neutral-300">既定文字色</span>
+                    <input
+                      value={defaultTextColor}
+                      onChange={(event) => {
+                        setDefaultTextColor(event.target.value);
+                        resetSaveUi();
+                      }}
+                      placeholder="例: #f5f5f5"
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                    />
+                  </label>
+
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm text-neutral-300">既定背景</span>
+                    <select
+                      value={defaultBackgroundPreset}
+                      onChange={(event) => {
+                        setDefaultBackgroundPreset(
+                          event.target.value as BackgroundPresetSelectValue
+                        );
+                        resetSaveUi();
+                      }}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                    >
+                      <option value="">未設定</option>
+                      {EFFECT_BACKGROUND_PRESETS.map((preset) => (
+                        <option key={preset} value={preset}>
+                          {preset}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
 
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={handleSaveSeries}
+                    onClick={handleSave}
                     className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
                   >
-                    作品共通BGMを保存
+                    既定演出設定を保存
                   </button>
 
                   <button
@@ -398,123 +529,63 @@ export default function BgmManageForm({
                     onClick={() => {
                       handleClearSeriesTrack();
                       setSeriesBgmSettings(emptyBgmSettings());
-                      setSeriesSaveState("idle");
+                      setDefaultFontFamily("");
+                      setDefaultTextColor("");
+                      setDefaultBackgroundPreset("");
+                      resetSaveUi();
                     }}
                     className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
                   >
-                    BGMとフェードを初期化
+                    共通設定を初期化
                   </button>
                 </div>
 
-                {seriesError ? (
+                {errorMessage ? (
                   <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
-                    {seriesError}
+                    {errorMessage}
+                  </div>
+                ) : null}
+
+                {successMessage ? (
+                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+                    {successMessage}
                   </div>
                 ) : null}
               </div>
             </section>
 
             <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-              <div>
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  EPISODE BGM
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-white">
-                  話ごとのBGM
-                </h2>
-              </div>
+              <p className="text-xs tracking-[0.18em] text-neutral-500">
+                EPISODE ENTRY
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-white">
+                各話BGMの入口
+              </h2>
+              <p className="mt-2 text-sm leading-7 text-neutral-400">
+                各話BGMは、ここで直接編集するのではなく各話演出編集ページから扱う。
+              </p>
 
-              <div className="mt-5 grid gap-4">
-                {episodeRows.map((episode) => (
+              <div className="mt-5 grid gap-3">
+                {previewEpisodes.map((episode) => (
                   <div
                     key={episode.id}
-                    className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4"
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm text-neutral-500">
-                          第{episode.episodeNumber}話
-                        </p>
-                        <h3 className="mt-1 text-lg font-semibold text-white">
-                          {episode.title}
-                        </h3>
-                      </div>
-
-                      <StatusBadge
-                        state={episodeSaveStates[episode.id] ?? "idle"}
-                      />
+                    <div>
+                      <p className="text-sm text-neutral-500">
+                        第{episode.episodeNumber}話
+                      </p>
+                      <p className="mt-1 text-base font-semibold text-white">
+                        {episode.title}
+                      </p>
                     </div>
 
-                    <div className="mt-4 grid gap-4">
-                      <BgmLibraryPicker
-                        tracks={libraryTracks}
-                        selectedTrackId={episode.selectedTrackId}
-                        onSelectTrack={(nextTrackId) =>
-                          handleSelectEpisodeTrack(episode.id, nextTrackId)
-                        }
-                        onClear={() =>
-                          updateEpisodeRow(episode.id, (current) => ({
-                            ...current,
-                            selectedTrackId: "",
-                            bgmTitle: "",
-                            bgmAudioPath: "",
-                          }))
-                        }
-                        label="話ごとのBGM素材"
-                        placeholder="空なら作品共通BGM"
-                        helperText="ここが未選択なら、作品共通BGMへフォールバックする。"
-                        clearLabel="話ごとBGMを解除"
-                        fallbackTitle={episode.bgmTitle}
-                        fallbackAudioPath={episode.bgmAudioPath}
-                      />
-
-                      <BgmSettingFields
-                        value={episode.bgmSettings}
-                        onChange={(next) =>
-                          updateEpisodeRow(episode.id, (current) => ({
-                            ...current,
-                            bgmSettings: next,
-                          }))
-                        }
-                        fallbackText="ここが空欄なら、作品共通のフェード設定を使う。"
-                      />
-
-                      <div className="flex flex-wrap gap-3">
-                        <button
-                          type="button"
-                          onClick={() => handleSaveEpisode(episode.id)}
-                          className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
-                        >
-                          この話のBGMを保存
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateEpisodeRow(episode.id, (current) => ({
-                              ...current,
-                              selectedTrackId: "",
-                              bgmTitle: "",
-                              bgmAudioPath: "",
-                              bgmSettings: emptyBgmSettings(),
-                            }))
-                          }
-                          className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
-                        >
-                          話ごとBGMとフェードを解除
-                        </button>
-                      </div>
-
-                      {episodeErrors[episode.id] ? (
-                        <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
-                          {episodeErrors[episode.id]}
-                        </div>
-                      ) : null}
-
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-neutral-400">
-                        話ごとBGMと話ごとフェードが空欄なら、作品共通BGMと作品共通フェードへフォールバックする。
-                      </div>
-                    </div>
+                    <Link
+                      href={`/write/series/${seriesId}/episodes/${episode.id}/effects`}
+                      className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                    >
+                      この話の演出・BGMへ
+                    </Link>
                   </div>
                 ))}
               </div>

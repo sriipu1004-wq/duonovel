@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import BgmLibraryPicker from "@/features/bgm/BgmLibraryPicker";
 import {
   pickText,
   type SeriesRow,
@@ -16,17 +15,6 @@ import {
   isSeriesReviewVisible,
   sortEpisodes,
 } from "@/features/write/writeShared";
-import {
-  clampBgmSeconds,
-  parseBgmSettingsFromRow,
-  serializeBgmSettingsForSave,
-  type BgmSettings,
-} from "@/lib/bgm/bgmSettings";
-import {
-  findBgmLibraryTrack,
-  resolveBgmLibraryTrackId,
-  type BgmLibraryTrack,
-} from "@/lib/bgm/bgmLibrary";
 
 type Mode = "create" | "edit";
 
@@ -35,7 +23,7 @@ type WriteSeriesFormProps = {
   currentUserId: string;
   series?: SeriesRow | null;
   episodes?: EpisodeRow[];
-  libraryTracks: BgmLibraryTrack[];
+  libraryTracks?: unknown[];
 };
 
 type SaveState = "idle" | "saving" | "success" | "error";
@@ -57,18 +45,6 @@ function getTitle(series?: SeriesRow | null): string {
 
 function getSummary(series?: SeriesRow | null): string {
   return pickText(series?.summary, series?.description, series?.catch_copy);
-}
-
-function getInitialSeriesBgmTitle(series?: SeriesRow | null): string {
-  return pickText(series?.bgm_title, series?.bgmTitle);
-}
-
-function getInitialSeriesBgmAudioPath(series?: SeriesRow | null): string {
-  return pickText(series?.bgm_audio_path, series?.bgmAudioPath);
-}
-
-function getInitialSeriesBgmSettings(series?: SeriesRow | null): BgmSettings {
-  return parseBgmSettingsFromRow(series?.bgm_settings, series?.bgmSettings);
 }
 
 function parseTags(raw: unknown): string[] {
@@ -97,16 +73,10 @@ function getRecordingPermissionLabel(
 }
 
 function buildWorkspaceFields(args: {
-  bgmTitle: string;
-  bgmAudioPath: string;
-  bgmSettings: BgmSettings;
   reviewsEnabled: boolean;
   episodeCommentsEnabled: boolean;
 }) {
   return {
-    bgm_title: args.bgmTitle.trim() || null,
-    bgm_audio_path: args.bgmAudioPath.trim() || null,
-    bgm_settings: serializeBgmSettingsForSave(args.bgmSettings),
     reviews_enabled: args.reviewsEnabled,
     episode_comments_enabled: args.episodeCommentsEnabled,
   };
@@ -193,82 +163,16 @@ function WorkspaceLinkCard({
   );
 }
 
-function BasicEffectFields({
-  value,
-  onChange,
-}: {
-  value: BgmSettings;
-  onChange: (next: BgmSettings) => void;
-}) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <label className="grid gap-2">
-        <span className="text-sm text-neutral-300">フェードイン秒数</span>
-        <input
-          type="number"
-          min={0}
-          max={20}
-          step={0.1}
-          value={value.fadeInSeconds ?? ""}
-          onChange={(event) =>
-            onChange({
-              ...value,
-              fadeInSeconds: clampBgmSeconds(event.target.value),
-            })
-          }
-          placeholder="例: 1.5"
-          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-        />
-      </label>
-
-      <label className="grid gap-2">
-        <span className="text-sm text-neutral-300">フェードアウト秒数</span>
-        <input
-          type="number"
-          min={0}
-          max={20}
-          step={0.1}
-          value={value.fadeOutSeconds ?? ""}
-          onChange={(event) =>
-            onChange({
-              ...value,
-              fadeOutSeconds: clampBgmSeconds(event.target.value),
-            })
-          }
-          placeholder="例: 2.0"
-          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-        />
-      </label>
-    </div>
-  );
-}
-
 export default function WriteSeriesForm({
   mode,
   currentUserId,
   series,
   episodes = [],
-  libraryTracks,
 }: WriteSeriesFormProps) {
   const router = useRouter();
 
   const [title, setTitle] = useState(getTitle(series));
   const [summary, setSummary] = useState(getSummary(series));
-  const [seriesBgmTitle, setSeriesBgmTitle] = useState(
-    getInitialSeriesBgmTitle(series)
-  );
-  const [seriesBgmAudioPath, setSeriesBgmAudioPath] = useState(
-    getInitialSeriesBgmAudioPath(series)
-  );
-  const [selectedSeriesTrackId, setSelectedSeriesTrackId] = useState(() =>
-    resolveBgmLibraryTrackId(libraryTracks, {
-      title: getInitialSeriesBgmTitle(series),
-      audioPath: getInitialSeriesBgmAudioPath(series),
-    })
-  );
-  const [seriesBgmSettings, setSeriesBgmSettings] = useState<BgmSettings>(
-    getInitialSeriesBgmSettings(series)
-  );
   const [reviewsEnabled, setReviewsEnabled] = useState(
     isSeriesReviewVisible(series)
   );
@@ -321,30 +225,11 @@ export default function WriteSeriesForm({
   const recordingPermissionLabel = getRecordingPermissionLabel(
     series?.recording_permission_mode
   );
-  const hasCommonBgm =
-    seriesBgmAudioPath.trim().length > 0 ||
-    serializeBgmSettingsForSave(seriesBgmSettings) !== null;
 
   function resetSaveUi() {
     setSaveState("idle");
     setErrorMessage("");
     setSuccessMessage("");
-  }
-
-  function handleSelectSeriesTrack(nextTrackId: string) {
-    const nextTrack = findBgmLibraryTrack(libraryTracks, nextTrackId);
-
-    setSelectedSeriesTrackId(nextTrackId);
-    setSeriesBgmTitle(nextTrack?.title ?? "");
-    setSeriesBgmAudioPath(nextTrack?.audioPath ?? "");
-    resetSaveUi();
-  }
-
-  function handleClearSeriesTrack() {
-    setSelectedSeriesTrackId("");
-    setSeriesBgmTitle("");
-    setSeriesBgmAudioPath("");
-    resetSaveUi();
   }
 
   async function handleCreate(destination: "workspace" | "effects") {
@@ -362,9 +247,6 @@ export default function WriteSeriesForm({
 
     const summaryVariants = buildSummaryValue(summary);
     const workspaceFields = buildWorkspaceFields({
-      bgmTitle: seriesBgmTitle,
-      bgmAudioPath: seriesBgmAudioPath,
-      bgmSettings: seriesBgmSettings,
       reviewsEnabled,
       episodeCommentsEnabled,
     });
@@ -437,9 +319,6 @@ export default function WriteSeriesForm({
     const summaryVariants = buildSummaryValue(summary);
 
     const workspaceFields = buildWorkspaceFields({
-      bgmTitle: seriesBgmTitle,
-      bgmAudioPath: seriesBgmAudioPath,
-      bgmSettings: seriesBgmSettings,
       reviewsEnabled,
       episodeCommentsEnabled,
     });
@@ -490,8 +369,8 @@ export default function WriteSeriesForm({
     mode === "create" ? "新しい作品を作る" : "作品ワークスペース";
   const sub =
     mode === "create"
-      ? "まずはタイトル、あらすじ、作品共通BGM、基本演出の土台を作る。保存後はそのまま作品ワークスペースへ入り、1話目追加や作品の肉付けへ進める。"
-      : "ここは作品ごとの作業場所。作品情報編集、作品共通BGM、基本演出、話一覧、次話追加をここに寄せ、話ごとの細かい作業だけ別ページへ逃がす。";
+      ? "まずはタイトル、あらすじ、反応表示の基本方針を作る。作品共通の既定演出は作成後に既定演出設定ページへ寄せる。"
+      : "ここは作品ごとの作業場所。作品情報、反応表示、話一覧、次話追加の入口をここに寄せ、既定演出は既定演出設定ページ、各話BGMは各話演出編集ページへ分ける。";
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
@@ -525,14 +404,12 @@ export default function WriteSeriesForm({
               </Link>
 
               {series?.id ? (
-                <>
-                  <Link
-                    href={`/works/${series.id}`}
-                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    作品ページを見る
-                  </Link>
-                </>
+                <Link
+                  href={`/works/${series.id}`}
+                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                >
+                  作品ページを見る
+                </Link>
               ) : null}
             </div>
           </div>
@@ -545,21 +422,21 @@ export default function WriteSeriesForm({
                     WORKSPACE CORE
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-white">
-                    作品情報と作品共通演出
+                    作品情報と公開面の基本方針
                   </h2>
                   <p className="mt-2 text-sm leading-7 text-neutral-400">
-                    ここでは、作品タイトル・あらすじ・作品共通BGM・基本演出までを一緒に触る。
-                    話ごとの細かいBGMや将来の重い演出設定は詳細ページへ逃がす。
+                    ここでは作品タイトル、あらすじ、反応表示の ON / OFF など、
+                    作品単位の基本方針を持つ。BGM と演出の実編集は基本演出ページと各話演出編集ページへ寄せる。
                   </p>
                 </div>
 
                 {series?.id ? (
-                  <Link
-                    href={`/manage/bgm/${series.id}`}
-                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    BGM / 演出詳細へ
-                  </Link>
+<Link
+  href={`/manage/bgm/${series.id}`}
+  className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+>
+  既定演出設定ページ
+</Link>
                 ) : null}
               </div>
 
@@ -592,37 +469,6 @@ export default function WriteSeriesForm({
                     />
                   </label>
 
-                  <BgmLibraryPicker
-                    tracks={libraryTracks}
-                    selectedTrackId={selectedSeriesTrackId}
-                    onSelectTrack={handleSelectSeriesTrack}
-                    onClear={handleClearSeriesTrack}
-                    label="作品共通BGM素材"
-                    placeholder="作品共通BGMを選ぶ"
-                    helperText="作品ワークスペース側では、まず作品全体の空気感になるBGMをサイト用意素材から選ぶ。"
-                    clearLabel="作品共通BGMを解除"
-                    fallbackTitle={seriesBgmTitle}
-                    fallbackAudioPath={seriesBgmAudioPath}
-                  />
-
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <p className="text-sm font-semibold text-white">基本演出</p>
-                    <p className="mt-2 text-sm leading-7 text-neutral-400">
-                      ここでは作品全体の最小演出として、共通フェードだけを扱う。
-                      詳しい話ごと演出や将来のシーン切り替え演出は詳細ページへ回す。
-                    </p>
-
-                    <div className="mt-4">
-                      <BasicEffectFields
-                        value={seriesBgmSettings}
-                        onChange={(next) => {
-                          setSeriesBgmSettings(next);
-                          resetSaveUi();
-                        }}
-                      />
-                    </div>
-                  </div>
-
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                     <p className="text-sm font-semibold text-white">反応表示</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-400">
@@ -642,9 +488,7 @@ export default function WriteSeriesForm({
                           className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5"
                         />
                         <div>
-                          <p className="text-sm font-semibold text-white">
-                            作品レビュー欄を表示
-                          </p>
+                          <p className="text-sm font-semibold text-white">作品レビュー欄を表示</p>
                           <p className="mt-2 text-sm leading-7 text-neutral-400">
                             OFF の時は作品ページでレビュー欄を出さない。
                           </p>
@@ -674,17 +518,17 @@ export default function WriteSeriesForm({
                   </div>
 
                   <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleSubmit("workspace")}
-                      className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
-                    >
-                      {saveState === "saving"
-                        ? "保存中..."
-                        : mode === "create"
-                          ? "作品を作成してワークスペースへ"
-                          : "作品ワークスペースを保存"}
-                    </button>
+<button
+  type="button"
+  onClick={() => handleSubmit("workspace")}
+  className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:opacity-90"
+>
+  {saveState === "saving"
+    ? "保存中..."
+    : mode === "create"
+      ? "作品を作成してワークスペースへ"
+      : "作品ワークスペースを保存"}
+</button>
 
                     {mode === "create" ? (
                       <button
@@ -692,29 +536,18 @@ export default function WriteSeriesForm({
                         onClick={() => handleSubmit("effects")}
                         className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
                       >
-                        作品を作成して演出へ
+                        作品を作成して基本演出へ
                       </button>
                     ) : null}
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleClearSeriesTrack();
-                        setSeriesBgmSettings(getInitialSeriesBgmSettings(series));
-                      }}
-                      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
-                    >
-                      BGM選択を外す
-                    </button>
-
-                    {series?.id ? (
-                      <Link
-                        href={`/write/series/${series.id}/episodes/new`}
-                        className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                      >
-                        新しい話を追加
-                      </Link>
-                    ) : null}
+{series?.id ? (
+  <Link
+    href={`/write/series/${series.id}/episodes/new`}
+    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+  >
+    新しい話を追加
+  </Link>
+) : null}
                   </div>
 
                   {errorMessage ? (
@@ -736,12 +569,6 @@ export default function WriteSeriesForm({
                       CURRENT STATE
                     </p>
                     <div className="mt-3 grid gap-3">
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
-                        共通BGM:{" "}
-                        <span className="font-semibold text-white">
-                          {hasCommonBgm ? "設定あり" : "未設定"}
-                        </span>
-                      </div>
                       <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
                         タグ:{" "}
                         <span className="font-semibold text-white">
@@ -776,18 +603,11 @@ export default function WriteSeriesForm({
                       </p>
                       <div className="mt-3 grid gap-3">
                         <WorkspaceLinkCard
-                          eyebrow="EFFECTS"
-                          title="演出編集"
-                          description="ルビ、色、文字装飾、背景、挿絵、場面転換 cue などの保存土台をここで編集する。"
-                          href={`/write/series/${series.id}/effects`}
-                          cta="演出編集へ"
-                        />
-                        <WorkspaceLinkCard
-                          eyebrow="DETAIL BGM"
-                          title="BGM / 演出詳細"
-                          description="話ごとのBGMや、より細かい演出設定はこちらで調整する。"
+                          eyebrow="DEFAULT EFFECTS"
+                          title="既定演出設定ページ"
+                          description="作品共通BGM、既定フォント、既定文字色、既定背景をここで決める。"
                           href={`/manage/bgm/${series.id}`}
-                          cta="詳細を開く"
+                          cta="既定演出設定ページへ"
                         />
                         <WorkspaceLinkCard
                           eyebrow="TAGS"
@@ -807,7 +627,7 @@ export default function WriteSeriesForm({
                     </div>
                   ) : (
                     <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-neutral-400">
-                      まず作品を作成すると、タグ管理や朗読許可管理へも進めるようになる。
+                      まず作品を作成すると、基本演出ページ、タグ管理、朗読許可管理へ進めるようになる。
                     </div>
                   )}
                 </div>
@@ -824,7 +644,7 @@ export default function WriteSeriesForm({
                   <StepCard
                     step="STEP 1"
                     title="作品を作成する"
-                    description="まずはタイトル・あらすじ・共通BGM・基本演出の土台を作る。"
+                    description="まずはタイトル・あらすじ・公開面の基本方針を作る。"
                   />
                   <StepCard
                     step="STEP 2"
@@ -833,13 +653,13 @@ export default function WriteSeriesForm({
                   />
                   <StepCard
                     step="STEP 3"
-                    title="1話目を追加する"
-                    description="作品単位の流れを保ったまま、そのまま話作成へ進む。"
+                    title="基本演出を決める"
+                    description="作品共通BGMと共通演出の入口は基本演出ページへ寄せる。"
                   />
                   <StepCard
                     step="STEP 4"
-                    title="必要なら管理を足す"
-                    description="タグや朗読許可、細かいBGM設定だけ詳細ページへ移る。"
+                    title="1話目を追加する"
+                    description="各話の本文と各話BGMは話ごとの導線へ分けて進める。"
                   />
                 </div>
               </section>
@@ -899,7 +719,7 @@ export default function WriteSeriesForm({
                         この作品の話一覧
                       </h2>
                       <p className="mt-2 text-sm leading-7 text-neutral-400">
-                        本文は各話ページで編集し、作品全体の方向付けはこのワークスペースで行う。
+                        本文は各話ページで編集し、各話BGMや話ごとの背景は各話演出編集ページへ寄せる。
                       </p>
                     </div>
 
@@ -955,6 +775,13 @@ export default function WriteSeriesForm({
                                 本文編集
                               </Link>
 
+                              <Link
+                                href={`/write/series/${series.id}/episodes/${episode.id}/effects`}
+                                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                              >
+                                この話の演出・BGM
+                              </Link>
+
                               {episodeNumber > 0 ? (
                                 <Link
                                   href={`/read/${series.id}/${episodeNumber}`}
@@ -998,9 +825,9 @@ export default function WriteSeriesForm({
 
                         <Link
                           href={`/manage/bgm/${series.id}`}
-                          className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                          className="rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
                         >
-                          BGM / 演出詳細
+                          既定演出設定ページ
                         </Link>
                       </div>
                     </>
@@ -1009,28 +836,28 @@ export default function WriteSeriesForm({
                   <div className="mt-6 grid gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
                       <p className="text-sm font-semibold text-white">
-                        作品共通の空気感を先に作る
+                        作品共通の入口は基本演出ページへ
                       </p>
                       <p className="mt-2 text-sm leading-7 text-neutral-400">
-                        作品共通BGMと基本演出を先に置いておくと、各話を書き始めた時の方向がぶれにくい。
+                        作品共通BGMと作品共通演出は、基本演出ページを入口として寄せる。
                       </p>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
                       <p className="text-sm font-semibold text-white">
-                        下書きを減らす
+                        各話BGMは各話演出編集へ
                       </p>
                       <p className="mt-2 text-sm leading-7 text-neutral-400">
-                        公開前の話が残っているなら、まずその話を仕上げると流れが途切れにくい。
+                        各話ごとの調整は話本文と切り分けて、各話演出編集ページから入る。
                       </p>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
                       <p className="text-sm font-semibold text-white">
-                        細かい設定だけ詳細へ
+                        BGM設定は専用ページに分離
                       </p>
                       <p className="mt-2 text-sm leading-7 text-neutral-400">
-                        毎回触らない設定は、詳細ページへ逃がしてこのワークスペースを重くしすぎない。
+                        実際のBGM素材選択とフェード設定は BGM設定ページへ寄せ、ワークスペースを重くしすぎない。
                       </p>
                     </div>
                   </div>

@@ -193,9 +193,9 @@ async function handleSubmit(destination: "workspace" | "effects" = "workspace") 
     href={`/write/series/${seriesId}/episodes/${episode.id}/effects`}
     className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
   >
-    この話の演出へ
+    この話の演出・BGMへ
   </Link>
-) : null}              
+) : null}             
 
               {mode === "edit" && readHref ? (
                 <Link
@@ -262,16 +262,16 @@ async function handleSubmit(destination: "workspace" | "effects" = "workspace") 
         : "保存して続ける"}
   </button>
 
-  {mode === "create" ? (
-    <button
-      type="button"
-      onClick={() => handleSubmit("effects")}
-      disabled={isSaving}
-      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      作成して演出へ
-    </button>
-  ) : null}
+{mode === "create" ? (
+  <button
+    type="button"
+    onClick={() => handleSubmit("effects")}
+    disabled={isSaving}
+    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
+  >
+    作成して演出・BGMへ
+  </button>
+) : null}
 
   <Link
     href={`/write/series/${seriesId}`}
