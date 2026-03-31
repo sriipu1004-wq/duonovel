@@ -52,6 +52,7 @@ export default function BgmLibraryPicker({
             {tracks.map((track) => (
               <option key={track.id} value={track.id} className="bg-[#111] text-white">
                 {track.title} / {track.mood} / {track.useCase}
+                {track.isActive ? "" : " / 非公開"}
               </option>
             ))}
           </select>
@@ -59,7 +60,7 @@ export default function BgmLibraryPicker({
 
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/bgm"
+            href="/bgm#operator-bgm-library"
             target="_blank"
             className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
           >
@@ -87,7 +88,19 @@ export default function BgmLibraryPicker({
       {selectedTrack ? (
         <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm font-semibold text-white">選択中の素材</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-white">選択中の素材</p>
+              <span
+                className={`rounded-full border px-3 py-1 text-xs ${
+                  selectedTrack.isActive
+                    ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+                    : "border-amber-400/20 bg-amber-400/10 text-amber-200"
+                }`}
+              >
+                {selectedTrack.isActive ? "公開中" : "非公開"}
+              </span>
+            </div>
+
             <p className="mt-2 text-base font-semibold text-white">
               {selectedTrack.title}
             </p>
@@ -115,6 +128,14 @@ export default function BgmLibraryPicker({
               <div>
                 <dt className="text-neutral-500">パス</dt>
                 <dd className="break-all text-neutral-200">{selectedTrack.audioPath}</dd>
+              </div>
+              <div>
+                <dt className="text-neutral-500">公開状態</dt>
+                <dd>{selectedTrack.isActive ? "公開" : "非公開"}</dd>
+              </div>
+              <div>
+                <dt className="text-neutral-500">並び順</dt>
+                <dd>{selectedTrack.sortOrder}</dd>
               </div>
             </dl>
           </div>

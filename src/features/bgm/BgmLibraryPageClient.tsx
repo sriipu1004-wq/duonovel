@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import type { BgmLibraryTrack } from "@/lib/bgm/bgmLibrary";
+import BgmLibraryManagePanel from "@/features/bgm/BgmLibraryManagePanel";
 
 const LOOP_FILTERS = [
   { value: "all", label: "すべて" },
@@ -48,8 +49,12 @@ function FilterBadge({ children }: { children: ReactNode }) {
 
 export default function BgmLibraryPageClient({
   tracks,
+  canManageLibrary,
+  manageableTracks,
 }: {
   tracks: BgmLibraryTrack[];
+  canManageLibrary: boolean;
+  manageableTracks: BgmLibraryTrack[];
 }) {
   const [query, setQuery] = useState("");
   const [moodFilter, setMoodFilter] = useState("all");
@@ -99,6 +104,7 @@ export default function BgmLibraryPageClient({
 
             <p className="mt-4 max-w-3xl text-sm leading-7 text-neutral-300 sm:text-base">
               サイト側で用意したBGMだけを一覧、検索、絞り込み、試聴できる素材ページ。
+              運営としてログインしている時だけ、この下に素材追加と公開管理の導線が出る。
             </p>
 
             <div className="mt-5 flex flex-wrap gap-3">
@@ -115,10 +121,23 @@ export default function BgmLibraryPageClient({
               >
                 管理トップへ
               </Link>
+
+              {canManageLibrary ? (
+                <a
+                  href="#operator-bgm-library"
+                  className="rounded-full border border-amber-400/20 bg-amber-400/10 px-5 py-3 text-sm text-amber-100 transition hover:bg-amber-400/20"
+                >
+                  運営用BGM管理へ
+                </a>
+              ) : null}
             </div>
           </div>
 
           <div className="grid gap-6 px-5 py-6 sm:px-8">
+            {canManageLibrary ? (
+              <BgmLibraryManagePanel tracks={manageableTracks} />
+            ) : null}
+
             <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>

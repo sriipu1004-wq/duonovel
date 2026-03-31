@@ -47,7 +47,12 @@ type SimpleSupabaseLike = {
         order: (
           column: string,
           options?: { ascending?: boolean }
-        ) => SimpleQueryResult<BgmLibraryRow>;
+        ) => {
+          order: (
+            column: string,
+            options?: { ascending?: boolean }
+          ) => SimpleQueryResult<BgmLibraryRow>;
+        };
       };
       order: (
         column: string,
@@ -126,10 +131,28 @@ export async function fetchBgmLibraryTracks(
     .from("bgm_library")
     .select("*")
     .eq("is_active", true)
-    .order("sort_order", { ascending: true });
+    .order("sort_order", { ascending: true })
+    .order("title", { ascending: true });
 
   if (result.error) {
     console.error("bgm_library fetch failed:", result.error.message);
+    return [];
+  }
+
+  return (result.data ?? []).map(mapBgmLibraryRow);
+}
+
+export async function fetchAllBgmLibraryTracks(
+  supabase: SimpleSupabaseLike
+): Promise<BgmLibraryTrack[]> {
+  const result = await supabase
+    .from("bgm_library")
+    .select("*")
+    .order("sort_order", { ascending: true })
+    .order("title", { ascending: true });
+
+  if (result.error) {
+    console.error("bgm_library manage fetch failed:", result.error.message);
     return [];
   }
 

@@ -1,8 +1,12 @@
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
+import { isOperatorUser } from "@/lib/auth/operator";
 import WriteSeriesForm from "@/features/write/WriteSeriesForm";
 import { type EpisodeRow, type SeriesRow } from "@/features/write/writeShared";
-import { fetchBgmLibraryTracks } from "@/lib/bgm/bgmLibrary";
+import {
+  fetchAllBgmLibraryTracks,
+  fetchBgmLibraryTracks,
+} from "@/lib/bgm/bgmLibrary";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -63,7 +67,10 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
   }
 
   const episodes = await fetchEpisodes(seriesId, supabase);
-  const libraryTracks = await fetchBgmLibraryTracks(supabase);
+  const canUsePrivateTracks = isOperatorUser(user.email ?? null);
+  const libraryTracks = canUsePrivateTracks
+    ? await fetchAllBgmLibraryTracks(supabase)
+    : await fetchBgmLibraryTracks(supabase);
 
   return (
     <WriteSeriesForm

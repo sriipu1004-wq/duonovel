@@ -1,8 +1,12 @@
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
+import { isOperatorUser } from "@/lib/auth/operator";
 import BgmManageForm from "@/features/manage/BgmManageForm";
 import { parseBgmSettingsFromRow } from "@/lib/bgm/bgmSettings";
-import { fetchBgmLibraryTracks } from "@/lib/bgm/bgmLibrary";
+import {
+  fetchAllBgmLibraryTracks,
+  fetchBgmLibraryTracks,
+} from "@/lib/bgm/bgmLibrary";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -71,7 +75,7 @@ async function fetchEpisodesBySeriesId(
 export default async function ManageBgmPage({ params }: PageProps) {
   const { seriesId } = await params;
   const nextPath = `/manage/bgm/${seriesId}`;
-  const { supabase } = await requireOwnedSeries(seriesId, nextPath);
+  const { supabase, user } = await requireOwnedSeries(seriesId, nextPath);
 
   const { data: seriesData, error: seriesError } = await supabase
     .from("series")
@@ -83,7 +87,10 @@ export default async function ManageBgmPage({ params }: PageProps) {
     notFound();
   }
 
-  const libraryTracks = await fetchBgmLibraryTracks(supabase);
+  const canUsePrivateTracks = isOperatorUser(user.email ?? null);
+  const libraryTracks = canUsePrivateTracks
+    ? await fetchAllBgmLibraryTracks(supabase)
+    : await fetchBgmLibraryTracks(supabase);
   const series = seriesData as SeriesRow;
   const episodes = await fetchEpisodesBySeriesId(supabase, seriesId);
 
