@@ -9,14 +9,15 @@ type SeriesReactionButtonProps = {
   loginHref?: string;
 };
 
-const SUPPORT_REACTION_TYPE = "support";
+// DB 上の既存値は今回は変えない
+const DB_REACTION_TYPE = "support";
 
-async function fetchSupportCount(seriesId: string): Promise<number> {
+async function fetchLikeCount(seriesId: string): Promise<number> {
   const { count, error } = await supabase
     .from("user_series_reactions")
     .select("id", { count: "exact", head: true })
     .eq("series_id", seriesId)
-    .eq("reaction_type", SUPPORT_REACTION_TYPE);
+    .eq("reaction_type", DB_REACTION_TYPE);
 
   if (error) {
     throw error;
@@ -30,8 +31,8 @@ export default function SeriesReactionButton({
   loginHref = `/login?next=${encodeURIComponent(`/works/${seriesId}`)}`,
 }: SeriesReactionButtonProps) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
-  const [hasReacted, setHasReacted] = useState(false);
-  const [supportCount, setSupportCount] = useState(0);
+  const [isLiked, setIsLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
   const [isWorking, setIsWorking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -39,11 +40,11 @@ export default function SeriesReactionButton({
     setMessage(null);
 
     try {
-      const count = await fetchSupportCount(seriesId);
-      setSupportCount(count);
+      const count = await fetchLikeCount(seriesId);
+      setLikeCount(count);
     } catch {
-      setSupportCount(0);
-      setMessage("応援数の取得に失敗した。migration か RLS を確認して。");
+      setLikeCount(0);
+      setMessage("いいね数の取得に失敗した。migration か RLS を確認して。");
     }
 
     const {
@@ -53,7 +54,7 @@ export default function SeriesReactionButton({
 
     if (authError || !user) {
       setIsLoggedIn(false);
-      setHasReacted(false);
+      setIsLiked(false);
       return;
     }
 
@@ -64,15 +65,16 @@ export default function SeriesReactionButton({
       .select("id")
       .eq("user_id", user.id)
       .eq("series_id", seriesId)
+      .eq("reaction_type", DB_REACTION_TYPE)
       .maybeSingle();
 
     if (error && error.code !== "PGRST116") {
-      setHasReacted(false);
-      setMessage("応援状態の取得に失敗した。");
+      setIsLiked(false);
+      setMessage("いいね状態の取得に失敗した。");
       return;
     }
 
-    setHasReacted(Boolean(data));
+    setIsLiked(Boolean(data));
   }, [seriesId]);
 
   useEffect(() => {
@@ -97,7 +99,7 @@ export default function SeriesReactionButton({
 
     if (authError || !user) {
       setIsLoggedIn(false);
-      setHasReacted(false);
+      setIsLiked(false);
       return;
     }
 
@@ -105,15 +107,16 @@ export default function SeriesReactionButton({
     setMessage(null);
 
     try {
-      if (hasReacted) {
+      if (isLiked) {
         const { error } = await supabase
           .from("user_series_reactions")
           .delete()
           .eq("user_id", user.id)
-          .eq("series_id", seriesId);
+          .eq("series_id", seriesId)
+          .eq("reaction_type", DB_REACTION_TYPE);
 
         if (error) {
-          setMessage("応援解除に失敗した。");
+          setMessage("いいね解除に失敗した。");
           return;
         }
       } else {
@@ -121,7 +124,7 @@ export default function SeriesReactionButton({
           {
             user_id: user.id,
             series_id: seriesId,
-            reaction_type: SUPPORT_REACTION_TYPE,
+            reaction_type: DB_REACTION_TYPE,
           },
           {
             onConflict: "user_id,series_id",
@@ -129,7 +132,7 @@ export default function SeriesReactionButton({
         );
 
         if (error) {
-          setMessage("応援保存に失敗した。");
+          setMessage("いいね保存に失敗した。");
           return;
         }
       }
@@ -149,11 +152,11 @@ export default function SeriesReactionButton({
             disabled
             className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-500"
           >
-            応援状態を確認中...
+            いいね状態を確認中...
           </button>
 
           <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-400">
-            応援 -- 件
+            いいね -- 件
           </span>
         </div>
       </div>
@@ -168,16 +171,16 @@ export default function SeriesReactionButton({
             href={loginHref}
             className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
           >
-            ログインして応援
+            ログインしていいね
           </Link>
 
           <span className="rounded-full border border-rose-300/20 bg-rose-300/10 px-4 py-2 text-sm text-rose-100">
-            応援 {supportCount}件
+            いいね {likeCount}件
           </span>
         </div>
 
         <p className="text-xs leading-6 text-neutral-500">
-          最小版では 1ユーザー1作品1回だけ応援を保存する。
+          最小版では 1ユーザー1作品1いいねだけ保存する。
         </p>
 
         {message ? (
@@ -196,7 +199,7 @@ export default function SeriesReactionButton({
           disabled={isWorking}
           className={[
             "rounded-full px-5 py-3 text-sm transition",
-            hasReacted
+            isLiked
               ? "border border-rose-300/30 bg-rose-300/15 text-rose-100 hover:bg-rose-300/20"
               : "border border-white/10 bg-white/5 text-neutral-200 hover:bg-white hover:text-black",
             isWorking ? "opacity-70" : "",
@@ -204,18 +207,18 @@ export default function SeriesReactionButton({
         >
           {isWorking
             ? "処理中..."
-            : hasReacted
-              ? "♥ 応援済み"
-              : "♡ この作品を応援"}
+            : isLiked
+              ? "♥ いいね済み"
+              : "♡ この作品にいいね"}
         </button>
 
         <span className="rounded-full border border-rose-300/20 bg-rose-300/10 px-4 py-2 text-sm text-rose-100">
-          応援 {supportCount}件
+          いいね {likeCount}件
         </span>
       </div>
 
       <p className="text-xs leading-6 text-neutral-500">
-        最小版では 1ユーザー1作品1回だけ応援を保存する。
+        最小版では 1ユーザー1作品1いいねだけ保存する。
       </p>
 
       {message ? (

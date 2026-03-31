@@ -149,16 +149,16 @@ export default async function MyPage() {
             }}
           />
 
-          <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-            <p className="text-xs tracking-[0.18em] text-neutral-500">BOOKMARKS</p>
-            <h2 className="mt-2 text-xl font-semibold text-white">お気に入り作品</h2>
-            <p className="mt-3 text-sm leading-7 text-neutral-400">
-              作品ページから保存した作品をここでまとめて確認する。
-              今回は最小版として、作品一覧表示と解除までに絞る。
-            </p>
+<section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+  <p className="text-xs tracking-[0.18em] text-neutral-500">BOOKMARKS</p>
+  <h2 className="mt-2 text-xl font-semibold text-white">ブックマーク作品</h2>
+  <p className="mt-3 text-sm leading-7 text-neutral-400">
+    作品ページからブックマークした作品をここでまとめて確認する。
+    BGM のお気に入りとは別に、作品保存はブックマークとして扱う。
+  </p>
 
-            <BookmarkedSeriesList userId={user.id} />
-          </section>
+  <BookmarkedSeriesList userId={user.id} />
+</section>
         </div>
       </div>
     </main>

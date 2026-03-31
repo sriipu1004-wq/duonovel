@@ -42,7 +42,7 @@ export default function FavoriteBookmarkButton({
       .maybeSingle();
 
     if (error && error.code !== "PGRST116") {
-      setMessage("お気に入り状態の確認に失敗した。");
+      setMessage("ブックマーク状態の確認に失敗した。");
       setIsBookmarked(false);
       return;
     }
@@ -87,7 +87,7 @@ export default function FavoriteBookmarkButton({
         .eq("series_id", seriesId);
 
       if (error) {
-        setMessage("お気に入り解除に失敗した。");
+        setMessage("ブックマーク解除に失敗した。");
         setIsWorking(false);
         return;
       }
@@ -109,7 +109,7 @@ export default function FavoriteBookmarkButton({
     );
 
     if (error) {
-      setMessage("お気に入り追加に失敗した。");
+      setMessage("ブックマーク追加に失敗した。");
       setIsWorking(false);
       return;
     }
@@ -126,7 +126,7 @@ export default function FavoriteBookmarkButton({
           disabled
           className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-500"
         >
-          お気に入り確認中...
+          ブックマーク状態を確認中...
         </button>
       </div>
     );
@@ -139,11 +139,11 @@ export default function FavoriteBookmarkButton({
           href={loginHref}
           className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
         >
-          ログインしてお気に入り
+          ログインしてブックマーク
         </Link>
 
         <p className="text-xs leading-6 text-neutral-500">
-          お気に入り保存はログイン後に使える。
+          作品の保存はログイン後に使える。BGM のお気に入りとは別。
         </p>
       </div>
     );
@@ -166,9 +166,13 @@ export default function FavoriteBookmarkButton({
         {isWorking
           ? "処理中..."
           : isBookmarked
-            ? "★ お気に入り済み"
-            : "☆ お気に入りに追加"}
+            ? "★ ブックマーク済み"
+            : "☆ ブックマークに追加"}
       </button>
+
+      <p className="text-xs leading-6 text-neutral-500">
+        作品の保存はブックマーク。BGM のお気に入りとは別。
+      </p>
 
       {message ? (
         <p className="text-xs leading-6 text-amber-300">{message}</p>

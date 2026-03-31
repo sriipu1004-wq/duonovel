@@ -614,13 +614,13 @@ const isOwner =
 
 <div className="mt-6 max-w-2xl rounded-[28px] border border-white/10 bg-black/20 p-4">
   <p className="text-xs tracking-[0.18em] text-neutral-500">
-    REACTION
+    LIKE
   </p>
   <h2 className="mt-2 text-lg font-semibold text-white">
-    この作品への応援
+    この作品へのいいね
   </h2>
   <p className="mt-3 text-sm leading-7 text-neutral-400">
-    最小版では 1ユーザー1作品1応援だけ保存する。レビュー本文や複数反応はまだ混ぜない。
+    最小版では 1ユーザー1作品1いいねだけ保存する。レビュー本文やブックマークとは混ぜない。
   </p>
 
   <div className="mt-4">

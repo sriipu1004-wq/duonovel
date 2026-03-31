@@ -155,9 +155,9 @@ export default function BookmarkedSeriesList({
   if (items.length === 0) {
     return (
       <div className="mt-4 rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-4">
-        <p className="text-sm font-semibold text-white">まだお気に入り作品がない</p>
+        <p className="text-sm font-semibold text-white">まだブックマーク作品がない</p>
         <p className="mt-2 text-sm leading-7 text-neutral-400">
-          作品ページから追加した作品がここに並ぶ。
+          作品ページからブックマークした作品がここに並ぶ。
         </p>
         {errorMessage ? (
           <p className="mt-3 text-xs leading-6 text-amber-300">{errorMessage}</p>
@@ -209,7 +209,7 @@ export default function BookmarkedSeriesList({
                 disabled={workingBookmarkId === item.bookmarkId}
                 className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-neutral-300 transition hover:bg-white hover:text-black disabled:opacity-70"
               >
-                {workingBookmarkId === item.bookmarkId ? "解除中..." : "解除"}
+                {workingBookmarkId === item.bookmarkId ? "解除中..." : "ブックマーク解除"}
               </button>
             </div>
           </div>

@@ -326,9 +326,9 @@ export default function SeriesReviewSection({
           <h2 className="mt-2 text-lg font-semibold text-white">
             感想・レビュー
           </h2>
-          <p className="mt-3 text-sm leading-7 text-neutral-400">
-            最小版では 1ユーザー1作品1レビュー、300文字まで。応援とは別テーブルで保存する。
-          </p>
+<p className="mt-3 text-sm leading-7 text-neutral-400">
+  最小版では 1ユーザー1作品1レビュー、300文字まで。いいねとは別テーブルで保存する。
+</p>
         </div>
 
         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
@@ -364,7 +364,7 @@ export default function SeriesReviewSection({
             onChange={(event) => setDraft(event.target.value)}
             rows={5}
             maxLength={MAX_REVIEW_LENGTH}
-            placeholder="読後感や応援メッセージを短く書く"
+            placeholder="読後感や短いレビューを書く"
             className="mt-4 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-neutral-500"
           />
 
