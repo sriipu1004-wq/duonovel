@@ -12,6 +12,8 @@ import {
 type PageProps = {
   searchParams?: Promise<{
     seriesId?: string;
+    q?: string;
+    filter?: string;
   }>;
 };
 
@@ -19,6 +21,13 @@ type LoggedInResult = Awaited<ReturnType<typeof requireLoggedInUser>>;
 type SupabaseClient = LoggedInResult["supabase"];
 
 type RequestStatus = "pending" | "approved" | "rejected" | "cancelled";
+type RecordFilter =
+  | "all"
+  | "ready"
+  | "open"
+  | "approval"
+  | "pending"
+  | "approved";
 
 type SeriesRow = Record<string, unknown> & {
   id: string;
@@ -38,6 +47,53 @@ type RecordingRequestRow = Record<string, unknown> & {
   request_message?: string | null;
   created_at?: string | null;
 };
+
+type CatalogItem = {
+  series: SeriesRow;
+  summary: string;
+  permissionMode: RecordingPermissionMode;
+  latestRequest: RecordingRequestRow | null;
+  latestStatus: RequestStatus | null;
+  isReady: boolean;
+  searchText: string;
+};
+
+const FILTER_OPTIONS: Array<{
+  value: RecordFilter;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "all",
+    label: "すべて",
+    description: "自由朗読と承認制をまとめて見る。",
+  },
+  {
+    value: "ready",
+    label: "すぐ朗読可",
+    description: "自由朗読作品と、自分が承認済みの作品だけに絞る。",
+  },
+  {
+    value: "open",
+    label: "自由朗読",
+    description: "申請なしでそのまま制作開始できる作品だけを見る。",
+  },
+  {
+    value: "approval",
+    label: "承認制",
+    description: "申請が必要な作品だけを見る。",
+  },
+  {
+    value: "pending",
+    label: "申請中",
+    description: "自分が申請中の作品だけを見る。",
+  },
+  {
+    value: "approved",
+    label: "承認済み",
+    description: "自分が承認済みで制作開始できる作品だけを見る。",
+  },
+];
 
 function pickText(...values: unknown[]): string {
   for (const value of values) {
@@ -67,12 +123,37 @@ function normalizeRequestStatus(value: unknown): RequestStatus | null {
   return null;
 }
 
+function normalizeRecordFilter(value: unknown): RecordFilter {
+  if (value === "ready") return "ready";
+  if (value === "open") return "open";
+  if (value === "approval") return "approval";
+  if (value === "pending") return "pending";
+  if (value === "approved") return "approved";
+  return "all";
+}
+
 function getRequestStatusLabel(status: RequestStatus | null): string {
   if (status === "pending") return "申請中";
   if (status === "approved") return "承認済み";
   if (status === "rejected") return "却下";
   if (status === "cancelled") return "取消済み";
   return "未申請";
+}
+
+function getRequestStatusDescription(status: RequestStatus | null): string {
+  if (status === "pending") {
+    return "作者の承認待ち。承認されたらそのまま朗読制作へ進める。";
+  }
+  if (status === "approved") {
+    return "承認済み。今すぐ朗読制作へ進める。";
+  }
+  if (status === "rejected") {
+    return "却下済み。内容を見直して再申請する。";
+  }
+  if (status === "cancelled") {
+    return "申請は取り消し済み。必要なら改めて申請する。";
+  }
+  return "まだ申請していない。";
 }
 
 function getRequestStatusClass(status: RequestStatus | null): string {
@@ -97,6 +178,16 @@ function getPermissionLabel(mode: RecordingPermissionMode): string {
   return "朗読停止";
 }
 
+function getPermissionClass(mode: RecordingPermissionMode): string {
+  if (mode === "open") {
+    return "border-emerald-400/20 bg-emerald-400/10 text-emerald-200";
+  }
+  if (mode === "approval_required") {
+    return "border-amber-400/20 bg-amber-400/10 text-amber-200";
+  }
+  return "border-white/10 bg-white/5 text-neutral-400";
+}
+
 function getPermissionDescription(mode: RecordingPermissionMode): string {
   if (mode === "open") {
     return "ログイン済みなら、そのまま朗読制作へ進める。";
@@ -105,6 +196,10 @@ function getPermissionDescription(mode: RecordingPermissionMode): string {
     return "まず申請し、承認済みになった作品だけ朗読制作へ進める。";
   }
   return "この作品では第三者朗読を受け付けていない。";
+}
+
+function normalizeSearchText(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function formatDateTime(value: string | null | undefined): string {
@@ -191,6 +286,131 @@ function buildLatestRequestMap(
   return latestMap;
 }
 
+function buildPortalPath({
+  seriesId,
+  q,
+  filter,
+}: {
+  seriesId?: string;
+  q?: string;
+  filter?: RecordFilter;
+}): string {
+  const params = new URLSearchParams();
+
+  const normalizedSeriesId = pickText(seriesId);
+  const normalizedQuery = pickText(q);
+  const normalizedFilter = filter ?? "all";
+
+  if (normalizedSeriesId) {
+    params.set("seriesId", normalizedSeriesId);
+  }
+  if (normalizedQuery) {
+    params.set("q", normalizedQuery);
+  }
+  if (normalizedFilter !== "all") {
+    params.set("filter", normalizedFilter);
+  }
+
+  const queryString = params.toString();
+  return queryString ? `/record?${queryString}` : "/record";
+}
+
+function matchesFilter(item: CatalogItem, filter: RecordFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "ready") return item.isReady;
+  if (filter === "open") return item.permissionMode === "open";
+  if (filter === "approval") return item.permissionMode === "approval_required";
+  if (filter === "pending") return item.latestStatus === "pending";
+  if (filter === "approved") return item.latestStatus === "approved";
+  return true;
+}
+
+function matchesSearch(item: CatalogItem, query: string): boolean {
+  if (!query) return true;
+  return item.searchText.includes(query);
+}
+
+function getPrimaryAction(item: CatalogItem): {
+  href: string;
+  label: string;
+  className: string;
+} {
+  if (item.isReady) {
+    return {
+      href: buildRecordingEntryPath(item.series.id),
+      label: "朗読制作へ",
+      className:
+        "rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90",
+    };
+  }
+
+  if (item.latestStatus === "pending") {
+    return {
+      href: buildRecordingRequestPath(item.series.id),
+      label: "申請状況を見る",
+      className:
+        "rounded-full border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-sm text-amber-200 transition hover:bg-amber-400/20",
+    };
+  }
+
+  if (item.latestStatus === "rejected") {
+    return {
+      href: buildRecordingRequestPath(item.series.id),
+      label: "再申請する",
+      className:
+        "rounded-full border border-red-400/20 bg-red-400/10 px-4 py-2 text-sm text-red-200 transition hover:bg-red-400/20",
+    };
+  }
+
+  if (item.latestStatus === "cancelled") {
+    return {
+      href: buildRecordingRequestPath(item.series.id),
+      label: "申請し直す",
+      className:
+        "rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black",
+    };
+  }
+
+  return {
+    href: buildRecordingRequestPath(item.series.id),
+    label: "朗読申請へ",
+    className:
+      "rounded-full border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-sm text-amber-200 transition hover:bg-amber-400/20",
+  };
+}
+
+function buildCatalogItem(
+  series: SeriesRow,
+  latestRequestMap: Map<string, RecordingRequestRow>
+): CatalogItem {
+  const permissionMode = normalizeRecordingPermissionMode(
+    series.recording_permission_mode
+  );
+  const latestRequest = latestRequestMap.get(series.id) ?? null;
+  const latestStatus = normalizeRequestStatus(latestRequest?.status);
+  const summary = getSeriesSummary(series);
+  const isReady = permissionMode === "open" || latestStatus === "approved";
+
+  return {
+    series,
+    summary,
+    permissionMode,
+    latestRequest,
+    latestStatus,
+    isReady,
+    searchText: normalizeSearchText(
+      [
+        pickText(series.title),
+        summary,
+        getPermissionLabel(permissionMode),
+        getPermissionDescription(permissionMode),
+        getRequestStatusLabel(latestStatus),
+        getRequestStatusDescription(latestStatus),
+      ].join(" ")
+    ),
+  };
+}
+
 function SectionCard({
   label,
   title,
@@ -214,37 +434,132 @@ function SectionCard({
   );
 }
 
+function RecordCatalogCard({ item }: { item: CatalogItem }) {
+  const primaryAction = getPrimaryAction(item);
+
+  return (
+    <article className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-3xl">
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="text-xl font-semibold text-white">
+              {pickText(item.series.title) || "無題"}
+            </h3>
+
+            <span
+              className={[
+                "rounded-full border px-3 py-1 text-sm",
+                getPermissionClass(item.permissionMode),
+              ].join(" ")}
+            >
+              {getPermissionLabel(item.permissionMode)}
+            </span>
+
+            <span
+              className={[
+                "rounded-full border px-3 py-1 text-sm",
+                getRequestStatusClass(item.latestStatus),
+              ].join(" ")}
+            >
+              自分: {getRequestStatusLabel(item.latestStatus)}
+            </span>
+
+            {item.isReady ? (
+              <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-sm text-sky-200">
+                すぐ朗読可
+              </span>
+            ) : null}
+          </div>
+
+          <p className="mt-3 text-sm leading-7 text-neutral-400">
+            {getPermissionDescription(item.permissionMode)}
+          </p>
+
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-300">
+            {item.summary}
+          </p>
+
+          <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-neutral-400">
+            許可状態: {getPermissionLabel(item.permissionMode)}
+            <br />
+            自分の状態: {getRequestStatusDescription(item.latestStatus)}
+            <br />
+            直近申請日時: {formatDateTime(item.latestRequest?.created_at)}
+            <br />
+            申請文:
+            <br />
+            {pickText(item.latestRequest?.request_message) ||
+              "まだ申請メッセージはない。"}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href={buildWorkPath(item.series.id)}
+            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+          >
+            作品ページ
+          </Link>
+
+          <Link href={primaryAction.href} className={primaryAction.className}>
+            {primaryAction.label}
+          </Link>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export default async function RecordPortalPage({ searchParams }: PageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const focusedSeriesId = pickText(resolvedSearchParams?.seriesId);
+  const searchQuery = pickText(resolvedSearchParams?.q);
+  const normalizedSearchQuery = normalizeSearchText(searchQuery);
+  const activeFilter = normalizeRecordFilter(resolvedSearchParams?.filter);
 
   const { supabase, user } = await requireLoggedInUser("/record");
   const discoverableSeries = await fetchDiscoverableSeries(supabase);
   const myRequests = await fetchMyRecordingRequests(user.id, supabase);
   const latestRequestMap = buildLatestRequestMap(myRequests);
 
-  const openSeries = discoverableSeries.filter((series) => {
-    return normalizeRecordingPermissionMode(series.recording_permission_mode) === "open";
-  });
+  const catalogItems = discoverableSeries
+    .map((series) => buildCatalogItem(series, latestRequestMap))
+    .sort((a, b) => {
+      if (Number(b.isReady) !== Number(a.isReady)) {
+        return Number(b.isReady) - Number(a.isReady);
+      }
 
-  const approvalSeries = discoverableSeries.filter((series) => {
+      const aPending = a.latestStatus === "pending" ? 1 : 0;
+      const bPending = b.latestStatus === "pending" ? 1 : 0;
+      if (bPending !== aPending) {
+        return bPending - aPending;
+      }
+
+      return (
+        getCreatedAtScore(b.series.created_at) - getCreatedAtScore(a.series.created_at)
+      );
+    });
+
+  const openCount = catalogItems.filter((item) => item.permissionMode === "open").length;
+  const approvalCount = catalogItems.filter(
+    (item) => item.permissionMode === "approval_required"
+  ).length;
+  const readyCount = catalogItems.filter((item) => item.isReady).length;
+  const pendingCount = catalogItems.filter((item) => item.latestStatus === "pending").length;
+  const approvedCount = catalogItems.filter(
+    (item) => item.latestStatus === "approved"
+  ).length;
+
+  const filteredCatalogItems = catalogItems.filter((item) => {
     return (
-      normalizeRecordingPermissionMode(series.recording_permission_mode) ===
-      "approval_required"
+      matchesFilter(item, activeFilter) &&
+      matchesSearch(item, normalizedSearchQuery)
     );
-  });
-
-  const readySeries = discoverableSeries.filter((series) => {
-    const mode = normalizeRecordingPermissionMode(series.recording_permission_mode);
-    if (mode === "open") return true;
-
-    const latestRequest = latestRequestMap.get(series.id);
-    return normalizeRequestStatus(latestRequest?.status) === "approved";
   });
 
   const latestRequestEntries = Array.from(latestRequestMap.entries())
     .map(([seriesId, request]) => {
-      const series = discoverableSeries.find((item) => item.id === seriesId);
+      const series = catalogItems.find((item) => item.series.id === seriesId)?.series ?? null;
       return {
         seriesId,
         request,
@@ -258,13 +573,12 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
       );
     });
 
-  const focusedSeries = focusedSeriesId
-    ? discoverableSeries.find((series) => series.id === focusedSeriesId) ?? null
+  const focusedItem = focusedSeriesId
+    ? catalogItems.find((item) => item.series.id === focusedSeriesId) ?? null
     : null;
 
-  const focusedLatestRequest = focusedSeries
-    ? latestRequestMap.get(focusedSeries.id) ?? null
-    : null;
+  const activeFilterMeta =
+    FILTER_OPTIONS.find((option) => option.value === activeFilter) ?? FILTER_OPTIONS[0];
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
@@ -289,7 +603,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
 
             <p className="mt-4 max-w-4xl text-sm leading-7 text-neutral-300 sm:text-base">
               ここでは第三者朗読に関するアクションだけをまとめて扱う。
-              作品ページでは朗読可否を確認し、このページで申請、承認状況確認、朗読制作開始へ進む。
+              作品ページでは朗読可否を確認し、このページで検索、申請、承認状況確認、朗読制作開始へ進む。
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -307,298 +621,140 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
           </div>
 
           <div className="grid gap-6 px-5 py-6 sm:px-8">
-            <section className="grid gap-4 md:grid-cols-3">
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  OPEN
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-white">
-                  {openSeries.length}
-                </p>
+                <p className="text-xs tracking-[0.18em] text-neutral-500">OPEN</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{openCount}</p>
                 <p className="mt-2 text-sm text-neutral-400">
-                  申請なしで朗読制作へ進める作品数
+                  申請なしで制作開始できる作品
                 </p>
               </div>
 
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  APPROVAL
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-white">
-                  {approvalSeries.length}
-                </p>
+                <p className="text-xs tracking-[0.18em] text-neutral-500">APPROVAL</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{approvalCount}</p>
                 <p className="mt-2 text-sm text-neutral-400">
-                  承認制で申請が必要な作品数
+                  承認制で申請が必要な作品
                 </p>
               </div>
 
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  READY
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-white">
-                  {readySeries.length}
-                </p>
+                <p className="text-xs tracking-[0.18em] text-neutral-500">READY</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{readyCount}</p>
                 <p className="mt-2 text-sm text-neutral-400">
-                  今すぐ朗読制作へ進める作品数
+                  今すぐ朗読制作へ進める作品
+                </p>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">PENDING</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{pendingCount}</p>
+                <p className="mt-2 text-sm text-neutral-400">
+                  自分が承認待ちの作品
+                </p>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">APPROVED</p>
+                <p className="mt-2 text-3xl font-semibold text-white">{approvedCount}</p>
+                <p className="mt-2 text-sm text-neutral-400">
+                  自分が承認済みの作品
                 </p>
               </div>
             </section>
 
-            {focusedSeries ? (
+            <SectionCard
+              label="SEARCH"
+              title="朗読可能作品を探す"
+              description="検索語とフィルタで、自由朗読・承認制・自分の申請状況をまとめて探せるようにする。"
+            >
+              <form action="/record" method="get" className="grid gap-4">
+                {focusedSeriesId ? (
+                  <input type="hidden" name="seriesId" value={focusedSeriesId} />
+                ) : null}
+
+                {activeFilter !== "all" ? (
+                  <input type="hidden" name="filter" value={activeFilter} />
+                ) : null}
+
+                <div className="flex flex-col gap-3 lg:flex-row">
+                  <input
+                    type="search"
+                    name="q"
+                    defaultValue={searchQuery}
+                    placeholder="作品名や概要で検索"
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-white/20"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
+                  >
+                    検索する
+                  </button>
+                </div>
+              </form>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {FILTER_OPTIONS.map((option) => {
+                  const isActive = activeFilter === option.value;
+                  return (
+                    <Link
+                      key={option.value}
+                      href={buildPortalPath({
+                        seriesId: focusedSeriesId,
+                        q: searchQuery,
+                        filter: option.value,
+                      })}
+                      className={[
+                        "rounded-full border px-4 py-2 text-sm transition",
+                        isActive
+                          ? "border-white bg-white text-black"
+                          : "border-white/10 bg-white/5 text-neutral-300 hover:bg-white hover:text-black",
+                      ].join(" ")}
+                    >
+                      {option.label}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-7 text-neutral-300">
+                現在の絞り込み: {activeFilterMeta.label}
+                <br />
+                {activeFilterMeta.description}
+                <br />
+                検索語: {searchQuery ? `「${searchQuery}」` : "未入力"}
+                <br />
+                表示件数: {filteredCatalogItems.length}件 / 全{catalogItems.length}件
+              </div>
+            </SectionCard>
+
+            {focusedItem ? (
               <SectionCard
                 label="FOCUS"
                 title="この作品の朗読導線"
                 description="作品ページから来た時の最小入口。ここから申請か制作開始へ分岐する。"
               >
-                <article className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="max-w-3xl">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <h3 className="text-2xl font-semibold text-white">
-                          {pickText(focusedSeries.title) || "無題"}
-                        </h3>
-                        <span
-                          className={[
-                            "rounded-full border px-3 py-1 text-sm",
-                            normalizeRecordingPermissionMode(
-                              focusedSeries.recording_permission_mode
-                            ) === "approval_required"
-                              ? "border-amber-400/20 bg-amber-400/10 text-amber-200"
-                              : "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
-                          ].join(" ")}
-                        >
-                          {getPermissionLabel(
-                            normalizeRecordingPermissionMode(
-                              focusedSeries.recording_permission_mode
-                            )
-                          )}
-                        </span>
-                        <span
-                          className={[
-                            "rounded-full border px-3 py-1 text-sm",
-                            getRequestStatusClass(
-                              normalizeRequestStatus(focusedLatestRequest?.status)
-                            ),
-                          ].join(" ")}
-                        >
-                          {getRequestStatusLabel(
-                            normalizeRequestStatus(focusedLatestRequest?.status)
-                          )}
-                        </span>
-                      </div>
-
-                      <p className="mt-3 text-sm leading-7 text-neutral-400">
-                        {getPermissionDescription(
-                          normalizeRecordingPermissionMode(
-                            focusedSeries.recording_permission_mode
-                          )
-                        )}
-                      </p>
-
-                      <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-300">
-                        {getSeriesSummary(focusedSeries)}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-3">
-                      <Link
-                        href={buildWorkPath(focusedSeries.id)}
-                        className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                      >
-                        作品ページへ
-                      </Link>
-
-                      {normalizeRecordingPermissionMode(
-                        focusedSeries.recording_permission_mode
-                      ) === "open" ||
-                      normalizeRequestStatus(focusedLatestRequest?.status) ===
-                        "approved" ? (
-                        <Link
-                          href={buildRecordingEntryPath(focusedSeries.id)}
-                          className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
-                        >
-                          朗読制作へ
-                        </Link>
-                      ) : (
-                        <Link
-                          href={buildRecordingRequestPath(focusedSeries.id)}
-                          className="rounded-full border border-amber-400/20 bg-amber-400/10 px-5 py-3 text-sm text-amber-200 transition hover:bg-amber-400/20"
-                        >
-                          朗読申請へ
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                </article>
+                <RecordCatalogCard item={focusedItem} />
               </SectionCard>
             ) : null}
 
             <SectionCard
-              label="READY TO RECORD"
-              title="今すぐ朗読制作へ進める作品"
-              description="自由朗読作品と、自分が承認済みになっている作品をここにまとめる。"
+              label="CATALOG"
+              title="朗読作品カタログ"
+              description="承認制作品も同じ一覧に置き、許可状態と自分の申請状態をカード上で見分けられるようにする。"
             >
               <div className="grid gap-4">
-                {readySeries.length === 0 ? (
+                {filteredCatalogItems.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-7 text-neutral-400">
-                    今すぐ制作へ進める作品はまだない。
-                    承認制作品は下の一覧から申請し、承認済みになったらここへ出る。
+                    条件に合う作品はまだない。
+                    <br />
+                    検索語やフィルタを切り替えて確認する。
                   </div>
                 ) : (
-                  readySeries.map((series) => {
-                    const latestRequest = latestRequestMap.get(series.id);
-                    const mode = normalizeRecordingPermissionMode(
-                      series.recording_permission_mode
-                    );
-
-                    return (
-                      <article
-                        key={series.id}
-                        className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-4">
-                          <div className="max-w-3xl">
-                            <div className="flex flex-wrap items-center gap-3">
-                              <h3 className="text-xl font-semibold text-white">
-                                {pickText(series.title) || "無題"}
-                              </h3>
-                              <span
-                                className={[
-                                  "rounded-full border px-3 py-1 text-sm",
-                                  mode === "open"
-                                    ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
-                                    : "border-sky-400/20 bg-sky-400/10 text-sky-200",
-                                ].join(" ")}
-                              >
-                                {mode === "open" ? "自由朗読" : "承認済み"}
-                              </span>
-                              {mode === "approval_required" ? (
-                                <span
-                                  className={[
-                                    "rounded-full border px-3 py-1 text-sm",
-                                    getRequestStatusClass(
-                                      normalizeRequestStatus(latestRequest?.status)
-                                    ),
-                                  ].join(" ")}
-                                >
-                                  {getRequestStatusLabel(
-                                    normalizeRequestStatus(latestRequest?.status)
-                                  )}
-                                </span>
-                              ) : null}
-                            </div>
-
-                            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-400">
-                              {getSeriesSummary(series)}
-                            </p>
-                          </div>
-
-                          <div className="flex flex-wrap gap-3">
-                            <Link
-                              href={buildWorkPath(series.id)}
-                              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                            >
-                              作品ページ
-                            </Link>
-                            <Link
-                              href={buildRecordingEntryPath(series.id)}
-                              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
-                            >
-                              朗読制作へ
-                            </Link>
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })
-                )}
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              label="APPROVAL REQUIRED"
-              title="承認制作品"
-              description="申請、申請中確認、承認済みからの制作開始をここで扱う。"
-            >
-              <div className="grid gap-4">
-                {approvalSeries.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-7 text-neutral-400">
-                    承認制作品はまだない。
-                  </div>
-                ) : (
-                  approvalSeries.map((series) => {
-                    const latestRequest = latestRequestMap.get(series.id);
-                    const latestStatus = normalizeRequestStatus(latestRequest?.status);
-
-                    return (
-                      <article
-                        key={series.id}
-                        className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-4">
-                          <div className="max-w-3xl">
-                            <div className="flex flex-wrap items-center gap-3">
-                              <h3 className="text-xl font-semibold text-white">
-                                {pickText(series.title) || "無題"}
-                              </h3>
-                              <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-sm text-amber-200">
-                                承認制
-                              </span>
-                              <span
-                                className={[
-                                  "rounded-full border px-3 py-1 text-sm",
-                                  getRequestStatusClass(latestStatus),
-                                ].join(" ")}
-                              >
-                                {getRequestStatusLabel(latestStatus)}
-                              </span>
-                            </div>
-
-                            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-400">
-                              {getSeriesSummary(series)}
-                            </p>
-
-                            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-neutral-400">
-                              直近申請日時: {formatDateTime(latestRequest?.created_at)}
-                              <br />
-                              申請文:
-                              <br />
-                              {pickText(latestRequest?.request_message) ||
-                                "まだ申請メッセージはない。"}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-wrap gap-3">
-                            <Link
-                              href={buildWorkPath(series.id)}
-                              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                            >
-                              作品ページ
-                            </Link>
-
-                            {latestStatus === "approved" ? (
-                              <Link
-                                href={buildRecordingEntryPath(series.id)}
-                                className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
-                              >
-                                承認済み / 制作開始
-                              </Link>
-                            ) : (
-                              <Link
-                                href={buildRecordingRequestPath(series.id)}
-                                className="rounded-full border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-sm text-amber-200 transition hover:bg-amber-400/20"
-                              >
-                                {latestStatus === "pending"
-                                  ? "申請状況を見る"
-                                  : "朗読申請へ"}
-                              </Link>
-                            )}
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })
+                  filteredCatalogItems.map((item) => (
+                    <RecordCatalogCard key={item.series.id} item={item} />
+                  ))
                 )}
               </div>
             </SectionCard>
@@ -640,6 +796,10 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
 
                             <p className="mt-3 text-sm leading-7 text-neutral-400">
                               直近申請日時: {formatDateTime(request.created_at)}
+                            </p>
+
+                            <p className="mt-2 text-sm leading-7 text-neutral-400">
+                              {getRequestStatusDescription(latestStatus)}
                             </p>
 
                             <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-neutral-300">
