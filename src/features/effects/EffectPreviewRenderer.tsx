@@ -8,6 +8,11 @@ import {
   type EffectSceneCue,
   type EffectSettings,
 } from "@/lib/effects/effectSettings";
+import {
+  buildContentBlocks,
+  buildParagraphBlocks,
+  buildSceneBreakRuntimeList,
+} from "@/lib/effects/effectTextLayout";
 
 type EffectPreviewRendererProps = {
   body: string;
@@ -24,7 +29,8 @@ export function buildBackgroundTheme(preset: EffectBackgroundPreset) {
     case "paper":
       return {
         frameClassName: "rounded-[28px] border border-amber-900/20 bg-[#f3ead7]",
-        surfaceClassName: "bg-[linear-gradient(180deg,rgba(255,255,255,0.45),rgba(255,255,255,0.18))]",
+        surfaceClassName:
+          "bg-[linear-gradient(180deg,rgba(255,255,255,0.45),rgba(255,255,255,0.18))]",
         textClassName: "text-[#2f2416]",
       };
     case "glass":
@@ -38,14 +44,16 @@ export function buildBackgroundTheme(preset: EffectBackgroundPreset) {
       return {
         frameClassName:
           "rounded-[28px] border border-sky-400/20 bg-[#111827] shadow-[0_16px_50px_rgba(15,23,42,0.45)]",
-        surfaceClassName: "bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]",
+        surfaceClassName:
+          "bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]",
         textClassName: "text-slate-100",
       };
     case "stone":
       return {
         frameClassName:
           "rounded-[28px] border border-white/10 bg-[#34343b] shadow-[0_18px_50px_rgba(0,0,0,0.28)]",
-        surfaceClassName: "bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]",
+        surfaceClassName:
+          "bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]",
         textClassName: "text-neutral-100",
       };
     case "wood":
@@ -200,6 +208,15 @@ export function renderSegment(segment: TextSegment, index: number) {
   return <Fragment key={`segment-${index}`}>{node}</Fragment>;
 }
 
+function renderSentenceWithInlineMarks(
+  text: string,
+  inlineMarks: EffectSettings["inlineMarks"]
+) {
+  return buildSegments(text, inlineMarks).map((segment, index) =>
+    renderSegment(segment, index)
+  );
+}
+
 export function renderIllustration(illustration: EffectIllustration) {
   return (
     <figure
@@ -246,12 +263,19 @@ export default function EffectPreviewRenderer({
   const theme = buildBackgroundTheme(settings.backgroundPreset);
   const typographyStyle = buildTypographyStyle(settings);
   const safeBody =
-    body.trim().length > 0 ? body : "本文がまだありません。ここに演出付き本文プレビューが表示される。";
+    body.trim().length > 0
+      ? body
+      : "本文がまだありません。ここに演出付き本文プレビューが表示される。";
 
-  const segments = buildSegments(safeBody, settings.inlineMarks);
+  const paragraphBlocks = buildParagraphBlocks(safeBody);
   const previewIllustrations = settings.illustrations.filter(
     (illustration) => illustration.placement !== "scene_break"
   );
+  const sceneBreaks = buildSceneBreakRuntimeList(
+    paragraphBlocks,
+    settings.illustrations
+  );
+  const contentBlocks = buildContentBlocks(paragraphBlocks, sceneBreaks);
 
   return (
     <div className={`${theme.frameClassName} overflow-hidden`}>
@@ -261,12 +285,37 @@ export default function EffectPreviewRenderer({
             <div className="grid gap-4">{previewIllustrations.map(renderIllustration)}</div>
           ) : null}
 
-          <div
-            className={`whitespace-pre-wrap break-words text-[15px] leading-8 sm:text-base ${theme.textClassName}`}
+          <article
+            className={`space-y-7 break-words text-[15px] leading-8 sm:text-base ${theme.textClassName}`}
             style={typographyStyle}
           >
-            {segments.map(renderSegment)}
-          </div>
+            {contentBlocks.length > 0 ? (
+              contentBlocks.map((block) => {
+                if (block.kind === "scene_break") {
+                  return (
+                    <div key={block.key} className="grid gap-4">
+                      {block.illustrations.map(renderIllustration)}
+                    </div>
+                  );
+                }
+
+                return (
+                  <p key={block.key}>
+                    {block.sentences.map((sentence) => (
+                      <span key={sentence.index} className="inline">
+                        {renderSentenceWithInlineMarks(
+                          sentence.text,
+                          settings.inlineMarks
+                        )}
+                      </span>
+                    ))}
+                  </p>
+                );
+              })
+            ) : (
+              <p>本文がありません。</p>
+            )}
+          </article>
 
           {settings.sceneCues.length > 0 ? (
             <div className="border-t border-white/10 pt-4">

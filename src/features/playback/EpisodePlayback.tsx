@@ -29,6 +29,14 @@ import {
   emptyEffectSettings,
   type EffectSettings,
 } from "@/lib/effects/effectSettings";
+import {
+  buildContentBlocks,
+  buildParagraphBlocks,
+  buildSceneBreakRuntimeList,
+  buildSceneCueRuntimeList,
+  buildSentenceTimestampRuntimeList,
+  resolveActiveSentenceIndex,
+} from "@/lib/effects/effectTextLayout";
 
 type EpisodePlaybackProps = {
   seriesId: string;
@@ -55,20 +63,6 @@ type EpisodePlaybackProps = {
   bgmSrc?: string | null;
   bgmSettings?: BgmSettings;
   effectSettings?: EffectSettings;
-};
-
-type SentenceSegment = {
-  index: number;
-  text: string;
-};
-
-type ParagraphBlock = {
-  paragraphIndex: number;
-  segments: SentenceSegment[];
-};
-
-type SceneCueRuntime = EffectSettings["sceneCues"][number] & {
-  sentenceIndex: number;
 };
 
 type BookmarkData = {
@@ -225,18 +219,6 @@ function formatTime(value: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-function splitParagraphIntoSentences(paragraph: string): string[] {
-  const normalized = paragraph.trim();
-  if (!normalized) return [];
-
-  const matched = normalized.match(/[^。！？!?]+[。！？!?]?/g);
-  if (!matched || matched.length === 0) {
-    return [normalized];
-  }
-
-  return matched.map((item) => item.trim()).filter((item) => item.length > 0);
-}
-
 function renderSentenceWithInlineMarks(
   text: string,
   inlineMarks: EffectSettings["inlineMarks"]
@@ -244,32 +226,6 @@ function renderSentenceWithInlineMarks(
   return buildSegments(text, inlineMarks).map((segment, index) =>
     renderSegment(segment, index)
   );
-}
-
-function buildSceneCueRuntimeList(
-  paragraphBlocks: ParagraphBlock[],
-  sceneCues: EffectSettings["sceneCues"]
-): SceneCueRuntime[] {
-  const allSegments = paragraphBlocks.flatMap((block) => block.segments);
-
-  return sceneCues
-    .map((sceneCue) => {
-      const triggerText = sceneCue.triggerText.trim();
-      if (!triggerText) return null;
-
-      const matchedSegment = allSegments.find((segment) =>
-        segment.text.includes(triggerText)
-      );
-
-      if (!matchedSegment) return null;
-
-      return {
-        ...sceneCue,
-        sentenceIndex: matchedSegment.index,
-      };
-    })
-    .filter((sceneCue): sceneCue is SceneCueRuntime => sceneCue !== null)
-    .sort((left, right) => left.sentenceIndex - right.sentenceIndex);
 }
 
 function FooterActionButton({
@@ -536,32 +492,7 @@ export default function EpisodePlayback({
       ? body
       : "本文がまだ登録されていません。";
 
-  const paragraphs = useMemo(() => {
-    return safeBody
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-  }, [safeBody]);
-
-  const paragraphBlocks = useMemo<ParagraphBlock[]>(() => {
-    const sentenceGroups = paragraphs.map((paragraph) =>
-      splitParagraphIntoSentences(paragraph)
-    );
-
-    return sentenceGroups.map((sentences, paragraphIndex) => {
-      const baseIndex = sentenceGroups
-        .slice(0, paragraphIndex)
-        .reduce((sum, group) => sum + group.length, 0);
-
-      return {
-        paragraphIndex,
-        segments: sentences.map((text, sentenceIndex) => ({
-          index: baseIndex + sentenceIndex,
-          text,
-        })),
-      };
-    });
-  }, [paragraphs]);
+  const paragraphBlocks = useMemo(() => buildParagraphBlocks(safeBody), [safeBody]);
 
   const totalSentenceCount = useMemo(() => {
     return paragraphBlocks.reduce((sum, block) => sum + block.segments.length, 0);
@@ -572,12 +503,35 @@ export default function EpisodePlayback({
     [paragraphBlocks, appliedEffectSettings.sceneCues]
   );
 
+  const runtimeSceneBreaks = useMemo(
+    () =>
+      buildSceneBreakRuntimeList(
+        paragraphBlocks,
+        appliedEffectSettings.illustrations
+      ),
+    [paragraphBlocks, appliedEffectSettings.illustrations]
+  );
+
+  const contentBlocks = useMemo(
+    () => buildContentBlocks(paragraphBlocks, runtimeSceneBreaks),
+    [paragraphBlocks, runtimeSceneBreaks]
+  );
+
+  const runtimeSentenceTimestamps = useMemo(
+    () =>
+      buildSentenceTimestampRuntimeList(
+        paragraphBlocks,
+        appliedEffectSettings.sentenceTimestamps
+      ),
+    [paragraphBlocks, appliedEffectSettings.sentenceTimestamps]
+  );
+
   const activeSceneCueLabel = useMemo(
     () =>
       runtimeSceneCues.find((sceneCue) => sceneCue.id === activeSceneCueId)?.label ??
       "",
     [runtimeSceneCues, activeSceneCueId]
-  );  
+  );
 
   const playableAudioSrc = useMemo(() => {
     const value = (audioStoragePath ?? "").trim();
@@ -604,17 +558,13 @@ export default function EpisodePlayback({
       : bgmTitle || "";    
 
   const estimatedSentenceIndex = useMemo(() => {
-    if (totalSentenceCount <= 0) return -1;
-    if (!Number.isFinite(duration) || duration <= 0) return -1;
-
-    const rawRatio = currentTime / duration;
-    const ratio = Math.min(Math.max(rawRatio, 0), 0.999999);
-
-    return Math.min(
-      totalSentenceCount - 1,
-      Math.floor(ratio * totalSentenceCount)
-    );
-  }, [totalSentenceCount, currentTime, duration]);
+    return resolveActiveSentenceIndex({
+      currentTime,
+      duration,
+      totalSentenceCount,
+      sentenceTimestamps: runtimeSentenceTimestamps,
+    });
+  }, [currentTime, duration, totalSentenceCount, runtimeSentenceTimestamps]);
 
   const visibleMarkerSentenceIndex = estimatedSentenceIndex;
 
@@ -1326,8 +1276,8 @@ export default function EpisodePlayback({
             </div>
 
             <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-neutral-400">
-              今の本文追尾は、音声全体の進行率から現在文を推定する仮実装。
-              あとで文単位 timestamp に差し替える前提。
+              文単位 timestamp がある時はその値を優先して現在文を判定する。
+              無い時だけ音声全体の進行率から現在文を推定する。
             </div>
 
             <BgmController
@@ -1541,35 +1491,49 @@ export default function EpisodePlayback({
                       ...(hideEffects ? {} : effectTypographyStyle),
                     }}
                   >
-                    {paragraphBlocks.length > 0 ? (
-                      paragraphBlocks.map((block) => (
-                        <p key={block.paragraphIndex}>
-                          {block.segments.map((segment) => {
-                            const isActive =
-                              segment.index === visibleMarkerSentenceIndex;
+                    {contentBlocks.length > 0 ? (
+                      contentBlocks.map((block) => {
+                        if (block.kind === "scene_break") {
+                          if (hideEffects) {
+                            return null;
+                          }
 
-                            return (
-                              <span
-                                key={segment.index}
-                                ref={(node) => {
-                                  sentenceRefs.current[segment.index] = node;
-                                }}
-                                className={[
-                                  "inline rounded-md px-1 py-1 transition-all duration-200",
-                                  isActive ? markerClass : "",
-                                ].join(" ")}
-                              >
-                                {hideEffects
-                                  ? segment.text
-                                  : renderSentenceWithInlineMarks(
-                                      segment.text,
-                                      appliedEffectSettings.inlineMarks
-                                    )}
-                              </span>
-                            );
-                          })}
-                        </p>
-                      ))
+                          return (
+                            <div key={block.key} className="my-6 grid gap-4">
+                              {block.illustrations.map(renderIllustration)}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <p key={block.key}>
+                            {block.sentences.map((segment) => {
+                              const isActive =
+                                segment.index === visibleMarkerSentenceIndex;
+
+                              return (
+                                <span
+                                  key={segment.index}
+                                  ref={(node) => {
+                                    sentenceRefs.current[segment.index] = node;
+                                  }}
+                                  className={[
+                                    "inline rounded-md px-1 py-1 transition-all duration-200",
+                                    isActive ? markerClass : "",
+                                  ].join(" ")}
+                                >
+                                  {hideEffects
+                                    ? segment.text
+                                    : renderSentenceWithInlineMarks(
+                                        segment.text,
+                                        appliedEffectSettings.inlineMarks
+                                      )}
+                                </span>
+                              );
+                            })}
+                          </p>
+                        );
+                      })
                     ) : (
                       <p>本文がありません。</p>
                     )}

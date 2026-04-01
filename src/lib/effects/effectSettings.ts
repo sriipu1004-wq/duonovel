@@ -63,6 +63,7 @@ export type EffectIllustration = {
   imageUrl: string;
   caption: string;
   placement: EffectIllustrationPlacement;
+  anchorText: string | null;
 };
 
 export type EffectSceneCue = {
@@ -76,6 +77,12 @@ export type EffectSceneCue = {
   textAnimation: EffectTextAnimationKind;
 };
 
+export type EffectSentenceTimestamp = {
+  id: string;
+  targetText: string;
+  timeSeconds: number;
+};
+
 export type EffectSettings = {
   version: 1;
   backgroundPreset: EffectBackgroundPreset;
@@ -83,6 +90,7 @@ export type EffectSettings = {
   inlineMarks: EffectInlineMark[];
   illustrations: EffectIllustration[];
   sceneCues: EffectSceneCue[];
+  sentenceTimestamps: EffectSentenceTimestamp[];
   notes: string;
 };
 
@@ -132,6 +140,15 @@ function normalizeBoolean(value: unknown): boolean {
   return value === true;
 }
 
+function normalizeTimeSeconds(value: unknown): number | null {
+  if (value === "" || value === null || value === undefined) return null;
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+
+  return Math.round(parsed * 10) / 10;
+}
+
 function emptyTypography(): EffectTypographySettings {
   return {
     fontFamily: null,
@@ -149,6 +166,7 @@ export function emptyEffectSettings(): EffectSettings {
     inlineMarks: [],
     illustrations: [],
     sceneCues: [],
+    sentenceTimestamps: [],
     notes: "",
   };
 }
@@ -177,11 +195,14 @@ function normalizeIllustration(
   const imageUrl = pickText(value.imageUrl);
   if (!imageUrl) return null;
 
+  const placement = normalizeIllustrationPlacement(value.placement);
+
   return {
     id: pickText(value.id) || `illustration-${index + 1}`,
     imageUrl,
     caption: pickText(value.caption),
-    placement: normalizeIllustrationPlacement(value.placement),
+    placement,
+    anchorText: pickText(value.anchorText) || null,
   };
 }
 
@@ -210,6 +231,26 @@ function normalizeSceneCue(value: unknown, index: number): EffectSceneCue | null
   };
 }
 
+function normalizeSentenceTimestamp(
+  value: unknown,
+  index: number
+): EffectSentenceTimestamp | null {
+  if (!isPlainObject(value)) return null;
+
+  const targetText = pickText(value.targetText);
+  const timeSeconds = normalizeTimeSeconds(value.timeSeconds);
+
+  if (!targetText || timeSeconds === null) {
+    return null;
+  }
+
+  return {
+    id: pickText(value.id) || `timestamp-${index + 1}`,
+    targetText,
+    timeSeconds,
+  };
+}
+
 export function normalizeEffectSettings(value: unknown): EffectSettings {
   if (!isPlainObject(value)) return emptyEffectSettings();
 
@@ -233,6 +274,12 @@ export function normalizeEffectSettings(value: unknown): EffectSettings {
         .filter((item): item is EffectSceneCue => item !== null)
     : [];
 
+  const sentenceTimestamps = Array.isArray(value.sentenceTimestamps)
+    ? value.sentenceTimestamps
+        .map((item, index) => normalizeSentenceTimestamp(item, index))
+        .filter((item): item is EffectSentenceTimestamp => item !== null)
+    : [];
+
   return {
     version: 1,
     backgroundPreset: normalizeBackgroundPreset(value.backgroundPreset),
@@ -245,6 +292,7 @@ export function normalizeEffectSettings(value: unknown): EffectSettings {
     inlineMarks,
     illustrations,
     sceneCues,
+    sentenceTimestamps,
     notes: pickText(value.notes),
   };
 }
@@ -283,6 +331,10 @@ export function mergeEffectSettings(...values: unknown[]): EffectSettings {
       inlineMarks: [...merged.inlineMarks, ...current.inlineMarks],
       illustrations: [...merged.illustrations, ...current.illustrations],
       sceneCues: [...merged.sceneCues, ...current.sceneCues],
+      sentenceTimestamps: [
+        ...merged.sentenceTimestamps,
+        ...current.sentenceTimestamps,
+      ],
       notes: [merged.notes, current.notes]
         .map((item) => item.trim())
         .filter((item) => item.length > 0)
@@ -305,6 +357,7 @@ export function serializeEffectSettingsForSave(
     normalized.inlineMarks.length === 0 &&
     normalized.illustrations.length === 0 &&
     normalized.sceneCues.length === 0 &&
+    normalized.sentenceTimestamps.length === 0 &&
     normalized.notes.trim().length === 0;
 
   return isEmpty ? null : normalized;

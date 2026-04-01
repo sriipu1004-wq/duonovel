@@ -15,6 +15,7 @@ import {
   type EffectBackgroundPreset,
   type EffectIllustrationPlacement,
   type EffectInlineMarkKind,
+  type EffectSentenceTimestamp,
   type EffectSettings,
   type EffectTextAnimationKind,
 } from "@/lib/effects/effectSettings";
@@ -130,6 +131,44 @@ function PreviewToggleButton({
   );
 }
 
+function formatSentenceTimestampLines(
+  sentenceTimestamps: EffectSentenceTimestamp[]
+): string {
+  return sentenceTimestamps
+    .map((sentenceTimestamp) => {
+      return `${sentenceTimestamp.timeSeconds}|${sentenceTimestamp.targetText}`;
+    })
+    .join("\n");
+}
+
+function parseSentenceTimestampLines(
+  value: string
+): EffectSentenceTimestamp[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line, index) => {
+      const [timePart = "", ...restParts] = line.split(/[|｜]/);
+      const timeSeconds = Number(timePart.trim());
+      const targetText = restParts.join("|").trim();
+
+      if (!Number.isFinite(timeSeconds) || timeSeconds < 0 || !targetText) {
+        return null;
+      }
+
+      return {
+        id: `timestamp-${index + 1}`,
+        targetText,
+        timeSeconds: Math.round(timeSeconds * 10) / 10,
+      };
+    })
+    .filter(
+      (sentenceTimestamp): sentenceTimestamp is EffectSentenceTimestamp =>
+        sentenceTimestamp !== null
+    );
+}
+
 export default function EffectSettingsForm({
   scope,
   tableName,
@@ -191,6 +230,10 @@ export default function EffectSettingsForm({
       firstIllustration?.placement ?? "top"
     );
 
+  const [illustrationAnchorText, setIllustrationAnchorText] = useState(
+    firstIllustration?.anchorText ?? ""
+  );    
+
   const [sceneLabel, setSceneLabel] = useState(firstSceneCue?.label ?? "");
   const [sceneTriggerText, setSceneTriggerText] = useState(
     firstSceneCue?.triggerText ?? ""
@@ -223,6 +266,10 @@ export default function EffectSettingsForm({
   const [episodeBgmSettings, setEpisodeBgmSettings] = useState<BgmSettings>(
     initialBgmSettings ?? emptyBgmSettings()
   );
+
+  const [sentenceTimestampLines, setSentenceTimestampLines] = useState(
+    formatSentenceTimestampLines(initialSettings.sentenceTimestamps)
+  );  
 
   const [notes, setNotes] = useState(initialSettings.notes ?? "");
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -265,6 +312,10 @@ export default function EffectSettingsForm({
               imageUrl: illustrationUrl.trim(),
               caption: illustrationCaption.trim(),
               placement: illustrationPlacement,
+              anchorText:
+                illustrationPlacement === "scene_break"
+                  ? illustrationAnchorText.trim() || null
+                  : null,
             },
           ]
         : [],
@@ -287,6 +338,7 @@ export default function EffectSettingsForm({
               },
             ]
           : [],
+      sentenceTimestamps: parseSentenceTimestampLines(sentenceTimestampLines),          
       notes: notes.trim(),
     });
   }
@@ -745,6 +797,26 @@ export default function EffectSettingsForm({
                         </select>
                       </label>
                     </div>
+
+                    {illustrationPlacement === "scene_break" ? (
+                      <label className="grid gap-2">
+                        <span className="text-sm text-neutral-300">
+                          差し込み対象文字列
+                        </span>
+                        <input
+                          value={illustrationAnchorText}
+                          onChange={(event) => {
+                            setIllustrationAnchorText(event.target.value);
+                            resetSaveUi();
+                          }}
+                          placeholder="例: 夜が明けた"
+                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                        />
+                        <span className="text-xs leading-6 text-neutral-500">
+                          scene_break の時だけ使う。本文中でこの文字列を含む文の直後へ差し込む。
+                        </span>
+                      </label>
+                    ) : null}
                   </div>
                 </section>
 
@@ -852,6 +924,35 @@ export default function EffectSettingsForm({
 
                 <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
+                    TIMESTAMPS
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">
+                    文単位 timestamp
+                  </h2>
+                  <p className="mt-2 text-sm leading-7 text-neutral-400">
+                    1行ごとに <code>秒数|対象文字列</code> の形で入れる。
+                    read 側ではこの情報を優先して現在文判定に使い、無い時だけ比率推定へ戻る。
+                  </p>
+
+                  <textarea
+                    value={sentenceTimestampLines}
+                    onChange={(event) => {
+                      setSentenceTimestampLines(event.target.value);
+                      resetSaveUi();
+                    }}
+                    rows={8}
+                    placeholder={`0|最初の文\n3.2|夜が明けた\n8.5|彼は立ち上がった`}
+                    className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-neutral-500"
+                  />
+
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
+                    対象文字列は本文中の文に含まれている必要がある。
+                    最初は最小構成として文字列一致で sentence index へ解決する。
+                  </div>
+                </section>                
+
+                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">
                     NOTES
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-white">
@@ -946,6 +1047,10 @@ export default function EffectSettingsForm({
                       label="場面転換 cue"
                       value={`${effectivePreviewSettings.sceneCues.length}件`}
                     />
+                    <SummaryRow
+                      label="文単位timestamp"
+                      value={`${effectivePreviewSettings.sentenceTimestamps.length}件`}
+                    />                    
                   </div>
                 </section>
 
