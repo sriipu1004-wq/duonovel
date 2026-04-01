@@ -7,8 +7,13 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   getEpisodeBody,
   getEpisodeNumber,
-  isPublishedEpisode,
+  getEpisodePostingStatus,
+  getEpisodeScheduledForValue,
+  getEpisodePostedAtValue,
+  getEpisodeLastEditedAtValue,
+  isEpisodePubliclyVisible,
   pickText,
+  type EpisodePostingStatus,
   type EpisodeRow,
 } from "@/features/write/writeShared";
 
@@ -20,6 +25,9 @@ type WriteEpisodeFormProps = {
   seriesId: string;
   episode?: EpisodeRow | null;
   initialEpisodeNumber: number;
+  initialPostingStatus?: EpisodePostingStatus;
+  initialScheduledFor?: string | null;
+  previousEpisode?: EpisodeRow | null;
 };
 
 type EpisodePayload = {
@@ -28,24 +36,129 @@ type EpisodePayload = {
   title: string;
   body: string;
   is_published: boolean;
+  posting_status: EpisodePostingStatus;
+  scheduled_for: string | null;
+  posted_at: string | null;
+  last_edited_at: string | null;
 };
+
+function formatDateTimeLocal(value?: string | null): string {
+  if (!value) {
+    return "";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  const offsetMs = parsed.getTimezoneOffset() * 60 * 1000;
+  return new Date(parsed.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function toIsoStringFromLocalInput(value: string): string | null {
+  if (!value.trim()) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString();
+}
+
+function getPostingStatusLabel(status: EpisodePostingStatus): string {
+  if (status === "posted") return "投稿";
+  if (status === "scheduled") return "予約投稿";
+  return "下書き保存";
+}
+
+function getPostingStatusDescription(status: EpisodePostingStatus): string {
+  if (status === "posted") {
+    return "作品が公開状態なら、そのまま読者向け公開対象に入る。";
+  }
+
+  if (status === "scheduled") {
+    return "予約時刻までは公開面に出さず、到達後に公開対象へ入れる。";
+  }
+
+  return "作者ワークスペースだけに残し、続きを後で書ける状態にする。";
+}
 
 function createEpisodePayload(args: {
   seriesId: string;
   episodeNumber: number;
   title: string;
   body: string;
-  isPublished: boolean;
+  postingStatus: EpisodePostingStatus;
+  scheduledFor: string;
+  mode: Mode;
+  existingEpisode?: EpisodeRow | null;
 }): EpisodePayload {
-  const { seriesId, episodeNumber, title, body, isPublished } = args;
+  const {
+    seriesId,
+    episodeNumber,
+    title,
+    body,
+    postingStatus,
+    scheduledFor,
+    mode,
+    existingEpisode,
+  } = args;
+
+  const nowIso = new Date().toISOString();
+  const scheduledForIso =
+    postingStatus === "scheduled"
+      ? toIsoStringFromLocalInput(scheduledFor)
+      : null;
+
+  const existingPostedAt = existingEpisode
+    ? getEpisodePostedAtValue(existingEpisode)
+    : "";
+
+  const existingLastEditedAt = existingEpisode
+    ? getEpisodeLastEditedAtValue(existingEpisode)
+    : "";
+
+  const hadPublicVisibilityBefore =
+    mode === "edit" && !!existingEpisode
+      ? isEpisodePubliclyVisible(existingEpisode)
+      : false;
+
+  let postedAt: string | null = existingPostedAt || null;
+
+  if (!postedAt && postingStatus === "posted") {
+    postedAt = nowIso;
+  }
+
+  const lastEditedAt =
+    mode === "edit" && hadPublicVisibilityBefore
+      ? nowIso
+      : existingLastEditedAt || null;
 
   return {
     series_id: seriesId,
     episode_number: episodeNumber,
     title,
     body,
-    is_published: isPublished,
+    is_published: postingStatus === "posted",
+    posting_status: postingStatus,
+    scheduled_for: scheduledForIso,
+    posted_at: postedAt,
+    last_edited_at: lastEditedAt,
   };
+}
+
+function getNextButtonLabel(status: EpisodePostingStatus): string {
+  return status === "scheduled"
+    ? "予約保存して次の話へ"
+    : "下書き保存して次の話へ";
 }
 
 export default function WriteEpisodeForm({
@@ -53,29 +166,50 @@ export default function WriteEpisodeForm({
   seriesId,
   episode,
   initialEpisodeNumber,
+  initialPostingStatus = "draft",
+  initialScheduledFor = null,
+  previousEpisode = null,
 }: WriteEpisodeFormProps) {
   const router = useRouter();
 
-const [episodeNumber, setEpisodeNumber] = useState(String(initialEpisodeNumber));
-const [title, setTitle] = useState(pickText(episode?.title));
-const [body, setBody] = useState(episode ? getEpisodeBody(episode) : "");
-const [isPublished, setIsPublished] = useState(
-  mode === "edit" && episode ? isPublishedEpisode(episode) : false
-);
-const [saveState, setSaveState] = useState<SaveState>("idle");
-const [errorMessage, setErrorMessage] = useState("");
-const [successMessage, setSuccessMessage] = useState("");
+  const [episodeNumber, setEpisodeNumber] = useState(String(initialEpisodeNumber));
+  const [title, setTitle] = useState(pickText(episode?.title));
+  const [body, setBody] = useState(episode ? getEpisodeBody(episode) : "");
+  const [postingStatus, setPostingStatus] = useState<EpisodePostingStatus>(
+    mode === "edit" && episode
+      ? getEpisodePostingStatus(episode)
+      : initialPostingStatus
+  );
+  const [scheduledFor, setScheduledFor] = useState(
+    formatDateTimeLocal(
+      mode === "edit" && episode
+        ? getEpisodeScheduledForValue(episode)
+        : initialScheduledFor
+    )
+  );
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-const parsedEpisodeNumber = Number(episodeNumber);
-const safeEpisodeNumber =
-  Number.isFinite(parsedEpisodeNumber) && parsedEpisodeNumber > 0
-    ? parsedEpisodeNumber
-    : null;
+  const parsedEpisodeNumber = Number(episodeNumber);
+  const safeEpisodeNumber =
+    Number.isFinite(parsedEpisodeNumber) && parsedEpisodeNumber > 0
+      ? parsedEpisodeNumber
+      : null;
 
-const readHref =
-  safeEpisodeNumber && isPublished
-    ? `/read/${seriesId}/${safeEpisodeNumber}`
-    : null;
+  const previewEpisode: EpisodeRow = {
+    id: episode?.id ?? "preview",
+    episode_number: safeEpisodeNumber,
+    posting_status: postingStatus,
+    scheduled_for: toIsoStringFromLocalInput(scheduledFor),
+    is_published: postingStatus === "posted",
+  };
+
+  const readHref =
+    safeEpisodeNumber && isEpisodePubliclyVisible(previewEpisode)
+      ? `/read/${seriesId}/${safeEpisodeNumber}`
+      : null;
+
   const characterCount = body.length;
   const lineCount = body.length === 0 ? 0 : body.split(/\r?\n/).length;
   const currentEpisodeLabel =
@@ -87,87 +221,159 @@ const readHref =
 
   const isSaving = saveState === "saving";
 
+  const previousEpisodeNumber = previousEpisode
+  ? getEpisodeNumber(previousEpisode)
+  : null;
+
+const previousPostingStatus = previousEpisode
+  ? getEpisodePostingStatus(previousEpisode)
+  : null;
+
+const previousScheduledForValue = previousEpisode
+  ? getEpisodeScheduledForValue(previousEpisode)
+  : "";
+
+const previousScheduledForLocalValue = formatDateTimeLocal(
+  previousScheduledForValue
+);
+
+const previousEpisodeBlocksPublishing = previousPostingStatus === "draft";
+
+const scheduledBeforePreviousIsBlocked =
+  postingStatus === "scheduled" &&
+  previousPostingStatus === "scheduled" &&
+  !!previousScheduledForValue &&
+  !!toIsoStringFromLocalInput(scheduledFor) &&
+  new Date(toIsoStringFromLocalInput(scheduledFor) as string).getTime() <
+    new Date(previousScheduledForValue).getTime();
+
   function resetNotice() {
     setSaveState("idle");
     setErrorMessage("");
     setSuccessMessage("");
   }
 
-async function handleSubmit(destination: "workspace" | "effects" = "workspace") {
-  const trimmedTitle = title.trim();
-  const trimmedBody = body.trim();
+  async function handleSubmit(
+    destination: "workspace" | "effects" | "next" = "workspace"
+  ) {
+    const trimmedTitle = title.trim();
+    const trimmedBody = body.trim();
 
-  if (!safeEpisodeNumber) {
-    setSaveState("error");
-    setErrorMessage("話数は1以上の数字で入れる。");
-    setSuccessMessage("");
-    return;
-  }
+    if (!safeEpisodeNumber) {
+      setSaveState("error");
+      setErrorMessage("話数は1以上の数字で入れる。");
+      setSuccessMessage("");
+      return;
+    }
 
-  if (!trimmedTitle) {
-    setSaveState("error");
-    setErrorMessage("話タイトルは必須。");
-    setSuccessMessage("");
-    return;
-  }
+    if (!trimmedTitle) {
+      setSaveState("error");
+      setErrorMessage("話タイトルは必須。");
+      setSuccessMessage("");
+      return;
+    }
 
-  setSaveState("saving");
-  setErrorMessage("");
+    if (postingStatus === "scheduled" && !toIsoStringFromLocalInput(scheduledFor)) {
+      setSaveState("error");
+      setErrorMessage("予約投稿を選ぶ時は日時を入れる。");
+      setSuccessMessage("");
+      return;
+    }
+
+if (previousEpisodeBlocksPublishing && postingStatus !== "draft") {
+  setSaveState("error");
+  setErrorMessage(
+    previousEpisodeNumber
+      ? `前の第${previousEpisodeNumber}話が下書きのため、この話はまだ投稿または予約投稿にできない。`
+      : "前話が下書きのため、この話はまだ投稿または予約投稿にできない。"
+  );
   setSuccessMessage("");
+  return;
+}
+
+if (scheduledBeforePreviousIsBlocked) {
+  setSaveState("error");
+  setErrorMessage(
+    previousEpisodeNumber
+      ? `前の第${previousEpisodeNumber}話の予約時刻より前には設定できない。`
+      : "前話の予約時刻より前には設定できない。"
+  );
+  setSuccessMessage("");
+  return;
+}    
+
+    setSaveState("saving");
+    setErrorMessage("");
+    setSuccessMessage("");
 
 const payload = createEpisodePayload({
   seriesId,
   episodeNumber: safeEpisodeNumber,
   title: trimmedTitle,
   body: trimmedBody,
-  isPublished,
+  postingStatus,
+  scheduledFor,
+  mode,
+  existingEpisode: episode ?? null,
 });
 
-  if (mode === "create") {
+    if (mode === "create") {
+      const result = await supabase
+        .from("episodes")
+        .insert(payload)
+        .select("id")
+        .single();
+
+      if (!result.error && result.data?.id) {
+        setSaveState("success");
+        setSuccessMessage("話を作成した。");
+
+        router.push(
+          destination === "effects"
+            ? `/write/series/${seriesId}/episodes/${result.data.id}/effects`
+            : destination === "next"
+              ? `/write/series/${seriesId}/episodes/new`
+              : `/write/series/${seriesId}`
+        );
+        router.refresh();
+        return;
+      }
+
+      setSaveState("error");
+      setErrorMessage(result.error?.message ?? "話作成に失敗した。");
+      return;
+    }
+
     const result = await supabase
       .from("episodes")
-      .insert(payload)
-      .select("id")
-      .single();
+      .update(payload)
+      .eq("id", episode?.id ?? "");
 
-    if (!result.error && result.data?.id) {
+    if (!result.error) {
       setSaveState("success");
-      setSuccessMessage("話を作成した。");
-      router.push(
-        destination === "effects"
-          ? `/write/series/${seriesId}/episodes/${result.data.id}/effects`
-          : `/write/series/${seriesId}`
-      );
+      setSuccessMessage("話を保存した。");
+
+      if (destination === "next") {
+        router.push(`/write/series/${seriesId}/episodes/new`);
+      } else if (destination === "effects" && episode?.id) {
+        router.push(`/write/series/${seriesId}/episodes/${episode.id}/effects`);
+      } else {
+        router.refresh();
+      }
+
       router.refresh();
       return;
     }
 
     setSaveState("error");
-    setErrorMessage(result.error?.message ?? "話作成に失敗した。");
-    return;
+    setErrorMessage(result.error.message);
   }
-
-  const result = await supabase
-    .from("episodes")
-    .update(payload)
-    .eq("id", episode?.id ?? "");
-
-  if (!result.error) {
-    setSaveState("success");
-    setSuccessMessage("話を保存した。");
-    router.refresh();
-    return;
-  }
-
-  setSaveState("error");
-  setErrorMessage(result.error.message);
-}
 
   const heading = mode === "create" ? "新しい話を追加する" : "話本文を編集する";
   const sub =
     mode === "create"
-      ? "話数、タイトル、本文だけを最小で作成する。作成後は作品ワークスペースへ戻る。"
-      : "本文そのものに集中する画面。作品全体の設定は作品ワークスペース側で扱う。";
+      ? "話数、タイトル、本文に加えて、各話の投稿状態を 投稿 / 予約投稿 / 下書き保存 から選べるようにする。"
+      : "本文そのものに集中する画面。公開面の出し分けは作品公開状態と各話投稿状態の組み合わせで判定する。";
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
@@ -199,14 +405,14 @@ const payload = createEpisodePayload({
                 作品ページを見る
               </Link>
 
-{mode === "edit" && episode ? (
-  <Link
-    href={`/write/series/${seriesId}/episodes/${episode.id}/effects`}
-    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-  >
-    この話の演出・BGMへ
-  </Link>
-) : null}             
+              {mode === "edit" && episode ? (
+                <Link
+                  href={`/write/series/${seriesId}/episodes/${episode.id}/effects`}
+                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                >
+                  この話の演出・BGMへ
+                </Link>
+              ) : null}
 
               {mode === "edit" && readHref ? (
                 <Link
@@ -258,64 +464,148 @@ const payload = createEpisodePayload({
                     />
                   </label>
 
-<label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
-  <input
-    type="checkbox"
-    checked={isPublished}
-    onChange={(event) => {
-      setIsPublished(event.target.checked);
-      resetNotice();
-    }}
-    className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5"
-  />
-  <div>
-    <p className="text-sm font-semibold text-white">公開する</p>
-    <p className="mt-2 text-sm leading-7 text-neutral-400">
-      ON の時は作品ページ、読む画面、朗読制作ページに出す。
-      OFF の時は下書きとして作者ワークスペースにだけ残す。
-    </p>
-  </div>
-</label>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-sm font-semibold text-white">投稿状態</p>
+                    <p className="mt-2 text-sm leading-7 text-neutral-400">
+                      エピソード単位では公開 / 非公開を持たず、投稿状態だけを持つ。
+                    </p>
 
+                    <div className="mt-4 grid gap-3">
+{(["posted", "scheduled", "draft"] as EpisodePostingStatus[]).map(
+  (status) => {
+    const active = postingStatus === status;
+    const disabled = previousEpisodeBlocksPublishing && status !== "draft";
+
+    return (
+      <label
+        key={status}
+        className={`rounded-2xl border px-4 py-4 ${
+          active
+            ? "border-white/30 bg-white/[0.08]"
+            : "border-white/10 bg-black/20"
+        } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+      >
+        <input
+          type="radio"
+          name="episode-posting-status"
+          value={status}
+          checked={active}
+          disabled={disabled}
+          onChange={() => {
+            setPostingStatus(status);
+            if (status !== "scheduled") {
+              setScheduledFor("");
+            }
+            resetNotice();
+          }}
+          className="sr-only"
+        />
+        <p className="text-sm font-semibold text-white">
+          {getPostingStatusLabel(status)}
+        </p>
+        <p className="mt-2 text-sm leading-7 text-neutral-400">
+          {disabled && previousEpisodeNumber
+            ? `前の第${previousEpisodeNumber}話が下書きのため、今は選べない。`
+            : getPostingStatusDescription(status)}
+        </p>
+      </label>
+    );
+  }
+)}
+                    </div>
+
+{previousEpisodeBlocksPublishing ? (
+  <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-4 text-sm leading-7 text-amber-100">
+    {previousEpisodeNumber
+      ? `前の第${previousEpisodeNumber}話がまだ下書き。先にその話を投稿または予約投稿へ進めてから、この話を公開側へ動かす。`
+      : "前話がまだ下書き。先に前話を投稿または予約投稿へ進めてから、この話を公開側へ動かす。"}
+  </div>
+) : null}                    
+
+                    {postingStatus === "scheduled" ? (
+                      <label className="mt-4 grid gap-2">
+                        <span className="text-sm text-neutral-300">予約日時</span>
+<input
+  type="datetime-local"
+  value={scheduledFor}
+  min={previousPostingStatus === "scheduled" ? previousScheduledForLocalValue : undefined}
+  onChange={(event) => {
+    setScheduledFor(event.target.value);
+    resetNotice();
+  }}
+  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+/>
+<span className="text-xs leading-6 text-neutral-500">
+  ローカル時刻で入力。保存時に UTC へ変換して送る。
+  {previousPostingStatus === "scheduled" && previousEpisodeNumber
+    ? ` 前の第${previousEpisodeNumber}話の予約時刻より前は指定できない。`
+    : ""}
+</span>
+                      </label>
+                    ) : null}
+                  </div>
                 </div>
 
-<div className="flex flex-wrap gap-3">
-  <button
-    type="button"
-    onClick={() => handleSubmit("workspace")}
-    disabled={isSaving}
-    className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-  >
-    {isSaving
-      ? "保存中..."
-      : mode === "create"
-        ? "作成してワークスペースへ戻る"
-        : "保存して続ける"}
-  </button>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleSubmit("workspace")}
+                    disabled={isSaving}
+                    className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSaving
+                      ? "保存中..."
+                      : mode === "create"
+                        ? "作成してワークスペースへ戻る"
+                        : "保存して続ける"}
+                  </button>
 
-{mode === "create" ? (
+{mode === "edit" && postingStatus === "draft" ? (
   <button
     type="button"
-    onClick={() => handleSubmit("effects")}
-    disabled={isSaving}
+    onClick={async () => {
+      setPostingStatus("posted");
+      await Promise.resolve();
+      await handleSubmit("workspace");
+    }}
+    disabled={isSaving || previousEpisodeBlocksPublishing}
     className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
   >
-    作成して演出・BGMへ
+    この下書きを投稿する
   </button>
 ) : null}
 
-  <Link
-    href={`/write/series/${seriesId}`}
-    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-  >
-    ワークスペースへ戻る
-  </Link>
-</div>
+                  {postingStatus !== "posted" ? (
+                    <button
+                      type="button"
+                      onClick={() => handleSubmit("next")}
+                      disabled={isSaving}
+                      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {getNextButtonLabel(postingStatus)}
+                    </button>
+                  ) : null}
 
-<div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-4 text-sm leading-7 text-amber-100">
-  公開 canonical は <code>episodes.is_published</code>。
-  OFF の時は下書きとして保存し、作品ページや読む画面には出さない。
-</div>
+                  <Link
+                    href={`/write/series/${seriesId}`}
+                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    ワークスペースへ戻る
+                  </Link>
+                </div>
+
+{mode === "edit" && postingStatus === "draft" ? (
+  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-7 text-neutral-300">
+    下書きを公開側へ進める時は、投稿状態を「投稿」か「予約投稿」に変えて保存する。
+    上の「この下書きを投稿する」ボタンでも、そのまま投稿済みにできる。
+  </div>
+) : null}
+
+{mode === "edit" && postingStatus === "posted" ? (
+  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-7 text-neutral-300">
+    投稿済みエピソードを編集中。保存すると、作品ページで投稿日の横に編集日と「編集済み」を表示できるよう更新する。
+  </div>
+) : null}
 
                 {errorMessage ? (
                   <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
@@ -341,8 +631,20 @@ const payload = createEpisodePayload({
                   </div>
 
                   <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <p className="text-xs tracking-[0.18em] text-neutral-500">STATUS</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">
+                      {getPostingStatusLabel(postingStatus)}
+                    </p>
+                    <p className="mt-2 text-xs leading-6 text-neutral-400">
+                      現在の投稿状態
+                    </p>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
                     <p className="text-xs tracking-[0.18em] text-neutral-500">CHARACTERS</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{characterCount}</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">
+                      {characterCount}
+                    </p>
                     <p className="mt-2 text-xs leading-6 text-neutral-400">
                       本文文字数の目安
                     </p>
@@ -365,8 +667,8 @@ const payload = createEpisodePayload({
                     本文フレーム中心に寄せた
                   </h2>
                   <p className="mt-3 text-sm leading-7 text-neutral-400">
-                    左側は話数、タイトル、保存などの固定寄り情報。
-                    右側は本文入力を優先し、長文でも本文だけを扱いやすくした。
+                    左側は話数、タイトル、投稿状態、保存などの固定寄り情報。
+                    右側は本文入力を優先し、長くなったら本文欄の中でスクロールする。
                   </p>
                 </div>
               </div>

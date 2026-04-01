@@ -1,9 +1,18 @@
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
 import WriteEpisodeForm from "@/features/write/WriteEpisodeForm";
-import { getEpisodeNumber, type EpisodeRow } from "@/features/write/writeShared";
+import {
+  getEpisodeNumber,
+  sortEpisodes,
+  type EpisodePostingStatus,
+  type EpisodeRow,
+} from "@/features/write/writeShared";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
+  searchParams?: Promise<{
+    initialPostingStatus?: string;
+    initialScheduledFor?: string;
+  }>;
 };
 
 async function fetchEpisodes(
@@ -23,8 +32,32 @@ async function fetchEpisodes(
   return [];
 }
 
-export default async function WriteEpisodeNewPage({ params }: PageProps) {
+function resolveInitialPostingStatus(value?: string): EpisodePostingStatus {
+  if (value === "posted" || value === "scheduled" || value === "draft") {
+    return value;
+  }
+
+  return "draft";
+}
+
+function findPreviousEpisode(
+  episodes: EpisodeRow[],
+  currentEpisodeNumber: number
+): EpisodeRow | null {
+  const candidates = sortEpisodes(episodes).filter(
+    (episode) => getEpisodeNumber(episode) < currentEpisodeNumber
+  );
+
+  return candidates.length > 0 ? candidates[candidates.length - 1] : null;
+}
+
+export default async function WriteEpisodeNewPage({
+  params,
+  searchParams,
+}: PageProps) {
   const { seriesId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+
   const { supabase } = await requireOwnedSeries(
     seriesId,
     `/write/series/${seriesId}/episodes/new`
@@ -36,11 +69,18 @@ export default async function WriteEpisodeNewPage({ params }: PageProps) {
       ? Math.max(...episodes.map((episode) => getEpisodeNumber(episode))) + 1
       : 1;
 
+  const previousEpisode = findPreviousEpisode(episodes, nextEpisodeNumber);
+
   return (
     <WriteEpisodeForm
       mode="create"
       seriesId={seriesId}
       initialEpisodeNumber={nextEpisodeNumber}
+      initialPostingStatus={resolveInitialPostingStatus(
+        resolvedSearchParams?.initialPostingStatus
+      )}
+      initialScheduledFor={resolvedSearchParams?.initialScheduledFor ?? null}
+      previousEpisode={previousEpisode}
     />
   );
 }

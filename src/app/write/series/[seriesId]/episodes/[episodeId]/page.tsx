@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
 import WriteEpisodeForm from "@/features/write/WriteEpisodeForm";
-import { getEpisodeNumber, type EpisodeRow } from "@/features/write/writeShared";
+import {
+  getEpisodeNumber,
+  sortEpisodes,
+  type EpisodeRow,
+} from "@/features/write/writeShared";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeId: string }>;
@@ -42,6 +46,39 @@ async function fetchEpisode(
   return null;
 }
 
+async function fetchEpisodes(
+  seriesId: string,
+  supabase: Awaited<ReturnType<typeof requireOwnedSeries>>["supabase"]
+): Promise<EpisodeRow[]> {
+  const firstTry = await supabase.from("episodes").select("*").eq("series_id", seriesId);
+  if (!firstTry.error) {
+    return (firstTry.data ?? []) as EpisodeRow[];
+  }
+
+  const secondTry = await supabase.from("episodes").select("*").eq("seriesId", seriesId);
+  if (!secondTry.error) {
+    return (secondTry.data ?? []) as EpisodeRow[];
+  }
+
+  return [];
+}
+
+function findPreviousEpisode(
+  episodes: EpisodeRow[],
+  currentEpisodeNumber: number,
+  currentEpisodeId: string
+): EpisodeRow | null {
+  const candidates = sortEpisodes(episodes).filter((candidate) => {
+    if (candidate.id === currentEpisodeId) {
+      return false;
+    }
+
+    return getEpisodeNumber(candidate) < currentEpisodeNumber;
+  });
+
+  return candidates.length > 0 ? candidates[candidates.length - 1] : null;
+}
+
 export default async function WriteEpisodeEditPage({ params }: PageProps) {
   const { seriesId, episodeId } = await params;
   const { supabase } = await requireOwnedSeries(
@@ -54,12 +91,20 @@ export default async function WriteEpisodeEditPage({ params }: PageProps) {
     notFound();
   }
 
+  const allEpisodes = await fetchEpisodes(seriesId, supabase);
+  const previousEpisode = findPreviousEpisode(
+    allEpisodes,
+    getEpisodeNumber(episode) || 1,
+    episode.id
+  );
+
   return (
     <WriteEpisodeForm
       mode="edit"
       seriesId={seriesId}
       episode={episode}
       initialEpisodeNumber={getEpisodeNumber(episode) || 1}
+      previousEpisode={previousEpisode}
     />
   );
 }

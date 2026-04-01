@@ -1,4 +1,11 @@
 export type RecordingPermissionMode = "open" | "closed" | "approval_required";
+export type SeriesPublicationStatus = "private" | "public";
+export type EpisodePostingStatus = "draft" | "scheduled" | "posted";
+export type EpisodeStatusKind =
+  | "draft"
+  | "scheduled"
+  | "scheduled_live"
+  | "posted";
 
 export type SeriesRow = Record<string, unknown> & {
   id: string;
@@ -21,6 +28,8 @@ export type SeriesRow = Record<string, unknown> & {
   reviewsEnabled?: boolean | null;
   episode_comments_enabled?: boolean | null;
   episodeCommentsEnabled?: boolean | null;
+  publication_status?: SeriesPublicationStatus | null;
+  publicationStatus?: SeriesPublicationStatus | null;
 };
 
 export type EpisodeRow = Record<string, unknown> & {
@@ -39,6 +48,14 @@ export type EpisodeRow = Record<string, unknown> & {
   seriesId?: string | null;
   effect_settings?: unknown;
   effectSettings?: unknown;
+  posting_status?: EpisodePostingStatus | null;
+  postingStatus?: EpisodePostingStatus | null;
+  scheduled_for?: string | null;
+  scheduledFor?: string | null;
+  posted_at?: string | null;
+  postedAt?: string | null;
+  last_edited_at?: string | null;
+  lastEditedAt?: string | null;
 };
 
 function parseBooleanFlag(value: unknown, fallback = true): boolean {
@@ -55,6 +72,21 @@ function parseBooleanFlag(value: unknown, fallback = true): boolean {
   return fallback;
 }
 
+function parseDateValue(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
 export function pickText(...values: unknown[]): string {
   for (const value of values) {
     if (typeof value === "string" && value.trim().length > 0) {
@@ -67,6 +99,22 @@ export function pickText(...values: unknown[]): string {
 
 export function getSeriesSummary(series: SeriesRow): string {
   return pickText(series.summary, series.description, series.catch_copy);
+}
+
+export function getSeriesPublicationStatus(
+  series?: SeriesRow | null
+): SeriesPublicationStatus {
+  const raw = series?.publication_status ?? series?.publicationStatus;
+
+  if (raw === "public") {
+    return "public";
+  }
+
+  return "private";
+}
+
+export function isPublicSeries(series?: SeriesRow | null): boolean {
+  return getSeriesPublicationStatus(series) === "public";
 }
 
 export function isSeriesReviewVisible(series?: SeriesRow | null): boolean {
@@ -111,12 +159,133 @@ export function getEpisodePublishedValue(
     return episode.published;
   }
 
+  const postingStatus = episode.posting_status ?? episode.postingStatus;
+  if (postingStatus === "posted") {
+    return true;
+  }
+
+  if (postingStatus === "draft" || postingStatus === "scheduled") {
+    return false;
+  }
+
   return null;
 }
 
-export function isPublishedEpisode(episode: EpisodeRow): boolean {
+export function getEpisodePostingStatus(
+  episode: EpisodeRow
+): EpisodePostingStatus {
+  const raw = episode.posting_status ?? episode.postingStatus;
+
+  if (raw === "draft" || raw === "scheduled" || raw === "posted") {
+    return raw;
+  }
+
   const publishedValue = getEpisodePublishedValue(episode);
-  return publishedValue ?? true;
+  return publishedValue ? "posted" : "draft";
+}
+
+export function getEpisodeScheduledForDate(
+  episode: EpisodeRow
+): Date | null {
+  return parseDateValue(episode.scheduled_for ?? episode.scheduledFor);
+}
+
+export function getEpisodeScheduledForValue(
+  episode: EpisodeRow
+): string {
+  const raw = episode.scheduled_for ?? episode.scheduledFor;
+  return typeof raw === "string" ? raw : "";
+}
+
+export function getEpisodePostedAtValue(
+  episode: EpisodeRow
+): string {
+  const raw = episode.posted_at ?? episode.postedAt;
+
+  if (typeof raw === "string") {
+    return raw;
+  }
+
+  if (getEpisodePostingStatus(episode) === "scheduled") {
+    return getEpisodeScheduledForValue(episode);
+  }
+
+  return "";
+}
+
+export function getEpisodeLastEditedAtValue(
+  episode: EpisodeRow
+): string {
+  const raw = episode.last_edited_at ?? episode.lastEditedAt;
+  return typeof raw === "string" ? raw : "";
+}
+
+export function isEpisodeDraft(episode: EpisodeRow): boolean {
+  return getEpisodePostingStatus(episode) === "draft";
+}
+
+export function isEpisodeScheduled(episode: EpisodeRow): boolean {
+  return getEpisodePostingStatus(episode) === "scheduled";
+}
+
+export function isEpisodePosted(episode: EpisodeRow): boolean {
+  return getEpisodePostingStatus(episode) === "posted";
+}
+
+export function isEpisodePubliclyVisible(
+  episode: EpisodeRow,
+  now = new Date()
+): boolean {
+  const status = getEpisodePostingStatus(episode);
+
+  if (status === "posted") {
+    return true;
+  }
+
+  if (status === "scheduled") {
+    const scheduledFor = getEpisodeScheduledForDate(episode);
+    return !!scheduledFor && scheduledFor.getTime() <= now.getTime();
+  }
+
+  return false;
+}
+
+export function getEpisodeStatusKind(
+  episode: EpisodeRow,
+  now = new Date()
+): EpisodeStatusKind {
+  const status = getEpisodePostingStatus(episode);
+
+  if (status === "draft") {
+    return "draft";
+  }
+
+  if (status === "scheduled") {
+    return isEpisodePubliclyVisible(episode, now)
+      ? "scheduled_live"
+      : "scheduled";
+  }
+
+  return "posted";
+}
+
+export function getEpisodeStatusLabel(
+  episode: EpisodeRow,
+  now = new Date()
+): string {
+  const kind = getEpisodeStatusKind(episode, now);
+
+  if (kind === "draft") return "下書き";
+  if (kind === "scheduled") return "予約投稿";
+  if (kind === "scheduled_live") return "予約到達";
+  return "投稿済み";
+}
+
+export function isPublishedEpisode(
+  episode: EpisodeRow,
+  now = new Date()
+): boolean {
+  return isEpisodePubliclyVisible(episode, now);
 }
 
 export function getEpisodeBody(episode: EpisodeRow): string {

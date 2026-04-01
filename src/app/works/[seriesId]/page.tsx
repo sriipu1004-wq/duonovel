@@ -6,9 +6,22 @@ import ContinueReadingCard from "@/features/bookmark/ContinueReadingCard";
 import FavoriteBookmarkButton from "@/features/bookmark/FavoriteBookmarkButton";
 import SeriesReactionButton from "@/features/rating/SeriesReactionButton";
 import SeriesReviewSection from "@/features/review/SeriesReviewSection";
+import {
+  getEpisodeNumber,
+  getEpisodePostedAtValue,
+  getEpisodeLastEditedAtValue,
+  getSeriesPublicationStatus,
+  getSeriesSummary,
+  isEpisodePubliclyVisible,
+  isSeriesReviewVisible,
+  pickText,
+  sortEpisodes,
+  type EpisodeRow,
+  type RecordingPermissionMode,
+  type SeriesRow,
+} from "@/features/write/writeShared";
 
 type PageProps = {
-  recording_permission_mode?: RecordingPermissionMode | null;
   params: Promise<{ seriesId: string }>;
   searchParams?: Promise<{
     tab?: string;
@@ -17,35 +30,12 @@ type PageProps = {
   }>;
 };
 
-type RecordingPermissionMode = "open" | "closed" | "approval_required";
-
-type SeriesRow = Record<string, unknown> & {
-  id: string;
-  title?: string | null;
-  summary?: string | null;
-  description?: string | null;
-  catch_copy?: string | null;
-  author_id?: string | null;
-  user_id?: string | null;
-  reviews_enabled?: boolean | null;
-  reviewsEnabled?: boolean | null;
-};
-
 type UserRow = Record<string, unknown> & {
   id: string;
   display_name?: string | null;
   username?: string | null;
   pen_name?: string | null;
   name?: string | null;
-};
-
-type EpisodeRow = Record<string, unknown> & {
-  id: string;
-  title?: string | null;
-  episode_number?: number | null;
-  episodeNumber?: number | null;
-  is_published?: boolean | null;
-  published?: boolean | null;
 };
 
 type RecordingRow = Record<string, unknown> & {
@@ -84,28 +74,6 @@ type ReaderCard = {
   recordingCount: number;
   allowDownload: boolean;
 };
-
-function pickText(...values: unknown[]): string {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value;
-    }
-  }
-  return "";
-}
-
-function getEpisodeNumber(episode: EpisodeRow): number {
-  const raw = episode.episode_number ?? episode.episodeNumber ?? 0;
-  if (typeof raw === "number") return raw;
-  const parsed = Number(raw);
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function isPublishedEpisode(episode: EpisodeRow): boolean {
-  if (episode.is_published === false) return false;
-  if (episode.published === false) return false;
-  return true;
-}
 
 function isPublicRecording(recording: RecordingRow): boolean {
   if (recording.is_public === false) return false;
@@ -241,16 +209,6 @@ function resolveRecordingPermissionMode(
   if (value === "open") return "open";
   if (value === "approval_required") return "approval_required";
   return "closed";
-}
-
-function isSeriesReviewVisible(series: SeriesRow): boolean {
-  const raw = series.reviews_enabled ?? series.reviewsEnabled;
-
-  if (typeof raw === "boolean") {
-    return raw;
-  }
-
-  return true;
 }
 
 async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
@@ -463,6 +421,23 @@ function BottomControlButton({
   );
 }
 
+function formatEpisodeDate(value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(parsed);
+}
+
 export default async function WorkPage({ params, searchParams }: PageProps) {
   const { seriesId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
@@ -489,7 +464,15 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   }
 
   const series = seriesData as SeriesRow;
-  const authorId = pickText(series.author_id, series.user_id, series["userId"]);
+  if (getSeriesPublicationStatus(series) !== "public") {
+    notFound();
+  }
+
+  const authorId = pickText(
+    series.author_id,
+    series["user_id"],
+    series["userId"]
+  );
 
   let author: UserRow | null = null;
 
@@ -512,7 +495,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
   const ownerIds = [
     typeof series.author_id === "string" ? series.author_id.trim() : "",
-    typeof series.user_id === "string" ? series.user_id.trim() : "",
+    typeof series["user_id"] === "string" ? String(series["user_id"]).trim() : "",
   ].filter((value) => value.length > 0);
 
   const isOwner =
@@ -521,10 +504,13 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     ownerIds.includes(currentUser.id);
 
   const rawEpisodes = await fetchEpisodesBySeriesId(seriesId);
+  const episodes = sortEpisodes(
+    rawEpisodes.filter((episode) => isEpisodePubliclyVisible(episode))
+  );
 
-  const episodes = rawEpisodes
-    .filter(isPublishedEpisode)
-    .sort((a, b) => getEpisodeNumber(a) - getEpisodeNumber(b));
+  if (episodes.length === 0) {
+    notFound();
+  }
 
   const firstEpisode = episodes[0] ?? null;
   const firstEpisodeNumber = firstEpisode ? getEpisodeNumber(firstEpisode) : null;
@@ -542,14 +528,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       series["author_name"]
     ) || "作者名未設定";
 
-  const summary =
-    pickText(
-      series.summary,
-      series.description,
-      series["synopsis"],
-      series["body"],
-      series.catch_copy
-    ) || "あらすじはまだ登録されていません。";
+  const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
 
   const workSelfHref = buildWorksHref(
     seriesId,
@@ -897,54 +876,55 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   )}
 
                   <div className="overflow-hidden rounded-[24px] border border-white/10">
-                    {episodes.length === 0 ? (
-                      <div className="p-6 text-neutral-500">
-                        まだ公開されている話がない
-                      </div>
-                    ) : (
-                      <ul className="divide-y divide-white/10">
-                        {episodes.map((episode) => {
-                          const episodeNumber = getEpisodeNumber(episode);
-                          const episodeTitle =
-                            pickText(episode.title, episode["episode_title"]) ||
-                            `第${episodeNumber}話`;
+                    <ul className="divide-y divide-white/10">
+                      {episodes.map((episode) => {
+                        const episodeNumber = getEpisodeNumber(episode);
+                        const episodeTitle =
+                          pickText(episode.title, episode["episode_title"]) ||
+                          `第${episodeNumber}話`;
 
-                          return (
-                            <li key={episode.id}>
-                              <Link
-                                href={buildReadHref(
-                                  seriesId,
-                                  episodeNumber,
-                                  selectedReaderKey,
-                                  selectedReaderName
-                                )}
-                                className="group flex items-center justify-between gap-4 px-4 py-4 transition hover:bg-white/[0.04] sm:px-5"
-                              >
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-3">
-                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-sm text-neutral-300">
-                                      {episodeNumber}
-                                    </span>
-                                    <div className="min-w-0">
-                                      <p className="text-sm text-neutral-500">
-                                        第{episodeNumber}話
-                                      </p>
-                                      <p className="truncate text-base font-medium text-white">
-                                        {episodeTitle}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
+                          const postedDate = formatEpisodeDate(getEpisodePostedAtValue(episode));
+const editedDate = formatEpisodeDate(getEpisodeLastEditedAtValue(episode));
 
-                                <div className="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-300 transition group-hover:bg-white group-hover:text-black">
-                                  読む
+                        return (
+                          <li key={episode.id}>
+                            <Link
+                              href={buildReadHref(
+                                seriesId,
+                                episodeNumber,
+                                selectedReaderKey,
+                                selectedReaderName
+                              )}
+                              className="group flex items-center justify-between gap-4 px-4 py-4 transition hover:bg-white/[0.04] sm:px-5"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-3">
+                                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-sm text-neutral-300">
+                                    {episodeNumber}
+                                  </span>
+<div className="min-w-0">
+  <p className="text-sm text-neutral-500">
+    第{episodeNumber}話
+  </p>
+  <p className="truncate text-base font-medium text-white">
+    {episodeTitle}
+  </p>
+  <p className="mt-1 text-xs text-neutral-500">
+    {postedDate ? `投稿日 ${postedDate}` : "投稿日 未設定"}
+    {editedDate ? `（${editedDate} 編集済み）` : ""}
+  </p>
+</div>
                                 </div>
-                              </Link>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
+                              </div>
+
+                              <div className="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-300 transition group-hover:bg-white group-hover:text-black">
+                                読む
+                              </div>
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </div>
                 </div>
               ) : (

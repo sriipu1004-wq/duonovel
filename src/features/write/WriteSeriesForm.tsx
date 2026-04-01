@@ -9,8 +9,19 @@ import {
   type SeriesRow,
   type EpisodeRow,
   type RecordingPermissionMode,
+  type SeriesPublicationStatus,
+  type EpisodePostingStatus,
+  type EpisodeStatusKind,
   getEpisodeNumber,
-  isPublishedEpisode,
+  getEpisodePostingStatus,
+  getEpisodeStatusKind,
+  getEpisodeStatusLabel,
+  getSeriesPublicationStatus,
+  isEpisodeDraft,
+  isEpisodePosted,
+  isEpisodePubliclyVisible,
+  isEpisodeScheduled,
+  isPublicSeries,
   isSeriesEpisodeCommentVisible,
   isSeriesReviewVisible,
   sortEpisodes,
@@ -72,14 +83,74 @@ function getRecordingPermissionLabel(
   return "非許可";
 }
 
+function getSeriesPublicationLabel(
+  status: SeriesPublicationStatus
+): string {
+  return status === "public" ? "公開" : "非公開";
+}
+
+function getEpisodePostingLabel(status: EpisodePostingStatus): string {
+  if (status === "posted") return "投稿";
+  if (status === "scheduled") return "予約投稿";
+  return "下書き保存";
+}
+
+function hasValidLocalDateTime(value: string): boolean {
+  if (!value.trim()) {
+    return false;
+  }
+
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime());
+}
+
+function buildEpisodeCreateHref(args: {
+  seriesId: string;
+  initialPostingStatus: EpisodePostingStatus;
+  initialScheduledFor: string;
+}): string {
+  const query = new URLSearchParams();
+  query.set("initialPostingStatus", args.initialPostingStatus);
+
+  if (
+    args.initialPostingStatus === "scheduled" &&
+    args.initialScheduledFor.trim().length > 0
+  ) {
+    query.set("initialScheduledFor", args.initialScheduledFor);
+  }
+
+  const queryString = query.toString();
+  return `/write/series/${args.seriesId}/episodes/new${
+    queryString ? `?${queryString}` : ""
+  }`;
+}
+
 function buildWorkspaceFields(args: {
+  publicationStatus: SeriesPublicationStatus;
   reviewsEnabled: boolean;
   episodeCommentsEnabled: boolean;
 }) {
   return {
+    publication_status: args.publicationStatus,
     reviews_enabled: args.reviewsEnabled,
     episode_comments_enabled: args.episodeCommentsEnabled,
   };
+}
+
+function getEpisodeBadgeClass(kind: EpisodeStatusKind): string {
+  if (kind === "draft") {
+    return "border-amber-400/20 bg-amber-400/10 text-amber-200";
+  }
+
+  if (kind === "scheduled") {
+    return "border-sky-400/20 bg-sky-400/10 text-sky-200";
+  }
+
+  if (kind === "scheduled_live") {
+    return "border-cyan-400/20 bg-cyan-400/10 text-cyan-200";
+  }
+
+  return "border-emerald-400/20 bg-emerald-400/10 text-emerald-200";
 }
 
 function StatusBadge({ state }: { state: SaveState }) {
@@ -173,23 +244,32 @@ export default function WriteSeriesForm({
 
   const [title, setTitle] = useState(getTitle(series));
   const [summary, setSummary] = useState(getSummary(series));
+  const [publicationStatus, setPublicationStatus] =
+    useState<SeriesPublicationStatus>(getSeriesPublicationStatus(series));
   const [reviewsEnabled, setReviewsEnabled] = useState(
     isSeriesReviewVisible(series)
   );
   const [episodeCommentsEnabled, setEpisodeCommentsEnabled] = useState(
     isSeriesEpisodeCommentVisible(series)
   );
+  const [initialPostingStatus, setInitialPostingStatus] =
+    useState<EpisodePostingStatus>("draft");
+  const [initialScheduledFor, setInitialScheduledFor] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
   const sortedEpisodes = sortEpisodes(episodes);
-  const publishedCount = sortedEpisodes.filter(isPublishedEpisode).length;
-  const draftCount = sortedEpisodes.length - publishedCount;
+  const postedCount = sortedEpisodes.filter(isEpisodePosted).length;
+  const scheduledCount = sortedEpisodes.filter(isEpisodeScheduled).length;
+  const draftCount = sortedEpisodes.filter(isEpisodeDraft).length;
+const publicVisibleCount = sortedEpisodes.filter(
+  (episode) => isEpisodePubliclyVisible(episode)
+).length;
   const latestEpisode =
     sortedEpisodes.length > 0 ? sortedEpisodes[sortedEpisodes.length - 1] : null;
   const latestDraft =
-    [...sortedEpisodes].reverse().find((episode) => !isPublishedEpisode(episode)) ??
+    [...sortedEpisodes].reverse().find((episode) => isEpisodeDraft(episode)) ??
     null;
 
   const nextStepHref =
@@ -206,8 +286,8 @@ export default function WriteSeriesForm({
       ? null
       : sortedEpisodes.length === 0
         ? "1話目を作る"
-        : latestDraft
-          ? `下書き中の第${getEpisodeNumber(latestDraft)}話を開く`
+: latestDraft
+  ? `下書き中の第${getEpisodeNumber(latestDraft)}話を開いて投稿へ進める`
           : latestEpisode
             ? `第${getEpisodeNumber(latestEpisode) + 1}話を追加する`
             : "話を追加する";
@@ -217,14 +297,18 @@ export default function WriteSeriesForm({
       ? null
       : sortedEpisodes.length === 0
         ? "まずはこの作品の最初の話を作る。"
-        : latestDraft
-          ? "まだ公開していない話の続きを書く。"
-          : "公開済みの流れを保ったまま次の話へ進む。";
+: latestDraft
+  ? "まだ下書きの話がある。本文編集を開いて、投稿または予約投稿へ切り替える。"
+          : "予約投稿や投稿済みの流れを保ったまま次の話へ進む。";
 
   const tags = parseTags(series?.tags);
   const recordingPermissionLabel = getRecordingPermissionLabel(
     series?.recording_permission_mode
   );
+  const publicSurfaceReady =
+    !!series?.id &&
+    isPublicSeries(series) &&
+    publicVisibleCount > 0;
 
   function resetSaveUi() {
     setSaveState("idle");
@@ -232,11 +316,21 @@ export default function WriteSeriesForm({
     setSuccessMessage("");
   }
 
-  async function handleCreate(destination: "workspace" | "effects") {
+  async function handleCreate(destination: "episode" | "workspace") {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       setSaveState("error");
       setErrorMessage("タイトルは必須。");
+      setSuccessMessage("");
+      return;
+    }
+
+    if (
+      initialPostingStatus === "scheduled" &&
+      !hasValidLocalDateTime(initialScheduledFor)
+    ) {
+      setSaveState("error");
+      setErrorMessage("予約投稿を選ぶ時は日時を入れる。");
       setSuccessMessage("");
       return;
     }
@@ -247,6 +341,7 @@ export default function WriteSeriesForm({
 
     const summaryVariants = buildSummaryValue(summary);
     const workspaceFields = buildWorkspaceFields({
+      publicationStatus,
       reviewsEnabled,
       episodeCommentsEnabled,
     });
@@ -278,9 +373,14 @@ export default function WriteSeriesForm({
       if (!result.error && result.data?.id) {
         setSaveState("success");
         setSuccessMessage("作品を作成した。");
+
         router.push(
-          destination === "effects"
-            ? `/write/series/${result.data.id}/effects`
+          destination === "episode"
+            ? buildEpisodeCreateHref({
+                seriesId: result.data.id,
+                initialPostingStatus,
+                initialScheduledFor,
+              })
             : `/write/series/${result.data.id}`
         );
         router.refresh();
@@ -317,8 +417,8 @@ export default function WriteSeriesForm({
     setSuccessMessage("");
 
     const summaryVariants = buildSummaryValue(summary);
-
     const workspaceFields = buildWorkspaceFields({
+      publicationStatus,
       reviewsEnabled,
       episodeCommentsEnabled,
     });
@@ -356,7 +456,7 @@ export default function WriteSeriesForm({
     setErrorMessage(lastError);
   }
 
-  async function handleSubmit(destination: "workspace" | "effects" = "workspace") {
+  async function handleSubmit(destination: "episode" | "workspace" = "workspace") {
     if (mode === "create") {
       await handleCreate(destination);
       return;
@@ -369,8 +469,8 @@ export default function WriteSeriesForm({
     mode === "create" ? "新しい作品を作る" : "作品ワークスペース";
   const sub =
     mode === "create"
-      ? "まずはタイトル、あらすじ、反応表示の基本方針を作る。作品共通の既定演出は作成後に既定演出設定ページへ寄せる。"
-      : "ここは作品ごとの作業場所。作品情報、反応表示、話一覧、次話追加の入口をここに寄せ、既定演出は既定演出設定ページ、各話BGMは各話演出編集ページへ分ける。";
+      ? "作品公開状態を先に決め、そのまま1話目の投稿状態も初回フローで持てるようにする。"
+      : "ここは作品ごとの作業場所。作品公開状態、反応表示、話一覧、次話追加の入口をここに寄せる。";
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
@@ -403,13 +503,17 @@ export default function WriteSeriesForm({
                 作品ワークスペース一覧へ
               </Link>
 
-              {series?.id ? (
+              {series?.id && publicSurfaceReady ? (
                 <Link
                   href={`/works/${series.id}`}
                   className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
                 >
                   作品ページを見る
                 </Link>
+              ) : series?.id ? (
+                <span className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-500">
+                  まだ公開面に出ていない
+                </span>
               ) : null}
             </div>
           </div>
@@ -425,18 +529,18 @@ export default function WriteSeriesForm({
                     作品情報と公開面の基本方針
                   </h2>
                   <p className="mt-2 text-sm leading-7 text-neutral-400">
-                    ここでは作品タイトル、あらすじ、反応表示の ON / OFF など、
-                    作品単位の基本方針を持つ。BGM と演出の実編集は基本演出ページと各話演出編集ページへ寄せる。
+                    作品公開状態は作品単位で持つ。エピソード側の投稿状態は各話で扱い、
+                    読者向け公開は両方の条件がそろった時だけ出す。
                   </p>
                 </div>
 
                 {series?.id ? (
-<Link
-  href={`/manage/bgm/${series.id}`}
-  className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
->
-  既定演出設定ページ
-</Link>
+                  <Link
+                    href={`/manage/bgm/${series.id}`}
+                    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  >
+                    既定演出設定ページ
+                  </Link>
                 ) : null}
               </div>
 
@@ -470,10 +574,130 @@ export default function WriteSeriesForm({
                   </label>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-sm font-semibold text-white">作品公開状態</p>
+                    <p className="mt-2 text-sm leading-7 text-neutral-400">
+                      作品ページと読む画面の公開面を持つかどうかを作品単位で決める。
+                      エピソードが投稿済みまたは予約到達でも、ここが非公開なら読者面には出さない。
+                    </p>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      {(["private", "public"] as SeriesPublicationStatus[]).map((status) => {
+                        const active = publicationStatus === status;
+
+                        return (
+                          <label
+                            key={status}
+                            className={`rounded-2xl border px-4 py-4 ${
+                              active
+                                ? "border-white/30 bg-white/[0.08]"
+                                : "border-white/10 bg-black/20"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="series-publication-status"
+                              value={status}
+                              checked={active}
+                              onChange={() => {
+                                setPublicationStatus(status);
+                                resetSaveUi();
+                              }}
+                              className="sr-only"
+                            />
+                            <p className="text-sm font-semibold text-white">
+                              {getSeriesPublicationLabel(status)}
+                            </p>
+                            <p className="mt-2 text-sm leading-7 text-neutral-400">
+                              {status === "public"
+                                ? "投稿済みまたは予約到達の話があれば、作品ごと公開面に出せる。"
+                                : "作者ワークスペースでは見えるが、読者向け公開面には出さない。"}
+                            </p>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {mode === "create" ? (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <p className="text-sm font-semibold text-white">
+                        1話目の投稿状態
+                      </p>
+                      <p className="mt-2 text-sm leading-7 text-neutral-400">
+                        作品作成の時点で、1話目を 投稿 / 予約投稿 / 下書き保存 のどれで始めるかを先に決める。
+                        実際の本文は作品作成後に1話目ページで書く。
+                      </p>
+
+                      <div className="mt-4 grid gap-3">
+                        {(["posted", "scheduled", "draft"] as EpisodePostingStatus[]).map(
+                          (status) => {
+                            const active = initialPostingStatus === status;
+
+                            return (
+                              <label
+                                key={status}
+                                className={`rounded-2xl border px-4 py-4 ${
+                                  active
+                                    ? "border-white/30 bg-white/[0.08]"
+                                    : "border-white/10 bg-black/20"
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="initial-posting-status"
+                                  value={status}
+                                  checked={active}
+                                  onChange={() => {
+                                    setInitialPostingStatus(status);
+                                    if (status !== "scheduled") {
+                                      setInitialScheduledFor("");
+                                    }
+                                    resetSaveUi();
+                                  }}
+                                  className="sr-only"
+                                />
+                                <p className="text-sm font-semibold text-white">
+                                  {getEpisodePostingLabel(status)}
+                                </p>
+                                <p className="mt-2 text-sm leading-7 text-neutral-400">
+                                  {status === "posted"
+                                    ? "1話目を作成した時点で投稿済みとして扱う。"
+                                    : status === "scheduled"
+                                      ? "1話目は予約投稿として保存し、到達時刻で公開対象にする。"
+                                      : "1話目は下書きとして保存し、作品ワークスペースから続けて書く。"}
+                                </p>
+                              </label>
+                            );
+                          }
+                        )}
+                      </div>
+
+                      {initialPostingStatus === "scheduled" ? (
+                        <label className="mt-4 grid gap-2">
+                          <span className="text-sm text-neutral-300">
+                            1話目の予約日時
+                          </span>
+                          <input
+                            type="datetime-local"
+                            value={initialScheduledFor}
+                            onChange={(event) => {
+                              setInitialScheduledFor(event.target.value);
+                              resetSaveUi();
+                            }}
+                            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                          />
+                          <span className="text-xs leading-6 text-neutral-500">
+                            ローカル時刻で入力。保存時に UTC へ変換して送る。
+                          </span>
+                        </label>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                     <p className="text-sm font-semibold text-white">反応表示</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-400">
                       作品ページのレビュー欄と、読む画面末尾のエピソードコメント欄を作品単位で出し分ける。
-                      機能自体は維持したまま、読者側に表示するかだけをここで切り替える。
                     </p>
 
                     <div className="mt-4 grid gap-3">
@@ -518,36 +742,38 @@ export default function WriteSeriesForm({
                   </div>
 
                   <div className="flex flex-wrap gap-3">
-<button
-  type="button"
-  onClick={() => handleSubmit("workspace")}
-  className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:opacity-90"
->
-  {saveState === "saving"
-    ? "保存中..."
-    : mode === "create"
-      ? "作品を作成してワークスペースへ"
-      : "作品ワークスペースを保存"}
-</button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleSubmit(mode === "create" ? "episode" : "workspace")
+                      }
+                      className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:opacity-90"
+                    >
+                      {saveState === "saving"
+                        ? "保存中..."
+                        : mode === "create"
+                          ? "作品を作成して1話目へ"
+                          : "作品ワークスペースを保存"}
+                    </button>
 
                     {mode === "create" ? (
                       <button
                         type="button"
-                        onClick={() => handleSubmit("effects")}
+                        onClick={() => handleSubmit("workspace")}
                         className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
                       >
-                        作品を作成して基本演出へ
+                        作品を作成してワークスペースへ
                       </button>
                     ) : null}
 
-{series?.id ? (
-  <Link
-    href={`/write/series/${series.id}/episodes/new`}
-    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-  >
-    新しい話を追加
-  </Link>
-) : null}
+                    {series?.id ? (
+                      <Link
+                        href={`/write/series/${series.id}/episodes/new`}
+                        className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                      >
+                        新しい話を追加
+                      </Link>
+                    ) : null}
                   </div>
 
                   {errorMessage ? (
@@ -569,6 +795,22 @@ export default function WriteSeriesForm({
                       CURRENT STATE
                     </p>
                     <div className="mt-3 grid gap-3">
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
+                        作品公開:{" "}
+                        <span className="font-semibold text-white">
+                          {getSeriesPublicationLabel(publicationStatus)}
+                        </span>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
+                        読者向け表示:{" "}
+                        <span className="font-semibold text-white">
+                          {publicSurfaceReady
+                            ? "表示中"
+                            : publicationStatus === "public"
+                              ? "公開待ち"
+                              : "非表示"}
+                        </span>
+                      </div>
                       <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
                         タグ:{" "}
                         <span className="font-semibold text-white">
@@ -627,7 +869,7 @@ export default function WriteSeriesForm({
                     </div>
                   ) : (
                     <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-neutral-400">
-                      まず作品を作成すると、基本演出ページ、タグ管理、朗読許可管理へ進めるようになる。
+                      まず作品を作成すると、タグ管理や朗読許可管理へ進めるようになる。
                     </div>
                   )}
                 </div>
@@ -638,28 +880,28 @@ export default function WriteSeriesForm({
               <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
                 <p className="text-xs tracking-[0.18em] text-neutral-500">FLOW</p>
                 <h2 className="mt-2 text-xl font-semibold text-white">
-                  作品作成後の流れ
+                  初回作成フロー
                 </h2>
                 <div className="mt-4 grid gap-4 md:grid-cols-4">
                   <StepCard
                     step="STEP 1"
-                    title="作品を作成する"
-                    description="まずはタイトル・あらすじ・公開面の基本方針を作る。"
+                    title="作品公開状態を決める"
+                    description="まず作品全体を 公開 / 非公開 のどちらで持つか決める。"
                   />
                   <StepCard
                     step="STEP 2"
-                    title="ワークスペースへ入る"
-                    description="保存後、そのまま作品ワークスペースへ移る。"
+                    title="1話目の投稿状態を決める"
+                    description="投稿 / 予約投稿 / 下書き保存 のどれで始めるか先に決める。"
                   />
                   <StepCard
                     step="STEP 3"
-                    title="基本演出を決める"
-                    description="作品共通BGMと共通演出の入口は基本演出ページへ寄せる。"
+                    title="作品を作成して1話目へ進む"
+                    description="作品作成後、そのまま1話目本文の作成へ入る。"
                   />
                   <StepCard
                     step="STEP 4"
-                    title="1話目を追加する"
-                    description="各話の本文と各話BGMは話ごとの導線へ分けて進める。"
+                    title="ワークスペースで連続制作する"
+                    description="下書きや予約投稿でもワークスペースに残り、次の話を続けて作れる。"
                   />
                 </div>
               </section>
@@ -678,12 +920,22 @@ export default function WriteSeriesForm({
                 </div>
 
                 <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">PUBLISHED</p>
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">POSTED</p>
                   <p className="mt-2 text-3xl font-semibold text-white">
-                    {publishedCount}話
+                    {postedCount}話
                   </p>
                   <p className="mt-2 text-sm text-neutral-400">
-                    公開状態として読める話数
+                    投稿済みとして保存された話数
+                  </p>
+                </div>
+
+                <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">SCHEDULED</p>
+                  <p className="mt-2 text-3xl font-semibold text-white">
+                    {scheduledCount}話
+                  </p>
+                  <p className="mt-2 text-sm text-neutral-400">
+                    予約投稿として保存された話数
                   </p>
                 </div>
 
@@ -693,16 +945,8 @@ export default function WriteSeriesForm({
                     {draftCount}話
                   </p>
                   <p className="mt-2 text-sm text-neutral-400">
-                    まだ公開していない話数
+                    下書き保存の話数
                   </p>
-                </div>
-
-                <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">LATEST</p>
-                  <p className="mt-2 text-3xl font-semibold text-white">
-                    {latestEpisode ? `第${getEpisodeNumber(latestEpisode)}話` : "未作成"}
-                  </p>
-                  <p className="mt-2 text-sm text-neutral-400">最新の話番号</p>
                 </div>
               </section>
             ) : null}
@@ -719,7 +963,7 @@ export default function WriteSeriesForm({
                         この作品の話一覧
                       </h2>
                       <p className="mt-2 text-sm leading-7 text-neutral-400">
-                        本文は各話ページで編集し、各話BGMや話ごとの背景は各話演出編集ページへ寄せる。
+                        作品公開状態と切り分けて、各話は 投稿 / 予約投稿 / 下書き保存 で持つ。
                       </p>
                     </div>
 
@@ -739,7 +983,9 @@ export default function WriteSeriesForm({
                     ) : (
                       sortedEpisodes.map((episode) => {
                         const episodeNumber = getEpisodeNumber(episode);
-                        const published = isPublishedEpisode(episode);
+                        const kind = getEpisodeStatusKind(episode);
+                        const label = getEpisodeStatusLabel(episode);
+                        const postingStatus = getEpisodePostingStatus(episode);
 
                         return (
                           <div
@@ -752,14 +998,17 @@ export default function WriteSeriesForm({
                                   第{episodeNumber}話
                                 </p>
                                 <span
-                                  className={`rounded-full border px-3 py-1 text-xs ${
-                                    published
-                                      ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
-                                      : "border-amber-400/20 bg-amber-400/10 text-amber-200"
-                                  }`}
+                                  className={`rounded-full border px-3 py-1 text-xs ${getEpisodeBadgeClass(
+                                    kind
+                                  )}`}
                                 >
-                                  {published ? "公開" : "下書き"}
+                                  {label}
                                 </span>
+                                {postingStatus === "scheduled" ? (
+                                  <span className="text-xs text-neutral-500">
+                                    時刻到達後に公開対象
+                                  </span>
+                                ) : null}
                               </div>
 
                               <p className="mt-2 text-base font-semibold text-white">
@@ -768,12 +1017,14 @@ export default function WriteSeriesForm({
                             </div>
 
                             <div className="flex flex-wrap gap-3">
-                              <Link
-                                href={`/write/series/${series.id}/episodes/${episode.id}`}
-                                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                              >
-                                本文編集
-                              </Link>
+                           {postingStatus === "draft" ? (
+                             <Link
+                               href={`/write/series/${series.id}/episodes/${episode.id}`}
+                               className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                             >
+                               投稿 / 予約投稿へ
+                             </Link>
+                           ) : null}
 
                               <Link
                                 href={`/write/series/${series.id}/episodes/${episode.id}/effects`}
@@ -782,7 +1033,7 @@ export default function WriteSeriesForm({
                                 この話の演出・BGM
                               </Link>
 
-                              {episodeNumber > 0 ? (
+                              {episodeNumber > 0 && publicSurfaceReady && isEpisodePubliclyVisible(episode) ? (
                                 <Link
                                   href={`/read/${series.id}/${episodeNumber}`}
                                   className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
@@ -836,28 +1087,28 @@ export default function WriteSeriesForm({
                   <div className="mt-6 grid gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
                       <p className="text-sm font-semibold text-white">
-                        作品共通の入口は基本演出ページへ
+                        作品公開状態はここで管理
                       </p>
                       <p className="mt-2 text-sm leading-7 text-neutral-400">
-                        作品共通BGMと作品共通演出は、基本演出ページを入口として寄せる。
+                        読者向け公開面に出すかどうかは、作品ワークスペース側で持つ。
                       </p>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
                       <p className="text-sm font-semibold text-white">
-                        各話BGMは各話演出編集へ
+                        予約投稿と下書きもここに残る
                       </p>
                       <p className="mt-2 text-sm leading-7 text-neutral-400">
-                        各話ごとの調整は話本文と切り分けて、各話演出編集ページから入る。
+                        予約投稿や下書きでもワークスペースには即時表示し、そのまま次の話へ進める。
                       </p>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
                       <p className="text-sm font-semibold text-white">
-                        BGM設定は専用ページに分離
+                        読者向け公開は両条件が必要
                       </p>
                       <p className="mt-2 text-sm leading-7 text-neutral-400">
-                        実際のBGM素材選択とフェード設定は BGM設定ページへ寄せ、ワークスペースを重くしすぎない。
+                        作品が公開で、かつ投稿済みまたは予約到達の話がある時だけ公開面に出る。
                       </p>
                     </div>
                   </div>

@@ -2,6 +2,17 @@ import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import EpisodePlayback from "@/features/playback/EpisodePlayback";
 import {
+  isEpisodePubliclyVisible,
+  isSeriesEpisodeCommentVisible,
+  getEpisodeBody,
+  getEpisodeNumber,
+  getSeriesPublicationStatus,
+  pickText,
+  sortEpisodes,
+  type EpisodeRow,
+  type SeriesRow,
+} from "@/features/write/writeShared";
+import {
   mergeBgmSettings,
   parseBgmSettingsFromRow,
 } from "@/lib/bgm/bgmSettings";
@@ -13,29 +24,6 @@ type PageProps = {
     readerName?: string;
     startAt?: string;
   }>;
-};
-
-type SeriesRow = Record<string, unknown> & {
-  id: string;
-  title?: string | null;
-  bgm_title?: string | null;
-  bgm_audio_path?: string | null;
-  episode_comments_enabled?: boolean | null;
-  episodeCommentsEnabled?: boolean | null;
-};
-
-type EpisodeRow = Record<string, unknown> & {
-  id: string;
-  title?: string | null;
-  body?: string | null;
-  content?: string | null;
-  text?: string | null;
-  episode_number?: number | null;
-  episodeNumber?: number | null;
-  is_published?: boolean | null;
-  published?: boolean | null;
-  bgm_title?: string | null;
-  bgm_audio_path?: string | null;
 };
 
 type RecordingRow = Record<string, unknown> & {
@@ -55,15 +43,6 @@ type RecordingRow = Record<string, unknown> & {
   public?: boolean | null;
 };
 
-function pickText(...values: unknown[]): string {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value;
-    }
-  }
-  return "";
-}
-
 function parseEpisodeNumber(value: string): number {
   const parsed = Number(value);
   return Number.isNaN(parsed) ? 0 : parsed;
@@ -76,33 +55,9 @@ function parseStartAt(value?: string): number | null {
   return parsed;
 }
 
-function getEpisodeNumber(episode: EpisodeRow): number {
-  const raw = episode.episode_number ?? episode.episodeNumber ?? 0;
-  if (typeof raw === "number") return raw;
-
-  const parsed = Number(raw);
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function isPublishedEpisode(episode: EpisodeRow): boolean {
-  if (episode.is_published === false) return false;
-  if (episode.published === false) return false;
-  return true;
-}
-
 function isPublicRecording(recording: RecordingRow): boolean {
   if (recording.is_public === false) return false;
   if (recording.public === false) return false;
-  return true;
-}
-
-function isSeriesEpisodeCommentVisible(series: SeriesRow): boolean {
-  const raw = series.episode_comments_enabled ?? series.episodeCommentsEnabled;
-
-  if (typeof raw === "boolean") {
-    return raw;
-  }
-
   return true;
 }
 
@@ -271,27 +226,30 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     notFound();
   }
 
+  const series = seriesData as SeriesRow;
+  if (getSeriesPublicationStatus(series) !== "public") {
+    notFound();
+  }
+
   const episode = await fetchEpisodeBySeriesAndNumber(seriesId, parsedEpisodeNumber);
-  if (!episode) {
+  if (!episode || !isEpisodePubliclyVisible(episode)) {
     notFound();
   }
 
   const allEpisodes = await fetchEpisodesBySeriesId(seriesId);
-  const publishedEpisodes = allEpisodes
-    .filter(isPublishedEpisode)
-    .sort((a, b) => getEpisodeNumber(a) - getEpisodeNumber(b));
+  const publicEpisodes = sortEpisodes(
+    allEpisodes.filter((item) => isEpisodePubliclyVisible(item))
+  );
 
   const currentEpisodeNumber = getEpisodeNumber(episode) || parsedEpisodeNumber;
 
   const prevEpisode =
-    [...publishedEpisodes]
+    [...publicEpisodes]
       .reverse()
       .find((item) => getEpisodeNumber(item) < currentEpisodeNumber) ?? null;
 
   const nextEpisode =
-    publishedEpisodes.find(
-      (item) => getEpisodeNumber(item) > currentEpisodeNumber
-    ) ?? null;
+    publicEpisodes.find((item) => getEpisodeNumber(item) > currentEpisodeNumber) ?? null;
 
   const prevEpisodeNumber = prevEpisode ? getEpisodeNumber(prevEpisode) : null;
   const nextEpisodeNumber = nextEpisode ? getEpisodeNumber(nextEpisode) : null;
@@ -331,19 +289,12 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     selectedRecording?.audioStoragePath
   );
 
-  const seriesTitle = pickText((seriesData as SeriesRow).title) || "無題";
-  const commentsVisible = isSeriesEpisodeCommentVisible(seriesData as SeriesRow);
+  const seriesTitle = pickText(series.title) || "無題";
+  const commentsVisible = isSeriesEpisodeCommentVisible(series);
   const episodeTitle =
     pickText(episode.title, episode["episode_title"]) || `第${currentEpisodeNumber}話`;
 
-  const body =
-    pickText(
-      episode.body,
-      episode.content,
-      episode.text,
-      episode["novel_text"],
-      episode["body_text"]
-    ) || "本文がまだ登録されていません。";
+  const body = getEpisodeBody(episode) || "本文がまだ登録されていません。";
 
   const prevEpisodeHref =
     prevEpisodeNumber !== null
@@ -371,7 +322,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     selectedReaderName
   );
 
-    const currentReadHref = buildReadHref(
+  const currentReadHref = buildReadHref(
     seriesId,
     currentEpisodeNumber,
     selectedReaderKey,
@@ -381,21 +332,21 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
   const loginHref = `/login?next=${encodeURIComponent(currentReadHref)}`;
 
   const seriesBgmTitle = pickText(
-    (seriesData as SeriesRow).bgm_title,
-    (seriesData as SeriesRow)["bgmTitle"]
+    series.bgm_title,
+    series["bgmTitle"]
   );
   const seriesBgmSrc = pickText(
-    (seriesData as SeriesRow).bgm_audio_path,
-    (seriesData as SeriesRow)["bgmAudioPath"]
+    series.bgm_audio_path,
+    series["bgmAudioPath"]
   );
   const seriesBgmSettings = parseBgmSettingsFromRow(
-    (seriesData as SeriesRow)["bgm_settings"],
-    (seriesData as SeriesRow)["bgmSettings"]
+    series["bgm_settings"],
+    series["bgmSettings"]
   );
 
-  const episodeBgmTitle = pickText(episode.bgm_title, episode["bgmTitle"]);
+  const episodeBgmTitle = pickText(episode["bgm_title"], episode["bgmTitle"]);
   const episodeBgmSrc = pickText(
-    episode.bgm_audio_path,
+    episode["bgm_audio_path"],
     episode["bgmAudioPath"]
   );
   const episodeBgmSettings = parseBgmSettingsFromRow(
@@ -406,10 +357,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
   const bgmSrc = pickText(episodeBgmSrc, seriesBgmSrc) || null;
   const bgmTitle =
     pickText(episodeBgmTitle, seriesBgmTitle) || (bgmSrc ? "作品BGM" : "");
-  const bgmSettings = mergeBgmSettings(
-    seriesBgmSettings,
-    episodeBgmSettings
-  );
+  const bgmSettings = mergeBgmSettings(seriesBgmSettings, episodeBgmSettings);
 
   return (
     <EpisodePlayback

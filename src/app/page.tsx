@@ -105,7 +105,9 @@ export default async function WriteTopPage() {
   const seriesCards = await Promise.all(
     seriesList.map(async (series) => {
       const episodes = sortEpisodes(await fetchEpisodesBySeriesId(series.id, supabase));
-      const publishedCount = episodes.filter(isPublishedEpisode).length;
+      const publishedCount = episodes.filter(
+  (episode) => isPublishedEpisode(episode)
+).length;
       const draftCount = episodes.length - publishedCount;
       const latestEpisode = episodes.length > 0 ? episodes[episodes.length - 1] : null;
       const latestDraft =

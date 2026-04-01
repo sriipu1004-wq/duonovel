@@ -228,7 +228,9 @@ export async function buildAuthorSeriesCards(
 
   return seriesRows.map((series) => {
     const episodes = sortEpisodes(grouped.get(series.id) ?? []);
-    const publishedEpisodes = episodes.filter(isPublishedEpisode);
+    const publishedEpisodes = episodes.filter(
+  (episode) => isPublishedEpisode(episode)
+);
 
     const latestEpisode = episodes.length > 0 ? episodes[episodes.length - 1] : null;
     const latestPublishedEpisode =
