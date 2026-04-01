@@ -67,6 +67,10 @@ type ParagraphBlock = {
   segments: SentenceSegment[];
 };
 
+type SceneCueRuntime = EffectSettings["sceneCues"][number] & {
+  sentenceIndex: number;
+};
+
 type BookmarkData = {
   seriesId: string;
   episodeNumber: number;
@@ -242,6 +246,32 @@ function renderSentenceWithInlineMarks(
   );
 }
 
+function buildSceneCueRuntimeList(
+  paragraphBlocks: ParagraphBlock[],
+  sceneCues: EffectSettings["sceneCues"]
+): SceneCueRuntime[] {
+  const allSegments = paragraphBlocks.flatMap((block) => block.segments);
+
+  return sceneCues
+    .map((sceneCue) => {
+      const triggerText = sceneCue.triggerText.trim();
+      if (!triggerText) return null;
+
+      const matchedSegment = allSegments.find((segment) =>
+        segment.text.includes(triggerText)
+      );
+
+      if (!matchedSegment) return null;
+
+      return {
+        ...sceneCue,
+        sentenceIndex: matchedSegment.index,
+      };
+    })
+    .filter((sceneCue): sceneCue is SceneCueRuntime => sceneCue !== null)
+    .sort((left, right) => left.sentenceIndex - right.sentenceIndex);
+}
+
 function FooterActionButton({
   label,
   disabled = false,
@@ -378,6 +408,7 @@ export default function EpisodePlayback({
   const settingsReturnScrollYRef = useRef<number | null>(null);
   const suppressAutoFollowAfterSettingsRef = useRef(false);
   const bookmarkToastTimeoutRef = useRef<number | null>(null);
+  const previousEstimatedSentenceIndexRef = useRef(-1);
 
   const readLocalResumeState = useCallback(
     (targetSeriesId: string): ReadResumeState | null => {
@@ -449,14 +480,28 @@ export default function EpisodePlayback({
     readStoredNarrationVolume(seriesId)
   );
 
+  const [firedSceneCueIds, setFiredSceneCueIds] = useState<
+    Record<string, true>
+  >({});
+  const [activeSceneCueId, setActiveSceneCueId] = useState<string | null>(null);
+  const [activeBackgroundPreset, setActiveBackgroundPreset] =
+    useState<EffectSettings["backgroundPreset"]>(null);
+  const [activeSceneBgmSrc, setActiveSceneBgmSrc] = useState<string | null>(
+    null
+  );
+  const [activeSceneBgmTitle, setActiveSceneBgmTitle] = useState("");  
+
   const appliedEffectSettings = useMemo(
     () => effectSettings ?? emptyEffectSettings(),
     [effectSettings]
   );
 
+  const effectiveBackgroundPreset =
+    activeBackgroundPreset ?? appliedEffectSettings.backgroundPreset;
+
   const effectTheme = useMemo(
-    () => buildBackgroundTheme(appliedEffectSettings.backgroundPreset),
-    [appliedEffectSettings.backgroundPreset]
+    () => buildBackgroundTheme(effectiveBackgroundPreset),
+    [effectiveBackgroundPreset]
   );
 
   const effectTypographyStyle = useMemo(
@@ -522,6 +567,18 @@ export default function EpisodePlayback({
     return paragraphBlocks.reduce((sum, block) => sum + block.segments.length, 0);
   }, [paragraphBlocks]);
 
+  const runtimeSceneCues = useMemo(
+    () => buildSceneCueRuntimeList(paragraphBlocks, appliedEffectSettings.sceneCues),
+    [paragraphBlocks, appliedEffectSettings.sceneCues]
+  );
+
+  const activeSceneCueLabel = useMemo(
+    () =>
+      runtimeSceneCues.find((sceneCue) => sceneCue.id === activeSceneCueId)?.label ??
+      "",
+    [runtimeSceneCues, activeSceneCueId]
+  );  
+
   const playableAudioSrc = useMemo(() => {
     const value = (audioStoragePath ?? "").trim();
 
@@ -539,6 +596,12 @@ export default function EpisodePlayback({
     typeof prevEpisodeNumber === "number" && !!prevEpisodeHref;
   const hasNextEpisode =
     typeof nextEpisodeNumber === "number" && !!nextEpisodeHref;
+
+  const resolvedBgmSrc = activeSceneBgmSrc ?? bgmSrc ?? null;
+  const resolvedBgmTitle =
+    activeSceneBgmSrc !== null
+      ? activeSceneBgmTitle || bgmTitle || "場面BGM"
+      : bgmTitle || "";    
 
   const estimatedSentenceIndex = useMemo(() => {
     if (totalSentenceCount <= 0) return -1;
@@ -696,6 +759,84 @@ export default function EpisodePlayback({
       // 保存失敗は黙って継続
     }
   }, [seriesId, narrationVolume]);
+
+  useEffect(() => {
+    setFiredSceneCueIds({});
+    setActiveSceneCueId(null);
+    setActiveBackgroundPreset(null);
+    setActiveSceneBgmSrc(null);
+    setActiveSceneBgmTitle("");
+    previousEstimatedSentenceIndexRef.current = -1;
+  }, [episodeId, playableAudioSrc, bgmSrc, bgmTitle, appliedEffectSettings.sceneCues]);  
+
+  useEffect(() => {
+    if (estimatedSentenceIndex < 0) {
+      previousEstimatedSentenceIndexRef.current = estimatedSentenceIndex;
+      return;
+    }
+
+    if (runtimeSceneCues.length === 0) {
+      previousEstimatedSentenceIndexRef.current = estimatedSentenceIndex;
+      return;
+    }
+
+    const previousEstimatedSentenceIndex =
+      previousEstimatedSentenceIndexRef.current;
+
+    if (
+      previousEstimatedSentenceIndex !== -1 &&
+      estimatedSentenceIndex < previousEstimatedSentenceIndex
+    ) {
+      setFiredSceneCueIds({});
+      setActiveSceneCueId(null);
+      setActiveBackgroundPreset(null);
+      setActiveSceneBgmSrc(null);
+      setActiveSceneBgmTitle("");
+      previousEstimatedSentenceIndexRef.current = -1;
+      return;
+    }
+
+    const pendingSceneCues = runtimeSceneCues.filter(
+      (sceneCue) =>
+        sceneCue.sentenceIndex <= estimatedSentenceIndex &&
+        !firedSceneCueIds[sceneCue.id]
+    );
+
+    if (pendingSceneCues.length === 0) {
+      previousEstimatedSentenceIndexRef.current = estimatedSentenceIndex;
+      return;
+    }
+
+    const latestSceneCue = pendingSceneCues[pendingSceneCues.length - 1];
+
+    setFiredSceneCueIds((prev) => {
+      const next = { ...prev };
+
+      for (const sceneCue of pendingSceneCues) {
+        next[sceneCue.id] = true;
+      }
+
+      return next;
+    });
+
+    setActiveSceneCueId(latestSceneCue.id);
+
+    for (const sceneCue of pendingSceneCues) {
+      if (sceneCue.backgroundPreset !== null) {
+        setActiveBackgroundPreset(sceneCue.backgroundPreset);
+      }
+
+      const nextSceneBgmSrc = sceneCue.nextBgmAudioPath?.trim() ?? "";
+      if (nextSceneBgmSrc) {
+        setActiveSceneBgmSrc(nextSceneBgmSrc);
+        setActiveSceneBgmTitle(
+          sceneCue.nextBgmTitle?.trim() || sceneCue.label || "場面BGM"
+        );
+      }
+    }
+
+    previousEstimatedSentenceIndexRef.current = estimatedSentenceIndex;
+  }, [estimatedSentenceIndex, firedSceneCueIds, runtimeSceneCues]);
 
   useEffect(() => {
     if (isSettingsOpen) {
@@ -1137,7 +1278,7 @@ export default function EpisodePlayback({
                 </span>
               )}
 
-              {bgmSrc ? (
+              {resolvedBgmSrc ? (
                 <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-300">
                   fade in {bgmSettings?.fadeInSeconds ?? 0}s / fade out{" "}
                   {bgmSettings?.fadeOutSeconds ?? 0}s
@@ -1169,13 +1310,19 @@ export default function EpisodePlayback({
               <span
                 className={[
                   "rounded-full px-4 py-2 text-sm",
-                  bgmSrc
+                  resolvedBgmSrc
                     ? "border border-fuchsia-400/20 bg-fuchsia-400/10 text-fuchsia-200"
                     : "border border-white/10 bg-white/5 text-neutral-500",
                 ].join(" ")}
               >
-                {bgmSrc ? "BGM設定あり" : "BGM未設定"}
+                {resolvedBgmSrc ? "BGM設定あり" : "BGM未設定"}
               </span>
+
+              {activeSceneCueLabel ? (
+                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-200">
+                  発火中: {activeSceneCueLabel}
+                </span>
+              ) : null}
             </div>
 
             <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-neutral-400">
@@ -1185,8 +1332,8 @@ export default function EpisodePlayback({
 
             <BgmController
               seriesId={seriesId}
-              bgmSrc={bgmSrc}
-              bgmTitle={bgmTitle}
+              bgmSrc={resolvedBgmSrc}
+              bgmTitle={resolvedBgmTitle}
               bgmSettings={bgmSettings}
               isNarrationPlaying={isPlaying && !isNarrationStopped}
               playbackRate={playbackRate}
@@ -1433,6 +1580,11 @@ export default function EpisodePlayback({
                       <p className="text-xs tracking-[0.18em] text-neutral-500">
                         SCENE CUES
                       </p>
+                      {activeSceneCueLabel ? (
+                        <p className="mt-2 text-sm text-emerald-200">
+                          現在発火中: {activeSceneCueLabel}
+                        </p>
+                      ) : null}
                       <div className="mt-3 flex flex-wrap gap-2">
                         {appliedEffectSettings.sceneCues.map(renderSceneCue)}
                       </div>
