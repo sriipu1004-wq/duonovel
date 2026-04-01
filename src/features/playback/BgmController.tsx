@@ -19,6 +19,7 @@ type BgmControllerProps = {
   bgmTitle?: string;
   bgmSettings?: BgmSettings;
   isNarrationPlaying: boolean;
+  playbackRate?: number;
   isOpen: boolean;
 };
 
@@ -76,6 +77,7 @@ export default function BgmController({
   bgmTitle,
   bgmSettings,
   isNarrationPlaying,
+  playbackRate = 1,
   isOpen,
 }: BgmControllerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -196,7 +198,8 @@ export default function BgmController({
     if (!audio) return;
 
     audio.loop = true;
-  }, []);
+    audio.playbackRate = playbackRate;
+  }, [playbackRate]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -206,8 +209,9 @@ export default function BgmController({
     audio.pause();
     audio.currentTime = 0;
     audio.volume = 0;
+    audio.playbackRate = playbackRate;
     audio.load();
-  }, [playableBgmSrc, cancelFade]);
+  }, [playableBgmSrc, playbackRate, cancelFade]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -216,6 +220,7 @@ export default function BgmController({
     const targetAudio = audio;
 
     targetAudio.loop = true;
+    targetAudio.playbackRate = playbackRate;
 
     if (!playableBgmSrc) {
       cancelFade();
@@ -274,6 +279,7 @@ export default function BgmController({
     enabled,
     isNarrationPlaying,
     playableBgmSrc,
+    playbackRate,
     volume,
     fadeInSeconds,
     fadeOutSeconds,

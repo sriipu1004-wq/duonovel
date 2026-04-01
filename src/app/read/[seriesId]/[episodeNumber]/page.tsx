@@ -27,6 +27,7 @@ type PageProps = {
     readerKey?: string;
     readerName?: string;
     startAt?: string;
+    autoplay?: string;
   }>;
 };
 
@@ -219,6 +220,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
   }
 
   const initialStartAt = parseStartAt(resolvedSearchParams?.startAt);
+  const initialAutoPlay = resolvedSearchParams?.autoplay === "1";
 
   const { data: seriesData, error: seriesError } = await supabase
     .from("series")
@@ -397,12 +399,13 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
       nextEpisodeNumber={nextEpisodeNumber}
       workIndexHref={workIndexHref}
       initialStartAt={initialStartAt}
+      initialAutoPlay={initialAutoPlay}
       loginHref={loginHref}
       showComments={commentsVisible}
       bgmTitle={bgmTitle || undefined}
       bgmSrc={bgmSrc}
       bgmSettings={bgmSrc ? bgmSettings : undefined}
-      effectSettings={effectSettings}      
+      effectSettings={effectSettings}
     />
   );
 }

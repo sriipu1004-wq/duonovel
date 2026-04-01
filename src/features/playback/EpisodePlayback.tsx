@@ -48,6 +48,7 @@ type EpisodePlaybackProps = {
   nextEpisodeNumber?: number | null;
   workIndexHref?: string | null;
   initialStartAt?: number | null;
+  initialAutoPlay?: boolean;
   loginHref?: string;
   showComments?: boolean;
   bgmTitle?: string;
@@ -77,20 +78,38 @@ type BookmarkData = {
   savedAt: string;
 };
 
-type DisplayTheme = "normal" | "invert" | "sepia";
 type LineHeightPreset = "compact" | "normal" | "wide";
 
 type DisplayPreference = {
-  theme: DisplayTheme;
   fontScale: number;
   lineHeight: LineHeightPreset;
+  hideEffects: boolean;
 };
 
 const DEFAULT_DISPLAY_PREFERENCE: DisplayPreference = {
-  theme: "normal",
   fontScale: 1.06,
   lineHeight: "normal",
+  hideEffects: false,
 };
+
+function clampFontScale(value: number): number {
+  if (!Number.isFinite(value)) return 1.06;
+  return Math.min(1.4, Math.max(0.9, value));
+}
+
+function clampNarrationVolume(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(1, Math.max(0, value));
+}
+
+function clampPlaybackRate(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(2.5, Math.max(0.5, Math.round(value * 10) / 10));
+}
+
+function formatPlaybackRate(value: number): string {
+  return `×${clampPlaybackRate(value).toFixed(1)}`;
+}
 
 function readStoredDisplayPreference(seriesId: string): DisplayPreference {
   if (typeof window === "undefined") {
@@ -106,12 +125,6 @@ function readStoredDisplayPreference(seriesId: string): DisplayPreference {
     const parsed = JSON.parse(raw) as Partial<DisplayPreference>;
 
     return {
-      theme:
-        parsed.theme === "normal" ||
-        parsed.theme === "invert" ||
-        parsed.theme === "sepia"
-          ? parsed.theme
-          : DEFAULT_DISPLAY_PREFERENCE.theme,
       fontScale:
         typeof parsed.fontScale === "number"
           ? clampFontScale(parsed.fontScale)
@@ -122,9 +135,65 @@ function readStoredDisplayPreference(seriesId: string): DisplayPreference {
         parsed.lineHeight === "wide"
           ? parsed.lineHeight
           : DEFAULT_DISPLAY_PREFERENCE.lineHeight,
+      hideEffects:
+        typeof parsed.hideEffects === "boolean"
+          ? parsed.hideEffects
+          : DEFAULT_DISPLAY_PREFERENCE.hideEffects,
     };
   } catch {
     return DEFAULT_DISPLAY_PREFERENCE;
+  }
+}
+
+function readStoredAutoAdvancePreference(seriesId: string): boolean {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(`duonovel:auto-advance:${seriesId}`);
+    if (raw === "false") {
+      return false;
+    }
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+function readStoredPlaybackRate(seriesId: string): number {
+  if (typeof window === "undefined") {
+    return 1;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(`duonovel:playback-rate:${seriesId}`);
+    if (!raw) {
+      return 1;
+    }
+
+    return clampPlaybackRate(Number(raw));
+  } catch {
+    return 1;
+  }
+}
+
+function readStoredNarrationVolume(seriesId: string): number {
+  if (typeof window === "undefined") {
+    return 1;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(
+      `duonovel:narration-volume:${seriesId}`
+    );
+    if (!raw) {
+      return 1;
+    }
+
+    return clampNarrationVolume(Number(raw));
+  } catch {
+    return 1;
   }
 }
 
@@ -164,11 +233,6 @@ function splitParagraphIntoSentences(paragraph: string): string[] {
   return matched.map((item) => item.trim()).filter((item) => item.length > 0);
 }
 
-function clampFontScale(value: number): number {
-  if (!Number.isFinite(value)) return 1.06;
-  return Math.min(1.4, Math.max(0.9, value));
-}
-
 function renderSentenceWithInlineMarks(
   text: string,
   inlineMarks: EffectSettings["inlineMarks"]
@@ -178,58 +242,76 @@ function renderSentenceWithInlineMarks(
   );
 }
 
-function ControlButton({
+function FooterActionButton({
   label,
-  disabled = true,
-  onClick,
-}: {
-  label: string;
-  disabled?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className="flex h-11 min-w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-3 text-sm text-neutral-300 transition hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-white/5"
-    >
-      {label}
-    </button>
-  );
-}
-
-function FooterEpisodeButton({
-  label,
-  episodeNumber,
   disabled = false,
+  active = false,
+  accent = false,
   onClick,
 }: {
   label: string;
-  episodeNumber?: number | null;
   disabled?: boolean;
+  active?: boolean;
+  accent?: boolean;
   onClick?: () => void;
 }) {
-  const hasEpisodeNumber =
-    typeof episodeNumber === "number" && Number.isFinite(episodeNumber);
-
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
       className={[
-        "flex min-w-[96px] flex-col rounded-2xl border px-3 py-2 text-left transition",
-        disabled
-          ? "border-white/10 bg-white/5 text-neutral-500"
-          : "border-white/10 bg-white/5 text-neutral-200 hover:bg-white/10",
+        "flex h-12 w-full items-center justify-center rounded-2xl border px-2 text-center text-[10px] font-medium leading-tight transition sm:text-sm",
+        accent
+          ? "border-white bg-white text-black hover:opacity-90 disabled:border-white/10 disabled:bg-white/5 disabled:text-neutral-500"
+          : active
+            ? "border-sky-400/20 bg-sky-400/10 text-sky-200"
+            : disabled
+              ? "border-white/10 bg-white/5 text-neutral-500"
+              : "border-white/10 bg-white/5 text-neutral-200 hover:bg-white/10",
       ].join(" ")}
     >
-      <span className="text-[11px] text-neutral-500">{label}</span>
-      <span className="text-sm font-medium">
-        {hasEpisodeNumber ? `第${episodeNumber}話` : "なし"}
-      </span>
+      <span className="whitespace-pre-line">{label}</span>
     </button>
+  );
+}
+
+function FooterPlaybackRateControl({
+  value,
+  onDecrease,
+  onIncrease,
+}: {
+  value: number;
+  onDecrease: () => void;
+  onIncrease: () => void;
+}) {
+  const atMin = value <= 0.5;
+  const atMax = value >= 2.5;
+
+  return (
+    <div className="flex h-12 w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+      <button
+        type="button"
+        onClick={onDecrease}
+        disabled={atMin}
+        className="flex w-1/4 items-center justify-center border-r border-white/10 text-sm text-neutral-200 transition hover:bg-white/10 disabled:text-neutral-500 disabled:hover:bg-transparent"
+      >
+        −
+      </button>
+
+      <div className="flex flex-1 items-center justify-center text-[10px] font-medium text-neutral-200 sm:text-sm">
+        {formatPlaybackRate(value)}
+      </div>
+
+      <button
+        type="button"
+        onClick={onIncrease}
+        disabled={atMax}
+        className="flex w-1/4 items-center justify-center border-l border-white/10 text-sm text-neutral-200 transition hover:bg-white/10 disabled:text-neutral-500 disabled:hover:bg-transparent"
+      >
+        ＋
+      </button>
+    </div>
   );
 }
 
@@ -276,6 +358,7 @@ export default function EpisodePlayback({
   nextEpisodeNumber,
   workIndexHref,
   initialStartAt,
+  initialAutoPlay = false,
   loginHref,
   showComments = true,
   bgmTitle,
@@ -291,6 +374,9 @@ export default function EpisodePlayback({
   const ignoreScrollRef = useRef(false);
   const ignoreScrollTimeoutRef = useRef<number | null>(null);
   const hasAppliedInitialSeekRef = useRef(false);
+  const autoPlayRequestedRef = useRef(false);
+  const settingsReturnScrollYRef = useRef<number | null>(null);
+  const suppressAutoFollowAfterSettingsRef = useRef(false);
   const bookmarkToastTimeoutRef = useRef<number | null>(null);
 
   const readLocalResumeState = useCallback(
@@ -348,9 +434,19 @@ export default function EpisodePlayback({
   const [autoFollow, setAutoFollow] = useState(true);
   const [bookmarkMessage, setBookmarkMessage] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isNarrationStopped, setIsNarrationStopped] = useState(false);
 
   const [displayPreference, setDisplayPreference] = useState<DisplayPreference>(
     () => readStoredDisplayPreference(seriesId)
+  );
+  const [autoAdvanceToNext, setAutoAdvanceToNext] = useState<boolean>(() =>
+    readStoredAutoAdvancePreference(seriesId)
+  );
+  const [playbackRate, setPlaybackRate] = useState<number>(() =>
+    readStoredPlaybackRate(seriesId)
+  );
+  const [narrationVolume, setNarrationVolume] = useState<number>(() =>
+    readStoredNarrationVolume(seriesId)
   );
 
   const appliedEffectSettings = useMemo(
@@ -376,9 +472,9 @@ export default function EpisodePlayback({
     [appliedEffectSettings]
   );
 
-  const displayTheme = displayPreference.theme;
   const fontScale = displayPreference.fontScale;
   const lineHeightPreset = displayPreference.lineHeight;
+  const hideEffects = displayPreference.hideEffects;
 
   const safeSeriesTitle =
     typeof seriesTitle === "string" && seriesTitle.trim().length > 0
@@ -437,14 +533,14 @@ export default function EpisodePlayback({
     return "";
   }, [audioStoragePath]);
 
-  const canPlayAudio = recordingAvailable && playableAudioSrc.length > 0;
+  const canPlayAudio =
+    !isNarrationStopped && recordingAvailable && playableAudioSrc.length > 0;
   const hasPrevEpisode =
     typeof prevEpisodeNumber === "number" && !!prevEpisodeHref;
   const hasNextEpisode =
     typeof nextEpisodeNumber === "number" && !!nextEpisodeHref;
 
   const estimatedSentenceIndex = useMemo(() => {
-    if (!canPlayAudio) return -1;
     if (totalSentenceCount <= 0) return -1;
     if (!Number.isFinite(duration) || duration <= 0) return -1;
 
@@ -455,10 +551,9 @@ export default function EpisodePlayback({
       totalSentenceCount - 1,
       Math.floor(ratio * totalSentenceCount)
     );
-  }, [canPlayAudio, totalSentenceCount, currentTime, duration]);
+  }, [totalSentenceCount, currentTime, duration]);
 
-  const visibleMarkerSentenceIndex =
-    isPlaying && autoFollow ? estimatedSentenceIndex : -1;
+  const visibleMarkerSentenceIndex = estimatedSentenceIndex;
 
   const applyRestoredPlayLog = useCallback(
     (resumeState: ReadResumeState) => {
@@ -472,7 +567,7 @@ export default function EpisodePlayback({
         pendingResumeRef.current = null;
       }
     },
-    [setCurrentTime]
+    []
   );
 
   const { flushPlayLog } = usePlayLogPersistence({
@@ -491,7 +586,7 @@ export default function EpisodePlayback({
     writeLocalResumeState,
   });
 
-    const resetPlaybackViewState = useCallback(() => {
+  const resetPlaybackViewState = useCallback(() => {
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
@@ -500,6 +595,7 @@ export default function EpisodePlayback({
     setAutoFollow(true);
     setBookmarkMessage("");
     setIsSettingsOpen(false);
+    setIsNarrationStopped(false);
   }, []);
 
   const lineHeightValue = useMemo(() => {
@@ -509,34 +605,21 @@ export default function EpisodePlayback({
   }, [lineHeightPreset]);
 
   const readingPaneClass = useMemo(() => {
-    if (displayTheme === "invert") {
-      return "rounded-[28px] bg-neutral-100 p-5 text-neutral-950 sm:p-6";
-    }
-    if (displayTheme === "sepia") {
-      return "rounded-[28px] bg-[#2e241b] p-5 text-[#f3e7cf] sm:p-6";
+    if (hideEffects) {
+      return "rounded-[28px] bg-transparent p-5 sm:p-6";
     }
     return `${effectTheme.frameClassName} ${effectTheme.surfaceClassName} p-5 sm:p-6`;
-  }, [displayTheme, effectTheme.frameClassName, effectTheme.surfaceClassName]);
+  }, [hideEffects, effectTheme.frameClassName, effectTheme.surfaceClassName]);
 
   const readingPaneTextClassName = useMemo(() => {
-    if (displayTheme === "invert") {
-      return "text-neutral-950";
-    }
-    if (displayTheme === "sepia") {
-      return "text-[#f3e7cf]";
+    if (hideEffects) {
+      return "text-neutral-100";
     }
     return effectTheme.textClassName;
-  }, [displayTheme, effectTheme.textClassName]);
+  }, [hideEffects, effectTheme.textClassName]);
 
-  const markerClass = useMemo(() => {
-    if (displayTheme === "invert") {
-      return "bg-[repeating-linear-gradient(135deg,rgba(110,110,110,0.22)_0px,rgba(110,110,110,0.22)_8px,rgba(55,55,55,0.12)_8px,rgba(55,55,55,0.12)_16px)] ring-1 ring-black/10";
-    }
-    if (displayTheme === "sepia") {
-      return "bg-[repeating-linear-gradient(135deg,rgba(232,213,177,0.24)_0px,rgba(232,213,177,0.24)_8px,rgba(120,88,48,0.18)_8px,rgba(120,88,48,0.18)_16px)] ring-1 ring-white/10";
-    }
-    return "bg-[repeating-linear-gradient(135deg,rgba(200,200,200,0.26)_0px,rgba(200,200,200,0.26)_8px,rgba(120,120,120,0.18)_8px,rgba(120,120,120,0.18)_16px)] ring-1 ring-white/10";
-  }, [displayTheme]);
+  const markerClass =
+    "bg-[repeating-linear-gradient(135deg,rgba(200,200,200,0.26)_0px,rgba(200,200,200,0.26)_8px,rgba(120,120,120,0.18)_8px,rgba(120,120,120,0.18)_16px)] ring-1 ring-white/10";
 
   const unlockProgrammaticScroll = useCallback(() => {
     if (ignoreScrollTimeoutRef.current) {
@@ -567,9 +650,9 @@ export default function EpisodePlayback({
   useEffect(() => {
     try {
       const payload: DisplayPreference = {
-        theme: displayTheme,
         fontScale,
         lineHeight: lineHeightPreset,
+        hideEffects,
       };
 
       window.localStorage.setItem(
@@ -579,13 +662,90 @@ export default function EpisodePlayback({
     } catch {
       // 保存失敗は黙って継続
     }
-  }, [seriesId, displayTheme, fontScale, lineHeightPreset]);
+  }, [seriesId, fontScale, lineHeightPreset, hideEffects]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        `duonovel:auto-advance:${seriesId}`,
+        autoAdvanceToNext ? "true" : "false"
+      );
+    } catch {
+      // 保存失敗は黙って継続
+    }
+  }, [seriesId, autoAdvanceToNext]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        `duonovel:playback-rate:${seriesId}`,
+        String(playbackRate)
+      );
+    } catch {
+      // 保存失敗は黙って継続
+    }
+  }, [seriesId, playbackRate]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        `duonovel:narration-volume:${seriesId}`,
+        String(narrationVolume)
+      );
+    } catch {
+      // 保存失敗は黙って継続
+    }
+  }, [seriesId, narrationVolume]);
+
+  useEffect(() => {
+    if (isSettingsOpen) {
+      return;
+    }
+
+    if (settingsReturnScrollYRef.current === null) {
+      suppressAutoFollowAfterSettingsRef.current = false;
+      return;
+    }
+
+    const nextScrollY = settingsReturnScrollYRef.current;
+    settingsReturnScrollYRef.current = null;
+    suppressAutoFollowAfterSettingsRef.current = true;
+
+    window.requestAnimationFrame(() => {
+      ignoreScrollRef.current = true;
+      window.scrollTo({
+        top: nextScrollY,
+        behavior: "auto",
+      });
+      unlockProgrammaticScroll();
+
+      window.setTimeout(() => {
+        suppressAutoFollowAfterSettingsRef.current = false;
+      }, 350);
+    });
+  }, [isSettingsOpen, unlockProgrammaticScroll]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.playbackRate = playbackRate;
+  }, [playbackRate, playableAudioSrc]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.volume = narrationVolume;
+  }, [narrationVolume, playableAudioSrc]);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const handleLoadedMetadata = () => {
+      audio.playbackRate = playbackRate;
+      audio.volume = narrationVolume;
       setDuration(audio.duration || 0);
 
       if (
@@ -601,10 +761,7 @@ export default function EpisodePlayback({
         setCurrentTime(nextTime);
         pendingResumeRef.current = null;
         hasAppliedInitialSeekRef.current = true;
-        return;
-      }
-
-      if (
+      } else if (
         !hasAppliedInitialSeekRef.current &&
         typeof initialStartAt === "number" &&
         Number.isFinite(initialStartAt) &&
@@ -617,6 +774,17 @@ export default function EpisodePlayback({
         setCurrentTime(audio.currentTime || 0);
         hasAppliedInitialSeekRef.current = true;
       }
+
+      if (initialAutoPlay && !autoPlayRequestedRef.current && !isNarrationStopped) {
+        autoPlayRequestedRef.current = true;
+        setAutoFollow(true);
+        setAudioError("");
+
+        void audio.play().catch(() => {
+          setAudioError("再生を開始できなかった");
+          setIsPlaying(false);
+        });
+      }
     };
 
     const handleTimeUpdate = () => {
@@ -625,21 +793,22 @@ export default function EpisodePlayback({
 
     const handleEnded = () => {
       setIsPlaying(false);
-      setAutoFollow(false);
 
-      if (nextEpisodeHref) {
+      if (autoAdvanceToNext && nextEpisodeHref && !isNarrationStopped) {
         void flushPlayLog("episode-move");
         setIsAdvancing(true);
 
         advanceTimeoutRef.current = window.setTimeout(() => {
-          router.push(nextEpisodeHref);
+          router.push(buildAutoPlayHref(nextEpisodeHref));
         }, 900);
+        return;
       }
+
+      void flushPlayLog("pause");
     };
 
     const handlePause = () => {
       setIsPlaying(false);
-      setAutoFollow(false);
       void flushPlayLog("pause");
     };
 
@@ -656,7 +825,6 @@ export default function EpisodePlayback({
       setAudioError("音声ファイルの読み込みに失敗した");
       setIsPlaying(false);
       setIsAdvancing(false);
-      setAutoFollow(false);
     };
 
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
@@ -680,7 +848,17 @@ export default function EpisodePlayback({
         window.clearTimeout(advanceTimeoutRef.current);
       }
     };
-  }, [flushPlayLog, initialStartAt, nextEpisodeHref, router]);
+  }, [
+    autoAdvanceToNext,
+    flushPlayLog,
+    initialAutoPlay,
+    initialStartAt,
+    isNarrationStopped,
+    narrationVolume,
+    nextEpisodeHref,
+    playbackRate,
+    router,
+  ]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -700,6 +878,7 @@ export default function EpisodePlayback({
 
     ignoreScrollRef.current = false;
     hasAppliedInitialSeekRef.current = false;
+    autoPlayRequestedRef.current = false;
     audio.pause();
 
     const resetTimer = window.setTimeout(() => {
@@ -717,14 +896,25 @@ export default function EpisodePlayback({
     if (!isPlaying) return;
     if (!autoFollow) return;
     if (estimatedSentenceIndex < 0) return;
+    if (isSettingsOpen) return;
+    if (isNarrationStopped) return;
+    if (suppressAutoFollowAfterSettingsRef.current) return;
 
-    scrollToSentence(estimatedSentenceIndex, "smooth");
-  }, [estimatedSentenceIndex, isPlaying, autoFollow, scrollToSentence]);
+    scrollToSentence(estimatedSentenceIndex, "auto");
+  }, [
+    estimatedSentenceIndex,
+    isPlaying,
+    autoFollow,
+    isSettingsOpen,
+    isNarrationStopped,
+    scrollToSentence,
+  ]);
 
   useEffect(() => {
     function handleWindowScroll() {
       if (!isPlaying) return;
       if (!autoFollow) return;
+      if (isSettingsOpen) return;
       if (ignoreScrollRef.current) return;
 
       setAutoFollow(false);
@@ -735,7 +925,7 @@ export default function EpisodePlayback({
     return () => {
       window.removeEventListener("scroll", handleWindowScroll);
     };
-  }, [isPlaying, autoFollow]);
+  }, [isPlaying, autoFollow, isSettingsOpen]);
 
   async function handleTogglePlay(): Promise<void> {
     const audio = audioRef.current;
@@ -755,19 +945,6 @@ export default function EpisodePlayback({
     }
   }
 
-  function handleSeekBy(seconds: number): void {
-    const audio = audioRef.current;
-    if (!audio || !canPlayAudio) return;
-
-    const nextTime = Math.min(
-      Math.max((audio.currentTime || 0) + seconds, 0),
-      audio.duration || 0
-    );
-
-    audio.currentTime = nextTime;
-    setCurrentTime(nextTime);
-  }
-
   function handleSliderChange(event: ChangeEvent<HTMLInputElement>): void {
     const audio = audioRef.current;
     if (!audio || !canPlayAudio) return;
@@ -775,6 +952,16 @@ export default function EpisodePlayback({
     const nextTime = Number(event.target.value);
     audio.currentTime = nextTime;
     setCurrentTime(nextTime);
+  }
+
+  function buildAutoPlayHref(targetUrl: string): string {
+    const [pathname, rawQuery = ""] = targetUrl.split("?");
+    const query = new URLSearchParams(rawQuery);
+
+    query.set("autoplay", "1");
+
+    const nextQuery = query.toString();
+    return `${pathname}${nextQuery ? `?${nextQuery}` : ""}`;
   }
 
   const moveToReadUrl = useCallback(
@@ -795,11 +982,71 @@ export default function EpisodePlayback({
     await moveToReadUrl(nextEpisodeHref);
   }
 
-  function handleReturnToCurrentPosition(): void {
+  function handleEnableAutoFollow(): void {
+    if (autoFollow) return;
     if (estimatedSentenceIndex < 0) return;
+    if (isNarrationStopped) return;
 
     setAutoFollow(true);
     scrollToSentence(estimatedSentenceIndex, "smooth");
+  }
+
+  function handleToggleAutoAdvance(): void {
+    setAutoAdvanceToNext((prev) => !prev);
+  }
+
+  function handleDecreasePlaybackRate(): void {
+    setPlaybackRate((prev) => clampPlaybackRate(prev - 0.1));
+  }
+
+  function handleIncreasePlaybackRate(): void {
+    setPlaybackRate((prev) => clampPlaybackRate(prev + 0.1));
+  }
+
+  function handleToggleHideEffects(): void {
+    setDisplayPreference((prev) => ({
+      ...prev,
+      hideEffects: !prev.hideEffects,
+    }));
+  }
+
+  function handleToggleSettings(): void {
+    if (isSettingsOpen) {
+      setIsSettingsOpen(false);
+      return;
+    }
+
+    settingsReturnScrollYRef.current =
+      typeof window !== "undefined" ? window.scrollY : 0;
+    setIsSettingsOpen(true);
+
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        ignoreScrollRef.current = true;
+        window.scrollTo({
+          top: 0,
+          behavior: "auto",
+        });
+        unlockProgrammaticScroll();
+      });
+    }
+  }
+
+  function handleToggleNarrationStopped(): void {
+    const audio = audioRef.current;
+
+    if (isNarrationStopped) {
+      setIsNarrationStopped(false);
+      return;
+    }
+
+    if (audio) {
+      audio.pause();
+    }
+
+    setIsNarrationStopped(true);
+    setIsPlaying(false);
+    void flushPlayLog("pause");
   }
 
   function handleSaveBookmark(): void {
@@ -845,6 +1092,11 @@ export default function EpisodePlayback({
     }));
   }
 
+  function handleNarrationVolumeChange(event: ChangeEvent<HTMLInputElement>) {
+    const nextVolume = clampNarrationVolume(Number(event.target.value));
+    setNarrationVolume(nextVolume);
+  }
+
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
       <audio ref={audioRef} preload="metadata">
@@ -885,7 +1137,7 @@ export default function EpisodePlayback({
                 </span>
               )}
 
-             {bgmSrc ? (
+              {bgmSrc ? (
                 <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-300">
                   fade in {bgmSettings?.fadeInSeconds ?? 0}s / fade out{" "}
                   {bgmSettings?.fadeOutSeconds ?? 0}s
@@ -906,36 +1158,12 @@ export default function EpisodePlayback({
               <span
                 className={[
                   "rounded-full px-4 py-2 text-sm",
-                  canPlayAudio
+                  playableAudioSrc
                     ? "border border-sky-400/20 bg-sky-400/10 text-sky-200"
                     : "border border-white/10 bg-white/5 text-neutral-500",
                 ].join(" ")}
               >
-                {canPlayAudio ? "再生テスト可能" : "再生URL未接続"}
-              </span>
-
-              <span
-                className={[
-                  "rounded-full px-4 py-2 text-sm",
-                  autoFollow && isPlaying
-                    ? "border border-violet-400/20 bg-violet-400/10 text-violet-200"
-                    : "border border-white/10 bg-white/5 text-neutral-500",
-                ].join(" ")}
-              >
-                {autoFollow && isPlaying ? "本文追尾ON" : "本文追尾OFF"}
-              </span>
-
-              <span
-                className={[
-                  "rounded-full px-4 py-2 text-sm",
-                  hasNextEpisode
-                    ? "border border-violet-400/20 bg-violet-400/10 text-violet-200"
-                    : "border border-white/10 bg-white/5 text-neutral-500",
-                ].join(" ")}
-              >
-                {hasNextEpisode
-                  ? `再生終了で第${nextEpisodeNumber}話へ移動`
-                  : "次話なし"}
+                {playableAudioSrc ? "再生URL接続済み" : "再生URL未接続"}
               </span>
 
               <span
@@ -960,106 +1188,161 @@ export default function EpisodePlayback({
               bgmSrc={bgmSrc}
               bgmTitle={bgmTitle}
               bgmSettings={bgmSettings}
-              isNarrationPlaying={isPlaying}
+              isNarrationPlaying={isPlaying && !isNarrationStopped}
+              playbackRate={playbackRate}
               isOpen={isSettingsOpen}
             />
 
             {isSettingsOpen ? (
-              <div className="mt-4 rounded-[28px] border border-white/10 bg-black/20 p-4">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">DISPLAY</p>
-                <h3 className="mt-2 text-lg font-semibold text-white">表示演出</h3>
+              <div className="mt-4 grid gap-4">
+                <section className="rounded-[28px] border border-white/10 bg-black/20 p-4">
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">NARRATION</p>
+                  <h3 className="mt-2 text-lg font-semibold text-white">朗読</h3>
 
-                <div className="mt-4">
-                  <p className="text-sm text-neutral-300">テーマ</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <SettingChip
-                      active={displayTheme === "normal"}
-                      label="通常"
-                      onClick={() =>
-  setDisplayPreference((prev) => ({
-    ...prev,
-    theme: "normal",
-  }))
-}
-                    />
-                    <SettingChip
-                      active={displayTheme === "invert"}
-                      label="色反転風"
-                      onClick={() =>
-  setDisplayPreference((prev) => ({
-    ...prev,
-    theme: "invert",
-  }))
-}
-                    />
-                    <SettingChip
-                      active={displayTheme === "sepia"}
-                      label="セピア"
-                      onClick={() =>
-  setDisplayPreference((prev) => ({
-    ...prev,
-    theme: "sepia",
-  }))
-}
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="flex items-center justify-between gap-3 text-sm text-neutral-300">
+                      <span>朗読音量</span>
+                      <span>{Math.round(narrationVolume * 100)}%</span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={narrationVolume}
+                      onChange={handleNarrationVolumeChange}
+                      className="mt-3 w-full accent-white"
                     />
                   </div>
-                </div>
 
-                <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                  <div className="flex items-center justify-between gap-3 text-sm text-neutral-300">
-                    <span>文字サイズ</span>
-                    <span>{Math.round(fontScale * 100)}%</span>
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div>
+                      <p className="text-sm text-neutral-300">次話自動再生</p>
+                      <p className="mt-1 text-xs leading-6 text-neutral-500">
+                        朗読が最後まで進んで終わった時だけ、次の話へ移動して自動再生する。
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleToggleAutoAdvance}
+                      className={[
+                        "rounded-full border px-4 py-2 text-sm font-medium transition",
+                        autoAdvanceToNext
+                          ? "border-violet-400/20 bg-violet-400/10 text-violet-200 hover:bg-violet-400/20"
+                          : "border-white/10 bg-white/5 text-neutral-300 hover:bg-white/10",
+                      ].join(" ")}
+                    >
+                      {autoAdvanceToNext ? "ON" : "OFF"}
+                    </button>
                   </div>
 
-                  <input
-                    type="range"
-                    min={0.9}
-                    max={1.4}
-                    step={0.05}
-                    value={fontScale}
-                    onChange={handleFontScaleChange}
-                    className="mt-3 w-full accent-white"
-                  />
-                </div>
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div>
+                      <p className="text-sm text-neutral-300">朗読停止</p>
+                      <p className="mt-1 text-xs leading-6 text-neutral-500">
+                        停止中はシークバー、倍速、再生、自動追尾を footer から隠す。
+                      </p>
+                    </div>
 
-                <div className="mt-5">
-                  <p className="text-sm text-neutral-300">行間</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <SettingChip
-                      active={lineHeightPreset === "compact"}
-                      label="狭め"
-                      onClick={() =>
-  setDisplayPreference((prev) => ({
-    ...prev,
-    lineHeight: "compact",
-  }))
-}
-                    />
-                    <SettingChip
-                      active={lineHeightPreset === "normal"}
-                      label="標準"
-                      onClick={() =>
-  setDisplayPreference((prev) => ({
-    ...prev,
-    lineHeight: "normal",
-  }))
-}
-                    />
-                    <SettingChip
-                      active={lineHeightPreset === "wide"}
-                      label="広め"
-                      onClick={() =>
-  setDisplayPreference((prev) => ({
-    ...prev,
-    lineHeight: "wide",
-  }))
-}
+                    <button
+                      type="button"
+                      onClick={handleToggleNarrationStopped}
+                      className={[
+                        "rounded-full border px-4 py-2 text-sm font-medium transition",
+                        isNarrationStopped
+                          ? "border-red-400/20 bg-red-400/10 text-red-200 hover:bg-red-400/20"
+                          : "border-white/10 bg-white/5 text-neutral-300 hover:bg-white/10",
+                      ].join(" ")}
+                    >
+                      {isNarrationStopped ? "停止解除" : "停止"}
+                    </button>
+                  </div>
+                </section>
+
+                <section className="rounded-[28px] border border-white/10 bg-black/20 p-4">
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">DISPLAY</p>
+                  <h3 className="mt-2 text-lg font-semibold text-white">表示演出</h3>
+
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div>
+                      <p className="text-sm text-neutral-300">全演出を非表示</p>
+                      <p className="mt-1 text-xs leading-6 text-neutral-500">
+                        背景、文字装飾、挿絵、scene cue を一括で隠す。
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleToggleHideEffects}
+                      className={[
+                        "rounded-full border px-4 py-2 text-sm font-medium transition",
+                        hideEffects
+                          ? "border-amber-400/20 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20"
+                          : "border-white/10 bg-white/5 text-neutral-300 hover:bg-white/10",
+                      ].join(" ")}
+                    >
+                      {hideEffects ? "ON" : "OFF"}
+                    </button>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="flex items-center justify-between gap-3 text-sm text-neutral-300">
+                      <span>文字サイズ</span>
+                      <span>{Math.round(fontScale * 100)}%</span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min={0.9}
+                      max={1.4}
+                      step={0.05}
+                      value={fontScale}
+                      onChange={handleFontScaleChange}
+                      className="mt-3 w-full accent-white"
                     />
                   </div>
-                </div>
 
-                <p className="mt-4 text-sm leading-7 text-neutral-400">
-                  この表示設定は作品ごとに保存される。
+                  <div className="mt-4">
+                    <p className="text-sm text-neutral-300">行間</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <SettingChip
+                        active={lineHeightPreset === "compact"}
+                        label="狭め"
+                        onClick={() =>
+                          setDisplayPreference((prev) => ({
+                            ...prev,
+                            lineHeight: "compact",
+                          }))
+                        }
+                      />
+                      <SettingChip
+                        active={lineHeightPreset === "normal"}
+                        label="標準"
+                        onClick={() =>
+                          setDisplayPreference((prev) => ({
+                            ...prev,
+                            lineHeight: "normal",
+                          }))
+                        }
+                      />
+                      <SettingChip
+                        active={lineHeightPreset === "wide"}
+                        label="広め"
+                        onClick={() =>
+                          setDisplayPreference((prev) => ({
+                            ...prev,
+                            lineHeight: "wide",
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <p className="text-sm leading-7 text-neutral-400">
+                  設定表示中は本文を隠している。閉じると元のスクロール位置へ戻る。
                 </p>
               </div>
             ) : null}
@@ -1087,20 +1370,92 @@ export default function EpisodePlayback({
                 再生終了。次の話へ移動中...
               </div>
             ) : null}
+          </div>
 
-            {!autoFollow && estimatedSentenceIndex >= 0 ? (
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={handleReturnToCurrentPosition}
-                  className="rounded-full border border-sky-400/20 bg-sky-400/10 px-4 py-2 text-sm text-sky-200 transition hover:bg-sky-400/20"
-                >
-                  現在位置に戻る
-                </button>
+          <div className="px-5 py-8 sm:px-8 sm:py-10">
+            {isSettingsOpen ? (
+              <div className="rounded-[28px] border border-white/10 bg-black/20 p-6 text-sm leading-7 text-neutral-400">
+                設定表示中。本文は一時的に隠れている。設定を閉じると元の位置へ戻る。
               </div>
-            ) : null}
+            ) : (
+              <>
+                <div className={readingPaneClass}>
+                  {!hideEffects && previewIllustrations.length > 0 ? (
+                    <div className="mb-6 grid gap-4">
+                      {previewIllustrations.map(renderIllustration)}
+                    </div>
+                  ) : null}
 
-            <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4">
+                  <article
+                    className={`space-y-7 ${readingPaneTextClassName}`}
+                    style={{
+                      fontSize: `${fontScale}rem`,
+                      lineHeight: lineHeightValue,
+                      ...(hideEffects ? {} : effectTypographyStyle),
+                    }}
+                  >
+                    {paragraphBlocks.length > 0 ? (
+                      paragraphBlocks.map((block) => (
+                        <p key={block.paragraphIndex}>
+                          {block.segments.map((segment) => {
+                            const isActive =
+                              segment.index === visibleMarkerSentenceIndex;
+
+                            return (
+                              <span
+                                key={segment.index}
+                                ref={(node) => {
+                                  sentenceRefs.current[segment.index] = node;
+                                }}
+                                className={[
+                                  "inline rounded-md px-1 py-1 transition-all duration-200",
+                                  isActive ? markerClass : "",
+                                ].join(" ")}
+                              >
+                                {hideEffects
+                                  ? segment.text
+                                  : renderSentenceWithInlineMarks(
+                                      segment.text,
+                                      appliedEffectSettings.inlineMarks
+                                    )}
+                              </span>
+                            );
+                          })}
+                        </p>
+                      ))
+                    ) : (
+                      <p>本文がありません。</p>
+                    )}
+                  </article>
+
+                  {!hideEffects && appliedEffectSettings.sceneCues.length > 0 ? (
+                    <div className="mt-6 border-t border-white/10 pt-4">
+                      <p className="text-xs tracking-[0.18em] text-neutral-500">
+                        SCENE CUES
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {appliedEffectSettings.sceneCues.map(renderSceneCue)}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                {showComments && episodeId ? (
+                  <EpisodeCommentSection
+                    episodeId={episodeId}
+                    loginHref={loginHref}
+                  />
+                ) : null}
+              </>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 border-t border-white/10 bg-[#0a0a0a]/90 backdrop-blur">
+        <div className="mx-auto max-w-3xl px-4 py-3 sm:px-6">
+          {!isNarrationStopped ? (
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
               <div className="flex items-center justify-between gap-3 text-sm text-neutral-300">
                 <span>{formatTime(currentTime)}</span>
                 <span>{formatTime(duration)}</span>
@@ -1117,151 +1472,93 @@ export default function EpisodePlayback({
                 className="mt-3 w-full accent-white disabled:opacity-40"
               />
             </div>
-          </div>
+          ) : null}
 
-          <div className="px-5 py-8 sm:px-8 sm:py-10">
-            <div className={readingPaneClass}>
-              {previewIllustrations.length > 0 ? (
-                <div className="mb-6 grid gap-4">
-                  {previewIllustrations.map(renderIllustration)}
-                </div>
-              ) : null}
-
-              <article
-                className={`space-y-7 ${readingPaneTextClassName}`}
-                style={{
-                  fontSize: `${fontScale}rem`,
-                  lineHeight: lineHeightValue,
-                  ...effectTypographyStyle,
-                }}
-              >
-                {paragraphBlocks.length > 0 ? (
-                  paragraphBlocks.map((block) => (
-                    <p key={block.paragraphIndex}>
-                      {block.segments.map((segment) => {
-                        const isActive =
-                          segment.index === visibleMarkerSentenceIndex;
-
-                        return (
-                          <span
-                            key={segment.index}
-                            ref={(node) => {
-                              sentenceRefs.current[segment.index] = node;
-                            }}
-                            className={[
-                              "inline rounded-md px-1 py-1 transition-all duration-200",
-                              isActive ? `${markerClass}` : "",
-                            ].join(" ")}
-                          >
-                            {renderSentenceWithInlineMarks(
-                              segment.text,
-                              appliedEffectSettings.inlineMarks
-                            )}
-                          </span>
-                        );
-                      })}
-                    </p>
-                  ))
-                ) : (
-                  <p>本文がありません。</p>
-                )}
-              </article>
-
-              {appliedEffectSettings.sceneCues.length > 0 ? (
-                <div className="mt-6 border-t border-white/10 pt-4">
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    SCENE CUES
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {appliedEffectSettings.sceneCues.map(renderSceneCue)}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            {showComments && episodeId ? (
-              <EpisodeCommentSection
-                episodeId={episodeId}
-                loginHref={loginHref}
-              />
-            ) : null}
-          </div>
-        </section>
-      </div>
-
-      <div className="fixed inset-x-0 bottom-0 border-t border-white/10 bg-[#0a0a0a]/90 backdrop-blur">
-        <div className="mx-auto max-w-3xl px-4 py-3 sm:px-6">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                {workIndexHref ? (
-                  <Link
-                    href={workIndexHref}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 transition hover:bg-white/10"
-                  >
-                    目次
-                  </Link>
-                ) : (
-                  <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
-                    栞
-                  </div>
-                )}
-
-                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
-                  自動次話移動ON
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 sm:shrink-0">
-                <FooterEpisodeButton
-                  label="前話"
-                  episodeNumber={prevEpisodeNumber}
-                  disabled={!hasPrevEpisode || isAdvancing}
-                  onClick={() => {
-                    void handleMovePrev();
-                  }}
-                />
-                <FooterEpisodeButton
-                  label="次話"
-                  episodeNumber={nextEpisodeNumber}
-                  disabled={!hasNextEpisode || isAdvancing}
-                  onClick={() => {
-                    void handleMoveNext();
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2">
-              <ControlButton
-                label="🔖"
+          {!isNarrationStopped ? (
+            <div className="mt-3 grid w-full grid-cols-7 gap-2">
+              <FooterActionButton
+                label="栞"
                 disabled={false}
                 onClick={handleSaveBookmark}
               />
-              <ControlButton
-                label="↺15"
-                disabled={!canPlayAudio}
-                onClick={() => handleSeekBy(-15)}
+
+              <FooterPlaybackRateControl
+                value={playbackRate}
+                onDecrease={handleDecreasePlaybackRate}
+                onIncrease={handleIncreasePlaybackRate}
               />
-              <ControlButton
-                label={isPlaying ? "⏸" : "▶"}
+
+              <FooterActionButton
+                label="前話"
+                disabled={!hasPrevEpisode || isAdvancing}
+                onClick={() => {
+                  void handleMovePrev();
+                }}
+              />
+
+              <FooterActionButton
+                label={isPlaying ? "停止" : "再生"}
                 disabled={!canPlayAudio}
+                accent
                 onClick={() => {
                   void handleTogglePlay();
                 }}
               />
-              <ControlButton
-                label="15↻"
-                disabled={!canPlayAudio}
-                onClick={() => handleSeekBy(15)}
+
+              <FooterActionButton
+                label="次話"
+                disabled={!hasNextEpisode || isAdvancing}
+                onClick={() => {
+                  void handleMoveNext();
+                }}
               />
-              <ControlButton
-                label="⚙"
+
+              <FooterActionButton
+                label={autoFollow ? "自動追尾\nON" : "自動追尾"}
+                disabled={autoFollow || estimatedSentenceIndex < 0}
+                active={autoFollow}
+                onClick={handleEnableAutoFollow}
+              />
+
+              <FooterActionButton
+                label="設定"
                 disabled={false}
-                onClick={() => setIsSettingsOpen((prev) => !prev)}
+                active={isSettingsOpen}
+                onClick={handleToggleSettings}
               />
             </div>
-          </div>
+          ) : (
+            <div className="mt-3 grid w-full grid-cols-4 gap-2">
+              <FooterActionButton
+                label="栞"
+                disabled={false}
+                onClick={handleSaveBookmark}
+              />
+
+              <FooterActionButton
+                label="前話"
+                disabled={!hasPrevEpisode || isAdvancing}
+                onClick={() => {
+                  void handleMovePrev();
+                }}
+              />
+
+              <FooterActionButton
+                label="次話"
+                disabled={!hasNextEpisode || isAdvancing}
+                onClick={() => {
+                  void handleMoveNext();
+                }}
+              />
+
+              <FooterActionButton
+                label="設定"
+                disabled={false}
+                active={isSettingsOpen}
+                onClick={handleToggleSettings}
+              />
+            </div>
+          )}
         </div>
       </div>
     </main>
