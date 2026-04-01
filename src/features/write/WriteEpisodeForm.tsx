@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   getEpisodeBody,
   getEpisodeNumber,
+  isPublishedEpisode,
   pickText,
   type EpisodeRow,
 } from "@/features/write/writeShared";
@@ -26,6 +27,7 @@ type EpisodePayload = {
   episode_number: number;
   title: string;
   body: string;
+  is_published: boolean;
 };
 
 function createEpisodePayload(args: {
@@ -33,14 +35,16 @@ function createEpisodePayload(args: {
   episodeNumber: number;
   title: string;
   body: string;
+  isPublished: boolean;
 }): EpisodePayload {
-  const { seriesId, episodeNumber, title, body } = args;
+  const { seriesId, episodeNumber, title, body, isPublished } = args;
 
   return {
     series_id: seriesId,
     episode_number: episodeNumber,
     title,
     body,
+    is_published: isPublished,
   };
 }
 
@@ -52,20 +56,26 @@ export default function WriteEpisodeForm({
 }: WriteEpisodeFormProps) {
   const router = useRouter();
 
-  const [episodeNumber, setEpisodeNumber] = useState(String(initialEpisodeNumber));
-  const [title, setTitle] = useState(pickText(episode?.title));
-  const [body, setBody] = useState(episode ? getEpisodeBody(episode) : "");
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+const [episodeNumber, setEpisodeNumber] = useState(String(initialEpisodeNumber));
+const [title, setTitle] = useState(pickText(episode?.title));
+const [body, setBody] = useState(episode ? getEpisodeBody(episode) : "");
+const [isPublished, setIsPublished] = useState(
+  mode === "edit" && episode ? isPublishedEpisode(episode) : false
+);
+const [saveState, setSaveState] = useState<SaveState>("idle");
+const [errorMessage, setErrorMessage] = useState("");
+const [successMessage, setSuccessMessage] = useState("");
 
-  const parsedEpisodeNumber = Number(episodeNumber);
-  const safeEpisodeNumber =
-    Number.isFinite(parsedEpisodeNumber) && parsedEpisodeNumber > 0
-      ? parsedEpisodeNumber
-      : null;
+const parsedEpisodeNumber = Number(episodeNumber);
+const safeEpisodeNumber =
+  Number.isFinite(parsedEpisodeNumber) && parsedEpisodeNumber > 0
+    ? parsedEpisodeNumber
+    : null;
 
-  const readHref = safeEpisodeNumber ? `/read/${seriesId}/${safeEpisodeNumber}` : null;
+const readHref =
+  safeEpisodeNumber && isPublished
+    ? `/read/${seriesId}/${safeEpisodeNumber}`
+    : null;
   const characterCount = body.length;
   const lineCount = body.length === 0 ? 0 : body.split(/\r?\n/).length;
   const currentEpisodeLabel =
@@ -105,12 +115,13 @@ async function handleSubmit(destination: "workspace" | "effects" = "workspace") 
   setErrorMessage("");
   setSuccessMessage("");
 
-  const payload = createEpisodePayload({
-    seriesId,
-    episodeNumber: safeEpisodeNumber,
-    title: trimmedTitle,
-    body: trimmedBody,
-  });
+const payload = createEpisodePayload({
+  seriesId,
+  episodeNumber: safeEpisodeNumber,
+  title: trimmedTitle,
+  body: trimmedBody,
+  isPublished,
+});
 
   if (mode === "create") {
     const result = await supabase
@@ -246,6 +257,26 @@ async function handleSubmit(destination: "workspace" | "effects" = "workspace") 
                       className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
                     />
                   </label>
+
+<label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+  <input
+    type="checkbox"
+    checked={isPublished}
+    onChange={(event) => {
+      setIsPublished(event.target.checked);
+      resetNotice();
+    }}
+    className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5"
+  />
+  <div>
+    <p className="text-sm font-semibold text-white">公開する</p>
+    <p className="mt-2 text-sm leading-7 text-neutral-400">
+      ON の時は作品ページ、読む画面、朗読制作ページに出す。
+      OFF の時は下書きとして作者ワークスペースにだけ残す。
+    </p>
+  </div>
+</label>
+
                 </div>
 
 <div className="flex flex-wrap gap-3">
@@ -281,10 +312,10 @@ async function handleSubmit(destination: "workspace" | "effects" = "workspace") 
   </Link>
 </div>
 
-                <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-4 text-sm leading-7 text-amber-100">
-                  今のDBでは公開 / 下書きの保存列がまだ無い。
-                  この画面では当面、話数・タイトル・本文だけを保存する。
-                </div>
+<div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-4 text-sm leading-7 text-amber-100">
+  公開 canonical は <code>episodes.is_published</code>。
+  OFF の時は下書きとして保存し、作品ページや読む画面には出さない。
+</div>
 
                 {errorMessage ? (
                   <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">

@@ -10,6 +10,12 @@ import {
   mergeBgmSettings,
   parseBgmSettingsFromRow,
 } from "@/lib/bgm/bgmSettings";
+import {
+  getEpisodeBody,
+  getEpisodeNumber,
+  isPublishedEpisode,
+  type EpisodeRow,
+} from "@/features/write/writeShared";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -21,15 +27,6 @@ function pickString(row: RawRow, keys: string[], fallback = ""): string {
   for (const key of keys) {
     const value = row[key];
     if (typeof value === "string" && value.trim()) return value;
-  }
-  return fallback;
-}
-
-function pickNumber(row: RawRow, keys: string[], fallback = 0): number {
-  for (const key of keys) {
-    const value = row[key];
-    const num = Number(value);
-    if (Number.isFinite(num)) return num;
   }
   return fallback;
 }
@@ -75,7 +72,9 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
   }
 
   const rawSeries = ((seriesRow ?? {}) as RawRow) || {};
-  const rawEpisodes = ((episodeRows ?? []) as RawRow[]).filter(Boolean);
+  const rawEpisodes = ((episodeRows ?? []) as RawRow[])
+  .filter(Boolean)
+  .filter((row) => isPublishedEpisode(row as EpisodeRow));
 
   const authorName = pickString(
     rawSeries,
@@ -91,14 +90,15 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
 
 const episodes = rawEpisodes
   .map((row, index) => {
-    const episodeNumber = pickNumber(
-      row,
-      ["episode_number", "number", "sort_order", "display_order"],
-      index + 1
-    );
+    const episode = row as EpisodeRow;
+    const episodeNumber = getEpisodeNumber(episode) || index + 1;
 
-    const title = pickString(row, ["title", "name"], `第${episodeNumber}話`);
-    const body = pickString(row, ["body", "content", "text"], "");
+    const title = pickString(
+      row,
+      ["title", "episode_title", "name"],
+      `第${episodeNumber}話`
+    );
+    const body = getEpisodeBody(episode);
     const preview =
       body.trim().length > 140 ? `${body.trim().slice(0, 140)}...` : body.trim();
 

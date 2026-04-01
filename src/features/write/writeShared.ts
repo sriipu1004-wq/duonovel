@@ -100,7 +100,9 @@ export function getEpisodeNumber(episode: EpisodeRow): number {
   return 0;
 }
 
-export function isPublishedEpisode(episode: EpisodeRow): boolean {
+export function getEpisodePublishedValue(
+  episode: EpisodeRow
+): boolean | null {
   if (typeof episode.is_published === "boolean") {
     return episode.is_published;
   }
@@ -109,7 +111,12 @@ export function isPublishedEpisode(episode: EpisodeRow): boolean {
     return episode.published;
   }
 
-  return true;
+  return null;
+}
+
+export function isPublishedEpisode(episode: EpisodeRow): boolean {
+  const publishedValue = getEpisodePublishedValue(episode);
+  return publishedValue ?? true;
 }
 
 export function getEpisodeBody(episode: EpisodeRow): string {
