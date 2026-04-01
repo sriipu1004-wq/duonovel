@@ -16,6 +16,10 @@ import {
   mergeBgmSettings,
   parseBgmSettingsFromRow,
 } from "@/lib/bgm/bgmSettings";
+import {
+  mergeEffectSettings,
+  parseEffectSettingsFromRow,
+} from "@/lib/effects/effectSettings";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -359,6 +363,21 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     pickText(episodeBgmTitle, seriesBgmTitle) || (bgmSrc ? "作品BGM" : "");
   const bgmSettings = mergeBgmSettings(seriesBgmSettings, episodeBgmSettings);
 
+  const seriesEffectSettings = parseEffectSettingsFromRow(
+    series["effect_settings"],
+    series["effectSettings"]
+  );
+
+  const episodeEffectSettings = parseEffectSettingsFromRow(
+    episode["effect_settings"],
+    episode["effectSettings"]
+  );
+
+  const effectSettings = mergeEffectSettings(
+    seriesEffectSettings,
+    episodeEffectSettings
+  );
+
   return (
     <EpisodePlayback
       seriesId={seriesId}
@@ -383,6 +402,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
       bgmTitle={bgmTitle || undefined}
       bgmSrc={bgmSrc}
       bgmSettings={bgmSrc ? bgmSettings : undefined}
+      effectSettings={effectSettings}      
     />
   );
 }

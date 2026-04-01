@@ -10,6 +10,14 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
+import {
+  buildBackgroundTheme,
+  buildSegments,
+  buildTypographyStyle,
+  renderIllustration,
+  renderSceneCue,
+  renderSegment,
+} from "@/features/effects/EffectPreviewRenderer";
 import BgmController from "@/features/playback/BgmController";
 import EpisodeCommentSection from "@/features/comment/EpisodeCommentSection";
 import {
@@ -17,6 +25,10 @@ import {
   type ReadResumeState,
 } from "@/hooks/usePlayLogPersistence";
 import type { BgmSettings } from "@/lib/bgm/bgmSettings";
+import {
+  emptyEffectSettings,
+  type EffectSettings,
+} from "@/lib/effects/effectSettings";
 
 type EpisodePlaybackProps = {
   seriesId: string;
@@ -41,6 +53,7 @@ type EpisodePlaybackProps = {
   bgmTitle?: string;
   bgmSrc?: string | null;
   bgmSettings?: BgmSettings;
+  effectSettings?: EffectSettings;
 };
 
 type SentenceSegment = {
@@ -156,6 +169,15 @@ function clampFontScale(value: number): number {
   return Math.min(1.4, Math.max(0.9, value));
 }
 
+function renderSentenceWithInlineMarks(
+  text: string,
+  inlineMarks: EffectSettings["inlineMarks"]
+) {
+  return buildSegments(text, inlineMarks).map((segment, index) =>
+    renderSegment(segment, index)
+  );
+}
+
 function ControlButton({
   label,
   disabled = true,
@@ -259,6 +281,7 @@ export default function EpisodePlayback({
   bgmTitle,
   bgmSrc,
   bgmSettings,
+  effectSettings,
 }: EpisodePlaybackProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -328,6 +351,29 @@ export default function EpisodePlayback({
 
   const [displayPreference, setDisplayPreference] = useState<DisplayPreference>(
     () => readStoredDisplayPreference(seriesId)
+  );
+
+  const appliedEffectSettings = useMemo(
+    () => effectSettings ?? emptyEffectSettings(),
+    [effectSettings]
+  );
+
+  const effectTheme = useMemo(
+    () => buildBackgroundTheme(appliedEffectSettings.backgroundPreset),
+    [appliedEffectSettings.backgroundPreset]
+  );
+
+  const effectTypographyStyle = useMemo(
+    () => buildTypographyStyle(appliedEffectSettings),
+    [appliedEffectSettings]
+  );
+
+  const previewIllustrations = useMemo(
+    () =>
+      appliedEffectSettings.illustrations.filter(
+        (illustration) => illustration.placement !== "scene_break"
+      ),
+    [appliedEffectSettings]
   );
 
   const displayTheme = displayPreference.theme;
@@ -464,13 +510,23 @@ export default function EpisodePlayback({
 
   const readingPaneClass = useMemo(() => {
     if (displayTheme === "invert") {
-      return "rounded-[28px] bg-neutral-100 text-neutral-950 p-5 sm:p-6";
+      return "rounded-[28px] bg-neutral-100 p-5 text-neutral-950 sm:p-6";
     }
     if (displayTheme === "sepia") {
-      return "rounded-[28px] bg-[#2e241b] text-[#f3e7cf] p-5 sm:p-6";
+      return "rounded-[28px] bg-[#2e241b] p-5 text-[#f3e7cf] sm:p-6";
     }
-    return "rounded-[28px] bg-transparent text-neutral-100";
-  }, [displayTheme]);
+    return `${effectTheme.frameClassName} ${effectTheme.surfaceClassName} p-5 sm:p-6`;
+  }, [displayTheme, effectTheme.frameClassName, effectTheme.surfaceClassName]);
+
+  const readingPaneTextClassName = useMemo(() => {
+    if (displayTheme === "invert") {
+      return "text-neutral-950";
+    }
+    if (displayTheme === "sepia") {
+      return "text-[#f3e7cf]";
+    }
+    return effectTheme.textClassName;
+  }, [displayTheme, effectTheme.textClassName]);
 
   const markerClass = useMemo(() => {
     if (displayTheme === "invert") {
@@ -1065,11 +1121,18 @@ export default function EpisodePlayback({
 
           <div className="px-5 py-8 sm:px-8 sm:py-10">
             <div className={readingPaneClass}>
+              {previewIllustrations.length > 0 ? (
+                <div className="mb-6 grid gap-4">
+                  {previewIllustrations.map(renderIllustration)}
+                </div>
+              ) : null}
+
               <article
-                className="space-y-7"
+                className={`space-y-7 ${readingPaneTextClassName}`}
                 style={{
                   fontSize: `${fontScale}rem`,
                   lineHeight: lineHeightValue,
+                  ...effectTypographyStyle,
                 }}
               >
                 {paragraphBlocks.length > 0 ? (
@@ -1090,7 +1153,10 @@ export default function EpisodePlayback({
                               isActive ? `${markerClass}` : "",
                             ].join(" ")}
                           >
-                            {segment.text}
+                            {renderSentenceWithInlineMarks(
+                              segment.text,
+                              appliedEffectSettings.inlineMarks
+                            )}
                           </span>
                         );
                       })}
@@ -1100,6 +1166,17 @@ export default function EpisodePlayback({
                   <p>本文がありません。</p>
                 )}
               </article>
+
+              {appliedEffectSettings.sceneCues.length > 0 ? (
+                <div className="mt-6 border-t border-white/10 pt-4">
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">
+                    SCENE CUES
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {appliedEffectSettings.sceneCues.map(renderSceneCue)}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {showComments && episodeId ? (

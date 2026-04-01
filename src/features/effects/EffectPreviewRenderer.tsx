@@ -14,12 +14,12 @@ type EffectPreviewRendererProps = {
   settings: EffectSettings;
 };
 
-type TextSegment = {
+export type TextSegment = {
   text: string;
   marks: EffectInlineMark[];
 };
 
-function buildBackgroundTheme(preset: EffectBackgroundPreset) {
+export function buildBackgroundTheme(preset: EffectBackgroundPreset) {
   switch (preset) {
     case "paper":
       return {
@@ -65,7 +65,7 @@ function buildBackgroundTheme(preset: EffectBackgroundPreset) {
   }
 }
 
-function buildTypographyStyle(settings: EffectSettings): CSSProperties {
+export function buildTypographyStyle(settings: EffectSettings): CSSProperties {
   return {
     fontFamily: settings.typography.fontFamily ?? undefined,
     color: settings.typography.textColor ?? undefined,
@@ -138,7 +138,10 @@ function applyInlineMark(node: ReactNode, mark: EffectInlineMark): ReactNode {
   }
 }
 
-function buildSegments(text: string, marks: EffectInlineMark[]): TextSegment[] {
+export function buildSegments(
+  text: string,
+  marks: EffectInlineMark[]
+): TextSegment[] {
   let segments: TextSegment[] = [{ text, marks: [] }];
 
   for (const mark of marks) {
@@ -187,7 +190,7 @@ function buildSegments(text: string, marks: EffectInlineMark[]): TextSegment[] {
   return segments;
 }
 
-function renderSegment(segment: TextSegment, index: number) {
+export function renderSegment(segment: TextSegment, index: number) {
   let node: ReactNode = segment.text;
 
   for (const mark of segment.marks) {
@@ -197,7 +200,7 @@ function renderSegment(segment: TextSegment, index: number) {
   return <Fragment key={`segment-${index}`}>{node}</Fragment>;
 }
 
-function renderIllustration(illustration: EffectIllustration) {
+export function renderIllustration(illustration: EffectIllustration) {
   return (
     <figure
       key={illustration.id}
@@ -217,7 +220,7 @@ function renderIllustration(illustration: EffectIllustration) {
   );
 }
 
-function renderSceneCue(sceneCue: EffectSceneCue) {
+export function renderSceneCue(sceneCue: EffectSceneCue) {
   const pieces = [
     sceneCue.triggerText ? `発火: ${sceneCue.triggerText}` : "",
     sceneCue.backgroundPreset ? `背景: ${sceneCue.backgroundPreset}` : "",
