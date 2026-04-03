@@ -16,9 +16,8 @@ type PublicWorkBoardCardProps = {
 
 function buildTagHref(tag: string): string {
   const query = new URLSearchParams();
-  query.set("mode", "tag");
   query.set("tag", tag);
-  return `/?${query.toString()}#results`;
+  return `/search?${query.toString()}`;
 }
 
 export default function PublicWorkBoardCard({

@@ -1,57 +1,173 @@
 import Link from "next/link";
+import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  getEpisodeNumber,
+  getEpisodePostedAtValue,
+  getSeriesPublicationStatus,
+  getSeriesSummary,
+  isEpisodePubliclyVisible,
+  pickText,
+  sortEpisodes,
+  type EpisodeRow,
+  type SeriesRow,
+} from "@/features/write/writeShared";
 
 type SearchPageProps = {
   searchParams?: Promise<{
-    q?: string | string[];
-    genre?: string | string[];
-    tag?: string | string[];
+    q?: string;
+    tag?: string;
+    sort?: string;
+    mode?: string;
+    genre?: string;
   }>;
 };
 
-type GenreRow = {
-  id: number | string;
+type SortKey =
+  | "latest"
+  | "weekly-new"
+  | "overall-popular"
+  | "narration-popular";
+
+type UserRow = Record<string, unknown> & {
+  id: string;
+  display_name?: string | null;
+  username?: string | null;
+  pen_name?: string | null;
   name?: string | null;
 };
 
-type SeriesSearchRow = Record<string, unknown> & {
+type RecordingRow = Record<string, unknown> & {
   id: string;
-  title?: string | null;
-  summary?: string | null;
-  description?: string | null;
-  catch_copy?: string | null;
-  synopsis?: string | null;
-  body?: string | null;
-  genre?: string | null;
-  genre_name?: string | null;
-  genre_label?: string | null;
-  category?: string | null;
-  genre_id?: string | number | null;
-  genreId?: string | number | null;
-  main_genre_id?: string | number | null;
-  mainGenreId?: string | number | null;
-  genres?: unknown;
-  genre_ids?: unknown;
-  genreIds?: unknown;
-  genre_names?: unknown;
-  genreNames?: unknown;
-  tags?: string[] | null;
+  series_id?: string | null;
+  seriesId?: string | null;
+  like_count?: number | null;
+  likes_count?: number | null;
+  play_count?: number | null;
+  plays_count?: number | null;
+  is_public?: boolean | null;
+  public?: boolean | null;
+};
+
+type WorkCard = {
+  seriesId: string;
+  title: string;
+  summary: string;
+  authorName: string;
+  authorId: string | null;
+  episodeCount: number;
+  firstEpisodeNumber: number | null;
+  latestPostedLabel: string;
+  latestPostedAtValue: number;
+  createdAtValue: number;
+  tags: string[];
+  totalRecordingLikes: number;
+  totalRecordingPlays: number;
+  totalRecordingCount: number;
+  popularityScore: number;
 };
 
 type TagChip = {
-  name: string;
+  value: string;
+  label: string;
   count: number;
 };
 
-function normalizeQuery(raw: string | string[] | undefined): string {
-  if (Array.isArray(raw)) {
-    return raw[0]?.trim() ?? "";
-  }
-  return raw?.trim() ?? "";
+function isPublicRecording(recording: RecordingRow): boolean {
+  if (recording.is_public === false) return false;
+  if (recording.public === false) return false;
+  return true;
 }
 
-function normalizeText(value: string): string {
-  return value.trim().toLowerCase();
+function getRecordingLikes(recording: RecordingRow): number {
+  const raw = recording.like_count ?? recording.likes_count ?? 0;
+  if (typeof raw === "number") return raw;
+  const parsed = Number(raw);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function getRecordingPlays(recording: RecordingRow): number {
+  const raw = recording.play_count ?? recording.plays_count ?? 0;
+  if (typeof raw === "number") return raw;
+  const parsed = Number(raw);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) {
+    return "日付未設定";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "日付未設定";
+  }
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(parsed);
+}
+
+function toTimeValue(value: unknown): number {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return 0;
+  }
+
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function parseTagList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item).trim())
+      .filter((item) => item.length > 0)
+      .map((item) => (item.startsWith("#") ? item : `#${item}`));
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value
+      .split(/[,、\s]+/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+      .map((item) => (item.startsWith("#") ? item : `#${item}`));
+  }
+
+  return [];
+}
+
+function getSeriesTags(series: SeriesRow): string[] {
+  const candidates = [
+    series["tags"],
+    series["tag_list"],
+    series["tagList"],
+    series["genres"],
+    series["genre"],
+    series["keywords"],
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = parseTagList(candidate);
+    if (parsed.length > 0) {
+      return parsed;
+    }
+  }
+
+  return [];
+}
+
+function buildReadHref(seriesId: string, episodeNumber: number): string {
+  return `/read/${seriesId}/${episodeNumber}`;
+}
+
+function buildWorkHref(seriesId: string): string {
+  return `/works/${seriesId}`;
+}
+
+function buildAuthorHref(authorId: string): string {
+  return `/authors/${encodeURIComponent(authorId)}`;
 }
 
 function normalizeTagToken(value: string): string {
@@ -64,506 +180,622 @@ function formatTagLabel(value: string): string {
   return `#${trimmed}`;
 }
 
-function pickText(...values: unknown[]): string {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value.trim();
-    }
+function buildSearchHref(params: {
+  q?: string;
+  tag?: string;
+  sort?: SortKey;
+}): string {
+  const query = new URLSearchParams();
+
+  if (params.q && params.q.trim().length > 0) {
+    query.set("q", params.q.trim());
   }
-  return "";
+
+  if (params.tag && params.tag.trim().length > 0) {
+    query.set("tag", params.tag.trim());
+  }
+
+  if (params.sort) {
+    query.set("sort", params.sort);
+  }
+
+  const queryString = query.toString();
+  return queryString ? `/search?${queryString}` : "/search";
 }
 
-function toFlatStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .flatMap((item) => toFlatStringArray(item))
-      .filter((item) => item.length > 0);
-  }
-
-  if (typeof value === "number") {
-    return [String(value)];
-  }
-
-  if (typeof value !== "string") {
-    return [];
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return [];
-  }
-
-  if (
-    (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
-    (trimmed.startsWith("{") && trimmed.endsWith("}"))
-  ) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      return toFlatStringArray(parsed);
-    } catch {
-      return trimmed
-        .split(/[,、]/)
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0);
-    }
-  }
-
-  return trimmed
-    .split(/[,、]/)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-}
-
-function buildSearchTarget(series: SeriesSearchRow): string {
+function buildSearchTarget(work: WorkCard): string {
   return [
-    pickText(series.title),
-    pickText(series.summary),
-    pickText(series.description),
-    pickText(series.catch_copy),
-    pickText(series.synopsis),
-    pickText(series.body),
+    work.title,
+    work.summary,
+    work.authorName,
+    work.tags.join(" "),
   ]
     .join("\n")
     .toLowerCase();
 }
 
-function buildGenreTarget(series: SeriesSearchRow): string[] {
-  return [
-    pickText(series.genre),
-    pickText(series.genre_name),
-    pickText(series.genre_label),
-    pickText(series.category),
-    ...toFlatStringArray(series.genres),
-    ...toFlatStringArray(series.genre_names),
-    ...toFlatStringArray(series.genreNames),
-    ...toFlatStringArray(series.genre_ids),
-    ...toFlatStringArray(series.genreIds),
-    ...toFlatStringArray(series.genre_id),
-    ...toFlatStringArray(series.genreId),
-    ...toFlatStringArray(series.main_genre_id),
-    ...toFlatStringArray(series.mainGenreId),
-  ]
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-}
+function buildAvailableTags(works: WorkCard[]): TagChip[] {
+  const counter = new Map<string, TagChip>();
 
-function buildTagTarget(series: SeriesSearchRow): string[] {
-  return (series.tags ?? [])
-    .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
-    .filter((tag) => tag.length > 0);
-}
+  for (const work of works) {
+    const seen = new Set<string>();
 
-function pickSnippet(series: SeriesSearchRow): string {
-  return (
-    pickText(
-      series.summary,
-      series.description,
-      series.catch_copy,
-      series.synopsis,
-      series.body
-    ) || "この作品にはまだ説明文が登録されていません。"
-  );
-}
+    for (const tag of work.tags) {
+      const normalized = normalizeTagToken(tag);
+      if (!normalized || seen.has(normalized)) {
+        continue;
+      }
 
-function matchesGenre(
-  series: SeriesSearchRow,
-  selectedGenreName: string,
-  selectedGenreId: string
-): boolean {
-  if (!selectedGenreName && !selectedGenreId) {
-    return true;
-  }
+      seen.add(normalized);
 
-  const normalizedGenreName = normalizeText(selectedGenreName);
-  const genreTargets = buildGenreTarget(series);
+      const current = counter.get(normalized);
+      if (current) {
+        current.count += 1;
+        continue;
+      }
 
-  if (selectedGenreId && genreTargets.some((item) => item === selectedGenreId)) {
-    return true;
-  }
-
-  if (
-    normalizedGenreName &&
-    genreTargets.some((item) => normalizeText(item).includes(normalizedGenreName))
-  ) {
-    return true;
-  }
-
-  if (
-    normalizedGenreName &&
-    buildSearchTarget(series).includes(normalizedGenreName)
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function matchesTag(series: SeriesSearchRow, selectedTagName: string): boolean {
-  if (!selectedTagName) {
-    return true;
-  }
-
-  const normalizedSelectedTag = normalizeTagToken(selectedTagName);
-  const tagTargets = buildTagTarget(series).map(normalizeTagToken);
-
-  return tagTargets.some(
-    (item) =>
-      item === normalizedSelectedTag ||
-      item.includes(normalizedSelectedTag) ||
-      normalizedSelectedTag.includes(item)
-  );
-}
-
-function buildAvailableTags(seriesRows: SeriesSearchRow[]): TagChip[] {
-  const counter = new Map<string, number>();
-
-  for (const series of seriesRows) {
-    const uniqueTags = new Set(
-      buildTagTarget(series)
-        .map(normalizeTagToken)
-        .filter((item) => item.length > 0)
-    );
-
-    for (const tag of uniqueTags) {
-      counter.set(tag, (counter.get(tag) ?? 0) + 1);
+      counter.set(normalized, {
+        value: normalized,
+        label: formatTagLabel(tag),
+        count: 1,
+      });
     }
   }
 
-  return Array.from(counter.entries())
-    .map(([name, count]) => ({ name, count }))
+  return Array.from(counter.values())
     .sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count;
-      return a.name.localeCompare(b.name, "ja");
+      if (b.count !== a.count) {
+        return b.count - a.count;
+      }
+      return a.value.localeCompare(b.value, "ja");
     })
     .slice(0, 24);
 }
 
-function buildSearchHref(params: {
-  q?: string;
-  genre?: string;
-  tag?: string;
-}): string {
-  const searchParams = new URLSearchParams();
+function sortLatest(works: WorkCard[]) {
+  return [...works].sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue);
+}
 
-  if (params.q) searchParams.set("q", params.q);
-  if (params.genre) searchParams.set("genre", params.genre);
-  if (params.tag) searchParams.set("tag", params.tag);
+function sortWeeklyNew(works: WorkCard[]) {
+  const now = Date.now();
+  const twoWeeks = 1000 * 60 * 60 * 24 * 14;
 
-  const queryString = searchParams.toString();
-  return queryString ? `/search?${queryString}` : "/search";
+  const recent = works.filter((work) => now - work.createdAtValue <= twoWeeks);
+  const target = recent.length > 0 ? recent : works;
+
+  return [...target].sort((a, b) => {
+    if (b.createdAtValue !== a.createdAtValue) {
+      return b.createdAtValue - a.createdAtValue;
+    }
+    return b.latestPostedAtValue - a.latestPostedAtValue;
+  });
+}
+
+function sortOverallPopular(works: WorkCard[]) {
+  return [...works].sort((a, b) => {
+    if (b.popularityScore !== a.popularityScore) {
+      return b.popularityScore - a.popularityScore;
+    }
+    return b.latestPostedAtValue - a.latestPostedAtValue;
+  });
+}
+
+function sortNarrationPopular(works: WorkCard[]) {
+  return [...works].sort((a, b) => {
+    if (b.totalRecordingPlays !== a.totalRecordingPlays) {
+      return b.totalRecordingPlays - a.totalRecordingPlays;
+    }
+    if (b.totalRecordingLikes !== a.totalRecordingLikes) {
+      return b.totalRecordingLikes - a.totalRecordingLikes;
+    }
+    return b.latestPostedAtValue - a.latestPostedAtValue;
+  });
+}
+
+function resolveSort(value: string): SortKey {
+  if (value === "latest") return "latest";
+  if (value === "weekly-new") return "weekly-new";
+  if (value === "narration-popular") return "narration-popular";
+  return "overall-popular";
+}
+
+function getSortLabel(sort: SortKey): string {
+  if (sort === "latest") return "新着更新順";
+  if (sort === "weekly-new") return "週間新作おすすめ順";
+  if (sort === "narration-popular") return "朗読視聴人気順";
+  return "総合人気順";
+}
+
+function getSortDescription(sort: SortKey): string {
+  if (sort === "latest") {
+    return "最近更新された公開作品から順に表示。";
+  }
+  if (sort === "weekly-new") {
+    return "新しめの作品から入りやすい順に表示。";
+  }
+  if (sort === "narration-popular") {
+    return "朗読視聴寄りの人気順で表示。";
+  }
+  return "公開中作品を総合人気寄りの順に表示。";
+}
+
+async function fetchPublicSeries(): Promise<SeriesRow[]> {
+  const { data, error } = await supabase
+    .from("series")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(80);
+
+  if (error) {
+    throw new Error(`series の取得に失敗: ${error.message}`);
+  }
+
+  return ((data ?? []) as SeriesRow[]).filter(
+    (series) => getSeriesPublicationStatus(series) === "public"
+  );
+}
+
+async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
+  const firstTry = await supabase
+    .from("episodes")
+    .select("*")
+    .eq("series_id", seriesId);
+
+  if (!firstTry.error) {
+    return (firstTry.data ?? []) as EpisodeRow[];
+  }
+
+  const secondTry = await supabase
+    .from("episodes")
+    .select("*")
+    .eq("seriesId", seriesId);
+
+  if (!secondTry.error) {
+    return (secondTry.data ?? []) as EpisodeRow[];
+  }
+
+  return [];
+}
+
+async function fetchAuthorMap(authorIds: string[]): Promise<Map<string, UserRow>> {
+  if (authorIds.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .in("id", authorIds);
+
+  if (error) {
+    return new Map();
+  }
+
+  return new Map(((data ?? []) as UserRow[]).map((user) => [user.id, user]));
+}
+
+async function fetchPublicRecordings(): Promise<RecordingRow[]> {
+  const firstTry = await supabase.from("recordings").select("*");
+
+  if (!firstTry.error) {
+    return ((firstTry.data ?? []) as RecordingRow[]).filter(isPublicRecording);
+  }
+
+  return [];
+}
+
+function buildRecordingAggregateMap(recordings: RecordingRow[]) {
+  const aggregate = new Map<
+    string,
+    {
+      totalRecordingLikes: number;
+      totalRecordingPlays: number;
+      totalRecordingCount: number;
+    }
+  >();
+
+  for (const recording of recordings) {
+    const seriesId =
+      pickText(recording.series_id, recording.seriesId) || null;
+
+    if (!seriesId) continue;
+
+    const current = aggregate.get(seriesId) ?? {
+      totalRecordingLikes: 0,
+      totalRecordingPlays: 0,
+      totalRecordingCount: 0,
+    };
+
+    current.totalRecordingLikes += getRecordingLikes(recording);
+    current.totalRecordingPlays += getRecordingPlays(recording);
+    current.totalRecordingCount += 1;
+
+    aggregate.set(seriesId, current);
+  }
+
+  return aggregate;
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const query = normalizeQuery(resolvedSearchParams?.q);
-  const selectedGenreName = normalizeQuery(resolvedSearchParams?.genre);
-  const selectedTagName = normalizeQuery(resolvedSearchParams?.tag);
 
-  const [
-    { data: seriesData, error: seriesError },
-    { data: genresData, error: genresError },
-  ] = await Promise.all([
-    supabase.from("series").select("*").limit(100),
-    supabase.from("genres").select("id, name").order("id", { ascending: true }),
-  ]);
+  const query = pickText(resolvedSearchParams?.q);
+  const selectedTag = pickText(resolvedSearchParams?.tag);
+  const sort = resolveSort(
+    pickText(resolvedSearchParams?.sort, resolvedSearchParams?.mode)
+  );
 
-  const genres = (genresData ?? []) as GenreRow[];
-  const selectedGenre =
-    genres.find(
-      (genre) =>
-        normalizeText(genre.name ?? "") === normalizeText(selectedGenreName)
-    ) ?? null;
+  const publicSeries = await fetchPublicSeries();
+  const publicRecordings = await fetchPublicRecordings();
+  const recordingAggregateMap = buildRecordingAggregateMap(publicRecordings);
 
-  const selectedGenreId = selectedGenre ? String(selectedGenre.id) : "";
+  const authorIds = Array.from(
+    new Set(
+      publicSeries
+        .map((series) =>
+          pickText(series.author_id, series["user_id"], series["userId"])
+        )
+        .filter((value): value is string => !!value)
+    )
+  );
 
-  let errorMessage = "";
-  let results: SeriesSearchRow[] = [];
-  let availableTags: TagChip[] = [];
+  const authorMap = await fetchAuthorMap(authorIds);
 
-  if (seriesError) {
-    console.error("作品検索エラー:", seriesError);
-    errorMessage = "検索中にエラーが発生しました。";
-  } else {
-    if (genresError) {
-      console.error("ジャンル取得エラー:", genresError);
-    }
+  const workCards = (
+    await Promise.all(
+      publicSeries.map(async (series) => {
+        const publicEpisodes = sortEpisodes(
+          (await fetchEpisodesBySeriesId(series.id)).filter((episode) =>
+            isEpisodePubliclyVisible(episode)
+          )
+        );
 
-    const rows = ((seriesData ?? []) as SeriesSearchRow[]).filter(
-      (series) => typeof series.id === "string" && series.id.length > 0
-    );
+        if (publicEpisodes.length === 0) {
+          return null;
+        }
 
-    availableTags = buildAvailableTags(rows);
+        const firstEpisode = publicEpisodes[0] ?? null;
+        const latestEpisode = publicEpisodes[publicEpisodes.length - 1] ?? null;
 
-    const normalizedQuery = normalizeText(query);
+        const authorId = pickText(
+          series.author_id,
+          series["user_id"],
+          series["userId"]
+        ) || null;
 
-    results = rows.filter((series) => {
-      const queryOk =
-        !normalizedQuery || buildSearchTarget(series).includes(normalizedQuery);
+        const author = authorId ? authorMap.get(authorId) : null;
 
-      const genreOk = matchesGenre(series, selectedGenreName, selectedGenreId);
-      const tagOk = matchesTag(series, selectedTagName);
+        const latestPostedRaw = latestEpisode
+          ? getEpisodePostedAtValue(latestEpisode)
+          : null;
 
-      return queryOk && genreOk && tagOk;
-    });
-  }
+        const latestPostedAtValue = latestPostedRaw
+          ? new Date(latestPostedRaw).getTime()
+          : 0;
 
-  const hasActiveFilter =
-    query.length > 0 || selectedGenreName.length > 0 || selectedTagName.length > 0;
+        const createdAtValue = toTimeValue(series["created_at"]);
+        const tags = getSeriesTags(series);
+
+        const recordingAgg = recordingAggregateMap.get(series.id) ?? {
+          totalRecordingLikes: 0,
+          totalRecordingPlays: 0,
+          totalRecordingCount: 0,
+        };
+
+        const popularityScore =
+          recordingAgg.totalRecordingPlays * 3 +
+          recordingAgg.totalRecordingLikes * 10 +
+          recordingAgg.totalRecordingCount * 5 +
+          publicEpisodes.length;
+
+        return {
+          seriesId: series.id,
+          title: pickText(series.title) || "無題",
+          summary:
+            getSeriesSummary(series) || "あらすじはまだ登録されていません。",
+          authorName:
+            pickText(
+              author?.display_name,
+              author?.pen_name,
+              author?.username,
+              author?.name,
+              series["author_name"]
+            ) || "作者名未設定",
+          authorId,
+          episodeCount: publicEpisodes.length,
+          firstEpisodeNumber: firstEpisode
+            ? getEpisodeNumber(firstEpisode)
+            : null,
+          latestPostedLabel: formatDate(latestPostedRaw),
+          latestPostedAtValue,
+          createdAtValue,
+          tags,
+          totalRecordingLikes: recordingAgg.totalRecordingLikes,
+          totalRecordingPlays: recordingAgg.totalRecordingPlays,
+          totalRecordingCount: recordingAgg.totalRecordingCount,
+          popularityScore,
+        } satisfies WorkCard;
+      })
+    )
+  ).filter((card): card is WorkCard => !!card);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedSelectedTag = normalizeTagToken(selectedTag);
+
+  const filteredWorks = workCards.filter((work) => {
+    const queryOk =
+      normalizedQuery.length === 0 ||
+      buildSearchTarget(work).includes(normalizedQuery);
+
+    const tagOk =
+      normalizedSelectedTag.length === 0 ||
+      work.tags.some((tag) => {
+        const normalizedTag = normalizeTagToken(tag);
+        return (
+          normalizedTag === normalizedSelectedTag ||
+          normalizedTag.includes(normalizedSelectedTag) ||
+          normalizedSelectedTag.includes(normalizedTag)
+        );
+      });
+
+    return queryOk && tagOk;
+  });
+
+  const sortedWorks =
+    sort === "latest"
+      ? sortLatest(filteredWorks)
+      : sort === "weekly-new"
+        ? sortWeeklyNew(filteredWorks)
+        : sort === "narration-popular"
+          ? sortNarrationPopular(filteredWorks)
+          : sortOverallPopular(filteredWorks);
+
+  const availableTags = buildAvailableTags(workCards);
+  const selectedTagLabel = selectedTag ? formatTagLabel(selectedTag) : "";
+  const hasActiveFilter = query.length > 0 || selectedTag.length > 0;
+
+  const sortOptions: Array<{ value: SortKey; label: string }> = [
+    { value: "overall-popular", label: "総合人気順" },
+    { value: "latest", label: "新着更新順" },
+    { value: "weekly-new", label: "週間新作おすすめ順" },
+    { value: "narration-popular", label: "朗読視聴人気順" },
+  ];
 
   return (
-    <main className="min-h-screen bg-[#050510] px-6 py-8 text-[#f5f5f5]">
-      <div className="mx-auto w-full max-w-5xl">
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto w-full max-w-7xl px-4 pb-20 pt-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <Link href="/" className="hover:text-neutral-300">
+          <Link href="/" className="hover:text-black">
             TOP
           </Link>
           <span className="mx-2">/</span>
-          <span className="text-neutral-300">検索</span>
+          <span className="text-neutral-700">公開検索</span>
         </div>
 
-        <section className="rounded-[32px] border border-white/10 bg-white/[0.04] p-6 shadow-2xl sm:p-8">
-          <p className="text-xs tracking-[0.24em] text-neutral-500">SEARCH</p>
-          <h1 className="mt-3 text-3xl font-bold text-white">作品検索</h1>
-          <p className="mt-3 text-sm leading-7 text-neutral-300">
-            キーワード検索、ジャンル絞り込みに加えて、
-            作品タグ canonical source である series.tags を使ったタグ絞り込みに対応しています。
-          </p>
+        <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6 lg:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-[11px] tracking-[0.24em] text-neutral-500">
+                PUBLIC SEARCH
+              </p>
+              <h1 className="mt-3 text-2xl font-bold leading-tight text-black sm:text-3xl">
+                公開作品を探す
+              </h1>
+              <p className="mt-3 max-w-3xl text-sm leading-8 text-neutral-600 sm:text-[15px]">
+                キーワード、タグ、並び順から公開作品を探せるページ。
+                トップの「さらに表示」やタグ押下からそのまま流れ込める公開導線として使う。
+              </p>
+            </div>
+
+            <Link
+              href="/"
+              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+            >
+              TOPへ戻る
+            </Link>
+          </div>
 
           <form
             action="/search"
             method="get"
-            className="mt-6 flex flex-col gap-3"
+            className="mt-6 grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.9fr)_220px_auto]"
           >
-            <div className="grid gap-3 md:grid-cols-[1.5fr_1fr_auto]">
-              <input
-                type="text"
-                name="q"
-                defaultValue={query}
-                placeholder="作品タイトル / キーワードで検索"
-                className="h-12 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white outline-none placeholder:text-neutral-500 focus:border-white/30"
-              />
+            <input
+              type="text"
+              name="q"
+              defaultValue={query}
+              placeholder="作品名 / 作者名 / あらすじなどで検索"
+              className="h-12 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
+            />
 
-              <input
-                type="text"
-                name="tag"
-                defaultValue={selectedTagName}
-                placeholder="タグで絞る（#不要）"
-                className="h-12 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white outline-none placeholder:text-neutral-500 focus:border-white/30"
-              />
+            <input
+              type="text"
+              name="tag"
+              defaultValue={selectedTag}
+              placeholder="タグで絞る（#ありでも可）"
+              className="h-12 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
+            />
 
-              <button
-                type="submit"
-                className="inline-flex h-12 items-center justify-center rounded-2xl bg-white px-5 text-sm font-semibold text-black transition hover:opacity-90"
-              >
-                検索する
-              </button>
-            </div>
+            <select
+              name="sort"
+              defaultValue={sort}
+              className="h-12 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none focus:border-sky-200"
+            >
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
 
-            {selectedGenreName ? (
-              <input type="hidden" name="genre" value={selectedGenreName} />
-            ) : null}
+            <button
+              type="submit"
+              className="inline-flex h-12 items-center justify-center rounded-2xl border border-black/10 bg-neutral-200 px-5 text-sm font-medium text-black transition hover:bg-neutral-300"
+            >
+              検索する
+            </button>
           </form>
 
-          <div className="mt-6">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <p className="text-xs tracking-[0.18em] text-neutral-500">
-                GENRE FILTER
-              </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {hasActiveFilter ? (
+              <>
+                {query ? (
+                  <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
+                    キーワード: {query}
+                  </span>
+                ) : null}
 
-              {selectedGenreName ? (
+                {selectedTagLabel ? (
+                  <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
+                    タグ: {selectedTagLabel}
+                  </span>
+                ) : null}
+
                 <Link
-                  href={buildSearchHref({
-                    q: query,
-                    tag: selectedTagName,
-                  })}
-                  className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 transition hover:bg-white hover:text-black"
+                  href={buildSearchHref({ sort })}
+                  className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
                 >
-                  ジャンル解除
+                  条件をクリア
                 </Link>
-              ) : null}
+              </>
+            ) : (
+              <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-600">
+                条件なしで公開作品を表示中
+              </span>
+            )}
+          </div>
+
+          <div className="mt-6">
+            <p className="text-[11px] tracking-[0.18em] text-neutral-500">
+              POPULAR TAGS
+            </p>
+
+            {availableTags.length === 0 ? (
+              <p className="mt-3 text-sm leading-7 text-neutral-500">
+                まだタグ候補がない。
+              </p>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {availableTags.map((tag) => {
+                  const active =
+                    normalizeTagToken(tag.value) ===
+                    normalizeTagToken(selectedTag);
+
+                  return (
+                    <Link
+                      key={tag.value}
+                      href={buildSearchHref({
+                        q: query,
+                        tag: tag.label,
+                        sort,
+                      })}
+                      className={[
+                        "rounded-full border px-3 py-2 text-sm transition",
+                        active
+                          ? "border-sky-200 bg-sky-50 text-black"
+                          : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
+                      ].join(" ")}
+                    >
+                      {tag.label}
+                      <span className="ml-2 text-neutral-400">{tag.count}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="pt-10">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-3">
+            <div>
+              <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+                RESULTS
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
+                {getSortLabel(sort)}
+              </h2>
+              <p className="mt-2 text-sm leading-7 text-neutral-600">
+                {getSortDescription(sort)}
+              </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {genres.map((genre) => {
-                const name = pickText(genre.name);
-                const active =
-                  normalizeText(name) === normalizeText(selectedGenreName);
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
+                {sortedWorks.length}件
+              </span>
+
+              {sortOptions.map((option) => {
+                const active = option.value === sort;
 
                 return (
                   <Link
-                    key={String(genre.id)}
+                    key={option.value}
                     href={buildSearchHref({
                       q: query,
-                      genre: name,
-                      tag: selectedTagName,
+                      tag: selectedTag,
+                      sort: option.value,
                     })}
                     className={[
-                      "rounded-full border px-3 py-2 text-sm transition",
+                      "rounded-full border px-4 py-2 text-sm transition",
                       active
-                        ? "border-white bg-white text-black"
-                        : "border-white/10 bg-black/20 text-neutral-200 hover:bg-white hover:text-black",
+                        ? "border-sky-200 bg-sky-50 text-black"
+                        : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
                     ].join(" ")}
                   >
-                    {name}
+                    {option.label}
                   </Link>
                 );
               })}
             </div>
           </div>
 
-          <div className="mt-6">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <p className="text-xs tracking-[0.18em] text-neutral-500">
-                TAG FILTER
-              </p>
-
-              {selectedTagName ? (
-                <Link
-                  href={buildSearchHref({
-                    q: query,
-                    genre: selectedGenreName,
-                  })}
-                  className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300 transition hover:bg-white hover:text-black"
-                >
-                  タグ解除
-                </Link>
-              ) : null}
+          {workCards.length === 0 ? (
+            <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
+              まだ公開作品がない。
             </div>
-
-            {availableTags.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {availableTags.map((tag) => {
-                  const label = formatTagLabel(tag.name);
-                  const active =
-                    normalizeTagToken(tag.name) === normalizeTagToken(selectedTagName);
-
-                  return (
-                    <Link
-                      key={tag.name}
-                      href={buildSearchHref({
-                        q: query,
-                        genre: selectedGenreName,
-                        tag: tag.name,
-                      })}
-                      className={[
-                        "rounded-full border px-3 py-2 text-sm transition",
-                        active
-                          ? "border-white bg-white text-black"
-                          : "border-white/10 bg-black/20 text-neutral-200 hover:bg-white hover:text-black",
-                      ].join(" ")}
-                    >
-                      {label}
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm leading-7 text-neutral-400">
-                今は series.tags に入っているタグ候補がまだありません。上の入力欄から手動で tag を試せます。
-              </p>
-            )}
-          </div>
+          ) : sortedWorks.length === 0 ? (
+            <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
+              条件に合う公開作品がない。
+            </div>
+          ) : (
+            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+              {sortedWorks.map((work) => (
+                <PublicWorkBoardCard
+                  key={work.seriesId}
+                  title={work.title}
+                  workHref={buildWorkHref(work.seriesId)}
+                  authorName={work.authorName}
+                  authorHref={work.authorId ? buildAuthorHref(work.authorId) : undefined}
+                  latestPostedLabel={work.latestPostedLabel}
+                  summary={work.summary}
+                  firstReadHref={
+                    work.firstEpisodeNumber
+                      ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
+                      : undefined
+                  }
+                  tags={work.tags}
+                />
+              ))}
+            </div>
+          )}
         </section>
 
-        <section className="mt-8">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs tracking-[0.18em] text-neutral-500">
-                RESULTS
-              </p>
-              <h2 className="mt-2 text-xl font-semibold text-white">
-                絞り込み結果
-              </h2>
-            </div>
+        <div className="mt-10 flex flex-wrap gap-3">
+          <Link
+            href="/"
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+          >
+            TOPへ戻る
+          </Link>
 
-            {hasActiveFilter ? (
-              <div className="flex flex-wrap items-center gap-2">
-                {query ? (
-                  <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-300">
-                    キーワード: {query}
-                  </span>
-                ) : null}
-
-                {selectedGenreName ? (
-                  <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-300">
-                    ジャンル: {selectedGenreName}
-                  </span>
-                ) : null}
-
-                {selectedTagName ? (
-                  <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-300">
-                    タグ: {formatTagLabel(selectedTagName)}
-                  </span>
-                ) : null}
-
-                <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-300">
-                  結果: {results.length}件
-                </span>
-              </div>
-            ) : (
-              <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-400">
-                まずはキーワード・ジャンル・タグのどれかを選ぶ
-              </div>
-            )}
-          </div>
-
-          {errorMessage ? (
-            <div className="rounded-[24px] border border-red-400/20 bg-red-400/10 p-4 text-sm leading-7 text-red-200">
-              {errorMessage}
-            </div>
-          ) : null}
-
-          {!hasActiveFilter && !errorMessage ? (
-            <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 p-6 text-sm leading-7 text-neutral-400">
-              キーワードを入れるか、ジャンルまたはタグを選んで作品を絞り込んでください。
-            </div>
-          ) : null}
-
-          {hasActiveFilter && !errorMessage && results.length === 0 ? (
-            <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 p-6 text-sm leading-7 text-neutral-400">
-              条件に一致する作品は見つかりませんでした。
-            </div>
-          ) : null}
-
-          {results.length > 0 ? (
-            <div className="grid gap-4">
-              {results.map((series) => {
-                const title = pickText(series.title) || "無題";
-                const snippet = pickSnippet(series);
-
-                return (
-                  <article
-                    key={series.id}
-                    className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5"
-                  >
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs tracking-[0.18em] text-neutral-500">
-                          WORK
-                        </p>
-                        <h3 className="mt-2 text-xl font-semibold text-white">
-                          {title}
-                        </h3>
-                        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-300">
-                          {snippet}
-                        </p>
-                      </div>
-
-                      <div className="shrink-0">
-                        <Link
-                          href={`/works/${series.id}`}
-                          className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white px-4 text-sm font-semibold text-black transition hover:opacity-90"
-                        >
-                          作品ページへ
-                        </Link>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : null}
-        </section>
+          <Link
+            href="/#latest"
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+          >
+            トップの一覧へ戻る
+          </Link>
+        </div>
       </div>
     </main>
   );

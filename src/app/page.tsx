@@ -157,8 +157,8 @@ function buildAuthorHref(authorId: string): string {
 
 function buildMoreHref(mode: string): string {
   const query = new URLSearchParams();
-  query.set("mode", mode);
-  return `/?${query.toString()}#results`;
+  query.set("sort", mode);
+  return `/search?${query.toString()}`;
 }
 
 async function fetchPublicSeries(): Promise<SeriesRow[]> {
@@ -547,6 +547,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                   目次
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <ExploreChip href="/search" label="検索ページへ" />
                   <ExploreChip href="#latest" label="新着更新" />
                   <ExploreChip href="#weekly-new" label="週間新作おすすめ" />
                   <ExploreChip href="#overall-popular" label="総合人気順" />
