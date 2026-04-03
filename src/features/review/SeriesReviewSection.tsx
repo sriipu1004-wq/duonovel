@@ -597,6 +597,8 @@ export default function SeriesReviewSection({
     return next;
   }, [reviews, sortField, sortDirection, likeCountMap]);
 
+  const shouldHideOwnReviewEditor = !isExpanded && Boolean(topLikedReview);
+
   return (
     <section className="rounded-[28px] border border-black/10 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -669,10 +671,6 @@ export default function SeriesReviewSection({
               >
                 {sortField === "created_at" ? "投稿順" : "いいね順"}
               </button>
-
-              <span className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm text-neutral-500">
-                {sortedReviews.length}件
-              </span>
             </div>
           </div>
 
@@ -710,65 +708,67 @@ export default function SeriesReviewSection({
           レビュー状態を確認中...
         </div>
       ) : isLoggedIn ? (
-        <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-black">自分のレビュー</p>
-              <p className="mt-1 text-xs text-neutral-500">
-                {ownReview
-                  ? `最終更新 ${formatReviewDate(
-                      ownReview.updated_at ?? ownReview.created_at
-                    )}`
-                  : "まだ投稿していない"}
-              </p>
+        shouldHideOwnReviewEditor ? null : (
+          <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-black">自分のレビュー</p>
+                <p className="mt-1 text-xs text-neutral-500">
+                  {ownReview
+                    ? `最終更新 ${formatReviewDate(
+                        ownReview.updated_at ?? ownReview.created_at
+                      )}`
+                    : "まだ投稿していない"}
+                </p>
+              </div>
+
+              <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
+                1作品1件 / 300文字
+              </span>
             </div>
 
-            <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
-              1作品1件 / 300文字
-            </span>
-          </div>
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={5}
+              maxLength={MAX_REVIEW_LENGTH}
+              placeholder="読後感や短いレビューを書く"
+              className="mt-4 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
+            />
 
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            rows={5}
-            maxLength={MAX_REVIEW_LENGTH}
-            placeholder="読後感や短いレビューを書く"
-            className="mt-4 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
-          />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
+                {draft.length}/{MAX_REVIEW_LENGTH}
+              </span>
 
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
-              {draft.length}/{MAX_REVIEW_LENGTH}
-            </span>
+              <div className="flex flex-wrap gap-2">
+                {ownReview ? (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={isSaving || isDeleting}
+                    className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-70"
+                  >
+                    {isDeleting ? "削除中..." : "削除"}
+                  </button>
+                ) : null}
 
-            <div className="flex flex-wrap gap-2">
-              {ownReview ? (
                 <button
                   type="button"
-                  onClick={handleDelete}
+                  onClick={handleSave}
                   disabled={isSaving || isDeleting}
-                  className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-70"
+                  className="rounded-full border border-black/10 bg-neutral-200 px-4 py-2 text-sm text-black transition hover:bg-neutral-300 disabled:opacity-70"
                 >
-                  {isDeleting ? "削除中..." : "削除"}
+                  {isSaving
+                    ? "保存中..."
+                    : ownReview
+                      ? "レビューを更新"
+                      : "レビューを投稿"}
                 </button>
-              ) : null}
-
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving || isDeleting}
-                className="rounded-full border border-black/10 bg-neutral-200 px-4 py-2 text-sm text-black transition hover:bg-neutral-300 disabled:opacity-70"
-              >
-                {isSaving
-                  ? "保存中..."
-                  : ownReview
-                    ? "レビューを更新"
-                    : "レビューを投稿"}
-              </button>
+              </div>
             </div>
           </div>
-        </div>
+        )
       ) : (
         <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
           <div className="flex flex-wrap items-center gap-3">
