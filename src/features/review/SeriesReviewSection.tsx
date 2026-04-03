@@ -25,7 +25,7 @@ type ReviewLikeRow = {
 };
 
 type SortField = "created_at" | "like_count";
-type SortDirection = "desc" | "asc";
+type SortDirection = "asc" | "desc";
 
 const MAX_REVIEW_LENGTH = 300;
 
@@ -35,7 +35,6 @@ function pickText(...values: unknown[]): string {
       return value;
     }
   }
-
   return "";
 }
 
@@ -108,12 +107,7 @@ async function fetchProfileName(userId: string): Promise<string> {
   }
 
   const row = data as Record<string, unknown>;
-  return pickText(
-    row.display_name,
-    row.pen_name,
-    row.username,
-    row.name
-  );
+  return pickText(row.display_name, row.pen_name, row.username, row.name);
 }
 
 async function fetchReviews(seriesId: string): Promise<{
@@ -122,9 +116,7 @@ async function fetchReviews(seriesId: string): Promise<{
 }> {
   const { data, error } = await supabase
     .from("user_series_reviews")
-    .select(
-      "id, user_id, series_id, body, author_name_snapshot, created_at, updated_at"
-    )
+    .select("id, user_id, series_id, body, author_name_snapshot, created_at, updated_at")
     .eq("series_id", seriesId)
     .order("updated_at", { ascending: false })
     .limit(50);
@@ -151,9 +143,7 @@ async function fetchOwnReview(
 }> {
   const { data, error } = await supabase
     .from("user_series_reviews")
-    .select(
-      "id, user_id, series_id, body, author_name_snapshot, created_at, updated_at"
-    )
+    .select("id, user_id, series_id, body, author_name_snapshot, created_at, updated_at")
     .eq("series_id", seriesId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -262,9 +252,6 @@ function ReviewItem({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
-            レビュー
-          </span>
           <span className="rounded-full border border-pink-200 bg-pink-50 px-3 py-1 text-xs text-pink-600">
             ♥ {likeCount}
           </span>
@@ -308,31 +295,6 @@ function ReviewItem({
   );
 }
 
-function SortButton({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "rounded-full border px-4 py-2 text-sm transition",
-        active
-          ? "border-sky-200 bg-sky-50 text-black"
-          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-      ].join(" ")}
-    >
-      {label}
-    </button>
-  );
-}
-
 export default function SeriesReviewSection({
   seriesId,
   loginHref = `/login?next=${encodeURIComponent(`/works/${seriesId}`)}`,
@@ -341,7 +303,7 @@ export default function SeriesReviewSection({
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [sortField, setSortField] = useState<SortField>("created_at");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [reviews, setReviews] = useState<SeriesReviewRow[]>([]);
   const [ownReview, setOwnReview] = useState<SeriesReviewRow | null>(null);
   const [draft, setDraft] = useState("");
@@ -375,10 +337,7 @@ export default function SeriesReviewSection({
       setDraft("");
       setLikedReviewIds([]);
       setMessage(
-        buildErrorMessage([
-          reviewResult.errorMessage,
-          likeCountResult.errorMessage,
-        ])
+        buildErrorMessage([reviewResult.errorMessage, likeCountResult.errorMessage])
       );
       setIsBooting(false);
       return;
@@ -578,12 +537,36 @@ export default function SeriesReviewSection({
     }
   }
 
-  const otherReviews = reviews.filter(
-    (review) => review.id !== ownReview?.id
-  );
+  function handleToggleSortField() {
+    setSortField((current) =>
+      current === "created_at" ? "like_count" : "created_at"
+    );
+  }
 
-  const sortedOtherReviews = useMemo(() => {
-    const next = [...otherReviews];
+  function handleToggleSortDirection() {
+    setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+  }
+
+  const topLikedReview = useMemo(() => {
+    if (reviews.length === 0) return null;
+
+    const next = [...reviews];
+    next.sort((a, b) => {
+      const aLikes = likeCountMap[a.id] ?? 0;
+      const bLikes = likeCountMap[b.id] ?? 0;
+
+      if (aLikes !== bLikes) {
+        return bLikes - aLikes;
+      }
+
+      return getReviewTimestamp(b) - getReviewTimestamp(a);
+    });
+
+    return next[0] ?? null;
+  }, [reviews, likeCountMap]);
+
+  const sortedReviews = useMemo(() => {
+    const next = [...reviews];
 
     next.sort((a, b) => {
       if (sortField === "like_count") {
@@ -612,206 +595,202 @@ export default function SeriesReviewSection({
     });
 
     return next;
-  }, [otherReviews, sortField, sortDirection, likeCountMap]);
+  }, [reviews, sortField, sortDirection, likeCountMap]);
 
   return (
     <section className="rounded-[28px] border border-black/10 bg-white p-5">
-      <button
-        type="button"
-        onClick={() => setIsExpanded((current) => !current)}
-        className="w-full text-left"
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs tracking-[0.18em] text-neutral-500">REVIEW</p>
-            <h2 className="mt-2 text-lg font-semibold text-black">
-              感想・レビュー
-            </h2>
-            <p className="mt-3 text-sm leading-7 text-neutral-600">
-              レビュー欄は開閉できる。
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-600">
-              レビュー {reviews.length}件
-            </span>
-            <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
-              {isExpanded ? "閉じる" : "開く"}
-            </span>
-          </div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs tracking-[0.18em] text-neutral-500">REVIEW</p>
+          <h2 className="mt-2 text-lg font-semibold text-black">感想・レビュー</h2>
         </div>
-      </button>
 
-      {!isExpanded ? null : (
-        <div className="mt-5">
-          <div className="flex flex-wrap items-start justify-between gap-3 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
-            <div>
-              <p className="text-sm font-semibold text-black">表示順</p>
-              <p className="mt-2 text-sm leading-7 text-neutral-600">
-                投稿順か、いいね順で並び替えできる。
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-600">
+            レビュー {reviews.length}件
+          </span>
+          <button
+            type="button"
+            onClick={() => setIsExpanded((current) => !current)}
+            className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-600 transition hover:bg-neutral-50"
+          >
+            {isExpanded ? "閉じる" : "開く"}
+          </button>
+        </div>
+      </div>
+
+      {!isExpanded && topLikedReview ? (
+        <div className="mt-5 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-black">
+                  {pickText(topLikedReview.author_name_snapshot) || "読者"}
+                </p>
+                <span className="rounded-full border border-pink-200 bg-pink-50 px-3 py-1 text-xs text-pink-600">
+                  ♥ {likeCountMap[topLikedReview.id] ?? 0}
+                </span>
+              </div>
+
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-700">
+                {topLikedReview.body}
               </p>
             </div>
 
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap gap-2">
-                <SortButton
-                  active={sortField === "created_at"}
-                  label="投稿順"
-                  onClick={() => setSortField("created_at")}
-                />
-                <SortButton
-                  active={sortField === "like_count"}
-                  label="いいね順"
-                  onClick={() => setSortField("like_count")}
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <SortButton
-                  active={sortDirection === "desc"}
-                  label="降順"
-                  onClick={() => setSortDirection("desc")}
-                />
-                <SortButton
-                  active={sortDirection === "asc"}
-                  label="昇順"
-                  onClick={() => setSortDirection("asc")}
-                />
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setIsExpanded(true)}
+              className="shrink-0 rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+            >
+              …続きを読む
+            </button>
           </div>
+        </div>
+      ) : null}
 
-          <div className="mt-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-black">レビュー一覧</p>
-                <p className="mt-1 text-xs text-neutral-500">
-                  自分以外のレビューを表示
-                </p>
-              </div>
+      {isExpanded ? (
+        <div className="mt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+            <p className="text-sm font-semibold text-black">レビュー一覧</p>
 
-              <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-500">
-                {sortedOtherReviews.length}件
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleToggleSortDirection}
+                className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+              >
+                {sortDirection === "asc" ? "↓" : "↑"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleSortField}
+                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+              >
+                {sortField === "created_at" ? "投稿順" : "いいね順"}
+              </button>
+
+              <span className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm text-neutral-500">
+                {sortedReviews.length}件
               </span>
             </div>
-
-            <div className="mt-4 grid gap-3">
-              {isBooting ? (
-                <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4 text-sm text-neutral-500">
-                  一覧を読み込み中...
-                </div>
-              ) : sortedOtherReviews.length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
-                  まだ他の読者のレビューはない。
-                </div>
-              ) : (
-                sortedOtherReviews.map((review) => (
-                  <ReviewItem
-                    key={review.id}
-                    review={review}
-                    likeCount={likeCountMap[review.id] ?? 0}
-                    isLiked={likedReviewIds.includes(review.id)}
-                    isLoggedIn={isLoggedIn}
-                    isWorking={workingLikeReviewId === review.id}
-                    loginHref={loginHref}
-                    onToggleLike={() => {
-                      void handleToggleLike(review.id);
-                    }}
-                  />
-                ))
-              )}
-            </div>
           </div>
 
-          {isBooting && isLoggedIn === null ? (
-            <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4 text-sm text-neutral-500">
-              レビュー状態を確認中...
-            </div>
-          ) : isLoggedIn ? (
-            <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-black">自分のレビュー</p>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    {ownReview
-                      ? `最終更新 ${formatReviewDate(
-                          ownReview.updated_at ?? ownReview.created_at
-                        )}`
-                      : "まだ投稿していない"}
-                  </p>
-                </div>
-
-                <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
-                  1作品1件 / 300文字
-                </span>
+          <div className="mt-4 grid gap-3">
+            {isBooting ? (
+              <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4 text-sm text-neutral-500">
+                一覧を読み込み中...
               </div>
-
-              <textarea
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                rows={5}
-                maxLength={MAX_REVIEW_LENGTH}
-                placeholder="読後感や短いレビューを書く"
-                className="mt-4 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
-              />
-
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
-                  {draft.length}/{MAX_REVIEW_LENGTH}
-                </span>
-
-                <div className="flex flex-wrap gap-2">
-                  {ownReview ? (
-                    <button
-                      type="button"
-                      onClick={handleDelete}
-                      disabled={isSaving || isDeleting}
-                      className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-70"
-                    >
-                      {isDeleting ? "削除中..." : "削除"}
-                    </button>
-                  ) : null}
-
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={isSaving || isDeleting}
-                    className="rounded-full border border-black/10 bg-neutral-200 px-4 py-2 text-sm text-black transition hover:bg-neutral-300 disabled:opacity-70"
-                  >
-                    {isSaving
-                      ? "保存中..."
-                      : ownReview
-                        ? "レビューを更新"
-                        : "レビューを投稿"}
-                  </button>
-                </div>
+            ) : sortedReviews.length === 0 ? (
+              <div className="rounded-[24px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
+                まだレビューはない。
               </div>
+            ) : (
+              sortedReviews.map((review) => (
+                <ReviewItem
+                  key={review.id}
+                  review={review}
+                  likeCount={likeCountMap[review.id] ?? 0}
+                  isLiked={likedReviewIds.includes(review.id)}
+                  isLoggedIn={isLoggedIn}
+                  isWorking={workingLikeReviewId === review.id}
+                  loginHref={loginHref}
+                  onToggleLike={() => {
+                    void handleToggleLike(review.id);
+                  }}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {isBooting && isLoggedIn === null ? (
+        <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4 text-sm text-neutral-500">
+          レビュー状態を確認中...
+        </div>
+      ) : isLoggedIn ? (
+        <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-black">自分のレビュー</p>
+              <p className="mt-1 text-xs text-neutral-500">
+                {ownReview
+                  ? `最終更新 ${formatReviewDate(
+                      ownReview.updated_at ?? ownReview.created_at
+                    )}`
+                  : "まだ投稿していない"}
+              </p>
             </div>
-          ) : (
-            <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <Link
-                  href={loginHref}
-                  className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+
+            <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
+              1作品1件 / 300文字
+            </span>
+          </div>
+
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={5}
+            maxLength={MAX_REVIEW_LENGTH}
+            placeholder="読後感や短いレビューを書く"
+            className="mt-4 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
+          />
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
+              {draft.length}/{MAX_REVIEW_LENGTH}
+            </span>
+
+            <div className="flex flex-wrap gap-2">
+              {ownReview ? (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={isSaving || isDeleting}
+                  className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-70"
                 >
-                  ログインしてレビューを書く
-                </Link>
+                  {isDeleting ? "削除中..." : "削除"}
+                </button>
+              ) : null}
 
-                <span className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm text-neutral-500">
-                  レビュー {reviews.length}件
-                </span>
-              </div>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving || isDeleting}
+                className="rounded-full border border-black/10 bg-neutral-200 px-4 py-2 text-sm text-black transition hover:bg-neutral-300 disabled:opacity-70"
+              >
+                {isSaving
+                  ? "保存中..."
+                  : ownReview
+                    ? "レビューを更新"
+                    : "レビューを投稿"}
+              </button>
             </div>
-          )}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={loginHref}
+              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+            >
+              ログインしてレビューを書く
+            </Link>
 
-          {message ? (
-            <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-neutral-600">
-              {message}
-            </p>
-          ) : null}
+            <span className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm text-neutral-500">
+              レビュー {reviews.length}件
+            </span>
+          </div>
         </div>
       )}
+
+      {message ? (
+        <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-neutral-600">
+          {message}
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -10,6 +10,7 @@ type ContinueReadingCardProps = {
   fallbackEpisodeNumber?: number | null;
   fallbackReaderKey?: string;
   fallbackReaderName?: string;
+  variant?: "card" | "inline";
 };
 
 type BookmarkData = {
@@ -213,11 +214,74 @@ function toLocalResumeData(
   };
 }
 
+function InlineContinueButton({
+  resume,
+  seriesId,
+  fallbackEpisodeNumber,
+  fallbackReaderKey,
+  fallbackReaderName,
+  loaded,
+}: {
+  resume: ResumeData | null;
+  seriesId: string;
+  fallbackEpisodeNumber?: number | null;
+  fallbackReaderKey?: string;
+  fallbackReaderName?: string;
+  loaded: boolean;
+}) {
+  if (!loaded) {
+    return (
+      <span className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm text-neutral-500">
+        続きを確認中...
+      </span>
+    );
+  }
+
+  if (!resume) {
+    if (fallbackEpisodeNumber == null) {
+      return (
+        <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2.5 text-sm text-neutral-500">
+          続きなし
+        </span>
+      );
+    }
+
+    return (
+      <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2.5 text-sm text-neutral-500">
+        続きなし
+      </span>
+    );
+  }
+
+  const href = buildReadHref(
+    seriesId,
+    resume.episodeNumber,
+    resume.readerKey ?? fallbackReaderKey,
+    resume.readerName ?? fallbackReaderName,
+    resume.startAt
+  );
+
+  const title = resume.episodeTitle
+    ? `第${resume.episodeNumber}話 ${resume.episodeTitle}`
+    : `第${resume.episodeNumber}話`;
+
+  return (
+    <Link
+      href={href}
+      title={title}
+      className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
+    >
+      続きから読む
+    </Link>
+  );
+}
+
 export default function ContinueReadingCard({
   seriesId,
   fallbackEpisodeNumber,
   fallbackReaderKey,
   fallbackReaderName,
+  variant = "card",
 }: ContinueReadingCardProps) {
   const [resume, setResume] = useState<ResumeData | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -325,6 +389,19 @@ export default function ContinueReadingCard({
   const savedAtText = useMemo(() => {
     return formatSavedAt(resume?.savedAt);
   }, [resume?.savedAt]);
+
+  if (variant === "inline") {
+    return (
+      <InlineContinueButton
+        resume={resume}
+        seriesId={seriesId}
+        fallbackEpisodeNumber={fallbackEpisodeNumber}
+        fallbackReaderKey={fallbackReaderKey}
+        fallbackReaderName={fallbackReaderName}
+        loaded={loaded}
+      />
+    );
+  }
 
   if (!loaded) {
     return (
