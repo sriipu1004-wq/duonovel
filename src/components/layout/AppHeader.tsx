@@ -3,7 +3,8 @@ import Link from "next/link";
 import AuthStatus from "@/components/auth/AuthStatus";
 
 const navItems = [
-  { href: "/#works", label: "作品を探す" },
+  { href: "/#latest", label: "作品を探す" },
+  { href: "/record", label: "朗読する" },
   { href: "/write", label: "投稿する" },
 ];
 

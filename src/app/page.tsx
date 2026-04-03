@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
 import { supabase } from "@/lib/supabaseClient";
 import {
   getEpisodeNumber,
@@ -12,6 +13,13 @@ import {
   type SeriesRow,
 } from "@/features/write/writeShared";
 
+type PageProps = {
+  searchParams?: Promise<{
+    mode?: string;
+    tag?: string;
+  }>;
+};
+
 type UserRow = Record<string, unknown> & {
   id: string;
   display_name?: string | null;
@@ -20,24 +28,145 @@ type UserRow = Record<string, unknown> & {
   name?: string | null;
 };
 
+type RecordingRow = Record<string, unknown> & {
+  id: string;
+  series_id?: string | null;
+  seriesId?: string | null;
+  like_count?: number | null;
+  likes_count?: number | null;
+  play_count?: number | null;
+  plays_count?: number | null;
+  is_public?: boolean | null;
+  public?: boolean | null;
+};
+
 type WorkCard = {
   seriesId: string;
   title: string;
   summary: string;
   authorName: string;
+  authorId: string | null;
   episodeCount: number;
   firstEpisodeNumber: number | null;
-  latestEpisodeNumber: number | null;
   latestPostedLabel: string;
   latestPostedAtValue: number;
+  createdAtValue: number;
+  tags: string[];
+  totalRecordingLikes: number;
+  totalRecordingPlays: number;
+  totalRecordingCount: number;
+  popularityScore: number;
 };
+
+function isPublicRecording(recording: RecordingRow): boolean {
+  if (recording.is_public === false) return false;
+  if (recording.public === false) return false;
+  return true;
+}
+
+function getRecordingLikes(recording: RecordingRow): number {
+  const raw = recording.like_count ?? recording.likes_count ?? 0;
+  if (typeof raw === "number") return raw;
+  const parsed = Number(raw);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function getRecordingPlays(recording: RecordingRow): number {
+  const raw = recording.play_count ?? recording.plays_count ?? 0;
+  if (typeof raw === "number") return raw;
+  const parsed = Number(raw);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) {
+    return "日付未設定";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "日付未設定";
+  }
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(parsed);
+}
+
+function toTimeValue(value: unknown): number {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return 0;
+  }
+
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function parseTagList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item).trim())
+      .filter((item) => item.length > 0)
+      .map((item) => (item.startsWith("#") ? item : `#${item}`));
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value
+      .split(/[,、\s]+/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+      .map((item) => (item.startsWith("#") ? item : `#${item}`));
+  }
+
+  return [];
+}
+
+function getSeriesTags(series: SeriesRow): string[] {
+  const candidates = [
+    series["tags"],
+    series["tag_list"],
+    series["tagList"],
+    series["genres"],
+    series["genre"],
+    series["keywords"],
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = parseTagList(candidate);
+    if (parsed.length > 0) {
+      return parsed;
+    }
+  }
+
+  return [];
+}
+
+function buildReadHref(seriesId: string, episodeNumber: number): string {
+  return `/read/${seriesId}/${episodeNumber}`;
+}
+
+function buildWorkHref(seriesId: string): string {
+  return `/works/${seriesId}`;
+}
+
+function buildAuthorHref(authorId: string): string {
+  return `/authors/${encodeURIComponent(authorId)}`;
+}
+
+function buildMoreHref(mode: string): string {
+  const query = new URLSearchParams();
+  query.set("mode", mode);
+  return `/?${query.toString()}#results`;
+}
 
 async function fetchPublicSeries(): Promise<SeriesRow[]> {
   const { data, error } = await supabase
     .from("series")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(30);
+    .limit(60);
 
   if (error) {
     throw new Error(`series の取得に失敗: ${error.message}`);
@@ -87,45 +216,73 @@ async function fetchAuthorMap(authorIds: string[]): Promise<Map<string, UserRow>
   return new Map(((data ?? []) as UserRow[]).map((user) => [user.id, user]));
 }
 
-function buildReadHref(seriesId: string, episodeNumber: number): string {
-  return `/read/${seriesId}/${episodeNumber}`;
-}
+async function fetchPublicRecordings(): Promise<RecordingRow[]> {
+  const firstTry = await supabase.from("recordings").select("*");
 
-function buildWorkHref(seriesId: string): string {
-  return `/works/${seriesId}`;
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) {
-    return "日付未設定";
+  if (!firstTry.error) {
+    return ((firstTry.data ?? []) as RecordingRow[]).filter(isPublicRecording);
   }
 
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "日付未設定";
+  return [];
+}
+
+function buildRecordingAggregateMap(recordings: RecordingRow[]) {
+  const aggregate = new Map<
+    string,
+    {
+      totalRecordingLikes: number;
+      totalRecordingPlays: number;
+      totalRecordingCount: number;
+    }
+  >();
+
+  for (const recording of recordings) {
+    const seriesId =
+      pickText(recording.series_id, recording.seriesId) || null;
+
+    if (!seriesId) continue;
+
+    const current = aggregate.get(seriesId) ?? {
+      totalRecordingLikes: 0,
+      totalRecordingPlays: 0,
+      totalRecordingCount: 0,
+    };
+
+    current.totalRecordingLikes += getRecordingLikes(recording);
+    current.totalRecordingPlays += getRecordingPlays(recording);
+    current.totalRecordingCount += 1;
+
+    aggregate.set(seriesId, current);
   }
 
-  return new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(parsed);
+  return aggregate;
 }
 
 function SectionHeading({
   eyebrow,
   title,
   description,
+  moreHref,
 }: {
   eyebrow: string;
   title: string;
   description: string;
+  moreHref: string;
 }) {
   return (
-    <div className="border-b border-black/10 pb-3">
-      <p className="text-[11px] tracking-[0.22em] text-neutral-500">{eyebrow}</p>
-      <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">{title}</h2>
-      <p className="mt-2 text-sm leading-7 text-neutral-600">{description}</p>
+    <div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-3">
+      <div>
+        <p className="text-[11px] tracking-[0.22em] text-neutral-500">{eyebrow}</p>
+        <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">{title}</h2>
+        <p className="mt-2 text-sm leading-7 text-neutral-600">{description}</p>
+      </div>
+
+      <Link
+        href={moreHref}
+        className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+      >
+        さらに表示
+      </Link>
     </div>
   );
 }
@@ -147,120 +304,102 @@ function ExploreChip({
   );
 }
 
-function CompactWorkCard({ work }: { work: WorkCard }) {
-  return (
-    <article className="rounded-[22px] border border-black/10 bg-white p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="min-w-0 truncate text-sm text-neutral-500">作者 {work.authorName}</p>
-        <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600">
-          更新 {work.latestPostedLabel}
-        </span>
-      </div>
-
-      <h3 className="mt-2 line-clamp-2 text-base font-semibold leading-tight text-black sm:text-lg">
-        {work.title}
-      </h3>
-
-      <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-neutral-600">
-        <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-          {work.episodeCount}話
-        </span>
-        <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-          最初 {work.firstEpisodeNumber ? `第${work.firstEpisodeNumber}話` : "未設定"}
-        </span>
-        <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-          最新 {work.latestEpisodeNumber ? `第${work.latestEpisodeNumber}話` : "未設定"}
-        </span>
-      </div>
-
-      <p className="mt-3 line-clamp-3 text-sm leading-7 text-neutral-600">
-        {work.summary}
-      </p>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Link
-          href={buildWorkHref(work.seriesId)}
-          className="rounded-full border border-black/10 bg-white px-3.5 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
-        >
-          作品ページ
-        </Link>
-
-        {work.firstEpisodeNumber ? (
-          <Link
-            href={buildReadHref(work.seriesId, work.firstEpisodeNumber)}
-            className="rounded-full border border-black/10 bg-neutral-200 px-3.5 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
-          >
-            第1話から読む
-          </Link>
-        ) : (
-          <span className="rounded-full border border-black/10 bg-neutral-50 px-3.5 py-2 text-sm text-neutral-500">
-            未公開
-          </span>
-        )}
-      </div>
-    </article>
-  );
+function sortLatest(works: WorkCard[]) {
+  return [...works].sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue);
 }
 
-function DenseListRow({
-  work,
-  rank,
+function sortWeeklyNew(works: WorkCard[]) {
+  const now = Date.now();
+  const twoWeeks = 1000 * 60 * 60 * 24 * 14;
+
+  const recent = works.filter((work) => now - work.createdAtValue <= twoWeeks);
+  const target = recent.length > 0 ? recent : works;
+
+  return [...target].sort((a, b) => {
+    if (b.createdAtValue !== a.createdAtValue) {
+      return b.createdAtValue - a.createdAtValue;
+    }
+    return b.latestPostedAtValue - a.latestPostedAtValue;
+  });
+}
+
+function sortOverallPopular(works: WorkCard[]) {
+  return [...works].sort((a, b) => {
+    if (b.popularityScore !== a.popularityScore) {
+      return b.popularityScore - a.popularityScore;
+    }
+    return b.latestPostedAtValue - a.latestPostedAtValue;
+  });
+}
+
+function sortNarrationPopular(works: WorkCard[]) {
+  return [...works].sort((a, b) => {
+    if (b.totalRecordingPlays !== a.totalRecordingPlays) {
+      return b.totalRecordingPlays - a.totalRecordingPlays;
+    }
+    if (b.totalRecordingLikes !== a.totalRecordingLikes) {
+      return b.totalRecordingLikes - a.totalRecordingLikes;
+    }
+    return b.latestPostedAtValue - a.latestPostedAtValue;
+  });
+}
+
+function ResultHeading({
+  mode,
+  tag,
 }: {
-  work: WorkCard;
-  rank?: number;
+  mode: string;
+  tag: string;
 }) {
-  return (
-    <article className="rounded-[20px] border border-black/10 bg-white px-4 py-4">
-      <div className="flex items-start gap-3">
-        {typeof rank === "number" ? (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-neutral-50 text-sm font-semibold text-black">
-            {rank}
-          </div>
-        ) : null}
+  if (mode === "latest") {
+    return {
+      title: "新着更新の結果",
+      description: "新着更新順で表示中。",
+    };
+  }
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="line-clamp-1 text-base font-semibold leading-tight text-black">
-              {work.title}
-            </h3>
-            <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600">
-              {work.episodeCount}話
-            </span>
-            <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600">
-              {work.latestPostedLabel}
-            </span>
-          </div>
+  if (mode === "weekly-new") {
+    return {
+      title: "週間新作おすすめの結果",
+      description: "新作寄りの順で表示中。",
+    };
+  }
 
-          <p className="mt-1 text-sm text-neutral-500">作者 {work.authorName}</p>
-          <p className="mt-2 line-clamp-2 text-sm leading-7 text-neutral-600">
-            {work.summary}
-          </p>
+  if (mode === "overall-popular") {
+    return {
+      title: "総合人気順の結果",
+      description: "公開中作品を人気寄りの順で表示中。",
+    };
+  }
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Link
-              href={buildWorkHref(work.seriesId)}
-              className="rounded-full border border-black/10 bg-white px-3.5 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
-            >
-              作品ページ
-            </Link>
+  if (mode === "narration-popular") {
+    return {
+      title: "朗読視聴人気順の結果",
+      description: "朗読視聴寄りの順で表示中。",
+    };
+  }
 
-            {work.firstEpisodeNumber ? (
-              <Link
-                href={buildReadHref(work.seriesId, work.firstEpisodeNumber)}
-                className="rounded-full border border-black/10 bg-neutral-200 px-3.5 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
-              >
-                第1話から読む
-              </Link>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    </article>
-  );
+  if (mode === "tag" && tag) {
+    return {
+      title: `${tag} の結果`,
+      description: "タグ一致作品を人気寄りの順で表示中。",
+    };
+  }
+
+  return {
+    title: "検索結果",
+    description: "条件に合う公開作品を表示中。",
+  };
 }
 
-export default async function PublicTopPage() {
+export default async function PublicTopPage({ searchParams }: PageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const mode = pickText(resolvedSearchParams?.mode);
+  const tag = pickText(resolvedSearchParams?.tag);
+
   const publicSeries = await fetchPublicSeries();
+  const publicRecordings = await fetchPublicRecordings();
+  const recordingAggregateMap = buildRecordingAggregateMap(publicRecordings);
 
   const authorIds = Array.from(
     new Set(
@@ -294,7 +433,7 @@ export default async function PublicTopPage() {
           series.author_id,
           series["user_id"],
           series["userId"]
-        );
+        ) || null;
 
         const author = authorId ? authorMap.get(authorId) : null;
 
@@ -305,6 +444,21 @@ export default async function PublicTopPage() {
         const latestPostedAtValue = latestPostedRaw
           ? new Date(latestPostedRaw).getTime()
           : 0;
+
+        const createdAtValue = toTimeValue(series["created_at"]);
+        const tags = getSeriesTags(series);
+
+        const recordingAgg = recordingAggregateMap.get(series.id) ?? {
+          totalRecordingLikes: 0,
+          totalRecordingPlays: 0,
+          totalRecordingCount: 0,
+        };
+
+        const popularityScore =
+          recordingAgg.totalRecordingPlays * 3 +
+          recordingAgg.totalRecordingLikes * 10 +
+          recordingAgg.totalRecordingCount * 5 +
+          publicEpisodes.length;
 
         return {
           seriesId: series.id,
@@ -319,34 +473,48 @@ export default async function PublicTopPage() {
               author?.name,
               series["author_name"]
             ) || "作者名未設定",
+          authorId,
           episodeCount: publicEpisodes.length,
           firstEpisodeNumber: firstEpisode
             ? getEpisodeNumber(firstEpisode)
             : null,
-          latestEpisodeNumber: latestEpisode
-            ? getEpisodeNumber(latestEpisode)
-            : null,
           latestPostedLabel: formatDate(latestPostedRaw),
           latestPostedAtValue,
+          createdAtValue,
+          tags,
+          totalRecordingLikes: recordingAgg.totalRecordingLikes,
+          totalRecordingPlays: recordingAgg.totalRecordingPlays,
+          totalRecordingCount: recordingAgg.totalRecordingCount,
+          popularityScore,
         } satisfies WorkCard;
       })
     )
-  )
-    .filter((card): card is WorkCard => !!card)
-    .sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue);
+  ).filter((card): card is WorkCard => !!card);
 
-  const latestWorks = [...workCards].slice(0, 6);
-  const firstReadableWorks = [...workCards].slice(0, 5);
-  const longReadWorks = [...workCards]
-    .sort((a, b) => {
-      if (b.episodeCount !== a.episodeCount) {
-        return b.episodeCount - a.episodeCount;
-      }
-      return b.latestPostedAtValue - a.latestPostedAtValue;
-    })
-    .slice(0, 5);
+  const latestWorks = sortLatest(workCards).slice(0, 4);
+  const weeklyNewWorks = sortWeeklyNew(workCards).slice(0, 4);
+  const overallPopularWorks = sortOverallPopular(workCards).slice(0, 4);
+  const narrationPopularWorks = sortNarrationPopular(workCards).slice(0, 4);
 
-  const allVisibleWorks = [...workCards].slice(0, 12);
+  const filteredForResults =
+    mode === "tag" && tag
+      ? workCards.filter((work) => work.tags.includes(tag))
+      : workCards;
+
+  const resultWorks =
+    mode === "latest"
+      ? sortLatest(filteredForResults)
+      : mode === "weekly-new"
+        ? sortWeeklyNew(filteredForResults)
+        : mode === "overall-popular"
+          ? sortOverallPopular(filteredForResults)
+          : mode === "narration-popular"
+            ? sortNarrationPopular(filteredForResults)
+            : mode === "tag"
+              ? sortOverallPopular(filteredForResults)
+              : [];
+
+  const resultHeading = ResultHeading({ mode, tag });
 
   return (
     <main className="min-h-screen bg-white text-black">
@@ -359,74 +527,68 @@ export default async function PublicTopPage() {
               </p>
 
               <h1 className="mt-4 text-3xl font-bold leading-tight text-black sm:text-4xl xl:text-5xl">
-                完全無料。
+                小説投稿サイトの基盤を保ったまま、
                 <br />
-                小説投稿サイトの見やすさを保ったまま、
+                朗読や文字、背景自体の編集など、
                 <br />
-                文字でできる表現の幅を広げる。
+                表現の幅を広げることを目的とした完全無料サイト。
               </h1>
 
-              <p className="mt-5 max-w-3xl text-sm leading-8 text-neutral-700 sm:text-[15px]">
-                LIB read は、完全無料で使える小説投稿サイト。
-                朗読や、文字、背景自体の編集などを扱いながら、
-                小説投稿サイトというプラットホームを保ちつつ、
-                文字でできる表現の幅を広げたい。
-                まずは作品を探しやすく、目次に入りやすく、本文へ進みやすいことを優先する。
+              <p className="mt-5 max-w-4xl text-sm leading-8 text-neutral-700 sm:text-[15px]">
+                LIB read は完全無料で使える小説投稿サイトです。朗読や、文字、背景自体の編集などを扱いながら、
+                小説投稿サイトというプラットホームを保ちつつ、文字、あるいは言語自体を主体として、
+                表現の幅の可能性を模索することを目的の一つとしています。もちろん従来の小説投稿サイトと同じ使い方をしても全く支障ありませんし、
+                朗読視聴だけを目的に使っていただいても構いません。「読む」「聞く」「書いて、ついでにささやかながらなにか演出をつけてみる」
+                「好きな作品を声に出して読んで、誰かに聞いてもらう」など、自分のしてみたいことをやってみてください。
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Link
-                  href="#latest"
-                  className="rounded-full border border-black/10 bg-neutral-200 px-5 py-3 text-sm font-medium text-black transition hover:bg-neutral-300"
-                >
-                  公開中の作品を見る
-                </Link>
-
-                <Link
-                  href="/write"
-                  className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
-                >
-                  投稿する
-                </Link>
-              </div>
-
-              <div className="mt-8 flex flex-wrap gap-2">
-                <ExploreChip href="#latest" label="新着更新" />
-                <ExploreChip href="#firstread" label="まず読める作品" />
-                <ExploreChip href="#longread" label="話数が多い作品" />
-                <ExploreChip href="#allworks" label="公開中一覧" />
+              <div className="mt-8">
+                <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+                  目次
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <ExploreChip href="#latest" label="新着更新" />
+                  <ExploreChip href="#weekly-new" label="週間新作おすすめ" />
+                  <ExploreChip href="#overall-popular" label="総合人気順" />
+                  <ExploreChip href="#narration-popular" label="朗読視聴人気順" />
+                </div>
               </div>
             </div>
 
             <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4 sm:p-5">
               <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-                入口
+                explain
               </p>
               <h2 className="mt-3 text-xl font-bold leading-tight text-black sm:text-2xl">
-                最初は説明、
-                <br />
-                下に行くほど作品を探せる。
+                概要
               </h2>
 
               <div className="mt-5 grid gap-3">
                 <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm font-semibold text-black">まずサイトの趣旨を知る</p>
+                  <p className="text-sm font-semibold text-black">読む</p>
                   <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    何が無料で、何ができるかを最初に短く伝える。
+                    ただ好きな作品を従来通りに楽しんだり、取り付けられた演出でより深く没入してみてみたり。
                   </p>
                 </div>
 
                 <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm font-semibold text-black">すぐ下で作品を探す</p>
+                  <p className="text-sm font-semibold text-black">聞く</p>
                   <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    新着更新、まず読める作品、長く読める作品から入れる。
+                    電車での暇つぶしや作業、散歩中のお供にでも。
                   </p>
                 </div>
 
                 <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm font-semibold text-black">目次から本文へ進む</p>
+                  <p className="text-sm font-semibold text-black">書く</p>
                   <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    作品ページでは目次を主役にして、本文へすぐ進める。
+                    頭の中にある構想を文字へと抽出して、添え物のようになにか演出を追加してみたり。
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-black/10 bg-white p-4">
+                  <p className="text-sm font-semibold text-black">読み上げる</p>
+                  <p className="mt-2 text-sm leading-7 text-neutral-600">
+                    お気に入りの作品への気持ちを朗読にて表現する等。
                   </p>
                 </div>
               </div>
@@ -438,7 +600,8 @@ export default async function PublicTopPage() {
           <SectionHeading
             eyebrow="LATEST UPDATES"
             title="新着更新"
-            description="最近動いている作品から入りやすくする。"
+            description="最近更新された公開作品。"
+            moreHref={buildMoreHref("latest")}
           />
 
           {latestWorks.length === 0 ? (
@@ -446,89 +609,174 @@ export default async function PublicTopPage() {
               まだ公開作品がない。
             </div>
           ) : (
-            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
               {latestWorks.map((work) => (
-                <CompactWorkCard key={work.seriesId} work={work} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section id="firstread" className="pt-12">
-          <SectionHeading
-            eyebrow="START READING"
-            title="まず読める作品"
-            description="作品ページか第1話へすぐ入りやすい作品を並べる。"
-          />
-
-          {firstReadableWorks.length === 0 ? (
-            <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
-              まだ公開作品がない。
-            </div>
-          ) : (
-            <div className="mt-6 grid gap-3">
-              {firstReadableWorks.map((work) => (
-                <DenseListRow key={work.seriesId} work={work} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section id="longread" className="pt-12">
-          <SectionHeading
-            eyebrow="LONG READ"
-            title="話数が多い作品"
-            description="長く読める作品を上から見つけやすくする。"
-          />
-
-          {longReadWorks.length === 0 ? (
-            <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
-              まだ公開作品がない。
-            </div>
-          ) : (
-            <div className="mt-6 grid gap-3">
-              {longReadWorks.map((work, index) => (
-                <DenseListRow
+                <PublicWorkBoardCard
                   key={work.seriesId}
-                  work={work}
-                  rank={index + 1}
+                  title={work.title}
+                  workHref={buildWorkHref(work.seriesId)}
+                  authorName={work.authorName}
+                  authorHref={work.authorId ? buildAuthorHref(work.authorId) : undefined}
+                  latestPostedLabel={work.latestPostedLabel}
+                  summary={work.summary}
+                  firstReadHref={
+                    work.firstEpisodeNumber
+                      ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
+                      : undefined
+                  }
+                  tags={work.tags}
                 />
               ))}
             </div>
           )}
         </section>
 
-        <section id="allworks" className="pt-12">
-          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-4">
-            <div>
-              <p className="text-[11px] tracking-[0.22em] text-neutral-500">
-                PUBLIC WORKS
-              </p>
-              <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
-                公開中の作品一覧
-              </h2>
-              <p className="mt-2 text-sm leading-7 text-neutral-600">
-                作品ページと第1話への入口をまとめて置く。
-              </p>
-            </div>
+        <section id="weekly-new" className="pt-12">
+          <SectionHeading
+            eyebrow="WEEKLY NEW RECOMMEND"
+            title="週間新作おすすめ"
+            description="新しめの作品から入りやすくする。"
+            moreHref={buildMoreHref("weekly-new")}
+          />
 
-            <div className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
-              表示作品 {allVisibleWorks.length}件
-            </div>
-          </div>
-
-          {allVisibleWorks.length === 0 ? (
+          {weeklyNewWorks.length === 0 ? (
             <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
               まだ公開作品がない。
             </div>
           ) : (
-            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {allVisibleWorks.map((work) => (
-                <CompactWorkCard key={work.seriesId} work={work} />
+            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+              {weeklyNewWorks.map((work) => (
+                <PublicWorkBoardCard
+                  key={work.seriesId}
+                  title={work.title}
+                  workHref={buildWorkHref(work.seriesId)}
+                  authorName={work.authorName}
+                  authorHref={work.authorId ? buildAuthorHref(work.authorId) : undefined}
+                  latestPostedLabel={work.latestPostedLabel}
+                  summary={work.summary}
+                  firstReadHref={
+                    work.firstEpisodeNumber
+                      ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
+                      : undefined
+                  }
+                  tags={work.tags}
+                />
               ))}
             </div>
           )}
         </section>
+
+        <section id="overall-popular" className="pt-12">
+          <SectionHeading
+            eyebrow="OVERALL POPULAR"
+            title="総合人気順"
+            description="現時点の人気寄り順で公開作品を表示。"
+            moreHref={buildMoreHref("overall-popular")}
+          />
+
+          {overallPopularWorks.length === 0 ? (
+            <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
+              まだ公開作品がない。
+            </div>
+          ) : (
+            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+              {overallPopularWorks.map((work) => (
+                <PublicWorkBoardCard
+                  key={work.seriesId}
+                  title={work.title}
+                  workHref={buildWorkHref(work.seriesId)}
+                  authorName={work.authorName}
+                  authorHref={work.authorId ? buildAuthorHref(work.authorId) : undefined}
+                  latestPostedLabel={work.latestPostedLabel}
+                  summary={work.summary}
+                  firstReadHref={
+                    work.firstEpisodeNumber
+                      ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
+                      : undefined
+                  }
+                  tags={work.tags}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section id="narration-popular" className="pt-12">
+          <SectionHeading
+            eyebrow="NARRATION POPULAR"
+            title="朗読視聴人気順"
+            description="朗読視聴寄りの順で公開作品を表示。"
+            moreHref={buildMoreHref("narration-popular")}
+          />
+
+          {narrationPopularWorks.length === 0 ? (
+            <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
+              まだ公開作品がない。
+            </div>
+          ) : (
+            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+              {narrationPopularWorks.map((work) => (
+                <PublicWorkBoardCard
+                  key={work.seriesId}
+                  title={work.title}
+                  workHref={buildWorkHref(work.seriesId)}
+                  authorName={work.authorName}
+                  authorHref={work.authorId ? buildAuthorHref(work.authorId) : undefined}
+                  latestPostedLabel={work.latestPostedLabel}
+                  summary={work.summary}
+                  firstReadHref={
+                    work.firstEpisodeNumber
+                      ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
+                      : undefined
+                  }
+                  tags={work.tags}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {mode ? (
+          <section id="results" className="pt-12">
+            <div className="border-b border-black/10 pb-3">
+              <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+                RESULTS
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
+                {resultHeading.title}
+              </h2>
+              <p className="mt-2 text-sm leading-7 text-neutral-600">
+                {resultHeading.description}
+              </p>
+            </div>
+
+            {resultWorks.length === 0 ? (
+              <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
+                条件に合う公開作品がない。
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+                {resultWorks.map((work) => (
+                  <PublicWorkBoardCard
+                    key={work.seriesId}
+                    title={work.title}
+                    workHref={buildWorkHref(work.seriesId)}
+                    authorName={work.authorName}
+                    authorHref={work.authorId ? buildAuthorHref(work.authorId) : undefined}
+                    latestPostedLabel={work.latestPostedLabel}
+                    summary={work.summary}
+                    firstReadHref={
+                      work.firstEpisodeNumber
+                        ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
+                        : undefined
+                    }
+                    tags={work.tags}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        ) : null}
       </div>
     </main>
   );
