@@ -242,10 +242,10 @@ export default function ContinueReadingCard({
 
         const userId = authData.user?.id ?? null;
 
-if (cancelled) return;
-setHasSession(Boolean(userId));
+        if (cancelled) return;
+        setHasSession(Boolean(userId));
 
-if (userId) {
+        if (userId) {
           const { data: playLog, error } = await getPlayLogBySeries(supabase, {
             userId,
             seriesId,
@@ -257,11 +257,11 @@ if (userId) {
 
           if (playLog) {
             const [episodeTitle, recordingReader] = await Promise.all([
-  fetchEpisodeTitle(playLog.episode_id),
-  playLog.recording_id
-    ? fetchRecordingReader(playLog.recording_id)
-    : Promise.resolve<{ readerKey?: string; readerName?: string }>({}),
-]);
+              fetchEpisodeTitle(playLog.episode_id),
+              playLog.recording_id
+                ? fetchRecordingReader(playLog.recording_id)
+                : Promise.resolve<{ readerKey?: string; readerName?: string }>({}),
+            ]);
 
             if (cancelled) return;
 
@@ -279,7 +279,7 @@ if (userId) {
             return;
           }
         }
-       } catch (error) {
+      } catch (error) {
         console.error("ContinueReadingCard: play_logs の取得に失敗", error);
         setHasSession(null);
         setLoadError("アカウント保存の続き位置を取得できなかったため、端末保存を優先した。");
@@ -328,7 +328,7 @@ if (userId) {
 
   if (!loaded) {
     return (
-      <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-400">
+      <div className="rounded-3xl border border-black/10 bg-white p-4 text-sm text-neutral-500">
         しおりを確認中...
       </div>
     );
@@ -336,9 +336,9 @@ if (userId) {
 
   if (!resume) {
     return (
-      <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-        <p className="text-sm text-neutral-500">しおり未保存</p>
-        <p className="mt-2 text-sm text-neutral-400">
+      <div className="rounded-3xl border border-black/10 bg-white p-4">
+        <p className="text-sm text-neutral-600">しおり未保存</p>
+        <p className="mt-2 text-sm text-neutral-700">
           保存された続きを読める位置がまだない。最初の話から始める。
         </p>
 
@@ -349,7 +349,7 @@ if (userId) {
         ) : null}
 
         {loadError ? (
-          <p className="mt-3 text-xs leading-6 text-amber-300">{loadError}</p>
+          <p className="mt-3 text-xs leading-6 text-neutral-600">{loadError}</p>
         ) : null}
 
         {fallbackEpisodeNumber !== null && fallbackEpisodeNumber !== undefined ? (
@@ -360,7 +360,7 @@ if (userId) {
               fallbackReaderKey,
               fallbackReaderName
             )}
-            className="mt-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
+            className="mt-4 inline-flex rounded-full border border-black/10 bg-neutral-200 px-4 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
           >
             第1話から読む
           </Link>
@@ -370,45 +370,45 @@ if (userId) {
   }
 
   return (
-    <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="rounded-3xl border border-black/10 bg-white p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm text-neutral-500">保存済みの続き</p>
+        <p className="text-sm text-neutral-600">保存済みの続き</p>
         <span
           className={[
-            "rounded-full px-3 py-1 text-xs",
+            "rounded-full border px-3 py-1 text-xs",
             resume.source === "play_logs"
-              ? "border border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
-              : "border border-white/10 bg-white/5 text-neutral-400",
+              ? "border-sky-200 bg-sky-50 text-neutral-900"
+              : "border-black/10 bg-neutral-50 text-neutral-600",
           ].join(" ")}
         >
           {resume.source === "play_logs" ? "DB" : "端末"}
         </span>
       </div>
 
-      <p className="mt-2 text-xl font-semibold text-white">第{resume.episodeNumber}話</p>
+      <p className="mt-2 text-xl font-semibold text-black">第{resume.episodeNumber}話</p>
 
       {resume.episodeTitle ? (
-        <p className="mt-2 text-sm text-neutral-300">{resume.episodeTitle}</p>
+        <p className="mt-2 text-sm text-neutral-800">{resume.episodeTitle}</p>
       ) : null}
 
       {resume.readerName ? (
-        <p className="mt-2 text-sm text-neutral-300">朗読者固定: {resume.readerName}</p>
+        <p className="mt-2 text-sm text-neutral-700">朗読者固定: {resume.readerName}</p>
       ) : null}
 
-      <p className="mt-2 text-sm text-neutral-400">{progressText}</p>
+      <p className="mt-2 text-sm text-neutral-600">{progressText}</p>
 
       {savedAtText ? (
         <p className="mt-2 text-xs text-neutral-500">最終保存: {savedAtText}</p>
       ) : null}
 
-            {resume.source === "local" && hasSession === false ? (
+      {resume.source === "local" && hasSession === false ? (
         <p className="mt-2 text-xs leading-6 text-neutral-500">
           今はサイト内未ログインのため、端末保存の続き位置を使っている。
         </p>
       ) : null}
 
       {loadError && resume.source === "local" ? (
-        <p className="mt-2 text-xs leading-6 text-amber-300">{loadError}</p>
+        <p className="mt-2 text-xs leading-6 text-neutral-600">{loadError}</p>
       ) : null}
 
       <Link
@@ -419,7 +419,7 @@ if (userId) {
           resume.readerName,
           resume.startAt
         )}
-        className="mt-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
+        className="mt-4 inline-flex rounded-full border border-black/10 bg-neutral-200 px-4 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
       >
         続きから読む
       </Link>

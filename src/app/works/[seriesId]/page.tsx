@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient as createServerClient } from "@/lib/supabase/server";
 import { supabase } from "@/lib/supabaseClient";
-import ContinueReadingCard from "@/features/bookmark/ContinueReadingCard";
 import FavoriteBookmarkButton from "@/features/bookmark/FavoriteBookmarkButton";
 import SeriesReactionButton from "@/features/rating/SeriesReactionButton";
 import SeriesReviewSection from "@/features/review/SeriesReviewSection";
@@ -75,6 +73,15 @@ type ReaderCard = {
   allowDownload: boolean;
 };
 
+type RelatedWorkCard = {
+  seriesId: string;
+  title: string;
+  authorName: string;
+  episodeCount: number;
+  firstEpisodeNumber: number | null;
+  latestPostedAtValue: number;
+};
+
 function isPublicRecording(recording: RecordingRow): boolean {
   if (recording.is_public === false) return false;
   if (recording.public === false) return false;
@@ -144,14 +151,6 @@ function buildWorksHref(
   return `/works/${seriesId}?${query.toString()}`;
 }
 
-function buildWorkspaceHref(seriesId: string): string {
-  return `/write/series/${seriesId}`;
-}
-
-function buildAuthorHref(authorId: string): string {
-  return `/authors/${encodeURIComponent(authorId)}`;
-}
-
 function buildReaderHref(readerKey: string, readerName?: string): string {
   const encodedKey = encodeURIComponent(readerKey);
 
@@ -171,6 +170,10 @@ function buildRecordHubHref(seriesId: string): string {
   return `/record?${query.toString()}`;
 }
 
+function buildAuthorHref(authorId: string): string {
+  return `/authors/${encodeURIComponent(authorId)}`;
+}
+
 function getRecordingPermissionLabel(
   mode: RecordingPermissionMode | null | undefined
 ): string {
@@ -186,7 +189,7 @@ function getRecordingPermissionDescription(
     return "朗読ページからそのまま制作開始できる作品。";
   }
   if (mode === "approval_required") {
-    return "申請、承認状況確認、制作開始は朗読ページ側に集約する。";
+    return "申請と承認後に朗読制作へ進む。";
   }
   return "第三者朗読の募集は行っていない。";
 }
@@ -195,12 +198,12 @@ function getRecordingPermissionBadgeClass(
   mode: RecordingPermissionMode | null | undefined
 ): string {
   if (mode === "open") {
-    return "border-emerald-400/20 bg-emerald-400/10 text-emerald-200";
+    return "border-sky-200 bg-sky-50 text-black";
   }
   if (mode === "approval_required") {
-    return "border-amber-400/20 bg-amber-400/10 text-amber-200";
+    return "border-black/10 bg-neutral-100 text-neutral-700";
   }
-  return "border-white/10 bg-white/5 text-neutral-300";
+  return "border-black/10 bg-white text-neutral-600";
 }
 
 function resolveRecordingPermissionMode(
@@ -265,6 +268,22 @@ async function fetchRecordingsBySeriesId(seriesId: string): Promise<{
     recordings: [],
     fetchErrorMessage: `recordings の取得に失敗: ${secondTry.error.message}`,
   };
+}
+
+async function fetchPublicSeries(): Promise<SeriesRow[]> {
+  const { data, error } = await supabase
+    .from("series")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(36);
+
+  if (error) {
+    return [];
+  }
+
+  return ((data ?? []) as SeriesRow[]).filter(
+    (series) => getSeriesPublicationStatus(series) === "public"
+  );
 }
 
 function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
@@ -361,6 +380,23 @@ function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
     });
 }
 
+function formatEpisodeDate(value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(parsed);
+}
+
 function StatCard({
   label,
   value,
@@ -371,10 +407,10 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-      <p className="text-xs tracking-[0.18em] text-neutral-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-      {sub ? <p className="mt-2 text-sm text-neutral-400">{sub}</p> : null}
+    <div className="rounded-3xl border border-black/10 bg-neutral-50 p-4">
+      <p className="text-[11px] tracking-[0.18em] text-neutral-500">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-black">{value}</p>
+      {sub ? <p className="mt-2 text-sm text-neutral-600">{sub}</p> : null}
     </div>
   );
 }
@@ -392,10 +428,10 @@ function TabButton({
     <Link
       href={href}
       className={[
-        "rounded-full px-4 py-2 text-sm font-medium transition",
+        "rounded-full border px-4 py-2 text-sm font-medium transition",
         active
-          ? "bg-white text-black"
-          : "border border-white/10 bg-white/5 text-neutral-300 hover:bg-white/10",
+          ? "border-sky-200 bg-sky-50 text-black"
+          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
       ].join(" ")}
     >
       {label}
@@ -403,39 +439,88 @@ function TabButton({
   );
 }
 
-function BottomControlButton({
+function InfoActionRow({
   label,
-  disabled = true,
+  value,
+  href,
+  disabled,
+  tone = "plain",
 }: {
   label: string;
+  value: string;
+  href?: string;
   disabled?: boolean;
+  tone?: "plain" | "accent";
 }) {
+  const className = [
+    "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition",
+    tone === "accent"
+      ? "border-black/10 bg-neutral-200 text-black hover:bg-neutral-300"
+      : "border-black/10 bg-white text-neutral-800 hover:bg-neutral-50",
+    disabled ? "pointer-events-none opacity-60" : "",
+  ].join(" ");
+
+  if (href && !disabled) {
+    return (
+      <Link href={href} className={className}>
+        <span className="text-neutral-600">{label}</span>
+        <span className="font-medium text-black">{value}</span>
+      </Link>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      className="flex h-11 min-w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-3 text-sm text-neutral-300 disabled:opacity-70"
-    >
-      {label}
-    </button>
+    <div className={className}>
+      <span className="text-neutral-600">{label}</span>
+      <span className="font-medium text-black">{value}</span>
+    </div>
   );
 }
 
-function formatEpisodeDate(value: string): string {
-  if (!value) {
-    return "";
-  }
+function RelatedWorkCard({
+  work,
+  label,
+}: {
+  work: RelatedWorkCard;
+  label?: string;
+}) {
+  return (
+    <article className="rounded-[20px] border border-black/10 bg-neutral-50 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {label ? (
+          <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-[11px] text-neutral-600">
+            {label}
+          </span>
+        ) : null}
+        <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-[11px] text-neutral-600">
+          {work.episodeCount}話
+        </span>
+      </div>
 
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
+      <h3 className="mt-3 text-base font-semibold leading-tight text-black">
+        {work.title}
+      </h3>
+      <p className="mt-1 text-sm text-neutral-500">作者 {work.authorName}</p>
 
-  return new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(parsed);
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Link
+          href={`/works/${work.seriesId}`}
+          className="rounded-full border border-black/10 bg-white px-3.5 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+        >
+          作品ページ
+        </Link>
+
+        {work.firstEpisodeNumber ? (
+          <Link
+            href={`/read/${work.seriesId}/${work.firstEpisodeNumber}`}
+            className="rounded-full border border-black/10 bg-neutral-200 px-3.5 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
+          >
+            第1話から読む
+          </Link>
+        ) : null}
+      </div>
+    </article>
+  );
 }
 
 export default async function WorkPage({ params, searchParams }: PageProps) {
@@ -488,21 +573,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     }
   }
 
-  const authSupabase = await createServerClient();
-  const {
-    data: { user: currentUser },
-  } = await authSupabase.auth.getUser();
-
-  const ownerIds = [
-    typeof series.author_id === "string" ? series.author_id.trim() : "",
-    typeof series["user_id"] === "string" ? String(series["user_id"]).trim() : "",
-  ].filter((value) => value.length > 0);
-
-  const isOwner =
-    !!currentUser &&
-    ownerIds.length > 0 &&
-    ownerIds.includes(currentUser.id);
-
   const rawEpisodes = await fetchEpisodesBySeriesId(seriesId);
   const episodes = sortEpisodes(
     rawEpisodes.filter((episode) => isEpisodePubliclyVisible(episode))
@@ -517,6 +587,85 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
   const { recordings, fetchErrorMessage } = await fetchRecordingsBySeriesId(seriesId);
   const readerCards = buildReaderCards(recordings);
+
+  const allPublicSeries = await fetchPublicSeries();
+
+  const relatedBase = (
+    await Promise.all(
+      allPublicSeries
+        .filter((item) => item.id !== seriesId)
+        .map(async (item) => {
+          const publicEpisodes = sortEpisodes(
+            (await fetchEpisodesBySeriesId(item.id)).filter((episode) =>
+              isEpisodePubliclyVisible(episode)
+            )
+          );
+
+          if (publicEpisodes.length === 0) {
+            return null;
+          }
+
+          const firstPublicEpisode = publicEpisodes[0] ?? null;
+          const latestPublicEpisode = publicEpisodes[publicEpisodes.length - 1] ?? null;
+
+          const itemAuthorId = pickText(
+            item.author_id,
+            item["user_id"],
+            item["userId"]
+          );
+
+          const itemAuthorName =
+            itemAuthorId && authorId && itemAuthorId === authorId
+              ? pickText(
+                  author?.display_name,
+                  author?.pen_name,
+                  author?.username,
+                  author?.name,
+                  item["author_name"]
+                )
+              : pickText(item["author_name"]);
+
+          const latestPostedRaw = latestPublicEpisode
+            ? getEpisodePostedAtValue(latestPublicEpisode)
+            : null;
+
+          return {
+            seriesId: item.id,
+            title: pickText(item.title) || "無題",
+            authorName: itemAuthorName || "作者名未設定",
+            episodeCount: publicEpisodes.length,
+            firstEpisodeNumber: firstPublicEpisode
+              ? getEpisodeNumber(firstPublicEpisode)
+              : null,
+            latestPostedAtValue: latestPostedRaw
+              ? new Date(latestPostedRaw).getTime()
+              : 0,
+            sameAuthor: !!authorId && itemAuthorId === authorId,
+          };
+        })
+    )
+  ).filter(
+    (
+      item
+    ): item is RelatedWorkCard & {
+      sameAuthor: boolean;
+    } => !!item
+  );
+
+  const authorOtherWorks = relatedBase
+    .filter((item) => item.sameAuthor)
+    .sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue)
+    .slice(0, 4);
+
+  const similarWorks = relatedBase
+    .filter((item) => !item.sameAuthor)
+    .sort((a, b) => {
+      const aDiff = Math.abs(a.episodeCount - episodes.length);
+      const bDiff = Math.abs(b.episodeCount - episodes.length);
+      if (aDiff !== bDiff) return aDiff - bDiff;
+      return b.latestPostedAtValue - a.latestPostedAtValue;
+    })
+    .slice(0, 4);
 
   const seriesTitle = pickText(series.title) || "無題";
   const authorName =
@@ -546,77 +695,80 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const reviewsVisible = isSeriesReviewVisible(series);
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
-      <div className="mx-auto w-full max-w-5xl px-4 pb-28 pt-6 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <Link href="/" className="hover:text-neutral-300">
+          <Link href="/" className="hover:text-black">
             TOP
           </Link>
           <span className="mx-2">/</span>
-          <span className="text-neutral-300">作品ページ</span>
+          <span className="text-neutral-700">作品ページ</span>
         </div>
 
-        <section className="overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
-          <div className="grid gap-6 border-b border-white/10 px-5 py-6 lg:grid-cols-[1.6fr_0.9fr] lg:px-8 lg:py-8">
-            <div>
-              <p className="text-xs tracking-[0.25em] text-neutral-500">
-                LIB read WORK
-              </p>
+        <section className="overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-sm sm:rounded-[32px]">
+          <div className="border-b border-black/10 px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+            <div className="grid gap-5 xl:grid-cols-[1.8fr_0.9fr] xl:items-start">
+              <div>
+                <p className="text-[11px] tracking-[0.25em] text-neutral-500">
+                  WORK PAGE
+                </p>
 
-              <h1 className="mt-3 text-3xl font-bold leading-tight text-white sm:text-4xl">
-                {seriesTitle}
-              </h1>
+                <h1 className="mt-3 text-2xl font-bold leading-tight text-black sm:text-3xl xl:text-4xl">
+                  {seriesTitle}
+                </h1>
 
-              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-neutral-400">
-                <span>作者</span>
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-neutral-600">
+                  <span>作者</span>
+                  {authorId ? (
+                    <Link
+                      href={buildAuthorHref(authorId)}
+                      className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-neutral-800 transition hover:border-sky-200 hover:bg-sky-50"
+                    >
+                      {authorName}
+                    </Link>
+                  ) : (
+                    <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-neutral-800">
+                      {authorName}
+                    </span>
+                  )}
+                </div>
 
-                {authorId ? (
+                <p className="mt-5 whitespace-pre-wrap text-sm leading-8 text-neutral-700 sm:text-[15px]">
+                  {summary}
+                </p>
+
+                <div className="mt-5 flex flex-wrap items-center gap-2.5">
+                  {firstEpisodeNumber !== null ? (
+                    <Link
+                      href={buildReadHref(
+                        seriesId,
+                        firstEpisodeNumber,
+                        selectedReaderKey,
+                        selectedReaderName
+                      )}
+                      className="rounded-full border border-black/10 bg-neutral-200 px-4 py-2.5 text-sm font-medium text-black transition hover:bg-neutral-300"
+                    >
+                      第1話から読む
+                    </Link>
+                  ) : (
+                    <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2.5 text-sm text-neutral-500">
+                      公開話なし
+                    </span>
+                  )}
+
                   <Link
-                    href={buildAuthorHref(authorId)}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-neutral-200 transition hover:bg-white hover:text-black"
+                    href={buildWorksHref(
+                      seriesId,
+                      "toc",
+                      selectedReaderKey,
+                      selectedReaderName
+                    )}
+                    className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
                   >
-                    {authorName}
+                    目次を見る
                   </Link>
-                ) : (
-                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-neutral-200">
-                    {authorName}
-                  </span>
-                )}
-              </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <span className="text-sm text-neutral-500">朗読可否</span>
-
-                <span
-                  className={[
-                    "rounded-full border px-3 py-1 text-sm",
-                    getRecordingPermissionBadgeClass(recordingPermissionMode),
-                  ].join(" ")}
-                >
-                  {getRecordingPermissionLabel(recordingPermissionMode)}
-                </span>
-
-                <span className="text-sm text-neutral-400">
-                  {getRecordingPermissionDescription(recordingPermissionMode)}
-                </span>
-              </div>
-
-              <p className="mt-6 whitespace-pre-wrap text-[15px] leading-8 text-neutral-300">
-                {summary}
-              </p>
-
-              <div className="mt-6 max-w-2xl rounded-[28px] border border-white/10 bg-black/20 p-4">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  LIKE
-                </p>
-                <h2 className="mt-2 text-lg font-semibold text-white">
-                  この作品へのいいね
-                </h2>
-                <p className="mt-3 text-sm leading-7 text-neutral-400">
-                  最小版では 1ユーザー1作品1いいねだけ保存する。レビュー本文やブックマークとは混ぜない。
-                </p>
-
-                <div className="mt-4">
+                  <FavoriteBookmarkButton seriesId={seriesId} />
                   <SeriesReactionButton
                     seriesId={seriesId}
                     loginHref={loginHref}
@@ -624,219 +776,39 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                 </div>
               </div>
 
-              {reviewsVisible ? (
-                <div className="mt-6 max-w-2xl">
-                  <SeriesReviewSection
-                    seriesId={seriesId}
-                    loginHref={loginHref}
-                  />
-                </div>
-              ) : null}
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                {firstEpisodeNumber !== null ? (
-                  <Link
-                    href={buildReadHref(
-                      seriesId,
-                      firstEpisodeNumber,
-                      selectedReaderKey,
-                      selectedReaderName
-                    )}
-                    className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
-                  >
-                    第1話から読む
-                  </Link>
-                ) : (
-                  <span className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-500">
-                    公開話なし
-                  </span>
-                )}
-
-                <Link
-                  href={buildWorksHref(
-                    seriesId,
-                    "toc",
-                    selectedReaderKey,
-                    selectedReaderName
-                  )}
-                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
-                >
-                  目次を見る
-                </Link>
-
-                <FavoriteBookmarkButton seriesId={seriesId} />
-
-                <Link
-                  href={buildWorksHref(
-                    seriesId,
-                    "readers",
-                    selectedReaderKey,
-                    selectedReaderName
-                  )}
-                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white/10"
-                >
-                  朗読者を見る
-                </Link>
-
-                {authorId ? (
-                  <Link
-                    href={buildAuthorHref(authorId)}
-                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    作者ページへ
-                  </Link>
-                ) : null}
-
-                {recordingPermissionMode !== "closed" ? (
-                  <Link
-                    href={buildRecordHubHref(seriesId)}
-                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    朗読ページへ
-                  </Link>
-                ) : null}
+              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                <StatCard
+                  label="話数"
+                  value={`${episodes.length}話`}
+                  sub="公開中エピソード数"
+                />
+                <StatCard
+                  label="朗読者"
+                  value={`${readerCards.length}人`}
+                  sub="公開中の朗読者数"
+                />
+                <StatCard
+                  label="導線"
+                  value="作品 → 目次 → 本文"
+                  sub="小説投稿サイトの流れを優先"
+                />
               </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-              <StatCard
-                label="EPISODES"
-                value={`${episodes.length}話`}
-                sub="公開中エピソード数"
-              />
-              <StatCard
-                label="READERS"
-                value={`${readerCards.length}人`}
-                sub="公開中の朗読者数"
-              />
-              <StatCard
-                label="EFFECT"
-                value="後で追加"
-                sub="BGM / 色反転 / 演出をここから拡張"
-              />
             </div>
           </div>
 
-          <div className="grid gap-6 px-5 py-6 lg:grid-cols-[1.1fr_1.9fr] lg:px-8">
-            <aside className="space-y-5">
-              <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs tracking-[0.18em] text-neutral-500">
-                      CONTINUE
-                    </p>
-                    <h2 className="mt-2 text-lg font-semibold text-white">
-                      続きから読む
-                    </h2>
-                  </div>
-                  <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">
-                    DB優先
-                  </div>
-                </div>
-
-                <ContinueReadingCard
-                  seriesId={seriesId}
-                  fallbackEpisodeNumber={firstEpisodeNumber}
-                  fallbackReaderKey={selectedReaderKey}
-                  fallbackReaderName={selectedReaderName}
-                />
-              </section>
-
-              <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs tracking-[0.18em] text-neutral-500">
-                      SETTINGS / WORKSPACE
-                    </p>
-                    <h2 className="mt-2 text-lg font-semibold text-white">
-                      配布・設定エリア
-                    </h2>
-                  </div>
-
-                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
-                    WORKSPACE
-                  </span>
-                </div>
-
-                <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-sm text-neutral-500">現在の朗読可否</span>
-                    <span
-                      className={[
-                        "rounded-full border px-3 py-1 text-sm",
-                        getRecordingPermissionBadgeClass(recordingPermissionMode),
-                      ].join(" ")}
-                    >
-                      {getRecordingPermissionLabel(recordingPermissionMode)}
-                    </span>
-                  </div>
-
-                  <p className="mt-3 text-sm leading-7 text-neutral-400">
-                    {getRecordingPermissionDescription(recordingPermissionMode)}
-                  </p>
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  {isOwner ? (
-                    <Link
-                      href={buildWorkspaceHref(seriesId)}
-                      className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white px-4 py-3 text-left text-sm font-semibold text-black transition hover:opacity-90"
-                    >
-                      <span>作品ワークスペースを開く</span>
-                      <span>→</span>
-                    </Link>
-                  ) : (
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 opacity-70">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-medium text-neutral-300">
-                          作品ワークスペース
-                        </span>
-                        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-400">
-                          作者専用
-                        </span>
-                      </div>
-
-                      <p className="mt-3 text-sm leading-7 text-neutral-500">
-                        この作品の設定変更、配布設定、本文編集は作者アカウントのみ利用できる。
-                      </p>
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    disabled
-                    className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-neutral-500"
-                  >
-                    <span>朗読音声をダウンロード</span>
-                    <span>許可制</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled
-                    className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm text-neutral-500"
-                  >
-                    <span>本文PDFを入手</span>
-                    <span>許可制</span>
-                  </button>
-                </div>
-
-                <p className="mt-4 text-sm leading-7 text-neutral-400">
-                  作者向けの実作業は作品ワークスペースへ寄せる。
-                  作者本人には入口を表示し、それ以外のアカウントには作者専用であることだけを案内する。
-                </p>
-              </section>
-            </aside>
-
-            <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+          <div className="px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
+            <section className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    SETTINGS / WORKSPACE
+                  <p className="text-[11px] tracking-[0.18em] text-neutral-500">
+                    INDEX / READERS
                   </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
+                  <h2 className="mt-2 text-lg font-semibold text-black">
                     目次 / 朗読者
                   </h2>
+                  <p className="mt-2 text-sm leading-7 text-neutral-600">
+                    まずは目次から話を選び、必要なら朗読者を固定して本文へ入る。
+                  </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -866,25 +838,25 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
               {currentTab === "toc" ? (
                 <div className="mt-5">
                   {selectedReaderName ? (
-                    <div className="mb-4 rounded-[24px] border border-sky-400/20 bg-sky-400/10 p-4 text-sm text-sky-200">
+                    <div className="mb-4 rounded-[20px] border border-sky-200 bg-sky-50 p-4 text-sm text-black">
                       選択中の朗読者: {selectedReaderName}
                     </div>
                   ) : (
-                    <div className="mb-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-400">
-                      朗読者を固定したい時は、朗読者タブから選んで目次へ戻る
+                    <div className="mb-4 rounded-[20px] border border-black/10 bg-neutral-50 p-4 text-sm text-neutral-600">
+                      朗読者を固定したい時は、朗読者タブから選んで目次へ戻る。
                     </div>
                   )}
 
-                  <div className="overflow-hidden rounded-[24px] border border-white/10">
-                    <ul className="divide-y divide-white/10">
+                  <div className="overflow-hidden rounded-[20px] border border-black/10">
+                    <ul className="divide-y divide-black/10">
                       {episodes.map((episode) => {
                         const episodeNumber = getEpisodeNumber(episode);
                         const episodeTitle =
                           pickText(episode.title, episode["episode_title"]) ||
                           `第${episodeNumber}話`;
 
-                          const postedDate = formatEpisodeDate(getEpisodePostedAtValue(episode));
-const editedDate = formatEpisodeDate(getEpisodeLastEditedAtValue(episode));
+                        const postedDate = formatEpisodeDate(getEpisodePostedAtValue(episode));
+                        const editedDate = formatEpisodeDate(getEpisodeLastEditedAtValue(episode));
 
                         return (
                           <li key={episode.id}>
@@ -895,29 +867,30 @@ const editedDate = formatEpisodeDate(getEpisodeLastEditedAtValue(episode));
                                 selectedReaderKey,
                                 selectedReaderName
                               )}
-                              className="group flex items-center justify-between gap-4 px-4 py-4 transition hover:bg-white/[0.04] sm:px-5"
+                              className="group flex items-center justify-between gap-4 px-4 py-4 transition hover:bg-neutral-50"
                             >
                               <div className="min-w-0">
-                                <div className="flex items-center gap-3">
-                                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-sm text-neutral-300">
+                                <div className="flex items-start gap-3">
+                                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-sm text-neutral-700">
                                     {episodeNumber}
                                   </span>
-<div className="min-w-0">
-  <p className="text-sm text-neutral-500">
-    第{episodeNumber}話
-  </p>
-  <p className="truncate text-base font-medium text-white">
-    {episodeTitle}
-  </p>
-  <p className="mt-1 text-xs text-neutral-500">
-    {postedDate ? `投稿日 ${postedDate}` : "投稿日 未設定"}
-    {editedDate ? `（${editedDate} 編集済み）` : ""}
-  </p>
-</div>
+
+                                  <div className="min-w-0">
+                                    <p className="text-sm text-neutral-500">
+                                      第{episodeNumber}話
+                                    </p>
+                                    <p className="truncate text-base font-medium text-black">
+                                      {episodeTitle}
+                                    </p>
+                                    <p className="mt-1 text-xs text-neutral-500">
+                                      {postedDate ? `投稿日 ${postedDate}` : "投稿日 未設定"}
+                                      {editedDate ? `（${editedDate} 編集済み）` : ""}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
 
-                              <div className="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-300 transition group-hover:bg-white group-hover:text-black">
+                              <div className="shrink-0 rounded-full border border-black/10 bg-white px-3.5 py-2 text-sm text-neutral-700 transition group-hover:border-sky-200 group-hover:bg-sky-50 group-hover:text-black">
                                 読む
                               </div>
                             </Link>
@@ -928,15 +901,15 @@ const editedDate = formatEpisodeDate(getEpisodeLastEditedAtValue(episode));
                   </div>
                 </div>
               ) : (
-                <div className="mt-5 grid gap-4">
+                <div className="mt-5 grid gap-3">
                   {fetchErrorMessage ? (
-                    <div className="rounded-[24px] border border-red-400/20 bg-red-400/10 p-4 text-sm leading-7 text-red-200">
+                    <div className="rounded-[20px] border border-black/10 bg-neutral-100 p-4 text-sm leading-7 text-neutral-700">
                       {fetchErrorMessage}
                     </div>
                   ) : null}
 
                   {readerCards.length === 0 ? (
-                    <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 p-5 text-sm leading-7 text-neutral-400">
+                    <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-5 text-sm leading-7 text-neutral-600">
                       まだ公開中の朗読がない。
                     </div>
                   ) : (
@@ -949,28 +922,28 @@ const editedDate = formatEpisodeDate(getEpisodeLastEditedAtValue(episode));
                         <div
                           key={reader.readerKey}
                           className={[
-                            "rounded-[24px] border bg-white/[0.03] p-4",
+                            "rounded-[20px] border p-4",
                             isSelected
-                              ? "border-sky-400/30 ring-1 ring-sky-400/20"
-                              : "border-white/10",
+                              ? "border-sky-200 bg-sky-50/60"
+                              : "border-black/10 bg-neutral-50",
                           ].join(" ")}
                         >
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                              <div className="flex items-center gap-2">
-                                <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-black">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-semibold text-black">
                                   #{reader.rank}
                                 </span>
 
                                 <Link
                                   href={buildReaderHref(reader.readerKey, reader.name)}
-                                  className="text-lg font-semibold text-white transition hover:text-neutral-300"
+                                  className="text-base font-semibold text-black transition hover:text-neutral-700"
                                 >
                                   {reader.name}
                                 </Link>
 
                                 {isSelected ? (
-                                  <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-xs text-sky-200">
+                                  <span className="rounded-full border border-sky-200 bg-white px-3 py-1 text-[11px] text-black">
                                     選択中
                                   </span>
                                 ) : null}
@@ -981,13 +954,13 @@ const editedDate = formatEpisodeDate(getEpisodeLastEditedAtValue(episode));
                                   reader.tags.map((tag) => (
                                     <span
                                       key={tag}
-                                      className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-sm text-neutral-300"
+                                      className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm text-neutral-700"
                                     >
                                       {tag}
                                     </span>
                                   ))
                                 ) : (
-                                  <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-sm text-neutral-500">
+                                  <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm text-neutral-500">
                                     タグ未設定
                                   </span>
                                 )}
@@ -997,7 +970,7 @@ const editedDate = formatEpisodeDate(getEpisodeLastEditedAtValue(episode));
                             <div className="flex flex-wrap gap-2">
                               <Link
                                 href={buildReaderHref(reader.readerKey, reader.name)}
-                                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
                               >
                                 朗読者ページへ
                               </Link>
@@ -1009,7 +982,7 @@ const editedDate = formatEpisodeDate(getEpisodeLastEditedAtValue(episode));
                                   reader.readerKey,
                                   reader.name
                                 )}
-                                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
                               >
                                 この朗読で目次へ
                               </Link>
@@ -1022,7 +995,7 @@ const editedDate = formatEpisodeDate(getEpisodeLastEditedAtValue(episode));
                                     reader.readerKey,
                                     reader.name
                                   )}
-                                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                                  className="rounded-full border border-black/10 bg-neutral-200 px-4 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
                                 >
                                   この朗読で再生
                                 </Link>
@@ -1030,21 +1003,21 @@ const editedDate = formatEpisodeDate(getEpisodeLastEditedAtValue(episode));
                             </div>
                           </div>
 
-                          <p className="mt-4 text-sm leading-7 text-neutral-400">
+                          <p className="mt-4 text-sm leading-7 text-neutral-600">
                             {reader.description}
                           </p>
 
-                          <div className="mt-4 flex flex-wrap gap-2 text-xs text-neutral-500">
-                            <span className="rounded-full border border-white/10 px-3 py-1">
+                          <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-neutral-500">
+                            <span className="rounded-full border border-black/10 bg-white px-3 py-1">
                               公開朗読 {reader.recordingCount}件
                             </span>
-                            <span className="rounded-full border border-white/10 px-3 py-1">
+                            <span className="rounded-full border border-black/10 bg-white px-3 py-1">
                               いいね {reader.totalLikes}
                             </span>
-                            <span className="rounded-full border border-white/10 px-3 py-1">
+                            <span className="rounded-full border border-black/10 bg-white px-3 py-1">
                               再生 {reader.totalPlays}
                             </span>
-                            <span className="rounded-full border border-white/10 px-3 py-1">
+                            <span className="rounded-full border border-black/10 bg-white px-3 py-1">
                               DL {reader.allowDownload ? "可" : "不可"}
                             </span>
                           </div>
@@ -1052,52 +1025,145 @@ const editedDate = formatEpisodeDate(getEpisodeLastEditedAtValue(episode));
                       );
                     })
                   )}
-
-                  <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-500">
-                    今の人気順は like_count、次に play_count で並べている。
-                  </div>
                 </div>
               )}
             </section>
           </div>
         </section>
-      </div>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-white/10 bg-[#0a0a0a]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2">
-            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
-              栞
+        {reviewsVisible ? (
+          <div className="mt-8">
+            <SeriesReviewSection
+              seriesId={seriesId}
+              loginHref={loginHref}
+            />
+          </div>
+        ) : null}
+
+        <section className="mt-8 grid gap-4 xl:grid-cols-2">
+          <div className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] tracking-[0.18em] text-neutral-500">
+                  AUTHOR OTHER WORKS
+                </p>
+                <h2 className="mt-2 text-lg font-semibold text-black">
+                  作者の他作品
+                </h2>
+              </div>
+              <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600">
+                {authorOtherWorks.length}件
+              </span>
             </div>
-            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
-              途中話数表示は次回
+
+            <div className="mt-4 grid gap-3">
+              {authorOtherWorks.length === 0 ? (
+                <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
+                  まだ他の公開作品はない。
+                </div>
+              ) : (
+                authorOtherWorks.map((work) => (
+                  <RelatedWorkCard
+                    key={work.seriesId}
+                    work={work}
+                    label="同作者"
+                  />
+                ))
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <BottomControlButton label="🔖" />
-            <BottomControlButton label="↺15" />
+          <div className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] tracking-[0.18em] text-neutral-500">
+                  SIMILAR WORKS
+                </p>
+                <h2 className="mt-2 text-lg font-semibold text-black">
+                  類似作品候補
+                </h2>
+              </div>
+              <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600">
+                {similarWorks.length}件
+              </span>
+            </div>
 
-            {firstEpisodeNumber !== null ? (
-              <Link
-                href={buildReadHref(
-                  seriesId,
-                  firstEpisodeNumber,
-                  selectedReaderKey,
-                  selectedReaderName
-                )}
-                className="flex h-11 min-w-24 items-center justify-center rounded-2xl border border-white/10 bg-white px-4 text-sm font-semibold text-black transition hover:opacity-90"
-              >
-                ▶ 再生
-              </Link>
-            ) : (
-              <BottomControlButton label="▶ 再生" />
-            )}
+            <p className="mt-2 text-sm leading-7 text-neutral-600">
+              今は安全に取れる情報だけで、話数や公開状況が近い作品を暫定表示している。
+            </p>
 
-            <BottomControlButton label="15↻" />
-            <BottomControlButton label="⚙" />
+            <div className="mt-4 grid gap-3">
+              {similarWorks.length === 0 ? (
+                <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
+                  まだ候補に出せる公開作品がない。
+                </div>
+              ) : (
+                similarWorks.map((work) => (
+                  <RelatedWorkCard
+                    key={work.seriesId}
+                    work={work}
+                    label="候補"
+                  />
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        </section>
+
+        <section className="mt-8 rounded-[24px] border border-black/10 bg-white p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] tracking-[0.18em] text-neutral-500">
+                ABOUT THIS WORK
+              </p>
+              <h2 className="mt-2 text-lg font-semibold text-black">
+                この作品について
+              </h2>
+            </div>
+
+            <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-500">
+              INFO
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-3 xl:grid-cols-2">
+            <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3">
+              <p className="text-sm text-neutral-500">作者</p>
+              <p className="mt-2 text-sm font-medium text-black">{authorName}</p>
+            </div>
+
+            <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3">
+              <p className="text-sm text-neutral-500">朗読可否</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span
+                  className={[
+                    "rounded-full border px-3 py-1 text-sm",
+                    getRecordingPermissionBadgeClass(recordingPermissionMode),
+                  ].join(" ")}
+                >
+                  {getRecordingPermissionLabel(recordingPermissionMode)}
+                </span>
+              </div>
+              <p className="mt-3 text-sm leading-7 text-neutral-600">
+                {getRecordingPermissionDescription(recordingPermissionMode)}
+              </p>
+            </div>
+
+            <InfoActionRow
+              label="朗読出力"
+              value="朗読ページへ"
+              href={recordingPermissionMode !== "closed" ? buildRecordHubHref(seriesId) : undefined}
+              disabled={recordingPermissionMode === "closed"}
+              tone={recordingPermissionMode !== "closed" ? "accent" : "plain"}
+            />
+
+            <InfoActionRow
+              label="本文PDF化"
+              value="準備中"
+              disabled
+            />
+          </div>
+        </section>
       </div>
     </main>
   );

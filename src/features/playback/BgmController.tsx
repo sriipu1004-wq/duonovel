@@ -189,7 +189,7 @@ export default function BgmController({
         JSON.stringify(payload)
       );
     } catch {
-      // 保存失敗は黙って継続
+      // noop
     }
   }, [seriesId, enabled, volume]);
 
@@ -318,7 +318,7 @@ export default function BgmController({
   }
 
   return (
-    <div className="mt-4 rounded-[28px] border border-white/10 bg-black/20 p-4">
+    <div className="mt-4 rounded-[28px] border border-black/10 bg-neutral-50 p-4">
       <audio ref={audioRef} preload="metadata">
         {playableBgmSrc ? <source src={playableBgmSrc} /> : null}
       </audio>
@@ -326,7 +326,7 @@ export default function BgmController({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs tracking-[0.18em] text-neutral-500">BGM</p>
-          <h3 className="mt-2 text-lg font-semibold text-white">
+          <h3 className="mt-2 text-lg font-semibold text-black">
             {bgmTitle || "BGM未設定"}
           </h3>
         </div>
@@ -335,10 +335,10 @@ export default function BgmController({
           type="button"
           onClick={handleToggleEnabled}
           className={[
-            "rounded-full px-4 py-2 text-sm font-medium transition",
+            "rounded-full border px-4 py-2 text-sm font-medium transition",
             enabled
-              ? "border border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
-              : "border border-white/10 bg-white/5 text-neutral-300",
+              ? "border-sky-200 bg-sky-50 text-black"
+              : "border-black/10 bg-white text-neutral-700",
           ].join(" ")}
         >
           {enabled ? "BGM ON" : "BGM OFF"}
@@ -350,32 +350,32 @@ export default function BgmController({
           className={[
             "rounded-full px-3 py-1 text-xs",
             playableBgmSrc
-              ? "border border-sky-400/20 bg-sky-400/10 text-sky-200"
-              : "border border-white/10 bg-white/5 text-neutral-500",
+              ? "border border-sky-200 bg-sky-50 text-black"
+              : "border border-black/10 bg-white text-neutral-500",
           ].join(" ")}
         >
           {playableBgmSrc ? "BGM接続済み" : "BGM未接続"}
         </span>
 
-        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
+        <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-700">
           朗読再生と連動
         </span>
 
-        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
+        <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-700">
           fade in {formatBgmSeconds(fadeInSeconds)}
         </span>
 
-        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
+        <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-700">
           fade out {formatBgmSeconds(fadeOutSeconds)}
         </span>
 
-        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
+        <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
           場面切替予約 {sceneCueCount}件
         </span>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <div className="flex items-center justify-between gap-3 text-sm text-neutral-300">
+      <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
+        <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
           <span>音量</span>
           <span>{Math.round(volume * 100)}%</span>
         </div>
@@ -387,17 +387,16 @@ export default function BgmController({
           step={0.01}
           value={volume}
           onChange={handleVolumeChange}
-          className="mt-3 w-full accent-white"
+          className="mt-3 w-full accent-sky-300"
         />
       </div>
 
-      <p className="mt-4 text-sm leading-7 text-neutral-400">
-        今回の適用は、BGM開始時フェードインと、停止 / 再生終了時フェードアウトまで。
-        場面展開でのBGM切り替えは、保存枠だけ先に置いて次段でつなぐ。
+      <p className="mt-4 text-sm leading-7 text-neutral-600">
+        BGMは朗読再生と連動し、開始時と停止時にフェードをかける。
       </p>
 
       {visibleAudioError ? (
-        <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+        <div className="mt-4 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-neutral-700">
           {visibleAudioError}
         </div>
       ) : null}

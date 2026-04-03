@@ -9,7 +9,6 @@ type SeriesReactionButtonProps = {
   loginHref?: string;
 };
 
-// DB 上の既存値は今回は変えない
 const DB_REACTION_TYPE = "support";
 
 async function fetchLikeCount(seriesId: string): Promise<number> {
@@ -24,6 +23,73 @@ async function fetchLikeCount(seriesId: string): Promise<number> {
   }
 
   return count ?? 0;
+}
+
+function HeartIcon({
+  filled,
+  className,
+}: {
+  filled: boolean;
+  className?: string;
+}) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={className}
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 20.5c-.3 0-.6-.1-.9-.3C6.4 16.8 3 13.8 3 9.8 3 7 5 5 7.6 5c1.7 0 3.1.8 4.4 2.3C13.3 5.8 14.7 5 16.4 5 19 5 21 7 21 9.8c0 4-3.4 7-8.1 10.4-.3.2-.6.3-.9.3Z" />
+    </svg>
+  );
+}
+
+function ReactionChip({
+  liked,
+  likeCount,
+  disabled = false,
+  onClick,
+}: {
+  liked: boolean;
+  likeCount: number;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={liked}
+      className={[
+        "inline-flex h-[46px] items-center gap-2 rounded-full border px-3.5 text-sm transition",
+        liked
+          ? "border-pink-200 bg-pink-50"
+          : "border-black/10 bg-white hover:bg-neutral-50",
+        disabled ? "opacity-70" : "",
+      ].join(" ")}
+    >
+      <HeartIcon
+        filled={liked}
+        className={[
+          "h-4 w-4",
+          liked ? "text-pink-500" : "text-neutral-700",
+        ].join(" ")}
+      />
+      <span
+        className={[
+          "font-medium",
+          liked ? "text-pink-600" : "text-neutral-800",
+        ].join(" ")}
+      >
+        {likeCount}
+      </span>
+    </button>
+  );
 }
 
 export default function SeriesReactionButton({
@@ -44,7 +110,7 @@ export default function SeriesReactionButton({
       setLikeCount(count);
     } catch {
       setLikeCount(0);
-      setMessage("いいね数の取得に失敗した。migration か RLS を確認して。");
+      setMessage("いいね数の取得に失敗した。");
     }
 
     const {
@@ -145,84 +211,43 @@ export default function SeriesReactionButton({
 
   if (isLoggedIn === null) {
     return (
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            disabled
-            className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-500"
-          >
-            いいね状態を確認中...
-          </button>
-
-          <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-400">
-            いいね -- 件
-          </span>
-        </div>
+      <div className="flex items-center">
+        <ReactionChip liked={false} likeCount={likeCount} disabled />
       </div>
     );
   }
 
   if (isLoggedIn === false) {
     return (
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Link
-            href={loginHref}
-            className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-          >
-            ログインしていいね
-          </Link>
-
-          <span className="rounded-full border border-rose-300/20 bg-rose-300/10 px-4 py-2 text-sm text-rose-100">
-            いいね {likeCount}件
+      <div className="flex flex-col gap-2">
+        <Link href={loginHref} className="inline-flex w-fit">
+          <span className="sr-only">ログインしていいね</span>
+          <span className="inline-flex h-[46px] items-center gap-2 rounded-full border border-black/10 bg-white px-3.5 text-sm transition hover:bg-neutral-50">
+            <HeartIcon filled={false} className="h-4 w-4 text-neutral-700" />
+            <span className="font-medium text-neutral-800">{likeCount}</span>
           </span>
-        </div>
-
-        <p className="text-xs leading-6 text-neutral-500">
-          最小版では 1ユーザー1作品1いいねだけ保存する。
-        </p>
+        </Link>
 
         {message ? (
-          <p className="text-xs leading-6 text-amber-300">{message}</p>
+          <p className="text-xs leading-6 text-neutral-600">{message}</p>
         ) : null}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={handleToggle}
-          disabled={isWorking}
-          className={[
-            "rounded-full px-5 py-3 text-sm transition",
-            isLiked
-              ? "border border-rose-300/30 bg-rose-300/15 text-rose-100 hover:bg-rose-300/20"
-              : "border border-white/10 bg-white/5 text-neutral-200 hover:bg-white hover:text-black",
-            isWorking ? "opacity-70" : "",
-          ].join(" ")}
-        >
-          {isWorking
-            ? "処理中..."
-            : isLiked
-              ? "♥ いいね済み"
-              : "♡ この作品にいいね"}
-        </button>
-
-        <span className="rounded-full border border-rose-300/20 bg-rose-300/10 px-4 py-2 text-sm text-rose-100">
-          いいね {likeCount}件
-        </span>
-      </div>
-
-      <p className="text-xs leading-6 text-neutral-500">
-        最小版では 1ユーザー1作品1いいねだけ保存する。
-      </p>
+    <div className="flex flex-col gap-2">
+      <ReactionChip
+        liked={isLiked}
+        likeCount={likeCount}
+        disabled={isWorking}
+        onClick={() => {
+          void handleToggle();
+        }}
+      />
 
       {message ? (
-        <p className="text-xs leading-6 text-amber-300">{message}</p>
+        <p className="text-xs leading-6 text-neutral-600">{message}</p>
       ) : null}
     </div>
   );

@@ -132,7 +132,7 @@ async function fetchReviews(seriesId: string): Promise<{
   if (error) {
     return {
       reviews: [],
-      errorMessage: "レビュー一覧の取得に失敗した。migration と RLS を確認して。",
+      errorMessage: "レビュー一覧の取得に失敗した。",
     };
   }
 
@@ -190,7 +190,7 @@ async function fetchReviewLikeCounts(reviewIds: string[]): Promise<{
   if (error) {
     return {
       likeCountMap: {},
-      errorMessage: "レビューいいね数の取得に失敗した。migration と RLS を確認して。",
+      errorMessage: "レビューいいね数の取得に失敗した。",
     };
   }
 
@@ -254,24 +254,24 @@ function ReviewItem({
   const reviewedAt = formatReviewDate(review.updated_at ?? review.created_at);
 
   return (
-    <article className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+    <article className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-white">{authorName}</p>
+          <p className="text-sm font-semibold text-black">{authorName}</p>
           <p className="mt-1 text-xs text-neutral-500">{reviewedAt}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-neutral-400">
+          <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
             レビュー
           </span>
-          <span className="rounded-full border border-rose-300/20 bg-rose-300/10 px-3 py-1 text-xs text-rose-100">
-            いいね {likeCount}件
+          <span className="rounded-full border border-pink-200 bg-pink-50 px-3 py-1 text-xs text-pink-600">
+            ♥ {likeCount}
           </span>
         </div>
       </div>
 
-      <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-300">
+      <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-800">
         {review.body}
       </p>
 
@@ -282,10 +282,10 @@ function ReviewItem({
             onClick={onToggleLike}
             disabled={isWorking}
             className={[
-              "rounded-full px-4 py-2 text-sm transition",
+              "rounded-full border px-4 py-2 text-sm transition",
               isLiked
-                ? "border border-rose-300/30 bg-rose-300/15 text-rose-100 hover:bg-rose-300/20"
-                : "border border-white/10 bg-white/5 text-neutral-200 hover:bg-white hover:text-black",
+                ? "border-pink-200 bg-pink-50 text-pink-600"
+                : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
               isWorking ? "opacity-70" : "",
             ].join(" ")}
           >
@@ -298,7 +298,7 @@ function ReviewItem({
         ) : (
           <Link
             href={loginHref}
-            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
           >
             ログインしていいね
           </Link>
@@ -322,10 +322,10 @@ function SortButton({
       type="button"
       onClick={onClick}
       className={[
-        "rounded-full px-4 py-2 text-sm transition",
+        "rounded-full border px-4 py-2 text-sm transition",
         active
-          ? "bg-white text-black"
-          : "border border-white/10 bg-white/5 text-neutral-300 hover:bg-white hover:text-black",
+          ? "border-sky-200 bg-sky-50 text-black"
+          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
       ].join(" ")}
     >
       {label}
@@ -466,7 +466,7 @@ export default function SeriesReviewSection({
       );
 
       if (error) {
-        setMessage("レビュー保存に失敗した。migration と RLS を確認して。");
+        setMessage("レビュー保存に失敗した。");
         return;
       }
 
@@ -615,7 +615,7 @@ export default function SeriesReviewSection({
   }, [otherReviews, sortField, sortDirection, likeCountMap]);
 
   return (
-    <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+    <section className="rounded-[28px] border border-black/10 bg-white p-5">
       <button
         type="button"
         onClick={() => setIsExpanded((current) => !current)}
@@ -624,19 +624,19 @@ export default function SeriesReviewSection({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs tracking-[0.18em] text-neutral-500">REVIEW</p>
-            <h2 className="mt-2 text-lg font-semibold text-white">
+            <h2 className="mt-2 text-lg font-semibold text-black">
               感想・レビュー
             </h2>
-            <p className="mt-3 text-sm leading-7 text-neutral-400">
-              レビュー欄は開閉できる。レビュー本文の投稿に加えて、各レビューへのいいねと並び替えを扱う。
+            <p className="mt-3 text-sm leading-7 text-neutral-600">
+              レビュー欄は開閉できる。
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
+            <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-600">
               レビュー {reviews.length}件
             </span>
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-400">
+            <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
               {isExpanded ? "閉じる" : "開く"}
             </span>
           </div>
@@ -645,11 +645,11 @@ export default function SeriesReviewSection({
 
       {!isExpanded ? null : (
         <div className="mt-5">
-          <div className="flex flex-wrap items-start justify-between gap-3 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
             <div>
-              <p className="text-sm font-semibold text-white">表示順</p>
-              <p className="mt-2 text-sm leading-7 text-neutral-400">
-                投稿順か、いいね順で並び替えできる。さらに昇順 / 降順も切り替えられる。
+              <p className="text-sm font-semibold text-black">表示順</p>
+              <p className="mt-2 text-sm leading-7 text-neutral-600">
+                投稿順か、いいね順で並び替えできる。
               </p>
             </div>
 
@@ -685,24 +685,24 @@ export default function SeriesReviewSection({
           <div className="mt-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-white">レビュー一覧</p>
+                <p className="text-sm font-semibold text-black">レビュー一覧</p>
                 <p className="mt-1 text-xs text-neutral-500">
-                  自分以外のレビューを、選択した並び順で表示
+                  自分以外のレビューを表示
                 </p>
               </div>
 
-              <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-400">
+              <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-500">
                 {sortedOtherReviews.length}件
               </span>
             </div>
 
             <div className="mt-4 grid gap-3">
               {isBooting ? (
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-500">
+                <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4 text-sm text-neutral-500">
                   一覧を読み込み中...
                 </div>
               ) : sortedOtherReviews.length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-400">
+                <div className="rounded-[24px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
                   まだ他の読者のレビューはない。
                 </div>
               ) : (
@@ -725,14 +725,14 @@ export default function SeriesReviewSection({
           </div>
 
           {isBooting && isLoggedIn === null ? (
-            <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-500">
+            <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4 text-sm text-neutral-500">
               レビュー状態を確認中...
             </div>
           ) : isLoggedIn ? (
-            <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+            <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-white">自分のレビュー</p>
+                  <p className="text-sm font-semibold text-black">自分のレビュー</p>
                   <p className="mt-1 text-xs text-neutral-500">
                     {ownReview
                       ? `最終更新 ${formatReviewDate(
@@ -742,7 +742,7 @@ export default function SeriesReviewSection({
                   </p>
                 </div>
 
-                <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-400">
+                <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
                   1作品1件 / 300文字
                 </span>
               </div>
@@ -753,11 +753,11 @@ export default function SeriesReviewSection({
                 rows={5}
                 maxLength={MAX_REVIEW_LENGTH}
                 placeholder="読後感や短いレビューを書く"
-                className="mt-4 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-neutral-500"
+                className="mt-4 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
               />
 
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-400">
+                <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
                   {draft.length}/{MAX_REVIEW_LENGTH}
                 </span>
 
@@ -767,7 +767,7 @@ export default function SeriesReviewSection({
                       type="button"
                       onClick={handleDelete}
                       disabled={isSaving || isDeleting}
-                      className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black disabled:opacity-70"
+                      className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-70"
                     >
                       {isDeleting ? "削除中..." : "削除"}
                     </button>
@@ -777,7 +777,7 @@ export default function SeriesReviewSection({
                     type="button"
                     onClick={handleSave}
                     disabled={isSaving || isDeleting}
-                    className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black transition hover:opacity-90 disabled:opacity-70"
+                    className="rounded-full border border-black/10 bg-neutral-200 px-4 py-2 text-sm text-black transition hover:bg-neutral-300 disabled:opacity-70"
                   >
                     {isSaving
                       ? "保存中..."
@@ -787,34 +787,26 @@ export default function SeriesReviewSection({
                   </button>
                 </div>
               </div>
-
-              <p className="mt-3 text-xs leading-6 text-neutral-500">
-                今回は spoiler 判定、画像添付、通報、通知までは広げない。レビューいいねは本文投稿とは別で保存する。
-              </p>
             </div>
           ) : (
-            <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+            <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Link
                   href={loginHref}
-                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
                 >
                   ログインしてレビューを書く
                 </Link>
 
-                <span className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-sm text-neutral-400">
+                <span className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm text-neutral-500">
                   レビュー {reviews.length}件
                 </span>
               </div>
-
-              <p className="mt-3 text-sm leading-7 text-neutral-400">
-                未ログイン時はレビューとレビューへのいいね数だけ見せる。投稿やいいねはログイン後に行う。
-              </p>
             </div>
           )}
 
           {message ? (
-            <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-amber-300">
+            <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-neutral-600">
               {message}
             </p>
           ) : null}

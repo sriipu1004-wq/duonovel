@@ -11,11 +11,9 @@ import {
   type ChangeEvent,
 } from "react";
 import {
-  buildBackgroundTheme,
   buildSegments,
   buildTypographyStyle,
   renderIllustration,
-  renderSceneCue,
   renderSegment,
 } from "@/features/effects/EffectPreviewRenderer";
 import BgmController from "@/features/playback/BgmController";
@@ -249,12 +247,12 @@ function FooterActionButton({
       className={[
         "flex h-12 w-full items-center justify-center rounded-2xl border px-2 text-center text-[10px] font-medium leading-tight transition sm:text-sm",
         accent
-          ? "border-white bg-white text-black hover:opacity-90 disabled:border-white/10 disabled:bg-white/5 disabled:text-neutral-500"
+          ? "border-black/10 bg-neutral-200 text-black hover:bg-neutral-300 disabled:bg-neutral-100 disabled:text-neutral-400"
           : active
-            ? "border-sky-400/20 bg-sky-400/10 text-sky-200"
+            ? "border-sky-200 bg-sky-50 text-black"
             : disabled
-              ? "border-white/10 bg-white/5 text-neutral-500"
-              : "border-white/10 bg-white/5 text-neutral-200 hover:bg-white/10",
+              ? "border-black/10 bg-neutral-100 text-neutral-400"
+              : "border-black/10 bg-white text-black hover:bg-neutral-50",
       ].join(" ")}
     >
       <span className="whitespace-pre-line">{label}</span>
@@ -275,17 +273,17 @@ function FooterPlaybackRateControl({
   const atMax = value >= 2.5;
 
   return (
-    <div className="flex h-12 w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+    <div className="flex h-12 w-full overflow-hidden rounded-2xl border border-black/10 bg-white">
       <button
         type="button"
         onClick={onDecrease}
         disabled={atMin}
-        className="flex w-1/4 items-center justify-center border-r border-white/10 text-sm text-neutral-200 transition hover:bg-white/10 disabled:text-neutral-500 disabled:hover:bg-transparent"
+        className="flex w-1/4 items-center justify-center border-r border-black/10 text-sm text-black transition hover:bg-neutral-50 disabled:text-neutral-400 disabled:hover:bg-transparent"
       >
         −
       </button>
 
-      <div className="flex flex-1 items-center justify-center text-[10px] font-medium text-neutral-200 sm:text-sm">
+      <div className="flex flex-1 items-center justify-center text-[10px] font-medium text-black sm:text-sm">
         {formatPlaybackRate(value)}
       </div>
 
@@ -293,7 +291,7 @@ function FooterPlaybackRateControl({
         type="button"
         onClick={onIncrease}
         disabled={atMax}
-        className="flex w-1/4 items-center justify-center border-l border-white/10 text-sm text-neutral-200 transition hover:bg-white/10 disabled:text-neutral-500 disabled:hover:bg-transparent"
+        className="flex w-1/4 items-center justify-center border-l border-black/10 text-sm text-black transition hover:bg-neutral-50 disabled:text-neutral-400 disabled:hover:bg-transparent"
       >
         ＋
       </button>
@@ -315,10 +313,10 @@ function SettingChip({
       type="button"
       onClick={onClick}
       className={[
-        "rounded-full px-4 py-2 text-sm font-medium transition",
+        "rounded-full border px-4 py-2 text-sm font-medium transition",
         active
-          ? "bg-white text-black"
-          : "border border-white/10 bg-white/5 text-neutral-300 hover:bg-white/10",
+          ? "border-sky-200 bg-sky-50 text-black"
+          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
       ].join(" ")}
     >
       {label}
@@ -440,24 +438,14 @@ export default function EpisodePlayback({
     Record<string, true>
   >({});
   const [activeSceneCueId, setActiveSceneCueId] = useState<string | null>(null);
-  const [activeBackgroundPreset, setActiveBackgroundPreset] =
-    useState<EffectSettings["backgroundPreset"]>(null);
   const [activeSceneBgmSrc, setActiveSceneBgmSrc] = useState<string | null>(
     null
   );
-  const [activeSceneBgmTitle, setActiveSceneBgmTitle] = useState("");  
+  const [activeSceneBgmTitle, setActiveSceneBgmTitle] = useState("");
 
   const appliedEffectSettings = useMemo(
     () => effectSettings ?? emptyEffectSettings(),
     [effectSettings]
-  );
-
-  const effectiveBackgroundPreset =
-    activeBackgroundPreset ?? appliedEffectSettings.backgroundPreset;
-
-  const effectTheme = useMemo(
-    () => buildBackgroundTheme(effectiveBackgroundPreset),
-    [effectiveBackgroundPreset]
   );
 
   const effectTypographyStyle = useMemo(
@@ -555,7 +543,7 @@ export default function EpisodePlayback({
   const resolvedBgmTitle =
     activeSceneBgmSrc !== null
       ? activeSceneBgmTitle || bgmTitle || "場面BGM"
-      : bgmTitle || "";    
+      : bgmTitle || "";
 
   const estimatedSentenceIndex = useMemo(() => {
     return resolveActiveSentenceIndex({
@@ -618,21 +606,13 @@ export default function EpisodePlayback({
   }, [lineHeightPreset]);
 
   const readingPaneClass = useMemo(() => {
-    if (hideEffects) {
-      return "rounded-[28px] bg-transparent p-5 sm:p-6";
-    }
-    return `${effectTheme.frameClassName} ${effectTheme.surfaceClassName} p-5 sm:p-6`;
-  }, [hideEffects, effectTheme.frameClassName, effectTheme.surfaceClassName]);
+    return "rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6";
+  }, []);
 
-  const readingPaneTextClassName = useMemo(() => {
-    if (hideEffects) {
-      return "text-neutral-100";
-    }
-    return effectTheme.textClassName;
-  }, [hideEffects, effectTheme.textClassName]);
+  const readingPaneTextClassName = "text-black";
 
   const markerClass =
-    "bg-[repeating-linear-gradient(135deg,rgba(200,200,200,0.26)_0px,rgba(200,200,200,0.26)_8px,rgba(120,120,120,0.18)_8px,rgba(120,120,120,0.18)_16px)] ring-1 ring-white/10";
+    "bg-[repeating-linear-gradient(135deg,rgba(226,244,255,0.92)_0px,rgba(226,244,255,0.92)_10px,rgba(245,247,250,0.96)_10px,rgba(245,247,250,0.96)_20px)] ring-1 ring-sky-200";
 
   const unlockProgrammaticScroll = useCallback(() => {
     if (ignoreScrollTimeoutRef.current) {
@@ -673,7 +653,7 @@ export default function EpisodePlayback({
         JSON.stringify(payload)
       );
     } catch {
-      // 保存失敗は黙って継続
+      // noop
     }
   }, [seriesId, fontScale, lineHeightPreset, hideEffects]);
 
@@ -684,7 +664,7 @@ export default function EpisodePlayback({
         autoAdvanceToNext ? "true" : "false"
       );
     } catch {
-      // 保存失敗は黙って継続
+      // noop
     }
   }, [seriesId, autoAdvanceToNext]);
 
@@ -695,7 +675,7 @@ export default function EpisodePlayback({
         String(playbackRate)
       );
     } catch {
-      // 保存失敗は黙って継続
+      // noop
     }
   }, [seriesId, playbackRate]);
 
@@ -706,18 +686,17 @@ export default function EpisodePlayback({
         String(narrationVolume)
       );
     } catch {
-      // 保存失敗は黙って継続
+      // noop
     }
   }, [seriesId, narrationVolume]);
 
   useEffect(() => {
     setFiredSceneCueIds({});
     setActiveSceneCueId(null);
-    setActiveBackgroundPreset(null);
     setActiveSceneBgmSrc(null);
     setActiveSceneBgmTitle("");
     previousEstimatedSentenceIndexRef.current = -1;
-  }, [episodeId, playableAudioSrc, bgmSrc, bgmTitle, appliedEffectSettings.sceneCues]);  
+  }, [episodeId, playableAudioSrc, bgmSrc, bgmTitle, appliedEffectSettings.sceneCues]);
 
   useEffect(() => {
     if (estimatedSentenceIndex < 0) {
@@ -739,7 +718,6 @@ export default function EpisodePlayback({
     ) {
       setFiredSceneCueIds({});
       setActiveSceneCueId(null);
-      setActiveBackgroundPreset(null);
       setActiveSceneBgmSrc(null);
       setActiveSceneBgmTitle("");
       previousEstimatedSentenceIndexRef.current = -1;
@@ -772,10 +750,6 @@ export default function EpisodePlayback({
     setActiveSceneCueId(latestSceneCue.id);
 
     for (const sceneCue of pendingSceneCues) {
-      if (sceneCue.backgroundPreset !== null) {
-        setActiveBackgroundPreset(sceneCue.backgroundPreset);
-      }
-
       const nextSceneBgmSrc = sceneCue.nextBgmAudioPath?.trim() ?? "";
       if (nextSceneBgmSrc) {
         setActiveSceneBgmSrc(nextSceneBgmSrc);
@@ -1189,95 +1163,71 @@ export default function EpisodePlayback({
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
+    <main className="min-h-screen bg-white text-black">
       <audio ref={audioRef} preload="metadata">
         {playableAudioSrc ? <source src={playableAudioSrc} /> : null}
       </audio>
 
-      <div className="mx-auto w-full max-w-3xl px-4 pb-32 pt-6 sm:px-6">
-        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-neutral-400">
+      <div className="mx-auto w-full max-w-3xl px-4 pb-36 pt-6 sm:px-6">
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-neutral-500">
           {workIndexHref ? (
             <Link
               href={workIndexHref}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 transition hover:bg-white/10"
+              className="rounded-full border border-black/10 bg-white px-4 py-2 transition hover:border-sky-200 hover:bg-sky-50 hover:text-black"
             >
               目次へ戻る
             </Link>
           ) : null}
         </div>
 
-        <section className="overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
-          <div className="border-b border-white/10 px-5 py-6 sm:px-8">
+        <section className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
+          <div className="border-b border-black/10 px-5 py-6 sm:px-8">
             <p className="text-xs tracking-[0.22em] text-neutral-500">
-              DUONOVEL READER
+              LIB READ READER
             </p>
 
-            <p className="mt-3 text-sm text-neutral-400">{safeSeriesTitle}</p>
-            <h1 className="mt-2 text-3xl font-bold leading-tight text-white sm:text-4xl">
+            <p className="mt-3 text-sm text-neutral-600">{safeSeriesTitle}</p>
+            <h1 className="mt-2 text-3xl font-bold leading-tight text-black sm:text-4xl">
               {safeEpisodeTitle}
             </h1>
 
             <div className="mt-5 flex flex-wrap gap-2">
               {selectedReaderName ? (
-                <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200">
+                <span className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black">
                   朗読者: {selectedReaderName}
                 </span>
               ) : (
-                <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-500">
+                <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-500">
                   朗読者未選択
                 </span>
               )}
-
-              {resolvedBgmSrc ? (
-                <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-300">
-                  fade in {bgmSettings?.fadeInSeconds ?? 0}s / fade out{" "}
-                  {bgmSettings?.fadeOutSeconds ?? 0}s
-                </span>
-              ) : null}
 
               <span
                 className={[
                   "rounded-full px-4 py-2 text-sm",
                   recordingAvailable
-                    ? "border border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
-                    : "border border-amber-400/20 bg-amber-400/10 text-amber-200",
+                    ? "border border-sky-200 bg-sky-50 text-black"
+                    : "border border-black/10 bg-neutral-50 text-neutral-500",
                 ].join(" ")}
               >
                 {recordingAvailable ? "この話の朗読あり" : "この話では朗読未登録"}
               </span>
 
-              <span
-                className={[
-                  "rounded-full px-4 py-2 text-sm",
-                  playableAudioSrc
-                    ? "border border-sky-400/20 bg-sky-400/10 text-sky-200"
-                    : "border border-white/10 bg-white/5 text-neutral-500",
-                ].join(" ")}
-              >
-                {playableAudioSrc ? "再生URL接続済み" : "再生URL未接続"}
-              </span>
-
-              <span
-                className={[
-                  "rounded-full px-4 py-2 text-sm",
-                  resolvedBgmSrc
-                    ? "border border-fuchsia-400/20 bg-fuchsia-400/10 text-fuchsia-200"
-                    : "border border-white/10 bg-white/5 text-neutral-500",
-                ].join(" ")}
-              >
-                {resolvedBgmSrc ? "BGM設定あり" : "BGM未設定"}
-              </span>
+              {resolvedBgmSrc ? (
+                <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
+                  BGMあり
+                </span>
+              ) : null}
 
               {activeSceneCueLabel ? (
-                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-200">
-                  発火中: {activeSceneCueLabel}
+                <span className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black">
+                  場面切替: {activeSceneCueLabel}
                 </span>
               ) : null}
             </div>
 
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-neutral-400">
-              文単位 timestamp がある時はその値を優先して現在文を判定する。
-              無い時だけ音声全体の進行率から現在文を推定する。
+            <div className="mt-4 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm leading-7 text-neutral-600">
+              本文を主役にして、目次へ戻る、前話 / 次話へ進む、朗読設定を開く、をそのまま行えるようにする。
             </div>
 
             <BgmController
@@ -1292,12 +1242,12 @@ export default function EpisodePlayback({
 
             {isSettingsOpen ? (
               <div className="mt-4 grid gap-4">
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-4">
+                <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-4">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">NARRATION</p>
-                  <h3 className="mt-2 text-lg font-semibold text-white">朗読</h3>
+                  <h3 className="mt-2 text-lg font-semibold text-black">朗読</h3>
 
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <div className="flex items-center justify-between gap-3 text-sm text-neutral-300">
+                  <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
+                    <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
                       <span>朗読音量</span>
                       <span>{Math.round(narrationVolume * 100)}%</span>
                     </div>
@@ -1309,13 +1259,13 @@ export default function EpisodePlayback({
                       step={0.01}
                       value={narrationVolume}
                       onChange={handleNarrationVolumeChange}
-                      className="mt-3 w-full accent-white"
+                      className="mt-3 w-full accent-sky-300"
                     />
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
                     <div>
-                      <p className="text-sm text-neutral-300">次話自動再生</p>
+                      <p className="text-sm text-neutral-700">次話自動再生</p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
                         朗読が最後まで進んで終わった時だけ、次の話へ移動して自動再生する。
                       </p>
@@ -1327,17 +1277,17 @@ export default function EpisodePlayback({
                       className={[
                         "rounded-full border px-4 py-2 text-sm font-medium transition",
                         autoAdvanceToNext
-                          ? "border-violet-400/20 bg-violet-400/10 text-violet-200 hover:bg-violet-400/20"
-                          : "border-white/10 bg-white/5 text-neutral-300 hover:bg-white/10",
+                          ? "border-sky-200 bg-sky-50 text-black hover:bg-sky-100"
+                          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
                       ].join(" ")}
                     >
                       {autoAdvanceToNext ? "ON" : "OFF"}
                     </button>
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
                     <div>
-                      <p className="text-sm text-neutral-300">朗読停止</p>
+                      <p className="text-sm text-neutral-700">朗読停止</p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
                         停止中はシークバー、倍速、再生、自動追尾を footer から隠す。
                       </p>
@@ -1349,8 +1299,8 @@ export default function EpisodePlayback({
                       className={[
                         "rounded-full border px-4 py-2 text-sm font-medium transition",
                         isNarrationStopped
-                          ? "border-red-400/20 bg-red-400/10 text-red-200 hover:bg-red-400/20"
-                          : "border-white/10 bg-white/5 text-neutral-300 hover:bg-white/10",
+                          ? "border-sky-200 bg-sky-50 text-black hover:bg-sky-100"
+                          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
                       ].join(" ")}
                     >
                       {isNarrationStopped ? "停止解除" : "停止"}
@@ -1358,13 +1308,13 @@ export default function EpisodePlayback({
                   </div>
                 </section>
 
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-4">
+                <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-4">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">DISPLAY</p>
-                  <h3 className="mt-2 text-lg font-semibold text-white">表示演出</h3>
+                  <h3 className="mt-2 text-lg font-semibold text-black">表示演出</h3>
 
-                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
                     <div>
-                      <p className="text-sm text-neutral-300">全演出を非表示</p>
+                      <p className="text-sm text-neutral-700">全演出を非表示</p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
                         背景、文字装飾、挿絵、scene cue を一括で隠す。
                       </p>
@@ -1376,16 +1326,16 @@ export default function EpisodePlayback({
                       className={[
                         "rounded-full border px-4 py-2 text-sm font-medium transition",
                         hideEffects
-                          ? "border-amber-400/20 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20"
-                          : "border-white/10 bg-white/5 text-neutral-300 hover:bg-white/10",
+                          ? "border-sky-200 bg-sky-50 text-black hover:bg-sky-100"
+                          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
                       ].join(" ")}
                     >
                       {hideEffects ? "ON" : "OFF"}
                     </button>
                   </div>
 
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <div className="flex items-center justify-between gap-3 text-sm text-neutral-300">
+                  <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
+                    <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
                       <span>文字サイズ</span>
                       <span>{Math.round(fontScale * 100)}%</span>
                     </div>
@@ -1397,12 +1347,12 @@ export default function EpisodePlayback({
                       step={0.05}
                       value={fontScale}
                       onChange={handleFontScaleChange}
-                      className="mt-3 w-full accent-white"
+                      className="mt-3 w-full accent-sky-300"
                     />
                   </div>
 
                   <div className="mt-4">
-                    <p className="text-sm text-neutral-300">行間</p>
+                    <p className="text-sm text-neutral-700">行間</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <SettingChip
                         active={lineHeightPreset === "compact"}
@@ -1438,32 +1388,26 @@ export default function EpisodePlayback({
                   </div>
                 </section>
 
-                <p className="text-sm leading-7 text-neutral-400">
+                <p className="text-sm leading-7 text-neutral-600">
                   設定表示中は本文を隠している。閉じると元のスクロール位置へ戻る。
                 </p>
               </div>
             ) : null}
 
-            {audioStoragePath ? (
-              <p className="mt-4 break-all text-xs leading-6 text-neutral-500">
-                audio: {audioStoragePath}
-              </p>
-            ) : null}
-
             {audioError ? (
-              <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+              <div className="mt-4 rounded-2xl border border-black/10 bg-neutral-100 px-4 py-3 text-sm text-neutral-700">
                 {audioError}
               </div>
             ) : null}
 
             {bookmarkMessage ? (
-              <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+              <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-black">
                 {bookmarkMessage}
               </div>
             ) : null}
 
             {isAdvancing ? (
-              <div className="mt-4 rounded-2xl border border-violet-400/20 bg-violet-400/10 px-4 py-3 text-sm text-violet-200">
+              <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-black">
                 再生終了。次の話へ移動中...
               </div>
             ) : null}
@@ -1471,7 +1415,7 @@ export default function EpisodePlayback({
 
           <div className="px-5 py-8 sm:px-8 sm:py-10">
             {isSettingsOpen ? (
-              <div className="rounded-[28px] border border-white/10 bg-black/20 p-6 text-sm leading-7 text-neutral-400">
+              <div className="rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-sm leading-7 text-neutral-600">
                 設定表示中。本文は一時的に隠れている。設定を閉じると元の位置へ戻る。
               </div>
             ) : (
@@ -1484,11 +1428,12 @@ export default function EpisodePlayback({
                   ) : null}
 
                   <article
-                    className={`space-y-7 ${readingPaneTextClassName}`}
+                    className={`space-y-7 ${readingPaneTextClassName} [&_*]:text-black`}
                     style={{
                       fontSize: `${fontScale}rem`,
                       lineHeight: lineHeightValue,
                       ...(hideEffects ? {} : effectTypographyStyle),
+                      color: "#111111",
                     }}
                   >
                     {contentBlocks.length > 0 ? (
@@ -1538,22 +1483,6 @@ export default function EpisodePlayback({
                       <p>本文がありません。</p>
                     )}
                   </article>
-
-                  {!hideEffects && appliedEffectSettings.sceneCues.length > 0 ? (
-                    <div className="mt-6 border-t border-white/10 pt-4">
-                      <p className="text-xs tracking-[0.18em] text-neutral-500">
-                        SCENE CUES
-                      </p>
-                      {activeSceneCueLabel ? (
-                        <p className="mt-2 text-sm text-emerald-200">
-                          現在発火中: {activeSceneCueLabel}
-                        </p>
-                      ) : null}
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {appliedEffectSettings.sceneCues.map(renderSceneCue)}
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
 
                 {showComments && episodeId ? (
@@ -1568,11 +1497,11 @@ export default function EpisodePlayback({
         </section>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-white/10 bg-[#0a0a0a]/90 backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 border-t border-black/10 bg-white/92 backdrop-blur">
         <div className="mx-auto max-w-3xl px-4 py-3 sm:px-6">
           {!isNarrationStopped ? (
-            <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center justify-between gap-3 text-sm text-neutral-300">
+            <div className="rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
                 <span>{formatTime(currentTime)}</span>
                 <span>{formatTime(duration)}</span>
               </div>
@@ -1585,7 +1514,7 @@ export default function EpisodePlayback({
                 value={Math.min(currentTime, duration || 0)}
                 onChange={handleSliderChange}
                 disabled={!canPlayAudio}
-                className="mt-3 w-full accent-white disabled:opacity-40"
+                className="mt-3 w-full accent-sky-300 disabled:opacity-40"
               />
             </div>
           ) : null}

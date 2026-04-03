@@ -113,7 +113,7 @@ async function fetchComments(episodeId: string): Promise<{
   if (error) {
     return {
       comments: [],
-      errorMessage: "コメント一覧の取得に失敗した。migration と RLS を確認して。",
+      errorMessage: "コメント一覧の取得に失敗した。",
     };
   }
 
@@ -142,7 +142,7 @@ async function fetchCommentLikeCounts(commentIds: string[]): Promise<{
   if (error) {
     return {
       likeCountMap: {},
-      errorMessage: "コメントいいね数の取得に失敗した。migration と RLS を確認して。",
+      errorMessage: "コメントいいね数の取得に失敗した。",
     };
   }
 
@@ -199,10 +199,10 @@ function SortButton({
       type="button"
       onClick={onClick}
       className={[
-        "rounded-full px-4 py-2 text-sm transition",
+        "rounded-full border px-4 py-2 text-sm transition",
         active
-          ? "bg-white text-black"
-          : "border border-white/10 bg-white/5 text-neutral-300 hover:bg-white hover:text-black",
+          ? "border-sky-200 bg-sky-50 text-black"
+          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
       ].join(" ")}
     >
       {label}
@@ -231,24 +231,24 @@ function CommentItem({
   const postedAt = formatDateTime(comment.updated_at ?? comment.created_at);
 
   return (
-    <article className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+    <article className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-white">{authorName}</p>
+          <p className="text-sm font-semibold text-black">{authorName}</p>
           <p className="mt-1 text-xs text-neutral-500">{postedAt}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-neutral-400">
+          <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
             コメント
           </span>
-          <span className="rounded-full border border-rose-300/20 bg-rose-300/10 px-3 py-1 text-xs text-rose-100">
-            いいね {likeCount}件
+          <span className="rounded-full border border-pink-200 bg-pink-50 px-3 py-1 text-xs text-pink-600">
+            ♥ {likeCount}
           </span>
         </div>
       </div>
 
-      <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-300">
+      <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-800">
         {comment.body}
       </p>
 
@@ -259,10 +259,10 @@ function CommentItem({
             onClick={onToggleLike}
             disabled={isWorking}
             className={[
-              "rounded-full px-4 py-2 text-sm transition",
+              "rounded-full border px-4 py-2 text-sm transition",
               isLiked
-                ? "border border-rose-300/30 bg-rose-300/15 text-rose-100 hover:bg-rose-300/20"
-                : "border border-white/10 bg-white/5 text-neutral-200 hover:bg-white hover:text-black",
+                ? "border-pink-200 bg-pink-50 text-pink-600"
+                : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
               isWorking ? "opacity-70" : "",
             ].join(" ")}
           >
@@ -275,7 +275,7 @@ function CommentItem({
         ) : (
           <Link
             href={loginHref}
-            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
           >
             ログインしていいね
           </Link>
@@ -391,7 +391,7 @@ export default function EpisodeCommentSection({
       });
 
       if (error) {
-        setMessage("感想投稿に失敗した。migration と RLS を確認して。");
+        setMessage("感想投稿に失敗した。");
         return;
       }
 
@@ -502,35 +502,28 @@ export default function EpisodeCommentSection({
   }, [comments, sortField, sortDirection, likeCountMap]);
 
   return (
-    <section className="mt-8 rounded-[28px] border border-white/10 bg-black/20 p-5">
+    <section className="mt-8 rounded-[28px] border border-black/10 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs tracking-[0.18em] text-neutral-500">EPISODE COMMENTS</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">この話の感想</h2>
-          <p className="mt-3 text-sm leading-7 text-neutral-400">
-            この話を読み終えた読者が、そのまま感想を書ける最小版コメント欄。
-            コメントごとにいいねでき、投稿順 / いいね順 と 昇順 / 降順 で並び替えられる。
+          <h2 className="mt-2 text-xl font-semibold text-black">この話の感想</h2>
+          <p className="mt-3 text-sm leading-7 text-neutral-600">
+            この話を読み終えた読者が、そのまま感想を書ける欄。
           </p>
         </div>
 
-        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
+        <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-600">
           コメント {comments.length}件
         </span>
       </div>
 
       {isLoggedIn ? (
-        <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+        <div className="mt-5 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-white">感想を投稿する</p>
-              <p className="mt-1 text-xs text-neutral-500">
-                1件ずつ感想を追加していく最小版。今回は編集・削除はまだ入れない。
-              </p>
+              <p className="text-sm font-semibold text-black">感想を投稿する</p>
+              <p className="mt-1 text-xs text-neutral-500">300文字まで</p>
             </div>
-
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-400">
-              300文字まで
-            </span>
           </div>
 
           <textarea
@@ -539,11 +532,11 @@ export default function EpisodeCommentSection({
             rows={5}
             maxLength={MAX_COMMENT_LENGTH}
             placeholder="この話の感想を書く"
-            className="mt-4 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-neutral-500"
+            className="mt-4 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
           />
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-400">
+            <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
               {draft.length}/{MAX_COMMENT_LENGTH}
             </span>
 
@@ -551,38 +544,34 @@ export default function EpisodeCommentSection({
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black transition hover:opacity-90 disabled:opacity-70"
+              className="rounded-full border border-black/10 bg-neutral-200 px-4 py-2 text-sm text-black transition hover:bg-neutral-300 disabled:opacity-70"
             >
               {isSaving ? "投稿中..." : "感想を投稿"}
             </button>
           </div>
         </div>
       ) : (
-        <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+        <div className="mt-5 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href={loginHref}
-              className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
             >
               ログインして感想を書く
             </Link>
 
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-sm text-neutral-400">
+            <span className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm text-neutral-500">
               コメント {comments.length}件
             </span>
           </div>
-
-          <p className="mt-3 text-sm leading-7 text-neutral-400">
-            未ログイン時はコメント一覧といいね数だけ見せる。投稿やいいねはログイン後に行う。
-          </p>
         </div>
       )}
 
-      <div className="mt-6 flex flex-wrap items-start justify-between gap-3 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+      <div className="mt-6 flex flex-wrap items-start justify-between gap-3 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
         <div>
-          <p className="text-sm font-semibold text-white">表示順</p>
-          <p className="mt-2 text-sm leading-7 text-neutral-400">
-            投稿順か、いいね順で並び替えできる。さらに昇順 / 降順も切り替えられる。
+          <p className="text-sm font-semibold text-black">表示順</p>
+          <p className="mt-2 text-sm leading-7 text-neutral-600">
+            投稿順か、いいね順で並び替えできる。
           </p>
         </div>
 
@@ -616,18 +605,18 @@ export default function EpisodeCommentSection({
       </div>
 
       {message ? (
-        <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-amber-300">
+        <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-neutral-600">
           {message}
         </p>
       ) : null}
 
       <div className="mt-6 grid gap-3">
         {isBooting ? (
-          <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-500">
+          <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4 text-sm text-neutral-500">
             コメント一覧を読み込み中...
           </div>
         ) : sortedComments.length === 0 ? (
-          <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-400">
+          <div className="rounded-[24px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
             まだこの話への感想はない。
           </div>
         ) : (

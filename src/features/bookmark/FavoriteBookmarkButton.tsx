@@ -120,15 +120,13 @@ export default function FavoriteBookmarkButton({
 
   if (isLoggedIn === null) {
     return (
-      <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          disabled
-          className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-500"
-        >
-          ブックマーク状態を確認中...
-        </button>
-      </div>
+      <button
+        type="button"
+        disabled
+        className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm text-neutral-500"
+      >
+        確認中...
+      </button>
     );
   }
 
@@ -137,14 +135,14 @@ export default function FavoriteBookmarkButton({
       <div className="flex flex-col gap-2">
         <Link
           href={loginHref}
-          className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+          className="inline-flex h-[46px] items-center rounded-full border border-black/10 bg-white px-4 text-sm text-neutral-800 transition hover:bg-neutral-50"
         >
-          ログインしてブックマーク
+          ブックマークに追加
         </Link>
 
-        <p className="text-xs leading-6 text-neutral-500">
-          作品の保存はログイン後に使える。BGM のお気に入りとは別。
-        </p>
+        {message ? (
+          <p className="text-xs leading-6 text-neutral-600">{message}</p>
+        ) : null}
       </div>
     );
   }
@@ -156,26 +154,22 @@ export default function FavoriteBookmarkButton({
         onClick={handleToggle}
         disabled={isWorking}
         className={[
-          "rounded-full px-5 py-3 text-sm transition",
+          "inline-flex h-[46px] items-center rounded-full border px-4 text-sm transition",
           isBookmarked
-            ? "border border-amber-300/30 bg-amber-300/15 text-amber-100 hover:bg-amber-300/20"
-            : "border border-white/10 bg-white/5 text-neutral-200 hover:bg-white hover:text-black",
+            ? "border-sky-200 bg-sky-50 text-black"
+            : "border-black/10 bg-white text-neutral-800 hover:bg-neutral-50",
           isWorking ? "opacity-70" : "",
         ].join(" ")}
       >
         {isWorking
           ? "処理中..."
           : isBookmarked
-            ? "★ ブックマーク済み"
-            : "☆ ブックマークに追加"}
+            ? "ブックマーク済み"
+            : "ブックマークに追加"}
       </button>
 
-      <p className="text-xs leading-6 text-neutral-500">
-        作品の保存はブックマーク。BGM のお気に入りとは別。
-      </p>
-
       {message ? (
-        <p className="text-xs leading-6 text-amber-300">{message}</p>
+        <p className="text-xs leading-6 text-neutral-600">{message}</p>
       ) : null}
     </div>
   );
