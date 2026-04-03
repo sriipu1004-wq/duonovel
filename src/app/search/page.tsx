@@ -1,5 +1,7 @@
 import Link from "next/link";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
+import PublicSearchControls from "@/components/search/PublicSearchControls";
+import SearchNavButton from "@/components/search/SearchNavButton";
 import { supabase } from "@/lib/supabaseClient";
 import {
   getEpisodeNumber,
@@ -17,16 +19,25 @@ type SearchPageProps = {
   searchParams?: Promise<{
     q?: string;
     tag?: string;
+    tags?: string;
+    genres?: string;
+    order?: string;
     sort?: string;
     mode?: string;
-    genre?: string;
+    start?: string;
+    end?: string;
+    showTags?: string;
+    showGenres?: string;
+    shelfTab?: string;
   }>;
 };
 
-type SortKey =
+type OrderKey = "popular" | "updated";
+
+type ShelfTabKey =
+  | "overall-popular"
   | "latest"
   | "weekly-new"
-  | "overall-popular"
   | "narration-popular";
 
 type UserRow = Record<string, unknown> & {
@@ -37,16 +48,14 @@ type UserRow = Record<string, unknown> & {
   name?: string | null;
 };
 
-type RecordingRow = Record<string, unknown> & {
-  id: string;
+type ReactionRow = Record<string, unknown> & {
   series_id?: string | null;
   seriesId?: string | null;
-  like_count?: number | null;
-  likes_count?: number | null;
-  play_count?: number | null;
-  plays_count?: number | null;
-  is_public?: boolean | null;
-  public?: boolean | null;
+};
+
+type BookmarkRow = Record<string, unknown> & {
+  series_id?: string | null;
+  seriesId?: string | null;
 };
 
 type WorkCard = {
@@ -59,12 +68,12 @@ type WorkCard = {
   firstEpisodeNumber: number | null;
   latestPostedLabel: string;
   latestPostedAtValue: number;
+  earliestPublicAtValue: number;
   createdAtValue: number;
   tags: string[];
-  totalRecordingLikes: number;
-  totalRecordingPlays: number;
-  totalRecordingCount: number;
-  popularityScore: number;
+  likeCount: number;
+  bookmarkCount: number;
+  provisionalPopularityScore: number;
 };
 
 type TagChip = {
@@ -73,25 +82,44 @@ type TagChip = {
   count: number;
 };
 
-function isPublicRecording(recording: RecordingRow): boolean {
-  if (recording.is_public === false) return false;
-  if (recording.public === false) return false;
-  return true;
-}
+type GenrePlaceholderChip = {
+  key: string;
+  label: string;
+  count: number;
+};
 
-function getRecordingLikes(recording: RecordingRow): number {
-  const raw = recording.like_count ?? recording.likes_count ?? 0;
-  if (typeof raw === "number") return raw;
-  const parsed = Number(raw);
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
+type ShelfConfig = {
+  key: string;
+  title: string;
+  description: string;
+  order: OrderKey;
+  start: string;
+  end: string;
+};
 
-function getRecordingPlays(recording: RecordingRow): number {
-  const raw = recording.play_count ?? recording.plays_count ?? 0;
-  if (typeof raw === "number") return raw;
-  const parsed = Number(raw);
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
+type GenrePlaceholderSection = {
+  key: string;
+  title: string;
+  description: string;
+};
+
+const TOKYO_TIMEZONE = "Asia/Tokyo";
+const ONE_DAY_MS = 1000 * 60 * 60 * 24;
+
+const PLACEHOLDER_GENRES: GenrePlaceholderChip[] = [
+  { key: "fantasy", label: "ファンタジー", count: 128 },
+  { key: "love", label: "恋愛", count: 121 },
+  { key: "youth", label: "青春", count: 104 },
+  { key: "mystery", label: "ミステリー", count: 96 },
+  { key: "daily", label: "日常", count: 88 },
+  { key: "sf", label: "SF", count: 75 },
+  { key: "history", label: "歴史", count: 63 },
+  { key: "horror", label: "ホラー", count: 51 },
+  { key: "modern", label: "現代", count: 46 },
+  { key: "japanese", label: "和風", count: 39 },
+  { key: "battle", label: "バトル", count: 34 },
+  { key: "travel", label: "旅", count: 28 },
+];
 
 function formatDate(value: string | null | undefined): string {
   if (!value) {
@@ -107,6 +135,7 @@ function formatDate(value: string | null | undefined): string {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    timeZone: TOKYO_TIMEZONE,
   }).format(parsed);
 }
 
@@ -138,14 +167,23 @@ function parseTagList(value: unknown): string[] {
   return [];
 }
 
+function parseSelectedGenreLabels(rawGenres?: string): string[] {
+  if (!rawGenres) {
+    return [];
+  }
+
+  return rawGenres
+    .split(/[,\n、]/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+    .slice(0, 3);
+}
+
 function getSeriesTags(series: SeriesRow): string[] {
   const candidates = [
     series["tags"],
     series["tag_list"],
     series["tagList"],
-    series["genres"],
-    series["genre"],
-    series["keywords"],
   ];
 
   for (const candidate of candidates) {
@@ -180,10 +218,46 @@ function formatTagLabel(value: string): string {
   return `#${trimmed}`;
 }
 
+function parseSelectedTagLabels(rawTags?: string, rawTag?: string): string[] {
+  const values = [
+    ...(rawTags ? rawTags.split(/[,\n、]/) : []),
+    ...(rawTag ? [rawTag] : []),
+  ];
+
+  const unique = new Map<string, string>();
+
+  for (const value of values) {
+    const formatted = formatTagLabel(value);
+    if (!formatted) continue;
+
+    const normalized = normalizeTagToken(formatted);
+    if (!normalized) continue;
+
+    if (!unique.has(normalized)) {
+      unique.set(normalized, formatted);
+    }
+  }
+
+  return Array.from(unique.values());
+}
+
+function resolveShelfTab(value: string): ShelfTabKey {
+  if (value === "latest") return "latest";
+  if (value === "weekly-new") return "weekly-new";
+  if (value === "narration-popular") return "narration-popular";
+  return "overall-popular";
+}
+
 function buildSearchHref(params: {
   q?: string;
-  tag?: string;
-  sort?: SortKey;
+  selectedTags?: string[];
+  selectedGenres?: string[];
+  order?: OrderKey;
+  start?: string;
+  end?: string;
+  showTags?: boolean;
+  showGenres?: boolean;
+  shelfTab?: ShelfTabKey;
 }): string {
   const query = new URLSearchParams();
 
@@ -191,12 +265,36 @@ function buildSearchHref(params: {
     query.set("q", params.q.trim());
   }
 
-  if (params.tag && params.tag.trim().length > 0) {
-    query.set("tag", params.tag.trim());
+  if (params.selectedTags && params.selectedTags.length > 0) {
+    query.set("tags", params.selectedTags.join(","));
   }
 
-  if (params.sort) {
-    query.set("sort", params.sort);
+  if (params.selectedGenres && params.selectedGenres.length > 0) {
+    query.set("genres", params.selectedGenres.join(","));
+  }
+
+  if (params.order) {
+    query.set("order", params.order);
+  }
+
+  if (params.start) {
+    query.set("start", params.start);
+  }
+
+  if (params.end) {
+    query.set("end", params.end);
+  }
+
+  if (params.showTags) {
+    query.set("showTags", "1");
+  }
+
+  if (params.showGenres) {
+    query.set("showGenres", "1");
+  }
+
+  if (params.shelfTab) {
+    query.set("shelfTab", params.shelfTab);
   }
 
   const queryString = query.toString();
@@ -242,81 +340,179 @@ function buildAvailableTags(works: WorkCard[]): TagChip[] {
     }
   }
 
-  return Array.from(counter.values())
-    .sort((a, b) => {
-      if (b.count !== a.count) {
-        return b.count - a.count;
-      }
-      return a.value.localeCompare(b.value, "ja");
-    })
-    .slice(0, 24);
-}
-
-function sortLatest(works: WorkCard[]) {
-  return [...works].sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue);
-}
-
-function sortWeeklyNew(works: WorkCard[]) {
-  const now = Date.now();
-  const twoWeeks = 1000 * 60 * 60 * 24 * 14;
-
-  const recent = works.filter((work) => now - work.createdAtValue <= twoWeeks);
-  const target = recent.length > 0 ? recent : works;
-
-  return [...target].sort((a, b) => {
-    if (b.createdAtValue !== a.createdAtValue) {
-      return b.createdAtValue - a.createdAtValue;
+  return Array.from(counter.values()).sort((a, b) => {
+    if (b.count !== a.count) {
+      return b.count - a.count;
     }
-    return b.latestPostedAtValue - a.latestPostedAtValue;
+    return a.value.localeCompare(b.value, "ja");
   });
 }
 
-function sortOverallPopular(works: WorkCard[]) {
-  return [...works].sort((a, b) => {
-    if (b.popularityScore !== a.popularityScore) {
-      return b.popularityScore - a.popularityScore;
-    }
-    return b.latestPostedAtValue - a.latestPostedAtValue;
-  });
+function estimateTagChipUnits(chip: TagChip): number {
+  return chip.label.length * 2 + String(chip.count).length + 8;
 }
 
-function sortNarrationPopular(works: WorkCard[]) {
-  return [...works].sort((a, b) => {
-    if (b.totalRecordingPlays !== a.totalRecordingPlays) {
-      return b.totalRecordingPlays - a.totalRecordingPlays;
+function pickTagChipsWithinBudget(chips: TagChip[], budget: number): TagChip[] {
+  const picked: TagChip[] = [];
+  let used = 0;
+
+  for (const chip of chips) {
+    const nextUnits = estimateTagChipUnits(chip);
+    if (picked.length > 0 && used + nextUnits > budget) {
+      break;
     }
-    if (b.totalRecordingLikes !== a.totalRecordingLikes) {
-      return b.totalRecordingLikes - a.totalRecordingLikes;
-    }
-    return b.latestPostedAtValue - a.latestPostedAtValue;
-  });
+
+    picked.push(chip);
+    used += nextUnits;
+  }
+
+  return picked;
 }
 
-function resolveSort(value: string): SortKey {
-  if (value === "latest") return "latest";
-  if (value === "weekly-new") return "weekly-new";
-  if (value === "narration-popular") return "narration-popular";
-  return "overall-popular";
+function estimateGenreChipUnits(chip: GenrePlaceholderChip): number {
+  return chip.label.length * 2 + String(chip.count).length + 8;
 }
 
-function getSortLabel(sort: SortKey): string {
-  if (sort === "latest") return "新着更新順";
-  if (sort === "weekly-new") return "週間新作おすすめ順";
-  if (sort === "narration-popular") return "朗読視聴人気順";
+function pickGenreChipsWithinBudget(
+  chips: GenrePlaceholderChip[],
+  budget: number
+): GenrePlaceholderChip[] {
+  const picked: GenrePlaceholderChip[] = [];
+  let used = 0;
+
+  for (const chip of chips) {
+    const nextUnits = estimateGenreChipUnits(chip);
+    if (picked.length > 0 && used + nextUnits > budget) {
+      break;
+    }
+
+    picked.push(chip);
+    used += nextUnits;
+  }
+
+  return picked;
+}
+
+function resolveOrder(value: string): OrderKey {
+  if (value === "updated" || value === "latest") {
+    return "updated";
+  }
+
+  return "popular";
+}
+
+function getOrderLabel(order: OrderKey): string {
+  return order === "updated" ? "更新順" : "人気順";
+}
+
+function getShelfTabLabel(tab: ShelfTabKey): string {
+  if (tab === "latest") return "新着更新順";
+  if (tab === "weekly-new") return "週間新作おすすめ順";
+  if (tab === "narration-popular") return "朗読視聴人気順";
   return "総合人気順";
 }
 
-function getSortDescription(sort: SortKey): string {
-  if (sort === "latest") {
-    return "最近更新された公開作品から順に表示。";
+function formatInputDate(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "";
   }
-  if (sort === "weekly-new") {
-    return "新しめの作品から入りやすい順に表示。";
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: TOKYO_TIMEZONE,
+  }).formatToParts(new Date(value));
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+
+  if (!year || !month || !day) {
+    return "";
   }
-  if (sort === "narration-popular") {
-    return "朗読視聴寄りの人気順で表示。";
+
+  return `${year}-${month}-${day}`;
+}
+
+function parseTokyoDateStart(value: string | undefined): number | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
   }
-  return "公開中作品を総合人気寄りの順に表示。";
+
+  const parsed = new Date(`${value}T00:00:00+09:00`).getTime();
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function parseTokyoDateEnd(value: string | undefined): number | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const parsed = new Date(`${value}T23:59:59.999+09:00`).getTime();
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function subtractDaysClamped(endAt: number, days: number, floorAt: number): number {
+  const raw = endAt - ONE_DAY_MS * Math.max(0, days - 1);
+  return Math.max(floorAt, raw);
+}
+
+function sortByUpdated(works: WorkCard[]) {
+  return [...works].sort((a, b) => {
+    if (b.latestPostedAtValue !== a.latestPostedAtValue) {
+      return b.latestPostedAtValue - a.latestPostedAtValue;
+    }
+    return b.createdAtValue - a.createdAtValue;
+  });
+}
+
+function sortByPopular(works: WorkCard[]) {
+  return [...works].sort((a, b) => {
+    if (b.provisionalPopularityScore !== a.provisionalPopularityScore) {
+      return b.provisionalPopularityScore - a.provisionalPopularityScore;
+    }
+
+    if (b.likeCount !== a.likeCount) {
+      return b.likeCount - a.likeCount;
+    }
+
+    if (b.bookmarkCount !== a.bookmarkCount) {
+      return b.bookmarkCount - a.bookmarkCount;
+    }
+
+    return b.latestPostedAtValue - a.latestPostedAtValue;
+  });
+}
+
+function filterWorksByDateRange(
+  works: WorkCard[],
+  startAt: number,
+  endAt: number
+): WorkCard[] {
+  const safeStart = Math.min(startAt, endAt);
+  const safeEnd = Math.max(startAt, endAt);
+
+  return works.filter(
+    (work) =>
+      work.latestPostedAtValue >= safeStart &&
+      work.latestPostedAtValue <= safeEnd
+  );
+}
+
+function sortWorks(works: WorkCard[], order: OrderKey): WorkCard[] {
+  return order === "updated" ? sortByUpdated(works) : sortByPopular(works);
+}
+
+function buildGenrePlaceholderSections(
+  labels: GenrePlaceholderChip[],
+  description: string
+): GenrePlaceholderSection[] {
+  return labels.slice(0, 5).map((genre) => ({
+    key: genre.key,
+    title: genre.label,
+    description,
+  }));
 }
 
 async function fetchPublicSeries(): Promise<SeriesRow[]> {
@@ -374,60 +570,81 @@ async function fetchAuthorMap(authorIds: string[]): Promise<Map<string, UserRow>
   return new Map(((data ?? []) as UserRow[]).map((user) => [user.id, user]));
 }
 
-async function fetchPublicRecordings(): Promise<RecordingRow[]> {
-  const firstTry = await supabase.from("recordings").select("*");
-
-  if (!firstTry.error) {
-    return ((firstTry.data ?? []) as RecordingRow[]).filter(isPublicRecording);
+async function fetchReactionRows(seriesIds: string[]): Promise<ReactionRow[]> {
+  if (seriesIds.length === 0) {
+    return [];
   }
 
-  return [];
+  const { data, error } = await supabase
+    .from("user_series_reactions")
+    .select("series_id")
+    .eq("reaction_type", "support")
+    .in("series_id", seriesIds);
+
+  if (error) {
+    return [];
+  }
+
+  return (data ?? []) as ReactionRow[];
 }
 
-function buildRecordingAggregateMap(recordings: RecordingRow[]) {
-  const aggregate = new Map<
-    string,
-    {
-      totalRecordingLikes: number;
-      totalRecordingPlays: number;
-      totalRecordingCount: number;
-    }
-  >();
-
-  for (const recording of recordings) {
-    const seriesId =
-      pickText(recording.series_id, recording.seriesId) || null;
-
-    if (!seriesId) continue;
-
-    const current = aggregate.get(seriesId) ?? {
-      totalRecordingLikes: 0,
-      totalRecordingPlays: 0,
-      totalRecordingCount: 0,
-    };
-
-    current.totalRecordingLikes += getRecordingLikes(recording);
-    current.totalRecordingPlays += getRecordingPlays(recording);
-    current.totalRecordingCount += 1;
-
-    aggregate.set(seriesId, current);
+async function fetchBookmarkRows(seriesIds: string[]): Promise<BookmarkRow[]> {
+  if (seriesIds.length === 0) {
+    return [];
   }
 
-  return aggregate;
+  const { data, error } = await supabase
+    .from("user_series_bookmarks")
+    .select("series_id")
+    .in("series_id", seriesIds);
+
+  if (error) {
+    return [];
+  }
+
+  return (data ?? []) as BookmarkRow[];
+}
+
+function buildCountMapBySeriesId(
+  rows: Array<Record<string, unknown>>
+): Map<string, number> {
+  const countMap = new Map<string, number>();
+
+  for (const row of rows) {
+    const seriesId = pickText(row["series_id"], row["seriesId"]);
+    if (!seriesId) continue;
+
+    countMap.set(seriesId, (countMap.get(seriesId) ?? 0) + 1);
+  }
+
+  return countMap;
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
   const query = pickText(resolvedSearchParams?.q);
-  const selectedTag = pickText(resolvedSearchParams?.tag);
-  const sort = resolveSort(
-    pickText(resolvedSearchParams?.sort, resolvedSearchParams?.mode)
+  const selectedTagLabels = parseSelectedTagLabels(
+    pickText(resolvedSearchParams?.tags),
+    pickText(resolvedSearchParams?.tag)
+  );
+  const selectedGenreLabels = parseSelectedGenreLabels(
+    pickText(resolvedSearchParams?.genres)
   );
 
+  const order = resolveOrder(
+    pickText(
+      resolvedSearchParams?.order,
+      resolvedSearchParams?.sort,
+      resolvedSearchParams?.mode
+    )
+  );
+
+  const showAllTags = pickText(resolvedSearchParams?.showTags) === "1";
+  const showAllGenres = pickText(resolvedSearchParams?.showGenres) === "1";
+  const shelfTab = resolveShelfTab(pickText(resolvedSearchParams?.shelfTab));
+
   const publicSeries = await fetchPublicSeries();
-  const publicRecordings = await fetchPublicRecordings();
-  const recordingAggregateMap = buildRecordingAggregateMap(publicRecordings);
 
   const authorIds = Array.from(
     new Set(
@@ -440,6 +657,15 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   );
 
   const authorMap = await fetchAuthorMap(authorIds);
+  const publicSeriesIds = publicSeries.map((series) => series.id);
+
+  const [reactionRows, bookmarkRows] = await Promise.all([
+    fetchReactionRows(publicSeriesIds),
+    fetchBookmarkRows(publicSeriesIds),
+  ]);
+
+  const likeCountMap = buildCountMapBySeriesId(reactionRows);
+  const bookmarkCountMap = buildCountMapBySeriesId(bookmarkRows);
 
   const workCards = (
     await Promise.all(
@@ -469,24 +695,23 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           ? getEpisodePostedAtValue(latestEpisode)
           : null;
 
+        const firstPostedRaw = firstEpisode
+          ? getEpisodePostedAtValue(firstEpisode)
+          : null;
+
         const latestPostedAtValue = latestPostedRaw
           ? new Date(latestPostedRaw).getTime()
           : 0;
 
+        const firstPostedAtValue = firstPostedRaw
+          ? new Date(firstPostedRaw).getTime()
+          : 0;
+
         const createdAtValue = toTimeValue(series["created_at"]);
         const tags = getSeriesTags(series);
-
-        const recordingAgg = recordingAggregateMap.get(series.id) ?? {
-          totalRecordingLikes: 0,
-          totalRecordingPlays: 0,
-          totalRecordingCount: 0,
-        };
-
-        const popularityScore =
-          recordingAgg.totalRecordingPlays * 3 +
-          recordingAgg.totalRecordingLikes * 10 +
-          recordingAgg.totalRecordingCount * 5 +
-          publicEpisodes.length;
+        const likeCount = likeCountMap.get(series.id) ?? 0;
+        const bookmarkCount = bookmarkCountMap.get(series.id) ?? 0;
+        const provisionalPopularityScore = likeCount + bookmarkCount / 3;
 
         return {
           seriesId: series.id,
@@ -508,19 +733,42 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             : null,
           latestPostedLabel: formatDate(latestPostedRaw),
           latestPostedAtValue,
+          earliestPublicAtValue:
+            firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
           createdAtValue,
           tags,
-          totalRecordingLikes: recordingAgg.totalRecordingLikes,
-          totalRecordingPlays: recordingAgg.totalRecordingPlays,
-          totalRecordingCount: recordingAgg.totalRecordingCount,
-          popularityScore,
+          likeCount,
+          bookmarkCount,
+          provisionalPopularityScore,
         } satisfies WorkCard;
       })
     )
   ).filter((card): card is WorkCard => !!card);
 
+  const oldestPublicAtValue =
+    workCards.reduce((min, work) => {
+      const candidate =
+        work.earliestPublicAtValue > 0 ? work.earliestPublicAtValue : work.createdAtValue;
+      if (candidate <= 0) return min;
+      return min === 0 ? candidate : Math.min(min, candidate);
+    }, 0) || Date.now();
+
+  const defaultStartInput = formatInputDate(oldestPublicAtValue);
+  const defaultEndInput = formatInputDate(Date.now());
+
+  const selectedStartAtValue =
+    parseTokyoDateStart(pickText(resolvedSearchParams?.start)) ?? oldestPublicAtValue;
+  const selectedEndAtValue =
+    parseTokyoDateEnd(pickText(resolvedSearchParams?.end)) ?? Date.now();
+
+  const safeStartAtValue = Math.min(selectedStartAtValue, selectedEndAtValue);
+  const safeEndAtValue = Math.max(selectedStartAtValue, selectedEndAtValue);
+
+  const selectedStartInput = formatInputDate(safeStartAtValue);
+  const selectedEndInput = formatInputDate(safeEndAtValue);
+
   const normalizedQuery = query.trim().toLowerCase();
-  const normalizedSelectedTag = normalizeTagToken(selectedTag);
+  const selectedTagTokens = selectedTagLabels.map(normalizeTagToken);
 
   const filteredWorks = workCards.filter((work) => {
     const queryOk =
@@ -528,37 +776,133 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       buildSearchTarget(work).includes(normalizedQuery);
 
     const tagOk =
-      normalizedSelectedTag.length === 0 ||
-      work.tags.some((tag) => {
-        const normalizedTag = normalizeTagToken(tag);
-        return (
-          normalizedTag === normalizedSelectedTag ||
-          normalizedTag.includes(normalizedSelectedTag) ||
-          normalizedSelectedTag.includes(normalizedTag)
-        );
-      });
+      selectedTagTokens.length === 0 ||
+      selectedTagTokens.every((selectedToken) =>
+        work.tags.some(
+          (tag) => normalizeTagToken(tag) === selectedToken
+        )
+      );
 
-    return queryOk && tagOk;
+    const dateOk =
+      work.latestPostedAtValue >= safeStartAtValue &&
+      work.latestPostedAtValue <= safeEndAtValue;
+
+    return queryOk && tagOk && dateOk;
   });
 
-  const sortedWorks =
-    sort === "latest"
-      ? sortLatest(filteredWorks)
-      : sort === "weekly-new"
-        ? sortWeeklyNew(filteredWorks)
-        : sort === "narration-popular"
-          ? sortNarrationPopular(filteredWorks)
-          : sortOverallPopular(filteredWorks);
+  const sortedWorks = sortWorks(filteredWorks, order);
 
   const availableTags = buildAvailableTags(workCards);
-  const selectedTagLabel = selectedTag ? formatTagLabel(selectedTag) : "";
-  const hasActiveFilter = query.length > 0 || selectedTag.length > 0;
 
-  const sortOptions: Array<{ value: SortKey; label: string }> = [
-    { value: "overall-popular", label: "総合人気順" },
-    { value: "latest", label: "新着更新順" },
-    { value: "weekly-new", label: "週間新作おすすめ順" },
-    { value: "narration-popular", label: "朗読視聴人気順" },
+  const collapsedTagPreview = pickTagChipsWithinBudget(availableTags, 46);
+  const collapsedGenrePreview = pickGenreChipsWithinBudget(PLACEHOLDER_GENRES, 46);
+
+  const hasHiddenTags = collapsedTagPreview.length < availableTags.length;
+  const hasHiddenGenres = collapsedGenrePreview.length < PLACEHOLDER_GENRES.length;
+
+  const visibleTagChips = showAllTags
+    ? pickTagChipsWithinBudget(availableTags, 320)
+    : pickTagChipsWithinBudget(availableTags, hasHiddenTags ? 34 : 46);
+
+  const visibleGenreChips = showAllGenres
+    ? pickGenreChipsWithinBudget(PLACEHOLDER_GENRES, 320)
+    : pickGenreChipsWithinBudget(PLACEHOLDER_GENRES, hasHiddenGenres ? 34 : 46);
+
+  const overallShelfConfigs: ShelfConfig[] = [
+    {
+      key: "popular-daily",
+      title: "日間",
+      description: "直近1日内に更新された作品を暫定人気順で表示。",
+      order: "popular",
+      start: formatInputDate(subtractDaysClamped(Date.now(), 1, oldestPublicAtValue)),
+      end: defaultEndInput,
+    },
+    {
+      key: "popular-weekly",
+      title: "週間",
+      description: "直近7日内に更新された作品を暫定人気順で表示。",
+      order: "popular",
+      start: formatInputDate(subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)),
+      end: defaultEndInput,
+    },
+    {
+      key: "popular-monthly",
+      title: "月間",
+      description: "直近30日内に更新された作品を暫定人気順で表示。",
+      order: "popular",
+      start: formatInputDate(subtractDaysClamped(Date.now(), 30, oldestPublicAtValue)),
+      end: defaultEndInput,
+    },
+    {
+      key: "popular-quarterly",
+      title: "四半期",
+      description: "直近90日内に更新された作品を暫定人気順で表示。",
+      order: "popular",
+      start: formatInputDate(subtractDaysClamped(Date.now(), 90, oldestPublicAtValue)),
+      end: defaultEndInput,
+    },
+    {
+      key: "popular-yearly",
+      title: "年間",
+      description: "直近365日内に更新された作品を暫定人気順で表示。",
+      order: "popular",
+      start: formatInputDate(subtractDaysClamped(Date.now(), 365, oldestPublicAtValue)),
+      end: defaultEndInput,
+    },
+    {
+      key: "popular-all",
+      title: "累計",
+      description: "全期間の公開作品を暫定人気順で表示。",
+      order: "popular",
+      start: defaultStartInput,
+      end: defaultEndInput,
+    },
+  ];
+
+  const overallShelves = overallShelfConfigs.map((config) => {
+    const startAt = parseTokyoDateStart(config.start) ?? oldestPublicAtValue;
+    const endAt = parseTokyoDateEnd(config.end) ?? Date.now();
+    const shelfWorks = sortWorks(
+      filterWorksByDateRange(workCards, startAt, endAt),
+      config.order
+    ).slice(0, 5);
+
+    return {
+      ...config,
+      works: shelfWorks,
+      href: buildSearchHref({
+        selectedGenres: selectedGenreLabels,
+        selectedTags: selectedTagLabels,
+        order: config.order,
+        start: config.start,
+        end: config.end,
+        shelfTab: "overall-popular",
+        showTags: showAllTags,
+        showGenres: showAllGenres,
+      }),
+    };
+  });
+
+  const latestPlaceholderSections = buildGenrePlaceholderSections(
+    PLACEHOLDER_GENRES,
+    "新着更新順では、本来ここに人気ジャンル5つを並べて各5作品ずつ出す。genre 実装後に差し替える。"
+  );
+
+  const weeklyNewPlaceholderSections = buildGenrePlaceholderSections(
+    PLACEHOLDER_GENRES,
+    "週間新作おすすめ順では、本来ここに人気ジャンル5つを並べて各5作品ずつ出す。genre 実装後に差し替える。"
+  );
+
+  const narrationPlaceholderSections = buildGenrePlaceholderSections(
+    PLACEHOLDER_GENRES,
+    "朗読視聴人気順では、本来ここに朗読タグ付き作品群から抽出した人気ジャンル5つを並べる。genre 実装後に差し替える。"
+  );
+
+  const shelfTabs: Array<{ key: ShelfTabKey; label: string }> = [
+    { key: "overall-popular", label: "総合人気順" },
+    { key: "latest", label: "新着更新順" },
+    { key: "weekly-new", label: "週間新作おすすめ順" },
+    { key: "narration-popular", label: "朗読視聴人気順" },
   ];
 
   return (
@@ -572,169 +916,50 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           <span className="text-neutral-700">公開検索</span>
         </div>
 
-        <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6 lg:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-[11px] tracking-[0.24em] text-neutral-500">
-                PUBLIC SEARCH
-              </p>
-              <h1 className="mt-3 text-2xl font-bold leading-tight text-black sm:text-3xl">
-                公開作品を探す
-              </h1>
-              <p className="mt-3 max-w-3xl text-sm leading-8 text-neutral-600 sm:text-[15px]">
-                キーワード、タグ、並び順から公開作品を探せるページ。
-                トップの「さらに表示」やタグ押下からそのまま流れ込める公開導線として使う。
-              </p>
-            </div>
-
-            <Link
-              href="/"
-              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
-            >
-              TOPへ戻る
-            </Link>
-          </div>
-
-          <form
-            action="/search"
-            method="get"
-            className="mt-6 grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.9fr)_220px_auto]"
-          >
-            <input
-              type="text"
-              name="q"
-              defaultValue={query}
-              placeholder="作品名 / 作者名 / あらすじなどで検索"
-              className="h-12 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
-            />
-
-            <input
-              type="text"
-              name="tag"
-              defaultValue={selectedTag}
-              placeholder="タグで絞る（#ありでも可）"
-              className="h-12 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
-            />
-
-            <select
-              name="sort"
-              defaultValue={sort}
-              className="h-12 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none focus:border-sky-200"
-            >
-              {sortOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-
-            <button
-              type="submit"
-              className="inline-flex h-12 items-center justify-center rounded-2xl border border-black/10 bg-neutral-200 px-5 text-sm font-medium text-black transition hover:bg-neutral-300"
-            >
-              検索する
-            </button>
-          </form>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            {hasActiveFilter ? (
-              <>
-                {query ? (
-                  <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
-                    キーワード: {query}
-                  </span>
-                ) : null}
-
-                {selectedTagLabel ? (
-                  <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
-                    タグ: {selectedTagLabel}
-                  </span>
-                ) : null}
-
-                <Link
-                  href={buildSearchHref({ sort })}
-                  className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-                >
-                  条件をクリア
-                </Link>
-              </>
-            ) : (
-              <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-600">
-                条件なしで公開作品を表示中
-              </span>
-            )}
-          </div>
-
-          <div className="mt-6">
-            <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-              POPULAR TAGS
-            </p>
-
-            {availableTags.length === 0 ? (
-              <p className="mt-3 text-sm leading-7 text-neutral-500">
-                まだタグ候補がない。
-              </p>
-            ) : (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {availableTags.map((tag) => {
-                  const active =
-                    normalizeTagToken(tag.value) ===
-                    normalizeTagToken(selectedTag);
-
-                  return (
-                    <Link
-                      key={tag.value}
-                      href={buildSearchHref({
-                        q: query,
-                        tag: tag.label,
-                        sort,
-                      })}
-                      className={[
-                        "rounded-full border px-3 py-2 text-sm transition",
-                        active
-                          ? "border-sky-200 bg-sky-50 text-black"
-                          : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
-                      ].join(" ")}
-                    >
-                      {tag.label}
-                      <span className="ml-2 text-neutral-400">{tag.count}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </section>
+        <PublicSearchControls
+          query={query}
+          selectedTagLabels={selectedTagLabels}
+          selectedGenreLabels={selectedGenreLabels}
+          order={order}
+          selectedStartInput={selectedStartInput}
+          selectedEndInput={selectedEndInput}
+          defaultStartInput={defaultStartInput}
+          defaultEndInput={defaultEndInput}
+          showAllTags={showAllTags}
+          showAllGenres={showAllGenres}
+          shelfTab={shelfTab}
+          visibleTagChips={visibleTagChips}
+          hasHiddenTags={hasHiddenTags}
+          visibleGenreChips={visibleGenreChips}
+          hasHiddenGenres={hasHiddenGenres}
+        />
 
         <section className="pt-10">
-          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-3">
-            <div>
-              <p className="text-[11px] tracking-[0.22em] text-neutral-500">
-                RESULTS
-              </p>
-              <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
-                {getSortLabel(sort)}
-              </h2>
-              <p className="mt-2 text-sm leading-7 text-neutral-600">
-                {getSortDescription(sort)}
-              </p>
-            </div>
+          <div className="border-b border-black/10 pb-3">
+            <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+              SEARCH SHELVES
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
+              検索棚
+            </h2>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
-                {sortedWorks.length}件
-              </span>
-
-              {sortOptions.map((option) => {
-                const active = option.value === sort;
+            <div className="mt-4 flex flex-wrap gap-2">
+              {shelfTabs.map((tab) => {
+                const active = tab.key === shelfTab;
 
                 return (
-                  <Link
-                    key={option.value}
+                  <SearchNavButton
+                    key={tab.key}
                     href={buildSearchHref({
                       q: query,
-                      tag: selectedTag,
-                      sort: option.value,
+                      selectedTags: selectedTagLabels,
+                      selectedGenres: selectedGenreLabels,
+                      order,
+                      start: selectedStartInput,
+                      end: selectedEndInput,
+                      showTags: showAllTags,
+                      showGenres: showAllGenres,
+                      shelfTab: tab.key,
                     })}
                     className={[
                       "rounded-full border px-4 py-2 text-sm transition",
@@ -743,10 +968,207 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                         : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
                     ].join(" ")}
                   >
-                    {option.label}
-                  </Link>
+                    {tab.label}
+                  </SearchNavButton>
                 );
               })}
+            </div>
+
+            <p className="mt-3 text-sm leading-7 text-neutral-600">
+              現在表示: {getShelfTabLabel(shelfTab)}
+            </p>
+          </div>
+
+          {shelfTab === "overall-popular" ? (
+            <div className="mt-6 grid gap-6 xl:grid-cols-2">
+              {overallShelves.map((shelf) => (
+                <section
+                  key={shelf.key}
+                  className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-black">{shelf.title}</h3>
+                      <p className="mt-2 text-sm leading-7 text-neutral-600">
+                        {shelf.description}
+                      </p>
+                    </div>
+
+                    <SearchNavButton
+                      href={shelf.href}
+                      className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                    >
+                      もっと見る
+                    </SearchNavButton>
+                  </div>
+
+                  {shelf.works.length === 0 ? (
+                    <div className="mt-4 rounded-[20px] border border-dashed border-black/15 bg-neutral-50 px-4 py-6 text-sm leading-7 text-neutral-600">
+                      条件に合う公開作品がない。
+                    </div>
+                  ) : (
+                    <div className="mt-4 grid gap-3">
+                      {shelf.works.map((work) => (
+                        <div
+                          key={work.seriesId}
+                          className="rounded-[20px] border border-black/10 bg-white p-0"
+                        >
+                          <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
+                            いいね {work.likeCount} / ブックマーク {work.bookmarkCount} / 暫定人気値{" "}
+                            {Math.round(work.provisionalPopularityScore * 100) / 100}
+                          </div>
+
+                          <div className="p-4">
+                            <PublicWorkBoardCard
+                              title={work.title}
+                              workHref={buildWorkHref(work.seriesId)}
+                              authorName={work.authorName}
+                              authorHref={
+                                work.authorId ? buildAuthorHref(work.authorId) : undefined
+                              }
+                              latestPostedLabel={work.latestPostedLabel}
+                              summary={work.summary}
+                              firstReadHref={
+                                work.firstEpisodeNumber
+                                  ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
+                                  : undefined
+                              }
+                              tags={work.tags}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              ))}
+            </div>
+          ) : null}
+
+          {shelfTab === "latest" ? (
+            <div className="mt-6 grid gap-6 xl:grid-cols-2">
+              {latestPlaceholderSections.map((section) => (
+                <section
+                  key={section.key}
+                  className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-black">{section.title}</h3>
+                      <p className="mt-2 text-sm leading-7 text-neutral-600">
+                        {section.description}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700">
+                      genre 実装待ち
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div
+                        key={`${section.key}-slot-${index + 1}`}
+                        className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 px-4 py-6 text-sm text-neutral-500"
+                      >
+                        作品スロット {index + 1}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : null}
+
+          {shelfTab === "weekly-new" ? (
+            <div className="mt-6 grid gap-6 xl:grid-cols-2">
+              {weeklyNewPlaceholderSections.map((section) => (
+                <section
+                  key={section.key}
+                  className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-black">{section.title}</h3>
+                      <p className="mt-2 text-sm leading-7 text-neutral-600">
+                        {section.description}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700">
+                      genre 実装待ち
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div
+                        key={`${section.key}-slot-${index + 1}`}
+                        className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 px-4 py-6 text-sm text-neutral-500"
+                      >
+                        作品スロット {index + 1}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : null}
+
+          {shelfTab === "narration-popular" ? (
+            <div className="mt-6 grid gap-6 xl:grid-cols-2">
+              {narrationPlaceholderSections.map((section) => (
+                <section
+                  key={section.key}
+                  className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-black">{section.title}</h3>
+                      <p className="mt-2 text-sm leading-7 text-neutral-600">
+                        {section.description}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700">
+                      genre 実装待ち
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div
+                        key={`${section.key}-slot-${index + 1}`}
+                        className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 px-4 py-6 text-sm text-neutral-500"
+                      >
+                        作品スロット {index + 1}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : null}
+        </section>
+
+        <section className="pt-10">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-3">
+            <div>
+              <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+                CURRENT FILTER RESULTS
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
+                {getOrderLabel(order)}
+              </h2>
+              <p className="mt-2 text-sm leading-7 text-neutral-600">
+                指定期間: {selectedStartInput} 〜 {selectedEndInput}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
+                {sortedWorks.length}件
+              </span>
             </div>
           </div>
 
@@ -761,21 +1183,32 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           ) : (
             <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
               {sortedWorks.map((work) => (
-                <PublicWorkBoardCard
+                <div
                   key={work.seriesId}
-                  title={work.title}
-                  workHref={buildWorkHref(work.seriesId)}
-                  authorName={work.authorName}
-                  authorHref={work.authorId ? buildAuthorHref(work.authorId) : undefined}
-                  latestPostedLabel={work.latestPostedLabel}
-                  summary={work.summary}
-                  firstReadHref={
-                    work.firstEpisodeNumber
-                      ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
-                      : undefined
-                  }
-                  tags={work.tags}
-                />
+                  className="rounded-[24px] border border-black/10 bg-white p-0"
+                >
+                  <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
+                    いいね {work.likeCount} / ブックマーク {work.bookmarkCount} / 暫定人気値{" "}
+                    {Math.round(work.provisionalPopularityScore * 100) / 100}
+                  </div>
+
+                  <div className="p-4">
+                    <PublicWorkBoardCard
+                      title={work.title}
+                      workHref={buildWorkHref(work.seriesId)}
+                      authorName={work.authorName}
+                      authorHref={work.authorId ? buildAuthorHref(work.authorId) : undefined}
+                      latestPostedLabel={work.latestPostedLabel}
+                      summary={work.summary}
+                      firstReadHref={
+                        work.firstEpisodeNumber
+                          ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
+                          : undefined
+                      }
+                      tags={work.tags}
+                    />
+                  </div>
+                </div>
               ))}
             </div>
           )}
