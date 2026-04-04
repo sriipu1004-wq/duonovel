@@ -282,8 +282,8 @@ export default function PublicSearchControls({
             公開作品を探す
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-8 text-neutral-600 sm:text-[15px]">
-            今回の段階では tag 複数選択、人気順 / 更新順、時期絞り込み、検索棚タブ、genre UI 仮置きまでを先行実装。
-            genre と閲覧数ベース popularity は基盤確認後に分離して入れる。
+            今回の段階では tag 複数選択、genre 実データ絞り込み、人気順 / 更新順、時期絞り込み、検索棚タブまでを実装している。
+            閲覧数ベース popularity と朗読視聴 popularity は基盤確認後に分離して入れる。
           </p>
         </div>
       </div>
@@ -299,58 +299,64 @@ export default function PublicSearchControls({
       </div>
 
       <div className="mt-6 grid gap-3">
-        <div className="min-h-12 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm">
-          {selectedFilterChips.length === 0 ? (
-            <div className="flex min-h-6 items-center text-neutral-400">
-              ジャンル、タグで絞る
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {selectedFilterChips.map((chip) =>
-                chip.type === "genre" ? (
-                  <SearchNavButton
-                    key={`selected-genre-${chip.label}`}
-                    href={buildSearchHref({
-                      q: queryValue,
-                      selectedTags: selectedTagLabels,
-                      selectedGenres: selectedGenreLabels.filter(
-                        (item) => item !== chip.label
-                      ),
-                      order,
-                      start: startValue,
-                      end: endValue,
-                      showTags: showAllTags,
-                      showGenres: showAllGenres,
-                      shelfTab,
-                    })}
-                    className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700 transition hover:bg-violet-100"
-                  >
-                    {chip.label} ×
-                  </SearchNavButton>
-                ) : (
-                  <SearchNavButton
-                    key={`selected-tag-${chip.label}`}
-                    href={buildSearchHref({
-                      q: queryValue,
-                      selectedTags: selectedTagLabels.filter(
-                        (item) => normalizeTagToken(item) !== normalizeTagToken(chip.label)
-                      ),
-                      selectedGenres: selectedGenreLabels,
-                      order,
-                      start: startValue,
-                      end: endValue,
-                      showTags: showAllTags,
-                      showGenres: showAllGenres,
-                      shelfTab,
-                    })}
-                    className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black transition hover:bg-sky-100"
-                  >
-                    {chip.label} ×
-                  </SearchNavButton>
-                )
-              )}
-            </div>
-          )}
+        <div>
+          <p className="text-[11px] tracking-[0.18em] text-neutral-500">
+            ジャンル / タグで絞る（左に表示されてるものほど強力に参照される）
+          </p>
+
+          <div className="mt-2 min-h-12 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm">
+            {selectedFilterChips.length === 0 ? (
+              <div className="flex min-h-6 items-center text-neutral-400">
+                条件未選択
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {selectedFilterChips.map((chip) =>
+                  chip.type === "genre" ? (
+                    <SearchNavButton
+                      key={`selected-genre-${chip.label}`}
+                      href={buildSearchHref({
+                        q: queryValue,
+                        selectedTags: selectedTagLabels,
+                        selectedGenres: selectedGenreLabels.filter(
+                          (item) => item !== chip.label
+                        ),
+                        order,
+                        start: startValue,
+                        end: endValue,
+                        showTags: showAllTags,
+                        showGenres: showAllGenres,
+                        shelfTab,
+                      })}
+                      className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700 transition hover:bg-violet-100"
+                    >
+                      {chip.label} ×
+                    </SearchNavButton>
+                  ) : (
+                    <SearchNavButton
+                      key={`selected-tag-${chip.label}`}
+                      href={buildSearchHref({
+                        q: queryValue,
+                        selectedTags: selectedTagLabels.filter(
+                          (item) => normalizeTagToken(item) !== normalizeTagToken(chip.label)
+                        ),
+                        selectedGenres: selectedGenreLabels,
+                        order,
+                        start: startValue,
+                        end: endValue,
+                        showTags: showAllTags,
+                        showGenres: showAllGenres,
+                        shelfTab,
+                      })}
+                      className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black transition hover:bg-sky-100"
+                    >
+                      {chip.label} ×
+                    </SearchNavButton>
+                  )
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {(query.length > 0 ||

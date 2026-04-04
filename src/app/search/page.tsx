@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   getEpisodeNumber,
   getEpisodePostedAtValue,
+  getSeriesGenres,
   getSeriesPublicationStatus,
   getSeriesSummary,
   isEpisodePubliclyVisible,
@@ -104,6 +105,16 @@ type GenrePlaceholderSection = {
   description: string;
 };
 
+type GenreShelfSection = {
+  key: string;
+  title: string;
+  description: string;
+  badgeLabel: string;
+  href: string;
+  works: WorkCard[];
+  emptyMessage: string;
+};
+
 const TOKYO_TIMEZONE = "Asia/Tokyo";
 const ONE_DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -189,41 +200,6 @@ function getSeriesTags(series: SeriesRow): string[] {
 
   for (const candidate of candidates) {
     const parsed = parseTagList(candidate);
-    if (parsed.length > 0) {
-      return parsed;
-    }
-  }
-
-  return [];
-}
-
-function parseGenreList(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter((item) => item.length > 0);
-  }
-
-  if (typeof value === "string" && value.trim().length > 0) {
-    return value
-      .split(/[\n,、]/)
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0);
-  }
-
-  return [];
-}
-
-function getSeriesGenres(series: SeriesRow): string[] {
-  const candidates = [
-    series["genres"],
-    series["genre_list"],
-    series["genreList"],
-    series["genre"],
-  ];
-
-  for (const candidate of candidates) {
-    const parsed = parseGenreList(candidate);
     if (parsed.length > 0) {
       return parsed;
     }
@@ -593,6 +569,44 @@ function buildGenrePlaceholderSections(
     key: genre.key,
     title: genre.label,
     description,
+  }));
+}
+
+function getWorkFirstPublicAtValue(work: WorkCard): number {
+  return work.earliestPublicAtValue > 0
+    ? work.earliestPublicAtValue
+    : work.createdAtValue;
+}
+
+function filterWorksByGenre(
+  works: WorkCard[],
+  genreKey: string
+): WorkCard[] {
+  return works.filter((work) =>
+    work.genres.some((genre) => normalizeGenreToken(genre) === genreKey)
+  );
+}
+
+function buildGenreShelfSections(params: {
+  genres: GenrePlaceholderChip[];
+  works: WorkCard[];
+  order: OrderKey;
+  descriptionBuilder: (genre: GenrePlaceholderChip) => string;
+  badgeLabel: string;
+  hrefBuilder: (genre: GenrePlaceholderChip) => string;
+  emptyMessageBuilder: (genre: GenrePlaceholderChip) => string;
+}): GenreShelfSection[] {
+  return params.genres.slice(0, 5).map((genre) => ({
+    key: genre.key,
+    title: genre.label,
+    description: params.descriptionBuilder(genre),
+    badgeLabel: params.badgeLabel,
+    href: params.hrefBuilder(genre),
+    works: sortWorks(filterWorksByGenre(params.works, genre.key), params.order).slice(
+      0,
+      5
+    ),
+    emptyMessage: params.emptyMessageBuilder(genre),
   }));
 }
 
@@ -979,19 +993,87 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     };
   });
 
+  const latestGenreSections =
+    availableGenres.length > 0
+      ? buildGenreShelfSections({
+          genres: availableGenres,
+          works: workCards,
+          order: "updated",
+          descriptionBuilder: (genre) =>
+            `公開中の ${genre.label} 作品を更新順で表示。`,
+          badgeLabel: "更新順",
+          hrefBuilder: (genre) =>
+            buildSearchHref({
+              selectedGenres: [genre.label],
+              selectedTags: selectedTagLabels,
+              order: "updated",
+              start: defaultStartInput,
+              end: defaultEndInput,
+              shelfTab: "latest",
+              showTags: showAllTags,
+              showGenres: showAllGenres,
+            }),
+          emptyMessageBuilder: (genre) =>
+            `${genre.label} の公開作品はまだない。`,
+        })
+      : [];
+
+  const weeklyNewStartAtValue = subtractDaysClamped(
+    Date.now(),
+    7,
+    oldestPublicAtValue
+  );
+  const weeklyNewStartInput = formatInputDate(weeklyNewStartAtValue);
+
+  const weeklyNewWorks = workCards.filter((work) => {
+    const firstPublicAtValue = getWorkFirstPublicAtValue(work);
+
+    return (
+      firstPublicAtValue >= weeklyNewStartAtValue &&
+      firstPublicAtValue <= Date.now()
+    );
+  });
+
+  const weeklyNewGenres = buildAvailableGenres(weeklyNewWorks);
+
+  const weeklyNewGenreSections =
+    weeklyNewGenres.length > 0
+      ? buildGenreShelfSections({
+          genres: weeklyNewGenres,
+          works: weeklyNewWorks,
+          order: "popular",
+          descriptionBuilder: (genre) =>
+            `直近7日で初公開された ${genre.label} 作品を暫定人気順で表示。`,
+          badgeLabel: "暫定人気順",
+          hrefBuilder: (genre) =>
+            buildSearchHref({
+              selectedGenres: [genre.label],
+              selectedTags: selectedTagLabels,
+              order: "popular",
+              start: weeklyNewStartInput,
+              end: defaultEndInput,
+              shelfTab: "weekly-new",
+              showTags: showAllTags,
+              showGenres: showAllGenres,
+            }),
+          emptyMessageBuilder: (genre) =>
+            `直近7日で初公開された ${genre.label} 作品はまだない。`,
+        })
+      : [];
+
   const latestPlaceholderSections = buildGenrePlaceholderSections(
     genreShelfSource,
-    "新着更新順では、本来ここに人気ジャンル5つを並べて各5作品ずつ出す。genre 実装後に差し替える。"
+    "genre 実データがまだ無いため、ここは placeholder を表示している。"
   );
 
   const weeklyNewPlaceholderSections = buildGenrePlaceholderSections(
     genreShelfSource,
-    "週間新作おすすめ順では、本来ここに人気ジャンル5つを並べて各5作品ずつ出す。genre 実装後に差し替える。"
+    "直近7日で初公開された genre 実データがまだ無いため、ここは placeholder を表示している。"
   );
 
   const narrationPlaceholderSections = buildGenrePlaceholderSections(
     genreShelfSource,
-    "朗読視聴人気順では、本来ここに朗読タグ付き作品群から抽出した人気ジャンル5つを並べる。genre 実装後に差し替える。"
+    "朗読視聴人気順は recordings 系の canonical source と series への寄せ方が未確定のため、現段階では placeholder のまま止めている。"
   );
 
   const shelfTabs: Array<{ key: ShelfTabKey; label: string }> = [
@@ -1142,73 +1224,236 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           ) : null}
 
           {shelfTab === "latest" ? (
-            <div className="mt-6 grid gap-6 xl:grid-cols-2">
-              {latestPlaceholderSections.map((section) => (
-                <section
-                  key={section.key}
-                  className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold text-black">{section.title}</h3>
-                      <p className="mt-2 text-sm leading-7 text-neutral-600">
-                        {section.description}
-                      </p>
+            latestGenreSections.length > 0 ? (
+              <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                {latestGenreSections.map((section) => (
+                  <section
+                    key={section.key}
+                    className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold text-black">
+                          {section.title}
+                        </h3>
+                        <p className="mt-2 text-sm leading-7 text-neutral-600">
+                          {section.description}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black">
+                          {section.badgeLabel}
+                        </span>
+
+                        <SearchNavButton
+                          href={section.href}
+                          className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                        >
+                          もっと見る
+                        </SearchNavButton>
+                      </div>
                     </div>
 
-                    <span className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700">
-                      genre 実装待ち
-                    </span>
-                  </div>
-
-                  <div className="mt-4 grid gap-3">
-                    {Array.from({ length: 5 }).map((_, index) => (
-                      <div
-                        key={`${section.key}-slot-${index + 1}`}
-                        className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 px-4 py-6 text-sm text-neutral-500"
-                      >
-                        作品スロット {index + 1}
+                    {section.works.length === 0 ? (
+                      <div className="mt-4 rounded-[20px] border border-dashed border-black/15 bg-neutral-50 px-4 py-6 text-sm leading-7 text-neutral-600">
+                        {section.emptyMessage}
                       </div>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
+                    ) : (
+                      <div className="mt-4 grid gap-3">
+                        {section.works.map((work) => (
+                          <div
+                            key={work.seriesId}
+                            className="rounded-[20px] border border-black/10 bg-white p-0"
+                          >
+                            <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
+                              更新 {work.latestPostedLabel} / いいね {work.likeCount} /
+                              ブックマーク {work.bookmarkCount}
+                            </div>
+
+                            <div className="p-4">
+                              <PublicWorkBoardCard
+                                title={work.title}
+                                workHref={buildWorkHref(work.seriesId)}
+                                authorName={work.authorName}
+                                authorHref={
+                                  work.authorId
+                                    ? buildAuthorHref(work.authorId)
+                                    : undefined
+                                }
+                                latestPostedLabel={work.latestPostedLabel}
+                                summary={work.summary}
+                                firstReadHref={
+                                  work.firstEpisodeNumber
+                                    ? buildReadHref(
+                                        work.seriesId,
+                                        work.firstEpisodeNumber
+                                      )
+                                    : undefined
+                                }
+                                tags={work.tags}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                {latestPlaceholderSections.map((section) => (
+                  <section
+                    key={section.key}
+                    className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold text-black">
+                          {section.title}
+                        </h3>
+                        <p className="mt-2 text-sm leading-7 text-neutral-600">
+                          {section.description}
+                        </p>
+                      </div>
+
+                      <span className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700">
+                        genre データ待ち
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <div
+                          key={`${section.key}-slot-${index + 1}`}
+                          className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 px-4 py-6 text-sm text-neutral-500"
+                        >
+                          作品スロット {index + 1}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )
           ) : null}
 
           {shelfTab === "weekly-new" ? (
-            <div className="mt-6 grid gap-6 xl:grid-cols-2">
-              {weeklyNewPlaceholderSections.map((section) => (
-                <section
-                  key={section.key}
-                  className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold text-black">{section.title}</h3>
-                      <p className="mt-2 text-sm leading-7 text-neutral-600">
-                        {section.description}
-                      </p>
+            weeklyNewGenreSections.length > 0 ? (
+              <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                {weeklyNewGenreSections.map((section) => (
+                  <section
+                    key={section.key}
+                    className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold text-black">
+                          {section.title}
+                        </h3>
+                        <p className="mt-2 text-sm leading-7 text-neutral-600">
+                          {section.description}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black">
+                          {section.badgeLabel}
+                        </span>
+
+                        <SearchNavButton
+                          href={section.href}
+                          className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                        >
+                          もっと見る
+                        </SearchNavButton>
+                      </div>
                     </div>
 
-                    <span className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700">
-                      genre 実装待ち
-                    </span>
-                  </div>
-
-                  <div className="mt-4 grid gap-3">
-                    {Array.from({ length: 5 }).map((_, index) => (
-                      <div
-                        key={`${section.key}-slot-${index + 1}`}
-                        className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 px-4 py-6 text-sm text-neutral-500"
-                      >
-                        作品スロット {index + 1}
+                    {section.works.length === 0 ? (
+                      <div className="mt-4 rounded-[20px] border border-dashed border-black/15 bg-neutral-50 px-4 py-6 text-sm leading-7 text-neutral-600">
+                        {section.emptyMessage}
                       </div>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
+                    ) : (
+                      <div className="mt-4 grid gap-3">
+                        {section.works.map((work) => (
+                          <div
+                            key={work.seriesId}
+                            className="rounded-[20px] border border-black/10 bg-white p-0"
+                          >
+                            <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
+                              いいね {work.likeCount} / ブックマーク {work.bookmarkCount} /
+                              暫定人気値{" "}
+                              {Math.round(work.provisionalPopularityScore * 100) / 100}
+                            </div>
+
+                            <div className="p-4">
+                              <PublicWorkBoardCard
+                                title={work.title}
+                                workHref={buildWorkHref(work.seriesId)}
+                                authorName={work.authorName}
+                                authorHref={
+                                  work.authorId
+                                    ? buildAuthorHref(work.authorId)
+                                    : undefined
+                                }
+                                latestPostedLabel={work.latestPostedLabel}
+                                summary={work.summary}
+                                firstReadHref={
+                                  work.firstEpisodeNumber
+                                    ? buildReadHref(
+                                        work.seriesId,
+                                        work.firstEpisodeNumber
+                                      )
+                                    : undefined
+                                }
+                                tags={work.tags}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                {weeklyNewPlaceholderSections.map((section) => (
+                  <section
+                    key={section.key}
+                    className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold text-black">
+                          {section.title}
+                        </h3>
+                        <p className="mt-2 text-sm leading-7 text-neutral-600">
+                          {section.description}
+                        </p>
+                      </div>
+
+                      <span className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700">
+                        新作データ待ち
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <div
+                          key={`${section.key}-slot-${index + 1}`}
+                          className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 px-4 py-6 text-sm text-neutral-500"
+                        >
+                          作品スロット {index + 1}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )
           ) : null}
 
           {shelfTab === "narration-popular" ? (
@@ -1226,9 +1471,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                       </p>
                     </div>
 
-                    <span className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700">
-                      genre 実装待ち
-                    </span>
+                      <span className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700">
+                        基盤未確定
+                      </span>
                   </div>
 
                   <div className="mt-4 grid gap-3">
