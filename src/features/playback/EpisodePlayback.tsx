@@ -19,6 +19,10 @@ import {
 import BgmController from "@/features/playback/BgmController";
 import EpisodeCommentSection from "@/features/comment/EpisodeCommentSection";
 import {
+  trackRecordingPlayStartOnce,
+  trackSeriesViewOnce,
+} from "@/lib/popularityEvents";
+import {
   usePlayLogPersistence,
   type ReadResumeState,
 } from "@/hooks/usePlayLogPersistence";
@@ -587,6 +591,16 @@ export default function EpisodePlayback({
     writeLocalResumeState,
   });
 
+    useEffect(() => {
+    if (!episodeId) return;
+
+    void trackSeriesViewOnce({
+      seriesId,
+      episodeId,
+      episodeNumber,
+    });
+  }, [seriesId, episodeId, episodeNumber]);
+
   const resetPlaybackViewState = useCallback(() => {
     setIsPlaying(false);
     setCurrentTime(0);
@@ -879,6 +893,13 @@ export default function EpisodePlayback({
 
     const handlePlay = () => {
       setIsPlaying(true);
+
+      void trackRecordingPlayStartOnce({
+        seriesId,
+        episodeId: episodeId ?? null,
+        episodeNumber,
+        recordingId: recordingId ?? null,
+      });
     };
 
     const handleSeeked = () => {
