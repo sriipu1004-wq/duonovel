@@ -128,9 +128,6 @@ function getSeriesTags(series: SeriesRow): string[] {
     series["tags"],
     series["tag_list"],
     series["tagList"],
-    series["genres"],
-    series["genre"],
-    series["keywords"],
   ];
 
   for (const candidate of candidates) {

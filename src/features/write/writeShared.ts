@@ -23,6 +23,12 @@ export type SeriesRow = Record<string, unknown> & {
   effect_settings?: unknown;
   effectSettings?: unknown;
   tags?: string[] | string | null;
+  tag_list?: string[] | string | null;
+  tagList?: string[] | string | null;
+  genres?: string[] | string | null;
+  genre?: string | null;
+  genre_list?: string[] | string | null;
+  genreList?: string[] | string | null;
   recording_permission_mode?: RecordingPermissionMode | null;
   reviews_enabled?: boolean | null;
   reviewsEnabled?: boolean | null;
@@ -87,6 +93,23 @@ function parseDateValue(value: unknown): Date | null {
   return null;
 }
 
+function parseTextArrayLike(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item).trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value
+      .split(/[\n,、]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  return [];
+}
+
 export function pickText(...values: unknown[]): string {
   for (const value of values) {
     if (typeof value === "string" && value.trim().length > 0) {
@@ -95,6 +118,49 @@ export function pickText(...values: unknown[]): string {
   }
 
   return "";
+}
+
+export function getSeriesTags(series?: SeriesRow | null): string[] {
+  if (!series) {
+    return [];
+  }
+
+  const candidates = [
+    series.tags,
+    series.tag_list,
+    series.tagList,
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = parseTextArrayLike(candidate);
+    if (parsed.length > 0) {
+      return parsed;
+    }
+  }
+
+  return [];
+}
+
+export function getSeriesGenres(series?: SeriesRow | null): string[] {
+  if (!series) {
+    return [];
+  }
+
+  const candidates = [
+    series.genres,
+    series.genre_list,
+    series.genreList,
+    series.genre,
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = parseTextArrayLike(candidate);
+    if (parsed.length > 0) {
+      return parsed;
+    }
+  }
+
+  return [];
 }
 
 export function getSeriesSummary(series: SeriesRow): string {

@@ -17,7 +17,8 @@ import {
   getEpisodeStatusKind,
   getEpisodeStatusLabel,
   getSeriesPublicationStatus,
-  isEpisodeDraft,
+  getSeriesGenres,
+  isEpisodeDraft,  
   isEpisodePosted,
   isEpisodePubliclyVisible,
   isEpisodeScheduled,
@@ -302,6 +303,7 @@ const publicVisibleCount = sortedEpisodes.filter(
           : "予約投稿や投稿済みの流れを保ったまま次の話へ進む。";
 
   const tags = parseTags(series?.tags);
+  const genres = getSeriesGenres(series);
   const recordingPermissionLabel = getRecordingPermissionLabel(
     series?.recording_permission_mode
   );
@@ -818,6 +820,12 @@ const publicVisibleCount = sortedEpisodes.filter(
                         </span>
                       </div>
                       <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
+                        ジャンル:{" "}
+                        <span className="font-semibold text-white">
+                          {genres.length}件
+                        </span>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
                         朗読許可:{" "}
                         <span className="font-semibold text-white">
                           {recordingPermissionLabel}
@@ -851,6 +859,13 @@ const publicVisibleCount = sortedEpisodes.filter(
                           href={`/manage/bgm/${series.id}`}
                           cta="既定演出設定ページへ"
                         />
+                        <WorkspaceLinkCard
+                          eyebrow="GENRES"
+                          title="ジャンル管理"
+                          description="作品genreの canonical source は series.genres。公開検索の genre 絞り込みや genre 棚の基準になる。"
+                          href={`/manage/genres/${series.id}`}
+                          cta="ジャンル管理へ"
+                        />                        
                         <WorkspaceLinkCard
                           eyebrow="TAGS"
                           title="タグ管理"
