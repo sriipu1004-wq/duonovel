@@ -2,6 +2,12 @@ import Link from "next/link";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
 import PublicSearchControls from "@/components/search/PublicSearchControls";
 import SearchNavButton from "@/components/search/SearchNavButton";
+import {
+  buildSeriesPopularityMap,
+  createEmptyPopularityMetrics,
+  fetchSeriesPopularityDataset,
+  type SeriesPopularityMetrics,
+} from "@/lib/popularity";
 import { supabase } from "@/lib/supabaseClient";
 import {
   getEpisodeNumber,
@@ -49,16 +55,6 @@ type UserRow = Record<string, unknown> & {
   name?: string | null;
 };
 
-type ReactionRow = Record<string, unknown> & {
-  series_id?: string | null;
-  seriesId?: string | null;
-};
-
-type BookmarkRow = Record<string, unknown> & {
-  series_id?: string | null;
-  seriesId?: string | null;
-};
-
 type WorkCard = {
   seriesId: string;
   title: string;
@@ -75,7 +71,14 @@ type WorkCard = {
   genres: string[];
   likeCount: number;
   bookmarkCount: number;
+  viewCount: number;
+  narrationPlayCount: number;
   provisionalPopularityScore: number;
+};
+
+type ShelfWorkEntry = {
+  work: WorkCard;
+  metrics: SeriesPopularityMetrics;
 };
 
 type TagChip = {
@@ -524,10 +527,30 @@ function sortByUpdated(works: WorkCard[]) {
   });
 }
 
-function sortByPopular(works: WorkCard[]) {
+function formatPopularityScore(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function sortByPopular(
+  works: WorkCard[],
+  popularityMap?: Map<string, SeriesPopularityMetrics>
+) {
   return [...works].sort((a, b) => {
-    if (b.provisionalPopularityScore !== a.provisionalPopularityScore) {
-      return b.provisionalPopularityScore - a.provisionalPopularityScore;
+    const aMetrics = popularityMap?.get(a.seriesId);
+    const bMetrics = popularityMap?.get(b.seriesId);
+
+    const aScore = aMetrics?.popularityScore ?? a.provisionalPopularityScore;
+    const bScore = bMetrics?.popularityScore ?? b.provisionalPopularityScore;
+
+    if (bScore !== aScore) {
+      return bScore - aScore;
+    }
+
+    const aViewCount = aMetrics?.viewCount ?? a.viewCount;
+    const bViewCount = bMetrics?.viewCount ?? b.viewCount;
+
+    if (bViewCount !== aViewCount) {
+      return bViewCount - aViewCount;
     }
 
     if (b.likeCount !== a.likeCount) {
@@ -557,8 +580,14 @@ function filterWorksByDateRange(
   );
 }
 
-function sortWorks(works: WorkCard[], order: OrderKey): WorkCard[] {
-  return order === "updated" ? sortByUpdated(works) : sortByPopular(works);
+function sortWorks(
+  works: WorkCard[],
+  order: OrderKey,
+  popularityMap?: Map<string, SeriesPopularityMetrics>
+) {
+  return order === "updated"
+    ? sortByUpdated(works)
+    : sortByPopular(works, popularityMap);
 }
 
 function buildGenrePlaceholderSections(
@@ -665,56 +694,6 @@ async function fetchAuthorMap(authorIds: string[]): Promise<Map<string, UserRow>
   return new Map(((data ?? []) as UserRow[]).map((user) => [user.id, user]));
 }
 
-async function fetchReactionRows(seriesIds: string[]): Promise<ReactionRow[]> {
-  if (seriesIds.length === 0) {
-    return [];
-  }
-
-  const { data, error } = await supabase
-    .from("user_series_reactions")
-    .select("series_id")
-    .eq("reaction_type", "support")
-    .in("series_id", seriesIds);
-
-  if (error) {
-    return [];
-  }
-
-  return (data ?? []) as ReactionRow[];
-}
-
-async function fetchBookmarkRows(seriesIds: string[]): Promise<BookmarkRow[]> {
-  if (seriesIds.length === 0) {
-    return [];
-  }
-
-  const { data, error } = await supabase
-    .from("user_series_bookmarks")
-    .select("series_id")
-    .in("series_id", seriesIds);
-
-  if (error) {
-    return [];
-  }
-
-  return (data ?? []) as BookmarkRow[];
-}
-
-function buildCountMapBySeriesId(
-  rows: Array<Record<string, unknown>>
-): Map<string, number> {
-  const countMap = new Map<string, number>();
-
-  for (const row of rows) {
-    const seriesId = pickText(row["series_id"], row["seriesId"]);
-    if (!seriesId) continue;
-
-    countMap.set(seriesId, (countMap.get(seriesId) ?? 0) + 1);
-  }
-
-  return countMap;
-}
-
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
@@ -753,14 +732,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   const authorMap = await fetchAuthorMap(authorIds);
   const publicSeriesIds = publicSeries.map((series) => series.id);
-
-  const [reactionRows, bookmarkRows] = await Promise.all([
-    fetchReactionRows(publicSeriesIds),
-    fetchBookmarkRows(publicSeriesIds),
-  ]);
-
-  const likeCountMap = buildCountMapBySeriesId(reactionRows);
-  const bookmarkCountMap = buildCountMapBySeriesId(bookmarkRows);
+  const popularityDataset = await fetchSeriesPopularityDataset(publicSeriesIds);
+  const currentPopularityMap = buildSeriesPopularityMap(popularityDataset);
 
   const workCards = (
     await Promise.all(
@@ -805,9 +778,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         const createdAtValue = toTimeValue(series["created_at"]);
         const tags = getSeriesTags(series);
         const genres = getSeriesGenres(series);
-        const likeCount = likeCountMap.get(series.id) ?? 0;
-        const bookmarkCount = bookmarkCountMap.get(series.id) ?? 0;
-        const provisionalPopularityScore = likeCount + bookmarkCount / 3;
+
+        const currentPopularity =
+          currentPopularityMap.get(series.id) ??
+          createEmptyPopularityMetrics(series.id);
 
         return {
           seriesId: series.id,
@@ -834,9 +808,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           createdAtValue,
           tags,
           genres,
-          likeCount,
-          bookmarkCount,
-          provisionalPopularityScore,
+          likeCount: currentPopularity.likeCount,
+          bookmarkCount: currentPopularity.bookmarkCount,
+          viewCount: currentPopularity.viewCount,
+          narrationPlayCount: currentPopularity.narrationPlayCount,
+          provisionalPopularityScore: currentPopularity.popularityScore,
         } satisfies WorkCard;
       })
     )
@@ -868,6 +844,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const selectedTagTokens = selectedTagLabels.map(normalizeTagToken);
   const selectedGenreTokens = selectedGenreLabels.map(normalizeGenreToken);
 
+  const selectedPopularityMap = buildSeriesPopularityMap(popularityDataset, {
+    startAtValue: safeStartAtValue,
+    endAtValue: safeEndAtValue,
+  });
+
   const filteredWorks = workCards.filter((work) => {
     const queryOk =
       normalizedQuery.length === 0 ||
@@ -876,9 +857,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     const tagOk =
       selectedTagTokens.length === 0 ||
       selectedTagTokens.every((selectedToken) =>
-        work.tags.some(
-          (tag) => normalizeTagToken(tag) === selectedToken
-        )
+        work.tags.some((tag) => normalizeTagToken(tag) === selectedToken)
       );
 
     const genreOk =
@@ -890,13 +869,19 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       );
 
     const dateOk =
-      work.latestPostedAtValue >= safeStartAtValue &&
-      work.latestPostedAtValue <= safeEndAtValue;
+      order === "popular"
+        ? true
+        : work.latestPostedAtValue >= safeStartAtValue &&
+          work.latestPostedAtValue <= safeEndAtValue;
 
     return queryOk && tagOk && genreOk && dateOk;
   });
 
-  const sortedWorks = sortWorks(filteredWorks, order);
+  const sortedWorks = sortWorks(
+    filteredWorks,
+    order,
+    order === "popular" ? selectedPopularityMap : undefined
+  );
 
   const availableTags = buildAvailableTags(workCards);
   const availableGenres = buildAvailableGenres(workCards);
@@ -922,7 +907,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     {
       key: "popular-daily",
       title: "日間",
-      description: "直近1日内に更新された作品を暫定人気順で表示。",
+      description: "直近1日で獲得した人気値順で表示。",
       order: "popular",
       start: formatInputDate(subtractDaysClamped(Date.now(), 1, oldestPublicAtValue)),
       end: defaultEndInput,
@@ -930,7 +915,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     {
       key: "popular-weekly",
       title: "週間",
-      description: "直近7日内に更新された作品を暫定人気順で表示。",
+      description: "直近7日で獲得した人気値順で表示。",
       order: "popular",
       start: formatInputDate(subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)),
       end: defaultEndInput,
@@ -938,7 +923,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     {
       key: "popular-monthly",
       title: "月間",
-      description: "直近30日内に更新された作品を暫定人気順で表示。",
+      description: "直近30日で獲得した人気値順で表示。",
       order: "popular",
       start: formatInputDate(subtractDaysClamped(Date.now(), 30, oldestPublicAtValue)),
       end: defaultEndInput,
@@ -946,7 +931,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     {
       key: "popular-quarterly",
       title: "四半期",
-      description: "直近90日内に更新された作品を暫定人気順で表示。",
+      description: "直近90日で獲得した人気値順で表示。",
       order: "popular",
       start: formatInputDate(subtractDaysClamped(Date.now(), 90, oldestPublicAtValue)),
       end: defaultEndInput,
@@ -954,7 +939,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     {
       key: "popular-yearly",
       title: "年間",
-      description: "直近365日内に更新された作品を暫定人気順で表示。",
+      description: "直近365日で獲得した人気値順で表示。",
       order: "popular",
       start: formatInputDate(subtractDaysClamped(Date.now(), 365, oldestPublicAtValue)),
       end: defaultEndInput,
@@ -962,7 +947,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     {
       key: "popular-all",
       title: "累計",
-      description: "全期間の公開作品を暫定人気順で表示。",
+      description: "全期間の人気値順で表示。",
       order: "popular",
       start: defaultStartInput,
       end: defaultEndInput,
@@ -972,10 +957,23 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const overallShelves = overallShelfConfigs.map((config) => {
     const startAt = parseTokyoDateStart(config.start) ?? oldestPublicAtValue;
     const endAt = parseTokyoDateEnd(config.end) ?? Date.now();
-    const shelfWorks = sortWorks(
-      filterWorksByDateRange(workCards, startAt, endAt),
-      config.order
-    ).slice(0, 5);
+
+    const shelfPopularityMap = buildSeriesPopularityMap(popularityDataset, {
+      startAtValue: startAt,
+      endAtValue: endAt,
+    });
+
+    const shelfWorks: ShelfWorkEntry[] = sortByPopular(
+      workCards,
+      shelfPopularityMap
+    )
+      .slice(0, 5)
+      .map((work) => ({
+        work,
+        metrics:
+          shelfPopularityMap.get(work.seriesId) ??
+          createEmptyPopularityMetrics(work.seriesId),
+      }));
 
     return {
       ...config,
@@ -1073,7 +1071,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   const narrationPlaceholderSections = buildGenrePlaceholderSections(
     genreShelfSource,
-    "朗読視聴人気順は recordings 系の canonical source と series への寄せ方が未確定のため、現段階では placeholder のまま止めている。"
+    "recording_play_events の series_id 集計基盤は入った。次段で narration-popular 棚へ接続する。"
   );
 
   const shelfTabs: Array<{ key: ShelfTabKey; label: string }> = [
@@ -1186,36 +1184,42 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                     </div>
                   ) : (
                     <div className="mt-4 grid gap-3">
-                      {shelf.works.map((work) => (
-                        <div
-                          key={work.seriesId}
-                          className="rounded-[20px] border border-black/10 bg-white p-0"
-                        >
-                          <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
-                            いいね {work.likeCount} / ブックマーク {work.bookmarkCount} / 暫定人気値{" "}
-                            {Math.round(work.provisionalPopularityScore * 100) / 100}
-                          </div>
+                      {shelf.works.map((entry) => {
+                        const work = entry.work;
+                        const metrics = entry.metrics;
 
-                          <div className="p-4">
-                            <PublicWorkBoardCard
-                              title={work.title}
-                              workHref={buildWorkHref(work.seriesId)}
-                              authorName={work.authorName}
-                              authorHref={
-                                work.authorId ? buildAuthorHref(work.authorId) : undefined
-                              }
-                              latestPostedLabel={work.latestPostedLabel}
-                              summary={work.summary}
-                              firstReadHref={
-                                work.firstEpisodeNumber
-                                  ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
-                                  : undefined
-                              }
-                              tags={work.tags}
-                            />
+                        return (
+                          <div
+                            key={work.seriesId}
+                            className="rounded-[20px] border border-black/10 bg-white p-0"
+                          >
+                            <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
+                              期間閲覧 {metrics.viewCount} / 期間いいね {metrics.likeCount} /
+                              期間ブックマーク {metrics.bookmarkCount} / 人気値{" "}
+                              {formatPopularityScore(metrics.popularityScore)}
+                            </div>
+
+                            <div className="p-4">
+                              <PublicWorkBoardCard
+                                title={work.title}
+                                workHref={buildWorkHref(work.seriesId)}
+                                authorName={work.authorName}
+                                authorHref={
+                                  work.authorId ? buildAuthorHref(work.authorId) : undefined
+                                }
+                                latestPostedLabel={work.latestPostedLabel}
+                                summary={work.summary}
+                                firstReadHref={
+                                  work.firstEpisodeNumber
+                                    ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
+                                    : undefined
+                                }
+                                tags={work.tags}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </section>
@@ -1383,9 +1387,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                             className="rounded-[20px] border border-black/10 bg-white p-0"
                           >
                             <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
-                              いいね {work.likeCount} / ブックマーク {work.bookmarkCount} /
-                              暫定人気値{" "}
-                              {Math.round(work.provisionalPopularityScore * 100) / 100}
+                              閲覧 {work.viewCount} / いいね {work.likeCount} /
+                              ブックマーク {work.bookmarkCount} / 人気値{" "}
+                              {formatPopularityScore(work.provisionalPopularityScore)}
                             </div>
 
                             <div className="p-4">
@@ -1502,7 +1506,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 {getOrderLabel(order)}
               </h2>
               <p className="mt-2 text-sm leading-7 text-neutral-600">
-                指定期間: {selectedStartInput} 〜 {selectedEndInput}
+                {order === "popular"
+                  ? `指定期間: ${selectedStartInput} 〜 ${selectedEndInput} の獲得人気順`
+                  : `指定期間: ${selectedStartInput} 〜 ${selectedEndInput}`}
               </p>
             </div>
 
@@ -1523,34 +1529,47 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             </div>
           ) : (
             <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
-              {sortedWorks.map((work) => (
-                <div
-                  key={work.seriesId}
-                  className="rounded-[24px] border border-black/10 bg-white p-0"
-                >
-                  <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
-                    いいね {work.likeCount} / ブックマーク {work.bookmarkCount} / 暫定人気値{" "}
-                    {Math.round(work.provisionalPopularityScore * 100) / 100}
-                  </div>
+              {sortedWorks.map((work) => {
+                const metrics =
+                  order === "popular"
+                    ? selectedPopularityMap.get(work.seriesId) ??
+                      createEmptyPopularityMetrics(work.seriesId)
+                    : currentPopularityMap.get(work.seriesId) ??
+                      createEmptyPopularityMetrics(work.seriesId);
 
-                  <div className="p-4">
-                    <PublicWorkBoardCard
-                      title={work.title}
-                      workHref={buildWorkHref(work.seriesId)}
-                      authorName={work.authorName}
-                      authorHref={work.authorId ? buildAuthorHref(work.authorId) : undefined}
-                      latestPostedLabel={work.latestPostedLabel}
-                      summary={work.summary}
-                      firstReadHref={
-                        work.firstEpisodeNumber
-                          ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
-                          : undefined
-                      }
-                      tags={work.tags}
-                    />
+                const scoreLabel =
+                  order === "popular" ? "指定期間人気値" : "人気値";
+
+                return (
+                  <div
+                    key={work.seriesId}
+                    className="rounded-[24px] border border-black/10 bg-white p-0"
+                  >
+                    <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
+                      閲覧 {work.viewCount} / いいね {work.likeCount} /
+                      ブックマーク {work.bookmarkCount} / {scoreLabel}{" "}
+                      {formatPopularityScore(metrics.popularityScore)}
+                    </div>
+
+                    <div className="p-4">
+                      <PublicWorkBoardCard
+                        title={work.title}
+                        workHref={buildWorkHref(work.seriesId)}
+                        authorName={work.authorName}
+                        authorHref={work.authorId ? buildAuthorHref(work.authorId) : undefined}
+                        latestPostedLabel={work.latestPostedLabel}
+                        summary={work.summary}
+                        firstReadHref={
+                          work.firstEpisodeNumber
+                            ? buildReadHref(work.seriesId, work.firstEpisodeNumber)
+                            : undefined
+                        }
+                        tags={work.tags}
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
