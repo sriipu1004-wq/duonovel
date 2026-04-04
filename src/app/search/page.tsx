@@ -71,6 +71,7 @@ type WorkCard = {
   earliestPublicAtValue: number;
   createdAtValue: number;
   tags: string[];
+  genres: string[];
   likeCount: number;
   bookmarkCount: number;
   provisionalPopularityScore: number;
@@ -196,6 +197,41 @@ function getSeriesTags(series: SeriesRow): string[] {
   return [];
 }
 
+function parseGenreList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item).trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value
+      .split(/[\n,、]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  return [];
+}
+
+function getSeriesGenres(series: SeriesRow): string[] {
+  const candidates = [
+    series["genres"],
+    series["genre_list"],
+    series["genreList"],
+    series["genre"],
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = parseGenreList(candidate);
+    if (parsed.length > 0) {
+      return parsed;
+    }
+  }
+
+  return [];
+}
+
 function buildReadHref(seriesId: string, episodeNumber: number): string {
   return `/read/${seriesId}/${episodeNumber}`;
 }
@@ -210,6 +246,10 @@ function buildAuthorHref(authorId: string): string {
 
 function normalizeTagToken(value: string): string {
   return value.trim().replace(/^#+/, "").toLowerCase();
+}
+
+function normalizeGenreToken(value: string): string {
+  return value.trim().toLowerCase();
 }
 
 function formatTagLabel(value: string): string {
@@ -307,6 +347,7 @@ function buildSearchTarget(work: WorkCard): string {
     work.summary,
     work.authorName,
     work.tags.join(" "),
+    work.genres.join(" "),
   ]
     .join("\n")
     .toLowerCase();
@@ -344,7 +385,47 @@ function buildAvailableTags(works: WorkCard[]): TagChip[] {
     if (b.count !== a.count) {
       return b.count - a.count;
     }
+
     return a.value.localeCompare(b.value, "ja");
+  });
+}
+
+function buildAvailableGenres(works: WorkCard[]): GenrePlaceholderChip[] {
+  const counter = new Map<string, GenrePlaceholderChip>();
+
+  for (const work of works) {
+    const seen = new Set<string>();
+
+    for (const genre of work.genres) {
+      const trimmed = genre.trim();
+      const normalized = normalizeGenreToken(trimmed);
+
+      if (!normalized || seen.has(normalized)) {
+        continue;
+      }
+
+      seen.add(normalized);
+
+      const current = counter.get(normalized);
+      if (current) {
+        current.count += 1;
+        continue;
+      }
+
+      counter.set(normalized, {
+        key: normalized,
+        label: trimmed,
+        count: 1,
+      });
+    }
+  }
+
+  return Array.from(counter.values()).sort((a, b) => {
+    if (b.count !== a.count) {
+      return b.count - a.count;
+    }
+
+    return a.label.localeCompare(b.label, "ja");
   });
 }
 
@@ -709,6 +790,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
         const createdAtValue = toTimeValue(series["created_at"]);
         const tags = getSeriesTags(series);
+        const genres = getSeriesGenres(series);
         const likeCount = likeCountMap.get(series.id) ?? 0;
         const bookmarkCount = bookmarkCountMap.get(series.id) ?? 0;
         const provisionalPopularityScore = likeCount + bookmarkCount / 3;
@@ -737,6 +819,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
           createdAtValue,
           tags,
+          genres,
           likeCount,
           bookmarkCount,
           provisionalPopularityScore,
@@ -769,6 +852,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   const normalizedQuery = query.trim().toLowerCase();
   const selectedTagTokens = selectedTagLabels.map(normalizeTagToken);
+  const selectedGenreTokens = selectedGenreLabels.map(normalizeGenreToken);
 
   const filteredWorks = workCards.filter((work) => {
     const queryOk =
@@ -783,30 +867,42 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         )
       );
 
+    const genreOk =
+      selectedGenreTokens.length === 0 ||
+      selectedGenreTokens.every((selectedToken) =>
+        work.genres.some(
+          (genre) => normalizeGenreToken(genre) === selectedToken
+        )
+      );
+
     const dateOk =
       work.latestPostedAtValue >= safeStartAtValue &&
       work.latestPostedAtValue <= safeEndAtValue;
 
-    return queryOk && tagOk && dateOk;
+    return queryOk && tagOk && genreOk && dateOk;
   });
 
   const sortedWorks = sortWorks(filteredWorks, order);
 
   const availableTags = buildAvailableTags(workCards);
+  const availableGenres = buildAvailableGenres(workCards);
+  const genreCandidateSource =
+    availableGenres.length > 0 ? availableGenres : PLACEHOLDER_GENRES;
+  const genreShelfSource = genreCandidateSource;
 
   const collapsedTagPreview = pickTagChipsWithinBudget(availableTags, 46);
-  const collapsedGenrePreview = pickGenreChipsWithinBudget(PLACEHOLDER_GENRES, 46);
+  const collapsedGenrePreview = pickGenreChipsWithinBudget(genreCandidateSource, 46);
 
   const hasHiddenTags = collapsedTagPreview.length < availableTags.length;
-  const hasHiddenGenres = collapsedGenrePreview.length < PLACEHOLDER_GENRES.length;
+  const hasHiddenGenres = collapsedGenrePreview.length < genreCandidateSource.length;
 
   const visibleTagChips = showAllTags
     ? pickTagChipsWithinBudget(availableTags, 320)
     : pickTagChipsWithinBudget(availableTags, hasHiddenTags ? 34 : 46);
 
   const visibleGenreChips = showAllGenres
-    ? pickGenreChipsWithinBudget(PLACEHOLDER_GENRES, 320)
-    : pickGenreChipsWithinBudget(PLACEHOLDER_GENRES, hasHiddenGenres ? 34 : 46);
+    ? pickGenreChipsWithinBudget(genreCandidateSource, 320)
+    : pickGenreChipsWithinBudget(genreCandidateSource, hasHiddenGenres ? 34 : 46);
 
   const overallShelfConfigs: ShelfConfig[] = [
     {
@@ -884,17 +980,17 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   });
 
   const latestPlaceholderSections = buildGenrePlaceholderSections(
-    PLACEHOLDER_GENRES,
+    genreShelfSource,
     "新着更新順では、本来ここに人気ジャンル5つを並べて各5作品ずつ出す。genre 実装後に差し替える。"
   );
 
   const weeklyNewPlaceholderSections = buildGenrePlaceholderSections(
-    PLACEHOLDER_GENRES,
+    genreShelfSource,
     "週間新作おすすめ順では、本来ここに人気ジャンル5つを並べて各5作品ずつ出す。genre 実装後に差し替える。"
   );
 
   const narrationPlaceholderSections = buildGenrePlaceholderSections(
-    PLACEHOLDER_GENRES,
+    genreShelfSource,
     "朗読視聴人気順では、本来ここに朗読タグ付き作品群から抽出した人気ジャンル5つを並べる。genre 実装後に差し替える。"
   );
 
