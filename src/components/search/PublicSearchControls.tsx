@@ -282,8 +282,9 @@ export default function PublicSearchControls({
             公開作品を探す
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-8 text-neutral-600 sm:text-[15px]">
-            今回の段階では tag 複数選択、genre 実データ絞り込み、人気順 / 更新順、時期絞り込み、検索棚タブまでを実装している。
-            閲覧数ベース popularity と朗読視聴 popularity は基盤確認後に分離して入れる。
+            今回の段階では tag 複数選択、genre 実データ絞り込み、人気順 / 更新順、時期絞り込み、
+            検索棚タブ、朗読視聴人気棚までを実装している。
+            genre 5棚化は固定タグ語彙の確定後に進める。
           </p>
         </div>
       </div>
