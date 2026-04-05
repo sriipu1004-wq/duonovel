@@ -208,8 +208,33 @@ export default function PublicSearchControls({
     [selectedGenreLabels, selectedTagLabels]
   );
 
-  function navigate(href: string) {
+  function navigate(href: string, scrollTargetId?: string) {
     router.replace(href, { scroll: false });
+
+    if (!scrollTargetId || typeof window === "undefined") {
+      return;
+    }
+
+    let attempts = 0;
+
+    const tryScroll = () => {
+      const target = document.getElementById(scrollTargetId);
+
+      if (target) {
+        target.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+        return;
+      }
+
+      attempts += 1;
+      if (attempts < 12) {
+        window.setTimeout(tryScroll, 120);
+      }
+    };
+
+    window.setTimeout(tryScroll, 0);
   }
 
   function handleSearch() {
@@ -227,7 +252,8 @@ export default function PublicSearchControls({
         showTags: showAllTags,
         showGenres: showAllGenres,
         shelfTab,
-      })
+      }),
+      "results"
     );
   }
 
@@ -294,70 +320,71 @@ export default function PublicSearchControls({
           type="text"
           value={queryValue}
           onChange={(event) => setQueryValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              handleSearch();
+            }
+          }}
           placeholder="作品名、作者名、あらすじなどで検索"
           className="h-12 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
         />
       </div>
 
       <div className="mt-6 grid gap-3">
-        <div>
-          <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-            ジャンル / タグで絞る（左に表示されてるものほど強力に参照される）
-          </p>
-
-          <div className="mt-2 min-h-12 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm">
-            {selectedFilterChips.length === 0 ? (
-              <div className="flex min-h-6 items-center text-neutral-400">
-                条件未選択
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {selectedFilterChips.map((chip) =>
-                  chip.type === "genre" ? (
-                    <SearchNavButton
-                      key={`selected-genre-${chip.label}`}
-                      href={buildSearchHref({
-                        q: queryValue,
-                        selectedTags: selectedTagLabels,
-                        selectedGenres: selectedGenreLabels.filter(
-                          (item) => item !== chip.label
-                        ),
-                        order,
-                        start: startValue,
-                        end: endValue,
-                        showTags: showAllTags,
-                        showGenres: showAllGenres,
-                        shelfTab,
-                      })}
-                      className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700 transition hover:bg-violet-100"
-                    >
-                      {chip.label} ×
-                    </SearchNavButton>
-                  ) : (
-                    <SearchNavButton
-                      key={`selected-tag-${chip.label}`}
-                      href={buildSearchHref({
-                        q: queryValue,
-                        selectedTags: selectedTagLabels.filter(
-                          (item) => normalizeTagToken(item) !== normalizeTagToken(chip.label)
-                        ),
-                        selectedGenres: selectedGenreLabels,
-                        order,
-                        start: startValue,
-                        end: endValue,
-                        showTags: showAllTags,
-                        showGenres: showAllGenres,
-                        shelfTab,
-                      })}
-                      className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black transition hover:bg-sky-100"
-                    >
-                      {chip.label} ×
-                    </SearchNavButton>
-                  )
-                )}
-              </div>
-            )}
-          </div>
+        <div className="min-h-12 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm">
+          {selectedFilterChips.length === 0 ? (
+            <div className="flex min-h-6 items-center text-neutral-400">
+              ジャンル / タグで絞る（左に表示されてるものほど強く参照される）
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {selectedFilterChips.map((chip) =>
+                chip.type === "genre" ? (
+                  <SearchNavButton
+                    key={`selected-genre-${chip.label}`}
+                    href={buildSearchHref({
+                      q: queryValue,
+                      selectedTags: selectedTagLabels,
+                      selectedGenres: selectedGenreLabels.filter(
+                        (item) => item !== chip.label
+                      ),
+                      order,
+                      start: startValue,
+                      end: endValue,
+                      showTags: showAllTags,
+                      showGenres: showAllGenres,
+                      shelfTab,
+                    })}
+                    className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700 transition hover:bg-violet-100"
+                  >
+                    {chip.label} ×
+                  </SearchNavButton>
+                ) : (
+                  <SearchNavButton
+                    key={`selected-tag-${chip.label}`}
+                    href={buildSearchHref({
+                      q: queryValue,
+                      selectedTags: selectedTagLabels.filter(
+                        (item) =>
+                          normalizeTagToken(item) !== normalizeTagToken(chip.label)
+                      ),
+                      selectedGenres: selectedGenreLabels,
+                      order,
+                      start: startValue,
+                      end: endValue,
+                      showTags: showAllTags,
+                      showGenres: showAllGenres,
+                      shelfTab,
+                    })}
+                    className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black transition hover:bg-sky-100"
+                  >
+                    {chip.label} ×
+                  </SearchNavButton>
+                )
+              )}
+            </div>
+          )}
         </div>
 
         {(query.length > 0 ||
@@ -479,7 +506,10 @@ export default function PublicSearchControls({
                         key={tag.value}
                         href={buildSearchHref({
                           q: queryValue,
-                          selectedTags: toggleSelectedTagLabels(selectedTagLabels, tag.label),
+                          selectedTags: toggleSelectedTagLabels(
+                            selectedTagLabels,
+                            tag.label
+                          ),
                           selectedGenres: selectedGenreLabels,
                           order,
                           start: startValue,
@@ -513,7 +543,10 @@ export default function PublicSearchControls({
                         key={tag.value}
                         href={buildSearchHref({
                           q: queryValue,
-                          selectedTags: toggleSelectedTagLabels(selectedTagLabels, tag.label),
+                          selectedTags: toggleSelectedTagLabels(
+                            selectedTagLabels,
+                            tag.label
+                          ),
                           selectedGenres: selectedGenreLabels,
                           order,
                           start: startValue,
@@ -618,19 +651,21 @@ export default function PublicSearchControls({
             PERIOD
           </p>
 
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
             <input
               type="date"
               value={startValue}
               onChange={(event) => setStartValue(event.target.value)}
-              className="h-12 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none focus:border-sky-200"
+              className="h-12 min-w-0 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none focus:border-sky-200"
             />
+
+            <span className="text-sm text-neutral-500">〜</span>
 
             <input
               type="date"
               value={endValue}
               onChange={(event) => setEndValue(event.target.value)}
-              className="h-12 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none focus:border-sky-200"
+              className="h-12 min-w-0 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none focus:border-sky-200"
             />
           </div>
         </div>

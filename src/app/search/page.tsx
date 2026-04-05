@@ -956,17 +956,52 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     order === "popular" ? selectedPopularityMap : undefined
   );
 
-  const currentResultsHeading =
-    shelfTab === "narration-popular" && order === "popular"
-      ? "朗読視聴人気順"
-      : getOrderLabel(order);
+  const currentResultsHeading = "検索結果";
 
-  const currentResultsDescription =
-    order === "popular"
-      ? shelfTab === "narration-popular"
-        ? `指定期間: ${selectedStartInput} 〜 ${selectedEndInput} の朗読再生数順`
-        : `指定期間: ${selectedStartInput} 〜 ${selectedEndInput} の獲得人気順`
-      : `指定期間: ${selectedStartInput} 〜 ${selectedEndInput}`;
+  const currentResultsDescription = `指定期間: ${selectedStartInput} 〜 ${selectedEndInput} / 並び順: ${getOrderLabel(order)}`;
+
+  const hasCustomPeriod =
+    selectedStartInput !== defaultStartInput ||
+    selectedEndInput !== defaultEndInput;
+
+  const activeConditionCount =
+    (query.trim().length > 0 ? 1 : 0) +
+    selectedGenreLabels.length +
+    selectedTagLabels.length +
+    (order !== "popular" ? 1 : 0) +
+    (hasCustomPeriod ? 1 : 0);
+
+  const hasActiveConditions = activeConditionCount > 0;
+
+  const clearConditionsHref = buildSearchHref({
+    shelfTab,
+    showTags: showAllTags,
+    showGenres: showAllGenres,
+  });
+
+  const resetPeriodHref = buildSearchHref({
+    q: query,
+    selectedTags: selectedTagLabels,
+    selectedGenres: selectedGenreLabels,
+    order,
+    start: defaultStartInput,
+    end: defaultEndInput,
+    showTags: showAllTags,
+    showGenres: showAllGenres,
+    shelfTab,
+  });
+
+  const currentResultsHref = `${buildSearchHref({
+    q: query,
+    selectedTags: selectedTagLabels,
+    selectedGenres: selectedGenreLabels,
+    order,
+    start: selectedStartInput,
+    end: selectedEndInput,
+    showTags: showAllTags,
+    showGenres: showAllGenres,
+    shelfTab,
+  })}#results`;      
 
   const availableTags = buildAvailableTags(workCards);
   const availableGenres = buildAvailableGenres(workCards);
@@ -974,19 +1009,16 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     availableGenres.length > 0 ? availableGenres : PLACEHOLDER_GENRES;
   const genreShelfSource = genreCandidateSource;
 
-  const collapsedTagPreview = pickTagChipsWithinBudget(availableTags, 46);
-  const collapsedGenrePreview = pickGenreChipsWithinBudget(genreCandidateSource, 46);
+  const collapsedTagPreview = availableTags.slice(0, 10);
+  const collapsedGenrePreview = genreCandidateSource.slice(0, 7);
 
-  const hasHiddenTags = collapsedTagPreview.length < availableTags.length;
-  const hasHiddenGenres = collapsedGenrePreview.length < genreCandidateSource.length;
+  const hasHiddenTags = availableTags.length > 10;
+  const hasHiddenGenres = genreCandidateSource.length > 7;
 
-  const visibleTagChips = showAllTags
-    ? pickTagChipsWithinBudget(availableTags, 320)
-    : pickTagChipsWithinBudget(availableTags, hasHiddenTags ? 34 : 46);
-
+  const visibleTagChips = showAllTags ? availableTags : collapsedTagPreview;
   const visibleGenreChips = showAllGenres
-    ? pickGenreChipsWithinBudget(genreCandidateSource, 320)
-    : pickGenreChipsWithinBudget(genreCandidateSource, hasHiddenGenres ? 34 : 46);
+    ? genreCandidateSource
+    : collapsedGenrePreview;
 
   const overallShelfConfigs: ShelfConfig[] = [
     {
@@ -1278,7 +1310,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           hasHiddenGenres={hasHiddenGenres}
         />
 
-        <section className="pt-10">
+        <section id="shelves" className="pt-10 scroll-mt-24">
           <div className="border-b border-black/10 pb-3">
             <p className="text-[11px] tracking-[0.22em] text-neutral-500">
               SEARCH SHELVES
@@ -1321,6 +1353,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             <p className="mt-3 text-sm leading-7 text-neutral-600">
               現在表示: {getShelfTabLabel(shelfTab)}
             </p>
+            <p className="mt-1 text-sm leading-7 text-neutral-500">
+              上の棚は作品を見つけるための入口。今の条件に一致した作品一覧は下でまとめて確認できる。
+            </p>
           </div>
 
           {shelfTab === "overall-popular" ? (
@@ -1340,6 +1375,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
                     <SearchNavButton
                       href={shelf.href}
+                      scrollTargetId="results"
                       className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
                     >
                       もっと見る
@@ -1420,6 +1456,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
                         <SearchNavButton
                           href={section.href}
+                          scrollTargetId="results"
                           className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
                         >
                           もっと見る
@@ -1534,12 +1571,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                           {section.badgeLabel}
                         </span>
 
-                        <SearchNavButton
+                    <SearchNavButton
                           href={section.href}
-                          className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
-                        >
-                          もっと見る
-                        </SearchNavButton>
+                      scrollTargetId="results"
+                      className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                    >
+                      もっと見る
+                    </SearchNavButton>
                       </div>
                     </div>
 
@@ -1643,12 +1681,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                       </p>
                     </div>
 
-                    <SearchNavButton
-                      href={shelf.href}
-                      className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
-                    >
-                      もっと見る
-                    </SearchNavButton>
+                        <SearchNavButton
+                          href={shelf.href}
+                          scrollTargetId="results"
+                          className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                        >
+                          もっと見る
+                        </SearchNavButton>
                   </div>
 
                   {shelf.works.length === 0 ? (
@@ -1701,17 +1740,19 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           ) : null}
         </section>
 
-        <section className="pt-10">
+        <section id="results" className="pt-10 scroll-mt-24">
           <div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-3">
             <div>
-              <p className="text-[11px] tracking-[0.22em] text-neutral-500">
-                CURRENT FILTER RESULTS
-              </p>
-              <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
+              <h2 className="text-xl font-bold text-black sm:text-2xl">
                 {currentResultsHeading}
               </h2>
               <p className="mt-2 text-sm leading-7 text-neutral-600">
                 {currentResultsDescription}
+              </p>
+              <p className="mt-1 text-sm leading-7 text-neutral-500">
+                {hasActiveConditions
+                  ? "今の条件に一致した作品を一覧で確認できる。条件を少し緩めると見つけやすくなる。"
+                  : "まずは気になる棚から見て、必要なら条件を足して絞り込める。"}
               </p>
             </div>
 
@@ -1727,8 +1768,33 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               まだ公開作品がない。
             </div>
           ) : sortedWorks.length === 0 ? (
-            <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
-              条件に合う公開作品がない。
+            <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8">
+              <p className="text-base font-semibold text-black">
+                条件に合う公開作品がない
+              </p>
+              <p className="mt-3 text-sm leading-8 text-neutral-600">
+                ジャンルやタグを少し減らすか、期間を広げると見つかりやすい。
+              </p>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {hasCustomPeriod ? (
+                  <SearchNavButton
+                    href={resetPeriodHref}
+                    className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                  >
+                    期間を標準に戻す
+                  </SearchNavButton>
+                ) : null}
+
+                {hasActiveConditions ? (
+                  <SearchNavButton
+                    href={clearConditionsHref}
+                    className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                  >
+                    条件をクリア
+                  </SearchNavButton>
+                ) : null}
+              </div>
             </div>
           ) : (
             <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
