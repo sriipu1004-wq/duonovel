@@ -48,12 +48,18 @@ export type GenerateNemoRecordingResult = {
   speakerId: number;
 };
 
-type RecordingInsertInput = {
+type RecordingWriteInput = {
   seriesId: string;
   episodeId: string;
   readerId: string;
   readerName: string;
   audioStoragePath: string;
+};
+
+type ExistingRecording = {
+  id: string;
+  audioStoragePath: string;
+  createdAt: string;
 };
 
 function parseEpisodeNumber(row: RawRow): number {
@@ -103,6 +109,21 @@ function buildNemoRecordingObjectPath({
     sanitizeStorageSegment(episodeId),
     `${unique}-${narratorSegment}.wav`,
   ].join("/");
+}
+
+function extractBucketObjectPathFromPublicUrl(
+  publicUrl: string,
+  bucketName: string
+): string | null {
+  const marker = `/storage/v1/object/public/${bucketName}/`;
+  const markerIndex = publicUrl.indexOf(marker);
+
+  if (markerIndex === -1) {
+    return null;
+  }
+
+  const path = publicUrl.slice(markerIndex + marker.length).trim();
+  return path.length > 0 ? decodeURIComponent(path) : null;
 }
 
 async function loadNemoGenerationAccess(
@@ -250,47 +271,107 @@ async function ensureReaderUserRow(
   );
 }
 
-function buildInsertAttempts(input: RecordingInsertInput): RawRow[] {
-  return [
-    {
-      series_id: input.seriesId,
-      episode_id: input.episodeId,
-      reader_id: input.readerId,
-      reader_name: input.readerName,
-      audio_storage_path: input.audioStoragePath,
-      is_public: true,
-    },
-  ];
+async function findExistingRecordings(
+  supabase: AdminSupabase,
+  episodeId: string,
+  readerId: string
+): Promise<ExistingRecording[]> {
+  const { data, error } = await supabase
+    .from("recordings")
+    .select("id, audio_storage_path, created_at")
+    .eq("episode_id", episodeId)
+    .eq("reader_id", readerId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
+
+  if (error) {
+    throw new Error(`recording_lookup_failed:${error.message}`);
+  }
+
+  const rows = (data ?? []) as RawRow[];
+
+  return rows.map((row) => ({
+    id: String(row.id),
+    audioStoragePath: pickText(row.audio_storage_path),
+    createdAt: pickText(row.created_at) || "",
+  }));
 }
 
-async function insertRecordingCompat(
+async function writeRecording(
   supabase: AdminSupabase,
-  input: RecordingInsertInput
-): Promise<string> {
-  const attempts = buildInsertAttempts(input);
-  const errors: string[] = [];
+  input: RecordingWriteInput
+): Promise<{
+  recordingId: string;
+  previousAudioStoragePath: string | null;
+  duplicateAudioStoragePaths: string[];
+}> {
+  const existingRows = await findExistingRecordings(
+    supabase,
+    input.episodeId,
+    input.readerId
+  );
 
-  for (const payload of attempts) {
+  const primary = existingRows[0] ?? null;
+  const duplicates = existingRows.slice(1);
+
+  const payload = {
+    series_id: input.seriesId,
+    episode_id: input.episodeId,
+    reader_id: input.readerId,
+    reader_name: input.readerName,
+    audio_storage_path: input.audioStoragePath,
+    is_public: true,
+  };
+
+  if (primary) {
     const { data, error } = await supabase
       .from("recordings")
-      .insert(payload)
+      .update(payload)
+      .eq("id", primary.id)
       .select("id")
       .single();
 
-    if (!error && data) {
-      const row = data as RawRow;
-      return String(row.id);
+    if (error || !data) {
+      throw new Error(
+        `recording_update_failed:${error?.message ?? "unknown error"}`
+      );
     }
 
-    if (error?.message) {
-      const keys = Object.keys(payload).join(", ");
-      errors.push(`${keys} => ${error.message}`);
-    }
+    await deleteDuplicateRecordings(
+      supabase,
+      duplicates.map((row) => row.id)
+    );
+
+    const row = data as RawRow;
+
+    return {
+      recordingId: String(row.id),
+      previousAudioStoragePath: primary.audioStoragePath || null,
+      duplicateAudioStoragePaths: duplicates
+        .map((row) => row.audioStoragePath)
+        .filter((value) => value.length > 0),
+    };
   }
 
-  throw new Error(
-    errors.length > 0 ? errors.join(" | ") : "recordings insert failed"
-  );
+  const { data, error } = await supabase
+    .from("recordings")
+    .insert(payload)
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      `recording_insert_failed:${error?.message ?? "unknown error"}`
+    );
+  }
+
+  const row = data as RawRow;
+
+  return {
+    recordingId: String(row.id),
+    previousAudioStoragePath: null,
+    duplicateAudioStoragePaths: [],
+  };
 }
 
 async function removeUploadedRecordingAudio(
@@ -299,6 +380,66 @@ async function removeUploadedRecordingAudio(
   objectPath: string
 ): Promise<void> {
   await supabase.storage.from(bucketName).remove([objectPath]);
+}
+
+async function deleteDuplicateRecordings(
+  supabase: AdminSupabase,
+  duplicateIds: string[]
+): Promise<void> {
+  if (duplicateIds.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from("recordings")
+    .delete()
+    .in("id", duplicateIds);
+
+  if (error) {
+    throw new Error(`recording_duplicate_cleanup_failed:${error.message}`);
+  }
+}
+
+async function removeRecordingAudioPaths(
+  supabase: AdminSupabase,
+  bucketName: string,
+  audioStoragePaths: string[],
+  currentObjectPath?: string
+): Promise<void> {
+  const objectPaths = audioStoragePaths
+    .map((publicUrl) =>
+      extractBucketObjectPathFromPublicUrl(publicUrl, bucketName)
+    )
+    .filter((value): value is string => Boolean(value))
+    .filter((value) => value !== currentObjectPath);
+
+  if (objectPaths.length === 0) {
+    return;
+  }
+
+  await supabase.storage.from(bucketName).remove(objectPaths);
+}
+
+async function removePreviousRecordingAudioIfNeeded(
+  supabase: AdminSupabase,
+  bucketName: string,
+  previousAudioStoragePath: string | null,
+  currentObjectPath: string
+): Promise<void> {
+  if (!previousAudioStoragePath) {
+    return;
+  }
+
+  const previousObjectPath = extractBucketObjectPathFromPublicUrl(
+    previousAudioStoragePath,
+    bucketName
+  );
+
+  if (!previousObjectPath || previousObjectPath === currentObjectPath) {
+    return;
+  }
+
+  await removeUploadedRecordingAudio(supabase, bucketName, previousObjectPath);
 }
 
 export async function generateNemoRecordingForEpisode({
@@ -413,14 +554,33 @@ export async function generateNemoRecordingForEpisode({
   }
 
   try {
-    await ensureReaderUserRow(adminSupabase, userId, narratorName);    
-    const recordingId = await insertRecordingCompat(adminSupabase, {
+    await ensureReaderUserRow(adminSupabase, userId, narratorName);
+
+    const {
+      recordingId,
+      previousAudioStoragePath,
+      duplicateAudioStoragePaths,
+    } = await writeRecording(adminSupabase, {
       seriesId,
       episodeId,
       readerId: userId,
       readerName: narratorName,
       audioStoragePath: publicUrl,
     });
+
+    await removePreviousRecordingAudioIfNeeded(
+      adminSupabase,
+      bucketName,
+      previousAudioStoragePath,
+      objectPath
+    );
+
+    await removeRecordingAudioPaths(
+      adminSupabase,
+      bucketName,
+      duplicateAudioStoragePaths,
+      objectPath
+    );
 
     return {
       recordingId,
@@ -434,9 +594,9 @@ export async function generateNemoRecordingForEpisode({
     await removeUploadedRecordingAudio(adminSupabase, bucketName, objectPath);
 
     if (error instanceof Error) {
-      throw new Error(`recording_insert_failed:${error.message}`);
+      throw error;
     }
 
-    throw new Error("recording_insert_failed");
+    throw new Error("recording_write_failed");
   }
 }
