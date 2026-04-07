@@ -8,11 +8,12 @@ export type NemoTextChunk = {
 };
 
 const DEFAULT_MAX_CHARS = 140;
-const PARAGRAPH_PAUSE_MS = 420;
-const OVERFLOW_CHUNK_PAUSE_MS = 140;
+const SENTENCE_PAUSE_MS = 260;
+const PARAGRAPH_PAUSE_MS = 620;
+const OVERFLOW_CHUNK_PAUSE_MS = 160;
 
 function splitIntoSentenceUnits(paragraph: string): string[] {
-  const matched = paragraph.match(/[^。！？!?]+[。！？!?]?/gu);
+  const matched = paragraph.match(/[^。！？!?…]+[。！？!?…]?/gu);
 
   if (!matched || matched.length === 0) {
     return [paragraph.trim()].filter(Boolean);
@@ -68,6 +69,10 @@ function splitLongUnit(unit: string, maxChars: number): string[] {
   return finalUnits;
 }
 
+function endsWithSentencePunctuation(text: string): boolean {
+  return /[。！？!?…]$/u.test(text.trim());
+}
+
 export function buildNemoChunks(
   body: string,
   maxChars = DEFAULT_MAX_CHARS
@@ -76,45 +81,38 @@ export function buildNemoChunks(
   const chunks: NemoTextChunk[] = [];
 
   paragraphs.forEach((paragraph, paragraphIndex) => {
-    const sentenceUnits = splitIntoSentenceUnits(paragraph).flatMap((unit) =>
-      splitLongUnit(unit, maxChars)
-    );
+    const sentenceUnits = splitIntoSentenceUnits(paragraph);
 
-    let current = "";
     let chunkIndex = 0;
 
-    sentenceUnits.forEach((unit) => {
-      if (!current) {
-        current = unit;
-        return;
-      }
+    sentenceUnits.forEach((sentenceUnit, sentenceIndex) => {
+      const splitUnits = splitLongUnit(sentenceUnit, maxChars);
 
-      if ((current + unit).length <= maxChars) {
-        current += unit;
-        return;
-      }
+      splitUnits.forEach((splitUnit, splitIndex) => {
+        const isLastSplitOfSentence = splitIndex === splitUnits.length - 1;
+        const isLastSentenceOfParagraph = sentenceIndex === sentenceUnits.length - 1;
+        const hasSentenceEnding = endsWithSentencePunctuation(splitUnit);
 
-      chunks.push({
-        text: current,
-        pauseAfterMs: OVERFLOW_CHUNK_PAUSE_MS,
-        paragraphIndex,
-        chunkIndex,
+        let pauseAfterMs = 0;
+
+        if (!isLastSplitOfSentence) {
+          pauseAfterMs = OVERFLOW_CHUNK_PAUSE_MS;
+        } else if (isLastSentenceOfParagraph) {
+          pauseAfterMs = hasSentenceEnding ? PARAGRAPH_PAUSE_MS : 420;
+        } else {
+          pauseAfterMs = hasSentenceEnding ? SENTENCE_PAUSE_MS : OVERFLOW_CHUNK_PAUSE_MS;
+        }
+
+        chunks.push({
+          text: splitUnit,
+          pauseAfterMs,
+          paragraphIndex,
+          chunkIndex,
+        });
+
+        chunkIndex += 1;
       });
-
-      chunkIndex += 1;
-      current = unit;
     });
-
-    if (current) {
-      const isLastParagraph = paragraphIndex === paragraphs.length - 1;
-
-      chunks.push({
-        text: current,
-        pauseAfterMs: isLastParagraph ? 0 : PARAGRAPH_PAUSE_MS,
-        paragraphIndex,
-        chunkIndex,
-      });
-    }
   });
 
   return chunks;
