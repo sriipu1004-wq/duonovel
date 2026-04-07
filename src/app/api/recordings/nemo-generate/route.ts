@@ -131,6 +131,36 @@ function resolveErrorResponse(error: unknown) {
     };
   }  
 
+  if (message.startsWith("recording_lookup_failed:")) {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: "既存朗読の検索に失敗した。recordings の重複状態を確認して。",
+      },
+    };
+  }
+
+  if (message.startsWith("recording_update_failed:")) {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: "既存朗読の上書き更新に失敗した。",
+      },
+    };
+  }
+
+  if (message.startsWith("recording_duplicate_cleanup_failed:")) {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: "重複していた朗読 row の cleanup に失敗した。",
+      },
+    };
+  }  
+
   if (message.startsWith("recording_insert_failed:")) {
     return {
       status: 500,

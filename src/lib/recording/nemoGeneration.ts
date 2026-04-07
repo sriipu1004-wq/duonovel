@@ -59,7 +59,6 @@ type RecordingWriteInput = {
 type ExistingRecording = {
   id: string;
   audioStoragePath: string;
-  createdAt: string;
 };
 
 function parseEpisodeNumber(row: RawRow): number {
@@ -278,11 +277,9 @@ async function findExistingRecordings(
 ): Promise<ExistingRecording[]> {
   const { data, error } = await supabase
     .from("recordings")
-    .select("id, audio_storage_path, created_at")
+    .select("id, audio_storage_path")
     .eq("episode_id", episodeId)
-    .eq("reader_id", readerId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
+    .eq("reader_id", readerId);
 
   if (error) {
     throw new Error(`recording_lookup_failed:${error.message}`);
@@ -293,8 +290,25 @@ async function findExistingRecordings(
   return rows.map((row) => ({
     id: String(row.id),
     audioStoragePath: pickText(row.audio_storage_path),
-    createdAt: pickText(row.created_at) || "",
   }));
+}
+
+async function deleteDuplicateRecordings(
+  supabase: AdminSupabase,
+  duplicateIds: string[]
+): Promise<void> {
+  if (duplicateIds.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from("recordings")
+    .delete()
+    .in("id", duplicateIds);
+
+  if (error) {
+    throw new Error(`recording_duplicate_cleanup_failed:${error.message}`);
+  }
 }
 
 async function writeRecording(
@@ -382,44 +396,6 @@ async function removeUploadedRecordingAudio(
   await supabase.storage.from(bucketName).remove([objectPath]);
 }
 
-async function deleteDuplicateRecordings(
-  supabase: AdminSupabase,
-  duplicateIds: string[]
-): Promise<void> {
-  if (duplicateIds.length === 0) {
-    return;
-  }
-
-  const { error } = await supabase
-    .from("recordings")
-    .delete()
-    .in("id", duplicateIds);
-
-  if (error) {
-    throw new Error(`recording_duplicate_cleanup_failed:${error.message}`);
-  }
-}
-
-async function removeRecordingAudioPaths(
-  supabase: AdminSupabase,
-  bucketName: string,
-  audioStoragePaths: string[],
-  currentObjectPath?: string
-): Promise<void> {
-  const objectPaths = audioStoragePaths
-    .map((publicUrl) =>
-      extractBucketObjectPathFromPublicUrl(publicUrl, bucketName)
-    )
-    .filter((value): value is string => Boolean(value))
-    .filter((value) => value !== currentObjectPath);
-
-  if (objectPaths.length === 0) {
-    return;
-  }
-
-  await supabase.storage.from(bucketName).remove(objectPaths);
-}
-
 async function removePreviousRecordingAudioIfNeeded(
   supabase: AdminSupabase,
   bucketName: string,
@@ -440,6 +416,26 @@ async function removePreviousRecordingAudioIfNeeded(
   }
 
   await removeUploadedRecordingAudio(supabase, bucketName, previousObjectPath);
+}
+
+async function removeRecordingAudioPaths(
+  supabase: AdminSupabase,
+  bucketName: string,
+  audioStoragePaths: string[],
+  currentObjectPath?: string
+): Promise<void> {
+  const objectPaths = audioStoragePaths
+    .map((publicUrl) =>
+      extractBucketObjectPathFromPublicUrl(publicUrl, bucketName)
+    )
+    .filter((value): value is string => Boolean(value))
+    .filter((value) => value !== currentObjectPath);
+
+  if (objectPaths.length === 0) {
+    return;
+  }
+
+  await supabase.storage.from(bucketName).remove(objectPaths);
 }
 
 export async function generateNemoRecordingForEpisode({
