@@ -4,8 +4,9 @@ import {
   pickText,
   type EpisodeRow,
 } from "@/features/write/writeShared";
-import { getAudioFileExtension } from "@/lib/recording/audioUploadPolicy";
+import { buildNemoChunks } from "@/lib/recording/nemoChunking";
 import { synthesizeNemoWav } from "@/lib/recording/nemoClient";
+import { concatNemoWavs } from "@/lib/recording/nemoWav";
 import {
   decideRecordingEntryAccess,
   hasApprovedRecordingRequest,
@@ -93,7 +94,6 @@ function buildNemoRecordingObjectPath({
   episodeId: string;
   narratorName: string;
 }): string {
-  const extension = getAudioFileExtension(`${narratorName}.wav`) || "wav";
   const narratorSegment = sanitizeStorageSegment(narratorName);
   const unique = `${Date.now()}-${crypto.randomUUID()}`;
 
@@ -101,7 +101,7 @@ function buildNemoRecordingObjectPath({
     "nemo",
     sanitizeStorageSegment(seriesId),
     sanitizeStorageSegment(episodeId),
-    `${unique}-${narratorSegment}.${extension}`,
+    `${unique}-${narratorSegment}.wav`,
   ].join("/");
 }
 
@@ -170,6 +170,84 @@ async function fetchNemoEpisodeSource(
     episodeNumber: getEpisodeNumber(row) || parseEpisodeNumber(row),
     body: getEpisodeBody(row),
   };
+}
+
+function buildReaderUserInsertAttempts(userId: string, narratorName: string): RawRow[] {
+  const safeNarratorName = narratorName.trim() || "VOICEVOX Nemo";
+  const fallbackUsername = `nemo-${userId.replace(/-/g, "").slice(0, 12)}`;
+
+  return [
+    {
+      id: userId,
+      display_name: safeNarratorName,
+      username: fallbackUsername,
+    },
+    {
+      id: userId,
+      name: safeNarratorName,
+      username: fallbackUsername,
+    },
+    {
+      id: userId,
+      pen_name: safeNarratorName,
+      username: fallbackUsername,
+    },
+    {
+      id: userId,
+      display_name: safeNarratorName,
+    },
+    {
+      id: userId,
+      name: safeNarratorName,
+    },
+    {
+      id: userId,
+      pen_name: safeNarratorName,
+    },
+    {
+      id: userId,
+    },
+  ];
+}
+
+async function ensureReaderUserRow(
+  supabase: AdminSupabase,
+  userId: string,
+  narratorName: string
+): Promise<void> {
+  const existing = await supabase
+    .from("users")
+    .select("id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!existing.error && existing.data) {
+    return;
+  }
+
+  const attempts = buildReaderUserInsertAttempts(userId, narratorName);
+  const errors: string[] = [];
+
+  for (const payload of attempts) {
+    const { error } = await supabase
+      .from("users")
+      .upsert(payload, { onConflict: "id" });
+
+    if (!error) {
+      return;
+    }
+
+    if (error.message) {
+      const keys = Object.keys(payload).join(", ");
+      errors.push(`${keys} => ${error.message}`);
+    }
+  }
+
+  throw new Error(
+    errors.length > 0
+      ? `reader_user_upsert_failed:${errors.join(" | ")}`
+      : "reader_user_upsert_failed"
+  );
 }
 
 function buildInsertAttempts(input: RecordingInsertInput): RawRow[] {
@@ -247,22 +325,57 @@ export async function generateNemoRecordingForEpisode({
     throw new Error("episode_body_empty");
   }
 
-  const textForTest = episode.body.trim().slice(0, 180);
+  const chunks = buildNemoChunks(episode.body);
 
-  console.error("[nemo text length]", {
+  if (chunks.length === 0) {
+    throw new Error("episode_body_empty");
+  }
+
+  console.error("[nemo chunk build]", {
     originalLength: episode.body.length,
-    testLength: textForTest.length,
+    chunkCount: chunks.length,
+    preview: chunks.slice(0, 3).map((chunk) => ({
+      paragraphIndex: chunk.paragraphIndex,
+      chunkIndex: chunk.chunkIndex,
+      length: chunk.text.length,
+      pauseAfterMs: chunk.pauseAfterMs,
+    })),
     episodeId,
   });
 
-  const wavBytes = await synthesizeNemoWav({
-    text: textForTest,
-    speaker: speakerId,
-    speedScale,
-    pitchScale,
-    intonationScale,
-    volumeScale,
-  });
+  const renderedSegments: Array<{
+    wavBytes: Uint8Array;
+    pauseAfterMs: number;
+  }> = [];
+
+  for (let index = 0; index < chunks.length; index += 1) {
+    const chunk = chunks[index];
+
+    try {
+      const wavBytes = await synthesizeNemoWav({
+        text: chunk.text,
+        speaker: speakerId,
+        speedScale,
+        pitchScale,
+        intonationScale,
+        volumeScale,
+      });
+
+      renderedSegments.push({
+        wavBytes,
+        pauseAfterMs: chunk.pauseAfterMs,
+      });
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : String(error);
+
+      throw new Error(
+        `nemo_chunk_failed:${index + 1}/${chunks.length}:${detail}`
+      );
+    }
+  }
+
+  const wavBytes = concatNemoWavs(renderedSegments);
 
   const adminSupabase = createAdminClient();
   const bucketName = getRecordingAudioBucketName();
@@ -300,6 +413,7 @@ export async function generateNemoRecordingForEpisode({
   }
 
   try {
+    await ensureReaderUserRow(adminSupabase, userId, narratorName);    
     const recordingId = await insertRecordingCompat(adminSupabase, {
       seriesId,
       episodeId,

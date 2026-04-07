@@ -82,6 +82,7 @@ function resolveErrorResponse(error: unknown) {
   }
 
   if (
+    message.startsWith("nemo_chunk_failed:") ||
     message.startsWith("nemo_audio_query_failed:") ||
     message.startsWith("nemo_synthesis_failed:") ||
     message === "nemo_audio_empty"
@@ -91,18 +92,21 @@ function resolveErrorResponse(error: unknown) {
       body: {
         ok: false,
         error:
-          "VOICEVOX Nemo Engine での音声生成に失敗した。エンジン起動状態と speaker を確認して。",
+          "VOICEVOX Nemo Engine での音声生成に失敗した。chunk 分割結果と speaker を確認して。",
       },
     };
   }
 
-  if (message.startsWith("storage_upload_failed:")) {
+  if (
+    message.startsWith("nemo_wav_parse_failed:") ||
+    message === "nemo_wav_format_mismatch" ||
+    message.startsWith("nemo_wav_concat_failed:")
+  ) {
     return {
       status: 500,
       body: {
         ok: false,
-        error:
-          "storage 保存に失敗した。bucket 名または service role key を確認して。",
+        error: "Nemo 音声の結合に失敗した。生成 chunk の整合性を確認して。",
       },
     };
   }
@@ -116,6 +120,16 @@ function resolveErrorResponse(error: unknown) {
       },
     };
   }
+
+  if (message.startsWith("reader_user_upsert_failed:")) {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: "朗読者ユーザー行の確保に失敗した。users テーブル列差分を確認して。",
+      },
+    };
+  }  
 
   if (message.startsWith("recording_insert_failed:")) {
     return {
