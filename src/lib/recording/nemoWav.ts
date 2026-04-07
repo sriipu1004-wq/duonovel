@@ -120,10 +120,10 @@ function buildWav(format: ParsedWav, pcmData: Uint8Array): Uint8Array {
   const wavBytes = new Uint8Array(44 + pcmData.byteLength);
   const view = new DataView(wavBytes.buffer);
 
-  wavBytes.set([82, 73, 70, 70], 0); // RIFF
+  wavBytes.set([82, 73, 70, 70], 0);
   view.setUint32(4, 36 + pcmData.byteLength, true);
-  wavBytes.set([87, 65, 86, 69], 8); // WAVE
-  wavBytes.set([102, 109, 116, 32], 12); // fmt
+  wavBytes.set([87, 65, 86, 69], 8);
+  wavBytes.set([102, 109, 116, 32], 12);
   view.setUint32(16, 16, true);
   view.setUint16(20, format.audioFormat, true);
   view.setUint16(22, format.numChannels, true);
@@ -131,11 +131,16 @@ function buildWav(format: ParsedWav, pcmData: Uint8Array): Uint8Array {
   view.setUint32(28, format.byteRate, true);
   view.setUint16(32, format.blockAlign, true);
   view.setUint16(34, format.bitsPerSample, true);
-  wavBytes.set([100, 97, 116, 97], 36); // data
+  wavBytes.set([100, 97, 116, 97], 36);
   view.setUint32(40, pcmData.byteLength, true);
   wavBytes.set(pcmData, 44);
 
   return wavBytes;
+}
+
+export function getNemoWavDurationSeconds(wavBytes: Uint8Array): number {
+  const parsed = parseWav(wavBytes);
+  return parsed.pcmData.byteLength / parsed.byteRate;
 }
 
 export function concatNemoWavs(segments: WavSegment[]): Uint8Array {

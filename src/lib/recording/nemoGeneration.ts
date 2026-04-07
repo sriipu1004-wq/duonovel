@@ -6,10 +6,12 @@ import {
 } from "@/features/write/writeShared";
 import { buildNemoChunks } from "@/lib/recording/nemoChunking";
 import { synthesizeNemoWav } from "@/lib/recording/nemoClient";
+import { resolveNemoPronunciationDictionary } from "@/lib/recording/nemoPronunciationDictionary";
 import {
-  resolveNemoPronunciationDictionary,
-} from "@/lib/recording/nemoPronunciationDictionary";
-import { concatNemoWavs } from "@/lib/recording/nemoWav";
+  buildNemoTimingManifest,
+  buildNemoTimingObjectPathFromAudioObjectPath,
+} from "@/lib/recording/nemoTiming";
+import { concatNemoWavs, getNemoWavDurationSeconds } from "@/lib/recording/nemoWav";
 import {
   decideRecordingEntryAccess,
   hasApprovedRecordingRequest,
@@ -62,6 +64,7 @@ type RecordingWriteInput = {
 type ExistingRecording = {
   id: string;
   audioStoragePath: string;
+  createdAt: string;
 };
 
 function parseEpisodeNumber(row: RawRow): number {
@@ -126,6 +129,36 @@ function extractBucketObjectPathFromPublicUrl(
 
   const path = publicUrl.slice(markerIndex + marker.length).trim();
   return path.length > 0 ? decodeURIComponent(path) : null;
+}
+
+function buildRecordingArtifactObjectPathsFromPublicUrl(
+  publicUrl: string,
+  bucketName: string
+): string[] {
+  const audioObjectPath = extractBucketObjectPathFromPublicUrl(publicUrl, bucketName);
+
+  if (!audioObjectPath) {
+    return [];
+  }
+
+  return [
+    audioObjectPath,
+    buildNemoTimingObjectPathFromAudioObjectPath(audioObjectPath),
+  ];
+}
+
+async function removeStorageObjectPaths(
+  supabase: AdminSupabase,
+  bucketName: string,
+  objectPaths: string[]
+): Promise<void> {
+  const filtered = [...new Set(objectPaths.filter((path) => path.trim().length > 0))];
+
+  if (filtered.length === 0) {
+    return;
+  }
+
+  await supabase.storage.from(bucketName).remove(filtered);
 }
 
 async function loadNemoGenerationAccess(
@@ -280,9 +313,11 @@ async function findExistingRecordings(
 ): Promise<ExistingRecording[]> {
   const { data, error } = await supabase
     .from("recordings")
-    .select("id, audio_storage_path")
+    .select("id, audio_storage_path, created_at")
     .eq("episode_id", episodeId)
-    .eq("reader_id", readerId);
+    .eq("reader_id", readerId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
 
   if (error) {
     throw new Error(`recording_lookup_failed:${error.message}`);
@@ -293,6 +328,7 @@ async function findExistingRecordings(
   return rows.map((row) => ({
     id: String(row.id),
     audioStoragePath: pickText(row.audio_storage_path),
+    createdAt: pickText(row.created_at) || "",
   }));
 }
 
@@ -391,54 +427,37 @@ async function writeRecording(
   };
 }
 
-async function removeUploadedRecordingAudio(
-  supabase: AdminSupabase,
-  bucketName: string,
-  objectPath: string
-): Promise<void> {
-  await supabase.storage.from(bucketName).remove([objectPath]);
-}
-
-async function removePreviousRecordingAudioIfNeeded(
+async function removePreviousRecordingArtifactsIfNeeded(
   supabase: AdminSupabase,
   bucketName: string,
   previousAudioStoragePath: string | null,
-  currentObjectPath: string
+  currentObjectPaths: string[]
 ): Promise<void> {
   if (!previousAudioStoragePath) {
     return;
   }
 
-  const previousObjectPath = extractBucketObjectPathFromPublicUrl(
+  const previousObjectPaths = buildRecordingArtifactObjectPathsFromPublicUrl(
     previousAudioStoragePath,
     bucketName
-  );
+  ).filter((path) => !currentObjectPaths.includes(path));
 
-  if (!previousObjectPath || previousObjectPath === currentObjectPath) {
-    return;
-  }
-
-  await removeUploadedRecordingAudio(supabase, bucketName, previousObjectPath);
+  await removeStorageObjectPaths(supabase, bucketName, previousObjectPaths);
 }
 
-async function removeRecordingAudioPaths(
+async function removeRecordingArtifactUrls(
   supabase: AdminSupabase,
   bucketName: string,
   audioStoragePaths: string[],
-  currentObjectPath?: string
+  currentObjectPaths: string[]
 ): Promise<void> {
   const objectPaths = audioStoragePaths
-    .map((publicUrl) =>
-      extractBucketObjectPathFromPublicUrl(publicUrl, bucketName)
+    .flatMap((publicUrl) =>
+      buildRecordingArtifactObjectPathsFromPublicUrl(publicUrl, bucketName)
     )
-    .filter((value): value is string => Boolean(value))
-    .filter((value) => value !== currentObjectPath);
+    .filter((path) => !currentObjectPaths.includes(path));
 
-  if (objectPaths.length === 0) {
-    return;
-  }
-
-  await supabase.storage.from(bucketName).remove(objectPaths);
+  await removeStorageObjectPaths(supabase, bucketName, objectPaths);
 }
 
 export async function generateNemoRecordingForEpisode({
@@ -475,7 +494,7 @@ export async function generateNemoRecordingForEpisode({
     episodeId,
     entryCount: Object.keys(pronunciationDictionary).length,
     entries: Object.keys(pronunciationDictionary),
-  });  
+  });
 
   const chunks = buildNemoChunks(episode.body, {
     pronunciationDictionary,
@@ -491,6 +510,7 @@ export async function generateNemoRecordingForEpisode({
     preview: chunks.slice(0, 3).map((chunk) => ({
       paragraphIndex: chunk.paragraphIndex,
       chunkIndex: chunk.chunkIndex,
+      sentenceIndex: chunk.sourceSentenceIndex,
       length: chunk.text.length,
       pauseAfterMs: chunk.pauseAfterMs,
     })),
@@ -500,6 +520,7 @@ export async function generateNemoRecordingForEpisode({
   const renderedSegments: Array<{
     wavBytes: Uint8Array;
     pauseAfterMs: number;
+    durationSeconds: number;
   }> = [];
 
   for (let index = 0; index < chunks.length; index += 1) {
@@ -518,6 +539,7 @@ export async function generateNemoRecordingForEpisode({
       renderedSegments.push({
         wavBytes,
         pauseAfterMs: chunk.pauseAfterMs,
+        durationSeconds: getNemoWavDurationSeconds(wavBytes),
       });
     } catch (error) {
       const detail =
@@ -530,6 +552,10 @@ export async function generateNemoRecordingForEpisode({
   }
 
   const wavBytes = concatNemoWavs(renderedSegments);
+  const timingManifest = buildNemoTimingManifest({
+    chunks,
+    renderedSegments,
+  });
 
   const adminSupabase = createAdminClient();
   const bucketName = getRecordingAudioBucketName();
@@ -538,6 +564,8 @@ export async function generateNemoRecordingForEpisode({
     episodeId,
     narratorName,
   });
+  const timingObjectPath = buildNemoTimingObjectPathFromAudioObjectPath(objectPath);
+  const currentObjectPaths = [objectPath, timingObjectPath];
 
   const { error: uploadError } = await adminSupabase.storage
     .from(bucketName)
@@ -557,12 +585,29 @@ export async function generateNemoRecordingForEpisode({
     throw new Error(`storage_upload_failed:${uploadError.message}`);
   }
 
+  const timingBytes = new TextEncoder().encode(
+    JSON.stringify(timingManifest, null, 2)
+  );
+
+  const { error: timingUploadError } = await adminSupabase.storage
+    .from(bucketName)
+    .upload(timingObjectPath, timingBytes, {
+      contentType: "application/json",
+      upsert: false,
+    });
+
+  if (timingUploadError) {
+    await removeStorageObjectPaths(adminSupabase, bucketName, [objectPath]);
+
+    throw new Error(`nemo_timing_upload_failed:${timingUploadError.message}`);
+  }
+
   const {
     data: { publicUrl },
   } = adminSupabase.storage.from(bucketName).getPublicUrl(objectPath);
 
   if (!publicUrl) {
-    await removeUploadedRecordingAudio(adminSupabase, bucketName, objectPath);
+    await removeStorageObjectPaths(adminSupabase, bucketName, currentObjectPaths);
     throw new Error("storage_public_url_unavailable");
   }
 
@@ -581,18 +626,18 @@ export async function generateNemoRecordingForEpisode({
       audioStoragePath: publicUrl,
     });
 
-    await removePreviousRecordingAudioIfNeeded(
+    await removePreviousRecordingArtifactsIfNeeded(
       adminSupabase,
       bucketName,
       previousAudioStoragePath,
-      objectPath
+      currentObjectPaths
     );
 
-    await removeRecordingAudioPaths(
+    await removeRecordingArtifactUrls(
       adminSupabase,
       bucketName,
       duplicateAudioStoragePaths,
-      objectPath
+      currentObjectPaths
     );
 
     return {
@@ -604,7 +649,7 @@ export async function generateNemoRecordingForEpisode({
       speakerId,
     };
   } catch (error) {
-    await removeUploadedRecordingAudio(adminSupabase, bucketName, objectPath);
+    await removeStorageObjectPaths(adminSupabase, bucketName, currentObjectPaths);
 
     if (error instanceof Error) {
       throw error;

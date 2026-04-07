@@ -4,6 +4,11 @@ export type NemoPreprocessOptions = {
   pronunciationDictionary?: NemoPronunciationDictionary;
 };
 
+export type NemoProcessedParagraph = {
+  originalParagraph: string;
+  spokenParagraph: string;
+};
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -62,25 +67,43 @@ function joinLinesWithinParagraph(lines: string[]): string {
   return result.trim();
 }
 
-export function preprocessNemoBody(
+export function preprocessNemoBodyToParagraphs(
   body: string,
   options: NemoPreprocessOptions = {}
-): string[] {
+): NemoProcessedParagraph[] {
   const normalized = normalizeLineBreakSurface(body).trim();
 
   if (!normalized) {
     return [];
   }
 
-  const dictionaryApplied = applyPronunciationDictionary(
-    normalized,
-    options.pronunciationDictionary ?? {}
-  );
-
-  const rawParagraphs = dictionaryApplied.split(/\n{2,}/);
+  const rawParagraphs = normalized.split(/\n{2,}/);
 
   return rawParagraphs
     .map((paragraph) => joinLinesWithinParagraph(paragraph.split("\n")))
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph.length > 0);
+    .map((originalParagraph) => {
+      const spokenParagraph = applyPronunciationDictionary(
+        originalParagraph,
+        options.pronunciationDictionary ?? {}
+      );
+
+      return {
+        originalParagraph: originalParagraph.trim(),
+        spokenParagraph: spokenParagraph.trim(),
+      };
+    })
+    .filter(
+      (paragraph) =>
+        paragraph.originalParagraph.length > 0 &&
+        paragraph.spokenParagraph.length > 0
+    );
+}
+
+export function preprocessNemoBody(
+  body: string,
+  options: NemoPreprocessOptions = {}
+): string[] {
+  return preprocessNemoBodyToParagraphs(body, options).map(
+    (paragraph) => paragraph.spokenParagraph
+  );
 }

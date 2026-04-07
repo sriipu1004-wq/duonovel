@@ -20,6 +20,11 @@ import {
   mergeEffectSettings,
   parseEffectSettingsFromRow,
 } from "@/lib/effects/effectSettings";
+import type { NemoGeneratedSentenceTiming } from "@/lib/recording/nemoTiming";
+import {
+  buildNemoTimingPublicUrlFromAudioPublicUrl,
+  parseNemoGeneratedSentenceTimings,
+} from "@/lib/recording/nemoTiming";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -47,6 +52,33 @@ type RecordingRow = Record<string, unknown> & {
   is_public?: boolean | null;
   public?: boolean | null;
 };
+
+async function fetchGeneratedSentenceTimings(
+  audioPublicUrl?: string | null
+): Promise<NemoGeneratedSentenceTiming[]> {
+  const timingUrl = buildNemoTimingPublicUrlFromAudioPublicUrl(
+    audioPublicUrl ?? ""
+  );
+
+  if (!timingUrl) {
+    return [];
+  }
+
+  try {
+    const response = await fetch(timingUrl, {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const payload = await response.json();
+    return parseNemoGeneratedSentenceTimings(payload);
+  } catch {
+    return [];
+  }
+}
 
 function parseEpisodeNumber(value: string): number {
   const parsed = Number(value);
@@ -295,6 +327,10 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     selectedRecording?.audioStoragePath
   );
 
+  const generatedSentenceTimings = await fetchGeneratedSentenceTimings(
+    audioStoragePath
+  );
+
   const seriesTitle = pickText(series.title) || "無題";
   const commentsVisible = isSeriesEpisodeCommentVisible(series);
   const episodeTitle =
@@ -393,6 +429,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
       selectedReaderName={selectedReaderName}
       recordingAvailable={recordingAvailable}
       audioStoragePath={audioStoragePath}
+      generatedSentenceTimings={generatedSentenceTimings}      
       prevEpisodeHref={prevEpisodeHref}
       prevEpisodeNumber={prevEpisodeNumber}
       nextEpisodeHref={nextEpisodeHref}

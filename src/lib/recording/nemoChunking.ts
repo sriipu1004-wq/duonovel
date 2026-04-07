@@ -1,5 +1,5 @@
 import {
-  preprocessNemoBody,
+  preprocessNemoBodyToParagraphs,
   type NemoPreprocessOptions,
 } from "@/lib/recording/nemoTextPreprocess";
 
@@ -8,6 +8,8 @@ export type NemoTextChunk = {
   pauseAfterMs: number;
   paragraphIndex: number;
   chunkIndex: number;
+  sourceSentenceIndex: number;
+  sourceSentenceText: string;
 };
 
 export type NemoChunkBuildOptions = NemoPreprocessOptions & {
@@ -85,21 +87,44 @@ export function buildNemoChunks(
   options: NemoChunkBuildOptions = {}
 ): NemoTextChunk[] {
   const { maxChars = DEFAULT_MAX_CHARS, ...preprocessOptions } = options;
-  const paragraphs = preprocessNemoBody(body, preprocessOptions);
+  const paragraphs = preprocessNemoBodyToParagraphs(body, preprocessOptions);
   const chunks: NemoTextChunk[] = [];
 
+  let globalSentenceIndex = 0;
+
   paragraphs.forEach((paragraph, paragraphIndex) => {
-    const sentenceUnits = splitIntoSentenceUnits(paragraph);
+    const originalSentenceUnits = splitIntoSentenceUnits(
+      paragraph.originalParagraph
+    );
+    const spokenSentenceUnits = splitIntoSentenceUnits(paragraph.spokenParagraph);
+
+    const sentenceCount = Math.max(
+      originalSentenceUnits.length,
+      spokenSentenceUnits.length
+    );
 
     let chunkIndex = 0;
 
-    sentenceUnits.forEach((sentenceUnit, sentenceIndex) => {
-      const splitUnits = splitLongUnit(sentenceUnit, maxChars);
+    for (let sentenceOffset = 0; sentenceOffset < sentenceCount; sentenceOffset += 1) {
+      const originalSentenceText =
+        originalSentenceUnits[sentenceOffset] ??
+        spokenSentenceUnits[sentenceOffset] ??
+        "";
+      const spokenSentenceText =
+        spokenSentenceUnits[sentenceOffset] ??
+        originalSentenceUnits[sentenceOffset] ??
+        "";
+
+      if (!spokenSentenceText.trim()) {
+        globalSentenceIndex += 1;
+        continue;
+      }
+
+      const splitUnits = splitLongUnit(spokenSentenceText, maxChars);
 
       splitUnits.forEach((splitUnit, splitIndex) => {
         const isLastSplitOfSentence = splitIndex === splitUnits.length - 1;
-        const isLastSentenceOfParagraph =
-          sentenceIndex === sentenceUnits.length - 1;
+        const isLastSentenceOfParagraph = sentenceOffset === sentenceCount - 1;
         const hasSentenceEnding = endsWithSentencePunctuation(splitUnit);
 
         let pauseAfterMs = 0;
@@ -119,11 +144,15 @@ export function buildNemoChunks(
           pauseAfterMs,
           paragraphIndex,
           chunkIndex,
+          sourceSentenceIndex: globalSentenceIndex,
+          sourceSentenceText: originalSentenceText.trim() || splitUnit,
         });
 
         chunkIndex += 1;
       });
-    });
+
+      globalSentenceIndex += 1;
+    }
   });
 
   return chunks;

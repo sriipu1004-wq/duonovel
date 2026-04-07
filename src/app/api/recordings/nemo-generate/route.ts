@@ -111,6 +111,26 @@ function resolveErrorResponse(error: unknown) {
     };
   }
 
+  if (message.startsWith("nemo_timing_upload_failed:")) {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: "本文同期用 timing JSON の保存に失敗した。",
+      },
+    };
+  }
+
+  if (message.startsWith("nemo_timing_manifest_failed:")) {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: "本文同期用 timing 情報の組み立てに失敗した。",
+      },
+    };
+  }  
+
   if (message === "storage_public_url_unavailable") {
     return {
       status: 500,

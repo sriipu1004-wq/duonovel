@@ -52,6 +52,7 @@ type EpisodePlaybackProps = {
   episodeId?: string | null;
   recordingId?: string | null;
   audioStoragePath?: string | null;
+  generatedSentenceTimings?: GeneratedSentenceTiming[];  
   prevEpisodeHref?: string | null;
   prevEpisodeNumber?: number | null;
   nextEpisodeHref?: string | null;
@@ -77,6 +78,31 @@ type BookmarkData = {
   readerName?: string;
   savedAt: string;
 };
+
+type GeneratedSentenceTiming = {
+  sentenceIndex: number;
+  timeSeconds: number;
+};
+
+function resolveActiveSentenceIndexFromGeneratedTimings(args: {
+  currentTime: number;
+  generatedSentenceTimings: GeneratedSentenceTiming[];
+}): number {
+  const { currentTime, generatedSentenceTimings } = args;
+
+  let activeSentenceIndex = -1;
+
+  for (const sentenceTiming of generatedSentenceTimings) {
+    if (currentTime + 0.000001 >= sentenceTiming.timeSeconds) {
+      activeSentenceIndex = sentenceTiming.sentenceIndex;
+      continue;
+    }
+
+    break;
+  }
+
+  return activeSentenceIndex;
+}
 
 type LineHeightPreset = "compact" | "normal" | "wide";
 
@@ -340,6 +366,7 @@ export default function EpisodePlayback({
   selectedReaderName,
   recordingAvailable = false,
   audioStoragePath,
+  generatedSentenceTimings,  
   prevEpisodeHref,
   prevEpisodeNumber,
   nextEpisodeHref,
@@ -518,6 +545,28 @@ export default function EpisodePlayback({
     [paragraphBlocks, appliedEffectSettings.sentenceTimestamps]
   );
 
+  const runtimeGeneratedSentenceTimings = useMemo(() => {
+    return (generatedSentenceTimings ?? [])
+      .filter(
+        (item) =>
+          Number.isFinite(item.sentenceIndex) &&
+          item.sentenceIndex >= 0 &&
+          Number.isFinite(item.timeSeconds) &&
+          item.timeSeconds >= 0
+      )
+      .map((item) => ({
+        sentenceIndex: item.sentenceIndex,
+        timeSeconds: item.timeSeconds,
+      }))
+      .sort((left, right) => {
+        if (left.timeSeconds !== right.timeSeconds) {
+          return left.timeSeconds - right.timeSeconds;
+        }
+
+        return left.sentenceIndex - right.sentenceIndex;
+      });
+  }, [generatedSentenceTimings]);
+
   const activeSceneCueLabel = useMemo(
     () =>
       runtimeSceneCues.find((sceneCue) => sceneCue.id === activeSceneCueId)?.label ??
@@ -550,13 +599,26 @@ export default function EpisodePlayback({
       : bgmTitle || "";
 
   const estimatedSentenceIndex = useMemo(() => {
+    if (runtimeGeneratedSentenceTimings.length > 0) {
+      return resolveActiveSentenceIndexFromGeneratedTimings({
+        currentTime,
+        generatedSentenceTimings: runtimeGeneratedSentenceTimings,
+      });
+    }
+
     return resolveActiveSentenceIndex({
       currentTime,
       duration,
       totalSentenceCount,
       sentenceTimestamps: runtimeSentenceTimestamps,
     });
-  }, [currentTime, duration, totalSentenceCount, runtimeSentenceTimestamps]);
+  }, [
+    currentTime,
+    duration,
+    totalSentenceCount,
+    runtimeSentenceTimestamps,
+    runtimeGeneratedSentenceTimings,
+  ]);
 
   const visibleMarkerSentenceIndex = estimatedSentenceIndex;
 
