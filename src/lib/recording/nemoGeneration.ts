@@ -172,62 +172,29 @@ async function fetchNemoEpisodeSource(
 }
 
 function buildInsertAttempts(input: RecordingInsertInput): RawRow[] {
+  const base = {
+    series_id: input.seriesId,
+    episode_id: input.episodeId,
+    audio_storage_path: input.audioStoragePath,
+    is_public: true,
+  };
+
   return [
     {
-      series_id: input.seriesId,
-      episode_id: input.episodeId,
+      ...base,
       reader_name: input.narratorName,
-      audio_storage_path: input.audioStoragePath,
-      is_public: true,
     },
     {
-      series_id: input.seriesId,
-      episode_id: input.episodeId,
+      ...base,
       narrator_name: input.narratorName,
-      audio_storage_path: input.audioStoragePath,
-      is_public: true,
     },
     {
-      series_id: input.seriesId,
-      episode_id: input.episodeId,
+      ...base,
       display_name: input.narratorName,
-      audio_storage_path: input.audioStoragePath,
-      is_public: true,
     },
     {
-      series_id: input.seriesId,
-      episode_id: input.episodeId,
+      ...base,
       speaker_name: input.narratorName,
-      audio_storage_path: input.audioStoragePath,
-      is_public: true,
-    },
-    {
-      seriesId: input.seriesId,
-      episodeId: input.episodeId,
-      readerName: input.narratorName,
-      audioStoragePath: input.audioStoragePath,
-      public: true,
-    },
-    {
-      seriesId: input.seriesId,
-      episodeId: input.episodeId,
-      narratorName: input.narratorName,
-      audioStoragePath: input.audioStoragePath,
-      public: true,
-    },
-    {
-      seriesId: input.seriesId,
-      episodeId: input.episodeId,
-      displayName: input.narratorName,
-      audioStoragePath: input.audioStoragePath,
-      public: true,
-    },
-    {
-      seriesId: input.seriesId,
-      episodeId: input.episodeId,
-      speakerName: input.narratorName,
-      audioStoragePath: input.audioStoragePath,
-      public: true,
     },
   ];
 }
@@ -237,7 +204,7 @@ async function insertRecordingCompat(
   input: RecordingInsertInput
 ): Promise<string> {
   const attempts = buildInsertAttempts(input);
-  let lastErrorMessage = "recordings insert failed";
+  const errors: string[] = [];
 
   for (const payload of attempts) {
     const { data, error } = await supabase
@@ -252,11 +219,14 @@ async function insertRecordingCompat(
     }
 
     if (error?.message) {
-      lastErrorMessage = error.message;
+      const keys = Object.keys(payload).join(", ");
+      errors.push(`${keys} => ${error.message}`);
     }
   }
 
-  throw new Error(lastErrorMessage);
+  throw new Error(
+    errors.length > 0 ? errors.join(" | ") : "recordings insert failed"
+  );
 }
 
 async function removeUploadedRecordingAudio(
@@ -291,8 +261,16 @@ export async function generateNemoRecordingForEpisode({
     throw new Error("episode_body_empty");
   }
 
+  const textForTest = episode.body.trim().slice(0, 180);
+
+  console.error("[nemo text length]", {
+    originalLength: episode.body.length,
+    testLength: textForTest.length,
+    episodeId,
+  });
+
   const wavBytes = await synthesizeNemoWav({
-    text: episode.body,
+    text: textForTest,
     speaker: speakerId,
     speedScale,
     pitchScale,

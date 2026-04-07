@@ -20,6 +20,7 @@ type NemoGenerateResponse = {
   episodeTitle?: string;
   speakerId?: number;
   error?: string;
+  detail?: string;
 };
 
 function buildReaderSpecificHref(baseHref: string, readerName: string): string {
@@ -106,7 +107,11 @@ export function NemoGenerateCard({
       if (!response.ok || !payload?.ok) {
         setStatus("error");
         setResult(payload);
-        setMessage(payload?.error || "Nemo 生成に失敗した。");
+        setMessage(
+          payload?.detail
+            ? `${payload?.error || "Nemo 生成に失敗した。"}\n${payload.detail}`
+            : payload?.error || "Nemo 生成に失敗した。"
+        );
         return;
       }
 
