@@ -50,7 +50,8 @@ export type GenerateNemoRecordingResult = {
 type RecordingInsertInput = {
   seriesId: string;
   episodeId: string;
-  narratorName: string;
+  readerId: string;
+  readerName: string;
   audioStoragePath: string;
 };
 
@@ -172,29 +173,14 @@ async function fetchNemoEpisodeSource(
 }
 
 function buildInsertAttempts(input: RecordingInsertInput): RawRow[] {
-  const base = {
-    series_id: input.seriesId,
-    episode_id: input.episodeId,
-    audio_storage_path: input.audioStoragePath,
-    is_public: true,
-  };
-
   return [
     {
-      ...base,
-      reader_name: input.narratorName,
-    },
-    {
-      ...base,
-      narrator_name: input.narratorName,
-    },
-    {
-      ...base,
-      display_name: input.narratorName,
-    },
-    {
-      ...base,
-      speaker_name: input.narratorName,
+      series_id: input.seriesId,
+      episode_id: input.episodeId,
+      reader_id: input.readerId,
+      reader_name: input.readerName,
+      audio_storage_path: input.audioStoragePath,
+      is_public: true,
     },
   ];
 }
@@ -317,7 +303,8 @@ export async function generateNemoRecordingForEpisode({
     const recordingId = await insertRecordingCompat(adminSupabase, {
       seriesId,
       episodeId,
-      narratorName,
+      readerId: userId,
+      readerName: narratorName,
       audioStoragePath: publicUrl,
     });
 
