@@ -6,6 +6,9 @@ import {
 } from "@/features/write/writeShared";
 import { buildNemoChunks } from "@/lib/recording/nemoChunking";
 import { synthesizeNemoWav } from "@/lib/recording/nemoClient";
+import {
+  resolveNemoPronunciationDictionary,
+} from "@/lib/recording/nemoPronunciationDictionary";
 import { concatNemoWavs } from "@/lib/recording/nemoWav";
 import {
   decideRecordingEntryAccess,
@@ -462,7 +465,21 @@ export async function generateNemoRecordingForEpisode({
     throw new Error("episode_body_empty");
   }
 
-  const chunks = buildNemoChunks(episode.body);
+  const pronunciationDictionary = resolveNemoPronunciationDictionary({
+    seriesId,
+    episodeId,
+  });
+
+  console.error("[nemo pronunciation dictionary]", {
+    seriesId,
+    episodeId,
+    entryCount: Object.keys(pronunciationDictionary).length,
+    entries: Object.keys(pronunciationDictionary),
+  });  
+
+  const chunks = buildNemoChunks(episode.body, {
+    pronunciationDictionary,
+  });
 
   if (chunks.length === 0) {
     throw new Error("episode_body_empty");

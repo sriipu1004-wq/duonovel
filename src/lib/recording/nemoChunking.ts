@@ -1,10 +1,17 @@
-import { preprocessNemoBody } from "@/lib/recording/nemoTextPreprocess";
+import {
+  preprocessNemoBody,
+  type NemoPreprocessOptions,
+} from "@/lib/recording/nemoTextPreprocess";
 
 export type NemoTextChunk = {
   text: string;
   pauseAfterMs: number;
   paragraphIndex: number;
   chunkIndex: number;
+};
+
+export type NemoChunkBuildOptions = NemoPreprocessOptions & {
+  maxChars?: number;
 };
 
 const DEFAULT_MAX_CHARS = 140;
@@ -75,9 +82,10 @@ function endsWithSentencePunctuation(text: string): boolean {
 
 export function buildNemoChunks(
   body: string,
-  maxChars = DEFAULT_MAX_CHARS
+  options: NemoChunkBuildOptions = {}
 ): NemoTextChunk[] {
-  const paragraphs = preprocessNemoBody(body);
+  const { maxChars = DEFAULT_MAX_CHARS, ...preprocessOptions } = options;
+  const paragraphs = preprocessNemoBody(body, preprocessOptions);
   const chunks: NemoTextChunk[] = [];
 
   paragraphs.forEach((paragraph, paragraphIndex) => {
@@ -90,7 +98,8 @@ export function buildNemoChunks(
 
       splitUnits.forEach((splitUnit, splitIndex) => {
         const isLastSplitOfSentence = splitIndex === splitUnits.length - 1;
-        const isLastSentenceOfParagraph = sentenceIndex === sentenceUnits.length - 1;
+        const isLastSentenceOfParagraph =
+          sentenceIndex === sentenceUnits.length - 1;
         const hasSentenceEnding = endsWithSentencePunctuation(splitUnit);
 
         let pauseAfterMs = 0;
@@ -100,7 +109,9 @@ export function buildNemoChunks(
         } else if (isLastSentenceOfParagraph) {
           pauseAfterMs = hasSentenceEnding ? PARAGRAPH_PAUSE_MS : 420;
         } else {
-          pauseAfterMs = hasSentenceEnding ? SENTENCE_PAUSE_MS : OVERFLOW_CHUNK_PAUSE_MS;
+          pauseAfterMs = hasSentenceEnding
+            ? SENTENCE_PAUSE_MS
+            : OVERFLOW_CHUNK_PAUSE_MS;
         }
 
         chunks.push({

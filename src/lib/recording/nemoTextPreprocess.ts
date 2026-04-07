@@ -1,13 +1,25 @@
-const DEFAULT_READING_REPLACEMENTS: Array<[RegExp, string]> = [
-  [/LIB\s*read/gi, "ライブリード"],
-  [/VOICEVOX\s*Nemo/gi, "ボイスボックス ニモ"],
-];
+import type { NemoPronunciationDictionary } from "@/lib/recording/nemoPronunciationDictionary";
 
-function applyReadingReplacements(text: string): string {
+export type NemoPreprocessOptions = {
+  pronunciationDictionary?: NemoPronunciationDictionary;
+};
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function applyPronunciationDictionary(
+  text: string,
+  pronunciationDictionary: NemoPronunciationDictionary
+): string {
+  const entries = Object.entries(pronunciationDictionary)
+    .filter(([source, target]) => source.trim().length > 0 && target.trim().length > 0)
+    .sort((left, right) => right[0].length - left[0].length);
+
   let next = text;
 
-  for (const [pattern, replacement] of DEFAULT_READING_REPLACEMENTS) {
-    next = next.replace(pattern, replacement);
+  for (const [source, target] of entries) {
+    next = next.replace(new RegExp(escapeRegExp(source), "g"), target);
   }
 
   return next;
@@ -34,9 +46,7 @@ function joinLinesWithinParagraph(lines: string[]): string {
   let result = "";
 
   for (const rawLine of lines) {
-    const line = applyReadingReplacements(
-      normalizeInlineWhitespace(rawLine).trim()
-    );
+    const line = normalizeInlineWhitespace(rawLine).trim();
 
     if (!line) continue;
 
@@ -52,14 +62,22 @@ function joinLinesWithinParagraph(lines: string[]): string {
   return result.trim();
 }
 
-export function preprocessNemoBody(body: string): string[] {
+export function preprocessNemoBody(
+  body: string,
+  options: NemoPreprocessOptions = {}
+): string[] {
   const normalized = normalizeLineBreakSurface(body).trim();
 
   if (!normalized) {
     return [];
   }
 
-  const rawParagraphs = normalized.split(/\n{2,}/);
+  const dictionaryApplied = applyPronunciationDictionary(
+    normalized,
+    options.pronunciationDictionary ?? {}
+  );
+
+  const rawParagraphs = dictionaryApplied.split(/\n{2,}/);
 
   return rawParagraphs
     .map((paragraph) => joinLinesWithinParagraph(paragraph.split("\n")))
