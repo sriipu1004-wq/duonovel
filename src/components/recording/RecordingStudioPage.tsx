@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { RecordingPermissionMode } from "@/lib/recording/recordingEntry";
+import { NemoGenerateCard } from "@/components/recording/NemoGenerateCard";
 import { RecordingUploadGuardCard } from "@/components/recording/RecordingUploadGuardCard";
 
 type EpisodeItem = {
@@ -317,8 +318,34 @@ export function RecordingStudioPage({
                 </Link>
               </div>
             ) : null}
-
           </div>
+        </section>
+
+        <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+          <p className="text-xs tracking-[0.18em] text-neutral-500">
+            NEMO GENERATION
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-white">
+            VOICEVOX Nemo 自動生成
+          </h2>
+          <p className="mt-3 text-sm leading-7 text-neutral-400">
+            選択中の話本文から、VOICEVOX Nemo で public recording を自動生成して
+            既存の read / works 導線へ流す最小導線。
+          </p>
+
+          {selectedEpisode ? (
+            <NemoGenerateCard
+              seriesId={seriesId}
+              episodeId={selectedEpisode.id}
+              episodeNumber={selectedEpisode.episodeNumber}
+              episodeTitle={selectedEpisode.title}
+              readHref={selectedEpisode.readHref}
+            />
+          ) : (
+            <div className="mt-5 rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-neutral-500">
+              話を選ぶと、ここから Nemo 自動生成を実行できる。
+            </div>
+          )}
         </section>
 
         <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
@@ -345,6 +372,7 @@ export function RecordingStudioPage({
             <li>・BGM素材ページへの導線</li>
             <li>・設定枠と録音UI差し込み土台</li>
             <li>・音声ファイル選択後の最小検査 UI 土台</li>
+            <li>・VOICEVOX Nemo 自動朗読の最小生成導線</li>
           </ul>
         </section>
       </aside>

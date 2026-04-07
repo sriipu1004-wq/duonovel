@@ -1,10 +1,16 @@
 import {
+  getEpisodeBody,
+  getEpisodeNumber,
+  pickText,
+  type EpisodeRow,
+} from "@/features/write/writeShared";
+import { getAudioFileExtension } from "@/lib/recording/audioUploadPolicy";
+import { synthesizeNemoWav } from "@/lib/recording/nemoClient";
+import {
   decideRecordingEntryAccess,
   hasApprovedRecordingRequest,
   normalizeRecordingPermissionMode,
-  type RecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
-import { getAudioFileExtension } from "@/lib/recording/audioUploadPolicy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -12,17 +18,33 @@ type UserSupabase = Awaited<ReturnType<typeof createClient>>;
 type AdminSupabase = ReturnType<typeof createAdminClient>;
 type RawRow = Record<string, unknown>;
 
-export type VoicepeakImportAccessResult = {
-  userId: string;
-  seriesTitle: string;
-  permissionMode: RecordingPermissionMode;
-  hasApprovedRequest: boolean;
-};
-
-export type VoicepeakEpisodeSummary = {
+export type NemoEpisodeSource = {
   id: string;
   title: string;
   episodeNumber: number;
+  body: string;
+};
+
+export type GenerateNemoRecordingInput = {
+  supabase: UserSupabase;
+  userId: string;
+  seriesId: string;
+  episodeId: string;
+  narratorName: string;
+  speakerId: number;
+  speedScale?: number;
+  pitchScale?: number;
+  intonationScale?: number;
+  volumeScale?: number;
+};
+
+export type GenerateNemoRecordingResult = {
+  recordingId: string;
+  audioStoragePath: string;
+  narratorName: string;
+  episodeNumber: number;
+  episodeTitle: string;
+  speakerId: number;
 };
 
 type RecordingInsertInput = {
@@ -31,16 +53,6 @@ type RecordingInsertInput = {
   narratorName: string;
   audioStoragePath: string;
 };
-
-function pickText(...values: unknown[]): string {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value;
-    }
-  }
-
-  return "";
-}
 
 function parseEpisodeNumber(row: RawRow): number {
   const candidates = [row.episode_number, row.episodeNumber];
@@ -64,44 +76,42 @@ function sanitizeStorageSegment(value: string): string {
     .replace(/^-|-$/g, "")
     .slice(0, 60);
 
-  return normalized || "voicepeak";
+  return normalized || "nemo";
 }
 
-export function getRecordingAudioBucketName(): string {
+function getRecordingAudioBucketName(): string {
   return process.env.NEXT_PUBLIC_SUPABASE_RECORDING_BUCKET?.trim() || "recording-audio";
 }
 
-export function buildVoicepeakRecordingObjectPath({
+function buildNemoRecordingObjectPath({
   seriesId,
   episodeId,
   narratorName,
-  originalFileName,
 }: {
   seriesId: string;
   episodeId: string;
   narratorName: string;
-  originalFileName: string;
 }): string {
-  const extension = getAudioFileExtension(originalFileName) || "wav";
+  const extension = getAudioFileExtension(`${narratorName}.wav`) || "wav";
   const narratorSegment = sanitizeStorageSegment(narratorName);
   const unique = `${Date.now()}-${crypto.randomUUID()}`;
 
   return [
-    "voicepeak",
+    "nemo",
     sanitizeStorageSegment(seriesId),
     sanitizeStorageSegment(episodeId),
     `${unique}-${narratorSegment}.${extension}`,
   ].join("/");
 }
 
-export async function loadVoicepeakImportAccess(
+async function loadNemoGenerationAccess(
   supabase: UserSupabase,
   seriesId: string,
   userId: string
-): Promise<VoicepeakImportAccessResult> {
+): Promise<void> {
   const { data, error } = await supabase
     .from("series")
-    .select("id, title, recording_permission_mode")
+    .select("id, recording_permission_mode")
     .eq("id", seriesId)
     .maybeSingle();
 
@@ -128,20 +138,13 @@ export async function loadVoicepeakImportAccess(
   if (!decision.canEnter) {
     throw new Error(`entry_denied:${decision.deniedReason}`);
   }
-
-  return {
-    userId,
-    seriesTitle: pickText(row.title) || "無題",
-    permissionMode,
-    hasApprovedRequest,
-  };
 }
 
-export async function fetchVoicepeakEpisodeSummary(
+async function fetchNemoEpisodeSource(
   supabase: UserSupabase,
   seriesId: string,
   episodeId: string
-): Promise<VoicepeakEpisodeSummary | null> {
+): Promise<NemoEpisodeSource | null> {
   const { data, error } = await supabase
     .from("episodes")
     .select("*")
@@ -152,7 +155,7 @@ export async function fetchVoicepeakEpisodeSummary(
     return null;
   }
 
-  const row = data as RawRow;
+  const row = data as EpisodeRow;
   const resolvedSeriesId = pickText(row.series_id, row.seriesId);
 
   if (resolvedSeriesId !== seriesId) {
@@ -162,8 +165,9 @@ export async function fetchVoicepeakEpisodeSummary(
   return {
     id: String(row.id),
     title:
-      pickText(row.title, row.episode_title, row.name) || "話タイトル未設定",
-    episodeNumber: parseEpisodeNumber(row),
+      pickText(row.title, row["episode_title"], row["name"]) || "話タイトル未設定",
+    episodeNumber: getEpisodeNumber(row) || parseEpisodeNumber(row),
+    body: getEpisodeBody(row),
   };
 }
 
@@ -228,7 +232,7 @@ function buildInsertAttempts(input: RecordingInsertInput): RawRow[] {
   ];
 }
 
-export async function insertRecordingCompat(
+async function insertRecordingCompat(
   supabase: AdminSupabase,
   input: RecordingInsertInput
 ): Promise<string> {
@@ -255,10 +259,105 @@ export async function insertRecordingCompat(
   throw new Error(lastErrorMessage);
 }
 
-export async function removeUploadedRecordingAudio(
+async function removeUploadedRecordingAudio(
   supabase: AdminSupabase,
   bucketName: string,
   objectPath: string
 ): Promise<void> {
   await supabase.storage.from(bucketName).remove([objectPath]);
+}
+
+export async function generateNemoRecordingForEpisode({
+  supabase,
+  userId,
+  seriesId,
+  episodeId,
+  narratorName,
+  speakerId,
+  speedScale,
+  pitchScale,
+  intonationScale,
+  volumeScale,
+}: GenerateNemoRecordingInput): Promise<GenerateNemoRecordingResult> {
+  await loadNemoGenerationAccess(supabase, seriesId, userId);
+
+  const episode = await fetchNemoEpisodeSource(supabase, seriesId, episodeId);
+
+  if (!episode) {
+    throw new Error("episode_not_found");
+  }
+
+  if (!episode.body.trim()) {
+    throw new Error("episode_body_empty");
+  }
+
+  const wavBytes = await synthesizeNemoWav({
+    text: episode.body,
+    speaker: speakerId,
+    speedScale,
+    pitchScale,
+    intonationScale,
+    volumeScale,
+  });
+
+  const adminSupabase = createAdminClient();
+  const bucketName = getRecordingAudioBucketName();
+  const objectPath = buildNemoRecordingObjectPath({
+    seriesId,
+    episodeId,
+    narratorName,
+  });
+
+  const { error: uploadError } = await adminSupabase.storage
+    .from(bucketName)
+    .upload(objectPath, wavBytes, {
+      contentType: "audio/wav",
+      upsert: false,
+    });
+
+  if (uploadError) {
+    console.error("[nemo storage upload failed]", {
+      bucketName,
+      objectPath,
+      message: uploadError.message,
+      name: uploadError.name,
+    });
+
+    throw new Error(`storage_upload_failed:${uploadError.message}`);
+  }
+
+  const {
+    data: { publicUrl },
+  } = adminSupabase.storage.from(bucketName).getPublicUrl(objectPath);
+
+  if (!publicUrl) {
+    await removeUploadedRecordingAudio(adminSupabase, bucketName, objectPath);
+    throw new Error("storage_public_url_unavailable");
+  }
+
+  try {
+    const recordingId = await insertRecordingCompat(adminSupabase, {
+      seriesId,
+      episodeId,
+      narratorName,
+      audioStoragePath: publicUrl,
+    });
+
+    return {
+      recordingId,
+      audioStoragePath: publicUrl,
+      narratorName,
+      episodeNumber: episode.episodeNumber,
+      episodeTitle: episode.title,
+      speakerId,
+    };
+  } catch (error) {
+    await removeUploadedRecordingAudio(adminSupabase, bucketName, objectPath);
+
+    if (error instanceof Error) {
+      throw new Error(`recording_insert_failed:${error.message}`);
+    }
+
+    throw new Error("recording_insert_failed");
+  }
 }

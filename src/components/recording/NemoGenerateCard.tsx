@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 
-type VoicepeakImportCardProps = {
+type NemoGenerateCardProps = {
   seriesId: string;
   episodeId: string;
   episodeNumber: number;
@@ -11,18 +11,26 @@ type VoicepeakImportCardProps = {
   readHref: string;
 };
 
-type VoicepeakImportResponse = {
+type NemoGenerateResponse = {
   ok: boolean;
   recordingId?: string;
   audioStoragePath?: string;
   narratorName?: string;
   episodeNumber?: number;
   episodeTitle?: string;
+  speakerId?: number;
   error?: string;
-  result?: {
-    message?: string;
-  };
 };
+
+function buildReaderSpecificHref(baseHref: string, readerName: string): string {
+  const [pathname, rawQuery = ""] = baseHref.split("?");
+  const params = new URLSearchParams(rawQuery);
+
+  params.set("readerName", readerName);
+
+  const nextQuery = params.toString();
+  return `${pathname}${nextQuery ? `?${nextQuery}` : ""}`;
+}
 
 function getToneClass(status: "idle" | "submitting" | "success" | "error") {
   if (status === "success") {
@@ -40,85 +48,72 @@ function getToneClass(status: "idle" | "submitting" | "success" | "error") {
   return "border-white/10 bg-white/[0.03] text-neutral-300";
 }
 
-export function VoicepeakImportCard({
+export function NemoGenerateCard({
   seriesId,
   episodeId,
   episodeNumber,
   episodeTitle,
   readHref,
-}: VoicepeakImportCardProps) {
-  const [narratorName, setNarratorName] = useState("VOICEPEAK / 女声1");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+}: NemoGenerateCardProps) {
+  const [narratorName, setNarratorName] = useState("VOICEVOX Nemo / ノーマル");
+  const [speakerId, setSpeakerId] = useState("10005");
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">(
     "idle"
   );
   const [message, setMessage] = useState(
-    "VOICEPEAK で作った声だけの音源を、そのまま public recording として登録する。"
+    "選択中の話本文から、VOICEVOX Nemo で public recording を自動生成する。"
   );
-  const [result, setResult] = useState<VoicepeakImportResponse | null>(null);
+  const [result, setResult] = useState<NemoGenerateResponse | null>(null);
 
   const submitLabel = useMemo(() => {
-    if (status === "submitting") return "取り込み中...";
-    return "VOICEPEAK 音声を登録する";
+    if (status === "submitting") return "生成中...";
+    return "VOICEVOX Nemo で生成する";
   }, [status]);
 
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null;
-    setSelectedFile(file);
-    setResult(null);
-    setStatus("idle");
-    setMessage(
-      file
-        ? "ファイルを選んだ。登録すると server 側で再チェックしてから storage + recordings へ載せる。"
-        : "VOICEPEAK で作った声だけの音源を、そのまま public recording として登録する。"
-    );
+  function handleNarratorNameChange(event: ChangeEvent<HTMLInputElement>) {
+    setNarratorName(event.target.value);
+  }
+
+  function handleSpeakerIdChange(event: ChangeEvent<HTMLInputElement>) {
+    setSpeakerId(event.target.value);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!selectedFile) {
-      setStatus("error");
-      setResult(null);
-      setMessage("先に音声ファイルを選んで。");
-      return;
-    }
-
     setStatus("submitting");
     setResult(null);
-    setMessage("server 側で保存前チェック → storage 保存 → recordings 登録を順に実行中。");
+    setMessage(
+      "Nemo Engine で音声生成 → storage 保存 → recordings 登録を順に実行中。"
+    );
 
     try {
       const formData = new FormData();
       formData.append("seriesId", seriesId);
       formData.append("episodeId", episodeId);
-      formData.append("narratorName", narratorName.trim() || "VOICEPEAK");
-      formData.append("audio", selectedFile);
+      formData.append("narratorName", narratorName.trim() || "VOICEVOX Nemo / ノーマル");
+      formData.append("speakerId", speakerId.trim() || "0");
 
-      const response = await fetch("/api/recordings/voicepeak-import", {
+      const response = await fetch("/api/recordings/nemo-generate", {
         method: "POST",
         body: formData,
       });
 
       const payload = (await response.json().catch(() => null)) as
-        | VoicepeakImportResponse
+        | NemoGenerateResponse
         | null;
 
       if (!response.ok || !payload?.ok) {
         setStatus("error");
         setResult(payload);
-        setMessage(
-          payload?.error ||
-            payload?.result?.message ||
-            "取り込みに失敗した。"
-        );
+        setMessage(payload?.error || "Nemo 生成に失敗した。");
         return;
       }
 
       setStatus("success");
       setResult(payload);
       setMessage(
-        "取り込み成功。既存の works / read 導線からそのまま確認できる状態。"
+        "生成成功。既存の works / read 導線からそのまま確認できる状態。"
       );
     } catch {
       setStatus("error");
@@ -126,6 +121,9 @@ export function VoicepeakImportCard({
       setMessage("通信中に想定外エラーが出た。");
     }
   }
+
+  const resolvedReaderName = result?.narratorName || narratorName || "VOICEVOX Nemo / ノーマル";
+  const generatedReadHref = buildReaderSpecificHref(readHref, resolvedReaderName);
 
   return (
     <div className="mt-5 space-y-4">
@@ -146,27 +144,33 @@ export function VoicepeakImportCard({
             </span>
             <input
               value={narratorName}
-              onChange={(event) => setNarratorName(event.target.value)}
-              placeholder="例: VOICEPEAK / 女声1"
+              onChange={handleNarratorNameChange}
+              placeholder="例: VOICEVOX Nemo / ノーマル"
               className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
             />
           </label>
 
           <label className="grid gap-2">
             <span className="text-sm font-medium text-neutral-200">
-              音声ファイル
+              speakerId
             </span>
             <input
-              type="file"
-              accept="audio/*,.mp3,.m4a,.wav,.webm,.ogg,.aac,.flac"
-              onChange={handleFileChange}
-              className="block w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-200 file:mr-4 file:rounded-full file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black"
+              value={speakerId}
+              onChange={handleSpeakerIdChange}
+              inputMode="numeric"
+              placeholder="例: 0"
+              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
             />
           </label>
 
           <div className="rounded-[20px] border border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-300">
-            BGM は音源に混ぜず、VOICEPEAK の声だけを書き出して登録する。
-            既存 BGM が必要なら作品 / 話側の設定で後付けする前提に戻す。
+            この段階では 1話単位で本文全体をそのまま Nemo へ送る。
+            長すぎる話の chunk 分割や再試行は、次段階でやる。
+          </div>
+
+          <div className="rounded-[20px] border border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-300">
+            公開前にはクレジット表記として
+            「VOICEVOX」「VOICEVOX Nemo」を外向きページへ入れる前提。
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -184,16 +188,12 @@ export function VoicepeakImportCard({
             </button>
 
             <Link
-              href={readHref}
+              href={generatedReadHref}
               className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
             >
               読む画面で確認する
             </Link>
           </div>
-
-          <p className="text-xs leading-6 text-neutral-500">
-            ここでは public recording として登録する最小導線だけ扱う。
-          </p>
         </form>
       </div>
 
@@ -203,18 +203,20 @@ export function VoicepeakImportCard({
           getToneClass(status),
         ].join(" ")}
       >
-        <p className="text-xs tracking-[0.18em] opacity-80">VOICEPEAK IMPORT STATUS</p>
+        <p className="text-xs tracking-[0.18em] opacity-80">
+          NEMO GENERATION STATUS
+        </p>
         <h3 className="mt-2 text-lg font-semibold text-white">{message}</h3>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
-            <p className="text-xs tracking-[0.14em] text-neutral-500">FILE</p>
-            <p className="mt-2">{selectedFile?.name || "未選択"}</p>
+            <p className="text-xs tracking-[0.14em] text-neutral-500">NARRATOR</p>
+            <p className="mt-2">{resolvedReaderName}</p>
           </div>
 
           <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
-            <p className="text-xs tracking-[0.14em] text-neutral-500">NARRATOR</p>
-            <p className="mt-2">{narratorName || "未入力"}</p>
+            <p className="text-xs tracking-[0.14em] text-neutral-500">SPEAKER</p>
+            <p className="mt-2">{result?.speakerId ?? speakerId}</p>
           </div>
         </div>
 
@@ -227,10 +229,10 @@ export function VoicepeakImportCard({
 
             <div className="mt-4 flex flex-wrap gap-3">
               <Link
-                href={readHref}
+                href={generatedReadHref}
                 className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
               >
-                読む画面へ
+                生成した朗読で読む
               </Link>
             </div>
           </div>

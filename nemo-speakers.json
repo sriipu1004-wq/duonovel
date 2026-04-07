@@ -1,0 +1,137 @@
+﻿[
+    {
+        "name":  "å¥³å£°1",
+        "speaker_uuid":  "abccafa5-174f-44d8-b70c-c41eebb3061c",
+        "styles":  [
+                       {
+                           "name":  "ãã¼ãã«",
+                           "id":  10005,
+                           "type":  "talk"
+                       }
+                   ],
+        "version":  "0.15.0",
+        "supported_features":  {
+                                   "permitted_synthesis_morphing":  "ALL"
+                               }
+    },
+    {
+        "name":  "å¥³å£°2",
+        "speaker_uuid":  "a601bf4a-d986-468d-a394-345f4e1e7ae1",
+        "styles":  [
+                       {
+                           "name":  "ãã¼ãã«",
+                           "id":  10007,
+                           "type":  "talk"
+                       }
+                   ],
+        "version":  "0.15.0",
+        "supported_features":  {
+                                   "permitted_synthesis_morphing":  "ALL"
+                               }
+    },
+    {
+        "name":  "å¥³å£°3",
+        "speaker_uuid":  "be15f40d-a95a-4fb3-b298-a59fdd727af1",
+        "styles":  [
+                       {
+                           "name":  "ãã¼ãã«",
+                           "id":  10004,
+                           "type":  "talk"
+                       }
+                   ],
+        "version":  "0.15.0",
+        "supported_features":  {
+                                   "permitted_synthesis_morphing":  "ALL"
+                               }
+    },
+    {
+        "name":  "å¥³å£°4",
+        "speaker_uuid":  "3f98f123-fa9a-4ad0-96ba-2a1bae922433",
+        "styles":  [
+                       {
+                           "name":  "ãã¼ãã«",
+                           "id":  10003,
+                           "type":  "talk"
+                       }
+                   ],
+        "version":  "0.15.0",
+        "supported_features":  {
+                                   "permitted_synthesis_morphing":  "ALL"
+                               }
+    },
+    {
+        "name":  "å¥³å£°5",
+        "speaker_uuid":  "69f71ba4-1c36-406d-a693-8091d60fa952",
+        "styles":  [
+                       {
+                           "name":  "ãã¼ãã«",
+                           "id":  10008,
+                           "type":  "talk"
+                       }
+                   ],
+        "version":  "0.15.0",
+        "supported_features":  {
+                                   "permitted_synthesis_morphing":  "ALL"
+                               }
+    },
+    {
+        "name":  "å¥³å£°6",
+        "speaker_uuid":  "3490c392-30be-44c2-8379-b77df27fa65e",
+        "styles":  [
+                       {
+                           "name":  "ãã¼ãã«",
+                           "id":  10006,
+                           "type":  "talk"
+                       }
+                   ],
+        "version":  "0.15.0",
+        "supported_features":  {
+                                   "permitted_synthesis_morphing":  "ALL"
+                               }
+    },
+    {
+        "name":  "ç·å£°1",
+        "speaker_uuid":  "2171909e-d2d1-4bbb-aa45-442c12732665",
+        "styles":  [
+                       {
+                           "name":  "ãã¼ãã«",
+                           "id":  10001,
+                           "type":  "talk"
+                       }
+                   ],
+        "version":  "0.15.0",
+        "supported_features":  {
+                                   "permitted_synthesis_morphing":  "ALL"
+                               }
+    },
+    {
+        "name":  "ç·å£°2",
+        "speaker_uuid":  "7ecc7a17-1465-4b22-a3b5-842a110ff55e",
+        "styles":  [
+                       {
+                           "name":  "ãã¼ãã«",
+                           "id":  10000,
+                           "type":  "talk"
+                       }
+                   ],
+        "version":  "0.15.0",
+        "supported_features":  {
+                                   "permitted_synthesis_morphing":  "ALL"
+                               }
+    },
+    {
+        "name":  "ç·å£°3",
+        "speaker_uuid":  "627b3e92-32c5-4c2f-860a-a5553d3d6662",
+        "styles":  [
+                       {
+                           "name":  "ãã¼ãã«",
+                           "id":  10002,
+                           "type":  "talk"
+                       }
+                   ],
+        "version":  "0.15.0",
+        "supported_features":  {
+                                   "permitted_synthesis_morphing":  "ALL"
+                               }
+    }
+]
