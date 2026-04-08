@@ -95,6 +95,10 @@ function sanitizeStorageSegment(value: string): string {
   return normalized || "nemo";
 }
 
+function isNemoNarratorName(name: string): boolean {
+  return name.startsWith("VOICEVOX Nemo");
+}
+
 function getRecordingAudioBucketName(): string {
   return process.env.NEXT_PUBLIC_SUPABASE_RECORDING_BUCKET?.trim() || "recording-audio";
 }
@@ -391,6 +395,8 @@ async function writeRecording(
   const primary = existingRows[0] ?? null;
   const duplicates = existingRows.slice(1);
 
+  const isNemoNarrator = isNemoNarratorName(input.readerName);  
+
   const payload = {
     series_id: input.seriesId,
     episode_id: input.episodeId,
@@ -398,6 +404,13 @@ async function writeRecording(
     reader_name: input.readerName,
     audio_storage_path: input.audioStoragePath,
     is_public: true,
+    ...(isNemoNarrator
+      ? {
+          description: null,
+          reader_comment: null,
+          tags: null,
+        }
+      : {}),
   };
 
   if (primary) {

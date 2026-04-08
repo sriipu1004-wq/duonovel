@@ -147,6 +147,10 @@ function getReaderIdentity(recording: RecordingRow): { key: string; name: string
   return { key, name };
 }
 
+function isNemoReaderName(name: string): boolean {
+  return name.startsWith("VOICEVOX Nemo");
+}
+
 function buildWorksHref(seriesId: string, readerKey: string, readerName?: string): string {
   const query = new URLSearchParams();
   query.set("tab", "toc");
@@ -168,6 +172,8 @@ function buildReadHref(
 
   return `/read/${seriesId}/${episodeNumber}?${query.toString()}`;
 }
+
+
 
 async function fetchAllRecordings(): Promise<RecordingRow[]> {
   const { data, error } = await supabase.from("recordings").select("*");
@@ -252,12 +258,13 @@ export default async function ReaderPage({ params, searchParams }: PageProps) {
     (recording) => recording.allow_download === true
   );
 
-  const description =
-    pickText(
-      matchedRecordings[0]?.description,
-      matchedRecordings[0]?.reader_comment
-    ) ||
-    `公開朗読 ${matchedRecordings.length}件 / いいね ${totalLikes} / 再生 ${totalPlays}`;
+  const description = isNemoReaderName(readerName)
+    ? `公開朗読 ${matchedRecordings.length}件 / いいね ${totalLikes} / 再生 ${totalPlays}`
+    : pickText(
+        matchedRecordings[0]?.description,
+        matchedRecordings[0]?.reader_comment
+      ) ||
+      `公開朗読 ${matchedRecordings.length}件 / いいね ${totalLikes} / 再生 ${totalPlays}`;
 
   const tagMap = new Map<string, number>();
   for (const recording of matchedRecordings) {

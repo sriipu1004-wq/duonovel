@@ -316,6 +316,10 @@ async function fetchPublicSeries(): Promise<SeriesRow[]> {
   );
 }
 
+function isNemoReaderName(name: string): boolean {
+  return name.startsWith("VOICEVOX Nemo");
+}
+
 function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
   const grouped = new Map<
     string,
@@ -395,8 +399,10 @@ function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
         .slice(0, 2)
         .map(([tag]) => tag),
       description:
-        reader.description ||
-        `公開朗読 ${reader.recordingCount}件 / いいね ${reader.totalLikes} / 再生 ${reader.totalPlays}`,
+        isNemoReaderName(reader.name)
+          ? `公開朗読 ${reader.recordingCount}件 / いいね ${reader.totalLikes} / 再生 ${reader.totalPlays}`
+          : reader.description ||
+            `公開朗読 ${reader.recordingCount}件 / いいね ${reader.totalLikes} / 再生 ${reader.totalPlays}`,
       totalLikes: reader.totalLikes,
       totalPlays: reader.totalPlays,
       recordingCount: reader.recordingCount,
