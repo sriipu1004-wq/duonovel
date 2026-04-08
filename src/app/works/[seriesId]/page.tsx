@@ -262,7 +262,9 @@ async function fetchRecordingsBySeriesId(seriesId: string): Promise<{
   const firstTry = await supabase
     .from("recordings")
     .select("*")
-    .eq("series_id", seriesId);
+    .eq("series_id", seriesId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
 
   if (!firstTry.error) {
     return {
@@ -274,7 +276,9 @@ async function fetchRecordingsBySeriesId(seriesId: string): Promise<{
   const secondTry = await supabase
     .from("recordings")
     .select("*")
-    .eq("seriesId", seriesId);
+    .eq("seriesId", seriesId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
 
   if (!secondTry.error) {
     return {

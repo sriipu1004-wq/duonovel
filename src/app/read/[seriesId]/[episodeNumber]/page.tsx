@@ -227,7 +227,9 @@ async function fetchRecordingsByEpisodeId(episodeId: string): Promise<RecordingR
   const firstTry = await supabase
     .from("recordings")
     .select("*")
-    .eq("episode_id", episodeId);
+    .eq("episode_id", episodeId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
 
   if (!firstTry.error) {
     return ((firstTry.data ?? []) as RecordingRow[]).filter(isPublicRecording);
@@ -236,7 +238,9 @@ async function fetchRecordingsByEpisodeId(episodeId: string): Promise<RecordingR
   const secondTry = await supabase
     .from("recordings")
     .select("*")
-    .eq("episodeId", episodeId);
+    .eq("episodeId", episodeId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
 
   if (!secondTry.error) {
     return ((secondTry.data ?? []) as RecordingRow[]).filter(isPublicRecording);
