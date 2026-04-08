@@ -444,6 +444,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
         selectedReaderName={selectedReaderName}
         recordingAvailable={recordingAvailable}
         audioStoragePath={audioStoragePath}
+        generatedSentenceTimings={generatedSentenceTimings}
         prevEpisodeHref={prevEpisodeHref}
         prevEpisodeNumber={prevEpisodeNumber}
         nextEpisodeHref={nextEpisodeHref}

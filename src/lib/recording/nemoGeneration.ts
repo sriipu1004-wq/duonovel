@@ -66,6 +66,8 @@ type ExistingRecording = {
   id: string;
   audioStoragePath: string;
   createdAt: string;
+  readerId: string;
+  readerName: string;
 };
 
 function parseEpisodeNumber(row: RawRow): number {
@@ -309,14 +311,12 @@ async function ensureReaderUserRow(
 
 async function findExistingRecordings(
   supabase: AdminSupabase,
-  episodeId: string,
-  readerId: string
+  episodeId: string
 ): Promise<ExistingRecording[]> {
   const { data, error } = await supabase
     .from("recordings")
-    .select("id, audio_storage_path, created_at")
+    .select("*")
     .eq("episode_id", episodeId)
-    .eq("reader_id", readerId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
 
@@ -330,6 +330,18 @@ async function findExistingRecordings(
     id: String(row.id),
     audioStoragePath: pickText(row.audio_storage_path),
     createdAt: pickText(row.created_at) || "",
+    readerId: pickText(
+      row.reader_id,
+      row.reader_user_id,
+      row.readerUserId
+    ),
+    readerName:
+      pickText(
+        row.reader_name,
+        row.narrator_name,
+        row.display_name,
+        row.speaker_name
+      ) || "朗読者未設定",
   }));
 }
 
@@ -359,11 +371,22 @@ async function writeRecording(
   previousAudioStoragePath: string | null;
   duplicateAudioStoragePaths: string[];
 }> {
-  const existingRows = await findExistingRecordings(
+  const allEpisodeRows = await findExistingRecordings(
     supabase,
-    input.episodeId,
-    input.readerId
+    input.episodeId
   );
+
+  const sameReaderIdRows = allEpisodeRows.filter(
+    (row) => row.readerId === input.readerId
+  );
+
+  const sameReaderNameRows =
+    sameReaderIdRows.length > 0
+      ? []
+      : allEpisodeRows.filter((row) => row.readerName === input.readerName);
+
+  const existingRows =
+    sameReaderIdRows.length > 0 ? sameReaderIdRows : sameReaderNameRows;
 
   const primary = existingRows[0] ?? null;
   const duplicates = existingRows.slice(1);
