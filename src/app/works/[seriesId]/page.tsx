@@ -21,6 +21,7 @@ import {
   type SeriesRow,
 } from "@/features/write/writeShared";
 import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGenerationBootstrap";
+import { unstable_noStore as noStore } from "next/cache";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -445,6 +446,7 @@ function buildRangeOptions(total: number) {
 }
 
 export default async function WorkPage({ params, searchParams }: PageProps) {
+  noStore();  
   const { seriesId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const currentTab = resolvedSearchParams?.tab === "readers" ? "readers" : "toc";

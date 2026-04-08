@@ -27,6 +27,7 @@ import {
 } from "@/lib/recording/nemoTiming";
 import { normalizeRecordingPermissionMode } from "@/lib/recording/recordingEntry";
 import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGenerationBootstrap";
+import { unstable_noStore as noStore } from "next/cache";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -245,6 +246,7 @@ async function fetchRecordingsByEpisodeId(episodeId: string): Promise<RecordingR
 }
 
 export default async function ReadEpisodePage({ params, searchParams }: PageProps) {
+  noStore();  
   const { seriesId, episodeNumber } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
