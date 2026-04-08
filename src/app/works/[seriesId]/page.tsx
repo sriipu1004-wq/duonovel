@@ -22,6 +22,7 @@ import {
 } from "@/features/write/writeShared";
 import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGenerationBootstrap";
 import { unstable_noStore as noStore } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -87,6 +88,8 @@ type RelatedWorkCard = {
   tags: string[];
   latestPostedAtValue: number;
 };
+
+const adminSupabase = createAdminClient();
 
 function isPublicRecording(recording: RecordingRow): boolean {
   if (recording.is_public === false) return false;
@@ -266,7 +269,7 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
     };
   }
 
-  const firstTry = await supabase
+  const firstTry = await adminSupabase
     .from("recordings")
     .select("*")
     .in("episode_id", episodeIds)
@@ -280,7 +283,7 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
     };
   }
 
-  const secondTry = await supabase
+  const secondTry = await adminSupabase
     .from("recordings")
     .select("*")
     .in("episodeId", episodeIds)

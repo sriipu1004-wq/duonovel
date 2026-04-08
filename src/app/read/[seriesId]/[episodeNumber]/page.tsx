@@ -28,6 +28,7 @@ import {
 import { normalizeRecordingPermissionMode } from "@/lib/recording/recordingEntry";
 import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGenerationBootstrap";
 import { unstable_noStore as noStore } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -55,6 +56,8 @@ type RecordingRow = Record<string, unknown> & {
   is_public?: boolean | null;
   public?: boolean | null;
 };
+
+const adminSupabase = createAdminClient();
 
 async function fetchGeneratedSentenceTimings(
   audioPublicUrl?: string | null
@@ -224,7 +227,7 @@ async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> 
 }
 
 async function fetchRecordingsByEpisodeId(episodeId: string): Promise<RecordingRow[]> {
-  const firstTry = await supabase
+  const firstTry = await adminSupabase
     .from("recordings")
     .select("*")
     .eq("episode_id", episodeId)
@@ -235,7 +238,7 @@ async function fetchRecordingsByEpisodeId(episodeId: string): Promise<RecordingR
     return ((firstTry.data ?? []) as RecordingRow[]).filter(isPublicRecording);
   }
 
-  const secondTry = await supabase
+  const secondTry = await adminSupabase
     .from("recordings")
     .select("*")
     .eq("episodeId", episodeId)
