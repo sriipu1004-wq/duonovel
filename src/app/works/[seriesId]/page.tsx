@@ -20,6 +20,7 @@ import {
   type RecordingPermissionMode,
   type SeriesRow,
 } from "@/features/write/writeShared";
+import { triggerNemoAutoGenerationForEpisodeIds } from "@/lib/recording/nemoAutoGeneration";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -514,6 +515,18 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const visibleEpisodes = episodes.slice(currentRangeStart - 1, currentRangeStart - 1 + 50);
   const rangeOptions = buildRangeOptions(episodes.length);
 
+  const recordingPermissionMode = resolveRecordingPermissionMode(
+    series.recording_permission_mode
+  );
+
+  if (recordingPermissionMode === "open") {
+    await triggerNemoAutoGenerationForEpisodeIds({
+      seriesId,
+      episodeIds: episodes.map((episode) => episode.id),
+      triggerMode: "public_open",
+    });
+  }
+
   const { recordings, fetchErrorMessage } = await fetchRecordingsBySeriesId(seriesId);
   const readerCards = buildReaderCards(recordings);
 
@@ -601,10 +614,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
   const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
   const loginHref = `/login?next=${encodeURIComponent(buildWorksHref(seriesId, currentTab, selectedReaderKey, selectedReaderName, currentRangeStart))}`;
-
-  const recordingPermissionMode = resolveRecordingPermissionMode(
-    series.recording_permission_mode
-  );
 
   const reviewsVisible = isSeriesReviewVisible(series);
 

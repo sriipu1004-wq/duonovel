@@ -25,6 +25,8 @@ import {
   buildNemoTimingPublicUrlFromAudioPublicUrl,
   parseNemoGeneratedSentenceTimings,
 } from "@/lib/recording/nemoTiming";
+import { normalizeRecordingPermissionMode } from "@/lib/recording/recordingEntry";
+import { triggerNemoAutoGenerationForEpisodeIds } from "@/lib/recording/nemoAutoGeneration";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -273,6 +275,18 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
   if (!episode || !isEpisodePubliclyVisible(episode)) {
     notFound();
   }
+
+  const recordingPermissionMode = normalizeRecordingPermissionMode(
+    series.recording_permission_mode
+  );
+
+  if (recordingPermissionMode === "open") {
+    await triggerNemoAutoGenerationForEpisodeIds({
+      seriesId,
+      episodeIds: [episode.id],
+      triggerMode: "public_open",
+    });
+  }  
 
   const allEpisodes = await fetchEpisodesBySeriesId(seriesId);
   const publicEpisodes = sortEpisodes(

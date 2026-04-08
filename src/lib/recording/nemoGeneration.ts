@@ -22,6 +22,7 @@ import { createClient } from "@/lib/supabase/server";
 
 type UserSupabase = Awaited<ReturnType<typeof createClient>>;
 type AdminSupabase = ReturnType<typeof createAdminClient>;
+type GenerationSupabase = UserSupabase | AdminSupabase;
 type RawRow = Record<string, unknown>;
 
 export type NemoEpisodeSource = {
@@ -32,7 +33,7 @@ export type NemoEpisodeSource = {
 };
 
 export type GenerateNemoRecordingInput = {
-  supabase: UserSupabase;
+  supabase: GenerationSupabase;
   userId: string;
   seriesId: string;
   episodeId: string;
@@ -162,7 +163,7 @@ async function removeStorageObjectPaths(
 }
 
 async function loadNemoGenerationAccess(
-  supabase: UserSupabase,
+  supabase: GenerationSupabase,
   seriesId: string,
   userId: string
 ): Promise<void> {
@@ -198,7 +199,7 @@ async function loadNemoGenerationAccess(
 }
 
 async function fetchNemoEpisodeSource(
-  supabase: UserSupabase,
+  supabase: GenerationSupabase,
   seriesId: string,
   episodeId: string
 ): Promise<NemoEpisodeSource | null> {
