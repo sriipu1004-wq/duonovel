@@ -9,6 +9,20 @@ type NemoAutoGenerationBootstrapProps = {
   enabled: boolean;
 };
 
+type NemoAutogenResponse = {
+  ok?: boolean;
+  status?:
+    | "generated"
+    | "none_missing"
+    | "busy"
+    | "config_missing"
+    | "skipped";
+  generatedEpisodeId?: string;
+  reason?: string;
+  error?: string;
+  detail?: string;
+};
+
 export function NemoAutoGenerationBootstrap({
   seriesId,
   episodeIds,
@@ -18,6 +32,13 @@ export function NemoAutoGenerationBootstrap({
 
   useEffect(() => {
     if (!enabled || episodeIds.length === 0) {
+      if (process.env.NODE_ENV === "development") {
+        console.log("[nemo-autogen bootstrap] disabled", {
+          enabled,
+          episodeCount: episodeIds.length,
+          seriesId,
+        });
+      }
       return;
     }
 
@@ -42,13 +63,24 @@ export function NemoAutoGenerationBootstrap({
           }),
         });
 
+        const payload = (await response.json()) as NemoAutogenResponse;
+
+        if (process.env.NODE_ENV === "development") {
+          console.log("[nemo-autogen bootstrap response]", {
+            responseOk: response.ok,
+            status: payload.status,
+            reason: payload.reason,
+            error: payload.error,
+            detail: payload.detail,
+            generatedEpisodeId: payload.generatedEpisodeId,
+            seriesId,
+            attempts,
+          });
+        }
+
         if (!response.ok) {
           return;
         }
-
-        const payload = (await response.json()) as {
-          status?: string;
-        };
 
         if (cancelled) return;
 
@@ -70,9 +102,20 @@ export function NemoAutoGenerationBootstrap({
 
         if (payload.status === "none_missing") {
           router.refresh();
+          return;
         }
-      } catch {
-        // no-op
+
+        if (payload.status === "config_missing" || payload.status === "skipped") {
+          return;
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV === "development") {
+          console.log("[nemo-autogen bootstrap fetch failed]", {
+            seriesId,
+            attempts,
+            error,
+          });
+        }
       }
     }
 
