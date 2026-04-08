@@ -26,7 +26,7 @@ import {
   parseNemoGeneratedSentenceTimings,
 } from "@/lib/recording/nemoTiming";
 import { normalizeRecordingPermissionMode } from "@/lib/recording/recordingEntry";
-import { triggerNemoAutoGenerationForEpisodeIds } from "@/lib/recording/nemoAutoGeneration";
+import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGenerationBootstrap";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -271,21 +271,16 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     notFound();
   }
 
+  const recordingPermissionMode = normalizeRecordingPermissionMode(
+    series.recording_permission_mode
+  );  
+
   const episode = await fetchEpisodeBySeriesAndNumber(seriesId, parsedEpisodeNumber);
   if (!episode || !isEpisodePubliclyVisible(episode)) {
     notFound();
   }
 
-  const recordingPermissionMode = normalizeRecordingPermissionMode(
-    series.recording_permission_mode
-  );
-
   if (recordingPermissionMode === "open") {
-    await triggerNemoAutoGenerationForEpisodeIds({
-      seriesId,
-      episodeIds: [episode.id],
-      triggerMode: "public_open",
-    });
   }  
 
   const allEpisodes = await fetchEpisodesBySeriesId(seriesId);
@@ -431,32 +426,38 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
   );
 
   return (
-    <EpisodePlayback
-      seriesId={seriesId}
-      episodeId={episode.id}
-      recordingId={selectedRecording?.id ?? null}
-      episodeNumber={currentEpisodeNumber}
-      seriesTitle={seriesTitle}
-      episodeTitle={episodeTitle}
-      body={body}
-      selectedReaderKey={selectedReaderKey || undefined}
-      selectedReaderName={selectedReaderName}
-      recordingAvailable={recordingAvailable}
-      audioStoragePath={audioStoragePath}
-      generatedSentenceTimings={generatedSentenceTimings}      
-      prevEpisodeHref={prevEpisodeHref}
-      prevEpisodeNumber={prevEpisodeNumber}
-      nextEpisodeHref={nextEpisodeHref}
-      nextEpisodeNumber={nextEpisodeNumber}
-      workIndexHref={workIndexHref}
-      initialStartAt={initialStartAt}
-      initialAutoPlay={initialAutoPlay}
-      loginHref={loginHref}
-      showComments={commentsVisible}
-      bgmTitle={bgmTitle || undefined}
-      bgmSrc={bgmSrc}
-      bgmSettings={bgmSrc ? bgmSettings : undefined}
-      effectSettings={effectSettings}
-    />
+    <>
+      <NemoAutoGenerationBootstrap
+        seriesId={seriesId}
+        episodeIds={[episode.id]}
+        enabled={recordingPermissionMode === "open"}
+      />
+      <EpisodePlayback
+        seriesId={seriesId}
+        episodeId={episode.id}
+        recordingId={selectedRecording?.id ?? null}
+        episodeNumber={currentEpisodeNumber}
+        seriesTitle={seriesTitle}
+        episodeTitle={episodeTitle}
+        body={body}
+        selectedReaderKey={selectedReaderKey || undefined}
+        selectedReaderName={selectedReaderName}
+        recordingAvailable={recordingAvailable}
+        audioStoragePath={audioStoragePath}
+        prevEpisodeHref={prevEpisodeHref}
+        prevEpisodeNumber={prevEpisodeNumber}
+        nextEpisodeHref={nextEpisodeHref}
+        nextEpisodeNumber={nextEpisodeNumber}
+        workIndexHref={workIndexHref}
+        initialStartAt={initialStartAt}
+        initialAutoPlay={initialAutoPlay}
+        loginHref={loginHref}
+        showComments={commentsVisible}
+        bgmTitle={bgmTitle || undefined}
+        bgmSrc={bgmSrc}
+        bgmSettings={bgmSrc ? bgmSettings : undefined}
+        effectSettings={effectSettings}
+      />
+    </>
   );
 }

@@ -490,12 +490,14 @@ export async function generateNemoRecordingForEpisode({
     episodeId,
   });
 
-  console.error("[nemo pronunciation dictionary]", {
+if (process.env.NODE_ENV === "development") {
+  console.log("[nemo pronunciation dictionary]", {
     seriesId,
     episodeId,
     entryCount: Object.keys(pronunciationDictionary).length,
     entries: Object.keys(pronunciationDictionary),
   });
+}
 
   const chunks = buildNemoChunks(episode.body, {
     pronunciationDictionary,
@@ -505,7 +507,8 @@ export async function generateNemoRecordingForEpisode({
     throw new Error("episode_body_empty");
   }
 
-  console.error("[nemo chunk build]", {
+if (process.env.NODE_ENV === "development") {
+  console.log("[nemo chunk build]", {
     originalLength: episode.body.length,
     chunkCount: chunks.length,
     preview: chunks.slice(0, 3).map((chunk) => ({
@@ -517,6 +520,7 @@ export async function generateNemoRecordingForEpisode({
     })),
     episodeId,
   });
+}
 
   const renderedSegments: Array<{
     wavBytes: Uint8Array;

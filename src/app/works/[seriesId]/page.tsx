@@ -20,7 +20,7 @@ import {
   type RecordingPermissionMode,
   type SeriesRow,
 } from "@/features/write/writeShared";
-import { triggerNemoAutoGenerationForEpisodeIds } from "@/lib/recording/nemoAutoGeneration";
+import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGenerationBootstrap";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -520,11 +520,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   );
 
   if (recordingPermissionMode === "open") {
-    await triggerNemoAutoGenerationForEpisodeIds({
-      seriesId,
-      episodeIds: episodes.map((episode) => episode.id),
-      triggerMode: "public_open",
-    });
   }
 
   const { recordings, fetchErrorMessage } = await fetchRecordingsBySeriesId(seriesId);
@@ -619,6 +614,11 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
   return (
     <main className="min-h-screen bg-white text-black">
+      <NemoAutoGenerationBootstrap
+        seriesId={seriesId}
+        episodeIds={episodes.map((episode) => episode.id)}
+        enabled={recordingPermissionMode === "open"}
+      />      
       <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
           <Link href="/" className="hover:text-black">
