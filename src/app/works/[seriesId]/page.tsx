@@ -255,14 +255,21 @@ async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> 
   return (secondTry.data ?? []) as EpisodeRow[];
 }
 
-async function fetchRecordingsBySeriesId(seriesId: string): Promise<{
+async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
   recordings: RecordingRow[];
   fetchErrorMessage: string | null;
 }> {
+  if (episodeIds.length === 0) {
+    return {
+      recordings: [],
+      fetchErrorMessage: null,
+    };
+  }
+
   const firstTry = await supabase
     .from("recordings")
     .select("*")
-    .eq("series_id", seriesId)
+    .in("episode_id", episodeIds)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
 
@@ -276,7 +283,7 @@ async function fetchRecordingsBySeriesId(seriesId: string): Promise<{
   const secondTry = await supabase
     .from("recordings")
     .select("*")
-    .eq("seriesId", seriesId)
+    .in("episodeId", episodeIds)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
 
@@ -528,7 +535,9 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   if (recordingPermissionMode === "open") {
   }
 
-  const { recordings, fetchErrorMessage } = await fetchRecordingsBySeriesId(seriesId);
+  const { recordings, fetchErrorMessage } = await fetchRecordingsByEpisodeIds(
+    episodes.map((episode) => episode.id)
+  );
   const readerCards = buildReaderCards(recordings);
 
   const allPublicSeries = await fetchPublicSeries();
