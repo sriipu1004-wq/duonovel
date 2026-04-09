@@ -1,0 +1,193 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  buildNemoTimingPublicUrlFromAudioPublicUrl,
+  parseNemoGeneratedSentenceTimings,
+} from "@/lib/recording/nemoTiming";
+
+type ReaderCardControlsProps = {
+  readerKey: string;
+  readerName: string;
+  isSelected: boolean;
+  demoAudioUrl?: string | null;
+  currentTab: "toc" | "readers";
+  currentRangeStart: number;
+};
+
+function getDemoPreviewEndSecondsFromPayload(payload: unknown): number {
+  const timings = parseNemoGeneratedSentenceTimings(payload);
+
+  if (timings.length === 0) {
+    return 4;
+  }
+
+  const first = timings[0];
+  const second = timings[1];
+
+  if (second && Number.isFinite(second.timeSeconds) && second.timeSeconds > 0) {
+    return Math.min(Math.max(second.timeSeconds, 2), 12);
+  }
+
+  if (Number.isFinite(first.durationSeconds) && first.durationSeconds > 0) {
+    return Math.min(Math.max(first.durationSeconds, 2), 12);
+  }
+
+  return 4;
+}
+
+export default function ReaderCardControls({
+  readerKey,
+  readerName,
+  isSelected,
+  demoAudioUrl,
+  currentTab,
+  currentRangeStart,
+}: ReaderCardControlsProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const stopAtSecondsRef = useRef<number>(4);
+  const [isDemoPlaying, setIsDemoPlaying] = useState(false);
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  async function handleSelect() {
+    const nextQuery = new URLSearchParams(searchParams.toString());
+    nextQuery.set("tab", currentTab);
+    nextQuery.set("range", String(currentRangeStart));
+    nextQuery.set("readerKey", readerKey);
+    nextQuery.set("readerName", readerName);
+
+    router.replace(`${pathname}?${nextQuery.toString()}`, {
+      scroll: false,
+    });
+  }
+
+  async function resolveDemoEndSeconds(): Promise<number> {
+    if (!demoAudioUrl) {
+      return 4;
+    }
+
+    const timingUrl = buildNemoTimingPublicUrlFromAudioPublicUrl(demoAudioUrl);
+    if (!timingUrl) {
+      return 4;
+    }
+
+    try {
+      const response = await fetch(timingUrl, {
+        cache: "force-cache",
+      });
+
+      if (!response.ok) {
+        return 4;
+      }
+
+      const payload = await response.json();
+      return getDemoPreviewEndSecondsFromPayload(payload);
+    } catch {
+      return 4;
+    }
+  }
+
+  async function handleToggleDemo() {
+    if (!demoAudioUrl) {
+      return;
+    }
+
+    if (audioRef.current && !audioRef.current.paused) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsDemoPlaying(false);
+      setIsDemoLoading(false);
+      return;
+    }
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+
+    setIsDemoLoading(true);
+
+    const previewEndSeconds = await resolveDemoEndSeconds();
+    stopAtSecondsRef.current = previewEndSeconds;
+
+    const audio = new Audio(demoAudioUrl);
+    audio.preload = "auto";
+    audio.volume = 1;
+    audioRef.current = audio;
+
+    const stopPlayback = () => {
+      audio.pause();
+      audio.currentTime = 0;
+      setIsDemoPlaying(false);
+      setIsDemoLoading(false);
+    };
+
+    const handleTimeUpdate = () => {
+      if (audio.currentTime >= stopAtSecondsRef.current) {
+        stopPlayback();
+      }
+    };
+
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("ended", stopPlayback, { once: true });
+
+    try {
+      await audio.play();
+      setIsDemoPlaying(true);
+      setIsDemoLoading(false);
+    } catch {
+      stopPlayback();
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        disabled={!demoAudioUrl || isDemoLoading}
+        onClick={() => {
+          void handleToggleDemo();
+        }}
+        className={[
+          "rounded-full border px-4 py-2 text-sm transition",
+          !demoAudioUrl
+            ? "border-black/10 bg-neutral-100 text-neutral-400"
+            : "border-black/10 bg-white text-neutral-800 hover:bg-neutral-50",
+        ].join(" ")}
+      >
+        {isDemoLoading ? "読込中..." : isDemoPlaying ? "デモ停止" : "デモ再生"}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+          void handleSelect();
+        }}
+        className={[
+          "rounded-full border px-4 py-2 text-sm font-medium transition",
+          isSelected
+            ? "border-sky-200 bg-sky-50 text-black"
+            : "border-black/10 bg-neutral-200 text-black hover:bg-neutral-300",
+        ].join(" ")}
+      >
+        {isSelected ? "選択中" : "選択する"}
+      </button>
+    </div>
+  );
+}

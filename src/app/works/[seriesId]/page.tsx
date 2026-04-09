@@ -23,6 +23,7 @@ import {
 import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGenerationBootstrap";
 import { unstable_noStore as noStore } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import ReaderCardControls from "@/components/recording/ReaderCardControls";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -63,6 +64,10 @@ type RecordingRow = Record<string, unknown> & {
   is_public?: boolean | null;
   public?: boolean | null;
   allow_download?: boolean | null;
+  episode_id?: string | null;
+  episodeId?: string | null;
+  audio_storage_path?: string | null;
+  audioStoragePath?: string | null;  
 };
 
 type ReaderCard = {
@@ -75,6 +80,7 @@ type ReaderCard = {
   totalPlays: number;
   recordingCount: number;
   allowDownload: boolean;
+  demoAudioUrl: string;
 };
 
 type RelatedWorkCard = {
@@ -359,6 +365,14 @@ function getRecordingReaderKey(recording: RecordingRow): string {
   );
 }
 
+function getRecordingAudioStoragePath(recording: RecordingRow): string {
+  return pickText(recording.audio_storage_path, recording.audioStoragePath);
+}
+
+function getRecordingEpisodeId(recording: RecordingRow): string {
+  return pickText(recording.episode_id, recording.episodeId);
+}
+
 function normalizeRequestedReaderKey(
   readerKey?: string,
   readerName?: string
@@ -378,7 +392,10 @@ function normalizeRequestedReaderKey(
   return normalizedKey;
 }
 
-function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
+function buildReaderCards(
+  recordings: RecordingRow[],
+  episodeNumberById: Map<string, number>
+): ReaderCard[] {
   const grouped = new Map<
     string,
     {
@@ -390,12 +407,18 @@ function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
       recordingCount: number;
       allowDownload: boolean;
       tagMap: Map<string, number>;
+      demoAudioUrl: string;
+      demoEpisodeNumber: number;
     }
   >();
 
   for (const recording of recordings) {
     const name = getRecordingReaderName(recording);
     const key = getRecordingReaderKey(recording);
+    const audioStoragePath = getRecordingAudioStoragePath(recording);
+    const episodeId = getRecordingEpisodeId(recording);
+    const episodeNumber =
+      episodeNumberById.get(episodeId) ?? Number.MAX_SAFE_INTEGER;
 
     const existing = grouped.get(key) ?? {
       key,
@@ -406,6 +429,8 @@ function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
       recordingCount: 0,
       allowDownload: false,
       tagMap: new Map<string, number>(),
+      demoAudioUrl: "",
+      demoEpisodeNumber: Number.MAX_SAFE_INTEGER,
     };
 
     existing.totalLikes += getRecordingLikes(recording);
@@ -420,6 +445,14 @@ function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
 
     if (!existing.description) {
       existing.description = pickText(recording.description, recording.reader_comment) || "";
+    }
+
+    if (
+      audioStoragePath &&
+      episodeNumber < existing.demoEpisodeNumber
+    ) {
+      existing.demoAudioUrl = audioStoragePath;
+      existing.demoEpisodeNumber = episodeNumber;
     }
 
     grouped.set(key, existing);
@@ -448,6 +481,7 @@ function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
       totalPlays: reader.totalPlays,
       recordingCount: reader.recordingCount,
       allowDownload: reader.allowDownload,
+      demoAudioUrl: reader.demoAudioUrl,
     }));
 }
 
@@ -588,7 +622,8 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const { recordings, fetchErrorMessage } = await fetchRecordingsByEpisodeIds(
     episodes.map((episode) => episode.id)
   );
-  const readerCards = buildReaderCards(recordings);
+  const episodeNumberById = new Map(episodes.map((episode) => [episode.id, getEpisodeNumber(episode)]));
+  const readerCards = buildReaderCards(recordings, episodeNumberById);
 
   const allPublicSeries = await fetchPublicSeries();
 
@@ -934,12 +969,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                                 >
                                   {reader.name}
                                 </Link>
-
-                                {isSelected ? (
-                                  <span className="rounded-full border border-sky-200 bg-white px-3 py-1 text-[11px] text-black">
-                                    選択中
-                                  </span>
-                                ) : null}
                               </div>
 
                               <div className="mt-3 flex flex-wrap gap-2">
@@ -960,41 +989,14 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                               </div>
                             </div>
 
-                            <div className="flex flex-wrap gap-2">
-                              <Link
-                                href={buildReaderHref(reader.readerKey, reader.name)}
-                                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
-                              >
-                                朗読者ページへ
-                              </Link>
-
-                              <Link
-                                href={buildWorksHref(
-                                  seriesId,
-                                  "toc",
-                                  reader.readerKey,
-                                  reader.name,
-                                  currentRangeStart
-                                )}
-                                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
-                              >
-                                この朗読で目次へ
-                              </Link>
-
-                              {firstEpisodeNumber !== null ? (
-                                <Link
-                                  href={buildReadHref(
-                                    seriesId,
-                                    firstEpisodeNumber,
-                                    reader.readerKey,
-                                    reader.name
-                                  )}
-                                  className="rounded-full border border-black/10 bg-neutral-200 px-4 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
-                                >
-                                  この朗読で再生
-                                </Link>
-                              ) : null}
-                            </div>
+                            <ReaderCardControls
+                              readerKey={reader.readerKey}
+                              readerName={reader.name}
+                              isSelected={isSelected}
+                              demoAudioUrl={reader.demoAudioUrl}
+                              currentTab="readers"
+                              currentRangeStart={currentRangeStart}
+                            />
                           </div>
 
                           <p className="mt-4 text-sm leading-7 text-neutral-600">

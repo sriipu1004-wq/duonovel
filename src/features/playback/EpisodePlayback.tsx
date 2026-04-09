@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -80,6 +81,16 @@ type BookmarkData = {
   readerName?: string;
   savedAt: string;
 };
+
+const PLAYER_ICON_PATHS = {
+  settings: "/player-icons/settings.png",
+  stop: "/player-icons/stop.png",
+  play: "/player-icons/play.png",
+  next: "/player-icons/next.png",
+  prev: "/player-icons/prev.png",
+  bookmarkFilled: "/player-icons/bookmark-filled.png",
+  bookmark: "/player-icons/bookmark.png",
+} as const;
 
 type GeneratedSentenceTiming = {
   sentenceIndex: number;
@@ -312,17 +323,21 @@ function FooterActionButton({
   disabled = false,
   active = false,
   accent = false,
+  iconSrc,
   onClick,
 }: {
   label: string;
   disabled?: boolean;
   active?: boolean;
   accent?: boolean;
+  iconSrc?: string;
   onClick?: () => void;
 }) {
   return (
     <button
       type="button"
+      aria-label={label}
+      title={label}
       disabled={disabled}
       onClick={onClick}
       className={[
@@ -336,7 +351,20 @@ function FooterActionButton({
               : "border-black/10 bg-white text-black hover:bg-neutral-50",
       ].join(" ")}
     >
-      <span className="whitespace-pre-line">{label}</span>
+      {iconSrc ? (
+        <Image
+          src={iconSrc}
+          alt=""
+          width={28}
+          height={28}
+          className={[
+            "h-7 w-7 object-contain",
+            disabled ? "opacity-35" : "opacity-80",
+          ].join(" ")}
+        />
+      ) : (
+        <span className="whitespace-pre-line">{label}</span>
+      )}
     </button>
   );
 }
@@ -440,6 +468,7 @@ export default function EpisodePlayback({
   const sentenceRefs = useRef<Record<number, HTMLSpanElement | null>>({});
   const ignoreScrollRef = useRef(false);
   const ignoreScrollTimeoutRef = useRef<number | null>(null);
+  const autoFollowRafRef = useRef<number | null>(null);
   const hasAppliedInitialSeekRef = useRef(false);
   const autoPlayRequestedRef = useRef(false);
   const settingsReturnScrollYRef = useRef<number | null>(null);
@@ -501,6 +530,7 @@ export default function EpisodePlayback({
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [autoFollow, setAutoFollow] = useState(true);
   const [bookmarkMessage, setBookmarkMessage] = useState("");
+  const [isCurrentEpisodeBookmarked, setIsCurrentEpisodeBookmarked] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNarrationStopped, setIsNarrationStopped] = useState(false);
   const [assembledSegmentAudioUrl, setAssembledSegmentAudioUrl] = useState("");
@@ -1019,6 +1049,34 @@ useEffect(() => {
   });
 
     useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const raw = window.localStorage.getItem(`duonovel:bookmark:${seriesId}`);
+      if (!raw) {
+        setIsCurrentEpisodeBookmarked(false);
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as Partial<BookmarkData> | null;
+      if (!parsed) {
+        setIsCurrentEpisodeBookmarked(false);
+        return;
+      }
+
+      const sameEpisode =
+        Number(parsed.episodeNumber) === episodeNumber;
+      const sameReader =
+        (parsed.readerKey ?? "") === (selectedReaderKey ?? "") &&
+        (parsed.readerName ?? "") === (selectedReaderName ?? "");
+
+      setIsCurrentEpisodeBookmarked(sameEpisode && sameReader);
+    } catch {
+      setIsCurrentEpisodeBookmarked(false);
+    }
+  }, [seriesId, episodeNumber, selectedReaderKey, selectedReaderName]);
+
+    useEffect(() => {
     if (!episodeId) return;
 
     void trackSeriesViewOnce({
@@ -1070,13 +1128,39 @@ useEffect(() => {
       const target = sentenceRefs.current[sentenceIndex];
       if (!target) return;
 
+      const rect = target.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const upperBound = viewportHeight * 0.28;
+      const lowerBound = viewportHeight * 0.72;
+      const targetCenter = rect.top + rect.height / 2;
+
+      if (
+        behavior === "smooth" &&
+        targetCenter >= upperBound &&
+        targetCenter <= lowerBound
+      ) {
+        return;
+      }
+
+      const absoluteTop = window.scrollY + rect.top;
+      const desiredTop = Math.max(
+        0,
+        absoluteTop - viewportHeight * 0.38
+      );
+
       ignoreScrollRef.current = true;
-      target.scrollIntoView({
-        behavior,
-        block: "center",
-        inline: "nearest",
+
+      if (autoFollowRafRef.current) {
+        window.cancelAnimationFrame(autoFollowRafRef.current);
+      }
+
+      autoFollowRafRef.current = window.requestAnimationFrame(() => {
+        window.scrollTo({
+          top: desiredTop,
+          behavior,
+        });
+        unlockProgrammaticScroll();
       });
-      unlockProgrammaticScroll();
     },
     [unlockProgrammaticScroll]
   );
@@ -1443,6 +1527,9 @@ useEffect(() => {
 
     return () => {
       window.clearTimeout(resetTimer);
+      if (autoFollowRafRef.current) {
+        window.cancelAnimationFrame(autoFollowRafRef.current);
+      }      
     };
   }, [playableAudioSrc, resetPlaybackViewState]);
 
@@ -1454,7 +1541,7 @@ useEffect(() => {
     if (isNarrationStopped) return;
     if (suppressAutoFollowAfterSettingsRef.current) return;
 
-    scrollToSentence(estimatedSentenceIndex, "auto");
+      scrollToSentence(estimatedSentenceIndex, "smooth");
   }, [
     estimatedSentenceIndex,
     isPlaying,
@@ -1623,6 +1710,7 @@ useEffect(() => {
         JSON.stringify(payload)
       );
 
+      setIsCurrentEpisodeBookmarked(true);
       setBookmarkMessage("しおりを保存した");
 
       if (bookmarkToastTimeoutRef.current) {
@@ -2023,7 +2111,12 @@ useEffect(() => {
           {!isNarrationStopped ? (
             <div className="mt-3 grid w-full grid-cols-7 gap-2">
               <FooterActionButton
-                label="栞"
+                label={isCurrentEpisodeBookmarked ? "ブックマーク保存済み" : "ブックマーク"}
+                iconSrc={
+                  isCurrentEpisodeBookmarked
+                    ? PLAYER_ICON_PATHS.bookmarkFilled
+                    : PLAYER_ICON_PATHS.bookmark
+                }
                 disabled={false}
                 onClick={handleSaveBookmark}
               />
@@ -2036,6 +2129,7 @@ useEffect(() => {
 
               <FooterActionButton
                 label="前話"
+                iconSrc={PLAYER_ICON_PATHS.prev}
                 disabled={!hasPrevEpisode || isAdvancing}
                 onClick={() => {
                   void handleMovePrev();
@@ -2044,6 +2138,7 @@ useEffect(() => {
 
               <FooterActionButton
                 label={isPlaying ? "停止" : "再生"}
+                iconSrc={isPlaying ? PLAYER_ICON_PATHS.stop : PLAYER_ICON_PATHS.play}
                 disabled={!canPlayAudio}
                 accent
                 onClick={() => {
@@ -2053,6 +2148,7 @@ useEffect(() => {
 
               <FooterActionButton
                 label="次話"
+                iconSrc={PLAYER_ICON_PATHS.next}
                 disabled={!hasNextEpisode || isAdvancing}
                 onClick={() => {
                   void handleMoveNext();
@@ -2068,6 +2164,7 @@ useEffect(() => {
 
               <FooterActionButton
                 label="設定"
+                iconSrc={PLAYER_ICON_PATHS.settings}
                 disabled={false}
                 active={isSettingsOpen}
                 onClick={handleToggleSettings}
@@ -2076,13 +2173,19 @@ useEffect(() => {
           ) : (
             <div className="mt-3 grid w-full grid-cols-4 gap-2">
               <FooterActionButton
-                label="栞"
+                label={isCurrentEpisodeBookmarked ? "ブックマーク保存済み" : "ブックマーク"}
+                iconSrc={
+                  isCurrentEpisodeBookmarked
+                    ? PLAYER_ICON_PATHS.bookmarkFilled
+                    : PLAYER_ICON_PATHS.bookmark
+                }
                 disabled={false}
                 onClick={handleSaveBookmark}
               />
 
               <FooterActionButton
                 label="前話"
+                iconSrc={PLAYER_ICON_PATHS.prev}
                 disabled={!hasPrevEpisode || isAdvancing}
                 onClick={() => {
                   void handleMovePrev();
@@ -2091,6 +2194,7 @@ useEffect(() => {
 
               <FooterActionButton
                 label="次話"
+                iconSrc={PLAYER_ICON_PATHS.next}
                 disabled={!hasNextEpisode || isAdvancing}
                 onClick={() => {
                   void handleMoveNext();
@@ -2099,6 +2203,7 @@ useEffect(() => {
 
               <FooterActionButton
                 label="設定"
+                iconSrc={PLAYER_ICON_PATHS.settings}
                 disabled={false}
                 active={isSettingsOpen}
                 onClick={handleToggleSettings}
