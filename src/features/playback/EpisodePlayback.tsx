@@ -33,12 +33,12 @@ import {
 } from "@/lib/effects/effectSettings";
 import {
   buildContentBlocks,
-  buildParagraphBlocks,
   buildSceneBreakRuntimeList,
   buildSceneCueRuntimeList,
   buildSentenceTimestampRuntimeList,
   resolveActiveSentenceIndex,
 } from "@/lib/effects/effectTextLayout";
+import { preprocessNemoBodyToParagraphs } from "@/lib/recording/nemoTextPreprocess";
 import { concatNemoWavs } from "@/lib/recording/nemoWav";
 
 type EpisodePlaybackProps = {
@@ -86,6 +86,7 @@ type GeneratedSentenceTiming = {
   timeSeconds: number;
   durationSeconds: number;
   targetText: string;
+  spokenText: string;
 };
 
 type GeneratedAudioSegment = {
@@ -259,7 +260,42 @@ function formatTime(value: number): string {
 }
 
 function normalizeComparableSentenceText(text: string): string {
-  return text.replace(/\s+/gu, "").trim();
+  return text
+    .replace(/\s+/gu, "")
+    .replace(/[「」『』（）()［］【】]/gu, "")
+    .trim();
+}
+
+function splitIntoNemoAlignedSentenceUnits(paragraph: string): string[] {
+  const normalized = paragraph.trim();
+
+  if (!normalized) {
+    return [];
+  }
+
+  const matched = normalized.match(/[^。！？!?…]+[。！？!?…]?/gu);
+
+  if (!matched || matched.length === 0) {
+    return [normalized];
+  }
+
+  return matched.map((item) => item.trim()).filter((item) => item.length > 0);
+}
+
+function buildNemoAlignedParagraphBlocks(body: string) {
+  const paragraphs = preprocessNemoBodyToParagraphs(body).map(
+    (paragraph) => paragraph.originalParagraph
+  );
+
+  let nextSentenceIndex = 0;
+
+  return paragraphs.map((paragraph, paragraphIndex) => ({
+    paragraphIndex,
+    segments: splitIntoNemoAlignedSentenceUnits(paragraph).map((text) => ({
+      index: nextSentenceIndex++,
+      text,
+    })),
+  }));
 }
 
 function renderSentenceWithInlineMarks(
@@ -528,7 +564,7 @@ export default function EpisodePlayback({
       ? body
       : "本文がまだ登録されていません。";
 
-  const paragraphBlocks = useMemo(() => buildParagraphBlocks(safeBody), [safeBody]);
+  const paragraphBlocks = useMemo(() => buildNemoAlignedParagraphBlocks(safeBody), [safeBody]);
 
   const totalSentenceCount = useMemo(() => {
     return paragraphBlocks.reduce((sum, block) => sum + block.segments.length, 0);
@@ -591,6 +627,8 @@ export default function EpisodePlayback({
             : 0,
         targetText:
           typeof item.targetText === "string" ? item.targetText : "",
+        spokenText:
+          typeof item.spokenText === "string" ? item.spokenText : "",
       }))
       .sort((left, right) => {
         if (left.timeSeconds !== right.timeSeconds) {
@@ -609,9 +647,12 @@ export default function EpisodePlayback({
     let searchStartIndex = 0;
 
     return runtimeGeneratedSentenceTimings.map((item) => {
-      const normalizedTargetText = normalizeComparableSentenceText(item.targetText);
+      const normalizedCandidates = [
+        normalizeComparableSentenceText(item.targetText),
+        normalizeComparableSentenceText(item.spokenText),
+      ].filter((value) => value.length > 0);
 
-      if (!normalizedTargetText) {
+      if (normalizedCandidates.length === 0) {
         return item;
       }
 
@@ -626,18 +667,35 @@ export default function EpisodePlayback({
           continue;
         }
 
-        if (
-          candidate.text === normalizedTargetText ||
-          candidate.text.includes(normalizedTargetText) ||
-          normalizedTargetText.includes(candidate.text)
-        ) {
-          searchStartIndex = visibleIndex + 1;
+        const matched = normalizedCandidates.some(
+          (target) =>
+            candidate.text === target ||
+            candidate.text.includes(target) ||
+            target.includes(candidate.text)
+        );
 
-          return {
-            ...item,
-            sentenceIndex: candidate.sentenceIndex,
-          };
+        if (!matched) {
+          continue;
         }
+
+        searchStartIndex = visibleIndex + 1;
+
+        return {
+          ...item,
+          sentenceIndex: candidate.sentenceIndex,
+        };
+      }
+
+      if (
+        item.sentenceIndex >= 0 &&
+        item.sentenceIndex < flatVisibleSentences.length
+      ) {
+        searchStartIndex = Math.max(searchStartIndex, item.sentenceIndex + 1);
+
+        return {
+          ...item,
+          sentenceIndex: flatVisibleSentences[item.sentenceIndex].sentenceIndex,
+        };
       }
 
       return item;
@@ -666,6 +724,104 @@ export default function EpisodePlayback({
       durationSeconds: item.durationSeconds * timingScale,
     }));
   }, [duration, mappedGeneratedSentenceTimings]);
+
+  const expandedGeneratedSentenceTimings = useMemo(() => {
+    if (flatVisibleSentences.length === 0) {
+      return [];
+    }
+
+    if (alignedGeneratedSentenceTimings.length === 0) {
+      return [];
+    }
+
+    const knownTimings = [...alignedGeneratedSentenceTimings].sort(
+      (left, right) => left.sentenceIndex - right.sentenceIndex
+    );
+
+    const exactTimingMap = new Map(
+      knownTimings.map((item) => [item.sentenceIndex, item] as const)
+    );
+
+    const firstKnownTiming = knownTimings[0];
+    const lastKnownTiming = knownTimings[knownTimings.length - 1];
+
+    const averageStepSeconds =
+      knownTimings.length > 1
+        ? (lastKnownTiming.timeSeconds - firstKnownTiming.timeSeconds) /
+          Math.max(
+            1,
+            lastKnownTiming.sentenceIndex - firstKnownTiming.sentenceIndex
+          )
+        : Math.max(firstKnownTiming.durationSeconds, 0.25);
+
+    return flatVisibleSentences
+      .map((visibleSentence) => {
+        const exactTiming = exactTimingMap.get(visibleSentence.sentenceIndex);
+
+        if (exactTiming) {
+          return exactTiming;
+        }
+
+        let previousKnownTiming: (typeof knownTimings)[number] | null = null;
+        let nextKnownTiming: (typeof knownTimings)[number] | null = null;
+
+        for (const candidate of knownTimings) {
+          if (candidate.sentenceIndex < visibleSentence.sentenceIndex) {
+            previousKnownTiming = candidate;
+            continue;
+          }
+
+          if (candidate.sentenceIndex > visibleSentence.sentenceIndex) {
+            nextKnownTiming = candidate;
+            break;
+          }
+        }
+
+        let timeSeconds = 0;
+
+        if (
+          previousKnownTiming &&
+          nextKnownTiming &&
+          nextKnownTiming.sentenceIndex !== previousKnownTiming.sentenceIndex
+        ) {
+          const ratio =
+            (visibleSentence.sentenceIndex - previousKnownTiming.sentenceIndex) /
+            (nextKnownTiming.sentenceIndex - previousKnownTiming.sentenceIndex);
+
+          timeSeconds =
+            previousKnownTiming.timeSeconds +
+            (nextKnownTiming.timeSeconds - previousKnownTiming.timeSeconds) *
+              ratio;
+        } else if (previousKnownTiming) {
+          timeSeconds =
+            previousKnownTiming.timeSeconds +
+            averageStepSeconds *
+              (visibleSentence.sentenceIndex - previousKnownTiming.sentenceIndex);
+        } else if (nextKnownTiming) {
+          timeSeconds = Math.max(
+            0,
+            nextKnownTiming.timeSeconds -
+              averageStepSeconds *
+                (nextKnownTiming.sentenceIndex - visibleSentence.sentenceIndex)
+          );
+        }
+
+        return {
+          sentenceIndex: visibleSentence.sentenceIndex,
+          timeSeconds,
+          durationSeconds: averageStepSeconds,
+          targetText: visibleSentence.text,
+          spokenText: visibleSentence.text,
+        };
+      })
+      .sort((left, right) => {
+        if (left.timeSeconds !== right.timeSeconds) {
+          return left.timeSeconds - right.timeSeconds;
+        }
+
+        return left.sentenceIndex - right.sentenceIndex;
+      });
+  }, [alignedGeneratedSentenceTimings, flatVisibleSentences]);
 
   const activeSceneCueLabel = useMemo(
     () =>
@@ -806,10 +962,10 @@ useEffect(() => {
       : bgmTitle || "";
 
   const estimatedSentenceIndex = useMemo(() => {
-    if (alignedGeneratedSentenceTimings.length > 0) {
+    if (expandedGeneratedSentenceTimings.length > 0) {
       return resolveActiveSentenceIndexFromGeneratedTimings({
         currentTime,
-        generatedSentenceTimings: alignedGeneratedSentenceTimings,
+        generatedSentenceTimings: expandedGeneratedSentenceTimings,
       });
     }
 
@@ -824,7 +980,7 @@ useEffect(() => {
     duration,
     totalSentenceCount,
     runtimeSentenceTimestamps,
-    alignedGeneratedSentenceTimings,
+    expandedGeneratedSentenceTimings,
   ]);
 
   const visibleMarkerSentenceIndex = estimatedSentenceIndex;
@@ -855,7 +1011,7 @@ useEffect(() => {
     isFollowing: autoFollow,
     isPlaying,
     intervalMs: 4000,
-    restoreEnabled: false,
+    restoreEnabled: !initialAutoPlay,
     persistEpisodeScopedLocal: false,
     onRestore: applyRestoredPlayLog,
     readLocalResumeState,
