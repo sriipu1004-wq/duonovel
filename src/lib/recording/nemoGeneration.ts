@@ -107,6 +107,46 @@ function getRecordingAudioBucketName(): string {
   return process.env.NEXT_PUBLIC_SUPABASE_RECORDING_BUCKET?.trim() || "recording-audio";
 }
 
+function isStorageObjectTooLargeError(message: string): boolean {
+  return message.includes("maximum allowed size");
+}
+
+type NemoUploadCandidate = {
+  label: string;
+  wavBytes: Uint8Array;
+};
+
+function buildNemoUploadCandidates(mergedWavBytes: Uint8Array): NemoUploadCandidate[] {
+  const rawCandidates: NemoUploadCandidate[] = [
+    {
+      label: "24k",
+      wavBytes: downsampleNemoWav(mergedWavBytes, 24000),
+    },
+    {
+      label: "16k",
+      wavBytes: downsampleNemoWav(mergedWavBytes, 16000),
+    },
+    {
+      label: "12k",
+      wavBytes: downsampleNemoWav(mergedWavBytes, 12000),
+    },
+    {
+      label: "8k",
+      wavBytes: downsampleNemoWav(mergedWavBytes, 8000),
+    },
+  ];
+
+  const uniqueBySize = new Map<number, NemoUploadCandidate>();
+
+  for (const candidate of rawCandidates) {
+    if (!uniqueBySize.has(candidate.wavBytes.byteLength)) {
+      uniqueBySize.set(candidate.wavBytes.byteLength, candidate);
+    }
+  }
+
+  return Array.from(uniqueBySize.values());
+}
+
 function buildNemoRecordingObjectPath({
   seriesId,
   episodeId,
@@ -594,7 +634,7 @@ if (process.env.NODE_ENV === "development") {
   }
 
   const mergedWavBytes = concatNemoWavs(renderedSegments);
-  const wavBytes = downsampleNemoWav(mergedWavBytes, 24000);
+  const uploadCandidates = buildNemoUploadCandidates(mergedWavBytes);
 
   const timingManifest = buildNemoTimingManifest({
     chunks,
@@ -611,22 +651,76 @@ if (process.env.NODE_ENV === "development") {
   const timingObjectPath = buildNemoTimingObjectPathFromAudioObjectPath(objectPath);
   const currentObjectPaths = [objectPath, timingObjectPath];
 
-  const { error: uploadError } = await adminSupabase.storage
-    .from(bucketName)
-    .upload(objectPath, wavBytes, {
-      contentType: "audio/wav",
-      upsert: false,
-    });
+  let wavBytes: Uint8Array | null = null;
+  let lastUploadErrorMessage: string | null = null;
+  let lastUploadErrorName: string | null = null;
 
-  if (uploadError) {
+  for (const candidate of uploadCandidates) {
+    if (process.env.NODE_ENV === "development") {
+      console.log("[nemo upload candidate]", {
+        episodeId,
+        label: candidate.label,
+        bytes: candidate.wavBytes.byteLength,
+      });
+    }
+
+    const { error: uploadError } = await adminSupabase.storage
+      .from(bucketName)
+     .upload(objectPath, candidate.wavBytes, {
+        contentType: "audio/wav",
+        upsert: true,
+      });
+
+    if (!uploadError) {
+      wavBytes = candidate.wavBytes;
+      lastUploadErrorMessage = null;
+      lastUploadErrorName = null;
+      break;
+    }
+
+    lastUploadErrorMessage = uploadError.message;
+    lastUploadErrorName = uploadError.name;
+
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[nemo storage upload retry]", {
+        bucketName,
+       objectPath,
+        label: candidate.label,
+        bytes: candidate.wavBytes.byteLength,
+        message: uploadError.message,
+        name: uploadError.name,
+      });
+    }
+
+    if (!isStorageObjectTooLargeError(uploadError.message)) {
+      console.error("[nemo storage upload failed]", {
+        bucketName,
+        objectPath,
+        label: candidate.label,
+        bytes: candidate.wavBytes.byteLength,
+        message: uploadError.message,
+        name: uploadError.name,
+      });
+
+      throw new Error(`storage_upload_failed:${uploadError.message}`);
+    }
+  }
+
+  if (!wavBytes) {
     console.error("[nemo storage upload failed]", {
       bucketName,
       objectPath,
-      message: uploadError.message,
-      name: uploadError.name,
+      message: lastUploadErrorMessage,
+      name: lastUploadErrorName,
+      candidates: uploadCandidates.map((candidate) => ({
+        label: candidate.label,
+        bytes: candidate.wavBytes.byteLength,
+      })),
     });
 
-    throw new Error(`storage_upload_failed:${uploadError.message}`);
+    throw new Error(
+      `storage_upload_failed:${lastUploadErrorMessage ?? "unknown error"}`
+    );
   }
 
   const timingBytes = new TextEncoder().encode(
