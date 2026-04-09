@@ -101,7 +101,6 @@ export function NemoAutoGenerationBootstrap({
         }
 
         if (payload.status === "none_missing") {
-          router.refresh();
           return;
         }
 
