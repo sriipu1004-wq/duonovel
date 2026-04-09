@@ -8,8 +8,10 @@ import { buildNemoChunks } from "@/lib/recording/nemoChunking";
 import { synthesizeNemoWav } from "@/lib/recording/nemoClient";
 import { resolveNemoPronunciationDictionary } from "@/lib/recording/nemoPronunciationDictionary";
 import {
+  attachNemoGeneratedAudioSegments,
   buildNemoTimingManifest,
   buildNemoTimingObjectPathFromAudioObjectPath,
+  type NemoGeneratedAudioSegment,
 } from "@/lib/recording/nemoTiming";
 import {
   concatNemoWavs,
@@ -165,6 +167,137 @@ function buildNemoRecordingObjectPath({
     sanitizeStorageSegment(episodeId),
     `${unique}-${narratorSegment}.wav`,
   ].join("/");
+}
+
+type RenderedNemoSegment = {
+  wavBytes: Uint8Array;
+  pauseAfterMs: number;
+  durationSeconds: number;
+};
+
+type NemoAudioUploadCandidate = {
+  label: string;
+  wavBytes: Uint8Array;
+};
+
+type NemoUploadPartPlan = {
+  partIndex: number;
+  startTimeSeconds: number;
+  durationSeconds: number;
+  renderedSegments: RenderedNemoSegment[];
+};
+
+const MAX_NEMO_UPLOAD_PART_DURATION_SECONDS = 300;
+
+function isStorageObjectTooLargeUploadError(message: string): boolean {
+  return message.includes("maximum allowed size");
+}
+
+function buildUploadCandidatesForNemoWav(
+  mergedWavBytes: Uint8Array
+): NemoAudioUploadCandidate[] {
+  const rawCandidates: NemoAudioUploadCandidate[] = [
+    {
+      label: "24k",
+      wavBytes: downsampleNemoWav(mergedWavBytes, 24000),
+    },
+    {
+      label: "16k",
+      wavBytes: downsampleNemoWav(mergedWavBytes, 16000),
+    },
+    {
+      label: "12k",
+      wavBytes: downsampleNemoWav(mergedWavBytes, 12000),
+    },
+    {
+      label: "8k",
+      wavBytes: downsampleNemoWav(mergedWavBytes, 8000),
+    },
+  ];
+
+  const uniqueBySize = new Map<number, NemoAudioUploadCandidate>();
+
+  for (const candidate of rawCandidates) {
+    if (!uniqueBySize.has(candidate.wavBytes.byteLength)) {
+      uniqueBySize.set(candidate.wavBytes.byteLength, candidate);
+    }
+  }
+
+  return Array.from(uniqueBySize.values());
+}
+
+function getRenderedNemoSegmentTotalDurationSeconds(
+  segment: RenderedNemoSegment
+): number {
+  return segment.durationSeconds + segment.pauseAfterMs / 1000;
+}
+
+function buildNemoRecordingPartObjectPath(
+  baseObjectPath: string,
+  partIndex: number,
+  totalParts: number
+): string {
+  if (totalParts <= 1) {
+    return baseObjectPath;
+  }
+
+  const suffix = `.part${String(partIndex + 1).padStart(3, "0")}`;
+
+  if (/\.wav$/i.test(baseObjectPath)) {
+    return baseObjectPath.replace(/\.wav$/i, `${suffix}.wav`);
+  }
+
+  return `${baseObjectPath}${suffix}.wav`;
+}
+
+function buildNemoUploadPartPlans(
+  renderedSegments: RenderedNemoSegment[],
+  maxPartDurationSeconds: number = MAX_NEMO_UPLOAD_PART_DURATION_SECONDS
+): NemoUploadPartPlan[] {
+  if (renderedSegments.length === 0) {
+    return [];
+  }
+
+  const parts: NemoUploadPartPlan[] = [];
+
+  let currentRenderedSegments: RenderedNemoSegment[] = [];
+  let currentDurationSeconds = 0;
+  let currentStartTimeSeconds = 0;
+
+  for (const renderedSegment of renderedSegments) {
+    const segmentDurationSeconds =
+      getRenderedNemoSegmentTotalDurationSeconds(renderedSegment);
+
+    if (
+      currentRenderedSegments.length > 0 &&
+      currentDurationSeconds + segmentDurationSeconds > maxPartDurationSeconds
+    ) {
+      parts.push({
+        partIndex: parts.length,
+        startTimeSeconds: currentStartTimeSeconds,
+        durationSeconds: currentDurationSeconds,
+        renderedSegments: currentRenderedSegments,
+      });
+
+      currentStartTimeSeconds += currentDurationSeconds;
+      currentRenderedSegments = [];
+      currentDurationSeconds = 0;
+    }
+
+    currentRenderedSegments.push(renderedSegment);
+    currentDurationSeconds += segmentDurationSeconds;
+  }
+
+  if (currentRenderedSegments.length > 0) {
+    parts.push({
+      partIndex: parts.length,
+      startTimeSeconds: currentStartTimeSeconds,
+      durationSeconds: currentDurationSeconds,
+      renderedSegments: currentRenderedSegments,
+    });
+  }
+
+  return parts;
 }
 
 function extractBucketObjectPathFromPublicUrl(
@@ -567,14 +700,14 @@ export async function generateNemoRecordingForEpisode({
     episodeId,
   });
 
-if (process.env.NODE_ENV === "development") {
-  console.log("[nemo pronunciation dictionary]", {
-    seriesId,
-    episodeId,
-    entryCount: Object.keys(pronunciationDictionary).length,
-    entries: Object.keys(pronunciationDictionary),
-  });
-}
+  if (process.env.NODE_ENV === "development") {
+    console.log("[nemo pronunciation dictionary]", {
+      seriesId,
+      episodeId,
+      entryCount: Object.keys(pronunciationDictionary).length,
+      entries: Object.keys(pronunciationDictionary),
+    });
+  }
 
   const chunks = buildNemoChunks(episode.body, {
     pronunciationDictionary,
@@ -584,26 +717,22 @@ if (process.env.NODE_ENV === "development") {
     throw new Error("episode_body_empty");
   }
 
-if (process.env.NODE_ENV === "development") {
-  console.log("[nemo chunk build]", {
-    originalLength: episode.body.length,
-    chunkCount: chunks.length,
-    preview: chunks.slice(0, 3).map((chunk) => ({
-      paragraphIndex: chunk.paragraphIndex,
-      chunkIndex: chunk.chunkIndex,
-      sentenceIndex: chunk.sourceSentenceIndex,
-      length: chunk.text.length,
-      pauseAfterMs: chunk.pauseAfterMs,
-    })),
-    episodeId,
-  });
-}
+  if (process.env.NODE_ENV === "development") {
+    console.log("[nemo chunk build]", {
+      originalLength: episode.body.length,
+      chunkCount: chunks.length,
+      preview: chunks.slice(0, 3).map((chunk) => ({
+        paragraphIndex: chunk.paragraphIndex,
+        chunkIndex: chunk.chunkIndex,
+        sentenceIndex: chunk.sourceSentenceIndex,
+        length: chunk.text.length,
+        pauseAfterMs: chunk.pauseAfterMs,
+      })),
+      episodeId,
+    });
+  }
 
-  const renderedSegments: Array<{
-    wavBytes: Uint8Array;
-    pauseAfterMs: number;
-    durationSeconds: number;
-  }> = [];
+  const renderedSegments: RenderedNemoSegment[] = [];
 
   for (let index = 0; index < chunks.length; index += 1) {
     const chunk = chunks[index];
@@ -633,123 +762,164 @@ if (process.env.NODE_ENV === "development") {
     }
   }
 
-  const mergedWavBytes = concatNemoWavs(renderedSegments);
-  const uploadCandidates = buildNemoUploadCandidates(mergedWavBytes);
-
   const timingManifest = buildNemoTimingManifest({
     chunks,
     renderedSegments,
   });
 
+  const uploadPartPlans = buildNemoUploadPartPlans(renderedSegments);
+
+  if (uploadPartPlans.length === 0) {
+    throw new Error("nemo_upload_parts_empty");
+  }
+
   const adminSupabase = createAdminClient();
   const bucketName = getRecordingAudioBucketName();
-  const objectPath = buildNemoRecordingObjectPath({
+  const baseObjectPath = buildNemoRecordingObjectPath({
     seriesId,
     episodeId,
     narratorName,
   });
-  const timingObjectPath = buildNemoTimingObjectPathFromAudioObjectPath(objectPath);
-  const currentObjectPaths = [objectPath, timingObjectPath];
 
-  let wavBytes: Uint8Array | null = null;
-  let lastUploadErrorMessage: string | null = null;
-  let lastUploadErrorName: string | null = null;
+  const firstAudioObjectPath = buildNemoRecordingPartObjectPath(
+    baseObjectPath,
+    0,
+    uploadPartPlans.length
+  );
+  const timingObjectPath =
+    buildNemoTimingObjectPathFromAudioObjectPath(firstAudioObjectPath);
+  const currentObjectPaths = [timingObjectPath];
+  const uploadedAudioSegments: NemoGeneratedAudioSegment[] = [];
 
-  for (const candidate of uploadCandidates) {
-    if (process.env.NODE_ENV === "development") {
-      console.log("[nemo upload candidate]", {
-        episodeId,
-        label: candidate.label,
-        bytes: candidate.wavBytes.byteLength,
+  try {
+    for (const uploadPartPlan of uploadPartPlans) {
+      const audioObjectPath = buildNemoRecordingPartObjectPath(
+        baseObjectPath,
+        uploadPartPlan.partIndex,
+        uploadPartPlans.length
+      );
+      currentObjectPaths.push(audioObjectPath);
+
+      const mergedPartWavBytes = concatNemoWavs(uploadPartPlan.renderedSegments);
+      const uploadCandidates =
+        buildUploadCandidatesForNemoWav(mergedPartWavBytes);
+
+      let uploaded = false;
+      let lastUploadErrorMessage: string | null = null;
+      let lastUploadErrorName: string | null = null;
+
+      for (const candidate of uploadCandidates) {
+        if (process.env.NODE_ENV === "development") {
+          console.log("[nemo upload candidate]", {
+            episodeId,
+            label: candidate.label,
+            bytes: candidate.wavBytes.byteLength,
+            partIndex: uploadPartPlan.partIndex,
+          });
+        }
+
+        const { error: uploadError } = await adminSupabase.storage
+          .from(bucketName)
+          .upload(audioObjectPath, candidate.wavBytes, {
+            contentType: "audio/wav",
+            upsert: true,
+          });
+
+        if (!uploadError) {
+          uploaded = true;
+          break;
+        }
+
+        lastUploadErrorMessage = uploadError.message;
+        lastUploadErrorName = uploadError.name;
+
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[nemo storage upload retry]", {
+            bucketName,
+            audioObjectPath,
+            label: candidate.label,
+            bytes: candidate.wavBytes.byteLength,
+            partIndex: uploadPartPlan.partIndex,
+            message: uploadError.message,
+            name: uploadError.name,
+          });
+        }
+
+        if (!isStorageObjectTooLargeUploadError(uploadError.message)) {
+          console.error("[nemo storage upload failed]", {
+            bucketName,
+            audioObjectPath,
+            label: candidate.label,
+            bytes: candidate.wavBytes.byteLength,
+            partIndex: uploadPartPlan.partIndex,
+            message: uploadError.message,
+            name: uploadError.name,
+          });
+
+          throw new Error(`storage_upload_failed:${uploadError.message}`);
+        }
+      }
+
+      if (!uploaded) {
+        console.error("[nemo storage upload failed]", {
+          bucketName,
+          audioObjectPath,
+          partIndex: uploadPartPlan.partIndex,
+          message: lastUploadErrorMessage,
+          name: lastUploadErrorName,
+          candidates: uploadCandidates.map((candidate) => ({
+            label: candidate.label,
+            bytes: candidate.wavBytes.byteLength,
+          })),
+        });
+
+        throw new Error(
+          `storage_upload_failed:${lastUploadErrorMessage ?? "unknown error"}`
+        );
+      }
+
+      const {
+        data: { publicUrl },
+      } = adminSupabase.storage.from(bucketName).getPublicUrl(audioObjectPath);
+
+      if (!publicUrl) {
+        throw new Error("storage_public_url_unavailable");
+      }
+
+      uploadedAudioSegments.push({
+        segmentIndex: uploadPartPlan.partIndex,
+        startTimeSeconds: uploadPartPlan.startTimeSeconds,
+        durationSeconds: uploadPartPlan.durationSeconds,
+        audioPublicUrl: publicUrl,
       });
     }
 
-    const { error: uploadError } = await adminSupabase.storage
+    const timingManifestWithSegments = attachNemoGeneratedAudioSegments(
+      timingManifest,
+      uploadedAudioSegments
+    );
+
+    const timingBytes = new TextEncoder().encode(
+      JSON.stringify(timingManifestWithSegments, null, 2)
+    );
+
+    const { error: timingUploadError } = await adminSupabase.storage
       .from(bucketName)
-     .upload(objectPath, candidate.wavBytes, {
-        contentType: "audio/wav",
+      .upload(timingObjectPath, timingBytes, {
+        contentType: "application/json",
         upsert: true,
       });
 
-    if (!uploadError) {
-      wavBytes = candidate.wavBytes;
-      lastUploadErrorMessage = null;
-      lastUploadErrorName = null;
-      break;
+    if (timingUploadError) {
+      throw new Error(`nemo_timing_upload_failed:${timingUploadError.message}`);
     }
 
-    lastUploadErrorMessage = uploadError.message;
-    lastUploadErrorName = uploadError.name;
+    const primaryAudioPublicUrl = uploadedAudioSegments[0]?.audioPublicUrl ?? "";
 
-    if (process.env.NODE_ENV === "development") {
-      console.warn("[nemo storage upload retry]", {
-        bucketName,
-       objectPath,
-        label: candidate.label,
-        bytes: candidate.wavBytes.byteLength,
-        message: uploadError.message,
-        name: uploadError.name,
-      });
+    if (!primaryAudioPublicUrl) {
+      throw new Error("storage_public_url_unavailable");
     }
 
-    if (!isStorageObjectTooLargeError(uploadError.message)) {
-      console.error("[nemo storage upload failed]", {
-        bucketName,
-        objectPath,
-        label: candidate.label,
-        bytes: candidate.wavBytes.byteLength,
-        message: uploadError.message,
-        name: uploadError.name,
-      });
-
-      throw new Error(`storage_upload_failed:${uploadError.message}`);
-    }
-  }
-
-  if (!wavBytes) {
-    console.error("[nemo storage upload failed]", {
-      bucketName,
-      objectPath,
-      message: lastUploadErrorMessage,
-      name: lastUploadErrorName,
-      candidates: uploadCandidates.map((candidate) => ({
-        label: candidate.label,
-        bytes: candidate.wavBytes.byteLength,
-      })),
-    });
-
-    throw new Error(
-      `storage_upload_failed:${lastUploadErrorMessage ?? "unknown error"}`
-    );
-  }
-
-  const timingBytes = new TextEncoder().encode(
-    JSON.stringify(timingManifest, null, 2)
-  );
-
-  const { error: timingUploadError } = await adminSupabase.storage
-    .from(bucketName)
-    .upload(timingObjectPath, timingBytes, {
-      contentType: "application/json",
-      upsert: false,
-    });
-
-  if (timingUploadError) {
-    await removeStorageObjectPaths(adminSupabase, bucketName, [objectPath]);
-
-    throw new Error(`nemo_timing_upload_failed:${timingUploadError.message}`);
-  }
-
-  const {
-    data: { publicUrl },
-  } = adminSupabase.storage.from(bucketName).getPublicUrl(objectPath);
-
-  if (!publicUrl) {
-    await removeStorageObjectPaths(adminSupabase, bucketName, currentObjectPaths);
-    throw new Error("storage_public_url_unavailable");
-  }
-
-  try {
     await ensureReaderUserRow(adminSupabase, userId, narratorName);
 
     const {
@@ -761,26 +931,30 @@ if (process.env.NODE_ENV === "development") {
       episodeId,
       readerId: userId,
       readerName: narratorName,
-      audioStoragePath: publicUrl,
+      audioStoragePath: primaryAudioPublicUrl,
     });
 
-    await removePreviousRecordingArtifactsIfNeeded(
-      adminSupabase,
-      bucketName,
-      previousAudioStoragePath,
-      currentObjectPaths
-    );
+    try {
+      await removePreviousRecordingArtifactsIfNeeded(
+        adminSupabase,
+        bucketName,
+        previousAudioStoragePath,
+        currentObjectPaths
+      );
 
-    await removeRecordingArtifactUrls(
-      adminSupabase,
-      bucketName,
-      duplicateAudioStoragePaths,
-      currentObjectPaths
-    );
+      await removeRecordingArtifactUrls(
+        adminSupabase,
+        bucketName,
+        duplicateAudioStoragePaths,
+        currentObjectPaths
+      );
+    } catch (cleanupError) {
+      console.warn("[nemo artifact cleanup warning]", cleanupError);
+    }
 
     return {
       recordingId,
-      audioStoragePath: publicUrl,
+      audioStoragePath: primaryAudioPublicUrl,
       narratorName,
       episodeNumber: episode.episodeNumber,
       episodeTitle: episode.title,

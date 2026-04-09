@@ -10,16 +10,25 @@ export type NemoGeneratedSentenceTiming = {
   spokenText: string;
 };
 
+export type NemoGeneratedAudioSegment = {
+  segmentIndex: number;
+  startTimeSeconds: number;
+  durationSeconds: number;
+  audioPublicUrl: string;
+};
+
 export type NemoTimingManifest = {
-  version: 1;
+  version: 1 | 2;
   generatedAt: string;
   sentenceTimings: NemoGeneratedSentenceTiming[];
+  audioSegments?: NemoGeneratedAudioSegment[];
 };
 
 type BuildNemoTimingManifestInput = {
   chunks: NemoTextChunk[];
   renderedSegments: Array<{
     durationSeconds: number;
+    pauseAfterMs?: number;
   }>;
 };
 
@@ -56,6 +65,7 @@ export function buildNemoTimingManifest({
   for (let index = 0; index < chunks.length; index += 1) {
     const chunk = chunks[index];
     const renderedSegment = renderedSegments[index];
+    const pauseAfterMs = renderedSegment.pauseAfterMs ?? chunk.pauseAfterMs ?? 0;
 
     if (!emittedSentenceIndexes.has(chunk.sourceSentenceIndex)) {
       emittedSentenceIndexes.add(chunk.sourceSentenceIndex);
@@ -71,13 +81,46 @@ export function buildNemoTimingManifest({
       });
     }
 
-    elapsedSeconds += renderedSegment.durationSeconds + chunk.pauseAfterMs / 1000;
+    elapsedSeconds += renderedSegment.durationSeconds + pauseAfterMs / 1000;
   }
 
   return {
     version: 1,
     generatedAt: new Date().toISOString(),
     sentenceTimings,
+  };
+}
+
+export function attachNemoGeneratedAudioSegments(
+  manifest: NemoTimingManifest,
+  audioSegments: NemoGeneratedAudioSegment[]
+): NemoTimingManifest {
+  const normalizedSegments = [...audioSegments]
+    .filter(
+      (segment) =>
+        Number.isFinite(segment.segmentIndex) &&
+        segment.segmentIndex >= 0 &&
+        Number.isFinite(segment.startTimeSeconds) &&
+        segment.startTimeSeconds >= 0 &&
+        Number.isFinite(segment.durationSeconds) &&
+        segment.durationSeconds >= 0 &&
+        segment.audioPublicUrl.trim().length > 0
+    )
+    .sort((left, right) => left.segmentIndex - right.segmentIndex);
+
+  if (normalizedSegments.length === 0) {
+    return manifest;
+  }
+
+  return {
+    ...manifest,
+    version: 2,
+    audioSegments: normalizedSegments.map((segment) => ({
+      segmentIndex: segment.segmentIndex,
+      startTimeSeconds: roundTiming(segment.startTimeSeconds),
+      durationSeconds: roundTiming(segment.durationSeconds),
+      audioPublicUrl: segment.audioPublicUrl.trim(),
+    })),
   };
 }
 
@@ -110,9 +153,10 @@ export function buildNemoTimingPublicUrlFromAudioPublicUrl(
 export function parseNemoGeneratedSentenceTimings(
   value: unknown
 ): NemoGeneratedSentenceTiming[] {
-  const rawItems = isPlainObject(value) && Array.isArray(value.sentenceTimings)
-    ? value.sentenceTimings
-    : [];
+  const rawItems =
+    isPlainObject(value) && Array.isArray(value.sentenceTimings)
+      ? value.sentenceTimings
+      : [];
 
   return rawItems
     .map((item) => {
@@ -162,4 +206,50 @@ export function parseNemoGeneratedSentenceTimings(
 
       return left.sentenceIndex - right.sentenceIndex;
     });
+}
+
+export function parseNemoGeneratedAudioSegments(
+  value: unknown
+): NemoGeneratedAudioSegment[] {
+  const rawItems =
+    isPlainObject(value) && Array.isArray(value.audioSegments)
+      ? value.audioSegments
+      : [];
+
+  return rawItems
+    .map((item) => {
+      if (!isPlainObject(item)) {
+        return null;
+      }
+
+      const segmentIndex = pickNumber(item.segmentIndex);
+      const startTimeSeconds = pickNumber(item.startTimeSeconds);
+      const durationSeconds = pickNumber(item.durationSeconds);
+      const audioPublicUrl = pickText(item.audioPublicUrl);
+
+      if (
+        segmentIndex === null ||
+        startTimeSeconds === null ||
+        durationSeconds === null ||
+        !audioPublicUrl
+      ) {
+        return null;
+      }
+
+      return {
+        segmentIndex,
+        startTimeSeconds,
+        durationSeconds,
+        audioPublicUrl,
+      };
+    })
+    .filter(
+      (item): item is NemoGeneratedAudioSegment =>
+        item !== null &&
+        item.segmentIndex >= 0 &&
+        item.startTimeSeconds >= 0 &&
+        item.durationSeconds >= 0 &&
+        item.audioPublicUrl.length > 0
+    )
+    .sort((left, right) => left.segmentIndex - right.segmentIndex);
 }
