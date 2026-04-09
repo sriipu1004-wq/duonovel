@@ -333,6 +333,8 @@ function FooterActionButton({
   iconSrc?: string;
   onClick?: () => void;
 }) {
+  const isIconButton = Boolean(iconSrc);
+
   return (
     <button
       type="button"
@@ -341,14 +343,25 @@ function FooterActionButton({
       disabled={disabled}
       onClick={onClick}
       className={[
-        "flex h-12 w-full items-center justify-center rounded-2xl border px-2 text-center text-[10px] font-medium leading-tight transition sm:text-sm",
-        accent
-          ? "border-black/10 bg-neutral-200 text-black hover:bg-neutral-300 disabled:bg-neutral-100 disabled:text-neutral-400"
-          : active
-            ? "border-sky-200 bg-sky-50 text-black"
-            : disabled
-              ? "border-black/10 bg-neutral-100 text-neutral-400"
-              : "border-black/10 bg-white text-black hover:bg-neutral-50",
+        "flex h-12 w-full items-center justify-center rounded-2xl px-2 text-center text-[10px] font-medium leading-tight transition sm:text-sm",
+        isIconButton
+          ? [
+              "border-0 bg-transparent shadow-none",
+              disabled
+                ? "opacity-35"
+                : active
+                  ? "bg-sky-50/70"
+                  : accent
+                    ? "bg-transparent"
+                    : "bg-transparent hover:bg-neutral-50/70",
+            ].join(" ")
+          : accent
+            ? "border border-black/10 bg-neutral-200 text-black hover:bg-neutral-300 disabled:bg-neutral-100 disabled:text-neutral-400"
+            : active
+              ? "border border-sky-200 bg-sky-50 text-black"
+              : disabled
+                ? "border border-black/10 bg-neutral-100 text-neutral-400"
+                : "border border-black/10 bg-white text-black hover:bg-neutral-50",
       ].join(" ")}
     >
       {iconSrc ? (

@@ -24,6 +24,7 @@ import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGene
 import { unstable_noStore as noStore } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ReaderCardControls from "@/components/recording/ReaderCardControls";
+import ContinueReadingEpisodeList from "@/components/works/ContinueReadingEpisodeList";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -869,64 +870,36 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
               {currentTab === "toc" ? (
                 <div className="mt-5">
-                  <div className="overflow-hidden rounded-[20px] border border-black/10">
-                    <div className="max-h-[760px] overflow-y-auto">
-                      <ul className="divide-y divide-black/10">
-                        {visibleEpisodes.map((episode) => {
-                          const episodeNumber = getEpisodeNumber(episode);
-                          const episodeTitle =
-                            pickText(episode.title, episode["episode_title"]) ||
-                            `第${episodeNumber}話`;
+                  <ContinueReadingEpisodeList
+                    seriesId={seriesId}
+                    episodes={visibleEpisodes.map((episode) => {
+                      const episodeNumber = getEpisodeNumber(episode);
+                      const episodeTitle =
+                        pickText(episode.title, episode["episode_title"]) ||
+                        `第${episodeNumber}話`;
 
-                          const postedDate = formatEpisodeDate(
-                            getEpisodePostedAtValue(episode)
-                          );
-                          const editedDate = formatEpisodeDate(
-                            getEpisodeLastEditedAtValue(episode)
-                          );
+                      const postedDate = formatEpisodeDate(
+                        getEpisodePostedAtValue(episode)
+                      );
+                      const editedDate = formatEpisodeDate(
+                        getEpisodeLastEditedAtValue(episode)
+                      );
 
-                          return (
-                            <li key={episode.id}>
-                              <Link
-                                href={buildReadHref(
-                                  seriesId,
-                                  episodeNumber,
-                                  selectedReaderKey,
-                                  selectedReaderName
-                                )}
-                                className="group flex items-center justify-between gap-4 px-4 py-4 transition hover:bg-neutral-50"
-                              >
-                                <div className="min-w-0">
-                                  <div className="flex items-start gap-3">
-                                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-sm text-neutral-700">
-                                      {episodeNumber}
-                                    </span>
-
-                                    <div className="min-w-0">
-                                      <p className="text-sm text-neutral-500">
-                                        第{episodeNumber}話
-                                      </p>
-                                      <p className="truncate text-base font-medium text-black">
-                                        {episodeTitle}
-                                      </p>
-                                      <p className="mt-1 text-xs text-neutral-500">
-                                        {postedDate ? `投稿日 ${postedDate}` : "投稿日 未設定"}
-                                        {editedDate ? `（${editedDate} 編集済み）` : ""}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="shrink-0 rounded-full border border-black/10 bg-white px-3.5 py-2 text-sm text-neutral-700 transition group-hover:border-sky-200 group-hover:bg-sky-50 group-hover:text-black">
-                                  読む
-                                </div>
-                              </Link>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  </div>
+                      return {
+                        id: episode.id,
+                        episodeNumber,
+                        episodeTitle,
+                        postedDate,
+                        editedDate,
+                        href: buildReadHref(
+                          seriesId,
+                          episodeNumber,
+                          selectedReaderKey,
+                          selectedReaderName
+                        ),
+                      };
+                    })}
+                  />
                 </div>
               ) : (
                 <div className="mt-5 grid gap-3">
