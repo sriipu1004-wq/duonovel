@@ -122,16 +122,33 @@ function getSeriesId(recording: RecordingRow): string {
   return pickText(recording.series_id, recording.seriesId);
 }
 
-function getReaderIdentity(recording: RecordingRow): { key: string; name: string } {
-  const name =
+function getRecordingReaderName(recording: RecordingRow): string {
+  return (
     pickText(
       recording.reader_name,
       recording.narrator_name,
       recording.display_name,
       recording.speaker_name
-    ) || "名称未設定";
+    ) || "名称未設定"
+  );
+}
 
-  const key =
+function isNemoReaderName(name: string): boolean {
+  return name.startsWith("VOICEVOX Nemo");
+}
+
+function getCanonicalNemoReaderKey(name: string): string {
+  return `nemo:${name}`;
+}
+
+function getRecordingReaderKey(recording: RecordingRow): string {
+  const name = getRecordingReaderName(recording);
+
+  if (isNemoReaderName(name)) {
+    return getCanonicalNemoReaderKey(name);
+  }
+
+  return (
     pickText(
       recording.reader_id,
       recording.reader_user_id,
@@ -141,13 +158,15 @@ function getReaderIdentity(recording: RecordingRow): { key: string; name: string
       recording.display_name,
       recording.speaker_name,
       recording.id
-    ) || recording.id;
-
-  return { key, name };
+    ) || recording.id
+  );
 }
 
-function isNemoReaderName(name: string): boolean {
-  return name.startsWith("VOICEVOX Nemo");
+function getReaderIdentity(recording: RecordingRow): { key: string; name: string } {
+  const name = getRecordingReaderName(recording);
+  const key = getRecordingReaderKey(recording);
+
+  return { key, name };
 }
 
 function buildWorksHref(seriesId: string, readerKey: string, readerName?: string): string {
@@ -231,19 +250,28 @@ export default async function ReaderPage({ params, searchParams }: PageProps) {
   const allRecordings = await fetchAllRecordings();
   const matchedRecordings = allRecordings.filter((recording) => {
     if (!isPublicRecording(recording)) return false;
-    return getReaderIdentity(recording).key === readerKey;
-  });
 
-  if (matchedRecordings.length === 0 && !fallbackReaderName) {
-    notFound();
-  }
+    const identity = getReaderIdentity(recording);
+
+    if (identity.key === readerKey) {
+      return true;
+    }
+
+    if (fallbackReaderName && isNemoReaderName(fallbackReaderName)) {
+      return identity.name === fallbackReaderName;
+    }
+
+    return false;
+  });
 
   const readerName =
     matchedRecordings.length > 0
       ? getReaderIdentity(matchedRecordings[0]).name
       : fallbackReaderName || "朗読者名未設定";
-
-  const totalLikes = matchedRecordings.reduce(
+  const canonicalReaderKey = isNemoReaderName(readerName)
+    ? getCanonicalNemoReaderKey(readerName)
+   : readerKey;
+ const totalLikes = matchedRecordings.reduce(
     (sum, recording) => sum + getRecordingLikes(recording),
     0
   );
@@ -448,7 +476,7 @@ export default async function ReaderPage({ params, searchParams }: PageProps) {
 
                   <div className="mt-5 flex flex-wrap gap-3">
                     <Link
-                      href={buildWorksHref(work.seriesId, readerKey, readerName)}
+                      href={buildWorksHref(work.seriesId, canonicalReaderKey, readerName)}
                       className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
                     >
                       作品ページへ
@@ -459,7 +487,7 @@ export default async function ReaderPage({ params, searchParams }: PageProps) {
                         href={buildReadHref(
                           work.seriesId,
                           work.firstEpisodeNumber,
-                          readerKey,
+                          canonicalReaderKey,
                           readerName
                         )}
                         className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"

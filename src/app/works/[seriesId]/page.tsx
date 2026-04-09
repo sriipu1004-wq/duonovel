@@ -323,6 +323,61 @@ function isNemoReaderName(name: string): boolean {
   return name.startsWith("VOICEVOX Nemo");
 }
 
+function getRecordingReaderName(recording: RecordingRow): string {
+  return (
+    pickText(
+      recording.reader_name,
+      recording.narrator_name,
+      recording.display_name,
+      recording.speaker_name
+    ) || "名称未設定"
+  );
+}
+
+function getCanonicalNemoReaderKey(name: string): string {
+  return `nemo:${name}`;
+}
+
+function getRecordingReaderKey(recording: RecordingRow): string {
+  const name = getRecordingReaderName(recording);
+
+  if (isNemoReaderName(name)) {
+    return getCanonicalNemoReaderKey(name);
+  }
+
+  return (
+    pickText(
+      recording.reader_id,
+      recording.reader_user_id,
+      recording.readerUserId,
+      recording.reader_name,
+      recording.narrator_name,
+      recording.display_name,
+      recording.speaker_name,
+      recording.id
+    ) || recording.id
+  );
+}
+
+function normalizeRequestedReaderKey(
+  readerKey?: string,
+  readerName?: string
+): string {
+  const normalizedName = pickText(readerName);
+
+  if (normalizedName && isNemoReaderName(normalizedName)) {
+    return getCanonicalNemoReaderKey(normalizedName);
+  }
+
+  const normalizedKey = pickText(readerKey);
+
+  if (normalizedKey.startsWith("nemo:")) {
+    return normalizedKey;
+  }
+
+  return normalizedKey;
+}
+
 function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
   const grouped = new Map<
     string,
@@ -339,25 +394,8 @@ function buildReaderCards(recordings: RecordingRow[]): ReaderCard[] {
   >();
 
   for (const recording of recordings) {
-    const name =
-      pickText(
-        recording.reader_name,
-        recording.narrator_name,
-        recording.display_name,
-        recording.speaker_name
-      ) || "名称未設定";
-
-    const key =
-      pickText(
-        recording.reader_id,
-        recording.reader_user_id,
-        recording.readerUserId,
-        recording.reader_name,
-        recording.narrator_name,
-        recording.display_name,
-        recording.speaker_name,
-        recording.id
-      ) || recording.id;
+    const name = getRecordingReaderName(recording);
+    const key = getRecordingReaderKey(recording);
 
     const existing = grouped.get(key) ?? {
       key,
@@ -471,8 +509,11 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const currentTab = resolvedSearchParams?.tab === "readers" ? "readers" : "toc";
 
-  const selectedReaderKey = pickText(resolvedSearchParams?.readerKey);
   const selectedReaderName = pickText(resolvedSearchParams?.readerName);
+  const selectedReaderKey = normalizeRequestedReaderKey(
+    resolvedSearchParams?.readerKey,
+    selectedReaderName
+  );
 
   const { data: seriesData, error: seriesError } = await supabase
     .from("series")

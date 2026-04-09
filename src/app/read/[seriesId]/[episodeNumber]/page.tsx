@@ -104,7 +104,32 @@ function isPublicRecording(recording: RecordingRow): boolean {
   return true;
 }
 
+function getRecordingReaderName(recording: RecordingRow): string {
+  return (
+    pickText(
+      recording.reader_name,
+      recording.narrator_name,
+      recording.display_name,
+      recording.speaker_name
+    ) || "朗読者未設定"
+  );
+}
+
+function isNemoReaderName(name: string): boolean {
+  return name.startsWith("VOICEVOX Nemo");
+}
+
+function getCanonicalNemoReaderKey(name: string): string {
+  return `nemo:${name}`;
+}
+
 function getRecordingReaderKey(recording: RecordingRow): string {
+  const name = getRecordingReaderName(recording);
+
+  if (isNemoReaderName(name)) {
+    return getCanonicalNemoReaderKey(name);
+  }
+
   return (
     pickText(
       recording.reader_id,
@@ -116,17 +141,6 @@ function getRecordingReaderKey(recording: RecordingRow): string {
       recording.speaker_name,
       recording.id
     ) || recording.id
-  );
-}
-
-function getRecordingReaderName(recording: RecordingRow): string {
-  return (
-    pickText(
-      recording.reader_name,
-      recording.narrator_name,
-      recording.display_name,
-      recording.speaker_name
-    ) || "朗読者未設定"
   );
 }
 
@@ -311,10 +325,14 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
   const nextEpisodeNumber = nextEpisode ? getEpisodeNumber(nextEpisode) : null;
 
   const allEpisodeRecordings = await fetchRecordingsByEpisodeId(episode.id);
-  const requestedReaderKey = pickText(
-    resolvedSearchParams?.readerKey,
-    resolvedSearchParams?.readerName
-  );
+  const requestedReaderName = pickText(resolvedSearchParams?.readerName);
+  const requestedReaderKey =
+    requestedReaderName && isNemoReaderName(requestedReaderName)
+      ? getCanonicalNemoReaderKey(requestedReaderName)
+      : pickText(
+          resolvedSearchParams?.readerKey,
+          requestedReaderName
+        );
 
   let selectedRecording: RecordingRow | null = null;
 
@@ -333,11 +351,11 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
 
   const selectedReaderKey = selectedRecording
     ? getRecordingReaderKey(selectedRecording)
-    : pickText(resolvedSearchParams?.readerKey);
+    : requestedReaderKey;
 
   const selectedReaderName = selectedRecording
     ? getRecordingReaderName(selectedRecording)
-    : pickText(resolvedSearchParams?.readerName);
+    : requestedReaderName;
 
   const recordingAvailable = !!selectedRecording;
   const audioStoragePath = pickText(
