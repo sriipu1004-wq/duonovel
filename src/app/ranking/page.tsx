@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { isEpisodePubliclyVisible } from "@/features/write/writeShared";
 
 type SeriesRow = Record<string, unknown> & {
   id: string;
@@ -29,6 +30,10 @@ type EpisodeRow = Record<string, unknown> & {
   seriesId?: string | null;
   is_published?: boolean | null;
   published?: boolean | null;
+  posting_status?: "draft" | "scheduled" | "posted" | null;
+  postingStatus?: "draft" | "scheduled" | "posted" | null;
+  scheduled_for?: string | null;
+  scheduledFor?: string | null;
 };
 
 type RankingItem = {
@@ -67,12 +72,6 @@ function getNumber(value: unknown): number {
 function isPublicRecording(recording: RecordingRow): boolean {
   if (recording.is_public === false) return false;
   if (recording.public === false) return false;
-  return true;
-}
-
-function isPublishedEpisode(episode: EpisodeRow): boolean {
-  if (episode.is_published === false) return false;
-  if (episode.published === false) return false;
   return true;
 }
 
@@ -124,11 +123,13 @@ export default async function RankingPage() {
       isPublicRecording(recording)
   );
 
-  const publishedEpisodes = ((episodesData ?? []) as EpisodeRow[]).filter(
+  const now = new Date();
+
+  const publicVisibleEpisodes = ((episodesData ?? []) as EpisodeRow[]).filter(
     (episode) =>
       typeof episode.id === "string" &&
       episode.id.length > 0 &&
-      isPublishedEpisode(episode)
+      isEpisodePubliclyVisible(episode, now)
   );
 
   const recordingStatMap = new Map<
@@ -159,7 +160,7 @@ export default async function RankingPage() {
 
   const episodeCountMap = new Map<string, number>();
 
-  for (const episode of publishedEpisodes) {
+  for (const episode of publicVisibleEpisodes) {
     const seriesId = getLinkedSeriesId(episode);
     if (!seriesId) continue;
 

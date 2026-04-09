@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { isEpisodePubliclyVisible } from "@/features/write/writeShared";
 
 type PageProps = {
   params: Promise<{ readerKey: string }>;
@@ -46,6 +47,10 @@ type EpisodeRow = Record<string, unknown> & {
   episodeNumber?: number | null;
   is_published?: boolean | null;
   published?: boolean | null;
+  posting_status?: "draft" | "scheduled" | "posted" | null;
+  postingStatus?: "draft" | "scheduled" | "posted" | null;
+  scheduled_for?: string | null;
+  scheduledFor?: string | null;
 };
 
 type ReaderWorkCard = {
@@ -91,12 +96,6 @@ function getEpisodeNumber(episode: EpisodeRow): number {
   if (typeof raw === "number") return raw;
   const parsed = Number(raw);
   return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function isPublishedEpisode(episode: EpisodeRow): boolean {
-  if (episode.is_published === false) return false;
-  if (episode.published === false) return false;
-  return true;
 }
 
 function isPublicRecording(recording: RecordingRow): boolean {
@@ -172,8 +171,6 @@ function buildReadHref(
 
   return `/read/${seriesId}/${episodeNumber}?${query.toString()}`;
 }
-
-
 
 async function fetchAllRecordings(): Promise<RecordingRow[]> {
   const { data, error } = await supabase.from("recordings").select("*");
@@ -291,10 +288,14 @@ export default async function ReaderPage({ params, searchParams }: PageProps) {
     fetchEpisodesBySeriesIds(seriesIds),
   ]);
 
-  const publishedEpisodes = rawEpisodes.filter(isPublishedEpisode);
+  const now = new Date();
+  const publicVisibleEpisodes = rawEpisodes.filter((episode) =>
+    isEpisodePubliclyVisible(episode, now)
+  );
+
   const firstEpisodeNumberMap = new Map<string, number>();
 
-  for (const episode of publishedEpisodes) {
+  for (const episode of publicVisibleEpisodes) {
     const seriesId = pickText(episode.series_id, episode.seriesId);
     if (!seriesId) continue;
 
