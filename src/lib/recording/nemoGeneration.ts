@@ -394,8 +394,7 @@ async function writeRecording(
 
   const primary = existingRows[0] ?? null;
   const duplicates = existingRows.slice(1);
-
-  const isNemoNarrator = isNemoNarratorName(input.readerName);  
+  const isNemoNarrator = isNemoNarratorName(input.readerName);
 
   const payload = {
     series_id: input.seriesId,
@@ -406,8 +405,6 @@ async function writeRecording(
     is_public: true,
     ...(isNemoNarrator
       ? {
-          description: null,
-          reader_comment: null,
           tags: null,
         }
       : {}),
