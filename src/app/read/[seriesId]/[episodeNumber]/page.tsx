@@ -20,9 +20,13 @@ import {
   mergeEffectSettings,
   parseEffectSettingsFromRow,
 } from "@/lib/effects/effectSettings";
-import type { NemoGeneratedSentenceTiming } from "@/lib/recording/nemoTiming";
+import type {
+  NemoGeneratedAudioSegment,
+  NemoGeneratedSentenceTiming,
+} from "@/lib/recording/nemoTiming";
 import {
   buildNemoTimingPublicUrlFromAudioPublicUrl,
+  parseNemoGeneratedAudioSegments,
   parseNemoGeneratedSentenceTimings,
 } from "@/lib/recording/nemoTiming";
 import { normalizeRecordingPermissionMode } from "@/lib/recording/recordingEntry";
@@ -59,15 +63,21 @@ type RecordingRow = Record<string, unknown> & {
 
 const adminSupabase = createAdminClient();
 
-async function fetchGeneratedSentenceTimings(
+async function fetchGeneratedPlaybackAssets(
   audioPublicUrl?: string | null
-): Promise<NemoGeneratedSentenceTiming[]> {
+): Promise<{
+  sentenceTimings: NemoGeneratedSentenceTiming[];
+  audioSegments: NemoGeneratedAudioSegment[];
+}> {
   const timingUrl = buildNemoTimingPublicUrlFromAudioPublicUrl(
     audioPublicUrl ?? ""
   );
 
   if (!timingUrl) {
-    return [];
+    return {
+      sentenceTimings: [],
+      audioSegments: [],
+    };
   }
 
   try {
@@ -76,13 +86,23 @@ async function fetchGeneratedSentenceTimings(
     });
 
     if (!response.ok) {
-      return [];
+      return {
+        sentenceTimings: [],
+        audioSegments: [],
+      };
     }
 
     const payload = await response.json();
-    return parseNemoGeneratedSentenceTimings(payload);
+
+    return {
+      sentenceTimings: parseNemoGeneratedSentenceTimings(payload),
+      audioSegments: parseNemoGeneratedAudioSegments(payload),
+    };
   } catch {
-    return [];
+    return {
+      sentenceTimings: [],
+      audioSegments: [],
+    };
   }
 }
 
@@ -363,9 +383,10 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     selectedRecording?.audioStoragePath
   );
 
-  const generatedSentenceTimings = await fetchGeneratedSentenceTimings(
-    audioStoragePath
-  );
+  const {
+    sentenceTimings: generatedSentenceTimings,
+    audioSegments: generatedAudioSegments,
+  } = await fetchGeneratedPlaybackAssets(audioStoragePath);
 
   const seriesTitle = pickText(series.title) || "無題";
   const commentsVisible = isSeriesEpisodeCommentVisible(series);
@@ -472,6 +493,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
         recordingAvailable={recordingAvailable}
         audioStoragePath={audioStoragePath}
         generatedSentenceTimings={generatedSentenceTimings}
+        generatedAudioSegments={generatedAudioSegments}
         prevEpisodeHref={prevEpisodeHref}
         prevEpisodeNumber={prevEpisodeNumber}
         nextEpisodeHref={nextEpisodeHref}

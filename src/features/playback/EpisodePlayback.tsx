@@ -39,6 +39,7 @@ import {
   buildSentenceTimestampRuntimeList,
   resolveActiveSentenceIndex,
 } from "@/lib/effects/effectTextLayout";
+import { concatNemoWavs } from "@/lib/recording/nemoWav";
 
 type EpisodePlaybackProps = {
   seriesId: string;
@@ -52,7 +53,8 @@ type EpisodePlaybackProps = {
   episodeId?: string | null;
   recordingId?: string | null;
   audioStoragePath?: string | null;
-  generatedSentenceTimings?: GeneratedSentenceTiming[];  
+  generatedSentenceTimings?: GeneratedSentenceTiming[];
+  generatedAudioSegments?: GeneratedAudioSegment[];
   prevEpisodeHref?: string | null;
   prevEpisodeNumber?: number | null;
   nextEpisodeHref?: string | null;
@@ -82,6 +84,13 @@ type BookmarkData = {
 type GeneratedSentenceTiming = {
   sentenceIndex: number;
   timeSeconds: number;
+};
+
+type GeneratedAudioSegment = {
+  segmentIndex: number;
+  startTimeSeconds: number;
+  durationSeconds: number;
+  audioPublicUrl: string;
 };
 
 function resolveActiveSentenceIndexFromGeneratedTimings(args: {
@@ -367,6 +376,7 @@ export default function EpisodePlayback({
   recordingAvailable = false,
   audioStoragePath,
   generatedSentenceTimings,  
+  generatedAudioSegments,
   prevEpisodeHref,
   prevEpisodeNumber,
   nextEpisodeHref,
@@ -451,6 +461,7 @@ export default function EpisodePlayback({
   const [bookmarkMessage, setBookmarkMessage] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNarrationStopped, setIsNarrationStopped] = useState(false);
+  const [assembledSegmentAudioUrl, setAssembledSegmentAudioUrl] = useState("");
 
   const [displayPreference, setDisplayPreference] = useState<DisplayPreference>(
     () => readStoredDisplayPreference(seriesId)
@@ -574,16 +585,123 @@ export default function EpisodePlayback({
     [runtimeSceneCues, activeSceneCueId]
   );
 
+const fallbackAudioStorageSrc = useMemo(() => {
+  const value = (audioStoragePath ?? "").trim();
+
+  if (!value) return "";
+  if (value.startsWith("http://")) return value;
+  if (value.startsWith("https://")) return value;
+  if (value.startsWith("/")) return value;
+
+  return "";
+}, [audioStoragePath]);
+
+const runtimeGeneratedAudioSegments = useMemo(() => {
+  return (generatedAudioSegments ?? [])
+    .filter(
+      (segment) =>
+        Number.isFinite(segment.segmentIndex) &&
+        segment.segmentIndex >= 0 &&
+        Number.isFinite(segment.startTimeSeconds) &&
+        segment.startTimeSeconds >= 0 &&
+        Number.isFinite(segment.durationSeconds) &&
+        segment.durationSeconds >= 0 &&
+        typeof segment.audioPublicUrl === "string" &&
+        segment.audioPublicUrl.trim().length > 0
+    )
+    .map((segment) => ({
+      segmentIndex: segment.segmentIndex,
+      startTimeSeconds: segment.startTimeSeconds,
+      durationSeconds: segment.durationSeconds,
+      audioPublicUrl: segment.audioPublicUrl.trim(),
+    }))
+    .sort((left, right) => left.segmentIndex - right.segmentIndex);
+}, [generatedAudioSegments]);
+
+useEffect(() => {
+  if (runtimeGeneratedAudioSegments.length <= 1) {
+    setAssembledSegmentAudioUrl("");
+    return;
+  }
+
+  let cancelled = false;
+  let objectUrl = "";
+
+  async function assembleSegmentedAudio(): Promise<void> {
+    try {
+      const wavSegments: Array<{
+        wavBytes: Uint8Array;
+        pauseAfterMs: number;
+      }> = [];
+
+      for (const segment of runtimeGeneratedAudioSegments) {
+        const response = await fetch(segment.audioPublicUrl, {
+          cache: "force-cache",
+        });
+
+        if (!response.ok) {
+          throw new Error(`audio_segment_fetch_failed:${response.status}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+
+        wavSegments.push({
+          wavBytes: new Uint8Array(arrayBuffer),
+          pauseAfterMs: 0,
+        });
+      }
+
+      const mergedWavBytes = concatNemoWavs(wavSegments);
+      const blobBytes = Uint8Array.from(mergedWavBytes);
+      const blob = new Blob([blobBytes.buffer], { type: "audio/wav" });
+      objectUrl = URL.createObjectURL(blob);
+
+      if (cancelled) {
+        URL.revokeObjectURL(objectUrl);
+        return;
+      }
+
+      setAssembledSegmentAudioUrl(objectUrl);
+      setAudioError("");
+    } catch (error) {
+      if (cancelled) {
+        return;
+      }
+
+      console.error("[EpisodePlayback] segmented audio assemble failed:", error);
+      setAssembledSegmentAudioUrl("");
+      setAudioError("音声ファイルの読み込みに失敗した");
+      setIsPlaying(false);
+      setIsAdvancing(false);
+    }
+  }
+
+  void assembleSegmentedAudio();
+
+  return () => {
+    cancelled = true;
+
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+}, [runtimeGeneratedAudioSegments]);
+
   const playableAudioSrc = useMemo(() => {
-    const value = (audioStoragePath ?? "").trim();
+    if (runtimeGeneratedAudioSegments.length > 1) {
+      return assembledSegmentAudioUrl.trim();
+    }
 
-    if (!value) return "";
-    if (value.startsWith("http://")) return value;
-    if (value.startsWith("https://")) return value;
-    if (value.startsWith("/")) return value;
+    if (runtimeGeneratedAudioSegments.length === 1) {
+      return runtimeGeneratedAudioSegments[0].audioPublicUrl;
+    }
 
-    return "";
-  }, [audioStoragePath]);
+    return fallbackAudioStorageSrc;
+  }, [
+    assembledSegmentAudioUrl,
+    runtimeGeneratedAudioSegments,
+    fallbackAudioStorageSrc,
+  ]);
 
   const canPlayAudio =
     !isNarrationStopped && recordingAvailable && playableAudioSrc.length > 0;
