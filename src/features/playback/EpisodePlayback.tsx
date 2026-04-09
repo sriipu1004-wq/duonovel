@@ -84,6 +84,7 @@ type BookmarkData = {
 type GeneratedSentenceTiming = {
   sentenceIndex: number;
   timeSeconds: number;
+  durationSeconds: number;
 };
 
 type GeneratedAudioSegment = {
@@ -568,6 +569,10 @@ export default function EpisodePlayback({
       .map((item) => ({
         sentenceIndex: item.sentenceIndex,
         timeSeconds: item.timeSeconds,
+        durationSeconds:
+          Number.isFinite(item.durationSeconds) && item.durationSeconds >= 0
+            ? item.durationSeconds
+            : 0,
       }))
       .sort((left, right) => {
         if (left.timeSeconds !== right.timeSeconds) {
@@ -577,6 +582,29 @@ export default function EpisodePlayback({
         return left.sentenceIndex - right.sentenceIndex;
       });
   }, [generatedSentenceTimings]);
+
+  const alignedGeneratedSentenceTimings = useMemo(() => {
+    if (runtimeGeneratedSentenceTimings.length === 0) {
+      return [];
+    }
+
+    const lastTiming =
+      runtimeGeneratedSentenceTimings[runtimeGeneratedSentenceTimings.length - 1];
+    const estimatedDuration =
+      lastTiming.timeSeconds + Math.max(lastTiming.durationSeconds, 0);
+
+    if (!Number.isFinite(duration) || duration <= 0 || estimatedDuration <= 0) {
+      return runtimeGeneratedSentenceTimings;
+    }
+
+    const timingScale = duration / estimatedDuration;
+
+    return runtimeGeneratedSentenceTimings.map((item) => ({
+      sentenceIndex: item.sentenceIndex,
+      timeSeconds: item.timeSeconds * timingScale,
+      durationSeconds: item.durationSeconds * timingScale,
+    }));
+  }, [duration, runtimeGeneratedSentenceTimings]);
 
   const activeSceneCueLabel = useMemo(
     () =>
@@ -717,10 +745,10 @@ useEffect(() => {
       : bgmTitle || "";
 
   const estimatedSentenceIndex = useMemo(() => {
-    if (runtimeGeneratedSentenceTimings.length > 0) {
+    if (alignedGeneratedSentenceTimings.length > 0) {
       return resolveActiveSentenceIndexFromGeneratedTimings({
         currentTime,
-        generatedSentenceTimings: runtimeGeneratedSentenceTimings,
+        generatedSentenceTimings: alignedGeneratedSentenceTimings,
       });
     }
 
@@ -735,7 +763,7 @@ useEffect(() => {
     duration,
     totalSentenceCount,
     runtimeSentenceTimestamps,
-    runtimeGeneratedSentenceTimings,
+    alignedGeneratedSentenceTimings,
   ]);
 
   const visibleMarkerSentenceIndex = estimatedSentenceIndex;
@@ -766,6 +794,8 @@ useEffect(() => {
     isFollowing: autoFollow,
     isPlaying,
     intervalMs: 4000,
+    restoreEnabled: false,
+    persistEpisodeScopedLocal: false,
     onRestore: applyRestoredPlayLog,
     readLocalResumeState,
     writeLocalResumeState,
@@ -832,6 +862,47 @@ useEffect(() => {
       unlockProgrammaticScroll();
     },
     [unlockProgrammaticScroll]
+  );
+
+  const resolveSentenceSeekTime = useCallback(
+    (sentenceIndex: number): number | null => {
+      const generatedTiming = alignedGeneratedSentenceTimings.find(
+        (item) => item.sentenceIndex === sentenceIndex
+      );
+
+      if (generatedTiming) {
+        return generatedTiming.timeSeconds;
+      }
+
+      if (duration <= 0 || totalSentenceCount <= 1) {
+        return null;
+      }
+
+      return (sentenceIndex / Math.max(1, totalSentenceCount - 1)) * duration;
+    },
+    [alignedGeneratedSentenceTimings, duration, totalSentenceCount]
+  );
+
+  const handleJumpToSentence = useCallback(
+    (sentenceIndex: number) => {
+      const audio = audioRef.current;
+      const nextTime = resolveSentenceSeekTime(sentenceIndex);
+
+      if (!audio || !canPlayAudio || nextTime === null) {
+        return;
+      }
+
+      const safeTime =
+        duration > 0
+          ? Math.min(Math.max(nextTime, 0), duration)
+          : Math.max(nextTime, 0);
+
+      audio.currentTime = safeTime;
+      setCurrentTime(safeTime);
+      setAutoFollow(true);
+      scrollToSentence(sentenceIndex, "smooth");
+    },
+    [canPlayAudio, duration, resolveSentenceSeekTime, scrollToSentence]
   );
 
   useEffect(() => {
@@ -1663,8 +1734,20 @@ useEffect(() => {
                                   ref={(node) => {
                                     sentenceRefs.current[segment.index] = node;
                                   }}
+                                  role={canPlayAudio ? "button" : undefined}
+                                  tabIndex={canPlayAudio ? 0 : undefined}
+                                  onClick={() => {
+                                    handleJumpToSentence(segment.index);
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (!canPlayAudio) return;
+                                    if (event.key !== "Enter" && event.key !== " ") return;
+                                    event.preventDefault();
+                                    handleJumpToSentence(segment.index);
+                                  }}
                                   className={[
                                     "inline rounded-md px-1 py-1 transition-all duration-200",
+                                    canPlayAudio ? "cursor-pointer hover:bg-sky-50/70" : "",
                                     isActive ? markerClass : "",
                                   ].join(" ")}
                                 >

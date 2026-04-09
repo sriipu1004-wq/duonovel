@@ -45,6 +45,8 @@ type UsePlayLogPersistenceArgs = {
   isFollowing: boolean;
   isPlaying: boolean;
   intervalMs?: number;
+  restoreEnabled?: boolean;
+  persistEpisodeScopedLocal?: boolean;
   onRestore: (nextState: ReadResumeState) => void;
   readLocalResumeState: (seriesId: string) => ReadResumeState | null;
   writeLocalResumeState: (seriesId: string, nextState: ReadResumeState) => void;
@@ -140,6 +142,8 @@ export function usePlayLogPersistence({
   isFollowing,
   isPlaying,
   intervalMs = 4000,
+  restoreEnabled = false,
+  persistEpisodeScopedLocal = false,
   onRestore,
   readLocalResumeState,
   writeLocalResumeState,
@@ -291,7 +295,9 @@ export function usePlayLogPersistence({
       const resumeState = buildResumeState();
       if (!resumeState) return;
 
-      writeEpisodeScopedLocal(resumeState);
+      if (persistEpisodeScopedLocal) {
+        writeEpisodeScopedLocal(resumeState);
+      }
 
       const signature = JSON.stringify({
         episodeNumber: resumeState.episodeNumber,
@@ -361,6 +367,13 @@ export function usePlayLogPersistence({
     if (!seriesId || restoreRequestedRef.current) return;
 
     restoreRequestedRef.current = true;
+
+    if (!restoreEnabled) {
+      setInitialRestoreFinished(true);
+      initialRestoreFinishedRef.current = true;
+      return;
+    }
+
     let cancelled = false;
 
     const run = async () => {
@@ -448,6 +461,7 @@ export function usePlayLogPersistence({
     onRestore,
     readEpisodeScopedLocal,
     readLocalResumeState,
+    restoreEnabled,
     supabase,
   ]);
 

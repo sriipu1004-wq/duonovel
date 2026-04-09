@@ -95,6 +95,36 @@ function readLocalBookmark(seriesId: string): BookmarkData | null {
   }
 }
 
+function readLocalResume(seriesId: string): ResumeData | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(`duonovel:read-progress:${seriesId}`);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as {
+      episodeNumber?: unknown;
+      positionSeconds?: unknown;
+      recordingId?: unknown;
+    } | null;
+
+    if (!parsed) return null;
+
+    const episodeNumber = Math.max(
+      1,
+      Math.floor(toSafeNumber(parsed.episodeNumber, 1))
+    );
+    const startAt = toSafeNumber(parsed.positionSeconds, 0);
+
+    return {
+      episodeNumber,
+      startAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchRecordingReader(
   recordingId: string
 ): Promise<{ readerKey?: string; readerName?: string }> {
@@ -149,6 +179,7 @@ export default function ContinueReadingButton({
     async function loadResume() {
       setLoaded(false);
 
+      const localResume = readLocalResume(seriesId);
       const localBookmark = readLocalBookmark(seriesId);
 
       try {
@@ -193,6 +224,17 @@ export default function ContinueReadingButton({
       }
 
       if (cancelled) return;
+
+      if (localResume) {
+        setResume({
+          episodeNumber: localResume.episodeNumber,
+          startAt: localResume.startAt,
+          readerKey: fallbackReaderKey,
+          readerName: fallbackReaderName,
+        });
+        setLoaded(true);
+        return;
+      }
 
       if (localBookmark) {
         setResume({
