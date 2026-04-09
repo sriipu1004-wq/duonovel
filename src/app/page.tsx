@@ -549,6 +549,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                   <ExploreChip href="#weekly-new" label="週間新作おすすめ" />
                   <ExploreChip href="#overall-popular" label="総合人気順" />
                   <ExploreChip href="#narration-popular" label="朗読視聴人気順" />
+                  <ExploreChip href="#legal-links" label="規約・窓口" />
                 </div>
               </div>
             </div>
@@ -775,6 +776,53 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
             )}
           </section>
         ) : null}
+
+        <section id="legal-links" className="pt-12">
+          <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
+            <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+              POLICY / SUPPORT
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
+              利用案内・お問い合わせ
+            </h2>
+            <p className="mt-2 text-sm leading-7 text-neutral-600">
+              LIB read の利用条件、個人情報の取り扱い、問い合わせ窓口をまとめた。
+              権利侵害申告や削除依頼を行う場合も、まずはここを確認してください。
+            </p>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              <Link
+                href="/terms"
+                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
+              >
+                <p className="text-sm font-semibold text-black">利用規約</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  禁止事項、投稿作品や朗読音声の扱い、免責などを確認できる。
+                </p>
+              </Link>
+
+              <Link
+                href="/privacy"
+                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
+              >
+                <p className="text-sm font-semibold text-black">プライバシーポリシー</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  取得情報、利用目的、保存や問い合わせ方法を確認できる。
+                </p>
+              </Link>
+
+              <Link
+                href="/contact"
+                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
+              >
+                <p className="text-sm font-semibold text-black">お問い合わせ</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  一般問い合わせ、権利侵害申告、削除依頼の連絡先導線。
+                </p>
+              </Link>
+            </div>
+          </div>
+        </section>
       </div>
     </main>
   );
