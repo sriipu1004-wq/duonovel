@@ -11,7 +11,11 @@ import {
   buildNemoTimingManifest,
   buildNemoTimingObjectPathFromAudioObjectPath,
 } from "@/lib/recording/nemoTiming";
-import { concatNemoWavs, getNemoWavDurationSeconds } from "@/lib/recording/nemoWav";
+import {
+  concatNemoWavs,
+  downsampleNemoWav,
+  getNemoWavDurationSeconds,
+} from "@/lib/recording/nemoWav";
 import {
   decideRecordingEntryAccess,
   hasApprovedRecordingRequest,
@@ -589,7 +593,9 @@ if (process.env.NODE_ENV === "development") {
     }
   }
 
-  const wavBytes = concatNemoWavs(renderedSegments);
+  const mergedWavBytes = concatNemoWavs(renderedSegments);
+  const wavBytes = downsampleNemoWav(mergedWavBytes, 24000);
+
   const timingManifest = buildNemoTimingManifest({
     chunks,
     renderedSegments,
