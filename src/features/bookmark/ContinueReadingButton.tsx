@@ -275,12 +275,9 @@ export default function ContinueReadingButton({
           resume.readerName,
           resume.startAt
         )}
-        className="inline-flex min-w-[220px] items-center justify-between gap-3 rounded-full border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-medium text-black transition hover:bg-sky-100"
+        className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm text-neutral-700 transition hover:bg-neutral-50"
       >
-        <span>続きから読む</span>
-        <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-sky-700">
-          第{resume.episodeNumber}話
-        </span>
+        続きから読む
       </Link>
     );
   }
