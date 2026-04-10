@@ -549,6 +549,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                   <ExploreChip href="#weekly-new" label="週間新作おすすめ" />
                   <ExploreChip href="#overall-popular" label="総合人気順" />
                   <ExploreChip href="#narration-popular" label="朗読視聴人気順" />
+                  <ExploreChip href="#guide-links" label="使い方・FAQ" />
                   <ExploreChip href="#legal-links" label="規約・窓口" />
                 </div>
               </div>
@@ -777,13 +778,50 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
           </section>
         ) : null}
 
+        <section id="guide-links" className="pt-12">
+          <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
+            <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+              GUIDE / FAQ
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
+              使い方・取り扱い説明
+            </h2>
+            <p className="mt-2 text-sm leading-7 text-neutral-600">
+              初見の人向けに、このサイトで何ができるか、どう探すか、どう読むか、朗読や演出をどう見ればいいかをまとめた。
+              まず全体像をつかみたいならここから見る。
+            </p>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <Link
+                href="/guide"
+                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
+              >
+                <p className="text-sm font-semibold text-black">使い方・取り扱い説明</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  LIB read の概要、作品の探し方、読み方、聞き方、朗読や演出の見方、試作段階についてまとめた。
+                </p>
+              </Link>
+
+              <Link
+                href="/faq"
+                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
+              >
+                <p className="text-sm font-semibold text-black">FAQ</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  よくある疑問を短く整理した案内ページ。困ったときの入口にも使える。
+                </p>
+              </Link>
+            </div>
+          </div>
+        </section>
+
         <section id="legal-links" className="pt-12">
           <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
             <p className="text-[11px] tracking-[0.22em] text-neutral-500">
               POLICY / SUPPORT
             </p>
             <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
-              利用案内・お問い合わせ
+              規約・お問い合わせ
             </h2>
             <p className="mt-2 text-sm leading-7 text-neutral-600">
               LIB read の利用条件、個人情報の取り扱い、問い合わせ窓口をまとめた。
