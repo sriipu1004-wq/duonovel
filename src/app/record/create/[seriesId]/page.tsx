@@ -172,8 +172,8 @@ const episodes = rawEpisodes
             ) : null}
 
             <p className="mt-4 max-w-4xl text-sm leading-7 text-neutral-300 sm:text-base">
-              ここでは作品本文を見ながら、朗読制作の準備を進められる。
-              今回は録音UIの外枠と制作ページ成立を優先し、保存・アップロード・同期本体まではまだ広げない。
+              ここでは作品本文を見ながら、朗読制作を進められる。
+              今回はブラウザ録音・既存音声アップロード・publish 接続の最小導線を先に通し、音声形式整理や高度な編集は次段へ回す。
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
