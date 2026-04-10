@@ -550,6 +550,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                   <ExploreChip href="#overall-popular" label="総合人気順" />
                   <ExploreChip href="#narration-popular" label="朗読視聴人気順" />
                   <ExploreChip href="#guide-links" label="使い方・FAQ" />
+                  <ExploreChip href="#status-links" label="運営状況・お知らせ" />
                   <ExploreChip href="#legal-links" label="規約・窓口" />
                 </div>
               </div>
@@ -809,6 +810,43 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                 <p className="text-sm font-semibold text-black">FAQ</p>
                 <p className="mt-2 text-sm leading-7 text-neutral-600">
                   よくある疑問を短く整理した案内ページ。困ったときの入口にも使える。
+                </p>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <section id="status-links" className="pt-12">
+          <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
+            <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+              STATUS / NEWS
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
+              運営状況・お知らせ
+            </h2>
+            <p className="mt-2 text-sm leading-7 text-neutral-600">
+              現在どこまで使えるか、何を調整中か、最近どんな更新が入ったかをまとめた。
+              試作段階の全体像を知りたいときはここから見る。
+            </p>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <Link
+                href="/status"
+                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
+              >
+                <p className="text-sm font-semibold text-black">運営状況</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  現在使える機能、調整中の内容、既知の制限、今後の予定をまとめた。
+                </p>
+              </Link>
+
+              <Link
+                href="/news"
+                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
+              >
+                <p className="text-sm font-semibold text-black">お知らせ</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  最近の更新履歴と、今後このサイトで更新情報を見る場所をまとめた。
                 </p>
               </Link>
             </div>
