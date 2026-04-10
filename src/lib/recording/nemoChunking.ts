@@ -17,18 +17,51 @@ export type NemoChunkBuildOptions = NemoPreprocessOptions & {
 };
 
 const DEFAULT_MAX_CHARS = 140;
-const SENTENCE_PAUSE_MS = 260;
-const PARAGRAPH_PAUSE_MS = 620;
-const OVERFLOW_CHUNK_PAUSE_MS = 160;
+const SENTENCE_PAUSE_MS = 300;
+const PARAGRAPH_PAUSE_MS = 760;
+const PARAGRAPH_SOFT_PAUSE_MS = 520;
+const PARAGRAPH_ELLIPSIS_PAUSE_MS = 820;
+const PARAGRAPH_DASH_PAUSE_MS = 780;
+const DIALOGUE_TO_NARRATION_PAUSE_MS = 240;
+const DIALOGUE_PARAGRAPH_PAUSE_MS = 700;
+const ELLIPSIS_PAUSE_MS = 430;
+const DASH_PAUSE_MS = 360;
+const OVERFLOW_CHUNK_PAUSE_MS = 170;
 
-function splitIntoSentenceUnits(paragraph: string): string[] {
-  const matched = paragraph.match(/[^。！？!?…]+[。！？!?…]?/gu);
+function splitByInternalPauseMarkers(unit: string): string[] {
+  const normalized = unit.trim();
 
-  if (!matched || matched.length === 0) {
-    return [paragraph.trim()].filter(Boolean);
+  if (!normalized) {
+    return [];
   }
 
-  return matched.map((unit) => unit.trim()).filter(Boolean);
+  const withBoundaries = normalized
+    .replace(/([」』）】])(?=[^\s、。！？!?…」』）】])/gu, "$1\n")
+    .replace(/([…⋯]+)(?=[^\s」』）】。！？!?…])/gu, "$1\n")
+    .replace(/([―—─]{2,})(?=[^\s」』）】。！？!?…])/gu, "$1\n");
+
+  return withBoundaries
+    .split(/\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function splitIntoSentenceUnits(paragraph: string): string[] {
+  const normalized = paragraph.trim();
+
+  if (!normalized) {
+    return [];
+  }
+
+  const matched = normalized.match(/[^。！？!?]+(?:[。！？!?]+[」』）】]?|$)/gu);
+
+  if (!matched || matched.length === 0) {
+    return splitByInternalPauseMarkers(normalized);
+  }
+
+  return matched
+    .flatMap((unit) => splitByInternalPauseMarkers(unit))
+    .filter(Boolean);
 }
 
 function splitLongUnit(unit: string, maxChars: number): string[] {
@@ -78,8 +111,70 @@ function splitLongUnit(unit: string, maxChars: number): string[] {
   return finalUnits;
 }
 
-function endsWithSentencePunctuation(text: string): boolean {
-  return /[。！？!?…]$/u.test(text.trim());
+function endsWithStrongSentencePunctuation(text: string): boolean {
+  return /[。！？!?][」』）】]?$/u.test(text.trim());
+}
+
+function endsWithEllipsisPause(text: string): boolean {
+  return /[…⋯]+[」』）】]?$/u.test(text.trim());
+}
+
+function endsWithDashPause(text: string): boolean {
+  return /[―—─]{2,}[」』）】]?$/u.test(text.trim());
+}
+
+function endsWithDialogueClose(text: string): boolean {
+  return /[」』）】]$/u.test(text.trim());
+}
+
+function resolvePauseAfterMs(args: {
+  text: string;
+  isLastSplitOfSentence: boolean;
+  isLastSentenceOfParagraph: boolean;
+}): number {
+  const { text, isLastSplitOfSentence, isLastSentenceOfParagraph } = args;
+
+  if (!isLastSplitOfSentence) {
+    return OVERFLOW_CHUNK_PAUSE_MS;
+  }
+
+  if (isLastSentenceOfParagraph) {
+    if (endsWithEllipsisPause(text)) {
+      return PARAGRAPH_ELLIPSIS_PAUSE_MS;
+    }
+
+    if (endsWithDashPause(text)) {
+      return PARAGRAPH_DASH_PAUSE_MS;
+    }
+
+    if (endsWithStrongSentencePunctuation(text)) {
+      return PARAGRAPH_PAUSE_MS;
+    }
+
+    if (endsWithDialogueClose(text)) {
+      return DIALOGUE_PARAGRAPH_PAUSE_MS;
+    }
+
+    return PARAGRAPH_SOFT_PAUSE_MS;
+  }
+
+  if (endsWithEllipsisPause(text)) {
+    return ELLIPSIS_PAUSE_MS;
+  }
+
+  if (endsWithDashPause(text)) {
+    return DASH_PAUSE_MS;
+  }
+
+  if (endsWithStrongSentencePunctuation(text)) {
+    return SENTENCE_PAUSE_MS;
+  }
+
+  if (endsWithDialogueClose(text)) {
+    return DIALOGUE_TO_NARRATION_PAUSE_MS;
+  }
+
+  return OVERFLOW_CHUNK_PAUSE_MS;
 }
 
 export function buildNemoChunks(
@@ -125,19 +220,12 @@ export function buildNemoChunks(
       splitUnits.forEach((splitUnit, splitIndex) => {
         const isLastSplitOfSentence = splitIndex === splitUnits.length - 1;
         const isLastSentenceOfParagraph = sentenceOffset === sentenceCount - 1;
-        const hasSentenceEnding = endsWithSentencePunctuation(splitUnit);
 
-        let pauseAfterMs = 0;
-
-        if (!isLastSplitOfSentence) {
-          pauseAfterMs = OVERFLOW_CHUNK_PAUSE_MS;
-        } else if (isLastSentenceOfParagraph) {
-          pauseAfterMs = hasSentenceEnding ? PARAGRAPH_PAUSE_MS : 420;
-        } else {
-          pauseAfterMs = hasSentenceEnding
-            ? SENTENCE_PAUSE_MS
-            : OVERFLOW_CHUNK_PAUSE_MS;
-        }
+        const pauseAfterMs = resolvePauseAfterMs({
+          text: splitUnit,
+          isLastSplitOfSentence,
+          isLastSentenceOfParagraph,
+        });
 
         chunks.push({
           text: splitUnit,

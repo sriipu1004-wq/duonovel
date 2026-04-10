@@ -44,7 +44,7 @@ function normalizeLineBreakSurface(text: string): string {
 }
 
 function shouldInsertClausePause(lastChar: string): boolean {
-  return !/[、。！？!?…」』）】]/u.test(lastChar);
+  return !/[、。！？!?…」』）】―—─]/u.test(lastChar);
 }
 
 function joinLinesWithinParagraph(lines: string[]): string {
@@ -67,6 +67,15 @@ function joinLinesWithinParagraph(lines: string[]): string {
   return result.trim();
 }
 
+function normalizePauseExpressionSurface(text: string): string {
+  return text
+    .replace(/\.{3,}/g, "……")
+    .replace(/[⋯]{2,}/gu, "……")
+    .replace(/…{3,}/gu, "……")
+    .replace(/[―—─]{2,}/gu, "――")
+    .replace(/([」』）】])(?=[^\s、。！？!?…」』）】])/gu, "$1、");
+}
+
 export function preprocessNemoBodyToParagraphs(
   body: string,
   options: NemoPreprocessOptions = {}
@@ -82,10 +91,12 @@ export function preprocessNemoBodyToParagraphs(
   return rawParagraphs
     .map((paragraph) => joinLinesWithinParagraph(paragraph.split("\n")))
     .map((originalParagraph) => {
-      const spokenParagraph = applyPronunciationDictionary(
+      const dictionaryApplied = applyPronunciationDictionary(
         originalParagraph,
         options.pronunciationDictionary ?? {}
       );
+
+      const spokenParagraph = normalizePauseExpressionSurface(dictionaryApplied);
 
       return {
         originalParagraph: originalParagraph.trim(),
