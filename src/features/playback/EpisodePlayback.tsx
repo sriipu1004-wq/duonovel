@@ -39,7 +39,10 @@ import {
   buildSentenceTimestampRuntimeList,
   resolveActiveSentenceIndex,
 } from "@/lib/effects/effectTextLayout";
-import { preprocessNemoBodyToParagraphs } from "@/lib/recording/nemoTextPreprocess";
+import {
+  buildNemoAlignedParagraphBlocks,
+  normalizeComparableSentenceText,
+} from "@/lib/recording/humanTimingShared";
 import { concatNemoWavs } from "@/lib/recording/nemoWav";
 
 type EpisodePlaybackProps = {
@@ -268,45 +271,6 @@ function formatTime(value: number): string {
   const seconds = totalSeconds % 60;
 
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-function normalizeComparableSentenceText(text: string): string {
-  return text
-    .replace(/\s+/gu, "")
-    .replace(/[「」『』（）()［］【】]/gu, "")
-    .trim();
-}
-
-function splitIntoNemoAlignedSentenceUnits(paragraph: string): string[] {
-  const normalized = paragraph.trim();
-
-  if (!normalized) {
-    return [];
-  }
-
-  const matched = normalized.match(/[^。！？!?…]+[。！？!?…]?/gu);
-
-  if (!matched || matched.length === 0) {
-    return [normalized];
-  }
-
-  return matched.map((item) => item.trim()).filter((item) => item.length > 0);
-}
-
-function buildNemoAlignedParagraphBlocks(body: string) {
-  const paragraphs = preprocessNemoBodyToParagraphs(body).map(
-    (paragraph) => paragraph.originalParagraph
-  );
-
-  let nextSentenceIndex = 0;
-
-  return paragraphs.map((paragraph, paragraphIndex) => ({
-    paragraphIndex,
-    segments: splitIntoNemoAlignedSentenceUnits(paragraph).map((text) => ({
-      index: nextSentenceIndex++,
-      text,
-    })),
-  }));
 }
 
 function renderSentenceWithInlineMarks(

@@ -1,4 +1,8 @@
 import {
+  getEpisodeBody,
+  type EpisodeRow,
+} from "@/features/write/writeShared";
+import {
   decideRecordingEntryAccess,
   normalizeRecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
@@ -8,6 +12,8 @@ import {
   PLAYBACK_AUDIO_CONTENT_TYPE,
   PLAYBACK_AUDIO_EXTENSION,
 } from "@/lib/recording/audioPlaybackNormalization";
+import { alignHumanRecordingToBodyOrThrow } from "@/lib/recording/humanRecordingAlignment";
+import { transcribeHumanPlaybackAudio } from "@/lib/recording/humanRecordingTranscription";
 import { buildNemoTimingObjectPathFromAudioObjectPath } from "@/lib/recording/nemoTiming";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -188,11 +194,13 @@ function buildRecordingArtifactObjectPathsFromPublicUrl(
   );
   if (normalizedPlaybackMatch) {
     results.push(`${normalizedPlaybackMatch[1]}original.${normalizedPlaybackMatch[2]}`);
+    results.push(buildNemoTimingObjectPathFromAudioObjectPath(objectPath));
   }
 
   const legacyPlaybackMatch = objectPath.match(/^(.*\/)playback\.([a-z0-9]+)$/i);
   if (legacyPlaybackMatch) {
     results.push(`${legacyPlaybackMatch[1]}original.${legacyPlaybackMatch[2]}`);
+    results.push(buildNemoTimingObjectPathFromAudioObjectPath(objectPath));
   }
 
   if (objectPath.startsWith("nemo/") || objectPath.includes("/nemo/")) {
@@ -297,7 +305,10 @@ async function resolveCanonicalEpisodeIdForSeries(
   }
 
   if (episodeNumber && Number.isInteger(episodeNumber) && episodeNumber > 0) {
-    const lookupPatterns: Array<{ seriesKey: "series_id" | "seriesId"; numberKey: "episode_number" | "episodeNumber" }> = [
+    const lookupPatterns: Array<{
+      seriesKey: "series_id" | "seriesId";
+      numberKey: "episode_number" | "episodeNumber";
+    }> = [
       { seriesKey: "series_id", numberKey: "episode_number" },
       { seriesKey: "series_id", numberKey: "episodeNumber" },
       { seriesKey: "seriesId", numberKey: "episode_number" },
@@ -320,6 +331,29 @@ async function resolveCanonicalEpisodeIdForSeries(
   }
 
   return null;
+}
+
+async function fetchEpisodeBodyForAlignment(
+  adminSupabase: AdminSupabase,
+  episodeId: string
+): Promise<string> {
+  const { data, error } = await adminSupabase
+    .from("episodes")
+    .select("*")
+    .eq("id", episodeId)
+    .maybeSingle();
+
+  if (error || !data) {
+    throw new Error("episode_not_found");
+  }
+
+  const body = getEpisodeBody(data as EpisodeRow);
+
+  if (!body.trim()) {
+    throw new Error("episode_body_empty");
+  }
+
+  return body;
 }
 
 function buildReaderUserInsertAttempts(
@@ -471,7 +505,10 @@ async function writeRecording(
   previousAudioStoragePath: string | null;
   duplicateAudioStoragePaths: string[];
 }> {
-  const allEpisodeRows = await findExistingRecordings(adminSupabase, input.episodeId);
+  const allEpisodeRows = await findExistingRecordings(
+    adminSupabase,
+    input.episodeId
+  );
 
   const sameReaderIdRows = allEpisodeRows.filter(
     (row) => row.readerId === input.readerId
@@ -591,6 +628,11 @@ export async function publishHumanRecording({
     throw new Error("episode_not_found");
   }
 
+  const episodeBody = await fetchEpisodeBodyForAlignment(
+    adminSupabase,
+    canonicalEpisodeId
+  );
+
   const fileBytes = new Uint8Array(await sourceFile.arrayBuffer());
 
   if (fileBytes.byteLength <= 0) {
@@ -607,8 +649,14 @@ export async function publishHumanRecording({
     userId,
     sourceExtension,
   });
+  const timingObjectPath =
+    buildNemoTimingObjectPathFromAudioObjectPath(playbackObjectPath);
 
-  const currentObjectPaths = [originalObjectPath, playbackObjectPath];
+  const currentObjectPaths = [
+    originalObjectPath,
+    playbackObjectPath,
+    timingObjectPath,
+  ];
 
   try {
     const { error: originalUploadError } = await adminSupabase.storage
@@ -628,6 +676,17 @@ export async function publishHumanRecording({
       sourceMimeType: sourceFile.type,
     });
 
+    const transcription = await transcribeHumanPlaybackAudio({
+      audioBytes: normalizedPlayback.bytes,
+      fileName: `playback.${PLAYBACK_AUDIO_EXTENSION}`,
+      mimeType: PLAYBACK_AUDIO_CONTENT_TYPE,
+    });
+
+    const { manifest } = alignHumanRecordingToBodyOrThrow({
+      body: episodeBody,
+      transcription,
+    });
+
     const { error: playbackUploadError } = await adminSupabase.storage
       .from(bucketName)
       .upload(playbackObjectPath, normalizedPlayback.bytes, {
@@ -637,6 +696,21 @@ export async function publishHumanRecording({
 
     if (playbackUploadError) {
       throw new Error(`storage_upload_failed:${playbackUploadError.message}`);
+    }
+
+    const timingBytes = new TextEncoder().encode(
+      JSON.stringify(manifest, null, 2)
+    );
+
+    const { error: timingUploadError } = await adminSupabase.storage
+      .from(bucketName)
+      .upload(timingObjectPath, timingBytes, {
+        contentType: "application/json",
+        upsert: false,
+      });
+
+    if (timingUploadError) {
+      throw new Error(`human_timing_upload_failed:${timingUploadError.message}`);
     }
 
     const {

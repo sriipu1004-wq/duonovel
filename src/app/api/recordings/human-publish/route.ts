@@ -76,6 +76,16 @@ function resolveErrorResponse(error: unknown): {
     };
   }
 
+  if (message === "episode_body_empty") {
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        error: "本文が空なので、本文リンク付き朗読 publish を始められない。",
+      },
+    };
+  }
+
   if (message === "empty_file") {
     return {
       status: 400,
@@ -122,6 +132,67 @@ function resolveErrorResponse(error: unknown): {
       body: {
         ok: false,
         error: "再生用 playback 音源への正規化に失敗した。",
+      },
+    };
+  }
+
+  if (message === "openai_api_key_missing") {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: "音声文字起こしに必要な OPENAI_API_KEY を解決できなかった。",
+      },
+    };
+  }
+
+  if (message === "transcription_input_too_large") {
+    return {
+      status: 413,
+      body: {
+        ok: false,
+        error: "文字起こし対象の playback 音源が大きすぎる。今のMVPでは 25MB 未満に収めて。",
+      },
+    };
+  }
+
+  if (message === "human_transcription_empty") {
+    return {
+      status: 422,
+      body: {
+        ok: false,
+        error: "文字起こし結果が空だったので、本文リンク付き publish を通せない。",
+      },
+    };
+  }
+
+  if (message.startsWith("transcription_request_failed:")) {
+    return {
+      status: 502,
+      body: {
+        ok: false,
+        error: "音声文字起こし API 呼び出しに失敗した。",
+      },
+    };
+  }
+
+  if (message.startsWith("human_alignment_insufficient:")) {
+    return {
+      status: 422,
+      body: {
+        ok: false,
+        error:
+          "朗読内容を本文へ十分な精度でリンクできなかった。読み飛ばし、言い換え、雑音、別文面の可能性が高いので今回は publish しない。",
+      },
+    };
+  }
+
+  if (message.startsWith("human_timing_upload_failed:")) {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: "本文追尾用 timing 情報の保存に失敗した。",
       },
     };
   }
