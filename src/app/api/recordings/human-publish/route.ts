@@ -10,6 +10,22 @@ function readText(formData: FormData, key: string): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readPositiveInt(formData: FormData, key: string): number | null {
+  const value = formData.get(key);
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const parsed = Number(value.trim());
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
 function resolveDefaultReaderName(user: {
   email?: string | null;
   user_metadata?: Record<string, unknown> | null;
@@ -86,6 +102,26 @@ function resolveErrorResponse(error: unknown): {
       body: {
         ok: false,
         error: "朗読権限確認中にエラーが出た。",
+      },
+    };
+  }
+
+  if (message === "ffmpeg_unavailable") {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: "再生用正規化に必要な ffmpeg を解決できなかった。",
+      },
+    };
+  }
+
+  if (message.startsWith("playback_transcode_failed:")) {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: "再生用 playback 音源への正規化に失敗した。",
       },
     };
   }
@@ -186,6 +222,7 @@ export async function POST(request: Request) {
 
   const seriesId = readText(formData, "seriesId");
   const episodeId = readText(formData, "episodeId");
+  const episodeNumber = readPositiveInt(formData, "episodeNumber");
   const audio = formData.get("audio");
 
   if (!seriesId || !episodeId) {
@@ -245,6 +282,7 @@ export async function POST(request: Request) {
       userId: user.id,
       seriesId,
       episodeId,
+      episodeNumber,
       readerName,
       sourceFile: audio,
     });

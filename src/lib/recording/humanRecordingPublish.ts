@@ -3,6 +3,11 @@ import {
   normalizeRecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
 import { getAudioFileExtension } from "@/lib/recording/audioUploadPolicy";
+import {
+  normalizeAudioForPlayback,
+  PLAYBACK_AUDIO_CONTENT_TYPE,
+  PLAYBACK_AUDIO_EXTENSION,
+} from "@/lib/recording/audioPlaybackNormalization";
 import { buildNemoTimingObjectPathFromAudioObjectPath } from "@/lib/recording/nemoTiming";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -13,6 +18,7 @@ export type PublishHumanRecordingInput = {
   userId: string;
   seriesId: string;
   episodeId: string;
+  episodeNumber?: number | null;
   readerName: string;
   sourceFile: File;
 };
@@ -104,19 +110,33 @@ function guessExtension(file: File): string {
     return "flac";
   }
 
-  return "webm";
+  return "bin";
+}
+
+function getAudioContentType(extension: string): string {
+  const normalized = extension.trim().toLowerCase();
+
+  if (normalized === "mp3") return "audio/mpeg";
+  if (normalized === "m4a") return "audio/mp4";
+  if (normalized === "wav") return "audio/wav";
+  if (normalized === "webm") return "audio/webm";
+  if (normalized === "ogg") return "audio/ogg";
+  if (normalized === "aac") return "audio/aac";
+  if (normalized === "flac") return "audio/flac";
+
+  return "application/octet-stream";
 }
 
 function buildHumanRecordingObjectPaths({
   seriesId,
   episodeId,
   userId,
-  fileExtension,
+  sourceExtension,
 }: {
   seriesId: string;
   episodeId: string;
   userId: string;
-  fileExtension: string;
+  sourceExtension: string;
 }): {
   originalObjectPath: string;
   playbackObjectPath: string;
@@ -131,8 +151,8 @@ function buildHumanRecordingObjectPaths({
   ].join("/");
 
   return {
-    originalObjectPath: `${baseDirectory}/original.${fileExtension}`,
-    playbackObjectPath: `${baseDirectory}/playback.${fileExtension}`,
+    originalObjectPath: `${baseDirectory}/original.${sourceExtension}`,
+    playbackObjectPath: `${baseDirectory}/playback-from-${sourceExtension}.${PLAYBACK_AUDIO_EXTENSION}`,
   };
 }
 
@@ -163,9 +183,16 @@ function buildRecordingArtifactObjectPathsFromPublicUrl(
 
   const results = [objectPath];
 
-  const playbackMatch = objectPath.match(/^(.*\/)playback\.([a-z0-9]+)$/i);
-  if (playbackMatch) {
-    results.push(`${playbackMatch[1]}original.${playbackMatch[2]}`);
+  const normalizedPlaybackMatch = objectPath.match(
+    /^(.*\/)playback-from-([a-z0-9]+)\.m4a$/i
+  );
+  if (normalizedPlaybackMatch) {
+    results.push(`${normalizedPlaybackMatch[1]}original.${normalizedPlaybackMatch[2]}`);
+  }
+
+  const legacyPlaybackMatch = objectPath.match(/^(.*\/)playback\.([a-z0-9]+)$/i);
+  if (legacyPlaybackMatch) {
+    results.push(`${legacyPlaybackMatch[1]}original.${legacyPlaybackMatch[2]}`);
   }
 
   if (objectPath.startsWith("nemo/") || objectPath.includes("/nemo/")) {
@@ -246,25 +273,53 @@ async function loadPublishAccess(
   }
 }
 
-async function ensureEpisodeBelongsToSeries(
+async function resolveCanonicalEpisodeIdForSeries(
   adminSupabase: AdminSupabase,
   seriesId: string,
-  episodeId: string
-): Promise<boolean> {
-  const { data, error } = await adminSupabase
-    .from("episodes")
-    .select("id, series_id, seriesId")
-    .eq("id", episodeId)
-    .maybeSingle();
+  requestedEpisodeId: string,
+  episodeNumber?: number | null
+): Promise<string | null> {
+  if (requestedEpisodeId) {
+    const byId = await adminSupabase
+      .from("episodes")
+      .select("id, series_id, seriesId")
+      .eq("id", requestedEpisodeId)
+      .maybeSingle();
 
-  if (error || !data) {
-    return false;
+    if (!byId.error && byId.data) {
+      const row = byId.data as RawRow;
+      const resolvedSeriesId = pickText(row.series_id, row.seriesId);
+
+      if (resolvedSeriesId === seriesId) {
+        return String(row.id);
+      }
+    }
   }
 
-  const row = data as RawRow;
-  const resolvedSeriesId = pickText(row.series_id, row.seriesId);
+  if (episodeNumber && Number.isInteger(episodeNumber) && episodeNumber > 0) {
+    const lookupPatterns: Array<{ seriesKey: "series_id" | "seriesId"; numberKey: "episode_number" | "episodeNumber" }> = [
+      { seriesKey: "series_id", numberKey: "episode_number" },
+      { seriesKey: "series_id", numberKey: "episodeNumber" },
+      { seriesKey: "seriesId", numberKey: "episode_number" },
+      { seriesKey: "seriesId", numberKey: "episodeNumber" },
+    ];
 
-  return resolvedSeriesId === seriesId;
+    for (const pattern of lookupPatterns) {
+      const result = await adminSupabase
+        .from("episodes")
+        .select("id")
+        .eq(pattern.seriesKey, seriesId)
+        .eq(pattern.numberKey, episodeNumber)
+        .maybeSingle();
+
+      if (!result.error && result.data) {
+        const row = result.data as RawRow;
+        return String(row.id);
+      }
+    }
+  }
+
+  return null;
 }
 
 function buildReaderUserInsertAttempts(
@@ -517,6 +572,7 @@ export async function publishHumanRecording({
   userId,
   seriesId,
   episodeId,
+  episodeNumber,
   readerName,
   sourceFile,
 }: PublishHumanRecordingInput): Promise<PublishHumanRecordingResult> {
@@ -524,13 +580,14 @@ export async function publishHumanRecording({
 
   await loadPublishAccess(adminSupabase, seriesId, userId);
 
-  const episodeExists = await ensureEpisodeBelongsToSeries(
+  const canonicalEpisodeId = await resolveCanonicalEpisodeIdForSeries(
     adminSupabase,
     seriesId,
-    episodeId
+    episodeId,
+    episodeNumber
   );
 
-  if (!episodeExists) {
+  if (!canonicalEpisodeId) {
     throw new Error("episode_not_found");
   }
 
@@ -541,23 +598,23 @@ export async function publishHumanRecording({
   }
 
   const bucketName = getRecordingAudioBucketName();
-  const fileExtension = guessExtension(sourceFile);
+  const sourceExtension = guessExtension(sourceFile);
+  const originalContentType = sourceFile.type || getAudioContentType(sourceExtension);
 
   const { originalObjectPath, playbackObjectPath } = buildHumanRecordingObjectPaths({
     seriesId,
-    episodeId,
+    episodeId: canonicalEpisodeId,
     userId,
-    fileExtension,
+    sourceExtension,
   });
 
   const currentObjectPaths = [originalObjectPath, playbackObjectPath];
-  const contentType = sourceFile.type || "application/octet-stream";
 
   try {
     const { error: originalUploadError } = await adminSupabase.storage
       .from(bucketName)
       .upload(originalObjectPath, fileBytes, {
-        contentType,
+        contentType: originalContentType,
         upsert: false,
       });
 
@@ -565,13 +622,16 @@ export async function publishHumanRecording({
       throw new Error(`storage_upload_failed:${originalUploadError.message}`);
     }
 
-    // 今段階では playback 側の正規化はまだ未実装。
-    // original 保持と playback 枠の二重保存だけ先に通して、
-    // 次段の音声保存形式整理MVPで playback 生成ロジックを差し替える。
+    const normalizedPlayback = await normalizeAudioForPlayback({
+      sourceBytes: fileBytes,
+      sourceFileName: sourceFile.name,
+      sourceMimeType: sourceFile.type,
+    });
+
     const { error: playbackUploadError } = await adminSupabase.storage
       .from(bucketName)
-      .upload(playbackObjectPath, fileBytes, {
-        contentType,
+      .upload(playbackObjectPath, normalizedPlayback.bytes, {
+        contentType: PLAYBACK_AUDIO_CONTENT_TYPE,
         upsert: false,
       });
 
@@ -595,7 +655,7 @@ export async function publishHumanRecording({
       duplicateAudioStoragePaths,
     } = await writeRecording(adminSupabase, {
       seriesId,
-      episodeId,
+      episodeId: canonicalEpisodeId,
       readerId: userId,
       readerName,
       audioStoragePath: publicUrl,

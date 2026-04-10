@@ -241,12 +241,45 @@ export function RecordingStudioPage({
     );
   }, [episodes, selectedEpisodeId]);
 
-  const canRecordInBrowser = useMemo(() => {
-    return (
-      typeof navigator !== "undefined" &&
-      !!navigator.mediaDevices?.getUserMedia &&
-      typeof MediaRecorder !== "undefined"
-    );
+  const [canRecordInBrowser, setCanRecordInBrowser] = useState(false);
+  const [browserRecordingBlockedReason, setBrowserRecordingBlockedReason] =
+    useState("判定前");
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const isLocalhost =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1";
+
+    if (!window.isSecureContext && !isLocalhost) {
+      setCanRecordInBrowser(false);
+      setBrowserRecordingBlockedReason(
+        "このページが安全なコンテキストで開かれていない。localhost か https で開く。"
+      );
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCanRecordInBrowser(false);
+      setBrowserRecordingBlockedReason(
+        "このブラウザでは getUserMedia が使えない。"
+      );
+      return;
+    }
+
+    if (typeof MediaRecorder === "undefined") {
+      setCanRecordInBrowser(false);
+      setBrowserRecordingBlockedReason(
+        "このブラウザでは MediaRecorder が使えない。"
+      );
+      return;
+    }
+
+    setCanRecordInBrowser(true);
+    setBrowserRecordingBlockedReason("");
   }, []);
 
   const finalDecision = useMemo<AudioUploadDecision>(() => {
@@ -412,7 +445,8 @@ export function RecordingStudioPage({
 
     if (!canRecordInBrowser) {
       setRecordingMessage(
-        "この端末ではブラウザ録音が難しそう。既存音声ファイルアップロードへ切り替える。"
+        browserRecordingBlockedReason ||
+          "この端末ではブラウザ録音が難しそう。既存音声ファイルアップロードへ切り替える。"
       );
       return;
     }
@@ -523,6 +557,7 @@ export function RecordingStudioPage({
       const formData = new FormData();
       formData.append("seriesId", seriesId);
       formData.append("episodeId", selectedEpisode.id);
+      formData.append("episodeNumber", String(selectedEpisode.episodeNumber));
       formData.append("recordingTitle", recordingTitle);
       formData.append("readerName", readerName.trim());
       formData.append("audio", preparedAudioFile);
@@ -840,6 +875,17 @@ export function RecordingStudioPage({
           <p className="mt-3 text-sm leading-7 text-neutral-400">
             PC はここから録音主導。スマホで MediaRecorder が厳しい端末は、下のファイルアップロードへ回す。
           </p>
+
+          <div className="mt-3 rounded-[20px] border border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-300">
+            <p className="text-xs tracking-[0.18em] text-neutral-500">
+              BROWSER RECORDING AVAILABILITY
+            </p>
+            <p className="mt-2">
+              {canRecordInBrowser
+                ? "この端末ではブラウザ録音を開始できる。"
+                : `ブラウザ録音は今使えない。${browserRecordingBlockedReason}`}
+            </p>
+          </div>          
 
           {showMicGuide ? (
             <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-300">
