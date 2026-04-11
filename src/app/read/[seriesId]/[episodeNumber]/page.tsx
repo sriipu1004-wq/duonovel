@@ -354,6 +354,10 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
           requestedReaderName
         );
 
+  const requestedReaderSpecified = Boolean(
+    pickText(requestedReaderKey, requestedReaderName)
+  );
+
   let selectedRecording: RecordingRow | null = null;
 
   if (requestedReaderKey) {
@@ -365,7 +369,11 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
       }) ?? null;
   }
 
-  if (!selectedRecording && allEpisodeRecordings.length > 0) {
+  if (
+    !selectedRecording &&
+    !requestedReaderSpecified &&
+    allEpisodeRecordings.length > 0
+  ) {
     selectedRecording = allEpisodeRecordings[0];
   }
 
