@@ -8,6 +8,8 @@ export type NemoGeneratedSentenceTiming = {
   durationSeconds: number;
   targetText: string;
   spokenText: string;
+  timingSource?: "aligned_word" | "aligned_segment" | "estimated";
+  matchConfidence?: number;
 };
 
 export type NemoGeneratedAudioSegment = {
@@ -159,7 +161,7 @@ export function parseNemoGeneratedSentenceTimings(
       : [];
 
   return rawItems
-    .map((item) => {
+    .map<NemoGeneratedSentenceTiming | null>((item) => {
       if (!isPlainObject(item)) {
         return null;
       }
@@ -180,7 +182,21 @@ export function parseNemoGeneratedSentenceTimings(
         return null;
       }
 
-      return {
+      const rawTimingSource = pickText(item.timingSource);
+      const timingSource: NemoGeneratedSentenceTiming["timingSource"] =
+        rawTimingSource === "aligned_word" ||
+        rawTimingSource === "aligned_segment" ||
+        rawTimingSource === "estimated"
+          ? rawTimingSource
+          : undefined;
+
+      const rawMatchConfidence = pickNumber(item.matchConfidence);
+      const matchConfidence =
+        rawMatchConfidence !== null && rawMatchConfidence >= 0
+          ? rawMatchConfidence
+          : undefined;
+
+      const normalizedItem: NemoGeneratedSentenceTiming = {
         sentenceIndex,
         paragraphIndex,
         chunkIndex,
@@ -188,7 +204,11 @@ export function parseNemoGeneratedSentenceTimings(
         durationSeconds,
         targetText: pickText(item.targetText),
         spokenText: pickText(item.spokenText),
+        ...(timingSource !== undefined ? { timingSource } : {}),
+        ...(matchConfidence !== undefined ? { matchConfidence } : {}),
       };
+
+      return normalizedItem;
     })
     .filter(
       (item): item is NemoGeneratedSentenceTiming =>

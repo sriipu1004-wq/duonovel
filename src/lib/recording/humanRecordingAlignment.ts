@@ -9,6 +9,7 @@ import {
 import type {
   HumanRecordingTranscriptionResult,
   HumanRecordingTranscriptionSegment,
+  HumanRecordingTranscriptionWord,
 } from "@/lib/recording/humanRecordingTranscription";
 
 export type HumanRecordingAlignmentMetrics = {
@@ -29,8 +30,17 @@ type CandidateMatch = {
   similarity: number;
 };
 
+type CandidateWordWindow = {
+  startTimeSeconds: number;
+  endTimeSeconds: number;
+  rawText: string;
+  normalizedText: string;
+  similarity: number;
+};
+
 const MAX_START_OFFSET = 2;
 const MAX_SEGMENTS_PER_SENTENCE = 4;
+const MAX_WORDS_PER_WINDOW = 24;
 
 function roundTiming(value: number): number {
   return Math.round(value * 1000) / 1000;
@@ -181,8 +191,87 @@ function pickBestCandidateMatch(args: {
 
       if (
         normalizedText.length >
-          Math.max(sentenceNormalizedText.length * 2.2, sentenceNormalizedText.length + 18) &&
+          Math.max(
+            sentenceNormalizedText.length * 2.2,
+            sentenceNormalizedText.length + 18
+          ) &&
         similarity < 0.35
+      ) {
+        break;
+      }
+    }
+  }
+
+  return best;
+}
+
+function collectWordsWithinCandidateRange(args: {
+  words: HumanRecordingTranscriptionWord[];
+  startTimeSeconds: number;
+  endTimeSeconds: number;
+}): HumanRecordingTranscriptionWord[] {
+  const { words, startTimeSeconds, endTimeSeconds } = args;
+
+  return words.filter((word) => {
+    const overlaps =
+      word.endTimeSeconds >= startTimeSeconds - 0.08 &&
+      word.startTimeSeconds <= endTimeSeconds + 0.08;
+
+    return overlaps && word.word.trim().length > 0;
+  });
+}
+
+function pickBestWordWindow(args: {
+  words: HumanRecordingTranscriptionWord[];
+  sentenceNormalizedText: string;
+}): CandidateWordWindow | null {
+  const { words, sentenceNormalizedText } = args;
+
+  if (!sentenceNormalizedText || words.length === 0) {
+    return null;
+  }
+
+  let best: CandidateWordWindow | null = null;
+
+  for (let startIndex = 0; startIndex < words.length; startIndex += 1) {
+    let rawText = "";
+    let normalizedText = "";
+
+    const maxEndIndex = Math.min(
+      words.length - 1,
+      startIndex + MAX_WORDS_PER_WINDOW - 1
+    );
+
+    for (let endIndex = startIndex; endIndex <= maxEndIndex; endIndex += 1) {
+      rawText += words[endIndex].word;
+      normalizedText += normalizeComparableSentenceText(words[endIndex].word);
+
+      if (!normalizedText) {
+        continue;
+      }
+
+      const similarity = computeTextSimilarity(
+        sentenceNormalizedText,
+        normalizedText
+      );
+
+      if (!best || similarity > best.similarity) {
+        best = {
+          startTimeSeconds: words[startIndex].startTimeSeconds,
+          endTimeSeconds: words[endIndex].endTimeSeconds,
+          rawText,
+          normalizedText,
+          similarity,
+        };
+      }
+
+      if (
+        normalizedText.length >
+          Math.max(
+            sentenceNormalizedText.length * 1.9,
+            sentenceNormalizedText.length + 14
+          ) &&
+        similarity < 0.4
       ) {
         break;
       }
@@ -274,6 +363,14 @@ export function alignHumanRecordingToBodyOrThrow({
     throw new Error("human_transcription_empty");
   }
 
+  const words = transcription.words.filter(
+    (word) =>
+      word.word.trim().length > 0 &&
+      Number.isFinite(word.startTimeSeconds) &&
+      Number.isFinite(word.endTimeSeconds) &&
+      word.endTimeSeconds >= word.startTimeSeconds
+  );
+
   let segmentCursor = 0;
   let matchedSentenceCount = 0;
   let coveredCharacterCount = 0;
@@ -305,21 +402,54 @@ export function alignHumanRecordingToBodyOrThrow({
       continue;
     }
 
+    const candidateWords = collectWordsWithinCandidateRange({
+      words,
+      startTimeSeconds: candidate.startTimeSeconds,
+      endTimeSeconds: candidate.endTimeSeconds,
+    });
+
+    const bestWordWindow = pickBestWordWindow({
+      words: candidateWords,
+      sentenceNormalizedText: sentence.normalizedText,
+    });
+
+    const useWordWindow =
+      !!bestWordWindow &&
+      bestWordWindow.similarity >= Math.max(0.5, requiredSimilarity - 0.05);
+
     matchedSentenceCount += 1;
     coveredCharacterCount += sentence.normalizedText.length;
-    accumulatedSimilarity += candidate.similarity;
+    accumulatedSimilarity += useWordWindow
+      ? bestWordWindow.similarity
+      : candidate.similarity;
     segmentCursor = candidate.endSegmentIndex + 1;
 
     sentenceTimings.push({
       sentenceIndex: sentence.sentenceIndex,
       paragraphIndex: sentence.paragraphIndex,
       chunkIndex: matchedSentenceCount - 1,
-      timeSeconds: roundTiming(candidate.startTimeSeconds),
+      timeSeconds: roundTiming(
+        useWordWindow
+          ? bestWordWindow.startTimeSeconds
+          : candidate.startTimeSeconds
+      ),
       durationSeconds: roundTiming(
-        Math.max(candidate.endTimeSeconds - candidate.startTimeSeconds, 0.01)
+        Math.max(
+          (useWordWindow
+            ? bestWordWindow.endTimeSeconds
+            : candidate.endTimeSeconds) -
+            (useWordWindow
+              ? bestWordWindow.startTimeSeconds
+              : candidate.startTimeSeconds),
+          0.01
+        )
       ),
       targetText: sentence.text,
-      spokenText: candidate.rawText,
+      spokenText: useWordWindow ? bestWordWindow.rawText : candidate.rawText,
+      timingSource: useWordWindow ? "aligned_word" : "aligned_segment",
+      matchConfidence: roundTiming(
+        useWordWindow ? bestWordWindow.similarity : candidate.similarity
+      ),
     });
   }
 

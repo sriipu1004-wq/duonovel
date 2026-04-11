@@ -101,6 +101,8 @@ type GeneratedSentenceTiming = {
   durationSeconds: number;
   targetText: string;
   spokenText: string;
+  timingSource?: "aligned_word" | "aligned_segment" | "estimated";
+  matchConfidence?: number;
 };
 
 type GeneratedAudioSegment = {
@@ -116,18 +118,30 @@ function resolveActiveSentenceIndexFromGeneratedTimings(args: {
 }): number {
   const { currentTime, generatedSentenceTimings } = args;
 
-  let activeSentenceIndex = -1;
-
-  for (const sentenceTiming of generatedSentenceTimings) {
-    if (currentTime + 0.000001 >= sentenceTiming.timeSeconds) {
-      activeSentenceIndex = sentenceTiming.sentenceIndex;
-      continue;
-    }
-
-    break;
+  if (generatedSentenceTimings.length === 0) {
+    return -1;
   }
 
-  return activeSentenceIndex;
+  for (let index = 0; index < generatedSentenceTimings.length; index += 1) {
+    const currentTiming = generatedSentenceTimings[index];
+    const nextTiming = generatedSentenceTimings[index + 1] ?? null;
+
+    const currentStart = currentTiming.timeSeconds;
+    const currentEnd = nextTiming
+      ? Math.max(currentStart, nextTiming.timeSeconds - 0.01)
+      : currentStart + Math.max(currentTiming.durationSeconds, 0.2);
+
+    if (currentTime >= currentStart && currentTime < currentEnd) {
+      return currentTiming.sentenceIndex;
+    }
+
+    if (nextTiming && currentTime < nextTiming.timeSeconds) {
+      break;
+    }
+  }
+
+  const lastTiming = generatedSentenceTimings[generatedSentenceTimings.length - 1];
+  return currentTime >= lastTiming.timeSeconds ? lastTiming.sentenceIndex : -1;
 }
 
 type LineHeightPreset = "compact" | "normal" | "wide";
@@ -636,6 +650,18 @@ export default function EpisodePlayback({
           typeof item.targetText === "string" ? item.targetText : "",
         spokenText:
           typeof item.spokenText === "string" ? item.spokenText : "",
+        timingSource:
+          item.timingSource === "aligned_word" ||
+          item.timingSource === "aligned_segment" ||
+          item.timingSource === "estimated"
+            ? item.timingSource
+            : undefined,
+        matchConfidence:
+          typeof item.matchConfidence === "number" &&
+          Number.isFinite(item.matchConfidence) &&
+          item.matchConfidence >= 0
+            ? item.matchConfidence
+            : undefined,
       }))
       .sort((left, right) => {
         if (left.timeSeconds !== right.timeSeconds) {
@@ -645,6 +671,16 @@ export default function EpisodePlayback({
         return left.sentenceIndex - right.sentenceIndex;
       });
   }, [generatedSentenceTimings]);
+
+  const hasExplicitHumanAlignedTiming = useMemo(
+    () =>
+      runtimeGeneratedSentenceTimings.some(
+        (item) =>
+          item.timingSource === "aligned_word" ||
+          item.timingSource === "aligned_segment"
+      ),
+    [runtimeGeneratedSentenceTimings]
+  );  
 
   const mappedGeneratedSentenceTimings = useMemo(() => {
     if (runtimeGeneratedSentenceTimings.length === 0) {
@@ -714,6 +750,10 @@ export default function EpisodePlayback({
       return [];
     }
 
+    if (hasExplicitHumanAlignedTiming) {
+      return mappedGeneratedSentenceTimings;
+    }
+
     const lastTiming =
       mappedGeneratedSentenceTimings[mappedGeneratedSentenceTimings.length - 1];
     const estimatedDuration =
@@ -730,7 +770,7 @@ export default function EpisodePlayback({
       timeSeconds: item.timeSeconds * timingScale,
       durationSeconds: item.durationSeconds * timingScale,
     }));
-  }, [duration, mappedGeneratedSentenceTimings]);
+  }, [duration, hasExplicitHumanAlignedTiming, mappedGeneratedSentenceTimings]);
 
   const expandedGeneratedSentenceTimings = useMemo(() => {
     if (flatVisibleSentences.length === 0) {
@@ -739,6 +779,12 @@ export default function EpisodePlayback({
 
     if (alignedGeneratedSentenceTimings.length === 0) {
       return [];
+    }
+
+    if (hasExplicitHumanAlignedTiming) {
+      return alignedGeneratedSentenceTimings.filter(
+        (item) => item.timingSource !== "estimated"
+      );
     }
 
     const knownTimings = [...alignedGeneratedSentenceTimings].sort(
@@ -819,6 +865,7 @@ export default function EpisodePlayback({
           durationSeconds: averageStepSeconds,
           targetText: visibleSentence.text,
           spokenText: visibleSentence.text,
+          timingSource: "estimated" as const,
         };
       })
       .sort((left, right) => {
@@ -828,7 +875,11 @@ export default function EpisodePlayback({
 
         return left.sentenceIndex - right.sentenceIndex;
       });
-  }, [alignedGeneratedSentenceTimings, flatVisibleSentences]);
+  }, [
+    alignedGeneratedSentenceTimings,
+    flatVisibleSentences,
+    hasExplicitHumanAlignedTiming,
+  ]);
 
   const activeSceneCueLabel = useMemo(
     () =>
