@@ -9,7 +9,6 @@ import {
   type ChangeEvent,
 } from "react";
 import type { RecordingPermissionMode } from "@/lib/recording/recordingEntry";
-import { NemoGenerateCard } from "@/components/recording/NemoGenerateCard";
 import {
   AUDIO_UPLOAD_ALLOWED_EXTENSIONS,
   analyzeAudioUploadClient,
@@ -24,7 +23,6 @@ type EpisodeItem = {
   body: string;
   preview: string;
   readHref: string;
-  bgmSummary: string;
 };
 
 type RecordingStudioPageProps = {
@@ -32,9 +30,8 @@ type RecordingStudioPageProps = {
   seriesTitle: string;
   permissionMode: RecordingPermissionMode;
   worksHref: string;
-  bgmHref: string;
   episodes: EpisodeItem[];
-  manageBgmHref: string;
+  recordedEpisodeIds: string[];
 };
 
 type UploadCheckApiResponse = {
@@ -54,6 +51,7 @@ type HumanPublishResponse = {
 };
 
 type PreparedAudioSource = "none" | "browser_recording" | "file_upload";
+type FooterPanel = "record" | "settings" | null;
 
 function getPermissionLabel(mode: RecordingPermissionMode): string {
   if (mode === "open") return "自由朗読";
@@ -96,18 +94,18 @@ function getDecisionLabel(decision: AudioUploadDecision): string {
 
 function getDecisionTone(decision: AudioUploadDecision): string {
   if (decision === "passed") {
-    return "border-emerald-400/30 bg-emerald-400/10 text-emerald-100";
+    return "border-sky-200 bg-sky-50 text-black";
   }
 
   if (decision === "review_required") {
-    return "border-amber-400/30 bg-amber-400/10 text-amber-100";
+    return "border-amber-200 bg-amber-50 text-amber-700";
   }
 
   if (decision === "rejected") {
-    return "border-rose-400/30 bg-rose-400/10 text-rose-100";
+    return "border-rose-200 bg-rose-50 text-rose-700";
   }
 
-  return "border-white/10 bg-white/[0.03] text-neutral-300";
+  return "border-black/10 bg-neutral-50 text-neutral-700";
 }
 
 function getStageDecisionLabel(
@@ -183,21 +181,32 @@ export function RecordingStudioPage({
   seriesTitle,
   permissionMode,
   worksHref,
-  bgmHref,
   episodes,
-  manageBgmHref,
+  recordedEpisodeIds,
 }: RecordingStudioPageProps) {
+  const recordedEpisodeIdSet = useMemo(
+    () => new Set(recordedEpisodeIds),
+    [recordedEpisodeIds]
+  );
+
+  const firstSelectableEpisodeId = useMemo(() => {
+    const firstUnrecorded = episodes.find(
+      (episode) => !recordedEpisodeIdSet.has(episode.id)
+    );
+    return firstUnrecorded?.id ?? episodes[0]?.id ?? "";
+  }, [episodes, recordedEpisodeIdSet]);
+
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string>(
-    episodes[0]?.id ?? ""
+    firstSelectableEpisodeId
   );
   const [recordingTitle, setRecordingTitle] = useState<string>(
     `${seriesTitle} 朗読`
   );
   const [readerName, setReaderName] = useState<string>("");
   const [bgmMode, setBgmMode] = useState<"none" | "select-later">("none");
-  const [showMicGuide, setShowMicGuide] = useState(true);
-  const [showReadingMemo, setShowReadingMemo] = useState(true);
-  const [memo, setMemo] = useState("");
+  const [activeFooterPanel, setActiveFooterPanel] =
+    useState<FooterPanel>(null);
+
   const [recordingStatus, setRecordingStatus] = useState<
     "idle" | "requesting" | "recording" | "stopping"
   >("idle");
@@ -240,6 +249,18 @@ export function RecordingStudioPage({
       episodes.find((episode) => episode.id === selectedEpisodeId) ?? episodes[0]
     );
   }, [episodes, selectedEpisodeId]);
+
+  useEffect(() => {
+    if (!selectedEpisodeId && firstSelectableEpisodeId) {
+      setSelectedEpisodeId(firstSelectableEpisodeId);
+      return;
+    }
+
+    const exists = episodes.some((episode) => episode.id === selectedEpisodeId);
+    if (!exists && firstSelectableEpisodeId) {
+      setSelectedEpisodeId(firstSelectableEpisodeId);
+    }
+  }, [episodes, firstSelectableEpisodeId, selectedEpisodeId]);
 
   const [canRecordInBrowser, setCanRecordInBrowser] = useState(false);
   const [browserRecordingBlockedReason, setBrowserRecordingBlockedReason] =
@@ -513,6 +534,7 @@ export function RecordingStudioPage({
       recorder.start();
       setRecordingStatus("recording");
       setRecordingMessage("録音中。終わったら停止してプレビュー確認へ進む。");
+      setActiveFooterPanel("record");
     } catch (error) {
       console.error("browser recording start failed", error);
       stopCurrentStream();
@@ -592,6 +614,7 @@ export function RecordingStudioPage({
       setPublishMessage(
         "publish 完了。recordings に接続されたので、読む画面と作品導線から確認できる。"
       );
+      setActiveFooterPanel("record");
     } catch (error) {
       console.error("human publish failed", error);
       setPublishStatus("error");
@@ -601,18 +624,31 @@ export function RecordingStudioPage({
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)_360px]">
-      <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-        <p className="text-xs tracking-[0.18em] text-neutral-500">EPISODES</p>
-        <h2 className="mt-2 text-xl font-semibold text-white">話を選ぶ</h2>
-        <p className="mt-3 text-sm leading-7 text-neutral-400">
-          route は series 単位のままにして、制作対象の話をここで切り替える。
+    <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+      <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs tracking-[0.18em] text-neutral-500">EPISODES</p>
+            <h2 className="mt-2 text-xl font-semibold text-black">話を選ぶ</h2>
+          </div>
+
+          <Link
+            href={worksHref}
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+          >
+            作品ページへ
+          </Link>
+        </div>
+
+        <p className="mt-3 text-sm leading-7 text-neutral-600">
+          制作対象の話を選ぶ。朗読済みの話は表示だけ残し、未朗読の最も若い話を初期選択する。
         </p>
 
-        <div className="mt-5 space-y-3">
+        <div className="mt-5 max-h-[520px] space-y-2 overflow-y-auto pr-1">
           {episodes.length > 0 ? (
             episodes.map((episode) => {
               const isActive = episode.id === selectedEpisode?.id;
+              const isRecorded = recordedEpisodeIdSet.has(episode.id);
 
               return (
                 <button
@@ -620,621 +656,523 @@ export function RecordingStudioPage({
                   type="button"
                   onClick={() => setSelectedEpisodeId(episode.id)}
                   className={[
-                    "w-full rounded-[24px] border p-4 text-left transition",
+                    "w-full rounded-[18px] border p-3 text-left transition",
                     isActive
-                      ? "border-emerald-400/30 bg-emerald-400/10"
-                      : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]",
+                      ? "border-sky-200 bg-sky-50"
+                      : "border-black/10 bg-white hover:bg-neutral-50",
                   ].join(" ")}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold text-white">
-                      第{episode.episodeNumber}話
-                    </span>
-                    {isActive ? (
-                      <span className="rounded-full bg-emerald-400 px-2.5 py-1 text-[11px] font-semibold text-black">
-                        制作対象
-                      </span>
-                    ) : null}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-black">
+                      第{episode.episodeNumber}話　{episode.title}
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {isRecorded ? (
+                        <span className="rounded-full border border-black/10 bg-neutral-100 px-2.5 py-1 text-[11px] text-neutral-700">
+                          朗読済み
+                        </span>
+                      ) : null}
+
+                      {isActive ? (
+                        <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] text-black">
+                          制作対象
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <p className="mt-2 text-sm font-medium text-neutral-200">
-                    {episode.title}
-                  </p>
-
-                  <p className="mt-3 text-xs leading-6 text-neutral-500">
+                  <p
+                    className="mt-2 text-xs leading-6 text-neutral-500"
+                    style={{
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
                     {episode.preview || "本文プレビューなし"}
                   </p>
                 </button>
               );
             })
           ) : (
-            <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-neutral-500">
+            <div className="rounded-[24px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-500">
               まだ話データがないので、制作対象を選べない。
             </div>
           )}
         </div>
-
-        <div className="mt-5 space-y-3 border-t border-white/10 pt-5">
-          <Link
-            href={worksHref}
-            className="block rounded-full bg-white px-5 py-3 text-center text-sm font-semibold text-black transition hover:opacity-90"
-          >
-            作品ページへ戻る
-          </Link>
-
-          {selectedEpisode ? (
-            <Link
-              href={selectedEpisode.readHref}
-              className="block rounded-full border border-white/10 bg-white/5 px-5 py-3 text-center text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-            >
-              読む画面で確認する
-            </Link>
-          ) : null}
-
-          <Link
-            href={bgmHref}
-            className="block rounded-full border border-white/10 bg-white/5 px-5 py-3 text-center text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-          >
-            BGM素材ページを見る
-          </Link>
-        </div>
       </section>
 
-      <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-        <div className="flex flex-wrap gap-3">
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-neutral-300">
-            対象作品: {seriesTitle}
-          </span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-neutral-300">
-            許可状態: {getPermissionLabel(permissionMode)}
-          </span>
-          {selectedEpisode ? (
-            <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-sm text-emerald-200">
-              選択中: 第{selectedEpisode.episodeNumber}話
+      <div className="space-y-6">
+        <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-sm text-neutral-700">
+              対象作品: {seriesTitle}
             </span>
-          ) : null}
-        </div>
-
-        <div className="mt-5 rounded-[24px] border border-sky-400/20 bg-sky-400/10 p-5 text-sm leading-7 text-sky-100">
-          <p className="text-xs tracking-[0.18em] text-sky-200">
-            RECORDING FLOW
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-white">
-            今回の最小朗読導線
-          </h2>
-          <ul className="mt-3 space-y-1">
-            <li>・ブラウザ録音か既存音声アップロードのどちらでも進める</li>
-            <li>・file 選択直後に client 仮判定、その後 server 側保存前チェックを通す</li>
-            <li>・publish 時だけ storage 保存と recordings 接続を行う</li>
-            <li>・same episode / same reader は上書きする</li>
-          </ul>
-        </div>
-
-        <div className="mt-5">
-          <p className="text-xs tracking-[0.18em] text-neutral-500">SCRIPT</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">
-            本文を見ながら制作する
-          </h2>
-          <p className="mt-3 text-sm leading-7 text-neutral-400">
-            録音やアップロードの対象は、いま選んでいる話へ接続される。
-          </p>
-        </div>
-
-        {selectedEpisode ? (
-          <div className="mt-5 space-y-4">
-            <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    EPISODE
-                  </p>
-                  <h3 className="mt-2 text-2xl font-semibold text-white">
-                    第{selectedEpisode.episodeNumber}話 {selectedEpisode.title}
-                  </h3>
-                </div>
-
-                <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs text-neutral-400">
-                  seriesId: {seriesId}
-                </span>
-              </div>
-            </div>
-
-            <div className="min-h-[520px] rounded-[24px] border border-white/10 bg-[#0f0f12] p-5">
-              {selectedEpisode.body.trim() ? (
-                <div className="whitespace-pre-wrap text-[15px] leading-8 text-neutral-200">
-                  {selectedEpisode.body}
-                </div>
-              ) : (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-neutral-500">
-                  本文データが空なので、ここにはまだ表示できる内容がない。
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="mt-5 rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm leading-7 text-neutral-500">
-            制作対象の話を選ぶと、ここに本文が表示される。
-          </div>
-        )}
-      </section>
-
-      <aside className="space-y-6">
-        <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-          <p className="text-xs tracking-[0.18em] text-neutral-500">
-            SETTINGS
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-white">最小設定枠</h2>
-          <p className="mt-3 text-sm leading-7 text-neutral-400">
-            タイトルと表示名は今段階では軽い入力だけ持たせる。上書き判定は user
-            id 側で行う。
-          </p>
-
-          <div className="mt-5 space-y-4">
-            <label className="grid gap-2">
-              <span className="text-sm text-neutral-300">朗読タイトル</span>
-              <input
-                value={recordingTitle}
-                onChange={(event) => setRecordingTitle(event.target.value)}
-                placeholder="例: 第1話 しっとり読み"
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-              />
-            </label>
-
-            <label className="grid gap-2">
-              <span className="text-sm text-neutral-300">朗読者表示名</span>
-              <input
-                value={readerName}
-                onChange={(event) => setReaderName(event.target.value)}
-                placeholder="未入力ならアカウント名ベースで自動補完"
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-              />
-            </label>
-
-            <label className="grid gap-2">
-              <span className="text-sm text-neutral-300">BGM設定</span>
-              <select
-                value={bgmMode}
-                onChange={(event) =>
-                  setBgmMode(event.target.value as "none" | "select-later")
-                }
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-              >
-                <option value="none" className="bg-[#111] text-white">
-                  今は使わない
-                </option>
-                <option value="select-later" className="bg-[#111] text-white">
-                  あとで /bgm から選ぶ
-                </option>
-              </select>
-            </label>
-
-            <label className="flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/[0.03] p-4">
-              <input
-                type="checkbox"
-                checked={showMicGuide}
-                onChange={(event) => setShowMicGuide(Boolean(event.target.checked))}
-                className="mt-1 h-4 w-4"
-              />
-              <span className="text-sm leading-6 text-neutral-300">
-                マイク確認案内を表示する
-              </span>
-            </label>
-
-            <label className="flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/[0.03] p-4">
-              <input
-                type="checkbox"
-                checked={showReadingMemo}
-                onChange={(event) =>
-                  setShowReadingMemo(Boolean(event.target.checked))
-                }
-                className="mt-1 h-4 w-4"
-              />
-              <span className="text-sm leading-6 text-neutral-300">
-                読み方メモの補助枠を使う
-              </span>
-            </label>
-
-            {showReadingMemo ? (
-              <label className="grid gap-2">
-                <span className="text-sm text-neutral-300">制作メモ</span>
-                <textarea
-                  value={memo}
-                  onChange={(event) => setMemo(event.target.value)}
-                  placeholder="読み分け、間の取り方、BGM候補など"
-                  rows={6}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                />
-              </label>
-            ) : null}
-
+            <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-sm text-neutral-700">
+              許可状態: {getPermissionLabel(permissionMode)}
+            </span>
             {selectedEpisode ? (
-              <div className="rounded-[20px] border border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-300">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  EFFECTIVE BGM
-                </p>
-                <p className="mt-2">{selectedEpisode.bgmSummary}</p>
-
-                <Link
-                  href={manageBgmHref}
-                  className="mt-4 inline-block rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                >
-                  BGM管理へ移動
-                </Link>
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-          <p className="text-xs tracking-[0.18em] text-neutral-500">
-            BROWSER RECORDING
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-white">
-            ブラウザ録音
-          </h2>
-          <p className="mt-3 text-sm leading-7 text-neutral-400">
-            PC はここから録音主導。スマホで MediaRecorder が厳しい端末は、下のファイルアップロードへ回す。
-          </p>
-
-          <div className="mt-3 rounded-[20px] border border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-300">
-            <p className="text-xs tracking-[0.18em] text-neutral-500">
-              BROWSER RECORDING AVAILABILITY
-            </p>
-            <p className="mt-2">
-              {canRecordInBrowser
-                ? "この端末ではブラウザ録音を開始できる。"
-                : `ブラウザ録音は今使えない。${browserRecordingBlockedReason}`}
-            </p>
-          </div>          
-
-          {showMicGuide ? (
-            <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-300">
-              録音前に、入力デバイス、ブラウザのマイク許可、静かな環境を確認する。
-            </div>
-          ) : null}
-
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={startBrowserRecording}
-              disabled={
-                recordingStatus === "requesting" ||
-                recordingStatus === "recording" ||
-                recordingStatus === "stopping" ||
-                !canRecordInBrowser
-              }
-              className={[
-                "rounded-full px-5 py-3 text-sm font-semibold transition",
-                canRecordInBrowser &&
-                recordingStatus !== "requesting" &&
-                recordingStatus !== "recording" &&
-                recordingStatus !== "stopping"
-                  ? "bg-white text-black hover:opacity-90"
-                  : "cursor-not-allowed bg-white text-black opacity-40",
-              ].join(" ")}
-            >
-              録音開始
-            </button>
-
-            <button
-              type="button"
-              onClick={stopBrowserRecording}
-              disabled={recordingStatus !== "recording"}
-              className={[
-                "rounded-full px-5 py-3 text-sm font-semibold transition",
-                recordingStatus === "recording"
-                  ? "border border-white/10 bg-white/5 text-neutral-200 hover:bg-white hover:text-black"
-                  : "cursor-not-allowed border border-white/10 bg-white/5 text-neutral-500 opacity-50",
-              ].join(" ")}
-            >
-              録音停止
-            </button>
-          </div>
-
-          <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-300">
-            <p className="text-xs tracking-[0.18em] text-neutral-500">
-              RECORD STATUS
-            </p>
-            <p className="mt-2">
-              状態:{" "}
-              {recordingStatus === "idle"
-                ? "待機"
-                : recordingStatus === "requesting"
-                ? "許可待ち"
-                : recordingStatus === "recording"
-                ? "録音中"
-                : "停止処理中"}
-            </p>
-            <p className="mt-2">{recordingMessage}</p>
-          </div>
-        </section>
-
-        <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-          <p className="text-xs tracking-[0.18em] text-neutral-500">
-            UPLOAD / PUBLISH
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-white">
-            音声を選んで publish する
-          </h2>
-          <p className="mt-3 text-sm leading-7 text-neutral-400">
-            録音した音源でも既存ファイルでも、ここで保存前チェックを通したものだけ publish できる。
-          </p>
-
-          <label className="mt-4 block">
-            <span className="mb-2 block text-sm font-medium text-neutral-200">
-              音声ファイルを選ぶ
-            </span>
-            <input
-              type="file"
-              accept="audio/*,.mp3,.m4a,.wav,.webm,.ogg,.aac,.flac"
-              onChange={handleUploadFileChange}
-              className="block w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-200 file:mr-4 file:rounded-full file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black"
-            />
-          </label>
-
-          <p className="mt-3 text-xs leading-6 text-neutral-500">
-            対応想定: {AUDIO_UPLOAD_ALLOWED_EXTENSIONS.join(" / ")}
-          </p>
-
-          {preparedAudioPreviewUrl ? (
-            <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-4">
-              <p className="text-xs tracking-[0.18em] text-neutral-500">
-                PREVIEW
-              </p>
-              <audio
-                controls
-                src={preparedAudioPreviewUrl}
-                className="mt-3 w-full"
-              />
-            </div>
-          ) : null}
-
-          <div
-            className={[
-              "mt-4 rounded-[24px] border p-4",
-              getDecisionTone(finalDecision),
-            ].join(" ")}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs tracking-[0.18em] opacity-80">
-                  UPLOAD CHECK STATUS
-                </p>
-                <h3 className="mt-2 text-lg font-semibold text-white">
-                  保存前最終判定: {getDecisionLabel(finalDecision)}
-                </h3>
-              </div>
-
-              <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-200">
-                {preparedAudioFile?.name || "未選択"}
+              <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm text-black">
+                制作対象:{" "}
+                {recordedEpisodeIdSet.has(selectedEpisode.id)
+                  ? `第${selectedEpisode.episodeNumber}話（朗読済み）`
+                  : `第${selectedEpisode.episodeNumber}話`}
               </span>
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
-                <p className="text-xs tracking-[0.14em] text-neutral-500">SOURCE</p>
-                <p className="mt-2">{getPreparedSourceLabel(preparedAudioSource)}</p>
-                <p className="mt-1 text-xs text-neutral-400">
-                  {preparedAudioFile
-                    ? formatFileSize(preparedAudioFile.size)
-                    : "0 B"}
-                </p>
-              </div>
-
-              <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
-                <p className="text-xs tracking-[0.14em] text-neutral-500">RESULT</p>
-                <p className="mt-2">
-                  {unexpectedUploadError ||
-                    serverResult?.message ||
-                    clientResult?.message ||
-                    "ファイルを選ぶとここに判定結果が出る"}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
-                <p className="text-xs tracking-[0.14em] text-neutral-500">
-                  CLIENT 仮判定
-                </p>
-                <p className="mt-2 text-lg font-semibold text-white">
-                  {getDecisionLabel(clientDecision)}
-                </p>
-              </div>
-
-              <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
-                <p className="text-xs tracking-[0.14em] text-neutral-500">
-                  SERVER 保存前チェック
-                </p>
-                <p className="mt-2 text-lg font-semibold text-white">
-                  {getStageDecisionLabel(serverDecision)}
-                </p>
-              </div>
-            </div>
-
-            {clientResult?.metrics ? (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
-                  <p className="text-xs tracking-[0.14em] text-neutral-500">長さ</p>
-                  <p className="mt-2 text-lg font-semibold text-white">
-                    {formatSeconds(clientResult.metrics.durationSeconds)}
-                  </p>
-                </div>
-
-                <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
-                  <p className="text-xs tracking-[0.14em] text-neutral-500">
-                    声らしい区間
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-white">
-                    {formatPercent(clientResult.metrics.speechWindowRatio)}
-                  </p>
-                </div>
-
-                <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
-                  <p className="text-xs tracking-[0.14em] text-neutral-500">
-                    無音割合
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-white">
-                    {formatPercent(clientResult.metrics.pauseRatio)}
-                  </p>
-                </div>
-
-                <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
-                  <p className="text-xs tracking-[0.14em] text-neutral-500">
-                    音が入っている割合
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-white">
-                    {formatPercent(clientResult.metrics.activeRatio)}
-                  </p>
-                </div>
-
-                <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
-                  <p className="text-xs tracking-[0.14em] text-neutral-500">
-                    環境音っぽさ
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-white">
-                    {formatPercent(clientResult.metrics.noisyWindowRatio)}
-                  </p>
-                </div>
-
-                <div className="rounded-[20px] border border-white/10 bg-black/20 p-3 text-sm text-neutral-200">
-                  <p className="text-xs tracking-[0.14em] text-neutral-500">
-                    連続音っぽさ
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-white">
-                    {formatPercent(clientResult.metrics.continuousSoundRatio)}
-                  </p>
-                </div>
-              </div>
-            ) : null}
-
-            {retryHints.length ? (
-              <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-4">
-                <p className="text-xs tracking-[0.14em] text-neutral-500">
-                  RETRY GUIDE
-                </p>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-200">
-                  {retryHints.map((hint) => (
-                    <li key={hint}>・{hint}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={handlePublish}
-                disabled={!canPublish}
-                className={[
-                  "rounded-full px-5 py-3 text-sm font-semibold transition",
-                  canPublish
-                    ? "bg-white text-black hover:opacity-90"
-                    : "cursor-not-allowed bg-white text-black opacity-40",
-                ].join(" ")}
-              >
-                {publishStatus === "publishing"
-                  ? "publish 中..."
-                  : "publish して recordings へ接続"}
-              </button>
-
-              <span className="rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm text-neutral-300">
-                接続先:{" "}
-                {selectedEpisode
-                  ? `第${selectedEpisode.episodeNumber}話`
-                  : "話未選択"}
-              </span>
-            </div>
-          </div>
-
-          <div
-            className={[
-              "mt-4 rounded-[24px] border p-4",
-              publishStatus === "success"
-                ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100"
-                : publishStatus === "error"
-                ? "border-rose-400/30 bg-rose-400/10 text-rose-100"
-                : publishStatus === "publishing"
-                ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
-                : "border-white/10 bg-white/[0.03] text-neutral-300",
-            ].join(" ")}
-          >
-            <p className="text-xs tracking-[0.18em] opacity-80">PUBLISH STATUS</p>
-            <h3 className="mt-2 text-lg font-semibold text-white">
-              {publishMessage}
-            </h3>
-
-            {publishResult?.recordingId ? (
-              <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-200">
-                <p>recordingId: {publishResult.recordingId}</p>
-                <p className="mt-2 break-all">
-                  audioStoragePath: {publishResult.audioStoragePath}
-                </p>
-                <p className="mt-2">
-                  readerName: {publishResult.readerName || "未設定"}
-                </p>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <Link
-                    href={publishedReadHref}
-                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    読む画面で確認する
-                  </Link>
-
-                  <Link
-                    href={worksHref}
-                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    作品ページへ戻る
-                  </Link>
-                </div>
-              </div>
             ) : null}
           </div>
-        </section>
 
-        <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-          <p className="text-xs tracking-[0.18em] text-neutral-500">
-            NEMO GENERATION
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-white">
-            VOICEVOX Nemo 自動生成
-          </h2>
-          <p className="mt-3 text-sm leading-7 text-neutral-400">
-            人力朗読とは別系統の既存導線として残す。今回の追加実装でここは壊さない。
-          </p>
+          <div className="mt-5">
+            <p className="text-xs tracking-[0.18em] text-neutral-500">SCRIPT</p>
+            <h2 className="mt-2 text-xl font-semibold text-black">
+              本文を見ながら制作する
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-neutral-600">
+              録音やアップロードの対象は、いま選んでいる話へ接続される。
+            </p>
+          </div>
 
           {selectedEpisode ? (
-            <NemoGenerateCard
-              seriesId={seriesId}
-              episodeId={selectedEpisode.id}
-              episodeNumber={selectedEpisode.episodeNumber}
-              episodeTitle={selectedEpisode.title}
-              readHref={selectedEpisode.readHref}
-            />
+            <div className="mt-5 space-y-4">
+              <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs tracking-[0.18em] text-neutral-500">
+                      EPISODE
+                    </p>
+                    <h3 className="mt-2 text-2xl font-semibold text-black">
+                      第{selectedEpisode.episodeNumber}話 {selectedEpisode.title}
+                    </h3>
+                  </div>
+
+                  <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
+                    seriesId: {seriesId}
+                  </span>
+                </div>
+              </div>
+
+              <div className="h-[560px] overflow-y-auto rounded-[24px] border border-black/10 bg-[#fafafa] p-5">
+                {selectedEpisode.body.trim() ? (
+                  <div className="whitespace-pre-wrap text-[15px] leading-8 text-neutral-800">
+                    {selectedEpisode.body}
+                  </div>
+                ) : (
+                  <div className="rounded-[20px] border border-dashed border-black/15 bg-white p-4 text-sm leading-7 text-neutral-500">
+                    本文データが空なので、ここにはまだ表示できる内容がない。
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
-            <div className="mt-5 rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-neutral-500">
-              話を選ぶと、ここから Nemo 自動生成を実行できる。
+            <div className="mt-5 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 p-5 text-sm leading-7 text-neutral-500">
+              制作対象の話を選ぶと、ここに本文が表示される。
             </div>
           )}
         </section>
 
-        <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-          <p className="text-xs tracking-[0.18em] text-neutral-500">SCOPE</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">今回の到達範囲</h2>
-          <ul className="mt-4 space-y-2 text-sm leading-6 text-neutral-400">
-            <li>・話選択</li>
-            <li>・本文を見ながら制作準備</li>
-            <li>・ブラウザ録音</li>
-            <li>・既存音声ファイルアップロード</li>
-            <li>・client / server 保存前チェック</li>
-            <li>・publish 時の recordings 接続</li>
-            <li>・same episode / same reader 上書き</li>
-            <li>・Nemo 導線維持</li>
-          </ul>
-        </section>
-      </aside>
+        {activeFooterPanel === "record" ? (
+          <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs tracking-[0.18em] text-neutral-500">
+                  RECORDING
+                </p>
+                <h2 className="mt-2 text-xl font-semibold text-black">
+                  録音 / アップロード / publish
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveFooterPanel(null)}
+                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+              >
+                閉じる
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <div className="space-y-4">
+                <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">
+                    BROWSER RECORDING
+                  </p>
+                  <p className="mt-3 text-sm leading-7 text-neutral-600">
+                    {canRecordInBrowser
+                      ? "この端末ではブラウザ録音を開始できる。"
+                      : `ブラウザ録音は今使えない。${browserRecordingBlockedReason}`}
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={startBrowserRecording}
+                      disabled={
+                        recordingStatus === "requesting" ||
+                        recordingStatus === "recording" ||
+                        recordingStatus === "stopping" ||
+                        !canRecordInBrowser
+                      }
+                      className={[
+                        "rounded-full px-5 py-3 text-sm font-semibold transition",
+                        canRecordInBrowser &&
+                        recordingStatus !== "requesting" &&
+                        recordingStatus !== "recording" &&
+                        recordingStatus !== "stopping"
+                          ? "border border-sky-200 bg-sky-50 text-black hover:bg-sky-100"
+                          : "cursor-not-allowed border border-black/10 bg-neutral-100 text-neutral-400",
+                      ].join(" ")}
+                    >
+                      録音開始
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={stopBrowserRecording}
+                      disabled={recordingStatus !== "recording"}
+                      className={[
+                        "rounded-full px-5 py-3 text-sm font-semibold transition",
+                        recordingStatus === "recording"
+                          ? "border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
+                          : "cursor-not-allowed border border-black/10 bg-neutral-100 text-neutral-400",
+                      ].join(" ")}
+                    >
+                      録音停止
+                    </button>
+                  </div>
+
+                  <div className="mt-4 rounded-[20px] border border-black/10 bg-white p-4 text-sm leading-7 text-neutral-700">
+                    <p className="text-xs tracking-[0.18em] text-neutral-500">
+                      RECORD STATUS
+                    </p>
+                    <p className="mt-2">
+                      状態:{" "}
+                      {recordingStatus === "idle"
+                        ? "待機"
+                        : recordingStatus === "requesting"
+                          ? "許可待ち"
+                          : recordingStatus === "recording"
+                            ? "録音中"
+                            : "停止処理中"}
+                    </p>
+                    <p className="mt-2">{recordingMessage}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">
+                    UPLOAD / PUBLISH
+                  </p>
+
+                  <label className="mt-4 block">
+                    <span className="mb-2 block text-sm font-medium text-neutral-700">
+                      音声ファイルを選ぶ
+                    </span>
+                    <input
+                      type="file"
+                      accept="audio/*,.mp3,.m4a,.wav,.webm,.ogg,.aac,.flac"
+                      onChange={handleUploadFileChange}
+                      className="block w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-neutral-700 file:mr-4 file:rounded-full file:border-0 file:bg-sky-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black"
+                    />
+                  </label>
+
+                  <p className="mt-3 text-xs leading-6 text-neutral-500">
+                    対応想定: {AUDIO_UPLOAD_ALLOWED_EXTENSIONS.join(" / ")}
+                  </p>
+
+                  {preparedAudioPreviewUrl ? (
+                    <div className="mt-4 rounded-[20px] border border-black/10 bg-white p-4">
+                      <p className="text-xs tracking-[0.18em] text-neutral-500">
+                        PREVIEW
+                      </p>
+                      <audio
+                        controls
+                        src={preparedAudioPreviewUrl}
+                        className="mt-3 w-full"
+                      />
+                    </div>
+                  ) : null}
+
+                  <div
+                    className={[
+                      "mt-4 rounded-[24px] border p-4",
+                      getDecisionTone(finalDecision),
+                    ].join(" ")}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs tracking-[0.18em] opacity-80">
+                          UPLOAD CHECK STATUS
+                        </p>
+                        <h3 className="mt-2 text-lg font-semibold">
+                          保存前最終判定: {getDecisionLabel(finalDecision)}
+                        </h3>
+                      </div>
+
+                      <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
+                        {preparedAudioFile?.name || "未選択"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-[20px] border border-black/10 bg-white p-3 text-sm text-neutral-700">
+                        <p className="text-xs tracking-[0.14em] text-neutral-500">SOURCE</p>
+                        <p className="mt-2">{getPreparedSourceLabel(preparedAudioSource)}</p>
+                        <p className="mt-1 text-xs text-neutral-500">
+                          {preparedAudioFile
+                            ? formatFileSize(preparedAudioFile.size)
+                            : "0 B"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-[20px] border border-black/10 bg-white p-3 text-sm text-neutral-700">
+                        <p className="text-xs tracking-[0.14em] text-neutral-500">RESULT</p>
+                        <p className="mt-2">
+                          {unexpectedUploadError ||
+                            serverResult?.message ||
+                            clientResult?.message ||
+                            "ファイルを選ぶとここに判定結果が出る"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-[20px] border border-black/10 bg-white p-3 text-sm text-neutral-700">
+                        <p className="text-xs tracking-[0.14em] text-neutral-500">
+                          CLIENT 仮判定
+                        </p>
+                        <p className="mt-2 text-lg font-semibold text-black">
+                          {getDecisionLabel(clientDecision)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-[20px] border border-black/10 bg-white p-3 text-sm text-neutral-700">
+                        <p className="text-xs tracking-[0.14em] text-neutral-500">
+                          SERVER 保存前チェック
+                        </p>
+                        <p className="mt-2 text-lg font-semibold text-black">
+                          {getStageDecisionLabel(serverDecision)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {clientResult?.metrics ? (
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="rounded-[20px] border border-black/10 bg-white p-3 text-sm text-neutral-700">
+                          <p className="text-xs tracking-[0.14em] text-neutral-500">長さ</p>
+                          <p className="mt-2 text-lg font-semibold text-black">
+                            {formatSeconds(clientResult.metrics.durationSeconds)}
+                          </p>
+                        </div>
+
+                        <div className="rounded-[20px] border border-black/10 bg-white p-3 text-sm text-neutral-700">
+                          <p className="text-xs tracking-[0.14em] text-neutral-500">
+                            声らしい区間
+                          </p>
+                          <p className="mt-2 text-lg font-semibold text-black">
+                            {formatPercent(clientResult.metrics.speechWindowRatio)}
+                          </p>
+                        </div>
+
+                        <div className="rounded-[20px] border border-black/10 bg-white p-3 text-sm text-neutral-700">
+                          <p className="text-xs tracking-[0.14em] text-neutral-500">
+                            無音割合
+                          </p>
+                          <p className="mt-2 text-lg font-semibold text-black">
+                            {formatPercent(clientResult.metrics.pauseRatio)}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {retryHints.length ? (
+                      <div className="mt-4 rounded-[20px] border border-black/10 bg-white p-4">
+                        <p className="text-xs tracking-[0.14em] text-neutral-500">
+                          RETRY GUIDE
+                        </p>
+                        <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-700">
+                          {retryHints.map((hint) => (
+                            <li key={hint}>・{hint}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={handlePublish}
+                        disabled={!canPublish}
+                        className={[
+                          "rounded-full px-5 py-3 text-sm font-semibold transition",
+                          canPublish
+                            ? "border border-sky-200 bg-sky-50 text-black hover:bg-sky-100"
+                            : "cursor-not-allowed border border-black/10 bg-neutral-100 text-neutral-400",
+                        ].join(" ")}
+                      >
+                        {publishStatus === "publishing"
+                          ? "publish 中..."
+                          : "publish して recordings へ接続"}
+                      </button>
+
+                      <span className="rounded-full border border-black/10 bg-white px-4 py-3 text-sm text-neutral-700">
+                        接続先:{" "}
+                        {selectedEpisode
+                          ? `第${selectedEpisode.episodeNumber}話`
+                          : "話未選択"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    className={[
+                      "mt-4 rounded-[24px] border p-4",
+                      publishStatus === "success"
+                        ? "border-sky-200 bg-sky-50 text-black"
+                        : publishStatus === "error"
+                          ? "border-rose-200 bg-rose-50 text-rose-700"
+                          : publishStatus === "publishing"
+                            ? "border-amber-200 bg-amber-50 text-amber-700"
+                            : "border-black/10 bg-neutral-50 text-neutral-700",
+                    ].join(" ")}
+                  >
+                    <p className="text-xs tracking-[0.18em] opacity-80">PUBLISH STATUS</p>
+                    <h3 className="mt-2 text-lg font-semibold whitespace-pre-wrap">
+                      {publishMessage}
+                    </h3>
+
+                    {publishResult?.recordingId ? (
+                      <div className="mt-4 rounded-[20px] border border-black/10 bg-white p-4 text-sm leading-7 text-neutral-700">
+                        <p>recordingId: {publishResult.recordingId}</p>
+                        <p className="mt-2 break-all">
+                          audioStoragePath: {publishResult.audioStoragePath}
+                        </p>
+                        <p className="mt-2">
+                          readerName: {publishResult.readerName || "未設定"}
+                        </p>
+
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          <Link
+                            href={publishedReadHref}
+                            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+                          >
+                            読む画面で確認する
+                          </Link>
+
+                          <Link
+                            href={worksHref}
+                            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+                          >
+                            作品ページへ戻る
+                          </Link>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {activeFooterPanel === "settings" ? (
+          <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs tracking-[0.18em] text-neutral-500">
+                  SETTINGS
+                </p>
+                <h2 className="mt-2 text-xl font-semibold text-black">設定</h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveFooterPanel(null)}
+                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+              >
+                閉じる
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2">
+                <span className="text-sm text-neutral-700">朗読タイトル</span>
+                <input
+                  value={recordingTitle}
+                  onChange={(event) => setRecordingTitle(event.target.value)}
+                  placeholder="例: 第1話 しっとり読み"
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
+                />
+              </label>
+
+              <label className="grid gap-2">
+                <span className="text-sm text-neutral-700">朗読者表示名</span>
+                <input
+                  value={readerName}
+                  onChange={(event) => setReaderName(event.target.value)}
+                  placeholder="未入力ならアカウント名ベースで自動補完"
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
+                />
+              </label>
+
+              <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm text-neutral-700">BGM設定</span>
+                <select
+                  value={bgmMode}
+                  onChange={(event) =>
+                    setBgmMode(event.target.value as "none" | "select-later")
+                  }
+                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none focus:border-sky-200"
+                >
+                  <option value="none">今は使わない</option>
+                  <option value="select-later">あとで選ぶ</option>
+                </select>
+              </label>
+            </div>
+          </section>
+        ) : null}
+
+        <div className="sticky bottom-4 z-20">
+          <div className="mx-auto flex max-w-[420px] items-center justify-center gap-3 rounded-[24px] border border-black/10 bg-white/95 p-3 shadow-lg backdrop-blur">
+            <button
+              type="button"
+              onClick={() =>
+                setActiveFooterPanel((current) =>
+                  current === "record" ? null : "record"
+                )
+              }
+              className={[
+                "flex-1 rounded-2xl px-4 py-3 text-sm font-medium transition",
+                activeFooterPanel === "record"
+                  ? "border border-sky-200 bg-sky-50 text-black"
+                  : "border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+              ].join(" ")}
+            >
+              録音
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActiveFooterPanel((current) =>
+                  current === "settings" ? null : "settings"
+                )
+              }
+              className={[
+                "flex-1 rounded-2xl px-4 py-3 text-sm font-medium transition",
+                activeFooterPanel === "settings"
+                  ? "border border-sky-200 bg-sky-50 text-black"
+                  : "border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+              ].join(" ")}
+            >
+              設定
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

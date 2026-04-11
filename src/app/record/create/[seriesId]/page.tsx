@@ -1,15 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildWorkPath,
   requireRecordingEntryAccess,
   type RecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
 import { RecordingStudioPage } from "@/components/recording/RecordingStudioPage";
-import {
-  formatBgmSeconds,
-  mergeBgmSettings,
-  parseBgmSettingsFromRow,
-} from "@/lib/bgm/bgmSettings";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -22,6 +18,17 @@ type PageProps = {
 };
 
 type RawRow = Record<string, unknown>;
+type RecordingRow = Record<string, unknown> & {
+  episode_id?: string | null;
+  episodeId?: string | null;
+  series_id?: string | null;
+  seriesId?: string | null;
+  reader_id?: string | null;
+  reader_user_id?: string | null;
+  readerUserId?: string | null;
+};
+
+const adminSupabase = createAdminClient();
 
 function pickString(row: RawRow, keys: string[], fallback = ""): string {
   for (const key of keys) {
@@ -37,16 +44,58 @@ function getPermissionLabel(mode: RecordingPermissionMode): string {
   return "朗読停止";
 }
 
-function getPermissionDescription(mode: RecordingPermissionMode): string {
-  if (mode === "open") {
-    return "ログイン済みなら、そのまま朗読制作ページへ入れる。";
+async function fetchRecordedEpisodeIdsForSeries(
+  seriesId: string,
+  userId: string | null
+): Promise<string[]> {
+  if (!userId) {
+    return [];
   }
 
-  if (mode === "approval_required") {
-    return "承認済みユーザーだけが、朗読制作ページへ入れる。";
+  const collected = new Set<string>();
+
+  const tries = [
+    () =>
+      adminSupabase
+        .from("recordings")
+        .select("episode_id")
+        .eq("series_id", seriesId)
+        .eq("reader_id", userId),
+    () =>
+      adminSupabase
+        .from("recordings")
+        .select("episode_id")
+        .eq("series_id", seriesId)
+        .eq("reader_user_id", userId),
+    () =>
+      adminSupabase
+        .from("recordings")
+        .select("episodeId")
+        .eq("seriesId", seriesId)
+        .eq("readerUserId", userId),
+  ];
+
+  for (const run of tries) {
+    const { data, error } = await run();
+
+    if (error) {
+      continue;
+    }
+
+    for (const row of (data ?? []) as RecordingRow[]) {
+      const episodeId = pickString(
+        row,
+        ["episode_id", "episodeId"],
+        ""
+      );
+
+      if (episodeId) {
+        collected.add(episodeId);
+      }
+    }
   }
 
-  return "この作品には入れない設定。作品ページへ戻す。";
+  return Array.from(collected);
 }
 
 export default async function RecordCreateSeriesPage({ params }: PageProps) {
@@ -55,6 +104,9 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
     await requireRecordingEntryAccess(seriesId);
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: seriesRow } = await supabase
     .from("series")
@@ -73,8 +125,8 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
 
   const rawSeries = ((seriesRow ?? {}) as RawRow) || {};
   const rawEpisodes = ((episodeRows ?? []) as RawRow[])
-  .filter(Boolean)
-  .filter((row) => isPublishedEpisode(row as EpisodeRow));
+    .filter(Boolean)
+    .filter((row) => isPublishedEpisode(row as EpisodeRow));
 
   const authorName = pickString(
     rawSeries,
@@ -82,126 +134,84 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
     ""
   );
 
-  const summary = pickString(
-    rawSeries,
-    ["summary", "description", "catch_copy", "overview"],
-    ""
+  const episodes = rawEpisodes
+    .map((row, index) => {
+      const episode = row as EpisodeRow;
+      const episodeNumber = getEpisodeNumber(episode) || index + 1;
+
+      const title = pickString(
+        row,
+        ["title", "episode_title", "name"],
+        `第${episodeNumber}話`
+      );
+      const body = getEpisodeBody(episode);
+      const preview =
+        body.trim().length > 88 ? `${body.trim().slice(0, 88)}...` : body.trim();
+
+      return {
+        id: String(row.id ?? `${seriesId}-${episodeNumber}`),
+        episodeNumber,
+        title,
+        body,
+        preview,
+        readHref: `/read/${seriesId}/${episodeNumber}`,
+      };
+    })
+    .sort((a, b) => a.episodeNumber - b.episodeNumber);
+
+  const recordedEpisodeIds = await fetchRecordedEpisodeIdsForSeries(
+    seriesId,
+    user?.id ?? null
   );
 
-const episodes = rawEpisodes
-  .map((row, index) => {
-    const episode = row as EpisodeRow;
-    const episodeNumber = getEpisodeNumber(episode) || index + 1;
-
-    const title = pickString(
-      row,
-      ["title", "episode_title", "name"],
-      `第${episodeNumber}話`
-    );
-    const body = getEpisodeBody(episode);
-    const preview =
-      body.trim().length > 140 ? `${body.trim().slice(0, 140)}...` : body.trim();
-
-    const rawEpisodeBgmTitle = pickString(row, ["bgm_title", "bgmTitle"], "");
-    const rawEpisodeBgmAudioPath = pickString(
-      row,
-      ["bgm_audio_path", "bgmAudioPath"],
-      ""
-    );
-
-    const seriesBgmTitle = pickString(
-      rawSeries,
-      ["bgm_title", "bgmTitle"],
-      ""
-    );
-    const seriesBgmAudioPath = pickString(
-      rawSeries,
-      ["bgm_audio_path", "bgmAudioPath"],
-      ""
-    );
-
-    const seriesBgmSettings = parseBgmSettingsFromRow(
-      rawSeries["bgm_settings"],
-      rawSeries["bgmSettings"]
-    );
-    const episodeBgmSettings = parseBgmSettingsFromRow(
-      row["bgm_settings"],
-      row["bgmSettings"]
-    );
-    const mergedBgmSettings = mergeBgmSettings(
-      seriesBgmSettings,
-      episodeBgmSettings
-    );
-
-    const effectiveBgmTitle = rawEpisodeBgmTitle || seriesBgmTitle;
-    const effectiveBgmAudioPath = rawEpisodeBgmAudioPath || seriesBgmAudioPath;
-
-    const bgmSummary = effectiveBgmAudioPath
-      ? `${effectiveBgmTitle || "BGMあり"} / IN ${formatBgmSeconds(
-          mergedBgmSettings.fadeInSeconds
-        )} / OUT ${formatBgmSeconds(mergedBgmSettings.fadeOutSeconds)}`
-      : "BGM未設定";
-
-    return {
-      id: String(row.id ?? `${seriesId}-${episodeNumber}`),
-      episodeNumber,
-      title,
-      body,
-      preview,
-      readHref: `/read/${seriesId}/${episodeNumber}`,
-      bgmSummary,
-    };
-  })
-  .sort((a, b) => a.episodeNumber - b.episodeNumber);
-
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
+    <main className="min-h-screen bg-[#f4f4f4] text-black">
       <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <section className="mb-6 overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
-          <div className="border-b border-white/10 px-5 py-6 sm:px-8">
+        <section className="mb-6 overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-sm">
+          <div className="border-b border-black/10 px-5 py-6 sm:px-8">
             <p className="text-xs tracking-[0.22em] text-neutral-500">
               LIB READ RECORDING STUDIO
             </p>
 
-            <h1 className="mt-3 text-3xl font-bold text-white sm:text-4xl">
-              {seriesTitle}
-            </h1>
+            <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold text-black sm:text-4xl">
+                  {seriesTitle}
+                </h1>
 
-            {authorName ? (
-              <p className="mt-3 text-sm text-neutral-400">作者: {authorName}</p>
-            ) : null}
+                {authorName ? (
+                  <p className="mt-3 text-sm text-neutral-500">作者: {authorName}</p>
+                ) : null}
 
-            <p className="mt-4 max-w-4xl text-sm leading-7 text-neutral-300 sm:text-base">
-              ここでは作品本文を見ながら、朗読制作を進められる。
-              今回はブラウザ録音・既存音声アップロード・publish 接続の最小導線を先に通し、音声形式整理や高度な編集は次段へ回す。
-            </p>
-
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-neutral-300">
-                許可状態: {getPermissionLabel(permissionMode)}
-              </span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-neutral-300">
-                話数: {episodes.length}話
-              </span>
-              {permissionMode === "approval_required" ? (
-                <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-sm text-amber-200">
-                  承認状態: {hasApprovedRequest ? "approved" : "未承認"}
-                </span>
-              ) : null}
-            </div>
-
-            <p className="mt-3 text-sm leading-7 text-neutral-400">
-              {getPermissionDescription(permissionMode)}
-            </p>
-
-            {summary ? (
-              <div className="mt-5 rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">SUMMARY</p>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-300">
-                  {summary}
+                <p className="mt-4 max-w-4xl text-sm leading-7 text-neutral-600 sm:text-base">
+                  ここでは作品本文を見ながら、朗読制作を進められる。
+                  当サイトでの録音・既存音声アップロードも可能
                 </p>
+
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-sm text-neutral-700">
+                    許可状態: {getPermissionLabel(permissionMode)}
+                  </span>
+                  <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-sm text-neutral-700">
+                    話数: {episodes.length}話
+                  </span>
+                  {permissionMode === "approval_required" ? (
+                    <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm text-black">
+                      承認状態: {hasApprovedRequest ? "approved" : "未承認"}
+                    </span>
+                  ) : null}
+                </div>
               </div>
-            ) : null}
+
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href={buildWorkPath(seriesId)}
+                  className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+                >
+                  作品ページへ
+                </a>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -210,9 +220,8 @@ const episodes = rawEpisodes
           seriesTitle={seriesTitle}
           permissionMode={permissionMode}
           worksHref={buildWorkPath(seriesId)}
-          bgmHref={`/bgm?from=record-create&seriesId=${seriesId}`}
           episodes={episodes}
-          manageBgmHref={`/manage/bgm/${seriesId}`}
+          recordedEpisodeIds={recordedEpisodeIds}
         />
       </div>
     </main>
