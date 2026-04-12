@@ -26,6 +26,19 @@ type RecordingRow = Record<string, unknown> & {
   reader_id?: string | null;
   reader_user_id?: string | null;
   readerUserId?: string | null;
+  reader_name?: string | null;
+  narrator_name?: string | null;
+  display_name?: string | null;
+  speaker_name?: string | null;
+  audio_storage_path?: string | null;
+  audioStoragePath?: string | null;
+  created_at?: string | null;
+};
+
+type ExistingRecordingSeed = {
+  episodeId: string;
+  audioStoragePath: string;
+  readerName: string;
 };
 
 const adminSupabase = createAdminClient();
@@ -44,35 +57,71 @@ function getPermissionLabel(mode: RecordingPermissionMode): string {
   return "朗読停止";
 }
 
-async function fetchRecordedEpisodeIdsForSeries(
+function resolveDefaultReaderName(
+  user: {
+    email?: string | null;
+    user_metadata?: Record<string, unknown> | null;
+  } | null,
+  existingRecordings: ExistingRecordingSeed[]
+): string {
+  const existingReaderName =
+    existingRecordings.find((item) => item.readerName.trim().length > 0)
+      ?.readerName ?? "";
+
+  if (existingReaderName) {
+    return existingReaderName;
+  }
+
+  const metadata = user?.user_metadata ?? {};
+
+  const fromMetadata =
+    (typeof metadata.display_name === "string" && metadata.display_name.trim()) ||
+    (typeof metadata.name === "string" && metadata.name.trim()) ||
+    (typeof metadata.full_name === "string" && metadata.full_name.trim()) ||
+    "";
+
+  if (fromMetadata) {
+    return fromMetadata;
+  }
+
+  const email = typeof user?.email === "string" ? user.email.trim() : "";
+  if (email.includes("@")) {
+    return email.split("@")[0] || "ユーザー朗読";
+  }
+
+  return "ユーザー朗読";
+}
+
+async function fetchExistingRecordingsForSeriesUser(
   seriesId: string,
   userId: string | null
-): Promise<string[]> {
+): Promise<ExistingRecordingSeed[]> {
   if (!userId) {
     return [];
   }
-
-  const collected = new Set<string>();
 
   const tries = [
     () =>
       adminSupabase
         .from("recordings")
-        .select("episode_id")
+        .select("*")
         .eq("series_id", seriesId)
-        .eq("reader_id", userId),
+        .eq("reader_id", userId)
+        .order("created_at", { ascending: false }),
     () =>
       adminSupabase
         .from("recordings")
-        .select("episode_id")
+        .select("*")
         .eq("series_id", seriesId)
-        .eq("reader_user_id", userId),
+        .eq("reader_user_id", userId)
+        .order("created_at", { ascending: false }),
     () =>
       adminSupabase
         .from("recordings")
-        .select("episodeId")
+        .select("*")
         .eq("seriesId", seriesId)
-        .eq("readerUserId", userId),
+        .eq("readerUserId", userId)
+        .order("created_at", { ascending: false }),
   ];
 
   for (const run of tries) {
@@ -82,20 +131,38 @@ async function fetchRecordedEpisodeIdsForSeries(
       continue;
     }
 
-    for (const row of (data ?? []) as RecordingRow[]) {
-      const episodeId = pickString(
+    const rows = (data ?? []) as RecordingRow[];
+    const seenEpisodeIds = new Set<string>();
+    const results: ExistingRecordingSeed[] = [];
+
+    for (const row of rows) {
+      const episodeId = pickString(row, ["episode_id", "episodeId"]);
+      const audioStoragePath = pickString(row, [
+        "audio_storage_path",
+        "audioStoragePath",
+      ]);
+      const readerName = pickString(
         row,
-        ["episode_id", "episodeId"],
+        ["reader_name", "narrator_name", "display_name", "speaker_name"],
         ""
       );
 
-      if (episodeId) {
-        collected.add(episodeId);
+      if (!episodeId || !audioStoragePath || seenEpisodeIds.has(episodeId)) {
+        continue;
       }
+
+      seenEpisodeIds.add(episodeId);
+      results.push({
+        episodeId,
+        audioStoragePath,
+        readerName,
+      });
     }
+
+    return results;
   }
 
-  return Array.from(collected);
+  return [];
 }
 
 export default async function RecordCreateSeriesPage({ params }: PageProps) {
@@ -159,10 +226,12 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
     })
     .sort((a, b) => a.episodeNumber - b.episodeNumber);
 
-  const recordedEpisodeIds = await fetchRecordedEpisodeIdsForSeries(
+  const existingRecordings = await fetchExistingRecordingsForSeriesUser(
     seriesId,
     user?.id ?? null
   );
+
+  const defaultReaderName = resolveDefaultReaderName(user, existingRecordings);
 
   return (
     <main className="min-h-screen bg-[#f4f4f4] text-black">
@@ -221,7 +290,8 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
           permissionMode={permissionMode}
           worksHref={buildWorkPath(seriesId)}
           episodes={episodes}
-          recordedEpisodeIds={recordedEpisodeIds}
+          existingRecordings={existingRecordings}
+          defaultReaderName={defaultReaderName}
         />
       </div>
     </main>
