@@ -64,8 +64,6 @@ type PreparedAudioSource =
   | "existing"
   | "published";
 
-type FooterPanel = "settings" | null;
-
 type PreviewHistoryItem = {
   id: string;
   source: PreparedAudioSource;
@@ -256,9 +254,6 @@ export function RecordingStudioPage({
     firstSelectableEpisodeId
   );
   const [readerName, setReaderName] = useState<string>(safeDefaultReaderName);
-  const [rubyCustomization, setRubyCustomization] = useState<string>("");
-  const [activeFooterPanel, setActiveFooterPanel] =
-    useState<FooterPanel>(null);
 
   const recordingTitle = `${seriesTitle} 朗読`;
 
@@ -594,7 +589,6 @@ export function RecordingStudioPage({
 
     setRecordingStatus("requesting");
     setRecordingMessage("マイク許可を要求中。");
-    setActiveFooterPanel(null);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1134,54 +1128,14 @@ export function RecordingStudioPage({
           </div>
         </section>
 
-        {activeFooterPanel === "settings" ? (
-          <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  SETTINGS
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-black">設定</h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setActiveFooterPanel(null)}
-                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-              >
-                閉じる
-              </button>
-            </div>
-
-            <div className="mt-5">
-              <label className="grid gap-2">
-                <span className="text-sm text-neutral-700">
-                  ルビ（読み方）の本文カスタマイズ
-                </span>
-                <textarea
-                  value={rubyCustomization}
-                  onChange={(event) => setRubyCustomization(event.target.value)}
-                  placeholder={"例:\n難読語 → よみかた\n固有名詞 → 読み方"}
-                  rows={8}
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
-                />
-              </label>
-
-              <p className="mt-3 text-sm leading-7 text-neutral-500">
-                この欄は制作時の読み方カスタマイズ用。今回段階では制作補助メモとして保持する。
-              </p>
-            </div>
-          </section>
-        ) : null}
-
         <div className="sticky bottom-4 z-20">
-          <div className="mx-auto flex max-w-[420px] items-center justify-center gap-3 rounded-[24px] border border-black/10 bg-white/95 p-3 shadow-lg backdrop-blur">
+          <div className="mx-auto flex max-w-[260px] items-center justify-center rounded-[24px] border border-black/10 bg-white/95 p-3 shadow-lg backdrop-blur">
             <button
               type="button"
               onClick={handleFooterRecord}
               disabled={footerRecordButtonDisabled}
               className={[
-                "flex-1 rounded-2xl px-4 py-3 text-sm font-medium transition",
+                "w-full rounded-2xl px-4 py-3 text-sm font-medium transition",
                 recordingStatus === "recording"
                   ? "border border-sky-200 bg-sky-50 text-black"
                   : footerRecordButtonDisabled
@@ -1190,23 +1144,6 @@ export function RecordingStudioPage({
               ].join(" ")}
             >
               {footerRecordButtonLabel}
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setActiveFooterPanel((current) =>
-                  current === "settings" ? null : "settings"
-                )
-              }
-              className={[
-                "flex-1 rounded-2xl px-4 py-3 text-sm font-medium transition",
-                activeFooterPanel === "settings"
-                  ? "border border-sky-200 bg-sky-50 text-black"
-                  : "border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-              ].join(" ")}
-            >
-              設定
             </button>
           </div>
         </div>
