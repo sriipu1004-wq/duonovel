@@ -27,8 +27,6 @@ export type TextSegment = {
 const AOZORA_RUBY_PATTERN =
   /｜([^《》\n]+)《([^《》\n]+)》|([一-龯々ヶヵ]+)《([^《》\n]+)》/g;
 
-const AOZORA_GAIJI_PATTERN = /※［＃「([^」]+)」、[^］]+］/g;
-
 const AOZORA_CONTROL_PATTERNS = [
   /［＃改ページ］/g,
   /［＃改丁］/g,
@@ -43,40 +41,29 @@ const AOZORA_CONTROL_PATTERNS = [
   /［＃(?:ページの右[^］]+)］/g,
 ] as const;
 
-const AOZORA_GAIJI_DESCRIPTION_TO_CHAR = new Map<string, string>([
-  ["特のへん+建", "犍"],
-  ["特のへん+え+辛", "犍"],
-  ["特のへん+之+辛", "犍"],
-  ["牛へん+建", "犍"],
-]);
-
-function normalizeAozoraGaijiDescription(value: string): string {
-  return value
-    .trim()
-    .replace(/[＋﹢]/g, "+")
-    .replace(/\s+/g, "")
-    .replace(/[「」]/g, "");
-}
-
-export function normalizeAozoraTextForDisplay(text: string): string {
-  if (!text) {
-    return "";
-  }
-
+function stripAozoraControlAnnotations(text: string): string {
   let normalized = text;
-
-  normalized = normalized.replace(AOZORA_GAIJI_PATTERN, (full, description) => {
-    const key = normalizeAozoraGaijiDescription(String(description ?? ""));
-    return AOZORA_GAIJI_DESCRIPTION_TO_CHAR.get(key) ?? full;
-  });
 
   for (const pattern of AOZORA_CONTROL_PATTERNS) {
     normalized = normalized.replace(pattern, "");
   }
 
-  normalized = normalized.replace(/\n{3,}/g, "\n\n");
-
   return normalized;
+}
+
+export function normalizeAozoraTextForLayout(text: string): string {
+  if (!text) {
+    return "";
+  }
+
+  return stripAozoraControlAnnotations(text)
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function normalizeAozoraTextForDisplay(text: string): string {
+  return normalizeAozoraTextForLayout(text);
 }
 
 export function renderTextWithAozoraRuby(text: string): ReactNode {
@@ -392,7 +379,8 @@ export default function EffectPreviewRenderer({
       ? body
       : "本文がまだありません。ここに演出付き本文プレビューが表示される。";
 
-  const paragraphBlocks = buildParagraphBlocks(safeBody);
+  const normalizedBody = normalizeAozoraTextForLayout(safeBody);
+  const paragraphBlocks = buildParagraphBlocks(normalizedBody);
   const previewIllustrations = settings.illustrations.filter(
     (illustration) => illustration.placement !== "scene_break"
   );

@@ -14,6 +14,8 @@ import {
 import {
   buildSegments,
   buildTypographyStyle,
+  normalizeAozoraTextForDisplay,
+  normalizeAozoraTextForLayout,
   renderIllustration,
   renderSegment,
   renderTextWithAozoraRuby,
@@ -586,7 +588,15 @@ export default function EpisodePlayback({
       ? body
       : "本文がまだ登録されていません。";
 
-  const paragraphBlocks = useMemo(() => buildNemoAlignedParagraphBlocks(safeBody), [safeBody]);
+  const layoutBody = useMemo(
+    () => normalizeAozoraTextForLayout(safeBody),
+    [safeBody]
+  );
+
+  const paragraphBlocks = useMemo(
+    () => buildNemoAlignedParagraphBlocks(layoutBody),
+    [layoutBody]
+  );
 
   const totalSentenceCount = useMemo(() => {
     return paragraphBlocks.reduce((sum, block) => sum + block.segments.length, 0);
@@ -625,7 +635,9 @@ export default function EpisodePlayback({
       paragraphBlocks.flatMap((block) =>
         block.segments.map((segment) => ({
           sentenceIndex: segment.index,
-          text: normalizeComparableSentenceText(segment.text),
+          text: normalizeComparableSentenceText(
+            normalizeAozoraTextForDisplay(segment.text)
+          ),
         }))
       ),
     [paragraphBlocks]
