@@ -16,6 +16,7 @@ import {
   buildTypographyStyle,
   renderIllustration,
   renderSegment,
+  renderTextWithAozoraRuby,
 } from "@/features/effects/EffectPreviewRenderer";
 import BgmController from "@/features/playback/BgmController";
 import EpisodeCommentSection from "@/features/comment/EpisodeCommentSection";
@@ -2085,7 +2086,7 @@ useEffect(() => {
                                   ].join(" ")}
                                 >
                                   {hideEffects
-                                    ? segment.text
+                                    ? renderTextWithAozoraRuby(segment.text)
                                     : renderSentenceWithInlineMarks(
                                         segment.text,
                                         appliedEffectSettings.inlineMarks

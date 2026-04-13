@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import {
-  ProfileHero,
   ProfileSeriesSection,
   buildAuthorPageHref,
   buildAuthorSeriesCards,
@@ -11,6 +10,7 @@ import {
   resolveAuthorName,
 } from "@/features/authorProfile/authorProfileShared";
 import BookmarkedSeriesList from "@/features/bookmark/BookmarkedSeriesList";
+import MyPageHeroEditable from "./MyPageHeroEditable";
 
 function EntryCard({
   eyebrow,
@@ -60,6 +60,16 @@ export default async function MyPage() {
   const authorBio = resolveAuthorBio(author);
   const signedInLabel = user.email ?? "ログイン中";
 
+  const rawDisplayName =
+    typeof author?.display_name === "string" ? author.display_name : "";
+
+  const initialDisplayName =
+    rawDisplayName.trim().length > 0
+      ? rawDisplayName
+      : authorName !== signedInLabel
+        ? authorName
+        : "";
+
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -67,9 +77,11 @@ export default async function MyPage() {
           <span className="text-neutral-300">マイページ</span>
         </div>
 
-        <ProfileHero
+        <MyPageHeroEditable
+          userId={user.id}
+          fallbackEmail={signedInLabel}
+          initialDisplayName={initialDisplayName}
           eyebrow="LIB read MYPAGE"
-          title={authorName}
           description={`${authorBio}
 
 ここは公開作者ページとは別の、本人用活動ハブ。
@@ -149,16 +161,16 @@ export default async function MyPage() {
             }}
           />
 
-<section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-  <p className="text-xs tracking-[0.18em] text-neutral-500">BOOKMARKS</p>
-  <h2 className="mt-2 text-xl font-semibold text-white">ブックマーク作品</h2>
-  <p className="mt-3 text-sm leading-7 text-neutral-400">
-    作品ページからブックマークした作品をここでまとめて確認する。
-    BGM のお気に入りとは別に、作品保存はブックマークとして扱う。
-  </p>
+          <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+            <p className="text-xs tracking-[0.18em] text-neutral-500">BOOKMARKS</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">ブックマーク作品</h2>
+            <p className="mt-3 text-sm leading-7 text-neutral-400">
+              作品ページからブックマークした作品をここでまとめて確認する。
+              BGM のお気に入りとは別に、作品保存はブックマークとして扱う。
+            </p>
 
-  <BookmarkedSeriesList userId={user.id} />
-</section>
+            <BookmarkedSeriesList userId={user.id} />
+          </section>
         </div>
       </div>
     </main>

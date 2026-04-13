@@ -24,6 +24,129 @@ export type TextSegment = {
   marks: EffectInlineMark[];
 };
 
+const AOZORA_RUBY_PATTERN =
+  /｜([^《》\n]+)《([^《》\n]+)》|([一-龯々ヶヵ]+)《([^《》\n]+)》/g;
+
+const AOZORA_GAIJI_PATTERN = /※［＃「([^」]+)」、[^］]+］/g;
+
+const AOZORA_CONTROL_PATTERNS = [
+  /［＃改ページ］/g,
+  /［＃改丁］/g,
+  /［＃改見開き］/g,
+  /［＃改行］/g,
+  /［＃(?:ここから[^］]+)］/g,
+  /［＃(?:ここで[^］]+終わり)］/g,
+  /［＃地付き］/g,
+  /［＃(?:地から[^］]+)］/g,
+  /［＃(?:ページの左右中央)］/g,
+  /［＃(?:ページの左[^］]+)］/g,
+  /［＃(?:ページの右[^］]+)］/g,
+] as const;
+
+const AOZORA_GAIJI_DESCRIPTION_TO_CHAR = new Map<string, string>([
+  ["特のへん+建", "犍"],
+  ["特のへん+え+辛", "犍"],
+  ["特のへん+之+辛", "犍"],
+  ["牛へん+建", "犍"],
+]);
+
+function normalizeAozoraGaijiDescription(value: string): string {
+  return value
+    .trim()
+    .replace(/[＋﹢]/g, "+")
+    .replace(/\s+/g, "")
+    .replace(/[「」]/g, "");
+}
+
+export function normalizeAozoraTextForDisplay(text: string): string {
+  if (!text) {
+    return "";
+  }
+
+  let normalized = text;
+
+  normalized = normalized.replace(AOZORA_GAIJI_PATTERN, (full, description) => {
+    const key = normalizeAozoraGaijiDescription(String(description ?? ""));
+    return AOZORA_GAIJI_DESCRIPTION_TO_CHAR.get(key) ?? full;
+  });
+
+  for (const pattern of AOZORA_CONTROL_PATTERNS) {
+    normalized = normalized.replace(pattern, "");
+  }
+
+  normalized = normalized.replace(/\n{3,}/g, "\n\n");
+
+  return normalized;
+}
+
+export function renderTextWithAozoraRuby(text: string): ReactNode {
+  const normalizedText = normalizeAozoraTextForDisplay(text);
+
+  if (!normalizedText.includes("《")) {
+    return normalizedText;
+  }
+
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let partIndex = 0;
+
+  for (const match of normalizedText.matchAll(AOZORA_RUBY_PATTERN)) {
+    const matchIndex = match.index ?? -1;
+
+    if (matchIndex < 0) {
+      continue;
+    }
+
+    if (matchIndex > lastIndex) {
+      nodes.push(
+        <Fragment key={`plain-${partIndex}-${lastIndex}`}>
+          {normalizedText.slice(lastIndex, matchIndex)}
+        </Fragment>
+      );
+    }
+
+    const baseText = (match[1] ?? match[3] ?? "").trim();
+    const rubyText = (match[2] ?? match[4] ?? "").trim();
+
+    if (baseText && rubyText) {
+      nodes.push(
+        <ruby
+          key={`ruby-${partIndex}-${matchIndex}`}
+          className="align-middle"
+        >
+          <span>{baseText}</span>
+          <rt className="text-[0.52em] font-normal not-italic leading-none opacity-80">
+            {rubyText}
+          </rt>
+        </ruby>
+      );
+    } else {
+      nodes.push(
+        <Fragment key={`raw-${partIndex}-${matchIndex}`}>
+          {match[0]}
+        </Fragment>
+      );
+    }
+
+    lastIndex = matchIndex + match[0].length;
+    partIndex += 1;
+  }
+
+  if (lastIndex < normalizedText.length) {
+    nodes.push(
+      <Fragment key={`plain-tail-${lastIndex}`}>
+        {normalizedText.slice(lastIndex)}
+      </Fragment>
+    );
+  }
+
+  if (nodes.length === 0) {
+    return normalizedText;
+  }
+
+  return nodes;
+}
+
 export function buildBackgroundTheme(preset: EffectBackgroundPreset) {
   switch (preset) {
     case "paper":
@@ -86,9 +209,11 @@ function applyInlineMark(node: ReactNode, mark: EffectInlineMark): ReactNode {
   switch (mark.kind) {
     case "ruby":
       return (
-        <ruby>
+        <ruby className="align-middle">
           {node}
-          <rt className="text-[0.65em] text-sky-400">{mark.value ?? ""}</rt>
+          <rt className="text-[0.52em] font-normal not-italic leading-none opacity-80">
+            {mark.value ?? ""}
+          </rt>
         </ruby>
       );
 
@@ -199,7 +324,7 @@ export function buildSegments(
 }
 
 export function renderSegment(segment: TextSegment, index: number) {
-  let node: ReactNode = segment.text;
+  let node: ReactNode = renderTextWithAozoraRuby(segment.text);
 
   for (const mark of segment.marks) {
     node = applyInlineMark(node, mark);
