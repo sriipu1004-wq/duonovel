@@ -26,7 +26,7 @@ type RecordingRow = Record<string, unknown> & {
   public?: boolean | null;
 };
 
-type NemoAutoGenerationConfig = {
+export type NemoAutoGenerationConfig = {
   userId: string;
   narratorName: string;
   speakerId: number;
@@ -64,7 +64,7 @@ function parseSpeakerId(rawValue: string, fallbackRawValue?: string): number | n
   return null;
 }
 
-function resolveNemoAutoGenerationConfig(): NemoAutoGenerationConfig | null {
+export function resolveNemoAutoGenerationConfig(): NemoAutoGenerationConfig | null {
   const userId = (process.env.VOICEVOX_NEMO_AUTOGEN_USER_ID ?? "").trim();
   const narratorName =
     (process.env.VOICEVOX_NEMO_AUTOGEN_NARRATOR_NAME ?? "").trim() ||

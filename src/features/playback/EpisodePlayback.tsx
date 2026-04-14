@@ -75,6 +75,9 @@ type EpisodePlaybackProps = {
   bgmSrc?: string | null;
   bgmSettings?: BgmSettings;
   effectSettings?: EffectSettings;
+  autoNarrationStatusLabel?: string;
+  autoNarrationStatusClassName?: string;
+  stopNarrationByDefault?: boolean;  
 };
 
 type BookmarkData = {
@@ -454,6 +457,9 @@ export default function EpisodePlayback({
   bgmSrc,
   bgmSettings,
   effectSettings,
+  autoNarrationStatusLabel,
+  autoNarrationStatusClassName,
+  stopNarrationByDefault = false,  
 }: EpisodePlaybackProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -526,7 +532,9 @@ export default function EpisodePlayback({
   const [bookmarkMessage, setBookmarkMessage] = useState("");
   const [isCurrentEpisodeBookmarked, setIsCurrentEpisodeBookmarked] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isNarrationStopped, setIsNarrationStopped] = useState(false);
+  const [isNarrationStopped, setIsNarrationStopped] = useState(
+    stopNarrationByDefault
+  );
   const [assembledSegmentAudioUrl, setAssembledSegmentAudioUrl] = useState("");
 
   const [displayPreference, setDisplayPreference] = useState<DisplayPreference>(
@@ -1306,6 +1314,10 @@ useEffect(() => {
   }, [episodeId, playableAudioSrc, bgmSrc, bgmTitle, appliedEffectSettings.sceneCues]);
 
   useEffect(() => {
+    setIsNarrationStopped(stopNarrationByDefault);
+  }, [episodeId, stopNarrationByDefault, selectedReaderKey, selectedReaderName]);
+
+  useEffect(() => {
     if (estimatedSentenceIndex < 0) {
       previousEstimatedSentenceIndexRef.current = estimatedSentenceIndex;
       return;
@@ -1816,7 +1828,7 @@ useEffect(() => {
                 </span>
               ) : (
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-500">
-                  朗読者未選択
+                  朗読者未選択 / 朗読停止中
                 </span>
               )}
 
@@ -1828,8 +1840,24 @@ useEffect(() => {
                     : "border border-black/10 bg-neutral-50 text-neutral-500",
                 ].join(" ")}
               >
-                {recordingAvailable ? "この話の朗読あり" : "この話では朗読未登録"}
+                {selectedReaderName
+                  ? recordingAvailable
+                    ? "選択中朗読者の朗読あり"
+                    : "選択中朗読者の朗読なし"
+                  : "朗読者を選ぶと再生開始"}
               </span>
+
+              {autoNarrationStatusLabel ? (
+                <span
+                  className={[
+                    "rounded-full border px-4 py-2 text-sm",
+                    autoNarrationStatusClassName ||
+                      "border-black/10 bg-neutral-50 text-neutral-500",
+                  ].join(" ")}
+                >
+                  {autoNarrationStatusLabel}
+                </span>
+              ) : null}
 
               {resolvedBgmSrc ? (
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">

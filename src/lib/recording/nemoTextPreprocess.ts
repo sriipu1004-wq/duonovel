@@ -43,6 +43,12 @@ function normalizeLineBreakSurface(text: string): string {
     .replace(/\n{3,}/g, "\n\n");
 }
 
+function replaceRubySurfaceWithReading(text: string): string {
+  return text
+    .replace(/｜[^《》\r\n]+《([^《》\r\n]+)》/gu, "$1")
+    .replace(/([一-龠々〆ヵヶぁ-んァ-ヶーA-Za-z0-9]+)《([^《》\r\n]+)》/gu, "$2");
+}
+
 function shouldInsertClausePause(lastChar: string): boolean {
   return !/[、。！？!?…」』）】―—─]/u.test(lastChar);
 }
@@ -91,8 +97,11 @@ export function preprocessNemoBodyToParagraphs(
   return rawParagraphs
     .map((paragraph) => joinLinesWithinParagraph(paragraph.split("\n")))
     .map((originalParagraph) => {
+      const rubyResolvedParagraph =
+        replaceRubySurfaceWithReading(originalParagraph);
+
       const dictionaryApplied = applyPronunciationDictionary(
-        originalParagraph,
+        rubyResolvedParagraph,
         options.pronunciationDictionary ?? {}
       );
 

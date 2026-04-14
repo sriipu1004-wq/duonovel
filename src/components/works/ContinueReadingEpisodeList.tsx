@@ -12,6 +12,7 @@ type EpisodeListItem = {
   postedDate: string;
   editedDate: string;
   href: string;
+  readerAvailability?: "has_recording" | "no_recording" | null;
 };
 
 type ContinueReadingEpisodeListProps = {
@@ -242,6 +243,23 @@ export default function ContinueReadingEpisodeList({
                       >
                         {episode.episodeTitle}
                       </p>
+
+                      {episode.readerAvailability ? (
+                        <div className="mt-2">
+                          <span
+                            className={[
+                              "rounded-full border px-2.5 py-1 text-[11px]",
+                              episode.readerAvailability === "has_recording"
+                                ? "border-sky-200 bg-sky-50 text-black"
+                                : "border-black/10 bg-neutral-100 text-neutral-600",
+                            ].join(" ")}
+                          >
+                            {episode.readerAvailability === "has_recording"
+                              ? "朗読あり"
+                              : "朗読なし"}
+                          </span>
+                        </div>
+                      ) : null}
 
                       <p className="mt-1 text-xs text-neutral-500">
                         {episode.postedDate ? `投稿日 ${episode.postedDate}` : "投稿日 未設定"}

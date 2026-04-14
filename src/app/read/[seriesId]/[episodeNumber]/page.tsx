@@ -10,6 +10,7 @@ import {
   pickText,
   sortEpisodes,
   type EpisodeRow,
+  type RecordingPermissionMode,
   type SeriesRow,
 } from "@/features/write/writeShared";
 import {
@@ -33,6 +34,7 @@ import { normalizeRecordingPermissionMode } from "@/lib/recording/recordingEntry
 import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGenerationBootstrap";
 import { unstable_noStore as noStore } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveNemoAutoGenerationConfig } from "@/lib/recording/nemoAutoGeneration";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -133,6 +135,82 @@ function getRecordingReaderName(recording: RecordingRow): string {
       recording.speaker_name
     ) || "朗読者未設定"
   );
+}
+
+function getRecordingReaderId(recording: RecordingRow): string {
+  return pickText(
+    recording.reader_id,
+    recording.reader_user_id,
+    recording.readerUserId
+  );
+}
+
+function doesRecordingMatchRequestedReader(
+  recording: RecordingRow,
+  requestedReaderKey?: string,
+  requestedReaderName?: string
+): boolean {
+  const hasRequestedReader = Boolean(
+    pickText(requestedReaderKey, requestedReaderName)
+  );
+
+  if (!hasRequestedReader) {
+    return false;
+  }
+
+  const readerKey = getRecordingReaderKey(recording);
+  const readerName = getRecordingReaderName(recording);
+
+  if (requestedReaderKey) {
+    if (readerKey === requestedReaderKey || readerName === requestedReaderKey) {
+      return true;
+    }
+  }
+
+  if (requestedReaderName) {
+    if (readerName === requestedReaderName) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function resolveCurrentEpisodeAutoNarrationBadge(args: {
+  permissionMode: RecordingPermissionMode;
+  hasConfig: boolean;
+  hasCurrentEpisodeNemoRecording: boolean;
+}): {
+  label: string;
+  className: string;
+} {
+  const { permissionMode, hasConfig, hasCurrentEpisodeNemoRecording } = args;
+
+  if (permissionMode !== "open") {
+    return {
+      label: "自動朗読停止",
+      className: "border-black/10 bg-neutral-50 text-neutral-500",
+    };
+  }
+
+  if (!hasConfig) {
+    return {
+      label: "自動朗読未設定",
+      className: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
+  if (hasCurrentEpisodeNemoRecording) {
+    return {
+      label: "自動朗読生成済み",
+      className: "border-sky-200 bg-sky-50 text-black",
+    };
+  }
+
+  return {
+    label: "自動朗読生成待ち",
+    className: "border-black/10 bg-neutral-50 text-neutral-500",
+  };
 }
 
 function isNemoReaderName(name: string): boolean {
@@ -360,21 +438,15 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
 
   let selectedRecording: RecordingRow | null = null;
 
-  if (requestedReaderKey) {
+  if (requestedReaderSpecified) {
     selectedRecording =
-      allEpisodeRecordings.find((recording) => {
-        const readerKey = getRecordingReaderKey(recording);
-        const readerName = getRecordingReaderName(recording);
-        return readerKey === requestedReaderKey || readerName === requestedReaderKey;
-      }) ?? null;
-  }
-
-  if (
-    !selectedRecording &&
-    !requestedReaderSpecified &&
-    allEpisodeRecordings.length > 0
-  ) {
-    selectedRecording = allEpisodeRecordings[0];
+      allEpisodeRecordings.find((recording) =>
+        doesRecordingMatchRequestedReader(
+          recording,
+          requestedReaderKey,
+          requestedReaderName
+        )
+      ) ?? null;
   }
 
   const selectedReaderKey = selectedRecording
@@ -384,6 +456,22 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
   const selectedReaderName = selectedRecording
     ? getRecordingReaderName(selectedRecording)
     : requestedReaderName;
+
+  const nemoAutogenConfig = resolveNemoAutoGenerationConfig();
+
+  const hasCurrentEpisodeNemoRecording = !!nemoAutogenConfig
+    ? allEpisodeRecordings.some(
+        (recording) =>
+          getRecordingReaderId(recording) === nemoAutogenConfig.userId ||
+          getRecordingReaderName(recording) === nemoAutogenConfig.narratorName
+      )
+    : false;
+
+  const autoNarrationBadge = resolveCurrentEpisodeAutoNarrationBadge({
+    permissionMode: recordingPermissionMode,
+    hasConfig: !!nemoAutogenConfig,
+    hasCurrentEpisodeNemoRecording,
+  });    
 
   const recordingAvailable = !!selectedRecording;
   const audioStoragePath = pickText(
@@ -515,6 +603,9 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
         bgmSrc={bgmSrc}
         bgmSettings={bgmSrc ? bgmSettings : undefined}
         effectSettings={effectSettings}
+        autoNarrationStatusLabel={autoNarrationBadge.label}
+        autoNarrationStatusClassName={autoNarrationBadge.className}
+        stopNarrationByDefault={!requestedReaderSpecified}
       />
     </>
   );

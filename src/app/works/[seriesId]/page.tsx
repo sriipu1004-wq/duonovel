@@ -25,6 +25,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ReaderCardControls from "@/components/recording/ReaderCardControls";
 import ContinueReadingEpisodeList from "@/components/works/ContinueReadingEpisodeList";
+import { resolveNemoAutoGenerationConfig } from "@/lib/recording/nemoAutoGeneration";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -370,6 +371,101 @@ function getRecordingAudioStoragePath(recording: RecordingRow): string {
   return pickText(recording.audio_storage_path, recording.audioStoragePath);
 }
 
+function getRecordingReaderId(recording: RecordingRow): string {
+  return pickText(
+    recording.reader_id,
+    recording.reader_user_id,
+    recording.readerUserId
+  );
+}
+
+function doesRecordingMatchRequestedReader(
+  recording: RecordingRow,
+  requestedReaderKey?: string,
+  requestedReaderName?: string
+): boolean {
+  const hasRequestedReader = Boolean(
+    pickText(requestedReaderKey, requestedReaderName)
+  );
+
+  if (!hasRequestedReader) {
+    return false;
+  }
+
+  const readerKey = getRecordingReaderKey(recording);
+  const readerName = getRecordingReaderName(recording);
+
+  if (requestedReaderKey) {
+    if (readerKey === requestedReaderKey || readerName === requestedReaderKey) {
+      return true;
+    }
+  }
+
+  if (requestedReaderName) {
+    if (readerName === requestedReaderName) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isNemoAutogenRecording(
+  recording: RecordingRow,
+  config: { userId: string; narratorName: string }
+): boolean {
+  return (
+    getRecordingReaderId(recording) === config.userId ||
+    getRecordingReaderName(recording) === config.narratorName
+  );
+}
+
+function resolveAutoNarrationBadge(args: {
+  permissionMode: RecordingPermissionMode;
+  totalEpisodeCount: number;
+  generatedEpisodeCount: number;
+  hasConfig: boolean;
+}): {
+  label: string;
+  className: string;
+} {
+  const { permissionMode, totalEpisodeCount, generatedEpisodeCount, hasConfig } =
+    args;
+
+  if (permissionMode !== "open") {
+    return {
+      label: "自動朗読停止",
+      className: "border-black/10 bg-neutral-100 text-neutral-700",
+    };
+  }
+
+  if (!hasConfig) {
+    return {
+      label: "自動朗読未設定",
+      className: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
+  if (generatedEpisodeCount <= 0) {
+    return {
+      label: `自動朗読生成待ち 0/${totalEpisodeCount}`,
+      className: "border-black/10 bg-neutral-100 text-neutral-700",
+    };
+  }
+
+  if (generatedEpisodeCount < totalEpisodeCount) {
+    return {
+      label: `自動朗読生成中 ${generatedEpisodeCount}/${totalEpisodeCount}`,
+      className: "border-sky-200 bg-sky-50 text-black",
+    };
+  }
+
+  return {
+    label: `自動朗読生成済み ${generatedEpisodeCount}/${totalEpisodeCount}`,
+    className: "border-sky-200 bg-sky-50 text-black",
+  };
+}
+
 function getRecordingEpisodeId(recording: RecordingRow): string {
   return pickText(recording.episode_id, recording.episodeId);
 }
@@ -626,6 +722,48 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const episodeNumberById = new Map(episodes.map((episode) => [episode.id, getEpisodeNumber(episode)]));
   const readerCards = buildReaderCards(recordings, episodeNumberById);
 
+  const requestedReaderSpecified = Boolean(
+    pickText(selectedReaderKey, selectedReaderName)
+  );
+
+  const selectedReaderEpisodeIdSet = new Set(
+    requestedReaderSpecified
+      ? recordings
+          .filter((recording) =>
+            doesRecordingMatchRequestedReader(
+              recording,
+              selectedReaderKey,
+              selectedReaderName
+            )
+          )
+          .map((recording) => getRecordingEpisodeId(recording))
+          .filter((value) => value.length > 0)
+      : []
+  );
+
+  const nemoAutogenConfig = resolveNemoAutoGenerationConfig();
+
+  const nemoGeneratedEpisodeIdSet = new Set(
+    nemoAutogenConfig
+      ? recordings
+          .filter((recording) =>
+            isNemoAutogenRecording(recording, nemoAutogenConfig)
+          )
+          .map((recording) => getRecordingEpisodeId(recording))
+          .filter((value) => value.length > 0)
+      : []
+  );
+
+  const autoNarrationBadge = resolveAutoNarrationBadge({
+    permissionMode: recordingPermissionMode,
+    totalEpisodeCount: episodes.length,
+    generatedEpisodeCount: nemoGeneratedEpisodeIdSet.size,
+    hasConfig: !!nemoAutogenConfig,
+  });
+
+  const selectedReaderLabel =
+    pickText(selectedReaderName, selectedReaderKey) || "";  
+
   const allPublicSeries = await fetchPublicSeries();
 
   const relatedBase = (
@@ -751,6 +889,21 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   {authorName}
                 </span>
               )}
+
+              {requestedReaderSpecified && selectedReaderLabel ? (
+                <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-black">
+                  選択中朗読者: {selectedReaderLabel}
+                </span>
+              ) : null}
+
+              <span
+                className={[
+                  "rounded-full border px-3 py-1",
+                  autoNarrationBadge.className,
+                ].join(" ")}
+              >
+                {autoNarrationBadge.label}
+              </span>
             </div>
 
             <p className="mt-5 whitespace-pre-wrap text-sm leading-8 text-neutral-700 sm:text-[15px]">
@@ -897,6 +1050,11 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                           selectedReaderKey,
                           selectedReaderName
                         ),
+                        readerAvailability: requestedReaderSpecified
+                          ? selectedReaderEpisodeIdSet.has(episode.id)
+                            ? "has_recording"
+                            : "no_recording"
+                          : null,                        
                       };
                     })}
                   />
