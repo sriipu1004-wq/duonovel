@@ -45,8 +45,8 @@ function normalizeLineBreakSurface(text: string): string {
 
 function replaceRubySurfaceWithReading(text: string): string {
   return text
-    .replace(/｜[^《》\r\n]+《([^《》\r\n]+)》/gu, "$1")
-    .replace(/([一-龠々〆ヵヶぁ-んァ-ヶーA-Za-z0-9]+)《([^《》\r\n]+)》/gu, "$2");
+    .replace(/｜([^《》\r\n]+)《([^《》\r\n]+)》/gu, "$2")
+    .replace(/([一-龯々〆ヵヶ〓]+)《([^《》\r\n]+)》/gu, "$2");
 }
 
 function shouldInsertClausePause(lastChar: string): boolean {

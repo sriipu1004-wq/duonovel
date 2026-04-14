@@ -609,14 +609,14 @@ export default function SeriesReviewSection({
 
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-600">
-            レビュー {reviews.length}件
+            レビュー一覧 {reviews.length}件
           </span>
           <button
             type="button"
             onClick={() => setIsExpanded((current) => !current)}
-            className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-600 transition hover:bg-neutral-50"
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
           >
-            {isExpanded ? "閉じる" : "開く"}
+            {isExpanded ? "レビュー一覧を閉じる" : "レビュー一覧へ"}
           </button>
         </div>
       </div>

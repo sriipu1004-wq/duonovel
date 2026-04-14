@@ -1,12 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 
 type EpisodeCommentSectionProps = {
   episodeId: string;
+  episodeNumber: number;
   loginHref?: string;
 };
 
@@ -105,7 +112,9 @@ async function fetchComments(episodeId: string): Promise<{
 }> {
   const { data, error } = await supabase
     .from("user_episode_comments")
-    .select("id, user_id, episode_id, body, author_name_snapshot, created_at, updated_at")
+    .select(
+      "id, user_id, episode_id, body, author_name_snapshot, created_at, updated_at"
+    )
     .eq("episode_id", episodeId)
     .order("created_at", { ascending: false })
     .limit(100);
@@ -180,34 +189,11 @@ async function fetchOwnLikedCommentIds(
   }
 
   return {
-    likedCommentIds: ((data ?? []) as CommentLikeRow[]).map((row) => row.comment_id),
+    likedCommentIds: ((data ?? []) as CommentLikeRow[]).map(
+      (row) => row.comment_id
+    ),
     errorMessage: null,
   };
-}
-
-function SortButton({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "rounded-full border px-4 py-2 text-sm transition",
-        active
-          ? "border-sky-200 bg-sky-50 text-black"
-          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-      ].join(" ")}
-    >
-      {label}
-    </button>
-  );
 }
 
 function CommentItem({
@@ -238,14 +224,9 @@ function CommentItem({
           <p className="mt-1 text-xs text-neutral-500">{postedAt}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
-            コメント
-          </span>
-          <span className="rounded-full border border-pink-200 bg-pink-50 px-3 py-1 text-xs text-pink-600">
-            ♥ {likeCount}
-          </span>
-        </div>
+        <span className="rounded-full border border-pink-200 bg-pink-50 px-3 py-1 text-xs text-pink-600">
+          ♥ {likeCount}
+        </span>
       </div>
 
       <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-800">
@@ -270,7 +251,7 @@ function CommentItem({
               ? "処理中..."
               : isLiked
                 ? "♥ いいね済み"
-                : "♡ このコメントにいいね"}
+                : "♡ この感想にいいね"}
           </button>
         ) : (
           <Link
@@ -287,8 +268,11 @@ function CommentItem({
 
 export default function EpisodeCommentSection({
   episodeId,
+  episodeNumber,
   loginHref = "/login",
 }: EpisodeCommentSectionProps) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
   const [isBooting, setIsBooting] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [comments, setComments] = useState<EpisodeCommentRow[]>([]);
@@ -299,7 +283,17 @@ export default function EpisodeCommentSection({
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [likeCountMap, setLikeCountMap] = useState<Record<string, number>>({});
   const [likedCommentIds, setLikedCommentIds] = useState<string[]>([]);
-  const [workingLikeCommentId, setWorkingLikeCommentId] = useState<string | null>(null);
+  const [workingLikeCommentId, setWorkingLikeCommentId] = useState<string | null>(
+    null
+  );
+
+  const syncTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.max(textarea.scrollHeight, 84)}px`;
+  }, []);
 
   const loadState = useCallback(async () => {
     setIsBooting(true);
@@ -332,7 +326,9 @@ export default function EpisodeCommentSection({
     setLikedCommentIds(ownLikedResult.likedCommentIds);
 
     setMessage(
-      commentResult.errorMessage ?? likeCountResult.errorMessage ?? ownLikedResult.errorMessage
+      commentResult.errorMessage ??
+        likeCountResult.errorMessage ??
+        ownLikedResult.errorMessage
     );
     setIsBooting(false);
   }, [episodeId]);
@@ -350,6 +346,10 @@ export default function EpisodeCommentSection({
       subscription.unsubscribe();
     };
   }, [loadState]);
+
+  useEffect(() => {
+    syncTextareaHeight();
+  }, [draft, syncTextareaHeight]);
 
   async function handleSave() {
     const trimmed = draft.trim();
@@ -411,7 +411,7 @@ export default function EpisodeCommentSection({
 
     if (authError || !user) {
       setIsLoggedIn(false);
-      setMessage("コメントへのいいねにはログインが必要。");
+      setMessage("感想へのいいねにはログインが必要。");
       return;
     }
 
@@ -429,7 +429,7 @@ export default function EpisodeCommentSection({
           .eq("comment_id", commentId);
 
         if (error) {
-          setMessage("コメントいいね解除に失敗した。");
+          setMessage("感想いいね解除に失敗した。");
           return;
         }
 
@@ -453,7 +453,7 @@ export default function EpisodeCommentSection({
       );
 
       if (error) {
-        setMessage("コメントいいね保存に失敗した。");
+        setMessage("感想いいね保存に失敗した。");
         return;
       }
 
@@ -467,6 +467,16 @@ export default function EpisodeCommentSection({
     } finally {
       setWorkingLikeCommentId(null);
     }
+  }
+
+  function handleToggleSortField() {
+    setSortField((current) =>
+      current === "created_at" ? "like_count" : "created_at"
+    );
+  }
+
+  function handleToggleSortDirection() {
+    setSortDirection((current) => (current === "desc" ? "asc" : "desc"));
   }
 
   const sortedComments = useMemo(() => {
@@ -505,15 +515,14 @@ export default function EpisodeCommentSection({
     <section className="mt-8 rounded-[28px] border border-black/10 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs tracking-[0.18em] text-neutral-500">EPISODE COMMENTS</p>
-          <h2 className="mt-2 text-xl font-semibold text-black">この話の感想</h2>
-          <p className="mt-3 text-sm leading-7 text-neutral-600">
-            この話を読み終えた読者が、そのまま感想を書ける欄。
+          <p className="text-xs tracking-[0.18em] text-neutral-500">
+            EPISODE COMMENTS
           </p>
+          <h2 className="mt-2 text-xl font-semibold text-black">この話の感想</h2>
         </div>
 
         <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-600">
-          コメント {comments.length}件
+          感想 {comments.length}件
         </span>
       </div>
 
@@ -524,22 +533,23 @@ export default function EpisodeCommentSection({
               <p className="text-sm font-semibold text-black">感想を投稿する</p>
               <p className="mt-1 text-xs text-neutral-500">300文字まで</p>
             </div>
-          </div>
 
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            rows={5}
-            maxLength={MAX_COMMENT_LENGTH}
-            placeholder="この話の感想を書く"
-            className="mt-4 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
-          />
-
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
               {draft.length}/{MAX_COMMENT_LENGTH}
             </span>
+          </div>
 
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={2}
+            maxLength={MAX_COMMENT_LENGTH}
+            placeholder="この話の感想を書く"
+            className="mt-4 min-h-[84px] w-full resize-none overflow-hidden rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
+          />
+
+          <div className="mt-3 flex justify-end">
             <button
               type="button"
               onClick={handleSave}
@@ -552,55 +562,36 @@ export default function EpisodeCommentSection({
         </div>
       ) : (
         <div className="mt-5 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href={loginHref}
-              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-            >
-              ログインして感想を書く
-            </Link>
-
-            <span className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm text-neutral-500">
-              コメント {comments.length}件
-            </span>
-          </div>
+          <Link
+            href={loginHref}
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+          >
+            ログインして感想を書く
+          </Link>
         </div>
       )}
 
-      <div className="mt-6 flex flex-wrap items-start justify-between gap-3 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
-        <div>
-          <p className="text-sm font-semibold text-black">表示順</p>
-          <p className="mt-2 text-sm leading-7 text-neutral-600">
-            投稿順か、いいね順で並び替えできる。
-          </p>
-        </div>
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+        <p className="text-sm font-semibold text-black">
+          {episodeNumber}話感想一覧
+        </p>
 
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
-            <SortButton
-              active={sortField === "created_at"}
-              label="投稿順"
-              onClick={() => setSortField("created_at")}
-            />
-            <SortButton
-              active={sortField === "like_count"}
-              label="いいね順"
-              onClick={() => setSortField("like_count")}
-            />
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleToggleSortDirection}
+            className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+          >
+            {sortDirection === "desc" ? "↓" : "↑"}
+          </button>
 
-          <div className="flex flex-wrap gap-2">
-            <SortButton
-              active={sortDirection === "desc"}
-              label="降順"
-              onClick={() => setSortDirection("desc")}
-            />
-            <SortButton
-              active={sortDirection === "asc"}
-              label="昇順"
-              onClick={() => setSortDirection("asc")}
-            />
-          </div>
+          <button
+            type="button"
+            onClick={handleToggleSortField}
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+          >
+            {sortField === "created_at" ? "投稿順" : "いいね順"}
+          </button>
         </div>
       </div>
 
@@ -613,7 +604,7 @@ export default function EpisodeCommentSection({
       <div className="mt-6 grid gap-3">
         {isBooting ? (
           <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4 text-sm text-neutral-500">
-            コメント一覧を読み込み中...
+            感想一覧を読み込み中...
           </div>
         ) : sortedComments.length === 0 ? (
           <div className="rounded-[24px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">

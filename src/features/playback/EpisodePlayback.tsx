@@ -293,6 +293,47 @@ function formatTime(value: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+function isComparableNumberOnly(text: string): boolean {
+  const normalized = normalizeComparableSentenceText(text).replace(
+    /[.,，．:：\-─―—]/gu,
+    ""
+  );
+
+  if (!normalized) {
+    return false;
+  }
+
+  return /^[0-9０-９一二三四五六七八九十百千上下前後序章終幕ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩivxIVX]+$/u.test(
+    normalized
+  );
+}
+
+function isStrongNormalizedSentenceMatch(
+  visibleText: string,
+  targetText: string
+): boolean {
+  if (!visibleText || !targetText) {
+    return false;
+  }
+
+  if (visibleText === targetText) {
+    return true;
+  }
+
+  const shorterLength = Math.min(visibleText.length, targetText.length);
+  const longerLength = Math.max(visibleText.length, targetText.length);
+
+  if (shorterLength < 2) {
+    return false;
+  }
+
+  if (!(visibleText.includes(targetText) || targetText.includes(visibleText))) {
+    return false;
+  }
+
+  return shorterLength / longerLength >= 0.72;
+}
+
 function renderSentenceWithInlineMarks(
   text: string,
   inlineMarks: EffectSettings["inlineMarks"]
@@ -457,9 +498,7 @@ export default function EpisodePlayback({
   bgmSrc,
   bgmSettings,
   effectSettings,
-  autoNarrationStatusLabel,
-  autoNarrationStatusClassName,
-  stopNarrationByDefault = false,  
+  stopNarrationByDefault = false,
 }: EpisodePlaybackProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -703,22 +742,25 @@ export default function EpisodePlayback({
     [runtimeGeneratedSentenceTimings]
   );  
 
-  const mappedGeneratedSentenceTimings = useMemo(() => {
+  const mappedGeneratedSentenceTimings = useMemo<GeneratedSentenceTiming[]>(() => {
     if (runtimeGeneratedSentenceTimings.length === 0) {
       return [];
     }
 
     let searchStartIndex = 0;
+    const mapped: GeneratedSentenceTiming[] = [];
 
-    return runtimeGeneratedSentenceTimings.map((item) => {
+    for (const item of runtimeGeneratedSentenceTimings) {
       const normalizedCandidates = [
         normalizeComparableSentenceText(item.targetText),
         normalizeComparableSentenceText(item.spokenText),
-      ].filter((value) => value.length > 0);
+      ].filter((value) => value.length > 0 && !isComparableNumberOnly(value));
 
       if (normalizedCandidates.length === 0) {
-        return item;
+        continue;
       }
+
+      let matchedSentenceIndex: number | null = null;
 
       for (
         let visibleIndex = searchStartIndex;
@@ -727,46 +769,37 @@ export default function EpisodePlayback({
       ) {
         const candidate = flatVisibleSentences[visibleIndex];
 
-        if (!candidate.text) {
+        if (!candidate.text || isComparableNumberOnly(candidate.text)) {
           continue;
         }
 
-        const matched = normalizedCandidates.some(
-          (target) =>
-            candidate.text === target ||
-            candidate.text.includes(target) ||
-            target.includes(candidate.text)
+        const matched = normalizedCandidates.some((target) =>
+          isStrongNormalizedSentenceMatch(candidate.text, target)
         );
 
         if (!matched) {
           continue;
         }
 
+        matchedSentenceIndex = candidate.sentenceIndex;
         searchStartIndex = visibleIndex + 1;
-
-        return {
-          ...item,
-          sentenceIndex: candidate.sentenceIndex,
-        };
+        break;
       }
 
-      if (
-        item.sentenceIndex >= 0 &&
-        item.sentenceIndex < flatVisibleSentences.length
-      ) {
-        searchStartIndex = Math.max(searchStartIndex, item.sentenceIndex + 1);
-
-        return {
-          ...item,
-          sentenceIndex: flatVisibleSentences[item.sentenceIndex].sentenceIndex,
-        };
+      if (matchedSentenceIndex === null) {
+        continue;
       }
 
-      return item;
-    });
+      mapped.push({
+        ...item,
+        sentenceIndex: matchedSentenceIndex,
+      });
+    }
+
+    return mapped;
   }, [flatVisibleSentences, runtimeGeneratedSentenceTimings]);
 
-  const alignedGeneratedSentenceTimings = useMemo(() => {
+  const alignedGeneratedSentenceTimings = useMemo<GeneratedSentenceTiming[]>(() => {
     if (mappedGeneratedSentenceTimings.length === 0) {
       return [];
     }
@@ -777,6 +810,11 @@ export default function EpisodePlayback({
 
     const lastTiming =
       mappedGeneratedSentenceTimings[mappedGeneratedSentenceTimings.length - 1];
+
+    if (!lastTiming) {
+      return [];
+    }
+
     const estimatedDuration =
       lastTiming.timeSeconds + Math.max(lastTiming.durationSeconds, 0);
 
@@ -793,114 +831,19 @@ export default function EpisodePlayback({
     }));
   }, [duration, hasExplicitHumanAlignedTiming, mappedGeneratedSentenceTimings]);
 
-  const expandedGeneratedSentenceTimings = useMemo(() => {
-    if (flatVisibleSentences.length === 0) {
-      return [];
-    }
-
+  const expandedGeneratedSentenceTimings = useMemo<GeneratedSentenceTiming[]>(() => {
     if (alignedGeneratedSentenceTimings.length === 0) {
       return [];
     }
 
-    if (hasExplicitHumanAlignedTiming) {
-      return alignedGeneratedSentenceTimings.filter(
-        (item) => item.timingSource !== "estimated"
-      );
-    }
-
-    const knownTimings = [...alignedGeneratedSentenceTimings].sort(
-      (left, right) => left.sentenceIndex - right.sentenceIndex
+    const visibleSentenceIndexSet = new Set(
+      flatVisibleSentences.map((item) => item.sentenceIndex)
     );
 
-    const exactTimingMap = new Map(
-      knownTimings.map((item) => [item.sentenceIndex, item] as const)
+    return alignedGeneratedSentenceTimings.filter((item) =>
+      visibleSentenceIndexSet.has(item.sentenceIndex)
     );
-
-    const firstKnownTiming = knownTimings[0];
-    const lastKnownTiming = knownTimings[knownTimings.length - 1];
-
-    const averageStepSeconds =
-      knownTimings.length > 1
-        ? (lastKnownTiming.timeSeconds - firstKnownTiming.timeSeconds) /
-          Math.max(
-            1,
-            lastKnownTiming.sentenceIndex - firstKnownTiming.sentenceIndex
-          )
-        : Math.max(firstKnownTiming.durationSeconds, 0.25);
-
-    return flatVisibleSentences
-      .map((visibleSentence) => {
-        const exactTiming = exactTimingMap.get(visibleSentence.sentenceIndex);
-
-        if (exactTiming) {
-          return exactTiming;
-        }
-
-        let previousKnownTiming: (typeof knownTimings)[number] | null = null;
-        let nextKnownTiming: (typeof knownTimings)[number] | null = null;
-
-        for (const candidate of knownTimings) {
-          if (candidate.sentenceIndex < visibleSentence.sentenceIndex) {
-            previousKnownTiming = candidate;
-            continue;
-          }
-
-          if (candidate.sentenceIndex > visibleSentence.sentenceIndex) {
-            nextKnownTiming = candidate;
-            break;
-          }
-        }
-
-        let timeSeconds = 0;
-
-        if (
-          previousKnownTiming &&
-          nextKnownTiming &&
-          nextKnownTiming.sentenceIndex !== previousKnownTiming.sentenceIndex
-        ) {
-          const ratio =
-            (visibleSentence.sentenceIndex - previousKnownTiming.sentenceIndex) /
-            (nextKnownTiming.sentenceIndex - previousKnownTiming.sentenceIndex);
-
-          timeSeconds =
-            previousKnownTiming.timeSeconds +
-            (nextKnownTiming.timeSeconds - previousKnownTiming.timeSeconds) *
-              ratio;
-        } else if (previousKnownTiming) {
-          timeSeconds =
-            previousKnownTiming.timeSeconds +
-            averageStepSeconds *
-              (visibleSentence.sentenceIndex - previousKnownTiming.sentenceIndex);
-        } else if (nextKnownTiming) {
-          timeSeconds = Math.max(
-            0,
-            nextKnownTiming.timeSeconds -
-              averageStepSeconds *
-                (nextKnownTiming.sentenceIndex - visibleSentence.sentenceIndex)
-          );
-        }
-
-        return {
-          sentenceIndex: visibleSentence.sentenceIndex,
-          timeSeconds,
-          durationSeconds: averageStepSeconds,
-          targetText: visibleSentence.text,
-          spokenText: visibleSentence.text,
-          timingSource: "estimated" as const,
-        };
-      })
-      .sort((left, right) => {
-        if (left.timeSeconds !== right.timeSeconds) {
-          return left.timeSeconds - right.timeSeconds;
-        }
-
-        return left.sentenceIndex - right.sentenceIndex;
-      });
-  }, [
-    alignedGeneratedSentenceTimings,
-    flatVisibleSentences,
-    hasExplicitHumanAlignedTiming,
-  ]);
+  }, [alignedGeneratedSentenceTimings, flatVisibleSentences]);
 
   const activeSceneCueLabel = useMemo(
     () =>
@@ -1039,6 +982,14 @@ useEffect(() => {
     activeSceneBgmSrc !== null
       ? activeSceneBgmTitle || bgmTitle || "場面BGM"
       : bgmTitle || "";
+
+  const canOpenSettings = Boolean(resolvedBgmSrc);  
+  
+  useEffect(() => {
+    if (!canOpenSettings && isSettingsOpen) {
+      setIsSettingsOpen(false);
+    }
+  }, [canOpenSettings, isSettingsOpen]);  
 
   const estimatedSentenceIndex = useMemo(() => {
     if (expandedGeneratedSentenceTimings.length > 0) {
@@ -1705,6 +1656,10 @@ useEffect(() => {
   }
 
   function handleToggleSettings(): void {
+    if (!canOpenSettings) {
+      return;
+    }
+
     if (isSettingsOpen) {
       setIsSettingsOpen(false);
       return;
@@ -1799,16 +1754,6 @@ useEffect(() => {
       </audio>
 
       <div className="mx-auto w-full max-w-3xl px-4 pb-36 pt-6 sm:px-6">
-        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-neutral-500">
-          {workIndexHref ? (
-            <Link
-              href={workIndexHref}
-              className="rounded-full border border-black/10 bg-white px-4 py-2 transition hover:border-sky-200 hover:bg-sky-50 hover:text-black"
-            >
-              目次へ戻る
-            </Link>
-          ) : null}
-        </div>
 
         <section className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
           <div className="border-b border-black/10 px-5 py-6 sm:px-8">
@@ -1816,7 +1761,16 @@ useEffect(() => {
               LIB READ READER
             </p>
 
-            <p className="mt-3 text-sm text-neutral-600">{safeSeriesTitle}</p>
+            {workIndexHref ? (
+              <Link
+                href={workIndexHref}
+                className="mt-3 inline-flex text-sm text-neutral-600 transition hover:text-black"
+              >
+                {safeSeriesTitle}
+              </Link>
+            ) : (
+              <p className="mt-3 text-sm text-neutral-600">{safeSeriesTitle}</p>
+            )}
             <h1 className="mt-2 text-3xl font-bold leading-tight text-black sm:text-4xl">
               {safeEpisodeTitle}
             </h1>
@@ -1828,36 +1782,24 @@ useEffect(() => {
                 </span>
               ) : (
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-500">
-                  朗読者未選択 / 朗読停止中
+                  朗読未選択 / 朗読停止中
                 </span>
               )}
 
               <span
                 className={[
-                  "rounded-full px-4 py-2 text-sm",
-                  recordingAvailable
-                    ? "border border-sky-200 bg-sky-50 text-black"
-                    : "border border-black/10 bg-neutral-50 text-neutral-500",
+                  "rounded-full border px-4 py-2 text-sm",
+                  selectedReaderName && recordingAvailable
+                    ? "border-sky-200 bg-sky-50 text-black"
+                    : "border-black/10 bg-neutral-50 text-neutral-500",
                 ].join(" ")}
               >
                 {selectedReaderName
                   ? recordingAvailable
-                    ? "選択中朗読者の朗読あり"
-                    : "選択中朗読者の朗読なし"
-                  : "朗読者を選ぶと再生開始"}
+                    ? "選択中朗読を再生できる"
+                    : "この朗読者の公開朗読はまだない"
+                  : "作品ページで朗読者を選ぶと再生開始"}
               </span>
-
-              {autoNarrationStatusLabel ? (
-                <span
-                  className={[
-                    "rounded-full border px-4 py-2 text-sm",
-                    autoNarrationStatusClassName ||
-                      "border-black/10 bg-neutral-50 text-neutral-500",
-                  ].join(" ")}
-                >
-                  {autoNarrationStatusLabel}
-                </span>
-              ) : null}
 
               {resolvedBgmSrc ? (
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
@@ -1870,10 +1812,6 @@ useEffect(() => {
                   場面切替: {activeSceneCueLabel}
                 </span>
               ) : null}
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm leading-7 text-neutral-600">
-              本文を主役にして、目次へ戻る、前話 / 次話へ進む、朗読設定を開く、をそのまま行えるようにする。
             </div>
 
             <BgmController
@@ -2146,6 +2084,7 @@ useEffect(() => {
                 {showComments && episodeId ? (
                   <EpisodeCommentSection
                     episodeId={episodeId}
+                    episodeNumber={episodeNumber}
                     loginHref={loginHref}
                   />
                 ) : null}
@@ -2234,7 +2173,7 @@ useEffect(() => {
               <FooterActionButton
                 label="設定"
                 iconSrc={PLAYER_ICON_PATHS.settings}
-                disabled={false}
+                disabled={!canOpenSettings}
                 active={isSettingsOpen}
                 onClick={handleToggleSettings}
               />
@@ -2273,7 +2212,7 @@ useEffect(() => {
               <FooterActionButton
                 label="設定"
                 iconSrc={PLAYER_ICON_PATHS.settings}
-                disabled={false}
+                disabled={!canOpenSettings}
                 active={isSettingsOpen}
                 onClick={handleToggleSettings}
               />

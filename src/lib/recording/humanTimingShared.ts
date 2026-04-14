@@ -31,7 +31,9 @@ export function splitIntoNemoAlignedSentenceUnits(paragraph: string): string[] {
     return [];
   }
 
-  const matched = normalized.match(/[^。！？!?…]+[。！？!?…]?/gu);
+  const matched = normalized.match(
+    /[^、。！？!?…]+(?:[、。！？!?…]+[」』）】]*)?/gu
+  );
 
   if (!matched || matched.length === 0) {
     return [normalized];

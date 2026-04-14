@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getPlayLogBySeries } from "@/lib/playLogs";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -96,8 +96,9 @@ export default function ContinueReadingEpisodeList({
   episodes,
 }: ContinueReadingEpisodeListProps) {
   const [loaded, setLoaded] = useState(false);
-  const [resumeEpisodeNumber, setResumeEpisodeNumber] = useState<number | null>(null);
-  const activeItemRef = useRef<HTMLAnchorElement | null>(null);
+  const [resumeEpisodeNumber, setResumeEpisodeNumber] = useState<number | null>(
+    null
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -165,21 +166,12 @@ export default function ContinueReadingEpisodeList({
     };
   }, [seriesId]);
 
-  useEffect(() => {
-    if (!loaded) return;
-    if (!activeItemRef.current) return;
-
-    activeItemRef.current.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-      inline: "nearest",
-    });
-  }, [loaded, resumeEpisodeNumber]);
-
   const renderedEpisodes = useMemo(() => {
     return episodes.map((episode) => {
       const isContinueTarget =
-        loaded && resumeEpisodeNumber !== null && episode.episodeNumber === resumeEpisodeNumber;
+        loaded &&
+        resumeEpisodeNumber !== null &&
+        episode.episodeNumber === resumeEpisodeNumber;
 
       return {
         ...episode,
@@ -196,7 +188,6 @@ export default function ContinueReadingEpisodeList({
             <li key={episode.id}>
               <Link
                 href={episode.href}
-                ref={episode.isContinueTarget ? activeItemRef : null}
                 className={[
                   "group flex items-center justify-between gap-4 px-4 py-4 transition",
                   episode.isContinueTarget
@@ -222,7 +213,9 @@ export default function ContinueReadingEpisodeList({
                         <p
                           className={[
                             "text-sm",
-                            episode.isContinueTarget ? "text-sky-700" : "text-neutral-500",
+                            episode.isContinueTarget
+                              ? "text-sky-700"
+                              : "text-neutral-500",
                           ].join(" ")}
                         >
                           第{episode.episodeNumber}話

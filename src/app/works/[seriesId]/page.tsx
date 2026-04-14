@@ -764,6 +764,45 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const selectedReaderLabel =
     pickText(selectedReaderName, selectedReaderKey) || "";  
 
+  const displayedReaderCards = (() => {
+    if (recordingPermissionMode !== "open" || !nemoAutogenConfig) {
+      return readerCards;
+    }
+
+    const existingNemoReader =
+      readerCards.find((reader) => isNemoReaderName(reader.name)) ?? null;
+
+    const syntheticNemoReader: ReaderCard = existingNemoReader ?? {
+      readerKey: getCanonicalNemoReaderKey(nemoAutogenConfig.narratorName),
+      name: nemoAutogenConfig.narratorName,
+      rank: 0,
+      tags: ["#自動朗読"],
+      description: autoNarrationBadge.label,
+      totalLikes: 0,
+      totalPlays: 0,
+      recordingCount: 0,
+      allowDownload: false,
+      demoAudioUrl: "",
+    };
+
+    const mergedNemoReader: ReaderCard = {
+      ...syntheticNemoReader,
+      tags:
+        syntheticNemoReader.tags.length > 0
+          ? syntheticNemoReader.tags
+          : ["#自動朗読"],
+      description:
+        syntheticNemoReader.recordingCount > 0
+          ? `${autoNarrationBadge.label} / 公開朗読 ${syntheticNemoReader.recordingCount}件 / いいね ${syntheticNemoReader.totalLikes} / 再生 ${syntheticNemoReader.totalPlays}`
+          : autoNarrationBadge.label,
+    };
+
+    return [
+      mergedNemoReader,
+      ...readerCards.filter((reader) => !isNemoReaderName(reader.name)),
+    ];
+  })();    
+
   const allPublicSeries = await fetchPublicSeries();
 
   const relatedBase = (
@@ -895,15 +934,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   選択中朗読者: {selectedReaderLabel}
                 </span>
               ) : null}
-
-              <span
-                className={[
-                  "rounded-full border px-3 py-1",
-                  autoNarrationBadge.className,
-                ].join(" ")}
-              >
-                {autoNarrationBadge.label}
-              </span>
             </div>
 
             <p className="mt-5 whitespace-pre-wrap text-sm leading-8 text-neutral-700 sm:text-[15px]">
@@ -951,9 +981,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   <h2 className="mt-2 text-lg font-semibold text-black">
                     目次 / 朗読者
                   </h2>
-                  <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    目次＝各話ごとのエピソード表、朗読者＝読み手の選択
-                  </p>
                 </div>
 
                 <div className="flex flex-col items-end gap-2">
@@ -1067,7 +1094,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                     </div>
                   ) : null}
 
-                  {readerCards.length === 0 ? (
+                  {displayedReaderCards.length === 0 ? (
                     <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-5 text-sm leading-7 text-neutral-600">
                       まだ公開中の朗読がない。
                     </div>
@@ -1090,9 +1117,15 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-semibold text-black">
-                                  #{reader.rank}
-                                </span>
+                                {isNemoReaderName(reader.name) ? (
+                                  <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-semibold text-black">
+                                    NEMO
+                                  </span>
+                                ) : (
+                                  <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-semibold text-black">
+                                    #{reader.rank}
+                                  </span>
+                                )}
 
                                 <Link
                                   href={buildReaderHref(reader.readerKey, reader.name)}
@@ -1135,6 +1168,16 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                           </p>
 
                           <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-neutral-500">
+                            {isNemoReaderName(reader.name) ? (
+                              <span
+                                className={[
+                                  "rounded-full border px-3 py-1",
+                                  autoNarrationBadge.className,
+                                ].join(" ")}
+                              >
+                                {autoNarrationBadge.label}
+                              </span>
+                            ) : null}                            
                             <span className="rounded-full border border-black/10 bg-white px-3 py-1">
                               公開朗読 {reader.recordingCount}件
                             </span>
