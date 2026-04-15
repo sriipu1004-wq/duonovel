@@ -45,6 +45,7 @@ import {
 import {
   buildNemoAlignedParagraphBlocks,
   normalizeComparableSentenceText,
+  splitSentenceIntoDisplayClauses,
 } from "@/lib/recording/humanTimingShared";
 import { concatNemoWavs } from "@/lib/recording/nemoWav";
 
@@ -117,6 +118,53 @@ type GeneratedAudioSegment = {
   durationSeconds: number;
   audioPublicUrl: string;
 };
+
+type DisplaySentenceUnit = {
+  displayIndex: number;
+  sentenceIndex: number;
+  text: string;
+  weight: number;
+  isNumberOnly: boolean;
+};
+
+type DisplaySentenceTiming = {
+  displayIndex: number;
+  sentenceIndex: number;
+  timeSeconds: number;
+  durationSeconds: number;
+};
+
+function resolveActiveDisplayIndexFromGeneratedTimings(args: {
+  currentTime: number;
+  generatedSentenceTimings: DisplaySentenceTiming[];
+}): number {
+  const { currentTime, generatedSentenceTimings } = args;
+
+  if (generatedSentenceTimings.length === 0) {
+    return -1;
+  }
+
+  for (let index = 0; index < generatedSentenceTimings.length; index += 1) {
+    const currentTiming = generatedSentenceTimings[index];
+    const nextTiming = generatedSentenceTimings[index + 1] ?? null;
+
+    const currentStart = currentTiming.timeSeconds;
+    const currentEnd = nextTiming
+      ? Math.max(currentStart, nextTiming.timeSeconds - 0.01)
+      : currentStart + Math.max(currentTiming.durationSeconds, 0.2);
+
+    if (currentTime >= currentStart && currentTime < currentEnd) {
+      return currentTiming.displayIndex;
+    }
+
+    if (nextTiming && currentTime < nextTiming.timeSeconds) {
+      break;
+    }
+  }
+
+  const lastTiming = generatedSentenceTimings[generatedSentenceTimings.length - 1];
+  return currentTime >= lastTiming.timeSeconds ? lastTiming.displayIndex : -1;
+}
 
 function resolveActiveSentenceIndexFromGeneratedTimings(args: {
   currentTime: number;
@@ -293,6 +341,24 @@ function formatTime(value: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+function splitIntoDisplayClauses(text: string): string[] {
+  const normalized = text.trim();
+
+  if (!normalized) {
+    return [];
+  }
+
+  const matched = normalized.match(
+    /[^、。！？!?…]+(?:[、。！？!?…]+[」』）】]*)?/gu
+  );
+
+  if (!matched || matched.length === 0) {
+    return [normalized];
+  }
+
+  return matched.map((item) => item.trim()).filter(Boolean);
+}
+
 function isComparableNumberOnly(text: string): boolean {
   const normalized = normalizeComparableSentenceText(text).replace(
     /[.,，．:：\-─―—]/gu,
@@ -306,6 +372,65 @@ function isComparableNumberOnly(text: string): boolean {
   return /^[0-9０-９一二三四五六七八九十百千上下前後序章終幕ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩivxIVX]+$/u.test(
     normalized
   );
+}
+
+function getDisplayClauseWeight(text: string): number {
+  const displayText = normalizeAozoraTextForDisplay(text).trim();
+
+  const rawText = normalizeComparableSentenceText(displayText);
+  const baseText = normalizeComparableSentenceText(
+    replaceRubyWithBaseText(displayText)
+  );
+  const readingText = normalizeComparableSentenceText(
+    replaceRubyWithReadingText(displayText)
+  );
+
+  const spokenLikeLength = Math.max(
+    rawText.length,
+    baseText.length,
+    readingText.length,
+    1
+  );
+
+  let pauseWeight = 0;
+
+  if (/[。！？!?]+[」』）】]*$/u.test(displayText)) {
+    pauseWeight = 10;
+  } else if (/[、,，]+[」』）】]*$/u.test(displayText)) {
+    pauseWeight = 5;
+  } else if (/[.…]+[」』）】]*$/u.test(displayText)) {
+    pauseWeight = 7;
+  }
+
+  return spokenLikeLength + pauseWeight;
+}
+
+function resolveActiveDisplayIndexFromTimings(args: {
+  currentTime: number;
+  timings: DisplaySentenceTiming[];
+}): number {
+  const { currentTime, timings } = args;
+
+  if (timings.length === 0) {
+    return -1;
+  }
+
+  for (let index = 0; index < timings.length; index += 1) {
+    const currentTiming = timings[index];
+    const nextTiming = timings[index + 1] ?? null;
+
+    const currentStart = currentTiming.timeSeconds;
+    const currentEnd = nextTiming
+      ? Math.max(currentStart, nextTiming.timeSeconds - 0.01)
+      : currentStart + Math.max(currentTiming.durationSeconds, 0.08);
+
+    if (currentTime >= currentStart && currentTime < currentEnd) {
+      return currentTiming.displayIndex;
+    }
+  }
+
+  const lastTiming = timings[timings.length - 1];
+  return currentTime >= lastTiming.timeSeconds ? lastTiming.displayIndex : -1;
 }
 
 function isStrongNormalizedSentenceMatch(
@@ -332,6 +457,116 @@ function isStrongNormalizedSentenceMatch(
   }
 
   return shorterLength / longerLength >= 0.72;
+}
+
+function buildLooseComparableCandidates(text: string): string[] {
+  const normalizedDisplay = normalizeAozoraTextForDisplay(text);
+
+  const baseText = replaceRubyWithBaseText(normalizedDisplay);
+  const readingText = replaceRubyWithReadingText(normalizedDisplay);
+
+  const baseClauses = splitSentenceIntoDisplayClauses(baseText);
+  const readingClauses = splitSentenceIntoDisplayClauses(readingText);
+
+  return Array.from(
+    new Set(
+      [
+        baseText,
+        readingText,
+        ...baseClauses,
+        ...readingClauses,
+      ]
+        .map((part) => normalizeComparableSentenceText(part))
+        .filter(
+          (part) => part.length > 0 && !isComparableNumberOnly(part)
+        )
+    )
+  );
+}
+
+const INLINE_RUBY_WITH_PIPE_PATTERN =
+  /｜([^《》\r\n]+)《([^《》\r\n]+)》/gu;
+
+const INLINE_RUBY_PATTERN =
+  /([一-龯々〆ヵヶ〓]+)《([^《》\r\n]+)》/gu;
+
+function replaceRubyWithBaseText(text: string): string {
+  return text
+    .replace(INLINE_RUBY_WITH_PIPE_PATTERN, "$1")
+    .replace(INLINE_RUBY_PATTERN, "$1");
+}
+
+function replaceRubyWithReadingText(text: string): string {
+  return text
+    .replace(INLINE_RUBY_WITH_PIPE_PATTERN, "$2")
+    .replace(INLINE_RUBY_PATTERN, "$2");
+}
+
+function computeLooseMatchScore(source: string, target: string): number {
+  if (!source || !target) {
+    return 0;
+  }
+
+  if (source === target) {
+    return 1;
+  }
+
+  const shorterLength = Math.min(source.length, target.length);
+  const longerLength = Math.max(source.length, target.length);
+
+  if (shorterLength <= 1) {
+    return 0;
+  }
+
+  if (source.includes(target) || target.includes(source)) {
+    return shorterLength / longerLength;
+  }
+
+  const sourceCounts = new Map<string, number>();
+
+  for (const char of source) {
+    sourceCounts.set(char, (sourceCounts.get(char) ?? 0) + 1);
+  }
+
+  let commonCount = 0;
+
+  for (const char of target) {
+    const remaining = sourceCounts.get(char) ?? 0;
+    if (remaining <= 0) {
+      continue;
+    }
+
+    commonCount += 1;
+    sourceCounts.set(char, remaining - 1);
+  }
+
+  return commonCount / longerLength;
+}
+
+function findNextTrackableVisibleIndex(
+  items: Array<{
+    sentenceIndex: number;
+    text: string;
+    candidates: string[];
+    isNumberOnly: boolean;
+  }>,
+  startIndex: number
+): number | null {
+  for (let index = Math.max(0, startIndex); index < items.length; index += 1) {
+    const item = items[index];
+
+    if (item.isNumberOnly) {
+      continue;
+    }
+
+    if (item.candidates.length === 0) {
+      continue;
+    }
+
+    return index;
+  }
+
+  return null;
 }
 
 function renderSentenceWithInlineMarks(
@@ -471,6 +706,100 @@ function SettingChip({
   );
 }
 
+const GLOBAL_DISPLAY_PREFERENCE_KEY = "duonovel:display";
+const GLOBAL_AUTO_ADVANCE_KEY = "duonovel:auto-advance";
+const GLOBAL_PLAYBACK_RATE_KEY = "duonovel:playback-rate";
+const GLOBAL_MARKER_VISIBLE_KEY = "duonovel:marker-visible";
+
+function readStoredGlobalDisplayPreference(seriesId: string): DisplayPreference {
+  const fallback = readStoredDisplayPreference(seriesId);
+
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(GLOBAL_DISPLAY_PREFERENCE_KEY);
+    if (!raw) {
+      return fallback;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<DisplayPreference> | null;
+    if (!parsed) {
+      return fallback;
+    }
+
+    return {
+      ...fallback,
+      ...parsed,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function readStoredGlobalAutoAdvancePreference(seriesId: string): boolean {
+  const fallback = readStoredAutoAdvancePreference(seriesId);
+
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(GLOBAL_AUTO_ADVANCE_KEY);
+    if (raw === "true") {
+      return true;
+    }
+
+    if (raw === "false") {
+      return false;
+    }
+
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function readStoredGlobalPlaybackRate(seriesId: string): number {
+  const fallback = readStoredPlaybackRate(seriesId);
+
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(GLOBAL_PLAYBACK_RATE_KEY);
+    const parsed = Number(raw);
+
+    if (!Number.isFinite(parsed)) {
+      return fallback;
+    }
+
+    return Math.min(2.5, Math.max(0.5, parsed));
+  } catch {
+    return fallback;
+  }
+}
+
+function readStoredGlobalMarkerVisible(): boolean {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(GLOBAL_MARKER_VISIBLE_KEY);
+
+    if (raw === "false") {
+      return false;
+    }
+
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 export default function EpisodePlayback({
   seriesId,
   episodeId,
@@ -569,7 +898,9 @@ export default function EpisodePlayback({
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [autoFollow, setAutoFollow] = useState(true);
   const [bookmarkMessage, setBookmarkMessage] = useState("");
-  const [isCurrentEpisodeBookmarked, setIsCurrentEpisodeBookmarked] = useState(false);
+  const [isCurrentEpisodeBookmarked, setIsCurrentEpisodeBookmarked] =
+    useState(false);
+  const [isBookmarkPanelExpanded, setIsBookmarkPanelExpanded] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNarrationStopped, setIsNarrationStopped] = useState(
     stopNarrationByDefault
@@ -577,16 +908,19 @@ export default function EpisodePlayback({
   const [assembledSegmentAudioUrl, setAssembledSegmentAudioUrl] = useState("");
 
   const [displayPreference, setDisplayPreference] = useState<DisplayPreference>(
-    () => readStoredDisplayPreference(seriesId)
+    () => readStoredGlobalDisplayPreference(seriesId)
   );
   const [autoAdvanceToNext, setAutoAdvanceToNext] = useState<boolean>(() =>
-    readStoredAutoAdvancePreference(seriesId)
+    readStoredGlobalAutoAdvancePreference(seriesId)
   );
   const [playbackRate, setPlaybackRate] = useState<number>(() =>
-    readStoredPlaybackRate(seriesId)
+    readStoredGlobalPlaybackRate(seriesId)
   );
   const [narrationVolume, setNarrationVolume] = useState<number>(() =>
     readStoredNarrationVolume(seriesId)
+  );
+  const [showMarker, setShowMarker] = useState<boolean>(() =>
+    readStoredGlobalMarkerVisible()
   );
 
   const [firedSceneCueIds, setFiredSceneCueIds] = useState<
@@ -680,15 +1014,117 @@ export default function EpisodePlayback({
   const flatVisibleSentences = useMemo(
     () =>
       paragraphBlocks.flatMap((block) =>
-        block.segments.map((segment) => ({
-          sentenceIndex: segment.index,
-          text: normalizeComparableSentenceText(
+        block.segments.map((segment) => {
+          const baseText = replaceRubyWithBaseText(
             normalizeAozoraTextForDisplay(segment.text)
-          ),
-        }))
+          );
+          const normalizedText = normalizeComparableSentenceText(baseText);
+
+          return {
+            sentenceIndex: segment.index,
+            text: normalizedText,
+            candidates: buildLooseComparableCandidates(segment.text),
+            isNumberOnly: isComparableNumberOnly(normalizedText),
+          };
+        })
       ),
     [paragraphBlocks]
   );
+
+  const displaySentenceUnits = useMemo<DisplaySentenceUnit[]>(() => {
+    let nextDisplayIndex = 0;
+
+    return paragraphBlocks.flatMap((block) =>
+      block.segments.flatMap((segment) => {
+        const clauses = splitIntoDisplayClauses(segment.text);
+        const sourceClauses = clauses.length > 0 ? clauses : [segment.text];
+
+        return sourceClauses.map((text) => {
+          const normalized = normalizeComparableSentenceText(
+            normalizeAozoraTextForDisplay(text)
+          );
+
+          return {
+            displayIndex: nextDisplayIndex++,
+            sentenceIndex: segment.index,
+            text,
+            weight: getDisplayClauseWeight(text),
+            isNumberOnly: isComparableNumberOnly(normalized),
+          };
+        });
+      })
+    );
+  }, [paragraphBlocks]);
+
+  const displayUnitsBySentenceIndex = useMemo(() => {
+    const next = new Map<number, DisplaySentenceUnit[]>();
+
+    for (const unit of displaySentenceUnits) {
+      const current = next.get(unit.sentenceIndex) ?? [];
+      current.push(unit);
+      next.set(unit.sentenceIndex, current);
+    }
+
+    return next;
+  }, [displaySentenceUnits]);
+
+  const sentenceToFirstDisplayIndexMap = useMemo(() => {
+    const next = new Map<number, number>();
+
+    for (const unit of displaySentenceUnits) {
+      if (!next.has(unit.sentenceIndex)) {
+        next.set(unit.sentenceIndex, unit.displayIndex);
+      }
+    }
+
+    return next;
+  }, [displaySentenceUnits]);
+
+  const displayIndexToSentenceIndexMap = useMemo(() => {
+    const next = new Map<number, number>();
+
+    for (const unit of displaySentenceUnits) {
+      next.set(unit.displayIndex, unit.sentenceIndex);
+    }
+
+    return next;
+  }, [displaySentenceUnits]);  
+
+  const sentenceInfoByIndex = useMemo(() => {
+    const next = new Map<
+      number,
+      {
+        text: string;
+        normalizedText: string;
+        isNumberOnly: boolean;
+      }
+    >();
+
+    for (const block of paragraphBlocks) {
+      for (const segment of block.segments) {
+        const displayText = normalizeAozoraTextForDisplay(segment.text);
+        const normalizedText = normalizeComparableSentenceText(displayText);
+
+        next.set(segment.index, {
+          text: segment.text,
+          normalizedText,
+          isNumberOnly: isComparableNumberOnly(normalizedText),
+        });
+      }
+    }
+
+    return next;
+  }, [paragraphBlocks]);
+
+  const sentenceIndexToVisibleOrder = useMemo(() => {
+    const next = new Map<number, number>();
+
+    flatVisibleSentences.forEach((item, index) => {
+      next.set(item.sentenceIndex, index);
+    });
+
+    return next;
+  }, [flatVisibleSentences]);
 
   const runtimeGeneratedSentenceTimings = useMemo(() => {
     return (generatedSentenceTimings ?? [])
@@ -732,104 +1168,475 @@ export default function EpisodePlayback({
       });
   }, [generatedSentenceTimings]);
 
-  const hasExplicitHumanAlignedTiming = useMemo(
-    () =>
-      runtimeGeneratedSentenceTimings.some(
-        (item) =>
-          item.timingSource === "aligned_word" ||
-          item.timingSource === "aligned_segment"
-      ),
-    [runtimeGeneratedSentenceTimings]
-  );  
+  const isHumanRecordingSelected = useMemo(() => {
+    return recordingId !== null && recordingId !== undefined;
+  }, [recordingId]);
+
+  const effectiveRuntimeGeneratedSentenceTimings = useMemo(() => {
+    return isHumanRecordingSelected ? [] : runtimeGeneratedSentenceTimings;
+  }, [isHumanRecordingSelected, runtimeGeneratedSentenceTimings]);  
+
+  const interpolatedRuntimeSentenceTimestamps = useMemo(() => {
+    if (runtimeSentenceTimestamps.length <= 1) {
+      return runtimeSentenceTimestamps;
+    }
+
+    const next = [...runtimeSentenceTimestamps];
+
+    for (let index = 0; index < runtimeSentenceTimestamps.length - 1; index += 1) {
+      const currentTiming = runtimeSentenceTimestamps[index];
+      const followingTiming = runtimeSentenceTimestamps[index + 1];
+
+      const sentenceGap =
+        followingTiming.sentenceIndex - currentTiming.sentenceIndex;
+
+      if (sentenceGap <= 1) {
+        continue;
+      }
+
+      if (sentenceGap > 10) {
+        continue;
+      }
+
+      const timeGap = followingTiming.timeSeconds - currentTiming.timeSeconds;
+
+      if (!Number.isFinite(timeGap) || timeGap <= 0.18) {
+        continue;
+      }
+
+      const missingSentenceIndexes: number[] = [];
+
+      for (
+        let sentenceIndex = currentTiming.sentenceIndex + 1;
+        sentenceIndex < followingTiming.sentenceIndex;
+        sentenceIndex += 1
+      ) {
+        const info = sentenceInfoByIndex.get(sentenceIndex);
+
+        if (!info) {
+          continue;
+        }
+
+        if (info.isNumberOnly) {
+          continue;
+        }
+
+        missingSentenceIndexes.push(sentenceIndex);
+      }
+
+      if (missingSentenceIndexes.length === 0) {
+        continue;
+      }
+
+      const step = timeGap / (missingSentenceIndexes.length + 1);
+
+      if (step < 0.05) {
+        continue;
+      }
+
+      missingSentenceIndexes.forEach((sentenceIndex, offset) => {
+        next.push({
+          ...currentTiming,
+          sentenceIndex,
+          timeSeconds: currentTiming.timeSeconds + step * (offset + 1),
+        });
+      });
+    }
+
+    return next.sort((left, right) => {
+      if (left.timeSeconds !== right.timeSeconds) {
+        return left.timeSeconds - right.timeSeconds;
+      }
+
+      return left.sentenceIndex - right.sentenceIndex;
+    });
+  }, [runtimeSentenceTimestamps, sentenceInfoByIndex]);
+
+  const humanDisplaySentenceTimeline = useMemo(() => {
+    const ordered = [...interpolatedRuntimeSentenceTimestamps].sort((left, right) => {
+      if (left.timeSeconds !== right.timeSeconds) {
+        return left.timeSeconds - right.timeSeconds;
+      }
+
+      return left.sentenceIndex - right.sentenceIndex;
+    });
+
+    const next: typeof ordered = [];
+
+    for (const timing of ordered) {
+      if (!Number.isFinite(timing.timeSeconds) || timing.timeSeconds < 0) {
+        continue;
+      }
+
+      if (!Number.isFinite(timing.sentenceIndex) || timing.sentenceIndex < 0) {
+        continue;
+      }
+
+      const last = next[next.length - 1] ?? null;
+
+      if (!last) {
+        next.push(timing);
+        continue;
+      }
+
+      if (timing.sentenceIndex <= last.sentenceIndex) {
+        continue;
+      }
+
+      if (timing.timeSeconds <= last.timeSeconds) {
+        continue;
+      }
+
+      next.push(timing);
+    }
+
+    return next;
+  }, [interpolatedRuntimeSentenceTimestamps]);  
+
+  const monotonicRuntimeSentenceAnchors = useMemo(() => {
+    const ordered = [...runtimeSentenceTimestamps].sort((left, right) => {
+      if (left.timeSeconds !== right.timeSeconds) {
+        return left.timeSeconds - right.timeSeconds;
+      }
+
+      return left.sentenceIndex - right.sentenceIndex;
+    });
+
+    const next: typeof ordered = [];
+
+    for (const timing of ordered) {
+      if (!Number.isFinite(timing.timeSeconds) || timing.timeSeconds < 0) {
+        continue;
+      }
+
+      if (!Number.isFinite(timing.sentenceIndex) || timing.sentenceIndex < 0) {
+        continue;
+      }
+
+      const last = next[next.length - 1] ?? null;
+
+      if (!last) {
+        next.push(timing);
+        continue;
+      }
+
+      if (timing.sentenceIndex <= last.sentenceIndex) {
+        continue;
+      }
+
+      if (timing.timeSeconds <= last.timeSeconds) {
+        continue;
+      }
+
+      const sentenceGap = timing.sentenceIndex - last.sentenceIndex;
+      const timeGap = timing.timeSeconds - last.timeSeconds;
+
+      if (timing.sentenceIndex <= 1 && timing.timeSeconds > 10) {
+        continue;
+      }
+
+      if (timing.sentenceIndex <= 2 && timing.timeSeconds > 18) {
+        continue;
+      }
+
+      if (timing.sentenceIndex <= 4 && timing.timeSeconds > 32) {
+        continue;
+      }
+
+      if (sentenceGap <= 1 && timeGap > 12) {
+        continue;
+      }
+
+      if (sentenceGap <= 2 && timeGap > 18) {
+        continue;
+      }
+
+      if (sentenceGap <= 3 && timeGap > 24) {
+        continue;
+      }
+
+      if (sentenceGap <= 5 && timeGap > 36) {
+        continue;
+      }
+
+      if (sentenceGap >= 6 && timeGap < 1.2) {
+        continue;
+      }
+
+      if (sentenceGap >= 10 && timeGap < 2.4) {
+        continue;
+      }
+
+      next.push(timing);
+    }
+
+    return next;
+  }, [runtimeSentenceTimestamps]);
+
+  const interpolatedDisplaySentenceTimings = useMemo<DisplaySentenceTiming[]>(() => {
+    if (displaySentenceUnits.length === 0) {
+      return [];
+    }
+
+    const sentenceTimeline = isHumanRecordingSelected
+      ? humanDisplaySentenceTimeline
+      : monotonicRuntimeSentenceAnchors;
+
+    if (sentenceTimeline.length === 0) {
+      return [];
+    }
+
+    const next: DisplaySentenceTiming[] = [];
+
+    const pushSentenceUnitsBetween = (
+      sentenceIndex: number,
+      startTimeSeconds: number,
+      endTimeSeconds: number
+    ) => {
+      if (endTimeSeconds <= startTimeSeconds) {
+        return;
+      }
+
+      const units = (displayUnitsBySentenceIndex.get(sentenceIndex) ?? []).filter(
+        (unit) => !unit.isNumberOnly
+      );
+
+      if (units.length === 0) {
+        return;
+      }
+
+      const totalDuration = endTimeSeconds - startTimeSeconds;
+      const totalWeight = units.reduce((sum, unit) => sum + unit.weight, 0) || 1;
+
+      let cursor = startTimeSeconds;
+
+      units.forEach((unit, index) => {
+        const isLast = index === units.length - 1;
+        const sliceDuration = isLast
+          ? Math.max(endTimeSeconds - cursor, 0.06)
+          : Math.max((totalDuration * unit.weight) / totalWeight, 0.06);
+
+        next.push({
+          displayIndex: unit.displayIndex,
+          sentenceIndex: unit.sentenceIndex,
+          timeSeconds: cursor,
+          durationSeconds: sliceDuration,
+        });
+
+        cursor += sliceDuration;
+      });
+    };
+
+    const firstTiming = sentenceTimeline[0];
+
+    if (firstTiming.timeSeconds > 0.02 && firstTiming.sentenceIndex > 0) {
+      const leadingUnits = displaySentenceUnits.filter((unit) => {
+        if (unit.isNumberOnly) {
+          return false;
+        }
+
+        return unit.sentenceIndex < firstTiming.sentenceIndex;
+      });
+
+      if (leadingUnits.length > 0) {
+        const totalWeight =
+          leadingUnits.reduce((sum, unit) => sum + unit.weight, 0) || 1;
+
+        let cursor = 0;
+
+        leadingUnits.forEach((unit, index) => {
+          const isLast = index === leadingUnits.length - 1;
+          const sliceDuration = isLast
+            ? Math.max(firstTiming.timeSeconds - cursor, 0.06)
+            : Math.max(
+                ((firstTiming.timeSeconds - 0) * unit.weight) / totalWeight,
+                0.06
+              );
+
+          next.push({
+            displayIndex: unit.displayIndex,
+            sentenceIndex: unit.sentenceIndex,
+            timeSeconds: cursor,
+            durationSeconds: sliceDuration,
+          });
+
+          cursor += sliceDuration;
+        });
+      }
+    }
+
+    for (let index = 0; index < sentenceTimeline.length; index += 1) {
+      const currentTiming = sentenceTimeline[index];
+      const followingTiming = sentenceTimeline[index + 1] ?? null;
+
+      const endTimeSeconds = followingTiming
+        ? followingTiming.timeSeconds
+        : Number.isFinite(duration) && duration > currentTiming.timeSeconds
+          ? duration
+          : currentTiming.timeSeconds + 0.12;
+
+      pushSentenceUnitsBetween(
+        currentTiming.sentenceIndex,
+        currentTiming.timeSeconds,
+        endTimeSeconds
+      );
+    }
+
+    return next.sort((left, right) => {
+      if (left.timeSeconds !== right.timeSeconds) {
+        return left.timeSeconds - right.timeSeconds;
+      }
+
+      return left.displayIndex - right.displayIndex;
+    });
+  }, [
+    isHumanRecordingSelected,
+    humanDisplaySentenceTimeline,
+    monotonicRuntimeSentenceAnchors,
+    displaySentenceUnits,
+    displayUnitsBySentenceIndex,
+    duration,
+  ]);
 
   const mappedGeneratedSentenceTimings = useMemo<GeneratedSentenceTiming[]>(() => {
-    if (runtimeGeneratedSentenceTimings.length === 0) {
+    if (effectiveRuntimeGeneratedSentenceTimings.length === 0) {
       return [];
     }
 
     let searchStartIndex = 0;
     const mapped: GeneratedSentenceTiming[] = [];
 
-    for (const item of runtimeGeneratedSentenceTimings) {
-      const normalizedCandidates = [
-        normalizeComparableSentenceText(item.targetText),
-        normalizeComparableSentenceText(item.spokenText),
-      ].filter((value) => value.length > 0 && !isComparableNumberOnly(value));
+    for (const item of effectiveRuntimeGeneratedSentenceTimings) {
+      const directVisibleIndex =
+        sentenceIndexToVisibleOrder.get(item.sentenceIndex) ?? null;
 
-      if (normalizedCandidates.length === 0) {
-        continue;
-      }
+      if (directVisibleIndex !== null) {
+        const directCandidate = flatVisibleSentences[directVisibleIndex];
 
-      let matchedSentenceIndex: number | null = null;
+        if (
+          directCandidate &&
+          !directCandidate.isNumberOnly &&
+          directCandidate.candidates.length > 0
+        ) {
+          mapped.push({
+            ...item,
+            sentenceIndex: directCandidate.sentenceIndex,
+            matchConfidence: 1,
+          });
 
-      for (
-        let visibleIndex = searchStartIndex;
-        visibleIndex < flatVisibleSentences.length;
-        visibleIndex += 1
-      ) {
-        const candidate = flatVisibleSentences[visibleIndex];
-
-        if (!candidate.text || isComparableNumberOnly(candidate.text)) {
+          searchStartIndex = Math.max(searchStartIndex, directVisibleIndex + 1);
           continue;
         }
+      }
 
-        const matched = normalizedCandidates.some((target) =>
-          isStrongNormalizedSentenceMatch(candidate.text, target)
+      const normalizedCandidates = Array.from(
+        new Set([
+          ...buildLooseComparableCandidates(item.targetText),
+          ...buildLooseComparableCandidates(item.spokenText),
+        ])
+      ).filter((value) => value.length > 0 && !isComparableNumberOnly(value));
+
+      let bestVisibleIndex: number | null = null;
+      let bestScore = 0;
+
+      if (normalizedCandidates.length > 0) {
+        const candidateRanges: Array<{
+          start: number;
+          end: number;
+          threshold: number;
+        }> = [
+          {
+            start: Math.max(0, searchStartIndex - 4),
+            end: Math.min(flatVisibleSentences.length, searchStartIndex + 48),
+            threshold: 0.14,
+          },
+          {
+            start: Math.max(0, searchStartIndex - 14),
+            end: Math.min(flatVisibleSentences.length, searchStartIndex + 120),
+            threshold: 0.1,
+          },
+          {
+            start: 0,
+            end: flatVisibleSentences.length,
+            threshold: 0.07,
+          },
+        ];
+
+        for (const range of candidateRanges) {
+          let rangeBestVisibleIndex: number | null = null;
+          let rangeBestScore = 0;
+
+          for (let visibleIndex = range.start; visibleIndex < range.end; visibleIndex += 1) {
+            const candidate = flatVisibleSentences[visibleIndex];
+
+            if (candidate.isNumberOnly || candidate.candidates.length === 0) {
+              continue;
+            }
+
+            for (const target of normalizedCandidates) {
+              for (const source of candidate.candidates) {
+                const score = computeLooseMatchScore(source, target);
+
+                if (score > rangeBestScore) {
+                  rangeBestScore = score;
+                  rangeBestVisibleIndex = visibleIndex;
+                }
+              }
+            }
+          }
+
+          if (
+            rangeBestVisibleIndex !== null &&
+            rangeBestScore >= range.threshold
+          ) {
+            bestVisibleIndex = rangeBestVisibleIndex;
+            bestScore = rangeBestScore;
+            break;
+          }
+
+          if (rangeBestVisibleIndex !== null && rangeBestScore > bestScore) {
+            bestVisibleIndex = rangeBestVisibleIndex;
+            bestScore = rangeBestScore;
+          }
+        }
+      }
+
+      if (bestVisibleIndex === null) {
+        const fallbackVisibleIndex = findNextTrackableVisibleIndex(
+          flatVisibleSentences,
+          searchStartIndex
         );
 
-        if (!matched) {
-          continue;
+        if (fallbackVisibleIndex !== null) {
+          bestVisibleIndex = fallbackVisibleIndex;
+          bestScore = Math.max(bestScore, 0.05);
         }
-
-        matchedSentenceIndex = candidate.sentenceIndex;
-        searchStartIndex = visibleIndex + 1;
-        break;
       }
 
-      if (matchedSentenceIndex === null) {
+      if (bestVisibleIndex === null) {
         continue;
       }
+
+      const matchedSentence = flatVisibleSentences[bestVisibleIndex];
+      searchStartIndex = Math.max(searchStartIndex, bestVisibleIndex + 1);
 
       mapped.push({
         ...item,
-        sentenceIndex: matchedSentenceIndex,
+        sentenceIndex: matchedSentence.sentenceIndex,
+        matchConfidence: bestScore,
       });
     }
 
     return mapped;
-  }, [flatVisibleSentences, runtimeGeneratedSentenceTimings]);
+  }, [
+    flatVisibleSentences,
+    effectiveRuntimeGeneratedSentenceTimings,
+    sentenceIndexToVisibleOrder,
+  ]);
 
   const alignedGeneratedSentenceTimings = useMemo<GeneratedSentenceTiming[]>(() => {
-    if (mappedGeneratedSentenceTimings.length === 0) {
-      return [];
-    }
-
-    if (hasExplicitHumanAlignedTiming) {
-      return mappedGeneratedSentenceTimings;
-    }
-
-    const lastTiming =
-      mappedGeneratedSentenceTimings[mappedGeneratedSentenceTimings.length - 1];
-
-    if (!lastTiming) {
-      return [];
-    }
-
-    const estimatedDuration =
-      lastTiming.timeSeconds + Math.max(lastTiming.durationSeconds, 0);
-
-    if (!Number.isFinite(duration) || duration <= 0 || estimatedDuration <= 0) {
-      return mappedGeneratedSentenceTimings;
-    }
-
-    const timingScale = duration / estimatedDuration;
-
-    return mappedGeneratedSentenceTimings.map((item) => ({
-      ...item,
-      timeSeconds: item.timeSeconds * timingScale,
-      durationSeconds: item.durationSeconds * timingScale,
-    }));
-  }, [duration, hasExplicitHumanAlignedTiming, mappedGeneratedSentenceTimings]);
+    return mappedGeneratedSentenceTimings;
+  }, [mappedGeneratedSentenceTimings]);
 
   const expandedGeneratedSentenceTimings = useMemo<GeneratedSentenceTiming[]>(() => {
     if (alignedGeneratedSentenceTimings.length === 0) {
@@ -851,6 +1658,131 @@ export default function EpisodePlayback({
       "",
     [runtimeSceneCues, activeSceneCueId]
   );
+
+  const displayGeneratedSentenceTimings = useMemo<DisplaySentenceTiming[]>(() => {
+    if (expandedGeneratedSentenceTimings.length === 0) {
+      return [];
+    }
+
+    const next: DisplaySentenceTiming[] = [];
+
+    for (const item of expandedGeneratedSentenceTimings) {
+      const displayUnits =
+        displayUnitsBySentenceIndex.get(item.sentenceIndex) ?? [];
+
+      if (displayUnits.length === 0) {
+        continue;
+      }
+
+      const totalWeight =
+        displayUnits.reduce((sum, unit) => sum + unit.weight, 0) || 1;
+
+      let consumed = 0;
+
+      displayUnits.forEach((unit, index) => {
+        const isLast = index === displayUnits.length - 1;
+        const baseDuration = Math.max(item.durationSeconds, 0.12);
+        const sliceDuration = isLast
+          ? Math.max(baseDuration - consumed, 0.08)
+          : Math.max((baseDuration * unit.weight) / totalWeight, 0.08);
+
+        next.push({
+          displayIndex: unit.displayIndex,
+          sentenceIndex: item.sentenceIndex,
+          timeSeconds: item.timeSeconds + consumed,
+          durationSeconds: sliceDuration,
+        });
+
+        consumed += sliceDuration;
+      });
+    }
+
+    return next;
+  }, [expandedGeneratedSentenceTimings, displayUnitsBySentenceIndex]);
+
+  const fullEpisodeDisplaySentenceTimings = useMemo<DisplaySentenceTiming[]>(() => {
+    const sourceUnits = displaySentenceUnits.filter((unit) => !unit.isNumberOnly);
+
+    if (sourceUnits.length === 0) {
+      return [];
+    }
+
+    const safeDuration =
+      Number.isFinite(duration) && duration > 0
+        ? duration
+        : Math.max(sourceUnits.length * 0.8, totalSentenceCount * 1.2, 1);
+
+    const totalWeight =
+      sourceUnits.reduce((sum, unit) => sum + unit.weight, 0) || 1;
+
+    const next: DisplaySentenceTiming[] = [];
+    let cursor = 0;
+
+    sourceUnits.forEach((unit, index) => {
+      const isLast = index === sourceUnits.length - 1;
+      const sliceDuration = isLast
+        ? Math.max(safeDuration - cursor, 0.06)
+        : Math.max((safeDuration * unit.weight) / totalWeight, 0.06);
+
+      next.push({
+        displayIndex: unit.displayIndex,
+        sentenceIndex: unit.sentenceIndex,
+        timeSeconds: cursor,
+        durationSeconds: sliceDuration,
+      });
+
+      cursor += sliceDuration;
+    });
+
+    return next;
+  }, [displaySentenceUnits, duration, totalSentenceCount]);
+
+  const shouldUseFullEpisodeFallback = useMemo(() => {
+    if (displayGeneratedSentenceTimings.length > 0) {
+      return false;
+    }
+
+    const anchors = monotonicRuntimeSentenceAnchors;
+
+    if (anchors.length < 2) {
+      return true;
+    }
+
+    const first = anchors[0];
+    const last = anchors[anchors.length - 1];
+
+    if (first.timeSeconds > 4) {
+      return true;
+    }
+
+    if (first.sentenceIndex > 1) {
+      return true;
+    }
+
+    const anchorCoverageRatio =
+      totalSentenceCount > 0 ? (last.sentenceIndex + 1) / totalSentenceCount : 0;
+
+    if (anchorCoverageRatio < 0.12) {
+      return true;
+    }
+
+    return false;
+  }, [
+    displayGeneratedSentenceTimings,
+    monotonicRuntimeSentenceAnchors,
+    totalSentenceCount,
+  ]);  
+
+  const shouldForceHumanFullEpisodeFallback = useMemo(() => {
+    if (!isHumanRecordingSelected) {
+      return false;
+    }
+
+    return monotonicRuntimeSentenceAnchors.length === 0;
+  }, [
+    isHumanRecordingSelected,
+    monotonicRuntimeSentenceAnchors,
+  ]);
 
 const fallbackAudioStorageSrc = useMemo(() => {
   const value = (audioStoragePath ?? "").trim();
@@ -983,37 +1915,133 @@ useEffect(() => {
       ? activeSceneBgmTitle || bgmTitle || "場面BGM"
       : bgmTitle || "";
 
-  const canOpenSettings = Boolean(resolvedBgmSrc);  
-  
+  const canOpenSettings = true;
+
   useEffect(() => {
     if (!canOpenSettings && isSettingsOpen) {
       setIsSettingsOpen(false);
     }
-  }, [canOpenSettings, isSettingsOpen]);  
+  }, [canOpenSettings, isSettingsOpen]);
 
   const estimatedSentenceIndex = useMemo(() => {
-    if (expandedGeneratedSentenceTimings.length > 0) {
+    if (
+      !isHumanRecordingSelected &&
+      expandedGeneratedSentenceTimings.length > 0
+    ) {
       return resolveActiveSentenceIndexFromGeneratedTimings({
         currentTime,
         generatedSentenceTimings: expandedGeneratedSentenceTimings,
       });
     }
 
+    if (isHumanRecordingSelected) {
+      const timings =
+        !shouldForceHumanFullEpisodeFallback &&
+        interpolatedDisplaySentenceTimings.length > 0
+          ? interpolatedDisplaySentenceTimings
+          : fullEpisodeDisplaySentenceTimings;
+
+      const activeDisplayIndex = resolveActiveDisplayIndexFromTimings({
+        currentTime,
+        timings,
+      });
+
+      if (activeDisplayIndex < 0) {
+        return 0;
+      }
+
+      return displayIndexToSentenceIndexMap.get(activeDisplayIndex) ?? 0;
+    }
+
     return resolveActiveSentenceIndex({
       currentTime,
       duration,
       totalSentenceCount,
-      sentenceTimestamps: runtimeSentenceTimestamps,
+      sentenceTimestamps: interpolatedRuntimeSentenceTimestamps,
+      disableEstimatedFallback:
+        appliedEffectSettings.sentenceTimestamps.length > 0,
     });
   }, [
     currentTime,
     duration,
     totalSentenceCount,
-    runtimeSentenceTimestamps,
+    interpolatedRuntimeSentenceTimestamps,
     expandedGeneratedSentenceTimings,
+    appliedEffectSettings.sentenceTimestamps,
+    shouldForceHumanFullEpisodeFallback,
+    fullEpisodeDisplaySentenceTimings,
+    interpolatedDisplaySentenceTimings,
+    displayIndexToSentenceIndexMap,
+    isHumanRecordingSelected,
   ]);
 
-  const visibleMarkerSentenceIndex = estimatedSentenceIndex;
+  const preferredDisplaySentenceTimings = useMemo(() => {
+    if (
+      !isHumanRecordingSelected &&
+      displayGeneratedSentenceTimings.length > 0
+    ) {
+      return displayGeneratedSentenceTimings;
+    }
+
+    if (isHumanRecordingSelected) {
+      if (
+        !shouldForceHumanFullEpisodeFallback &&
+        interpolatedDisplaySentenceTimings.length > 0
+      ) {
+        return interpolatedDisplaySentenceTimings;
+      }
+
+      return fullEpisodeDisplaySentenceTimings;
+    }
+
+    if (shouldUseFullEpisodeFallback) {
+      return fullEpisodeDisplaySentenceTimings;
+    }
+
+    if (interpolatedDisplaySentenceTimings.length > 0) {
+      return interpolatedDisplaySentenceTimings;
+    }
+
+    return fullEpisodeDisplaySentenceTimings;
+  }, [
+    displayGeneratedSentenceTimings,
+    isHumanRecordingSelected,
+    shouldForceHumanFullEpisodeFallback,
+    shouldUseFullEpisodeFallback,
+    fullEpisodeDisplaySentenceTimings,
+    interpolatedDisplaySentenceTimings,
+  ]);
+
+  const visibleMarkerDisplayIndex = useMemo(() => {
+    if (!showMarker) {
+      return -1;
+    }
+
+    if (preferredDisplaySentenceTimings.length > 0) {
+      const firstTiming = preferredDisplaySentenceTimings[0];
+
+      if (currentTime < firstTiming.timeSeconds) {
+        return 0;
+      }
+
+      return resolveActiveDisplayIndexFromTimings({
+        currentTime,
+        timings: preferredDisplaySentenceTimings,
+      });
+    }
+
+    if (estimatedSentenceIndex < 0) {
+      return 0;
+    }
+
+    return sentenceToFirstDisplayIndexMap.get(estimatedSentenceIndex) ?? 0;
+  }, [
+    showMarker,
+    currentTime,
+    preferredDisplaySentenceTimings,
+    estimatedSentenceIndex,
+    sentenceToFirstDisplayIndexMap,
+  ]);
 
   const applyRestoredPlayLog = useCallback(
     (resumeState: ReadResumeState) => {
@@ -1030,7 +2058,9 @@ useEffect(() => {
     []
   );
 
-  const { flushPlayLog } = usePlayLogPersistence({
+  const shouldPersistContinueReading = isBookmarkPanelExpanded;
+
+  const { flushPlayLog: flushPlayLogInternal } = usePlayLogPersistence({
     seriesId,
     episodeId: episodeId ?? null,
     episodeNumber,
@@ -1039,7 +2069,7 @@ useEffect(() => {
     duration,
     markerIndex: estimatedSentenceIndex >= 0 ? estimatedSentenceIndex : 0,
     isFollowing: autoFollow,
-    isPlaying,
+    isPlaying: shouldPersistContinueReading && isPlaying,
     intervalMs: 4000,
     restoreEnabled: !initialAutoPlay,
     persistEpisodeScopedLocal: false,
@@ -1048,7 +2078,18 @@ useEffect(() => {
     writeLocalResumeState,
   });
 
-    useEffect(() => {
+  const flushPlayLog = useCallback(
+    async (reason: "pause" | "seek" | "episode-move") => {
+      if (!shouldPersistContinueReading) {
+        return;
+      }
+
+      await flushPlayLogInternal(reason);
+    },
+    [shouldPersistContinueReading, flushPlayLogInternal]
+  );
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
 
     try {
@@ -1064,8 +2105,7 @@ useEffect(() => {
         return;
       }
 
-      const sameEpisode =
-        Number(parsed.episodeNumber) === episodeNumber;
+      const sameEpisode = Number(parsed.episodeNumber) === episodeNumber;
       const sameReader =
         (parsed.readerKey ?? "") === (selectedReaderKey ?? "") &&
         (parsed.readerName ?? "") === (selectedReaderName ?? "");
@@ -1076,7 +2116,7 @@ useEffect(() => {
     }
   }, [seriesId, episodeNumber, selectedReaderKey, selectedReaderName]);
 
-    useEffect(() => {
+  useEffect(() => {
     if (!episodeId) return;
 
     void trackSeriesViewOnce({
@@ -1094,6 +2134,7 @@ useEffect(() => {
     setIsAdvancing(false);
     setAutoFollow(true);
     setBookmarkMessage("");
+    setIsBookmarkPanelExpanded(false);
     setIsSettingsOpen(false);
     setIsNarrationStopped(false);
   }, []);
@@ -1124,8 +2165,8 @@ useEffect(() => {
   }, []);
 
   const scrollToSentence = useCallback(
-    (sentenceIndex: number, behavior: ScrollBehavior = "smooth") => {
-      const target = sentenceRefs.current[sentenceIndex];
+    (displayIndex: number, behavior: ScrollBehavior = "smooth") => {
+      const target = sentenceRefs.current[displayIndex];
       if (!target) return;
 
       const rect = target.getBoundingClientRect();
@@ -1143,10 +2184,7 @@ useEffect(() => {
       }
 
       const absoluteTop = window.scrollY + rect.top;
-      const desiredTop = Math.max(
-        0,
-        absoluteTop - viewportHeight * 0.38
-      );
+      const desiredTop = Math.max(0, absoluteTop - viewportHeight * 0.38);
 
       ignoreScrollRef.current = true;
 
@@ -1167,12 +2205,25 @@ useEffect(() => {
 
   const resolveSentenceSeekTime = useCallback(
     (sentenceIndex: number): number | null => {
-      const generatedTiming = alignedGeneratedSentenceTimings.find(
-        (item) => item.sentenceIndex === sentenceIndex
-      );
+      if (!isHumanRecordingSelected) {
+        const generatedTiming = alignedGeneratedSentenceTimings.find(
+          (item) => item.sentenceIndex === sentenceIndex
+        );
 
-      if (generatedTiming) {
-        return generatedTiming.timeSeconds;
+        if (generatedTiming) {
+          return generatedTiming.timeSeconds;
+        }
+      }
+
+      const displayTiming = preferredDisplaySentenceTimings.find((item) => {
+        const mappedSentenceIndex =
+          displayIndexToSentenceIndexMap.get(item.displayIndex) ?? item.sentenceIndex;
+
+        return mappedSentenceIndex === sentenceIndex;
+      });
+
+      if (displayTiming) {
+        return displayTiming.timeSeconds;
       }
 
       if (duration <= 0 || totalSentenceCount <= 1) {
@@ -1181,7 +2232,14 @@ useEffect(() => {
 
       return (sentenceIndex / Math.max(1, totalSentenceCount - 1)) * duration;
     },
-    [alignedGeneratedSentenceTimings, duration, totalSentenceCount]
+    [
+      isHumanRecordingSelected,
+      alignedGeneratedSentenceTimings,
+      preferredDisplaySentenceTimings,
+      displayIndexToSentenceIndexMap,
+      duration,
+      totalSentenceCount,
+    ]
   );
 
   const handleJumpToSentence = useCallback(
@@ -1215,35 +2273,46 @@ useEffect(() => {
       };
 
       window.localStorage.setItem(
-        `duonovel:display:${seriesId}`,
+        GLOBAL_DISPLAY_PREFERENCE_KEY,
         JSON.stringify(payload)
       );
     } catch {
       // noop
     }
-  }, [seriesId, fontScale, lineHeightPreset, hideEffects]);
+  }, [fontScale, lineHeightPreset, hideEffects]);
 
   useEffect(() => {
     try {
       window.localStorage.setItem(
-        `duonovel:auto-advance:${seriesId}`,
+        GLOBAL_AUTO_ADVANCE_KEY,
         autoAdvanceToNext ? "true" : "false"
       );
     } catch {
       // noop
     }
-  }, [seriesId, autoAdvanceToNext]);
+  }, [autoAdvanceToNext]);
 
   useEffect(() => {
     try {
       window.localStorage.setItem(
-        `duonovel:playback-rate:${seriesId}`,
+        GLOBAL_PLAYBACK_RATE_KEY,
         String(playbackRate)
       );
     } catch {
       // noop
     }
-  }, [seriesId, playbackRate]);
+  }, [playbackRate]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        GLOBAL_MARKER_VISIBLE_KEY,
+        showMarker ? "true" : "false"
+      );
+    } catch {
+      // noop
+    }
+  }, [showMarker]);
 
   useEffect(() => {
     try {
@@ -1540,14 +2609,14 @@ useEffect(() => {
   useEffect(() => {
     if (!isPlaying) return;
     if (!autoFollow) return;
-    if (estimatedSentenceIndex < 0) return;
+    if (visibleMarkerDisplayIndex < 0) return;
     if (isSettingsOpen) return;
     if (isNarrationStopped) return;
     if (suppressAutoFollowAfterSettingsRef.current) return;
 
-      scrollToSentence(estimatedSentenceIndex, "smooth");
+    scrollToSentence(visibleMarkerDisplayIndex, "smooth");
   }, [
-    estimatedSentenceIndex,
+    visibleMarkerDisplayIndex,
     isPlaying,
     autoFollow,
     isSettingsOpen,
@@ -1629,15 +2698,27 @@ useEffect(() => {
 
   function handleEnableAutoFollow(): void {
     if (autoFollow) return;
-    if (estimatedSentenceIndex < 0) return;
+    if (visibleMarkerDisplayIndex < 0) return;
     if (isNarrationStopped) return;
 
     setAutoFollow(true);
-    scrollToSentence(estimatedSentenceIndex, "smooth");
+    scrollToSentence(visibleMarkerDisplayIndex, "smooth");
   }
 
   function handleToggleAutoAdvance(): void {
     setAutoAdvanceToNext((prev) => !prev);
+  }
+
+  function handleToggleBookmarkPanel(): void {
+    setIsBookmarkPanelExpanded((prev) => !prev);
+  }
+
+  function handleShowMarker(): void {
+    setShowMarker(true);
+  }
+
+  function handleHideMarker(): void {
+    setShowMarker(false);
   }
 
   function handleDecreasePlaybackRate(): void {
@@ -1918,6 +2999,28 @@ useEffect(() => {
                     </button>
                   </div>
 
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
+                    <div>
+                      <p className="text-sm text-neutral-700">マーカー表示</p>
+                      <p className="mt-1 text-xs leading-6 text-neutral-500">
+                        朗読追尾の青マーカーを表示/非表示にする。
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <SettingChip
+                        active={showMarker}
+                        label="表示"
+                        onClick={handleShowMarker}
+                      />
+                      <SettingChip
+                        active={!showMarker}
+                        label="非表示"
+                        onClick={handleHideMarker}
+                      />
+                    </div>
+                  </div>
+
                   <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
                     <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
                       <span>文字サイズ</span>
@@ -2037,40 +3140,58 @@ useEffect(() => {
                         return (
                           <p key={block.key}>
                             {block.sentences.map((segment) => {
-                              const isActive =
-                                segment.index === visibleMarkerSentenceIndex;
+                              const units =
+                                displayUnitsBySentenceIndex.get(segment.index) ?? [];
 
-                              return (
-                                <span
-                                  key={segment.index}
-                                  ref={(node) => {
-                                    sentenceRefs.current[segment.index] = node;
-                                  }}
-                                  role={canPlayAudio ? "button" : undefined}
-                                  tabIndex={canPlayAudio ? 0 : undefined}
-                                  onClick={() => {
-                                    handleJumpToSentence(segment.index);
-                                  }}
-                                  onKeyDown={(event) => {
-                                    if (!canPlayAudio) return;
-                                    if (event.key !== "Enter" && event.key !== " ") return;
-                                    event.preventDefault();
-                                    handleJumpToSentence(segment.index);
-                                  }}
-                                  className={[
-                                    "inline rounded-md px-1 py-1 transition-all duration-200",
-                                    canPlayAudio ? "cursor-pointer hover:bg-sky-50/70" : "",
-                                    isActive ? markerClass : "",
-                                  ].join(" ")}
-                                >
-                                  {hideEffects
-                                    ? renderTextWithAozoraRuby(segment.text)
-                                    : renderSentenceWithInlineMarks(
-                                        segment.text,
-                                        appliedEffectSettings.inlineMarks
-                                      )}
-                                </span>
-                              );
+                              const sourceUnits =
+                                units.length > 0
+                                  ? units
+                                  : [
+                                      {
+                                        displayIndex: segment.index,
+                                        sentenceIndex: segment.index,
+                                        text: segment.text,
+                                        weight: 1,
+                                        isNumberOnly: false,
+                                      },
+                                    ];
+
+                              return sourceUnits.map((unit) => {
+                                const isActive =
+                                  showMarker && unit.displayIndex === visibleMarkerDisplayIndex;
+
+                                return (
+                                  <span
+                                    key={`${segment.index}-${unit.displayIndex}`}
+                                    ref={(node) => {
+                                      sentenceRefs.current[unit.displayIndex] = node;
+                                    }}
+                                    role={canPlayAudio ? "button" : undefined}
+                                    tabIndex={canPlayAudio ? 0 : undefined}
+                                    onClick={() => {
+                                      handleJumpToSentence(segment.index);
+                                    }}
+                                    onKeyDown={(event) => {
+                                      if (!canPlayAudio) return;
+                                      if (event.key !== "Enter" && event.key !== " ") return;
+                                      event.preventDefault();
+                                      handleJumpToSentence(segment.index);
+                                    }}
+                                    className={[
+                                      "inline rounded-md px-1 py-1 transition-all duration-200",
+                                      canPlayAudio ? "cursor-pointer hover:bg-sky-50/70" : "",
+                                      isActive ? markerClass : "",
+                                    ].join(" ")}
+                                  >
+                                    {hideEffects
+                                      ? renderTextWithAozoraRuby(unit.text)
+                                      : renderSentenceWithInlineMarks(
+                                          unit.text,
+                                          appliedEffectSettings.inlineMarks
+                                        )}
+                                  </span>
+                                );
+                              });
                             })}
                           </p>
                         );
@@ -2096,6 +3217,46 @@ useEffect(() => {
 
       <div className="fixed inset-x-0 bottom-0 border-t border-black/10 bg-white/92 backdrop-blur">
         <div className="mx-auto max-w-3xl px-4 py-3 sm:px-6">
+          {isBookmarkPanelExpanded ? (
+            <div className="mb-3 rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-black">栞</p>
+                  <p className="mt-1 text-xs leading-6 text-neutral-500">
+                    この展開中だけ「続きを読む」へ現在位置を記録する。
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleToggleBookmarkPanel}
+                  className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+                >
+                  閉じる
+                </button>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveBookmark}
+                  className={[
+                    "rounded-full border px-4 py-2 text-sm font-medium transition",
+                    isCurrentEpisodeBookmarked
+                      ? "border-sky-200 bg-sky-50 text-black hover:bg-sky-100"
+                      : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                  ].join(" ")}
+                >
+                  {isCurrentEpisodeBookmarked ? "ブックマーク保存済み" : "現在位置をブックマーク保存"}
+                </button>
+
+                <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-xs text-neutral-600">
+                  現在 {formatTime(currentTime)} / {formatTime(duration)}
+                </span>
+              </div>
+            </div>
+          ) : null}
+
           {!isNarrationStopped ? (
             <div className="rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
@@ -2119,14 +3280,15 @@ useEffect(() => {
           {!isNarrationStopped ? (
             <div className="mt-3 grid w-full grid-cols-7 gap-2">
               <FooterActionButton
-                label={isCurrentEpisodeBookmarked ? "ブックマーク保存済み" : "ブックマーク"}
+                label={isBookmarkPanelExpanded ? "栞\nOPEN" : "栞"}
                 iconSrc={
                   isCurrentEpisodeBookmarked
                     ? PLAYER_ICON_PATHS.bookmarkFilled
                     : PLAYER_ICON_PATHS.bookmark
                 }
                 disabled={false}
-                onClick={handleSaveBookmark}
+                active={isBookmarkPanelExpanded}
+                onClick={handleToggleBookmarkPanel}
               />
 
               <FooterPlaybackRateControl
@@ -2181,14 +3343,15 @@ useEffect(() => {
           ) : (
             <div className="mt-3 grid w-full grid-cols-4 gap-2">
               <FooterActionButton
-                label={isCurrentEpisodeBookmarked ? "ブックマーク保存済み" : "ブックマーク"}
+                label={isBookmarkPanelExpanded ? "栞\nOPEN" : "栞"}
                 iconSrc={
                   isCurrentEpisodeBookmarked
                     ? PLAYER_ICON_PATHS.bookmarkFilled
                     : PLAYER_ICON_PATHS.bookmark
                 }
                 disabled={false}
-                onClick={handleSaveBookmark}
+                active={isBookmarkPanelExpanded}
+                onClick={handleToggleBookmarkPanel}
               />
 
               <FooterActionButton

@@ -26,6 +26,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import ReaderCardControls from "@/components/recording/ReaderCardControls";
 import ContinueReadingEpisodeList from "@/components/works/ContinueReadingEpisodeList";
 import { resolveNemoAutoGenerationConfig } from "@/lib/recording/nemoAutoGeneration";
+import ReaderSelectionBootstrap from "@/components/recording/ReaderSelectionBootstrap";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -896,6 +897,13 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
         seriesId={seriesId}
         episodeIds={episodes.map((episode) => episode.id)}
         enabled={recordingPermissionMode === "open"}
+      /> 
+      <ReaderSelectionBootstrap
+        seriesId={seriesId}
+        currentTab={currentTab}
+        currentRangeStart={currentRangeStart}
+        currentReaderKey={selectedReaderKey}
+        currentReaderName={selectedReaderName}
       />      
       <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
@@ -1154,6 +1162,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                             </div>
 
                             <ReaderCardControls
+                              seriesId={seriesId}
                               readerKey={reader.readerKey}
                               readerName={reader.name}
                               isSelected={isSelected}

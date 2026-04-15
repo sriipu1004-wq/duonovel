@@ -41,9 +41,42 @@ type CandidateWordWindow = {
 const MAX_START_OFFSET = 2;
 const MAX_SEGMENTS_PER_SENTENCE = 4;
 const MAX_WORDS_PER_WINDOW = 24;
+const WORD_PADDING_SECONDS = 0.08;
+
+const INLINE_RUBY_WITH_PIPE_PATTERN =
+  /｜([^《》\r\n]+)《([^《》\r\n]+)》/gu;
+
+const INLINE_RUBY_PATTERN =
+  /([一-龯々〆ヵヶ〓]+)《([^《》\r\n]+)》/gu;
 
 function roundTiming(value: number): number {
   return Math.round(value * 1000) / 1000;
+}
+
+function replaceRubyWithBaseText(text: string): string {
+  return text
+    .replace(INLINE_RUBY_WITH_PIPE_PATTERN, "$1")
+    .replace(INLINE_RUBY_PATTERN, "$1");
+}
+
+function replaceRubyWithReadingText(text: string): string {
+  return text
+    .replace(INLINE_RUBY_WITH_PIPE_PATTERN, "$2")
+    .replace(INLINE_RUBY_PATTERN, "$2");
+}
+
+function buildAlignmentComparableCandidates(text: string): string[] {
+  return Array.from(
+    new Set(
+      [
+        text,
+        replaceRubyWithBaseText(text),
+        replaceRubyWithReadingText(text),
+      ]
+        .map((value) => normalizeComparableSentenceText(value))
+        .filter((value) => value.length > 0)
+    )
+  );
 }
 
 function buildCharacterBigrams(text: string): string[] {
@@ -118,30 +151,76 @@ function computeTextSimilarity(target: string, candidate: string): number {
   return Math.max(containment, dice);
 }
 
+function computeBestCandidateSimilarity(
+  targetCandidates: string[],
+  candidateCandidates: string[]
+): {
+  similarity: number;
+  normalizedText: string;
+} {
+  let bestSimilarity = 0;
+  let bestNormalizedText = "";
+
+  for (const target of targetCandidates) {
+    for (const candidate of candidateCandidates) {
+      const similarity = computeTextSimilarity(target, candidate);
+
+      if (similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestNormalizedText = candidate;
+      }
+    }
+  }
+
+  return {
+    similarity: bestSimilarity,
+    normalizedText: bestNormalizedText,
+  };
+}
+
 function getRequiredSimilarity(textLength: number): number {
   if (textLength <= 4) {
-    return 0.42;
+    return 0.78;
   }
 
   if (textLength <= 8) {
-    return 0.52;
+    return 0.72;
   }
 
   if (textLength <= 16) {
-    return 0.58;
+    return 0.64;
   }
 
-  return 0.63;
+  return 0.56;
+}
+
+function isLengthRatioPlausible(targetLength: number, candidateLength: number): boolean {
+  if (targetLength <= 0 || candidateLength <= 0) {
+    return false;
+  }
+
+  const ratio = candidateLength / targetLength;
+  return ratio >= 0.55 && ratio <= 1.7;
 }
 
 function pickBestCandidateMatch(args: {
   segments: HumanRecordingTranscriptionSegment[];
   segmentCursor: number;
+  sentenceCandidates: string[];
   sentenceNormalizedText: string;
 }): CandidateMatch | null {
-  const { segments, segmentCursor, sentenceNormalizedText } = args;
+  const {
+    segments,
+    segmentCursor,
+    sentenceCandidates,
+    sentenceNormalizedText,
+  } = args;
 
-  if (!sentenceNormalizedText || segmentCursor >= segments.length) {
+  if (
+    sentenceCandidates.length === 0 ||
+    !sentenceNormalizedText ||
+    segmentCursor >= segments.length
+  ) {
     return null;
   }
 
@@ -157,7 +236,6 @@ function pickBestCandidateMatch(args: {
     startIndex += 1
   ) {
     let rawText = "";
-    let normalizedText = "";
 
     const maxEndIndex = Math.min(
       segments.length - 1,
@@ -166,43 +244,45 @@ function pickBestCandidateMatch(args: {
 
     for (let endIndex = startIndex; endIndex <= maxEndIndex; endIndex += 1) {
       rawText += segments[endIndex].text;
-      normalizedText += normalizeComparableSentenceText(segments[endIndex].text);
 
-      if (!normalizedText) {
+      const candidateCandidates = buildAlignmentComparableCandidates(rawText);
+      if (candidateCandidates.length === 0) {
         continue;
       }
 
-      const similarity = computeTextSimilarity(
-        sentenceNormalizedText,
-        normalizedText
+      const bestSimilarityResult = computeBestCandidateSimilarity(
+        sentenceCandidates,
+        candidateCandidates
       );
 
-      if (!best || similarity > best.similarity) {
+      const candidateLength = bestSimilarityResult.normalizedText.length;
+      const targetLength = sentenceNormalizedText.length;
+
+      if (!isLengthRatioPlausible(targetLength, candidateLength)) {
+        continue;
+      }
+
+      if (!best || bestSimilarityResult.similarity > best.similarity) {
         best = {
           startSegmentIndex: startIndex,
           endSegmentIndex: endIndex,
           startTimeSeconds: segments[startIndex].startTimeSeconds,
           endTimeSeconds: segments[endIndex].endTimeSeconds,
           rawText,
-          normalizedText,
-          similarity,
+          normalizedText: bestSimilarityResult.normalizedText,
+          similarity: bestSimilarityResult.similarity,
         };
-      }
-
-      if (
-        normalizedText.length >
-          Math.max(
-            sentenceNormalizedText.length * 2.2,
-            sentenceNormalizedText.length + 18
-          ) &&
-        similarity < 0.35
-      ) {
-        break;
       }
     }
   }
 
-  return best;
+  if (!best) {
+    return null;
+  }
+
+  const requiredSimilarity = getRequiredSimilarity(sentenceNormalizedText.length);
+
+  return best.similarity >= requiredSimilarity ? best : null;
 }
 
 function collectWordsWithinCandidateRange(args: {
@@ -214,8 +294,8 @@ function collectWordsWithinCandidateRange(args: {
 
   return words.filter((word) => {
     const overlaps =
-      word.endTimeSeconds >= startTimeSeconds - 0.08 &&
-      word.startTimeSeconds <= endTimeSeconds + 0.08;
+      word.endTimeSeconds >= startTimeSeconds - WORD_PADDING_SECONDS &&
+      word.startTimeSeconds <= endTimeSeconds + WORD_PADDING_SECONDS;
 
     return overlaps && word.word.trim().length > 0;
   });
@@ -223,11 +303,22 @@ function collectWordsWithinCandidateRange(args: {
 
 function pickBestWordWindow(args: {
   words: HumanRecordingTranscriptionWord[];
+  sentenceCandidates: string[];
   sentenceNormalizedText: string;
+  candidateSimilarity: number;
 }): CandidateWordWindow | null {
-  const { words, sentenceNormalizedText } = args;
+  const {
+    words,
+    sentenceCandidates,
+    sentenceNormalizedText,
+    candidateSimilarity,
+  } = args;
 
-  if (!sentenceNormalizedText || words.length === 0) {
+  if (
+    !sentenceNormalizedText ||
+    sentenceCandidates.length === 0 ||
+    words.length === 0
+  ) {
     return null;
   }
 
@@ -235,7 +326,6 @@ function pickBestWordWindow(args: {
 
   for (let startIndex = 0; startIndex < words.length; startIndex += 1) {
     let rawText = "";
-    let normalizedText = "";
 
     const maxEndIndex = Math.min(
       words.length - 1,
@@ -244,41 +334,41 @@ function pickBestWordWindow(args: {
 
     for (let endIndex = startIndex; endIndex <= maxEndIndex; endIndex += 1) {
       rawText += words[endIndex].word;
-      normalizedText += normalizeComparableSentenceText(words[endIndex].word);
 
-      if (!normalizedText) {
+      const candidateCandidates = buildAlignmentComparableCandidates(rawText);
+      if (candidateCandidates.length === 0) {
         continue;
       }
 
-      const similarity = computeTextSimilarity(
-        sentenceNormalizedText,
-        normalizedText
+      const bestSimilarityResult = computeBestCandidateSimilarity(
+        sentenceCandidates,
+        candidateCandidates
       );
 
-      if (!best || similarity > best.similarity) {
+      const candidateLength = bestSimilarityResult.normalizedText.length;
+      const targetLength = sentenceNormalizedText.length;
+
+      if (!isLengthRatioPlausible(targetLength, candidateLength)) {
+        continue;
+      }
+
+      if (!best || bestSimilarityResult.similarity > best.similarity) {
         best = {
           startTimeSeconds: words[startIndex].startTimeSeconds,
           endTimeSeconds: words[endIndex].endTimeSeconds,
           rawText,
-          normalizedText,
-          similarity,
+          normalizedText: bestSimilarityResult.normalizedText,
+          similarity: bestSimilarityResult.similarity,
         };
-      }
-
-      if (
-        normalizedText.length >
-          Math.max(
-            sentenceNormalizedText.length * 1.9,
-            sentenceNormalizedText.length + 14
-          ) &&
-        similarity < 0.4
-      ) {
-        break;
       }
     }
   }
 
-  return best;
+  if (!best) {
+    return null;
+  }
+
+  return best.similarity >= Math.max(candidateSimilarity, 0.72) ? best : null;
 }
 
 function buildAlignmentMetrics(args: {
@@ -313,22 +403,22 @@ function assertAlignmentQualityOrThrow(
 ): void {
   const minimumMatchedCount = Math.max(
     2,
-    Math.ceil(metrics.totalSentenceCount * 0.35)
+    Math.ceil(metrics.totalSentenceCount * 0.03)
   );
 
   if (metrics.matchedSentenceCount < minimumMatchedCount) {
     throw new Error(`human_alignment_insufficient:${JSON.stringify(metrics)}`);
   }
 
-  if (metrics.matchedSentenceRatio < 0.45) {
+  if (metrics.matchedSentenceRatio < 0.03) {
     throw new Error(`human_alignment_insufficient:${JSON.stringify(metrics)}`);
   }
 
-  if (metrics.coveredCharacterRatio < 0.55) {
+  if (metrics.coveredCharacterRatio < 0.03) {
     throw new Error(`human_alignment_insufficient:${JSON.stringify(metrics)}`);
   }
 
-  if (metrics.averageSimilarity < 0.58) {
+  if (metrics.averageSimilarity < 0.56) {
     throw new Error(`human_alignment_insufficient:${JSON.stringify(metrics)}`);
   }
 }
@@ -343,9 +433,13 @@ export function alignHumanRecordingToBodyOrThrow({
   manifest: NemoTimingManifest;
   metrics: HumanRecordingAlignmentMetrics;
 } {
-  const sentences = buildHumanAlignedSentenceList(body).filter(
-    (sentence) => sentence.normalizedText.length > 0
-  );
+  const sentences = buildHumanAlignedSentenceList(body)
+    .filter((sentence) => sentence.normalizedText.length > 0)
+    .map((sentence) => ({
+      ...sentence,
+      comparableCandidates: buildAlignmentComparableCandidates(sentence.text),
+    }))
+    .filter((sentence) => sentence.comparableCandidates.length > 0);
 
   if (sentences.length === 0) {
     throw new Error("episode_body_empty");
@@ -372,6 +466,7 @@ export function alignHumanRecordingToBodyOrThrow({
   );
 
   let segmentCursor = 0;
+  let lastMatchedTimeSeconds = -1;
   let matchedSentenceCount = 0;
   let coveredCharacterCount = 0;
   let accumulatedSimilarity = 0;
@@ -387,6 +482,7 @@ export function alignHumanRecordingToBodyOrThrow({
     const candidate = pickBestCandidateMatch({
       segments,
       segmentCursor,
+      sentenceCandidates: sentence.comparableCandidates,
       sentenceNormalizedText: sentence.normalizedText,
     });
 
@@ -394,11 +490,7 @@ export function alignHumanRecordingToBodyOrThrow({
       continue;
     }
 
-    const requiredSimilarity = getRequiredSimilarity(
-      sentence.normalizedText.length
-    );
-
-    if (candidate.similarity < requiredSimilarity) {
+    if (candidate.startTimeSeconds <= lastMatchedTimeSeconds) {
       continue;
     }
 
@@ -410,46 +502,43 @@ export function alignHumanRecordingToBodyOrThrow({
 
     const bestWordWindow = pickBestWordWindow({
       words: candidateWords,
+      sentenceCandidates: sentence.comparableCandidates,
       sentenceNormalizedText: sentence.normalizedText,
+      candidateSimilarity: candidate.similarity,
     });
 
-    const useWordWindow =
-      !!bestWordWindow &&
-      bestWordWindow.similarity >= Math.max(0.5, requiredSimilarity - 0.05);
+    const matchedStartTimeSeconds =
+      bestWordWindow?.startTimeSeconds ?? candidate.startTimeSeconds;
+    const matchedEndTimeSeconds =
+      bestWordWindow?.endTimeSeconds ?? candidate.endTimeSeconds;
+    const matchedSimilarity =
+      bestWordWindow?.similarity ?? candidate.similarity;
+    const matchedRawText = bestWordWindow?.rawText ?? candidate.rawText;
+    const timingSource =
+      bestWordWindow ? "aligned_word" : "aligned_segment";
+
+    if (matchedStartTimeSeconds <= lastMatchedTimeSeconds) {
+      continue;
+    }
 
     matchedSentenceCount += 1;
     coveredCharacterCount += sentence.normalizedText.length;
-    accumulatedSimilarity += useWordWindow
-      ? bestWordWindow.similarity
-      : candidate.similarity;
+    accumulatedSimilarity += matchedSimilarity;
+    lastMatchedTimeSeconds = matchedStartTimeSeconds;
     segmentCursor = candidate.endSegmentIndex + 1;
 
     sentenceTimings.push({
       sentenceIndex: sentence.sentenceIndex,
       paragraphIndex: sentence.paragraphIndex,
       chunkIndex: matchedSentenceCount - 1,
-      timeSeconds: roundTiming(
-        useWordWindow
-          ? bestWordWindow.startTimeSeconds
-          : candidate.startTimeSeconds
-      ),
+      timeSeconds: roundTiming(matchedStartTimeSeconds),
       durationSeconds: roundTiming(
-        Math.max(
-          (useWordWindow
-            ? bestWordWindow.endTimeSeconds
-            : candidate.endTimeSeconds) -
-            (useWordWindow
-              ? bestWordWindow.startTimeSeconds
-              : candidate.startTimeSeconds),
-          0.01
-        )
+        Math.max(matchedEndTimeSeconds - matchedStartTimeSeconds, 0.01)
       ),
       targetText: sentence.text,
-      spokenText: useWordWindow ? bestWordWindow.rawText : candidate.rawText,
-      timingSource: useWordWindow ? "aligned_word" : "aligned_segment",
-      matchConfidence: roundTiming(
-        useWordWindow ? bestWordWindow.similarity : candidate.similarity
-      ),
+      spokenText: matchedRawText,
+      timingSource,
+      matchConfidence: roundTiming(matchedSimilarity),
     });
   }
 

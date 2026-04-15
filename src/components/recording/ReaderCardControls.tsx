@@ -8,6 +8,7 @@ import {
 } from "@/lib/recording/nemoTiming";
 
 type ReaderCardControlsProps = {
+  seriesId: string;
   readerKey: string;
   readerName: string;
   isSelected: boolean;
@@ -38,6 +39,7 @@ function getDemoPreviewEndSecondsFromPayload(payload: unknown): number {
 }
 
 export default function ReaderCardControls({
+  seriesId,
   readerKey,
   readerName,
   isSelected,
@@ -65,6 +67,16 @@ export default function ReaderCardControls({
   }, []);
 
   async function handleSelect() {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        `duonovel:selected-reader:${seriesId}`,
+        JSON.stringify({
+          readerKey,
+          readerName,
+        })
+      );
+    }
+
     const nextQuery = new URLSearchParams(searchParams.toString());
     nextQuery.set("tab", currentTab);
     nextQuery.set("range", String(currentRangeStart));

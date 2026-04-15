@@ -24,8 +24,44 @@ export function normalizeComparableSentenceText(text: string): string {
     .trim();
 }
 
-export function splitIntoNemoAlignedSentenceUnits(paragraph: string): string[] {
+function splitByInternalPauseMarkers(unit: string): string[] {
+  const normalized = unit.trim();
+
+  if (!normalized) {
+    return [];
+  }
+
+  const withBoundaries = normalized
+    .replace(/([」』）】])(?=[^\s、。！？!?…」』）】])/gu, "$1\n")
+    .replace(/([…⋯]+)(?=[^\s」』）】。！？!?…])/gu, "$1\n")
+    .replace(/([―—─]{2,})(?=[^\s」』）】。！？!?…])/gu, "$1\n");
+
+  return withBoundaries
+    .split(/\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+export function splitIntoTrackingSentenceUnits(paragraph: string): string[] {
   const normalized = paragraph.trim();
+
+  if (!normalized) {
+    return [];
+  }
+
+  const matched = normalized.match(/[^。！？!?]+(?:[。！？!?]+[」』）】]?|$)/gu);
+
+  if (!matched || matched.length === 0) {
+    return splitByInternalPauseMarkers(normalized);
+  }
+
+  return matched
+    .flatMap((unit) => splitByInternalPauseMarkers(unit))
+    .filter(Boolean);
+}
+
+export function splitSentenceIntoDisplayClauses(sentence: string): string[] {
+  const normalized = sentence.trim();
 
   if (!normalized) {
     return [];
@@ -53,7 +89,7 @@ export function buildNemoAlignedParagraphBlocks(
 
   return paragraphs.map((paragraph, paragraphIndex) => ({
     paragraphIndex,
-    segments: splitIntoNemoAlignedSentenceUnits(paragraph).map((text) => ({
+    segments: splitIntoTrackingSentenceUnits(paragraph).map((text) => ({
       index: nextSentenceIndex++,
       text,
     })),
