@@ -517,34 +517,73 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-7xl px-4 pb-20 pt-6 sm:px-6 lg:px-8">
         <section className="border-b border-black/10 pb-10">
-          <div className="grid gap-8 xl:grid-cols-[1.55fr_0.9fr] xl:items-start">
+          <div className="grid gap-8 xl:grid-cols-[1.45fr_0.95fr] xl:items-start">
             <div>
               <p className="text-[11px] tracking-[0.24em] text-neutral-500">
-                FREE / NOVEL / READ / LISTEN
+                PRELAUNCH / NOVEL / READ / LISTEN
               </p>
 
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
+                  試作公開中
+                </span>
+                <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
+                  完全無料
+                </span>
+                <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
+                  小説 / 朗読 / 演出
+                </span>
+              </div>
+
               <h1 className="mt-4 text-3xl font-bold leading-tight text-black sm:text-4xl xl:text-5xl">
-                小説投稿サイトの基盤を保ったまま、
+                読む、聞く、投稿する。
                 <br />
-                朗読や文字、背景自体の編集など、
-                <br />
-                表現の幅を広げることを目的とした完全無料サイト。
+                朗読や演出も扱える小説投稿サイト。
               </h1>
 
               <p className="mt-5 max-w-4xl text-sm leading-8 text-neutral-700 sm:text-[15px]">
-                LIB read は完全無料で使える小説投稿サイトです。朗読や、文字、背景自体の編集などを扱いながら、
-                小説投稿サイトというプラットホームを保ちつつ、文字、あるいは言語自体を主体として、
-                表現の幅の可能性を模索することを目的の一つとしています。もちろん従来の小説投稿サイトと同じ使い方をしても全く支障ありませんし、
-                朗読視聴だけを目的に使っていただいても構いません。「読む」「聞く」「書いて、ついでにささやかながらなにか演出をつけてみる」
-                「好きな作品を声に出して読んで、誰かに聞いてもらう」など、自分のしてみたいことをやってみてください。
+                LIB read は、小説投稿サイトとしての読みやすさを土台にしながら、
+                朗読や文字・背景の演出も一緒に扱える完全無料の試作サイトです。
+                まずは公開作品を読むところから入れて、朗読付き作品や、著作権切れ作品の公開がある場合はそこから、
+                LIB read らしい体験の雰囲気をつかめます。
               </p>
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link
+                  href="/search"
+                  className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800"
+                >
+                  作品を探す
+                </Link>
+
+                <Link
+                  href="#latest"
+                  className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50"
+                >
+                  公開作品を見る
+                </Link>
+
+                <Link
+                  href="/guide"
+                  className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50"
+                >
+                  まず使い方を見る
+                </Link>
+
+                <Link
+                  href="/status"
+                  className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50"
+                >
+                  現在の状態を見る
+                </Link>
+              </div>
 
               <div className="mt-8">
                 <p className="text-[11px] tracking-[0.22em] text-neutral-500">
                   目次
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <ExploreChip href="/search" label="検索ページへ" />
+                  <ExploreChip href="#prelaunch-summary" label="LIB read の特徴" />
                   <ExploreChip href="#latest" label="新着更新" />
                   <ExploreChip href="#weekly-new" label="週間新作おすすめ" />
                   <ExploreChip href="#overall-popular" label="総合人気順" />
@@ -552,47 +591,134 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                   <ExploreChip href="#guide-links" label="使い方・FAQ" />
                   <ExploreChip href="#status-links" label="運営状況・お知らせ" />
                   <ExploreChip href="#legal-links" label="規約・窓口" />
+                  <ExploreChip href="/news" label="更新情報" />
+                  <ExploreChip href="/contact" label="問い合わせ" />
                 </div>
               </div>
             </div>
 
             <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4 sm:p-5">
               <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-                explain
+                NOW IN PROTOTYPE
               </p>
               <h2 className="mt-3 text-xl font-bold leading-tight text-black sm:text-2xl">
-                概要
+                今どこまで使える？
               </h2>
+              <p className="mt-3 text-sm leading-7 text-neutral-600">
+                LIB read は公開しながら整えている試作段階のサービスです。
+                今使える範囲と、これから増やしていく部分を分けて見えるようにしている。
+              </p>
 
               <div className="mt-5 grid gap-3">
                 <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm font-semibold text-black">読む</p>
+                  <p className="text-sm font-semibold text-black">今できること</p>
                   <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    ただ好きな作品を従来通りに楽しんだり、取り付けられた演出でより深く没入してみてみたり。
+                    公開作品を探す、読む、朗読付き作品を聞く、案内ページや規約を確認する。
                   </p>
                 </div>
 
                 <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm font-semibold text-black">聞く</p>
+                  <p className="text-sm font-semibold text-black">これから増えること</p>
                   <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    電車での暇つぶしや作業、散歩中のお供にでも。
+                    朗読体験の向上、演出の見せ方整理、公開導線の改善、更新追跡の土台づくりを進める。
                   </p>
                 </div>
 
                 <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm font-semibold text-black">書く</p>
+                  <p className="text-sm font-semibold text-black">
+                    著作権切れ作品から試せること
+                  </p>
                   <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    頭の中にある構想を文字へと抽出して、添え物のようになにか演出を追加してみたり。
+                    著作権切れ作品の公開がある場合は、まずそこから読む・聞く・演出の雰囲気をつかみやすい。
                   </p>
                 </div>
 
                 <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm font-semibold text-black">読み上げる</p>
+                  <p className="text-sm font-semibold text-black">更新追跡</p>
                   <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    お気に入りの作品への気持ちを朗読にて表現する等。
+                    今はお知らせページと運営状況ページを入口にしている。
+                    通知登録の土台は今後の公開導線で整えていく。
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="prelaunch-summary" className="pt-10">
+          <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
+            <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+              WHY LIB READ
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
+              LIB read の特徴
+            </h2>
+            <p className="mt-2 text-sm leading-7 text-neutral-600">
+              従来の小説投稿サイトとしての使いやすさを残しながら、
+              朗読や演出も含めて作品体験の幅を広げることを目指している。
+              まずは外から見て分かる形で、その特徴を上の方にまとめている。
+            </p>
+
+            <div className="mt-5 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-black/10 bg-white p-4">
+                <p className="text-sm font-semibold text-black">小説</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  探す、読む、投稿するという小説投稿サイトの基本導線を土台にしている。
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-black/10 bg-white p-4">
+                <p className="text-sm font-semibold text-black">朗読</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  読むだけでなく、朗読付き作品を聞いたり、作品への気持ちを声で表現する入口も持たせている。
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-black/10 bg-white p-4">
+                <p className="text-sm font-semibold text-black">演出</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  文字や背景などの見せ方を通して、文章主体のまま表現の幅を少し広げられる。
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-black/10 bg-white p-4">
+                <p className="text-sm font-semibold text-black">試作段階</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  今使える範囲を先に見せつつ、未完成部分や今後の改善余地も明示している。
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              <Link
+                href="/guide"
+                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
+              >
+                <p className="text-sm font-semibold text-black">初見の人向け</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  まず全体像をつかみたいときは、使い方・取り扱い説明から見る。
+                </p>
+              </Link>
+
+              <Link
+                href="/status"
+                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
+              >
+                <p className="text-sm font-semibold text-black">今の状態を見る</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  現在使える機能、調整中の内容、今後の予定は運営状況にまとめてある。
+                </p>
+              </Link>
+
+              <Link
+                href="/news"
+                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
+              >
+                <p className="text-sm font-semibold text-black">更新を追う</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                  当面の更新追跡はお知らせページを入口にする。通知導線の土台もここにつなげやすい。
+                </p>
+              </Link>
             </div>
           </div>
         </section>

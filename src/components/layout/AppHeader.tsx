@@ -4,6 +4,8 @@ import AuthStatus from "@/components/auth/AuthStatus";
 
 const navItems = [
   { href: "/search", label: "作品を探す" },
+  { href: "/guide", label: "使い方" },
+  { href: "/status", label: "運営状況" },
   { href: "/record", label: "朗読する" },
   { href: "/write", label: "投稿する" },
 ];
