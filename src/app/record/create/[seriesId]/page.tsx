@@ -1,10 +1,18 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { RecordingLegalFooter } from "@/components/recording/RecordingLegalFooter";
 import {
+  buildRecordingEntryPath,
   buildWorkPath,
   requireRecordingEntryAccess,
   type RecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
+import {
+  buildRecordingConsentPath,
+  RECORDING_GLOBAL_CONSENT_KEY,
+  RECORDING_GLOBAL_CONSENT_VERSION,
+} from "@/lib/recording/recordingConsent";
 import { RecordingStudioPage } from "@/components/recording/RecordingStudioPage";
 import {
   getEpisodeBody,
@@ -167,13 +175,37 @@ async function fetchExistingRecordingsForSeriesUser(
 
 export default async function RecordCreateSeriesPage({ params }: PageProps) {
   const { seriesId } = await params;
-  const { seriesTitle, permissionMode, hasApprovedRequest } =
-    await requireRecordingEntryAccess(seriesId);
+  const {
+    seriesTitle,
+    permissionMode,
+    hasApprovedRequest,
+    userId,
+  } = await requireRecordingEntryAccess(seriesId);
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const { data: consentRow, error: consentError } = await supabase
+    .from("user_recording_consents")
+    .select("consent_version")
+    .eq("user_id", userId)
+    .eq("consent_key", RECORDING_GLOBAL_CONSENT_KEY)
+    .maybeSingle();
+
+  if (consentError) {
+    throw new Error(`recording consent lookup failed: ${consentError.message}`);
+  }
+
+  const acceptedConsentVersion = pickString(
+    (consentRow ?? {}) as RawRow,
+    ["consent_version"]
+  );
+
+  if (acceptedConsentVersion !== RECORDING_GLOBAL_CONSENT_VERSION) {
+    redirect(buildRecordingConsentPath(buildRecordingEntryPath(seriesId)));
+  }
 
   const { data: seriesRow } = await supabase
     .from("series")
@@ -228,7 +260,7 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
 
   const existingRecordings = await fetchExistingRecordingsForSeriesUser(
     seriesId,
-    user?.id ?? null
+    user?.id ?? userId
   );
 
   const defaultReaderName = resolveDefaultReaderName(user, existingRecordings);
@@ -254,7 +286,7 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
 
                 <p className="mt-4 max-w-4xl text-sm leading-7 text-neutral-600 sm:text-base">
                   ここでは作品本文を見ながら、朗読制作を進められる。
-                  当サイトでの録音・既存音声アップロードも可能
+                  当サイトでの録音・既存音声アップロードも可能。
                 </p>
 
                 <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -293,6 +325,10 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
           existingRecordings={existingRecordings}
           defaultReaderName={defaultReaderName}
         />
+
+        <div className="mt-6">
+          <RecordingLegalFooter />
+        </div>
       </div>
     </main>
   );

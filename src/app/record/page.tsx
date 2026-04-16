@@ -22,6 +22,12 @@ import {
   pickText,
   type SeriesRow,
 } from "@/features/write/writeShared";
+import { RecordingLegalFooter } from "@/components/recording/RecordingLegalFooter";
+import {
+  buildRecordingConsentPath,
+  RECORDING_GLOBAL_CONSENT_KEY,
+  RECORDING_GLOBAL_CONSENT_VERSION,
+} from "@/lib/recording/recordingConsent";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -438,6 +444,41 @@ function buildRecordSearchHref(args: {
   return args.anchor ? `${base}#${args.anchor}` : base;
 }
 
+function buildRecordingStartHref(
+  seriesId: string,
+  hasRecordingGlobalConsent: boolean
+): string {
+  const entryPath = buildRecordingEntryPath(seriesId);
+
+  if (hasRecordingGlobalConsent) {
+    return entryPath;
+  }
+
+  return buildRecordingConsentPath(entryPath);
+}
+
+async function fetchMyRecordingGlobalConsent(
+  supabase: SupabaseClient,
+  userId: string | null
+): Promise<boolean> {
+  if (!userId) {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from("user_recording_consents")
+    .select("consent_version")
+    .eq("user_id", userId)
+    .eq("consent_key", RECORDING_GLOBAL_CONSENT_KEY)
+    .maybeSingle();
+
+  if (error) {
+    return false;
+  }
+
+  return data?.consent_version === RECORDING_GLOBAL_CONSENT_VERSION;
+}
+
 async function fetchDiscoverableSeries(
   supabase: SupabaseClient
 ): Promise<SeriesRow[]> {
@@ -799,14 +840,20 @@ function buildAvailableGenres(items: CatalogItem[]): GenreChip[] {
   });
 }
 
-function getPrimaryAction(item: CatalogItem): {
+function getPrimaryAction(
+  item: CatalogItem,
+  hasRecordingGlobalConsent: boolean
+): {
   href: string;
   label: string;
   className: string;
 } {
   if (item.isReady) {
     return {
-      href: buildRecordingEntryPath(item.series.id),
+      href: buildRecordingStartHref(
+        item.series.id,
+        hasRecordingGlobalConsent
+      ),
       label: "朗読制作へ",
       className:
         "rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black transition hover:bg-sky-100",
@@ -869,8 +916,14 @@ function SectionFrame({
   );
 }
 
-function RecordCatalogCard({ item }: { item: CatalogItem }) {
-  const primaryAction = getPrimaryAction(item);
+function RecordCatalogCard({
+  item,
+  hasRecordingGlobalConsent,
+}: {
+  item: CatalogItem;
+  hasRecordingGlobalConsent: boolean;
+}) {
+  const primaryAction = getPrimaryAction(item, hasRecordingGlobalConsent);
 
   return (
     <article className="rounded-[24px] border border-black/10 bg-white p-5">
@@ -957,7 +1010,13 @@ function RecordCatalogCard({ item }: { item: CatalogItem }) {
   );
 }
 
-function RequestStatusCard({ item }: { item: RequestListItem }) {
+function RequestStatusCard({
+  item,
+  hasRecordingGlobalConsent,
+}: {
+  item: RequestListItem;
+  hasRecordingGlobalConsent: boolean;
+}) {
   const latestStatus = normalizeRequestStatus(item.request.status);
 
   return (
@@ -996,7 +1055,10 @@ function RequestStatusCard({ item }: { item: RequestListItem }) {
           <Link
             href={
               latestStatus === "approved"
-                ? buildRecordingEntryPath(item.seriesId)
+                ? buildRecordingStartHref(
+                    item.seriesId,
+                    hasRecordingGlobalConsent
+                )  
                 : buildRecordingRequestPath(item.seriesId)
             }
             className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
@@ -1046,6 +1108,10 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
   const myRequests = await fetchMyRecordingRequests(supabase, user?.id ?? null);
   const myBookmarks = await fetchMyBookmarks(supabase, user?.id ?? null);
   const mySubmittedSeriesIds = await fetchMySubmittedSeriesIds(user?.id ?? null);
+  const hasRecordingGlobalConsent = await fetchMyRecordingGlobalConsent(
+    supabase,
+    user?.id ?? null
+  );
 
   const latestRequestMap = buildLatestRequestMap(myRequests);
   const bookmarkedSeriesIds = new Set(
@@ -1257,7 +1323,11 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
             ) : (
               <div className="grid gap-4">
                 {submittedItems.map((item) => (
-                  <RecordCatalogCard key={item.series.id} item={item} />
+                  <RecordCatalogCard
+                    key={item.series.id}
+                    item={item}
+                    hasRecordingGlobalConsent={hasRecordingGlobalConsent}
+                  />
                 ))}
               </div>
             )}
@@ -1299,7 +1369,11 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
             ) : (
               <div className="grid gap-4">
                 {bookmarkedItems.map((item) => (
-                  <RecordCatalogCard key={item.series.id} item={item} />
+                  <RecordCatalogCard
+                    key={item.series.id}
+                    item={item}
+                    hasRecordingGlobalConsent={hasRecordingGlobalConsent}
+                  />
                 ))}
               </div>
             )}
@@ -1341,7 +1415,11 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
             ) : (
               <div className="grid gap-4">
                 {requestItems.map((item) => (
-                  <RequestStatusCard key={item.seriesId} item={item} />
+                  <RequestStatusCard
+                    key={item.seriesId}
+                    item={item}
+                    hasRecordingGlobalConsent={hasRecordingGlobalConsent}
+                  />
                 ))}
               </div>
             )}
@@ -1399,11 +1477,19 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
             ) : (
               <div className="grid gap-4">
                 {filteredCatalogItems.map((item) => (
-                  <RecordCatalogCard key={item.series.id} item={item} />
+                  <RecordCatalogCard
+                    key={item.series.id}
+                    item={item}
+                    hasRecordingGlobalConsent={hasRecordingGlobalConsent}
+                  />
                 ))}
               </div>
             )}
           </SectionFrame>
+        </div>
+
+        <div className="mt-6">
+          <RecordingLegalFooter />
         </div>
       </div>
     </main>

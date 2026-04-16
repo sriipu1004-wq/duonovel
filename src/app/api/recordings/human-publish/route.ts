@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { analyzeAudioUploadServer } from "@/lib/recording/audioUploadServerValidation";
 import { publishHumanRecording } from "@/lib/recording/humanRecordingPublish";
 import { createClient } from "@/lib/supabase/server";
+import {
+  RECORDING_GLOBAL_CONSENT_KEY,
+  RECORDING_GLOBAL_CONSENT_VERSION,
+} from "@/lib/recording/recordingConsent";
 
 export const runtime = "nodejs";
 
@@ -342,6 +346,34 @@ export async function POST(request: Request) {
         error: "ログイン状態を確認できなかった。",
       },
       { status: 401 }
+    );
+  }
+
+  const { data: consentRow, error: consentError } = await supabase
+    .from("user_recording_consents")
+    .select("consent_version")
+    .eq("user_id", user.id)
+    .eq("consent_key", RECORDING_GLOBAL_CONSENT_KEY)
+    .maybeSingle();
+
+  if (consentError) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "朗読同意状態の確認に失敗した。",
+      },
+      { status: 500 }
+    );
+  }
+
+  if (consentRow?.consent_version !== RECORDING_GLOBAL_CONSENT_VERSION) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "このアカウントでは朗読投稿前の初回同意がまだ完了していない。朗読制作導線から入り直して。",
+      },
+      { status: 400 }
     );
   }
 
