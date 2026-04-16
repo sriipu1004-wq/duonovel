@@ -3,12 +3,14 @@ import {
   fetchAllBgmLibraryTracks,
   fetchBgmLibraryFavoriteIds,
   fetchBgmLibraryTracks,
+  type SimpleSupabaseLike,
 } from "@/lib/bgm/bgmLibrary";
 import { isOperatorUser } from "@/lib/auth/operator";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function BgmLibraryPage() {
   const supabase = await createClient();
+  const bgmSupabase = supabase as unknown as SimpleSupabaseLike;
 
   const {
     data: { user },
@@ -16,12 +18,12 @@ export default async function BgmLibraryPage() {
 
   const canManageLibrary = isOperatorUser(user?.email ?? null);
 
-  const tracks = await fetchBgmLibraryTracks(supabase);
+  const tracks = await fetchBgmLibraryTracks(bgmSupabase);
   const manageableTracks = canManageLibrary
-    ? await fetchAllBgmLibraryTracks(supabase)
+    ? await fetchAllBgmLibraryTracks(bgmSupabase)
     : [];
   const favoriteTrackIds = user
-    ? await fetchBgmLibraryFavoriteIds(supabase, user.id)
+    ? await fetchBgmLibraryFavoriteIds(bgmSupabase, user.id)
     : [];
 
   return (

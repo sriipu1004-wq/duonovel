@@ -8,6 +8,7 @@ import {
   fetchBgmLibraryFavoriteIds,
   fetchBgmLibraryTracks,
   sortBgmLibraryTracksByFavorites,
+  type SimpleSupabaseLike,
 } from "@/lib/bgm/bgmLibrary";
 import {
   getEpisodeBody,
@@ -66,6 +67,7 @@ export default async function ManageBgmPage({ params }: PageProps) {
   const { seriesId } = await params;
   const nextPath = `/manage/bgm/${seriesId}`;
   const { supabase, user } = await requireOwnedSeries(seriesId, nextPath);
+  const bgmSupabase = supabase as unknown as SimpleSupabaseLike;
 
   const { data: seriesData, error: seriesError } = await supabase
     .from("series")
@@ -78,10 +80,13 @@ export default async function ManageBgmPage({ params }: PageProps) {
   }
 
   const canUsePrivateTracks = isOperatorUser(user.email ?? null);
-  const favoriteTrackIds = await fetchBgmLibraryFavoriteIds(supabase, user.id);
+  const favoriteTrackIds = await fetchBgmLibraryFavoriteIds(
+    bgmSupabase,
+    user.id
+  );
   const rawLibraryTracks = canUsePrivateTracks
-    ? await fetchAllBgmLibraryTracks(supabase)
-    : await fetchBgmLibraryTracks(supabase);
+    ? await fetchAllBgmLibraryTracks(bgmSupabase)
+    : await fetchBgmLibraryTracks(bgmSupabase);
   const libraryTracks = sortBgmLibraryTracksByFavorites(
     rawLibraryTracks,
     favoriteTrackIds

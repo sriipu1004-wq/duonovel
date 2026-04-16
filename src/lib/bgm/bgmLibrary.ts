@@ -49,7 +49,7 @@ type SimpleSupabaseSelectQuery<T> = SimpleQueryResult<T> & {
   ) => SimpleSupabaseSelectQuery<T>;
 };
 
-type SimpleSupabaseLike = {
+export type SimpleSupabaseLike = {
   from: (table: string) => {
     select: <T = Record<string, unknown>>(
       columns: string

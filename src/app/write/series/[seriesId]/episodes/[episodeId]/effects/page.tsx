@@ -14,6 +14,7 @@ import {
   fetchBgmLibraryFavoriteIds,
   fetchBgmLibraryTracks,
   sortBgmLibraryTracksByFavorites,
+  type SimpleSupabaseLike,
 } from "@/lib/bgm/bgmLibrary";
 import { parseBgmSettingsFromRow } from "@/lib/bgm/bgmSettings";
 import { parseEffectSettingsFromRow } from "@/lib/effects/effectSettings";
@@ -75,6 +76,7 @@ export default async function EpisodeEffectsPage({ params }: PageProps) {
     seriesId,
     `/write/series/${seriesId}/episodes/${episodeId}/effects`
   );
+  const bgmSupabase = supabase as unknown as SimpleSupabaseLike;
 
   const [series, episode] = await Promise.all([
     fetchSeries(seriesId, supabase),
@@ -86,10 +88,13 @@ export default async function EpisodeEffectsPage({ params }: PageProps) {
   }
 
   const canUsePrivateTracks = isOperatorUser(user.email ?? null);
-  const favoriteTrackIds = await fetchBgmLibraryFavoriteIds(supabase, user.id);
+  const favoriteTrackIds = await fetchBgmLibraryFavoriteIds(
+    bgmSupabase,
+    user.id
+  );
   const rawLibraryTracks = canUsePrivateTracks
-    ? await fetchAllBgmLibraryTracks(supabase)
-    : await fetchBgmLibraryTracks(supabase);
+    ? await fetchAllBgmLibraryTracks(bgmSupabase)
+    : await fetchBgmLibraryTracks(bgmSupabase);
   const libraryTracks = sortBgmLibraryTracksByFavorites(
     rawLibraryTracks,
     favoriteTrackIds
