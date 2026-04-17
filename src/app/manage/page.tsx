@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
+import { requireOfficialAccount } from "@/lib/auth/requireOfficialAccount";
 
 export default async function ManageTopPage() {
-  await requireLoggedInUser("/manage");
+  await requireOfficialAccount("/manage");
   redirect("/write");
 }

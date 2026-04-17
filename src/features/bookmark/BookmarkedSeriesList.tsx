@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 type BookmarkedSeriesListProps = {
   userId: string;
+  surface?: "dark" | "light";
 };
 
 type BookmarkRow = {
@@ -49,11 +50,14 @@ function formatDateTime(value: string): string {
 
 export default function BookmarkedSeriesList({
   userId,
+  surface = "dark",
 }: BookmarkedSeriesListProps) {
   const [items, setItems] = useState<BookmarkedSeriesItem[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [workingBookmarkId, setWorkingBookmarkId] = useState<string | null>(null);
+
+  const isLight = surface === "light";
 
   const loadBookmarks = useCallback(async () => {
     setLoaded(false);
@@ -124,9 +128,7 @@ export default function BookmarkedSeriesList({
 
     setWorkingBookmarkId(bookmarkId);
     setErrorMessage(null);
-    setItems((current) =>
-      current.filter((item) => item.bookmarkId !== bookmarkId)
-    );
+    setItems((current) => current.filter((item) => item.bookmarkId !== bookmarkId));
 
     const { error } = await supabase
       .from("user_series_bookmarks")
@@ -146,7 +148,14 @@ export default function BookmarkedSeriesList({
 
   if (!loaded) {
     return (
-      <div className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-400">
+      <div
+        className={[
+          "mt-4 rounded-[24px] p-4 text-sm",
+          isLight
+            ? "border border-black/10 bg-neutral-50 text-neutral-600"
+            : "border border-white/10 bg-white/[0.03] text-neutral-400",
+        ].join(" ")}
+      >
         ブックマーク一覧を読み込み中...
       </div>
     );
@@ -154,13 +163,34 @@ export default function BookmarkedSeriesList({
 
   if (items.length === 0) {
     return (
-      <div className="mt-4 rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-4">
-        <p className="text-sm font-semibold text-white">まだブックマーク作品がない</p>
-        <p className="mt-2 text-sm leading-7 text-neutral-400">
+      <div
+        className={[
+          "mt-4 rounded-[24px] p-4",
+          isLight
+            ? "border border-dashed border-black/15 bg-neutral-50"
+            : "border border-dashed border-white/10 bg-white/[0.03]",
+        ].join(" ")}
+      >
+        <p className={isLight ? "text-sm font-semibold text-black" : "text-sm font-semibold text-white"}>
+          まだブックマーク作品がない
+        </p>
+        <p
+          className={[
+            "mt-2 text-sm leading-7",
+            isLight ? "text-neutral-600" : "text-neutral-400",
+          ].join(" ")}
+        >
           作品ページからブックマークした作品がここに並ぶ。
         </p>
         {errorMessage ? (
-          <p className="mt-3 text-xs leading-6 text-amber-300">{errorMessage}</p>
+          <p
+            className={[
+              "mt-3 text-xs leading-6",
+              isLight ? "text-amber-700" : "text-amber-300",
+            ].join(" ")}
+          >
+            {errorMessage}
+          </p>
         ) : null}
       </div>
     );
@@ -169,7 +199,14 @@ export default function BookmarkedSeriesList({
   return (
     <div className="mt-4 space-y-4">
       {errorMessage ? (
-        <div className="rounded-[24px] border border-amber-400/20 bg-amber-400/10 p-4 text-sm leading-7 text-amber-200">
+        <div
+          className={[
+            "rounded-[24px] p-4 text-sm leading-7",
+            isLight
+              ? "border border-amber-200 bg-amber-50 text-amber-700"
+              : "border border-amber-400/20 bg-amber-400/10 text-amber-200",
+          ].join(" ")}
+        >
           {errorMessage}
         </div>
       ) : null}
@@ -177,19 +214,39 @@ export default function BookmarkedSeriesList({
       {items.map((item) => (
         <article
           key={item.bookmarkId}
-          className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4"
+          className={[
+            "rounded-[24px] p-4",
+            isLight
+              ? "border border-black/10 bg-white"
+              : "border border-white/10 bg-white/[0.03]",
+          ].join(" ")}
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs tracking-[0.18em] text-neutral-500">
+              <p
+                className={[
+                  "text-xs tracking-[0.18em]",
+                  isLight ? "text-neutral-500" : "text-neutral-500",
+                ].join(" ")}
+              >
                 BOOKMARK
               </p>
-              <h3 className="mt-2 text-lg font-semibold text-white">
+              <h3
+                className={[
+                  "mt-2 text-lg font-semibold",
+                  isLight ? "text-black" : "text-white",
+                ].join(" ")}
+              >
                 {item.title}
               </h3>
 
               {item.createdAt ? (
-                <p className="mt-2 text-xs text-neutral-500">
+                <p
+                  className={[
+                    "mt-2 text-xs",
+                    isLight ? "text-neutral-500" : "text-neutral-500",
+                  ].join(" ")}
+                >
                   保存日時: {formatDateTime(item.createdAt)}
                 </p>
               ) : null}
@@ -198,7 +255,11 @@ export default function BookmarkedSeriesList({
             <div className="flex flex-wrap gap-2">
               <Link
                 href={`/works/${item.seriesId}`}
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                className={
+                  isLight
+                    ? "rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                    : "rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                }
               >
                 作品ページへ
               </Link>
@@ -207,14 +268,23 @@ export default function BookmarkedSeriesList({
                 type="button"
                 onClick={() => handleRemove(item.bookmarkId)}
                 disabled={workingBookmarkId === item.bookmarkId}
-                className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-neutral-300 transition hover:bg-white hover:text-black disabled:opacity-70"
+                className={
+                  isLight
+                    ? "rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-100 disabled:opacity-70"
+                    : "rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-neutral-300 transition hover:bg-white hover:text-black disabled:opacity-70"
+                }
               >
                 {workingBookmarkId === item.bookmarkId ? "解除中..." : "ブックマーク解除"}
               </button>
             </div>
           </div>
 
-          <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-neutral-400">
+          <p
+            className={[
+              "mt-4 whitespace-pre-wrap text-sm leading-7",
+              isLight ? "text-neutral-600" : "text-neutral-400",
+            ].join(" ")}
+          >
             {item.summary}
           </p>
         </article>

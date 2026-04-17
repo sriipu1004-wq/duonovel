@@ -57,10 +57,100 @@ type HeroStat = {
   sub: string;
 };
 
+type SurfaceTone = "dark" | "light";
+
 function toTimestamp(value: unknown): number {
   if (typeof value !== "string" || !value) return 0;
   const time = new Date(value).getTime();
   return Number.isNaN(time) ? 0 : time;
+}
+
+function getSurfaceStyles(surface: SurfaceTone) {
+  if (surface === "light") {
+    return {
+      heroSection:
+        "overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm",
+      heroHeader: "border-b border-black/10 px-5 py-6 sm:px-8",
+      eyebrow: "text-xs tracking-[0.22em] text-neutral-500",
+      heroTitle: "mt-3 text-3xl font-bold text-black sm:text-4xl",
+      heroDescription:
+        "mt-4 whitespace-pre-wrap text-sm leading-7 text-neutral-600 sm:text-base",
+      badge:
+        "rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-xs text-neutral-700",
+      primaryAction:
+        "rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800",
+      secondaryAction:
+        "rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50",
+      notice:
+        "mt-5 rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-neutral-800",
+      statCard: "rounded-[28px] border border-black/10 bg-neutral-50 p-5",
+      statLabel: "text-xs tracking-[0.18em] text-neutral-500",
+      statValue: "mt-2 text-3xl font-semibold text-black",
+      statSub: "mt-2 text-sm text-neutral-600",
+      section: "rounded-[28px] border border-black/10 bg-white p-5 shadow-sm",
+      sectionEyebrow: "text-xs tracking-[0.18em] text-neutral-500",
+      sectionTitle: "mt-2 text-xl font-semibold text-black",
+      sectionDescription: "mt-3 text-sm leading-7 text-neutral-600",
+      headerAction:
+        "rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50",
+      empty:
+        "rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600",
+      article: "rounded-[28px] border border-black/10 bg-white p-5",
+      articleTitle: "mt-2 text-2xl font-semibold text-black",
+      articleSummary:
+        "mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-600",
+      pill:
+        "rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-600",
+      workLink:
+        "rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50",
+      readLink:
+        "rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black transition hover:bg-sky-100",
+      mutedPill:
+        "rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-500",
+    };
+  }
+
+  return {
+    heroSection:
+      "overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl",
+    heroHeader: "border-b border-white/10 px-5 py-6 sm:px-8",
+    eyebrow: "text-xs tracking-[0.22em] text-neutral-500",
+    heroTitle: "mt-3 text-3xl font-bold text-white sm:text-4xl",
+    heroDescription:
+      "mt-4 whitespace-pre-wrap text-sm leading-7 text-neutral-300 sm:text-base",
+    badge:
+      "rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-neutral-300",
+    primaryAction:
+      "rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90",
+    secondaryAction:
+      "rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black",
+    notice:
+      "mt-5 rounded-[24px] border border-sky-400/20 bg-sky-400/10 p-4 text-sm leading-7 text-sky-200",
+    statCard: "rounded-[28px] border border-white/10 bg-black/20 p-5",
+    statLabel: "text-xs tracking-[0.18em] text-neutral-500",
+    statValue: "mt-2 text-3xl font-semibold text-white",
+    statSub: "mt-2 text-sm text-neutral-400",
+    section: "rounded-[28px] border border-white/10 bg-black/20 p-5",
+    sectionEyebrow: "text-xs tracking-[0.18em] text-neutral-500",
+    sectionTitle: "mt-2 text-xl font-semibold text-white",
+    sectionDescription: "mt-3 text-sm leading-7 text-neutral-400",
+    headerAction:
+      "rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black",
+    empty:
+      "rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-7 text-neutral-400",
+    article: "rounded-[28px] border border-white/10 bg-white/[0.03] p-5",
+    articleTitle: "mt-2 text-2xl font-semibold text-white",
+    articleSummary:
+      "mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-400",
+    pill:
+      "rounded-full border border-white/10 px-3 py-1 text-xs text-neutral-400",
+    workLink:
+      "rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black",
+    readLink:
+      "rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90",
+    mutedPill:
+      "rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-500",
+  };
 }
 
 export function buildAuthorPageHref(authorId: string): string {
@@ -228,9 +318,7 @@ export async function buildAuthorSeriesCards(
 
   return seriesRows.map((series) => {
     const episodes = sortEpisodes(grouped.get(series.id) ?? []);
-    const publishedEpisodes = episodes.filter(
-  (episode) => isPublishedEpisode(episode)
-);
+    const publishedEpisodes = episodes.filter((episode) => isPublishedEpisode(episode));
 
     const latestEpisode = episodes.length > 0 ? episodes[episodes.length - 1] : null;
     const latestPublishedEpisode =
@@ -245,9 +333,7 @@ export async function buildAuthorSeriesCards(
       episodes,
       totalEpisodes: episodes.length,
       publishedCount: publishedEpisodes.length,
-      latestEpisodeNumber: latestEpisode
-        ? getEpisodeNumber(latestEpisode)
-        : null,
+      latestEpisodeNumber: latestEpisode ? getEpisodeNumber(latestEpisode) : null,
       latestPublishedEpisodeNumber: latestPublishedEpisode
         ? getEpisodeNumber(latestPublishedEpisode)
         : null,
@@ -266,6 +352,7 @@ export function ProfileHero({
   actions,
   stats,
   notice,
+  surface = "dark",
 }: {
   eyebrow: string;
   title: string;
@@ -274,27 +361,23 @@ export function ProfileHero({
   actions?: HeroAction[];
   stats?: HeroStat[];
   notice?: string;
+  surface?: SurfaceTone;
 }) {
+  const styles = getSurfaceStyles(surface);
+
   return (
-    <section className="overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
-      <div className="border-b border-white/10 px-5 py-6 sm:px-8">
-        <p className="text-xs tracking-[0.22em] text-neutral-500">{eyebrow}</p>
+    <section className={styles.heroSection}>
+      <div className={styles.heroHeader}>
+        <p className={styles.eyebrow}>{eyebrow}</p>
 
-        <h1 className="mt-3 text-3xl font-bold text-white sm:text-4xl">
-          {title}
-        </h1>
+        <h1 className={styles.heroTitle}>{title}</h1>
 
-        <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-neutral-300 sm:text-base">
-          {description}
-        </p>
+        <p className={styles.heroDescription}>{description}</p>
 
         {badges && badges.length > 0 ? (
           <div className="mt-5 flex flex-wrap items-center gap-3">
             {badges.map((badge) => (
-              <span
-                key={badge.label}
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-neutral-300"
-              >
+              <span key={badge.label} className={styles.badge}>
                 {badge.label}
               </span>
             ))}
@@ -309,8 +392,8 @@ export function ProfileHero({
                 href={action.href}
                 className={
                   action.tone === "primary"
-                    ? "rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
-                    : "rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                    ? styles.primaryAction
+                    : styles.secondaryAction
                 }
               >
                 {action.label}
@@ -319,27 +402,16 @@ export function ProfileHero({
           </div>
         ) : null}
 
-        {notice ? (
-          <div className="mt-5 rounded-[24px] border border-sky-400/20 bg-sky-400/10 p-4 text-sm leading-7 text-sky-200">
-            {notice}
-          </div>
-        ) : null}
+        {notice ? <div className={styles.notice}>{notice}</div> : null}
       </div>
 
       {stats && stats.length > 0 ? (
         <div className="grid gap-4 px-5 py-6 sm:px-8 md:grid-cols-3">
           {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-[28px] border border-white/10 bg-black/20 p-5"
-            >
-              <p className="text-xs tracking-[0.18em] text-neutral-500">
-                {stat.label}
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-white">
-                {stat.value}
-              </p>
-              <p className="mt-2 text-sm text-neutral-400">{stat.sub}</p>
+            <div key={stat.label} className={styles.statCard}>
+              <p className={styles.statLabel}>{stat.label}</p>
+              <p className={styles.statValue}>{stat.value}</p>
+              <p className={styles.statSub}>{stat.sub}</p>
             </div>
           ))}
         </div>
@@ -356,6 +428,7 @@ export function ProfileSeriesSection({
   emptyMessage,
   mode,
   headerAction,
+  surface = "dark",
 }: {
   eyebrow: string;
   title: string;
@@ -367,27 +440,21 @@ export function ProfileSeriesSection({
     href: string;
     label: string;
   };
+  surface?: SurfaceTone;
 }) {
+  const styles = getSurfaceStyles(surface);
+
   return (
-    <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+    <section className={styles.section}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs tracking-[0.18em] text-neutral-500">
-            {eyebrow}
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-white">{title}</h2>
-          {description ? (
-            <p className="mt-3 text-sm leading-7 text-neutral-400">
-              {description}
-            </p>
-          ) : null}
+          <p className={styles.sectionEyebrow}>{eyebrow}</p>
+          <h2 className={styles.sectionTitle}>{title}</h2>
+          {description ? <p className={styles.sectionDescription}>{description}</p> : null}
         </div>
 
         {headerAction ? (
-          <Link
-            href={headerAction.href}
-            className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-          >
+          <Link href={headerAction.href} className={styles.headerAction}>
             {headerAction.label}
           </Link>
         ) : null}
@@ -395,52 +462,35 @@ export function ProfileSeriesSection({
 
       <div className="mt-4 grid gap-4">
         {cards.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-7 text-neutral-400">
-            {emptyMessage}
-          </div>
+          <div className={styles.empty}>{emptyMessage}</div>
         ) : (
           cards.map((card) => {
             const titleText = pickText(card.series.title) || "無題";
             const summary = getProfileSeriesSummary(card.series);
 
             return (
-              <article
-                key={card.series.id}
-                className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5"
-              >
+              <article key={card.series.id} className={styles.article}>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="max-w-3xl">
-                    <p className="text-xs tracking-[0.18em] text-neutral-500">
-                      SERIES
-                    </p>
-                    <h3 className="mt-2 text-2xl font-semibold text-white">
-                      {titleText}
-                    </h3>
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-400">
-                      {summary}
-                    </p>
+                    <p className={styles.sectionEyebrow}>SERIES</p>
+                    <h3 className={styles.articleTitle}>{titleText}</h3>
+                    <p className={styles.articleSummary}>{summary}</p>
                   </div>
 
                   {mode === "public" ? (
                     <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-neutral-400">
-                        公開話数 {card.publishedCount}話
-                      </span>
+                      <span className={styles.pill}>公開話数 {card.publishedCount}話</span>
                       {card.latestPublishedEpisodeNumber !== null ? (
-                        <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-neutral-400">
+                        <span className={styles.pill}>
                           最新公開 第{card.latestPublishedEpisodeNumber}話
                         </span>
                       ) : null}
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-neutral-400">
-                        総話数 {card.totalEpisodes}
-                      </span>
-                      <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-neutral-400">
-                        公開中 {card.publishedCount}
-                      </span>
-                      <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-neutral-400">
+                      <span className={styles.pill}>総話数 {card.totalEpisodes}</span>
+                      <span className={styles.pill}>公開中 {card.publishedCount}</span>
+                      <span className={styles.pill}>
                         最新話{" "}
                         {card.latestEpisodeNumber !== null
                           ? `第${card.latestEpisodeNumber}話`
@@ -451,40 +501,28 @@ export function ProfileSeriesSection({
                 </div>
 
                 <div className="mt-5 flex flex-wrap gap-3">
-                  <Link
-                    href={buildWorksHref(card.series.id)}
-                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
+                  <Link href={buildWorksHref(card.series.id)} className={styles.workLink}>
                     作品ページへ
                   </Link>
 
                   {mode === "public" ? (
                     card.firstPublishedEpisodeNumber !== null ? (
                       <Link
-                        href={buildReadHref(
-                          card.series.id,
-                          card.firstPublishedEpisodeNumber
-                        )}
-                        className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
+                        href={buildReadHref(card.series.id, card.firstPublishedEpisodeNumber)}
+                        className={styles.readLink}
                       >
                         第1話から読む
                       </Link>
                     ) : (
-                      <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-500">
-                        公開話なし
-                      </span>
+                      <span className={styles.mutedPill}>公開話なし</span>
                     )
                   ) : (
-                    <>
-<>
-  <Link
-    href={`/write/series/${card.series.id}`}
-    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-  >
-    作品ワークスペースへ
-  </Link>
-</>
-                    </>
+                    <Link
+                      href={`/write/series/${card.series.id}`}
+                      className={styles.workLink}
+                    >
+                      作品ワークスペースへ
+                    </Link>
                   )}
                 </div>
               </article>

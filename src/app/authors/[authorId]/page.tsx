@@ -47,14 +47,14 @@ export default async function AuthorPage({ params }: PageProps) {
   );
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
+    <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <Link href="/" className="hover:text-neutral-300">
+          <Link href="/" className="hover:text-black">
             TOP
           </Link>
           <span className="mx-2">/</span>
-          <span className="text-neutral-300">作者ページ</span>
+          <span className="text-neutral-700">作者ページ</span>
         </div>
 
         <ProfileHero
@@ -99,6 +99,7 @@ export default async function AuthorPage({ params }: PageProps) {
               ? "このページは公開面。執筆、管理、朗読、新規作成など本人専用の行動導線は /mypage に残す。"
               : undefined
           }
+          surface="light"
         />
 
         <div className="mt-6">
@@ -109,6 +110,7 @@ export default async function AuthorPage({ params }: PageProps) {
             cards={publicSeriesCards}
             emptyMessage="まだ公開作品がない。"
             mode="public"
+            surface="light"
           />
         </div>
       </div>

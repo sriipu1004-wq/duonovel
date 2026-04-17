@@ -1,7 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-export async function updateSession(request: NextRequest) {
+export type ProxyAuthState = {
+  response: NextResponse;
+  userEmail: string | null;
+  userId: string | null;
+};
+
+export async function getProxyAuthState(
+  request: NextRequest
+): Promise<ProxyAuthState> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -34,7 +42,18 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  return response;
+  return {
+    response,
+    userEmail: user?.email?.trim().toLowerCase() ?? null,
+    userId: user?.id ?? null,
+  };
+}
+
+export async function updateSession(request: NextRequest) {
+  const authState = await getProxyAuthState(request);
+  return authState.response;
 }
