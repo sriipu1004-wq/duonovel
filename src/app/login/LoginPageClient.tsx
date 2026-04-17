@@ -5,21 +5,21 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { normalizeNextPath } from "@/lib/auth/accountSignupConsent";
 
-function normalizeNextPath(value: string | null): string {
-  if (!value || !value.startsWith("/")) {
-    return "/";
-  }
-
-  return value;
-}
+type PendingAction =
+  | "signin"
+  | "google-login"
+  | "apple-login"
+  | "signout"
+  | null;
 
 export default function LoginPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const nextPath = useMemo(
-    () => normalizeNextPath(searchParams.get("next")),
+    () => normalizeNextPath(searchParams.get("next"), "/"),
     [searchParams]
   );
 
@@ -27,9 +27,7 @@ export default function LoginPageClient() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [pendingAction, setPendingAction] = useState<
-    "signin" | "signup" | "signout" | null
-  >(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -84,48 +82,33 @@ export default function LoginPageClient() {
       return;
     }
 
-    setMessage("ログインした。続き確認ページへ戻る。");
+    setMessage("ログインした。元のページへ戻る。");
     setPendingAction(null);
     router.push(nextPath);
     router.refresh();
   }
 
-  async function handleSignUp() {
-    setPendingAction("signup");
+  async function handleOAuthLogin(provider: "google" | "apple") {
+    setPendingAction(provider === "google" ? "google-login" : "apple-login");
     setMessage("");
     setErrorMessage("");
 
-    const emailRedirectTo =
+    const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/login?next=${encodeURIComponent(nextPath)}`
+        ? `${window.location.origin}/auth/callback?mode=signin&provider=${provider}&next=${encodeURIComponent(nextPath)}`
         : undefined;
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
       options: {
-        emailRedirectTo,
+        redirectTo,
       },
     });
 
     if (error) {
       setErrorMessage(error.message);
       setPendingAction(null);
-      return;
     }
-
-    if (data.session?.user) {
-      setMessage("アカウントを作成してログインした。");
-      setPendingAction(null);
-      router.push(nextPath);
-      router.refresh();
-      return;
-    }
-
-    setMessage(
-      "アカウントを作成した。Confirm email が ON の環境では、確認メール承認後にログインが必要。開発ですぐ試したいなら Supabase Auth 側で Confirm email を OFF にするか、Dashboard で確認済みユーザーを用意する。"
-    );
-    setPendingAction(null);
   }
 
   async function handleSignOut() {
@@ -150,56 +133,45 @@ export default function LoginPageClient() {
   const isPending = pendingAction !== null;
 
   return (
-    <main className="min-h-screen bg-[#050510] px-6 py-8 text-[#f5f5f5]">
+    <main className="min-h-screen bg-white px-6 py-8 text-black">
       <div className="mx-auto w-full max-w-3xl">
-        <section className="overflow-hidden rounded-[32px] border border-white/[0.1] bg-white/[0.04] shadow-2xl">
+        <section className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
           <div className="px-6 py-8 sm:px-8 sm:py-10">
             <p className="text-xs tracking-[0.24em] text-neutral-500">AUTH</p>
 
-            <h1 className="mt-3 text-3xl font-bold leading-tight text-white sm:text-4xl">
-              最小ログイン導線
+            <h1 className="mt-3 text-3xl font-bold leading-tight text-black sm:text-4xl">
+              ログイン
             </h1>
 
-            <p className="mt-4 text-sm leading-7 text-neutral-300">
-              今回は本格会員機能ではなく、サイト内で authenticated セッションを作って
-              `play_logs` の実動作を確認するための最小版。
+            <p className="mt-4 text-sm leading-7 text-neutral-600">
+              メールアドレスとパスワードでログインするか、Google / Apple の連携ログインを使う。
             </p>
 
-            <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-7 text-neutral-300">
-              <p>確認したいこと</p>
-              <p className="mt-2">
-                1. ログイン後に作品ページの「続きから読む」が DB 優先で見えるか
-              </p>
-              <p>
-                2. `/read` で再生位置を保存したあと、再読込で復元できるか
-              </p>
-            </div>
-
             {user ? (
-              <div className="mt-8 rounded-[28px] border border-emerald-400/20 bg-emerald-400/10 p-6">
-                <p className="text-xs tracking-[0.18em] text-emerald-200">
+              <div className="mt-8 rounded-[28px] border border-sky-200 bg-sky-50 p-6">
+                <p className="text-xs tracking-[0.18em] text-sky-700">
                   SIGNED IN
                 </p>
 
-                <h2 className="mt-2 text-xl font-semibold text-white">
+                <h2 className="mt-2 text-xl font-semibold text-black">
                   ログイン中
                 </h2>
 
-                <p className="mt-3 text-sm leading-7 text-neutral-200">
+                <p className="mt-3 text-sm leading-7 text-neutral-700">
                   {user.email ?? "メールアドレス不明"}
                 </p>
 
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Link
                     href={nextPath}
-                    className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:opacity-90"
+                    className="inline-flex rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
                   >
                     元のページへ戻る
                   </Link>
 
                   <Link
                     href="/"
-                    className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white/10"
+                    className="inline-flex rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
                   >
                     ホームへ
                   </Link>
@@ -208,7 +180,7 @@ export default function LoginPageClient() {
                     type="button"
                     onClick={handleSignOut}
                     disabled={isPending}
-                    className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {pendingAction === "signout" ? "ログアウト中..." : "ログアウト"}
                   </button>
@@ -216,9 +188,9 @@ export default function LoginPageClient() {
               </div>
             ) : (
               <form onSubmit={handleSignIn} className="mt-8">
-                <div className="rounded-[28px] border border-white/10 bg-black/20 p-6">
+                <div className="rounded-[28px] border border-black/10 bg-white p-6">
                   <label className="block">
-                    <span className="text-sm text-neutral-300">メールアドレス</span>
+                    <span className="text-sm text-neutral-700">メールアドレス</span>
                     <input
                       type="email"
                       autoComplete="email"
@@ -228,14 +200,14 @@ export default function LoginPageClient() {
                       inputMode="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
-                      className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white outline-none placeholder:text-neutral-500 focus:border-white/30"
+                      className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
                       placeholder="you@example.com"
                       required
                     />
                   </label>
 
                   <label className="mt-4 block">
-                    <span className="text-sm text-neutral-300">パスワード</span>
+                    <span className="text-sm text-neutral-700">パスワード</span>
 
                     <div className="mt-2 flex items-center gap-2">
                       <input
@@ -247,7 +219,7 @@ export default function LoginPageClient() {
                         inputMode="text"
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
-                        className="h-12 flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm text-white outline-none placeholder:text-neutral-500 focus:border-white/30"
+                        className="h-12 flex-1 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
                         placeholder="英数字で入力"
                         required
                       />
@@ -255,53 +227,70 @@ export default function LoginPageClient() {
                       <button
                         type="button"
                         onClick={() => setShowPassword((prev) => !prev)}
-                        className="inline-flex h-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-neutral-200 transition hover:bg-white/10"
+                        className="inline-flex h-12 shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-neutral-50 px-4 text-sm text-neutral-700 transition hover:bg-neutral-100"
                         aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示する"}
                         aria-pressed={showPassword}
                       >
                         {showPassword ? "隠す" : "表示"}
                       </button>
                     </div>
-
-                    <p className="mt-2 text-xs text-neutral-500">
-                      かな入力に見えても、実際に入っている文字をこの場で確認できるようにしてある。
-                    </p>
                   </label>
 
                   <div className="mt-6 flex flex-wrap gap-3">
                     <button
                       type="submit"
                       disabled={isPending}
-                      className="inline-flex rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {pendingAction === "signin" ? "ログイン中..." : "ログイン"}
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={handleSignUp}
-                      disabled={isPending}
-                      className="inline-flex rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm text-neutral-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    <Link
+                      href="/signup"
+                      className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-sky-100"
                     >
-                      {pendingAction === "signup" ? "作成中..." : "新規作成"}
-                    </button>
+                      新規作成
+                    </Link>
 
                     <Link
                       href={nextPath}
-                      className="inline-flex rounded-full border border-white/10 bg-black/20 px-5 py-2.5 text-sm text-neutral-300 transition hover:bg-white/10"
+                      className="inline-flex rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm text-neutral-700 transition hover:bg-neutral-50"
                     >
                       戻る
                     </Link>
                   </div>
 
-                  <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-xs leading-6 text-neutral-400">
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleOAuthLogin("google")}
+                      disabled={isPending}
+                      className="inline-flex items-center justify-center rounded-2xl border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {pendingAction === "google-login"
+                        ? "Googleへ移動中..."
+                        : "Google でログイン"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void handleOAuthLogin("apple")}
+                      disabled={isPending}
+                      className="inline-flex items-center justify-center rounded-2xl border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {pendingAction === "apple-login"
+                        ? "Appleへ移動中..."
+                        : "Apple でログイン"}
+                    </button>
+                  </div>
+
+                  <div className="mt-5 rounded-2xl border border-black/10 bg-neutral-50 p-4 text-xs leading-6 text-neutral-600">
                     <p>
-                      新規作成でそのままログインできない場合は、Supabase Auth 側で
-                      Confirm email が ON になっている可能性がある。
+                      新規作成は専用の導線へ分けた。Google / Apple で初めて入った場合も、
+                      必要な登録が未完了ならユーザー登録画面へ案内する。
                     </p>
                     <p className="mt-2">
-                      開発確認を急ぐなら、確認済みユーザーでログインするか、
-                      開発環境だけ Confirm email を OFF にするのが最短。
+                      メールログインでそのまま入れない場合は、Confirm email の設定や確認メールの状態を確認する。
                     </p>
                   </div>
                 </div>
@@ -309,13 +298,13 @@ export default function LoginPageClient() {
             )}
 
             {message ? (
-              <div className="mt-5 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+              <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                 {message}
               </div>
             ) : null}
 
             {errorMessage ? (
-              <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+              <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {errorMessage}
               </div>
             ) : null}
