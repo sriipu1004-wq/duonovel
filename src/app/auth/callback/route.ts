@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   isAccountRegistrationCompleted,
-  normalizeAccountRegistrationMethod,
   normalizeNextPath,
 } from "@/lib/auth/accountSignupConsent";
 
@@ -13,22 +12,34 @@ function buildRedirect(request: NextRequest, pathname: string) {
   return redirectTo;
 }
 
+function buildConfirmedRedirect(
+  request: NextRequest,
+  kind: "register" | "completed" | "login_required",
+  nextPath: string
+) {
+  const redirectTo = buildRedirect(request, "/confirmed");
+  redirectTo.searchParams.set("kind", kind);
+  redirectTo.searchParams.set("next", nextPath);
+  return redirectTo;
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const mode = requestUrl.searchParams.get("mode");
-  const provider = normalizeAccountRegistrationMethod(
-    requestUrl.searchParams.get("provider"),
-    "google"
-  );
   const nextPath = normalizeNextPath(
     requestUrl.searchParams.get("next"),
     "/mypage"
   );
 
+  const resumeRegisterPath = `/register?stage=confirmed&next=${encodeURIComponent(nextPath)}`;
+  const resumeLoginPath = `/login?confirmed=1&next=${encodeURIComponent(
+    resumeRegisterPath
+  )}`;
+
   if (!code) {
     const redirectTo = buildRedirect(request, "/login");
     redirectTo.searchParams.set("error", "missing_auth_code");
+    redirectTo.searchParams.set("next", nextPath);
     return NextResponse.redirect(redirectTo);
   }
 
@@ -37,7 +48,8 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     const redirectTo = buildRedirect(request, "/login");
-    redirectTo.searchParams.set("error", "oauth_callback_failed");
+    redirectTo.searchParams.set("error", "email_confirm_callback_failed");
+    redirectTo.searchParams.set("next", resumeRegisterPath);
     return NextResponse.redirect(redirectTo);
   }
 
@@ -45,30 +57,21 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const completed = isAccountRegistrationCompleted(user?.user_metadata);
-
-  if (mode === "signup") {
-    const redirectTo = buildRedirect(request, "/register");
-    redirectTo.searchParams.set("method", provider);
-    return NextResponse.redirect(redirectTo);
+  if (!user) {
+    return NextResponse.redirect(
+      buildConfirmedRedirect(request, "login_required", resumeLoginPath)
+    );
   }
 
-  if (mode === "email-confirm") {
-    if (completed) {
-      return NextResponse.redirect(buildRedirect(request, "/mypage"));
-    }
+  const completed = isAccountRegistrationCompleted(user.user_metadata);
 
-    const redirectTo = buildRedirect(request, "/register");
-    redirectTo.searchParams.set("method", "email");
-    redirectTo.searchParams.set("stage", "confirmed");
-    return NextResponse.redirect(redirectTo);
+  if (completed) {
+    return NextResponse.redirect(
+      buildConfirmedRedirect(request, "completed", nextPath)
+    );
   }
 
-  if (!completed) {
-    const redirectTo = buildRedirect(request, "/register");
-    redirectTo.searchParams.set("method", provider);
-    return NextResponse.redirect(redirectTo);
-  }
-
-  return NextResponse.redirect(buildRedirect(request, nextPath));
+  return NextResponse.redirect(
+    buildConfirmedRedirect(request, "register", resumeRegisterPath)
+  );
 }

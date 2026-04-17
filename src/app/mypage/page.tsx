@@ -14,6 +14,7 @@ import {
 } from "@/features/authorProfile/authorProfileShared";
 import BookmarkedSeriesList from "@/features/bookmark/BookmarkedSeriesList";
 import MyPageHeroEditable from "./MyPageHeroEditable";
+import AccountSettingsCard from "./AccountSettingsCard";
 
 function EntryCard({
   eyebrow,
@@ -264,6 +265,7 @@ export default async function MyPage() {
 
             <BookmarkedSeriesList userId={user.id} surface="light" />
           </section>
+          <AccountSettingsCard />
         </div>
       </div>
     </main>

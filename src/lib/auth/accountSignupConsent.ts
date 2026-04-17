@@ -1,5 +1,3 @@
-export type AccountRegistrationMethod = "email" | "google" | "apple";
-
 export const ACCOUNT_SIGNUP_CONSENT_VERSION = "2026-04-17";
 export const ACCOUNT_TERMS_VERSION = "2026-04-17";
 export const ACCOUNT_PRIVACY_VERSION = "2026-04-17";
@@ -19,7 +17,6 @@ export type AccountRegistrationConsentInput = {
 
 export type AccountRegistrationProfileInput =
   AccountRegistrationConsentInput & {
-    method: AccountRegistrationMethod;
     displayName: string;
     birthdate: string;
     gender: string;
@@ -50,16 +47,6 @@ export function normalizeNextPath(
   return trimmed;
 }
 
-export function normalizeAccountRegistrationMethod(
-  value: unknown,
-  fallback: AccountRegistrationMethod = "email"
-): AccountRegistrationMethod {
-  if (value === "google") return "google";
-  if (value === "apple") return "apple";
-  if (value === "email") return "email";
-  return fallback;
-}
-
 export function hasRequiredAccountRegistrationConsent(
   input: AccountRegistrationConsentInput
 ): boolean {
@@ -70,11 +57,41 @@ export function hasRequiredAccountRegistrationConsent(
   );
 }
 
+export function normalizeDisplayName(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+export function validateDisplayName(value: string): string | null {
+  const normalized = normalizeDisplayName(value);
+
+  if (normalized.length < 2) {
+    return "ユーザー名は2文字以上で入力して。";
+  }
+
+  if (normalized.length > 32) {
+    return "ユーザー名は32文字以内で入力して。";
+  }
+
+  if (/[\r\n]/.test(normalized)) {
+    return "ユーザー名に改行は使えない。";
+  }
+
+  if (/^@/.test(normalized)) {
+    return "ユーザー名の先頭に @ は使えない。";
+  }
+
+  if (/https?:\/\//i.test(normalized) || /www\./i.test(normalized)) {
+    return "URL のような文字列はユーザー名に使えない。";
+  }
+
+  return null;
+}
+
 function hasRequiredAccountRegistrationProfile(
   input: AccountRegistrationProfileInput
 ): boolean {
   return (
-    readText(input.displayName).length > 0 &&
+    normalizeDisplayName(input.displayName).length > 0 &&
     readText(input.birthdate).length > 0 &&
     readText(input.gender).length > 0 &&
     hasRequiredAccountRegistrationConsent(input)
@@ -88,8 +105,10 @@ export function buildPendingAccountRegistrationMetadata(
     throw new Error("required account registration input is missing");
   }
 
+  const normalizedDisplayName = normalizeDisplayName(input.displayName);
+
   return {
-    account_registration_method: input.method,
+    account_registration_method: "email",
     account_registration_completed: false,
     account_signup_consent_version: ACCOUNT_SIGNUP_CONSENT_VERSION,
     account_terms_version: ACCOUNT_TERMS_VERSION,
@@ -99,7 +118,8 @@ export function buildPendingAccountRegistrationMetadata(
     account_enforcement_ack: true,
     account_birthdate: readText(input.birthdate),
     account_gender: readText(input.gender),
-    display_name_candidate: readText(input.displayName),
+    display_name_candidate: normalizedDisplayName,
+    display_name: normalizedDisplayName,
     account_signup_consented_at: new Date().toISOString(),
   };
 }
@@ -129,7 +149,7 @@ export function readAccountRegistrationDisplayName(metadata: unknown): string {
   }
 
   const record = metadata as Record<string, unknown>;
-  return readText(record.display_name_candidate);
+  return readText(record.display_name_candidate) || readText(record.display_name);
 }
 
 export function readAccountRegistrationBirthdate(metadata: unknown): string {

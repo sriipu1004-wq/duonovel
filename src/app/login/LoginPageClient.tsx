@@ -7,12 +7,7 @@ import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeNextPath } from "@/lib/auth/accountSignupConsent";
 
-type PendingAction =
-  | "signin"
-  | "google-login"
-  | "apple-login"
-  | "signout"
-  | null;
+type PendingAction = "signin" | "signout" | null;
 
 export default function LoginPageClient() {
   const router = useRouter();
@@ -22,6 +17,14 @@ export default function LoginPageClient() {
     () => normalizeNextPath(searchParams.get("next"), "/"),
     [searchParams]
   );
+
+  const registerHref = useMemo(() => {
+    const query = new URLSearchParams();
+    query.set("next", nextPath);
+    return `/register?${query.toString()}`;
+  }, [nextPath]);
+
+  const confirmed = searchParams.get("confirmed") === "1";
 
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
@@ -64,6 +67,12 @@ export default function LoginPageClient() {
     };
   }, []);
 
+  useEffect(() => {
+    if (confirmed) {
+      setMessage("メール確認は完了した。ログインして登録を続けて。");
+    }
+  }, [confirmed]);
+
   async function handleSignIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -86,29 +95,6 @@ export default function LoginPageClient() {
     setPendingAction(null);
     router.push(nextPath);
     router.refresh();
-  }
-
-  async function handleOAuthLogin(provider: "google" | "apple") {
-    setPendingAction(provider === "google" ? "google-login" : "apple-login");
-    setMessage("");
-    setErrorMessage("");
-
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback?mode=signin&provider=${provider}&next=${encodeURIComponent(nextPath)}`
-        : undefined;
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo,
-      },
-    });
-
-    if (error) {
-      setErrorMessage(error.message);
-      setPendingAction(null);
-    }
   }
 
   async function handleSignOut() {
@@ -144,7 +130,8 @@ export default function LoginPageClient() {
             </h1>
 
             <p className="mt-4 text-sm leading-7 text-neutral-600">
-              メールアドレスとパスワードでログインするか、Google / Apple の連携ログインを使う。
+              このサイトでは、メールアドレスとパスワードでログインする。
+              アカウント作成時はメール確認を行う。
             </p>
 
             {user ? (
@@ -246,10 +233,10 @@ export default function LoginPageClient() {
                     </button>
 
                     <Link
-                      href="/signup"
+                      href={registerHref}
                       className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-sky-100"
                     >
-                      新規作成
+                      アカウント作成
                     </Link>
 
                     <Link
@@ -260,37 +247,12 @@ export default function LoginPageClient() {
                     </Link>
                   </div>
 
-                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleOAuthLogin("google")}
-                      disabled={isPending}
-                      className="inline-flex items-center justify-center rounded-2xl border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {pendingAction === "google-login"
-                        ? "Googleへ移動中..."
-                        : "Google でログイン"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => void handleOAuthLogin("apple")}
-                      disabled={isPending}
-                      className="inline-flex items-center justify-center rounded-2xl border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {pendingAction === "apple-login"
-                        ? "Appleへ移動中..."
-                        : "Apple でログイン"}
-                    </button>
-                  </div>
-
                   <div className="mt-5 rounded-2xl border border-black/10 bg-neutral-50 p-4 text-xs leading-6 text-neutral-600">
                     <p>
-                      新規作成は専用の導線へ分けた。Google / Apple で初めて入った場合も、
-                      必要な登録が未完了ならユーザー登録画面へ案内する。
+                      アカウント作成後は、確認メールの承認をしてから利用を続ける。
                     </p>
                     <p className="mt-2">
-                      メールログインでそのまま入れない場合は、Confirm email の設定や確認メールの状態を確認する。
+                      確認後は登録画面に戻って、公開プロフィール用の基本情報を仕上げる。
                     </p>
                   </div>
                 </div>

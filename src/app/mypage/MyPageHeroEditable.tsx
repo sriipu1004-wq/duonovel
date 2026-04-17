@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  normalizeDisplayName,
+  validateDisplayName,
+} from "@/lib/auth/accountSignupConsent";
+import { syncPublicUserProfile } from "@/lib/auth/syncPublicUserProfile";
 
 type HeroBadge = {
   label: string;
@@ -66,7 +71,7 @@ export default function MyPageHeroEditable({
 }: MyPageHeroEditableProps) {
   const router = useRouter();
 
-  const normalizedInitialDisplayName = initialDisplayName.trim();
+  const normalizedInitialDisplayName = normalizeDisplayName(initialDisplayName);
 
   const [displayName, setDisplayName] = useState(normalizedInitialDisplayName);
   const [draftName, setDraftName] = useState(normalizedInitialDisplayName);
@@ -101,11 +106,12 @@ export default function MyPageHeroEditable({
   }
 
   async function handleSave() {
-    const trimmedName = draftName.trim();
+    const trimmedName = normalizeDisplayName(draftName);
+    const validationError = validateDisplayName(trimmedName);
 
-    if (!trimmedName) {
+    if (validationError) {
       setSaveState("error");
-      setErrorMessage("表示名は1文字以上で入れる。");
+      setErrorMessage(validationError);
       setSuccessMessage("");
       return;
     }
@@ -114,45 +120,37 @@ export default function MyPageHeroEditable({
     setErrorMessage("");
     setSuccessMessage("");
 
-    const nowIso = new Date().toISOString();
-
-    const payloads: Array<Record<string, unknown>> = [
-      { display_name: trimmedName, updated_at: nowIso },
-      { display_name: trimmedName },
-    ];
-
-    let updated = false;
-    let lastError = "表示名の保存に失敗した。";
-
-    for (const payload of payloads) {
-      const result = await supabase
-        .from("users")
-        .update(payload)
-        .eq("id", userId)
-        .select("id, display_name")
-        .maybeSingle();
-
-      if (result.error) {
-        lastError = result.error.message;
-        continue;
-      }
-
-      if (result.data?.id) {
-        updated = true;
-        break;
-      }
-    }
-
-    if (!updated) {
+    try {
+      await syncPublicUserProfile(userId, trimmedName);
+    } catch (error) {
       setSaveState("error");
-      setErrorMessage(lastError);
+      setErrorMessage(
+        error instanceof Error ? error.message : "表示名の保存に失敗した。"
+      );
       setSuccessMessage("");
       return;
     }
 
+    const { error: authUpdateError } = await supabase.auth.updateUser({
+      data: {
+        display_name: trimmedName,
+        display_name_candidate: trimmedName,
+      },
+    });
+
     setDisplayName(trimmedName);
     setDraftName(trimmedName);
     setIsEditing(false);
+
+    if (authUpdateError) {
+      setSaveState("success");
+      setSuccessMessage(
+        "表示名を保存した。朗読用の表示反映は次回更新時に再同期される。"
+      );
+      router.refresh();
+      return;
+    }
+
     setSaveState("success");
     setSuccessMessage("表示名を保存した。");
     router.refresh();

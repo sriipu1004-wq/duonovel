@@ -8,99 +8,60 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   ACCOUNT_GENDER_OPTIONS,
   ACCOUNT_SIGNUP_CONSENT_VERSION,
-  AccountRegistrationMethod,
   buildCompletedAccountRegistrationMetadata,
   buildPendingAccountRegistrationMetadata,
   hasRequiredAccountRegistrationConsent,
   isAccountRegistrationCompleted,
-  normalizeAccountRegistrationMethod,
+  normalizeDisplayName,
   normalizeNextPath,
   readAccountRegistrationBirthdate,
   readAccountRegistrationConsent,
   readAccountRegistrationDisplayName,
   readAccountRegistrationGender,
+  validateDisplayName,
 } from "@/lib/auth/accountSignupConsent";
+import { syncPublicUserProfile } from "@/lib/auth/syncPublicUserProfile";
 
 type PendingAction = "email-signup" | "complete-profile" | null;
 
 function isEmailConfirmed(user: User | null): boolean {
-  return typeof user?.email_confirmed_at === "string" && user.email_confirmed_at.length > 0;
-}
-
-async function syncPublicUserProfile(userId: string, displayName: string) {
-  const trimmedDisplayName = displayName.trim();
-  const nowIso = new Date().toISOString();
-
-  const updatePayloads: Array<Record<string, unknown>> = [
-    { display_name: trimmedDisplayName, updated_at: nowIso },
-    { display_name: trimmedDisplayName },
-  ];
-
-  for (const payload of updatePayloads) {
-    const result = await supabase
-      .from("users")
-      .update(payload)
-      .eq("id", userId)
-      .select("id, display_name")
-      .maybeSingle();
-
-    if (!result.error && result.data?.id) {
-      return;
-    }
-  }
-
-  const upsertPayloads: Array<Record<string, unknown>> = [
-    { id: userId, display_name: trimmedDisplayName, updated_at: nowIso },
-    { id: userId, display_name: trimmedDisplayName },
-  ];
-
-  let lastErrorMessage = "ユーザー名の保存に失敗した。";
-
-  for (const payload of upsertPayloads) {
-    const result = await supabase
-      .from("users")
-      .upsert(payload, { onConflict: "id" })
-      .select("id, display_name")
-      .maybeSingle();
-
-    if (result.error) {
-      lastErrorMessage = result.error.message;
-      continue;
-    }
-
-    if (result.data?.id) {
-      return;
-    }
-  }
-
-  throw new Error(lastErrorMessage);
+  return (
+    typeof user?.email_confirmed_at === "string" &&
+    user.email_confirmed_at.length > 0
+  );
 }
 
 export default function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const method = useMemo(
-    () =>
-      normalizeAccountRegistrationMethod(searchParams.get("method"), "email"),
-    [searchParams]
-  );
   const nextPath = useMemo(
     () => normalizeNextPath(searchParams.get("next"), "/mypage"),
     [searchParams]
   );
   const stage = useMemo(
-    () => (typeof searchParams.get("stage") === "string" ? searchParams.get("stage") : ""),
+    () =>
+      typeof searchParams.get("stage") === "string"
+        ? searchParams.get("stage")
+        : "",
     [searchParams]
   );
   const initialEmail = useMemo(
-    () => (typeof searchParams.get("email") === "string" ? searchParams.get("email") ?? "" : ""),
+    () =>
+      typeof searchParams.get("email") === "string"
+        ? searchParams.get("email") ?? ""
+        : "",
     [searchParams]
   );
 
-  const isOAuthMethod = method === "google" || method === "apple";
-  const providerLabel =
-    method === "google" ? "Google" : method === "apple" ? "Apple" : "メール";
+  const resumeLoginHref = useMemo(() => {
+    const query = new URLSearchParams();
+    query.set(
+      "next",
+      `/register?stage=confirmed&next=${encodeURIComponent(nextPath)}`
+    );
+    return `/login?${query.toString()}`;
+  }, [nextPath]);
 
   const [user, setUser] = useState<User | null>(null);
   const [loadedUser, setLoadedUser] = useState(false);
@@ -124,25 +85,23 @@ export default function RegisterPage() {
     acknowledgedPublicSurface,
   });
 
+  const normalizedDisplayName = normalizeDisplayName(displayName);
+  const displayNameError = validateDisplayName(displayName);
+
   const profileComplete =
-    displayName.trim().length > 0 &&
+    normalizedDisplayName.length > 0 &&
     birthdate.trim().length > 0 &&
     gender.trim().length > 0 &&
-    consentComplete;
+    consentComplete &&
+    !displayNameError;
 
   useEffect(() => {
     let active = true;
 
     async function loadUser() {
-      const { data, error } = await supabase.auth.getUser();
+      const { data } = await supabase.auth.getUser();
 
       if (!active) return;
-
-      if (error) {
-        setErrorMessage("ユーザー状態の取得に失敗した。");
-        setLoadedUser(true);
-        return;
-      }
 
       setUser(data.user ?? null);
       setLoadedUser(true);
@@ -195,12 +154,14 @@ export default function RegisterPage() {
     }
   }, [user, router, nextPath]);
 
-  async function completeSignedInRegistration(
-    sessionUser: User,
-    registrationMethod: AccountRegistrationMethod
-  ) {
+  async function completeSignedInRegistration(sessionUser: User) {
+    if (displayNameError) {
+      setErrorMessage(displayNameError);
+      return;
+    }
+
     if (!profileComplete) {
-      setErrorMessage("ユーザー登録に必要な入力がまだ不足している。");
+      setErrorMessage("登録に必要な入力がまだ不足している。");
       return;
     }
 
@@ -209,8 +170,7 @@ export default function RegisterPage() {
     setErrorMessage("");
 
     const metadata = buildCompletedAccountRegistrationMetadata({
-      method: registrationMethod,
-      displayName,
+      displayName: normalizedDisplayName,
       birthdate,
       gender,
       agreedToTerms,
@@ -229,7 +189,7 @@ export default function RegisterPage() {
     }
 
     try {
-      await syncPublicUserProfile(sessionUser.id, displayName);
+      await syncPublicUserProfile(sessionUser.id, normalizedDisplayName);
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "プロフィール保存に失敗した。"
@@ -238,21 +198,29 @@ export default function RegisterPage() {
       return;
     }
 
-    setMessage("ユーザー登録を完了した。マイページへ移動する。");
+    setMessage("登録を完了した。次のページへ移動する。");
     setPendingAction(null);
     router.push(nextPath);
     router.refresh();
   }
 
-  async function handleEmailRegistration(event: React.FormEvent<HTMLFormElement>) {
+  async function handleEmailRegistration(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
-    if (isOAuthMethod) {
+    if (user) {
+      await completeSignedInRegistration(user);
+      return;
+    }
+
+    if (displayNameError) {
+      setErrorMessage(displayNameError);
       return;
     }
 
     if (!profileComplete) {
-      setErrorMessage("ユーザー登録に必要な入力がまだ不足している。");
+      setErrorMessage("登録に必要な入力がまだ不足している。");
       return;
     }
 
@@ -267,12 +235,11 @@ export default function RegisterPage() {
 
     const emailRedirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback?mode=email-confirm&provider=email`
+        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
         : undefined;
 
     const metadata = buildPendingAccountRegistrationMetadata({
-      method: "email",
-      displayName,
+      displayName: normalizedDisplayName,
       birthdate,
       gender,
       agreedToTerms,
@@ -296,7 +263,7 @@ export default function RegisterPage() {
     }
 
     if (data.session?.user) {
-      await completeSignedInRegistration(data.session.user, "email");
+      await completeSignedInRegistration(data.session.user);
       return;
     }
 
@@ -306,79 +273,81 @@ export default function RegisterPage() {
     setPendingAction(null);
   }
 
-  async function handleOAuthCompletion(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!user) {
-      setErrorMessage("先に Google または Apple で認証してから戻ってきて。");
-      return;
-    }
-
-    await completeSignedInRegistration(user, method);
-  }
-
-  const registrationButtonLabel = isOAuthMethod
-    ? "ユーザー登録を完了"
+  const primaryLabel = user
+    ? pendingAction === "complete-profile"
+      ? "登録完了中..."
+      : "登録を完了して進む"
     : pendingAction === "email-signup"
-      ? "アカウント作成中..."
-      : "メールアドレスでアカウント作成";
+      ? "確認メールを送信中..."
+      : "アカウントを作成する";
 
   return (
     <main className="min-h-screen bg-white px-6 py-8 text-black">
-      <div className="mx-auto w-full max-w-3xl">
+      <div className="mx-auto w-full max-w-4xl">
         <section className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
           <div className="px-6 py-8 sm:px-8 sm:py-10">
-            <p className="text-xs tracking-[0.24em] text-neutral-500">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
+                {user ? "STEP 2" : "STEP 1"}
+              </span>
+              <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
+                メールアドレス登録
+              </span>
+            </div>
+
+            <p className="mt-4 text-xs tracking-[0.24em] text-neutral-500">
               ACCOUNT REGISTER
             </p>
 
             <h1 className="mt-3 text-3xl font-bold leading-tight text-black sm:text-4xl">
-              ユーザー登録
+              アカウント作成
             </h1>
 
             <p className="mt-4 text-sm leading-7 text-neutral-600">
-              {isOAuthMethod
-                ? `${providerLabel} の認証後に、公開プロフィール用の基本情報を登録する。`
-                : "メールアドレス・パスワード・基本プロフィール・規約同意をまとめて登録する。"}
+              メールアドレス・パスワード・公開プロフィール用の基本情報・規約同意を登録する。
             </p>
 
-            {isOAuthMethod ? (
+            {stage === "confirmed" && loadedUser && !user ? (
+              <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-neutral-700">
+                <p>メール確認は完了した。</p>
+                <p className="mt-2">
+                  ただ、確認直後のログイン状態をこの画面で受け取れなかった。
+                  もう一度ログインしてから登録を続けて。
+                </p>
+                <div className="mt-4">
+                  <Link
+                    href={resumeLoginHref}
+                    className="inline-flex rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+                  >
+                    ログインして続ける
+                  </Link>
+                </div>
+              </div>
+            ) : user ? (
               <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-neutral-700">
                 {!loadedUser ? (
                   <p>認証状態を確認中...</p>
-                ) : user ? (
-                  <>
-                    <p>認証済みアカウント: {user.email ?? "メールアドレス不明"}</p>
-                    <p className="mt-2">
-                      ここで入力するユーザー名は、公開プロフィール表示用として扱う。
-                    </p>
-                  </>
                 ) : (
                   <>
-                    <p>まだ {providerLabel} 認証後のセッションが見つかっていない。</p>
+                    <p>確認済みアカウント: {user.email ?? "メールアドレス不明"}</p>
                     <p className="mt-2">
-                      先に新規作成ページから {providerLabel} で認証してから戻る。
+                      メール確認後の最終登録画面。公開プロフィール用の基本情報を確定して進む。
                     </p>
                   </>
                 )}
               </div>
             ) : (
               <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-neutral-700">
-                <p>メールアドレス登録では、確認メールが必要な環境では認証完了後に利用を続けられる。</p>
+                <p>まずメールアドレスとパスワードを登録する。</p>
                 <p className="mt-2">
-                  {stage === "confirmed"
-                    ? "メール認証後に戻ってきた場合は、必要情報を確認して登録を完了する。"
-                    : "先にこの画面でメールアドレス・パスワードも含めて入力する。"}
+                  登録後は確認メールを送り、そのリンクを開くとこの導線に戻って続きへ進める。
                 </p>
               </div>
             )}
 
-            <form
-              onSubmit={isOAuthMethod ? handleOAuthCompletion : handleEmailRegistration}
-              className="mt-8"
-            >
+            <form onSubmit={handleEmailRegistration} className="mt-8">
               <div className="rounded-[28px] border border-black/10 bg-white p-6">
-                {!isOAuthMethod ? (
+                {!user ? (
                   <>
                     <label className="block">
                       <span className="text-sm text-neutral-700">メールアドレス</span>
@@ -441,6 +410,19 @@ export default function RegisterPage() {
                     required
                   />
                 </label>
+
+                <div className="mt-2 rounded-2xl border border-black/10 bg-neutral-50 p-3 text-xs leading-6 text-neutral-600">
+                  <p>2〜32文字、改行なし、URL 風の文字列なしで入力する。</p>
+                  <p className="mt-1">
+                    空白は自動で整理される。作者ページやプロフィールにそのまま見える名前になる。
+                  </p>
+                </div>
+
+                {displayNameError ? (
+                  <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {displayNameError}
+                  </div>
+                ) : null}
 
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <label className="block">
@@ -533,7 +515,7 @@ export default function RegisterPage() {
                   <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs leading-6 text-neutral-700">
                     <p>基本同意 version: {ACCOUNT_SIGNUP_CONSENT_VERSION}</p>
                     <p className="mt-2">
-                      今回の同意状態は、今後の Google / Apple 導線でも流用しやすい形で metadata に保持する。
+                      この登録では、確認済みメールアドレスを前提にアカウントを使い始める。
                     </p>
                   </div>
                 </div>
@@ -544,24 +526,22 @@ export default function RegisterPage() {
                     disabled={
                       pendingAction !== null ||
                       !profileComplete ||
-                      (isOAuthMethod ? !user : false)
+                      !!displayNameError
                     }
                     className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {pendingAction === "complete-profile"
-                      ? "登録完了中..."
-                      : registrationButtonLabel}
+                    {primaryLabel}
                   </button>
 
                   <Link
-                    href={isOAuthMethod ? "/signup" : "/login"}
+                    href="/login"
                     className="inline-flex rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm text-neutral-700 transition hover:bg-neutral-50"
                   >
-                    戻る
+                    ログインへ戻る
                   </Link>
                 </div>
 
-                {method === "email" && user ? (
+                {user ? (
                   <div className="mt-5 rounded-2xl border border-black/10 bg-neutral-50 p-4 text-xs leading-6 text-neutral-600">
                     <p>
                       現在のメール認証状態: {isEmailConfirmed(user) ? "認証済み" : "未認証"}
