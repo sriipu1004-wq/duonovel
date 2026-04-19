@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
 import { supabase } from "@/lib/supabaseClient";
+import { getCachedPublicBaseWorkCards } from "@/lib/publicWorks";
 import ContinueReadingButton from "@/features/bookmark/ContinueReadingButton";
 import FavoriteBookmarkButton from "@/features/bookmark/FavoriteBookmarkButton";
 import SeriesReactionButton from "@/features/rating/SeriesReactionButton";
@@ -99,6 +100,29 @@ type RelatedWorkCard = {
 };
 
 const adminSupabase = createAdminClient();
+
+const WORK_PAGE_RECORDING_SELECT = `
+  id,
+  series_id,
+  reader_id,
+  reader_user_id,
+  reader_name,
+  narrator_name,
+  display_name,
+  speaker_name,
+  description,
+  reader_comment,
+  tags,
+  like_count,
+  likes_count,
+  play_count,
+  plays_count,
+  is_public,
+  allow_download,
+  episode_id,
+  audio_storage_path,
+  created_at
+`;
 
 function isPublicRecording(recording: RecordingRow): boolean {
   if (recording.is_public === false) return false;
@@ -280,7 +304,7 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
 
   const firstTry = await adminSupabase
     .from("recordings")
-    .select("*")
+    .select(WORK_PAGE_RECORDING_SELECT)
     .in("episode_id", episodeIds)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
@@ -294,7 +318,7 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
 
   const secondTry = await adminSupabase
     .from("recordings")
-    .select("*")
+    .select(WORK_PAGE_RECORDING_SELECT)
     .in("episodeId", episodeIds)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
@@ -306,26 +330,42 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
     };
   }
 
-  return {
-    recordings: [],
-    fetchErrorMessage: `recordings の取得に失敗: ${secondTry.error.message}`,
-  };
-}
-
-async function fetchPublicSeries(): Promise<SeriesRow[]> {
-  const { data, error } = await supabase
-    .from("series")
+  const fallbackFirstTry = await adminSupabase
+    .from("recordings")
     .select("*")
+    .in("episode_id", episodeIds)
     .order("created_at", { ascending: false })
-    .limit(48);
+    .order("id", { ascending: false });
 
-  if (error) {
-    return [];
+  if (!fallbackFirstTry.error) {
+    return {
+      recordings: ((fallbackFirstTry.data ?? []) as RecordingRow[]).filter(
+        isPublicRecording
+      ),
+      fetchErrorMessage: null,
+    };
   }
 
-  return ((data ?? []) as SeriesRow[]).filter(
-    (series) => getSeriesPublicationStatus(series) === "public"
-  );
+  const fallbackSecondTry = await adminSupabase
+    .from("recordings")
+    .select("*")
+    .in("episodeId", episodeIds)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
+
+  if (!fallbackSecondTry.error) {
+    return {
+      recordings: ((fallbackSecondTry.data ?? []) as RecordingRow[]).filter(
+        isPublicRecording
+      ),
+      fetchErrorMessage: null,
+    };
+  }
+
+  return {
+    recordings: [],
+    fetchErrorMessage: `recordings の取得に失敗: ${fallbackSecondTry.error.message}`,
+  };
 }
 
 function isNemoReaderName(name: string): boolean {
@@ -804,67 +844,23 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     ];
   })();    
 
-  const allPublicSeries = await fetchPublicSeries();
+  const allPublicBaseWorks = await getCachedPublicBaseWorkCards();
 
-  const relatedBase = (
-    await Promise.all(
-      allPublicSeries
-        .filter((item) => item.id !== seriesId)
-        .map(async (item) => {
-          const publicEpisodes = sortEpisodes(
-            (await fetchEpisodesBySeriesId(item.id)).filter((episode) =>
-              isEpisodePubliclyVisible(episode)
-            )
-          );
-
-          if (publicEpisodes.length === 0) {
-            return null;
-          }
-
-          const firstPublicEpisode = publicEpisodes[0] ?? null;
-          const latestPublicEpisode = publicEpisodes[publicEpisodes.length - 1] ?? null;
-          const latestPostedRaw = latestPublicEpisode
-            ? getEpisodePostedAtValue(latestPublicEpisode)
-            : null;
-
-          const itemAuthorId =
-            pickText(item.author_id, item["user_id"], item["userId"]) || null;
-
-          return {
-            seriesId: item.id,
-            title: pickText(item.title) || "無題",
-            summary: getSeriesSummary(item) || "あらすじはまだ登録されていません。",
-            authorName:
-              pickText(item["author_name"]) ||
-              (itemAuthorId === authorId
-                ? pickText(
-                    author?.display_name,
-                    author?.pen_name,
-                    author?.username,
-                    author?.name
-                  )
-                : "") ||
-              "作者名未設定",
-            authorId: itemAuthorId,
-            firstEpisodeNumber: firstPublicEpisode
-              ? getEpisodeNumber(firstPublicEpisode)
-              : null,
-            latestPostedLabel: formatEpisodeDate(latestPostedRaw ?? ""),
-            tags: getSeriesTags(item),
-            latestPostedAtValue: latestPostedRaw
-              ? new Date(latestPostedRaw).getTime()
-              : 0,
-            sameAuthor: itemAuthorId !== null && itemAuthorId === authorId,
-          };
-        })
-    )
-  ).filter(
-    (
-      item
-    ): item is RelatedWorkCard & {
-      sameAuthor: boolean;
-    } => !!item
-  );
+  const relatedBase: Array<RelatedWorkCard & { sameAuthor: boolean }> =
+    allPublicBaseWorks
+      .filter((item) => item.seriesId !== seriesId)
+      .map((item) => ({
+        seriesId: item.seriesId,
+        title: item.title,
+        summary: item.summary,
+        authorName: item.authorName,
+        authorId: item.authorId,
+        firstEpisodeNumber: item.firstEpisodeNumber,
+        latestPostedLabel: item.latestPostedLabel,
+        tags: item.tags,
+        latestPostedAtValue: item.latestPostedAtValue,
+        sameAuthor: item.authorId !== null && item.authorId === authorId,
+      }));
 
   const authorOtherWorks = relatedBase
     .filter((item) => item.sameAuthor)
@@ -1107,7 +1103,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                       まだ公開中の朗読がない。
                     </div>
                   ) : (
-                    readerCards.map((reader) => {
+                    displayedReaderCards.map((reader) => {
                       const isSelected =
                         selectedReaderKey === reader.readerKey ||
                         selectedReaderName === reader.name;

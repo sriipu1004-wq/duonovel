@@ -1,43 +1,16 @@
 import Link from "next/link";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
-import { supabase } from "@/lib/supabaseClient";
 import {
-  getEpisodeNumber,
-  getEpisodePostedAtValue,
-  getSeriesPublicationStatus,
-  getSeriesSummary,
-  isEpisodePubliclyVisible,
-  pickText,
-  sortEpisodes,
-  type EpisodeRow,
-  type SeriesRow,
-} from "@/features/write/writeShared";
+  getCachedPublicBaseWorkCards,
+  getCachedPublicRecordingAggregates,
+} from "@/lib/publicWorks";
+import { pickText } from "@/features/write/writeShared";
 
 type PageProps = {
   searchParams?: Promise<{
     mode?: string;
     tag?: string;
   }>;
-};
-
-type UserRow = Record<string, unknown> & {
-  id: string;
-  display_name?: string | null;
-  username?: string | null;
-  pen_name?: string | null;
-  name?: string | null;
-};
-
-type RecordingRow = Record<string, unknown> & {
-  id: string;
-  series_id?: string | null;
-  seriesId?: string | null;
-  like_count?: number | null;
-  likes_count?: number | null;
-  play_count?: number | null;
-  plays_count?: number | null;
-  is_public?: boolean | null;
-  public?: boolean | null;
 };
 
 type WorkCard = {
@@ -58,88 +31,6 @@ type WorkCard = {
   popularityScore: number;
 };
 
-function isPublicRecording(recording: RecordingRow): boolean {
-  if (recording.is_public === false) return false;
-  if (recording.public === false) return false;
-  return true;
-}
-
-function getRecordingLikes(recording: RecordingRow): number {
-  const raw = recording.like_count ?? recording.likes_count ?? 0;
-  if (typeof raw === "number") return raw;
-  const parsed = Number(raw);
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function getRecordingPlays(recording: RecordingRow): number {
-  const raw = recording.play_count ?? recording.plays_count ?? 0;
-  if (typeof raw === "number") return raw;
-  const parsed = Number(raw);
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) {
-    return "日付未設定";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "日付未設定";
-  }
-
-  return new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(parsed);
-}
-
-function toTimeValue(value: unknown): number {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    return 0;
-  }
-
-  const parsed = new Date(value).getTime();
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function parseTagList(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter((item) => item.length > 0)
-      .map((item) => (item.startsWith("#") ? item : `#${item}`));
-  }
-
-  if (typeof value === "string" && value.trim().length > 0) {
-    return value
-      .split(/[,、\s]+/)
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0)
-      .map((item) => (item.startsWith("#") ? item : `#${item}`));
-  }
-
-  return [];
-}
-
-function getSeriesTags(series: SeriesRow): string[] {
-  const candidates = [
-    series["tags"],
-    series["tag_list"],
-    series["tagList"],
-  ];
-
-  for (const candidate of candidates) {
-    const parsed = parseTagList(candidate);
-    if (parsed.length > 0) {
-      return parsed;
-    }
-  }
-
-  return [];
-}
-
 function buildReadHref(seriesId: string, episodeNumber: number): string {
   return `/read/${seriesId}/${episodeNumber}`;
 }
@@ -158,103 +49,6 @@ function buildMoreHref(mode: string): string {
   return `/search?${query.toString()}`;
 }
 
-async function fetchPublicSeries(): Promise<SeriesRow[]> {
-  const { data, error } = await supabase
-    .from("series")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(60);
-
-  if (error) {
-    throw new Error(`series の取得に失敗: ${error.message}`);
-  }
-
-  return ((data ?? []) as SeriesRow[]).filter(
-    (series) => getSeriesPublicationStatus(series) === "public"
-  );
-}
-
-async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
-  const firstTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("series_id", seriesId);
-
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as EpisodeRow[];
-  }
-
-  const secondTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("seriesId", seriesId);
-
-  if (!secondTry.error) {
-    return (secondTry.data ?? []) as EpisodeRow[];
-  }
-
-  return [];
-}
-
-async function fetchAuthorMap(authorIds: string[]): Promise<Map<string, UserRow>> {
-  if (authorIds.length === 0) {
-    return new Map();
-  }
-
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .in("id", authorIds);
-
-  if (error) {
-    return new Map();
-  }
-
-  return new Map(((data ?? []) as UserRow[]).map((user) => [user.id, user]));
-}
-
-async function fetchPublicRecordings(): Promise<RecordingRow[]> {
-  const firstTry = await supabase.from("recordings").select("*");
-
-  if (!firstTry.error) {
-    return ((firstTry.data ?? []) as RecordingRow[]).filter(isPublicRecording);
-  }
-
-  return [];
-}
-
-function buildRecordingAggregateMap(recordings: RecordingRow[]) {
-  const aggregate = new Map<
-    string,
-    {
-      totalRecordingLikes: number;
-      totalRecordingPlays: number;
-      totalRecordingCount: number;
-    }
-  >();
-
-  for (const recording of recordings) {
-    const seriesId =
-      pickText(recording.series_id, recording.seriesId) || null;
-
-    if (!seriesId) continue;
-
-    const current = aggregate.get(seriesId) ?? {
-      totalRecordingLikes: 0,
-      totalRecordingPlays: 0,
-      totalRecordingCount: 0,
-    };
-
-    current.totalRecordingLikes += getRecordingLikes(recording);
-    current.totalRecordingPlays += getRecordingPlays(recording);
-    current.totalRecordingCount += 1;
-
-    aggregate.set(seriesId, current);
-  }
-
-  return aggregate;
-}
-
 function SectionHeading({
   eyebrow,
   title,
@@ -269,8 +63,12 @@ function SectionHeading({
   return (
     <div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-3">
       <div>
-        <p className="text-[11px] tracking-[0.22em] text-neutral-500">{eyebrow}</p>
-        <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">{title}</h2>
+        <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+          {eyebrow}
+        </p>
+        <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
+          {title}
+        </h2>
         <p className="mt-2 text-sm leading-7 text-neutral-600">{description}</p>
       </div>
 
@@ -394,99 +192,46 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
   const mode = pickText(resolvedSearchParams?.mode);
   const tag = pickText(resolvedSearchParams?.tag);
 
-  const publicSeries = await fetchPublicSeries();
-  const publicRecordings = await fetchPublicRecordings();
-  const recordingAggregateMap = buildRecordingAggregateMap(publicRecordings);
+  const [baseWorkCards, recordingAggregates] = await Promise.all([
+    getCachedPublicBaseWorkCards(),
+    getCachedPublicRecordingAggregates(),
+  ]);
 
-  const authorIds = Array.from(
-    new Set(
-      publicSeries
-        .map((series) =>
-          pickText(series.author_id, series["user_id"], series["userId"])
-        )
-        .filter((value): value is string => !!value)
-    )
+  const recordingAggregateMap = new Map(
+    recordingAggregates.map((aggregate) => [aggregate.seriesId, aggregate])
   );
 
-  const authorMap = await fetchAuthorMap(authorIds);
+  const workCards: WorkCard[] = baseWorkCards.map((work) => {
+    const aggregate = recordingAggregateMap.get(work.seriesId) ?? {
+      totalRecordingLikes: 0,
+      totalRecordingPlays: 0,
+      totalRecordingCount: 0,
+    };
 
-  const workCards = (
-    await Promise.all(
-      publicSeries.map(async (series) => {
-        const publicEpisodes = sortEpisodes(
-          (await fetchEpisodesBySeriesId(series.id)).filter((episode) =>
-            isEpisodePubliclyVisible(episode)
-          )
-        );
+    const popularityScore =
+      aggregate.totalRecordingPlays * 3 +
+      aggregate.totalRecordingLikes * 10 +
+      aggregate.totalRecordingCount * 5 +
+      work.episodeCount;
 
-        if (publicEpisodes.length === 0) {
-          return null;
-        }
-
-        const firstEpisode = publicEpisodes[0] ?? null;
-        const latestEpisode = publicEpisodes[publicEpisodes.length - 1] ?? null;
-
-        const authorId = pickText(
-          series.author_id,
-          series["user_id"],
-          series["userId"]
-        ) || null;
-
-        const author = authorId ? authorMap.get(authorId) : null;
-
-        const latestPostedRaw = latestEpisode
-          ? getEpisodePostedAtValue(latestEpisode)
-          : null;
-
-        const latestPostedAtValue = latestPostedRaw
-          ? new Date(latestPostedRaw).getTime()
-          : 0;
-
-        const createdAtValue = toTimeValue(series["created_at"]);
-        const tags = getSeriesTags(series);
-
-        const recordingAgg = recordingAggregateMap.get(series.id) ?? {
-          totalRecordingLikes: 0,
-          totalRecordingPlays: 0,
-          totalRecordingCount: 0,
-        };
-
-        const popularityScore =
-          recordingAgg.totalRecordingPlays * 3 +
-          recordingAgg.totalRecordingLikes * 10 +
-          recordingAgg.totalRecordingCount * 5 +
-          publicEpisodes.length;
-
-        return {
-          seriesId: series.id,
-          title: pickText(series.title) || "無題",
-          summary:
-            getSeriesSummary(series) || "あらすじはまだ登録されていません。",
-          authorName:
-            pickText(
-              author?.display_name,
-              author?.pen_name,
-              author?.username,
-              author?.name,
-              series["author_name"]
-            ) || "作者名未設定",
-          authorId,
-          episodeCount: publicEpisodes.length,
-          firstEpisodeNumber: firstEpisode
-            ? getEpisodeNumber(firstEpisode)
-            : null,
-          latestPostedLabel: formatDate(latestPostedRaw),
-          latestPostedAtValue,
-          createdAtValue,
-          tags,
-          totalRecordingLikes: recordingAgg.totalRecordingLikes,
-          totalRecordingPlays: recordingAgg.totalRecordingPlays,
-          totalRecordingCount: recordingAgg.totalRecordingCount,
-          popularityScore,
-        } satisfies WorkCard;
-      })
-    )
-  ).filter((card): card is WorkCard => !!card);
+    return {
+      seriesId: work.seriesId,
+      title: work.title,
+      summary: work.summary,
+      authorName: work.authorName,
+      authorId: work.authorId,
+      episodeCount: work.episodeCount,
+      firstEpisodeNumber: work.firstEpisodeNumber,
+      latestPostedLabel: work.latestPostedLabel,
+      latestPostedAtValue: work.latestPostedAtValue,
+      createdAtValue: work.createdAtValue,
+      tags: work.tags,
+      totalRecordingLikes: aggregate.totalRecordingLikes,
+      totalRecordingPlays: aggregate.totalRecordingPlays,
+      totalRecordingCount: aggregate.totalRecordingCount,
+      popularityScore,
+    };
+  });
 
   const latestWorks = sortLatest(workCards).slice(0, 4);
   const weeklyNewWorks = sortWeeklyNew(workCards).slice(0, 4);

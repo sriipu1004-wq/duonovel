@@ -8,19 +8,8 @@ import {
   fetchSeriesPopularityDataset,
   type SeriesPopularityMetrics,
 } from "@/lib/popularity";
-import { supabase } from "@/lib/supabaseClient";
-import {
-  getEpisodeNumber,
-  getEpisodePostedAtValue,
-  getSeriesGenres,
-  getSeriesPublicationStatus,
-  getSeriesSummary,
-  isEpisodePubliclyVisible,
-  pickText,
-  sortEpisodes,
-  type EpisodeRow,
-  type SeriesRow,
-} from "@/features/write/writeShared";
+import { getCachedPublicBaseWorkCards } from "@/lib/publicWorks";
+import { pickText } from "@/features/write/writeShared";
 
 type SearchPageProps = {
   searchParams?: Promise<{
@@ -46,14 +35,6 @@ type ShelfTabKey =
   | "latest"
   | "weekly-new"
   | "narration-popular";
-
-type UserRow = Record<string, unknown> & {
-  id: string;
-  display_name?: string | null;
-  username?: string | null;
-  pen_name?: string | null;
-  name?: string | null;
-};
 
 type WorkCard = {
   seriesId: string;
@@ -136,52 +117,6 @@ const PLACEHOLDER_GENRES: GenrePlaceholderChip[] = [
   { key: "travel", label: "旅", count: 28 },
 ];
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) {
-    return "日付未設定";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "日付未設定";
-  }
-
-  return new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: TOKYO_TIMEZONE,
-  }).format(parsed);
-}
-
-function toTimeValue(value: unknown): number {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    return 0;
-  }
-
-  const parsed = new Date(value).getTime();
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function parseTagList(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter((item) => item.length > 0)
-      .map((item) => (item.startsWith("#") ? item : `#${item}`));
-  }
-
-  if (typeof value === "string" && value.trim().length > 0) {
-    return value
-      .split(/[,、\s]+/)
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0)
-      .map((item) => (item.startsWith("#") ? item : `#${item}`));
-  }
-
-  return [];
-}
-
 function parseSelectedGenreLabels(rawGenres?: string): string[] {
   if (!rawGenres) {
     return [];
@@ -192,23 +127,6 @@ function parseSelectedGenreLabels(rawGenres?: string): string[] {
     .map((item) => item.trim())
     .filter((item) => item.length > 0)
     .slice(0, 3);
-}
-
-function getSeriesTags(series: SeriesRow): string[] {
-  const candidates = [
-    series["tags"],
-    series["tag_list"],
-    series["tagList"],
-  ];
-
-  for (const candidate of candidates) {
-    const parsed = parseTagList(candidate);
-    if (parsed.length > 0) {
-      return parsed;
-    }
-  }
-
-  return [];
 }
 
 function buildReadHref(seriesId: string, episodeNumber: number): string {
@@ -703,61 +621,6 @@ function buildGenreShelfSections(params: {
   }));
 }
 
-async function fetchPublicSeries(): Promise<SeriesRow[]> {
-  const { data, error } = await supabase
-    .from("series")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(80);
-
-  if (error) {
-    throw new Error(`series の取得に失敗: ${error.message}`);
-  }
-
-  return ((data ?? []) as SeriesRow[]).filter(
-    (series) => getSeriesPublicationStatus(series) === "public"
-  );
-}
-
-async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
-  const firstTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("series_id", seriesId);
-
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as EpisodeRow[];
-  }
-
-  const secondTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("seriesId", seriesId);
-
-  if (!secondTry.error) {
-    return (secondTry.data ?? []) as EpisodeRow[];
-  }
-
-  return [];
-}
-
-async function fetchAuthorMap(authorIds: string[]): Promise<Map<string, UserRow>> {
-  if (authorIds.length === 0) {
-    return new Map();
-  }
-
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .in("id", authorIds);
-
-  if (error) {
-    return new Map();
-  }
-
-  return new Map(((data ?? []) as UserRow[]).map((user) => [user.id, user]));
-}
-
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
@@ -781,106 +644,28 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const showAllTags = pickText(resolvedSearchParams?.showTags) === "1";
   const showAllGenres = pickText(resolvedSearchParams?.showGenres) === "1";
   const shelfTab = resolveShelfTab(pickText(resolvedSearchParams?.shelfTab));
+  const baseWorkCards = await getCachedPublicBaseWorkCards();
 
-  const publicSeries = await fetchPublicSeries();
-
-  const authorIds = Array.from(
-    new Set(
-      publicSeries
-        .map((series) =>
-          pickText(series.author_id, series["user_id"], series["userId"])
-        )
-        .filter((value): value is string => !!value)
-    )
+  const popularityDataset = await fetchSeriesPopularityDataset(
+    baseWorkCards.map((work) => work.seriesId)
   );
 
-  const authorMap = await fetchAuthorMap(authorIds);
-  const publicSeriesIds = publicSeries.map((series) => series.id);
-  const popularityDataset = await fetchSeriesPopularityDataset(publicSeriesIds);
   const currentPopularityMap = buildSeriesPopularityMap(popularityDataset);
 
-  const workCards = (
-    await Promise.all(
-      publicSeries.map(async (series) => {
-        const publicEpisodes = sortEpisodes(
-          (await fetchEpisodesBySeriesId(series.id)).filter((episode) =>
-            isEpisodePubliclyVisible(episode)
-          )
-        );
+  const workCards: WorkCard[] = baseWorkCards.map((work) => {
+    const currentPopularity =
+      currentPopularityMap.get(work.seriesId) ??
+      createEmptyPopularityMetrics(work.seriesId);
 
-        if (publicEpisodes.length === 0) {
-          return null;
-        }
-
-        const firstEpisode = publicEpisodes[0] ?? null;
-        const latestEpisode = publicEpisodes[publicEpisodes.length - 1] ?? null;
-
-        const authorId = pickText(
-          series.author_id,
-          series["user_id"],
-          series["userId"]
-        ) || null;
-
-        const author = authorId ? authorMap.get(authorId) : null;
-
-        const latestPostedRaw = latestEpisode
-          ? getEpisodePostedAtValue(latestEpisode)
-          : null;
-
-        const firstPostedRaw = firstEpisode
-          ? getEpisodePostedAtValue(firstEpisode)
-          : null;
-
-        const latestPostedAtValue = latestPostedRaw
-          ? new Date(latestPostedRaw).getTime()
-          : 0;
-
-        const firstPostedAtValue = firstPostedRaw
-          ? new Date(firstPostedRaw).getTime()
-          : 0;
-
-        const createdAtValue = toTimeValue(series["created_at"]);
-        const tags = getSeriesTags(series);
-        const genres = getSeriesGenres(series);
-
-        const currentPopularity =
-          currentPopularityMap.get(series.id) ??
-          createEmptyPopularityMetrics(series.id);
-
-        return {
-          seriesId: series.id,
-          title: pickText(series.title) || "無題",
-          summary:
-            getSeriesSummary(series) || "あらすじはまだ登録されていません。",
-          authorName:
-            pickText(
-              author?.display_name,
-              author?.pen_name,
-              author?.username,
-              author?.name,
-              series["author_name"]
-            ) || "作者名未設定",
-          authorId,
-          episodeCount: publicEpisodes.length,
-          firstEpisodeNumber: firstEpisode
-            ? getEpisodeNumber(firstEpisode)
-            : null,
-          latestPostedLabel: formatDate(latestPostedRaw),
-          latestPostedAtValue,
-          earliestPublicAtValue:
-            firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
-          createdAtValue,
-          tags,
-          genres,
-          likeCount: currentPopularity.likeCount,
-          bookmarkCount: currentPopularity.bookmarkCount,
-          viewCount: currentPopularity.viewCount,
-          narrationPlayCount: currentPopularity.narrationPlayCount,
-          provisionalPopularityScore: currentPopularity.popularityScore,
-        } satisfies WorkCard;
-      })
-    )
-  ).filter((card): card is WorkCard => !!card);
+    return {
+      ...work,
+      likeCount: currentPopularity.likeCount,
+      bookmarkCount: currentPopularity.bookmarkCount,
+      viewCount: currentPopularity.viewCount,
+      narrationPlayCount: currentPopularity.narrationPlayCount,
+      provisionalPopularityScore: currentPopularity.popularityScore,
+    };
+  });
 
   const oldestPublicAtValue =
     workCards.reduce((min, work) => {

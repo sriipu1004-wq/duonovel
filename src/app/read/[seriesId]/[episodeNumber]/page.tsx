@@ -1,17 +1,11 @@
 import { notFound } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
 import EpisodePlayback from "@/features/playback/EpisodePlayback";
 import {
-  isEpisodePubliclyVisible,
   isSeriesEpisodeCommentVisible,
   getEpisodeBody,
   getEpisodeNumber,
-  getSeriesPublicationStatus,
   pickText,
-  sortEpisodes,
-  type EpisodeRow,
   type RecordingPermissionMode,
-  type SeriesRow,
 } from "@/features/write/writeShared";
 import {
   mergeBgmSettings,
@@ -32,9 +26,11 @@ import {
 } from "@/lib/recording/nemoTiming";
 import { normalizeRecordingPermissionMode } from "@/lib/recording/recordingEntry";
 import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGenerationBootstrap";
-import { unstable_noStore as noStore } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveNemoAutoGenerationConfig } from "@/lib/recording/nemoAutoGeneration";
+import {
+  getCachedPublicReadPagePayload,
+  type PublicReadRecordingRow as RecordingRow,
+} from "@/lib/publicRead";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -45,25 +41,6 @@ type PageProps = {
     autoplay?: string;
   }>;
 };
-
-type RecordingRow = Record<string, unknown> & {
-  id: string;
-  episode_id?: string | null;
-  episodeId?: string | null;
-  reader_id?: string | null;
-  reader_user_id?: string | null;
-  readerUserId?: string | null;
-  reader_name?: string | null;
-  narrator_name?: string | null;
-  display_name?: string | null;
-  speaker_name?: string | null;
-  audio_storage_path?: string | null;
-  audioStoragePath?: string | null;
-  is_public?: boolean | null;
-  public?: boolean | null;
-};
-
-const adminSupabase = createAdminClient();
 
 async function fetchGeneratedPlaybackAssets(
   audioPublicUrl?: string | null
@@ -84,7 +61,7 @@ async function fetchGeneratedPlaybackAssets(
 
   try {
     const response = await fetch(timingUrl, {
-      cache: "no-store",
+      next: { revalidate: 30 },
     });
 
     if (!response.ok) {
@@ -118,12 +95,6 @@ function parseStartAt(value?: string): number | null {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return null;
   return parsed;
-}
-
-function isPublicRecording(recording: RecordingRow): boolean {
-  if (recording.is_public === false) return false;
-  if (recording.public === false) return false;
-  return true;
 }
 
 function getRecordingReaderName(recording: RecordingRow): string {
@@ -271,101 +242,10 @@ function buildReadHref(
   return `/read/${seriesId}/${episodeNumber}${queryString ? `?${queryString}` : ""}`;
 }
 
-async function fetchEpisodeBySeriesAndNumber(
-  seriesId: string,
-  episodeNumber: number
-): Promise<EpisodeRow | null> {
-  const tries = [
-    () =>
-      supabase
-        .from("episodes")
-        .select("*")
-        .eq("series_id", seriesId)
-        .eq("episode_number", episodeNumber)
-        .maybeSingle(),
-    () =>
-      supabase
-        .from("episodes")
-        .select("*")
-        .eq("series_id", seriesId)
-        .eq("episodeNumber", episodeNumber)
-        .maybeSingle(),
-    () =>
-      supabase
-        .from("episodes")
-        .select("*")
-        .eq("seriesId", seriesId)
-        .eq("episode_number", episodeNumber)
-        .maybeSingle(),
-    () =>
-      supabase
-        .from("episodes")
-        .select("*")
-        .eq("seriesId", seriesId)
-        .eq("episodeNumber", episodeNumber)
-        .maybeSingle(),
-  ];
-
-  for (const run of tries) {
-    const result = await run();
-    if (!result.error && result.data) {
-      return result.data as EpisodeRow;
-    }
-  }
-
-  return null;
-}
-
-async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
-  const firstTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("series_id", seriesId);
-
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as EpisodeRow[];
-  }
-
-  const secondTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("seriesId", seriesId);
-
-  if (!secondTry.error) {
-    return (secondTry.data ?? []) as EpisodeRow[];
-  }
-
-  return [];
-}
-
-async function fetchRecordingsByEpisodeId(episodeId: string): Promise<RecordingRow[]> {
-  const firstTry = await adminSupabase
-    .from("recordings")
-    .select("*")
-    .eq("episode_id", episodeId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
-
-  if (!firstTry.error) {
-    return ((firstTry.data ?? []) as RecordingRow[]).filter(isPublicRecording);
-  }
-
-  const secondTry = await adminSupabase
-    .from("recordings")
-    .select("*")
-    .eq("episodeId", episodeId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
-
-  if (!secondTry.error) {
-    return ((secondTry.data ?? []) as RecordingRow[]).filter(isPublicRecording);
-  }
-
-  return [];
-}
-
-export default async function ReadEpisodePage({ params, searchParams }: PageProps) {
-  noStore();  
+export default async function ReadEpisodePage({
+  params,
+  searchParams,
+}: PageProps) {
   const { seriesId, episodeNumber } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
@@ -377,36 +257,19 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
   const initialStartAt = parseStartAt(resolvedSearchParams?.startAt);
   const initialAutoPlay = resolvedSearchParams?.autoplay === "1";
 
-  const { data: seriesData, error: seriesError } = await supabase
-    .from("series")
-    .select("*")
-    .eq("id", seriesId)
-    .single();
+  const payload = await getCachedPublicReadPagePayload(
+    seriesId,
+    parsedEpisodeNumber
+  );
 
-  if (seriesError || !seriesData) {
+  if (!payload) {
     notFound();
   }
 
-  const series = seriesData as SeriesRow;
-  if (getSeriesPublicationStatus(series) !== "public") {
-    notFound();
-  }
+  const { series, episode, publicEpisodes, allEpisodeRecordings } = payload;
 
   const recordingPermissionMode = normalizeRecordingPermissionMode(
     series.recording_permission_mode
-  );  
-
-  const episode = await fetchEpisodeBySeriesAndNumber(seriesId, parsedEpisodeNumber);
-  if (!episode || !isEpisodePubliclyVisible(episode)) {
-    notFound();
-  }
-
-  if (recordingPermissionMode === "open") {
-  }  
-
-  const allEpisodes = await fetchEpisodesBySeriesId(seriesId);
-  const publicEpisodes = sortEpisodes(
-    allEpisodes.filter((item) => isEpisodePubliclyVisible(item))
   );
 
   const currentEpisodeNumber = getEpisodeNumber(episode) || parsedEpisodeNumber;
@@ -417,12 +280,12 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
       .find((item) => getEpisodeNumber(item) < currentEpisodeNumber) ?? null;
 
   const nextEpisode =
-    publicEpisodes.find((item) => getEpisodeNumber(item) > currentEpisodeNumber) ?? null;
+    publicEpisodes.find((item) => getEpisodeNumber(item) > currentEpisodeNumber) ??
+    null;
 
   const prevEpisodeNumber = prevEpisode ? getEpisodeNumber(prevEpisode) : null;
   const nextEpisodeNumber = nextEpisode ? getEpisodeNumber(nextEpisode) : null;
 
-  const allEpisodeRecordings = await fetchRecordingsByEpisodeId(episode.id);
   const requestedReaderName = pickText(resolvedSearchParams?.readerName);
   const requestedReaderKey =
     requestedReaderName && isNemoReaderName(requestedReaderName)
@@ -471,7 +334,7 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
     permissionMode: recordingPermissionMode,
     hasConfig: !!nemoAutogenConfig,
     hasCurrentEpisodeNemoRecording,
-  });    
+  });
 
   const recordingAvailable = !!selectedRecording;
   const audioStoragePath = pickText(
@@ -487,7 +350,8 @@ export default async function ReadEpisodePage({ params, searchParams }: PageProp
   const seriesTitle = pickText(series.title) || "無題";
   const commentsVisible = isSeriesEpisodeCommentVisible(series);
   const episodeTitle =
-    pickText(episode.title, episode["episode_title"]) || `第${currentEpisodeNumber}話`;
+    pickText(episode.title, episode["episode_title"]) ||
+    `第${currentEpisodeNumber}話`;
 
   const body = getEpisodeBody(episode) || "本文がまだ登録されていません。";
 

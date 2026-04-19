@@ -281,23 +281,6 @@ function readStoredAutoAdvancePreference(seriesId: string): boolean {
   }
 }
 
-function readStoredPlaybackRate(seriesId: string): number {
-  if (typeof window === "undefined") {
-    return 1;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(`duonovel:playback-rate:${seriesId}`);
-    if (!raw) {
-      return 1;
-    }
-
-    return clampPlaybackRate(Number(raw));
-  } catch {
-    return 1;
-  }
-}
-
 function readStoredNarrationVolume(seriesId: string): number {
   if (typeof window === "undefined") {
     return 1;
@@ -708,7 +691,6 @@ function SettingChip({
 
 const GLOBAL_DISPLAY_PREFERENCE_KEY = "duonovel:display";
 const GLOBAL_AUTO_ADVANCE_KEY = "duonovel:auto-advance";
-const GLOBAL_PLAYBACK_RATE_KEY = "duonovel:playback-rate";
 const GLOBAL_MARKER_VISIBLE_KEY = "duonovel:marker-visible";
 
 function readStoredGlobalDisplayPreference(seriesId: string): DisplayPreference {
@@ -756,27 +738,6 @@ function readStoredGlobalAutoAdvancePreference(seriesId: string): boolean {
     }
 
     return fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function readStoredGlobalPlaybackRate(seriesId: string): number {
-  const fallback = readStoredPlaybackRate(seriesId);
-
-  if (typeof window === "undefined") {
-    return fallback;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(GLOBAL_PLAYBACK_RATE_KEY);
-    const parsed = Number(raw);
-
-    if (!Number.isFinite(parsed)) {
-      return fallback;
-    }
-
-    return Math.min(2.5, Math.max(0.5, parsed));
   } catch {
     return fallback;
   }
@@ -907,15 +868,16 @@ export default function EpisodePlayback({
   );
   const [assembledSegmentAudioUrl, setAssembledSegmentAudioUrl] = useState("");
 
+  const [useSegmentedAudioFallback, setUseSegmentedAudioFallback] =
+    useState(false);  
+
   const [displayPreference, setDisplayPreference] = useState<DisplayPreference>(
     () => readStoredGlobalDisplayPreference(seriesId)
   );
   const [autoAdvanceToNext, setAutoAdvanceToNext] = useState<boolean>(() =>
     readStoredGlobalAutoAdvancePreference(seriesId)
   );
-  const [playbackRate, setPlaybackRate] = useState<number>(() =>
-    readStoredGlobalPlaybackRate(seriesId)
-  );
+  const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [narrationVolume, setNarrationVolume] = useState<number>(() =>
     readStoredNarrationVolume(seriesId)
   );
@@ -1167,10 +1129,18 @@ export default function EpisodePlayback({
         return left.sentenceIndex - right.sentenceIndex;
       });
   }, [generatedSentenceTimings]);
+  
+  const hasGeneratedNarrationTiming = useMemo(() => {
+    return runtimeGeneratedSentenceTimings.length > 0;
+  }, [runtimeGeneratedSentenceTimings]);
 
   const isHumanRecordingSelected = useMemo(() => {
+    if (hasGeneratedNarrationTiming) {
+      return false;
+    }
+
     return recordingId !== null && recordingId !== undefined;
-  }, [recordingId]);
+  }, [hasGeneratedNarrationTiming, recordingId]);
 
   const effectiveRuntimeGeneratedSentenceTimings = useMemo(() => {
     return isHumanRecordingSelected ? [] : runtimeGeneratedSentenceTimings;
@@ -1818,6 +1788,18 @@ const runtimeGeneratedAudioSegments = useMemo(() => {
 }, [generatedAudioSegments]);
 
 useEffect(() => {
+  setUseSegmentedAudioFallback(false);
+}, [episodeId, fallbackAudioStorageSrc, runtimeGeneratedAudioSegments.length]);
+
+useEffect(() => {
+  const shouldAssembleSegmentedAudio =
+    useSegmentedAudioFallback || fallbackAudioStorageSrc.length === 0;
+
+  if (!shouldAssembleSegmentedAudio) {
+    setAssembledSegmentAudioUrl("");
+    return;
+  }
+
   if (runtimeGeneratedAudioSegments.length <= 1) {
     setAssembledSegmentAudioUrl("");
     return;
@@ -1884,9 +1866,17 @@ useEffect(() => {
       URL.revokeObjectURL(objectUrl);
     }
   };
-}, [runtimeGeneratedAudioSegments]);
+}, [
+  runtimeGeneratedAudioSegments,
+  fallbackAudioStorageSrc,
+  useSegmentedAudioFallback,
+]);
 
   const playableAudioSrc = useMemo(() => {
+    if (!useSegmentedAudioFallback && fallbackAudioStorageSrc.length > 0) {
+      return fallbackAudioStorageSrc;
+    }
+
     if (runtimeGeneratedAudioSegments.length > 1) {
       return assembledSegmentAudioUrl.trim();
     }
@@ -1897,10 +1887,15 @@ useEffect(() => {
 
     return fallbackAudioStorageSrc;
   }, [
+    useSegmentedAudioFallback,
     assembledSegmentAudioUrl,
     runtimeGeneratedAudioSegments,
     fallbackAudioStorageSrc,
   ]);
+
+  useEffect(() => {
+    setPlaybackRate(1);
+  }, [episodeId, selectedReaderKey, selectedReaderName]);  
 
   const canPlayAudio =
     !isNarrationStopped && recordingAvailable && playableAudioSrc.length > 0;
@@ -2295,17 +2290,6 @@ useEffect(() => {
   useEffect(() => {
     try {
       window.localStorage.setItem(
-        GLOBAL_PLAYBACK_RATE_KEY,
-        String(playbackRate)
-      );
-    } catch {
-      // noop
-    }
-  }, [playbackRate]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
         GLOBAL_MARKER_VISIBLE_KEY,
         showMarker ? "true" : "false"
       );
@@ -2533,6 +2517,19 @@ useEffect(() => {
     };
 
     const handleError = () => {
+      const canFallbackToSegmentedAudio =
+        !useSegmentedAudioFallback &&
+        fallbackAudioStorageSrc.length > 0 &&
+        runtimeGeneratedAudioSegments.length > 0;
+
+      if (canFallbackToSegmentedAudio) {
+        setUseSegmentedAudioFallback(true);
+        setAudioError("");
+        setIsPlaying(false);
+        setIsAdvancing(false);
+        return;
+      }
+
       setAudioError("音声ファイルの読み込みに失敗した");
       setIsPlaying(false);
       setIsAdvancing(false);
@@ -2569,6 +2566,9 @@ useEffect(() => {
     nextEpisodeHref,
     playbackRate,
     router,
+    fallbackAudioStorageSrc,
+    runtimeGeneratedAudioSegments.length,
+    useSegmentedAudioFallback,    
   ]);
 
   useEffect(() => {

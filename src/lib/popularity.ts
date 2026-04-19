@@ -1,10 +1,18 @@
 import { supabase } from "@/lib/supabaseClient";
 
-type PopularitySourceRow = Record<string, unknown> & {
+type PopularityDailyRow = Record<string, unknown> & {
   series_id?: string | null;
   seriesId?: string | null;
-  created_at?: string | null;
-  createdAt?: string | null;
+  bucket_date?: string | null;
+  bucketDate?: string | null;
+  like_count?: number | null;
+  likeCount?: number | null;
+  bookmark_count?: number | null;
+  bookmarkCount?: number | null;
+  view_count?: number | null;
+  viewCount?: number | null;
+  narration_play_count?: number | null;
+  narrationPlayCount?: number | null;
 };
 
 export type PopularityWindow = {
@@ -23,15 +31,12 @@ export type SeriesPopularityMetrics = {
 
 export type SeriesPopularityDataset = {
   seriesIds: string[];
-  reactionRows: PopularitySourceRow[];
-  bookmarkRows: PopularitySourceRow[];
-  viewRows: PopularitySourceRow[];
-  narrationRows: PopularitySourceRow[];
-  canUseReactionCreatedAt: boolean;
-  canUseBookmarkCreatedAt: boolean;
+  dailyRows: PopularityDailyRow[];
 };
 
-function pickSeriesId(row: PopularitySourceRow): string | null {
+const TOKYO_TIMEZONE = "Asia/Tokyo";
+
+function pickSeriesId(row: PopularityDailyRow): string | null {
   const value = row.series_id ?? row.seriesId;
 
   if (typeof value !== "string") {
@@ -42,15 +47,42 @@ function pickSeriesId(row: PopularitySourceRow): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function pickCreatedAtValue(row: PopularitySourceRow): number | null {
-  const value = row.created_at ?? row.createdAt;
+function pickBucketDate(row: PopularityDailyRow): string {
+  const value = row.bucket_date ?? row.bucketDate;
+  return typeof value === "string" ? value : "";
+}
 
-  if (typeof value !== "string" || value.trim().length === 0) {
-    return null;
+function pickCount(
+  primary: number | null | undefined,
+  secondary: number | null | undefined
+): number {
+  const raw = primary ?? secondary ?? 0;
+
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return raw;
   }
 
-  const parsed = new Date(value).getTime();
-  return Number.isNaN(parsed) ? null : parsed;
+  const parsed = Number(raw);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function toTokyoDateInput(value: number): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: TOKYO_TIMEZONE,
+  }).formatToParts(new Date(value));
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+
+  if (!year || !month || !day) {
+    return "";
+  }
+
+  return `${year}-${month}-${day}`;
 }
 
 function hasWindow(window?: PopularityWindow): boolean {
@@ -60,44 +92,38 @@ function hasWindow(window?: PopularityWindow): boolean {
   );
 }
 
-function buildCountMap(
-  rows: PopularitySourceRow[],
+function isRowInWindow(
+  row: PopularityDailyRow,
   window?: PopularityWindow
-): Map<string, number> {
-  const countMap = new Map<string, number>();
-  const useWindow = hasWindow(window);
-
-  const startAt =
-    typeof window?.startAtValue === "number"
-      ? window.startAtValue
-      : Number.NEGATIVE_INFINITY;
-
-  const endAt =
-    typeof window?.endAtValue === "number"
-      ? window.endAtValue
-      : Number.POSITIVE_INFINITY;
-
-  for (const row of rows) {
-    const seriesId = pickSeriesId(row);
-    if (!seriesId) {
-      continue;
-    }
-
-    if (useWindow) {
-      const createdAtValue = pickCreatedAtValue(row);
-      if (createdAtValue === null) {
-        continue;
-      }
-
-      if (createdAtValue < startAt || createdAtValue > endAt) {
-        continue;
-      }
-    }
-
-    countMap.set(seriesId, (countMap.get(seriesId) ?? 0) + 1);
+): boolean {
+  if (!hasWindow(window)) {
+    return true;
   }
 
-  return countMap;
+  const bucketDate = pickBucketDate(row);
+  if (!bucketDate) {
+    return false;
+  }
+
+  const startDate =
+    typeof window?.startAtValue === "number"
+      ? toTokyoDateInput(window.startAtValue)
+      : "";
+
+  const endDate =
+    typeof window?.endAtValue === "number"
+      ? toTokyoDateInput(window.endAtValue)
+      : "";
+
+  if (startDate && bucketDate < startDate) {
+    return false;
+  }
+
+  if (endDate && bucketDate > endDate) {
+    return false;
+  }
+
+  return true;
 }
 
 export function calculatePopularityScore(input: {
@@ -106,126 +132,6 @@ export function calculatePopularityScore(input: {
   viewCount: number;
 }): number {
   return input.viewCount / 100 + input.likeCount + input.bookmarkCount / 3;
-}
-
-async function fetchReactionRows(seriesIds: string[]): Promise<{
-  rows: PopularitySourceRow[];
-  canUseCreatedAt: boolean;
-}> {
-  if (seriesIds.length === 0) {
-    return {
-      rows: [],
-      canUseCreatedAt: false,
-    };
-  }
-
-  const withCreatedAt = await supabase
-    .from("user_series_reactions")
-    .select("series_id, created_at")
-    .eq("reaction_type", "support")
-    .in("series_id", seriesIds);
-
-  if (!withCreatedAt.error) {
-    return {
-      rows: (withCreatedAt.data ?? []) as PopularitySourceRow[],
-      canUseCreatedAt: true,
-    };
-  }
-
-  const fallback = await supabase
-    .from("user_series_reactions")
-    .select("series_id")
-    .eq("reaction_type", "support")
-    .in("series_id", seriesIds);
-
-  if (fallback.error) {
-    return {
-      rows: [],
-      canUseCreatedAt: false,
-    };
-  }
-
-  return {
-    rows: (fallback.data ?? []) as PopularitySourceRow[],
-    canUseCreatedAt: false,
-  };
-}
-
-async function fetchBookmarkRows(seriesIds: string[]): Promise<{
-  rows: PopularitySourceRow[];
-  canUseCreatedAt: boolean;
-}> {
-  if (seriesIds.length === 0) {
-    return {
-      rows: [],
-      canUseCreatedAt: false,
-    };
-  }
-
-  const withCreatedAt = await supabase
-    .from("user_series_bookmarks")
-    .select("series_id, created_at")
-    .in("series_id", seriesIds);
-
-  if (!withCreatedAt.error) {
-    return {
-      rows: (withCreatedAt.data ?? []) as PopularitySourceRow[],
-      canUseCreatedAt: true,
-    };
-  }
-
-  const fallback = await supabase
-    .from("user_series_bookmarks")
-    .select("series_id")
-    .in("series_id", seriesIds);
-
-  if (fallback.error) {
-    return {
-      rows: [],
-      canUseCreatedAt: false,
-    };
-  }
-
-  return {
-    rows: (fallback.data ?? []) as PopularitySourceRow[],
-    canUseCreatedAt: false,
-  };
-}
-
-async function fetchViewRows(seriesIds: string[]): Promise<PopularitySourceRow[]> {
-  if (seriesIds.length === 0) {
-    return [];
-  }
-
-  const { data, error } = await supabase
-    .from("series_view_events")
-    .select("series_id, created_at")
-    .in("series_id", seriesIds);
-
-  if (error) {
-    return [];
-  }
-
-  return (data ?? []) as PopularitySourceRow[];
-}
-
-async function fetchNarrationRows(
-  seriesIds: string[]
-): Promise<PopularitySourceRow[]> {
-  if (seriesIds.length === 0) {
-    return [];
-  }
-
-  const { data, error } = await supabase
-    .from("recording_play_events")
-    .select("series_id, created_at")
-    .in("series_id", seriesIds);
-
-  if (error) {
-    return [];
-  }
-
-  return (data ?? []) as PopularitySourceRow[];
 }
 
 export async function fetchSeriesPopularityDataset(
@@ -242,31 +148,39 @@ export async function fetchSeriesPopularityDataset(
   if (normalizedSeriesIds.length === 0) {
     return {
       seriesIds: [],
-      reactionRows: [],
-      bookmarkRows: [],
-      viewRows: [],
-      narrationRows: [],
-      canUseReactionCreatedAt: false,
-      canUseBookmarkCreatedAt: false,
+      dailyRows: [],
     };
   }
 
-  const [reactionResult, bookmarkResult, viewRows, narrationRows] =
-    await Promise.all([
-      fetchReactionRows(normalizedSeriesIds),
-      fetchBookmarkRows(normalizedSeriesIds),
-      fetchViewRows(normalizedSeriesIds),
-      fetchNarrationRows(normalizedSeriesIds),
-    ]);
+  const narrow = await supabase
+    .from("series_popularity_daily")
+    .select(
+      "series_id, bucket_date, like_count, bookmark_count, view_count, narration_play_count"
+    )
+    .in("series_id", normalizedSeriesIds);
+
+  if (!narrow.error) {
+    return {
+      seriesIds: normalizedSeriesIds,
+      dailyRows: (narrow.data ?? []) as PopularityDailyRow[],
+    };
+  }
+
+  const fallback = await supabase
+    .from("series_popularity_daily")
+    .select("*")
+    .in("series_id", normalizedSeriesIds);
+
+  if (fallback.error) {
+    return {
+      seriesIds: normalizedSeriesIds,
+      dailyRows: [],
+    };
+  }
 
   return {
     seriesIds: normalizedSeriesIds,
-    reactionRows: reactionResult.rows,
-    bookmarkRows: bookmarkResult.rows,
-    viewRows,
-    narrationRows,
-    canUseReactionCreatedAt: reactionResult.canUseCreatedAt,
-    canUseBookmarkCreatedAt: bookmarkResult.canUseCreatedAt,
+    dailyRows: (fallback.data ?? []) as PopularityDailyRow[],
   };
 }
 
@@ -287,46 +201,64 @@ export function buildSeriesPopularityMap(
   dataset: SeriesPopularityDataset,
   window?: PopularityWindow
 ): Map<string, SeriesPopularityMetrics> {
-  const useWindow = hasWindow(window);
-
-  const reactionCountMap =
-    useWindow && !dataset.canUseReactionCreatedAt
-      ? new Map<string, number>()
-      : buildCountMap(dataset.reactionRows, useWindow ? window : undefined);
-
-  const bookmarkCountMap =
-    useWindow && !dataset.canUseBookmarkCreatedAt
-      ? new Map<string, number>()
-      : buildCountMap(dataset.bookmarkRows, useWindow ? window : undefined);
-
-  const viewCountMap = buildCountMap(
-    dataset.viewRows,
-    useWindow ? window : undefined
-  );
-
-  const narrationCountMap = buildCountMap(
-    dataset.narrationRows,
-    useWindow ? window : undefined
-  );
-
   const result = new Map<string, SeriesPopularityMetrics>();
 
+  const aggregateMap = new Map<
+    string,
+    {
+      likeCount: number;
+      bookmarkCount: number;
+      viewCount: number;
+      narrationPlayCount: number;
+    }
+  >();
+
+  for (const row of dataset.dailyRows) {
+    if (!isRowInWindow(row, window)) {
+      continue;
+    }
+
+    const seriesId = pickSeriesId(row);
+    if (!seriesId) {
+      continue;
+    }
+
+    const current = aggregateMap.get(seriesId) ?? {
+      likeCount: 0,
+      bookmarkCount: 0,
+      viewCount: 0,
+      narrationPlayCount: 0,
+    };
+
+    current.likeCount += pickCount(row.like_count, row.likeCount);
+    current.bookmarkCount += pickCount(row.bookmark_count, row.bookmarkCount);
+    current.viewCount += pickCount(row.view_count, row.viewCount);
+    current.narrationPlayCount += pickCount(
+      row.narration_play_count,
+      row.narrationPlayCount
+    );
+
+    aggregateMap.set(seriesId, current);
+  }
+
   for (const seriesId of dataset.seriesIds) {
-    const likeCount = reactionCountMap.get(seriesId) ?? 0;
-    const bookmarkCount = bookmarkCountMap.get(seriesId) ?? 0;
-    const viewCount = viewCountMap.get(seriesId) ?? 0;
-    const narrationPlayCount = narrationCountMap.get(seriesId) ?? 0;
+    const current = aggregateMap.get(seriesId) ?? {
+      likeCount: 0,
+      bookmarkCount: 0,
+      viewCount: 0,
+      narrationPlayCount: 0,
+    };
 
     result.set(seriesId, {
       seriesId,
-      likeCount,
-      bookmarkCount,
-      viewCount,
-      narrationPlayCount,
+      likeCount: current.likeCount,
+      bookmarkCount: current.bookmarkCount,
+      viewCount: current.viewCount,
+      narrationPlayCount: current.narrationPlayCount,
       popularityScore: calculatePopularityScore({
-        likeCount,
-        bookmarkCount,
-        viewCount,
+        likeCount: current.likeCount,
+        bookmarkCount: current.bookmarkCount,
+        viewCount: current.viewCount,
       }),
     });
   }
