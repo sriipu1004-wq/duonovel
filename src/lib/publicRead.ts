@@ -214,11 +214,15 @@ async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> 
 async function fetchRecordingsByEpisodeId(
   episodeId: string
 ): Promise<PublicReadRecordingRow[]> {
+  if (!episodeId) {
+    return [];
+  }
+
   const adminSupabase = createAdminClient();
 
   const firstTry = await adminSupabase
     .from("recordings")
-    .select("*")
+    .select(PUBLIC_READ_RECORDING_SELECT)
     .eq("episode_id", episodeId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
@@ -231,13 +235,39 @@ async function fetchRecordingsByEpisodeId(
 
   const secondTry = await adminSupabase
     .from("recordings")
-    .select("*")
+    .select(PUBLIC_READ_RECORDING_SELECT)
     .eq("episodeId", episodeId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
 
   if (!secondTry.error) {
     return ((secondTry.data ?? []) as PublicReadRecordingRow[]).filter(
+      isPublicRecording
+    );
+  }
+
+  const fallbackFirstTry = await adminSupabase
+    .from("recordings")
+    .select("*")
+    .eq("episode_id", episodeId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
+
+  if (!fallbackFirstTry.error) {
+    return ((fallbackFirstTry.data ?? []) as PublicReadRecordingRow[]).filter(
+      isPublicRecording
+    );
+  }
+
+  const fallbackSecondTry = await adminSupabase
+    .from("recordings")
+    .select("*")
+    .eq("episodeId", episodeId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
+
+  if (!fallbackSecondTry.error) {
+    return ((fallbackSecondTry.data ?? []) as PublicReadRecordingRow[]).filter(
       isPublicRecording
     );
   }

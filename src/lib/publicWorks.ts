@@ -428,25 +428,80 @@ function getRecordingSeriesId(recording: RecordingAggregateRow): string {
   return pickText(recording.series_id, recording.seriesId);
 }
 
-async function buildPublicRecordingAggregates(): Promise<PublicRecordingAggregate[]> {
+function normalizeSeriesIds(seriesIds?: string[]): string[] {
+  return Array.from(
+    new Set(
+      (seriesIds ?? [])
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+    )
+  ).sort((left, right) => left.localeCompare(right));
+}
+
+async function buildPublicRecordingAggregates(
+  seriesIds?: string[]
+): Promise<PublicRecordingAggregate[]> {
   const supabase = createPublicServerClient();
+  const normalizedSeriesIds = normalizeSeriesIds(seriesIds);
 
   let data: RecordingAggregateRow[] = [];
 
-  const narrow = await supabase
-    .from("recordings")
-    .select(PUBLIC_WORK_RECORDING_AGGREGATE_SELECT);
+  if (normalizedSeriesIds.length > 0) {
+    const narrow = await supabase
+      .from("recordings")
+      .select(PUBLIC_WORK_RECORDING_AGGREGATE_SELECT)
+      .in("series_id", normalizedSeriesIds);
 
-  if (!narrow.error) {
-    data = (narrow.data ?? []) as RecordingAggregateRow[];
-  } else {
-    const fallback = await supabase.from("recordings").select("*");
+    if (!narrow.error) {
+      data = (narrow.data ?? []) as RecordingAggregateRow[];
+    } else {
+      const secondTry = await supabase
+        .from("recordings")
+        .select(PUBLIC_WORK_RECORDING_AGGREGATE_SELECT)
+        .in("seriesId", normalizedSeriesIds);
 
-    if (fallback.error) {
-      throw new Error(`recordings の取得に失敗: ${fallback.error.message}`);
+      if (!secondTry.error) {
+        data = (secondTry.data ?? []) as RecordingAggregateRow[];
+      } else {
+        const fallback = await supabase
+          .from("recordings")
+          .select("*")
+          .in("series_id", normalizedSeriesIds);
+
+        if (!fallback.error) {
+          data = (fallback.data ?? []) as RecordingAggregateRow[];
+        } else {
+          const fallbackSecondTry = await supabase
+            .from("recordings")
+            .select("*")
+            .in("seriesId", normalizedSeriesIds);
+
+          if (fallbackSecondTry.error) {
+            throw new Error(
+              `recordings の取得に失敗: ${fallbackSecondTry.error.message}`
+            );
+          }
+
+          data = (fallbackSecondTry.data ?? []) as RecordingAggregateRow[];
+        }
+      }
     }
+  } else {
+    const narrow = await supabase
+      .from("recordings")
+      .select(PUBLIC_WORK_RECORDING_AGGREGATE_SELECT);
 
-    data = (fallback.data ?? []) as RecordingAggregateRow[];
+    if (!narrow.error) {
+      data = (narrow.data ?? []) as RecordingAggregateRow[];
+    } else {
+      const fallback = await supabase.from("recordings").select("*");
+
+      if (fallback.error) {
+        throw new Error(`recordings の取得に失敗: ${fallback.error.message}`);
+      }
+
+      data = (fallback.data ?? []) as RecordingAggregateRow[];
+    }
   }
 
   const aggregateMap = new Map<
@@ -458,7 +513,7 @@ async function buildPublicRecordingAggregates(): Promise<PublicRecordingAggregat
     }
   >();
 
-  for (const rawRecording of (data ?? []) as RecordingAggregateRow[]) {
+  for (const rawRecording of data) {
     if (!isPublicRecording(rawRecording)) {
       continue;
     }
@@ -490,15 +545,28 @@ async function buildPublicRecordingAggregates(): Promise<PublicRecordingAggregat
 }
 
 const getCachedPublicRecordingAggregatesInternal = unstable_cache(
-  buildPublicRecordingAggregates,
+  async (seriesIdsKey: string) => {
+    const seriesIds =
+      seriesIdsKey.trim().length > 0
+        ? seriesIdsKey
+            .split(",")
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0)
+        : [];
+
+    return buildPublicRecordingAggregates(seriesIds);
+  },
   ["public-recording-aggregates"],
   {
     revalidate: 60,
   }
 );
 
-export async function getCachedPublicRecordingAggregates(): Promise<
-  PublicRecordingAggregate[]
-> {
-  return getCachedPublicRecordingAggregatesInternal();
+export async function getCachedPublicRecordingAggregates(
+  seriesIds?: string[]
+): Promise<PublicRecordingAggregate[]> {
+  const normalizedSeriesIds = normalizeSeriesIds(seriesIds);
+  return getCachedPublicRecordingAggregatesInternal(
+    normalizedSeriesIds.join(",")
+  );
 }

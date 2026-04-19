@@ -342,10 +342,18 @@ export default async function ReadEpisodePage({
     selectedRecording?.audioStoragePath
   );
 
+  const shouldFetchGeneratedPlaybackAssets =
+    recordingAvailable && isNemoReaderName(selectedReaderName ?? "");
+
   const {
     sentenceTimings: generatedSentenceTimings,
     audioSegments: generatedAudioSegments,
-  } = await fetchGeneratedPlaybackAssets(audioStoragePath);
+  } = shouldFetchGeneratedPlaybackAssets
+    ? await fetchGeneratedPlaybackAssets(audioStoragePath)
+    : {
+        sentenceTimings: [],
+        audioSegments: [],
+      };
 
   const seriesTitle = pickText(series.title) || "無題";
   const commentsVisible = isSeriesEpisodeCommentVisible(series);

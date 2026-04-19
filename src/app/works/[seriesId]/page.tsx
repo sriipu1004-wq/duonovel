@@ -757,15 +757,28 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   if (recordingPermissionMode === "open") {
   }
 
-  const { recordings, fetchErrorMessage } = await fetchRecordingsByEpisodeIds(
-    episodes.map((episode) => episode.id)
-  );
-  const episodeNumberById = new Map(episodes.map((episode) => [episode.id, getEpisodeNumber(episode)]));
-  const readerCards = buildReaderCards(recordings, episodeNumberById);
-
   const requestedReaderSpecified = Boolean(
     pickText(selectedReaderKey, selectedReaderName)
   );
+
+  const shouldFetchRecordings =
+    currentTab === "readers" ||
+    requestedReaderSpecified ||
+    recordingPermissionMode === "open";
+
+  const episodeIds = episodes.map((episode) => episode.id);
+
+  const { recordings, fetchErrorMessage } = shouldFetchRecordings
+    ? await fetchRecordingsByEpisodeIds(episodeIds)
+    : {
+        recordings: [],
+        fetchErrorMessage: null,
+      };
+
+  const episodeNumberById = new Map(
+    episodes.map((episode) => [episode.id, getEpisodeNumber(episode)])
+  );
+  const readerCards = buildReaderCards(recordings, episodeNumberById);
 
   const selectedReaderEpisodeIdSet = new Set(
     requestedReaderSpecified

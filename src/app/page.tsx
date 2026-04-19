@@ -192,10 +192,10 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
   const mode = pickText(resolvedSearchParams?.mode);
   const tag = pickText(resolvedSearchParams?.tag);
 
-  const [baseWorkCards, recordingAggregates] = await Promise.all([
-    getCachedPublicBaseWorkCards(),
-    getCachedPublicRecordingAggregates(),
-  ]);
+  const baseWorkCards = await getCachedPublicBaseWorkCards();
+  const recordingAggregates = await getCachedPublicRecordingAggregates(
+    baseWorkCards.map((work) => work.seriesId)
+  );
 
   const recordingAggregateMap = new Map(
     recordingAggregates.map((aggregate) => [aggregate.seriesId, aggregate])
