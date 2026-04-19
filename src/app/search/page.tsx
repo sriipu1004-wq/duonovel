@@ -693,10 +693,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const selectedTagTokens = selectedTagLabels.map(normalizeTagToken);
   const selectedGenreTokens = selectedGenreLabels.map(normalizeGenreToken);
 
-  const selectedPopularityMap = buildSeriesPopularityMap(popularityDataset, {
-    startAtValue: safeStartAtValue,
-    endAtValue: safeEndAtValue,
-  });
+  const selectedPopularityMap =
+    order === "popular"
+      ? buildSeriesPopularityMap(popularityDataset, {
+          startAtValue: safeStartAtValue,
+          endAtValue: safeEndAtValue,
+        })
+      : null;
 
   const filteredWorks = workCards.filter((work) => {
     const queryOk =
@@ -730,7 +733,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     shelfTab === "narration-popular"
       ? filterWorksWithNarrationActivity(
           filteredWorks,
-          order === "popular" ? selectedPopularityMap : undefined
+          selectedPopularityMap ?? undefined
         )
       : filteredWorks;
 
@@ -738,7 +741,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     shelfFilteredWorks,
     order,
     shelfTab,
-    order === "popular" ? selectedPopularityMap : undefined
+    selectedPopularityMap ?? undefined
   );
 
   const currentResultsHeading = "検索結果";
@@ -776,23 +779,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     shelfTab,
   });
 
-  const currentResultsHref = `${buildSearchHref({
-    q: query,
-    selectedTags: selectedTagLabels,
-    selectedGenres: selectedGenreLabels,
-    order,
-    start: selectedStartInput,
-    end: selectedEndInput,
-    showTags: showAllTags,
-    showGenres: showAllGenres,
-    shelfTab,
-  })}#results`;      
-
   const availableTags = buildAvailableTags(workCards);
   const availableGenres = buildAvailableGenres(workCards);
   const genreCandidateSource =
     availableGenres.length > 0 ? availableGenres : PLACEHOLDER_GENRES;
-  const genreShelfSource = genreCandidateSource;
 
   const collapsedTagPreview = availableTags.slice(0, 10);
   const collapsedGenrePreview = genreCandidateSource.slice(0, 7);
@@ -805,96 +795,115 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     ? genreCandidateSource
     : collapsedGenrePreview;
 
-  const overallShelfConfigs: ShelfConfig[] = [
-    {
-      key: "popular-daily",
-      title: "日間",
-      description: "直近1日で獲得した人気値順で表示。",
-      order: "popular",
-      start: formatInputDate(subtractDaysClamped(Date.now(), 1, oldestPublicAtValue)),
-      end: defaultEndInput,
-    },
-    {
-      key: "popular-weekly",
-      title: "週間",
-      description: "直近7日で獲得した人気値順で表示。",
-      order: "popular",
-      start: formatInputDate(subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)),
-      end: defaultEndInput,
-    },
-    {
-      key: "popular-monthly",
-      title: "月間",
-      description: "直近30日で獲得した人気値順で表示。",
-      order: "popular",
-      start: formatInputDate(subtractDaysClamped(Date.now(), 30, oldestPublicAtValue)),
-      end: defaultEndInput,
-    },
-    {
-      key: "popular-quarterly",
-      title: "四半期",
-      description: "直近90日で獲得した人気値順で表示。",
-      order: "popular",
-      start: formatInputDate(subtractDaysClamped(Date.now(), 90, oldestPublicAtValue)),
-      end: defaultEndInput,
-    },
-    {
-      key: "popular-yearly",
-      title: "年間",
-      description: "直近365日で獲得した人気値順で表示。",
-      order: "popular",
-      start: formatInputDate(subtractDaysClamped(Date.now(), 365, oldestPublicAtValue)),
-      end: defaultEndInput,
-    },
-    {
-      key: "popular-all",
-      title: "累計",
-      description: "全期間の人気値順で表示。",
-      order: "popular",
-      start: defaultStartInput,
-      end: defaultEndInput,
-    },
-  ];
+  const isOverallShelfTab = shelfTab === "overall-popular";
+  const isLatestShelfTab = shelfTab === "latest";
+  const isWeeklyNewShelfTab = shelfTab === "weekly-new";
+  const isNarrationShelfTab = shelfTab === "narration-popular";
 
-  const overallShelves = overallShelfConfigs.map((config) => {
-    const startAt = parseTokyoDateStart(config.start) ?? oldestPublicAtValue;
-    const endAt = parseTokyoDateEnd(config.end) ?? Date.now();
+  const overallShelfConfigs: ShelfConfig[] = isOverallShelfTab
+    ? [
+        {
+          key: "popular-daily",
+          title: "日間",
+          description: "直近1日で獲得した人気値順で表示。",
+          order: "popular",
+          start: formatInputDate(
+            subtractDaysClamped(Date.now(), 1, oldestPublicAtValue)
+          ),
+          end: defaultEndInput,
+        },
+        {
+          key: "popular-weekly",
+          title: "週間",
+          description: "直近7日で獲得した人気値順で表示。",
+          order: "popular",
+          start: formatInputDate(
+            subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)
+          ),
+          end: defaultEndInput,
+        },
+        {
+          key: "popular-monthly",
+          title: "月間",
+          description: "直近30日で獲得した人気値順で表示。",
+          order: "popular",
+          start: formatInputDate(
+            subtractDaysClamped(Date.now(), 30, oldestPublicAtValue)
+          ),
+          end: defaultEndInput,
+        },
+        {
+          key: "popular-quarterly",
+          title: "四半期",
+          description: "直近90日で獲得した人気値順で表示。",
+          order: "popular",
+          start: formatInputDate(
+            subtractDaysClamped(Date.now(), 90, oldestPublicAtValue)
+          ),
+          end: defaultEndInput,
+        },
+        {
+          key: "popular-yearly",
+          title: "年間",
+          description: "直近365日で獲得した人気値順で表示。",
+          order: "popular",
+          start: formatInputDate(
+            subtractDaysClamped(Date.now(), 365, oldestPublicAtValue)
+          ),
+          end: defaultEndInput,
+        },
+        {
+          key: "popular-all",
+          title: "累計",
+          description: "全期間の人気値順で表示。",
+          order: "popular",
+          start: defaultStartInput,
+          end: defaultEndInput,
+        },
+      ]
+    : [];
 
-    const shelfPopularityMap = buildSeriesPopularityMap(popularityDataset, {
-      startAtValue: startAt,
-      endAtValue: endAt,
-    });
+  const overallShelves = isOverallShelfTab
+    ? overallShelfConfigs.map((config) => {
+        const startAt = parseTokyoDateStart(config.start) ?? oldestPublicAtValue;
+        const endAt = parseTokyoDateEnd(config.end) ?? Date.now();
 
-    const shelfWorks: ShelfWorkEntry[] = sortByPopular(
-      workCards,
-      shelfPopularityMap
-    )
-      .slice(0, 5)
-      .map((work) => ({
-        work,
-        metrics:
-          shelfPopularityMap.get(work.seriesId) ??
-          createEmptyPopularityMetrics(work.seriesId),
-      }));
+        const shelfPopularityMap = buildSeriesPopularityMap(popularityDataset, {
+          startAtValue: startAt,
+          endAtValue: endAt,
+        });
 
-    return {
-      ...config,
-      works: shelfWorks,
-      href: buildSearchHref({
-        selectedGenres: selectedGenreLabels,
-        selectedTags: selectedTagLabels,
-        order: config.order,
-        start: config.start,
-        end: config.end,
-        shelfTab: "overall-popular",
-        showTags: showAllTags,
-        showGenres: showAllGenres,
-      }),
-    };
-  });
+        const shelfWorks: ShelfWorkEntry[] = sortByPopular(
+          workCards,
+          shelfPopularityMap
+        )
+          .slice(0, 5)
+          .map((work) => ({
+            work,
+            metrics:
+              shelfPopularityMap.get(work.seriesId) ??
+              createEmptyPopularityMetrics(work.seriesId),
+          }));
+
+        return {
+          ...config,
+          works: shelfWorks,
+          href: buildSearchHref({
+            selectedGenres: selectedGenreLabels,
+            selectedTags: selectedTagLabels,
+            order: config.order,
+            start: config.start,
+            end: config.end,
+            shelfTab: "overall-popular",
+            showTags: showAllTags,
+            showGenres: showAllGenres,
+          }),
+        };
+      })
+    : [];
 
   const latestGenreSections =
-    availableGenres.length > 0
+    isLatestShelfTab && availableGenres.length > 0
       ? buildGenreShelfSections({
           genres: availableGenres,
           works: workCards,
@@ -918,26 +927,39 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         })
       : [];
 
-  const weeklyNewStartAtValue = subtractDaysClamped(
-    Date.now(),
-    7,
-    oldestPublicAtValue
-  );
-  const weeklyNewStartInput = formatInputDate(weeklyNewStartAtValue);
+  const latestPlaceholderSections =
+    isLatestShelfTab && latestGenreSections.length === 0
+      ? buildGenrePlaceholderSections(
+          genreCandidateSource,
+          "genre 実データがまだ無いため、ここは placeholder を表示している。"
+        )
+      : [];
 
-  const weeklyNewWorks = workCards.filter((work) => {
-    const firstPublicAtValue = getWorkFirstPublicAtValue(work);
+  const weeklyNewStartAtValue = isWeeklyNewShelfTab
+    ? subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)
+    : 0;
 
-    return (
-      firstPublicAtValue >= weeklyNewStartAtValue &&
-      firstPublicAtValue <= Date.now()
-    );
-  });
+  const weeklyNewStartInput = isWeeklyNewShelfTab
+    ? formatInputDate(weeklyNewStartAtValue)
+    : "";
 
-  const weeklyNewGenres = buildAvailableGenres(weeklyNewWorks);
+  const weeklyNewWorks = isWeeklyNewShelfTab
+    ? workCards.filter((work) => {
+        const firstPublicAtValue = getWorkFirstPublicAtValue(work);
+
+        return (
+          firstPublicAtValue >= weeklyNewStartAtValue &&
+          firstPublicAtValue <= Date.now()
+        );
+      })
+    : [];
+
+  const weeklyNewGenres = isWeeklyNewShelfTab
+    ? buildAvailableGenres(weeklyNewWorks)
+    : [];
 
   const weeklyNewGenreSections =
-    weeklyNewGenres.length > 0
+    isWeeklyNewShelfTab && weeklyNewGenres.length > 0
       ? buildGenreShelfSections({
           genres: weeklyNewGenres,
           works: weeklyNewWorks,
@@ -961,103 +983,115 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         })
       : [];
 
-  const latestPlaceholderSections = buildGenrePlaceholderSections(
-    genreShelfSource,
-    "genre 実データがまだ無いため、ここは placeholder を表示している。"
-  );
+  const weeklyNewPlaceholderSections =
+    isWeeklyNewShelfTab && weeklyNewGenreSections.length === 0
+      ? buildGenrePlaceholderSections(
+          genreCandidateSource,
+          "直近7日で初公開された genre 実データがまだ無いため、ここは placeholder を表示している。"
+        )
+      : [];
 
-  const weeklyNewPlaceholderSections = buildGenrePlaceholderSections(
-    genreShelfSource,
-    "直近7日で初公開された genre 実データがまだ無いため、ここは placeholder を表示している。"
-  );
+  const narrationShelfConfigs: ShelfConfig[] = isNarrationShelfTab
+    ? [
+        {
+          key: "narration-daily",
+          title: "日間",
+          description: "直近1日で再生された朗読視聴数順で表示。",
+          order: "popular",
+          start: formatInputDate(
+            subtractDaysClamped(Date.now(), 1, oldestPublicAtValue)
+          ),
+          end: defaultEndInput,
+        },
+        {
+          key: "narration-weekly",
+          title: "週間",
+          description: "直近7日で再生された朗読視聴数順で表示。",
+          order: "popular",
+          start: formatInputDate(
+            subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)
+          ),
+          end: defaultEndInput,
+        },
+        {
+          key: "narration-monthly",
+          title: "月間",
+          description: "直近30日で再生された朗読視聴数順で表示。",
+          order: "popular",
+          start: formatInputDate(
+            subtractDaysClamped(Date.now(), 30, oldestPublicAtValue)
+          ),
+          end: defaultEndInput,
+        },
+        {
+          key: "narration-quarterly",
+          title: "四半期",
+          description: "直近90日で再生された朗読視聴数順で表示。",
+          order: "popular",
+          start: formatInputDate(
+            subtractDaysClamped(Date.now(), 90, oldestPublicAtValue)
+          ),
+          end: defaultEndInput,
+        },
+        {
+          key: "narration-yearly",
+          title: "年間",
+          description: "直近365日で再生された朗読視聴数順で表示。",
+          order: "popular",
+          start: formatInputDate(
+            subtractDaysClamped(Date.now(), 365, oldestPublicAtValue)
+          ),
+          end: defaultEndInput,
+        },
+        {
+          key: "narration-all",
+          title: "累計",
+          description: "全期間の朗読視聴数順で表示。",
+          order: "popular",
+          start: defaultStartInput,
+          end: defaultEndInput,
+        },
+      ]
+    : [];
 
-  const narrationShelfConfigs: ShelfConfig[] = [
-    {
-      key: "narration-daily",
-      title: "日間",
-      description: "直近1日で再生された朗読視聴数順で表示。",
-      order: "popular",
-      start: formatInputDate(subtractDaysClamped(Date.now(), 1, oldestPublicAtValue)),
-      end: defaultEndInput,
-    },
-    {
-      key: "narration-weekly",
-      title: "週間",
-      description: "直近7日で再生された朗読視聴数順で表示。",
-      order: "popular",
-      start: formatInputDate(subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)),
-      end: defaultEndInput,
-    },
-    {
-      key: "narration-monthly",
-      title: "月間",
-      description: "直近30日で再生された朗読視聴数順で表示。",
-      order: "popular",
-      start: formatInputDate(subtractDaysClamped(Date.now(), 30, oldestPublicAtValue)),
-      end: defaultEndInput,
-    },
-    {
-      key: "narration-quarterly",
-      title: "四半期",
-      description: "直近90日で再生された朗読視聴数順で表示。",
-      order: "popular",
-      start: formatInputDate(subtractDaysClamped(Date.now(), 90, oldestPublicAtValue)),
-      end: defaultEndInput,
-    },
-    {
-      key: "narration-yearly",
-      title: "年間",
-      description: "直近365日で再生された朗読視聴数順で表示。",
-      order: "popular",
-      start: formatInputDate(subtractDaysClamped(Date.now(), 365, oldestPublicAtValue)),
-      end: defaultEndInput,
-    },
-    {
-      key: "narration-all",
-      title: "累計",
-      description: "全期間の朗読視聴数順で表示。",
-      order: "popular",
-      start: defaultStartInput,
-      end: defaultEndInput,
-    },
-  ];
+  const narrationShelves = isNarrationShelfTab
+    ? narrationShelfConfigs.map((config) => {
+        const startAt = parseTokyoDateStart(config.start) ?? oldestPublicAtValue;
+        const endAt = parseTokyoDateEnd(config.end) ?? Date.now();
 
-  const narrationShelves = narrationShelfConfigs.map((config) => {
-    const startAt = parseTokyoDateStart(config.start) ?? oldestPublicAtValue;
-    const endAt = parseTokyoDateEnd(config.end) ?? Date.now();
+        const shelfPopularityMap = buildSeriesPopularityMap(popularityDataset, {
+          startAtValue: startAt,
+          endAtValue: endAt,
+        });
 
-    const shelfPopularityMap = buildSeriesPopularityMap(popularityDataset, {
-      startAtValue: startAt,
-      endAtValue: endAt,
-    });
+        const shelfWorks: ShelfWorkEntry[] = sortByNarrationPopular(
+          filterWorksWithNarrationActivity(workCards, shelfPopularityMap),
+          shelfPopularityMap
+        )
+          .slice(0, 5)
+          .map((work) => ({
+            work,
+            metrics:
+              shelfPopularityMap.get(work.seriesId) ??
+              createEmptyPopularityMetrics(work.seriesId),
+          }));
 
-    const shelfWorks: ShelfWorkEntry[] = sortByNarrationPopular(
-      filterWorksWithNarrationActivity(workCards, shelfPopularityMap),
-      shelfPopularityMap
-    )
-      .slice(0, 5)
-      .map((work) => ({
-        work,
-        metrics:
-          shelfPopularityMap.get(work.seriesId) ??
-          createEmptyPopularityMetrics(work.seriesId),
-      }));
-
-    return {
-      ...config,
-      works: shelfWorks,
-      href: buildSearchHref({
-        selectedGenres: selectedGenreLabels,
-        selectedTags: selectedTagLabels,
-        order: config.order,
-        start: config.start,
-        end: config.end,
-        shelfTab: "narration-popular",
-        showTags: showAllTags,
-        showGenres: showAllGenres,
-      }),
-    };
-  });
+        return {
+          ...config,
+          works: shelfWorks,
+          href: buildSearchHref({
+            selectedGenres: selectedGenreLabels,
+            selectedTags: selectedTagLabels,
+            order: config.order,
+            start: config.start,
+            end: config.end,
+            shelfTab: "narration-popular",
+            showTags: showAllTags,
+            showGenres: showAllGenres,
+          }),
+        };
+      })
+    : [];
 
   const shelfTabs: Array<{ key: ShelfTabKey; label: string }> = [
     { key: "overall-popular", label: "総合人気順" },
@@ -1586,7 +1620,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               {sortedWorks.map((work) => {
                 const metrics =
                   order === "popular"
-                    ? selectedPopularityMap.get(work.seriesId) ??
+                    ? selectedPopularityMap?.get(work.seriesId) ??
                       createEmptyPopularityMetrics(work.seriesId)
                     : currentPopularityMap.get(work.seriesId) ??
                       createEmptyPopularityMetrics(work.seriesId);
