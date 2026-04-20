@@ -14,16 +14,19 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-950/60 p-5">
-      <h2 className="text-lg font-semibold text-white">{title}</h2>
-      <div className="space-y-3 text-sm leading-7 text-neutral-300">{children}</div>
+    <section className="space-y-3 rounded-[24px] border border-black/10 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-black">{title}</h2>
+      <div className="space-y-3 text-sm leading-7 text-neutral-600">
+        {children}
+      </div>
     </section>
   );
 }
 
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 sm:px-6">
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 sm:px-6">
       <header className="space-y-3">
         <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">LIB read</p>
         <h1 className="text-3xl font-bold text-white">プライバシーポリシー</h1>
@@ -138,7 +141,8 @@ export default function PrivacyPage() {
           広告掲載を開始する場合は、適用法令および利用する広告配信事業者のポリシーに応じて、
           必要な告知、同意取得、設定導線、オプトアウト案内等を行います。
         </p>
-      </Section>      
+      </Section> 
+      </div>
     </main>
   );
 }

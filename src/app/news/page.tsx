@@ -14,9 +14,11 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-4 rounded-2xl border border-neutral-800 bg-neutral-950/60 p-5">
-      <h2 className="text-lg font-semibold text-white">{title}</h2>
-      <div className="space-y-4 text-sm leading-7 text-neutral-300">{children}</div>
+    <section className="space-y-3 rounded-[24px] border border-black/10 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-black">{title}</h2>
+      <div className="space-y-3 text-sm leading-7 text-neutral-600">
+        {children}
+      </div>
     </section>
   );
 }
@@ -31,17 +33,18 @@ function NewsItem({
   children: React.ReactNode;
 }) {
   return (
-    <article className="space-y-2 rounded-2xl border border-neutral-800/80 bg-black/20 p-4">
-      <p className="text-xs tracking-[0.18em] text-neutral-400">{date}</p>
-      <h3 className="text-base font-semibold text-white">{title}</h3>
-      <div className="text-neutral-300">{children}</div>
+    <article className="space-y-2 rounded-2xl border border-black/10 bg-neutral-50 p-4">
+      <p className="text-xs tracking-[0.18em] text-neutral-500">{date}</p>
+      <h3 className="text-base font-semibold text-black">{title}</h3>
+      <div className="text-neutral-600">{children}</div>
     </article>
   );
 }
 
 export default function NewsPage() {
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 sm:px-6">
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 sm:px-6">
       <header className="space-y-3">
         <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">LIB read</p>
         <h1 className="text-3xl font-bold text-white">お知らせ</h1>
@@ -123,6 +126,7 @@ export default function NewsPage() {
           を見てください。
         </p>
       </Section>
+      </div>
     </main>
   );
 }

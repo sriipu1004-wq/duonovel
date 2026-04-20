@@ -266,7 +266,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
           <div className="grid gap-8 xl:grid-cols-[1.45fr_0.95fr] xl:items-start">
             <div>
               <p className="text-[11px] tracking-[0.24em] text-neutral-500">
-                PRELAUNCH / NOVEL / READ / LISTEN
+                NOVEL / READ / LISTEN
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">
@@ -277,21 +277,21 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                   完全無料
                 </span>
                 <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
-                  小説 / 朗読 / 演出
+                  小説 / 朗読
                 </span>
               </div>
 
               <h1 className="mt-4 text-3xl font-bold leading-tight text-black sm:text-4xl xl:text-5xl">
                 読む、聞く、投稿する。
                 <br />
-                朗読や演出も扱える小説投稿サイト。
+                完全無料で朗読が扱える小説投稿サイト。
               </h1>
 
               <p className="mt-5 max-w-4xl text-sm leading-8 text-neutral-700 sm:text-[15px]">
                 LIB read は、小説投稿サイトとしての読みやすさを土台にしながら、
-                朗読や文字・背景の演出も一緒に扱える完全無料の試作サイトです。
-                まずは公開作品を読むところから入れて、朗読付き作品や、著作権切れ作品の公開がある場合はそこから、
-                LIB read らしい体験の雰囲気をつかめます。
+                朗読や文字・背景の演出も一緒に扱える完全無料の小説投稿サイトです。
+                公開作品を読む。聞くなどして、
+                LIB read らしい体験の雰囲気をつかんでください。
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
@@ -308,20 +308,6 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                 >
                   公開作品を見る
                 </Link>
-
-                <Link
-                  href="/guide"
-                  className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50"
-                >
-                  まず使い方を見る
-                </Link>
-
-                <Link
-                  href="/status"
-                  className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50"
-                >
-                  現在の状態を見る
-                </Link>
               </div>
 
               <div className="mt-8">
@@ -334,25 +320,19 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                   <ExploreChip href="#weekly-new" label="週間新作おすすめ" />
                   <ExploreChip href="#overall-popular" label="総合人気順" />
                   <ExploreChip href="#narration-popular" label="朗読視聴人気順" />
-                  <ExploreChip href="#guide-links" label="使い方・FAQ" />
-                  <ExploreChip href="#status-links" label="運営状況・お知らせ" />
-                  <ExploreChip href="#legal-links" label="規約・窓口" />
-                  <ExploreChip href="/news" label="更新情報" />
-                  <ExploreChip href="/contact" label="問い合わせ" />
                 </div>
               </div>
             </div>
 
             <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4 sm:p-5">
               <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-                NOW IN PROTOTYPE
+                CURRENT POSITION
               </p>
               <h2 className="mt-3 text-xl font-bold leading-tight text-black sm:text-2xl">
-                今どこまで使える？
+                現在位置
               </h2>
               <p className="mt-3 text-sm leading-7 text-neutral-600">
-                LIB read は公開しながら整えている試作段階のサービスです。
-                今使える範囲と、これから増やしていく部分を分けて見えるようにしている。
+                LIB read の現在の提供範囲と、これから広げていく部分を分けて見えるようにしている。
               </p>
 
               <div className="mt-5 grid gap-3">
@@ -371,11 +351,9 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                 </div>
 
                 <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm font-semibold text-black">
-                    著作権切れ作品から試せること
-                  </p>
+                  <p className="text-sm font-semibold text-black">提供体験</p>
                   <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    著作権切れ作品の公開がある場合は、まずそこから読む・聞く・演出の雰囲気をつかみやすい。
+                    現在は著作切れの作品を主に取り扱い、都度更新予定です。ユーザー側からの発信は現在、朗読投稿のみに限られています。
                   </p>
                 </div>
 
@@ -402,7 +380,6 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
             <p className="mt-2 text-sm leading-7 text-neutral-600">
               従来の小説投稿サイトとしての使いやすさを残しながら、
               朗読や演出も含めて作品体験の幅を広げることを目指している。
-              まずは外から見て分かる形で、その特徴を上の方にまとめている。
             </p>
 
             <div className="mt-5 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
@@ -428,43 +405,11 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
               </div>
 
               <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">試作段階</p>
+                <p className="text-sm font-semibold text-black">公開運用</p>
                 <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  今使える範囲を先に見せつつ、未完成部分や今後の改善余地も明示している。
+                  今使える範囲を先に見せつつ、公開面の導線と体験を順次整えている。
                 </p>
               </div>
-            </div>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
-              <Link
-                href="/guide"
-                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
-              >
-                <p className="text-sm font-semibold text-black">初見の人向け</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  まず全体像をつかみたいときは、使い方・取り扱い説明から見る。
-                </p>
-              </Link>
-
-              <Link
-                href="/status"
-                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
-              >
-                <p className="text-sm font-semibold text-black">今の状態を見る</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  現在使える機能、調整中の内容、今後の予定は運営状況にまとめてある。
-                </p>
-              </Link>
-
-              <Link
-                href="/news"
-                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
-              >
-                <p className="text-sm font-semibold text-black">更新を追う</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  当面の更新追跡はお知らせページを入口にする。通知導線の土台もここにつなげやすい。
-                </p>
-              </Link>
             </div>
           </div>
         </section>
@@ -651,134 +596,48 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
           </section>
         ) : null}
 
-        <section id="guide-links" className="pt-12">
-          <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
-            <p className="text-[11px] tracking-[0.22em] text-neutral-500">
-              GUIDE / FAQ
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
-              使い方・取り扱い説明
-            </h2>
-            <p className="mt-2 text-sm leading-7 text-neutral-600">
-              初見の人向けに、このサイトで何ができるか、どう探すか、どう読むか、朗読や演出をどう見ればいいかをまとめた。
-              まず全体像をつかみたいならここから見る。
-            </p>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
-              <Link
-                href="/guide"
-                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
-              >
-                <p className="text-sm font-semibold text-black">使い方・取り扱い説明</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  LIB read の概要、作品の探し方、読み方、聞き方、朗読や演出の見方、試作段階についてまとめた。
-                </p>
-              </Link>
-
-              <Link
-                href="/faq"
-                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
-              >
-                <p className="text-sm font-semibold text-black">FAQ</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  よくある疑問を短く整理した案内ページ。困ったときの入口にも使える。
-                </p>
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        <section id="status-links" className="pt-12">
-          <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
-            <p className="text-[11px] tracking-[0.22em] text-neutral-500">
-              STATUS / NEWS
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
-              運営状況・お知らせ
-            </h2>
-            <p className="mt-2 text-sm leading-7 text-neutral-600">
-              現在どこまで使えるか、何を調整中か、最近どんな更新が入ったかをまとめた。
-              試作段階の全体像を知りたいときはここから見る。
-            </p>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
-              <Link
-                href="/status"
-                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
-              >
-                <p className="text-sm font-semibold text-black">運営状況</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  現在使える機能、調整中の内容、既知の制限、今後の予定をまとめた。
-                </p>
-              </Link>
-
-              <Link
-                href="/news"
-                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
-              >
-                <p className="text-sm font-semibold text-black">お知らせ</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  最近の更新履歴と、今後このサイトで更新情報を見る場所をまとめた。
-                </p>
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        <section id="legal-links" className="pt-12">
-          <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
-            <p className="text-[11px] tracking-[0.22em] text-neutral-500">
-              POLICY / SUPPORT
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
-              規約・お問い合わせ
-            </h2>
-            <p className="mt-2 text-sm leading-7 text-neutral-600">
-              LIB read の利用条件、個人情報の取り扱い、問い合わせ窓口をまとめた。
-              権利侵害申告や削除依頼を行う場合も、まずはここを確認してください。
-            </p>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
-              <Link
-                href="/terms"
-                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
-              >
-                <p className="text-sm font-semibold text-black">利用規約</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  禁止事項、投稿作品や朗読音声の扱い、免責などを確認できる。
-                </p>
-              </Link>
-
-              <Link
-                href="/privacy"
-                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
-              >
-                <p className="text-sm font-semibold text-black">プライバシーポリシー</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  取得情報、利用目的、保存や問い合わせ方法を確認できる。
-                </p>
-              </Link>
-
-              <Link
-                href="/contact"
-                className="rounded-2xl border border-black/10 bg-white p-5 transition hover:border-black/20 hover:bg-neutral-50"
-              >
-                <p className="text-sm font-semibold text-black">お問い合わせ</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  一般問い合わせ、権利侵害申告、削除依頼の連絡先導線。
-                </p>
-              </Link>
-            </div>
-          </div>
-        </section>
-
         <section id="home-ad-slot" className="pt-12">
           <PublicAdSlot
             slotId="home-bottom"
-            title="広告掲載予定"
-            description="トップでは公開作品や案内導線を見終えた後の下部だけに限定して、読書導線を邪魔しない形で広告を載せる予定。"
-            minHeightClassName="min-h-[132px]"
+            minHeightClassName="min-h-[88px]"
           />
+        </section>
+
+        <section id="home-links" className="pt-6">
+          <div className="border-t border-black/10 pt-4 text-[11px] leading-6 text-neutral-500">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="text-neutral-400">（使い方・取り扱い説明）</span>
+              <Link href="/guide" className="transition hover:text-black">
+                使い方
+              </Link>
+              <Link href="/faq" className="transition hover:text-black">
+                FAQ
+              </Link>
+            </div>
+
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="text-neutral-400">（運営状況・お知らせ）</span>
+              <Link href="/status" className="transition hover:text-black">
+                運営状況
+              </Link>
+              <Link href="/news" className="transition hover:text-black">
+                お知らせ
+              </Link>
+            </div>
+
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="text-neutral-400">（規約・お問い合わせ）</span>
+              <Link href="/terms" className="transition hover:text-black">
+                利用規約
+              </Link>
+              <Link href="/privacy" className="transition hover:text-black">
+                プライバシーポリシー
+              </Link>
+              <Link href="/contact" className="transition hover:text-black">
+                お問い合わせ
+              </Link>
+            </div>
+          </div>
         </section>
       </div>
     </main>
