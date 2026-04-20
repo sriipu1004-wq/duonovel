@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { decideNemoRegenerationByBody } from "@/lib/recording/nemoRegenerationDiff";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -306,16 +307,28 @@ if (scheduledBeforePreviousIsBlocked) {
     setErrorMessage("");
     setSuccessMessage("");
 
-const payload = createEpisodePayload({
-  seriesId,
-  episodeNumber: safeEpisodeNumber,
-  title: trimmedTitle,
-  body: trimmedBody,
-  postingStatus,
-  scheduledFor,
-  mode,
-  existingEpisode: episode ?? null,
-});
+    const previousBody = episode ? getEpisodeBody(episode) : "";
+    const regenerationDecision =
+      mode === "edit"
+        ? decideNemoRegenerationByBody({
+            previousBody,
+            nextBody: trimmedBody,
+          })
+        : decideNemoRegenerationByBody({
+            previousBody: "",
+            nextBody: trimmedBody,
+          });
+
+    const payload = createEpisodePayload({
+      seriesId,
+      episodeNumber: safeEpisodeNumber,
+      title: trimmedTitle,
+      body: trimmedBody,
+      postingStatus,
+      scheduledFor,
+      mode,
+      existingEpisode: episode ?? null,
+    });
 
     if (mode === "create") {
       const result = await supabase
@@ -326,7 +339,11 @@ const payload = createEpisodePayload({
 
       if (!result.error && result.data?.id) {
         setSaveState("success");
-        setSuccessMessage("話を作成した。");
+        setSuccessMessage(
+          regenerationDecision.shouldRegenerate
+            ? "話を作成した。自動朗読は再生成対象。"
+            : "話を作成した。自動朗読の再生成は不要。"
+        );
 
         router.push(
           destination === "effects"
@@ -351,7 +368,11 @@ const payload = createEpisodePayload({
 
     if (!result.error) {
       setSaveState("success");
-      setSuccessMessage("話を保存した。");
+      setSuccessMessage(
+        regenerationDecision.shouldRegenerate
+          ? "話を保存した。自動朗読は再生成対象。"
+          : "話を保存した。自動朗読の再生成は不要。"
+      );
 
       if (destination === "next") {
         router.push(`/write/series/${seriesId}/episodes/new`);

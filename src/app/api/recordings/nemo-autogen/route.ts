@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
 import { runNemoAutoGenerationStep } from "@/lib/recording/nemoAutoGeneration";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -9,6 +11,32 @@ type RequestBody = {
 };
 
 export async function POST(request: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "ログイン状態を確認できなかった。",
+      },
+      { status: 401 }
+    );
+  }
+
+  if (!isOfficialNarrationAccountEmail(user.email)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "この操作は公式朗読アカウントのみ実行できる。",
+      },
+      { status: 403 }
+    );
+  }
+
   let body: RequestBody;
 
   try {

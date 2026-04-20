@@ -446,7 +446,7 @@ export default async function ReadEpisodePage({
       <NemoAutoGenerationBootstrap
         seriesId={seriesId}
         episodeIds={[episode.id]}
-        enabled={recordingPermissionMode === "open" && !recordingAvailable}
+        enabled={false}
       />
       <EpisodePlayback
         seriesId={seriesId}

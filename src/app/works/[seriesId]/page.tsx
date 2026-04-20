@@ -906,8 +906,8 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       <NemoAutoGenerationBootstrap
         seriesId={seriesId}
         episodeIds={episodes.map((episode) => episode.id)}
-        enabled={recordingPermissionMode === "open"}
-      /> 
+        enabled={false}
+      />
       <ReaderSelectionBootstrap
         seriesId={seriesId}
         currentTab={currentTab}
