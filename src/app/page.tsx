@@ -5,6 +5,7 @@ import {
   getCachedPublicRecordingAggregates,
 } from "@/lib/publicWorks";
 import { pickText } from "@/features/write/writeShared";
+import PublicAdSlot from "@/components/ads/PublicAdSlot";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -769,6 +770,15 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
               </Link>
             </div>
           </div>
+        </section>
+
+        <section id="home-ad-slot" className="pt-12">
+          <PublicAdSlot
+            slotId="home-bottom"
+            title="広告掲載予定"
+            description="トップでは公開作品や案内導線を見終えた後の下部だけに限定して、読書導線を邪魔しない形で広告を載せる予定。"
+            minHeightClassName="min-h-[132px]"
+          />
         </section>
       </div>
     </main>

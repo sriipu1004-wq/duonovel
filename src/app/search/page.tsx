@@ -10,6 +10,7 @@ import {
 } from "@/lib/popularity";
 import { getCachedPublicBaseWorkCards } from "@/lib/publicWorks";
 import { pickText } from "@/features/write/writeShared";
+import PublicAdSlot from "@/components/ads/PublicAdSlot";
 
 type SearchPageProps = {
   searchParams?: Promise<{
@@ -1557,6 +1558,15 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               ))}
             </div>
           ) : null}
+        </section>
+
+        <section id="search-ad-slot" className="pt-10">
+          <PublicAdSlot
+            slotId="search-results-bridge"
+            title="広告掲載予定"
+            description="検索棚と検索結果一覧のあいだにだけ広告枠を置く。作品カード列や絞り込み操作の近くには寄せず、誤タップを避ける。"
+            minHeightClassName="min-h-[120px]"
+          />
         </section>
 
         <section id="results" className="pt-10 scroll-mt-24">

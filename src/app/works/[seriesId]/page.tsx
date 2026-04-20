@@ -28,6 +28,7 @@ import ReaderCardControls from "@/components/recording/ReaderCardControls";
 import ContinueReadingEpisodeList from "@/components/works/ContinueReadingEpisodeList";
 import { resolveNemoAutoGenerationConfig } from "@/lib/recording/nemoAutoGeneration";
 import ReaderSelectionBootstrap from "@/components/recording/ReaderSelectionBootstrap";
+import PublicAdSlot from "@/components/ads/PublicAdSlot";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -1353,6 +1354,15 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
             <InfoActionRow label="朗読出力" value="準備中" disabled />
             <InfoActionRow label="本文PDF化" value="準備中" disabled />
           </div>
+        </section>
+
+        <section className="mt-8">
+          <PublicAdSlot
+            slotId="work-bottom"
+            title="広告掲載予定"
+            description="作品ページでは本文導線と朗読導線を見終えた後の最下部に限定して配置する。目次、朗読者切替、レビュー操作の近くには置かない。"
+            minHeightClassName="min-h-[132px]"
+          />
         </section>
       </div>
     </main>
