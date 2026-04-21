@@ -29,6 +29,10 @@ import ContinueReadingEpisodeList from "@/components/works/ContinueReadingEpisod
 import { resolveNemoAutoGenerationConfig } from "@/lib/recording/nemoAutoGeneration";
 import ReaderSelectionBootstrap from "@/components/recording/ReaderSelectionBootstrap";
 import PublicAdSlot from "@/components/ads/PublicAdSlot";
+import { buildReaderAuthorHref } from "@/lib/readerAuthorHref";
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import ReaderCardLikeButton from "@/components/recording/ReaderCardLikeButton";
+import { fetchReaderCardLikeSnapshotMap } from "@/lib/readerCardLike";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -213,19 +217,6 @@ function buildWorksHref(
   }
 
   return `/works/${seriesId}?${query.toString()}`;
-}
-
-function buildReaderHref(readerKey: string, readerName?: string): string {
-  const encodedKey = encodeURIComponent(readerKey);
-
-  if (!readerName) {
-    return `/readers/${encodedKey}`;
-  }
-
-  const query = new URLSearchParams();
-  query.set("name", readerName);
-
-  return `/readers/${encodedKey}?${query.toString()}`;
 }
 
 function buildAuthorHref(authorId: string): string {
@@ -688,6 +679,11 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     selectedReaderName
   );
 
+  const authSupabase = await createServerClient();
+  const {
+    data: { user: currentUser },
+  } = await authSupabase.auth.getUser();
+
   const { data: seriesData, error: seriesError } = await supabase
     .from("series")
     .select("*")
@@ -857,6 +853,13 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       ...readerCards.filter((reader) => !isNemoReaderName(reader.name)),
     ];
   })();    
+
+  const readerCardLikeSnapshotMap = await fetchReaderCardLikeSnapshotMap({
+    supabase: adminSupabase,
+    seriesId,
+    readerKeys: displayedReaderCards.map((reader) => reader.readerKey),
+    currentUserId: currentUser?.id ?? null,
+  });  
 
   const allPublicBaseWorks = await getCachedPublicBaseWorkCards();
 
@@ -1146,11 +1149,25 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                                 )}
 
                                 <Link
-                                  href={buildReaderHref(reader.readerKey, reader.name)}
+                                  href={buildReaderAuthorHref(reader.readerKey, reader.name)}
                                   className="text-base font-semibold text-black transition hover:text-neutral-700"
                                 >
                                   {reader.name}
                                 </Link>
+
+                                <ReaderCardLikeButton
+                                  seriesId={seriesId}
+                                  readerKey={reader.readerKey}
+                                  initialLikeCount={
+                                    readerCardLikeSnapshotMap.get(reader.readerKey)
+                                      ?.likeCount ?? 0
+                                  }
+                                  initialIsLiked={
+                                    readerCardLikeSnapshotMap.get(reader.readerKey)
+                                      ?.isLiked ?? false
+                                  }
+                                  loginHref={loginHref}
+                                />
                               </div>
 
                               <div className="mt-3 flex flex-wrap gap-2">

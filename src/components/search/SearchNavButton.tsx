@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type SearchNavButtonProps = {
   href: string;
@@ -9,6 +9,10 @@ type SearchNavButtonProps = {
   children: ReactNode;
   title?: string;
   scrollTargetId?: string;
+};
+
+type SearchParamsLike = {
+  get: (name: string) => string | null;
 };
 
 function scrollToTarget(targetId: string) {
@@ -36,6 +40,27 @@ function scrollToTarget(targetId: string) {
   window.setTimeout(tryScroll, 0);
 }
 
+function appendSavedParamIfNeeded(
+  href: string,
+  currentSearchParams: SearchParamsLike
+): string {
+  const currentSaved = currentSearchParams.get("saved")?.trim() ?? "";
+
+  if (!currentSaved) {
+    return href;
+  }
+
+  const [pathname, rawQuery = ""] = href.split("?");
+  const nextQuery = new URLSearchParams(rawQuery);
+
+  if (!nextQuery.has("saved")) {
+    nextQuery.set("saved", currentSaved);
+  }
+
+  const queryString = nextQuery.toString();
+  return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
 export default function SearchNavButton({
   href,
   className,
@@ -44,17 +69,23 @@ export default function SearchNavButton({
   scrollTargetId,
 }: SearchNavButtonProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const resolvedHref = useMemo(
+    () => appendSavedParamIfNeeded(href, searchParams),
+    [href, searchParams]
+  );
 
   useEffect(() => {
-    router.prefetch(href);
-  }, [href, router]);
+    router.prefetch(resolvedHref);
+  }, [resolvedHref, router]);
 
   return (
     <button
       type="button"
       title={title}
       onClick={() => {
-        router.replace(href, { scroll: false });
+        router.replace(resolvedHref, { scroll: false });
 
         if (scrollTargetId) {
           scrollToTarget(scrollTargetId);

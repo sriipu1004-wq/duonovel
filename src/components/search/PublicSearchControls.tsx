@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import SearchNavButton from "@/components/search/SearchNavButton";
+import {
+  getSavedFilterLabel,
+  type SavedFilterKey,
+} from "@/lib/searchSavedFilters";
 
 type OrderKey = "popular" | "updated";
 
@@ -28,6 +32,7 @@ type PublicSearchControlsProps = {
   query: string;
   selectedTagLabels: string[];
   selectedGenreLabels: string[];
+  savedFilterKey?: SavedFilterKey | "";
   order: OrderKey;
   selectedStartInput: string;
   selectedEndInput: string;
@@ -105,6 +110,7 @@ function buildSearchHref(params: {
   q?: string;
   selectedTags?: string[];
   selectedGenres?: string[];
+  saved?: SavedFilterKey | "";
   order?: OrderKey;
   start?: string;
   end?: string;
@@ -146,6 +152,10 @@ function buildSearchHref(params: {
     query.set("showGenres", "1");
   }
 
+  if (params.saved) {
+    query.set("saved", params.saved);
+  }
+
   if (params.shelfTab) {
     query.set("shelfTab", params.shelfTab);
   }
@@ -158,6 +168,7 @@ export default function PublicSearchControls({
   query,
   selectedTagLabels,
   selectedGenreLabels,
+  savedFilterKey,
   order,
   selectedStartInput,
   selectedEndInput,
@@ -196,6 +207,14 @@ export default function PublicSearchControls({
 
   const selectedFilterChips = useMemo(
     () => [
+      ...(savedFilterKey
+        ? [
+            {
+              type: "saved" as const,
+              label: getSavedFilterLabel(savedFilterKey),
+            },
+          ]
+        : []),
       ...selectedGenreLabels.map((label) => ({
         type: "genre" as const,
         label,
@@ -205,7 +224,7 @@ export default function PublicSearchControls({
         label,
       })),
     ],
-    [selectedGenreLabels, selectedTagLabels]
+    [savedFilterKey, selectedGenreLabels, selectedTagLabels]
   );
 
   function navigate(href: string, scrollTargetId?: string) {
@@ -246,6 +265,7 @@ export default function PublicSearchControls({
         q: queryValue,
         selectedTags: selectedTagLabels,
         selectedGenres: selectedGenreLabels,
+        saved: savedFilterKey,
         order,
         start: nextStart,
         end: nextEnd,
@@ -265,6 +285,7 @@ export default function PublicSearchControls({
 
     navigate(
       buildSearchHref({
+        saved: savedFilterKey,
         shelfTab,
         showTags: showAllTags,
         showGenres: showAllGenres,
@@ -287,6 +308,7 @@ export default function PublicSearchControls({
         q: queryValue,
         selectedTags: selectedTagLabels,
         selectedGenres: result.nextLabels,
+        saved: savedFilterKey,
         order,
         start: startValue,
         end: endValue,
@@ -340,7 +362,25 @@ export default function PublicSearchControls({
           ) : (
             <div className="flex flex-wrap gap-2">
               {selectedFilterChips.map((chip) =>
-                chip.type === "genre" ? (
+                chip.type === "saved" ? (
+                  <SearchNavButton
+                    key={`selected-saved-${chip.label}`}
+                    href={buildSearchHref({
+                      q: queryValue,
+                      selectedTags: selectedTagLabels,
+                      selectedGenres: selectedGenreLabels,
+                      order,
+                      start: startValue,
+                      end: endValue,
+                      showTags: showAllTags,
+                      showGenres: showAllGenres,
+                      shelfTab,
+                    })}
+                    className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700 transition hover:bg-amber-100"
+                  >
+                    {chip.label} ×
+                  </SearchNavButton>
+                ) : chip.type === "genre" ? (
                   <SearchNavButton
                     key={`selected-genre-${chip.label}`}
                     href={buildSearchHref({
@@ -349,6 +389,7 @@ export default function PublicSearchControls({
                       selectedGenres: selectedGenreLabels.filter(
                         (item) => item !== chip.label
                       ),
+                      saved: savedFilterKey,
                       order,
                       start: startValue,
                       end: endValue,
@@ -370,6 +411,7 @@ export default function PublicSearchControls({
                           normalizeTagToken(item) !== normalizeTagToken(chip.label)
                       ),
                       selectedGenres: selectedGenreLabels,
+                      saved: savedFilterKey,
                       order,
                       start: startValue,
                       end: endValue,

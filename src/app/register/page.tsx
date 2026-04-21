@@ -20,6 +20,7 @@ import {
   readAccountRegistrationGender,
   validateDisplayName,
 } from "@/lib/auth/accountSignupConsent";
+import { checkDisplayNameAvailability } from "@/lib/auth/checkDisplayNameAvailability";
 import { syncPublicUserProfile } from "@/lib/auth/syncPublicUserProfile";
 
 type PendingAction = "email-signup" | "complete-profile" | null;
@@ -154,6 +155,13 @@ export default function RegisterPage() {
     }
   }, [user, router, nextPath]);
 
+  async function ensureDisplayNameAvailable(
+    candidateDisplayName: string,
+    excludeUserId?: string
+  ): Promise<string> {
+    return checkDisplayNameAvailability(candidateDisplayName, excludeUserId);
+  }  
+
   async function completeSignedInRegistration(sessionUser: User) {
     if (displayNameError) {
       setErrorMessage(displayNameError);
@@ -169,8 +177,25 @@ export default function RegisterPage() {
     setMessage("");
     setErrorMessage("");
 
+    let availableDisplayName = normalizedDisplayName;
+
+    try {
+      availableDisplayName = await ensureDisplayNameAvailable(
+        normalizedDisplayName,
+        sessionUser.id
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "ユーザー名の重複確認に失敗した。"
+      );
+      setPendingAction(null);
+      return;
+    }
+
     const metadata = buildCompletedAccountRegistrationMetadata({
-      displayName: normalizedDisplayName,
+      displayName: availableDisplayName,
       birthdate,
       gender,
       agreedToTerms,
@@ -189,7 +214,7 @@ export default function RegisterPage() {
     }
 
     try {
-      await syncPublicUserProfile(sessionUser.id, normalizedDisplayName);
+      await syncPublicUserProfile(availableDisplayName);
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "プロフィール保存に失敗した。"
@@ -233,20 +258,34 @@ export default function RegisterPage() {
     setMessage("");
     setErrorMessage("");
 
+    let availableDisplayName = normalizedDisplayName;
+
+    try {
+      availableDisplayName =
+        await ensureDisplayNameAvailable(normalizedDisplayName);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "ユーザー名の重複確認に失敗した。"
+      );
+      setPendingAction(null);
+      return;
+    }
+
     const emailRedirectTo =
       typeof window !== "undefined"
         ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
         : undefined;
 
     const metadata = buildPendingAccountRegistrationMetadata({
-      displayName: normalizedDisplayName,
+      displayName: availableDisplayName,
       birthdate,
       gender,
       agreedToTerms,
       agreedToPrivacy,
       acknowledgedPublicSurface,
     });
-
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,

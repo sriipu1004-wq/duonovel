@@ -38,7 +38,7 @@ type RecordingStudioPageProps = {
   worksHref: string;
   episodes: EpisodeItem[];
   existingRecordings: ExistingRecordingSeed[];
-  defaultReaderName: string;
+  fixedReaderName: string;
 };
 
 type UploadCheckApiResponse = {
@@ -221,14 +221,16 @@ export function RecordingStudioPage({
   worksHref,
   episodes,
   existingRecordings,
-  defaultReaderName,
+  fixedReaderName,
 }: RecordingStudioPageProps) {
   const safeEpisodes = Array.isArray(episodes) ? episodes : [];
   const safeExistingRecordings = Array.isArray(existingRecordings)
     ? existingRecordings
     : [];
-  const safeDefaultReaderName =
-    typeof defaultReaderName === "string" ? defaultReaderName : "";
+  const safeFixedReaderName =
+    typeof fixedReaderName === "string" && fixedReaderName.trim().length > 0
+      ? fixedReaderName.trim()
+      : "ユーザー朗読";
 
   const [existingRecordingMap, setExistingRecordingMap] = useState<
     Record<string, ExistingRecordingSeed>
@@ -253,7 +255,6 @@ export function RecordingStudioPage({
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string>(
     firstSelectableEpisodeId
   );
-  const [readerName, setReaderName] = useState<string>(safeDefaultReaderName);
 
   const recordingTitle = `${seriesTitle} 朗読`;
 
@@ -341,10 +342,7 @@ export function RecordingStudioPage({
         : "保存前チェックを通した音源だけ publish できる。"
     );
 
-    if (!readerName.trim()) {
-      setReaderName(existing?.readerName || safeDefaultReaderName);
-    }
-  }, [safeDefaultReaderName, existingRecordingMap, selectedEpisode?.id]);
+  }, [existingRecordingMap, selectedEpisode?.id]);
 
   const [canRecordInBrowser, setCanRecordInBrowser] = useState(false);
   const [browserRecordingBlockedReason, setBrowserRecordingBlockedReason] =
@@ -708,7 +706,6 @@ export function RecordingStudioPage({
       formData.append("episodeId", selectedEpisode.id);
       formData.append("episodeNumber", String(selectedEpisode.episodeNumber));
       formData.append("recordingTitle", recordingTitle);
-      formData.append("readerName", readerName.trim());
       formData.append("audio", currentPreviewItem.file);
 
       const response = await fetch("/api/recordings/human-publish", {
@@ -732,16 +729,13 @@ export function RecordingStudioPage({
       }
 
       const nextReaderName =
-        payload.readerName?.trim() ||
-        readerName.trim() ||
-        safeDefaultReaderName;
+        payload.readerName?.trim() || safeFixedReaderName;
 
       setPublishStatus("success");
       setPublishResult(payload);
       setPublishMessage(
         "保存完了。recordings に接続されたので、読む画面と作品導線から確認できる。"
       );
-      setReaderName(nextReaderName);
 
       setExistingRecordingMap((current) => ({
         ...current,
@@ -860,15 +854,15 @@ export function RecordingStudioPage({
           </div>
 
           <div className="mt-5 max-w-md">
-            <label className="grid gap-2">
-              <span className="text-sm text-neutral-700">朗読者表示名</span>
-              <input
-                value={readerName}
-                onChange={(event) => setReaderName(event.target.value)}
-                placeholder="朗読者表示名を入力"
-                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
-              />
-            </label>
+            <div className="grid gap-2">
+              <span className="text-sm text-neutral-700">朗読者名</span>
+              <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                {safeFixedReaderName}
+              </div>
+              <p className="text-xs leading-6 text-neutral-500">
+                朗読者名は現在のユーザー名をそのまま使う。ここでは変更できない。
+              </p>
+            </div>
           </div>
 
           <div className="mt-5">

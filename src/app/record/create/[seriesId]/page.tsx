@@ -49,6 +49,13 @@ type ExistingRecordingSeed = {
   readerName: string;
 };
 
+type PublicUserRow = Record<string, unknown> & {
+  display_name?: string | null;
+  username?: string | null;
+  pen_name?: string | null;
+  name?: string | null;
+};
+
 const adminSupabase = createAdminClient();
 
 function pickString(row: RawRow, keys: string[], fallback = ""): string {
@@ -65,19 +72,21 @@ function getPermissionLabel(mode: RecordingPermissionMode): string {
   return "朗読停止";
 }
 
-function resolveDefaultReaderName(
+function resolveCurrentUserReaderName(
   user: {
     email?: string | null;
     user_metadata?: Record<string, unknown> | null;
   } | null,
-  existingRecordings: ExistingRecordingSeed[]
+  publicUserRow?: PublicUserRow | null
 ): string {
-  const existingReaderName =
-    existingRecordings.find((item) => item.readerName.trim().length > 0)
-      ?.readerName ?? "";
+  const fromPublicUser = pickString(
+    (publicUserRow ?? {}) as RawRow,
+    ["display_name", "username", "pen_name", "name"],
+    ""
+  );
 
-  if (existingReaderName) {
-    return existingReaderName;
+  if (fromPublicUser) {
+    return fromPublicUser;
   }
 
   const metadata = user?.user_metadata ?? {};
@@ -207,6 +216,12 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
     redirect(buildRecordingConsentPath(buildRecordingEntryPath(seriesId)));
   }
 
+  const { data: publicUserRow } = await supabase
+    .from("users")
+    .select("display_name, username, pen_name, name")
+    .eq("id", user?.id ?? userId)
+    .maybeSingle();  
+
   const { data: seriesRow } = await supabase
     .from("series")
     .select("*")
@@ -263,7 +278,10 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
     user?.id ?? userId
   );
 
-  const defaultReaderName = resolveDefaultReaderName(user, existingRecordings);
+  const fixedReaderName = resolveCurrentUserReaderName(
+    user,
+    (publicUserRow as PublicUserRow | null) ?? null
+  );
 
   return (
     <main className="min-h-screen bg-[#f4f4f4] text-black">
@@ -323,7 +341,7 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
           worksHref={buildWorkPath(seriesId)}
           episodes={episodes}
           existingRecordings={existingRecordings}
-          defaultReaderName={defaultReaderName}
+          fixedReaderName={fixedReaderName}
         />
 
         <div className="mt-6">

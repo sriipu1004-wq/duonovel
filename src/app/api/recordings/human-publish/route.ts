@@ -30,10 +30,34 @@ function readPositiveInt(formData: FormData, key: string): number | null {
   return parsed;
 }
 
-function resolveDefaultReaderName(user: {
-  email?: string | null;
-  user_metadata?: Record<string, unknown> | null;
-}): string {
+function pickText(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
+function resolveCurrentReaderName(
+  user: {
+    email?: string | null;
+    user_metadata?: Record<string, unknown> | null;
+  },
+  publicUserRow?: Record<string, unknown> | null
+): string {
+  const fromPublicUser = pickText(
+    publicUserRow?.display_name,
+    publicUserRow?.username,
+    publicUserRow?.pen_name,
+    publicUserRow?.name
+  );
+
+  if (fromPublicUser) {
+    return fromPublicUser;
+  }
+
   const metadata = user.user_metadata ?? {};
 
   const fromMetadata =
@@ -377,8 +401,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const requestedReaderName = readText(formData, "readerName");
-  const readerName = requestedReaderName || resolveDefaultReaderName(user);
+  const { data: publicUserRow } = await supabase
+    .from("users")
+    .select("display_name, username, pen_name, name")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const readerName = resolveCurrentReaderName(
+    user,
+    (publicUserRow as Record<string, unknown> | null) ?? null
+  );
 
   try {
     const result = await publishHumanRecording({

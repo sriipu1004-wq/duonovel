@@ -31,6 +31,7 @@ import {
   getCachedPublicReadPagePayload,
   type PublicReadRecordingRow as RecordingRow,
 } from "@/lib/publicRead";
+import { buildReaderAuthorHref } from "@/lib/readerAuthorHref";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -398,6 +399,11 @@ export default async function ReadEpisodePage({
 
   const loginHref = `/login?next=${encodeURIComponent(currentReadHref)}`;
 
+  const readerAuthorHref =
+    selectedReaderName || selectedReaderKey
+      ? buildReaderAuthorHref(selectedReaderKey, selectedReaderName)
+      : undefined;  
+
   const seriesBgmTitle = pickText(
     series.bgm_title,
     series["bgmTitle"]
@@ -458,6 +464,7 @@ export default async function ReadEpisodePage({
         body={body}
         selectedReaderKey={selectedReaderKey || undefined}
         selectedReaderName={selectedReaderName}
+        readerAuthorHref={readerAuthorHref}
         recordingAvailable={recordingAvailable}
         audioStoragePath={audioStoragePath}
         generatedSentenceTimings={generatedSentenceTimings}

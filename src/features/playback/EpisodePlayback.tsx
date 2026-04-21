@@ -57,6 +57,7 @@ type EpisodePlaybackProps = {
   body?: string | null;
   selectedReaderKey?: string;
   selectedReaderName?: string;
+  readerAuthorHref?: string;
   recordingAvailable?: boolean;
   episodeId?: string | null;
   recordingId?: string | null;
@@ -771,6 +772,7 @@ export default function EpisodePlayback({
   body,
   selectedReaderKey,
   selectedReaderName,
+  readerAuthorHref,
   recordingAvailable = false,
   audioStoragePath,
   generatedSentenceTimings,  
@@ -2880,9 +2882,18 @@ useEffect(() => {
 
             <div className="mt-5 flex flex-wrap gap-2">
               {selectedReaderName ? (
-                <span className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black">
-                  朗読者: {selectedReaderName}
-                </span>
+                readerAuthorHref ? (
+                  <Link
+                    href={readerAuthorHref}
+                    className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black transition hover:bg-sky-100"
+                  >
+                    朗読者: {selectedReaderName}
+                  </Link>
+                ) : (
+                  <span className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black">
+                    朗読者: {selectedReaderName}
+                  </span>
+                )
               ) : (
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-500">
                   朗読未選択 / 朗読停止中

@@ -11,6 +11,11 @@ import {
 import { getCachedPublicBaseWorkCards } from "@/lib/publicWorks";
 import { pickText } from "@/features/write/writeShared";
 import PublicAdSlot from "@/components/ads/PublicAdSlot";
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import {
+  getSavedFilterLabel,
+  resolveSavedFilter,
+} from "@/lib/searchSavedFilters";
 
 type SearchPageProps = {
   searchParams?: Promise<{
@@ -26,6 +31,7 @@ type SearchPageProps = {
     showTags?: string;
     showGenres?: string;
     shelfTab?: string;
+    saved?: string;    
   }>;
 };
 
@@ -99,6 +105,77 @@ type GenreShelfSection = {
   works: WorkCard[];
   emptyMessage: string;
 };
+
+async function fetchSavedAuthorIdsForUser(args: {
+  supabase: Awaited<ReturnType<typeof createServerClient>>;
+  userId: string;
+  tableName: "author_follows" | "author_profile_likes";
+  targetColumn: "followed_author_id" | "author_id";
+}): Promise<Set<string>> {
+  const ownerColumn =
+    args.tableName === "author_follows" ? "follower_user_id" : "user_id";
+
+  const { data, error } = await args.supabase
+    .from(args.tableName)
+    .select(args.targetColumn)
+    .eq(ownerColumn, args.userId);
+
+  if (error) {
+    return new Set();
+  }
+
+  return new Set(
+    ((data ?? []) as Array<Record<string, unknown>>)
+      .map((row) => {
+        const rawValue = row[args.targetColumn];
+        return typeof rawValue === "string" ? rawValue.trim() : "";
+      })
+      .filter((value) => value.length > 0)
+  );
+  }
+
+async function fetchSavedSeriesIdsForUser(args: {
+  supabase: Awaited<ReturnType<typeof createServerClient>>;
+  userId: string;
+  tableName: "user_series_reactions" | "reader_card_likes";
+}): Promise<Set<string>> {
+  if (args.tableName === "user_series_reactions") {
+    const { data, error } = await args.supabase
+      .from("user_series_reactions")
+      .select("series_id")
+      .eq("user_id", args.userId)
+      .eq("reaction_type", "support");
+
+    if (error) {
+      return new Set();
+    }
+
+    return new Set(
+      ((data ?? []) as Array<Record<string, unknown>>)
+        .map((row) =>
+          typeof row.series_id === "string" ? row.series_id.trim() : ""
+        )
+        .filter((value) => value.length > 0)
+    );
+  }
+
+  const { data, error } = await args.supabase
+    .from("reader_card_likes")
+    .select("series_id")
+    .eq("user_id", args.userId);
+
+  if (error) {
+    return new Set();
+  }
+
+  return new Set(
+    ((data ?? []) as Array<Record<string, unknown>>)
+      .map((row) =>
+        typeof row.series_id === "string" ? row.series_id.trim() : ""
+      )
+      .filter((value) => value.length > 0)
+  );
+}
 
 const TOKYO_TIMEZONE = "Asia/Tokyo";
 const ONE_DAY_MS = 1000 * 60 * 60 * 24;
@@ -190,6 +267,7 @@ function buildSearchHref(params: {
   q?: string;
   selectedTags?: string[];
   selectedGenres?: string[];
+  saved?: string;
   order?: OrderKey;
   start?: string;
   end?: string;
@@ -209,6 +287,10 @@ function buildSearchHref(params: {
 
   if (params.selectedGenres && params.selectedGenres.length > 0) {
     query.set("genres", params.selectedGenres.join(","));
+  }
+
+  if (params.saved && params.saved.trim().length > 0) {
+    query.set("saved", params.saved.trim());
   }
 
   if (params.order) {
@@ -625,6 +707,9 @@ function buildGenreShelfSections(params: {
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
+  const savedFilter = resolveSavedFilter(pickText(resolvedSearchParams?.saved));
+  const savedFilterLabel = savedFilter ? getSavedFilterLabel(savedFilter) : "";
+
   const query = pickText(resolvedSearchParams?.q);
   const selectedTagLabels = parseSelectedTagLabels(
     pickText(resolvedSearchParams?.tags),
@@ -645,6 +730,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const showAllTags = pickText(resolvedSearchParams?.showTags) === "1";
   const showAllGenres = pickText(resolvedSearchParams?.showGenres) === "1";
   const shelfTab = resolveShelfTab(pickText(resolvedSearchParams?.shelfTab));
+  const authSupabase = await createServerClient();
+  const {
+    data: { user: currentUser },
+  } = await authSupabase.auth.getUser();  
   const baseWorkCards = await getCachedPublicBaseWorkCards();
 
   const popularityDataset = await fetchSeriesPopularityDataset(
@@ -667,6 +756,41 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       provisionalPopularityScore: currentPopularity.popularityScore,
     };
   });
+
+  let savedAuthorIds = new Set<string>();
+  let savedSeriesIds = new Set<string>();
+
+  if (savedFilter && currentUser) {
+    if (savedFilter === "followed-authors") {
+      savedAuthorIds = await fetchSavedAuthorIdsForUser({
+        supabase: authSupabase,
+        userId: currentUser.id,
+        tableName: "author_follows",
+        targetColumn: "followed_author_id",
+      });
+    } else if (savedFilter === "liked-authors") {
+      savedAuthorIds = await fetchSavedAuthorIdsForUser({
+        supabase: authSupabase,
+        userId: currentUser.id,
+        tableName: "author_profile_likes",
+        targetColumn: "author_id",
+      });
+    } else if (savedFilter === "liked-works") {
+      savedSeriesIds = await fetchSavedSeriesIdsForUser({
+        supabase: authSupabase,
+        userId: currentUser.id,
+        tableName: "user_series_reactions",
+      });
+    } else if (savedFilter === "liked-readers") {
+      savedSeriesIds = await fetchSavedSeriesIdsForUser({
+        supabase: authSupabase,
+        userId: currentUser.id,
+        tableName: "reader_card_likes",
+      });
+    }
+  }
+
+  const savedFilterRequiresLogin = Boolean(savedFilter && !currentUser);  
 
   const oldestPublicAtValue =
     workCards.reduce((min, work) => {
@@ -727,7 +851,26 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         : work.latestPostedAtValue >= safeStartAtValue &&
           work.latestPostedAtValue <= safeEndAtValue;
 
-    return queryOk && tagOk && genreOk && dateOk;
+    const savedOk = (() => {
+      if (!savedFilter) {
+        return true;
+      }
+
+      if (savedFilterRequiresLogin) {
+        return false;
+      }
+
+      if (
+        savedFilter === "followed-authors" ||
+        savedFilter === "liked-authors"
+      ) {
+        return !!work.authorId && savedAuthorIds.has(work.authorId);
+      }
+
+      return savedSeriesIds.has(work.seriesId);
+    })();
+
+    return queryOk && tagOk && genreOk && dateOk && savedOk;
   });
 
   const shelfFilteredWorks =
@@ -745,9 +888,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     selectedPopularityMap ?? undefined
   );
 
-  const currentResultsHeading = "検索結果";
+  const currentResultsHeading = savedFilterLabel
+    ? `${savedFilterLabel} の一覧`
+    : "検索結果";
 
-  const currentResultsDescription = `指定期間: ${selectedStartInput} 〜 ${selectedEndInput} / 並び順: ${getOrderLabel(order)}`;
+  const currentResultsDescription = `${
+    savedFilterLabel ? `保存条件: ${savedFilterLabel} / ` : ""
+  }指定期間: ${selectedStartInput} 〜 ${selectedEndInput} / 並び順: ${getOrderLabel(order)}`;
 
   const hasCustomPeriod =
     selectedStartInput !== defaultStartInput ||
@@ -757,12 +904,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     (query.trim().length > 0 ? 1 : 0) +
     selectedGenreLabels.length +
     selectedTagLabels.length +
+    (savedFilter ? 1 : 0) +
     (order !== "popular" ? 1 : 0) +
     (hasCustomPeriod ? 1 : 0);
 
   const hasActiveConditions = activeConditionCount > 0;
 
   const clearConditionsHref = buildSearchHref({
+    saved: savedFilter ?? "",
     shelfTab,
     showTags: showAllTags,
     showGenres: showAllGenres,
@@ -772,6 +921,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     q: query,
     selectedTags: selectedTagLabels,
     selectedGenres: selectedGenreLabels,
+    saved: savedFilter ?? "",
     order,
     start: defaultStartInput,
     end: defaultEndInput,
@@ -1116,6 +1266,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           query={query}
           selectedTagLabels={selectedTagLabels}
           selectedGenreLabels={selectedGenreLabels}
+          savedFilterKey={savedFilter ?? ""}
           order={order}
           selectedStartInput={selectedStartInput}
           selectedEndInput={selectedEndInput}
@@ -1599,10 +1750,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           ) : sortedWorks.length === 0 ? (
             <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8">
               <p className="text-base font-semibold text-black">
-                条件に合う公開作品がない
+                {savedFilterRequiresLogin
+                  ? "この保存一覧を見るにはログインが必要"
+                  : "条件に合う公開作品がない"}
               </p>
               <p className="mt-3 text-sm leading-8 text-neutral-600">
-                ジャンルやタグを少し減らすか、期間を広げると見つかりやすい。
+                {savedFilterRequiresLogin
+                  ? "マイページから一覧ボタンを押して来た場合は、ログイン状態を確認してから開き直して。"
+                  : "ジャンルやタグを少し減らすか、期間を広げると見つかりやすい。"}
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">

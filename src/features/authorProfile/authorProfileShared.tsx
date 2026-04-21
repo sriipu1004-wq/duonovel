@@ -21,6 +21,10 @@ export type UserRow = Record<string, unknown> & {
   bio?: string | null;
   profile?: string | null;
   description?: string | null;
+  x_url?: string | null;
+  xUrl?: string | null;
+  note_url?: string | null;
+  noteUrl?: string | null;
 };
 
 export type SeriesRow = BaseSeriesRow & {
@@ -63,6 +67,20 @@ function toTimestamp(value: unknown): number {
   if (typeof value !== "string" || !value) return 0;
   const time = new Date(value).getTime();
   return Number.isNaN(time) ? 0 : time;
+}
+
+function safeDecodeRouteParam(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function isUuidLike(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    value.trim()
+  );
 }
 
 function getSurfaceStyles(surface: SurfaceTone) {
@@ -181,10 +199,35 @@ export function resolveAuthorName(
 }
 
 export function resolveAuthorBio(user?: UserRow | null): string {
-  return (
-    pickText(user?.bio, user?.profile, user?.description) ||
-    "プロフィールはまだ登録されていない。"
-  );
+  return pickText(user?.bio, user?.profile, user?.description) || "自己紹介未記入";
+}
+
+function normalizeExternalUrl(value: unknown): string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return "";
+  }
+
+  const trimmed = value.trim();
+
+  try {
+    const parsed = new URL(trimmed);
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "";
+    }
+
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+export function resolveAuthorXUrl(user?: UserRow | null): string {
+  return normalizeExternalUrl(pickText(user?.x_url, user?.xUrl));
+}
+
+export function resolveAuthorNoteUrl(user?: UserRow | null): string {
+  return normalizeExternalUrl(pickText(user?.note_url, user?.noteUrl));
 }
 
 export function getProfileSeriesSummary(series: SeriesRow): string {
@@ -203,10 +246,16 @@ export async function fetchAuthorById(
   authorId: string,
   supabase: SupabaseLike
 ): Promise<UserRow | null> {
+  const normalizedAuthorId = safeDecodeRouteParam(authorId);
+
+  if (!isUuidLike(normalizedAuthorId)) {
+    return null;
+  }
+
   const { data, error } = await supabase
     .from("users")
     .select("*")
-    .eq("id", authorId)
+    .eq("id", normalizedAuthorId)
     .maybeSingle();
 
   if (error) {
@@ -220,16 +269,22 @@ export async function fetchSeriesByAuthorId(
   authorId: string,
   supabase: SupabaseLike
 ): Promise<SeriesRow[]> {
+  const normalizedAuthorId = safeDecodeRouteParam(authorId);
+
+  if (!isUuidLike(normalizedAuthorId)) {
+    return [];
+  }
+
   const [byAuthorId, byUserId] = await Promise.all([
     supabase
       .from("series")
       .select("*")
-      .eq("author_id", authorId)
+      .eq("author_id", normalizedAuthorId)
       .order("created_at", { ascending: false }),
     supabase
       .from("series")
       .select("*")
-      .eq("user_id", authorId)
+      .eq("user_id", normalizedAuthorId)
       .order("created_at", { ascending: false }),
   ]);
 
@@ -352,6 +407,7 @@ export function ProfileHero({
   actions,
   stats,
   notice,
+  extraContent,
   surface = "dark",
 }: {
   eyebrow: string;
@@ -361,6 +417,7 @@ export function ProfileHero({
   actions?: HeroAction[];
   stats?: HeroStat[];
   notice?: string;
+  extraContent?: React.ReactNode;
   surface?: SurfaceTone;
 }) {
   const styles = getSurfaceStyles(surface);
@@ -403,6 +460,8 @@ export function ProfileHero({
         ) : null}
 
         {notice ? <div className={styles.notice}>{notice}</div> : null}
+
+        {extraContent ? <div className="mt-5">{extraContent}</div> : null}
       </div>
 
       {stats && stats.length > 0 ? (

@@ -8,22 +8,13 @@ import {
   normalizeDisplayName,
   validateDisplayName,
 } from "@/lib/auth/accountSignupConsent";
+import { checkDisplayNameAvailability } from "@/lib/auth/checkDisplayNameAvailability";
 import { syncPublicUserProfile } from "@/lib/auth/syncPublicUserProfile";
-
-type HeroBadge = {
-  label: string;
-};
 
 type HeroAction = {
   href: string;
   label: string;
   tone?: "primary" | "secondary";
-};
-
-type HeroStat = {
-  label: string;
-  value: string | number;
-  sub: string;
 };
 
 type SaveState = "idle" | "saving" | "success" | "error";
@@ -32,12 +23,11 @@ type MyPageHeroEditableProps = {
   userId: string;
   fallbackEmail: string;
   initialDisplayName: string;
+  initialBio: string;
+  initialXUrl: string;
+  initialNoteUrl: string;
   eyebrow: string;
-  description: string;
-  badges?: HeroBadge[];
   actions?: HeroAction[];
-  stats?: HeroStat[];
-  notice?: string;
 };
 
 function PencilIcon() {
@@ -58,23 +48,37 @@ function PencilIcon() {
   );
 }
 
+function normalizeBio(value: string): string {
+  return value.replace(/\r\n?/g, "\n").trim();
+}
+
 export default function MyPageHeroEditable({
   userId,
   fallbackEmail,
   initialDisplayName,
+  initialBio,
+  initialXUrl,
+  initialNoteUrl,
   eyebrow,
-  description,
-  badges = [],
   actions = [],
-  stats = [],
-  notice,
 }: MyPageHeroEditableProps) {
   const router = useRouter();
 
   const normalizedInitialDisplayName = normalizeDisplayName(initialDisplayName);
+  const normalizedInitialBio = normalizeBio(initialBio);
 
   const [displayName, setDisplayName] = useState(normalizedInitialDisplayName);
   const [draftName, setDraftName] = useState(normalizedInitialDisplayName);
+
+  const [bio, setBio] = useState(normalizedInitialBio);
+  const [draftBio, setDraftBio] = useState(normalizedInitialBio);
+
+  const [xUrl, setXUrl] = useState(initialXUrl.trim());
+  const [draftXUrl, setDraftXUrl] = useState(initialXUrl.trim());
+
+  const [noteUrl, setNoteUrl] = useState(initialNoteUrl.trim());
+  const [draftNoteUrl, setDraftNoteUrl] = useState(initialNoteUrl.trim());
+
   const [isEditing, setIsEditing] = useState(
     normalizedInitialDisplayName.length === 0
   );
@@ -87,6 +91,12 @@ export default function MyPageHeroEditable({
       ? displayName.trim()
       : fallbackEmail || "作者名未設定";
 
+  const visibleBio =
+    bio.trim().length > 0 ? bio.trim() : "自己紹介未記入";
+
+  const hasExternalLinks =
+    xUrl.trim().length > 0 || noteUrl.trim().length > 0;
+
   function resetNotice() {
     setSaveState("idle");
     setErrorMessage("");
@@ -95,18 +105,33 @@ export default function MyPageHeroEditable({
 
   function handleEditStart() {
     setDraftName(displayName.trim());
+    setDraftBio(bio);
+    setDraftXUrl(xUrl);
+    setDraftNoteUrl(noteUrl);
     setIsEditing(true);
     resetNotice();
   }
 
   function handleCancel() {
     setDraftName(displayName.trim());
+    setDraftBio(bio);
+    setDraftXUrl(xUrl);
+    setDraftNoteUrl(noteUrl);
     setIsEditing(false);
     resetNotice();
   }
 
+  async function ensureDisplayNameAvailable(
+    candidateDisplayName: string
+  ): Promise<string> {
+    return checkDisplayNameAvailability(candidateDisplayName, userId);
+  }
+
   async function handleSave() {
     const trimmedName = normalizeDisplayName(draftName);
+    const normalizedBio = normalizeBio(draftBio);
+    const trimmedXUrl = draftXUrl.trim();
+    const trimmedNoteUrl = draftNoteUrl.trim();
     const validationError = validateDisplayName(trimmedName);
 
     if (validationError) {
@@ -116,44 +141,80 @@ export default function MyPageHeroEditable({
       return;
     }
 
+    if (normalizedBio.length > 1000) {
+      setSaveState("error");
+      setErrorMessage("自己紹介は1000文字以内で入力して。");
+      setSuccessMessage("");
+      return;
+    }
+
     setSaveState("saving");
     setErrorMessage("");
     setSuccessMessage("");
 
+    let availableDisplayName = trimmedName;
+
     try {
-      await syncPublicUserProfile(userId, trimmedName);
+      availableDisplayName = await ensureDisplayNameAvailable(trimmedName);
     } catch (error) {
       setSaveState("error");
       setErrorMessage(
-        error instanceof Error ? error.message : "表示名の保存に失敗した。"
+        error instanceof Error
+          ? error.message
+          : "ユーザー名の重複確認に失敗した。"
       );
       setSuccessMessage("");
       return;
     }
 
-    const { error: authUpdateError } = await supabase.auth.updateUser({
-      data: {
-        display_name: trimmedName,
-        display_name_candidate: trimmedName,
-      },
-    });
-
-    setDisplayName(trimmedName);
-    setDraftName(trimmedName);
-    setIsEditing(false);
-
-    if (authUpdateError) {
-      setSaveState("success");
-      setSuccessMessage(
-        "表示名を保存した。朗読用の表示反映は次回更新時に再同期される。"
+    try {
+      const savedProfile = await syncPublicUserProfile(
+        availableDisplayName,
+        normalizedBio,
+        trimmedXUrl,
+        trimmedNoteUrl
       );
-      router.refresh();
-      return;
-    }
 
-    setSaveState("success");
-    setSuccessMessage("表示名を保存した。");
-    router.refresh();
+      const { error: authUpdateError } = await supabase.auth.updateUser({
+        data: {
+          display_name: savedProfile.displayName,
+          display_name_candidate: savedProfile.displayName,
+        },
+      });
+
+      setDisplayName(savedProfile.displayName);
+      setDraftName(savedProfile.displayName);
+
+      setBio(savedProfile.bio);
+      setDraftBio(savedProfile.bio);
+
+      setXUrl(savedProfile.xUrl);
+      setDraftXUrl(savedProfile.xUrl);
+
+      setNoteUrl(savedProfile.noteUrl);
+      setDraftNoteUrl(savedProfile.noteUrl);
+
+      setIsEditing(false);
+
+      if (authUpdateError) {
+        setSaveState("success");
+        setSuccessMessage(
+          "プロフィールを保存した。ユーザー名の公開反映は次回更新時に再同期される。"
+        );
+        router.refresh();
+        return;
+      }
+
+      setSaveState("success");
+      setSuccessMessage("プロフィールを保存した。");
+      router.refresh();
+    } catch (error) {
+      setSaveState("error");
+      setErrorMessage(
+        error instanceof Error ? error.message : "プロフィールの保存に失敗した。"
+      );
+      setSuccessMessage("");
+    }
   }
 
   return (
@@ -166,7 +227,7 @@ export default function MyPageHeroEditable({
             {isEditing ? (
               <div className="relative min-h-[52px] sm:min-h-[60px]">
                 <p className="pointer-events-none select-none truncate text-3xl font-bold text-neutral-300 sm:text-4xl">
-                  {fallbackEmail || "表示名を入力"}
+                  {fallbackEmail || "ユーザー名を入力"}
                 </p>
 
                 <input
@@ -176,11 +237,6 @@ export default function MyPageHeroEditable({
                     resetNotice();
                   }}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void handleSave();
-                    }
-
                     if (event.key === "Escape") {
                       event.preventDefault();
                       handleCancel();
@@ -222,7 +278,7 @@ export default function MyPageHeroEditable({
               <button
                 type="button"
                 onClick={handleEditStart}
-                aria-label="表示名を編集"
+                aria-label="プロフィールを編集"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-700 transition hover:bg-neutral-50"
               >
                 <PencilIcon />
@@ -231,22 +287,114 @@ export default function MyPageHeroEditable({
           </div>
         </div>
 
-        <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-neutral-600 sm:text-base">
-          {description}
-        </p>
+        {isEditing ? (
+          <div className="mt-5 grid gap-4">
+            <div>
+              <label className="text-sm text-neutral-700">ユーザー名</label>
+              <div className="mt-2 rounded-2xl border border-black/10 bg-white p-4">
+                <input
+                  value={draftName}
+                  onChange={(event) => {
+                    setDraftName(event.target.value);
+                    resetNotice();
+                  }}
+                  className="w-full border-none bg-transparent p-0 text-base text-black outline-none placeholder:text-neutral-300"
+                  placeholder="公開プロフィールに出る名前"
+                />
+              </div>
+              <p className="mt-2 text-xs leading-6 text-neutral-500">
+                2〜32文字、改行なし、URL風文字列なし。既存ユーザー名との重複は不可。
+              </p>
+            </div>
 
-        {badges.length > 0 ? (
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            {badges.map((badge) => (
-              <span
-                key={badge.label}
-                className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-xs text-neutral-700"
-              >
-                {badge.label}
-              </span>
-            ))}
+            <div>
+              <label className="text-sm text-neutral-700">自己紹介</label>
+              <div className="mt-2 rounded-2xl border border-black/10 bg-white p-4">
+                <textarea
+                  value={draftBio}
+                  onChange={(event) => {
+                    setDraftBio(event.target.value);
+                    resetNotice();
+                  }}
+                  rows={6}
+                  className="w-full resize-y border-none bg-transparent p-0 text-sm leading-7 text-black outline-none placeholder:text-neutral-300"
+                  placeholder="自己紹介未記入"
+                />
+              </div>
+              <p className="mt-2 text-xs leading-6 text-neutral-500">
+                最大1000文字。未入力なら作者ページでは「自己紹介未記入」と表示される。
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm text-neutral-700">Xリンク</label>
+              <div className="mt-2 rounded-2xl border border-black/10 bg-white p-4">
+                <input
+                  value={draftXUrl}
+                  onChange={(event) => {
+                    setDraftXUrl(event.target.value);
+                    resetNotice();
+                  }}
+                  className="w-full border-none bg-transparent p-0 text-sm text-black outline-none placeholder:text-neutral-300"
+                  placeholder="https://x.com/..."
+                />
+              </div>
+              <p className="mt-2 text-xs leading-6 text-neutral-500">
+                x.com/... の形でもいい。保存時に https を補完する。
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm text-neutral-700">noteリンク</label>
+              <div className="mt-2 rounded-2xl border border-black/10 bg-white p-4">
+                <input
+                  value={draftNoteUrl}
+                  onChange={(event) => {
+                    setDraftNoteUrl(event.target.value);
+                    resetNotice();
+                  }}
+                  className="w-full border-none bg-transparent p-0 text-sm text-black outline-none placeholder:text-neutral-300"
+                  placeholder="https://note.com/..."
+                />
+              </div>
+              <p className="mt-2 text-xs leading-6 text-neutral-500">
+                note.com/... の形でもいい。保存時に https を補完する。
+              </p>
+            </div>
           </div>
-        ) : null}
+        ) : (
+          <>
+            <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-neutral-600 sm:text-base">
+              {visibleBio}
+            </p>
+
+            {hasExternalLinks ? (
+              <div className="mt-5 flex flex-wrap gap-3">
+                {xUrl ? (
+                  <a
+                    href={xUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                  >
+                    X
+                  </a>
+                ) : null}
+
+                {noteUrl ? (
+                  <a
+                    href={noteUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                  >
+                    note
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        )}
 
         {actions.length > 0 ? (
           <div className="mt-5 flex flex-wrap gap-3">
@@ -266,12 +414,6 @@ export default function MyPageHeroEditable({
           </div>
         ) : null}
 
-        {notice ? (
-          <div className="mt-5 rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-neutral-800">
-            {notice}
-          </div>
-        ) : null}
-
         {errorMessage ? (
           <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {errorMessage}
@@ -284,25 +426,6 @@ export default function MyPageHeroEditable({
           </div>
         ) : null}
       </div>
-
-      {stats.length > 0 ? (
-        <div className="grid gap-4 px-5 py-6 sm:px-8 md:grid-cols-3">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-[28px] border border-black/10 bg-neutral-50 p-5"
-            >
-              <p className="text-xs tracking-[0.18em] text-neutral-500">
-                {stat.label}
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-black">
-                {stat.value}
-              </p>
-              <p className="mt-2 text-sm text-neutral-600">{stat.sub}</p>
-            </div>
-          ))}
-        </div>
-      ) : null}
     </section>
   );
 }

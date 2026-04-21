@@ -1,0 +1,305 @@
+import { NextResponse } from "next/server";
+import {
+  normalizeDisplayName,
+  validateDisplayName,
+} from "@/lib/auth/accountSignupConsent";
+import { findDisplayNameConflict } from "@/lib/auth/displayNameAvailability";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+
+type AdminSupabase = ReturnType<typeof createAdminClient>;
+
+function readText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeBio(value: string): string {
+  return value.replace(/\r\n?/g, "\n").trim();
+}
+
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function normalizeExternalUrl(value: string): string {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+
+  let parsed: URL;
+
+  try {
+    parsed = new URL(withProtocol);
+  } catch {
+    throw new Error("外部リンクのURL形式が正しくない。");
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("外部リンクは http または https のURLだけ使える。");
+  }
+
+  return parsed.toString();
+}
+
+function buildProfilePayloads(args: {
+  userId: string;
+  displayName: string;
+  bio?: string;
+  xUrl?: string;
+  noteUrl?: string;
+  includeId: boolean;
+  includeUpdatedAt: boolean;
+}): Array<Record<string, unknown>> {
+  const basePayload: Record<string, unknown> = {
+    display_name: args.displayName,
+  };
+
+  if (args.includeId) {
+    basePayload.id = args.userId;
+  }
+
+  if (args.includeUpdatedAt) {
+    basePayload.updated_at = new Date().toISOString();
+  }
+
+  if (typeof args.xUrl === "string") {
+    basePayload.x_url = args.xUrl;
+  }
+
+  if (typeof args.noteUrl === "string") {
+    basePayload.note_url = args.noteUrl;
+  }
+
+  if (typeof args.bio !== "string") {
+    return [{ ...basePayload }];
+  }
+
+  return [
+    { ...basePayload, bio: args.bio },
+    { ...basePayload, profile: args.bio },
+    { ...basePayload, description: args.bio },
+  ];
+}
+
+async function savePublicUserProfile(args: {
+  adminSupabase: AdminSupabase;
+  userId: string;
+  displayName: string;
+  bio?: string;
+  xUrl?: string;
+  noteUrl?: string;
+}): Promise<void> {
+  const updatePayloads = [
+    ...buildProfilePayloads({
+      userId: args.userId,
+      displayName: args.displayName,
+      bio: args.bio,
+      xUrl: args.xUrl,
+      noteUrl: args.noteUrl,
+      includeId: false,
+      includeUpdatedAt: true,
+    }),
+    ...buildProfilePayloads({
+      userId: args.userId,
+      displayName: args.displayName,
+      bio: args.bio,
+      xUrl: args.xUrl,
+      noteUrl: args.noteUrl,
+      includeId: false,
+      includeUpdatedAt: false,
+    }),
+  ];
+
+  for (const payload of updatePayloads) {
+    const result = await args.adminSupabase
+      .from("users")
+      .update(payload)
+      .eq("id", args.userId)
+      .select("id")
+      .maybeSingle();
+
+    if (!result.error && result.data?.id) {
+      return;
+    }
+  }
+
+  const upsertPayloads = [
+    ...buildProfilePayloads({
+      userId: args.userId,
+      displayName: args.displayName,
+      bio: args.bio,
+      xUrl: args.xUrl,
+      noteUrl: args.noteUrl,
+      includeId: true,
+      includeUpdatedAt: true,
+    }),
+    ...buildProfilePayloads({
+      userId: args.userId,
+      displayName: args.displayName,
+      bio: args.bio,
+      xUrl: args.xUrl,
+      noteUrl: args.noteUrl,
+      includeId: true,
+      includeUpdatedAt: false,
+    }),
+  ];
+
+  let lastErrorMessage = "プロフィールの保存に失敗した。";
+
+  for (const payload of upsertPayloads) {
+    const result = await args.adminSupabase
+      .from("users")
+      .upsert(payload, { onConflict: "id" })
+      .select("id")
+      .maybeSingle();
+
+    if (result.error) {
+      lastErrorMessage = result.error.message;
+      continue;
+    }
+
+    if (result.data?.id) {
+      return;
+    }
+  }
+
+  throw new Error(lastErrorMessage);
+}
+
+export async function POST(request: Request) {
+  let payload: Record<string, unknown>;
+
+  try {
+    payload = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "リクエストを読めなかった。" },
+      { status: 400 }
+    );
+  }
+
+  const normalizedDisplayName = normalizeDisplayName(
+    readText(payload.displayName)
+  );
+  const validationError = validateDisplayName(normalizedDisplayName);
+
+  if (validationError) {
+    return NextResponse.json(
+      { ok: false, error: validationError },
+      { status: 400 }
+    );
+  }
+
+  const bio =
+    hasOwn(payload, "bio") ? normalizeBio(readText(payload.bio)) : undefined;
+
+  if (typeof bio === "string" && bio.length > 1000) {
+    return NextResponse.json(
+      { ok: false, error: "自己紹介は1000文字以内で入力して。" },
+      { status: 400 }
+    );
+  }
+
+  let xUrl: string | undefined;
+  let noteUrl: string | undefined;
+
+  try {
+    xUrl = hasOwn(payload, "xUrl")
+      ? normalizeExternalUrl(readText(payload.xUrl))
+      : undefined;
+    noteUrl = hasOwn(payload, "noteUrl")
+      ? normalizeExternalUrl(readText(payload.noteUrl))
+      : undefined;
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "外部リンクの保存に失敗した。",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (typeof xUrl === "string" && xUrl.length > 500) {
+    return NextResponse.json(
+      { ok: false, error: "Xリンクは500文字以内で入力して。" },
+      { status: 400 }
+    );
+  }
+
+  if (typeof noteUrl === "string" && noteUrl.length > 500) {
+    return NextResponse.json(
+      { ok: false, error: "noteリンクは500文字以内で入力して。" },
+      { status: 400 }
+    );
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return NextResponse.json(
+      { ok: false, error: "ログイン状態を確認できなかった。" },
+      { status: 401 }
+    );
+  }
+
+  try {
+    const adminSupabase = createAdminClient();
+
+    const conflict = await findDisplayNameConflict({
+      supabase: adminSupabase,
+      displayName: normalizedDisplayName,
+      excludeUserId: user.id,
+    });
+
+    if (conflict) {
+      return NextResponse.json(
+        { ok: false, error: "このユーザー名はすでに使われている。" },
+        { status: 409 }
+      );
+    }
+
+    await savePublicUserProfile({
+      adminSupabase,
+      userId: user.id,
+      displayName: normalizedDisplayName,
+      bio,
+      xUrl,
+      noteUrl,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      displayName: normalizedDisplayName,
+      bio: typeof bio === "string" ? bio : undefined,
+      xUrl,
+      noteUrl,
+    });
+  } catch (error) {
+    console.error("[account-profile-save]", error);
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "プロフィールの保存に失敗した。",
+      },
+      { status: 500 }
+    );
+  }
+}

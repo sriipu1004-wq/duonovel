@@ -8,7 +8,6 @@ import {
   fetchAuthorById,
   fetchSeriesByAuthorId,
   getProfileSeriesSummary,
-  resolveAuthorBio,
   resolveAuthorName,
   type AuthorSeriesCard,
 } from "@/features/authorProfile/authorProfileShared";
@@ -17,6 +16,7 @@ import MyPageHeroEditable from "./MyPageHeroEditable";
 import AccountSettingsCard from "./AccountSettingsCard";
 import NemoAutogenBackfillRunner from "./NemoAutogenBackfillRunner";
 import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
+import SavedSearchLinksSection from "./SavedSearchLinksSection";
 
 function EntryCard({
   eyebrow,
@@ -156,11 +156,31 @@ export default async function MyPage() {
 
   const seriesCards = await buildAuthorSeriesCards(ownedSeries, supabase);
 
-  const totalEpisodes = seriesCards.reduce((sum, card) => sum + card.totalEpisodes, 0);
-  const totalPublished = seriesCards.reduce((sum, card) => sum + card.publishedCount, 0);
-
   const authorName = resolveAuthorName(author, user.email);
-  const authorBio = resolveAuthorBio(author);
+  const initialBio =
+    typeof author?.bio === "string" && author.bio.trim().length > 0
+      ? author.bio
+      : typeof author?.profile === "string" && author.profile.trim().length > 0
+        ? author.profile
+        : typeof author?.description === "string" &&
+            author.description.trim().length > 0
+          ? author.description
+          : "";
+
+  const initialXUrl =
+    typeof author?.x_url === "string" && author.x_url.trim().length > 0
+      ? author.x_url
+      : typeof author?.xUrl === "string" && author.xUrl.trim().length > 0
+        ? author.xUrl
+        : "";
+
+  const initialNoteUrl =
+    typeof author?.note_url === "string" && author.note_url.trim().length > 0
+      ? author.note_url
+      : typeof author?.noteUrl === "string" && author.noteUrl.trim().length > 0
+        ? author.noteUrl
+        : "";          
+
   const signedInLabel = user.email ?? "ログイン中";
   const enableOfficialNemoAutogen = isOfficialNarrationAccountEmail(user.email);  
 
@@ -190,17 +210,10 @@ export default async function MyPage() {
           userId={user.id}
           fallbackEmail={signedInLabel}
           initialDisplayName={initialDisplayName}
+          initialBio={initialBio}
+          initialXUrl={initialXUrl}
+          initialNoteUrl={initialNoteUrl}
           eyebrow="LIB READ MYPAGE"
-          description={`${authorBio}
-
-ここは公開作者ページとは別の、本人用活動ハブ。
-プロフィール表現と作品一覧の土台は作者ページと分けつつ、
-作者向け実作業は作品ワークスペースへ寄せる。
-作品一覧から目的の作品ワークスペースへ入る運用を主導線にする。`}
-          badges={[
-            { label: "本人面" },
-            { label: `signed in: ${signedInLabel}` },
-          ]}
           actions={[
             {
               href: buildAuthorPageHref(user.id),
@@ -210,24 +223,6 @@ export default async function MyPage() {
             { href: "/write", label: "作品ワークスペース一覧へ" },
             { href: "/record", label: "朗読ページへ" },
           ]}
-          stats={[
-            {
-              label: "OWNED SERIES",
-              value: seriesCards.length,
-              sub: "自分が持っている作品数",
-            },
-            {
-              label: "TOTAL EPISODES",
-              value: totalEpisodes,
-              sub: "全作品の話数合計",
-            },
-            {
-              label: "PUBLISHED",
-              value: totalPublished,
-              sub: "公開中の話数合計",
-            },
-          ]}
-          notice="公開プロフィールとして見せる面は /authors/[authorId] に残し、本人専用の作業入口は作品ワークスペース一覧から各作品へつなぐ。"
         />
 
         <div className="mt-6 grid gap-6">
@@ -256,6 +251,8 @@ export default async function MyPage() {
               cta="公開作者ページを見る"
             />
           </section>
+
+          <SavedSearchLinksSection />          
 
           <MySeriesSection cards={seriesCards} />
 
