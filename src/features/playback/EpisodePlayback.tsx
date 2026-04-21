@@ -1129,7 +1129,7 @@ export default function EpisodePlayback({
         return left.sentenceIndex - right.sentenceIndex;
       });
   }, [generatedSentenceTimings]);
-  
+
   const hasGeneratedNarrationTiming = useMemo(() => {
     return runtimeGeneratedSentenceTimings.length > 0;
   }, [runtimeGeneratedSentenceTimings]);
@@ -1765,6 +1765,10 @@ const fallbackAudioStorageSrc = useMemo(() => {
   return "";
 }, [audioStoragePath]);
 
+const prefersSegmentedAudioForMultipart = useMemo(() => {
+  return /\.part\d+\.wav(?:\?|$)/i.test(fallbackAudioStorageSrc);
+}, [fallbackAudioStorageSrc]);
+
 const runtimeGeneratedAudioSegments = useMemo(() => {
   return (generatedAudioSegments ?? [])
     .filter(
@@ -1788,12 +1792,19 @@ const runtimeGeneratedAudioSegments = useMemo(() => {
 }, [generatedAudioSegments]);
 
 useEffect(() => {
-  setUseSegmentedAudioFallback(false);
-}, [episodeId, fallbackAudioStorageSrc, runtimeGeneratedAudioSegments.length]);
+  setUseSegmentedAudioFallback(prefersSegmentedAudioForMultipart);
+}, [
+  episodeId,
+  fallbackAudioStorageSrc,
+  runtimeGeneratedAudioSegments.length,
+  prefersSegmentedAudioForMultipart,
+]);
 
 useEffect(() => {
   const shouldAssembleSegmentedAudio =
-    useSegmentedAudioFallback || fallbackAudioStorageSrc.length === 0;
+    useSegmentedAudioFallback ||
+    prefersSegmentedAudioForMultipart ||
+    fallbackAudioStorageSrc.length === 0;
 
   if (!shouldAssembleSegmentedAudio) {
     setAssembledSegmentAudioUrl("");
@@ -1870,10 +1881,14 @@ useEffect(() => {
   runtimeGeneratedAudioSegments,
   fallbackAudioStorageSrc,
   useSegmentedAudioFallback,
+  prefersSegmentedAudioForMultipart,
 ]);
 
   const playableAudioSrc = useMemo(() => {
-    if (!useSegmentedAudioFallback && fallbackAudioStorageSrc.length > 0) {
+    const shouldPreferSegmentedAudio =
+      useSegmentedAudioFallback || prefersSegmentedAudioForMultipart;
+
+    if (!shouldPreferSegmentedAudio && fallbackAudioStorageSrc.length > 0) {
       return fallbackAudioStorageSrc;
     }
 
@@ -1888,6 +1903,7 @@ useEffect(() => {
     return fallbackAudioStorageSrc;
   }, [
     useSegmentedAudioFallback,
+    prefersSegmentedAudioForMultipart,
     assembledSegmentAudioUrl,
     runtimeGeneratedAudioSegments,
     fallbackAudioStorageSrc,
@@ -2198,11 +2214,26 @@ useEffect(() => {
     [unlockProgrammaticScroll]
   );
 
-  const resolveSentenceSeekTime = useCallback(
-    (sentenceIndex: number): number | null => {
+  const resolveDisplaySeekTime = useCallback(
+    (displayIndex: number): number | null => {
+      const displayTiming = preferredDisplaySentenceTimings.find(
+        (item) => item.displayIndex === displayIndex
+      );
+
+      if (displayTiming) {
+        return displayTiming.timeSeconds;
+      }
+
+      const mappedSentenceIndex =
+        displayIndexToSentenceIndexMap.get(displayIndex);
+
+      if (mappedSentenceIndex === undefined) {
+        return null;
+      }
+
       if (!isHumanRecordingSelected) {
         const generatedTiming = alignedGeneratedSentenceTimings.find(
-          (item) => item.sentenceIndex === sentenceIndex
+          (item) => item.sentenceIndex === mappedSentenceIndex
         );
 
         if (generatedTiming) {
@@ -2210,37 +2241,28 @@ useEffect(() => {
         }
       }
 
-      const displayTiming = preferredDisplaySentenceTimings.find((item) => {
-        const mappedSentenceIndex =
-          displayIndexToSentenceIndexMap.get(item.displayIndex) ?? item.sentenceIndex;
-
-        return mappedSentenceIndex === sentenceIndex;
-      });
-
-      if (displayTiming) {
-        return displayTiming.timeSeconds;
-      }
-
       if (duration <= 0 || totalSentenceCount <= 1) {
         return null;
       }
 
-      return (sentenceIndex / Math.max(1, totalSentenceCount - 1)) * duration;
+      return (
+        (mappedSentenceIndex / Math.max(1, totalSentenceCount - 1)) * duration
+      );
     },
     [
-      isHumanRecordingSelected,
-      alignedGeneratedSentenceTimings,
       preferredDisplaySentenceTimings,
       displayIndexToSentenceIndexMap,
+      isHumanRecordingSelected,
+      alignedGeneratedSentenceTimings,
       duration,
       totalSentenceCount,
     ]
   );
 
-  const handleJumpToSentence = useCallback(
-    (sentenceIndex: number) => {
+  const handleJumpToDisplay = useCallback(
+    (displayIndex: number) => {
       const audio = audioRef.current;
-      const nextTime = resolveSentenceSeekTime(sentenceIndex);
+      const nextTime = resolveDisplaySeekTime(displayIndex);
 
       if (!audio || !canPlayAudio || nextTime === null) {
         return;
@@ -2254,9 +2276,9 @@ useEffect(() => {
       audio.currentTime = safeTime;
       setCurrentTime(safeTime);
       setAutoFollow(true);
-      scrollToSentence(sentenceIndex, "smooth");
+      scrollToSentence(displayIndex, "smooth");
     },
-    [canPlayAudio, duration, resolveSentenceSeekTime, scrollToSentence]
+    [canPlayAudio, duration, resolveDisplaySeekTime, scrollToSentence]
   );
 
   useEffect(() => {
@@ -2878,8 +2900,8 @@ useEffect(() => {
                 {selectedReaderName
                   ? recordingAvailable
                     ? "選択中朗読を再生できる"
-                    : "この朗読者の公開朗読はまだない"
-                  : "作品ページで朗読者を選ぶと再生開始"}
+                    : "この朗読者の公開朗読はまだない / 朗読停止中"
+                  : "朗読未選択 / 朗読停止中"}
               </span>
 
               {resolvedBgmSrc ? (
@@ -3169,13 +3191,13 @@ useEffect(() => {
                                     role={canPlayAudio ? "button" : undefined}
                                     tabIndex={canPlayAudio ? 0 : undefined}
                                     onClick={() => {
-                                      handleJumpToSentence(segment.index);
+                                      handleJumpToDisplay(unit.displayIndex)
                                     }}
                                     onKeyDown={(event) => {
                                       if (!canPlayAudio) return;
                                       if (event.key !== "Enter" && event.key !== " ") return;
                                       event.preventDefault();
-                                      handleJumpToSentence(segment.index);
+                                      handleJumpToDisplay(unit.displayIndex)
                                     }}
                                     className={[
                                       "inline rounded-md px-1 py-1 transition-all duration-200",

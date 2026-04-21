@@ -477,7 +477,7 @@ export default async function ReadEpisodePage({
         effectSettings={effectSettings}
         autoNarrationStatusLabel={autoNarrationBadge.label}
         autoNarrationStatusClassName={autoNarrationBadge.className}
-        stopNarrationByDefault={!requestedReaderSpecified}
+        stopNarrationByDefault={!requestedReaderSpecified || !selectedRecording}
       />
     </>
   );

@@ -15,6 +15,8 @@ import {
 import BookmarkedSeriesList from "@/features/bookmark/BookmarkedSeriesList";
 import MyPageHeroEditable from "./MyPageHeroEditable";
 import AccountSettingsCard from "./AccountSettingsCard";
+import NemoAutogenBackfillRunner from "./NemoAutogenBackfillRunner";
+import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
 
 function EntryCard({
   eyebrow,
@@ -160,6 +162,7 @@ export default async function MyPage() {
   const authorName = resolveAuthorName(author, user.email);
   const authorBio = resolveAuthorBio(author);
   const signedInLabel = user.email ?? "ログイン中";
+  const enableOfficialNemoAutogen = isOfficialNarrationAccountEmail(user.email);  
 
   const rawDisplayName =
     typeof author?.display_name === "string" ? author.display_name : "";
@@ -173,6 +176,7 @@ export default async function MyPage() {
 
   return (
     <main className="min-h-screen bg-white text-black">
+      <NemoAutogenBackfillRunner enabled={enableOfficialNemoAutogen} />
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
           <Link href="/" className="hover:text-black">
