@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { generateNemoRecordingForEpisode } from "@/lib/recording/nemoGeneration";
+import { markEpisodeGeneratedInNemoQueue } from "@/lib/recording/nemoGenerationQueue";
 import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -130,7 +132,7 @@ function resolveErrorResponse(error: unknown) {
         error: "本文同期用 timing 情報の組み立てに失敗した。",
       },
     };
-  }  
+  }
 
   if (message === "storage_public_url_unavailable") {
     return {
@@ -150,7 +152,7 @@ function resolveErrorResponse(error: unknown) {
         error: "朗読者ユーザー行の確保に失敗した。users テーブル列差分を確認して。",
       },
     };
-  }  
+  }
 
   if (message.startsWith("recording_lookup_failed:")) {
     return {
@@ -180,7 +182,7 @@ function resolveErrorResponse(error: unknown) {
         error: "重複していた朗読 row の cleanup に失敗した。",
       },
     };
-  }  
+  }
 
   if (message.startsWith("recording_insert_failed:")) {
     return {
@@ -281,6 +283,17 @@ export async function POST(request: Request) {
       narratorName,
       speakerId,
     });
+
+    try {
+      await markEpisodeGeneratedInNemoQueue({
+        supabase: createAdminClient(),
+        seriesId,
+        episodeId,
+        requestedByUserId: user.id,
+      });
+    } catch (queueError) {
+      console.warn("[nemo-generate queue sync]", queueError);
+    }
 
     return NextResponse.json(
       {
