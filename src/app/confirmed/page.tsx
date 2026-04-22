@@ -1,78 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { normalizeNextPath } from "@/lib/auth/accountSignupConsent";
 
-type ConfirmedKind = "register" | "completed" | "login_required";
+type ConfirmedKind = "completed" | "login_required";
 
 function resolveKind(value: string | null): ConfirmedKind {
-  if (value === "completed") {
-    return "completed";
-  }
-
   if (value === "login_required") {
     return "login_required";
   }
 
-  return "register";
+  return "completed";
 }
 
 export default function ConfirmedPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const nextPath = useMemo(
     () => normalizeNextPath(searchParams.get("next"), "/"),
     [searchParams]
   );
+
   const kind = useMemo(
     () => resolveKind(searchParams.get("kind")),
     [searchParams]
   );
 
-  const [secondsLeft, setSecondsLeft] = useState(3);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-
-    const timeoutId = window.setTimeout(() => {
-      router.replace(nextPath);
-    }, 3000);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.clearTimeout(timeoutId);
-    };
-  }, [router, nextPath]);
-
   const content = useMemo(() => {
-    if (kind === "completed") {
-      return {
-        title: "メールアドレス確認が完了した",
-        description:
-          "確認が終わった。まもなく元のページへ戻る。",
-        buttonLabel: "元のページへ戻る",
-      };
-    }
-
     if (kind === "login_required") {
       return {
-        title: "メールアドレス確認が完了した",
+        title: "メール確認を受け付けた",
         description:
-          "確認は終わったが、このブラウザではログイン状態を受け取れなかった。まもなくログイン画面へ移動する。",
-        buttonLabel: "ログインして続ける",
+          "このリンクを開いたことでメール確認を受け付けた。元の画面に戻るか、ログインして利用を続けて。",
       };
     }
 
     return {
-      title: "メールアドレス確認が完了した",
+      title: "メール確認を受け付けた",
       description:
-        "確認が終わった。まもなく登録の続きへ移動する。",
-      buttonLabel: "登録の続きへ進む",
+        "このリンクを開いたことでメール確認を受け付けた。元の画面に戻って、そのままログインして進んで。",
     };
   }, [kind]);
 
@@ -102,28 +70,28 @@ export default function ConfirmedPage() {
               <p className="text-sm leading-7 text-neutral-700">
                 {content.description}
               </p>
-              <p className="mt-3 text-sm text-neutral-600">
-                {secondsLeft > 0
-                  ? `${secondsLeft}秒後に自動で移動する。`
-                  : "移動中..."}
-              </p>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => router.replace(nextPath)}
-                className="inline-flex rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
-              >
-                {content.buttonLabel}
-              </button>
-
               <Link
                 href={nextPath}
-                replace
+                className="inline-flex rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+              >
+                元の画面へ戻る
+              </Link>
+
+              <Link
+                href="/login"
                 className="inline-flex rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-700 transition hover:bg-neutral-50"
               >
-                いま移動する
+                ログインへ
+              </Link>
+
+              <Link
+                href="/"
+                className="inline-flex rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-700 transition hover:bg-neutral-50"
+              >
+                TOPへ
               </Link>
             </div>
           </div>

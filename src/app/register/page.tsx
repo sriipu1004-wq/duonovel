@@ -7,7 +7,6 @@ import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import {
   ACCOUNT_GENDER_OPTIONS,
-  ACCOUNT_SIGNUP_CONSENT_VERSION,
   buildCompletedAccountRegistrationMetadata,
   buildPendingAccountRegistrationMetadata,
   hasRequiredAccountRegistrationConsent,
@@ -23,7 +22,6 @@ import {
 import { checkDisplayNameAvailability } from "@/lib/auth/checkDisplayNameAvailability";
 import { checkEmailAvailability } from "@/lib/auth/checkEmailAvailability";
 import { syncPublicUserProfile } from "@/lib/auth/syncPublicUserProfile";
-
 
 type PendingAction = "email-signup" | "complete-profile" | null;
 
@@ -56,7 +54,7 @@ function mapRegistrationErrorMessage(message: string): string {
   const normalizedMessage = message.toLowerCase();
 
   if (normalizedMessage.includes("user already registered")) {
-    return "このメールアドレスはすでに登録されている。ログインへ進んで。";
+    return "このメールアドレスはすでに登録済み。ログインへ進んで。";
   }
 
   return message;
@@ -70,13 +68,7 @@ export default function RegisterPage() {
     () => normalizeNextPath(searchParams.get("next"), "/mypage"),
     [searchParams]
   );
-  const stage = useMemo(
-    () =>
-      typeof searchParams.get("stage") === "string"
-        ? searchParams.get("stage")
-        : "",
-    [searchParams]
-  );
+
   const initialEmail = useMemo(
     () =>
       typeof searchParams.get("email") === "string"
@@ -84,15 +76,6 @@ export default function RegisterPage() {
         : "",
     [searchParams]
   );
-
-  const resumeLoginHref = useMemo(() => {
-    const query = new URLSearchParams();
-    query.set(
-      "next",
-      `/register?stage=confirmed&next=${encodeURIComponent(nextPath)}`
-    );
-    return `/login?${query.toString()}`;
-  }, [nextPath]);
 
   const [user, setUser] = useState<User | null>(null);
   const [loadedUser, setLoadedUser] = useState(false);
@@ -190,9 +173,16 @@ export default function RegisterPage() {
     excludeUserId?: string
   ): Promise<string> {
     return checkDisplayNameAvailability(candidateDisplayName, excludeUserId);
-  }  
+  }
 
   async function completeSignedInRegistration(sessionUser: User) {
+    if (!isEmailConfirmed(sessionUser)) {
+      setErrorMessage(
+        "メール確認がまだ完了していない。確認メールのリンクを開いてからやり直して。"
+      );
+      return;
+    }
+
     if (displayNameError) {
       setErrorMessage(displayNameError);
       return;
@@ -259,102 +249,97 @@ export default function RegisterPage() {
     router.refresh();
   }
 
-async function handleEmailRegistration(
-  event: React.FormEvent<HTMLFormElement>
-) {
-  event.preventDefault();
+  async function handleEmailRegistration(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
 
-  if (user) {
-    await completeSignedInRegistration(user);
-    return;
-  }
+    if (user) {
+      await completeSignedInRegistration(user);
+      return;
+    }
 
-  if (displayNameError) {
-    setErrorMessage(displayNameError);
-    return;
-  }
+    if (displayNameError) {
+      setErrorMessage(displayNameError);
+      return;
+    }
 
-  if (!profileComplete) {
-    setErrorMessage("登録に必要な入力がまだ不足している。");
-    return;
-  }
+    if (!profileComplete) {
+      setErrorMessage("登録に必要な入力がまだ不足している。");
+      return;
+    }
 
-  if (!email.trim() || !password.trim()) {
-    setErrorMessage("メールアドレスとパスワードが必要。");
-    return;
-  }
+    if (!email.trim() || !password.trim()) {
+      setErrorMessage("メールアドレスとパスワードが必要。");
+      return;
+    }
 
-  setPendingAction("email-signup");
-  setMessage("");
-  setErrorMessage("");
+    setPendingAction("email-signup");
+    setMessage("");
+    setErrorMessage("");
 
-  let availableDisplayName = normalizedDisplayName;
-  let availableEmail = normalizeEmail(email);
+    let availableDisplayName = normalizedDisplayName;
+    let availableEmail = normalizeEmail(email);
 
-  try {
-    availableEmail = await checkEmailAvailability(email);
-  } catch (error) {
-    setErrorMessage(
-      error instanceof Error
-        ? error.message
-        : "メールアドレスの重複確認に失敗した。"
+    try {
+      availableEmail = await checkEmailAvailability(email);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "メールアドレスの重複確認に失敗した。"
+      );
+      setPendingAction(null);
+      return;
+    }
+
+    try {
+      availableDisplayName =
+        await ensureDisplayNameAvailable(normalizedDisplayName);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "ユーザー名の重複確認に失敗した。"
+      );
+      setPendingAction(null);
+      return;
+    }
+
+    const redirectOrigin = resolveAuthRedirectOrigin();
+    const emailRedirectTo = redirectOrigin
+      ? `${redirectOrigin}/auth/callback?next=${encodeURIComponent(nextPath)}`
+      : undefined;
+
+    const metadata = buildPendingAccountRegistrationMetadata({
+      displayName: availableDisplayName,
+      birthdate,
+      gender,
+      agreedToTerms,
+      agreedToPrivacy,
+      acknowledgedPublicSurface,
+    });
+
+    const { error } = await supabase.auth.signUp({
+      email: availableEmail,
+      password,
+      options: {
+        emailRedirectTo,
+        data: metadata,
+      },
+    });
+
+    if (error) {
+      setErrorMessage(mapRegistrationErrorMessage(error.message));
+      setPendingAction(null);
+      return;
+    }
+
+    setMessage(
+      "確認メールを送った。メール内リンクではメール確認だけを受け付ける。リンクを開いたら元の画面に戻ってログインして。"
     );
     setPendingAction(null);
-    return;
   }
-
-  try {
-    availableDisplayName =
-      await ensureDisplayNameAvailable(normalizedDisplayName);
-  } catch (error) {
-    setErrorMessage(
-      error instanceof Error
-        ? error.message
-        : "ユーザー名の重複確認に失敗した。"
-    );
-    setPendingAction(null);
-    return;
-  }
-
-  const redirectOrigin = resolveAuthRedirectOrigin();
-  const emailRedirectTo = redirectOrigin
-    ? `${redirectOrigin}/auth/callback?next=${encodeURIComponent(nextPath)}`
-    : undefined;
-
-  const metadata = buildPendingAccountRegistrationMetadata({
-    displayName: availableDisplayName,
-    birthdate,
-    gender,
-    agreedToTerms,
-    agreedToPrivacy,
-    acknowledgedPublicSurface,
-  });
-
-  const { data, error } = await supabase.auth.signUp({
-    email: availableEmail,
-    password,
-    options: {
-      emailRedirectTo,
-      data: metadata,
-    },
-  });
-
-  if (error) {
-    setErrorMessage(mapRegistrationErrorMessage(error.message));
-    setPendingAction(null);
-    return;
-  }
-
-  if (data.session?.user) {
-    await completeSignedInRegistration(data.session.user);
-    return;
-  }
-
-  setMessage(
-    "確認メール送信済み。メール内の確認リンクから LIB read に戻って登録を継続してください。"
-  );
-  setPendingAction(null);
-}
 
   const primaryLabel = user
     ? pendingAction === "complete-profile"
@@ -390,31 +375,15 @@ async function handleEmailRegistration(
               メールアドレス・パスワード・公開プロフィール用の基本情報・規約同意を登録する。
             </p>
 
-            {stage === "confirmed" && loadedUser && !user ? (
-              <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-neutral-700">
-                <p>メール確認は完了した。</p>
-                <p className="mt-2">
-                  ただ、確認直後のログイン状態をこの画面で受け取れなかった。
-                  もう一度ログインしてから登録を続けて。
-                </p>
-                <div className="mt-4">
-                  <Link
-                    href={resumeLoginHref}
-                    className="inline-flex rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
-                  >
-                    ログインして続ける
-                  </Link>
-                </div>
-              </div>
-            ) : user ? (
+            {user ? (
               <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-neutral-700">
                 {!loadedUser ? (
                   <p>認証状態を確認中...</p>
                 ) : (
                   <>
-                    <p>確認済みアカウント: {user.email ?? "メールアドレス不明"}</p>
+                    <p>ログイン中: {user.email ?? "メールアドレス不明"}</p>
                     <p className="mt-2">
-                      メール確認後の最終登録画面。公開プロフィール用の基本情報を確定して進む。
+                      確認済みメールアドレスなら、この画面で公開プロフィール用の基本情報を確定できる。
                     </p>
                   </>
                 )}
@@ -423,7 +392,7 @@ async function handleEmailRegistration(
               <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-neutral-700">
                 <p>まずメールアドレスとパスワードを登録する。</p>
                 <p className="mt-2">
-                  登録後は確認メールを送り、そのリンクを開くとこの導線に戻って続きへ進める。
+                  確認メールのリンクではメール確認だけを受け付ける。リンクを開いたら元の画面に戻ってログインして。
                 </p>
               </div>
             )}
@@ -587,13 +556,6 @@ async function handleEmailRegistration(
                       </span>
                     </label>
                   </div>
-
-                  <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs leading-6 text-neutral-700">
-                    <p>基本同意 version: {ACCOUNT_SIGNUP_CONSENT_VERSION}</p>
-                    <p className="mt-2">
-                      この登録では、確認済みメールアドレスを前提にアカウントを使い始める。
-                    </p>
-                  </div>
                 </div>
 
                 <div className="mt-6 flex flex-wrap gap-3">
@@ -623,7 +585,9 @@ async function handleEmailRegistration(
                       現在のメール認証状態: {isEmailConfirmed(user) ? "認証済み" : "未認証"}
                     </p>
                     <p className="mt-2">
-                      認証済みなら、この画面で登録完了まで進める。未認証なら確認メールの案内を先に確認する。
+                      {isEmailConfirmed(user)
+                        ? "認証済みなら、この画面で登録を完了できる。"
+                        : "未認証のままでは登録を完了できない。確認メールのリンクを開いてからやり直して。"}
                     </p>
                   </div>
                 ) : null}

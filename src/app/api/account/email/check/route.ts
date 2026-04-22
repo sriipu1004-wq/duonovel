@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+type EmailAvailabilityStatus = "available" | "confirmed" | "unconfirmed";
+
 function readText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -21,6 +23,10 @@ function validateEmail(value: string): string {
   return "";
 }
 
+function isEmailConfirmed(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 export async function POST(request: Request) {
   let payload: Record<string, unknown>;
 
@@ -31,6 +37,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         available: false,
+        status: "available" satisfies EmailAvailabilityStatus,
         error: "リクエストを読めなかった。",
       },
       { status: 400 }
@@ -45,6 +52,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         available: false,
+        status: "available" satisfies EmailAvailabilityStatus,
         error: validationError,
       },
       { status: 400 }
@@ -67,16 +75,27 @@ export async function POST(request: Request) {
       }
 
       const users = data?.users ?? [];
-      const exists = users.some(
-        (user) => normalizeEmail(user.email ?? "") === normalizedEmail
-      );
+      const matchedUser =
+        users.find(
+          (user) => normalizeEmail(user.email ?? "") === normalizedEmail
+        ) ?? null;
 
-      if (exists) {
+      if (matchedUser) {
+        const status: EmailAvailabilityStatus = isEmailConfirmed(
+          matchedUser.email_confirmed_at
+        )
+          ? "confirmed"
+          : "unconfirmed";
+
         return NextResponse.json({
           ok: true,
           available: false,
+          status,
           normalizedEmail,
-          error: "このメールアドレスはすでに登録されている。ログインへ進んで。",
+          error:
+            status === "confirmed"
+              ? "このメールアドレスはすでに登録済み。ログインへ進んで。"
+              : "このメールアドレスは確認待ち。確認メールのリンクを開いてからログインして。確認がまだなら作成を続けられない。",
         });
       }
 
@@ -90,6 +109,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       available: true,
+      status: "available" satisfies EmailAvailabilityStatus,
       normalizedEmail,
       error: "",
     });
@@ -100,6 +120,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         available: false,
+        status: "available" satisfies EmailAvailabilityStatus,
         error: "メールアドレスの重複確認に失敗した。",
       },
       { status: 500 }

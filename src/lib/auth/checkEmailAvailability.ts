@@ -1,6 +1,9 @@
+type EmailAvailabilityStatus = "available" | "confirmed" | "unconfirmed";
+
 type CheckEmailAvailabilityResponse = {
   ok?: boolean;
   available?: boolean;
+  status?: EmailAvailabilityStatus;
   normalizedEmail?: string;
   error?: string;
 };
@@ -34,7 +37,10 @@ export async function checkEmailAvailability(email: string): Promise<string> {
 
   if (!payload.available) {
     throw new Error(
-      payload.error || "このメールアドレスはすでに登録されている。ログインへ進んで。"
+      payload.error ||
+        (payload.status === "unconfirmed"
+          ? "このメールアドレスは確認待ち。確認メールのリンクを開いてからログインして。確認がまだなら作成を続けられない。"
+          : "このメールアドレスはすでに登録済み。ログインへ進んで。")
     );
   }
 

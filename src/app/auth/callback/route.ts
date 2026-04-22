@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
+  buildCompletedAccountRegistrationMetadata,
+  hasRequiredAccountRegistrationConsent,
   isAccountRegistrationCompleted,
   normalizeNextPath,
+  readAccountRegistrationBirthdate,
+  readAccountRegistrationConsent,
+  readAccountRegistrationDisplayName,
+  readAccountRegistrationGender,
 } from "@/lib/auth/accountSignupConsent";
 
 function buildRedirect(request: NextRequest, pathname: string) {
@@ -12,15 +19,64 @@ function buildRedirect(request: NextRequest, pathname: string) {
   return redirectTo;
 }
 
-function buildConfirmedRedirect(
-  request: NextRequest,
-  kind: "register" | "completed" | "login_required",
-  nextPath: string
-) {
-  const redirectTo = buildRedirect(request, "/confirmed");
-  redirectTo.searchParams.set("kind", kind);
-  redirectTo.searchParams.set("next", nextPath);
-  return redirectTo;
+async function savePublicDisplayName(userId: string, displayName: string) {
+  const adminSupabase = createAdminClient();
+  const updatedAt = new Date().toISOString();
+
+  const updatePayloads = [
+    {
+      display_name: displayName,
+      updated_at: updatedAt,
+    },
+    {
+      display_name: displayName,
+    },
+  ];
+
+  for (const payload of updatePayloads) {
+    const result = await adminSupabase
+      .from("users")
+      .update(payload)
+      .eq("id", userId)
+      .select("id")
+      .maybeSingle();
+
+    if (!result.error && result.data?.id) {
+      return;
+    }
+  }
+
+  const upsertPayloads = [
+    {
+      id: userId,
+      display_name: displayName,
+      updated_at: updatedAt,
+    },
+    {
+      id: userId,
+      display_name: displayName,
+    },
+  ];
+
+  let lastErrorMessage = "display_name_save_failed";
+
+  for (const payload of upsertPayloads) {
+    const result = await adminSupabase
+      .from("users")
+      .upsert(payload, { onConflict: "id" })
+      .select("id")
+      .maybeSingle();
+
+    if (!result.error && result.data?.id) {
+      return;
+    }
+
+    if (result.error?.message) {
+      lastErrorMessage = result.error.message;
+    }
+  }
+
+  throw new Error(lastErrorMessage);
 }
 
 export async function GET(request: NextRequest) {
@@ -28,13 +84,8 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get("code");
   const nextPath = normalizeNextPath(
     requestUrl.searchParams.get("next"),
-    "/mypage"
+    "/"
   );
-
-  const resumeRegisterPath = `/register?stage=confirmed&next=${encodeURIComponent(nextPath)}`;
-  const resumeLoginPath = `/login?confirmed=1&next=${encodeURIComponent(
-    resumeRegisterPath
-  )}`;
 
   if (!code) {
     const redirectTo = buildRedirect(request, "/login");
@@ -49,7 +100,7 @@ export async function GET(request: NextRequest) {
   if (error) {
     const redirectTo = buildRedirect(request, "/login");
     redirectTo.searchParams.set("error", "email_confirm_callback_failed");
-    redirectTo.searchParams.set("next", resumeRegisterPath);
+    redirectTo.searchParams.set("next", nextPath);
     return NextResponse.redirect(redirectTo);
   }
 
@@ -57,21 +108,69 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const redirectTo = buildRedirect(request, "/confirmed");
+  redirectTo.searchParams.set("kind", user ? "completed" : "login_required");
+  redirectTo.searchParams.set("next", nextPath);
+
   if (!user) {
-    return NextResponse.redirect(
-      buildConfirmedRedirect(request, "login_required", resumeLoginPath)
-    );
+    return NextResponse.redirect(redirectTo);
   }
 
-  const completed = isAccountRegistrationCompleted(user.user_metadata);
-
-  if (completed) {
-    return NextResponse.redirect(
-      buildConfirmedRedirect(request, "completed", nextPath)
-    );
-  }
-
-  return NextResponse.redirect(
-    buildConfirmedRedirect(request, "register", resumeRegisterPath)
+  const metadata = user.user_metadata ?? {};
+  const displayName = readAccountRegistrationDisplayName(metadata);
+  const birthdate = readAccountRegistrationBirthdate(metadata);
+  const gender = readAccountRegistrationGender(metadata);
+  const agreedToTerms = readAccountRegistrationConsent(
+    metadata,
+    "account_public_profile_ack"
   );
+  const agreedToPrivacy = readAccountRegistrationConsent(
+    metadata,
+    "account_public_content_ack"
+  );
+  const acknowledgedPublicSurface = readAccountRegistrationConsent(
+    metadata,
+    "account_enforcement_ack"
+  );
+
+  try {
+    if (displayName) {
+      await savePublicDisplayName(user.id, displayName);
+    }
+
+    if (!isAccountRegistrationCompleted(metadata)) {
+      const hasRequiredInput =
+        displayName.length > 0 &&
+        birthdate.length > 0 &&
+        gender.length > 0 &&
+        hasRequiredAccountRegistrationConsent({
+          agreedToTerms,
+          agreedToPrivacy,
+          acknowledgedPublicSurface,
+        });
+
+      if (hasRequiredInput) {
+        const completedMetadata = buildCompletedAccountRegistrationMetadata({
+          displayName,
+          birthdate,
+          gender,
+          agreedToTerms,
+          agreedToPrivacy,
+          acknowledgedPublicSurface,
+        });
+
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: completedMetadata,
+        });
+
+        if (updateError) {
+          throw updateError;
+        }
+      }
+    }
+  } catch (finalizeError) {
+    console.error("[auth-callback finalize]", finalizeError);
+  }
+
+  return NextResponse.redirect(redirectTo);
 }

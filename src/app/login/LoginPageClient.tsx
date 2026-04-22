@@ -69,7 +69,9 @@ export default function LoginPageClient() {
 
   useEffect(() => {
     if (confirmed) {
-      setMessage("メール確認は完了した。ログインして登録を続けて。");
+      setMessage(
+        "メール確認は完了した。元の画面に戻るか、そのままログインして利用を始めて。"
+      );
     }
   }, [confirmed]);
 
@@ -249,10 +251,10 @@ export default function LoginPageClient() {
 
                   <div className="mt-5 rounded-2xl border border-black/10 bg-neutral-50 p-4 text-xs leading-6 text-neutral-600">
                     <p>
-                      アカウント作成後は、確認メールの承認をしてから利用を続ける。
+                      アカウント作成後は、確認メールのリンクを開いてメール確認を完了してから利用を始める。
                     </p>
                     <p className="mt-2">
-                      確認後は登録画面に戻って、公開プロフィール用の基本情報を仕上げる。
+                      確認が終わったら元の画面に戻るか、このページからログインして進む。
                     </p>
                   </div>
                 </div>
