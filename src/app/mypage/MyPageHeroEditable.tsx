@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   normalizeDisplayName,
@@ -52,6 +52,21 @@ function normalizeBio(value: string): string {
   return value.replace(/\r\n?/g, "\n").trim();
 }
 
+function resolveVisibleLinkFieldCount(values: string[]): number {
+  const first = values[0]?.trim().length > 0;
+  const second = values[1]?.trim().length > 0;
+
+  if (second) {
+    return 2;
+  }
+
+  return first ? 1 : 1;
+}
+
+function trimLinkValues(values: string[]): string[] {
+  return [values[0]?.trim() ?? "", values[1]?.trim() ?? ""];
+}
+
 export default function MyPageHeroEditable({
   userId,
   fallbackEmail,
@@ -66,6 +81,7 @@ export default function MyPageHeroEditable({
 
   const normalizedInitialDisplayName = normalizeDisplayName(initialDisplayName);
   const normalizedInitialBio = normalizeBio(initialBio);
+  const initialLinkValues = trimLinkValues([initialXUrl, initialNoteUrl]);
 
   const [displayName, setDisplayName] = useState(normalizedInitialDisplayName);
   const [draftName, setDraftName] = useState(normalizedInitialDisplayName);
@@ -73,15 +89,14 @@ export default function MyPageHeroEditable({
   const [bio, setBio] = useState(normalizedInitialBio);
   const [draftBio, setDraftBio] = useState(normalizedInitialBio);
 
-  const [xUrl, setXUrl] = useState(initialXUrl.trim());
-  const [draftXUrl, setDraftXUrl] = useState(initialXUrl.trim());
+  const [linkValues, setLinkValues] = useState<string[]>(initialLinkValues);
+  const [draftLinks, setDraftLinks] = useState<string[]>(initialLinkValues);
 
-  const [noteUrl, setNoteUrl] = useState(initialNoteUrl.trim());
-  const [draftNoteUrl, setDraftNoteUrl] = useState(initialNoteUrl.trim());
-
-  const [isEditing, setIsEditing] = useState(
-    normalizedInitialDisplayName.length === 0
+  const [visibleLinkFieldCount, setVisibleLinkFieldCount] = useState<number>(
+    resolveVisibleLinkFieldCount(initialLinkValues)
   );
+
+  const [isEditing, setIsEditing] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -94,8 +109,17 @@ export default function MyPageHeroEditable({
   const visibleBio =
     bio.trim().length > 0 ? bio.trim() : "自己紹介未記入";
 
-  const hasExternalLinks =
-    xUrl.trim().length > 0 || noteUrl.trim().length > 0;
+  const visibleSavedLinks = useMemo(
+    () => linkValues.map((value) => value.trim()).filter((value) => value.length > 0),
+    [linkValues]
+  );
+
+  const hasExternalLinks = visibleSavedLinks.length > 0;
+
+  const canAddLinkField =
+    isEditing &&
+    visibleLinkFieldCount < 2 &&
+    draftLinks[visibleLinkFieldCount - 1]?.trim().length > 0;
 
   function resetNotice() {
     setSaveState("idle");
@@ -106,8 +130,8 @@ export default function MyPageHeroEditable({
   function handleEditStart() {
     setDraftName(displayName.trim());
     setDraftBio(bio);
-    setDraftXUrl(xUrl);
-    setDraftNoteUrl(noteUrl);
+    setDraftLinks([...linkValues]);
+    setVisibleLinkFieldCount(resolveVisibleLinkFieldCount(linkValues));
     setIsEditing(true);
     resetNotice();
   }
@@ -115,9 +139,23 @@ export default function MyPageHeroEditable({
   function handleCancel() {
     setDraftName(displayName.trim());
     setDraftBio(bio);
-    setDraftXUrl(xUrl);
-    setDraftNoteUrl(noteUrl);
+    setDraftLinks([...linkValues]);
+    setVisibleLinkFieldCount(resolveVisibleLinkFieldCount(linkValues));
     setIsEditing(false);
+    resetNotice();
+  }
+
+  function handleDraftLinkChange(index: number, value: string) {
+    setDraftLinks((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+    resetNotice();
+  }
+
+  function handleAddLinkField() {
+    setVisibleLinkFieldCount((prev) => Math.min(2, prev + 1));
     resetNotice();
   }
 
@@ -130,8 +168,7 @@ export default function MyPageHeroEditable({
   async function handleSave() {
     const trimmedName = normalizeDisplayName(draftName);
     const normalizedBio = normalizeBio(draftBio);
-    const trimmedXUrl = draftXUrl.trim();
-    const trimmedNoteUrl = draftNoteUrl.trim();
+    const normalizedLinks = trimLinkValues(draftLinks);
     const validationError = validateDisplayName(trimmedName);
 
     if (validationError) {
@@ -171,8 +208,8 @@ export default function MyPageHeroEditable({
       const savedProfile = await syncPublicUserProfile(
         availableDisplayName,
         normalizedBio,
-        trimmedXUrl,
-        trimmedNoteUrl
+        normalizedLinks[0],
+        normalizedLinks[1]
       );
 
       const { error: authUpdateError } = await supabase.auth.updateUser({
@@ -182,17 +219,20 @@ export default function MyPageHeroEditable({
         },
       });
 
+      const nextSavedLinks = trimLinkValues([
+        savedProfile.xUrl,
+        savedProfile.noteUrl,
+      ]);
+
       setDisplayName(savedProfile.displayName);
       setDraftName(savedProfile.displayName);
 
       setBio(savedProfile.bio);
       setDraftBio(savedProfile.bio);
 
-      setXUrl(savedProfile.xUrl);
-      setDraftXUrl(savedProfile.xUrl);
-
-      setNoteUrl(savedProfile.noteUrl);
-      setDraftNoteUrl(savedProfile.noteUrl);
+      setLinkValues(nextSavedLinks);
+      setDraftLinks(nextSavedLinks);
+      setVisibleLinkFieldCount(resolveVisibleLinkFieldCount(nextSavedLinks));
 
       setIsEditing(false);
 
@@ -326,40 +366,39 @@ export default function MyPageHeroEditable({
               </p>
             </div>
 
-            <div>
-              <label className="text-sm text-neutral-700">Xリンク</label>
-              <div className="mt-2 rounded-2xl border border-black/10 bg-white p-4">
-                <input
-                  value={draftXUrl}
-                  onChange={(event) => {
-                    setDraftXUrl(event.target.value);
-                    resetNotice();
-                  }}
-                  className="w-full border-none bg-transparent p-0 text-sm text-black outline-none placeholder:text-neutral-300"
-                  placeholder="https://x.com/..."
-                />
-              </div>
-              <p className="mt-2 text-xs leading-6 text-neutral-500">
-                x.com/... の形でもいい。保存時に https を補完する。
-              </p>
-            </div>
+            <div className="grid gap-4">
+              {Array.from({ length: visibleLinkFieldCount }).map((_, index) => (
+                <div key={`profile-link-${index}`}>
+                  <label className="text-sm text-neutral-700">
+                    リンク {index + 1}
+                  </label>
+                  <div className="mt-2 rounded-2xl border border-black/10 bg-white p-4">
+                    <input
+                      value={draftLinks[index] ?? ""}
+                      onChange={(event) =>
+                        handleDraftLinkChange(index, event.target.value)
+                      }
+                      className="w-full border-none bg-transparent p-0 text-sm text-black outline-none placeholder:text-neutral-300"
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+              ))}
 
-            <div>
-              <label className="text-sm text-neutral-700">noteリンク</label>
-              <div className="mt-2 rounded-2xl border border-black/10 bg-white p-4">
-                <input
-                  value={draftNoteUrl}
-                  onChange={(event) => {
-                    setDraftNoteUrl(event.target.value);
-                    resetNotice();
-                  }}
-                  className="w-full border-none bg-transparent p-0 text-sm text-black outline-none placeholder:text-neutral-300"
-                  placeholder="https://note.com/..."
-                />
-              </div>
-              <p className="mt-2 text-xs leading-6 text-neutral-500">
-                note.com/... の形でもいい。保存時に https を補完する。
-              </p>
+              {canAddLinkField ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleAddLinkField}
+                    className="inline-flex rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                  >
+                    次のリンクを追加
+                  </button>
+                  <p className="mt-2 text-xs leading-6 text-neutral-500">
+                    今の安全版ではリンクは2本まで保存する。
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : (
@@ -370,27 +409,17 @@ export default function MyPageHeroEditable({
 
             {hasExternalLinks ? (
               <div className="mt-5 flex flex-wrap gap-3">
-                {xUrl ? (
+                {visibleSavedLinks.map((url, index) => (
                   <a
-                    href={xUrl}
+                    key={`${url}-${index}`}
+                    href={url}
                     target="_blank"
                     rel="noreferrer"
                     className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
                   >
-                    X
+                    リンク {index + 1}
                   </a>
-                ) : null}
-
-                {noteUrl ? (
-                  <a
-                    href={noteUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
-                  >
-                    note
-                  </a>
-                ) : null}
+                ))}
               </div>
             ) : null}
           </>
