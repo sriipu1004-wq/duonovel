@@ -485,6 +485,7 @@ export default async function ReadEpisodePage({
         autoNarrationStatusLabel={autoNarrationBadge.label}
         autoNarrationStatusClassName={autoNarrationBadge.className}
         stopNarrationByDefault={!requestedReaderSpecified || !selectedRecording}
+        hideNarrationControlsWhenReaderUnselected={!requestedReaderSpecified}    
       />
     </>
   );

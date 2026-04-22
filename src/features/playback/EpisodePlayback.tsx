@@ -79,7 +79,8 @@ type EpisodePlaybackProps = {
   effectSettings?: EffectSettings;
   autoNarrationStatusLabel?: string;
   autoNarrationStatusClassName?: string;
-  stopNarrationByDefault?: boolean;  
+  stopNarrationByDefault?: boolean;
+  hideNarrationControlsWhenReaderUnselected?: boolean;
 };
 
 type BookmarkData = {
@@ -791,6 +792,7 @@ export default function EpisodePlayback({
   bgmSettings,
   effectSettings,
   stopNarrationByDefault = false,
+  hideNarrationControlsWhenReaderUnselected = false,
 }: EpisodePlaybackProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -886,6 +888,22 @@ export default function EpisodePlayback({
   const [showMarker, setShowMarker] = useState<boolean>(() =>
     readStoredGlobalMarkerVisible()
   );
+
+  const showNarrationControls = !hideNarrationControlsWhenReaderUnselected;
+
+  useEffect(() => {
+    if (!hideNarrationControlsWhenReaderUnselected) {
+      return;
+    }
+
+    setIsNarrationStopped(true);
+    setIsPlaying(false);
+
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+    }
+  }, [hideNarrationControlsWhenReaderUnselected]);  
 
   const [firedSceneCueIds, setFiredSceneCueIds] = useState<
     Record<string, true>
@@ -3324,11 +3342,13 @@ useEffect(() => {
                 onClick={handleToggleBookmarkPanel}
               />
 
-              <FooterPlaybackRateControl
-                value={playbackRate}
-                onDecrease={handleDecreasePlaybackRate}
-                onIncrease={handleIncreasePlaybackRate}
-              />
+              {showNarrationControls ? (
+                <FooterPlaybackRateControl
+                  value={playbackRate}
+                  onDecrease={handleDecreasePlaybackRate}
+                  onIncrease={handleIncreasePlaybackRate}
+                />
+              ) : null}
 
               <FooterActionButton
                 label="前話"
@@ -3339,15 +3359,17 @@ useEffect(() => {
                 }}
               />
 
-              <FooterActionButton
-                label={isPlaying ? "停止" : "再生"}
-                iconSrc={isPlaying ? PLAYER_ICON_PATHS.stop : PLAYER_ICON_PATHS.play}
-                disabled={!canPlayAudio}
-                accent
-                onClick={() => {
-                  void handleTogglePlay();
-                }}
-              />
+              {showNarrationControls ? (
+                <FooterActionButton
+                  label={isPlaying ? "停止" : "再生"}
+                  iconSrc={isPlaying ? PLAYER_ICON_PATHS.stop : PLAYER_ICON_PATHS.play}
+                  disabled={!canPlayAudio}
+                  accent
+                  onClick={() => {
+                    void handleTogglePlay();
+                  }}
+                />
+              ) : null}
 
               <FooterActionButton
                 label="次話"
@@ -3358,12 +3380,15 @@ useEffect(() => {
                 }}
               />
 
-              <FooterActionButton
-                label={autoFollow ? "自動追尾\nON" : "自動追尾"}
-                disabled={autoFollow || estimatedSentenceIndex < 0}
-                active={autoFollow}
-                onClick={handleEnableAutoFollow}
-              />
+              {showNarrationControls ? (
+                <FooterActionButton
+                  label={autoFollow ? "自動追尾\nON" : "自動追尾\nOFF"}
+                  active={autoFollow}
+                  onClick={() => {
+                    setAutoFollow((prev) => !prev);
+                  }}
+                />
+              ) : null}
 
               <FooterActionButton
                 label="設定"
