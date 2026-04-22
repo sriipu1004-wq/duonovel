@@ -57,6 +57,13 @@ type HumanPublishResponse = {
   validationResult?: AudioUploadCheckResult;
 };
 
+type HumanDeleteResponse = {
+  ok: boolean;
+  deletedCount?: number;
+  error?: string;
+  detail?: string;
+};
+
 type PreparedAudioSource =
   | "none"
   | "browser_recording"
@@ -277,6 +284,9 @@ export function RecordingStudioPage({
   const [publishResult, setPublishResult] = useState<HumanPublishResponse | null>(
     null
   );
+  const [deleteStatus, setDeleteStatus] = useState<
+    "idle" | "deleting" | "error"
+  >("idle");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -289,6 +299,14 @@ export function RecordingStudioPage({
       safeEpisodes[0]
     );
   }, [safeEpisodes, selectedEpisodeId]);
+
+  const selectedExistingRecording = useMemo(() => {
+    if (!selectedEpisode) {
+      return null;
+    }
+
+    return existingRecordingMap[selectedEpisode.id] ?? null;
+  }, [existingRecordingMap, selectedEpisode]);  
 
   const currentPreviewItem = previewItems[previewIndex] ?? null;
 
@@ -336,6 +354,7 @@ export function RecordingStudioPage({
     setPreviewIndex(0);
     setPublishStatus("idle");
     setPublishResult(null);
+    setDeleteStatus("idle");
     setPublishMessage(
       existing
         ? "既存の朗読を表示中。新しく録音するか音声ファイルを選ぶと上書き候補へ切り替わる。"
@@ -753,6 +772,62 @@ export function RecordingStudioPage({
     }
   }
 
+  async function handleDeleteExistingRecording() {
+    if (!selectedEpisode || !selectedExistingRecording) {
+      return;
+    }
+
+    setDeleteStatus("deleting");
+    setPublishStatus("idle");
+    setPublishResult(null);
+    setPublishMessage("保存済み朗読を削除中。");
+
+    try {
+      const response = await fetch("/api/recordings/human-delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          seriesId,
+          episodeId: selectedEpisode.id,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | HumanDeleteResponse
+        | null;
+
+      if (!response.ok || !payload?.ok) {
+        setDeleteStatus("error");
+        setPublishMessage(payload?.error || "朗読削除に失敗した。");
+        return;
+      }
+
+      setDeleteStatus("idle");
+      setExistingRecordingMap((current) => {
+        const next = { ...current };
+        delete next[selectedEpisode.id];
+        return next;
+      });
+
+      if (currentPreviewItem?.source === "existing") {
+        revokePreviewItems(previewItemsRef.current);
+        previewItemsRef.current = [];
+        setPreviewItems([]);
+        setPreviewIndex(0);
+      }
+
+      setPublishMessage(
+        "保存済み朗読を削除した。必要なら新しく録音またはアップロードして publish できる。"
+      );
+    } catch (error) {
+      console.error("human delete failed", error);
+      setDeleteStatus("error");
+      setPublishMessage("朗読削除中に想定外エラーが出た。");
+    }
+  }  
+
   return (
     <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
       <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
@@ -851,18 +926,6 @@ export function RecordingStudioPage({
                   : `第${selectedEpisode.episodeNumber}話`}
               </span>
             ) : null}
-          </div>
-
-          <div className="mt-5 max-w-md">
-            <div className="grid gap-2">
-              <span className="text-sm text-neutral-700">朗読者名</span>
-              <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
-                {safeFixedReaderName}
-              </div>
-              <p className="text-xs leading-6 text-neutral-500">
-                朗読者名は現在のユーザー名をそのまま使う。ここでは変更できない。
-              </p>
-            </div>
           </div>
 
           <div className="mt-5">
@@ -1121,6 +1184,52 @@ export function RecordingStudioPage({
             ) : null}
           </div>
         </section>
+
+        {selectedEpisode && selectedExistingRecording ? (
+          <section className="rounded-[28px] border border-rose-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs tracking-[0.18em] text-rose-500">
+                  DELETE RECORDING
+                </p>
+                <h2 className="mt-2 text-xl font-semibold text-black">
+                  保存済み朗読を削除する
+                </h2>
+              </div>
+
+              <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-sm text-neutral-700">
+                第{selectedEpisode.episodeNumber}話
+              </span>
+            </div>
+
+            <p className="mt-3 text-sm leading-7 text-neutral-600">
+              この話には保存済み朗読がある。ここから削除すると、作品への接続と保存済み音声をまとめて外す。
+            </p>
+
+            <div className="mt-4 rounded-[20px] border border-black/10 bg-neutral-50 p-4 text-sm leading-7 text-neutral-700">
+              <p>対象話: 第{selectedEpisode.episodeNumber}話 {selectedEpisode.title}</p>
+              <p className="mt-2 break-all">
+                保存済み音声: {selectedExistingRecording.audioStoragePath}
+              </p>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleDeleteExistingRecording}
+                disabled={deleteStatus === "deleting"}
+                className={[
+                  "rounded-full px-5 py-3 text-sm font-semibold transition",
+                  deleteStatus === "deleting"
+                    ? "cursor-not-allowed border border-black/10 bg-neutral-100 text-neutral-400"
+                    : "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
+                ].join(" ")}
+              >
+                {deleteStatus === "deleting" ? "削除中..." : "朗読を削除"}
+              </button>
+            </div>
+          </section>
+        ) : null}        
 
         <div className="sticky bottom-4 z-20">
           <div className="mx-auto flex max-w-[260px] items-center justify-center rounded-[24px] border border-black/10 bg-white/95 p-3 shadow-lg backdrop-blur">
