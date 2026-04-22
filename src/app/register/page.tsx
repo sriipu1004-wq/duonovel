@@ -21,7 +21,9 @@ import {
   validateDisplayName,
 } from "@/lib/auth/accountSignupConsent";
 import { checkDisplayNameAvailability } from "@/lib/auth/checkDisplayNameAvailability";
+import { checkEmailAvailability } from "@/lib/auth/checkEmailAvailability";
 import { syncPublicUserProfile } from "@/lib/auth/syncPublicUserProfile";
+
 
 type PendingAction = "email-signup" | "complete-profile" | null;
 
@@ -30,6 +32,34 @@ function isEmailConfirmed(user: User | null): boolean {
     typeof user?.email_confirmed_at === "string" &&
     user.email_confirmed_at.length > 0
   );
+}
+
+function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function resolveAuthRedirectOrigin(): string {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? "";
+
+  if (siteUrl.length > 0) {
+    return siteUrl.replace(/\/+$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    return window.location.origin.replace(/\/+$/, "");
+  }
+
+  return "";
+}
+
+function mapRegistrationErrorMessage(message: string): string {
+  const normalizedMessage = message.toLowerCase();
+
+  if (normalizedMessage.includes("user already registered")) {
+    return "このメールアドレスはすでに登録されている。ログインへ進んで。";
+  }
+
+  return message;
 }
 
 export default function RegisterPage() {
@@ -229,88 +259,102 @@ export default function RegisterPage() {
     router.refresh();
   }
 
-  async function handleEmailRegistration(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
+async function handleEmailRegistration(
+  event: React.FormEvent<HTMLFormElement>
+) {
+  event.preventDefault();
 
-    if (user) {
-      await completeSignedInRegistration(user);
-      return;
-    }
+  if (user) {
+    await completeSignedInRegistration(user);
+    return;
+  }
 
-    if (displayNameError) {
-      setErrorMessage(displayNameError);
-      return;
-    }
+  if (displayNameError) {
+    setErrorMessage(displayNameError);
+    return;
+  }
 
-    if (!profileComplete) {
-      setErrorMessage("登録に必要な入力がまだ不足している。");
-      return;
-    }
+  if (!profileComplete) {
+    setErrorMessage("登録に必要な入力がまだ不足している。");
+    return;
+  }
 
-    if (!email.trim() || !password.trim()) {
-      setErrorMessage("メールアドレスとパスワードが必要。");
-      return;
-    }
+  if (!email.trim() || !password.trim()) {
+    setErrorMessage("メールアドレスとパスワードが必要。");
+    return;
+  }
 
-    setPendingAction("email-signup");
-    setMessage("");
-    setErrorMessage("");
+  setPendingAction("email-signup");
+  setMessage("");
+  setErrorMessage("");
 
-    let availableDisplayName = normalizedDisplayName;
+  let availableDisplayName = normalizedDisplayName;
+  let availableEmail = normalizeEmail(email);
 
-    try {
-      availableDisplayName =
-        await ensureDisplayNameAvailable(normalizedDisplayName);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "ユーザー名の重複確認に失敗した。"
-      );
-      setPendingAction(null);
-      return;
-    }
-
-    const emailRedirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
-        : undefined;
-
-    const metadata = buildPendingAccountRegistrationMetadata({
-      displayName: availableDisplayName,
-      birthdate,
-      gender,
-      agreedToTerms,
-      agreedToPrivacy,
-      acknowledgedPublicSurface,
-    });
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        emailRedirectTo,
-        data: metadata,
-      },
-    });
-
-    if (error) {
-      setErrorMessage(error.message);
-      setPendingAction(null);
-      return;
-    }
-
-    if (data.session?.user) {
-      await completeSignedInRegistration(data.session.user);
-      return;
-    }
-
-    setMessage(
-      "確認メールを送った。メール内リンクを開くと、この登録導線に戻って続きへ進める。"
+  try {
+    availableEmail = await checkEmailAvailability(email);
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error
+        ? error.message
+        : "メールアドレスの重複確認に失敗した。"
     );
     setPendingAction(null);
+    return;
   }
+
+  try {
+    availableDisplayName =
+      await ensureDisplayNameAvailable(normalizedDisplayName);
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error
+        ? error.message
+        : "ユーザー名の重複確認に失敗した。"
+    );
+    setPendingAction(null);
+    return;
+  }
+
+  const redirectOrigin = resolveAuthRedirectOrigin();
+  const emailRedirectTo = redirectOrigin
+    ? `${redirectOrigin}/auth/callback?next=${encodeURIComponent(nextPath)}`
+    : undefined;
+
+  const metadata = buildPendingAccountRegistrationMetadata({
+    displayName: availableDisplayName,
+    birthdate,
+    gender,
+    agreedToTerms,
+    agreedToPrivacy,
+    acknowledgedPublicSurface,
+  });
+
+  const { data, error } = await supabase.auth.signUp({
+    email: availableEmail,
+    password,
+    options: {
+      emailRedirectTo,
+      data: metadata,
+    },
+  });
+
+  if (error) {
+    setErrorMessage(mapRegistrationErrorMessage(error.message));
+    setPendingAction(null);
+    return;
+  }
+
+  if (data.session?.user) {
+    await completeSignedInRegistration(data.session.user);
+    return;
+  }
+
+  setMessage(
+    "確認メール送信済み。メール内の確認リンクから LIB read に戻って登録を継続してください。"
+  );
+  setPendingAction(null);
+}
 
   const primaryLabel = user
     ? pendingAction === "complete-profile"
@@ -449,13 +493,6 @@ export default function RegisterPage() {
                     required
                   />
                 </label>
-
-                <div className="mt-2 rounded-2xl border border-black/10 bg-neutral-50 p-3 text-xs leading-6 text-neutral-600">
-                  <p>2〜32文字、改行なし、URL 風の文字列なしで入力する。</p>
-                  <p className="mt-1">
-                    空白は自動で整理される。作者ページやプロフィールにそのまま見える名前になる。
-                  </p>
-                </div>
 
                 {displayNameError ? (
                   <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
