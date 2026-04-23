@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   getEpisodeBody,
+  getEpisodeNumber,
   getSeriesPublicationStatus,
   isEpisodePubliclyVisible,
   pickText,
@@ -186,6 +187,46 @@ function readNonNegativeInteger(value: unknown, fallback = 0): number {
   }
 
   return fallback;
+}
+
+function readSeriesPopularityScore(series: SeriesRow | null | undefined): number {
+  if (!series) {
+    return 0;
+  }
+
+  const row = series as Record<string, unknown>;
+
+  const candidates: unknown[] = [
+    row.popularity_score,
+    row.ranking_score,
+    row.view_count,
+    row.viewer_count,
+    row.total_views,
+    row.total_view_count,
+    row.weekly_view_count,
+    row.favorite_count,
+    row.like_count,
+    row.reaction_count,
+  ];
+
+  return candidates.reduce<number>(
+    (max, candidate) => Math.max(max, readNonNegativeInteger(candidate, 0)),
+    0
+  );
+}
+
+function readEpisodeSortNumber(episode: EpisodeRow | null | undefined): number {
+  if (!episode) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const parsed = getEpisodeNumber(episode);
+
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+
+  return Number.MAX_SAFE_INTEGER;
 }
 
 function normalizeQueueStatus(
@@ -532,6 +573,109 @@ async function fetchQueueRowsByEpisodeIds(
   return new Map(rows.map((row) => [row.episodeId, row]));
 }
 
+async function fetchEpisodeRowsByIds(
+  supabase: AdminSupabase,
+  episodeIds: string[]
+): Promise<Map<string, EpisodeRow>> {
+  const uniqueEpisodeIds = [...new Set(episodeIds.filter((value) => value.length > 0))];
+
+  if (uniqueEpisodeIds.length === 0) {
+    return new Map();
+  }
+
+  const chunks = chunkArray(uniqueEpisodeIds);
+  const rows: EpisodeRow[] = [];
+
+  for (const chunk of chunks) {
+    const { data, error } = await supabase
+      .from("episodes")
+      .select("*")
+      .in("id", chunk);
+
+    if (error) {
+      throw new Error(`episode_bulk_lookup_failed:${error.message}`);
+    }
+
+    rows.push(...((data ?? []) as EpisodeRow[]));
+  }
+
+  return new Map(rows.map((row) => [String(row.id), row]));
+}
+
+function choosePreferredQueueCandidate(args: {
+  candidates: ParsedQueueRow[];
+  episodeRowsById: Map<string, EpisodeRow>;
+}): ParsedQueueRow | null {
+  const grouped = new Map<string, ParsedQueueRow[]>();
+
+  for (const candidate of args.candidates) {
+    const current = grouped.get(candidate.seriesId) ?? [];
+    current.push(candidate);
+    grouped.set(candidate.seriesId, current);
+  }
+
+  const rankedSeries = [...grouped.entries()]
+    .map(([seriesId, rows]) => {
+      const sortedRows = [...rows].sort((left, right) => {
+        const leftEpisodeNumber = readEpisodeSortNumber(
+          args.episodeRowsById.get(left.episodeId)
+        );
+        const rightEpisodeNumber = readEpisodeSortNumber(
+          args.episodeRowsById.get(right.episodeId)
+        );
+
+        if (leftEpisodeNumber !== rightEpisodeNumber) {
+          return leftEpisodeNumber - rightEpisodeNumber;
+        }
+
+        const leftRequestedAt =
+          left.firstRequestedAt ?? left.createdAt ?? left.updatedAt ?? "";
+        const rightRequestedAt =
+          right.firstRequestedAt ?? right.createdAt ?? right.updatedAt ?? "";
+
+        if (leftRequestedAt !== rightRequestedAt) {
+          return leftRequestedAt.localeCompare(rightRequestedAt);
+        }
+
+        return left.episodeId.localeCompare(right.episodeId);
+      });
+
+      const representative = sortedRows[0] ?? null;
+
+      const seriesPopularityScore = rows.reduce(
+        (max, row) =>
+          Math.max(max, row.viewerCountSnapshot, row.priorityScore, row.requestCount),
+        0
+      );
+
+      const oldestRequestKey =
+        representative?.firstRequestedAt ??
+        representative?.createdAt ??
+        representative?.updatedAt ??
+        "";
+
+      return {
+        seriesId,
+        seriesPopularityScore,
+        oldestRequestKey,
+        representative,
+      };
+    })
+    .sort((left, right) => {
+      if (left.seriesPopularityScore !== right.seriesPopularityScore) {
+        return right.seriesPopularityScore - left.seriesPopularityScore;
+      }
+
+      if (left.oldestRequestKey !== right.oldestRequestKey) {
+        return left.oldestRequestKey.localeCompare(right.oldestRequestKey);
+      }
+
+      return left.seriesId.localeCompare(right.seriesId);
+    });
+
+  return rankedSeries[0]?.representative ?? null;
+}
+
 async function fetchOfficialRecordingMap(
   supabase: AdminSupabase,
   episodeIds: string[],
@@ -635,16 +779,31 @@ export async function seedNemoAutogenBackfillQueue(args?: {
     );
   }
 
+  const seriesById = new Map(
+    publicOpenSeries.map((series) => [String(series.id), series] as const)
+  );
+
   visibleEpisodes.sort((left, right) => {
     const leftSeriesId = pickText(left.series_id, left.seriesId);
     const rightSeriesId = pickText(right.series_id, right.seriesId);
+
+    const leftPopularityScore = readSeriesPopularityScore(
+      seriesById.get(leftSeriesId) ?? null
+    );
+    const rightPopularityScore = readSeriesPopularityScore(
+      seriesById.get(rightSeriesId) ?? null
+    );
+
+    if (leftPopularityScore !== rightPopularityScore) {
+      return rightPopularityScore - leftPopularityScore;
+    }
 
     if (leftSeriesId !== rightSeriesId) {
       return leftSeriesId.localeCompare(rightSeriesId);
     }
 
-    const leftEpisodeNumber = Number(left.episode_number ?? left.episodeNumber ?? 0);
-    const rightEpisodeNumber = Number(right.episode_number ?? right.episodeNumber ?? 0);
+    const leftEpisodeNumber = readEpisodeSortNumber(left);
+    const rightEpisodeNumber = readEpisodeSortNumber(right);
 
     if (leftEpisodeNumber !== rightEpisodeNumber) {
       return leftEpisodeNumber - rightEpisodeNumber;
@@ -677,6 +836,11 @@ export async function seedNemoAutogenBackfillQueue(args?: {
     const episodeId = String(episode.id);
     const seriesId = pickText(episode.series_id, episode.seriesId);
     const existingQueueRow = queueRowsByEpisodeId.get(episodeId) ?? null;
+
+    const seriesPopularityScore = readSeriesPopularityScore(
+      seriesById.get(seriesId) ?? null
+    );
+    const episodeSortNumber = readEpisodeSortNumber(episode);
 
     if (
       existingQueueRow &&
@@ -719,11 +883,22 @@ export async function seedNemoAutogenBackfillQueue(args?: {
           ? "source_changed"
           : "backfill";
 
+    const reasonPriorityBonus =
+      nextReason === "missing_recording"
+        ? 2_000_000
+        : nextReason === "source_changed"
+          ? 1_000_000
+          : 500_000;
+
+    const seriesPriorityBase = seriesPopularityScore * 1_000;
+    const episodeOrderBonus = Math.max(
+      0,
+      10_000 - Math.min(9_999, episodeSortNumber)
+    );
+
     const nextPriorityScore =
       nextStatus === "pending"
-        ? nextReason === "missing_recording"
-          ? 300
-          : 200
+        ? reasonPriorityBonus + seriesPriorityBase + episodeOrderBonus
         : 0;
 
     if (nextStatus === "pending") {
@@ -744,7 +919,10 @@ export async function seedNemoAutogenBackfillQueue(args?: {
         nextStatus === "pending"
           ? Math.max(existingQueueRow?.priorityScore ?? 0, nextPriorityScore)
           : 0,
-      viewer_count_snapshot: existingQueueRow?.viewerCountSnapshot ?? 0,
+      viewer_count_snapshot: Math.max(
+        existingQueueRow?.viewerCountSnapshot ?? 0,
+        seriesPopularityScore
+      ),
       request_count: existingQueueRow?.requestCount ?? 1,
       last_request_source: existingQueueRow?.lastRequestSource ?? "backfill_seed",
       last_requested_by_user_id: existingQueueRow?.lastRequestedByUserId,
@@ -786,9 +964,10 @@ async function claimNextPendingQueueJob(
     .from("nemo_generation_queue")
     .select("*")
     .in("generation_status", ["pending", "failed", "processing"])
+    .order("viewer_count_snapshot", { ascending: false })
     .order("priority_score", { ascending: false })
     .order("updated_at", { ascending: true })
-    .limit(100);
+    .limit(300);
 
   if (error) {
     throw new Error(`nemo_queue_claim_lookup_failed:${error.message}`);
@@ -802,7 +981,28 @@ async function claimNextPendingQueueJob(
         : true
     );
 
-  for (const candidate of candidates) {
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const episodeRowsById = await fetchEpisodeRowsByIds(
+    supabase,
+    candidates.map((candidate) => candidate.episodeId)
+  );
+
+  const preferredCandidate = choosePreferredQueueCandidate({
+    candidates,
+    episodeRowsById,
+  });
+
+  const claimOrder = preferredCandidate
+    ? [
+        preferredCandidate,
+        ...candidates.filter((candidate) => candidate.id !== preferredCandidate.id),
+      ]
+    : candidates;
+
+  for (const candidate of claimOrder) {
     const nowIso = new Date().toISOString();
 
     let claimQuery = supabase

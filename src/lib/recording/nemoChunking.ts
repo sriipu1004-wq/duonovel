@@ -16,17 +16,17 @@ export type NemoChunkBuildOptions = NemoPreprocessOptions & {
   maxChars?: number;
 };
 
-const DEFAULT_MAX_CHARS = 140;
-const SENTENCE_PAUSE_MS = 300;
-const PARAGRAPH_PAUSE_MS = 760;
-const PARAGRAPH_SOFT_PAUSE_MS = 520;
-const PARAGRAPH_ELLIPSIS_PAUSE_MS = 820;
-const PARAGRAPH_DASH_PAUSE_MS = 780;
-const DIALOGUE_TO_NARRATION_PAUSE_MS = 240;
-const DIALOGUE_PARAGRAPH_PAUSE_MS = 700;
-const ELLIPSIS_PAUSE_MS = 430;
-const DASH_PAUSE_MS = 360;
-const OVERFLOW_CHUNK_PAUSE_MS = 170;
+const DEFAULT_MAX_CHARS = 72;
+const SENTENCE_PAUSE_MS = 380;
+const PARAGRAPH_PAUSE_MS = 920;
+const PARAGRAPH_SOFT_PAUSE_MS = 620;
+const PARAGRAPH_ELLIPSIS_PAUSE_MS = 980;
+const PARAGRAPH_DASH_PAUSE_MS = 920;
+const DIALOGUE_TO_NARRATION_PAUSE_MS = 320;
+const DIALOGUE_PARAGRAPH_PAUSE_MS = 840;
+const ELLIPSIS_PAUSE_MS = 520;
+const DASH_PAUSE_MS = 430;
+const OVERFLOW_CHUNK_PAUSE_MS = 220;
 
 function splitByInternalPauseMarkers(unit: string): string[] {
   const normalized = unit.trim();

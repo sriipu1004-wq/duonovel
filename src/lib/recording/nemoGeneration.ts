@@ -187,6 +187,13 @@ type NemoUploadPartPlan = {
 
 const MAX_NEMO_UPLOAD_PART_DURATION_SECONDS = 300;
 
+const DEFAULT_NEMO_SPEED_SCALE = 0.94;
+const DEFAULT_NEMO_PITCH_SCALE = 0;
+const DEFAULT_NEMO_INTONATION_SCALE = 1.22;
+const DEFAULT_NEMO_VOLUME_SCALE = 1.1;
+const DEFAULT_NEMO_PRE_PHONEME_LENGTH = 0.14;
+const DEFAULT_NEMO_POST_PHONEME_LENGTH = 0.18;
+
 function isStorageObjectTooLargeUploadError(message: string): boolean {
   return message.includes("maximum allowed size");
 }
@@ -739,10 +746,12 @@ export async function generateNemoRecordingForEpisode({
       const wavBytes = await synthesizeNemoWav({
         text: chunk.text,
         speaker: speakerId,
-        speedScale,
-        pitchScale,
-        intonationScale,
-        volumeScale,
+        speedScale: speedScale ?? DEFAULT_NEMO_SPEED_SCALE,
+        pitchScale: pitchScale ?? DEFAULT_NEMO_PITCH_SCALE,
+        intonationScale: intonationScale ?? DEFAULT_NEMO_INTONATION_SCALE,
+        volumeScale: volumeScale ?? DEFAULT_NEMO_VOLUME_SCALE,
+        prePhonemeLength: DEFAULT_NEMO_PRE_PHONEME_LENGTH,
+        postPhonemeLength: DEFAULT_NEMO_POST_PHONEME_LENGTH,
       });
 
       renderedSegments.push({
