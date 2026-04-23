@@ -1037,7 +1037,7 @@ export function RecordingStudioPage({
           <div className="mt-5">
             <p className="text-xs tracking-[0.18em] text-neutral-500">SCRIPT</p>
             <h2 className="mt-2 text-xl font-semibold text-black">
-              本文を見ながら制作する
+              プレビューを見ながら制作する
             </h2>
             <p className="mt-3 text-sm leading-7 text-neutral-600">
               録音やアップロードの対象は、いま選んでいる話へ接続される。
@@ -1064,20 +1064,20 @@ export function RecordingStudioPage({
               </div>
 
               <div className="h-[560px] overflow-y-auto rounded-[24px] border border-black/10 bg-[#fafafa] p-5">
-                {selectedEpisode.body.trim() ? (
+                {selectedEpisode.preview.trim() ? (
                   <div className="whitespace-pre-wrap text-[15px] leading-8 text-neutral-800">
-                    {selectedEpisode.body}
+                    {selectedEpisode.preview}
                   </div>
                 ) : (
                   <div className="rounded-[20px] border border-dashed border-black/15 bg-white p-4 text-sm leading-7 text-neutral-500">
-                    本文データが空なので、ここにはまだ表示できる内容がない。
+                    プレビューが空なので、ここにはまだ表示できる内容がない。
                   </div>
                 )}
               </div>
             </div>
           ) : (
             <div className="mt-5 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 p-5 text-sm leading-7 text-neutral-500">
-              制作対象の話を選ぶと、ここに本文が表示される。
+              制作対象の話を選ぶと、ここにプレビューが表示される。
             </div>
           )}
         </section>

@@ -80,7 +80,6 @@ type EpisodePlaybackProps = {
   autoNarrationStatusLabel?: string;
   autoNarrationStatusClassName?: string;
   stopNarrationByDefault?: boolean;
-  hideNarrationControlsWhenReaderUnselected?: boolean;
 };
 
 type BookmarkData = {
@@ -792,7 +791,6 @@ export default function EpisodePlayback({
   bgmSettings,
   effectSettings,
   stopNarrationByDefault = false,
-  hideNarrationControlsWhenReaderUnselected = false,
 }: EpisodePlaybackProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -889,10 +887,10 @@ export default function EpisodePlayback({
     readStoredGlobalMarkerVisible()
   );
 
-  const showNarrationControls = !hideNarrationControlsWhenReaderUnselected;
+  const showNarrationControls = !isNarrationStopped;
 
   useEffect(() => {
-    if (!hideNarrationControlsWhenReaderUnselected) {
+    if (!stopNarrationByDefault) {
       return;
     }
 
@@ -903,7 +901,7 @@ export default function EpisodePlayback({
     if (audio) {
       audio.pause();
     }
-  }, [hideNarrationControlsWhenReaderUnselected]);  
+  }, [stopNarrationByDefault]);
 
   const [firedSceneCueIds, setFiredSceneCueIds] = useState<
     Record<string, true>
