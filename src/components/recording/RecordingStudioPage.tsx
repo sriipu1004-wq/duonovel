@@ -15,6 +15,7 @@ import {
   type AudioUploadCheckResult,
   type AudioUploadDecision,
 } from "@/lib/recording/audioUploadValidation";
+import { supabase } from "@/lib/supabaseClient";
 
 type EpisodeItem = {
   id: string;
@@ -60,6 +61,29 @@ type HumanPublishResponse = {
 type HumanDeleteResponse = {
   ok: boolean;
   deletedCount?: number;
+  error?: string;
+  detail?: string;
+};
+
+type HumanMultipartSignedPart = {
+  index: number;
+  objectPath: string;
+  byteOffsetStart: number;
+  byteOffsetEndExclusive: number;
+  expectedSizeBytes: number;
+  token: string;
+};
+
+type HumanUploadSessionResponse = {
+  ok: boolean;
+  uploadMode?: "single" | "multipart";
+  uploadSessionId?: string;
+  bucketName?: string;
+  sourceExtension?: string;
+  totalSizeBytes?: number;
+  partSizeBytes?: number;
+  tempPrefix?: string;
+  parts?: HumanMultipartSignedPart[];
   error?: string;
   detail?: string;
 };
@@ -501,6 +525,63 @@ export function RecordingStudioPage({
     setPreviewIndex(nextItems.length - 1);
   }
 
+  async function createHumanUploadSession(args: {
+    seriesId: string;
+    episodeId: string;
+    file: File;
+  }): Promise<HumanUploadSessionResponse> {
+    const response = await fetch("/api/recordings/human-upload-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        seriesId: args.seriesId,
+        episodeId: args.episodeId,
+        fileName: args.file.name,
+        mimeType: args.file.type,
+        totalSizeBytes: args.file.size,
+      }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | HumanUploadSessionResponse
+      | null;
+
+    if (!response.ok || !payload?.ok) {
+      throw new Error(
+        payload?.detail || payload?.error || "upload session 作成に失敗した。"
+      );
+    }
+
+    return payload;
+  }
+
+  async function uploadHumanFileMultipartDirect(args: {
+    bucketName: string;
+    file: File;
+    parts: HumanMultipartSignedPart[];
+  }) {
+    for (const part of args.parts) {
+      const blob = args.file.slice(
+        part.byteOffsetStart,
+        part.byteOffsetEndExclusive
+      );
+
+      const { error } = await supabase.storage
+        .from(args.bucketName)
+        .uploadToSignedUrl(part.objectPath, part.token, blob, {
+          contentType: args.file.type || "application/octet-stream",
+        });
+
+      if (error) {
+        throw new Error(
+          `multipart_part_upload_failed:${part.index + 1}:${error.message}`
+        );
+      }
+    }
+  }  
+
   async function runServerPrecheck(file: File): Promise<AudioUploadCheckResult> {
     const formData = new FormData();
     formData.append("audio", file);
@@ -718,6 +799,31 @@ export function RecordingStudioPage({
     setPublishStatus("publishing");
     setPublishResult(null);
     setPublishMessage("audio 保存 → recordings 接続 → 既存 row 上書き確認を実行中。");
+
+      const uploadSession = await createHumanUploadSession({
+        seriesId,
+        episodeId: selectedEpisode.id,
+        file: currentPreviewItem.file,
+      });
+
+      if (uploadSession.uploadMode === "multipart") {
+        setPublishMessage(
+          "大きい音源なので、storage へ内部分割アップロード中。"
+        );
+
+        await uploadHumanFileMultipartDirect({
+          bucketName: uploadSession.bucketName || "recording-audio",
+          file: currentPreviewItem.file,
+          parts: uploadSession.parts || [],
+        });
+
+        setPublishStatus("error");
+        setPublishResult(null);
+        setPublishMessage(
+          "multipart upload 基盤までは入った。次段の finalize 実装がまだなので、この音源の publish 完了までは今の返答では進めていない。ここで止める。"
+        );
+        return;
+      }
 
     try {
       const formData = new FormData();

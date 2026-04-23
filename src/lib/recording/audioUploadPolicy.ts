@@ -9,7 +9,7 @@ export const AUDIO_UPLOAD_ALLOWED_EXTENSIONS = [
 ] as const;
 
 export const AUDIO_UPLOAD_MIN_DURATION_SECONDS = 8;
-export const AUDIO_UPLOAD_MAX_FILE_BYTES = 80 * 1024 * 1024;
+export const AUDIO_UPLOAD_MAX_FILE_BYTES = 1024 * 1024 * 1024;
 
 export type AudioUploadDecision =
   | "idle"
@@ -94,7 +94,7 @@ export function getAudioUploadIssueMessage(
     case "empty_file":
       return "ファイルが空なので保存前チェックを続けられない。";
     case "file_too_large":
-      return "ファイルが大きすぎるので、今の最小チェック枠では扱えない。";
+      return "ファイルが大きすぎる。今の内部上限を超えている。";
     case "too_short":
       return "音源が短すぎる。テスト断片ではなく、最低限まとまった朗読を入れて。";
     case "decode_failed":
@@ -123,8 +123,8 @@ export function getAudioUploadRetryHints(
       return ["録音失敗や書き出し失敗がないか確認する"];
     case "file_too_large":
       return [
-        "長すぎる音源は分割する",
-        "無劣化にこだわりすぎず、配信用の標準書き出しにする",
+        "今の内部上限を超えているので、より短い音源にする",
+        "通常の長尺音源なら、そのまま送っても内部で分割アップロードへ切り替わる",
       ];
     case "too_short":
       return [
