@@ -17,9 +17,10 @@ import {
 } from "@/features/authorProfile/authorProfileShared";
 import { fetchAuthorFollowSnapshot } from "@/lib/authorFollow";
 import {
-  buildReaderAuthorHref,
+  getCanonicalAivisReaderKey,
   getCanonicalNemoReaderKey,
   getReaderNameFromSyntheticAuthorId,
+  isAivisReaderName,
   isNemoReaderName,
 } from "@/lib/readerAuthorHref";
 import {
@@ -120,6 +121,10 @@ function getRecordingReaderKey(recording: RecordingRow): string {
     return getCanonicalNemoReaderKey(readerName);
   }
 
+  if (isAivisReaderName(readerName)) {
+    return getCanonicalAivisReaderKey(readerName);
+  }
+
   return (
     pickText(
       recording.reader_id,
@@ -142,10 +147,11 @@ async function fetchNarrationRecordingsForIdentity(args: {
   authorId: string;
   readerName: string;
 }): Promise<RecordingRow[]> {
-  const isSyntheticNemo = args.authorId.startsWith("nemo:");
+  const isSyntheticNarrator =
+    args.authorId.startsWith("nemo:") || args.authorId.startsWith("aivis:");
   const results = new Map<string, RecordingRow>();
 
-  if (isSyntheticNemo) {
+  if (isSyntheticNarrator) {
     const targetReaderName =
       args.readerName || getReaderNameFromSyntheticAuthorId(args.authorId);
 
@@ -482,7 +488,7 @@ export default async function AuthorPage({ params, searchParams }: PageProps) {
               : []),
           ]}
           extraContent={
-            author && !isSyntheticNarratorPage ? (
+            !isOwnPage ? (
               <div className="grid gap-3">
                 <AuthorFollowCard
                   authorId={authorId}
@@ -492,13 +498,15 @@ export default async function AuthorPage({ params, searchParams }: PageProps) {
                   initialIsFollowing={followSnapshot.isFollowing}
                 />
 
-                <AuthorLikeButton
-                  authorId={authorId}
-                  isOwnPage={isOwnPage}
-                  initialLikeCount={authorLikeSnapshot.likeCount}
-                  initialIsLiked={authorLikeSnapshot.isLiked}
-                  loginHref={`/login?next=${encodeURIComponent(`/authors/${authorId}`)}`}
-                />
+                {author && !isSyntheticNarratorPage ? (
+                  <AuthorLikeButton
+                    authorId={authorId}
+                    isOwnPage={isOwnPage}
+                    initialLikeCount={authorLikeSnapshot.likeCount}
+                    initialIsLiked={authorLikeSnapshot.isLiked}
+                    loginHref={`/login?next=${encodeURIComponent(`/authors/${authorId}`)}`}
+                  />
+                ) : null}
               </div>
             ) : null
           }

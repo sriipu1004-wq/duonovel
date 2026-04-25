@@ -189,6 +189,14 @@ function isNemoReaderName(name: string): boolean {
   return name.startsWith("VOICEVOX Nemo");
 }
 
+function isAivisReaderName(name: string): boolean {
+  return name.startsWith("Aivis ");
+}
+
+function getCanonicalAivisReaderKey(name: string): string {
+  return `aivis:${name}`;
+}
+
 function getCanonicalNemoReaderKey(name: string): string {
   return `nemo:${name}`;
 }
@@ -198,6 +206,10 @@ function getRecordingReaderKey(recording: RecordingRow): string {
 
   if (isNemoReaderName(name)) {
     return getCanonicalNemoReaderKey(name);
+  }
+
+  if (isAivisReaderName(name)) {
+    return getCanonicalAivisReaderKey(name);
   }
 
   return (
@@ -291,10 +303,12 @@ export default async function ReadEpisodePage({
   const requestedReaderKey =
     requestedReaderName && isNemoReaderName(requestedReaderName)
       ? getCanonicalNemoReaderKey(requestedReaderName)
-      : pickText(
-          resolvedSearchParams?.readerKey,
-          requestedReaderName
-        );
+      : requestedReaderName && isAivisReaderName(requestedReaderName)
+        ? getCanonicalAivisReaderKey(requestedReaderName)
+        : pickText(
+            resolvedSearchParams?.readerKey,
+            requestedReaderName
+          );
 
   const requestedReaderSpecified = Boolean(
     pickText(requestedReaderKey, requestedReaderName)

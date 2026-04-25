@@ -168,6 +168,38 @@ function parseTags(raw: unknown): string[] {
   return [];
 }
 
+function uniqueTags(tags: string[]): string[] {
+  return Array.from(new Set(tags));
+}
+
+function getSyntheticReaderTags(name: string): string[] {
+  if (name === "VOICEVOX Nemo / ノーマル") {
+    return ["#自動朗読", "#女性", "#落ち着き"];
+  }
+
+  if (name === "Aivis コハク") {
+    return ["#自動朗読", "#女の子", "#甘め"];
+  }
+
+  if (name === "Aivis まお") {
+    return ["#自動朗読", "#女の子", "#小悪魔"];
+  }
+
+if (name === "Aivis にせ") {
+  return ["#自動朗読", "#男の子", "#優しめ"];
+}
+
+if (name === "Aivis 阿井田 茂") {
+  return ["#自動朗読", "#男性", "#バリトン"];
+}  
+
+  if (name.startsWith("Aivis ") || name.startsWith("VOICEVOX Nemo")) {
+    return ["#自動朗読"];
+  }
+
+  return [];
+}
+
 function getSeriesTags(series: SeriesRow): string[] {
   const candidates = [
     series["tags"],
@@ -364,6 +396,14 @@ function isNemoReaderName(name: string): boolean {
   return name.startsWith("VOICEVOX Nemo");
 }
 
+function isAivisReaderName(name: string): boolean {
+  return name.startsWith("Aivis ");
+}
+
+function getCanonicalAivisReaderKey(name: string): string {
+  return `aivis:${name}`;
+}
+
 function getRecordingReaderName(recording: RecordingRow): string {
   return (
     pickText(
@@ -384,6 +424,10 @@ function getRecordingReaderKey(recording: RecordingRow): string {
 
   if (isNemoReaderName(name)) {
     return getCanonicalNemoReaderKey(name);
+  }
+
+  if (isAivisReaderName(name)) {
+    return getCanonicalAivisReaderKey(name);
   }
 
   return (
@@ -568,7 +612,10 @@ function buildReaderCards(
     existing.recordingCount += 1;
     existing.allowDownload = existing.allowDownload || recording.allow_download === true;
 
-    const tags = parseTags(recording.tags);
+    const tags = uniqueTags([
+      ...getSyntheticReaderTags(name),
+      ...parseTags(recording.tags),
+    ]);
     for (const tag of tags) {
       existing.tagMap.set(tag, (existing.tagMap.get(tag) ?? 0) + 1);
     }
@@ -600,13 +647,11 @@ function buildReaderCards(
       rank: index + 1,
       tags: Array.from(reader.tagMap.entries())
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 2)
+        .slice(0, 3)
         .map(([tag]) => tag),
       description:
-        isNemoReaderName(reader.name)
-          ? `公開朗読 ${reader.recordingCount}件 / いいね ${reader.totalLikes} / 再生 ${reader.totalPlays}`
-          : reader.description ||
-            `公開朗読 ${reader.recordingCount}件 / いいね ${reader.totalLikes} / 再生 ${reader.totalPlays}`,
+        reader.description ||
+        `公開朗読 ${reader.recordingCount}件 / いいね ${reader.totalLikes} / 再生 ${reader.totalPlays}`,
       totalLikes: reader.totalLikes,
       totalPlays: reader.totalPlays,
       recordingCount: reader.recordingCount,
@@ -852,7 +897,10 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       mergedNemoReader,
       ...readerCards.filter((reader) => !isNemoReaderName(reader.name)),
     ];
-  })();    
+  })().map((reader, index) => ({
+    ...reader,
+    rank: index + 1,
+  }));  
 
   const readerCardLikeSnapshotMap = await fetchReaderCardLikeSnapshotMap({
     supabase: adminSupabase,
@@ -1138,15 +1186,9 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
-                                {isNemoReaderName(reader.name) ? (
-                                  <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-semibold text-black">
-                                    NEMO
-                                  </span>
-                                ) : (
-                                  <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-semibold text-black">
-                                    #{reader.rank}
-                                  </span>
-                                )}
+                                <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-semibold text-black">
+                                  #{reader.rank}
+                                </span>
 
                                 <Link
                                   href={buildReaderAuthorHref(reader.readerKey, reader.name)}
