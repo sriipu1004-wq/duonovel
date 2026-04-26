@@ -22,6 +22,8 @@ export type PublicReadRecordingRow = Record<string, unknown> & {
   speaker_name?: string | null;
   audio_storage_path?: string | null;
   audioStoragePath?: string | null;
+  voice_model_id?: string | null;
+  voiceModelId?: string | null;
   is_public?: boolean | null;
   public?: boolean | null;
 };
@@ -74,6 +76,7 @@ const PUBLIC_READ_RECORDING_SELECT = `
   display_name,
   speaker_name,
   audio_storage_path,
+  voice_model_id,
   is_public,
   created_at
 `;

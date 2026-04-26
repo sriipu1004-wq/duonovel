@@ -202,6 +202,15 @@ function getCanonicalNemoReaderKey(name: string): string {
 }
 
 function getRecordingReaderKey(recording: RecordingRow): string {
+  const voiceModelKey = pickText(
+    recording.voice_model_id,
+    recording.voiceModelId
+  );
+
+  if (voiceModelKey) {
+    return voiceModelKey;
+  }
+
   const name = getRecordingReaderName(recording);
 
   if (isNemoReaderName(name)) {
@@ -358,7 +367,7 @@ export default async function ReadEpisodePage({
   );
 
   const shouldFetchGeneratedPlaybackAssets =
-    recordingAvailable && isNemoReaderName(selectedReaderName ?? "");
+    recordingAvailable && Boolean(audioStoragePath);
 
   const {
     sentenceTimings: generatedSentenceTimings,

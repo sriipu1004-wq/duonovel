@@ -9,6 +9,27 @@ type FavoriteBookmarkButtonProps = {
   loginHref?: string;
 };
 
+type BookmarkRow = {
+  id: string;
+};
+
+type SupabaseLikeError = {
+  code?: string;
+  message?: string;
+};
+
+function isDuplicateBookmarkError(error: SupabaseLikeError | null): boolean {
+  if (!error) {
+    return false;
+  }
+
+  return (
+    error.code === "23505" ||
+    (typeof error.message === "string" &&
+      error.message.toLowerCase().includes("duplicate key"))
+  );
+}
+
 export default function FavoriteBookmarkButton({
   seriesId,
   loginHref = `/login?next=${encodeURIComponent(`/works/${seriesId}`)}`,
@@ -39,15 +60,17 @@ export default function FavoriteBookmarkButton({
       .select("id")
       .eq("user_id", user.id)
       .eq("series_id", seriesId)
-      .maybeSingle();
+      .limit(1);
 
-    if (error && error.code !== "PGRST116") {
+    if (error) {
+      console.error("[FavoriteBookmarkButton] load failed", error);
       setMessage("ブックマーク状態の確認に失敗した。");
       setIsBookmarked(false);
       return;
     }
 
-    setIsBookmarked(Boolean(data));
+    const rows = (data ?? []) as BookmarkRow[];
+    setIsBookmarked(rows.length > 0);
   }, [seriesId]);
 
   useEffect(() => {
@@ -87,6 +110,7 @@ export default function FavoriteBookmarkButton({
         .eq("series_id", seriesId);
 
       if (error) {
+        console.error("[FavoriteBookmarkButton] remove failed", error);
         setMessage("ブックマーク解除に失敗した。");
         setIsWorking(false);
         return;
@@ -97,18 +121,33 @@ export default function FavoriteBookmarkButton({
       return;
     }
 
-    const { error } = await supabase.from("user_series_bookmarks").upsert(
-      {
-        user_id: user.id,
-        series_id: seriesId,
-      },
-      {
-        onConflict: "user_id,series_id",
-        ignoreDuplicates: true,
-      }
-    );
+    const existing = await supabase
+      .from("user_series_bookmarks")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("series_id", seriesId)
+      .limit(1);
 
-    if (error) {
+    if (existing.error) {
+      console.error("[FavoriteBookmarkButton] precheck failed", existing.error);
+      setMessage("ブックマーク状態の確認に失敗した。");
+      setIsWorking(false);
+      return;
+    }
+
+    if ((existing.data ?? []).length > 0) {
+      setIsBookmarked(true);
+      setIsWorking(false);
+      return;
+    }
+
+    const { error } = await supabase.from("user_series_bookmarks").insert({
+      user_id: user.id,
+      series_id: seriesId,
+    });
+
+    if (error && !isDuplicateBookmarkError(error)) {
+      console.error("[FavoriteBookmarkButton] add failed", error);
       setMessage("ブックマーク追加に失敗した。");
       setIsWorking(false);
       return;

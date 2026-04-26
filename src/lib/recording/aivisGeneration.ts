@@ -13,6 +13,10 @@ import {
   getNemoWavDurationSeconds,
 } from "@/lib/recording/nemoWav";
 import {
+  buildNemoTimingManifest,
+  buildNemoTimingObjectPathFromAudioObjectPath,
+} from "@/lib/recording/nemoTiming";
+import {
   decideRecordingEntryAccess,
   hasApprovedRecordingRequest,
   normalizeRecordingPermissionMode,
@@ -425,10 +429,16 @@ export async function generateAivisRecordingForEpisode({
     episodeId,
     narratorName,
   });
-  const currentObjectPaths = [audioObjectPath];
+  const timingObjectPath =
+    buildNemoTimingObjectPathFromAudioObjectPath(audioObjectPath);
+  const currentObjectPaths = [audioObjectPath, timingObjectPath];
 
   try {
     const mergedWavBytes = concatNemoWavs(renderedSegments);
+    const timingManifest = buildNemoTimingManifest({
+      chunks,
+      renderedSegments,
+    });
     const uploadCandidates = buildAivisUploadCandidates(mergedWavBytes);
 
     let uploaded = false;
@@ -458,6 +468,17 @@ export async function generateAivisRecordingForEpisode({
       throw new Error(
         `storage_upload_failed:${lastUploadErrorMessage || "unknown"}`
       );
+    }
+
+    const { error: timingUploadError } = await adminSupabase.storage
+      .from(bucketName)
+      .upload(timingObjectPath, JSON.stringify(timingManifest), {
+        contentType: "application/json; charset=utf-8",
+        upsert: true,
+      });
+
+    if (timingUploadError) {
+      throw new Error(`timing_upload_failed:${timingUploadError.message}`);
     }
 
     const {

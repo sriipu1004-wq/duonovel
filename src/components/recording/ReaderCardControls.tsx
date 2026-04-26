@@ -17,25 +17,41 @@ type ReaderCardControlsProps = {
   currentRangeStart: number;
 };
 
+const DEMO_PREVIEW_TARGET_SECONDS = 10;
+const DEMO_PREVIEW_MAX_SECONDS = 14;
+
 function getDemoPreviewEndSecondsFromPayload(payload: unknown): number {
   const timings = parseNemoGeneratedSentenceTimings(payload);
 
   if (timings.length === 0) {
-    return 4;
+    return DEMO_PREVIEW_TARGET_SECONDS;
   }
 
-  const first = timings[0];
-  const second = timings[1];
+  const firstBoundaryAfterTarget = timings.find(
+    (timing) =>
+      Number.isFinite(timing.timeSeconds) &&
+      timing.timeSeconds >= DEMO_PREVIEW_TARGET_SECONDS
+  );
 
-  if (second && Number.isFinite(second.timeSeconds) && second.timeSeconds > 0) {
-    return Math.min(Math.max(second.timeSeconds, 2), 12);
+  if (firstBoundaryAfterTarget) {
+    return Math.min(
+      Math.max(firstBoundaryAfterTarget.timeSeconds, DEMO_PREVIEW_TARGET_SECONDS),
+      DEMO_PREVIEW_MAX_SECONDS
+    );
   }
 
-  if (Number.isFinite(first.durationSeconds) && first.durationSeconds > 0) {
-    return Math.min(Math.max(first.durationSeconds, 2), 12);
+  const lastTiming = timings[timings.length - 1];
+  const lastEndSeconds =
+    lastTiming.timeSeconds + Math.max(lastTiming.durationSeconds, 0);
+
+  if (Number.isFinite(lastEndSeconds) && lastEndSeconds > 0) {
+    return Math.min(
+      Math.max(lastEndSeconds, DEMO_PREVIEW_TARGET_SECONDS),
+      DEMO_PREVIEW_MAX_SECONDS
+    );
   }
 
-  return 4;
+  return DEMO_PREVIEW_TARGET_SECONDS;
 }
 
 export default function ReaderCardControls({
@@ -52,7 +68,7 @@ export default function ReaderCardControls({
   const searchParams = useSearchParams();
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const stopAtSecondsRef = useRef<number>(4);
+  const stopAtSecondsRef = useRef<number>(DEMO_PREVIEW_TARGET_SECONDS);
   const [isDemoPlaying, setIsDemoPlaying] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
 
@@ -90,12 +106,12 @@ export default function ReaderCardControls({
 
   async function resolveDemoEndSeconds(): Promise<number> {
     if (!demoAudioUrl) {
-      return 4;
+      return DEMO_PREVIEW_TARGET_SECONDS;
     }
 
     const timingUrl = buildNemoTimingPublicUrlFromAudioPublicUrl(demoAudioUrl);
     if (!timingUrl) {
-      return 4;
+      return DEMO_PREVIEW_TARGET_SECONDS;
     }
 
     try {
@@ -104,13 +120,13 @@ export default function ReaderCardControls({
       });
 
       if (!response.ok) {
-        return 4;
+        return DEMO_PREVIEW_TARGET_SECONDS;
       }
 
       const payload = await response.json();
       return getDemoPreviewEndSecondsFromPayload(payload);
     } catch {
-      return 4;
+      return DEMO_PREVIEW_TARGET_SECONDS;
     }
   }
 
