@@ -52,6 +52,12 @@ type UserRow = Record<string, unknown> & {
   name?: string | null;
 };
 
+type RecordingVoiceModelRow = {
+  display_name?: string | null;
+  name?: string | null;
+  tags?: string[] | null;
+};
+
 type RecordingRow = Record<string, unknown> & {
   id: string;
   series_id?: string | null;
@@ -76,7 +82,10 @@ type RecordingRow = Record<string, unknown> & {
   episode_id?: string | null;
   episodeId?: string | null;
   audio_storage_path?: string | null;
-  audioStoragePath?: string | null;  
+  audioStoragePath?: string | null;
+  voice_model_id?: string | null;
+  voiceModelId?: string | null;
+  voice_models?: RecordingVoiceModelRow | RecordingVoiceModelRow[] | null;
 };
 
 type ReaderCard = {
@@ -126,7 +135,13 @@ const WORK_PAGE_RECORDING_SELECT = `
   allow_download,
   episode_id,
   audio_storage_path,
-  created_at
+  voice_model_id,
+  created_at,
+  voice_models (
+    display_name,
+    name,
+    tags
+  )
 `;
 
 function isPublicRecording(recording: RecordingRow): boolean {
@@ -185,19 +200,49 @@ function getSyntheticReaderTags(name: string): string[] {
     return ["#自動朗読", "#女の子", "#小悪魔"];
   }
 
-if (name === "Aivis にせ") {
-  return ["#自動朗読", "#男の子", "#優しめ"];
-}
+  if (name === "Aivis にせ") {
+    return ["#自動朗読", "#男の子", "#優しめ"];
+  }
 
-if (name === "Aivis 阿井田 茂") {
-  return ["#自動朗読", "#男性", "#バリトン"];
-}  
+  if (name === "Aivis 阿井田 茂") {
+    return ["#自動朗読", "#男性", "#バリトン"];
+  }  
 
   if (name.startsWith("Aivis ") || name.startsWith("VOICEVOX Nemo")) {
     return ["#自動朗読"];
   }
 
   return [];
+}
+
+function getRecordingVoiceModel(recording: RecordingRow): RecordingVoiceModelRow | null {
+  const raw = recording.voice_models;
+
+  if (Array.isArray(raw)) {
+    return raw[0] ?? null;
+  }
+
+  return raw ?? null;
+}
+
+function getVoiceModelTags(recording: RecordingRow): string[] {
+  const voiceModel = getRecordingVoiceModel(recording);
+  const tags = voiceModel?.tags;
+
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  return tags
+    .map((tag) => String(tag).trim())
+    .filter((tag) => tag.length > 0)
+    .map((tag) => (tag.startsWith("#") ? tag : `#${tag}`));
+}
+
+function getVoiceModelDisplayName(recording: RecordingRow): string {
+  const voiceModel = getRecordingVoiceModel(recording);
+
+  return pickText(voiceModel?.display_name, voiceModel?.name);
 }
 
 function getSeriesTags(series: SeriesRow): string[] {
@@ -587,8 +632,11 @@ function buildReaderCards(
   >();
 
   for (const recording of recordings) {
-    const name = getRecordingReaderName(recording);
-    const key = getRecordingReaderKey(recording);
+    const name =
+      getVoiceModelDisplayName(recording) || getRecordingReaderName(recording);
+    const key =
+      pickText(recording.voice_model_id, recording.voiceModelId) ||
+      getRecordingReaderKey(recording);
     const audioStoragePath = getRecordingAudioStoragePath(recording);
     const episodeId = getRecordingEpisodeId(recording);
     const episodeNumber =
@@ -613,8 +661,9 @@ function buildReaderCards(
     existing.allowDownload = existing.allowDownload || recording.allow_download === true;
 
     const tags = uniqueTags([
-      ...getSyntheticReaderTags(name),
+      ...getVoiceModelTags(recording),
       ...parseTags(recording.tags),
+      ...getSyntheticReaderTags(name),
     ]);
     for (const tag of tags) {
       existing.tagMap.set(tag, (existing.tagMap.get(tag) ?? 0) + 1);
@@ -954,11 +1003,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
   return (
     <main className="min-h-screen bg-white text-black">
-      <NemoAutoGenerationBootstrap
-        seriesId={seriesId}
-        episodeIds={episodes.map((episode) => episode.id)}
-        enabled={false}
-      />
       <ReaderSelectionBootstrap
         seriesId={seriesId}
         currentTab={currentTab}

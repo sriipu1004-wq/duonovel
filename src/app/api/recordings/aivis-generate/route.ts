@@ -2,15 +2,29 @@ import { NextResponse } from "next/server";
 import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
 import { generateAivisRecordingForEpisode } from "@/lib/recording/aivisGeneration";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
+
+type VoiceModelRow = {
+  id: string;
+  provider?: string | null;
+  display_name?: string | null;
+  name?: string | null;
+  speaker_id?: number | string | null;
+  commercial_allowed?: boolean | null;
+  is_active?: boolean | null;
+};
 
 function readText(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
 }
 
-function parseSpeakerId(rawValue: string, fallbackRawValue?: string): number | null {
+function parseSpeakerId(
+  rawValue: string,
+  fallbackRawValue?: string
+): number | null {
   const candidates = [rawValue, fallbackRawValue ?? ""];
 
   for (const candidate of candidates) {
@@ -24,6 +38,25 @@ function parseSpeakerId(rawValue: string, fallbackRawValue?: string): number | n
   }
 
   return null;
+}
+
+async function fetchVoiceModelById(
+  supabase: ReturnType<typeof createAdminClient>,
+  voiceModelId: string
+): Promise<VoiceModelRow | null> {
+  const { data, error } = await supabase
+    .from("voice_models")
+    .select(
+      "id, provider, display_name, name, speaker_id, commercial_allowed, is_active"
+    )
+    .eq("id", voiceModelId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data as VoiceModelRow;
 }
 
 function resolveErrorResponse(error: unknown) {
@@ -77,7 +110,7 @@ function resolveErrorResponse(error: unknown) {
       status: 400,
       body: {
         ok: false,
-        error: "Aivis生成に必要な本文または speaker 設定が不正。",
+        error: "Aivis生成に必要な本文またはspeaker設定が不正。",
       },
     };
   }
@@ -117,7 +150,7 @@ function resolveErrorResponse(error: unknown) {
       status: 500,
       body: {
         ok: false,
-        error: "本文同期用 timing JSON の保存に失敗した。",
+        error: "本文同期用timing JSONの保存に失敗した。",
       },
     };
   }
@@ -127,7 +160,7 @@ function resolveErrorResponse(error: unknown) {
       status: 500,
       body: {
         ok: false,
-        error: "public URL を解決できなかった。",
+        error: "public URLを解決できなかった。",
       },
     };
   }
@@ -180,7 +213,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "multipart/form-data を読めなかった。",
+        error: "multipart/form-dataを読めなかった。",
       },
       { status: 400 }
     );
@@ -188,10 +221,14 @@ export async function POST(request: Request) {
 
   const seriesId = readText(formData, "seriesId");
   const episodeId = readText(formData, "episodeId");
-  const narratorName =
+  const voiceModelId = readText(formData, "voiceModelId");
+
+  let resolvedVoiceModelId: string | null = null;
+  let resolvedNarratorName =
     readText(formData, "narratorName") || "Aivis 標準朗読";
+
   const rawSpeakerId = readText(formData, "speakerId");
-  const speakerId = parseSpeakerId(
+  let resolvedSpeakerId = parseSpeakerId(
     rawSpeakerId,
     process.env.AIVIS_DEFAULT_SPEAKER
   );
@@ -200,17 +237,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "seriesId または episodeId が足りない。",
-      },
-      { status: 400 }
-    );
-  }
-
-  if (speakerId === null) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "speakerId が不正。",
+        error: "seriesIdまたはepisodeIdが足りない。",
       },
       { status: 400 }
     );
@@ -242,14 +269,83 @@ export async function POST(request: Request) {
     );
   }
 
+  if (voiceModelId) {
+    const adminSupabase = createAdminClient();
+    const voiceModel = await fetchVoiceModelById(adminSupabase, voiceModelId);
+
+    if (!voiceModel) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "voiceModelIdに対応する音声モデルが見つからない。",
+        },
+        { status: 404 }
+      );
+    }
+
+    if (voiceModel.provider !== "aivis") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "指定された音声モデルはAivisではない。",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (voiceModel.is_active === false) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "指定された音声モデルは無効化されている。",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (voiceModel.commercial_allowed !== true) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "商用利用不可の音声モデルは自動朗読に使えない。",
+        },
+        { status: 400 }
+      );
+    }
+
+    resolvedVoiceModelId = voiceModel.id;
+    resolvedNarratorName =
+      typeof voiceModel.display_name === "string" &&
+      voiceModel.display_name.trim()
+        ? voiceModel.display_name.trim()
+        : typeof voiceModel.name === "string" && voiceModel.name.trim()
+          ? voiceModel.name.trim()
+          : resolvedNarratorName;
+
+    resolvedSpeakerId = parseSpeakerId(String(voiceModel.speaker_id ?? ""));
+  }
+
+  if (resolvedSpeakerId === null) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "speakerIdが不正。",
+      },
+      { status: 400 }
+    );
+  }
+
+  const speakerIdForGeneration: number = resolvedSpeakerId;
+
   try {
     const result = await generateAivisRecordingForEpisode({
       supabase,
       userId: user.id,
       seriesId,
       episodeId,
-      narratorName,
-      speakerId,
+      narratorName: resolvedNarratorName,
+      speakerId: speakerIdForGeneration,
+      voiceModelId: resolvedVoiceModelId,
     });
 
     return NextResponse.json(

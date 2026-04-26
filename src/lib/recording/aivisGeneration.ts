@@ -8,10 +8,6 @@ import { synthesizeAivisWav } from "@/lib/recording/aivisClient";
 import { buildNemoChunks } from "@/lib/recording/nemoChunking";
 import { resolveNemoPronunciationDictionary } from "@/lib/recording/nemoPronunciationDictionary";
 import {
-  buildNemoTimingManifest,
-  buildNemoTimingObjectPathFromAudioObjectPath,
-} from "@/lib/recording/nemoTiming";
-import {
   concatNemoWavs,
   downsampleNemoWav,
   getNemoWavDurationSeconds,
@@ -36,6 +32,7 @@ export type GenerateAivisRecordingInput = {
   episodeId: string;
   narratorName: string;
   speakerId: number;
+  voiceModelId?: string | null;
   speedScale?: number;
   pitchScale?: number;
   intonationScale?: number;
@@ -234,13 +231,21 @@ async function ensureReaderUserRow(
 async function findExistingRecordings(
   supabase: AdminSupabase,
   episodeId: string
-) {
+): Promise<
+  Array<{
+    id: string;
+    audioStoragePath: string;
+    readerId: string;
+    readerName: string;
+    voiceModelId: string;
+  }>
+> {
   const { data, error } = await supabase
     .from("recordings")
-    .select("*")
-    .eq("episode_id", episodeId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
+    .select(
+      "id, audio_storage_path, reader_id, reader_name, voice_model_id"
+    )
+    .eq("episode_id", episodeId);
 
   if (error) {
     throw new Error(`recording_lookup_failed:${error.message}`);
@@ -249,14 +254,9 @@ async function findExistingRecordings(
   return ((data ?? []) as RawRow[]).map((row) => ({
     id: String(row.id),
     audioStoragePath: pickText(row.audio_storage_path),
-    readerId: pickText(row.reader_id, row.reader_user_id, row.readerUserId),
-    readerName:
-      pickText(
-        row.reader_name,
-        row.narrator_name,
-        row.display_name,
-        row.speaker_name
-      ) || "朗読者未設定",
+    readerId: pickText(row.reader_id),
+    readerName: pickText(row.reader_name) || "朗読者未設定",
+    voiceModelId: pickText(row.voice_model_id),
   }));
 }
 
@@ -268,21 +268,31 @@ async function writeRecording(
     readerId: string;
     readerName: string;
     audioStoragePath: string;
+    voiceModelId?: string | null;
   }
 ): Promise<{ recordingId: string }> {
   const allEpisodeRows = await findExistingRecordings(supabase, input.episodeId);
   const isAivisNarrator = input.readerName.startsWith("Aivis ");
 
+  const inputVoiceModelId = pickText(input.voiceModelId);
+
+  const sameVoiceModelRows = input.voiceModelId
+    ? allEpisodeRows.filter((row) => row.voiceModelId === input.voiceModelId)
+    : [];
+
   const sameReaderNameRows = allEpisodeRows.filter(
     (row) => row.readerName === input.readerName
   );
 
-  const sameReaderIdRows = isAivisNarrator
+  const sameReaderIdRows = input.readerName.startsWith("Aivis ")
     ? []
     : allEpisodeRows.filter((row) => row.readerId === input.readerId);
 
-  const existingRows =
-    sameReaderNameRows.length > 0 ? sameReaderNameRows : sameReaderIdRows;
+  const existingRows = input.voiceModelId
+    ? sameVoiceModelRows
+    : sameReaderNameRows.length > 0
+      ? sameReaderNameRows
+      : sameReaderIdRows;
   const primary = existingRows[0] ?? null;
 
   const payload = {
@@ -291,6 +301,7 @@ async function writeRecording(
     reader_id: input.readerId,
     reader_name: input.readerName,
     audio_storage_path: input.audioStoragePath,
+    voice_model_id: input.voiceModelId ?? null,
     is_public: true,
     tags: null,
   };
@@ -348,6 +359,7 @@ export async function generateAivisRecordingForEpisode({
   episodeId,
   narratorName,
   speakerId,
+  voiceModelId = null,
   speedScale,
   pitchScale,
   intonationScale,
@@ -406,11 +418,6 @@ export async function generateAivisRecordingForEpisode({
     }
   }
 
-  const timingManifest = buildNemoTimingManifest({
-    chunks,
-    renderedSegments,
-  });
-
   const adminSupabase = createAdminClient();
   const bucketName = getRecordingAudioBucketName();
   const audioObjectPath = buildAivisRecordingObjectPath({
@@ -418,9 +425,7 @@ export async function generateAivisRecordingForEpisode({
     episodeId,
     narratorName,
   });
-  const timingObjectPath =
-    buildNemoTimingObjectPathFromAudioObjectPath(audioObjectPath);
-  const currentObjectPaths = [audioObjectPath, timingObjectPath];
+  const currentObjectPaths = [audioObjectPath];
 
   try {
     const mergedWavBytes = concatNemoWavs(renderedSegments);
@@ -463,27 +468,13 @@ export async function generateAivisRecordingForEpisode({
       throw new Error("storage_public_url_unavailable");
     }
 
-    const timingBytes = new TextEncoder().encode(
-      JSON.stringify(timingManifest, null, 2)
-    );
-
-    const { error: timingUploadError } = await adminSupabase.storage
-      .from(bucketName)
-      .upload(timingObjectPath, timingBytes, {
-        contentType: "application/json",
-        upsert: true,
-      });
-
-    if (timingUploadError) {
-      throw new Error(`aivis_timing_upload_failed:${timingUploadError.message}`);
-    }
-
     const { recordingId } = await writeRecording(adminSupabase, {
       seriesId,
       episodeId,
       readerId: userId,
       readerName: narratorName,
       audioStoragePath: publicUrl,
+      voiceModelId,
     });
 
     return {

@@ -30,6 +30,64 @@ function applyPronunciationDictionary(
   return next;
 }
 
+function normalizeClassicalJapanese(text: string): string {
+  let t = text;
+
+  // ===== 記号（Aivis対策）=====
+  t = t
+    .replace(/[―—─]{2,}/gu, "、") // 「――」を読ませない
+    .replace(/\.{3,}/g, "……")
+    .replace(/[⋯]{2,}/gu, "……")
+    .replace(/…{3,}/gu, "……");
+
+  // ===== 安全な旧仮名変換 =====
+  const SAFE_REPLACEMENTS: [RegExp, string][] = [
+    [/云ふ/g, "いう"],
+    [/言ふ/g, "いう"],
+    [/云つた/g, "いった"],
+    [/言つた/g, "いった"],
+    [/云はれ/g, "いわれ"],
+    [/言はれ/g, "いわれ"],
+
+    [/思ふ/g, "おもう"],
+    [/思つた/g, "おもった"],
+    [/思はれ/g, "おもわれ"],
+
+    [/違ふ/g, "ちがう"],
+    [/違つた/g, "ちがった"],
+
+    [/行つた/g, "いった"],
+
+    [/云々/g, "うんぬん"],
+
+    [/大分/g, "だいぶ"],
+    [/可成/g, "かなり"],
+
+    [/此の/g, "この"],
+    [/其の/g, "その"],
+    [/彼の/g, "あの"],
+
+    [/何故/g, "なぜ"],
+    [/兎に角/g, "とにかく"],
+    [/矢張/g, "やはり"],
+    [/成程/g, "なるほど"],
+  ];
+
+  for (const [pattern, value] of SAFE_REPLACEMENTS) {
+    t = t.replace(pattern, value);
+  }
+
+  // ===== 文脈依存（単独語のみ）=====
+  t = t
+    // 者 → もの（単独のみ）
+    .replace(/(^|[^\p{Script=Han}])者(?!\p{Script=Han})/gu, "$1もの")
+
+    // 事 → こと（単独のみ）
+    .replace(/(^|[^\p{Script=Han}])事(?!\p{Script=Han})/gu, "$1こと");
+
+  return t;
+}
+
 function normalizeInlineWhitespace(text: string): string {
   return text
     .replace(/\t/g, " ")
@@ -105,7 +163,9 @@ export function preprocessNemoBodyToParagraphs(
         options.pronunciationDictionary ?? {}
       );
 
-      const spokenParagraph = normalizePauseExpressionSurface(dictionaryApplied);
+      const normalizedClassical = normalizeClassicalJapanese(dictionaryApplied);
+
+      const spokenParagraph = normalizePauseExpressionSurface(normalizedClassical);
 
       return {
         originalParagraph: originalParagraph.trim(),
