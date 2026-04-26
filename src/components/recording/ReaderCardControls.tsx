@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   buildNemoTimingPublicUrlFromAudioPublicUrl,
   parseNemoGeneratedSentenceTimings,
@@ -17,8 +16,15 @@ type ReaderCardControlsProps = {
   currentRangeStart: number;
 };
 
+type ReaderSelectionEventDetail = {
+  seriesId: string;
+  readerKey?: string;
+  readerName?: string;
+};
+
 const DEMO_PREVIEW_TARGET_SECONDS = 10;
 const DEMO_PREVIEW_MAX_SECONDS = 14;
+const READER_SELECTION_EVENT = "libread:reader-selection-change";
 
 function getDemoPreviewEndSecondsFromPayload(payload: unknown): number {
   const timings = parseNemoGeneratedSentenceTimings(payload);
@@ -54,6 +60,67 @@ function getDemoPreviewEndSecondsFromPayload(payload: unknown): number {
   return DEMO_PREVIEW_TARGET_SECONDS;
 }
 
+function normalizeText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isSameReader(args: {
+  currentReaderKey?: string;
+  currentReaderName?: string;
+  readerKey: string;
+  readerName: string;
+}): boolean {
+  const currentReaderKey = normalizeText(args.currentReaderKey);
+  const currentReaderName = normalizeText(args.currentReaderName);
+
+  return (
+    (!!currentReaderKey && currentReaderKey === args.readerKey) ||
+    (!!currentReaderName && currentReaderName === args.readerName)
+  );
+}
+
+function updateCurrentWorksUrl(args: {
+  seriesId: string;
+  currentTab: "toc" | "readers";
+  currentRangeStart: number;
+  readerKey: string;
+  readerName: string;
+}): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  const worksPath = `/works/${args.seriesId}`;
+
+  if (url.pathname !== worksPath) {
+    return;
+  }
+
+  url.searchParams.set("tab", args.currentTab);
+  url.searchParams.set("range", String(args.currentRangeStart));
+  url.searchParams.set("readerKey", args.readerKey);
+  url.searchParams.set("readerName", args.readerName);
+
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function dispatchReaderSelection(args: {
+  seriesId: string;
+  readerKey: string;
+  readerName: string;
+}): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent<ReaderSelectionEventDetail>(READER_SELECTION_EVENT, {
+      detail: args,
+    })
+  );
+}
+
 export default function ReaderCardControls({
   seriesId,
   readerKey,
@@ -63,14 +130,60 @@ export default function ReaderCardControls({
   currentTab,
   currentRangeStart,
 }: ReaderCardControlsProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const stopAtSecondsRef = useRef<number>(DEMO_PREVIEW_TARGET_SECONDS);
+
   const [isDemoPlaying, setIsDemoPlaying] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
+  const [activeReader, setActiveReader] = useState<{
+    readerKey?: string;
+    readerName?: string;
+  }>(() =>
+    isSelected
+      ? {
+          readerKey,
+          readerName,
+        }
+      : {}
+  );
+
+  const selected = isSelected || isSameReader({
+    currentReaderKey: activeReader.readerKey,
+    currentReaderName: activeReader.readerName,
+    readerKey,
+    readerName,
+  });
+
+  useEffect(() => {
+    if (isSelected) {
+      setActiveReader({
+        readerKey,
+        readerName,
+      });
+    }
+  }, [isSelected, readerKey, readerName]);
+
+  useEffect(() => {
+    const handleReaderSelectionChange = (event: Event) => {
+      const customEvent = event as CustomEvent<ReaderSelectionEventDetail>;
+      const detail = customEvent.detail;
+
+      if (!detail || detail.seriesId !== seriesId) {
+        return;
+      }
+
+      setActiveReader({
+        readerKey: detail.readerKey,
+        readerName: detail.readerName,
+      });
+    };
+
+    window.addEventListener(READER_SELECTION_EVENT, handleReaderSelectionChange);
+
+    return () => {
+      window.removeEventListener(READER_SELECTION_EVENT, handleReaderSelectionChange);
+    };
+  }, [seriesId]);
 
   useEffect(() => {
     return () => {
@@ -93,14 +206,23 @@ export default function ReaderCardControls({
       );
     }
 
-    const nextQuery = new URLSearchParams(searchParams.toString());
-    nextQuery.set("tab", currentTab);
-    nextQuery.set("range", String(currentRangeStart));
-    nextQuery.set("readerKey", readerKey);
-    nextQuery.set("readerName", readerName);
+    setActiveReader({
+      readerKey,
+      readerName,
+    });
 
-    router.replace(`${pathname}?${nextQuery.toString()}`, {
-      scroll: false,
+    updateCurrentWorksUrl({
+      seriesId,
+      currentTab,
+      currentRangeStart,
+      readerKey,
+      readerName,
+    });
+
+    dispatchReaderSelection({
+      seriesId,
+      readerKey,
+      readerName,
     });
   }
 
@@ -209,12 +331,12 @@ export default function ReaderCardControls({
         }}
         className={[
           "rounded-full border px-4 py-2 text-sm font-medium transition",
-          isSelected
+          selected
             ? "border-sky-200 bg-sky-50 text-black"
             : "border-black/10 bg-neutral-200 text-black hover:bg-neutral-300",
         ].join(" ")}
       >
-        {isSelected ? "選択中" : "選択する"}
+        {selected ? "選択中" : "選択する"}
       </button>
     </div>
   );

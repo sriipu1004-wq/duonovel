@@ -25,6 +25,7 @@ import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGene
 import { createAdminClient } from "@/lib/supabase/admin";
 import ReaderCardControls from "@/components/recording/ReaderCardControls";
 import ContinueReadingEpisodeList from "@/components/works/ContinueReadingEpisodeList";
+import WorkPagePrefetcher from "@/components/works/WorkPagePrefetcher";
 import { resolveNemoAutoGenerationConfig } from "@/lib/recording/nemoAutoGeneration";
 import ReaderSelectionBootstrap from "@/components/recording/ReaderSelectionBootstrap";
 import PublicAdSlot from "@/components/ads/PublicAdSlot";
@@ -1007,7 +1008,14 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
         currentRangeStart={currentRangeStart}
         currentReaderKey={selectedReaderKey}
         currentReaderName={selectedReaderName}
-      />      
+      /> 
+      <WorkPagePrefetcher
+        seriesId={seriesId}
+        currentTab={currentTab}
+        currentRangeStart={currentRangeStart}
+        selectedReaderKey={selectedReaderKey || undefined}
+        selectedReaderName={selectedReaderName || undefined}
+      />
       <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
           <Link href="/" className="hover:text-black">
