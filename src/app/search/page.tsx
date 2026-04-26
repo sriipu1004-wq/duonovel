@@ -730,10 +730,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const showAllTags = pickText(resolvedSearchParams?.showTags) === "1";
   const showAllGenres = pickText(resolvedSearchParams?.showGenres) === "1";
   const shelfTab = resolveShelfTab(pickText(resolvedSearchParams?.shelfTab));
-  const authSupabase = await createServerClient();
-  const {
-    data: { user: currentUser },
-  } = await authSupabase.auth.getUser();  
+
+  const authSupabase = savedFilter ? await createServerClient() : null;
+  const currentUser = authSupabase
+    ? (await authSupabase.auth.getUser()).data.user
+    : null;
+
   const baseWorkCards = await getCachedPublicBaseWorkCards();
 
   const popularityDataset = await fetchSeriesPopularityDataset(
@@ -760,7 +762,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   let savedAuthorIds = new Set<string>();
   let savedSeriesIds = new Set<string>();
 
-  if (savedFilter && currentUser) {
+  if (savedFilter && currentUser && authSupabase) {
     if (savedFilter === "followed-authors") {
       savedAuthorIds = await fetchSavedAuthorIdsForUser({
         supabase: authSupabase,

@@ -22,7 +22,6 @@ import {
   type SeriesRow,
 } from "@/features/write/writeShared";
 import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGenerationBootstrap";
-import { unstable_noStore as noStore } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ReaderCardControls from "@/components/recording/ReaderCardControls";
 import ContinueReadingEpisodeList from "@/components/works/ContinueReadingEpisodeList";
@@ -762,7 +761,6 @@ function buildRangeOptions(total: number) {
 }
 
 export default async function WorkPage({ params, searchParams }: PageProps) {
-  noStore();  
   const { seriesId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const currentTab = resolvedSearchParams?.tab === "readers" ? "readers" : "toc";
