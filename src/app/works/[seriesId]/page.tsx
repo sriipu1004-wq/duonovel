@@ -25,7 +25,7 @@ import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGene
 import { createAdminClient } from "@/lib/supabase/admin";
 import ReaderCardControls from "@/components/recording/ReaderCardControls";
 import ContinueReadingEpisodeList from "@/components/works/ContinueReadingEpisodeList";
-import WorkPagePrefetcher from "@/components/works/WorkPagePrefetcher";
+import WorkInstantTabs from "@/components/works/WorkInstantTabs";
 import { resolveNemoAutoGenerationConfig } from "@/lib/recording/nemoAutoGeneration";
 import ReaderSelectionBootstrap from "@/components/recording/ReaderSelectionBootstrap";
 import PublicAdSlot from "@/components/ads/PublicAdSlot";
@@ -1009,13 +1009,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
         currentReaderKey={selectedReaderKey}
         currentReaderName={selectedReaderName}
       /> 
-      <WorkPagePrefetcher
-        seriesId={seriesId}
-        currentTab={currentTab}
-        currentRangeStart={currentRangeStart}
-        selectedReaderKey={selectedReaderKey || undefined}
-        selectedReaderName={selectedReaderName || undefined}
-      />
       <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
           <Link href="/" className="hover:text-black">
@@ -1092,56 +1085,57 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
           <div className="px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
             <section className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-                    INDEX / READERS
-                  </p>
-                  <h2 className="mt-2 text-lg font-semibold text-black">
-                    目次 / 朗読者
-                  </h2>
-                </div>
-
-                <div className="flex flex-col items-end gap-2">
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={buildWorksHref(
-                        seriesId,
-                        "toc",
-                        selectedReaderKey,
-                        selectedReaderName,
-                        currentRangeStart
-                      )}
-                      className={[
-                        "rounded-full border px-4 py-2 text-sm font-medium transition",
-                        currentTab === "toc"
-                          ? "border-sky-200 bg-sky-50 text-black"
-                          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                      ].join(" ")}
-                    >
-                      目次
-                    </Link>
-                    <Link
-                      href={buildWorksHref(
-                        seriesId,
-                        "readers",
-                        selectedReaderKey,
-                        selectedReaderName,
-                        currentRangeStart
-                      )}
-                      className={[
-                        "rounded-full border px-4 py-2 text-sm font-medium transition",
-                        currentTab === "readers"
-                          ? "border-sky-200 bg-sky-50 text-black"
-                          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                      ].join(" ")}
-                    >
-                      朗読者
-                    </Link>
+              <WorkInstantTabs
+                seriesId={seriesId}
+                initialTab={currentTab}
+                currentRangeStart={currentRangeStart}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] tracking-[0.18em] text-neutral-500">
+                      INDEX / READERS
+                    </p>
+                    <h2 className="mt-2 text-lg font-semibold text-black">
+                      目次 / 朗読者
+                    </h2>
                   </div>
 
-                  {currentTab === "toc" ? (
-                    <div className="flex flex-wrap justify-end gap-2">
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        data-work-tab-button="toc"
+                        aria-pressed={currentTab === "toc"}
+                        className={[
+                          "rounded-full border px-4 py-2 text-sm font-medium transition",
+                          currentTab === "toc"
+                            ? "border-sky-200 bg-sky-50 text-black"
+                            : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                        ].join(" ")}
+                      >
+                        目次
+                      </button>
+
+                      <button
+                        type="button"
+                        data-work-tab-button="readers"
+                        aria-pressed={currentTab === "readers"}
+                        className={[
+                          "rounded-full border px-4 py-2 text-sm font-medium transition",
+                          currentTab === "readers"
+                            ? "border-sky-200 bg-sky-50 text-black"
+                            : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                        ].join(" ")}
+                      >
+                        朗読者
+                      </button>
+                    </div>
+
+                    <div
+                      data-work-tab-panel="toc"
+                      hidden={currentTab !== "toc"}
+                      className="flex flex-wrap justify-end gap-2"
+                    >
                       {rangeOptions.map((range) => (
                         <Link
                           key={range.start}
@@ -1163,12 +1157,14 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                         </Link>
                       ))}
                     </div>
-                  ) : null}
+                  </div>
                 </div>
-              </div>
 
-              {currentTab === "toc" ? (
-                <div className="mt-5">
+                <div
+                  data-work-tab-panel="toc"
+                  hidden={currentTab !== "toc"}
+                  className="mt-5"
+                >
                   <ContinueReadingEpisodeList
                     seriesId={seriesId}
                     episodes={visibleEpisodes.map((episode) => {
@@ -1200,13 +1196,17 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                           ? selectedReaderEpisodeIdSet.has(episode.id)
                             ? "has_recording"
                             : "no_recording"
-                          : null,                        
+                          : null,
                       };
                     })}
                   />
                 </div>
-              ) : (
-                <div className="mt-5 grid gap-3">
+
+                <div
+                  data-work-tab-panel="readers"
+                  hidden={currentTab !== "readers"}
+                  className="mt-5 grid gap-3"
+                >
                   {fetchErrorMessage ? (
                     <div className="rounded-[20px] border border-black/10 bg-neutral-100 p-4 text-sm leading-7 text-neutral-700">
                       {fetchErrorMessage}
@@ -1305,7 +1305,8 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                               >
                                 {autoNarrationBadge.label}
                               </span>
-                            ) : null}                            
+                            ) : null}
+
                             <span className="rounded-full border border-black/10 bg-white px-3 py-1">
                               公開朗読 {reader.recordingCount}件
                             </span>
@@ -1324,7 +1325,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                     })
                   )}
                 </div>
-              )}
+              </WorkInstantTabs>
             </section>
           </div>
         </section>
