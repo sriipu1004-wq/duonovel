@@ -301,6 +301,55 @@ function readStoredNarrationVolume(seriesId: string): number {
   }
 }
 
+function getNarrationStoppedStorageKey(seriesId: string): string {
+  return `duonovel:narration-stopped:${seriesId}`;
+}
+
+function readStoredNarrationStopped(
+  seriesId: string,
+  fallback: boolean
+): boolean {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(
+      getNarrationStoppedStorageKey(seriesId)
+    );
+
+    if (raw === "true") {
+      return true;
+    }
+
+    if (raw === "false") {
+      return false;
+    }
+
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStoredNarrationStopped(
+  seriesId: string,
+  value: boolean
+): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      getNarrationStoppedStorageKey(seriesId),
+      value ? "true" : "false"
+    );
+  } catch {
+    // 保存失敗でも画面動作は止めない
+  }
+}
+
 function getLocalResumePrimaryKey(targetSeriesId: string): string {
   return `duonovel:read-progress:${targetSeriesId}`;
 }
@@ -865,8 +914,8 @@ export default function EpisodePlayback({
     useState(false);
   const [isBookmarkPanelExpanded, setIsBookmarkPanelExpanded] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isNarrationStopped, setIsNarrationStopped] = useState(
-    stopNarrationByDefault
+  const [isNarrationStopped, setIsNarrationStopped] = useState(() =>
+    readStoredNarrationStopped(seriesId, stopNarrationByDefault)
   );
   const [assembledSegmentAudioUrl, setAssembledSegmentAudioUrl] = useState("");
 
@@ -887,7 +936,8 @@ export default function EpisodePlayback({
     readStoredGlobalMarkerVisible()
   );
 
-  const showNarrationControls = !isNarrationStopped;
+  const showNarrationControls =
+    !isNarrationStopped && recordingAvailable;
 
   useEffect(() => {
     if (!stopNarrationByDefault) {
@@ -895,13 +945,18 @@ export default function EpisodePlayback({
     }
 
     setIsNarrationStopped(true);
+    writeStoredNarrationStopped(seriesId, true);
     setIsPlaying(false);
 
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
     }
-  }, [stopNarrationByDefault]);
+  }, [seriesId, stopNarrationByDefault]);
+
+  useEffect(() => {
+    writeStoredNarrationStopped(seriesId, isNarrationStopped);
+  }, [seriesId, isNarrationStopped]);
 
   const [firedSceneCueIds, setFiredSceneCueIds] = useState<
     Record<string, true>
@@ -2804,19 +2859,19 @@ useEffect(() => {
 
   function handleToggleNarrationStopped(): void {
     const audio = audioRef.current;
+    const nextStopped = !isNarrationStopped;
 
-    if (isNarrationStopped) {
-      setIsNarrationStopped(false);
-      return;
-    }
-
-    if (audio) {
+    if (nextStopped && audio) {
       audio.pause();
     }
 
-    setIsNarrationStopped(true);
+    setIsNarrationStopped(nextStopped);
+    writeStoredNarrationStopped(seriesId, nextStopped);
     setIsPlaying(false);
-    void flushPlayLog("pause");
+
+    if (nextStopped) {
+      void flushPlayLog("pause");
+    }
   }
 
   function handleSaveBookmark(): void {
@@ -2915,21 +2970,6 @@ useEffect(() => {
                   朗読未選択 / 朗読停止中
                 </span>
               )}
-
-              <span
-                className={[
-                  "rounded-full border px-4 py-2 text-sm",
-                  selectedReaderName && recordingAvailable
-                    ? "border-sky-200 bg-sky-50 text-black"
-                    : "border-black/10 bg-neutral-50 text-neutral-500",
-                ].join(" ")}
-              >
-                {selectedReaderName
-                  ? recordingAvailable
-                    ? "選択中朗読を再生できる"
-                    : "この朗読者の公開朗読はまだない / 朗読停止中"
-                  : "朗読未選択 / 朗読停止中"}
-              </span>
 
               {resolvedBgmSrc ? (
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
@@ -3306,7 +3346,7 @@ useEffect(() => {
             </div>
           ) : null}
 
-          {!isNarrationStopped ? (
+          {showNarrationControls ? (
             <div className="rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
                 <span>{formatTime(currentTime)}</span>
@@ -3326,7 +3366,7 @@ useEffect(() => {
             </div>
           ) : null}
 
-          {!isNarrationStopped ? (
+          {showNarrationControls ? (
             <div className="mt-3 grid w-full grid-cols-7 gap-2">
               <FooterActionButton
                 label={isBookmarkPanelExpanded ? "栞\nOPEN" : "栞"}
