@@ -83,8 +83,8 @@ function updateCurrentWorksUrl(args: {
   seriesId: string;
   currentTab: "toc" | "readers";
   currentRangeStart: number;
-  readerKey: string;
-  readerName: string;
+  readerKey?: string;
+  readerName?: string;
 }): void {
   if (typeof window === "undefined") {
     return;
@@ -99,16 +99,30 @@ function updateCurrentWorksUrl(args: {
 
   url.searchParams.set("tab", args.currentTab);
   url.searchParams.set("range", String(args.currentRangeStart));
-  url.searchParams.set("readerKey", args.readerKey);
-  url.searchParams.set("readerName", args.readerName);
 
-  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  if (args.readerKey) {
+    url.searchParams.set("readerKey", args.readerKey);
+  } else {
+    url.searchParams.delete("readerKey");
+  }
+
+  if (args.readerName) {
+    url.searchParams.set("readerName", args.readerName);
+  } else {
+    url.searchParams.delete("readerName");
+  }
+
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${url.pathname}${url.search}${url.hash}`
+  );
 }
 
 function dispatchReaderSelection(args: {
   seriesId: string;
-  readerKey: string;
-  readerName: string;
+  readerKey?: string;
+  readerName?: string;
 }): void {
   if (typeof window === "undefined") {
     return;
@@ -147,21 +161,12 @@ export default function ReaderCardControls({
       : {}
   );
 
-  const selected = isSelected || isSameReader({
+  const selected = isSameReader({
     currentReaderKey: activeReader.readerKey,
     currentReaderName: activeReader.readerName,
     readerKey,
     readerName,
   });
-
-  useEffect(() => {
-    if (isSelected) {
-      setActiveReader({
-        readerKey,
-        readerName,
-      });
-    }
-  }, [isSelected, readerKey, readerName]);
 
   useEffect(() => {
     const handleReaderSelectionChange = (event: Event) => {
@@ -196,33 +201,43 @@ export default function ReaderCardControls({
   }, []);
 
   async function handleSelect() {
+    const shouldClearSelection = selected;
+
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(
-        `duonovel:selected-reader:${seriesId}`,
-        JSON.stringify({
-          readerKey,
-          readerName,
-        })
-      );
+      if (shouldClearSelection) {
+        window.localStorage.removeItem(`duonovel:selected-reader:${seriesId}`);
+      } else {
+        window.localStorage.setItem(
+          `duonovel:selected-reader:${seriesId}`,
+          JSON.stringify({
+            readerKey,
+            readerName,
+          })
+        );
+      }
     }
 
-    setActiveReader({
-      readerKey,
-      readerName,
-    });
+    const nextReader = shouldClearSelection
+      ? {}
+      : {
+          readerKey,
+          readerName,
+        };
+
+    setActiveReader(nextReader);
 
     updateCurrentWorksUrl({
       seriesId,
       currentTab,
       currentRangeStart,
-      readerKey,
-      readerName,
+      readerKey: nextReader.readerKey,
+      readerName: nextReader.readerName,
     });
 
     dispatchReaderSelection({
       seriesId,
-      readerKey,
-      readerName,
+      readerKey: nextReader.readerKey,
+      readerName: nextReader.readerName,
     });
   }
 

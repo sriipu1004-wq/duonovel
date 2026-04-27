@@ -28,28 +28,6 @@ function getStorageKey(seriesId: string): string {
   return `${READER_SELECTION_STORAGE_PREFIX}${seriesId}`;
 }
 
-function readStoredReaderSelection(seriesId: string): StoredReaderSelection | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(getStorageKey(seriesId));
-    if (!raw) {
-      return null;
-    }
-
-    const parsed = JSON.parse(raw) as StoredReaderSelection | null;
-    if (!parsed) {
-      return null;
-    }
-
-    return normalizeReaderSelection(parsed);
-  } catch {
-    return null;
-  }
-}
-
 function normalizeReaderSelection(
   value: StoredReaderSelection | null | undefined
 ): StoredReaderSelection | null {
@@ -73,15 +51,33 @@ function normalizeReaderSelection(
   };
 }
 
+function readStoredReaderSelection(seriesId: string): StoredReaderSelection | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getStorageKey(seriesId));
+    if (!raw) {
+      return null;
+    }
+
+    return normalizeReaderSelection(JSON.parse(raw) as StoredReaderSelection);
+  } catch {
+    return null;
+  }
+}
+
 function writeStoredReaderSelection(
   seriesId: string,
-  selection: StoredReaderSelection
+  selection: StoredReaderSelection | null
 ): void {
   if (typeof window === "undefined") {
     return;
   }
 
   const normalized = normalizeReaderSelection(selection);
+
   if (!normalized) {
     window.localStorage.removeItem(getStorageKey(seriesId));
     return;
@@ -92,16 +88,18 @@ function writeStoredReaderSelection(
 
 function applyReaderSelectionToUrlSearchParams(
   searchParams: URLSearchParams,
-  selection: StoredReaderSelection
+  selection: StoredReaderSelection | null
 ): void {
-  if (selection.readerKey) {
-    searchParams.set("readerKey", selection.readerKey);
+  const normalized = normalizeReaderSelection(selection);
+
+  if (normalized?.readerKey) {
+    searchParams.set("readerKey", normalized.readerKey);
   } else {
     searchParams.delete("readerKey");
   }
 
-  if (selection.readerName) {
-    searchParams.set("readerName", selection.readerName);
+  if (normalized?.readerName) {
+    searchParams.set("readerName", normalized.readerName);
   } else {
     searchParams.delete("readerName");
   }
@@ -111,7 +109,7 @@ function applyReaderSelectionToCurrentUrl(args: {
   seriesId: string;
   currentTab: "toc" | "readers";
   currentRangeStart: number;
-  selection: StoredReaderSelection;
+  selection: StoredReaderSelection | null;
 }): void {
   if (typeof window === "undefined") {
     return;
@@ -134,12 +132,16 @@ function applyReaderSelectionToCurrentUrl(args: {
 
   applyReaderSelectionToUrlSearchParams(url.searchParams, args.selection);
 
-  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${url.pathname}${url.search}${url.hash}`
+  );
 }
 
 function applyReaderSelectionToPageLinks(args: {
   seriesId: string;
-  selection: StoredReaderSelection;
+  selection: StoredReaderSelection | null;
 }): void {
   if (typeof window === "undefined") {
     return;
@@ -179,20 +181,45 @@ function applyReaderSelectionToPageLinks(args: {
   });
 }
 
+function updateSelectedReaderLabel(selection: StoredReaderSelection | null): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const label = document.querySelector<HTMLElement>("[data-selected-reader-label]");
+  if (!label) {
+    return;
+  }
+
+  const normalized = normalizeReaderSelection(selection);
+  const text = normalized?.readerName || normalized?.readerKey || "";
+
+  if (!text) {
+    label.hidden = true;
+    label.textContent = "";
+    return;
+  }
+
+  label.hidden = false;
+  label.textContent = `選択中朗読者: ${text}`;
+}
+
 function dispatchReaderSelection(args: {
   seriesId: string;
-  selection: StoredReaderSelection;
+  selection: StoredReaderSelection | null;
 }): void {
   if (typeof window === "undefined") {
     return;
   }
 
+  const normalized = normalizeReaderSelection(args.selection);
+
   window.dispatchEvent(
     new CustomEvent<ReaderSelectionEventDetail>(READER_SELECTION_EVENT, {
       detail: {
         seriesId: args.seriesId,
-        readerKey: args.selection.readerKey,
-        readerName: args.selection.readerName,
+        readerKey: normalized?.readerKey,
+        readerName: normalized?.readerName,
       },
     })
   );
@@ -210,31 +237,35 @@ export default function ReaderSelectionBootstrap({
       return;
     }
 
+    const applySelection = (selection: StoredReaderSelection | null) => {
+      writeStoredReaderSelection(seriesId, selection);
+      applyReaderSelectionToCurrentUrl({
+        seriesId,
+        currentTab,
+        currentRangeStart,
+        selection,
+      });
+      applyReaderSelectionToPageLinks({
+        seriesId,
+        selection,
+      });
+      updateSelectedReaderLabel(selection);
+    };
+
     const initialSelection =
       normalizeReaderSelection({
         readerKey: currentReaderKey,
         readerName: currentReaderName,
       }) ?? readStoredReaderSelection(seriesId);
 
-    if (!initialSelection) {
-      return;
-    }
+    applySelection(initialSelection);
 
-    writeStoredReaderSelection(seriesId, initialSelection);
-    applyReaderSelectionToCurrentUrl({
-      seriesId,
-      currentTab,
-      currentRangeStart,
-      selection: initialSelection,
-    });
-    applyReaderSelectionToPageLinks({
-      seriesId,
-      selection: initialSelection,
-    });
-    dispatchReaderSelection({
-      seriesId,
-      selection: initialSelection,
-    });
+    if (initialSelection) {
+      dispatchReaderSelection({
+        seriesId,
+        selection: initialSelection,
+      });
+    }
 
     const handleReaderSelectionChange = (event: Event) => {
       const customEvent = event as CustomEvent<ReaderSelectionEventDetail>;
@@ -249,21 +280,7 @@ export default function ReaderSelectionBootstrap({
         readerName: detail.readerName,
       });
 
-      if (!nextSelection) {
-        return;
-      }
-
-      writeStoredReaderSelection(seriesId, nextSelection);
-      applyReaderSelectionToCurrentUrl({
-        seriesId,
-        currentTab,
-        currentRangeStart,
-        selection: nextSelection,
-      });
-      applyReaderSelectionToPageLinks({
-        seriesId,
-        selection: nextSelection,
-      });
+      applySelection(nextSelection);
     };
 
     window.addEventListener(READER_SELECTION_EVENT, handleReaderSelectionChange);

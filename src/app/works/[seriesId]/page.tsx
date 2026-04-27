@@ -635,8 +635,10 @@ function buildReaderCards(
     const name =
       getVoiceModelDisplayName(recording) || getRecordingReaderName(recording);
     const key =
-      pickText(recording.voice_model_id, recording.voiceModelId) ||
-      getRecordingReaderKey(recording);
+      isAivisReaderName(name) || name.startsWith("VOICEVOX Nemo")
+        ? getRecordingReaderKey(recording)
+        : pickText(recording.voice_model_id, recording.voiceModelId) ||
+          getRecordingReaderKey(recording);
     const audioStoragePath = getRecordingAudioStoragePath(recording);
     const episodeId = getRecordingEpisodeId(recording);
     const episodeNumber =
@@ -1041,11 +1043,13 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                 </span>
               )}
 
-              {requestedReaderSpecified && selectedReaderLabel ? (
-                <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-black">
-                  選択中朗読者: {selectedReaderLabel}
-                </span>
-              ) : null}
+              <span
+                data-selected-reader-label
+                hidden={!requestedReaderSpecified || !selectedReaderLabel}
+                className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-black"
+              >
+                {selectedReaderLabel ? `選択中朗読者: ${selectedReaderLabel}` : ""}
+              </span>
             </div>
 
             <p className="mt-5 whitespace-pre-wrap text-sm leading-8 text-neutral-700 sm:text-[15px]">
@@ -1267,13 +1271,13 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                                   reader.tags.map((tag) => (
                                     <span
                                       key={tag}
-                                      className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm text-neutral-700"
+                                      className="text-sm text-neutral-600"
                                     >
                                       {tag}
                                     </span>
                                   ))
                                 ) : (
-                                  <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm text-neutral-500">
+                                  <span className="text-sm text-neutral-500">
                                     タグ未設定
                                   </span>
                                 )}
@@ -1306,19 +1310,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                                 {autoNarrationBadge.label}
                               </span>
                             ) : null}
-
-                            <span className="rounded-full border border-black/10 bg-white px-3 py-1">
-                              公開朗読 {reader.recordingCount}件
-                            </span>
-                            <span className="rounded-full border border-black/10 bg-white px-3 py-1">
-                              いいね {reader.totalLikes}
-                            </span>
-                            <span className="rounded-full border border-black/10 bg-white px-3 py-1">
-                              再生 {reader.totalPlays}
-                            </span>
-                            <span className="rounded-full border border-black/10 bg-white px-3 py-1">
-                              DL {reader.allowDownload ? "可" : "不可"}
-                            </span>
                           </div>
                         </div>
                       );
