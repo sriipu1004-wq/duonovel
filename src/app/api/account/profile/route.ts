@@ -172,6 +172,62 @@ async function savePublicUserProfile(args: {
   throw new Error(lastErrorMessage);
 }
 
+async function syncDisplayNameEverywhere(args: {
+  adminSupabase: AdminSupabase;
+  userId: string;
+  displayName: string;
+}): Promise<void> {
+  const updatedAt = new Date().toISOString();
+
+  const userColumnPayloads = [
+    { display_name: args.displayName, updated_at: updatedAt },
+    { display_name: args.displayName },
+    { username: args.displayName, updated_at: updatedAt },
+    { username: args.displayName },
+    { pen_name: args.displayName, updated_at: updatedAt },
+    { pen_name: args.displayName },
+    { name: args.displayName, updated_at: updatedAt },
+    { name: args.displayName },
+  ];
+
+  for (const payload of userColumnPayloads) {
+    await args.adminSupabase
+      .from("users")
+      .update(payload)
+      .eq("id", args.userId);
+  }
+
+  const humanRecordingPayloads = [
+    {
+      reader_name: args.displayName,
+      narrator_name: args.displayName,
+      display_name: args.displayName,
+      speaker_name: args.displayName,
+      updated_at: updatedAt,
+    },
+    {
+      reader_name: args.displayName,
+      narrator_name: args.displayName,
+      display_name: args.displayName,
+      speaker_name: args.displayName,
+    },
+  ];
+
+  for (const payload of humanRecordingPayloads) {
+    await args.adminSupabase
+      .from("recordings")
+      .update(payload)
+      .eq("reader_user_id", args.userId)
+      .is("voice_model_id", null);
+
+    await args.adminSupabase
+      .from("recordings")
+      .update(payload)
+      .eq("reader_id", args.userId)
+      .is("voice_model_id", null);
+  }
+}
+
 export async function POST(request: Request) {
   let payload: Record<string, unknown>;
 
@@ -279,6 +335,12 @@ export async function POST(request: Request) {
       bio,
       xUrl,
       noteUrl,
+    });
+
+    await syncDisplayNameEverywhere({
+      adminSupabase,
+      userId: user.id,
+      displayName: normalizedDisplayName,
     });
 
     return NextResponse.json({
