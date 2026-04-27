@@ -438,6 +438,71 @@ function getDisplayClauseWeight(text: string): number {
   return spokenLikeLength + pauseWeight;
 }
 
+function resolveActiveSentenceIndexFromWeightedDisplayUnits(args: {
+  currentTime: number;
+  duration: number;
+  displaySentenceUnits: DisplaySentenceUnit[];
+  totalSentenceCount: number;
+}): number {
+  const { currentTime, duration, displaySentenceUnits, totalSentenceCount } = args;
+
+  if (!Number.isFinite(currentTime) || currentTime < 0) {
+    return 0;
+  }
+
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return 0;
+  }
+
+  if (displaySentenceUnits.length === 0) {
+    if (totalSentenceCount <= 0) {
+      return 0;
+    }
+
+    const progress = Math.min(0.999999, Math.max(0, currentTime / duration));
+    return Math.min(
+      totalSentenceCount - 1,
+      Math.max(0, Math.floor(progress * totalSentenceCount))
+    );
+  }
+
+  const weightedUnits = displaySentenceUnits.map((unit) => {
+    const rawWeight =
+      Number.isFinite(unit.weight) && unit.weight > 0
+        ? unit.weight
+        : getDisplayClauseWeight(unit.text);
+
+    return {
+      sentenceIndex: unit.sentenceIndex,
+      weight: Math.max(1, rawWeight),
+    };
+  });
+
+  const totalWeight = weightedUnits.reduce(
+    (sum, unit) => sum + unit.weight,
+    0
+  );
+
+  if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
+    return weightedUnits[0]?.sentenceIndex ?? 0;
+  }
+
+  const progress = Math.min(0.999999, Math.max(0, currentTime / duration));
+  const targetWeight = progress * totalWeight;
+
+  let cumulativeWeight = 0;
+
+  for (const unit of weightedUnits) {
+    cumulativeWeight += unit.weight;
+
+    if (targetWeight < cumulativeWeight) {
+      return unit.sentenceIndex;
+    }
+  }
+
+  return weightedUnits[weightedUnits.length - 1]?.sentenceIndex ?? 0;
+}
+
 function resolveActiveDisplayIndexFromTimings(args: {
   currentTime: number;
   timings: DisplaySentenceTiming[];
@@ -2037,13 +2102,21 @@ useEffect(() => {
       return displayIndexToSentenceIndexMap.get(activeDisplayIndex) ?? 0;
     }
 
-    return resolveActiveSentenceIndex({
+    if (appliedEffectSettings.sentenceTimestamps.length > 0) {
+      return resolveActiveSentenceIndex({
+        currentTime,
+        duration,
+        totalSentenceCount,
+        sentenceTimestamps: interpolatedRuntimeSentenceTimestamps,
+        disableEstimatedFallback: true,
+      });
+    }
+
+    return resolveActiveSentenceIndexFromWeightedDisplayUnits({
       currentTime,
       duration,
+      displaySentenceUnits,
       totalSentenceCount,
-      sentenceTimestamps: interpolatedRuntimeSentenceTimestamps,
-      disableEstimatedFallback:
-        appliedEffectSettings.sentenceTimestamps.length > 0,
     });
   }, [
     currentTime,
@@ -2056,6 +2129,7 @@ useEffect(() => {
     fullEpisodeDisplaySentenceTimings,
     interpolatedDisplaySentenceTimings,
     displayIndexToSentenceIndexMap,
+    displaySentenceUnits,
     isHumanRecordingSelected,
   ]);
 
