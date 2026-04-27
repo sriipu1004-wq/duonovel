@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 type ReaderSelectionBootstrapProps = {
   seriesId: string;
@@ -232,38 +233,41 @@ export default function ReaderSelectionBootstrap({
   currentReaderKey,
   currentReaderName,
 }: ReaderSelectionBootstrapProps) {
+  const router = useRouter();
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    const applySelection = (selection: StoredReaderSelection | null) => {
-      writeStoredReaderSelection(seriesId, selection);
-      applyReaderSelectionToCurrentUrl({
-        seriesId,
-        currentTab,
-        currentRangeStart,
-        selection,
-      });
-      applyReaderSelectionToPageLinks({
-        seriesId,
-        selection,
-      });
-      updateSelectedReaderLabel(selection);
-    };
-
-    const initialSelection =
+    let activeSelection: StoredReaderSelection | null =
       normalizeReaderSelection({
         readerKey: currentReaderKey,
         readerName: currentReaderName,
       }) ?? readStoredReaderSelection(seriesId);
 
-    applySelection(initialSelection);
+    const applySelection = (selection: StoredReaderSelection | null) => {
+      activeSelection = normalizeReaderSelection(selection);
+      writeStoredReaderSelection(seriesId, activeSelection);
+      applyReaderSelectionToCurrentUrl({
+        seriesId,
+        currentTab,
+        currentRangeStart,
+        selection: activeSelection,
+      });
+      applyReaderSelectionToPageLinks({
+        seriesId,
+        selection: activeSelection,
+      });
+      updateSelectedReaderLabel(activeSelection);
+    };
 
-    if (initialSelection) {
+    applySelection(activeSelection);
+
+    if (activeSelection) {
       dispatchReaderSelection({
         seriesId,
-        selection: initialSelection,
+        selection: activeSelection,
       });
     }
 
@@ -275,24 +279,68 @@ export default function ReaderSelectionBootstrap({
         return;
       }
 
-      const nextSelection = normalizeReaderSelection({
-        readerKey: detail.readerKey,
-        readerName: detail.readerName,
-      });
+      applySelection(
+        normalizeReaderSelection({
+          readerKey: detail.readerKey,
+          readerName: detail.readerName,
+        })
+      );
+    };
 
-      applySelection(nextSelection);
+    const handleReadLinkClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+
+      const anchor = target.closest<HTMLAnchorElement>("a[href]");
+      if (!anchor) {
+        return;
+      }
+
+      const rawHref = anchor.getAttribute("href");
+      if (!rawHref) {
+        return;
+      }
+
+      let url: URL;
+
+      try {
+        url = new URL(rawHref, window.location.origin);
+      } catch {
+        return;
+      }
+
+      if (url.origin !== window.location.origin) {
+        return;
+      }
+
+      const readPathPrefix = `/read/${seriesId}/`;
+      if (!url.pathname.startsWith(readPathPrefix)) {
+        return;
+      }
+
+      applyReaderSelectionToUrlSearchParams(url.searchParams, activeSelection);
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      router.push(`${url.pathname}${url.search}${url.hash}`);
     };
 
     window.addEventListener(READER_SELECTION_EVENT, handleReaderSelectionChange);
+    document.addEventListener("click", handleReadLinkClick, true);
 
     return () => {
       window.removeEventListener(READER_SELECTION_EVENT, handleReaderSelectionChange);
+      document.removeEventListener("click", handleReadLinkClick, true);
     };
   }, [
     currentRangeStart,
     currentReaderKey,
     currentReaderName,
     currentTab,
+    router,
     seriesId,
   ]);
 

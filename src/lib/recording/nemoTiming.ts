@@ -59,8 +59,18 @@ export function buildNemoTimingManifest({
     throw new Error("nemo_timing_manifest_failed:length_mismatch");
   }
 
-  const emittedSentenceIndexes = new Set<number>();
-  const sentenceTimings: NemoGeneratedSentenceTiming[] = [];
+  const sentenceStarts = new Map<
+    number,
+    {
+      sentenceIndex: number;
+      paragraphIndex: number;
+      chunkIndex: number;
+      timeSeconds: number;
+      durationSeconds: number;
+      targetText: string;
+      spokenTextParts: string[];
+    }
+  >();
 
   let elapsedSeconds = 0;
 
@@ -68,23 +78,50 @@ export function buildNemoTimingManifest({
     const chunk = chunks[index];
     const renderedSegment = renderedSegments[index];
     const pauseAfterMs = renderedSegment.pauseAfterMs ?? chunk.pauseAfterMs ?? 0;
+    const existing = sentenceStarts.get(chunk.sourceSentenceIndex);
 
-    if (!emittedSentenceIndexes.has(chunk.sourceSentenceIndex)) {
-      emittedSentenceIndexes.add(chunk.sourceSentenceIndex);
-
-      sentenceTimings.push({
+    if (existing) {
+      existing.durationSeconds = roundTiming(
+        elapsedSeconds + renderedSegment.durationSeconds - existing.timeSeconds
+      );
+      existing.spokenTextParts.push(chunk.text);
+    } else {
+      sentenceStarts.set(chunk.sourceSentenceIndex, {
         sentenceIndex: chunk.sourceSentenceIndex,
         paragraphIndex: chunk.paragraphIndex,
         chunkIndex: chunk.chunkIndex,
         timeSeconds: roundTiming(elapsedSeconds),
         durationSeconds: roundTiming(renderedSegment.durationSeconds),
         targetText: chunk.sourceSentenceText,
-        spokenText: chunk.text,
+        spokenTextParts: [chunk.text],
       });
     }
 
     elapsedSeconds += renderedSegment.durationSeconds + pauseAfterMs / 1000;
   }
+
+  const sentenceTimings: NemoGeneratedSentenceTiming[] = Array.from(
+    sentenceStarts.values()
+  )
+    .sort((left, right) => left.timeSeconds - right.timeSeconds)
+    .map((item, index, list) => {
+      const next = list[index + 1] ?? null;
+      const durationSeconds = next
+        ? Math.max(0.08, roundTiming(next.timeSeconds - item.timeSeconds))
+        : Math.max(0.08, roundTiming(item.durationSeconds));
+
+      return {
+        sentenceIndex: item.sentenceIndex,
+        paragraphIndex: item.paragraphIndex,
+        chunkIndex: item.chunkIndex,
+        timeSeconds: item.timeSeconds,
+        durationSeconds,
+        targetText: item.targetText,
+        spokenText: item.spokenTextParts.join(""),
+        timingSource: "estimated",
+        matchConfidence: 0.72,
+      };
+    });
 
   return {
     version: 1,

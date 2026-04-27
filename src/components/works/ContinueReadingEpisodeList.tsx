@@ -33,6 +33,19 @@ type ResumeData = {
   startAt: number;
 };
 
+type ReaderSelectionEventDetail = {
+  seriesId: string;
+  readerKey?: string;
+  readerName?: string;
+};
+
+type ReaderSelection = {
+  readerKey?: string;
+  readerName?: string;
+};
+
+const READER_SELECTION_EVENT = "libread:reader-selection-change";
+
 function toSafeNumber(value: unknown, fallback = 0): number {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value < 0 ? fallback : value;
@@ -44,6 +57,65 @@ function toSafeNumber(value: unknown, fallback = 0): number {
   }
 
   return parsed < 0 ? fallback : parsed;
+}
+
+function normalizeText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeReaderSelection(value: ReaderSelection | null | undefined): ReaderSelection {
+  const readerKey = normalizeText(value?.readerKey);
+  const readerName = normalizeText(value?.readerName);
+
+  return {
+    ...(readerKey ? { readerKey } : {}),
+    ...(readerName ? { readerName } : {}),
+  };
+}
+
+function readStoredReaderSelection(seriesId: string): ReaderSelection {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(`duonovel:selected-reader:${seriesId}`);
+    if (!raw) {
+      return {};
+    }
+
+    return normalizeReaderSelection(JSON.parse(raw) as ReaderSelection);
+  } catch {
+    return {};
+  }
+}
+
+function buildReadHref(args: {
+  seriesId: string;
+  episodeNumber: number;
+  fallbackHref: string;
+  readerKey?: string;
+  readerName?: string;
+}): string {
+  const fallbackUrl = new URL(args.fallbackHref, "https://libread.local");
+  const query = new URLSearchParams(fallbackUrl.search);
+
+  if (args.readerKey) {
+    query.set("readerKey", args.readerKey);
+  } else {
+    query.delete("readerKey");
+  }
+
+  if (args.readerName) {
+    query.set("readerName", args.readerName);
+  } else {
+    query.delete("readerName");
+  }
+
+  const queryString = query.toString();
+  return `/read/${args.seriesId}/${args.episodeNumber}${
+    queryString ? `?${queryString}` : ""
+  }`;
 }
 
 function readLocalBookmark(seriesId: string): BookmarkData | null {
@@ -99,6 +171,33 @@ export default function ContinueReadingEpisodeList({
   const [resumeEpisodeNumber, setResumeEpisodeNumber] = useState<number | null>(
     null
   );
+  const [selectedReader, setSelectedReader] = useState<ReaderSelection>(() => ({}));
+
+  useEffect(() => {
+    setSelectedReader(readStoredReaderSelection(seriesId));
+
+    const handleReaderSelectionChange = (event: Event) => {
+      const customEvent = event as CustomEvent<ReaderSelectionEventDetail>;
+      const detail = customEvent.detail;
+
+      if (!detail || detail.seriesId !== seriesId) {
+        return;
+      }
+
+      setSelectedReader(
+        normalizeReaderSelection({
+          readerKey: detail.readerKey,
+          readerName: detail.readerName,
+        })
+      );
+    };
+
+    window.addEventListener(READER_SELECTION_EVENT, handleReaderSelectionChange);
+
+    return () => {
+      window.removeEventListener(READER_SELECTION_EVENT, handleReaderSelectionChange);
+    };
+  }, [seriesId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,10 +274,24 @@ export default function ContinueReadingEpisodeList({
 
       return {
         ...episode,
+        href: buildReadHref({
+          seriesId,
+          episodeNumber: episode.episodeNumber,
+          fallbackHref: episode.href,
+          readerKey: selectedReader.readerKey,
+          readerName: selectedReader.readerName,
+        }),
         isContinueTarget,
       };
     });
-  }, [episodes, loaded, resumeEpisodeNumber]);
+  }, [
+    episodes,
+    loaded,
+    resumeEpisodeNumber,
+    selectedReader.readerKey,
+    selectedReader.readerName,
+    seriesId,
+  ]);
 
   return (
     <div className="overflow-hidden rounded-[20px] border border-black/10">
