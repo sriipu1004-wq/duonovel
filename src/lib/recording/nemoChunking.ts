@@ -16,7 +16,7 @@ export type NemoChunkBuildOptions = NemoPreprocessOptions & {
   maxChars?: number;
 };
 
-const DEFAULT_MAX_CHARS = 72;
+const DEFAULT_MAX_CHARS = 32;
 const SENTENCE_PAUSE_MS = 380;
 const PARAGRAPH_PAUSE_MS = 920;
 const PARAGRAPH_SOFT_PAUSE_MS = 620;
