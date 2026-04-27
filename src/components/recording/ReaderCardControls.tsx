@@ -341,6 +341,9 @@ export default function ReaderCardControls({
 
       <button
         type="button"
+        data-reader-select-button
+        data-reader-key={readerKey}
+        data-reader-name={readerName}
         onClick={() => {
           void handleSelect();
         }}

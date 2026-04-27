@@ -1230,6 +1230,9 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                       return (
                         <div
                           key={reader.readerKey}
+                          data-reader-card
+                          data-reader-key={reader.readerKey}
+                          data-reader-name={reader.name}
                           className={[
                             "rounded-[20px] border p-4",
                             isSelected

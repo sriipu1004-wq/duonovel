@@ -25,6 +25,9 @@ type ReaderSelectionEventDetail = {
 const READER_SELECTION_STORAGE_PREFIX = "duonovel:selected-reader:";
 const READER_SELECTION_EVENT = "libread:reader-selection-change";
 
+const SELECTED_CARD_CLASS = "border-sky-200 bg-sky-50/60";
+const UNSELECTED_CARD_CLASS = "border-black/10 bg-neutral-50";
+
 function getStorageKey(seriesId: string): string {
   return `${READER_SELECTION_STORAGE_PREFIX}${seriesId}`;
 }
@@ -205,6 +208,47 @@ function updateSelectedReaderLabel(selection: StoredReaderSelection | null): voi
   label.textContent = `選択中朗読者: ${text}`;
 }
 
+function isSameReader(args: {
+  selection: StoredReaderSelection | null;
+  readerKey: string;
+  readerName: string;
+}): boolean {
+  const selection = normalizeReaderSelection(args.selection);
+  if (!selection) {
+    return false;
+  }
+
+  return (
+    (!!selection.readerKey && selection.readerKey === args.readerKey) ||
+    (!!selection.readerName && selection.readerName === args.readerName)
+  );
+}
+
+function updateReaderCards(selection: StoredReaderSelection | null): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-reader-card]").forEach((card) => {
+    const readerKey = card.dataset.readerKey ?? "";
+    const readerName = card.dataset.readerName ?? "";
+    const selected = isSameReader({
+      selection,
+      readerKey,
+      readerName,
+    });
+
+    card.classList.remove(...SELECTED_CARD_CLASS.split(" "));
+    card.classList.remove(...UNSELECTED_CARD_CLASS.split(" "));
+
+    if (selected) {
+      card.classList.add(...SELECTED_CARD_CLASS.split(" "));
+    } else {
+      card.classList.add(...UNSELECTED_CARD_CLASS.split(" "));
+    }
+  });
+}
+
 function dispatchReaderSelection(args: {
   seriesId: string;
   selection: StoredReaderSelection | null;
@@ -260,6 +304,7 @@ export default function ReaderSelectionBootstrap({
         selection: activeSelection,
       });
       updateSelectedReaderLabel(activeSelection);
+      updateReaderCards(activeSelection);
     };
 
     applySelection(activeSelection);

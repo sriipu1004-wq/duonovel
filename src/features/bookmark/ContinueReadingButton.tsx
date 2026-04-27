@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getPlayLogBySeries } from "@/lib/playLogs";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -38,6 +38,19 @@ type ResumeData = {
   readerName?: string;
 };
 
+type ReaderSelectionEventDetail = {
+  seriesId: string;
+  readerKey?: string;
+  readerName?: string;
+};
+
+type ReaderSelection = {
+  readerKey?: string;
+  readerName?: string;
+};
+
+const READER_SELECTION_EVENT = "libread:reader-selection-change";
+
 function pickText(...values: unknown[]): string {
   for (const value of values) {
     if (typeof value === "string" && value.trim().length > 0) {
@@ -45,6 +58,37 @@ function pickText(...values: unknown[]): string {
     }
   }
   return "";
+}
+
+function normalizeText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeReaderSelection(value: ReaderSelection | null | undefined): ReaderSelection {
+  const readerKey = normalizeText(value?.readerKey);
+  const readerName = normalizeText(value?.readerName);
+
+  return {
+    ...(readerKey ? { readerKey } : {}),
+    ...(readerName ? { readerName } : {}),
+  };
+}
+
+function readStoredReaderSelection(seriesId: string): ReaderSelection {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(`duonovel:selected-reader:${seriesId}`);
+    if (!raw) {
+      return {};
+    }
+
+    return normalizeReaderSelection(JSON.parse(raw) as ReaderSelection);
+  } catch {
+    return {};
+  }
 }
 
 function toSafeNumber(value: unknown, fallback = 0): number {
@@ -172,6 +216,33 @@ export default function ContinueReadingButton({
 }: ContinueReadingButtonProps) {
   const [loaded, setLoaded] = useState(false);
   const [resume, setResume] = useState<ResumeData | null>(null);
+  const [selectedReader, setSelectedReader] = useState<ReaderSelection>(() => ({}));
+
+  useEffect(() => {
+    setSelectedReader(readStoredReaderSelection(seriesId));
+
+    const handleReaderSelectionChange = (event: Event) => {
+      const customEvent = event as CustomEvent<ReaderSelectionEventDetail>;
+      const detail = customEvent.detail;
+
+      if (!detail || detail.seriesId !== seriesId) {
+        return;
+      }
+
+      setSelectedReader(
+        normalizeReaderSelection({
+          readerKey: detail.readerKey,
+          readerName: detail.readerName,
+        })
+      );
+    };
+
+    window.addEventListener(READER_SELECTION_EVENT, handleReaderSelectionChange);
+
+    return () => {
+      window.removeEventListener(READER_SELECTION_EVENT, handleReaderSelectionChange);
+    };
+  }, [seriesId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -257,6 +328,23 @@ export default function ContinueReadingButton({
     };
   }, [seriesId, fallbackReaderKey, fallbackReaderName]);
 
+  const activeReader = useMemo(() => {
+    if (selectedReader.readerKey || selectedReader.readerName) {
+      return selectedReader;
+    }
+
+    return {
+      readerKey: resume?.readerKey ?? fallbackReaderKey,
+      readerName: resume?.readerName ?? fallbackReaderName,
+    };
+  }, [
+    fallbackReaderKey,
+    fallbackReaderName,
+    resume?.readerKey,
+    resume?.readerName,
+    selectedReader,
+  ]);
+
   if (!loaded) {
     return (
       <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2.5 text-sm text-neutral-500">
@@ -271,8 +359,8 @@ export default function ContinueReadingButton({
         href={buildReadHref(
           seriesId,
           resume.episodeNumber,
-          resume.readerKey,
-          resume.readerName,
+          activeReader.readerKey,
+          activeReader.readerName,
           resume.startAt
         )}
         className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm text-neutral-700 transition hover:bg-neutral-50"
@@ -288,8 +376,8 @@ export default function ContinueReadingButton({
         href={buildReadHref(
           seriesId,
           fallbackEpisodeNumber,
-          fallbackReaderKey,
-          fallbackReaderName
+          activeReader.readerKey,
+          activeReader.readerName
         )}
         className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm text-neutral-700 transition hover:bg-neutral-50"
       >
