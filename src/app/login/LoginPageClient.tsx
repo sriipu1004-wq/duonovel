@@ -70,7 +70,7 @@ export default function LoginPageClient() {
   useEffect(() => {
     if (confirmed) {
       setMessage(
-        "メール確認は完了した。元の画面に戻るか、そのままログインして利用を始めて。"
+        "確認成功。ログイン可。"
       );
     }
   }, [confirmed]);

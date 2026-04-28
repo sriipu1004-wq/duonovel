@@ -20,10 +20,16 @@ import {
   validateDisplayName,
 } from "@/lib/auth/accountSignupConsent";
 import { checkDisplayNameAvailability } from "@/lib/auth/checkDisplayNameAvailability";
-import { checkEmailAvailability } from "@/lib/auth/checkEmailAvailability";
 import { syncPublicUserProfile } from "@/lib/auth/syncPublicUserProfile";
 
 type PendingAction = "email-signup" | "complete-profile" | null;
+
+type PrepareSignupEmailResponse = {
+  ok?: boolean;
+  normalizedEmail?: string;
+  status?: "available" | "deleted_unconfirmed" | "confirmed";
+  error?: string;
+};
 
 function isEmailConfirmed(user: User | null): boolean {
   return (
@@ -58,6 +64,32 @@ function mapRegistrationErrorMessage(message: string): string {
   }
 
   return message;
+}
+
+async function prepareSignupEmail(email: string): Promise<string> {
+  const normalizedEmail = normalizeEmail(email);
+
+  const response = await fetch("/api/account/email/prepare-signup", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: normalizedEmail,
+    }),
+  });
+
+  const payload = (await response.json().catch(() => null)) as
+    | PrepareSignupEmailResponse
+    | null;
+
+  if (!response.ok || !payload?.ok) {
+    throw new Error(
+      payload?.error ?? "確認メール送信の準備に失敗した。"
+    );
+  }
+
+  return payload.normalizedEmail?.trim() || normalizedEmail;
 }
 
 export default function RegisterPage() {
@@ -282,7 +314,7 @@ export default function RegisterPage() {
     let availableEmail = normalizeEmail(email);
 
     try {
-      availableEmail = await checkEmailAvailability(email);
+      availableEmail = await prepareSignupEmail(email);
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -336,7 +368,7 @@ export default function RegisterPage() {
     }
 
     setMessage(
-      "確認メールを送った。メール内リンクではメール確認だけを受け付ける。リンクを開いたら元の画面に戻ってログインして。"
+      "確認メールを送った。再送した場合は直近の確認メールだけが有効。リンクを開いたらログインページからログインして。"
     );
     setPendingAction(null);
   }
@@ -347,7 +379,7 @@ export default function RegisterPage() {
       : "登録を完了して進む"
     : pendingAction === "email-signup"
       ? "確認メールを送信中..."
-      : "アカウントを作成する";
+      : "確認メールを送る";
 
   return (
     <main className="min-h-screen bg-white px-6 py-8 text-black">

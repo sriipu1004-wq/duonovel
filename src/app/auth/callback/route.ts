@@ -108,8 +108,8 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const redirectTo = buildRedirect(request, "/confirmed");
-  redirectTo.searchParams.set("kind", user ? "completed" : "login_required");
+  const redirectTo = buildRedirect(request, "/login");
+  redirectTo.searchParams.set("confirmed", "1");
   redirectTo.searchParams.set("next", nextPath);
 
   if (!user) {
