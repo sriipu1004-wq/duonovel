@@ -12,6 +12,7 @@ import {
   type EpisodeRow,
   type SeriesRow,
 } from "@/features/write/writeShared";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type UserRow = Record<string, unknown> & {
   id: string;
@@ -298,7 +299,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         summary:
           getSeriesSummary(series) || "あらすじはまだ登録されていません。",
         authorName:
-          pickText(
+          pickPublicAuthorName(
             author?.display_name,
             author?.pen_name,
             author?.username,
@@ -408,6 +409,32 @@ function isPublicRecording(recording: RecordingAggregateRow): boolean {
   return true;
 }
 
+function isEmailLike(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function pickPublicAuthorName(...values: unknown[]): string {
+  for (const value of values) {
+    const text = pickText(value);
+
+    if (!text) {
+      continue;
+    }
+
+    if (isEmailLike(text)) {
+      continue;
+    }
+
+    return text;
+  }
+
+  return "";
+}
+
 function getRecordingLikes(recording: RecordingAggregateRow): number {
   const raw = recording.like_count ?? recording.likes_count ?? 0;
   if (typeof raw === "number") return raw;
@@ -441,7 +468,7 @@ function normalizeSeriesIds(seriesIds?: string[]): string[] {
 async function buildPublicRecordingAggregates(
   seriesIds?: string[]
 ): Promise<PublicRecordingAggregate[]> {
-  const supabase = createPublicServerClient();
+  const supabase = createAdminClient();
   const normalizedSeriesIds = normalizeSeriesIds(seriesIds);
 
   let data: RecordingAggregateRow[] = [];

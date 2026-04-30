@@ -55,23 +55,6 @@ function normalizeReaderSelection(
   };
 }
 
-function readStoredReaderSelection(seriesId: string): StoredReaderSelection | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(getStorageKey(seriesId));
-    if (!raw) {
-      return null;
-    }
-
-    return normalizeReaderSelection(JSON.parse(raw) as StoredReaderSelection);
-  } catch {
-    return null;
-  }
-}
-
 function writeStoredReaderSelection(
   seriesId: string,
   selection: StoredReaderSelection | null
@@ -107,40 +90,6 @@ function applyReaderSelectionToUrlSearchParams(
   } else {
     searchParams.delete("readerName");
   }
-}
-
-function applyReaderSelectionToCurrentUrl(args: {
-  seriesId: string;
-  currentTab: "toc" | "readers";
-  currentRangeStart: number;
-  selection: StoredReaderSelection | null;
-}): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const url = new URL(window.location.href);
-  const worksPath = `/works/${args.seriesId}`;
-
-  if (url.pathname !== worksPath) {
-    return;
-  }
-
-  if (!url.searchParams.get("tab")) {
-    url.searchParams.set("tab", args.currentTab);
-  }
-
-  if (!url.searchParams.get("range")) {
-    url.searchParams.set("range", String(args.currentRangeStart));
-  }
-
-  applyReaderSelectionToUrlSearchParams(url.searchParams, args.selection);
-
-  window.history.replaceState(
-    window.history.state,
-    "",
-    `${url.pathname}${url.search}${url.hash}`
-  );
 }
 
 function applyReaderSelectionToPageLinks(args: {
@@ -288,17 +237,11 @@ export default function ReaderSelectionBootstrap({
       normalizeReaderSelection({
         readerKey: currentReaderKey,
         readerName: currentReaderName,
-      }) ?? readStoredReaderSelection(seriesId);
+      });
 
     const applySelection = (selection: StoredReaderSelection | null) => {
       activeSelection = normalizeReaderSelection(selection);
       writeStoredReaderSelection(seriesId, activeSelection);
-      applyReaderSelectionToCurrentUrl({
-        seriesId,
-        currentTab,
-        currentRangeStart,
-        selection: activeSelection,
-      });
       applyReaderSelectionToPageLinks({
         seriesId,
         selection: activeSelection,

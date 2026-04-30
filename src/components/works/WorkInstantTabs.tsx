@@ -81,13 +81,7 @@ export default function WorkInstantTabs({
         const tab = normalizeTab(panel.dataset.workTabPanel);
         panel.hidden = tab !== activeTab;
       });
-
-    updateCurrentUrl({
-      seriesId,
-      tab: activeTab,
-      currentRangeStart,
-    });
-  }, [activeTab, currentRangeStart, seriesId]);
+  }, [activeTab]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -108,7 +102,13 @@ export default function WorkInstantTabs({
 
       event.preventDefault();
 
-      setActiveTab(normalizeTab(button.dataset.workTabButton));
+      const nextTab = normalizeTab(button.dataset.workTabButton);
+      setActiveTab(nextTab);
+      updateCurrentUrl({
+        seriesId,
+        tab: nextTab,
+        currentRangeStart,
+      });
     };
 
     root.addEventListener("click", handleClick);
@@ -116,7 +116,7 @@ export default function WorkInstantTabs({
     return () => {
       root.removeEventListener("click", handleClick);
     };
-  }, []);
+  }, [currentRangeStart, seriesId]);
 
   return (
     <div ref={rootRef} data-work-current-tab={activeTab}>

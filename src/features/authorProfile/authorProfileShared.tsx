@@ -183,12 +183,38 @@ export function buildReadHref(seriesId: string, episodeNumber: number): string {
   return `/read/${seriesId}/${episodeNumber}`;
 }
 
+function isEmailLike(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function pickPublicName(...values: unknown[]): string {
+  for (const value of values) {
+    const text = pickText(value);
+
+    if (!text) {
+      continue;
+    }
+
+    if (isEmailLike(text)) {
+      continue;
+    }
+
+    return text;
+  }
+
+  return "";
+}
+
 export function resolveAuthorName(
   user?: UserRow | null,
   fallback?: unknown
 ): string {
   return (
-    pickText(
+    pickPublicName(
       user?.display_name,
       user?.pen_name,
       user?.username,

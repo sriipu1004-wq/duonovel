@@ -14,10 +14,10 @@ import {
 import BookmarkedSeriesList from "@/features/bookmark/BookmarkedSeriesList";
 import MyPageHeroEditable from "./MyPageHeroEditable";
 import AccountSettingsCard from "./AccountSettingsCard";
-import NemoAutogenBackfillRunner from "./NemoAutogenBackfillRunner";
 import AivisAutogenRunner from "./AivisAutogenRunner";
 import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
 import SavedSearchLinksSection from "./SavedSearchLinksSection";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 function EntryCard({
   eyebrow,
@@ -147,17 +147,49 @@ function MySeriesSection({ cards }: { cards: AuthorSeriesCard[] }) {
   );
 }
 
+function readAuthMetadataDisplayName(metadata: unknown): string {
+  if (!metadata || typeof metadata !== "object") {
+    return "";
+  }
+
+  const values = metadata as Record<string, unknown>;
+  const candidates = [
+    values.display_name,
+    values.displayName,
+    values.display_name_candidate,
+    values.name,
+    values.full_name,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") {
+      continue;
+    }
+
+    const text = candidate.trim();
+
+    if (text.length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+      return text;
+    }
+  }
+
+  return "";
+}
+
 export default async function MyPage() {
   const { supabase, user } = await requireLoggedInUser("/mypage");
 
+  const adminSupabase = createAdminClient();
+
   const [author, ownedSeries] = await Promise.all([
-    fetchAuthorById(user.id, supabase),
+    fetchAuthorById(user.id, adminSupabase),
     fetchSeriesByAuthorId(user.id, supabase),
   ]);
 
   const seriesCards = await buildAuthorSeriesCards(ownedSeries, supabase);
 
-  const authorName = resolveAuthorName(author, user.email);
+  const metadataDisplayName = readAuthMetadataDisplayName(user.user_metadata);
+  const authorName = resolveAuthorName(author, metadataDisplayName);
   const initialBio =
     typeof author?.bio === "string" && author.bio.trim().length > 0
       ? author.bio
@@ -182,8 +214,7 @@ export default async function MyPage() {
         ? author.noteUrl
         : "";          
 
-  const signedInLabel = user.email ?? "ログイン中";
-  const enableOfficialNemoAutogen = isOfficialNarrationAccountEmail(user.email);  
+  const signedInLabel = metadataDisplayName || user.email || "ログイン中";
   const enableOfficialAivisAutogen = isOfficialNarrationAccountEmail(user.email);
 
   const rawDisplayName =
@@ -192,14 +223,14 @@ export default async function MyPage() {
   const initialDisplayName =
     rawDisplayName.trim().length > 0
       ? rawDisplayName
-      : authorName !== signedInLabel
-        ? authorName
-        : "";
+      : metadataDisplayName.trim().length > 0
+        ? metadataDisplayName
+        : authorName !== "作者名未設定"
+          ? authorName
+          : "";
 
   return (
-    <main className="min-h-screen bg-white text-black">
-      <NemoAutogenBackfillRunner enabled={enableOfficialNemoAutogen} />
-      <AivisAutogenRunner enabled={enableOfficialAivisAutogen} />      
+    <main className="min-h-screen bg-white text-black">   
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
           <Link href="/" className="hover:text-black">

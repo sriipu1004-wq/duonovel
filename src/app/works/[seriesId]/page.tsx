@@ -21,12 +21,10 @@ import {
   type RecordingPermissionMode,
   type SeriesRow,
 } from "@/features/write/writeShared";
-import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGenerationBootstrap";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ReaderCardControls from "@/components/recording/ReaderCardControls";
 import ContinueReadingEpisodeList from "@/components/works/ContinueReadingEpisodeList";
 import WorkInstantTabs from "@/components/works/WorkInstantTabs";
-import { resolveNemoAutoGenerationConfig } from "@/lib/recording/nemoAutoGeneration";
 import ReaderSelectionBootstrap from "@/components/recording/ReaderSelectionBootstrap";
 import PublicAdSlot from "@/components/ads/PublicAdSlot";
 import { buildReaderAuthorHref } from "@/lib/readerAuthorHref";
@@ -810,7 +808,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   let author: UserRow | null = null;
 
   if (authorId) {
-    const { data: userData } = await supabase
+    const { data: userData } = await adminSupabase
       .from("users")
       .select("*")
       .eq("id", authorId)
@@ -860,12 +858,16 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
   const episodeIds = episodes.map((episode) => episode.id);
 
-  const { recordings, fetchErrorMessage } = shouldFetchRecordings
+  const { recordings: fetchedRecordings, fetchErrorMessage } = shouldFetchRecordings
     ? await fetchRecordingsByEpisodeIds(episodeIds)
     : {
         recordings: [],
         fetchErrorMessage: null,
       };
+
+  const recordings = fetchedRecordings.filter(
+    (recording) => !isNemoReaderName(getRecordingReaderName(recording))
+  );
 
   const episodeNumberById = new Map(
     episodes.map((episode) => [episode.id, getEpisodeNumber(episode)])
@@ -887,70 +889,13 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       : []
   );
 
-  const nemoAutogenConfig = resolveNemoAutoGenerationConfig();
-
-  const nemoGeneratedEpisodeIdSet = new Set(
-    nemoAutogenConfig
-      ? recordings
-          .filter((recording) =>
-            isNemoAutogenRecording(recording, nemoAutogenConfig)
-          )
-          .map((recording) => getRecordingEpisodeId(recording))
-          .filter((value) => value.length > 0)
-      : []
-  );
-
-  const autoNarrationBadge = resolveAutoNarrationBadge({
-    permissionMode: recordingPermissionMode,
-    totalEpisodeCount: episodes.length,
-    generatedEpisodeCount: nemoGeneratedEpisodeIdSet.size,
-    hasConfig: !!nemoAutogenConfig,
-  });
-
   const selectedReaderLabel =
     pickText(selectedReaderName, selectedReaderKey) || "";  
 
-  const displayedReaderCards = (() => {
-    if (recordingPermissionMode !== "open" || !nemoAutogenConfig) {
-      return readerCards;
-    }
-
-    const existingNemoReader =
-      readerCards.find((reader) => isNemoReaderName(reader.name)) ?? null;
-
-    const syntheticNemoReader: ReaderCard = existingNemoReader ?? {
-      readerKey: getCanonicalNemoReaderKey(nemoAutogenConfig.narratorName),
-      name: nemoAutogenConfig.narratorName,
-      rank: 0,
-      tags: ["#自動朗読"],
-      description: autoNarrationBadge.label,
-      totalLikes: 0,
-      totalPlays: 0,
-      recordingCount: 0,
-      allowDownload: false,
-      demoAudioUrl: "",
-    };
-
-    const mergedNemoReader: ReaderCard = {
-      ...syntheticNemoReader,
-      tags:
-        syntheticNemoReader.tags.length > 0
-          ? syntheticNemoReader.tags
-          : ["#自動朗読"],
-      description:
-        syntheticNemoReader.recordingCount > 0
-          ? `${autoNarrationBadge.label} / 公開朗読 ${syntheticNemoReader.recordingCount}件 / いいね ${syntheticNemoReader.totalLikes} / 再生 ${syntheticNemoReader.totalPlays}`
-          : autoNarrationBadge.label,
-    };
-
-    return [
-      mergedNemoReader,
-      ...readerCards.filter((reader) => !isNemoReaderName(reader.name)),
-    ];
-  })().map((reader, index) => ({
+  const displayedReaderCards = readerCards.map((reader, index) => ({
     ...reader,
     rank: index + 1,
-  }));  
+  }));
 
   const readerCardLikeSnapshotMap = await fetchReaderCardLikeSnapshotMap({
     supabase: adminSupabase,
@@ -1301,19 +1246,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                           <p className="mt-4 text-sm leading-7 text-neutral-600">
                             {reader.description}
                           </p>
-
-                          <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-neutral-500">
-                            {isNemoReaderName(reader.name) ? (
-                              <span
-                                className={[
-                                  "rounded-full border px-3 py-1",
-                                  autoNarrationBadge.className,
-                                ].join(" ")}
-                              >
-                                {autoNarrationBadge.label}
-                              </span>
-                            ) : null}
-                          </div>
                         </div>
                       );
                     })

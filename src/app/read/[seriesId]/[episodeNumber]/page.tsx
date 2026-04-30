@@ -25,7 +25,6 @@ import {
   parseNemoGeneratedSentenceTimings,
 } from "@/lib/recording/nemoTiming";
 import { normalizeRecordingPermissionMode } from "@/lib/recording/recordingEntry";
-import { NemoAutoGenerationBootstrap } from "@/components/recording/NemoAutoGenerationBootstrap";
 import { resolveNemoAutoGenerationConfig } from "@/lib/recording/nemoAutoGeneration";
 import {
   getCachedPublicReadPagePayload,
@@ -288,7 +287,10 @@ export default async function ReadEpisodePage({
     notFound();
   }
 
-  const { series, episode, publicEpisodes, allEpisodeRecordings } = payload;
+  const { series, episode, publicEpisodes } = payload;
+  const allEpisodeRecordings = payload.allEpisodeRecordings.filter(
+    (recording) => !isNemoReaderName(getRecordingReaderName(recording))
+  );
 
   const recordingPermissionMode = normalizeRecordingPermissionMode(
     series.recording_permission_mode
@@ -472,11 +474,6 @@ export default async function ReadEpisodePage({
 
   return (
     <>
-      <NemoAutoGenerationBootstrap
-        seriesId={seriesId}
-        episodeIds={[episode.id]}
-        enabled={false}
-      />
       <EpisodePlayback
         seriesId={seriesId}
         episodeId={episode.id}

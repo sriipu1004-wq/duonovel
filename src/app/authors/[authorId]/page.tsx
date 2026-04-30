@@ -151,6 +151,10 @@ async function fetchNarrationRecordingsForIdentity(args: {
     args.authorId.startsWith("nemo:") || args.authorId.startsWith("aivis:");
   const results = new Map<string, RecordingRow>();
 
+  if (args.authorId.startsWith("nemo:")) {
+    return [];
+  }  
+
   if (isSyntheticNarrator) {
     const targetReaderName =
       args.readerName || getReaderNameFromSyntheticAuthorId(args.authorId);
@@ -311,12 +315,15 @@ function buildWorksHref(
 export default async function AuthorPage({ params, searchParams }: PageProps) {
   const { authorId: rawAuthorId } = await params;
   const authorId = decodeAuthorIdParam(rawAuthorId);
+  if (authorId.startsWith("nemo:")) {
+    notFound();
+  }  
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const requestedReaderName = pickText(resolvedSearchParams?.readerName);
 
   const [author, works, authSupabase] = await Promise.all([
-    fetchAuthorById(authorId, supabase),
-    fetchSeriesByAuthorId(authorId, supabase),
+    fetchAuthorById(authorId, adminSupabase),
+    fetchSeriesByAuthorId(authorId, adminSupabase),
     createServerClient(),
   ]);
 

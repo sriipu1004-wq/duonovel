@@ -52,6 +52,10 @@ function normalizeBio(value: string): string {
   return value.replace(/\r\n?/g, "\n").trim();
 }
 
+function isEmailLike(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
 function resolveVisibleLinkFieldCount(values: string[]): number {
   const first = values[0]?.trim().length > 0;
   const second = values[1]?.trim().length > 0;
@@ -101,10 +105,13 @@ export default function MyPageHeroEditable({
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  const fallbackTitle =
+    fallbackEmail.trim().length > 0 && !isEmailLike(fallbackEmail)
+      ? fallbackEmail.trim()
+      : "ユーザー名未設定";
+
   const visibleTitle =
-    displayName.trim().length > 0
-      ? displayName.trim()
-      : fallbackEmail || "作者名未設定";
+    displayName.trim().length > 0 ? displayName.trim() : fallbackTitle;
 
   const visibleBio =
     bio.trim().length > 0 ? bio.trim() : "自己紹介未記入";
@@ -267,7 +274,9 @@ export default function MyPageHeroEditable({
             {isEditing ? (
               <div className="relative min-h-[52px] sm:min-h-[60px]">
                 <p className="pointer-events-none select-none truncate text-3xl font-bold text-neutral-300 sm:text-4xl">
-                  {fallbackEmail || "ユーザー名を入力"}
+                  {fallbackTitle === "ユーザー名未設定"
+                    ? "ユーザー名を入力"
+                    : fallbackTitle}
                 </p>
 
                 <input

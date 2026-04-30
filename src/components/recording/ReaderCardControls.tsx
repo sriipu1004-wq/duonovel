@@ -5,6 +5,7 @@ import {
   buildNemoTimingPublicUrlFromAudioPublicUrl,
   parseNemoGeneratedSentenceTimings,
 } from "@/lib/recording/nemoTiming";
+import { useRouter } from "next/navigation";
 
 type ReaderCardControlsProps = {
   seriesId: string;
@@ -119,6 +120,31 @@ function updateCurrentWorksUrl(args: {
   );
 }
 
+function buildCurrentWorksHref(args: {
+  seriesId: string;
+  currentTab: "toc" | "readers";
+  currentRangeStart: number;
+  readerKey?: string;
+  readerName?: string;
+}): string {
+  const query = new URLSearchParams();
+
+  query.set("tab", args.currentTab);
+  query.set("range", String(args.currentRangeStart));
+
+  if (args.readerKey) {
+    query.set("readerKey", args.readerKey);
+  }
+
+  if (args.readerName) {
+    query.set("readerName", args.readerName);
+  }
+
+  const queryString = query.toString();
+
+  return `/works/${args.seriesId}${queryString ? `?${queryString}` : ""}`;
+}
+
 function dispatchReaderSelection(args: {
   seriesId: string;
   readerKey?: string;
@@ -144,6 +170,7 @@ export default function ReaderCardControls({
   currentTab,
   currentRangeStart,
 }: ReaderCardControlsProps) {
+  const router = useRouter();  
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const stopAtSecondsRef = useRef<number>(DEMO_PREVIEW_TARGET_SECONDS);
 
@@ -239,6 +266,19 @@ export default function ReaderCardControls({
       readerKey: nextReader.readerKey,
       readerName: nextReader.readerName,
     });
+
+    router.replace(
+      buildCurrentWorksHref({
+        seriesId,
+        currentTab,
+        currentRangeStart,
+        readerKey: nextReader.readerKey,
+        readerName: nextReader.readerName,
+      }),
+      {
+        scroll: false,
+      }
+    );
   }
 
   async function resolveDemoEndSeconds(): Promise<number> {
