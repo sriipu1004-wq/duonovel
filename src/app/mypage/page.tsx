@@ -230,7 +230,9 @@ export default async function MyPage() {
           : "";
 
   return (
-    <main className="min-h-screen bg-white text-black">   
+    <main className="min-h-screen bg-white text-black">
+      <AivisAutogenRunner enabled={enableOfficialAivisAutogen} />
+
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
           <Link href="/" className="hover:text-black">
