@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type SearchNavButtonProps = {
@@ -18,26 +18,15 @@ type SearchParamsLike = {
 function scrollToTarget(targetId: string) {
   if (typeof window === "undefined") return;
 
-  let attempts = 0;
+  const target = document.getElementById(targetId);
+  if (!target) {
+    return;
+  }
 
-  const tryScroll = () => {
-    const target = document.getElementById(targetId);
-
-    if (target) {
-      target.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-      return;
-    }
-
-    attempts += 1;
-    if (attempts < 12) {
-      window.setTimeout(tryScroll, 120);
-    }
-  };
-
-  window.setTimeout(tryScroll, 0);
+  target.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
 }
 
 function appendSavedParamIfNeeded(
@@ -70,6 +59,7 @@ export default function SearchNavButton({
 }: SearchNavButtonProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [isPending, setIsPending] = useState(false);
 
   const resolvedHref = useMemo(
     () => appendSavedParamIfNeeded(href, searchParams),
@@ -80,20 +70,38 @@ export default function SearchNavButton({
     router.prefetch(resolvedHref);
   }, [resolvedHref, router]);
 
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={() => {
-        router.replace(resolvedHref, { scroll: false });
+  useEffect(() => {
+    setIsPending(false);
+  }, [searchParams]);
 
-        if (scrollTargetId) {
-          scrollToTarget(scrollTargetId);
-        }
-      }}
-      className={className}
-    >
-      {children}
-    </button>
+  return (
+    <>
+      {isPending ? (
+        <div className="fixed left-0 top-0 z-[9999] h-1 w-full overflow-hidden bg-black/10">
+          <div className="h-full w-1/2 animate-pulse bg-black" />
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        title={title}
+        aria-busy={isPending}
+        disabled={isPending}
+        onClick={() => {
+          setIsPending(true);
+          router.replace(resolvedHref, { scroll: false });
+
+          if (scrollTargetId) {
+            window.setTimeout(() => scrollToTarget(scrollTargetId), 0);
+          }
+        }}
+        className={[
+          className ?? "",
+          isPending ? "cursor-wait opacity-70" : "",
+        ].join(" ")}
+      >
+        {children}
+      </button>
+    </>
   );
 }

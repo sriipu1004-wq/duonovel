@@ -366,6 +366,7 @@ const PUBLIC_WORK_SERIES_SELECT = `
   description,
   catch_copy,
   author_id,
+  user_id,
   created_at,
   author_name,
   tags,

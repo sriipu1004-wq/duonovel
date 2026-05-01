@@ -41,10 +41,8 @@ type PublicSearchControlsProps = {
   showAllTags: boolean;
   showAllGenres: boolean;
   shelfTab: ShelfTabKey;
-  visibleTagChips: TagChip[];
-  hasHiddenTags: boolean;
-  visibleGenreChips: GenrePlaceholderChip[];
-  hasHiddenGenres: boolean;
+  allTagChips: TagChip[];
+  allGenreChips: GenrePlaceholderChip[];
 };
 
 function normalizeTagToken(value: string): string {
@@ -177,10 +175,8 @@ export default function PublicSearchControls({
   showAllTags,
   showAllGenres,
   shelfTab,
-  visibleTagChips,
-  hasHiddenTags,
-  visibleGenreChips,
-  hasHiddenGenres,
+  allTagChips,
+  allGenreChips,
 }: PublicSearchControlsProps) {
   const router = useRouter();
 
@@ -188,6 +184,8 @@ export default function PublicSearchControls({
   const [startValue, setStartValue] = useState(selectedStartInput);
   const [endValue, setEndValue] = useState(selectedEndInput);
   const [genreLimitMessage, setGenreLimitMessage] = useState("");
+  const [localShowAllTags, setLocalShowAllTags] = useState(showAllTags);
+  const [localShowAllGenres, setLocalShowAllGenres] = useState(showAllGenres);  
 
   useEffect(() => {
     setQueryValue(query);
@@ -226,6 +224,17 @@ export default function PublicSearchControls({
     ],
     [savedFilterKey, selectedGenreLabels, selectedTagLabels]
   );
+
+  const visibleTagChips = localShowAllTags
+    ? allTagChips
+    : allTagChips.slice(0, 10);
+
+  const visibleGenreChips = localShowAllGenres
+    ? allGenreChips
+    : allGenreChips.slice(0, 7);
+
+  const hasHiddenTags = allTagChips.length > 10;
+  const hasHiddenGenres = allGenreChips.length > 7;  
 
   function navigate(href: string, scrollTargetId?: string) {
     router.replace(href, { scroll: false });
@@ -453,8 +462,8 @@ export default function PublicSearchControls({
             ジャンル
           </p>
 
-          <div className="mt-2 flex items-center gap-2 overflow-hidden">
-            <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="mt-2 flex max-w-full flex-wrap items-start gap-2 overflow-hidden">
+            <div className="min-w-0 max-w-full flex-1 overflow-hidden">
               {showAllGenres ? (
                 <div className="flex flex-wrap gap-2">
                   {visibleGenreChips.map((genre) => {
@@ -466,14 +475,14 @@ export default function PublicSearchControls({
                         type="button"
                         onClick={() => handleGenreToggle(genre.label)}
                         className={[
-                          "rounded-full border px-3 py-2 text-sm transition",
+                          "max-w-full rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
                           active
                             ? "border-violet-300 bg-violet-100 text-violet-800"
                             : "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
                         ].join(" ")}
                       >
                         {genre.label}
-                        <span className="ml-2 text-violet-400">{genre.count}</span>
+                        <span className="ml-1.5 text-[10px] text-violet-400">{genre.count}</span>
                       </button>
                     );
                   })}
@@ -489,14 +498,14 @@ export default function PublicSearchControls({
                         type="button"
                         onClick={() => handleGenreToggle(genre.label)}
                         className={[
-                          "shrink-0 rounded-full border px-3 py-2 text-sm transition",
+                          "shrink-0 rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
                           active
                             ? "border-violet-300 bg-violet-100 text-violet-800"
                             : "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
                         ].join(" ")}
                       >
                         {genre.label}
-                        <span className="ml-2 text-violet-400">{genre.count}</span>
+                        <span className="ml-1.5 text-[10px] text-violet-400">{genre.count}</span>
                       </button>
                     );
                   })}
@@ -505,22 +514,13 @@ export default function PublicSearchControls({
             </div>
 
             {hasHiddenGenres ? (
-              <SearchNavButton
-                href={buildSearchHref({
-                  q: queryValue,
-                  selectedTags: selectedTagLabels,
-                  selectedGenres: selectedGenreLabels,
-                  order,
-                  start: startValue,
-                  end: endValue,
-                  showTags: showAllTags,
-                  showGenres: !showAllGenres,
-                  shelfTab,
-                })}
-                className="shrink-0 text-sm text-neutral-500 transition hover:text-black"
+              <button
+                type="button"
+                onClick={() => setLocalShowAllGenres((prev) => !prev)}
+                className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-50"
               >
-                {showAllGenres ? "閉じる" : "さらに表示"}
-              </SearchNavButton>
+                {localShowAllGenres ? "閉じる" : "さらに"}
+              </button>
             ) : null}
           </div>
 
@@ -534,8 +534,8 @@ export default function PublicSearchControls({
             タグ
           </p>
 
-          <div className="mt-2 flex items-center gap-2 overflow-hidden">
-            <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="mt-2 flex max-w-full flex-wrap items-start gap-2 overflow-hidden">
+            <div className="min-w-0 max-w-full flex-1 overflow-hidden">
               {showAllTags ? (
                 <div className="flex flex-wrap gap-2">
                   {visibleTagChips.map((tag) => {
@@ -561,7 +561,7 @@ export default function PublicSearchControls({
                           shelfTab,
                         })}
                         className={[
-                          "rounded-full border px-3 py-2 text-sm transition",
+                          "max-w-full rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
                           active
                             ? "border-sky-200 bg-sky-50 text-black"
                             : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
@@ -598,7 +598,7 @@ export default function PublicSearchControls({
                           shelfTab,
                         })}
                         className={[
-                          "shrink-0 rounded-full border px-3 py-2 text-sm transition",
+                          "shrink-0 rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
                           active
                             ? "border-sky-200 bg-sky-50 text-black"
                             : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
@@ -614,22 +614,13 @@ export default function PublicSearchControls({
             </div>
 
             {hasHiddenTags ? (
-              <SearchNavButton
-                href={buildSearchHref({
-                  q: queryValue,
-                  selectedTags: selectedTagLabels,
-                  selectedGenres: selectedGenreLabels,
-                  order,
-                  start: startValue,
-                  end: endValue,
-                  showTags: !showAllTags,
-                  showGenres: showAllGenres,
-                  shelfTab,
-                })}
-                className="shrink-0 text-sm text-neutral-500 transition hover:text-black"
+              <button
+                type="button"
+                onClick={() => setLocalShowAllTags((prev) => !prev)}
+                className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-50"
               >
-                {showAllTags ? "閉じる" : "さらに表示"}
-              </SearchNavButton>
+                {localShowAllTags ? "閉じる" : "さらに"}
+              </button>
             ) : null}
           </div>
         </div>

@@ -1,5 +1,3 @@
-import { supabase } from "@/lib/supabaseClient";
-
 type TrackSeriesViewInput = {
   seriesId: string;
   episodeId: string | null;
@@ -64,17 +62,21 @@ function buildRecordingPlayStorageKey(
   return `${RECORDING_PLAY_PREFIX}${sessionId}:${recordingId}`;
 }
 
-async function getCurrentUserId(): Promise<string | null> {
+async function postPopularityEvent(payload: Record<string, unknown>): Promise<boolean> {
   try {
-    const { data, error } = await supabase.auth.getUser();
+    const response = await fetch("/api/popularity/events", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    });
 
-    if (error) {
-      return null;
-    }
-
-    return data.user?.id ?? null;
-  } catch {
-    return null;
+    return response.ok;
+  } catch (error) {
+    console.error("[popularityEvents] event post failed:", error);
+    return false;
   }
 }
 
@@ -103,24 +105,15 @@ export async function trackSeriesViewOnce(
     return;
   }
 
-  const userId = await getCurrentUserId();
+  const ok = await postPopularityEvent({
+    kind: "series_view",
+    seriesId: input.seriesId,
+    episodeId,
+    episodeNumber: Math.floor(input.episodeNumber),
+    sessionId,
+  });
 
-  const { error } = await supabase.from("series_view_events").upsert(
-    {
-      series_id: input.seriesId,
-      episode_id: episodeId,
-      episode_number: Math.floor(input.episodeNumber),
-      user_id: userId,
-      session_id: sessionId,
-    },
-    {
-      onConflict: "session_id,episode_id",
-      ignoreDuplicates: true,
-    }
-  );
-
-  if (error) {
-    console.error("[popularityEvents] series view insert failed:", error);
+  if (!ok) {
     return;
   }
 
@@ -153,25 +146,16 @@ export async function trackRecordingPlayStartOnce(
     return;
   }
 
-  const userId = await getCurrentUserId();
+  const ok = await postPopularityEvent({
+    kind: "recording_play",
+    seriesId: input.seriesId,
+    episodeId,
+    episodeNumber: Math.floor(input.episodeNumber),
+    recordingId,
+    sessionId,
+  });
 
-  const { error } = await supabase.from("recording_play_events").upsert(
-    {
-      series_id: input.seriesId,
-      episode_id: episodeId,
-      episode_number: Math.floor(input.episodeNumber),
-      recording_id: recordingId,
-      user_id: userId,
-      session_id: sessionId,
-    },
-    {
-      onConflict: "session_id,recording_id",
-      ignoreDuplicates: true,
-    }
-  );
-
-  if (error) {
-    console.error("[popularityEvents] recording play insert failed:", error);
+  if (!ok) {
     return;
   }
 

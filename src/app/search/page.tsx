@@ -180,21 +180,6 @@ async function fetchSavedSeriesIdsForUser(args: {
 const TOKYO_TIMEZONE = "Asia/Tokyo";
 const ONE_DAY_MS = 1000 * 60 * 60 * 24;
 
-const PLACEHOLDER_GENRES: GenrePlaceholderChip[] = [
-  { key: "fantasy", label: "ファンタジー", count: 128 },
-  { key: "love", label: "恋愛", count: 121 },
-  { key: "youth", label: "青春", count: 104 },
-  { key: "mystery", label: "ミステリー", count: 96 },
-  { key: "daily", label: "日常", count: 88 },
-  { key: "sf", label: "SF", count: 75 },
-  { key: "history", label: "歴史", count: 63 },
-  { key: "horror", label: "ホラー", count: 51 },
-  { key: "modern", label: "現代", count: 46 },
-  { key: "japanese", label: "和風", count: 39 },
-  { key: "battle", label: "バトル", count: 34 },
-  { key: "travel", label: "旅", count: 28 },
-];
-
 function parseSelectedGenreLabels(rawGenres?: string): string[] {
   if (!rawGenres) {
     return [];
@@ -934,8 +919,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   const availableTags = buildAvailableTags(workCards);
   const availableGenres = buildAvailableGenres(workCards);
-  const genreCandidateSource =
-    availableGenres.length > 0 ? availableGenres : PLACEHOLDER_GENRES;
+  const genreCandidateSource = availableGenres;
 
   const collapsedTagPreview = availableTags.slice(0, 10);
   const collapsedGenrePreview = genreCandidateSource.slice(0, 7);
@@ -1277,10 +1261,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           showAllTags={showAllTags}
           showAllGenres={showAllGenres}
           shelfTab={shelfTab}
-          visibleTagChips={visibleTagChips}
-          hasHiddenTags={hasHiddenTags}
-          visibleGenreChips={visibleGenreChips}
-          hasHiddenGenres={hasHiddenGenres}
+          allTagChips={availableTags}
+          allGenreChips={genreCandidateSource}
         />
 
         <section id="shelves" className="pt-10 scroll-mt-24">
@@ -1392,6 +1374,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                     : undefined
                                 }
                                 tags={work.tags}
+                                viewCount={work.viewCount}
+                                likeCount={work.likeCount}
+                                bookmarkCount={work.bookmarkCount}
+                                narrationPlayCount={work.narrationPlayCount}
                               />
                             </div>
                           </div>
@@ -1474,6 +1460,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                     : undefined
                                 }
                                 tags={work.tags}
+                                viewCount={work.viewCount}
+                                likeCount={work.likeCount}
+                                bookmarkCount={work.bookmarkCount}
+                                narrationPlayCount={work.narrationPlayCount}
                               />
                             </div>
                           </div>
@@ -1592,6 +1582,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                     : undefined
                                 }
                                 tags={work.tags}
+                                viewCount={work.viewCount}
+                                likeCount={work.likeCount}
+                                bookmarkCount={work.bookmarkCount}
+                                narrationPlayCount={work.narrationPlayCount}
                               />
                             </div>
                           </div>
@@ -1700,6 +1694,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                     : undefined
                                 }
                                 tags={work.tags}
+                                viewCount={work.viewCount}
+                                likeCount={work.likeCount}
+                                bookmarkCount={work.bookmarkCount}
+                                narrationPlayCount={work.narrationPlayCount}
                               />
                             </div>
                           </div>
@@ -1834,6 +1832,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                             : undefined
                         }
                         tags={work.tags}
+                        viewCount={work.viewCount}
+                        likeCount={work.likeCount}
+                        bookmarkCount={work.bookmarkCount}
+                        narrationPlayCount={work.narrationPlayCount}
                       />
                     </div>
                   </div>

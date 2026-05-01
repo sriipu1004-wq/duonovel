@@ -12,6 +12,10 @@ type PublicWorkBoardCardProps = {
   summary: string;
   firstReadHref?: string;
   tags: string[];
+  viewCount?: number;
+  likeCount?: number;
+  bookmarkCount?: number;
+  narrationPlayCount?: number;  
 };
 
 function buildTagHref(tag: string): string {
@@ -29,6 +33,10 @@ export default function PublicWorkBoardCard({
   summary,
   firstReadHref,
   tags,
+  viewCount,
+  likeCount,
+  bookmarkCount,
+  narrationPlayCount,  
 }: PublicWorkBoardCardProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -82,6 +90,32 @@ export default function PublicWorkBoardCard({
               <span className="text-sm text-neutral-600">{authorName}</span>
             )}
           </div>
+
+          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-neutral-500">
+            {typeof viewCount === "number" ? (
+              <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
+                閲覧 {viewCount}
+              </span>
+            ) : null}
+
+            {typeof likeCount === "number" ? (
+              <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
+                いいね {likeCount}
+              </span>
+            ) : null}
+
+            {typeof bookmarkCount === "number" ? (
+              <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
+                ブックマーク {bookmarkCount}
+              </span>
+            ) : null}
+
+            {typeof narrationPlayCount === "number" ? (
+              <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
+                朗読再生 {narrationPlayCount}
+              </span>
+            ) : null}
+          </div>          
 
           {!expanded ? (
             <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
