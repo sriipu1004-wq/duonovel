@@ -76,6 +76,24 @@ function parseTags(raw: unknown): string[] {
   return [];
 }
 
+function toEditorValue(items: string[]): string {
+  return items.join("\n");
+}
+
+function normalizeRecordingPermissionMode(
+  value: unknown
+): RecordingPermissionMode {
+  if (
+    value === "open" ||
+    value === "approval_required" ||
+    value === "closed"
+  ) {
+    return value;
+  }
+
+  return "closed";
+}
+
 function getRecordingPermissionLabel(
   mode: RecordingPermissionMode | null | undefined
 ): string {
@@ -130,11 +148,17 @@ function buildWorkspaceFields(args: {
   publicationStatus: SeriesPublicationStatus;
   reviewsEnabled: boolean;
   episodeCommentsEnabled: boolean;
+  genres: string[];
+  tags: string[];
+  recordingPermissionMode: RecordingPermissionMode;
 }) {
   return {
     publication_status: args.publicationStatus,
     reviews_enabled: args.reviewsEnabled,
     episode_comments_enabled: args.episodeCommentsEnabled,
+    genres: args.genres,
+    tags: args.tags,
+    recording_permission_mode: args.recordingPermissionMode,
   };
 }
 
@@ -243,6 +267,12 @@ export default function WriteSeriesForm({
 }: WriteSeriesFormProps) {
   const router = useRouter();
 
+  const initialGenres = getSeriesGenres(series);
+  const initialTags = parseTags(series?.tags);
+  const initialRecordingPermissionMode = normalizeRecordingPermissionMode(
+    series?.recording_permission_mode
+  );
+
   const [title, setTitle] = useState(getTitle(series));
   const [summary, setSummary] = useState(getSummary(series));
   const [publicationStatus, setPublicationStatus] =
@@ -253,6 +283,21 @@ export default function WriteSeriesForm({
   const [episodeCommentsEnabled, setEpisodeCommentsEnabled] = useState(
     isSeriesEpisodeCommentVisible(series)
   );
+  const [genreEditorValue, setGenreEditorValue] = useState(
+    toEditorValue(initialGenres)
+  );
+  const [savedGenres, setSavedGenres] = useState(initialGenres);
+  const [tagEditorValue, setTagEditorValue] = useState(
+    toEditorValue(initialTags)
+  );
+  const [savedTags, setSavedTags] = useState(initialTags);
+  const [recordingPermissionMode, setRecordingPermissionMode] =
+    useState<RecordingPermissionMode>(initialRecordingPermissionMode);
+  const [
+    savedRecordingPermissionMode,
+    setSavedRecordingPermissionMode,
+  ] = useState<RecordingPermissionMode>(initialRecordingPermissionMode);
+
   const [initialPostingStatus, setInitialPostingStatus] =
     useState<EpisodePostingStatus>("draft");
   const [initialScheduledFor, setInitialScheduledFor] = useState("");
@@ -302,10 +347,10 @@ const publicVisibleCount = sortedEpisodes.filter(
   ? "まだ下書きの話がある。本文編集を開いて、投稿または予約投稿へ切り替える。"
           : "予約投稿や投稿済みの流れを保ったまま次の話へ進む。";
 
-  const tags = parseTags(series?.tags);
-  const genres = getSeriesGenres(series);
+  const tags = parseTags(tagEditorValue);
+  const genres = parseTags(genreEditorValue);
   const recordingPermissionLabel = getRecordingPermissionLabel(
-    series?.recording_permission_mode
+    recordingPermissionMode
   );
   const publicSurfaceReady =
     !!series?.id &&
@@ -368,10 +413,15 @@ const publicVisibleCount = sortedEpisodes.filter(
     setSuccessMessage("");
 
     const summaryVariants = buildSummaryValue(summary);
+    const nextGenres = parseTags(genreEditorValue);
+    const nextTags = parseTags(tagEditorValue);
     const workspaceFields = buildWorkspaceFields({
       publicationStatus,
       reviewsEnabled,
       episodeCommentsEnabled,
+      genres: nextGenres,
+      tags: nextTags,
+      recordingPermissionMode,
     });
 
     const payloads: Array<Record<string, unknown>> = summaryVariants.map(
@@ -445,10 +495,15 @@ const publicVisibleCount = sortedEpisodes.filter(
     setSuccessMessage("");
 
     const summaryVariants = buildSummaryValue(summary);
+    const nextGenres = parseTags(genreEditorValue);
+    const nextTags = parseTags(tagEditorValue);
     const workspaceFields = buildWorkspaceFields({
       publicationStatus,
       reviewsEnabled,
       episodeCommentsEnabled,
+      genres: nextGenres,
+      tags: nextTags,
+      recordingPermissionMode,
     });
 
     const payloads: Array<Record<string, unknown>> = summaryVariants.map(
@@ -471,6 +526,12 @@ const publicVisibleCount = sortedEpisodes.filter(
       const result = await supabase.from("series").update(payload).eq("id", series.id);
 
       if (!result.error) {
+        setSavedGenres(nextGenres);
+        setGenreEditorValue(toEditorValue(nextGenres));
+        setSavedTags(nextTags);
+        setTagEditorValue(toEditorValue(nextTags));
+        setSavedRecordingPermissionMode(recordingPermissionMode);
+
         setSaveState("success");
         setSuccessMessage("作品ワークスペースを保存した。");
         router.refresh();
@@ -652,6 +713,149 @@ const publicVisibleCount = sortedEpisodes.filter(
                             </p>
                           </div>
                         ))}
+                      <div className="mt-4 grid gap-4">
+                        <div className="rounded-2xl border border-black/10 bg-white p-4">
+                          <p className="text-sm font-semibold text-black">
+                            ジャンル
+                          </p>
+
+                          <textarea
+                            value={genreEditorValue}
+                            onChange={(event) => {
+                              setGenreEditorValue(event.target.value);
+                              resetSaveUi();
+                            }}
+                            rows={3}
+                            placeholder={"1行1ジャンル\n例: ファンタジー\n恋愛"}
+                            className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
+                          />
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setGenreEditorValue(toEditorValue(savedGenres));
+                                resetSaveUi();
+                              }}
+                              className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
+                            >
+                              保存済みに戻す
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setGenreEditorValue("");
+                                resetSaveUi();
+                              }}
+                              className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
+                            >
+                              空にする
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-black/10 bg-white p-4">
+                          <p className="text-sm font-semibold text-black">
+                            タグ
+                          </p>
+
+                          <textarea
+                            value={tagEditorValue}
+                            onChange={(event) => {
+                              setTagEditorValue(event.target.value);
+                              resetSaveUi();
+                            }}
+                            rows={3}
+                            placeholder={"1行1タグ\n例: 異世界\nダークファンタジー"}
+                            className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
+                          />
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTagEditorValue(toEditorValue(savedTags));
+                                resetSaveUi();
+                              }}
+                              className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
+                            >
+                              保存済みに戻す
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTagEditorValue("");
+                                resetSaveUi();
+                              }}
+                              className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
+                            >
+                              空にする
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-black/10 bg-white p-4">
+                          <p className="text-sm font-semibold text-black">
+                            朗読許可
+                          </p>
+
+                          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                            {(
+                              [
+                                ["open", "無条件許可"],
+                                ["approval_required", "承認制"],
+                                ["closed", "非許可"],
+                              ] as const
+                            ).map(([value, label]) => {
+                              const active = recordingPermissionMode === value;
+
+                              return (
+                                <label
+                                  key={value}
+                                  className={[
+                                    "cursor-pointer rounded-2xl border px-3 py-3 text-sm transition",
+                                    active
+                                      ? "border-sky-200 bg-sky-50 text-black"
+                                      : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                                  ].join(" ")}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="recording-permission-mode"
+                                    value={value}
+                                    checked={active}
+                                    onChange={() => {
+                                      setRecordingPermissionMode(value);
+                                      resetSaveUi();
+                                    }}
+                                    className="sr-only"
+                                  />
+                                  {label}
+                                </label>
+                              );
+                            })}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRecordingPermissionMode(
+                                savedRecordingPermissionMode
+                              );
+                              resetSaveUi();
+                            }}
+                            className="mt-3 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
+                          >
+                            保存済みに戻す
+                          </button>
+                        </div>
+
+                        <p className="text-xs leading-6 text-neutral-500">
+                          変更後は下の「作品ワークスペースを保存」で反映する。
+                        </p>
+                      </div>                        
                       </div>
                     </div>
                   ) : null}                  
