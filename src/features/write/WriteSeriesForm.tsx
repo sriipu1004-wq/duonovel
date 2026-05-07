@@ -180,7 +180,7 @@ function StatusBadge({ state }: { state: SaveState }) {
   }
 
   return (
-    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-500">
+    <span className="rounded-full border border-black/10 bg-white/5 px-3 py-1 text-xs text-neutral-500">
       未保存
     </span>
   );
@@ -196,10 +196,10 @@ function StepCard({
   description: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="rounded-2xl border border-black/10 bg-white p-4">
       <p className="text-xs tracking-[0.18em] text-neutral-500">{step}</p>
-      <p className="mt-2 text-sm font-semibold text-white">{title}</p>
-      <p className="mt-2 text-sm leading-7 text-neutral-400">{description}</p>
+      <p className="mt-2 text-sm font-semibold text-black">{title}</p>
+      <p className="mt-2 text-sm leading-7 text-neutral-600">{description}</p>
     </div>
   );
 }
@@ -218,15 +218,15 @@ function WorkspaceLinkCard({
   cta: string;
 }) {
   return (
-    <article className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+    <article className="rounded-[24px] border border-black/10 bg-white p-4">
       <p className="text-xs tracking-[0.18em] text-neutral-500">{eyebrow}</p>
-      <h3 className="mt-2 text-lg font-semibold text-white">{title}</h3>
-      <p className="mt-3 text-sm leading-7 text-neutral-400">{description}</p>
+      <h3 className="mt-2 text-lg font-semibold text-black">{title}</h3>
+      <p className="mt-3 text-sm leading-7 text-neutral-600">{description}</p>
 
       <div className="mt-4">
         <Link
           href={href}
-          className="inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+          className="inline-flex rounded-full border border-black/10 bg-white/5 px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
         >
           {cta}
         </Link>
@@ -311,6 +311,32 @@ const publicVisibleCount = sortedEpisodes.filter(
     !!series?.id &&
     isPublicSeries(series) &&
     publicVisibleCount > 0;
+
+  const seriesStatusItems = [
+    {
+      label: "公開状態",
+      value: getSeriesPublicationLabel(publicationStatus),
+    },
+    {
+      label: "反応表示",
+      value: [
+        reviewsEnabled ? "レビュー表示" : "レビュー非表示",
+        episodeCommentsEnabled ? "コメント表示" : "コメント非表示",
+      ].join(" / "),
+    },
+    {
+      label: "ジャンル",
+      value: genres.length > 0 ? genres.join(" / ") : "未設定",
+    },
+    {
+      label: "タグ",
+      value: tags.length > 0 ? tags.join(" / ") : "未設定",
+    },
+    {
+      label: "朗読許可",
+      value: recordingPermissionLabel,
+    },
+  ];    
 
   function resetSaveUi() {
     setSaveState("idle");
@@ -472,26 +498,30 @@ const publicVisibleCount = sortedEpisodes.filter(
   const sub =
     mode === "create"
       ? "作品公開状態を先に決め、そのまま1話目の投稿状態も初回フローで持てるようにする。"
-      : "ここは作品ごとの作業場所。作品公開状態、反応表示、話一覧、次話追加の入口をここに寄せる。";
+      : "";
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
+    <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <span className="text-neutral-300">
+          <span className="text-neutral-700">
             {mode === "create" ? "作品作成" : "作品ワークスペース"}
           </span>
         </div>
 
-        <section className="overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
-          <div className="border-b border-white/10 px-5 py-6 sm:px-8">
+        <section className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
+          <div className="border-b border-black/10 px-5 py-6 sm:px-8">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="max-w-3xl">
                 <p className="text-xs tracking-[0.22em] text-neutral-500">
                   LIB READ WRITE WORKSPACE
                 </p>
-                <h1 className="mt-3 text-3xl font-bold text-white">{heading}</h1>
-                <p className="mt-3 text-sm leading-7 text-neutral-400">{sub}</p>
+                <h1 className="mt-3 text-3xl font-bold text-black">{heading}</h1>
+                {sub ? (
+                  <p className="mt-3 text-sm leading-7 text-neutral-600">
+                    {sub}
+                  </p>
+                ) : null}
               </div>
 
               <StatusBadge state={saveState} />
@@ -500,7 +530,7 @@ const publicVisibleCount = sortedEpisodes.filter(
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
                 href="/write"
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                className="rounded-full border border-black/10 bg-white/5 px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
               >
                 作品ワークスペース一覧へ
               </Link>
@@ -508,12 +538,12 @@ const publicVisibleCount = sortedEpisodes.filter(
               {series?.id && publicSurfaceReady ? (
                 <Link
                   href={`/works/${series.id}`}
-                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                  className="rounded-full border border-black/10 bg-white/5 px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
                 >
                   作品ページを見る
                 </Link>
               ) : series?.id ? (
-                <span className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-500">
+                <span className="rounded-full border border-black/10 bg-white/5 px-5 py-3 text-sm text-neutral-500">
                   まだ公開面に出ていない
                 </span>
               ) : null}
@@ -521,35 +551,22 @@ const publicVisibleCount = sortedEpisodes.filter(
           </div>
 
           <div className="grid gap-6 px-5 py-6 sm:px-8">
-            <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+            <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    WORKSPACE CORE
+                    SERIES CORE
                   </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
-                    作品情報と公開面の基本方針
+                  <h2 className="mt-2 text-xl font-semibold text-black">
+                    作品情報
                   </h2>
-                  <p className="mt-2 text-sm leading-7 text-neutral-400">
-                    作品公開状態は作品単位で持つ。エピソード側の投稿状態は各話で扱い、
-                    読者向け公開は両方の条件がそろった時だけ出す。
-                  </p>
                 </div>
-
-                {series?.id ? (
-                  <Link
-                    href={`/manage/bgm/${series.id}`}
-                    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    既定演出設定ページ
-                  </Link>
-                ) : null}
               </div>
 
               <div className="mt-5 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
                 <div className="grid gap-4">
                   <label className="grid gap-2">
-                    <span className="text-sm text-neutral-300">作品タイトル</span>
+                    <span className="text-sm text-neutral-700">作品タイトル</span>
                     <input
                       value={title}
                       onChange={(event) => {
@@ -557,12 +574,12 @@ const publicVisibleCount = sortedEpisodes.filter(
                         resetSaveUi();
                       }}
                       placeholder="作品タイトル"
-                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                      className="rounded-2xl border border-black/10 bg-white/5 px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                     />
                   </label>
 
                   <label className="grid gap-2">
-                    <span className="text-sm text-neutral-300">あらすじ</span>
+                    <span className="text-sm text-neutral-700">あらすじ</span>
                     <textarea
                       value={summary}
                       onChange={(event) => {
@@ -571,16 +588,12 @@ const publicVisibleCount = sortedEpisodes.filter(
                       }}
                       rows={8}
                       placeholder="作品の概要を書く"
-                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-neutral-500"
+                      className="rounded-2xl border border-black/10 bg-white/5 px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-500"
                     />
                   </label>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <p className="text-sm font-semibold text-white">作品公開状態</p>
-                    <p className="mt-2 text-sm leading-7 text-neutral-400">
-                      作品ページと読む画面の公開面を持つかどうかを作品単位で決める。
-                      エピソードが投稿済みまたは予約到達でも、ここが非公開なら読者面には出さない。
-                    </p>
+                  <div className="rounded-2xl border border-black/10 bg-white p-4">
+                    <p className="text-sm font-semibold text-black">作品公開状態</p>
 
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       {(["private", "public"] as SeriesPublicationStatus[]).map((status) => {
@@ -592,7 +605,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                             className={`rounded-2xl border px-4 py-4 ${
                               active
                                 ? "border-white/30 bg-white/[0.08]"
-                                : "border-white/10 bg-black/20"
+                                : "border-black/10 bg-neutral-50"
                             }`}
                           >
                             <input
@@ -606,10 +619,10 @@ const publicVisibleCount = sortedEpisodes.filter(
                               }}
                               className="sr-only"
                             />
-                            <p className="text-sm font-semibold text-white">
+                            <p className="text-sm font-semibold text-black">
                               {getSeriesPublicationLabel(status)}
                             </p>
-                            <p className="mt-2 text-sm leading-7 text-neutral-400">
+                            <p className="mt-2 text-sm leading-7 text-neutral-600">
                               {status === "public"
                                 ? "投稿済みまたは予約到達の話があれば、作品ごと公開面に出せる。"
                                 : "作者ワークスペースでは見えるが、読者向け公開面には出さない。"}
@@ -620,12 +633,35 @@ const publicVisibleCount = sortedEpisodes.filter(
                     </div>
                   </div>
 
+                  {mode === "edit" ? (
+                    <div className="rounded-2xl border border-black/10 bg-sky-50/60 p-4">
+                      <p className="text-sm font-semibold text-black">
+                        作品状態
+                      </p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {seriesStatusItems.map((item) => (
+                          <div
+                            key={item.label}
+                            className="rounded-2xl border border-black/10 bg-white px-3 py-3"
+                          >
+                            <p className="text-[11px] tracking-[0.16em] text-neutral-500">
+                              {item.label}
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-black">
+                              {item.value}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}                  
+
                   {mode === "create" ? (
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                      <p className="text-sm font-semibold text-white">
+                    <div className="rounded-2xl border border-black/10 bg-white p-4">
+                      <p className="text-sm font-semibold text-black">
                         1話目の投稿状態
                       </p>
-                      <p className="mt-2 text-sm leading-7 text-neutral-400">
+                      <p className="mt-2 text-sm leading-7 text-neutral-600">
                         作品作成の時点で、1話目を 投稿 / 予約投稿 / 下書き保存 のどれで始めるかを先に決める。
                         実際の本文は作品作成後に1話目ページで書く。
                       </p>
@@ -641,7 +677,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                                 className={`rounded-2xl border px-4 py-4 ${
                                   active
                                     ? "border-white/30 bg-white/[0.08]"
-                                    : "border-white/10 bg-black/20"
+                                    : "border-black/10 bg-neutral-50"
                                 }`}
                               >
                                 <input
@@ -658,10 +694,10 @@ const publicVisibleCount = sortedEpisodes.filter(
                                   }}
                                   className="sr-only"
                                 />
-                                <p className="text-sm font-semibold text-white">
+                                <p className="text-sm font-semibold text-black">
                                   {getEpisodePostingLabel(status)}
                                 </p>
-                                <p className="mt-2 text-sm leading-7 text-neutral-400">
+                                <p className="mt-2 text-sm leading-7 text-neutral-600">
                                   {status === "posted"
                                     ? "1話目を作成した時点で投稿済みとして扱う。"
                                     : status === "scheduled"
@@ -676,7 +712,7 @@ const publicVisibleCount = sortedEpisodes.filter(
 
                       {initialPostingStatus === "scheduled" ? (
                         <label className="mt-4 grid gap-2">
-                          <span className="text-sm text-neutral-300">
+                          <span className="text-sm text-neutral-700">
                             1話目の予約日時
                           </span>
                           <input
@@ -686,7 +722,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                               setInitialScheduledFor(event.target.value);
                               resetSaveUi();
                             }}
-                            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                            className="rounded-2xl border border-black/10 bg-white/5 px-4 py-3 text-sm text-black outline-none"
                           />
                           <span className="text-xs leading-6 text-neutral-500">
                             ローカル時刻で入力。保存時に UTC へ変換して送る。
@@ -696,14 +732,14 @@ const publicVisibleCount = sortedEpisodes.filter(
                     </div>
                   ) : null}
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <p className="text-sm font-semibold text-white">反応表示</p>
-                    <p className="mt-2 text-sm leading-7 text-neutral-400">
+                  <div className="rounded-2xl border border-black/10 bg-white p-4">
+                    <p className="text-sm font-semibold text-black">反応表示</p>
+                    <p className="mt-2 text-sm leading-7 text-neutral-600">
                       作品ページのレビュー欄と、読む画面末尾のエピソードコメント欄を作品単位で出し分ける。
                     </p>
 
                     <div className="mt-4 grid gap-3">
-                      <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                      <label className="flex items-start gap-3 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-4">
                         <input
                           type="checkbox"
                           checked={reviewsEnabled}
@@ -714,14 +750,14 @@ const publicVisibleCount = sortedEpisodes.filter(
                           className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5"
                         />
                         <div>
-                          <p className="text-sm font-semibold text-white">作品レビュー欄を表示</p>
-                          <p className="mt-2 text-sm leading-7 text-neutral-400">
+                          <p className="text-sm font-semibold text-black">作品レビュー欄を表示</p>
+                          <p className="mt-2 text-sm leading-7 text-neutral-600">
                             OFF の時は作品ページでレビュー欄を出さない。
                           </p>
                         </div>
                       </label>
 
-                      <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                      <label className="flex items-start gap-3 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-4">
                         <input
                           type="checkbox"
                           checked={episodeCommentsEnabled}
@@ -732,10 +768,10 @@ const publicVisibleCount = sortedEpisodes.filter(
                           className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5"
                         />
                         <div>
-                          <p className="text-sm font-semibold text-white">
+                          <p className="text-sm font-semibold text-black">
                             エピソードコメント欄を表示
                           </p>
-                          <p className="mt-2 text-sm leading-7 text-neutral-400">
+                          <p className="mt-2 text-sm leading-7 text-neutral-600">
                             OFF の時は読む画面末尾でコメント欄を出さない。
                           </p>
                         </div>
@@ -762,7 +798,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                       <button
                         type="button"
                         onClick={() => handleSubmit("workspace")}
-                        className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                        className="rounded-full border border-black/10 bg-white/5 px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
                       >
                         作品を作成してワークスペースへ
                       </button>
@@ -771,7 +807,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                     {series?.id ? (
                       <Link
                         href={`/write/series/${series.id}/episodes/new`}
-                        className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                        className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
                       >
                         新しい話を追加
                       </Link>
@@ -792,20 +828,20 @@ const publicVisibleCount = sortedEpisodes.filter(
                 </div>
 
                 <div className="grid gap-4">
-                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                  <div className="rounded-[24px] border border-black/10 bg-white p-4">
                     <p className="text-xs tracking-[0.18em] text-neutral-500">
                       CURRENT STATE
                     </p>
                     <div className="mt-3 grid gap-3">
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
                         作品公開:{" "}
-                        <span className="font-semibold text-white">
+                        <span className="font-semibold text-black">
                           {getSeriesPublicationLabel(publicationStatus)}
                         </span>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
                         読者向け表示:{" "}
-                        <span className="font-semibold text-white">
+                        <span className="font-semibold text-black">
                           {publicSurfaceReady
                             ? "表示中"
                             : publicationStatus === "public"
@@ -813,33 +849,33 @@ const publicVisibleCount = sortedEpisodes.filter(
                               : "非表示"}
                         </span>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
                         タグ:{" "}
-                        <span className="font-semibold text-white">
+                        <span className="font-semibold text-black">
                           {tags.length}件
                         </span>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
                         ジャンル:{" "}
-                        <span className="font-semibold text-white">
+                        <span className="font-semibold text-black">
                           {genres.length}件
                         </span>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
                         朗読許可:{" "}
-                        <span className="font-semibold text-white">
+                        <span className="font-semibold text-black">
                           {recordingPermissionLabel}
                         </span>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
                         レビュー欄:{" "}
-                        <span className="font-semibold text-white">
+                        <span className="font-semibold text-black">
                           {reviewsEnabled ? "表示" : "非表示"}
                         </span>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-neutral-300">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
                         コメント欄:{" "}
-                        <span className="font-semibold text-white">
+                        <span className="font-semibold text-black">
                           {episodeCommentsEnabled ? "表示" : "非表示"}
                         </span>
                       </div>
@@ -847,7 +883,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                   </div>
 
                   {series?.id ? (
-                    <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                    <div className="hidden">
                       <p className="text-xs tracking-[0.18em] text-neutral-500">
                         RELATED SETTINGS
                       </p>
@@ -883,7 +919,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-7 text-neutral-400">
+                    <div className="rounded-[24px] border border-black/10 bg-white p-4 text-sm leading-7 text-neutral-600">
                       まず作品を作成すると、タグ管理や朗読許可管理へ進めるようになる。
                     </div>
                   )}
@@ -892,9 +928,9 @@ const publicVisibleCount = sortedEpisodes.filter(
             </section>
 
             {mode === "create" ? (
-              <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+              <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                 <p className="text-xs tracking-[0.18em] text-neutral-500">FLOW</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">
+                <h2 className="mt-2 text-xl font-semibold text-black">
                   初回作成フロー
                 </h2>
                 <div className="mt-4 grid gap-4 md:grid-cols-4">
@@ -923,43 +959,43 @@ const publicVisibleCount = sortedEpisodes.filter(
             ) : null}
 
             {series?.id ? (
-              <section className="grid gap-4 lg:grid-cols-4">
-                <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+              <section className="hidden">
+                <div className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">EPISODES</p>
-                  <p className="mt-2 text-3xl font-semibold text-white">
+                  <p className="mt-2 text-3xl font-semibold text-black">
                     {sortedEpisodes.length}話
                   </p>
-                  <p className="mt-2 text-sm text-neutral-400">
+                  <p className="mt-2 text-sm text-neutral-600">
                     この作品に紐づく話数の合計
                   </p>
                 </div>
 
-                <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <div className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">POSTED</p>
-                  <p className="mt-2 text-3xl font-semibold text-white">
+                  <p className="mt-2 text-3xl font-semibold text-black">
                     {postedCount}話
                   </p>
-                  <p className="mt-2 text-sm text-neutral-400">
+                  <p className="mt-2 text-sm text-neutral-600">
                     投稿済みとして保存された話数
                   </p>
                 </div>
 
-                <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <div className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">SCHEDULED</p>
-                  <p className="mt-2 text-3xl font-semibold text-white">
+                  <p className="mt-2 text-3xl font-semibold text-black">
                     {scheduledCount}話
                   </p>
-                  <p className="mt-2 text-sm text-neutral-400">
+                  <p className="mt-2 text-sm text-neutral-600">
                     予約投稿として保存された話数
                   </p>
                 </div>
 
-                <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <div className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">DRAFT</p>
-                  <p className="mt-2 text-3xl font-semibold text-white">
+                  <p className="mt-2 text-3xl font-semibold text-black">
                     {draftCount}話
                   </p>
-                  <p className="mt-2 text-sm text-neutral-400">
+                  <p className="mt-2 text-sm text-neutral-600">
                     下書き保存の話数
                   </p>
                 </div>
@@ -967,24 +1003,21 @@ const publicVisibleCount = sortedEpisodes.filter(
             ) : null}
 
             {series?.id ? (
-              <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-                <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+              <section className="grid gap-4">
+                <div className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-xs tracking-[0.18em] text-neutral-500">
                         EPISODE LIST
                       </p>
-                      <h2 className="mt-2 text-xl font-semibold text-white">
+                      <h2 className="mt-2 text-xl font-semibold text-black">
                         この作品の話一覧
                       </h2>
-                      <p className="mt-2 text-sm leading-7 text-neutral-400">
-                        作品公開状態と切り分けて、各話は 投稿 / 予約投稿 / 下書き保存 で持つ。
-                      </p>
                     </div>
 
                     <Link
                       href={`/write/series/${series.id}/episodes/new`}
-                      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                      className="rounded-full border border-black/10 bg-white/5 px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
                     >
                       話を追加
                     </Link>
@@ -992,7 +1025,7 @@ const publicVisibleCount = sortedEpisodes.filter(
 
                   <div className="mt-4 grid gap-3">
                     {sortedEpisodes.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-4 py-4 text-sm text-neutral-400">
+                      <div className="rounded-2xl border border-dashed border-black/10 bg-white px-4 py-4 text-sm text-neutral-600">
                         まだ話はない。まずは1話目を作る。
                       </div>
                     ) : (
@@ -1005,7 +1038,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                         return (
                           <div
                             key={episode.id}
-                            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4"
+                            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white px-4 py-4"
                           >
                             <div>
                               <div className="flex flex-wrap items-center gap-3">
@@ -1026,7 +1059,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                                 ) : null}
                               </div>
 
-                              <p className="mt-2 text-base font-semibold text-white">
+                              <p className="mt-2 text-base font-semibold text-black">
                                 {pickText(episode.title) || `第${episodeNumber}話`}
                               </p>
                             </div>
@@ -1035,23 +1068,23 @@ const publicVisibleCount = sortedEpisodes.filter(
                            {postingStatus === "draft" ? (
                              <Link
                                href={`/write/series/${series.id}/episodes/${episode.id}`}
-                               className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                               className="rounded-full border border-black/10 bg-white/5 px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
                              >
                                投稿 / 予約投稿へ
                              </Link>
                            ) : null}
 
                               <Link
-                                href={`/write/series/${series.id}/episodes/${episode.id}/effects`}
-                                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                                href={`/write/series/${series.id}/episodes/${episode.id}`}
+                                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
                               >
-                                この話の演出・BGM
+                                編集
                               </Link>
 
                               {episodeNumber > 0 && publicSurfaceReady && isEpisodePubliclyVisible(episode) ? (
                                 <Link
                                   href={`/read/${series.id}/${episodeNumber}`}
-                                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                                  className="rounded-full border border-black/10 bg-white/5 px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
                                 >
                                   読む
                                 </Link>
@@ -1064,19 +1097,19 @@ const publicVisibleCount = sortedEpisodes.filter(
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <div className="hidden">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">NEXT STEP</p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
+                  <h2 className="mt-2 text-xl font-semibold text-black">
                     この作品で次にやること
                   </h2>
 
                   {nextStepHref && nextStepLabel ? (
                     <>
-                      <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                        <p className="text-base font-semibold text-white">
+                      <div className="mt-4 rounded-2xl border border-black/10 bg-white px-4 py-4">
+                        <p className="text-base font-semibold text-black">
                           {nextStepLabel}
                         </p>
-                        <p className="mt-2 text-sm leading-7 text-neutral-400">
+                        <p className="mt-2 text-sm leading-7 text-neutral-600">
                           {nextStepDescription}
                         </p>
                       </div>
@@ -1091,7 +1124,7 @@ const publicVisibleCount = sortedEpisodes.filter(
 
                         <Link
                           href={`/manage/bgm/${series.id}`}
-                          className="rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                          className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
                         >
                           既定演出設定ページ
                         </Link>
@@ -1100,29 +1133,29 @@ const publicVisibleCount = sortedEpisodes.filter(
                   ) : null}
 
                   <div className="mt-6 grid gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                      <p className="text-sm font-semibold text-white">
+                    <div className="rounded-2xl border border-black/10 bg-white px-4 py-4">
+                      <p className="text-sm font-semibold text-black">
                         作品公開状態はここで管理
                       </p>
-                      <p className="mt-2 text-sm leading-7 text-neutral-400">
+                      <p className="mt-2 text-sm leading-7 text-neutral-600">
                         読者向け公開面に出すかどうかは、作品ワークスペース側で持つ。
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                      <p className="text-sm font-semibold text-white">
+                    <div className="rounded-2xl border border-black/10 bg-white px-4 py-4">
+                      <p className="text-sm font-semibold text-black">
                         予約投稿と下書きもここに残る
                       </p>
-                      <p className="mt-2 text-sm leading-7 text-neutral-400">
+                      <p className="mt-2 text-sm leading-7 text-neutral-600">
                         予約投稿や下書きでもワークスペースには即時表示し、そのまま次の話へ進める。
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                      <p className="text-sm font-semibold text-white">
+                    <div className="rounded-2xl border border-black/10 bg-white px-4 py-4">
+                      <p className="text-sm font-semibold text-black">
                         読者向け公開は両条件が必要
                       </p>
-                      <p className="mt-2 text-sm leading-7 text-neutral-400">
+                      <p className="mt-2 text-sm leading-7 text-neutral-600">
                         作品が公開で、かつ投稿済みまたは予約到達の話がある時だけ公開面に出る。
                       </p>
                     </div>
