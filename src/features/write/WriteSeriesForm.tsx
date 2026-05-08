@@ -716,6 +716,98 @@ const publicVisibleCount = sortedEpisodes.filter(
                       <div className="mt-4 grid gap-4">
                         <div className="rounded-2xl border border-black/10 bg-white p-4">
                           <p className="text-sm font-semibold text-black">
+                            公開状態
+                          </p>
+
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            {(["private", "public"] as SeriesPublicationStatus[]).map(
+                              (status) => {
+                                const active = publicationStatus === status;
+
+                                return (
+                                  <label
+                                    key={status}
+                                    className={[
+                                      "cursor-pointer rounded-2xl border px-3 py-3 text-sm transition",
+                                      active
+                                        ? "border-sky-200 bg-sky-50 text-black"
+                                        : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                                    ].join(" ")}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name="series-publication-status-inline"
+                                      value={status}
+                                      checked={active}
+                                      onChange={() => {
+                                        setPublicationStatus(status);
+                                        resetSaveUi();
+                                      }}
+                                      className="sr-only"
+                                    />
+                                    {getSeriesPublicationLabel(status)}
+                                  </label>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-black/10 bg-white p-4">
+                          <p className="text-sm font-semibold text-black">
+                            反応表示
+                          </p>
+
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <label
+                              className={[
+                                "cursor-pointer rounded-2xl border px-3 py-3 text-sm transition",
+                                reviewsEnabled
+                                  ? "border-sky-200 bg-sky-50 text-black"
+                                  : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                              ].join(" ")}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={reviewsEnabled}
+                                onChange={(event) => {
+                                  setReviewsEnabled(event.target.checked);
+                                  resetSaveUi();
+                                }}
+                                className="sr-only"
+                              />
+                              レビュー
+                              <span className="ml-2 text-xs text-neutral-500">
+                                {reviewsEnabled ? "表示" : "非表示"}
+                              </span>
+                            </label>
+
+                            <label
+                              className={[
+                                "cursor-pointer rounded-2xl border px-3 py-3 text-sm transition",
+                                episodeCommentsEnabled
+                                  ? "border-sky-200 bg-sky-50 text-black"
+                                  : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                              ].join(" ")}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={episodeCommentsEnabled}
+                                onChange={(event) => {
+                                  setEpisodeCommentsEnabled(event.target.checked);
+                                  resetSaveUi();
+                                }}
+                                className="sr-only"
+                              />
+                              コメント
+                              <span className="ml-2 text-xs text-neutral-500">
+                                {episodeCommentsEnabled ? "表示" : "非表示"}
+                              </span>
+                            </label>
+                          </div>
+                        </div>                        
+                        <div className="rounded-2xl border border-black/10 bg-white p-4">
+                          <p className="text-sm font-semibold text-black">
                             ジャンル
                           </p>
 
@@ -853,7 +945,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                         </div>
 
                         <p className="text-xs leading-6 text-neutral-500">
-                          変更後は下の「作品ワークスペースを保存」で反映する。
+                          変更は「作品ワークスペースを保存」で反映。
                         </p>
                       </div>                        
                       </div>
@@ -936,7 +1028,13 @@ const publicVisibleCount = sortedEpisodes.filter(
                     </div>
                   ) : null}
 
-                  <div className="rounded-2xl border border-black/10 bg-white p-4">
+                  <div
+                    className={
+                      mode === "edit"
+                        ? "hidden"
+                        : "rounded-2xl border border-black/10 bg-white p-4"
+                    }
+                  >
                     <p className="text-sm font-semibold text-black">反応表示</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
                       作品ページのレビュー欄と、読む画面末尾のエピソードコメント欄を作品単位で出し分ける。
@@ -1031,7 +1129,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                   ) : null}
                 </div>
 
-                <div className="grid gap-4">
+                <div className={mode === "edit" ? "hidden" : "mt-4 grid gap-3"}>
                   <div className="rounded-[24px] border border-black/10 bg-white p-4">
                     <p className="text-xs tracking-[0.18em] text-neutral-500">
                       CURRENT STATE
