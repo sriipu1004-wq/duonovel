@@ -390,361 +390,230 @@ if (scheduledBeforePreviousIsBlocked) {
     setErrorMessage(result.error.message);
   }
 
-  const heading = mode === "create" ? "新しい話を追加する" : "話本文を編集する";
-  const sub =
-    mode === "create"
-      ? "話数、タイトル、本文に加えて、各話の投稿状態を 投稿 / 予約投稿 / 下書き保存 から選べるようにする。"
-      : "本文そのものに集中する画面。公開面の出し分けは作品公開状態と各話投稿状態の組み合わせで判定する。";
+  const heading = mode === "create" ? "新しい話を追加" : "話本文を編集";
+  const effectsHref =
+    mode === "edit" && episode?.id
+      ? `/write/series/${seriesId}/episodes/${episode.id}/effects`
+      : null;
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
         <div className="mb-3 text-sm text-neutral-500">
-          <span className="text-neutral-300">本文編集</span>
+          <span className="text-neutral-700">本文編集</span>
         </div>
 
-        <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
-          <div className="border-b border-white/10 px-5 py-5 sm:px-8 sm:py-6">
+        <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
+          <div className="border-b border-black/10 px-5 py-5 sm:px-8 sm:py-6">
             <p className="text-xs tracking-[0.22em] text-neutral-500">
               LIB READ EPISODE EDITOR
             </p>
-            <h1 className="mt-3 text-3xl font-bold text-white">{heading}</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-neutral-400">{sub}</p>
 
-            <div className="mt-5 flex flex-wrap gap-3">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
+              <h1 className="text-3xl font-bold text-black">{heading}</h1>
+
               <Link
                 href={`/write/series/${seriesId}`}
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
               >
                 作品ワークスペースへ
               </Link>
-
-              <Link
-                href={`/works/${seriesId}`}
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                作品ページを見る
-              </Link>
-
-              {mode === "edit" && episode ? (
-                <Link
-                  href={`/write/series/${seriesId}/episodes/${episode.id}/effects`}
-                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                >
-                  この話の演出・BGMへ
-                </Link>
-              ) : null}
-
-              {mode === "edit" && readHref ? (
-                <Link
-                  href={readHref}
-                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                >
-                  読む画面を見る
-                </Link>
-              ) : null}
-
-              {mode === "edit" ? (
-                <Link
-                  href={`/write/series/${seriesId}/episodes/new`}
-                  className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                >
-                  次の話を追加
-                </Link>
-              ) : null}
             </div>
           </div>
 
-          <div className="grid min-h-0 flex-1 lg:grid-cols-[320px_minmax(0,1fr)]">
-            <aside className="border-b border-white/10 bg-black/20 lg:border-b-0 lg:border-r lg:border-white/10">
-              <div className="flex h-full flex-col gap-5 p-5 sm:p-6 lg:min-h-0 lg:overflow-y-auto">
-                <div className="grid gap-4">
-                  <label className="grid gap-2">
-                    <span className="text-sm text-neutral-300">話数</span>
-                    <input
-                      value={episodeNumber}
-                      onChange={(event) => {
-                        setEpisodeNumber(event.target.value);
-                        resetNotice();
-                      }}
-                      inputMode="numeric"
-                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                    />
-                  </label>
+          <div className="grid min-h-0 flex-1 gap-6 px-5 py-6 sm:px-8">
+            <section className="rounded-[28px] border border-black/10 bg-white p-5">
+              <div className="grid gap-5">
+                <label className="grid gap-2">
+                  <span className="text-sm font-semibold text-neutral-700">
+                    話タイトル
+                  </span>
+                  <input
+                    value={title}
+                    onChange={(event) => {
+                      setTitle(event.target.value);
+                      resetNotice();
+                    }}
+                    placeholder="第1話 など"
+                    className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400"
+                  />
+                </label>
 
-                  <label className="grid gap-2">
-                    <span className="text-sm text-neutral-300">話タイトル</span>
-                    <input
-                      value={title}
-                      onChange={(event) => {
-                        setTitle(event.target.value);
-                        resetNotice();
-                      }}
-                      placeholder="第1話 など"
-                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                    />
-                  </label>
-
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <p className="text-sm font-semibold text-white">投稿状態</p>
-                    <p className="mt-2 text-sm leading-7 text-neutral-400">
-                      エピソード単位では公開 / 非公開を持たず、投稿状態だけを持つ。
-                    </p>
-
-                    <div className="mt-4 grid gap-3">
-{(["posted", "scheduled", "draft"] as EpisodePostingStatus[]).map(
-  (status) => {
-    const active = postingStatus === status;
-    const disabled = previousEpisodeBlocksPublishing && status !== "draft";
-
-    return (
-      <label
-        key={status}
-        className={`rounded-2xl border px-4 py-4 ${
-          active
-            ? "border-white/30 bg-white/[0.08]"
-            : "border-white/10 bg-black/20"
-        } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
-      >
-        <input
-          type="radio"
-          name="episode-posting-status"
-          value={status}
-          checked={active}
-          disabled={disabled}
-          onChange={() => {
-            setPostingStatus(status);
-            if (status !== "scheduled") {
-              setScheduledFor("");
-            }
-            resetNotice();
-          }}
-          className="sr-only"
-        />
-        <p className="text-sm font-semibold text-white">
-          {getPostingStatusLabel(status)}
-        </p>
-        <p className="mt-2 text-sm leading-7 text-neutral-400">
-          {disabled && previousEpisodeNumber
-            ? `前の第${previousEpisodeNumber}話が下書きのため、今は選べない。`
-            : getPostingStatusDescription(status)}
-        </p>
-      </label>
-    );
-  }
-)}
-                    </div>
-
-{previousEpisodeBlocksPublishing ? (
-  <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-4 text-sm leading-7 text-amber-100">
-    {previousEpisodeNumber
-      ? `前の第${previousEpisodeNumber}話がまだ下書き。先にその話を投稿または予約投稿へ進めてから、この話を公開側へ動かす。`
-      : "前話がまだ下書き。先に前話を投稿または予約投稿へ進めてから、この話を公開側へ動かす。"}
-  </div>
-) : null}                    
-
-                    {postingStatus === "scheduled" ? (
-                      <label className="mt-4 grid gap-2">
-                        <span className="text-sm text-neutral-300">予約日時</span>
-<input
-  type="datetime-local"
-  value={scheduledFor}
-  min={previousPostingStatus === "scheduled" ? previousScheduledForLocalValue : undefined}
-  onChange={(event) => {
-    setScheduledFor(event.target.value);
-    resetNotice();
-  }}
-  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-/>
-<span className="text-xs leading-6 text-neutral-500">
-  ローカル時刻で入力。保存時に UTC へ変換して送る。
-  {previousPostingStatus === "scheduled" && previousEpisodeNumber
-    ? ` 前の第${previousEpisodeNumber}話の予約時刻より前は指定できない。`
-    : ""}
-</span>
-                      </label>
-                    ) : null}
-                  </div>
-                </div>
+                <label className="grid gap-2">
+                  <span className="text-sm font-semibold text-neutral-700">
+                    本文
+                  </span>
+                  <textarea
+                    value={body}
+                    onChange={(event) => {
+                      setBody(event.target.value);
+                      resetNotice();
+                    }}
+                    placeholder="本文を入力"
+                    className="min-h-[520px] resize-y rounded-[28px] border border-black/10 bg-white px-5 py-4 text-sm leading-8 text-black outline-none placeholder:text-neutral-400"
+                  />
+                </label>
 
                 <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleSubmit("workspace")}
-                    disabled={isSaving}
-                    className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isSaving
-                      ? "保存中..."
-                      : mode === "create"
-                        ? "作成してワークスペースへ戻る"
-                        : "保存して続ける"}
-                  </button>
-
-                  {mode === "create" ? (
+                  {effectsHref ? (
+                    <Link
+                      href={effectsHref}
+                      className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-100"
+                    >
+                      演出・BGM編集へ
+                    </Link>
+                  ) : (
                     <button
                       type="button"
                       onClick={() => handleSubmit("effects")}
                       disabled={isSaving}
-                      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      作成して演出へ
+                      {isSaving ? "作成中..." : "作成して演出・BGM編集へ"}
                     </button>
-                  ) : null}
-
-{mode === "edit" && postingStatus === "draft" ? (
-  <button
-    type="button"
-    onClick={async () => {
-      setPostingStatus("posted");
-      await Promise.resolve();
-      await handleSubmit("workspace");
-    }}
-    disabled={isSaving || previousEpisodeBlocksPublishing}
-    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
-  >
-    この下書きを投稿する
-  </button>
-) : null}
-
-                  {postingStatus !== "posted" ? (
-                    <button
-                      type="button"
-                      onClick={() => handleSubmit("next")}
-                      disabled={isSaving}
-                      className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {getNextButtonLabel(postingStatus)}
-                    </button>
-                  ) : null}
-
-                  <Link
-                    href={`/write/series/${seriesId}`}
-                    className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-                  >
-                    ワークスペースへ戻る
-                  </Link>
+                  )}
                 </div>
+              </div>
+            </section>
 
-{mode === "edit" && postingStatus === "draft" ? (
-  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-7 text-neutral-300">
-    下書きを公開側へ進める時は、投稿状態を「投稿」か「予約投稿」に変えて保存する。
-    上の「この下書きを投稿する」ボタンでも、そのまま投稿済みにできる。
-  </div>
-) : null}
-
-{mode === "edit" && postingStatus === "posted" ? (
-  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-7 text-neutral-300">
-    投稿済みエピソードを編集中。保存すると、作品ページで投稿日の横に編集日と「編集済み」を表示できるよう更新する。
-  </div>
-) : null}
-
-                {errorMessage ? (
-                  <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
-                    {errorMessage}
-                  </div>
-                ) : null}
-
-                {successMessage ? (
-                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
-                    {successMessage}
-                  </div>
-                ) : null}
-
-                <section className="grid grid-cols-3 gap-3 lg:grid-cols-1">
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <p className="text-xs tracking-[0.18em] text-neutral-500">EPISODE</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">
-                      {currentEpisodeLabel}
-                    </p>
-                    <p className="mt-2 text-xs leading-6 text-neutral-400">
-                      編集中の話番号
-                    </p>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <p className="text-xs tracking-[0.18em] text-neutral-500">STATUS</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">
-                      {getPostingStatusLabel(postingStatus)}
-                    </p>
-                    <p className="mt-2 text-xs leading-6 text-neutral-400">
-                      現在の投稿状態
-                    </p>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <p className="text-xs tracking-[0.18em] text-neutral-500">CHARACTERS</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">
-                      {characterCount}
-                    </p>
-                    <p className="mt-2 text-xs leading-6 text-neutral-400">
-                      本文文字数の目安
-                    </p>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <p className="text-xs tracking-[0.18em] text-neutral-500">LINES</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{lineCount}</p>
-                    <p className="mt-2 text-xs leading-6 text-neutral-400">
-                      改行ベースの行数目安
-                    </p>
-                  </div>
-                </section>
-
-                <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+            <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    EDITOR STRUCTURE
+                    POSTING STATUS
                   </p>
-                  <h2 className="mt-2 text-lg font-semibold text-white">
-                    本文フレーム中心に寄せた
+                  <h2 className="mt-2 text-lg font-semibold text-black">
+                    投稿状態
                   </h2>
-                  <p className="mt-3 text-sm leading-7 text-neutral-400">
-                    左側は話数、タイトル、投稿状態、保存などの固定寄り情報。
-                    右側は本文入力を優先し、長くなったら本文欄の中でスクロールする。
-                  </p>
+                </div>
+
+                <div className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-600">
+                  {currentEpisodeLabel}
                 </div>
               </div>
-            </aside>
 
-            <section className="min-h-0 bg-black/10">
-              <div className="flex h-full min-h-[520px] flex-col lg:min-h-0">
-                <div className="border-b border-white/10 px-4 py-4 sm:px-6">
-                  <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div>
-                      <p className="text-xs tracking-[0.18em] text-neutral-500">BODY EDITOR</p>
-                      <h2 className="mt-2 text-2xl font-semibold text-white">
-                        {currentEpisodeLabel} の本文
-                      </h2>
-                      <p className="mt-2 text-sm leading-7 text-neutral-400">
-                        本文フレームは固定しやすい形に寄せ、長くなったら本文欄の中でスクロールする。
-                      </p>
-                    </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {(["posted", "scheduled", "draft"] as EpisodePostingStatus[]).map(
+                  (status) => {
+                    const active = postingStatus === status;
+                    const disabled =
+                      previousEpisodeBlocksPublishing && status !== "draft";
 
-                    <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-neutral-300">
-                      本文中心レイアウト
-                    </div>
-                  </div>
-                </div>
-
-                <div className="min-h-0 flex-1 p-4 sm:p-6">
-                  <label className="flex h-full min-h-0 flex-col gap-3">
-                    <span className="text-sm text-neutral-300">本文</span>
-                    <textarea
-                      value={body}
-                      onChange={(event) => {
-                        setBody(event.target.value);
-                        resetNotice();
-                      }}
-                      placeholder="本文を入力"
-                      className="h-full min-h-[420px] flex-1 resize-none overflow-y-auto rounded-[28px] border border-white/10 bg-white/5 px-5 py-4 text-sm leading-8 text-white outline-none placeholder:text-neutral-500 lg:min-h-0"
-                    />
-                  </label>
-                </div>
+                    return (
+                      <label
+                        key={status}
+                        className={[
+                          "cursor-pointer rounded-2xl border px-4 py-3 text-sm transition",
+                          active
+                            ? "border-sky-200 bg-sky-50 text-black"
+                            : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                          disabled ? "cursor-not-allowed opacity-50" : "",
+                        ].join(" ")}
+                      >
+                        <input
+                          type="radio"
+                          name="episode-posting-status"
+                          value={status}
+                          checked={active}
+                          disabled={disabled}
+                          onChange={() => {
+                            setPostingStatus(status);
+                            if (status !== "scheduled") {
+                              setScheduledFor("");
+                            }
+                            resetNotice();
+                          }}
+                          className="sr-only"
+                        />
+                        {getPostingStatusLabel(status)}
+                      </label>
+                    );
+                  }
+                )}
               </div>
+
+              {previousEpisodeBlocksPublishing ? (
+                <div className="mt-4 rounded-2xl border border-amber-300/40 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-900">
+                  {previousEpisodeNumber
+                    ? `前の第${previousEpisodeNumber}話がまだ下書き。先にその話を投稿または予約投稿へ進めてから、この話を公開側へ動かす。`
+                    : "前話がまだ下書き。先に前話を投稿または予約投稿へ進めてから、この話を公開側へ動かす。"}
+                </div>
+              ) : null}
+
+              {postingStatus === "scheduled" ? (
+                <label className="mt-4 grid gap-2">
+                  <span className="text-sm font-semibold text-neutral-700">
+                    予約日時
+                  </span>
+                  <input
+                    type="datetime-local"
+                    value={scheduledFor}
+                    min={
+                      previousPostingStatus === "scheduled"
+                        ? previousScheduledForLocalValue
+                        : undefined
+                    }
+                    onChange={(event) => {
+                      setScheduledFor(event.target.value);
+                      resetNotice();
+                    }}
+                    className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
+                  />
+                </label>
+              ) : null}
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleSubmit("workspace")}
+                  disabled={isSaving}
+                  className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSaving
+                    ? "保存中..."
+                    : mode === "create"
+                      ? "作成して保存"
+                      : "保存して続ける"}
+                </button>
+
+                {mode === "edit" && postingStatus === "draft" ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setPostingStatus("posted");
+                      await Promise.resolve();
+                      await handleSubmit("workspace");
+                    }}
+                    disabled={isSaving || previousEpisodeBlocksPublishing}
+                    className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    この下書きを投稿する
+                  </button>
+                ) : null}
+
+                <Link
+                  href={`/write/series/${seriesId}`}
+                  className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                >
+                  ワークスペースへ戻る
+                </Link>
+              </div>
+
+              {errorMessage ? (
+                <div className="mt-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {errorMessage}
+                </div>
+              ) : null}
+
+              {successMessage ? (
+                <div className="mt-4 rounded-2xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {successMessage}
+                </div>
+              ) : null}
             </section>
           </div>
         </section>
       </div>
-   </main>
+    </main>
   );
 }
