@@ -107,6 +107,205 @@ function SummaryRow({
   );
 }
 
+
+type AppliedEffectListItem = {
+  title: string;
+  detail: string;
+};
+
+function compactEffectText(value: string, maxLength = 48): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength)}…`;
+}
+
+function describeBgmSettings(settings: BgmSettings | null | undefined): string {
+  if (!settings) {
+    return "";
+  }
+
+  const parts: string[] = [];
+
+  if (typeof settings.fadeInSeconds === "number") {
+    parts.push(`フェードイン ${settings.fadeInSeconds}秒`);
+  }
+
+  if (typeof settings.fadeOutSeconds === "number") {
+    parts.push(`フェードアウト ${settings.fadeOutSeconds}秒`);
+  }
+
+  return parts.join(" / ");
+}
+
+function buildAppliedEffectList(args: {
+  settings: EffectSettings;
+  bgmTitle?: string;
+  bgmAudioPath?: string;
+  bgmSettings?: BgmSettings | null;
+}): AppliedEffectListItem[] {
+  const items: AppliedEffectListItem[] = [];
+  const { settings } = args;
+
+  if (settings.backgroundPreset) {
+    items.push({
+      title: "背景",
+      detail: `背景プリセット: ${settings.backgroundPreset}`,
+    });
+  }
+
+  const typographyParts: string[] = [];
+
+  if (settings.typography.fontFamily) {
+    typographyParts.push(`フォント: ${settings.typography.fontFamily}`);
+  }
+
+  if (settings.typography.textColor) {
+    typographyParts.push(`文字色: ${settings.typography.textColor}`);
+  }
+
+  if (settings.typography.bold) {
+    typographyParts.push("太字");
+  }
+
+  if (settings.typography.italic) {
+    typographyParts.push("斜体");
+  }
+
+  if (typographyParts.length > 0) {
+    items.push({
+      title: "文字表示",
+      detail: typographyParts.join(" / "),
+    });
+  }
+
+  for (const inlineMark of settings.inlineMarks) {
+    const parts = [
+      `対象: ${compactEffectText(inlineMark.targetText)}`,
+      `種別: ${inlineMark.kind}`,
+    ];
+
+    if (inlineMark.value) {
+      parts.push(`補助値: ${compactEffectText(inlineMark.value)}`);
+    }
+
+    items.push({
+      title: "文字演出",
+      detail: parts.join(" / "),
+    });
+  }
+
+  for (const illustration of settings.illustrations) {
+    const parts = [
+      illustration.caption
+        ? `説明: ${compactEffectText(illustration.caption)}`
+        : "画像設定あり",
+      `配置: ${illustration.placement}`,
+    ];
+
+    if (illustration.anchorText) {
+      parts.push(`差し込み: ${compactEffectText(illustration.anchorText)}`);
+    }
+
+    items.push({
+      title: "挿絵",
+      detail: parts.join(" / "),
+    });
+  }
+
+  for (const sceneCue of settings.sceneCues) {
+    const parts = [
+      `cue: ${compactEffectText(sceneCue.label || "場面転換")}`,
+    ];
+
+    if (sceneCue.triggerText) {
+      parts.push(`発火: ${compactEffectText(sceneCue.triggerText)}`);
+    }
+
+    if (sceneCue.nextBgmTitle) {
+      parts.push(`切替後BGM: ${compactEffectText(sceneCue.nextBgmTitle)}`);
+    }
+
+    if (sceneCue.backgroundPreset) {
+      parts.push(`切替後背景: ${sceneCue.backgroundPreset}`);
+    }
+
+    if (sceneCue.textAnimation) {
+      parts.push(`文字動作: ${sceneCue.textAnimation}`);
+    }
+
+    items.push({
+      title: "音・場面演出",
+      detail: parts.join(" / "),
+    });
+  }
+
+  const bgmParts: string[] = [];
+  const bgmTitle = args.bgmTitle?.trim() ?? "";
+  const bgmAudioPath = args.bgmAudioPath?.trim() ?? "";
+  const bgmSettingText = describeBgmSettings(args.bgmSettings);
+
+  if (bgmTitle) {
+    bgmParts.push(`素材: ${compactEffectText(bgmTitle)}`);
+  } else if (bgmAudioPath) {
+    bgmParts.push("素材: 設定あり");
+  }
+
+  if (bgmSettingText) {
+    bgmParts.push(bgmSettingText);
+  }
+
+  if (bgmParts.length > 0) {
+    items.push({
+      title: "音・場面演出",
+      detail: `BGM / ${bgmParts.join(" / ")}`,
+    });
+  }
+
+  return items;
+}
+
+function AppliedEffectList({
+  title,
+  items,
+  emptyText,
+}: {
+  title: string;
+  items: AppliedEffectListItem[];
+  emptyText: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-4">
+      <p className="text-sm font-semibold text-black">{title}</p>
+
+      {items.length > 0 ? (
+        <div className="mt-3 grid gap-2">
+          {items.map((item, index) => (
+            <div
+              key={`${item.title}-${index}`}
+              className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3"
+            >
+              <p className="text-xs tracking-[0.14em] text-neutral-500">
+                {item.title}
+              </p>
+              <p className="mt-1 text-sm leading-7 text-neutral-800">
+                {item.detail}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 rounded-2xl border border-dashed border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+          {emptyText}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function PreviewToggleButton({
   active,
   onClick,
@@ -360,6 +559,42 @@ export default function EffectSettingsForm({
     JSON.stringify(serializeEffectSettingsForSave(draftSettings)) !==
     JSON.stringify(serializeEffectSettingsForSave(initialSettings));
 
+
+  const savedBgmSettings = initialBgmSettings ?? emptyBgmSettings();
+  const selectedEpisodeBgmTrack = findBgmLibraryTrack(
+    libraryTracks,
+    episodeSelectedTrackId
+  );
+  const currentEpisodeBgmTitle =
+    selectedEpisodeBgmTrack?.title ?? episodeBgmTitle;
+
+  const hasUnsavedBgmChanges =
+    scope === "episode" &&
+    ((episodeBgmTitle.trim() || "") !== (initialBgmTitle.trim() || "") ||
+      (episodeBgmAudioPath.trim() || "") !==
+        (initialBgmAudioPath.trim() || "") ||
+      JSON.stringify(serializeBgmSettingsForSave(episodeBgmSettings)) !==
+        JSON.stringify(serializeBgmSettingsForSave(savedBgmSettings)));
+
+  const savedAppliedEffectItems = buildAppliedEffectList({
+    settings: savedPreviewSettings,
+    bgmTitle: scope === "episode" ? initialBgmTitle : "",
+    bgmAudioPath: scope === "episode" ? initialBgmAudioPath : "",
+    bgmSettings: scope === "episode" ? savedBgmSettings : null,
+  });
+
+  const draftAppliedEffectItems = buildAppliedEffectList({
+    settings: effectivePreviewSettings,
+    bgmTitle: scope === "episode" ? currentEpisodeBgmTitle : "",
+    bgmAudioPath: scope === "episode" ? episodeBgmAudioPath : "",
+    bgmSettings: scope === "episode" ? episodeBgmSettings : null,
+  });
+
+  const unsavedAppliedEffectItems =
+    hasUnsavedPreviewChanges || hasUnsavedBgmChanges
+      ? draftAppliedEffectItems
+      : [];
+
   async function handleSave() {
     setSaveState("saving");
     setErrorMessage("");
@@ -560,10 +795,10 @@ export default function EffectSettingsForm({
                 {scope === "episode" ? (
                   <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                     <p className="text-xs tracking-[0.18em] text-neutral-500">
-                      EPISODE BGM
+                      SOUND / SCENE
                     </p>
                     <h2 className="mt-2 text-xl font-semibold text-black">
-                      この話のBGM
+                      音・場面演出
                     </h2>
                     
 
@@ -588,10 +823,10 @@ export default function EffectSettingsForm({
                           setEpisodeBgmAudioPath("");
                           resetSaveUi();
                         }}
-                        label="この話のBGM素材"
+                        label="音・場面演出素材"
                         placeholder="空なら共通BGM"
                         helperText="お気に入りした素材が上に出る。ここが未選択なら、既定演出設定ページの共通BGMを使う。"
-                        clearLabel="この話のBGMを解除"
+                        clearLabel="音・場面演出を解除"
                         fallbackTitle={episodeBgmTitle}
                         fallbackAudioPath={episodeBgmAudioPath}
                       />
@@ -781,10 +1016,10 @@ export default function EffectSettingsForm({
 
                 <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    SCENE CUE
+                    SOUND / SCENE CUE
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-black">
-                    場面転換 cue の最小土台
+                    場面転換
                   </h2>
 
                   <div className="mt-4 grid gap-4">
@@ -957,6 +1192,30 @@ export default function EffectSettingsForm({
                       {successMessage}
                     </div>
                   ) : null}
+                </section>
+
+                
+                <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">
+                    APPLIED EFFECTS
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold text-black">
+                    反映演出一覧
+                  </h2>
+
+                  <div className="mt-4 grid gap-4">
+                    <AppliedEffectList
+                      title="保存済"
+                      items={savedAppliedEffectItems}
+                      emptyText="保存済の演出はまだない。"
+                    />
+
+                    <AppliedEffectList
+                      title="未保存"
+                      items={unsavedAppliedEffectItems}
+                      emptyText="未保存の変更はない。"
+                    />
+                  </div>
                 </section>
 
                 <section className="hidden"><p className="text-xs tracking-[0.18em] text-neutral-500">CURRENT SUMMARY</p>
