@@ -59,18 +59,18 @@ function getStatusLabel(status: RequestStatus | null): string {
 
 function getStatusClass(status: RequestStatus | null): string {
   if (status === "pending") {
-    return "border-amber-400/20 bg-amber-400/10 text-amber-200";
+    return "border-amber-200 bg-amber-50 text-amber-700";
   }
   if (status === "approved") {
-    return "border-emerald-400/20 bg-emerald-400/10 text-emerald-200";
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
   if (status === "rejected") {
-    return "border-red-400/20 bg-red-400/10 text-red-200";
+    return "border-red-200 bg-red-50 text-red-700";
   }
   if (status === "cancelled") {
-    return "border-white/10 bg-white/5 text-neutral-300";
+    return "border-black/10 bg-white text-neutral-700";
   }
-  return "border-white/10 bg-white/5 text-neutral-500";
+  return "border-black/10 bg-white text-neutral-500";
 }
 
 function formatDateTime(value: string | null | undefined): string {
@@ -90,10 +90,10 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="rounded-3xl border border-black/10 bg-white p-4">
       <p className="text-xs tracking-[0.18em] text-neutral-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-      {sub ? <p className="mt-2 text-sm text-neutral-400">{sub}</p> : null}
+      <p className="mt-2 text-2xl font-semibold text-black">{value}</p>
+      {sub ? <p className="mt-2 text-sm text-neutral-600">{sub}</p> : null}
     </div>
   );
 }
@@ -215,21 +215,21 @@ export default function SeriesRecordingRequestsManagePanel({
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
+    <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <span className="text-neutral-300">朗読申請一覧</span>
+          <span className="text-neutral-700">朗読申請一覧</span>
         </div>
 
-        <section className="overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
-          <div className="border-b border-white/10 px-5 py-6 sm:px-8">
+        <section className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
+          <div className="border-b border-black/10 px-5 py-6 sm:px-8">
             <p className="text-xs tracking-[0.22em] text-neutral-500">
               LIB READ MANAGE
             </p>
 
-            <h1 className="mt-3 text-3xl font-bold text-white">{seriesTitle}</h1>
+            <h1 className="mt-3 text-3xl font-bold text-black">{seriesTitle}</h1>
 
-            <p className="mt-3 text-sm leading-7 text-neutral-400">
+            <p className="mt-3 text-sm leading-7 text-neutral-600">
               この作品に届いた朗読申請の一覧。
               <br />
               今回は閲覧だけでなく、pending の申請を承認 / 却下できるようにする。
@@ -238,21 +238,21 @@ export default function SeriesRecordingRequestsManagePanel({
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
                 href={`/manage/series/${seriesId}`}
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
               >
                 管理ハブへ戻る
               </Link>
 
               <Link
                 href={`/manage/recording-permission/${seriesId}`}
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
               >
                 朗読許可管理へ
               </Link>
 
               <Link
                 href={`/works/${seriesId}`}
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
               >
                 作品ページを見る
               </Link>
@@ -283,15 +283,15 @@ export default function SeriesRecordingRequestsManagePanel({
               />
             </div>
 
-            <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+            <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
               <p className="text-xs tracking-[0.18em] text-neutral-500">
                 GUIDE
               </p>
-              <h2 className="mt-2 text-xl font-semibold text-white">
+              <h2 className="mt-2 text-xl font-semibold text-black">
                 今回の更新対象
               </h2>
 
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
+              <div className="mt-4 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-neutral-600">
                 pending の申請に対して、
                 <code className="mx-1">status</code>
                 <code className="mx-1">review_message</code>
@@ -302,20 +302,20 @@ export default function SeriesRecordingRequestsManagePanel({
             </section>
 
             {errorMessage ? (
-              <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {errorMessage}
               </div>
             ) : null}
 
             {successMessage ? (
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                 {successMessage}
               </div>
             ) : null}
 
             <section className="grid gap-4">
               {localRequests.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 p-5 text-sm leading-7 text-neutral-400">
+                <div className="rounded-[28px] border border-dashed border-black/10 bg-neutral-50 p-5 text-sm leading-7 text-neutral-600">
                   まだ申請はない。
                 </div>
               ) : (
@@ -333,14 +333,14 @@ export default function SeriesRecordingRequestsManagePanel({
                   return (
                     <article
                       key={request.id}
-                      className="rounded-[28px] border border-white/10 bg-black/20 p-5"
+                      className="rounded-[28px] border border-black/10 bg-neutral-50 p-5"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <p className="text-xs tracking-[0.18em] text-neutral-500">
                             RECORDING REQUEST
                           </p>
-                          <h2 className="mt-2 text-xl font-semibold text-white">
+                          <h2 className="mt-2 text-xl font-semibold text-black">
                             申請者 {requesterUserId}
                           </h2>
                         </div>
@@ -356,7 +356,7 @@ export default function SeriesRecordingRequestsManagePanel({
                       </div>
 
                       <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
+                        <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-neutral-600">
                           申請日時: {formatDateTime(request.created_at)}
                           <br />
                           申請文:
@@ -364,7 +364,7 @@ export default function SeriesRecordingRequestsManagePanel({
                           {requestMessage ? requestMessage : "申請文なし"}
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
+                        <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-neutral-600">
                           レビュー日時: {formatDateTime(request.reviewed_at)}
                           <br />
                           レビュアー: {reviewedByUserId}
@@ -377,7 +377,7 @@ export default function SeriesRecordingRequestsManagePanel({
 
                       <div className="mt-4 grid gap-3">
                         <label className="grid gap-2">
-                          <span className="text-sm text-neutral-300">
+                          <span className="text-sm text-neutral-700">
                             レビュー文
                           </span>
                           <textarea
@@ -391,7 +391,7 @@ export default function SeriesRecordingRequestsManagePanel({
                             rows={4}
                             disabled={!isPending || isSaving}
                             placeholder="承認理由、却下理由、注意事項などを入力"
-                            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-neutral-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-500 disabled:cursor-not-allowed disabled:opacity-60"
                           />
                         </label>
 
@@ -402,7 +402,7 @@ export default function SeriesRecordingRequestsManagePanel({
                               handleDecision(request.id, "approved")
                             }
                             disabled={!isPending || isSaving}
-                            className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-5 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {isSaving ? "更新中..." : "承認"}
                           </button>
@@ -413,7 +413,7 @@ export default function SeriesRecordingRequestsManagePanel({
                               handleDecision(request.id, "rejected")
                             }
                             disabled={!isPending || isSaving}
-                            className="rounded-full border border-red-400/20 bg-red-400/10 px-5 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="rounded-full border border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {isSaving ? "更新中..." : "却下"}
                           </button>
