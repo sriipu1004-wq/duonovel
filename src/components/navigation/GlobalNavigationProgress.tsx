@@ -3,6 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
+type FeedbackKind = "navigation" | "action";
+
+type FeedbackState = {
+  kind: FeedbackKind;
+  label: string;
+};
+
+type LoadingFeedbackEventDetail = {
+  label?: string;
+  timeoutMs?: number;
+};
+
+declare global {
+  interface WindowEventMap {
+    "libread:loading-feedback": CustomEvent<LoadingFeedbackEventDetail>;
+    "libread:loading-feedback-done": CustomEvent<void>;
+  }
+}
+
 function shouldIgnoreClick(event: MouseEvent, anchor: HTMLAnchorElement) {
   if (event.defaultPrevented) {
     return true;
@@ -42,10 +61,38 @@ function isSamePageHashNavigation(currentUrl: URL, nextUrl: URL) {
   );
 }
 
+function readSubmitterLabel(event: SubmitEvent): string {
+  const submitter = event.submitter;
+
+  if (submitter instanceof HTMLButtonElement) {
+    const label = submitter.innerText.trim();
+    if (label) {
+      if (label.includes("保存")) return "保存中...";
+      if (label.includes("登録")) return "登録中...";
+      if (label.includes("送信")) return "送信中...";
+      if (label.includes("確認")) return "確認中...";
+      if (label.includes("作成")) return "作成中...";
+    }
+  }
+
+  if (submitter instanceof HTMLInputElement) {
+    const label = submitter.value.trim();
+    if (label) {
+      if (label.includes("保存")) return "保存中...";
+      if (label.includes("登録")) return "登録中...";
+      if (label.includes("送信")) return "送信中...";
+      if (label.includes("確認")) return "確認中...";
+      if (label.includes("作成")) return "作成中...";
+    }
+  }
+
+  return "送信中...";
+}
+
 export default function GlobalNavigationProgress() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [isNavigating, setIsNavigating] = useState(false);
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -62,16 +109,29 @@ export default function GlobalNavigationProgress() {
       }
     }
 
-    function startNavigationFeedback() {
+    function startFeedback(args: {
+      kind: FeedbackKind;
+      label: string;
+      showDelayMs?: number;
+      timeoutMs?: number;
+    }) {
       clearTimers();
 
       showDelayTimerRef.current = setTimeout(() => {
-        setIsNavigating(true);
-      }, 120);
+        setFeedback({
+          kind: args.kind,
+          label: args.label,
+        });
+      }, args.showDelayMs ?? 120);
 
       fallbackTimerRef.current = setTimeout(() => {
-        setIsNavigating(false);
-      }, 8000);
+        setFeedback(null);
+      }, args.timeoutMs ?? 8000);
+    }
+
+    function stopFeedback() {
+      clearTimers();
+      setFeedback(null);
     }
 
     function handleClick(event: MouseEvent) {
@@ -110,13 +170,50 @@ export default function GlobalNavigationProgress() {
         return;
       }
 
-      startNavigationFeedback();
+      startFeedback({
+        kind: "navigation",
+        label: "読み込み中...",
+        timeoutMs: 8000,
+      });
+    }
+
+    function handleSubmit(event: SubmitEvent) {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      startFeedback({
+        kind: "action",
+        label: readSubmitterLabel(event),
+        showDelayMs: 80,
+        timeoutMs: 5000,
+      });
+    }
+
+    function handleCustomFeedback(
+      event: CustomEvent<LoadingFeedbackEventDetail>
+    ) {
+      startFeedback({
+        kind: "action",
+        label: event.detail?.label?.trim() || "処理中...",
+        showDelayMs: 0,
+        timeoutMs: event.detail?.timeoutMs ?? 5000,
+      });
     }
 
     window.addEventListener("click", handleClick, true);
+    window.addEventListener("submit", handleSubmit, true);
+    window.addEventListener("libread:loading-feedback", handleCustomFeedback);
+    window.addEventListener("libread:loading-feedback-done", stopFeedback);
 
     return () => {
       window.removeEventListener("click", handleClick, true);
+      window.removeEventListener("submit", handleSubmit, true);
+      window.removeEventListener(
+        "libread:loading-feedback",
+        handleCustomFeedback
+      );
+      window.removeEventListener("libread:loading-feedback-done", stopFeedback);
       clearTimers();
     };
   }, []);
@@ -132,10 +229,10 @@ export default function GlobalNavigationProgress() {
       fallbackTimerRef.current = null;
     }
 
-    setIsNavigating(false);
+    setFeedback(null);
   }, [pathname, searchParams]);
 
-  if (!isNavigating) {
+  if (!feedback) {
     return null;
   }
 
@@ -146,7 +243,7 @@ export default function GlobalNavigationProgress() {
       </div>
 
       <div className="pointer-events-none fixed bottom-4 right-4 z-[9999] rounded-full border border-black/10 bg-white/95 px-4 py-2 text-xs font-semibold text-neutral-700 shadow-lg backdrop-blur">
-        読み込み中...
+        {feedback.label}
       </div>
     </>
   );
