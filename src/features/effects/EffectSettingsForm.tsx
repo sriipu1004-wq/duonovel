@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -87,7 +87,7 @@ function StatusBadge({ state }: { state: SaveState }) {
   }
 
   return (
-    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-500">
+    <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
       未保存
     </span>
   );
@@ -101,8 +101,8 @@ function SummaryRow({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-neutral-300">
-      {label}: <span className="font-semibold text-white">{value}</span>
+    <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-neutral-700">
+      {label}: <span className="font-semibold text-black">{value}</span>
     </div>
   );
 }
@@ -123,7 +123,7 @@ function PreviewToggleButton({
       className={`rounded-full px-4 py-2 text-sm transition ${
         active
           ? "bg-white text-black"
-          : "text-neutral-300 hover:bg-white/10 hover:text-white"
+          : "text-neutral-700 hover:bg-white/10 hover:text-black"
       }`}
     >
       {children}
@@ -360,14 +360,6 @@ export default function EffectSettingsForm({
     JSON.stringify(serializeEffectSettingsForSave(draftSettings)) !==
     JSON.stringify(serializeEffectSettingsForSave(initialSettings));
 
-  const bgmGuideHref =
-    scope === "series"
-      ? `/manage/bgm/${seriesId}#series-bgm`
-      : `/manage/bgm/${seriesId}#episode-${recordId}`;
-
-  const bgmGuideLabel =
-    scope === "series" ? "作品共通BGM設定へ" : "この話のBGM設定へ";    
-
   async function handleSave() {
     setSaveState("saving");
     setErrorMessage("");
@@ -401,23 +393,20 @@ export default function EffectSettingsForm({
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-neutral-100">
+    <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <span className="text-neutral-300">演出編集</span>
+          <span className="text-neutral-700">演出編集</span>
         </div>
 
-        <section className="overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] shadow-2xl">
-          <div className="border-b border-white/10 px-5 py-6 sm:px-8">
+        <section className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
+          <div className="border-b border-black/10 px-5 py-6 sm:px-8">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="max-w-3xl">
                 <p className="text-xs tracking-[0.22em] text-neutral-500">
                   LIB READ EFFECT FOUNDATION
                 </p>
-                <h1 className="mt-3 text-3xl font-bold text-white">{title}</h1>
-                <p className="mt-3 text-sm leading-7 text-neutral-400">
-                  {subtitle}
-                </p>
+                <h1 className="mt-3 text-3xl font-bold text-black">{title}</h1>
               </div>
 
               <StatusBadge state={saveState} />
@@ -426,51 +415,34 @@ export default function EffectSettingsForm({
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
                 href={workspaceHref}
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
               >
                 作品ワークスペースへ
               </Link>
 
               <Link
                 href={backHref}
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
+                className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
               >
                 直前の編集画面へ
-              </Link>
-
-              <Link
-                href={bgmGuideHref}
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                {bgmGuideLabel}
-              </Link>
-
-              <Link
-                href={`/works/${seriesId}`}
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-neutral-200 transition hover:bg-white hover:text-black"
-              >
-                作品ページを見る
               </Link>
             </div>
           </div>
 
           <div className="grid gap-6 px-5 py-6 sm:px-8">
-<section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+<section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
   <div className="flex flex-wrap items-start justify-between gap-4">
     <div className="max-w-3xl">
       <p className="text-xs tracking-[0.18em] text-neutral-500">
         BODY / PREVIEW
       </p>
-      <h2 className="mt-2 text-xl font-semibold text-white">
+      <h2 className="mt-2 text-xl font-semibold text-black">
         本文とプレビュー
       </h2>
-      <p className="mt-2 text-sm leading-7 text-neutral-400">
-        本文表示と演出付きプレビューを同じ位置で切り替える。
-        プレビューは保存済み設定だけでなく、今フォームに入れている未保存変更も反映する。
-      </p>
+      
     </div>
 
-    <div className="inline-flex rounded-full border border-white/10 bg-black/20 p-1">
+    <div className="inline-flex rounded-full border border-black/10 bg-neutral-50 p-1">
       <PreviewToggleButton
         active={previewMode === "text"}
         onClick={() => setPreviewMode("text")}
@@ -486,22 +458,22 @@ export default function EffectSettingsForm({
     </div>
   </div>
 
-  <div className="mt-4 overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03]">
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
+  <div className="mt-4 overflow-hidden rounded-[28px] border border-black/10 bg-white">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/10 px-5 py-4">
       <div>
         <p className="text-xs tracking-[0.18em] text-neutral-500">
           PREVIEW SOURCE
         </p>
-        <p className="mt-2 text-sm text-neutral-200">
+        <p className="mt-2 text-sm text-neutral-800">
           {previewTextLabel}
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-300">
+        <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-700">
           {previewCharacterCount}文字
         </span>
-        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-300">
+        <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-700">
           {previewLineCount}行
         </span>
         <span
@@ -520,9 +492,9 @@ export default function EffectSettingsForm({
 
     <div className="h-[560px] min-h-0 p-4 sm:p-6">
       {previewMode === "text" ? (
-        <div className="h-full min-h-0 overflow-y-auto rounded-[28px] border border-white/10 bg-black/20 px-5 py-5">
+        <div className="h-full min-h-0 overflow-y-auto rounded-[28px] border border-black/10 bg-neutral-50 px-5 py-5">
           {previewBody.trim().length > 0 ? (
-            <div className="whitespace-pre-wrap break-words text-sm leading-8 text-neutral-200">
+            <div className="whitespace-pre-wrap break-words text-sm leading-8 text-neutral-800">
               {previewBody}
             </div>
           ) : (
@@ -545,18 +517,18 @@ export default function EffectSettingsForm({
 
             <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <div className="grid gap-6">
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
                     {scope === "episode" ? "EPISODE BACKGROUND" : "DEFAULT SETTINGS"}
                   </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
+                  <h2 className="mt-2 text-xl font-semibold text-black">
                     {scope === "episode" ? "この話の背景設定" : "既定設定の扱い"}
                   </h2>
 
                   {scope === "episode" ? (
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
                       <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">背景プリセット</span>
+                        <span className="text-sm text-neutral-700">背景プリセット</span>
                         <select
                           value={backgroundPreset}
                           onChange={(event) => {
@@ -565,7 +537,7 @@ export default function EffectSettingsForm({
                             );
                             resetSaveUi();
                           }}
-                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
                         >
                           <option value="">未設定</option>
                           {EFFECT_BACKGROUND_PRESETS.map((preset) => (
@@ -576,32 +548,24 @@ export default function EffectSettingsForm({
                         </select>
                       </label>
 
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
-                        既定フォント、既定文字色、既定背景は既定演出設定ページで管理する。
-                        ここではこの話だけに効く背景設定として扱う。
-                      </div>
+                      
                     </div>
                   ) : (
-                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
-                      既定フォント、既定文字色、既定背景、共通BGMは既定演出設定ページで扱う。
-                      このページでは作品共通の追加演出とプレビュー確認を主に扱う。
-                    </div>
+                    
                   )}
                 </section>
 
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
 
                 {scope === "episode" ? (
-                  <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                  <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                     <p className="text-xs tracking-[0.18em] text-neutral-500">
                       EPISODE BGM
                     </p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">
+                    <h2 className="mt-2 text-xl font-semibold text-black">
                       この話のBGM
                     </h2>
-                    <p className="mt-2 text-sm leading-7 text-neutral-400">
-                      各話BGMはこの演出編集ページで扱う。未設定なら既定演出設定ページの共通BGMへフォールバックする。
-                    </p>
+                    
 
                     <div className="mt-4 grid gap-4">
                       <BgmLibraryPicker
@@ -634,7 +598,7 @@ export default function EffectSettingsForm({
 
                       <div className="grid gap-4 md:grid-cols-2">
                         <label className="grid gap-2">
-                          <span className="text-sm text-neutral-300">フェードイン秒数</span>
+                          <span className="text-sm text-neutral-700">フェードイン秒数</span>
                           <input
                             type="number"
                             min={0}
@@ -649,12 +613,12 @@ export default function EffectSettingsForm({
                               resetSaveUi();
                             }}
                             placeholder="例: 1.5"
-                            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                            className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                           />
                         </label>
 
                         <label className="grid gap-2">
-                          <span className="text-sm text-neutral-300">フェードアウト秒数</span>
+                          <span className="text-sm text-neutral-700">フェードアウト秒数</span>
                           <input
                             type="number"
                             min={0}
@@ -669,14 +633,12 @@ export default function EffectSettingsForm({
                               resetSaveUi();
                             }}
                             placeholder="例: 2.0"
-                            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                            className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                           />
                         </label>
                       </div>
 
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
-                        この話のBGMとフェードが空欄なら、既定演出設定ページで保存した共通BGMと共通フェードへフォールバックする。
-                      </div>
+                      
                     </div>
                   </section>
                 ) : null}
@@ -684,17 +646,14 @@ export default function EffectSettingsForm({
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
                     INLINE EFFECT
                   </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
+                  <h2 className="mt-2 text-xl font-semibold text-black">
                     文字演出の最小サンプル
                   </h2>
-                  <p className="mt-2 text-sm leading-7 text-neutral-400">
-                    今回のMVPでは、対象文字列ベースで 1件ずつ見た目確認できる形を先に通す。
-                    ルビ、色、太字、斜体、点強調、線強調はここで試し見できる。
-                  </p>
+                  
 
                   <div className="mt-4 grid gap-4">
                     <label className="grid gap-2">
-                      <span className="text-sm text-neutral-300">対象文字列</span>
+                      <span className="text-sm text-neutral-700">対象文字列</span>
                       <input
                         value={inlineTargetText}
                         onChange={(event) => {
@@ -702,20 +661,20 @@ export default function EffectSettingsForm({
                           resetSaveUi();
                         }}
                         placeholder="本文中にある文字列を入れる"
-                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                       />
                     </label>
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">演出種別</span>
+                        <span className="text-sm text-neutral-700">演出種別</span>
                         <select
                           value={inlineKind}
                           onChange={(event) => {
                             setInlineKind(event.target.value as EffectInlineMarkKind);
                             resetSaveUi();
                           }}
-                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
                         >
                           {EFFECT_INLINE_MARK_KINDS.map((kind) => (
                             <option key={kind} value={kind}>
@@ -726,7 +685,7 @@ export default function EffectSettingsForm({
                       </label>
 
                       <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">補助値</span>
+                        <span className="text-sm text-neutral-700">補助値</span>
                         <input
                           value={inlineValue}
                           onChange={(event) => {
@@ -734,24 +693,24 @@ export default function EffectSettingsForm({
                             resetSaveUi();
                           }}
                           placeholder="ruby なら ふりがな / color なら 色コード"
-                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                         />
                       </label>
                     </div>
                   </div>
                 </section>
 
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
                     ILLUSTRATION
                   </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
+                  <h2 className="mt-2 text-xl font-semibold text-black">
                     挿絵の最小土台
                   </h2>
 
                   <div className="mt-4 grid gap-4">
                     <label className="grid gap-2">
-                      <span className="text-sm text-neutral-300">画像URL</span>
+                      <span className="text-sm text-neutral-700">画像URL</span>
                       <input
                         value={illustrationUrl}
                         onChange={(event) => {
@@ -759,13 +718,13 @@ export default function EffectSettingsForm({
                           resetSaveUi();
                         }}
                         placeholder="https://..."
-                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                       />
                     </label>
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">キャプション</span>
+                        <span className="text-sm text-neutral-700">キャプション</span>
                         <input
                           value={illustrationCaption}
                           onChange={(event) => {
@@ -773,12 +732,12 @@ export default function EffectSettingsForm({
                             resetSaveUi();
                           }}
                           placeholder="例: 夜明けの街並み"
-                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                         />
                       </label>
 
                       <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">配置</span>
+                        <span className="text-sm text-neutral-700">配置</span>
                         <select
                           value={illustrationPlacement}
                           onChange={(event) => {
@@ -787,7 +746,7 @@ export default function EffectSettingsForm({
                             );
                             resetSaveUi();
                           }}
-                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
                         >
                           {EFFECT_ILLUSTRATION_PLACEMENTS.map((placement) => (
                             <option key={placement} value={placement}>
@@ -800,7 +759,7 @@ export default function EffectSettingsForm({
 
                     {illustrationPlacement === "scene_break" ? (
                       <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">
+                        <span className="text-sm text-neutral-700">
                           差し込み対象文字列
                         </span>
                         <input
@@ -810,7 +769,7 @@ export default function EffectSettingsForm({
                             resetSaveUi();
                           }}
                           placeholder="例: 夜が明けた"
-                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                         />
                         <span className="text-xs leading-6 text-neutral-500">
                           scene_break の時だけ使う。本文中でこの文字列を含む文の直後へ差し込む。
@@ -820,18 +779,18 @@ export default function EffectSettingsForm({
                   </div>
                 </section>
 
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
                     SCENE CUE
                   </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
+                  <h2 className="mt-2 text-xl font-semibold text-black">
                     場面転換 cue の最小土台
                   </h2>
 
                   <div className="mt-4 grid gap-4">
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">cue 名</span>
+                        <span className="text-sm text-neutral-700">cue 名</span>
                         <input
                           value={sceneLabel}
                           onChange={(event) => {
@@ -839,12 +798,12 @@ export default function EffectSettingsForm({
                             resetSaveUi();
                           }}
                           placeholder="例: 夜明けへ切り替え"
-                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                         />
                       </label>
 
                       <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">発火文字列</span>
+                        <span className="text-sm text-neutral-700">発火文字列</span>
                         <input
                           value={sceneTriggerText}
                           onChange={(event) => {
@@ -852,7 +811,7 @@ export default function EffectSettingsForm({
                             resetSaveUi();
                           }}
                           placeholder="例: 夜が明けた"
-                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                         />
                       </label>
                     </div>
@@ -878,7 +837,7 @@ export default function EffectSettingsForm({
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">切替後背景</span>
+                        <span className="text-sm text-neutral-700">切替後背景</span>
                         <select
                           value={sceneBackgroundPreset}
                           onChange={(event) => {
@@ -887,7 +846,7 @@ export default function EffectSettingsForm({
                             );
                             resetSaveUi();
                           }}
-                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
                         >
                           <option value="">未設定</option>
                           {EFFECT_BACKGROUND_PRESETS.map((preset) => (
@@ -899,7 +858,7 @@ export default function EffectSettingsForm({
                       </label>
 
                       <label className="grid gap-2">
-                        <span className="text-sm text-neutral-300">切替後文字動作</span>
+                        <span className="text-sm text-neutral-700">切替後文字動作</span>
                         <select
                           value={sceneTextAnimation}
                           onChange={(event) => {
@@ -908,7 +867,7 @@ export default function EffectSettingsForm({
                             );
                             resetSaveUi();
                           }}
-                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                          className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
                         >
                           <option value="">未設定</option>
                           {EFFECT_TEXT_ANIMATIONS.map((animation) => (
@@ -922,14 +881,11 @@ export default function EffectSettingsForm({
                   </div>
                 </section>
 
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    TIMESTAMPS
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
+                <section className="hidden"><p className="text-xs tracking-[0.18em] text-neutral-500">TIMESTAMPS</p>
+                  <h2 className="mt-2 text-xl font-semibold text-black">
                     文単位 timestamp
                   </h2>
-                  <p className="mt-2 text-sm leading-7 text-neutral-400">
+                  <p className="mt-2 text-sm leading-7 text-neutral-600">
                     1行ごとに <code>秒数|対象文字列</code> の形で入れる。
                     read 側ではこの情報を優先して現在文判定に使い、無い時だけ比率推定へ戻る。
                   </p>
@@ -942,20 +898,17 @@ export default function EffectSettingsForm({
                     }}
                     rows={8}
                     placeholder={`0|最初の文\n3.2|夜が明けた\n8.5|彼は立ち上がった`}
-                    className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-neutral-500"
+                    className="mt-4 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-500"
                   />
 
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
+                  <div className="mt-4 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-neutral-600">
                     対象文字列は本文中の文に含まれている必要がある。
                     最初は最小構成として文字列一致で sentence index へ解決する。
                   </div>
                 </section>                
 
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    NOTES
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
+                <section className="hidden"><p className="text-xs tracking-[0.18em] text-neutral-500">NOTES</p>
+                  <h2 className="mt-2 text-xl font-semibold text-black">
                     補足メモ
                   </h2>
 
@@ -967,31 +920,27 @@ export default function EffectSettingsForm({
                     }}
                     rows={6}
                     placeholder="将来のアニメーションや配置改善に回したい補足を書いておく"
-                    className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-neutral-500"
+                    className="mt-4 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-500"
                   />
                 </section>
               </div>
 
               <div className="grid gap-6">
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
                     SAVE TARGET
                   </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
+                  <h2 className="mt-2 text-xl font-semibold text-black">
                     今回の保存先
                   </h2>
 
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
-                    保存先は <code>{tableName}.effect_settings</code>。<br />
-                    作品共通演出は series、話単位演出は episodes に分ける。<br />
-                    プレビューでは保存済み設定に加えて、今フォームに入れている未保存変更もその場で見られる。
-                  </div>
+                  
 
                   <div className="mt-5 flex flex-wrap gap-3">
                     <button
                       type="button"
                       onClick={handleSave}
-                      className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
+                      className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
                     >
                       演出を保存
                     </button>
@@ -1010,11 +959,8 @@ export default function EffectSettingsForm({
                   ) : null}
                 </section>
 
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    CURRENT SUMMARY
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
+                <section className="hidden"><p className="text-xs tracking-[0.18em] text-neutral-500">CURRENT SUMMARY</p>
+                  <h2 className="mt-2 text-xl font-semibold text-black">
                     今回の表示内容
                   </h2>
 
@@ -1054,11 +1000,8 @@ export default function EffectSettingsForm({
                   </div>
                 </section>
 
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    PREVIEW COMPOSITION
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
+                <section className="hidden"><p className="text-xs tracking-[0.18em] text-neutral-500">PREVIEW COMPOSITION</p>
+                  <h2 className="mt-2 text-xl font-semibold text-black">
                     プレビュー合成
                   </h2>
 
@@ -1088,15 +1031,12 @@ export default function EffectSettingsForm({
                   </div>
                 </section>
 
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    CONNECTION
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">
+                <section className="hidden"><p className="text-xs tracking-[0.18em] text-neutral-500">CONNECTION</p>
+                  <h2 className="mt-2 text-xl font-semibold text-black">
                     接続方針
                   </h2>
 
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-7 text-neutral-400">
+                  <div className="mt-4 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-neutral-600">
                     新規作品作成時は「作品を作成して演出へ」。<br />
                     次話投稿時は「作成して演出へ」。<br />
                     作品ワークスペースからは常設リンクで入る。<br />
