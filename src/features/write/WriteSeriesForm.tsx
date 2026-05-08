@@ -5,6 +5,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import {
+  hideGlobalLoadingFeedback,
+  showGlobalLoadingFeedback,
+} from "@/lib/client/loadingFeedback";
+import {
   pickText,
   type SeriesRow,
   type EpisodeRow,
@@ -392,6 +396,7 @@ const publicVisibleCount = sortedEpisodes.filter(
   async function handleCreate(destination: "episode" | "workspace") {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
+      hideGlobalLoadingFeedback();
       setSaveState("error");
       setErrorMessage("タイトルは必須。");
       setSuccessMessage("");
@@ -402,6 +407,7 @@ const publicVisibleCount = sortedEpisodes.filter(
       initialPostingStatus === "scheduled" &&
       !hasValidLocalDateTime(initialScheduledFor)
     ) {
+      hideGlobalLoadingFeedback();
       setSaveState("error");
       setErrorMessage("予約投稿を選ぶ時は日時を入れる。");
       setSuccessMessage("");
@@ -449,6 +455,7 @@ const publicVisibleCount = sortedEpisodes.filter(
         .single();
 
       if (!result.error && result.data?.id) {
+        hideGlobalLoadingFeedback();
         setSaveState("success");
         setSuccessMessage("作品を作成した。");
 
@@ -470,12 +477,15 @@ const publicVisibleCount = sortedEpisodes.filter(
       }
     }
 
+    hideGlobalLoadingFeedback();
+
     setSaveState("error");
     setErrorMessage(lastError);
   }
 
   async function handleUpdate() {
     if (!series?.id) {
+      hideGlobalLoadingFeedback();
       setSaveState("error");
       setErrorMessage("作品IDが取れない。");
       setSuccessMessage("");
@@ -484,6 +494,7 @@ const publicVisibleCount = sortedEpisodes.filter(
 
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
+      hideGlobalLoadingFeedback();
       setSaveState("error");
       setErrorMessage("タイトルは必須。");
       setSuccessMessage("");
@@ -532,6 +543,8 @@ const publicVisibleCount = sortedEpisodes.filter(
         setTagEditorValue(toEditorValue(nextTags));
         setSavedRecordingPermissionMode(recordingPermissionMode);
 
+        hideGlobalLoadingFeedback();
+
         setSaveState("success");
         setSuccessMessage("作品ワークスペースを保存した。");
         router.refresh();
@@ -540,6 +553,8 @@ const publicVisibleCount = sortedEpisodes.filter(
 
       lastError = result.error.message;
     }
+
+    hideGlobalLoadingFeedback();
 
     setSaveState("error");
     setErrorMessage(lastError);
