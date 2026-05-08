@@ -769,32 +769,9 @@ export default function EffectSettingsForm({
 
                   {scope === "episode" ? (
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      <label className="grid gap-2">
-                        <span className="text-sm text-neutral-700">背景プリセット</span>
-                        <select
-                          value={backgroundPreset}
-                          onChange={(event) => {
-                            setBackgroundPreset(
-                              event.target.value as BackgroundPresetSelectValue
-                            );
-                            resetSaveUi();
-                          }}
-                          className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
-                        >
-                          <option value="">未設定</option>
-                          {EFFECT_BACKGROUND_PRESETS.map((preset) => (
-                            <option key={preset} value={preset}>
-                              {preset}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      
+                      ...
                     </div>
-                  ) : (
-                    
-                  )}
+                  ) : null}
                 </section>
 
                 <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
