@@ -17,6 +17,10 @@ import {
   type EpisodePostingStatus,
   type EpisodeRow,
 } from "@/features/write/writeShared";
+import {
+  hideGlobalLoadingFeedback,
+  showGlobalLoadingFeedback,
+} from "@/lib/client/loadingFeedback";
 
 type Mode = "create" | "edit";
 type SaveState = "idle" | "saving" | "success" | "error";
@@ -307,6 +311,19 @@ if (scheduledBeforePreviousIsBlocked) {
     setErrorMessage("");
     setSuccessMessage("");
 
+    showGlobalLoadingFeedback(
+      destination === "effects"
+        ? mode === "create"
+          ? "作成中..."
+          : "保存中..."
+        : destination === "next"
+          ? "作成中..."
+          : mode === "create"
+            ? "作成中..."
+            : "保存中...",
+      8000
+    );
+
     const previousBody = episode ? getEpisodeBody(episode) : "";
     const regenerationDecision =
       mode === "edit"
@@ -356,6 +373,7 @@ if (scheduledBeforePreviousIsBlocked) {
         return;
       }
 
+      hideGlobalLoadingFeedback();
       setSaveState("error");
       setErrorMessage(result.error?.message ?? "話作成に失敗した。");
       return;
@@ -380,12 +398,14 @@ if (scheduledBeforePreviousIsBlocked) {
         router.push(`/write/series/${seriesId}/episodes/${episode.id}/effects`);
       } else {
         router.refresh();
+        hideGlobalLoadingFeedback();
       }
 
       router.refresh();
       return;
     }
 
+    hideGlobalLoadingFeedback();
     setSaveState("error");
     setErrorMessage(result.error.message);
   }

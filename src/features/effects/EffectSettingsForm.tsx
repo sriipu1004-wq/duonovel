@@ -32,6 +32,10 @@ import {
   type BgmSettings,
 } from "@/lib/bgm/bgmSettings";
 import BgmLibraryPicker from "@/features/bgm/BgmLibraryPicker";
+import {
+  hideGlobalLoadingFeedback,
+  showGlobalLoadingFeedback,
+} from "@/lib/client/loadingFeedback";
 
 type BackgroundPresetSelectValue =
   "" | Exclude<EffectBackgroundPreset, null>;
@@ -596,6 +600,7 @@ export default function EffectSettingsForm({
       : [];
 
   async function handleSave() {
+    showGlobalLoadingFeedback("保存中...", 8000);
     setSaveState("saving");
     setErrorMessage("");
     setSuccessMessage("");
@@ -616,11 +621,13 @@ export default function EffectSettingsForm({
       .eq("id", recordId);
 
     if (error) {
+      hideGlobalLoadingFeedback();
       setSaveState("error");
       setErrorMessage(error.message);
       return;
     }
 
+    hideGlobalLoadingFeedback();
     setSaveState("success");
     setSuccessMessage(
       scope === "series" ? "作品演出を保存した。" : "話の演出・BGMを保存した。"
