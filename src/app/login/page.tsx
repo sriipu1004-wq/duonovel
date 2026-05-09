@@ -3,15 +3,15 @@ import LoginPageClient from "./LoginPageClient";
 
 function LoginPageFallback() {
   return (
-    <main className="min-h-screen bg-[#050510] px-6 py-8 text-[#f5f5f5]">
+    <main className="min-h-screen bg-white px-6 py-8 text-black">
       <div className="mx-auto w-full max-w-3xl">
-        <section className="overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.04] shadow-2xl">
+        <section className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
           <div className="px-6 py-8 sm:px-8 sm:py-10">
             <p className="text-xs tracking-[0.24em] text-neutral-500">AUTH</p>
-            <h1 className="mt-3 text-3xl font-bold leading-tight text-white sm:text-4xl">
-              最小ログイン導線
+            <h1 className="mt-3 text-3xl font-bold leading-tight text-black sm:text-4xl">
+              ログイン
             </h1>
-            <p className="mt-4 text-sm leading-7 text-neutral-300">
+            <p className="mt-4 text-sm leading-7 text-neutral-600">
               読み込み中...
             </p>
           </div>

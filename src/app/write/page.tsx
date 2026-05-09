@@ -199,7 +199,7 @@ export default async function WriteTopPage() {
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <span className="text-neutral-700">投稿作品一覧</span>
+          <span className="text-neutral-700">投稿データベース</span>
         </div>
 
         <section className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
@@ -211,7 +211,7 @@ export default async function WriteTopPage() {
             <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-bold text-black">
-                  投稿作品一覧
+                  投稿データベース
                 </h1>
                 <p className="mt-3 text-sm leading-7 text-neutral-600">
                   公開前の下書きから公開中の作品まで、投稿作品をまとめて管理する。
@@ -224,6 +224,13 @@ export default async function WriteTopPage() {
                   className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
                 >
                   新しい作品を作る
+                </Link>
+
+                <Link
+                  href="/bgm"
+                  className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-100"
+                >
+                  BGM検索ページ
                 </Link>
 
                 <Link

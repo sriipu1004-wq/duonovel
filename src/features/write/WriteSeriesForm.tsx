@@ -588,19 +588,15 @@ const publicVisibleCount = sortedEpisodes.filter(
     await handleUpdate();
   }
 
-  const heading =
-    mode === "create" ? "新しい作品を作る" : "作品ワークスペース";
-  const sub =
-    mode === "create"
-      ? "作品公開状態を先に決め、そのまま1話目の投稿状態も初回フローで持てるようにする。"
-      : "";
+  const heading = "作品ワークスペース";
+  const sub = "";
 
   return (
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
           <span className="text-neutral-700">
-            {mode === "create" ? "作品作成" : "作品ワークスペース"}
+            "作品ワークスペース"
           </span>
         </div>
 
@@ -625,7 +621,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                 href="/write"
                 className="rounded-full border border-black/10 bg-white/5 px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
               >
-                作品ワークスペース一覧へ
+                投稿データベースへ
               </Link>
 
               {series?.id && publicSurfaceReady ? (
@@ -685,7 +681,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                     />
                   </label>
 
-                  <div className={mode === "edit" ? "hidden" : "rounded-2xl border border-black/10 bg-white p-4"}>
+                  <div className="hidden">
                     <p className="text-sm font-semibold text-black">作品公開状態</p>
 
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -726,7 +722,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                     </div>
                   </div>
 
-                  {mode === "edit" ? (
+                  {mode === "edit" || mode === "create" ? (
                     <div className="rounded-2xl border border-black/10 bg-sky-50/60 p-4">
                       <p className="text-sm font-semibold text-black">
                         作品状態
