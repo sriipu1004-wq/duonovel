@@ -10,13 +10,13 @@ const navItems = [
 
 export default function AppHeader() {
   return (
-    <header className="sticky top-0 z-40 w-full max-w-[100vw] overflow-hidden border-b border-black/10 bg-white/95 backdrop-blur">
-      <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-6 lg:px-8">
-        <div className="flex min-w-0 flex-col gap-3">
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+    <header className="sticky top-0 z-40 border-b border-black/10 bg-white/95 backdrop-blur">
+      <div className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-4">
             <Link
               href="/"
-              className="inline-flex min-w-0 max-w-full shrink items-center gap-2 sm:gap-3"
+              className="inline-flex items-center gap-3"
               aria-label="LIB read トップへ"
             >
               <Image
@@ -25,7 +25,7 @@ export default function AppHeader() {
                 width={900}
                 height={900}
                 priority
-                className="h-9 w-9 shrink-0 rounded-full border border-black/10 object-cover sm:h-12 sm:w-12"
+                className="h-10 w-10 rounded-full border border-black/10 object-cover sm:h-12 sm:w-12"
               />
 
               <Image
@@ -34,19 +34,19 @@ export default function AppHeader() {
                 width={1600}
                 height={520}
                 priority
-                className="h-7 w-auto max-w-[170px] shrink sm:h-10 sm:max-w-[260px]"
+                className="h-8 w-auto sm:h-10"
               />
             </Link>
 
             <AuthStatus />
           </div>
 
-          <nav className="grid min-w-0 grid-cols-3 gap-1 text-center text-sm text-neutral-600 sm:flex sm:flex-wrap sm:items-center sm:gap-2 sm:text-left">
+          <nav className="flex flex-wrap items-center gap-2 text-sm text-neutral-600">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="min-w-0 rounded-full px-2 py-2 transition hover:bg-black/5 hover:text-black sm:px-4"
+                className="rounded-full px-4 py-2 transition hover:bg-black/5 hover:text-black"
               >
                 {item.label}
               </Link>

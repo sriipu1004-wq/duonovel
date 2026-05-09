@@ -1032,7 +1032,7 @@ export function RecordingStudioPage({
   }  
 
   return (
-    <div className="grid w-full max-w-[100vw] min-w-0 gap-6 overflow-hidden xl:grid-cols-[280px_minmax(0,1fr)]">
+    <div className="grid w-full max-w-full min-w-0 gap-6 overflow-hidden xl:grid-cols-[280px_minmax(0,1fr)]">
       <section className="w-full max-w-full min-w-0 overflow-hidden rounded-[28px] border border-black/10 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -1048,7 +1048,7 @@ export function RecordingStudioPage({
           </Link>
         </div>
 
-        <p className="mt-3 block w-full min-w-0 max-w-full whitespace-normal break-all text-sm leading-7 text-neutral-600">
+        <p className="mt-3 max-w-full break-all text-sm leading-7 text-neutral-600">
           制作対象の話を選ぶ。朗読済みの話は表示だけ残し、未朗読の最も若い話を初期選択する。
         </p>
 
@@ -1072,8 +1072,8 @@ export function RecordingStudioPage({
                       : "border-black/10 bg-white hover:bg-neutral-50",
                   ].join(" ")}
                 >
-                  <div className="flex w-full min-w-0 max-w-full flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                    <p className="block w-full min-w-0 max-w-full break-all text-sm font-semibold leading-6 text-black">
+                  <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                    <p className="min-w-0 max-w-full break-all text-sm font-semibold leading-6 text-black">
                       第{episode.episodeNumber}話　{episode.title}
                     </p>
 
@@ -1144,7 +1144,7 @@ export function RecordingStudioPage({
             <h2 className="mt-2 text-xl font-semibold text-black">
               本文を見ながら制作する
             </h2>
-            <p className="mt-3 block w-full min-w-0 max-w-full whitespace-normal break-all text-sm leading-7 text-neutral-600">
+            <p className="mt-3 max-w-full break-all text-sm leading-7 text-neutral-600">
               録音やアップロードの対象は、いま選んでいる話へ接続される。
             </p>
           </div>
@@ -1474,7 +1474,7 @@ export function RecordingStudioPage({
               </span>
             </div>
 
-            <p className="mt-3 block w-full min-w-0 max-w-full whitespace-normal break-all text-sm leading-7 text-neutral-600">
+            <p className="mt-3 max-w-full break-all text-sm leading-7 text-neutral-600">
               この話には保存済み朗読がある。ここから削除すると、作品への接続と保存済み音声をまとめて外す。
             </p>
 
