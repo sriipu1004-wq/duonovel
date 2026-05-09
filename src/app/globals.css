@@ -38,3 +38,22 @@ body {
     transform: translateX(260%);
   }
 }
+
+/* LIB read mobile overflow guard */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+body {
+  min-width: 0;
+}
+
+img,
+svg,
+video,
+canvas,
+audio {
+  max-width: 100%;
+}

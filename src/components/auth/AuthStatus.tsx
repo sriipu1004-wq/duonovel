@@ -98,7 +98,7 @@ export default function AuthStatus() {
 
   if (!user) {
     return (
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
         {errorMessage ? (
           <span className="hidden text-xs text-amber-400 sm:inline">
             {errorMessage}
@@ -107,7 +107,7 @@ export default function AuthStatus() {
 
         <Link
           href={loginHref}
-          className="inline-flex items-center rounded-full border border-white/10 bg-white px-4 py-2 text-xs font-semibold text-black transition hover:opacity-90 dark:border-white/20"
+          className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/10 bg-white px-3 py-2 text-xs font-semibold text-black transition hover:opacity-90 dark:border-white/20 sm:px-4"
         >
           ログイン
         </Link>
@@ -116,7 +116,7 @@ export default function AuthStatus() {
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
       <div className="hidden text-right sm:block">
         <p className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
           Signed in
@@ -132,7 +132,7 @@ export default function AuthStatus() {
       <Link
         href="/mypage"
         className={[
-          "inline-flex items-center rounded-full px-4 py-2 text-xs font-semibold transition",
+          "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-2 text-xs font-semibold transition sm:px-4",
           isMyPage
             ? "border border-white/10 bg-white text-black"
             : "border border-white/10 bg-white/5 text-neutral-900 hover:bg-black/5 dark:text-white dark:hover:bg-white/10",
@@ -145,7 +145,7 @@ export default function AuthStatus() {
         type="button"
         onClick={handleLogout}
         disabled={logoutPending}
-        className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-neutral-900 transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60 dark:text-white dark:hover:bg-white/10"
+        className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-neutral-900 transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60 dark:text-white dark:hover:bg-white/10 sm:px-4"
       >
         {logoutPending ? "ログアウト中..." : "ログアウト"}
       </button>
