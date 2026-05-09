@@ -14,6 +14,30 @@ function readText(formData: FormData, key: string): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readBoolean(
+  formData: FormData,
+  key: string,
+  fallback = true
+): boolean {
+  const value = formData.get(key);
+
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  if (["false", "0", "private", "非公開"].includes(normalized)) {
+    return false;
+  }
+
+  if (["true", "1", "public", "公開"].includes(normalized)) {
+    return true;
+  }
+
+  return fallback;
+}
+
 function readPositiveInt(formData: FormData, key: string): number | null {
   const value = formData.get(key);
 
@@ -322,6 +346,7 @@ export async function POST(request: Request) {
   const seriesId = readText(formData, "seriesId");
   const episodeId = readText(formData, "episodeId");
   const episodeNumber = readPositiveInt(formData, "episodeNumber");
+  const isPublic = readBoolean(formData, "isPublic", true);
   const audio = formData.get("audio");
 
   if (!seriesId || !episodeId) {
@@ -419,6 +444,7 @@ export async function POST(request: Request) {
       episodeId,
       episodeNumber,
       readerName,
+      isPublic,
       sourceFile: audio,
     });
 

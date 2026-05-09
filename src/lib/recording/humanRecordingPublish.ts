@@ -26,6 +26,7 @@ export type PublishHumanRecordingInput = {
   episodeId: string;
   episodeNumber?: number | null;
   readerName: string;
+  isPublic?: boolean;
   sourceFile: File;
 };
 
@@ -43,6 +44,7 @@ type RecordingWriteInput = {
   readerId: string;
   readerName: string;
   audioStoragePath: string;
+  isPublic: boolean;
 };
 
 type ExistingRecording = {
@@ -531,7 +533,7 @@ async function writeRecording(
     reader_id: input.readerId,
     reader_name: input.readerName,
     audio_storage_path: input.audioStoragePath,
-    is_public: true,
+    is_public: input.isPublic,
   };
 
   if (primary) {
@@ -611,6 +613,7 @@ export async function publishHumanRecording({
   episodeId,
   episodeNumber,
   readerName,
+  isPublic = true,
   sourceFile,
 }: PublishHumanRecordingInput): Promise<PublishHumanRecordingResult> {
   const adminSupabase = createAdminClient();
@@ -733,6 +736,7 @@ export async function publishHumanRecording({
       readerId: userId,
       readerName,
       audioStoragePath: publicUrl,
+      isPublic,
     });
 
     try {

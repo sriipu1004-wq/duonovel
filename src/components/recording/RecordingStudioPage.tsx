@@ -95,6 +95,8 @@ type PreparedAudioSource =
   | "existing"
   | "published";
 
+type RecordingVisibility = "public" | "private";
+
 type PreviewHistoryItem = {
   id: string;
   source: PreparedAudioSource;
@@ -233,7 +235,7 @@ function buildExistingPreviewItem(
     serverDecision: "idle",
     unexpectedUploadError: "",
     statusMessage:
-      "既存の朗読を表示中。新しく録音するか音声ファイルを選ぶと、この朗読の上書き候補へ切り替わる。",
+      "既存の朗読を表示中。",
   };
 }
 
@@ -311,6 +313,8 @@ export function RecordingStudioPage({
   const [deleteStatus, setDeleteStatus] = useState<
     "idle" | "deleting" | "error"
   >("idle");
+  const [recordingVisibility, setRecordingVisibility] =
+    useState<RecordingVisibility>("public");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -381,7 +385,7 @@ export function RecordingStudioPage({
     setDeleteStatus("idle");
     setPublishMessage(
       existing
-        ? "既存の朗読を表示中。新しく録音するか音声ファイルを選ぶと上書き候補へ切り替わる。"
+        ? "既存の朗読を表示中。"
         : "保存前チェックを通した音源だけ publish できる。"
     );
 
@@ -831,6 +835,10 @@ export function RecordingStudioPage({
       formData.append("episodeId", selectedEpisode.id);
       formData.append("episodeNumber", String(selectedEpisode.episodeNumber));
       formData.append("recordingTitle", recordingTitle);
+      formData.append(
+        "isPublic",
+        recordingVisibility === "public" ? "true" : "false"
+      );
       formData.append("audio", currentPreviewItem.file);
 
       const response = await fetch("/api/recordings/human-publish", {
@@ -1037,7 +1045,7 @@ export function RecordingStudioPage({
           <div className="mt-5">
             <p className="text-xs tracking-[0.18em] text-neutral-500">SCRIPT</p>
             <h2 className="mt-2 text-xl font-semibold text-black">
-              プレビューを見ながら制作する
+              本文を見ながら制作する
             </h2>
             <p className="mt-3 text-sm leading-7 text-neutral-600">
               録音やアップロードの対象は、いま選んでいる話へ接続される。
@@ -1063,14 +1071,14 @@ export function RecordingStudioPage({
                 </div>
               </div>
 
-              <div className="h-[560px] overflow-y-auto rounded-[24px] border border-black/10 bg-[#fafafa] p-5">
-                {selectedEpisode.preview.trim() ? (
-                  <div className="whitespace-pre-wrap text-[15px] leading-8 text-neutral-800">
-                    {selectedEpisode.preview}
-                  </div>
+              <div className="max-h-[70vh] min-h-[520px] overflow-y-auto rounded-[24px] border border-black/10 bg-[#fafafa] px-4 py-5 sm:px-6">
+                {selectedEpisode.body.trim() ? (
+                  <article className="mx-auto max-w-3xl whitespace-pre-wrap break-words text-[15px] leading-8 text-neutral-800">
+                    {selectedEpisode.body}
+                  </article>
                 ) : (
                   <div className="rounded-[20px] border border-dashed border-black/15 bg-white p-4 text-sm leading-7 text-neutral-500">
-                    プレビューが空なので、ここにはまだ表示できる内容がない。
+                    本文が空なので、ここにはまだ表示できる内容がない。
                   </div>
                 )}
               </div>
@@ -1093,47 +1101,6 @@ export function RecordingStudioPage({
               </h2>
             </div>
 
-            {currentPreviewItem ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPreviewIndex((current) => Math.max(0, current - 1))
-                  }
-                  disabled={previewIndex <= 0}
-                  className={[
-                    "rounded-full border px-3 py-1 text-sm transition",
-                    previewIndex > 0
-                      ? "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
-                      : "cursor-not-allowed border-black/10 bg-neutral-100 text-neutral-400",
-                  ].join(" ")}
-                >
-                  ←
-                </button>
-
-                <span className="text-sm text-neutral-500">
-                  {previewItems.length > 0 ? `${previewIndex + 1}/${previewItems.length}` : "0/0"}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPreviewIndex((current) =>
-                      Math.min(previewItems.length - 1, current + 1)
-                    )
-                  }
-                  disabled={previewIndex >= previewItems.length - 1}
-                  className={[
-                    "rounded-full border px-3 py-1 text-sm transition",
-                    previewIndex < previewItems.length - 1
-                      ? "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
-                      : "cursor-not-allowed border-black/10 bg-neutral-100 text-neutral-400",
-                  ].join(" ")}
-                >
-                  →
-                </button>
-              </div>
-            ) : null}
           </div>
 
           <label className="mt-5 block">
@@ -1155,7 +1122,9 @@ export function RecordingStudioPage({
           <div className="mt-4 rounded-[20px] border border-black/10 bg-neutral-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs tracking-[0.18em] text-neutral-500">PREVIEW</p>
+                <p className="text-xs tracking-[0.18em] text-neutral-500">
+                  朗読再生プレビュー
+                </p>
                 <p className="mt-2 text-sm text-neutral-700">
                   {currentPreviewItem
                     ? `${getPreparedSourceLabel(currentPreviewItem.source)} / ${currentPreviewItem.name}`
@@ -1164,11 +1133,53 @@ export function RecordingStudioPage({
               </div>
 
               {currentPreviewItem ? (
-                <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
-                  {currentPreviewItem.file
-                    ? formatFileSize(currentPreviewItem.file.size)
-                    : "既存音声"}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPreviewIndex((current) => Math.max(0, current - 1))
+                    }
+                    disabled={previewIndex <= 0}
+                    className={[
+                      "rounded-full border px-3 py-1 text-sm transition",
+                      previewIndex > 0
+                        ? "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
+                        : "cursor-not-allowed border-black/10 bg-neutral-100 text-neutral-400",
+                    ].join(" ")}
+                  >
+                    ←
+                  </button>
+
+                  <span className="text-sm text-neutral-500">
+                    {previewItems.length > 0
+                      ? `${previewIndex + 1}/${previewItems.length}`
+                      : "0/0"}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPreviewIndex((current) =>
+                        Math.min(previewItems.length - 1, current + 1)
+                      )
+                    }
+                    disabled={previewIndex >= previewItems.length - 1}
+                    className={[
+                      "rounded-full border px-3 py-1 text-sm transition",
+                      previewIndex < previewItems.length - 1
+                        ? "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
+                        : "cursor-not-allowed border-black/10 bg-neutral-100 text-neutral-400",
+                    ].join(" ")}
+                  >
+                    →
+                  </button>
+
+                  <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
+                    {currentPreviewItem.file
+                      ? formatFileSize(currentPreviewItem.file.size)
+                      : "既存音声"}
+                  </span>
+                </div>
               ) : null}
             </div>
 
@@ -1176,7 +1187,7 @@ export function RecordingStudioPage({
               <audio controls src={currentPreviewItem.url} className="mt-3 w-full" />
             ) : (
               <div className="mt-3 rounded-[16px] border border-dashed border-black/15 bg-white p-4 text-sm leading-7 text-neutral-500">
-                既存朗読があればここに表示される。新しく録音またはファイル選択した場合は、そちらがプレビューへ追加される。
+                音声を録音するか、音声ファイルを選ぶとここで再生確認できる。
               </div>
             )}
           </div>
@@ -1215,6 +1226,49 @@ export function RecordingStudioPage({
               <div className="rounded-[20px] border border-black/10 bg-white p-3 text-sm text-neutral-700">
                 <p className="text-xs tracking-[0.14em] text-neutral-500">RESULT</p>
                 <p className="mt-2">{currentStatusMessage}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-[20px] border border-black/10 bg-white p-4">
+              <p className="text-xs tracking-[0.14em] text-neutral-500">
+                VISIBILITY
+              </p>
+              <p className="mt-2 text-sm font-semibold text-black">
+                公開範囲
+              </p>
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setRecordingVisibility("public")}
+                  className={[
+                    "rounded-2xl border px-4 py-3 text-left text-sm transition",
+                    recordingVisibility === "public"
+                      ? "border-sky-200 bg-sky-50 text-black"
+                      : "border-black/10 bg-neutral-50 text-neutral-700 hover:bg-white",
+                  ].join(" ")}
+                >
+                  <span className="block font-semibold">公開</span>
+                  <span className="mt-1 block text-xs leading-5 text-neutral-500">
+                    作品ページや読む画面から他のユーザーにも聞ける。
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRecordingVisibility("private")}
+                  className={[
+                    "rounded-2xl border px-4 py-3 text-left text-sm transition",
+                    recordingVisibility === "private"
+                      ? "border-sky-200 bg-sky-50 text-black"
+                      : "border-black/10 bg-neutral-50 text-neutral-700 hover:bg-white",
+                  ].join(" ")}
+                >
+                  <span className="block font-semibold">非公開</span>
+                  <span className="mt-1 block text-xs leading-5 text-neutral-500">
+                    保存はするが、公開表示には出さない。
+                  </span>
+                </button>
               </div>
             </div>
 
