@@ -38,3 +38,79 @@ body {
     transform: translateX(260%);
   }
 }
+
+/* LIB read recording mobile scoped layout */
+@media (max-width: 640px) {
+  [data-record-create-page] {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    overflow-x: visible;
+  }
+
+  [data-record-create-page] > div {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    padding-left: 12px;
+    padding-right: 12px;
+    overflow-x: visible;
+  }
+
+  [data-record-create-page] section {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  [data-recording-studio] {
+    display: flex !important;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  [data-recording-studio] > * {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  [data-recording-studio] section,
+  [data-recording-studio] article,
+  [data-recording-studio] div,
+  [data-recording-studio] form,
+  [data-recording-studio] label {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  [data-recording-studio] button {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  [data-recording-studio] p,
+  [data-recording-studio] h1,
+  [data-recording-studio] h2,
+  [data-recording-studio] h3,
+  [data-recording-studio] span,
+  [data-recording-studio] article,
+  [data-recording-studio] ruby,
+  [data-recording-studio] rt {
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  [data-recording-studio] audio {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  [data-recording-studio] [class*="overflow-hidden"] {
+    overflow: visible;
+  }
+}

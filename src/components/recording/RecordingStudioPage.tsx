@@ -1032,7 +1032,7 @@ export function RecordingStudioPage({
   }  
 
   return (
-    <div className="grid w-full min-w-0 gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+    <div data-recording-studio className="grid w-full min-w-0 gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
       <section className="w-full min-w-0 rounded-[28px] border border-black/10 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
