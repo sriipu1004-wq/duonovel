@@ -1310,7 +1310,7 @@ export function RecordingStudioPage({
               </span>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3">
               <div className="rounded-[20px] border border-black/10 bg-white p-3 text-sm text-neutral-700">
                 <p className="text-xs tracking-[0.14em] text-neutral-500">SOURCE</p>
                 <p className="mt-2">
@@ -1320,10 +1320,6 @@ export function RecordingStudioPage({
                 </p>
               </div>
 
-              <div className="rounded-[20px] border border-black/10 bg-white p-3 text-sm text-neutral-700">
-                <p className="text-xs tracking-[0.14em] text-neutral-500">RESULT</p>
-                <p className="mt-2">{currentStatusMessage}</p>
-              </div>
             </div>
 
             <div className="mt-4 rounded-[20px] border border-black/10 bg-white p-4">
