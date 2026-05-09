@@ -580,14 +580,6 @@ const publicVisibleCount = sortedEpisodes.filter(
 
   async function handleSubmit(destination: "episode" | "workspace" = "workspace") {
     if (mode === "create") {
-      await handleCreate(destination);
-      return;
-    }
-
-    await handleUpdate();
-  }
-
-  if (mode === "create") {
     const createSeriesStatusItems: Array<{
       id: Exclude<SeriesStatusPanel, null>;
       label: string;
@@ -619,7 +611,7 @@ const publicVisibleCount = sortedEpisodes.filter(
       <main className="min-h-screen bg-white text-black">
         <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="mb-4 text-sm text-neutral-500">
-            <span className="text-neutral-700">作品ワークスペース</span>
+            <span className="text-neutral-700">新規作成スペース</span>
           </div>
 
           <section
@@ -628,13 +620,13 @@ const publicVisibleCount = sortedEpisodes.filter(
           >
             <div className="border-b border-black/10 px-5 py-6 sm:px-8">
               <p className="text-xs tracking-[0.22em] text-neutral-500">
-                LIB READ WRITE WORKSPACE
+                LIB READ CREATE SPACE
               </p>
 
               <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h1 className="text-3xl font-bold text-black">
-                    新しい作品を作る
+                    新規作成スペース
                   </h1>
                 </div>
 
