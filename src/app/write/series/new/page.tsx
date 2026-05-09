@@ -1,8 +1,8 @@
-import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
-import WriteSeriesForm from "@/features/write/WriteSeriesForm";
+﻿import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
+import WriteSeriesCreateForm from "@/features/write/WriteSeriesCreateForm";
 
 export default async function WriteSeriesNewPage() {
   const { user } = await requireLoggedInUser("/write/series/new");
 
-  return <WriteSeriesForm mode="create" currentUserId={user.id} />;
+  return <WriteSeriesCreateForm currentUserId={user.id} />;
 }
