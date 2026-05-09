@@ -44,6 +44,14 @@ type WriteSeriesFormProps = {
 
 type SaveState = "idle" | "saving" | "success" | "error";
 
+type SeriesStatusPanel =
+  | "publication"
+  | "reactions"
+  | "genres"
+  | "tags"
+  | "recording"
+  | null;
+
 function buildSummaryValue(summary: string): Array<Record<string, string>> {
   const trimmed = summary.trim();
 
@@ -168,18 +176,18 @@ function buildWorkspaceFields(args: {
 
 function getEpisodeBadgeClass(kind: EpisodeStatusKind): string {
   if (kind === "draft") {
-    return "border-amber-400/20 bg-amber-400/10 text-amber-200";
+    return "border-amber-200 bg-amber-50 text-amber-800";
   }
 
   if (kind === "scheduled") {
-    return "border-sky-400/20 bg-sky-400/10 text-sky-200";
+    return "border-sky-200 bg-sky-50 text-sky-800";
   }
 
   if (kind === "scheduled_live") {
-    return "border-cyan-400/20 bg-cyan-400/10 text-cyan-200";
+    return "border-cyan-200 bg-cyan-50 text-cyan-800";
   }
 
-  return "border-emerald-400/20 bg-emerald-400/10 text-emerald-200";
+  return "border-emerald-200 bg-white text-emerald-800";
 }
 
 function StatusBadge({ state }: { state: SaveState }) {
@@ -308,6 +316,8 @@ export default function WriteSeriesForm({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [activeSeriesStatusPanel, setActiveSeriesStatusPanel] =
+    useState<SeriesStatusPanel>(null);
 
   const sortedEpisodes = sortEpisodes(episodes);
   const postedCount = sortedEpisodes.filter(isEpisodePosted).length;
@@ -361,12 +371,18 @@ const publicVisibleCount = sortedEpisodes.filter(
     isPublicSeries(series) &&
     publicVisibleCount > 0;
 
-  const seriesStatusItems = [
+  const seriesStatusItems: Array<{
+    id: Exclude<SeriesStatusPanel, null>;
+    label: string;
+    value: string;
+  }> = [
     {
+      id: "publication",
       label: "公開状態",
       value: getSeriesPublicationLabel(publicationStatus),
     },
     {
+      id: "reactions",
       label: "反応表示",
       value: [
         reviewsEnabled ? "レビュー表示" : "レビュー非表示",
@@ -374,18 +390,21 @@ const publicVisibleCount = sortedEpisodes.filter(
       ].join(" / "),
     },
     {
+      id: "genres",
       label: "ジャンル",
       value: genres.length > 0 ? genres.join(" / ") : "未設定",
     },
     {
+      id: "tags",
       label: "タグ",
       value: tags.length > 0 ? tags.join(" / ") : "未設定",
     },
     {
+      id: "recording",
       label: "朗読許可",
       value: recordingPermissionLabel,
     },
-  ];    
+  ];
 
   function resetSaveUi() {
     setSaveState("idle");
@@ -599,9 +618,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                   </p>
                 ) : null}
               </div>
-
-              <StatusBadge state={saveState} />
-            </div>
+</div>
 
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
@@ -668,7 +685,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                     />
                   </label>
 
-                  <div className="rounded-2xl border border-black/10 bg-white p-4">
+                  <div className={mode === "edit" ? "hidden" : "rounded-2xl border border-black/10 bg-white p-4"}>
                     <p className="text-sm font-semibold text-black">作品公開状態</p>
 
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -680,7 +697,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                             key={status}
                             className={`rounded-2xl border px-4 py-4 ${
                               active
-                                ? "border-white/30 bg-white/[0.08]"
+                                ? "border-sky-200 bg-sky-50"
                                 : "border-black/10 bg-neutral-50"
                             }`}
                           >
@@ -715,21 +732,40 @@ const publicVisibleCount = sortedEpisodes.filter(
                         作品状態
                       </p>
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        {seriesStatusItems.map((item) => (
-                          <div
-                            key={item.label}
-                            className="rounded-2xl border border-black/10 bg-white px-3 py-3"
-                          >
-                            <p className="text-[11px] tracking-[0.16em] text-neutral-500">
-                              {item.label}
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-black">
-                              {item.value}
-                            </p>
-                          </div>
-                        ))}
-                      <div className="mt-4 grid gap-4">
-                        <div className="rounded-2xl border border-black/10 bg-white p-4">
+                        {seriesStatusItems.map((item) => {
+                          const active = activeSeriesStatusPanel === item.id;
+
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() =>
+                                setActiveSeriesStatusPanel((current) =>
+                                  current === item.id ? null : item.id
+                                )
+                              }
+                              className={[
+                                "rounded-2xl border px-3 py-3 text-left transition",
+                                active
+                                  ? "border-sky-200 bg-sky-50"
+                                  : "border-black/10 bg-white hover:bg-neutral-50",
+                              ].join(" ")}
+                              aria-expanded={active}
+                            >
+                              <span className="block text-[11px] tracking-[0.16em] text-neutral-500">
+                                {item.label}
+                              </span>
+                              <span className="mt-1 block text-sm font-semibold text-black">
+                                {item.value}
+                              </span>
+                              <span className="mt-2 block text-xs text-neutral-500">
+                                {active ? "閉じる" : "変更"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      <div className={["mt-4 grid gap-4", activeSeriesStatusPanel ? "" : "hidden"].join(" ")}>
+                        <div className={activeSeriesStatusPanel === "publication" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             公開状態
                           </p>
@@ -768,7 +804,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-black/10 bg-white p-4">
+                        <div className={activeSeriesStatusPanel === "reactions" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             反応表示
                           </p>
@@ -821,7 +857,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                             </label>
                           </div>
                         </div>                        
-                        <div className="rounded-2xl border border-black/10 bg-white p-4">
+                        <div className={activeSeriesStatusPanel === "genres" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             ジャンル
                           </p>
@@ -862,7 +898,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-black/10 bg-white p-4">
+                        <div className={activeSeriesStatusPanel === "tags" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             タグ
                           </p>
@@ -903,7 +939,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-black/10 bg-white p-4">
+                        <div className={activeSeriesStatusPanel === "recording" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             朗読許可
                           </p>
@@ -987,7 +1023,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                                 key={status}
                                 className={`rounded-2xl border px-4 py-4 ${
                                   active
-                                    ? "border-white/30 bg-white/[0.08]"
+                                    ? "border-sky-200 bg-sky-50"
                                     : "border-black/10 bg-neutral-50"
                                 }`}
                               >
@@ -1120,25 +1156,16 @@ const publicVisibleCount = sortedEpisodes.filter(
                         作品を作成してワークスペースへ
                       </button>
                     ) : null}
-
-                    {series?.id ? (
-                      <Link
-                        href={`/write/series/${series.id}/episodes/new`}
-                        className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
-                      >
-                        新しい話を追加
-                      </Link>
-                    ) : null}
-                  </div>
+</div>
 
                   {errorMessage ? (
-                    <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                       {errorMessage}
                     </div>
                   ) : null}
 
                   {successMessage ? (
-                    <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                       {successMessage}
                     </div>
                   ) : null}
@@ -1381,7 +1408,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                               </p>
                             </div>
 
-                            <div className="flex flex-wrap gap-3">
+                            <div className="ml-auto flex shrink-0 flex-wrap justify-end gap-3">
                            {postingStatus === "draft" ? (
                              <Link
                                href={`/write/series/${series.id}/episodes/${episode.id}`}
