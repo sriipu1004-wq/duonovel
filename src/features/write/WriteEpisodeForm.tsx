@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { decideNemoRegenerationByBody } from "@/lib/recording/nemoRegenerationDiff";
@@ -33,6 +33,7 @@ type WriteEpisodeFormProps = {
   initialPostingStatus?: EpisodePostingStatus;
   initialScheduledFor?: string | null;
   previousEpisode?: EpisodeRow | null;
+  effectSettingsPanel?: ReactNode;
 };
 
 type EpisodePayload = {
@@ -174,6 +175,7 @@ export default function WriteEpisodeForm({
   initialPostingStatus = "draft",
   initialScheduledFor = null,
   previousEpisode = null,
+  effectSettingsPanel = null,
 }: WriteEpisodeFormProps) {
   const router = useRouter();
 
@@ -415,6 +417,7 @@ if (scheduledBeforePreviousIsBlocked) {
     mode === "edit" && episode?.id
       ? `/write/series/${seriesId}/episodes/${episode.id}/effects`
       : null;
+  const effectsPanelId = "episode-effects-panel";
 
   return (
     <main className="min-h-screen bg-white text-black">
@@ -475,7 +478,14 @@ if (scheduledBeforePreviousIsBlocked) {
                 </label>
 
                 <div className="flex flex-wrap gap-3">
-                  {effectsHref ? (
+                  {effectSettingsPanel ? (
+                    <a
+                      href={`#${effectsPanelId}`}
+                      className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-100"
+                    >
+                      演出・BGM編集へ
+                    </a>
+                  ) : effectsHref ? (
                     <Link
                       href={effectsHref}
                       className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-100"
@@ -495,6 +505,12 @@ if (scheduledBeforePreviousIsBlocked) {
                 </div>
               </div>
             </section>
+
+            {effectSettingsPanel ? (
+              <section id={effectsPanelId} className="scroll-mt-24">
+                {effectSettingsPanel}
+              </section>
+            ) : null}
 
             <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
