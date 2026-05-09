@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -45,6 +45,7 @@ type TextAnimationSelectValue =
 
 type PreviewMode = "text" | "preview";
 type SaveState = "idle" | "saving" | "success" | "error";
+type EffectPanelKey = "background" | "sound" | "inline" | "illustration" | "applied";
 
 type EffectSettingsFormProps = {
   scope: "series" | "episode";
@@ -480,6 +481,8 @@ export default function EffectSettingsForm({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [activeEffectPanel, setActiveEffectPanel] =
+    useState<EffectPanelKey>("background");
 
   function resetSaveUi() {
     setSaveState("idle");
@@ -633,6 +636,539 @@ export default function EffectSettingsForm({
     setSaveState("success");
     setSuccessMessage(
       scope === "series" ? "作品演出を保存した。" : "話の演出・BGMを保存した。"
+    );
+  }
+
+
+  if (embedded) {
+    const effectPanelItems: Array<{ key: EffectPanelKey; label: string; value: string }> = [
+      {
+        key: "background",
+        label: "背景",
+        value: backgroundPreset || "未設定",
+      },
+      {
+        key: "sound",
+        label: "音・場面演出",
+        value: currentEpisodeBgmTitle || sceneLabel || sceneTriggerText || "未設定",
+      },
+      {
+        key: "inline",
+        label: "文字演出",
+        value: inlineTargetText || "未設定",
+      },
+      {
+        key: "illustration",
+        label: "挿絵",
+        value: illustrationUrl || "未設定",
+      },
+      {
+        key: "applied",
+        label: "反映演出一覧",
+        value:
+          unsavedAppliedEffectItems.length > 0
+            ? "未保存あり"
+            : savedAppliedEffectItems.length > 0
+              ? "保存済あり"
+              : "未設定",
+      },
+    ];
+
+    return (
+      <main className="bg-white text-black">
+        <section className="overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-sm">
+          <div className="border-b border-black/10 px-4 py-4 sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs tracking-[0.18em] text-neutral-500">
+                  EFFECT SETTINGS
+                </p>
+                <h2 className="mt-1 text-xl font-semibold text-black">
+                  演出・BGM編集
+                </h2>
+              </div>
+
+              <StatusBadge state={saveState} />
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              {effectPanelItems.map((item) => {
+                const active = activeEffectPanel === item.key;
+
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setActiveEffectPanel(item.key)}
+                    className={[
+                      "rounded-2xl border px-3 py-3 text-left transition",
+                      active
+                        ? "border-sky-200 bg-sky-50"
+                        : "border-black/10 bg-white hover:bg-neutral-50",
+                    ].join(" ")}
+                    aria-expanded={active}
+                  >
+                    <span className="block text-[11px] tracking-[0.16em] text-neutral-500">
+                      {item.label}
+                    </span>
+                    <span className="mt-1 block truncate text-sm font-semibold text-black">
+                      {item.value}
+                    </span>
+                    <span className="mt-2 block text-xs text-neutral-500">
+                      {active ? "表示中" : "開く"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid gap-4 px-4 py-5 sm:px-5">
+            {activeEffectPanel === "background" ? (
+              <section className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">
+                  BACKGROUND
+                </p>
+                <h3 className="mt-1 text-lg font-semibold text-black">背景</h3>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2">
+                    <span className="text-sm text-neutral-700">背景プリセット</span>
+                    <select
+                      value={backgroundPreset}
+                      onChange={(event) => {
+                        setBackgroundPreset(event.target.value as BackgroundPresetSelectValue);
+                        resetSaveUi();
+                      }}
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
+                    >
+                      <option value="">未設定</option>
+                      {EFFECT_BACKGROUND_PRESETS.map((preset) => (
+                        <option key={preset} value={preset}>
+                          {preset}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm text-neutral-700">文字色</span>
+                    <input
+                      value={textColor}
+                      onChange={(event) => {
+                        setTextColor(event.target.value);
+                        resetSaveUi();
+                      }}
+                      placeholder="例: #111827"
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm text-neutral-700">フォント</span>
+                    <input
+                      value={fontFamily}
+                      onChange={(event) => {
+                        setFontFamily(event.target.value);
+                        resetSaveUi();
+                      }}
+                      placeholder="例: serif"
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+                    />
+                  </label>
+
+                  <div className="grid gap-2">
+                    <span className="text-sm text-neutral-700">文字装飾</span>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="flex items-center gap-2 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-neutral-700">
+                        <input
+                          type="checkbox"
+                          checked={defaultBold}
+                          onChange={(event) => {
+                            setDefaultBold(event.target.checked);
+                            resetSaveUi();
+                          }}
+                        />
+                        太字
+                      </label>
+
+                      <label className="flex items-center gap-2 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-neutral-700">
+                        <input
+                          type="checkbox"
+                          checked={defaultItalic}
+                          onChange={(event) => {
+                            setDefaultItalic(event.target.checked);
+                            resetSaveUi();
+                          }}
+                        />
+                        斜体
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
+            {activeEffectPanel === "sound" ? (
+              <section className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">
+                  SOUND / SCENE
+                </p>
+                <h3 className="mt-1 text-lg font-semibold text-black">
+                  音・場面演出
+                </h3>
+
+                <div className="mt-4 grid gap-4">
+                  <BgmLibraryPicker
+                    tracks={libraryTracks}
+                    selectedTrackId={episodeSelectedTrackId}
+                    onSelectTrack={(nextTrackId) => {
+                      const nextTrack = findBgmLibraryTrack(libraryTracks, nextTrackId);
+
+                      setEpisodeSelectedTrackId(nextTrackId);
+                      setEpisodeBgmTitle(nextTrack?.title ?? "");
+                      setEpisodeBgmAudioPath(nextTrack?.audioPath ?? "");
+                      resetSaveUi();
+                    }}
+                    onClear={() => {
+                      setEpisodeSelectedTrackId("");
+                      setEpisodeBgmTitle("");
+                      setEpisodeBgmAudioPath("");
+                      resetSaveUi();
+                    }}
+                    label="BGM素材"
+                    placeholder="空なら共通BGM"
+                    helperText=""
+                    clearLabel="BGMを解除"
+                    fallbackTitle={episodeBgmTitle}
+                    fallbackAudioPath={episodeBgmAudioPath}
+                  />
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="grid gap-2">
+                      <span className="text-sm text-neutral-700">フェードイン秒数</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        step={0.1}
+                        value={episodeBgmSettings.fadeInSeconds ?? ""}
+                        onChange={(event) => {
+                          setEpisodeBgmSettings({
+                            ...episodeBgmSettings,
+                            fadeInSeconds: clampBgmSeconds(event.target.value),
+                          });
+                          resetSaveUi();
+                        }}
+                        placeholder="例: 1.5"
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+                      />
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className="text-sm text-neutral-700">フェードアウト秒数</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        step={0.1}
+                        value={episodeBgmSettings.fadeOutSeconds ?? ""}
+                        onChange={(event) => {
+                          setEpisodeBgmSettings({
+                            ...episodeBgmSettings,
+                            fadeOutSeconds: clampBgmSeconds(event.target.value),
+                          });
+                          resetSaveUi();
+                        }}
+                        placeholder="例: 2.0"
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="rounded-[22px] border border-black/10 bg-white p-4">
+                    <p className="text-sm font-semibold text-black">場面転換</p>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="grid gap-2">
+                        <span className="text-sm text-neutral-700">cue名</span>
+                        <input
+                          value={sceneLabel}
+                          onChange={(event) => {
+                            setSceneLabel(event.target.value);
+                            resetSaveUi();
+                          }}
+                          placeholder="例: 夜明けへ切り替え"
+                          className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+                        />
+                      </label>
+
+                      <label className="grid gap-2">
+                        <span className="text-sm text-neutral-700">発火文字列</span>
+                        <input
+                          value={sceneTriggerText}
+                          onChange={(event) => {
+                            setSceneTriggerText(event.target.value);
+                            resetSaveUi();
+                          }}
+                          placeholder="例: 夜が明けた"
+                          className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="grid gap-2">
+                        <span className="text-sm text-neutral-700">切替後背景</span>
+                        <select
+                          value={sceneBackgroundPreset}
+                          onChange={(event) => {
+                            setSceneBackgroundPreset(
+                              event.target.value as BackgroundPresetSelectValue
+                            );
+                            resetSaveUi();
+                          }}
+                          className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-black outline-none"
+                        >
+                          <option value="">変更しない</option>
+                          {EFFECT_BACKGROUND_PRESETS.map((preset) => (
+                            <option key={preset} value={preset}>
+                              {preset}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="grid gap-2">
+                        <span className="text-sm text-neutral-700">文字動作</span>
+                        <select
+                          value={sceneTextAnimation}
+                          onChange={(event) => {
+                            setSceneTextAnimation(
+                              event.target.value as TextAnimationSelectValue
+                            );
+                            resetSaveUi();
+                          }}
+                          className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-black outline-none"
+                        >
+                          <option value="">変更しない</option>
+                          {EFFECT_TEXT_ANIMATIONS.map((animation) => (
+                            <option key={animation} value={animation}>
+                              {animation}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="mt-4">
+                      <BgmLibraryPicker
+                        tracks={libraryTracks}
+                        selectedTrackId={sceneTrackId}
+                        onSelectTrack={(nextTrackId) => {
+                          setSceneTrackId(nextTrackId);
+                          resetSaveUi();
+                        }}
+                        onClear={() => {
+                          setSceneTrackId("");
+                          resetSaveUi();
+                        }}
+                        label="切替後BGM"
+                        placeholder="変更しない"
+                        helperText=""
+                        clearLabel="切替後BGMを解除"
+                        fallbackTitle={firstSceneCue?.nextBgmTitle ?? ""}
+                        fallbackAudioPath={firstSceneCue?.nextBgmAudioPath ?? ""}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
+            {activeEffectPanel === "inline" ? (
+              <section className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">
+                  INLINE EFFECT
+                </p>
+                <h3 className="mt-1 text-lg font-semibold text-black">文字演出</h3>
+
+                <div className="mt-4 grid gap-4">
+                  <label className="grid gap-2">
+                    <span className="text-sm text-neutral-700">対象文字列</span>
+                    <input
+                      value={inlineTargetText}
+                      onChange={(event) => {
+                        setInlineTargetText(event.target.value);
+                        resetSaveUi();
+                      }}
+                      placeholder="本文中にある文字列を入れる"
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+                    />
+                  </label>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="grid gap-2">
+                      <span className="text-sm text-neutral-700">演出種別</span>
+                      <select
+                        value={inlineKind}
+                        onChange={(event) => {
+                          setInlineKind(event.target.value as EffectInlineMarkKind);
+                          resetSaveUi();
+                        }}
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
+                      >
+                        {EFFECT_INLINE_MARK_KINDS.map((kind) => (
+                          <option key={kind} value={kind}>
+                            {kind}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className="text-sm text-neutral-700">補助値</span>
+                      <input
+                        value={inlineValue}
+                        onChange={(event) => {
+                          setInlineValue(event.target.value);
+                          resetSaveUi();
+                        }}
+                        placeholder="ルビ、色、補足値など"
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
+            {activeEffectPanel === "illustration" ? (
+              <section className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">
+                  ILLUSTRATION
+                </p>
+                <h3 className="mt-1 text-lg font-semibold text-black">挿絵</h3>
+
+                <div className="mt-4 grid gap-4">
+                  <label className="grid gap-2">
+                    <span className="text-sm text-neutral-700">画像URL</span>
+                    <input
+                      value={illustrationUrl}
+                      onChange={(event) => {
+                        setIllustrationUrl(event.target.value);
+                        resetSaveUi();
+                      }}
+                      placeholder="https://..."
+                      className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+                    />
+                  </label>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="grid gap-2">
+                      <span className="text-sm text-neutral-700">キャプション</span>
+                      <input
+                        value={illustrationCaption}
+                        onChange={(event) => {
+                          setIllustrationCaption(event.target.value);
+                          resetSaveUi();
+                        }}
+                        placeholder="例: 夜明けの街並み"
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+                      />
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className="text-sm text-neutral-700">配置</span>
+                      <select
+                        value={illustrationPlacement}
+                        onChange={(event) => {
+                          setIllustrationPlacement(
+                            event.target.value as EffectIllustrationPlacement
+                          );
+                          resetSaveUi();
+                        }}
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
+                      >
+                        {EFFECT_ILLUSTRATION_PLACEMENTS.map((placement) => (
+                          <option key={placement} value={placement}>
+                            {placement}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  {illustrationPlacement === "scene_break" ? (
+                    <label className="grid gap-2">
+                      <span className="text-sm text-neutral-700">
+                        差し込み対象文字列
+                      </span>
+                      <input
+                        value={illustrationAnchorText}
+                        onChange={(event) => {
+                          setIllustrationAnchorText(event.target.value);
+                          resetSaveUi();
+                        }}
+                        placeholder="例: 夜が明けた"
+                        className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+                      />
+                    </label>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
+            {activeEffectPanel === "applied" ? (
+              <section className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">
+                  APPLIED EFFECTS
+                </p>
+                <h3 className="mt-1 text-lg font-semibold text-black">
+                  反映演出一覧
+                </h3>
+
+                <div className="mt-4 grid gap-4">
+                  <AppliedEffectList
+                    title="保存済"
+                    items={savedAppliedEffectItems}
+                    emptyText="保存済の演出はまだない。"
+                  />
+
+                  <AppliedEffectList
+                    title="未保存"
+                    items={unsavedAppliedEffectItems}
+                    emptyText="未保存の変更はない。"
+                  />
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saveState === "saving"}
+                      className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {saveState === "saving" ? "保存中..." : "演出を保存"}
+                    </button>
+
+                    {errorMessage ? (
+                      <span className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                        {errorMessage}
+                      </span>
+                    ) : null}
+
+                    {successMessage ? (
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+                        {successMessage}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </section>
+            ) : null}
+          </div>
+        </section>
+      </main>
     );
   }
 
