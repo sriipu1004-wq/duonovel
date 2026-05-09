@@ -45,7 +45,7 @@ type TextAnimationSelectValue =
 
 type PreviewMode = "text" | "preview";
 type SaveState = "idle" | "saving" | "success" | "error";
-type EffectPanelKey = "background" | "sound" | "inline" | "illustration" | "applied";
+type EffectPanelKey = "background" | "sound" | "inline" | "illustration" | null;
 
 type EffectSettingsFormProps = {
   scope: "series" | "episode";
@@ -482,7 +482,7 @@ export default function EffectSettingsForm({
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [activeEffectPanel, setActiveEffectPanel] =
-    useState<EffectPanelKey>("background");
+    useState<EffectPanelKey>(null);
 
   function resetSaveUi() {
     setSaveState("idle");
@@ -662,16 +662,6 @@ export default function EffectSettingsForm({
         label: "挿絵",
         value: illustrationUrl || "未設定",
       },
-      {
-        key: "applied",
-        label: "反映演出一覧",
-        value:
-          unsavedAppliedEffectItems.length > 0
-            ? "未保存あり"
-            : savedAppliedEffectItems.length > 0
-              ? "保存済あり"
-              : "未設定",
-      },
     ];
 
     return (
@@ -699,7 +689,11 @@ export default function EffectSettingsForm({
                   <button
                     key={item.key}
                     type="button"
-                    onClick={() => setActiveEffectPanel(item.key)}
+                    onClick={() =>
+                      setActiveEffectPanel((current) =>
+                        current === item.key ? null : item.key
+                      )
+                    }
                     className={[
                       "rounded-2xl border px-3 py-3 text-left transition",
                       active
@@ -715,7 +709,7 @@ export default function EffectSettingsForm({
                       {item.value}
                     </span>
                     <span className="mt-2 block text-xs text-neutral-500">
-                      {active ? "表示中" : "開く"}
+                      {active ? "閉じる" : "開く"}
                     </span>
                   </button>
                 );
@@ -1119,53 +1113,52 @@ export default function EffectSettingsForm({
               </section>
             ) : null}
 
-            {activeEffectPanel === "applied" ? (
-              <section className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
-                <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  APPLIED EFFECTS
-                </p>
-                <h3 className="mt-1 text-lg font-semibold text-black">
-                  反映演出一覧
-                </h3>
 
-                <div className="mt-4 grid gap-4">
-                  <AppliedEffectList
-                    title="保存済"
-                    items={savedAppliedEffectItems}
-                    emptyText="保存済の演出はまだない。"
-                  />
+            <section className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+              <p className="text-xs tracking-[0.18em] text-neutral-500">
+                APPLIED EFFECTS
+              </p>
+              <h3 className="mt-1 text-lg font-semibold text-black">
+                反映演出一覧
+              </h3>
 
-                  <AppliedEffectList
-                    title="未保存"
-                    items={unsavedAppliedEffectItems}
-                    emptyText="未保存の変更はない。"
-                  />
+              <div className="mt-4 grid gap-4">
+                <AppliedEffectList
+                  title="保存済"
+                  items={savedAppliedEffectItems}
+                  emptyText="保存済の演出はまだない。"
+                />
 
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={handleSave}
-                      disabled={saveState === "saving"}
-                      className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {saveState === "saving" ? "保存中..." : "演出を保存"}
-                    </button>
+                <AppliedEffectList
+                  title="未保存"
+                  items={unsavedAppliedEffectItems}
+                  emptyText="未保存の変更はない。"
+                />
 
-                    {errorMessage ? (
-                      <span className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-                        {errorMessage}
-                      </span>
-                    ) : null}
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saveState === "saving"}
+                    className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {saveState === "saving" ? "保存中..." : "演出を保存"}
+                  </button>
 
-                    {successMessage ? (
-                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
-                        {successMessage}
-                      </span>
-                    ) : null}
-                  </div>
+                  {errorMessage ? (
+                    <span className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                      {errorMessage}
+                    </span>
+                  ) : null}
+
+                  {successMessage ? (
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+                      {successMessage}
+                    </span>
+                  ) : null}
                 </div>
-              </section>
-            ) : null}
+              </div>
+            </section>
           </div>
         </section>
       </main>
