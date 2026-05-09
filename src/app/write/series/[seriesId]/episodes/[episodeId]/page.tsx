@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
-import { isOperatorUser } from "@/lib/auth/operator";
 import WriteEpisodeForm from "@/features/write/WriteEpisodeForm";
 import EffectSettingsForm from "@/features/effects/EffectSettingsForm";
 import {
@@ -11,13 +10,6 @@ import {
   type EpisodeRow,
   type SeriesRow,
 } from "@/features/write/writeShared";
-import {
-  fetchAllBgmLibraryTracks,
-  fetchBgmLibraryFavoriteIds,
-  fetchBgmLibraryTracks,
-  sortBgmLibraryTracksByFavorites,
-  type SimpleSupabaseLike,
-} from "@/lib/bgm/bgmLibrary";
 import { parseBgmSettingsFromRow } from "@/lib/bgm/bgmSettings";
 import { parseEffectSettingsFromRow } from "@/lib/effects/effectSettings";
 
@@ -112,12 +104,10 @@ function findPreviousEpisode(
 
 export default async function WriteEpisodeEditPage({ params }: PageProps) {
   const { seriesId, episodeId } = await params;
-  const { supabase, user } = await requireOwnedSeries(
+  const { supabase } = await requireOwnedSeries(
     seriesId,
     `/write/series/${seriesId}/episodes/${episodeId}`
   );
-
-  const bgmSupabase = supabase as unknown as SimpleSupabaseLike;
 
   const [series, episode] = await Promise.all([
     fetchSeries(seriesId, supabase),
@@ -128,18 +118,6 @@ export default async function WriteEpisodeEditPage({ params }: PageProps) {
     notFound();
   }
 
-  const canUsePrivateTracks = isOperatorUser(user.email ?? null);
-  const favoriteTrackIds = await fetchBgmLibraryFavoriteIds(
-    bgmSupabase,
-    user.id
-  );
-  const rawLibraryTracks = canUsePrivateTracks
-    ? await fetchAllBgmLibraryTracks(bgmSupabase)
-    : await fetchBgmLibraryTracks(bgmSupabase);
-  const libraryTracks = sortBgmLibraryTracksByFavorites(
-    rawLibraryTracks,
-    favoriteTrackIds
-  );
   const episodeLabel =
     pickText(episode.title) || `第${getEpisodeNumber(episode) || 1}話`;
 
@@ -177,7 +155,7 @@ export default async function WriteEpisodeEditPage({ params }: PageProps) {
           )}
           previewText={getEpisodeBody(episode)}
           previewTextLabel={`${episodeLabel} の本文`}
-          libraryTracks={libraryTracks}
+          libraryTracks={[]}
           initialBgmTitle={pickText(episode.bgm_title, episode["bgmTitle"])}
           initialBgmAudioPath={pickText(
             episode.bgm_audio_path,

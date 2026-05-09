@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import EffectPreviewRenderer from "@/features/effects/EffectPreviewRenderer";
 import {
@@ -46,6 +46,12 @@ type TextAnimationSelectValue =
 type PreviewMode = "text" | "preview";
 type SaveState = "idle" | "saving" | "success" | "error";
 type EffectPanelKey = "background" | "sound" | "inline" | "illustration" | null;
+
+type BgmLibraryTracksResponse = {
+  ok?: boolean;
+  tracks?: BgmLibraryTrack[];
+  error?: string;
+};
 
 type EffectSettingsFormProps = {
   scope: "series" | "episode";
@@ -472,6 +478,12 @@ export default function EffectSettingsForm({
   const [episodeBgmSettings, setEpisodeBgmSettings] = useState<BgmSettings>(
     initialBgmSettings ?? emptyBgmSettings()
   );
+  const [availableLibraryTracks, setAvailableLibraryTracks] =
+    useState<BgmLibraryTrack[]>(libraryTracks);
+  const [libraryTrackLoadState, setLibraryTrackLoadState] = useState<
+    "idle" | "loading" | "loaded" | "error"
+  >(libraryTracks.length > 0 ? "loaded" : "idle");
+  const [libraryTrackLoadMessage, setLibraryTrackLoadMessage] = useState("");
 
   const [sentenceTimestampLines, setSentenceTimestampLines] = useState(
     formatSentenceTimestampLines(initialSettings.sentenceTimestamps)
@@ -490,8 +502,66 @@ export default function EffectSettingsForm({
     setSuccessMessage("");
   }
 
+  async function loadBgmLibraryTracks() {
+    if (
+      libraryTrackLoadState === "loading" ||
+      libraryTrackLoadState === "loaded"
+    ) {
+      return;
+    }
+
+    setLibraryTrackLoadState("loading");
+    setLibraryTrackLoadMessage("BGM素材を読み込み中...");
+
+    try {
+      const response = await fetch("/api/bgm-library/tracks", {
+        method: "GET",
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | BgmLibraryTracksResponse
+        | null;
+
+      if (!response.ok || !payload?.ok) {
+        setLibraryTrackLoadState("error");
+        setLibraryTrackLoadMessage(
+          payload?.error || "BGM素材の取得に失敗した。"
+        );
+        return;
+      }
+
+      const nextTracks = payload.tracks ?? [];
+      setAvailableLibraryTracks(nextTracks);
+      setSceneTrackId((current) =>
+        current ||
+        resolveBgmLibraryTrackId(nextTracks, {
+          title: firstSceneCue?.nextBgmTitle ?? "",
+          audioPath: firstSceneCue?.nextBgmAudioPath ?? "",
+        })
+      );
+      setEpisodeSelectedTrackId((current) =>
+        current ||
+        resolveBgmLibraryTrackId(nextTracks, {
+          title: initialBgmTitle,
+          audioPath: initialBgmAudioPath,
+        })
+      );
+      setLibraryTrackLoadState("loaded");
+      setLibraryTrackLoadMessage("");
+    } catch (error) {
+      console.error("BGM library lazy load failed", error);
+      setLibraryTrackLoadState("error");
+      setLibraryTrackLoadMessage("BGM素材の取得中に想定外エラーが出た。");
+    }
+  }
+
+  useEffect(() => {
+    if (activeEffectPanel === "sound") {
+      void loadBgmLibraryTracks();
+    }
+  }, [activeEffectPanel]);
+
   function buildDraftSettings(): EffectSettings {
-    const selectedTrack = findBgmLibraryTrack(libraryTracks, sceneTrackId);
+    const selectedTrack = findBgmLibraryTrack(availableLibraryTracks, sceneTrackId);
 
     return parseEffectSettingsFromRow({
       version: 1,
@@ -813,11 +883,24 @@ export default function EffectSettingsForm({
                 </h3>
 
                 <div className="mt-4 grid gap-4">
+                  {libraryTrackLoadMessage ? (
+                    <div
+                      className={[
+                        "rounded-2xl border px-4 py-3 text-sm leading-6",
+                        libraryTrackLoadState === "error"
+                          ? "border-red-200 bg-red-50 text-red-700"
+                          : "border-black/10 bg-white text-neutral-600",
+                      ].join(" ")}
+                    >
+                      {libraryTrackLoadMessage}
+                    </div>
+                  ) : null}
+
                   <BgmLibraryPicker
-                    tracks={libraryTracks}
+                    tracks={availableLibraryTracks}
                     selectedTrackId={episodeSelectedTrackId}
                     onSelectTrack={(nextTrackId) => {
-                      const nextTrack = findBgmLibraryTrack(libraryTracks, nextTrackId);
+                      const nextTrack = findBgmLibraryTrack(availableLibraryTracks, nextTrackId);
 
                       setEpisodeSelectedTrackId(nextTrackId);
                       setEpisodeBgmTitle(nextTrack?.title ?? "");
@@ -957,7 +1040,7 @@ export default function EffectSettingsForm({
 
                     <div className="mt-4">
                       <BgmLibraryPicker
-                        tracks={libraryTracks}
+                        tracks={availableLibraryTracks}
                         selectedTrackId={sceneTrackId}
                         onSelectTrack={(nextTrackId) => {
                           setSceneTrackId(nextTrackId);
@@ -1335,7 +1418,7 @@ export default function EffectSettingsForm({
 
                     <div className="mt-4 grid gap-4">
                       <BgmLibraryPicker
-                        tracks={libraryTracks}
+                        tracks={availableLibraryTracks}
                         selectedTrackId={episodeSelectedTrackId}
                         onSelectTrack={(nextTrackId) => {
                           const nextTrack = findBgmLibraryTrack(
@@ -1583,7 +1666,7 @@ export default function EffectSettingsForm({
                     </div>
 
                     <BgmLibraryPicker
-                      tracks={libraryTracks}
+                      tracks={availableLibraryTracks}
                       selectedTrackId={sceneTrackId}
                       onSelectTrack={(nextTrackId) => {
                         setSceneTrackId(nextTrackId);
