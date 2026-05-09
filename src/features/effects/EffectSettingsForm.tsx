@@ -63,6 +63,7 @@ type EffectSettingsFormProps = {
   initialBgmTitle?: string;
   initialBgmAudioPath?: string;
   initialBgmSettings?: BgmSettings | null;
+  embedded?: boolean;
 };
 
 function StatusBadge({ state }: { state: SaveState }) {
@@ -389,6 +390,7 @@ export default function EffectSettingsForm({
   initialBgmTitle = "",
   initialBgmAudioPath = "",
   initialBgmSettings = null,
+  embedded = false,
 }: EffectSettingsFormProps) {
   const firstInlineMark = initialSettings.inlineMarks[0] ?? null;
   const firstIllustration = initialSettings.illustrations[0] ?? null;
@@ -635,14 +637,30 @@ export default function EffectSettingsForm({
   }
 
   return (
-    <main className="min-h-screen bg-white text-black">
-      <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mb-4 text-sm text-neutral-500">
+    <main
+      className={
+        embedded ? "bg-white text-black" : "min-h-screen bg-white text-black"
+      }
+    >
+      <div
+        className={
+          embedded
+            ? "w-full"
+            : "mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8"
+        }
+      >
+        <div className={embedded ? "hidden" : "mb-4 text-sm text-neutral-500"}>
           <span className="text-neutral-700">演出編集</span>
         </div>
 
-        <section className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
-          <div className="border-b border-black/10 px-5 py-6 sm:px-8">
+        <section
+          className={
+            embedded
+              ? "overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-sm"
+              : "overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm"
+          }
+        >
+          <div className={embedded ? "hidden" : "border-b border-black/10 px-5 py-6 sm:px-8"}>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="max-w-3xl">
                 <p className="text-xs tracking-[0.22em] text-neutral-500">
@@ -732,7 +750,7 @@ export default function EffectSettingsForm({
       </div>
     </div>
 
-    <div className="h-[560px] min-h-0 p-4 sm:p-6">
+    <div className={embedded ? "h-[360px] min-h-0 p-4" : "h-[560px] min-h-0 p-4 sm:p-6"}>
       {previewMode === "text" ? (
         <div className="h-full min-h-0 overflow-y-auto rounded-[28px] border border-black/10 bg-neutral-50 px-5 py-5">
           {previewBody.trim().length > 0 ? (

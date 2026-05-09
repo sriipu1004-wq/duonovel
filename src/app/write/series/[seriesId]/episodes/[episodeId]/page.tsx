@@ -187,6 +187,7 @@ export default async function WriteEpisodeEditPage({ params }: PageProps) {
             episode.bgm_settings,
             episode["bgmSettings"]
           )}
+          embedded={true}
         />
       }
     />
