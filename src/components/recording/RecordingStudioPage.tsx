@@ -1032,8 +1032,8 @@ export function RecordingStudioPage({
   }  
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-      <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
+    <div className="grid w-full min-w-0 gap-6 overflow-hidden xl:grid-cols-[280px_minmax(0,1fr)]">
+      <section className="min-w-0 rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs tracking-[0.18em] text-neutral-500">EPISODES</p>
@@ -1073,7 +1073,7 @@ export function RecordingStudioPage({
                   ].join(" ")}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-black">
+                    <p className="min-w-0 break-words text-sm font-semibold text-black">
                       第{episode.episodeNumber}話　{episode.title}
                     </p>
 
@@ -1121,7 +1121,7 @@ export function RecordingStudioPage({
       </section>
 
       <div className="space-y-6">
-        <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
+        <section className="min-w-0 rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-sm text-neutral-700">
               対象作品: {seriesTitle}
@@ -1168,9 +1168,9 @@ export function RecordingStudioPage({
                 </div>
               </div>
 
-              <div className="max-h-[70vh] min-h-[520px] overflow-y-auto rounded-[24px] border border-black/10 bg-[#fafafa] px-4 py-5 sm:px-6">
+              <div className="max-h-[70vh] min-h-[420px] w-full min-w-0 overflow-x-hidden overflow-y-auto rounded-[24px] border border-black/10 bg-[#fafafa] px-4 py-5 sm:min-h-[520px] sm:px-6">
                 {selectedEpisode.body.trim() ? (
-                  <article className="mx-auto max-w-3xl whitespace-pre-wrap break-words text-[15px] leading-10 text-neutral-800 [&_rt]:text-[0.55em] [&_rt]:leading-none [&_ruby]:mx-[0.03em]">
+                  <article className="mx-auto w-full max-w-3xl whitespace-pre-wrap break-words text-[15px] leading-10 text-neutral-800 [&_rt]:text-[0.55em] [&_rt]:leading-none [&_ruby]:mx-[0.03em]">
                     {renderTextWithAozoraRuby(selectedEpisode.body)}
                   </article>
                 ) : (
@@ -1187,7 +1187,7 @@ export function RecordingStudioPage({
           )}
         </section>
 
-        <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
+        <section className="min-w-0 rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs tracking-[0.18em] text-neutral-500">
@@ -1216,13 +1216,13 @@ export function RecordingStudioPage({
             対応想定: {AUDIO_UPLOAD_ALLOWED_EXTENSIONS.join(" / ")}
           </p>
 
-          <div className="mt-4 rounded-[20px] border border-black/10 bg-neutral-50 p-4">
+          <div className="mt-4 min-w-0 overflow-hidden rounded-[20px] border border-black/10 bg-neutral-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs tracking-[0.18em] text-neutral-500">
                   朗読再生プレビュー
                 </p>
-                <p className="mt-2 text-sm text-neutral-700">
+                <p className="mt-2 min-w-0 break-words text-sm text-neutral-700">
                   {currentPreviewItem
                     ? `${getPreparedSourceLabel(currentPreviewItem.source)} / ${currentPreviewItem.name}`
                     : "表示できる音声がまだない"}
@@ -1281,7 +1281,7 @@ export function RecordingStudioPage({
             </div>
 
             {currentPreviewItem ? (
-              <audio controls src={currentPreviewItem.url} className="mt-3 w-full" />
+              <audio controls src={currentPreviewItem.url} className="mt-3 w-full min-w-0" />
             ) : (
               <div className="mt-3 rounded-[16px] border border-dashed border-black/15 bg-white p-4 text-sm leading-7 text-neutral-500">
                 音声を録音するか、音声ファイルを選ぶとここで再生確認できる。
@@ -1384,7 +1384,7 @@ export function RecordingStudioPage({
               ) : null}
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-4 flex min-w-0 flex-wrap gap-3">
               <button
                 type="button"
                 onClick={handlePublish}
@@ -1437,7 +1437,7 @@ export function RecordingStudioPage({
                   readerName: {publishResult.readerName || "未設定"}
                 </p>
 
-                <div className="mt-4 flex flex-wrap gap-3">
+                <div className="mt-4 flex min-w-0 flex-wrap gap-3">
                   <Link
                     href={publishedReadHref}
                     className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
