@@ -317,9 +317,9 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
   );
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#f4f4f4] text-black">
-      <div className="mx-auto w-full max-w-7xl overflow-x-hidden px-3 py-5 sm:px-6 lg:px-8">
-        <section className="mb-6 w-full max-w-full overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-sm">
+    <main className="min-h-screen bg-[#f4f4f4] text-black">
+      <div className="mx-auto w-full max-w-7xl px-3 py-5 sm:px-6 lg:px-8">
+        <section className="mb-6 w-full max-w-full rounded-[28px] border border-black/10 bg-white shadow-sm">
           <div className="border-b border-black/10 px-4 py-6 sm:px-8">
             <p className="text-xs tracking-[0.22em] text-neutral-500">
               LIB READ RECORDING STUDIO
