@@ -27,6 +27,7 @@ type PageProps = {
 
 type RawRow = Record<string, unknown>;
 type RecordingRow = Record<string, unknown> & {
+  id?: string | null;
   episode_id?: string | null;
   episodeId?: string | null;
   series_id?: string | null;
@@ -40,13 +41,17 @@ type RecordingRow = Record<string, unknown> & {
   speaker_name?: string | null;
   audio_storage_path?: string | null;
   audioStoragePath?: string | null;
+  is_public?: boolean | null;
+  isPublic?: boolean | null;
   created_at?: string | null;
 };
 
 type ExistingRecordingSeed = {
+  id: string;
   episodeId: string;
   audioStoragePath: string;
   readerName: string;
+  isPublic: boolean;
 };
 
 type PublicUserRow = Record<string, unknown> & {
@@ -63,6 +68,30 @@ function pickString(row: RawRow, keys: string[], fallback = ""): string {
     const value = row[key];
     if (typeof value === "string" && value.trim()) return value;
   }
+  return fallback;
+}
+
+function pickBoolean(row: RawRow, keys: string[], fallback = true): boolean {
+  for (const key of keys) {
+    const value = row[key];
+
+    if (typeof value === "boolean") {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+
+      if (["false", "0", "private", "非公開"].includes(normalized)) {
+        return false;
+      }
+
+      if (["true", "1", "public", "公開"].includes(normalized)) {
+        return true;
+      }
+    }
+  }
+
   return fallback;
 }
 
@@ -153,6 +182,7 @@ async function fetchExistingRecordingsForSeriesUser(
     const results: ExistingRecordingSeed[] = [];
 
     for (const row of rows) {
+      const recordingId = pickString(row, ["id"]);
       const episodeId = pickString(row, ["episode_id", "episodeId"]);
       const audioStoragePath = pickString(row, [
         "audio_storage_path",
@@ -163,16 +193,19 @@ async function fetchExistingRecordingsForSeriesUser(
         ["reader_name", "narrator_name", "display_name", "speaker_name"],
         ""
       );
+      const isPublic = pickBoolean(row, ["is_public", "isPublic"], true);
 
-      if (!episodeId || !audioStoragePath || seenEpisodeIds.has(episodeId)) {
+      if (!recordingId || !episodeId || !audioStoragePath || seenEpisodeIds.has(episodeId)) {
         continue;
       }
 
       seenEpisodeIds.add(episodeId);
       results.push({
+        id: recordingId,
         episodeId,
         audioStoragePath,
         readerName,
+        isPublic,
       });
     }
 

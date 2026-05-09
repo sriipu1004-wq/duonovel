@@ -16,6 +16,7 @@ import {
   type AudioUploadDecision,
 } from "@/lib/recording/audioUploadValidation";
 import { supabase } from "@/lib/supabaseClient";
+import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
 
 type EpisodeItem = {
   id: string;
@@ -27,9 +28,11 @@ type EpisodeItem = {
 };
 
 type ExistingRecordingSeed = {
+  id: string;
   episodeId: string;
   audioStoragePath: string;
   readerName: string;
+  isPublic: boolean;
 };
 
 type RecordingStudioPageProps = {
@@ -61,6 +64,13 @@ type HumanPublishResponse = {
 type HumanDeleteResponse = {
   ok: boolean;
   deletedCount?: number;
+  error?: string;
+  detail?: string;
+};
+
+type HumanVisibilityResponse = {
+  ok: boolean;
+  isPublic?: boolean;
   error?: string;
   detail?: string;
 };
@@ -315,6 +325,10 @@ export function RecordingStudioPage({
   >("idle");
   const [recordingVisibility, setRecordingVisibility] =
     useState<RecordingVisibility>("public");
+  const [visibilityStatus, setVisibilityStatus] = useState<
+    "idle" | "saving" | "success" | "error"
+  >("idle");
+  const [visibilityMessage, setVisibilityMessage] = useState("");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -383,6 +397,9 @@ export function RecordingStudioPage({
     setPublishStatus("idle");
     setPublishResult(null);
     setDeleteStatus("idle");
+    setRecordingVisibility(existing?.isPublic === false ? "private" : "public");
+    setVisibilityStatus("idle");
+    setVisibilityMessage("");
     setPublishMessage(
       existing
         ? "既存の朗読を表示中。"
@@ -795,6 +812,76 @@ export function RecordingStudioPage({
     await startBrowserRecording();
   }
 
+  async function handleRecordingVisibilityChange(
+    nextVisibility: RecordingVisibility
+  ) {
+    setRecordingVisibility(nextVisibility);
+
+    if (
+      !selectedEpisode ||
+      !selectedExistingRecording ||
+      currentPreviewItem?.source !== "existing"
+    ) {
+      setVisibilityStatus("idle");
+      setVisibilityMessage("");
+      return;
+    }
+
+    setVisibilityStatus("saving");
+    setVisibilityMessage("既存朗読の公開範囲を更新中。");
+
+    try {
+      const response = await fetch("/api/recordings/human-visibility", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recordingId: selectedExistingRecording.id,
+          seriesId,
+          episodeId: selectedEpisode.id,
+          isPublic: nextVisibility === "public",
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | HumanVisibilityResponse
+        | null;
+
+      if (!response.ok || !payload?.ok) {
+        setVisibilityStatus("error");
+        setVisibilityMessage(
+          payload?.detail || payload?.error || "公開範囲の更新に失敗した。"
+        );
+        setRecordingVisibility(
+          selectedExistingRecording.isPublic === false ? "private" : "public"
+        );
+        return;
+      }
+
+      setExistingRecordingMap((current) => ({
+        ...current,
+        [selectedEpisode.id]: {
+          ...selectedExistingRecording,
+          isPublic: payload.isPublic ?? nextVisibility === "public",
+        },
+      }));
+      setVisibilityStatus("success");
+      setVisibilityMessage(
+        nextVisibility === "public"
+          ? "この朗読を一般公開にした。"
+          : "この朗読を非公開にした。"
+      );
+    } catch (error) {
+      console.error("human recording visibility update failed", error);
+      setVisibilityStatus("error");
+      setVisibilityMessage("公開範囲の更新中に想定外エラーが出た。");
+      setRecordingVisibility(
+        selectedExistingRecording.isPublic === false ? "private" : "public"
+      );
+    }
+  }
+
   async function handlePublish() {
     if (!selectedEpisode || !currentPreviewItem?.file) {
       return;
@@ -873,9 +960,11 @@ export function RecordingStudioPage({
       setExistingRecordingMap((current) => ({
         ...current,
         [selectedEpisode.id]: {
+          id: payload.recordingId || selectedExistingRecording?.id || "",
           episodeId: selectedEpisode.id,
           audioStoragePath: payload.audioStoragePath || "",
           readerName: nextReaderName,
+          isPublic: recordingVisibility === "public",
         },
       }));
     } catch (error) {
@@ -967,7 +1056,9 @@ export function RecordingStudioPage({
           {safeEpisodes.length > 0 ? (
             safeEpisodes.map((episode) => {
               const isActive = episode.id === selectedEpisode?.id;
-              const isRecorded = recordedEpisodeIdSet.has(episode.id);
+              const existingRecording = existingRecordingMap[episode.id] ?? null;
+              const isRecorded = Boolean(existingRecording);
+              const isPrivateRecording = existingRecording?.isPublic === false;
 
               return (
                 <button
@@ -990,6 +1081,12 @@ export function RecordingStudioPage({
                       {isRecorded ? (
                         <span className="rounded-full border border-black/10 bg-neutral-100 px-2.5 py-1 text-[11px] text-neutral-700">
                           朗読済み
+                        </span>
+                      ) : null}
+
+                      {isPrivateRecording ? (
+                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-700">
+                          非公開
                         </span>
                       ) : null}
 
@@ -1073,8 +1170,8 @@ export function RecordingStudioPage({
 
               <div className="max-h-[70vh] min-h-[520px] overflow-y-auto rounded-[24px] border border-black/10 bg-[#fafafa] px-4 py-5 sm:px-6">
                 {selectedEpisode.body.trim() ? (
-                  <article className="mx-auto max-w-3xl whitespace-pre-wrap break-words text-[15px] leading-8 text-neutral-800">
-                    {selectedEpisode.body}
+                  <article className="mx-auto max-w-3xl whitespace-pre-wrap break-words text-[15px] leading-10 text-neutral-800 [&_rt]:text-[0.55em] [&_rt]:leading-none [&_ruby]:mx-[0.03em]">
+                    {renderTextWithAozoraRuby(selectedEpisode.body)}
                   </article>
                 ) : (
                   <div className="rounded-[20px] border border-dashed border-black/15 bg-white p-4 text-sm leading-7 text-neutral-500">
@@ -1240,7 +1337,7 @@ export function RecordingStudioPage({
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <button
                   type="button"
-                  onClick={() => setRecordingVisibility("public")}
+                  onClick={() => handleRecordingVisibilityChange("public")}
                   className={[
                     "rounded-2xl border px-4 py-3 text-left text-sm transition",
                     recordingVisibility === "public"
@@ -1256,7 +1353,7 @@ export function RecordingStudioPage({
 
                 <button
                   type="button"
-                  onClick={() => setRecordingVisibility("private")}
+                  onClick={() => handleRecordingVisibilityChange("private")}
                   className={[
                     "rounded-2xl border px-4 py-3 text-left text-sm transition",
                     recordingVisibility === "private"
@@ -1270,6 +1367,21 @@ export function RecordingStudioPage({
                   </span>
                 </button>
               </div>
+
+              {visibilityMessage ? (
+                <p
+                  className={[
+                    "mt-3 rounded-2xl border px-4 py-3 text-sm leading-6",
+                    visibilityStatus === "error"
+                      ? "border-rose-200 bg-rose-50 text-rose-700"
+                      : visibilityStatus === "success"
+                        ? "border-sky-200 bg-sky-50 text-black"
+                        : "border-black/10 bg-neutral-50 text-neutral-700",
+                  ].join(" ")}
+                >
+                  {visibilityMessage}
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-4 flex flex-wrap gap-3">
