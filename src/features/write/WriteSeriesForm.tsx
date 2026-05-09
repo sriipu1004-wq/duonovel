@@ -580,384 +580,11 @@ const publicVisibleCount = sortedEpisodes.filter(
 
   async function handleSubmit(destination: "episode" | "workspace" = "workspace") {
     if (mode === "create") {
-    const createSeriesStatusItems: Array<{
-      id: Exclude<SeriesStatusPanel, null>;
-      label: string;
-      value: string;
-    }> = [
-      {
-        id: "publication",
-        label: "公開状態",
-        value: getSeriesPublicationLabel(publicationStatus),
-      },
-      {
-        id: "genres",
-        label: "ジャンル",
-        value: genres.length > 0 ? genres.join(" / ") : "未設定",
-      },
-      {
-        id: "tags",
-        label: "タグ",
-        value: tags.length > 0 ? tags.join(" / ") : "未設定",
-      },
-      {
-        id: "recording",
-        label: "朗読許可",
-        value: recordingPermissionLabel,
-      },
-    ];
+      await handleCreate(destination);
+      return;
+    }
 
-    return (
-      <main className="min-h-screen bg-white text-black">
-        <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mb-4 text-sm text-neutral-500">
-            <span className="text-neutral-700">新規作成スペース</span>
-          </div>
-
-          <section
-            data-series-create-workspace
-            className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm"
-          >
-            <div className="border-b border-black/10 px-5 py-6 sm:px-8">
-              <p className="text-xs tracking-[0.22em] text-neutral-500">
-                LIB READ CREATE SPACE
-              </p>
-
-              <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <h1 className="text-3xl font-bold text-black">
-                    新規作成スペース
-                  </h1>
-                </div>
-
-                <Link
-                  href="/write"
-                  className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
-                >
-                  投稿データベースへ
-                </Link>
-              </div>
-            </div>
-
-            <div className="grid gap-6 px-5 py-6 sm:px-8">
-              <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
-                <div>
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    SERIES CORE
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold text-black">
-                    作品情報
-                  </h2>
-                </div>
-
-                <div className="mt-5 grid gap-4">
-                  <label className="grid gap-2">
-                    <span className="text-sm text-neutral-700">
-                      作品タイトル
-                    </span>
-                    <input
-                      value={title}
-                      onChange={(event) => {
-                        setTitle(event.target.value);
-                        resetSaveUi();
-                      }}
-                      placeholder="作品タイトル"
-                      className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
-                    />
-                  </label>
-
-                  <label className="grid gap-2">
-                    <span className="text-sm text-neutral-700">あらすじ</span>
-                    <textarea
-                      value={summary}
-                      onChange={(event) => {
-                        setSummary(event.target.value);
-                        resetSaveUi();
-                      }}
-                      rows={8}
-                      placeholder="作品の概要を書く"
-                      className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-500"
-                    />
-                  </label>
-                </div>
-              </section>
-
-              <section className="rounded-[28px] border border-black/10 bg-sky-50/60 p-5">
-                <div>
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    SERIES STATUS
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold text-black">
-                    作品状態
-                  </h2>
-                </div>
-
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {createSeriesStatusItems.map((item) => {
-                    const active = activeSeriesStatusPanel === item.id;
-
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() =>
-                          setActiveSeriesStatusPanel((current) =>
-                            current === item.id ? null : item.id
-                          )
-                        }
-                        className={[
-                          "rounded-2xl border px-3 py-3 text-left transition",
-                          active
-                            ? "border-sky-200 bg-sky-50"
-                            : "border-black/10 bg-white hover:bg-neutral-50",
-                        ].join(" ")}
-                        aria-expanded={active}
-                      >
-                        <span className="block text-[11px] tracking-[0.16em] text-neutral-500">
-                          {item.label}
-                        </span>
-                        <span className="mt-1 block text-sm font-semibold text-black">
-                          {item.value}
-                        </span>
-                        <span className="mt-2 block text-xs text-neutral-500">
-                          {active ? "閉じる" : "変更"}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div
-                  className={[
-                    "mt-4 grid gap-4",
-                    activeSeriesStatusPanel ? "" : "hidden",
-                  ].join(" ")}
-                >
-                  <div
-                    className={
-                      activeSeriesStatusPanel === "publication"
-                        ? "rounded-2xl border border-black/10 bg-white p-4"
-                        : "hidden"
-                    }
-                  >
-                    <p className="text-sm font-semibold text-black">公開状態</p>
-
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      {(["private", "public"] as SeriesPublicationStatus[]).map(
-                        (status) => {
-                          const active = publicationStatus === status;
-
-                          return (
-                            <label
-                              key={status}
-                              className={[
-                                "cursor-pointer rounded-2xl border px-3 py-3 text-sm transition",
-                                active
-                                  ? "border-sky-200 bg-sky-50 text-black"
-                                  : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                              ].join(" ")}
-                            >
-                              <input
-                                type="radio"
-                                name="series-publication-status-create"
-                                value={status}
-                                checked={active}
-                                onChange={() => {
-                                  setPublicationStatus(status);
-                                  resetSaveUi();
-                                }}
-                                className="sr-only"
-                              />
-                              {getSeriesPublicationLabel(status)}
-                            </label>
-                          );
-                        }
-                      )}
-                    </div>
-                  </div>
-
-                  <div
-                    className={
-                      activeSeriesStatusPanel === "genres"
-                        ? "rounded-2xl border border-black/10 bg-white p-4"
-                        : "hidden"
-                    }
-                  >
-                    <p className="text-sm font-semibold text-black">ジャンル</p>
-
-                    <textarea
-                      value={genreEditorValue}
-                      onChange={(event) => {
-                        setGenreEditorValue(event.target.value);
-                        resetSaveUi();
-                      }}
-                      rows={3}
-                      placeholder={"1行1ジャンル\n例: ファンタジー\n恋愛"}
-                      className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
-                    />
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setGenreEditorValue(toEditorValue(savedGenres));
-                          resetSaveUi();
-                        }}
-                        className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
-                      >
-                        保存済みに戻す
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setGenreEditorValue("");
-                          resetSaveUi();
-                        }}
-                        className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
-                      >
-                        空にする
-                      </button>
-                    </div>
-                  </div>
-
-                  <div
-                    className={
-                      activeSeriesStatusPanel === "tags"
-                        ? "rounded-2xl border border-black/10 bg-white p-4"
-                        : "hidden"
-                    }
-                  >
-                    <p className="text-sm font-semibold text-black">タグ</p>
-
-                    <textarea
-                      value={tagEditorValue}
-                      onChange={(event) => {
-                        setTagEditorValue(event.target.value);
-                        resetSaveUi();
-                      }}
-                      rows={3}
-                      placeholder={"1行1タグ\n例: 異世界\nダークファンタジー"}
-                      className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
-                    />
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTagEditorValue(toEditorValue(savedTags));
-                          resetSaveUi();
-                        }}
-                        className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
-                      >
-                        保存済みに戻す
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTagEditorValue("");
-                          resetSaveUi();
-                        }}
-                        className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
-                      >
-                        空にする
-                      </button>
-                    </div>
-                  </div>
-
-                  <div
-                    className={
-                      activeSeriesStatusPanel === "recording"
-                        ? "rounded-2xl border border-black/10 bg-white p-4"
-                        : "hidden"
-                    }
-                  >
-                    <p className="text-sm font-semibold text-black">朗読許可</p>
-
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      {(["closed", "approval_required", "open"] as RecordingPermissionMode[]).map(
-                        (modeValue) => {
-                          const active = recordingPermissionMode === modeValue;
-
-                          return (
-                            <label
-                              key={modeValue}
-                              className={[
-                                "cursor-pointer rounded-2xl border px-3 py-3 text-sm transition",
-                                active
-                                  ? "border-sky-200 bg-sky-50 text-black"
-                                  : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                              ].join(" ")}
-                            >
-                              <input
-                                type="radio"
-                                name="recording-permission-create"
-                                value={modeValue}
-                                checked={active}
-                                onChange={() => {
-                                  setRecordingPermissionMode(modeValue);
-                                  resetSaveUi();
-                                }}
-                                className="sr-only"
-                              />
-                              {getRecordingPermissionLabel(modeValue)}
-                            </label>
-                          );
-                        }
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-[28px] border border-black/10 bg-white p-5">
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleSubmit("episode")}
-                    disabled={saveState === "saving"}
-                    className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {saveState === "saving"
-                      ? "作成中..."
-                      : "作品を生成して1話目へ"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSubmit("workspace")}
-                    disabled={saveState === "saving"}
-                    className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {saveState === "saving" ? "作成中..." : "作品を生成"}
-                  </button>
-
-                  <Link
-                    href="/write"
-                    className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
-                  >
-                    キャンセル
-                  </Link>
-                </div>
-
-                {errorMessage ? (
-                  <div className="mt-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {errorMessage}
-                  </div>
-                ) : null}
-
-                {successMessage ? (
-                  <div className="mt-4 rounded-2xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {successMessage}
-                  </div>
-                ) : null}
-              </section>
-            </div>
-          </section>
-        </div>
-      </main>
-    );
+    await handleUpdate();
   }
 
   const heading = "作品ワークスペース";
@@ -1094,7 +721,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                     </div>
                   </div>
 
-                  {mode === "edit" ? (
+                  {mode === "edit" || mode === "create" ? (
                     <div className="rounded-2xl border border-black/10 bg-sky-50/60 p-4">
                       <p className="text-sm font-semibold text-black">
                         作品状態
@@ -1371,7 +998,81 @@ const publicVisibleCount = sortedEpisodes.filter(
                     </div>
                   ) : null}                  
 
-                  
+                  {mode === "create" ? (
+                    <div className="rounded-2xl border border-black/10 bg-white p-4">
+                      <p className="text-sm font-semibold text-black">
+                        1話目の投稿状態
+                      </p>
+                      <p className="mt-2 text-sm leading-7 text-neutral-600">
+                        作品作成の時点で、1話目を 投稿 / 予約投稿 / 下書き保存 のどれで始めるかを先に決める。
+                        実際の本文は作品作成後に1話目ページで書く。
+                      </p>
+
+                      <div className="mt-4 grid gap-3">
+                        {(["posted", "scheduled", "draft"] as EpisodePostingStatus[]).map(
+                          (status) => {
+                            const active = initialPostingStatus === status;
+
+                            return (
+                              <label
+                                key={status}
+                                className={`rounded-2xl border px-4 py-4 ${
+                                  active
+                                    ? "border-sky-200 bg-sky-50"
+                                    : "border-black/10 bg-neutral-50"
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="initial-posting-status"
+                                  value={status}
+                                  checked={active}
+                                  onChange={() => {
+                                    setInitialPostingStatus(status);
+                                    if (status !== "scheduled") {
+                                      setInitialScheduledFor("");
+                                    }
+                                    resetSaveUi();
+                                  }}
+                                  className="sr-only"
+                                />
+                                <p className="text-sm font-semibold text-black">
+                                  {getEpisodePostingLabel(status)}
+                                </p>
+                                <p className="mt-2 text-sm leading-7 text-neutral-600">
+                                  {status === "posted"
+                                    ? "1話目を作成した時点で投稿済みとして扱う。"
+                                    : status === "scheduled"
+                                      ? "1話目は予約投稿として保存し、到達時刻で公開対象にする。"
+                                      : "1話目は下書きとして保存し、作品ワークスペースから続けて書く。"}
+                                </p>
+                              </label>
+                            );
+                          }
+                        )}
+                      </div>
+
+                      {initialPostingStatus === "scheduled" ? (
+                        <label className="mt-4 grid gap-2">
+                          <span className="text-sm text-neutral-700">
+                            1話目の予約日時
+                          </span>
+                          <input
+                            type="datetime-local"
+                            value={initialScheduledFor}
+                            onChange={(event) => {
+                              setInitialScheduledFor(event.target.value);
+                              resetSaveUi();
+                            }}
+                            className="rounded-2xl border border-black/10 bg-white/5 px-4 py-3 text-sm text-black outline-none"
+                          />
+                          <span className="text-xs leading-6 text-neutral-500">
+                            ローカル時刻で入力。保存時に UTC へ変換して送る。
+                          </span>
+                        </label>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   <div
                     className={
@@ -1441,7 +1142,160 @@ const publicVisibleCount = sortedEpisodes.filter(
                           : "作品ワークスペースを保存"}
                     </button>
 
-                    
+                    {mode === "create" ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSubmit("workspace")}
+                        className="rounded-full border border-black/10 bg-white/5 px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                      >
+                        作品を作成してワークスペースへ
+                      </button>
+                    ) : null}
+</div>
+
+                  {errorMessage ? (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {errorMessage}
+                    </div>
+                  ) : null}
+
+                  {successMessage ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {successMessage}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className={mode === "edit" ? "hidden" : "mt-4 grid gap-3"}>
+                  <div className="rounded-[24px] border border-black/10 bg-white p-4">
+                    <p className="text-xs tracking-[0.18em] text-neutral-500">
+                      CURRENT STATE
+                    </p>
+                    <div className="mt-3 grid gap-3">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                        作品公開:{" "}
+                        <span className="font-semibold text-black">
+                          {getSeriesPublicationLabel(publicationStatus)}
+                        </span>
+                      </div>
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                        読者向け表示:{" "}
+                        <span className="font-semibold text-black">
+                          {publicSurfaceReady
+                            ? "表示中"
+                            : publicationStatus === "public"
+                              ? "公開待ち"
+                              : "非表示"}
+                        </span>
+                      </div>
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                        タグ:{" "}
+                        <span className="font-semibold text-black">
+                          {tags.length}件
+                        </span>
+                      </div>
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                        ジャンル:{" "}
+                        <span className="font-semibold text-black">
+                          {genres.length}件
+                        </span>
+                      </div>
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                        朗読許可:{" "}
+                        <span className="font-semibold text-black">
+                          {recordingPermissionLabel}
+                        </span>
+                      </div>
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                        レビュー欄:{" "}
+                        <span className="font-semibold text-black">
+                          {reviewsEnabled ? "表示" : "非表示"}
+                        </span>
+                      </div>
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                        コメント欄:{" "}
+                        <span className="font-semibold text-black">
+                          {episodeCommentsEnabled ? "表示" : "非表示"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {series?.id ? (
+                    <div className="hidden">
+                      <p className="text-xs tracking-[0.18em] text-neutral-500">
+                        RELATED SETTINGS
+                      </p>
+                      <div className="mt-3 grid gap-3">
+                        <WorkspaceLinkCard
+                          eyebrow="DEFAULT EFFECTS"
+                          title="既定演出設定ページ"
+                          description="作品共通BGM、既定フォント、既定文字色、既定背景をここで決める。"
+                          href={`/manage/bgm/${series.id}`}
+                          cta="既定演出設定ページへ"
+                        />
+                        <WorkspaceLinkCard
+                          eyebrow="GENRES"
+                          title="ジャンル管理"
+                          description="作品genreの canonical source は series.genres。公開検索の genre 絞り込みや genre 棚の基準になる。"
+                          href={`/manage/genres/${series.id}`}
+                          cta="ジャンル管理へ"
+                        />                        
+                        <WorkspaceLinkCard
+                          eyebrow="TAGS"
+                          title="タグ管理"
+                          description="作品タグは専用ページで編集する。ここでは状態だけ見せる。"
+                          href={`/manage/tags/${series.id}`}
+                          cta="タグ管理へ"
+                        />
+                        <WorkspaceLinkCard
+                          eyebrow="RECORDING"
+                          title="朗読許可管理"
+                          description="第三者朗読の可否は専用ページで管理する。"
+                          href={`/manage/recording-permission/${series.id}`}
+                          cta="朗読許可へ"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-[24px] border border-black/10 bg-white p-4 text-sm leading-7 text-neutral-600">
+                      まず作品を作成すると、タグ管理や朗読許可管理へ進めるようになる。
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {mode === "create" ? (
+              <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-5">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">FLOW</p>
+                <h2 className="mt-2 text-xl font-semibold text-black">
+                  初回作成フロー
+                </h2>
+                <div className="mt-4 grid gap-4 md:grid-cols-4">
+                  <StepCard
+                    step="STEP 1"
+                    title="作品公開状態を決める"
+                    description="まず作品全体を 公開 / 非公開 のどちらで持つか決める。"
+                  />
+                  <StepCard
+                    step="STEP 2"
+                    title="1話目の投稿状態を決める"
+                    description="投稿 / 予約投稿 / 下書き保存 のどれで始めるか先に決める。"
+                  />
+                  <StepCard
+                    step="STEP 3"
+                    title="作品を作成して1話目へ進む"
+                    description="作品作成後、そのまま1話目本文の作成へ入る。"
+                  />
+                  <StepCard
+                    step="STEP 4"
+                    title="ワークスペースで連続制作する"
+                    description="下書きや予約投稿でもワークスペースに残り、次の話を続けて作れる。"
+                  />
+                </div>
+              </section>
+            ) : null}
 
             {series?.id ? (
               <section className="hidden">
