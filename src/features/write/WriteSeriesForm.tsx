@@ -39,7 +39,6 @@ type WriteSeriesFormProps = {
   currentUserId: string;
   series?: SeriesRow | null;
   episodes?: EpisodeRow[];
-  libraryTracks?: unknown[];
 };
 
 type SaveState = "idle" | "saving" | "success" | "error";

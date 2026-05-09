@@ -262,7 +262,7 @@ const scheduledBeforePreviousIsBlocked =
   }
 
   async function handleSubmit(
-    destination: "workspace" | "effects" | "next" = "workspace"
+    destination: "workspace" | "next" = "workspace"
   ) {
     const trimmedTitle = title.trim();
     const trimmedBody = body.trim();
@@ -315,15 +315,11 @@ if (scheduledBeforePreviousIsBlocked) {
     setSuccessMessage("");
 
     showGlobalLoadingFeedback(
-      destination === "effects"
-        ? mode === "create"
+      destination === "next"
+        ? "作成中..."
+        : mode === "create"
           ? "作成中..."
-          : "保存中..."
-        : destination === "next"
-          ? "作成中..."
-          : mode === "create"
-            ? "作成中..."
-            : "保存中...",
+          : "保存中...",
       8000
     );
 
@@ -366,11 +362,9 @@ if (scheduledBeforePreviousIsBlocked) {
         );
 
         router.push(
-          destination === "effects"
-            ? `/write/series/${seriesId}/episodes/${result.data.id}/effects`
-            : destination === "next"
-              ? `/write/series/${seriesId}/episodes/new`
-              : `/write/series/${seriesId}`
+          destination === "next"
+            ? `/write/series/${seriesId}/episodes/new`
+            : `/write/series/${seriesId}`
         );
         router.refresh();
         return;
@@ -397,8 +391,6 @@ if (scheduledBeforePreviousIsBlocked) {
 
       if (destination === "next") {
         router.push(`/write/series/${seriesId}/episodes/new`);
-      } else if (destination === "effects" && episode?.id) {
-        router.push(`/write/series/${seriesId}/episodes/${episode.id}/effects`);
       } else {
         router.refresh();
         hideGlobalLoadingFeedback();
@@ -414,10 +406,6 @@ if (scheduledBeforePreviousIsBlocked) {
   }
 
   const heading = mode === "create" ? "新しい話を追加" : "話本文を編集";
-  const effectsHref =
-    mode === "edit" && episode?.id
-      ? `/write/series/${seriesId}/episodes/${episode.id}/effects`
-      : null;
   const effectsPanelId = "episode-effects-panel";
 
   return (
@@ -525,23 +513,7 @@ if (scheduledBeforePreviousIsBlocked) {
                         ? "演出・BGM編集を閉じる"
                         : "演出・BGM編集へ"}
                     </button>
-                  ) : effectsHref ? (
-                    <Link
-                      href={effectsHref}
-                      className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-100"
-                    >
-                      演出・BGM編集へ
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleSubmit("effects")}
-                      disabled={isSaving}
-                      className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isSaving ? "作成中..." : "作成して演出・BGM編集へ"}
-                    </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             </section>

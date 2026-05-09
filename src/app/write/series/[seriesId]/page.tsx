@@ -1,15 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
-import { isOperatorUser } from "@/lib/auth/operator";
 import WriteSeriesForm from "@/features/write/WriteSeriesForm";
 import { type EpisodeRow, type SeriesRow } from "@/features/write/writeShared";
-import {
-  fetchAllBgmLibraryTracks,
-  fetchBgmLibraryFavoriteIds,
-  fetchBgmLibraryTracks,
-  sortBgmLibraryTracksByFavorites,
-  type SimpleSupabaseLike,
-} from "@/lib/bgm/bgmLibrary";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -63,34 +55,18 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
     seriesId,
     `/write/series/${seriesId}`
   );
-  const bgmSupabase = supabase as unknown as SimpleSupabaseLike;
-
   const series = await fetchSeries(seriesId, supabase);
   if (!series) {
     notFound();
   }
 
   const episodes = await fetchEpisodes(seriesId, supabase);
-  const canUsePrivateTracks = isOperatorUser(user.email ?? null);
-  const favoriteTrackIds = await fetchBgmLibraryFavoriteIds(
-    bgmSupabase,
-    user.id
-  );
-  const rawLibraryTracks = canUsePrivateTracks
-    ? await fetchAllBgmLibraryTracks(bgmSupabase)
-    : await fetchBgmLibraryTracks(bgmSupabase);
-  const libraryTracks = sortBgmLibraryTracksByFavorites(
-    rawLibraryTracks,
-    favoriteTrackIds
-  );
-
   return (
     <WriteSeriesForm
       mode="edit"
       currentUserId={user.id}
       series={series}
       episodes={episodes}
-      libraryTracks={libraryTracks}
     />
   );
 }
