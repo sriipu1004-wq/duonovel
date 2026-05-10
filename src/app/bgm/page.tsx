@@ -1,11 +1,9 @@
-import BgmLibraryPageClient from "@/features/bgm/BgmLibraryPageClient";
+﻿import BgmLibraryPageClient from "@/features/bgm/BgmLibraryPageClient";
 import {
-  fetchAllBgmLibraryTracks,
   fetchBgmLibraryFavoriteIds,
   fetchBgmLibraryTracks,
   type SimpleSupabaseLike,
 } from "@/lib/bgm/bgmLibrary";
-import { isOperatorUser } from "@/lib/auth/operator";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function BgmLibraryPage() {
@@ -16,12 +14,7 @@ export default async function BgmLibraryPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const canManageLibrary = isOperatorUser(user?.email ?? null);
-
   const tracks = await fetchBgmLibraryTracks(bgmSupabase);
-  const manageableTracks = canManageLibrary
-    ? await fetchAllBgmLibraryTracks(bgmSupabase)
-    : [];
   const favoriteTrackIds = user
     ? await fetchBgmLibraryFavoriteIds(bgmSupabase, user.id)
     : [];
@@ -29,8 +22,6 @@ export default async function BgmLibraryPage() {
   return (
     <BgmLibraryPageClient
       tracks={tracks}
-      canManageLibrary={canManageLibrary}
-      manageableTracks={manageableTracks}
       isLoggedIn={Boolean(user)}
       initialFavoriteTrackIds={favoriteTrackIds}
     />
