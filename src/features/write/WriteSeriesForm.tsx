@@ -1231,28 +1231,28 @@ const publicVisibleCount = sortedEpisodes.filter(
                           eyebrow="DEFAULT EFFECTS"
                           title="既定演出設定ページ"
                           description="作品共通BGM、既定フォント、既定文字色、既定背景をここで決める。"
-                          href={`/manage/bgm/${series.id}`}
+                          href={`/write/series/${series.id}`}
                           cta="既定演出設定ページへ"
                         />
                         <WorkspaceLinkCard
                           eyebrow="GENRES"
                           title="ジャンル管理"
                           description="作品genreの canonical source は series.genres。公開検索の genre 絞り込みや genre 棚の基準になる。"
-                          href={`/manage/genres/${series.id}`}
+                          href={`/write/series/${series.id}`}
                           cta="ジャンル管理へ"
                         />                        
                         <WorkspaceLinkCard
                           eyebrow="TAGS"
                           title="タグ管理"
                           description="作品タグは専用ページで編集する。ここでは状態だけ見せる。"
-                          href={`/manage/tags/${series.id}`}
+                          href={`/write/series/${series.id}`}
                           cta="タグ管理へ"
                         />
                         <WorkspaceLinkCard
                           eyebrow="RECORDING"
                           title="朗読許可管理"
                           description="第三者朗読の可否は専用ページで管理する。"
-                          href={`/manage/recording-permission/${series.id}`}
+                          href={`/write/series/${series.id}`}
                           cta="朗読許可へ"
                         />
                       </div>
@@ -1462,7 +1462,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                         </Link>
 
                         <Link
-                          href={`/manage/bgm/${series.id}`}
+                          href={`/write/series/${series.id}`}
                           className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
                         >
                           既定演出設定ページ
