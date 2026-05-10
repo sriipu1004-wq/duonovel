@@ -227,13 +227,6 @@ export default async function WriteTopPage() {
                 </Link>
 
                 <Link
-                  href="/bgm"
-                  className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-100"
-                >
-                  BGM検索ページ
-                </Link>
-
-                <Link
                   href="/mypage"
                   className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
                 >

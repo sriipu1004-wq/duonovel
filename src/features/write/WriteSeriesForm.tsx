@@ -253,7 +253,7 @@ function WorkspaceLinkCard({
   cta: string;
 }) {
   return (
-    <article className="rounded-[24px] border border-black/10 bg-white p-4">
+    <article className="rounded-2xl border border-black/10 bg-white p-3">
       <p className="text-xs tracking-[0.18em] text-neutral-500">{eyebrow}</p>
       <h3 className="mt-2 text-lg font-semibold text-black">{title}</h3>
       <p className="mt-3 text-sm leading-7 text-neutral-600">{description}</p>
@@ -1167,7 +1167,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                 </div>
 
                 <div className={mode === "edit" ? "hidden" : "mt-4 grid gap-3"}>
-                  <div className="rounded-[24px] border border-black/10 bg-white p-4">
+                  <div className="rounded-2xl border border-black/10 bg-white p-3">
                     <p className="text-xs tracking-[0.18em] text-neutral-500">
                       CURRENT STATE
                     </p>
@@ -1227,13 +1227,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                         RELATED SETTINGS
                       </p>
                       <div className="mt-3 grid gap-3">
-                        <WorkspaceLinkCard
-                          eyebrow="DEFAULT EFFECTS"
-                          title="既定演出設定ページ"
-                          description="作品共通BGM、既定フォント、既定文字色、既定背景をここで決める。"
-                          href={`/write/series/${series.id}`}
-                          cta="既定演出設定ページへ"
-                        />
+                        
                         <WorkspaceLinkCard
                           eyebrow="GENRES"
                           title="ジャンル管理"
@@ -1258,7 +1252,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-[24px] border border-black/10 bg-white p-4 text-sm leading-7 text-neutral-600">
+                    <div className="rounded-2xl border border-black/10 bg-white p-3 text-sm leading-7 text-neutral-600">
                       まず作品を作成すると、タグ管理や朗読許可管理へ進めるようになる。
                     </div>
                   )}

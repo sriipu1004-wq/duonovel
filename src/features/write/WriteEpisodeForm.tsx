@@ -24,6 +24,7 @@ import {
 
 type Mode = "create" | "edit";
 type SaveState = "idle" | "saving" | "success" | "error";
+type BodyViewMode = "edit" | "preview";
 
 type WriteEpisodeFormProps = {
   mode: Mode;
@@ -198,6 +199,7 @@ export default function WriteEpisodeForm({
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [showEffectSettingsPanel, setShowEffectSettingsPanel] = useState(false);
+  const [bodyViewMode, setBodyViewMode] = useState<BodyViewMode>("edit");
 
   const parsedEpisodeNumber = Number(episodeNumber);
   const safeEpisodeNumber =
@@ -451,33 +453,41 @@ if (scheduledBeforePreviousIsBlocked) {
                   />
                 </label>
 
-                <label className="grid gap-2">
-                  <span className="text-sm font-semibold text-neutral-700">
-                    本文
-                  </span>
-                  <textarea
-                    value={body}
-                    onChange={(event) => {
-                      setBody(event.target.value);
-                      resetNotice();
-                    }}
-                    placeholder="本文を入力"
-                    className="min-h-[520px] resize-y rounded-[28px] border border-black/10 bg-white px-5 py-4 text-sm leading-8 text-black outline-none placeholder:text-neutral-400"
-                  />
-                </label>
-
-                <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-4">
+                <section className="grid gap-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs tracking-[0.18em] text-neutral-500">
-                        BODY PREVIEW
-                      </p>
-                      <h2 className="mt-1 text-lg font-semibold text-black">
-                        本文プレビュー
-                      </h2>
+                      <span className="text-sm font-semibold text-neutral-700">
+                        本文
+                      </span>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setBodyViewMode("edit")}
+                        className={[
+                          "rounded-full border px-3 py-1.5 text-xs transition",
+                          bodyViewMode === "edit"
+                            ? "border-sky-200 bg-sky-50 text-black"
+                            : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                        ].join(" ")}
+                      >
+                        本文
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setBodyViewMode("preview")}
+                        className={[
+                          "rounded-full border px-3 py-1.5 text-xs transition",
+                          bodyViewMode === "preview"
+                            ? "border-sky-200 bg-sky-50 text-black"
+                            : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                        ].join(" ")}
+                      >
+                        プレビュー
+                      </button>
+
                       <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-600">
                         {characterCount}文字
                       </span>
@@ -487,17 +497,29 @@ if (scheduledBeforePreviousIsBlocked) {
                     </div>
                   </div>
 
-                  <div className="mt-4 max-h-[420px] overflow-y-auto rounded-[24px] border border-black/10 bg-white px-5 py-5">
-                    {body.trim().length > 0 ? (
-                      <div className="whitespace-pre-wrap break-words text-sm leading-8 text-neutral-800">
-                        {body}
-                      </div>
-                    ) : (
-                      <div className="text-sm leading-7 text-neutral-500">
-                        本文を入力すると、ここに読者表示に近い形のプレビューが出る。
-                      </div>
-                    )}
-                  </div>
+                  {bodyViewMode === "edit" ? (
+                    <textarea
+                      value={body}
+                      onChange={(event) => {
+                        setBody(event.target.value);
+                        resetNotice();
+                      }}
+                      placeholder="本文を入力"
+                      className="min-h-[520px] resize-y rounded-[28px] border border-black/10 bg-white px-5 py-4 text-sm leading-8 text-black outline-none placeholder:text-neutral-400"
+                    />
+                  ) : (
+                    <div className="min-h-[520px] overflow-y-auto rounded-[28px] border border-black/10 bg-white px-5 py-5">
+                      {body.trim().length > 0 ? (
+                        <div className="whitespace-pre-wrap break-words text-sm leading-8 text-neutral-800">
+                          {body}
+                        </div>
+                      ) : (
+                        <div className="text-sm leading-7 text-neutral-500">
+                          本文を入力すると、ここに読者表示に近い形のプレビューが出る。
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </section>
 
                 <div className="flex flex-wrap gap-3">
@@ -510,8 +532,8 @@ if (scheduledBeforePreviousIsBlocked) {
                       className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-100"
                     >
                       {showEffectSettingsPanel
-                        ? "演出・BGM編集を閉じる"
-                        : "演出・BGM編集へ"}
+                        ? "演出編集を閉じる"
+                        : "演出を追加"}
                     </button>
                   ) : null}
                 </div>
