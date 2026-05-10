@@ -21,6 +21,10 @@ import {
   hideGlobalLoadingFeedback,
   showGlobalLoadingFeedback,
 } from "@/lib/client/loadingFeedback";
+import {
+  normalizeAozoraTextForLayout,
+  renderTextWithAozoraRuby,
+} from "@/features/effects/EffectPreviewRenderer";
 
 type Mode = "create" | "edit";
 type SaveState = "idle" | "saving" | "success" | "error";
@@ -168,6 +172,19 @@ function getNextButtonLabel(status: EpisodePostingStatus): string {
     : "下書き保存して次の話へ";
 }
 
+function buildReaderPreviewParagraphs(value: string): string[] {
+  const normalized = normalizeAozoraTextForLayout(value);
+
+  if (!normalized.trim()) {
+    return [];
+  }
+
+  return normalized
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph.length > 0);
+}
+
 export default function WriteEpisodeForm({
   mode,
   seriesId,
@@ -222,6 +239,7 @@ export default function WriteEpisodeForm({
 
   const characterCount = body.length;
   const lineCount = body.length === 0 ? 0 : body.split(/\r?\n/).length;
+  const readerPreviewParagraphs = buildReaderPreviewParagraphs(body);
   const currentEpisodeLabel =
     mode === "edit" && episode
       ? `第${getEpisodeNumber(episode)}話`
@@ -454,72 +472,85 @@ if (scheduledBeforePreviousIsBlocked) {
                 </label>
 
                 <section className="grid gap-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
                     <div>
                       <span className="text-sm font-semibold text-neutral-700">
                         本文
                       </span>
+                      <p className="mt-1 text-xs text-neutral-500">
+                        編集と読者プレビューを切り替えて確認できる。
+                      </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setBodyViewMode("edit")}
-                        className={[
-                          "rounded-full border px-3 py-1.5 text-xs transition",
-                          bodyViewMode === "edit"
-                            ? "border-sky-200 bg-sky-50 text-black"
-                            : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                        ].join(" ")}
-                      >
-                        本文
-                      </button>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="inline-flex rounded-2xl border border-black/10 bg-neutral-100 p-1 shadow-inner">
+                        <button
+                          type="button"
+                          onClick={() => setBodyViewMode("edit")}
+                          className={[
+                            "rounded-xl px-4 py-2 text-sm font-semibold transition",
+                            bodyViewMode === "edit"
+                              ? "bg-black text-white shadow-sm"
+                              : "text-neutral-700 hover:bg-white",
+                          ].join(" ")}
+                        >
+                          編集
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setBodyViewMode("preview")}
-                        className={[
-                          "rounded-full border px-3 py-1.5 text-xs transition",
-                          bodyViewMode === "preview"
-                            ? "border-sky-200 bg-sky-50 text-black"
-                            : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                        ].join(" ")}
-                      >
-                        プレビュー
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setBodyViewMode("preview")}
+                          className={[
+                            "rounded-xl px-4 py-2 text-sm font-semibold transition",
+                            bodyViewMode === "preview"
+                              ? "bg-sky-50 text-black shadow-sm ring-1 ring-sky-200"
+                              : "text-neutral-700 hover:bg-white",
+                          ].join(" ")}
+                        >
+                          読者プレビュー
+                        </button>
+                      </div>
 
-                      <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-600">
-                        {characterCount}文字
-                      </span>
-                      <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-600">
-                        {lineCount}行
-                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-600">
+                          {characterCount}文字
+                        </span>
+                        <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-600">
+                          {lineCount}行
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {bodyViewMode === "edit" ? (
-                    <textarea
-                      value={body}
-                      onChange={(event) => {
-                        setBody(event.target.value);
-                        resetNotice();
-                      }}
-                      placeholder="本文を入力"
-                      className="min-h-[520px] resize-y rounded-[28px] border border-black/10 bg-white px-5 py-4 text-sm leading-8 text-black outline-none placeholder:text-neutral-400"
-                    />
-                  ) : (
-                    <div className="min-h-[520px] overflow-y-auto rounded-[28px] border border-black/10 bg-white px-5 py-5">
-                      {body.trim().length > 0 ? (
-                        <div className="whitespace-pre-wrap break-words text-sm leading-8 text-neutral-800">
-                          {body}
-                        </div>
-                      ) : (
-                        <div className="text-sm leading-7 text-neutral-500">
-                          本文を入力すると、ここに読者表示に近い形のプレビューが出る。
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <div className="h-[560px] min-h-0 overflow-hidden rounded-[28px] border border-black/10 bg-white">
+                    {bodyViewMode === "edit" ? (
+                      <textarea
+                        value={body}
+                        onChange={(event) => {
+                          setBody(event.target.value);
+                          resetNotice();
+                        }}
+                        placeholder="本文を入力"
+                        className="h-full min-h-0 w-full resize-none overflow-y-auto border-0 bg-white px-5 py-4 text-sm leading-8 text-black outline-none placeholder:text-neutral-400"
+                      />
+                    ) : (
+                      <div className="h-full min-h-0 overflow-y-auto bg-neutral-50 px-4 py-5 sm:px-6">
+                        {readerPreviewParagraphs.length > 0 ? (
+                          <article className="mx-auto max-w-3xl space-y-7 rounded-[28px] border border-black/10 bg-white px-5 py-6 text-[15px] leading-8 text-neutral-900 shadow-sm sm:px-8 sm:py-8 sm:text-base">
+                            {readerPreviewParagraphs.map((paragraph, index) => (
+                              <p key={`reader-preview-${index}`} className="break-words">
+                                {renderTextWithAozoraRuby(paragraph)}
+                              </p>
+                            ))}
+                          </article>
+                        ) : (
+                          <div className="mx-auto max-w-3xl rounded-[28px] border border-dashed border-black/10 bg-white px-5 py-6 text-sm leading-7 text-neutral-500">
+                            本文を入力すると、ここに読者表示に近い形のプレビューが出る。
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </section>
 
                 <div className="flex flex-wrap gap-3">
