@@ -26,6 +26,7 @@ type BackgroundPresetSelectValue =
 
 type PreviewMode = "text" | "preview";
 type SaveState = "idle" | "saving" | "success" | "error";
+type UploadState = "idle" | "uploading" | "success" | "error";
 type EffectPanelKey = "background" | "inline" | "illustration" | null;
 
 type EffectSettingsFormProps = {
@@ -110,6 +111,14 @@ function getInlineValueHelp(kind: EffectInlineMarkKind): string {
   }
 
   return "必要に応じて補助値を入れる。";
+}
+
+function buildSafeFileName(fileName: string): string {
+  return fileName
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 80) || "illustration";
 }
 
 function normalizeInlineValue(kind: EffectInlineMarkKind, value: string): string | null {
@@ -326,6 +335,7 @@ export default function EffectSettingsForm({
   scope,
   tableName,
   recordId,
+  seriesId,
   title,
   backHref,
   workspaceHref,
@@ -373,6 +383,9 @@ export default function EffectSettingsForm({
   const [illustrationUrl, setIllustrationUrl] = useState(
     firstIllustration?.imageUrl ?? ""
   );
+  const [illustrationUploadState, setIllustrationUploadState] =
+    useState<UploadState>("idle");
+  const [illustrationUploadMessage, setIllustrationUploadMessage] = useState("");
   const [illustrationCaption, setIllustrationCaption] = useState(
     firstIllustration?.caption ?? ""
   );
@@ -511,6 +524,61 @@ export default function EffectSettingsForm({
     setSaveState("idle");
   }
 
+  async function handleIllustrationFileChange(file: File | null) {
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setIllustrationUploadState("error");
+      setIllustrationUploadMessage("画像ファイルを選んで。");
+      return;
+    }
+
+    const maxBytes = 5 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setIllustrationUploadState("error");
+      setIllustrationUploadMessage("画像は5MB以内にして。");
+      return;
+    }
+
+    setIllustrationUploadState("uploading");
+    setIllustrationUploadMessage("画像をアップロード中...");
+
+    const extension = file.name.includes(".")
+      ? file.name.split(".").pop()
+      : "png";
+    const safeName = buildSafeFileName(file.name.replace(/\.[^.]+$/, ""));
+    const storagePath = [
+      "effects",
+      seriesId,
+      recordId,
+      `${Date.now()}-${safeName}.${extension}`,
+    ].join("/");
+
+    const { error } = await supabase.storage
+      .from("illustrations")
+      .upload(storagePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) {
+      setIllustrationUploadState("error");
+      setIllustrationUploadMessage(error.message);
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("illustrations")
+      .getPublicUrl(storagePath);
+
+    setIllustrationUrl(data.publicUrl);
+    setIllustrationUploadState("success");
+    setIllustrationUploadMessage("画像を挿絵に設定した。");
+    resetSaveUi();
+  }
+
   function handleDeleteUnsavedEffect(item: AppliedEffectListItem) {
     if (item.deleteKey === "background") {
       setBackgroundPreset("");
@@ -530,6 +598,8 @@ export default function EffectSettingsForm({
 
     if (item.deleteKey === "illustration") {
       setIllustrationUrl("");
+      setIllustrationUploadState("idle");
+      setIllustrationUploadMessage("");
       setIllustrationCaption("");
       setIllustrationPlacement("top");
       setIllustrationAnchorText("");
@@ -807,6 +877,39 @@ export default function EffectSettingsForm({
                 className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
               />
             </label>
+            <div className="rounded-2xl border border-black/10 bg-white p-4">
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold text-neutral-700">
+                  画像ファイルを選ぶ
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    void handleIllustrationFileChange(
+                      event.target.files?.[0] ?? null
+                    );
+                    event.currentTarget.value = "";
+                  }}
+                  className="block w-full cursor-pointer rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 file:mr-4 file:rounded-full file:border-0 file:bg-black file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
+                />
+              </label>
+
+              {illustrationUploadMessage ? (
+                <p
+                  className={[
+                    "mt-3 rounded-2xl border px-4 py-3 text-sm leading-6",
+                    illustrationUploadState === "error"
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : illustrationUploadState === "success"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-black/10 bg-neutral-50 text-neutral-600",
+                  ].join(" ")}
+                >
+                  {illustrationUploadMessage}
+                </p>
+              ) : null}
+            </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2">
