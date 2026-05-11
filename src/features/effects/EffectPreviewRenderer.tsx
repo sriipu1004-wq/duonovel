@@ -2,6 +2,7 @@
 
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 import {
+  getBackgroundPresetMeta,
   type EffectBackgroundPreset,
   type EffectIllustration,
   type EffectInlineMark,
@@ -135,85 +136,38 @@ export function renderTextWithAozoraRuby(text: string): ReactNode {
 }
 
 export function buildBackgroundTheme(preset: EffectBackgroundPreset) {
-  switch (preset) {
-    case "paper":
-      return {
-        frameClassName: "rounded-[28px] border border-amber-900/20 bg-[#f3ead7]",
-        surfaceClassName:
-          "bg-[linear-gradient(180deg,rgba(255,255,255,0.45),rgba(255,255,255,0.18))]",
-        textClassName: "text-[#2f2416]",
-      };
-    case "warm_paper":
-      return {
-        frameClassName: "rounded-[28px] border border-amber-900/15 bg-[#f7edd8]",
-        surfaceClassName:
-          "bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.6),transparent_30%),linear-gradient(180deg,rgba(255,250,238,0.92),rgba(238,219,184,0.62))]",
-        textClassName: "text-[#2f2416]",
-      };
-    case "cool_paper":
-      return {
-        frameClassName: "rounded-[28px] border border-sky-900/10 bg-[#eef5f7]",
-        surfaceClassName:
-          "bg-[radial-gradient(circle_at_25%_15%,rgba(255,255,255,0.76),transparent_32%),linear-gradient(180deg,rgba(247,252,255,0.94),rgba(219,234,241,0.66))]",
-        textClassName: "text-[#1f2b33]",
-      };
-    case "wrinkled_paper":
-      return {
-        frameClassName: "rounded-[28px] border border-stone-900/15 bg-[#f2eadb]",
-        surfaceClassName:
-          "bg-[linear-gradient(135deg,rgba(255,255,255,0.55),transparent_28%),linear-gradient(45deg,rgba(120,91,52,0.08)_0_1px,transparent_1px_12px),linear-gradient(180deg,rgba(250,244,232,0.9),rgba(229,217,195,0.66))]",
-        textClassName: "text-[#2d261b]",
-      };
-    case "old_paper":
-      return {
-        frameClassName: "rounded-[28px] border border-yellow-950/20 bg-[#dfc48c]",
-        surfaceClassName:
-          "bg-[radial-gradient(circle_at_15%_20%,rgba(96,64,28,0.12),transparent_24%),radial-gradient(circle_at_80%_40%,rgba(255,255,255,0.2),transparent_26%),linear-gradient(180deg,rgba(236,209,145,0.9),rgba(193,151,77,0.62))]",
-        textClassName: "text-[#2d1d0f]",
-      };
-    case "glass":
-      return {
-        frameClassName:
-          "rounded-[28px] border border-sky-100 bg-white/70 shadow-sm",
-        surfaceClassName: "backdrop-blur-md bg-white/50",
-        textClassName: "text-neutral-900",
-      };
-    case "plastic":
-      return {
-        frameClassName:
-          "rounded-[28px] border border-sky-200 bg-sky-50 shadow-sm",
-        surfaceClassName:
-          "bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(255,255,255,0.34))]",
-        textClassName: "text-slate-900",
-      };
-    case "stone":
-      return {
-        frameClassName:
-          "rounded-[28px] border border-neutral-300 bg-neutral-200 shadow-sm",
-        surfaceClassName:
-          "bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.45),rgba(255,255,255,0.12))]",
-        textClassName: "text-neutral-900",
-      };
-    case "wood":
-      return {
-        frameClassName:
-          "rounded-[28px] border border-amber-900/20 bg-[#6b4a31] shadow-sm",
-        surfaceClassName:
-          "bg-[linear-gradient(180deg,rgba(255,255,255,0.14),rgba(255,255,255,0.04))]",
-        textClassName: "text-amber-50",
-      };
-    default:
-      return {
-        frameClassName: "rounded-[28px] border border-black/10 bg-white",
-        surfaceClassName: "bg-neutral-50",
-        textClassName: "text-neutral-900",
-      };
+  const meta = getBackgroundPresetMeta(preset);
+
+  if (!meta) {
+    return {
+      frameClassName: "rounded-[28px] border border-black/10 bg-white",
+      surfaceClassName: "bg-white/70",
+      textClassName: "text-neutral-900",
+    };
   }
+
+  return {
+    frameClassName: "rounded-[28px] border border-black/10 bg-white shadow-sm",
+    surfaceClassName: "bg-white/35 backdrop-blur-[0.4px]",
+    textClassName: meta.textClassName,
+  };
 }
 
 export function buildBackgroundStyle(settings: EffectSettings): CSSProperties {
+  const meta = getBackgroundPresetMeta(settings.backgroundPreset);
+
+  if (!meta) {
+    return {
+      backgroundColor: settings.backgroundColor ?? undefined,
+    };
+  }
+
   return {
-    backgroundColor: settings.backgroundColor ?? undefined,
+    backgroundImage: `url(${meta.assetPath})`,
+    backgroundRepeat: "repeat",
+    backgroundSize: "720px 720px",
+    backgroundPosition: "center top",
+    backgroundColor: meta.backgroundColor,
   };
 }
 

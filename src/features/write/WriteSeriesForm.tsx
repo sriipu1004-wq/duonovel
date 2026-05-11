@@ -10,6 +10,7 @@ import {
 } from "@/lib/client/loadingFeedback";
 import {
   EFFECT_BACKGROUND_PRESETS,
+  getBackgroundPresetMeta,
   parseEffectSettingsFromRow,
   serializeEffectSettingsForSave,
   type EffectBackgroundPreset,
@@ -185,16 +186,7 @@ function getBackgroundPresetLabel(
   preset: BackgroundPresetSelectValue | EffectBackgroundPreset
 ): string {
   if (!preset) return "未設定";
-  if (preset === "paper") return "標準の紙";
-  if (preset === "warm_paper") return "温かい紙";
-  if (preset === "cool_paper") return "冷たい紙";
-  if (preset === "wrinkled_paper") return "しわ紙";
-  if (preset === "old_paper") return "古紙";
-  if (preset === "glass") return "ガラス";
-  if (preset === "plastic") return "プラスチック";
-  if (preset === "stone") return "石";
-  if (preset === "wood") return "木";
-  return String(preset);
+  return getBackgroundPresetMeta(preset)?.label ?? "未設定";
 }
 
 function hasValidLocalDateTime(value: string): boolean {
@@ -1010,22 +1002,22 @@ const publicVisibleCount = sortedEpisodes.filter(
                                 </button>
                                 {EFFECT_BACKGROUND_PRESETS.map((preset) => (
                                   <button
-                                    key={preset}
+                                    key={preset.value}
                                     type="button"
                                     onClick={() => {
                                       setSeriesBackgroundPreset(
-                                        preset as BackgroundPresetSelectValue
+                                        preset.value as BackgroundPresetSelectValue
                                       );
                                       resetSaveUi();
                                     }}
                                     className={[
                                       "rounded-2xl border px-3 py-3 text-left text-sm transition",
-                                      seriesBackgroundPreset === preset
+                                      seriesBackgroundPreset === preset.value
                                         ? "border-sky-200 bg-sky-50"
                                         : "border-black/10 bg-white hover:bg-neutral-50",
                                     ].join(" ")}
                                   >
-                                    {getBackgroundPresetLabel(preset)}
+                                    {preset.label}
                                   </button>
                                 ))}
                               </div>

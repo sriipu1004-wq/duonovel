@@ -1,14 +1,98 @@
 export const EFFECT_BACKGROUND_PRESETS = [
-  "paper",
-  "warm_paper",
-  "cool_paper",
-  "wrinkled_paper",
-  "old_paper",
-  "glass",
-  "plastic",
-  "stone",
-  "wood",
+  {
+    value: "paper",
+    label: "標準の紙",
+    assetPath: "/textures/effects/soft_textured_cream_paper_surface.png",
+    backgroundColor: "#f7f0df",
+    textClassName: "text-[#2f2416]",
+  },
+  {
+    value: "warm_paper",
+    label: "温かい紙",
+    assetPath: "/textures/effects/soft_vintage_paper_texture_background.png",
+    backgroundColor: "#f5dfac",
+    textClassName: "text-[#3b2b18]",
+  },
+  {
+    value: "cool_paper",
+    label: "冷たい紙",
+    assetPath: "/textures/effects/soft_grayish_blue_handmade_paper_texture.png",
+    backgroundColor: "#dbe8ee",
+    textClassName: "text-[#1f2b33]",
+  },
+  {
+    value: "wrinkled_paper",
+    label: "繊維紙",
+    assetPath: "/textures/effects/beige_paper_texture_with_subtle_fibers.png",
+    backgroundColor: "#e9d8b8",
+    textClassName: "text-[#332417]",
+  },
+  {
+    value: "old_paper",
+    label: "古紙",
+    assetPath: "/textures/effects/antique_paper_texture_with_subtle_stains.png",
+    backgroundColor: "#e6c987",
+    textClassName: "text-[#2d1d0f]",
+  },
+  {
+    value: "stone",
+    label: "石",
+    assetPath: "/textures/effects/subtle_stone_texture_backdrop.png",
+    backgroundColor: "#ddd6ca",
+    textClassName: "text-neutral-900",
+  },
+  {
+    value: "wood",
+    label: "木",
+    assetPath: "/textures/effects/natural_wooden_surface_texture_close_up.png",
+    backgroundColor: "#d4a968",
+    textClassName: "text-[#2b1d12]",
+  },
 ] as const;
+
+export type EffectBackgroundPresetValue =
+  (typeof EFFECT_BACKGROUND_PRESETS)[number]["value"];
+
+export type EffectBackgroundPreset = EffectBackgroundPresetValue | null;
+
+export const EFFECT_BACKGROUND_PRESET_VALUES = EFFECT_BACKGROUND_PRESETS.map(
+  (item) => item.value
+) as readonly EffectBackgroundPresetValue[];
+
+export const EFFECT_BACKGROUND_PRESET_META: Record<
+  EffectBackgroundPresetValue,
+  {
+    label: string;
+    assetPath: string;
+    backgroundColor: string;
+    textClassName: string;
+  }
+> = Object.fromEntries(
+  EFFECT_BACKGROUND_PRESETS.map((item) => [
+    item.value,
+    {
+      label: item.label,
+      assetPath: item.assetPath,
+      backgroundColor: item.backgroundColor,
+      textClassName: item.textClassName,
+    },
+  ])
+) as Record<
+  EffectBackgroundPresetValue,
+  {
+    label: string;
+    assetPath: string;
+    backgroundColor: string;
+    textClassName: string;
+  }
+>;
+
+export function getBackgroundPresetMeta(
+  preset: EffectBackgroundPreset | undefined
+) {
+  if (!preset) return null;
+  return EFFECT_BACKGROUND_PRESET_META[preset] ?? null;
+}
 
 export const EFFECT_INLINE_MARK_KINDS = [
   "ruby",
@@ -33,10 +117,6 @@ export const EFFECT_TEXT_ANIMATIONS = [
   "shake",
   "fade_out",
 ] as const;
-
-export type EffectBackgroundPreset =
-  | (typeof EFFECT_BACKGROUND_PRESETS)[number]
-  | null;
 
 export type EffectInlineMarkKind = (typeof EFFECT_INLINE_MARK_KINDS)[number];
 
@@ -109,10 +189,10 @@ function pickText(value: unknown): string {
 }
 
 function normalizeBackgroundPreset(value: unknown): EffectBackgroundPreset {
-  return EFFECT_BACKGROUND_PRESETS.includes(
-    value as (typeof EFFECT_BACKGROUND_PRESETS)[number]
+  return EFFECT_BACKGROUND_PRESET_VALUES.includes(
+    value as EffectBackgroundPresetValue
   )
-    ? (value as (typeof EFFECT_BACKGROUND_PRESETS)[number])
+    ? (value as EffectBackgroundPresetValue)
     : null;
 }
 
