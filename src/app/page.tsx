@@ -263,16 +263,13 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-7xl px-4 pb-20 pt-6 sm:px-6 lg:px-8">
         <section className="border-b border-black/10 pb-10">
-          <div className="grid gap-8 xl:grid-cols-[1.45fr_0.95fr] xl:items-start">
-            <div>
+          <div className="grid gap-8">
+            <div className="max-w-5xl">
               <p className="text-[11px] tracking-[0.24em] text-neutral-500">
                 NOVEL / READ / LISTEN
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
-                  試作公開中
-                </span>
                 <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
                   完全無料
                 </span>
@@ -290,8 +287,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
               <p className="mt-5 max-w-4xl text-sm leading-8 text-neutral-700 sm:text-[15px]">
                 LIB read は、小説投稿サイトとしての読みやすさを土台にしながら、
                 朗読や文字・背景の演出も一緒に扱える完全無料の小説投稿サイトです。
-                公開作品を読む。聞くなどして、
-                LIB read らしい体験の雰囲気をつかんでください。
+                作品を読む、聞く、投稿するところまで、ログインユーザーならそのまま始められます。
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
@@ -300,6 +296,13 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                   className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800"
                 >
                   作品を探す
+                </Link>
+
+                <Link
+                  href="/write"
+                  className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-medium text-black transition hover:bg-sky-100"
+                >
+                  作品を投稿する
                 </Link>
 
                 <Link
@@ -315,54 +318,12 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                   目次
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <ExploreChip href="/write" label="投稿する" />
                   <ExploreChip href="#prelaunch-summary" label="LIB read の特徴" />
                   <ExploreChip href="#latest" label="新着更新" />
                   <ExploreChip href="#weekly-new" label="週間新作おすすめ" />
                   <ExploreChip href="#overall-popular" label="総合人気順" />
                   <ExploreChip href="#narration-popular" label="朗読視聴人気順" />
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4 sm:p-5">
-              <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-                CURRENT POSITION
-              </p>
-              <h2 className="mt-3 text-xl font-bold leading-tight text-black sm:text-2xl">
-                現在位置
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-neutral-600">
-                LIB read の現在の提供範囲と、これから広げていく部分を分けて見えるようにしている。
-              </p>
-
-              <div className="mt-5 grid gap-3">
-                <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm font-semibold text-black">今できること</p>
-                  <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    公開作品を探す、読む、朗読付き作品を聞く、案内ページや規約を確認する。
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm font-semibold text-black">これから増えること</p>
-                  <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    朗読体験の向上、演出の見せ方整理、公開導線の改善、更新追跡の土台づくりを進める。
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm font-semibold text-black">提供体験</p>
-                  <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    現在は著作切れの作品を主に取り扱い、都度更新予定です。ユーザー側からの発信は現在、朗読投稿のみに限られています。
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm font-semibold text-black">更新追跡</p>
-                  <p className="mt-2 text-sm leading-7 text-neutral-600">
-                    今はお知らせページと運営状況ページを入口にしている。
-                    通知登録の土台は今後の公開導線で整えていく。
-                  </p>
                 </div>
               </div>
             </div>
@@ -379,14 +340,14 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
             </h2>
             <p className="mt-2 text-sm leading-7 text-neutral-600">
               従来の小説投稿サイトとしての使いやすさを残しながら、
-              朗読や演出も含めて作品体験の幅を広げることを目指している。
+              投稿、朗読、演出まで含めて作品体験の幅を広げる。
             </p>
 
-            <div className="mt-5 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-5 grid gap-3 lg:grid-cols-3">
               <div className="rounded-2xl border border-black/10 bg-white p-4">
                 <p className="text-sm font-semibold text-black">小説</p>
                 <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  探す、読む、投稿するという小説投稿サイトの基本導線を土台にしている。
+                  探す、読む、投稿するという小説投稿サイトの基本導線を、ログインユーザーに開放している。
                 </p>
               </div>
 
@@ -401,13 +362,6 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                 <p className="text-sm font-semibold text-black">演出</p>
                 <p className="mt-2 text-sm leading-7 text-neutral-600">
                   文字や背景などの見せ方を通して、文章主体のまま表現の幅を少し広げられる。
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">公開運用</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  今使える範囲を先に見せつつ、公開面の導線と体験を順次整えている。
                 </p>
               </div>
             </div>
