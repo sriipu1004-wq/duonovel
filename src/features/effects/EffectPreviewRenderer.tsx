@@ -148,7 +148,7 @@ export function buildBackgroundTheme(preset: EffectBackgroundPreset) {
 
   return {
     frameClassName: "rounded-[28px] border border-black/10 bg-white shadow-sm",
-    surfaceClassName: "bg-white/35 backdrop-blur-[0.4px]",
+    surfaceClassName: "bg-white/20 backdrop-blur-[0.2px]",
     textClassName: meta.textClassName,
   };
 }

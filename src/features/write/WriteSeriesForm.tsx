@@ -403,6 +403,9 @@ export default function WriteSeriesForm({
   const [successMessage, setSuccessMessage] = useState("");
   const [activeSeriesStatusPanel, setActiveSeriesStatusPanel] =
     useState<SeriesStatusPanel>(null);
+  const [openDisplaySetting, setOpenDisplaySetting] = useState<
+    "background" | "font" | "fontSize" | "textColor" | null
+  >(null);
 
   const sortedEpisodes = sortEpisodes(episodes);
   const postedCount = sortedEpisodes.filter(isEpisodePosted).length;
@@ -480,7 +483,6 @@ const publicVisibleCount = sortedEpisodes.filter(
       value:
         [
           getBackgroundPresetLabel(seriesBackgroundPreset),
-          seriesBackgroundColor,
           seriesFontFamily,
           seriesFontSize,
           seriesTextColor,
@@ -509,7 +511,7 @@ const publicVisibleCount = sortedEpisodes.filter(
     return serializeEffectSettingsForSave({
       version: 1,
       backgroundPreset: seriesBackgroundPreset || null,
-      backgroundColor: seriesBackgroundColor.trim() || null,
+      backgroundColor: null,
       typography: {
         fontFamily: seriesFontFamily.trim() || null,
         fontSize: seriesFontSize.trim() || null,
@@ -979,156 +981,222 @@ const publicVisibleCount = sortedEpisodes.filter(
                             表示設定
                           </p>
 
-                          <div className="mt-4 grid gap-5">
-                            <div className="grid gap-2">
-                              <span className="text-sm text-neutral-700">
-                                エピソード全体の背景
-                              </span>
-                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSeriesBackgroundPreset("");
-                                    resetSaveUi();
+                          <div className="mt-3 grid gap-3">
+                            <div className="rounded-2xl border border-black/10 bg-neutral-50">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOpenDisplaySetting((current) =>
+                                    current === "background" ? null : "background"
+                                  )
+                                }
+                                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-xs tracking-[0.16em] text-neutral-500">
+                                    エピソード全体の背景
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold text-black">
+                                    {getBackgroundPresetLabel(seriesBackgroundPreset)}
+                                  </p>
+                                </div>
+
+                                <div
+                                  className="h-12 w-20 shrink-0 rounded-xl border border-black/10 bg-cover bg-center"
+                                  style={{
+                                    backgroundImage: seriesBackgroundPreset
+                                      ? `url(${getBackgroundPresetMeta(seriesBackgroundPreset)?.assetPath})`
+                                      : undefined,
+                                    backgroundColor: seriesBackgroundPreset
+                                      ? undefined
+                                      : "#f5f5f5",
                                   }}
-                                  className={[
-                                    "rounded-2xl border px-3 py-3 text-left text-sm transition",
-                                    !seriesBackgroundPreset
-                                      ? "border-sky-200 bg-sky-50"
-                                      : "border-black/10 bg-white hover:bg-neutral-50",
-                                  ].join(" ")}
-                                >
-                                  未設定
-                                </button>
-                                {EFFECT_BACKGROUND_PRESETS.map((preset) => (
+                                />
+                              </button>
+
+                              {openDisplaySetting === "background" ? (
+                                <div className="grid gap-3 border-t border-black/10 p-4 sm:grid-cols-2 lg:grid-cols-3">
                                   <button
-                                    key={preset.value}
                                     type="button"
                                     onClick={() => {
-                                      setSeriesBackgroundPreset(
-                                        preset.value as BackgroundPresetSelectValue
-                                      );
+                                      setSeriesBackgroundPreset("");
                                       resetSaveUi();
                                     }}
                                     className={[
-                                      "rounded-2xl border px-3 py-3 text-left text-sm transition",
-                                      seriesBackgroundPreset === preset.value
-                                        ? "border-sky-200 bg-sky-50"
+                                      "rounded-2xl border px-4 py-3 text-left text-sm transition",
+                                      !seriesBackgroundPreset
+                                        ? "border-sky-300 bg-sky-50 ring-2 ring-sky-100"
                                         : "border-black/10 bg-white hover:bg-neutral-50",
                                     ].join(" ")}
                                   >
-                                    {preset.label}
+                                    未設定
                                   </button>
-                                ))}
-                              </div>
+
+                                  {EFFECT_BACKGROUND_PRESETS.map((preset) => (
+                                    <button
+                                      key={preset.value}
+                                      type="button"
+                                      onClick={() => {
+                                        setSeriesBackgroundPreset(
+                                          preset.value as BackgroundPresetSelectValue
+                                        );
+                                        resetSaveUi();
+                                      }}
+                                      className={[
+                                        "overflow-hidden rounded-2xl border bg-white text-left transition hover:bg-neutral-50",
+                                        seriesBackgroundPreset === preset.value
+                                          ? "border-sky-300 ring-2 ring-sky-100"
+                                          : "border-black/10",
+                                      ].join(" ")}
+                                    >
+                                      <div
+                                        className="h-20 w-full bg-cover bg-center"
+                                        style={{
+                                          backgroundImage: `url(${preset.assetPath})`,
+                                        }}
+                                      />
+                                      <div className="px-4 py-3 text-sm font-semibold text-black">
+                                        {preset.label}
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
 
-                            <div className="grid gap-2">
-                              <span className="text-sm text-neutral-700">
-                                背景の色
-                              </span>
-                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                {DISPLAY_BACKGROUND_COLOR_OPTIONS.map((option) => (
-                                  <button
-                                    key={option.label}
-                                    type="button"
-                                    onClick={() => {
-                                      setSeriesBackgroundColor(option.value);
-                                      resetSaveUi();
-                                    }}
-                                    className={[
-                                      "rounded-2xl border px-3 py-3 text-left text-sm font-semibold transition",
-                                      option.className,
-                                      seriesBackgroundColor === option.value
-                                        ? "border-sky-300 ring-2 ring-sky-100"
-                                        : "border-black/10 hover:opacity-80",
-                                    ].join(" ")}
-                                  >
-                                    {option.label}
-                                  </button>
-                                ))}
-                              </div>
+                            <div className="rounded-2xl border border-black/10 bg-neutral-50">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOpenDisplaySetting((current) =>
+                                    current === "font" ? null : "font"
+                                  )
+                                }
+                                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                              >
+                                <div>
+                                  <p className="text-xs tracking-[0.16em] text-neutral-500">
+                                    文字フォント
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold text-black">
+                                    {DISPLAY_FONT_FAMILY_OPTIONS.find((item) => item.value === seriesFontFamily)?.label ?? "未設定"}
+                                  </p>
+                                </div>
+                              </button>
+
+                              {openDisplaySetting === "font" ? (
+                                <div className="grid gap-2 border-t border-black/10 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                                  {DISPLAY_FONT_FAMILY_OPTIONS.map((option) => (
+                                    <button
+                                      key={option.label}
+                                      type="button"
+                                      onClick={() => {
+                                        setSeriesFontFamily(option.value);
+                                        resetSaveUi();
+                                      }}
+                                      style={option.style}
+                                      className={[
+                                        "rounded-2xl border bg-white px-4 py-3 text-left text-sm transition",
+                                        seriesFontFamily === option.value
+                                          ? "border-sky-300 bg-sky-50 ring-2 ring-sky-100"
+                                          : "border-black/10 hover:bg-neutral-50",
+                                      ].join(" ")}
+                                    >
+                                      {option.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
 
-                            <div className="grid gap-2">
-                              <span className="text-sm text-neutral-700">
-                                文字のフォント
-                              </span>
-                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                {DISPLAY_FONT_FAMILY_OPTIONS.map((option) => (
-                                  <button
-                                    key={option.label}
-                                    type="button"
-                                    onClick={() => {
-                                      setSeriesFontFamily(option.value);
-                                      resetSaveUi();
-                                    }}
-                                    style={option.style}
-                                    className={[
-                                      "rounded-2xl border bg-white px-3 py-3 text-left text-sm transition",
-                                      seriesFontFamily === option.value
-                                        ? "border-sky-300 bg-sky-50 ring-2 ring-sky-100"
-                                        : "border-black/10 hover:bg-neutral-50",
-                                    ].join(" ")}
-                                  >
-                                    {option.label}
-                                  </button>
-                                ))}
-                              </div>
+                            <div className="rounded-2xl border border-black/10 bg-neutral-50">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOpenDisplaySetting((current) =>
+                                    current === "fontSize" ? null : "fontSize"
+                                  )
+                                }
+                                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                              >
+                                <div>
+                                  <p className="text-xs tracking-[0.16em] text-neutral-500">
+                                    文字の大きさ
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold text-black">
+                                    {DISPLAY_FONT_SIZE_OPTIONS.find((item) => item.value === seriesFontSize)?.label ?? "未設定"}
+                                  </p>
+                                </div>
+                              </button>
+
+                              {openDisplaySetting === "fontSize" ? (
+                                <div className="grid gap-2 border-t border-black/10 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                                  {DISPLAY_FONT_SIZE_OPTIONS.map((option) => (
+                                    <button
+                                      key={option.label}
+                                      type="button"
+                                      onClick={() => {
+                                        setSeriesFontSize(option.value);
+                                        resetSaveUi();
+                                      }}
+                                      className={[
+                                        "rounded-2xl border bg-white px-4 py-3 text-left font-semibold transition",
+                                        option.className,
+                                        seriesFontSize === option.value
+                                          ? "border-sky-300 bg-sky-50 ring-2 ring-sky-100"
+                                          : "border-black/10 hover:bg-neutral-50",
+                                      ].join(" ")}
+                                    >
+                                      {option.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
 
-                            <div className="grid gap-2">
-                              <span className="text-sm text-neutral-700">
-                                文字の大きさ
-                              </span>
-                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                {DISPLAY_FONT_SIZE_OPTIONS.map((option) => (
-                                  <button
-                                    key={option.label}
-                                    type="button"
-                                    onClick={() => {
-                                      setSeriesFontSize(option.value);
-                                      resetSaveUi();
-                                    }}
-                                    className={[
-                                      "rounded-2xl border bg-white px-3 py-3 text-left font-semibold transition",
-                                      option.className,
-                                      seriesFontSize === option.value
-                                        ? "border-sky-300 bg-sky-50 ring-2 ring-sky-100"
-                                        : "border-black/10 hover:bg-neutral-50",
-                                    ].join(" ")}
-                                  >
-                                    {option.label}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
+                            <div className="rounded-2xl border border-black/10 bg-neutral-50">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOpenDisplaySetting((current) =>
+                                    current === "textColor" ? null : "textColor"
+                                  )
+                                }
+                                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                              >
+                                <div>
+                                  <p className="text-xs tracking-[0.16em] text-neutral-500">
+                                    文字の色
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold text-black">
+                                    {DISPLAY_TEXT_COLOR_OPTIONS.find((item) => item.value === seriesTextColor)?.label ?? "未設定"}
+                                  </p>
+                                </div>
+                              </button>
 
-                            <div className="grid gap-2">
-                              <span className="text-sm text-neutral-700">
-                                文字の色
-                              </span>
-                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                {DISPLAY_TEXT_COLOR_OPTIONS.map((option) => (
-                                  <button
-                                    key={option.label}
-                                    type="button"
-                                    onClick={() => {
-                                      setSeriesTextColor(option.value);
-                                      resetSaveUi();
-                                    }}
-                                    className={[
-                                      "rounded-2xl border bg-white px-3 py-3 text-left text-sm font-semibold transition",
-                                      option.className,
-                                      seriesTextColor === option.value
-                                        ? "border-sky-300 ring-2 ring-sky-100"
-                                        : "border-black/10 hover:bg-neutral-50",
-                                    ].join(" ")}
-                                  >
-                                    {option.label}
-                                  </button>
-                                ))}
-                              </div>
+                              {openDisplaySetting === "textColor" ? (
+                                <div className="grid gap-2 border-t border-black/10 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                                  {DISPLAY_TEXT_COLOR_OPTIONS.map((option) => (
+                                    <button
+                                      key={option.label}
+                                      type="button"
+                                      onClick={() => {
+                                        setSeriesTextColor(option.value);
+                                        resetSaveUi();
+                                      }}
+                                      className={[
+                                        "rounded-2xl border bg-white px-4 py-3 text-left text-sm font-semibold transition",
+                                        option.className,
+                                        seriesTextColor === option.value
+                                          ? "border-sky-300 ring-2 ring-sky-100"
+                                          : "border-black/10 hover:bg-neutral-50",
+                                      ].join(" ")}
+                                    >
+                                      {option.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         </div>

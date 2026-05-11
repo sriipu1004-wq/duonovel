@@ -203,13 +203,10 @@ function compactEffectText(value: string, maxLength = 48): string {
 function buildAppliedEffectList(settings: EffectSettings): AppliedEffectListItem[] {
   const items: AppliedEffectListItem[] = [];
 
-  if (settings.backgroundPreset || settings.backgroundColor) {
+  if (settings.backgroundPreset) {
     items.push({
       title: "背景",
-      detail: [
-        settings.backgroundPreset ? `背景プリセット: ${settings.backgroundPreset}` : "",
-        settings.backgroundColor ? `背景色: ${settings.backgroundColor}` : "",
-      ].filter(Boolean).join(" / "),
+      detail: `背景プリセット: ${getBackgroundPresetLabel(settings.backgroundPreset)}`,
       deleteKey: "background",
     });
   }
@@ -428,6 +425,7 @@ export default function EffectSettingsForm({
   const [successMessage, setSuccessMessage] = useState("");
   const [activeEffectPanel, setActiveEffectPanel] =
     useState<EffectPanelKey>(null);
+  const [backgroundSelectorOpen, setBackgroundSelectorOpen] = useState(false);
   const [savedLocalSettings, setSavedLocalSettings] =
     useState<EffectSettings>(() => initialSettings);
   const [pendingPreviewSettings, setPendingPreviewSettings] =
@@ -546,14 +544,14 @@ export default function EffectSettingsForm({
 
   function buildCurrentPanelDraftSettings(): EffectSettings | null {
     if (activeEffectPanel === "background") {
-      if (!backgroundPreset && !backgroundColor.trim()) {
+      if (!backgroundPreset) {
         return null;
       }
 
       return parseEffectSettingsFromRow({
         version: 1,
         backgroundPreset: backgroundPreset || null,
-        backgroundColor: backgroundColor.trim() || null,
+        backgroundColor: null,
         typography: {
           fontFamily: null,
           fontSize: null,
@@ -684,6 +682,8 @@ export default function EffectSettingsForm({
     );
 
     setPendingPreviewSettings(nextPendingSettings);
+    setPreviewMode("preview");
+    setBackgroundSelectorOpen(false);
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(
@@ -884,10 +884,34 @@ export default function EffectSettingsForm({
           </p>
           <h3 className="mt-1 text-lg font-semibold text-black">背景</h3>
 
-          <div className="mt-4 grid gap-5">
-            <div className="grid gap-2">
-              <span className="text-sm text-neutral-700">背景プリセット</span>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-4 rounded-2xl border border-black/10 bg-white">
+            <button
+              type="button"
+              onClick={() => setBackgroundSelectorOpen((current) => !current)}
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            >
+              <div className="min-w-0">
+                <p className="text-xs tracking-[0.16em] text-neutral-500">
+                  現在の設定
+                </p>
+                <p className="mt-1 text-sm font-semibold text-black">
+                  {getBackgroundPresetLabel(backgroundPreset)}
+                </p>
+              </div>
+
+              <div
+                className="h-12 w-20 shrink-0 rounded-xl border border-black/10 bg-cover bg-center"
+                style={{
+                  backgroundImage: backgroundPreset
+                    ? `url(${getBackgroundPresetMeta(backgroundPreset)?.assetPath})`
+                    : undefined,
+                  backgroundColor: backgroundPreset ? undefined : "#f5f5f5",
+                }}
+              />
+            </button>
+
+            {backgroundSelectorOpen ? (
+              <div className="grid gap-3 border-t border-black/10 p-4 sm:grid-cols-2 lg:grid-cols-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -895,9 +919,9 @@ export default function EffectSettingsForm({
                     resetSaveUi();
                   }}
                   className={[
-                    "rounded-2xl border px-3 py-3 text-left text-sm transition",
+                    "rounded-2xl border px-4 py-3 text-left text-sm transition",
                     !backgroundPreset
-                      ? "border-sky-200 bg-sky-50"
+                      ? "border-sky-300 bg-sky-50 ring-2 ring-sky-100"
                       : "border-black/10 bg-white hover:bg-neutral-50",
                   ].join(" ")}
                 >
@@ -915,52 +939,36 @@ export default function EffectSettingsForm({
                       resetSaveUi();
                     }}
                     className={[
-                      "rounded-2xl border px-3 py-3 text-left text-sm transition",
+                      "overflow-hidden rounded-2xl border bg-white text-left transition hover:bg-neutral-50",
                       backgroundPreset === preset.value
-                        ? "border-sky-200 bg-sky-50"
-                        : "border-black/10 bg-white hover:bg-neutral-50",
-                    ].join(" ")}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <span className="text-sm text-neutral-700">背景色</span>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {EFFECT_BACKGROUND_COLOR_OPTIONS.map((option) => (
-                  <button
-                    key={option.label}
-                    type="button"
-                    onClick={() => {
-                      setBackgroundColor(option.value);
-                      resetSaveUi();
-                    }}
-                    className={[
-                      "rounded-2xl border px-3 py-3 text-left text-sm font-semibold transition",
-                      option.className,
-                      backgroundColor === option.value
                         ? "border-sky-300 ring-2 ring-sky-100"
-                        : "border-black/10 hover:opacity-80",
+                        : "border-black/10",
                     ].join(" ")}
                   >
-                    {option.label}
+                    <div
+                      className="h-20 w-full bg-cover bg-center"
+                      style={{
+                        backgroundImage: `url(${preset.assetPath})`,
+                      }}
+                    />
+                    <div className="px-4 py-3 text-sm font-semibold text-black">
+                      {preset.label}
+                    </div>
                   </button>
                 ))}
               </div>
-            </div>
+            ) : null}
+          </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={handleApplyPreview}
-                className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-black transition hover:bg-sky-100"
-              >
-                プレビューに反映
-              </button>
-            </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleApplyPreview}
+              disabled={!backgroundPreset}
+              className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-black/10 disabled:bg-neutral-100 disabled:text-neutral-400"
+            >
+              プレビューに反映
+            </button>
           </div>
         </section>
       ) : null}
