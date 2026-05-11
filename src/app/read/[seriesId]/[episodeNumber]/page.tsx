@@ -8,10 +8,6 @@ import {
   type RecordingPermissionMode,
 } from "@/features/write/writeShared";
 import {
-  mergeBgmSettings,
-  parseBgmSettingsFromRow,
-} from "@/lib/bgm/bgmSettings";
-import {
   mergeEffectSettings,
   parseEffectSettingsFromRow,
 } from "@/lib/effects/effectSettings";
@@ -429,34 +425,6 @@ export default async function ReadEpisodePage({
       ? buildReaderAuthorHref(selectedReaderKey, selectedReaderName)
       : undefined;  
 
-  const seriesBgmTitle = pickText(
-    series.bgm_title,
-    series["bgmTitle"]
-  );
-  const seriesBgmSrc = pickText(
-    series.bgm_audio_path,
-    series["bgmAudioPath"]
-  );
-  const seriesBgmSettings = parseBgmSettingsFromRow(
-    series["bgm_settings"],
-    series["bgmSettings"]
-  );
-
-  const episodeBgmTitle = pickText(episode["bgm_title"], episode["bgmTitle"]);
-  const episodeBgmSrc = pickText(
-    episode["bgm_audio_path"],
-    episode["bgmAudioPath"]
-  );
-  const episodeBgmSettings = parseBgmSettingsFromRow(
-    episode["bgm_settings"],
-    episode["bgmSettings"]
-  );
-
-  const bgmSrc = pickText(episodeBgmSrc, seriesBgmSrc) || null;
-  const bgmTitle =
-    pickText(episodeBgmTitle, seriesBgmTitle) || (bgmSrc ? "作品BGM" : "");
-  const bgmSettings = mergeBgmSettings(seriesBgmSettings, episodeBgmSettings);
-
   const seriesEffectSettings = parseEffectSettingsFromRow(
     series["effect_settings"],
     series["effectSettings"]
@@ -498,9 +466,6 @@ export default async function ReadEpisodePage({
         initialAutoPlay={initialAutoPlay}
         loginHref={loginHref}
         showComments={commentsVisible}
-        bgmTitle={bgmTitle || undefined}
-        bgmSrc={bgmSrc}
-        bgmSettings={bgmSrc ? bgmSettings : undefined}
         effectSettings={effectSettings}
         autoNarrationStatusLabel={autoNarrationBadge.label}
         autoNarrationStatusClassName={autoNarrationBadge.className}
