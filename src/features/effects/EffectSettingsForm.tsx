@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import EffectPreviewRenderer from "@/features/effects/EffectPreviewRenderer";
 import {
@@ -361,6 +361,7 @@ export default function EffectSettingsForm({
   const [defaultItalic, setDefaultItalic] = useState(
     initialSettings.typography.italic
   );
+  const [selectedBodyText, setSelectedBodyText] = useState("");
   const [inlineTargetText, setInlineTargetText] = useState(
     firstInlineMark?.targetText ?? ""
   );
@@ -386,6 +387,33 @@ export default function EffectSettingsForm({
   const [successMessage, setSuccessMessage] = useState("");
   const [activeEffectPanel, setActiveEffectPanel] =
     useState<EffectPanelKey>(null);
+
+  useEffect(() => {
+    function handleBodySelection(event: Event) {
+      const customEvent = event as CustomEvent<{
+        selectedText?: unknown;
+      }>;
+
+      const nextSelectedText =
+        typeof customEvent.detail?.selectedText === "string"
+          ? customEvent.detail.selectedText.trim()
+          : "";
+
+      setSelectedBodyText(nextSelectedText);
+    }
+
+    window.addEventListener(
+      "libread:episode-body-selection",
+      handleBodySelection
+    );
+
+    return () => {
+      window.removeEventListener(
+        "libread:episode-body-selection",
+        handleBodySelection
+      );
+    };
+  }, []);
 
   function resetSaveUi() {
     setSaveState("idle");
@@ -686,6 +714,31 @@ export default function EffectSettingsForm({
                 className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
               />
             </label>
+
+            <div className="rounded-2xl border border-black/10 bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs tracking-[0.16em] text-neutral-500">
+                    SELECTED TEXT
+                  </p>
+                  <p className="mt-1 break-words text-sm text-neutral-700">
+                    {selectedBodyText || "本文で文字を選択するとここに表示される。"}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!selectedBodyText}
+                  onClick={() => {
+                    setInlineTargetText(selectedBodyText);
+                    resetSaveUi();
+                  }}
+                  className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-black/10 disabled:bg-neutral-100 disabled:text-neutral-400"
+                >
+                  本文で選択中の文字を使う
+                </button>
+              </div>
+            </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2">

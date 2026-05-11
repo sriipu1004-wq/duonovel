@@ -275,6 +275,25 @@ const scheduledBeforePreviousIsBlocked =
   new Date(toIsoStringFromLocalInput(scheduledFor) as string).getTime() <
     new Date(previousScheduledForValue).getTime();
 
+  function notifyBodySelection(textarea: HTMLTextAreaElement) {
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? 0;
+    const selectedText =
+      start !== end ? textarea.value.slice(start, end).trim() : "";
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("libread:episode-body-selection", {
+          detail: {
+            selectedText,
+            selectionStart: start,
+            selectionEnd: end,
+          },
+        })
+      );
+    }
+  }
+
   function resetNotice() {
     setSaveState("idle");
     setErrorMessage("");
@@ -526,8 +545,12 @@ if (scheduledBeforePreviousIsBlocked) {
                     {bodyViewMode === "edit" ? (
                       <textarea
                         value={body}
+                        onSelect={(event) => notifyBodySelection(event.currentTarget)}
+                        onMouseUp={(event) => notifyBodySelection(event.currentTarget)}
+                        onKeyUp={(event) => notifyBodySelection(event.currentTarget)}
                         onChange={(event) => {
                           setBody(event.target.value);
+                          notifyBodySelection(event.currentTarget);
                           resetNotice();
                         }}
                         placeholder="本文を入力"
