@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { decideNemoRegenerationByBody } from "@/lib/recording/nemoRegenerationDiff";
@@ -21,10 +21,11 @@ import {
   hideGlobalLoadingFeedback,
   showGlobalLoadingFeedback,
 } from "@/lib/client/loadingFeedback";
-import {
+import EffectPreviewRenderer, {
   normalizeAozoraTextForLayout,
   renderTextWithAozoraRuby,
 } from "@/features/effects/EffectPreviewRenderer";
+import type { EffectSettings } from "@/lib/effects/effectSettings";
 
 type Mode = "create" | "edit";
 type SaveState = "idle" | "saving" | "success" | "error";
@@ -308,6 +309,8 @@ export default function WriteEpisodeForm({
   const [successMessage, setSuccessMessage] = useState("");
   const [showEffectSettingsPanel, setShowEffectSettingsPanel] = useState(false);
   const [bodyViewMode, setBodyViewMode] = useState<BodyViewMode>("edit");
+  const [episodePreviewEffectSettings, setEpisodePreviewEffectSettings] =
+    useState<EffectSettings | null>(null);
 
   const parsedEpisodeNumber = Number(episodeNumber);
   const safeEpisodeNumber =
@@ -365,6 +368,35 @@ const scheduledBeforePreviousIsBlocked =
   !!toIsoStringFromLocalInput(scheduledFor) &&
   new Date(toIsoStringFromLocalInput(scheduledFor) as string).getTime() <
     new Date(previousScheduledForValue).getTime();
+
+  useEffect(() => {
+    function handleEpisodeEffectPreview(event: Event) {
+      const customEvent = event as CustomEvent<{
+        settings?: unknown;
+      }>;
+
+      if (
+        customEvent.detail?.settings &&
+        typeof customEvent.detail.settings === "object"
+      ) {
+        setEpisodePreviewEffectSettings(
+          customEvent.detail.settings as EffectSettings
+        );
+      }
+    }
+
+    window.addEventListener(
+      "libread:episode-effect-preview",
+      handleEpisodeEffectPreview
+    );
+
+    return () => {
+      window.removeEventListener(
+        "libread:episode-effect-preview",
+        handleEpisodeEffectPreview
+      );
+    };
+  }, []);
 
   function notifyBodySelection(textarea: HTMLTextAreaElement) {
     const start = textarea.selectionStart ?? 0;
@@ -663,20 +695,29 @@ if (scheduledBeforePreviousIsBlocked) {
                     ) : (
                       <div className="h-full min-h-0 overflow-y-auto bg-neutral-50 px-4 py-5 sm:px-6">
                         {readerPreviewParagraphs.length > 0 ? (
-                          <article className="mx-auto max-w-3xl space-y-7 rounded-[28px] border border-black/10 bg-white px-5 py-6 text-[15px] leading-8 text-neutral-900 shadow-sm sm:px-8 sm:py-8 sm:text-base">
-                            {readerPreviewParagraphs.map((paragraph, index) => (
-                              <p key={`reader-preview-${index}`} className="break-words">
-                                {renderTextWithAozoraRuby(paragraph)}
-                              </p>
-                            ))}
-                          </article>
+                          episodePreviewEffectSettings ? (
+                            <div className="mx-auto max-w-3xl">
+                              <EffectPreviewRenderer
+                                body={body}
+                                settings={episodePreviewEffectSettings}
+                              />
+                            </div>
+                          ) : (
+                            <article className="mx-auto max-w-3xl space-y-7 rounded-[28px] border border-black/10 bg-white px-5 py-6 text-[15px] leading-8 text-neutral-900 shadow-sm sm:px-8 sm:py-8 sm:text-base">
+                              {readerPreviewParagraphs.map((paragraph, index) => (
+                                <p key={`reader-preview-${index}`} className="break-words">
+                                  {renderTextWithAozoraRuby(paragraph)}
+                                </p>
+                              ))}
+                            </article>
+                          )
                         ) : (
                           <div className="mx-auto max-w-3xl rounded-[28px] border border-dashed border-black/10 bg-white px-5 py-6 text-sm leading-7 text-neutral-500">
                             本文を入力すると、ここに読者表示に近い形のプレビューが出る。
                           </div>
                         )}
                       </div>
-                    )}
+                </section>                    )}
                   </div>
                 </section>
 

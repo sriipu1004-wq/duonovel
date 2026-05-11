@@ -676,6 +676,14 @@ export default function EffectSettingsForm({
   }
 
   function handleApplyPreview() {
+    const scrollSnapshot =
+      typeof window !== "undefined"
+        ? {
+            x: window.scrollX,
+            y: window.scrollY,
+          }
+        : null;
+
     const panelDraftSettings = buildCurrentPanelDraftSettings();
 
     if (!panelDraftSettings) {
@@ -696,7 +704,6 @@ export default function EffectSettingsForm({
     );
 
     setPendingPreviewSettings(nextPendingSettings);
-    setPreviewMode("preview");
     setBackgroundSelectorOpen(false);
 
     if (typeof window !== "undefined") {
@@ -713,6 +720,12 @@ export default function EffectSettingsForm({
     setSuccessMessage("プレビューに反映した。保存はまだ。");
     setErrorMessage("");
     setSaveState("idle");
+
+    if (scrollSnapshot) {
+      window.requestAnimationFrame(() => {
+        window.scrollTo(scrollSnapshot.x, scrollSnapshot.y);
+      });
+    }
   }
 
   async function handleIllustrationFileChange(file: File | null) {
