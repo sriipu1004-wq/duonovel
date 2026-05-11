@@ -143,49 +143,84 @@ export function buildBackgroundTheme(preset: EffectBackgroundPreset) {
           "bg-[linear-gradient(180deg,rgba(255,255,255,0.45),rgba(255,255,255,0.18))]",
         textClassName: "text-[#2f2416]",
       };
+    case "warm_paper":
+      return {
+        frameClassName: "rounded-[28px] border border-amber-900/15 bg-[#f7edd8]",
+        surfaceClassName:
+          "bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.6),transparent_30%),linear-gradient(180deg,rgba(255,250,238,0.92),rgba(238,219,184,0.62))]",
+        textClassName: "text-[#2f2416]",
+      };
+    case "cool_paper":
+      return {
+        frameClassName: "rounded-[28px] border border-sky-900/10 bg-[#eef5f7]",
+        surfaceClassName:
+          "bg-[radial-gradient(circle_at_25%_15%,rgba(255,255,255,0.76),transparent_32%),linear-gradient(180deg,rgba(247,252,255,0.94),rgba(219,234,241,0.66))]",
+        textClassName: "text-[#1f2b33]",
+      };
+    case "wrinkled_paper":
+      return {
+        frameClassName: "rounded-[28px] border border-stone-900/15 bg-[#f2eadb]",
+        surfaceClassName:
+          "bg-[linear-gradient(135deg,rgba(255,255,255,0.55),transparent_28%),linear-gradient(45deg,rgba(120,91,52,0.08)_0_1px,transparent_1px_12px),linear-gradient(180deg,rgba(250,244,232,0.9),rgba(229,217,195,0.66))]",
+        textClassName: "text-[#2d261b]",
+      };
+    case "old_paper":
+      return {
+        frameClassName: "rounded-[28px] border border-yellow-950/20 bg-[#dfc48c]",
+        surfaceClassName:
+          "bg-[radial-gradient(circle_at_15%_20%,rgba(96,64,28,0.12),transparent_24%),radial-gradient(circle_at_80%_40%,rgba(255,255,255,0.2),transparent_26%),linear-gradient(180deg,rgba(236,209,145,0.9),rgba(193,151,77,0.62))]",
+        textClassName: "text-[#2d1d0f]",
+      };
     case "glass":
       return {
         frameClassName:
-          "rounded-[28px] border border-white/15 bg-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset]",
-        surfaceClassName: "backdrop-blur-md bg-white/[0.08]",
-        textClassName: "text-white",
+          "rounded-[28px] border border-sky-100 bg-white/70 shadow-sm",
+        surfaceClassName: "backdrop-blur-md bg-white/50",
+        textClassName: "text-neutral-900",
       };
     case "plastic":
       return {
         frameClassName:
-          "rounded-[28px] border border-sky-400/20 bg-[#111827] shadow-[0_16px_50px_rgba(15,23,42,0.45)]",
+          "rounded-[28px] border border-sky-200 bg-sky-50 shadow-sm",
         surfaceClassName:
-          "bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]",
-        textClassName: "text-slate-100",
+          "bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(255,255,255,0.34))]",
+        textClassName: "text-slate-900",
       };
     case "stone":
       return {
         frameClassName:
-          "rounded-[28px] border border-white/10 bg-[#34343b] shadow-[0_18px_50px_rgba(0,0,0,0.28)]",
+          "rounded-[28px] border border-neutral-300 bg-neutral-200 shadow-sm",
         surfaceClassName:
-          "bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]",
-        textClassName: "text-neutral-100",
+          "bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.45),rgba(255,255,255,0.12))]",
+        textClassName: "text-neutral-900",
       };
     case "wood":
       return {
         frameClassName:
-          "rounded-[28px] border border-amber-950/20 bg-[#4a3120] shadow-[0_18px_50px_rgba(0,0,0,0.28)]",
+          "rounded-[28px] border border-amber-900/20 bg-[#6b4a31] shadow-sm",
         surfaceClassName:
-          "bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]",
+          "bg-[linear-gradient(180deg,rgba(255,255,255,0.14),rgba(255,255,255,0.04))]",
         textClassName: "text-amber-50",
       };
     default:
       return {
-        frameClassName: "rounded-[28px] border border-white/10 bg-white/[0.03]",
-        surfaceClassName: "bg-black/20",
-        textClassName: "text-neutral-100",
+        frameClassName: "rounded-[28px] border border-black/10 bg-white",
+        surfaceClassName: "bg-neutral-50",
+        textClassName: "text-neutral-900",
       };
   }
+}
+
+export function buildBackgroundStyle(settings: EffectSettings): CSSProperties {
+  return {
+    backgroundColor: settings.backgroundColor ?? undefined,
+  };
 }
 
 export function buildTypographyStyle(settings: EffectSettings): CSSProperties {
   return {
     fontFamily: settings.typography.fontFamily ?? undefined,
+    fontSize: settings.typography.fontSize ?? undefined,
     color: settings.typography.textColor ?? undefined,
     fontWeight: settings.typography.bold ? 700 : undefined,
     fontStyle: settings.typography.italic ? "italic" : undefined,
@@ -333,7 +368,7 @@ export function renderIllustration(illustration: EffectIllustration) {
   return (
     <figure
       key={illustration.id}
-      className="overflow-hidden rounded-[24px] border border-white/10 bg-black/20"
+      className="overflow-hidden rounded-[24px] border border-black/10 bg-white shadow-sm"
     >
       <img
         src={illustration.imageUrl}
@@ -341,7 +376,7 @@ export function renderIllustration(illustration: EffectIllustration) {
         className="h-auto w-full object-cover"
       />
       {illustration.caption ? (
-        <figcaption className="px-4 py-3 text-xs leading-6 text-neutral-300">
+        <figcaption className="px-4 py-3 text-xs leading-6 text-neutral-600">
           {illustration.caption}
         </figcaption>
       ) : null}
@@ -354,15 +389,14 @@ export function renderSceneCue(sceneCue: EffectSceneCue) {
     sceneCue.triggerText ? `発火: ${sceneCue.triggerText}` : "",
     sceneCue.backgroundPreset ? `背景: ${sceneCue.backgroundPreset}` : "",
     sceneCue.textAnimation ? `文字動作: ${sceneCue.textAnimation}` : "",
-    sceneCue.nextBgmTitle ? `BGM: ${sceneCue.nextBgmTitle}` : "",
   ].filter((item) => item.length > 0);
 
   return (
     <div
       key={sceneCue.id}
-      className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-neutral-300"
+      className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs text-neutral-600"
     >
-      <span className="font-semibold text-white">{sceneCue.label}</span>
+      <span className="font-semibold text-black">{sceneCue.label}</span>
       {pieces.length > 0 ? <span className="ml-2">/ {pieces.join(" / ")}</span> : null}
     </div>
   );
@@ -391,7 +425,7 @@ export default function EffectPreviewRenderer({
   const contentBlocks = buildContentBlocks(paragraphBlocks, sceneBreaks);
 
   return (
-    <div className={`${theme.frameClassName} overflow-hidden`}>
+    <div className={`${theme.frameClassName} overflow-hidden`} style={buildBackgroundStyle(settings)}>
       <div className={`${theme.surfaceClassName} px-5 py-5 sm:px-6 sm:py-6`}>
         <div className="grid gap-5">
           {previewIllustrations.length > 0 ? (
@@ -431,7 +465,7 @@ export default function EffectPreviewRenderer({
           </article>
 
           {settings.sceneCues.length > 0 ? (
-            <div className="border-t border-white/10 pt-4">
+            <div className="border-t border-black/10 pt-4">
               <p className="text-xs tracking-[0.18em] text-neutral-500">SCENE CUES</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {settings.sceneCues.map(renderSceneCue)}
