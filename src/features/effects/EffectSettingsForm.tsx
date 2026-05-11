@@ -8,6 +8,7 @@ import {
   EFFECT_BACKGROUND_PRESETS,
   EFFECT_ILLUSTRATION_PLACEMENTS,
   EFFECT_INLINE_MARK_KINDS,
+  emptyEffectSettings,
   mergeEffectSettings,
   parseEffectSettingsFromRow,
   serializeEffectSettingsForSave,
@@ -84,6 +85,7 @@ type AppliedEffectListItem = {
   title: string;
   detail: string;
   deleteKey?: "background" | "inline" | "illustration";
+  effectId?: string;
 };
 
 function StatusBadge({ state }: { state: SaveState }) {
@@ -260,6 +262,7 @@ function buildAppliedEffectList(settings: EffectSettings): AppliedEffectListItem
       title: "文字演出",
       detail: parts.join(" / "),
       deleteKey: "inline",
+      effectId: inlineMark.id,
     });
   }
 
@@ -279,6 +282,7 @@ function buildAppliedEffectList(settings: EffectSettings): AppliedEffectListItem
       title: "挿絵",
       detail: parts.join(" / "),
       deleteKey: "illustration",
+      effectId: illustration.id,
     });
   }
 
@@ -432,6 +436,10 @@ export default function EffectSettingsForm({
   const [successMessage, setSuccessMessage] = useState("");
   const [activeEffectPanel, setActiveEffectPanel] =
     useState<EffectPanelKey>(null);
+  const [savedLocalSettings, setSavedLocalSettings] =
+    useState<EffectSettings>(() => initialSettings);
+  const [pendingPreviewSettings, setPendingPreviewSettings] =
+    useState<EffectSettings>(() => emptyEffectSettings());
 
   useEffect(() => {
     function handleBodySelection(event: Event) {
@@ -516,16 +524,19 @@ export default function EffectSettingsForm({
           ]
         : [],
       sceneCues: [],
-      sentenceTimestamps: initialSettings.sentenceTimestamps,
-      notes: initialSettings.notes ?? "",
+      sentenceTimestamps: savedLocalSettings.sentenceTimestamps,
+      notes: savedLocalSettings.notes ?? "",
     });
   }
 
-  const draftSettings = buildDraftSettings();
-  const savedPreviewSettings = mergeEffectSettings(inheritedSettings, initialSettings);
+  const savedPreviewSettings = mergeEffectSettings(
+    inheritedSettings,
+    savedLocalSettings
+  );
   const effectivePreviewSettings = mergeEffectSettings(
     inheritedSettings,
-    draftSettings
+    savedLocalSettings,
+    pendingPreviewSettings
   );
 
   const previewBody = previewText;
@@ -534,29 +545,167 @@ export default function EffectSettingsForm({
     previewBody.length === 0 ? 0 : previewBody.split(/\r?\n/).length;
 
   const hasUnsavedPreviewChanges =
-    JSON.stringify(serializeEffectSettingsForSave(draftSettings)) !==
-    JSON.stringify(serializeEffectSettingsForSave(initialSettings));
+    serializeEffectSettingsForSave(pendingPreviewSettings) !== null;
 
   const savedAppliedEffectItems = buildAppliedEffectList(savedPreviewSettings);
-  const draftAppliedEffectItems = buildAppliedEffectList(effectivePreviewSettings);
   const unsavedAppliedEffectItems = hasUnsavedPreviewChanges
-    ? draftAppliedEffectItems
+    ? buildAppliedEffectList(pendingPreviewSettings)
     : [];
 
+  function buildCurrentPanelDraftSettings(): EffectSettings | null {
+    if (activeEffectPanel === "background") {
+      if (!backgroundPreset && !backgroundColor.trim()) {
+        return null;
+      }
+
+      return parseEffectSettingsFromRow({
+        version: 1,
+        backgroundPreset: backgroundPreset || null,
+        backgroundColor: backgroundColor.trim() || null,
+        typography: {
+          fontFamily: null,
+          fontSize: null,
+          textColor: null,
+          bold: false,
+          italic: false,
+        },
+        inlineMarks: [],
+        illustrations: [],
+        sceneCues: [],
+        sentenceTimestamps: [],
+        notes: "",
+      });
+    }
+
+    if (activeEffectPanel === "inline") {
+      const targetText = inlineTargetText.trim() || selectedBodyText.trim();
+
+      if (!targetText) {
+        return null;
+      }
+
+      return parseEffectSettingsFromRow({
+        version: 1,
+        backgroundPreset: null,
+        backgroundColor: null,
+        typography: {
+          fontFamily: null,
+          fontSize: null,
+          textColor: null,
+          bold: false,
+          italic: false,
+        },
+        inlineMarks: [
+          {
+            id: `inline-${Date.now()}`,
+            targetText,
+            kind: inlineKind,
+            value: normalizeInlineValue(inlineKind, inlineValue),
+            note: "",
+          },
+        ],
+        illustrations: [],
+        sceneCues: [],
+        sentenceTimestamps: [],
+        notes: "",
+      });
+    }
+
+    if (activeEffectPanel === "illustration") {
+      if (!illustrationUrl.trim()) {
+        return null;
+      }
+
+      return parseEffectSettingsFromRow({
+        version: 1,
+        backgroundPreset: null,
+        backgroundColor: null,
+        typography: {
+          fontFamily: null,
+          fontSize: null,
+          textColor: null,
+          bold: false,
+          italic: false,
+        },
+        inlineMarks: [],
+        illustrations: [
+          {
+            id: `illustration-${Date.now()}`,
+            imageUrl: illustrationUrl.trim(),
+            caption: illustrationCaption.trim(),
+            placement: "scene_break",
+            anchorText:
+              illustrationAnchorText.trim() ||
+              selectedCursorAnchorText.trim() ||
+              null,
+          },
+        ],
+        sceneCues: [],
+        sentenceTimestamps: [],
+        notes: "",
+      });
+    }
+
+    return null;
+  }
+
+  function resetCurrentPanelFields() {
+    if (activeEffectPanel === "background") {
+      setBackgroundPreset("");
+      setBackgroundColor("");
+    }
+
+    if (activeEffectPanel === "inline") {
+      setInlineTargetText("");
+      setInlineValue("");
+      setInlineKind("ruby");
+    }
+
+    if (activeEffectPanel === "illustration") {
+      setIllustrationUrl("");
+      setIllustrationCaption("");
+      setIllustrationPlacement("scene_break");
+      setIllustrationAnchorText("");
+      setIllustrationUploadState("idle");
+      setIllustrationUploadMessage("");
+    }
+  }
+
   function handleApplyPreview() {
-    const previewSettings = buildDraftSettings();
+    const panelDraftSettings = buildCurrentPanelDraftSettings();
+
+    if (!panelDraftSettings) {
+      setErrorMessage("反映できる内容がない。");
+      setSuccessMessage("");
+      setSaveState("error");
+      return;
+    }
+
+    const nextPendingSettings = mergeEffectSettings(
+      pendingPreviewSettings,
+      panelDraftSettings
+    );
+    const nextPreviewSettings = mergeEffectSettings(
+      inheritedSettings,
+      savedLocalSettings,
+      nextPendingSettings
+    );
+
+    setPendingPreviewSettings(nextPendingSettings);
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent("libread:episode-effect-preview", {
           detail: {
-            settings: previewSettings,
+            settings: nextPreviewSettings,
           },
         })
       );
     }
 
+    resetCurrentPanelFields();
     setSuccessMessage("プレビューに反映した。保存はまだ。");
+    setErrorMessage("");
     setSaveState("idle");
   }
 
@@ -616,30 +765,53 @@ export default function EffectSettingsForm({
   }
 
   function handleDeleteUnsavedEffect(item: AppliedEffectListItem) {
-    if (item.deleteKey === "background") {
-      setBackgroundPreset("");
-      setBackgroundColor("");
-      setFontFamily("");
-      setFontSize("");
-      setTextColor("");
-      setDefaultBold(false);
-      setDefaultItalic(false);
-    }
+    setPendingPreviewSettings((current) => {
+      const next = parseEffectSettingsFromRow({
+        ...current,
+        backgroundPreset:
+          item.deleteKey === "background" ? null : current.backgroundPreset,
+        backgroundColor:
+          item.deleteKey === "background" ? null : current.backgroundColor,
+        typography:
+          item.deleteKey === "background"
+            ? {
+                fontFamily: null,
+                fontSize: null,
+                textColor: null,
+                bold: false,
+                italic: false,
+              }
+            : current.typography,
+        inlineMarks:
+          item.deleteKey === "inline"
+            ? current.inlineMarks.filter(
+                (inlineMark) => inlineMark.id !== item.effectId
+              )
+            : current.inlineMarks,
+        illustrations:
+          item.deleteKey === "illustration"
+            ? current.illustrations.filter(
+                (illustration) => illustration.id !== item.effectId
+              )
+            : current.illustrations,
+      });
 
-    if (item.deleteKey === "inline") {
-      setInlineTargetText("");
-      setInlineValue("");
-      setInlineKind("ruby");
-    }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("libread:episode-effect-preview", {
+            detail: {
+              settings: mergeEffectSettings(
+                inheritedSettings,
+                savedLocalSettings,
+                next
+              ),
+            },
+          })
+        );
+      }
 
-    if (item.deleteKey === "illustration") {
-      setIllustrationUrl("");
-      setIllustrationUploadState("idle");
-      setIllustrationUploadMessage("");
-      setIllustrationCaption("");
-      setIllustrationPlacement("scene_break");
-      setIllustrationAnchorText("");
-    }
+      return next;
+    });
 
     resetSaveUi();
   }
@@ -650,10 +822,15 @@ export default function EffectSettingsForm({
     setErrorMessage("");
     setSuccessMessage("");
 
+    const settingsToSave = mergeEffectSettings(
+      savedLocalSettings,
+      pendingPreviewSettings
+    );
+
     const { error } = await supabase
       .from(tableName)
       .update({
-        effect_settings: serializeEffectSettingsForSave(draftSettings),
+        effect_settings: serializeEffectSettingsForSave(settingsToSave),
       })
       .eq("id", recordId);
 
@@ -663,6 +840,19 @@ export default function EffectSettingsForm({
       setSaveState("error");
       setErrorMessage(error.message);
       return;
+    }
+
+    setSavedLocalSettings(settingsToSave);
+    setPendingPreviewSettings(emptyEffectSettings());
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("libread:episode-effect-preview", {
+          detail: {
+            settings: mergeEffectSettings(inheritedSettings, settingsToSave),
+          },
+        })
+      );
     }
 
     setSaveState("success");
