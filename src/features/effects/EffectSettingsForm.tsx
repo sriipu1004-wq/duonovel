@@ -1026,9 +1026,9 @@ export default function EffectSettingsForm({
                     setInlineTargetText(selectedBodyText);
                     resetSaveUi();
                   }}
-                  className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-black/10 disabled:bg-neutral-100 disabled:text-neutral-400"
+                  className="rounded-full border border-black/10 bg-white/60 px-3 py-1.5 text-xs font-normal text-neutral-500 transition hover:bg-neutral-50 hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  本文で選択中の文字を使う
+                  選択中の文字を反映
                 </button>
               </div>
             </div>
@@ -1156,9 +1156,9 @@ export default function EffectSettingsForm({
                     setIllustrationAnchorText(selectedCursorAnchorText);
                     resetSaveUi();
                   }}
-                  className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-black/10 disabled:bg-neutral-100 disabled:text-neutral-400"
+                  className="rounded-full border border-black/10 bg-white/60 px-3 py-1.5 text-xs font-normal text-neutral-500 transition hover:bg-neutral-50 hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  本文カーソル位置を使う
+                  カーソル位置を反映
                 </button>
               </div>
             </div>

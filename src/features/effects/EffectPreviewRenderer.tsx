@@ -243,22 +243,25 @@ function applyInlineMark(node: ReactNode, mark: EffectInlineMark): ReactNode {
       return (
         <span
           className="libread-effect-shake"
+          data-libread-effect="shake"
           style={
             {
               "--libread-shake-distance": isStrong
-                ? "0.12em"
+                ? "0.22em"
                 : isSmall
-                  ? "0.045em"
-                  : "0.075em",
+                  ? "0.09em"
+                  : "0.15em",
               "--libread-shake-duration": isStrong
-                ? "0.12s"
+                ? "90ms"
                 : isSmall
-                  ? "0.24s"
-                  : "0.17s",
+                  ? "180ms"
+                  : "120ms",
+              animation:
+                "libread-text-shake var(--libread-shake-duration, 120ms) steps(2, jump-none) infinite",
             } as CSSProperties
           }
         >
-          {node}
+          <span className="libread-effect-shake-inner">{node}</span>
         </span>
       );
     }
