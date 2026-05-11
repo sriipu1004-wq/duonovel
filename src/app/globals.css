@@ -25,6 +25,58 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+
+@keyframes libread-text-shake {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+
+  12% {
+    transform: translate3d(calc(var(--libread-shake-distance, 0.075em) * -1), -0.02em, 0) rotate(-0.7deg);
+  }
+
+  25% {
+    transform: translate3d(var(--libread-shake-distance, 0.075em), 0.025em, 0) rotate(0.8deg);
+  }
+
+  37% {
+    transform: translate3d(calc(var(--libread-shake-distance, 0.075em) * -0.75), 0.015em, 0) rotate(-0.5deg);
+  }
+
+  50% {
+    transform: translate3d(calc(var(--libread-shake-distance, 0.075em) * 0.85), -0.015em, 0) rotate(0.6deg);
+  }
+
+  62% {
+    transform: translate3d(calc(var(--libread-shake-distance, 0.075em) * -0.45), 0.02em, 0) rotate(-0.3deg);
+  }
+
+  75% {
+    transform: translate3d(calc(var(--libread-shake-distance, 0.075em) * 0.45), -0.01em, 0) rotate(0.35deg);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+}
+
+.libread-effect-shake {
+  display: inline-block;
+  transform-origin: center;
+  animation: libread-text-shake var(--libread-shake-duration, 0.17s) infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .libread-effect-shake {
+    animation: none;
+    text-decoration-line: underline;
+    text-decoration-style: wavy;
+    text-decoration-thickness: 0.08em;
+    text-underline-offset: 0.18em;
+  }
+}
+
 @keyframes libread-progress {
   0% {
     transform: translateX(-110%);

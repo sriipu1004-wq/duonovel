@@ -229,12 +229,39 @@ function applyInlineMark(node: ReactNode, mark: EffectInlineMark): ReactNode {
         </span>
       );
 
-    case "shake":
+    case "shake": {
+      const rawValue = (mark.value ?? "").toLowerCase();
+      const isStrong =
+        rawValue.includes("strong") ||
+        rawValue.includes("大") ||
+        rawValue.includes("強");
+      const isSmall =
+        rawValue.includes("small") ||
+        rawValue.includes("弱") ||
+        rawValue.includes("小");
+
       return (
-        <span className="rounded bg-amber-300/15 px-[0.08em] py-[0.02em] ring-1 ring-amber-300/20">
+        <span
+          className="libread-effect-shake"
+          style={
+            {
+              "--libread-shake-distance": isStrong
+                ? "0.12em"
+                : isSmall
+                  ? "0.045em"
+                  : "0.075em",
+              "--libread-shake-duration": isStrong
+                ? "0.12s"
+                : isSmall
+                  ? "0.24s"
+                  : "0.17s",
+            } as CSSProperties
+          }
+        >
           {node}
         </span>
       );
+    }
 
     case "typing":
       return <span className="tracking-[0.06em]">{node}</span>;
