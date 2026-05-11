@@ -9,6 +9,13 @@ import {
   showGlobalLoadingFeedback,
 } from "@/lib/client/loadingFeedback";
 import {
+  EFFECT_BACKGROUND_PRESETS,
+  parseEffectSettingsFromRow,
+  serializeEffectSettingsForSave,
+  type EffectBackgroundPreset,
+  type EffectSettings,
+} from "@/lib/effects/effectSettings";
+import {
   pickText,
   type SeriesRow,
   type EpisodeRow,
@@ -46,10 +53,14 @@ type SaveState = "idle" | "saving" | "success" | "error";
 type SeriesStatusPanel =
   | "publication"
   | "reactions"
+  | "display"
   | "genres"
   | "tags"
   | "recording"
   | null;
+
+type BackgroundPresetSelectValue =
+  "" | Exclude<EffectBackgroundPreset, null>;
 
 function buildSummaryValue(summary: string): Array<Record<string, string>> {
   const trimmed = summary.trim();
@@ -125,6 +136,22 @@ function getEpisodePostingLabel(status: EpisodePostingStatus): string {
   return "下書き保存";
 }
 
+function getBackgroundPresetLabel(
+  preset: BackgroundPresetSelectValue | EffectBackgroundPreset
+): string {
+  if (!preset) return "未設定";
+  if (preset === "paper") return "標準の紙";
+  if (preset === "warm_paper") return "温かい紙";
+  if (preset === "cool_paper") return "冷たい紙";
+  if (preset === "wrinkled_paper") return "しわ紙";
+  if (preset === "old_paper") return "古紙";
+  if (preset === "glass") return "ガラス";
+  if (preset === "plastic") return "プラスチック";
+  if (preset === "stone") return "石";
+  if (preset === "wood") return "木";
+  return String(preset);
+}
+
 function hasValidLocalDateTime(value: string): boolean {
   if (!value.trim()) {
     return false;
@@ -162,6 +189,7 @@ function buildWorkspaceFields(args: {
   genres: string[];
   tags: string[];
   recordingPermissionMode: RecordingPermissionMode;
+  effectSettings: EffectSettings | null;
 }) {
   return {
     publication_status: args.publicationStatus,
@@ -170,6 +198,7 @@ function buildWorkspaceFields(args: {
     genres: args.genres,
     tags: args.tags,
     recording_permission_mode: args.recordingPermissionMode,
+    effect_settings: args.effectSettings,
   };
 }
 
@@ -283,6 +312,10 @@ export default function WriteSeriesForm({
   const initialRecordingPermissionMode = normalizeRecordingPermissionMode(
     series?.recording_permission_mode
   );
+  const initialEffectSettings = parseEffectSettingsFromRow(
+    series?.effect_settings,
+    series?.["effectSettings"]
+  );
 
   const [title, setTitle] = useState(getTitle(series));
   const [summary, setSummary] = useState(getSummary(series));
@@ -308,6 +341,22 @@ export default function WriteSeriesForm({
     savedRecordingPermissionMode,
     setSavedRecordingPermissionMode,
   ] = useState<RecordingPermissionMode>(initialRecordingPermissionMode);
+  const [seriesBackgroundPreset, setSeriesBackgroundPreset] =
+    useState<BackgroundPresetSelectValue>(
+      (initialEffectSettings.backgroundPreset ?? "") as BackgroundPresetSelectValue
+    );
+  const [seriesBackgroundColor, setSeriesBackgroundColor] = useState(
+    initialEffectSettings.backgroundColor ?? ""
+  );
+  const [seriesFontFamily, setSeriesFontFamily] = useState(
+    initialEffectSettings.typography.fontFamily ?? ""
+  );
+  const [seriesFontSize, setSeriesFontSize] = useState(
+    initialEffectSettings.typography.fontSize ?? ""
+  );
+  const [seriesTextColor, setSeriesTextColor] = useState(
+    initialEffectSettings.typography.textColor ?? ""
+  );
 
   const [initialPostingStatus, setInitialPostingStatus] =
     useState<EpisodePostingStatus>("draft");
@@ -389,6 +438,20 @@ const publicVisibleCount = sortedEpisodes.filter(
       ].join(" / "),
     },
     {
+      id: "display",
+      label: "表示設定",
+      value:
+        [
+          getBackgroundPresetLabel(seriesBackgroundPreset),
+          seriesBackgroundColor,
+          seriesFontFamily,
+          seriesFontSize,
+          seriesTextColor,
+        ]
+          .filter((item) => item && item !== "未設定")
+          .join(" / ") || "未設定",
+    },
+    {
       id: "genres",
       label: "ジャンル",
       value: genres.length > 0 ? genres.join(" / ") : "未設定",
@@ -404,6 +467,26 @@ const publicVisibleCount = sortedEpisodes.filter(
       value: recordingPermissionLabel,
     },
   ];
+
+  function buildSeriesDisplayEffectSettings(): EffectSettings | null {
+    return serializeEffectSettingsForSave({
+      version: 1,
+      backgroundPreset: seriesBackgroundPreset || null,
+      backgroundColor: seriesBackgroundColor.trim() || null,
+      typography: {
+        fontFamily: seriesFontFamily.trim() || null,
+        fontSize: seriesFontSize.trim() || null,
+        textColor: seriesTextColor.trim() || null,
+        bold: initialEffectSettings.typography.bold,
+        italic: initialEffectSettings.typography.italic,
+      },
+      inlineMarks: initialEffectSettings.inlineMarks,
+      illustrations: initialEffectSettings.illustrations,
+      sceneCues: initialEffectSettings.sceneCues,
+      sentenceTimestamps: initialEffectSettings.sentenceTimestamps,
+      notes: initialEffectSettings.notes,
+    });
+  }
 
   function resetSaveUi() {
     setSaveState("idle");
@@ -446,6 +529,7 @@ const publicVisibleCount = sortedEpisodes.filter(
       genres: nextGenres,
       tags: nextTags,
       recordingPermissionMode,
+      effectSettings: buildSeriesDisplayEffectSettings(),
     });
 
     const payloads: Array<Record<string, unknown>> = summaryVariants.map(
@@ -533,6 +617,7 @@ const publicVisibleCount = sortedEpisodes.filter(
       genres: nextGenres,
       tags: nextTags,
       recordingPermissionMode,
+      effectSettings: buildSeriesDisplayEffectSettings(),
     });
 
     const payloads: Array<Record<string, unknown>> = summaryVariants.map(
@@ -852,6 +937,97 @@ const publicVisibleCount = sortedEpisodes.filter(
                             </label>
                           </div>
                         </div>                        
+                        <div className={activeSeriesStatusPanel === "display" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
+                          <p className="text-sm font-semibold text-black">
+                            表示設定
+                          </p>
+
+                          <div className="mt-3 grid gap-4 md:grid-cols-2">
+                            <label className="grid gap-2">
+                              <span className="text-sm text-neutral-700">
+                                エピソード全体の背景
+                              </span>
+                              <select
+                                value={seriesBackgroundPreset}
+                                onChange={(event) => {
+                                  setSeriesBackgroundPreset(
+                                    event.target.value as BackgroundPresetSelectValue
+                                  );
+                                  resetSaveUi();
+                                }}
+                                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
+                              >
+                                <option value="">未設定</option>
+                                {EFFECT_BACKGROUND_PRESETS.map((preset) => (
+                                  <option key={preset} value={preset}>
+                                    {getBackgroundPresetLabel(preset)}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <label className="grid gap-2">
+                              <span className="text-sm text-neutral-700">
+                                背景の色
+                              </span>
+                              <input
+                                value={seriesBackgroundColor}
+                                onChange={(event) => {
+                                  setSeriesBackgroundColor(event.target.value);
+                                  resetSaveUi();
+                                }}
+                                placeholder="例: #f7edd8 / ivory / white"
+                                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400"
+                              />
+                            </label>
+
+                            <label className="grid gap-2">
+                              <span className="text-sm text-neutral-700">
+                                文字のフォント
+                              </span>
+                              <input
+                                value={seriesFontFamily}
+                                onChange={(event) => {
+                                  setSeriesFontFamily(event.target.value);
+                                  resetSaveUi();
+                                }}
+                                placeholder="例: serif / sans-serif / Noto Serif JP"
+                                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400"
+                              />
+                            </label>
+
+                            <label className="grid gap-2">
+                              <span className="text-sm text-neutral-700">
+                                文字の大きさ
+                              </span>
+                              <input
+                                value={seriesFontSize}
+                                onChange={(event) => {
+                                  setSeriesFontSize(event.target.value);
+                                  resetSaveUi();
+                                }}
+                                placeholder="例: 16px / 1.05rem / 105%"
+                                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400"
+                              />
+                            </label>
+
+                            <label className="grid gap-2 md:col-span-2">
+                              <span className="text-sm text-neutral-700">
+                                文字の色
+                              </span>
+                              <input
+                                value={seriesTextColor}
+                                onChange={(event) => {
+                                  setSeriesTextColor(event.target.value);
+                                  resetSaveUi();
+                                }}
+                                placeholder="例: #111827 / black / #2f2416"
+                                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400"
+                              />
+                            </label>
+                          </div>
+                        </div>
+
                         <div className={activeSeriesStatusPanel === "genres" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             ジャンル

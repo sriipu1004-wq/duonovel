@@ -1,5 +1,9 @@
 export const EFFECT_BACKGROUND_PRESETS = [
   "paper",
+  "warm_paper",
+  "cool_paper",
+  "wrinkled_paper",
+  "old_paper",
   "glass",
   "plastic",
   "stone",
@@ -45,6 +49,7 @@ export type EffectTextAnimationKind =
 
 export type EffectTypographySettings = {
   fontFamily: string | null;
+  fontSize: string | null;
   textColor: string | null;
   bold: boolean;
   italic: boolean;
@@ -86,6 +91,7 @@ export type EffectSentenceTimestamp = {
 export type EffectSettings = {
   version: 1;
   backgroundPreset: EffectBackgroundPreset;
+  backgroundColor: string | null;
   typography: EffectTypographySettings;
   inlineMarks: EffectInlineMark[];
   illustrations: EffectIllustration[];
@@ -152,6 +158,7 @@ function normalizeTimeSeconds(value: unknown): number | null {
 function emptyTypography(): EffectTypographySettings {
   return {
     fontFamily: null,
+    fontSize: null,
     textColor: null,
     bold: false,
     italic: false,
@@ -162,6 +169,7 @@ export function emptyEffectSettings(): EffectSettings {
   return {
     version: 1,
     backgroundPreset: null,
+    backgroundColor: null,
     typography: emptyTypography(),
     inlineMarks: [],
     illustrations: [],
@@ -283,8 +291,10 @@ export function normalizeEffectSettings(value: unknown): EffectSettings {
   return {
     version: 1,
     backgroundPreset: normalizeBackgroundPreset(value.backgroundPreset),
+    backgroundColor: pickText(value.backgroundColor) || null,
     typography: {
       fontFamily: pickText(rawTypography.fontFamily) || null,
+      fontSize: pickText(rawTypography.fontSize) || null,
       textColor: pickText(rawTypography.textColor) || null,
       bold: normalizeBoolean(rawTypography.bold),
       italic: normalizeBoolean(rawTypography.italic),
@@ -322,8 +332,10 @@ export function mergeEffectSettings(...values: unknown[]): EffectSettings {
     return {
       version: 1,
       backgroundPreset: current.backgroundPreset ?? merged.backgroundPreset,
+      backgroundColor: current.backgroundColor ?? merged.backgroundColor,
       typography: {
         fontFamily: current.typography.fontFamily ?? merged.typography.fontFamily,
+        fontSize: current.typography.fontSize ?? merged.typography.fontSize,
         textColor: current.typography.textColor ?? merged.typography.textColor,
         bold: merged.typography.bold || current.typography.bold,
         italic: merged.typography.italic || current.typography.italic,
@@ -350,7 +362,9 @@ export function serializeEffectSettingsForSave(
 
   const isEmpty =
     normalized.backgroundPreset === null &&
+    normalized.backgroundColor === null &&
     normalized.typography.fontFamily === null &&
+    normalized.typography.fontSize === null &&
     normalized.typography.textColor === null &&
     normalized.typography.bold === false &&
     normalized.typography.italic === false &&
