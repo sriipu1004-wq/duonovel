@@ -29,6 +29,37 @@ type SaveState = "idle" | "saving" | "success" | "error";
 type UploadState = "idle" | "uploading" | "success" | "error";
 type EffectPanelKey = "background" | "inline" | "illustration" | null;
 
+
+const EFFECT_BACKGROUND_COLOR_OPTIONS = [
+  { value: "", label: "未設定", className: "bg-white text-neutral-700" },
+  { value: "#ffffff", label: "白", className: "bg-white text-black" },
+  { value: "#f7edd8", label: "生成り", className: "bg-[#f7edd8] text-[#2f2416]" },
+  { value: "#eef5f7", label: "薄い青紙", className: "bg-[#eef5f7] text-[#1f2b33]" },
+  { value: "#f2eadb", label: "しわ紙", className: "bg-[#f2eadb] text-[#2d261b]" },
+  { value: "#dfc48c", label: "古紙", className: "bg-[#dfc48c] text-[#2d1d0f]" },
+  { value: "#111827", label: "黒", className: "bg-[#111827] text-white" },
+  { value: "#fef2f2", label: "薄赤", className: "bg-red-50 text-red-800" },
+  { value: "#eff6ff", label: "薄青", className: "bg-blue-50 text-blue-800" },
+  { value: "#f0fdf4", label: "薄緑", className: "bg-green-50 text-green-800" },
+] as const;
+
+function getBackgroundPresetLabel(
+  preset: BackgroundPresetSelectValue | EffectBackgroundPreset
+): string {
+  if (!preset) return "未設定";
+  if (preset === "paper") return "標準の紙";
+  if (preset === "warm_paper") return "温かい紙";
+  if (preset === "cool_paper") return "冷たい紙";
+  if (preset === "wrinkled_paper") return "しわ紙";
+  if (preset === "old_paper") return "古紙";
+  if (preset === "glass") return "ガラス";
+  if (preset === "plastic") return "プラスチック";
+  if (preset === "stone") return "石";
+  if (preset === "wood") return "木";
+  return String(preset);
+}
+
+
 type EffectSettingsFormProps = {
   scope: "series" | "episode";
   tableName: "series" | "episodes";
@@ -419,8 +450,13 @@ export default function EffectSettingsForm({
           ? customEvent.detail.cursorAnchorText.trim()
           : "";
 
-      setSelectedBodyText(nextSelectedText);
-      setSelectedCursorAnchorText(nextCursorAnchorText);
+      if (nextSelectedText) {
+        setSelectedBodyText(nextSelectedText);
+      }
+
+      if (nextCursorAnchorText) {
+        setSelectedCursorAnchorText(nextCursorAnchorText);
+      }
     }
 
     window.addEventListener(
@@ -601,7 +637,7 @@ export default function EffectSettingsForm({
       setIllustrationUploadState("idle");
       setIllustrationUploadMessage("");
       setIllustrationCaption("");
-      setIllustrationPlacement("top");
+      setIllustrationPlacement("scene_break");
       setIllustrationAnchorText("");
     }
 
@@ -666,107 +702,82 @@ export default function EffectSettingsForm({
           </p>
           <h3 className="mt-1 text-lg font-semibold text-black">背景</h3>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2">
+          <div className="mt-4 grid gap-5">
+            <div className="grid gap-2">
               <span className="text-sm text-neutral-700">背景プリセット</span>
-              <select
-                value={backgroundPreset}
-                onChange={(event) => {
-                  setBackgroundPreset(
-                    event.target.value as BackgroundPresetSelectValue
-                  );
-                  resetSaveUi();
-                }}
-                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
-              >
-                <option value="">未設定</option>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBackgroundPreset("");
+                    resetSaveUi();
+                  }}
+                  className={[
+                    "rounded-2xl border px-3 py-3 text-left text-sm transition",
+                    !backgroundPreset
+                      ? "border-sky-200 bg-sky-50"
+                      : "border-black/10 bg-white hover:bg-neutral-50",
+                  ].join(" ")}
+                >
+                  未設定
+                </button>
+
                 {EFFECT_BACKGROUND_PRESETS.map((preset) => (
-                  <option key={preset} value={preset}>
-                    {preset}
-                  </option>
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setBackgroundPreset(
+                        preset as BackgroundPresetSelectValue
+                      );
+                      resetSaveUi();
+                    }}
+                    className={[
+                      "rounded-2xl border px-3 py-3 text-left text-sm transition",
+                      backgroundPreset === preset
+                        ? "border-sky-200 bg-sky-50"
+                        : "border-black/10 bg-white hover:bg-neutral-50",
+                    ].join(" ")}
+                  >
+                    {getBackgroundPresetLabel(preset)}
+                  </button>
                 ))}
-              </select>
-            </label>
-
-            <label className="grid gap-2">
-              <span className="text-sm text-neutral-700">背景色</span>
-              <input
-                value={backgroundColor}
-                onChange={(event) => {
-                  setBackgroundColor(event.target.value);
-                  resetSaveUi();
-                }}
-                placeholder="例: #f7edd8 / ivory / white"
-                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
-              />
-            </label>
-
-            <label className="grid gap-2">
-              <span className="text-sm text-neutral-700">フォント</span>
-              <input
-                value={fontFamily}
-                onChange={(event) => {
-                  setFontFamily(event.target.value);
-                  resetSaveUi();
-                }}
-                placeholder="例: serif"
-                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
-              />
-            </label>
-
-            <label className="grid gap-2">
-              <span className="text-sm text-neutral-700">文字サイズ</span>
-              <input
-                value={fontSize}
-                onChange={(event) => {
-                  setFontSize(event.target.value);
-                  resetSaveUi();
-                }}
-                placeholder="例: 16px / 1.05rem / 105%"
-                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
-              />
-            </label>
-
-            <label className="grid gap-2">
-              <span className="text-sm text-neutral-700">文字色</span>
-              <input
-                value={textColor}
-                onChange={(event) => {
-                  setTextColor(event.target.value);
-                  resetSaveUi();
-                }}
-                placeholder="例: #111827 / black"
-                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
-              />
-            </label>
+              </div>
+            </div>
 
             <div className="grid gap-2">
-              <span className="text-sm text-neutral-700">文字装飾</span>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <label className="flex items-center gap-2 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-neutral-700">
-                  <input
-                    type="checkbox"
-                    checked={defaultBold}
-                    onChange={(event) => {
-                      setDefaultBold(event.target.checked);
+              <span className="text-sm text-neutral-700">背景色</span>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {EFFECT_BACKGROUND_COLOR_OPTIONS.map((option) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    onClick={() => {
+                      setBackgroundColor(option.value);
                       resetSaveUi();
                     }}
-                  />
-                  太字
-                </label>
-
-                <label className="flex items-center gap-2 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-neutral-700">
-                  <input
-                    type="checkbox"
-                    checked={defaultItalic}
-                    onChange={(event) => {
-                      setDefaultItalic(event.target.checked);
-                      resetSaveUi();
-                    }}
-                  />
-                  斜体
-                </label>
+                    className={[
+                      "rounded-2xl border px-3 py-3 text-left text-sm font-semibold transition",
+                      option.className,
+                      backgroundColor === option.value
+                        ? "border-sky-300 ring-2 ring-sky-100"
+                        : "border-black/10 hover:opacity-80",
+                    ].join(" ")}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleApplyPreview}
+                className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-black transition hover:bg-sky-100"
+              >
+                プレビューに反映
+              </button>
             </div>
           </div>
         </section>
@@ -780,19 +791,6 @@ export default function EffectSettingsForm({
           <h3 className="mt-1 text-lg font-semibold text-black">文字演出</h3>
 
           <div className="mt-4 grid gap-4">
-            <label className="grid gap-2">
-              <span className="text-sm text-neutral-700">対象文字列</span>
-              <input
-                value={inlineTargetText}
-                onChange={(event) => {
-                  setInlineTargetText(event.target.value);
-                  resetSaveUi();
-                }}
-                placeholder="本文中にある文字列を入れる"
-                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
-              />
-            </label>
-
             <div className="rounded-2xl border border-black/10 bg-white p-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -853,6 +851,16 @@ export default function EffectSettingsForm({
                 />
               </label>
             </div>
+
+            <div className="flex flex-wrap gap-2" data-inline-preview-apply-marker>
+              <button
+                type="button"
+                onClick={handleApplyPreview}
+                className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-black transition hover:bg-sky-100"
+              >
+                プレビューに反映
+              </button>
+            </div>
           </div>
         </section>
       ) : null}
@@ -865,18 +873,6 @@ export default function EffectSettingsForm({
           <h3 className="mt-1 text-lg font-semibold text-black">挿絵</h3>
 
           <div className="mt-4 grid gap-4">
-            <label className="grid gap-2">
-              <span className="text-sm text-neutral-700">画像URLまたは保存済み画像パス</span>
-              <input
-                value={illustrationUrl}
-                onChange={(event) => {
-                  setIllustrationUrl(event.target.value);
-                  resetSaveUi();
-                }}
-                placeholder="https://... または /storage/..."
-                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
-              />
-            </label>
             <div className="rounded-2xl border border-black/10 bg-white p-4">
               <label className="grid gap-2">
                 <span className="text-sm font-semibold text-neutral-700">
@@ -911,88 +907,55 @@ export default function EffectSettingsForm({
               ) : null}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2">
-                <span className="text-sm text-neutral-700">キャプション</span>
-                <input
-                  value={illustrationCaption}
-                  onChange={(event) => {
-                    setIllustrationCaption(event.target.value);
-                    resetSaveUi();
-                  }}
-                  placeholder="例: 夜明けの街並み"
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
-                />
-              </label>
+            <label className="grid gap-2">
+              <span className="text-sm text-neutral-700">キャプション</span>
+              <input
+                value={illustrationCaption}
+                onChange={(event) => {
+                  setIllustrationCaption(event.target.value);
+                  resetSaveUi();
+                }}
+                placeholder="例: 夜明けの街並み"
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+              />
+            </label>
 
-              <label className="grid gap-2">
-                <span className="text-sm text-neutral-700">配置</span>
-                <p className="text-xs leading-6 text-neutral-500">
-                  本文中に入れたい場合は「scene_break」を選び、下のボタンでカーソル付近の文字列を指定する。
-                </p>
-                <select
-                  value={illustrationPlacement}
-                  onChange={(event) => {
-                    setIllustrationPlacement(
-                      event.target.value as EffectIllustrationPlacement
-                    );
+            <div className="rounded-2xl border border-black/10 bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs tracking-[0.16em] text-neutral-500">
+                    CURSOR POSITION
+                  </p>
+                  <p className="mt-1 break-words text-sm text-neutral-700">
+                    {selectedCursorAnchorText || "本文編集欄にカーソルを置くと、ここに差し込み候補が出る。"}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!selectedCursorAnchorText}
+                  onClick={() => {
+                    setIllustrationPlacement("scene_break");
+                    setIllustrationAnchorText(selectedCursorAnchorText);
                     resetSaveUi();
                   }}
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
+                  className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-black/10 disabled:bg-neutral-100 disabled:text-neutral-400"
                 >
-                  {EFFECT_ILLUSTRATION_PLACEMENTS.map((placement) => (
-                    <option key={placement} value={placement}>
-                      {placement}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  本文カーソル位置を使う
+                </button>
+              </div>
             </div>
 
-            {illustrationPlacement === "scene_break" ? (
-              <>
-              <label className="grid gap-2">
-                <span className="text-sm text-neutral-700">
-                  差し込み対象文字列
-                </span>
-                <input
-                  value={illustrationAnchorText}
-                  onChange={(event) => {
-                    setIllustrationAnchorText(event.target.value);
-                    resetSaveUi();
-                  }}
-                  placeholder="例: 夜が明けた"
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
-                />
-              </label>
-
-              <div className="rounded-2xl border border-black/10 bg-white p-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs tracking-[0.16em] text-neutral-500">
-                      CURSOR POSITION
-                    </p>
-                    <p className="mt-1 break-words text-sm text-neutral-700">
-                      {selectedCursorAnchorText || "本文編集欄にカーソルを置くと、ここに差し込み候補が出る。"}
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={!selectedCursorAnchorText}
-                    onClick={() => {
-                      setIllustrationPlacement("scene_break");
-                      setIllustrationAnchorText(selectedCursorAnchorText);
-                      resetSaveUi();
-                    }}
-                    className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-black/10 disabled:bg-neutral-100 disabled:text-neutral-400"
-                  >
-                    本文カーソル位置を使う
-                  </button>
-                </div>
-              </div>
-              </>
-            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleApplyPreview}
+                disabled={!illustrationUrl}
+                className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-black/10 disabled:bg-neutral-100 disabled:text-neutral-400"
+              >
+                プレビューに反映
+              </button>
+            </div>
           </div>
         </section>
       ) : null}

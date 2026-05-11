@@ -578,6 +578,10 @@ if (scheduledBeforePreviousIsBlocked) {
                         value={body}
                         onSelect={(event) => notifyBodySelection(event.currentTarget)}
                         onMouseUp={(event) => notifyBodySelection(event.currentTarget)}
+                        onPointerUp={(event) => notifyBodySelection(event.currentTarget)}
+                        onTouchEnd={(event) => {
+                          setTimeout(() => notifyBodySelection(event.currentTarget), 80);
+                        }}
                         onKeyUp={(event) => notifyBodySelection(event.currentTarget)}
                         onChange={(event) => {
                           setBody(event.target.value);

@@ -62,6 +62,51 @@ type SeriesStatusPanel =
 type BackgroundPresetSelectValue =
   "" | Exclude<EffectBackgroundPreset, null>;
 
+
+const DISPLAY_BACKGROUND_COLOR_OPTIONS = [
+  { value: "", label: "未設定", className: "bg-white text-neutral-700" },
+  { value: "#ffffff", label: "白", className: "bg-white text-black" },
+  { value: "#f7edd8", label: "生成り", className: "bg-[#f7edd8] text-[#2f2416]" },
+  { value: "#eef5f7", label: "薄い青紙", className: "bg-[#eef5f7] text-[#1f2b33]" },
+  { value: "#f2eadb", label: "しわ紙", className: "bg-[#f2eadb] text-[#2d261b]" },
+  { value: "#dfc48c", label: "古紙", className: "bg-[#dfc48c] text-[#2d1d0f]" },
+  { value: "#111827", label: "黒", className: "bg-[#111827] text-white" },
+  { value: "#fef2f2", label: "薄赤", className: "bg-red-50 text-red-800" },
+  { value: "#eff6ff", label: "薄青", className: "bg-blue-50 text-blue-800" },
+  { value: "#f0fdf4", label: "薄緑", className: "bg-green-50 text-green-800" },
+] as const;
+
+const DISPLAY_FONT_FAMILY_OPTIONS = [
+  { value: "", label: "未設定", style: {} },
+  { value: "serif", label: "明朝系", style: { fontFamily: "serif" } },
+  { value: "sans-serif", label: "ゴシック系", style: { fontFamily: "sans-serif" } },
+  { value: "monospace", label: "等幅", style: { fontFamily: "monospace" } },
+  { value: "'Yu Mincho', 'Hiragino Mincho ProN', serif", label: "游明朝", style: { fontFamily: "'Yu Mincho', 'Hiragino Mincho ProN', serif" } },
+  { value: "'Yu Gothic', 'Hiragino Sans', sans-serif", label: "游ゴシック", style: { fontFamily: "'Yu Gothic', 'Hiragino Sans', sans-serif" } },
+] as const;
+
+const DISPLAY_FONT_SIZE_OPTIONS = [
+  { value: "", label: "未設定", className: "text-sm" },
+  { value: "14px", label: "小さめ", className: "text-sm" },
+  { value: "16px", label: "標準", className: "text-base" },
+  { value: "18px", label: "やや大きめ", className: "text-lg" },
+  { value: "20px", label: "大きめ", className: "text-xl" },
+  { value: "22px", label: "かなり大きめ", className: "text-2xl" },
+] as const;
+
+const DISPLAY_TEXT_COLOR_OPTIONS = [
+  { value: "", label: "未設定", className: "text-neutral-700" },
+  { value: "#111827", label: "黒", className: "text-[#111827]" },
+  { value: "#2f2416", label: "濃茶", className: "text-[#2f2416]" },
+  { value: "#1f2b33", label: "青黒", className: "text-[#1f2b33]" },
+  { value: "#ef4444", label: "赤", className: "text-red-500" },
+  { value: "#2563eb", label: "青", className: "text-blue-600" },
+  { value: "#16a34a", label: "緑", className: "text-green-600" },
+  { value: "#9333ea", label: "紫", className: "text-purple-600" },
+  { value: "#ffffff", label: "白", className: "bg-neutral-900 text-white" },
+] as const;
+
+
 function buildSummaryValue(summary: string): Array<Record<string, string>> {
   const trimmed = summary.trim();
 
@@ -260,7 +305,7 @@ function StepCard({
   description: string;
 }) {
   return (
-    <div className="rounded-2xl border border-black/10 bg-white p-4">
+    <div className="rounded-2xl border border-black/10 bg-white p-3">
       <p className="text-xs tracking-[0.18em] text-neutral-500">{step}</p>
       <p className="mt-2 text-sm font-semibold text-black">{title}</p>
       <p className="mt-2 text-sm leading-7 text-neutral-600">{description}</p>
@@ -703,7 +748,7 @@ const publicVisibleCount = sortedEpisodes.filter(
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
                 href="/write"
-                className="rounded-full border border-black/10 bg-white/5 px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
               >
                 投稿データベースへ
               </Link>
@@ -711,12 +756,12 @@ const publicVisibleCount = sortedEpisodes.filter(
               {series?.id && publicSurfaceReady ? (
                 <Link
                   href={`/works/${series.id}`}
-                  className="rounded-full border border-black/10 bg-white/5 px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                  className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
                 >
                   作品ページを見る
                 </Link>
               ) : series?.id ? (
-                <span className="rounded-full border border-black/10 bg-white/5 px-5 py-3 text-sm text-neutral-500">
+                <span className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-500">
                   まだ公開面に出ていない
                 </span>
               ) : null}
@@ -747,7 +792,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                         resetSaveUi();
                       }}
                       placeholder="作品タイトル"
-                      className="rounded-2xl border border-black/10 bg-white/5 px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+                      className="rounded-2xl border border-black/10 bg-white/5 px-3 py-2 text-sm text-black outline-none placeholder:text-neutral-500"
                     />
                   </label>
 
@@ -761,7 +806,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                       }}
                       rows={8}
                       placeholder="作品の概要を書く"
-                      className="rounded-2xl border border-black/10 bg-white/5 px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-500"
+                      className="rounded-2xl border border-black/10 bg-white/5 px-3 py-2 text-sm leading-7 text-black outline-none placeholder:text-neutral-500"
                     />
                   </label>
 
@@ -845,7 +890,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                           );
                         })}
                       <div className={["mt-4 grid gap-4", activeSeriesStatusPanel ? "" : "hidden"].join(" ")}>
-                        <div className={activeSeriesStatusPanel === "publication" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
+                        <div className={activeSeriesStatusPanel === "publication" ? "rounded-2xl border border-black/10 bg-white p-3" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             公開状態
                           </p>
@@ -884,7 +929,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                           </div>
                         </div>
 
-                        <div className={activeSeriesStatusPanel === "reactions" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
+                        <div className={activeSeriesStatusPanel === "reactions" ? "rounded-2xl border border-black/10 bg-white p-3" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             反応表示
                           </p>
@@ -937,98 +982,166 @@ const publicVisibleCount = sortedEpisodes.filter(
                             </label>
                           </div>
                         </div>                        
-                        <div className={activeSeriesStatusPanel === "display" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
+                        <div className={activeSeriesStatusPanel === "display" ? "rounded-2xl border border-black/10 bg-white p-3" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             表示設定
                           </p>
 
-                          <div className="mt-3 grid gap-4 md:grid-cols-2">
-                            <label className="grid gap-2">
+                          <div className="mt-4 grid gap-5">
+                            <div className="grid gap-2">
                               <span className="text-sm text-neutral-700">
                                 エピソード全体の背景
                               </span>
-                              <select
-                                value={seriesBackgroundPreset}
-                                onChange={(event) => {
-                                  setSeriesBackgroundPreset(
-                                    event.target.value as BackgroundPresetSelectValue
-                                  );
-                                  resetSaveUi();
-                                }}
-                                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
-                              >
-                                <option value="">未設定</option>
+                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSeriesBackgroundPreset("");
+                                    resetSaveUi();
+                                  }}
+                                  className={[
+                                    "rounded-2xl border px-3 py-3 text-left text-sm transition",
+                                    !seriesBackgroundPreset
+                                      ? "border-sky-200 bg-sky-50"
+                                      : "border-black/10 bg-white hover:bg-neutral-50",
+                                  ].join(" ")}
+                                >
+                                  未設定
+                                </button>
                                 {EFFECT_BACKGROUND_PRESETS.map((preset) => (
-                                  <option key={preset} value={preset}>
+                                  <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => {
+                                      setSeriesBackgroundPreset(
+                                        preset as BackgroundPresetSelectValue
+                                      );
+                                      resetSaveUi();
+                                    }}
+                                    className={[
+                                      "rounded-2xl border px-3 py-3 text-left text-sm transition",
+                                      seriesBackgroundPreset === preset
+                                        ? "border-sky-200 bg-sky-50"
+                                        : "border-black/10 bg-white hover:bg-neutral-50",
+                                    ].join(" ")}
+                                  >
                                     {getBackgroundPresetLabel(preset)}
-                                  </option>
+                                  </button>
                                 ))}
-                              </select>
-                            </label>
+                              </div>
+                            </div>
 
-                            <label className="grid gap-2">
+                            <div className="grid gap-2">
                               <span className="text-sm text-neutral-700">
                                 背景の色
                               </span>
-                              <input
-                                value={seriesBackgroundColor}
-                                onChange={(event) => {
-                                  setSeriesBackgroundColor(event.target.value);
-                                  resetSaveUi();
-                                }}
-                                placeholder="例: #f7edd8 / ivory / white"
-                                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400"
-                              />
-                            </label>
+                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                {DISPLAY_BACKGROUND_COLOR_OPTIONS.map((option) => (
+                                  <button
+                                    key={option.label}
+                                    type="button"
+                                    onClick={() => {
+                                      setSeriesBackgroundColor(option.value);
+                                      resetSaveUi();
+                                    }}
+                                    className={[
+                                      "rounded-2xl border px-3 py-3 text-left text-sm font-semibold transition",
+                                      option.className,
+                                      seriesBackgroundColor === option.value
+                                        ? "border-sky-300 ring-2 ring-sky-100"
+                                        : "border-black/10 hover:opacity-80",
+                                    ].join(" ")}
+                                  >
+                                    {option.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
 
-                            <label className="grid gap-2">
+                            <div className="grid gap-2">
                               <span className="text-sm text-neutral-700">
                                 文字のフォント
                               </span>
-                              <input
-                                value={seriesFontFamily}
-                                onChange={(event) => {
-                                  setSeriesFontFamily(event.target.value);
-                                  resetSaveUi();
-                                }}
-                                placeholder="例: serif / sans-serif / Noto Serif JP"
-                                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400"
-                              />
-                            </label>
+                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                {DISPLAY_FONT_FAMILY_OPTIONS.map((option) => (
+                                  <button
+                                    key={option.label}
+                                    type="button"
+                                    onClick={() => {
+                                      setSeriesFontFamily(option.value);
+                                      resetSaveUi();
+                                    }}
+                                    style={option.style}
+                                    className={[
+                                      "rounded-2xl border bg-white px-3 py-3 text-left text-sm transition",
+                                      seriesFontFamily === option.value
+                                        ? "border-sky-300 bg-sky-50 ring-2 ring-sky-100"
+                                        : "border-black/10 hover:bg-neutral-50",
+                                    ].join(" ")}
+                                  >
+                                    {option.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
 
-                            <label className="grid gap-2">
+                            <div className="grid gap-2">
                               <span className="text-sm text-neutral-700">
                                 文字の大きさ
                               </span>
-                              <input
-                                value={seriesFontSize}
-                                onChange={(event) => {
-                                  setSeriesFontSize(event.target.value);
-                                  resetSaveUi();
-                                }}
-                                placeholder="例: 16px / 1.05rem / 105%"
-                                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400"
-                              />
-                            </label>
+                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                {DISPLAY_FONT_SIZE_OPTIONS.map((option) => (
+                                  <button
+                                    key={option.label}
+                                    type="button"
+                                    onClick={() => {
+                                      setSeriesFontSize(option.value);
+                                      resetSaveUi();
+                                    }}
+                                    className={[
+                                      "rounded-2xl border bg-white px-3 py-3 text-left font-semibold transition",
+                                      option.className,
+                                      seriesFontSize === option.value
+                                        ? "border-sky-300 bg-sky-50 ring-2 ring-sky-100"
+                                        : "border-black/10 hover:bg-neutral-50",
+                                    ].join(" ")}
+                                  >
+                                    {option.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
 
-                            <label className="grid gap-2 md:col-span-2">
+                            <div className="grid gap-2">
                               <span className="text-sm text-neutral-700">
                                 文字の色
                               </span>
-                              <input
-                                value={seriesTextColor}
-                                onChange={(event) => {
-                                  setSeriesTextColor(event.target.value);
-                                  resetSaveUi();
-                                }}
-                                placeholder="例: #111827 / black / #2f2416"
-                                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400"
-                              />
-                            </label>
+                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                {DISPLAY_TEXT_COLOR_OPTIONS.map((option) => (
+                                  <button
+                                    key={option.label}
+                                    type="button"
+                                    onClick={() => {
+                                      setSeriesTextColor(option.value);
+                                      resetSaveUi();
+                                    }}
+                                    className={[
+                                      "rounded-2xl border bg-white px-3 py-3 text-left text-sm font-semibold transition",
+                                      option.className,
+                                      seriesTextColor === option.value
+                                        ? "border-sky-300 ring-2 ring-sky-100"
+                                        : "border-black/10 hover:bg-neutral-50",
+                                    ].join(" ")}
+                                  >
+                                    {option.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           </div>
                         </div>
 
-                        <div className={activeSeriesStatusPanel === "genres" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
+                        <div className={activeSeriesStatusPanel === "genres" ? "rounded-2xl border border-black/10 bg-white p-3" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             ジャンル
                           </p>
@@ -1041,7 +1154,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                             }}
                             rows={3}
                             placeholder={"1行1ジャンル\n例: ファンタジー\n恋愛"}
-                            className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
+                            className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
                           />
 
                           <div className="mt-3 flex flex-wrap gap-2">
@@ -1069,7 +1182,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                           </div>
                         </div>
 
-                        <div className={activeSeriesStatusPanel === "tags" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
+                        <div className={activeSeriesStatusPanel === "tags" ? "rounded-2xl border border-black/10 bg-white p-3" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             タグ
                           </p>
@@ -1082,7 +1195,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                             }}
                             rows={3}
                             placeholder={"1行1タグ\n例: 異世界\nダークファンタジー"}
-                            className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
+                            className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
                           />
 
                           <div className="mt-3 flex flex-wrap gap-2">
@@ -1110,7 +1223,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                           </div>
                         </div>
 
-                        <div className={activeSeriesStatusPanel === "recording" ? "rounded-2xl border border-black/10 bg-white p-4" : "hidden"}>
+                        <div className={activeSeriesStatusPanel === "recording" ? "rounded-2xl border border-black/10 bg-white p-3" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             朗読許可
                           </p>
@@ -1175,7 +1288,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                   ) : null}                  
 
                   {mode === "create" ? (
-                    <div className="rounded-2xl border border-black/10 bg-white p-4">
+                    <div className="rounded-2xl border border-black/10 bg-white p-3">
                       <p className="text-sm font-semibold text-black">
                         1話目の投稿状態
                       </p>
@@ -1240,7 +1353,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                               setInitialScheduledFor(event.target.value);
                               resetSaveUi();
                             }}
-                            className="rounded-2xl border border-black/10 bg-white/5 px-4 py-3 text-sm text-black outline-none"
+                            className="rounded-2xl border border-black/10 bg-white/5 px-3 py-2 text-sm text-black outline-none"
                           />
                           <span className="text-xs leading-6 text-neutral-500">
                             ローカル時刻で入力。保存時に UTC へ変換して送る。
@@ -1254,7 +1367,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                     className={
                       mode === "edit"
                         ? "hidden"
-                        : "rounded-2xl border border-black/10 bg-white p-4"
+                        : "rounded-2xl border border-black/10 bg-white p-3"
                     }
                   >
                     <p className="text-sm font-semibold text-black">反応表示</p>
@@ -1322,7 +1435,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                       <button
                         type="button"
                         onClick={() => handleSubmit("workspace")}
-                        className="rounded-full border border-black/10 bg-white/5 px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                        className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
                       >
                         作品を作成してワークスペースへ
                       </button>
@@ -1330,13 +1443,13 @@ const publicVisibleCount = sortedEpisodes.filter(
 </div>
 
                   {errorMessage ? (
-                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                       {errorMessage}
                     </div>
                   ) : null}
 
                   {successMessage ? (
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
                       {successMessage}
                     </div>
                   ) : null}
@@ -1348,13 +1461,13 @@ const publicVisibleCount = sortedEpisodes.filter(
                       CURRENT STATE
                     </p>
                     <div className="mt-3 grid gap-3">
-                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
                         作品公開:{" "}
                         <span className="font-semibold text-black">
                           {getSeriesPublicationLabel(publicationStatus)}
                         </span>
                       </div>
-                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
                         読者向け表示:{" "}
                         <span className="font-semibold text-black">
                           {publicSurfaceReady
@@ -1364,31 +1477,31 @@ const publicVisibleCount = sortedEpisodes.filter(
                               : "非表示"}
                         </span>
                       </div>
-                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
                         タグ:{" "}
                         <span className="font-semibold text-black">
                           {tags.length}件
                         </span>
                       </div>
-                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
                         ジャンル:{" "}
                         <span className="font-semibold text-black">
                           {genres.length}件
                         </span>
                       </div>
-                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
                         朗読許可:{" "}
                         <span className="font-semibold text-black">
                           {recordingPermissionLabel}
                         </span>
                       </div>
-                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
                         レビュー欄:{" "}
                         <span className="font-semibold text-black">
                           {reviewsEnabled ? "表示" : "非表示"}
                         </span>
                       </div>
-                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                      <div className="rounded-2xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
                         コメント欄:{" "}
                         <span className="font-semibold text-black">
                           {episodeCommentsEnabled ? "表示" : "非表示"}
@@ -1526,7 +1639,7 @@ const publicVisibleCount = sortedEpisodes.filter(
 
                     <Link
                       href={`/write/series/${series.id}/episodes/new`}
-                      className="rounded-full border border-black/10 bg-white/5 px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                      className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
                     >
                       話を追加
                     </Link>
@@ -1623,10 +1736,10 @@ const publicVisibleCount = sortedEpisodes.filter(
                         </p>
                       </div>
 
-                      <div className="mt-4 flex flex-wrap gap-3">
+                      <div className="mt-3 flex flex-wrap gap-2">
                         <Link
                           href={nextStepHref}
-                          className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
+                          className="rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:opacity-90"
                         >
                           {nextStepLabel}
                         </Link>
