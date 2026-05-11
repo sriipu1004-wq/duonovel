@@ -322,12 +322,12 @@ export function renderIllustration(illustration: EffectIllustration) {
   return (
     <figure
       key={illustration.id}
-      className="overflow-hidden rounded-[24px] border border-black/10 bg-white shadow-sm"
+      className="relative z-10 rounded-[24px] border border-black/10 bg-white/95 shadow-sm"
     >
       <img
         src={illustration.imageUrl}
         alt={illustration.caption || "挿絵"}
-        className="h-auto w-full object-cover"
+        className="block h-auto max-h-none w-full object-contain"
       />
       {illustration.caption ? (
         <figcaption className="px-4 py-3 text-xs leading-6 text-neutral-600">
@@ -379,8 +379,8 @@ export default function EffectPreviewRenderer({
   const contentBlocks = buildContentBlocks(paragraphBlocks, sceneBreaks);
 
   return (
-    <div className={`${theme.frameClassName} overflow-hidden`} style={buildBackgroundStyle(settings)}>
-      <div className={`${theme.surfaceClassName} px-5 py-5 sm:px-6 sm:py-6`}>
+    <div className={`${theme.frameClassName} overflow-visible`} style={buildBackgroundStyle(settings)}>
+      <div className={`${theme.surfaceClassName} relative px-5 py-5 sm:px-6 sm:py-6`}>
         <div className="grid gap-5">
           {previewIllustrations.length > 0 ? (
             <div className="grid gap-4">{previewIllustrations.map(renderIllustration)}</div>

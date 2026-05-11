@@ -245,6 +245,12 @@ export function buildSceneBreakRuntimeList(
   paragraphBlocks: ParagraphBlock[],
   illustrations: EffectIllustration[]
 ): SceneBreakRuntime[] {
+  const segments = paragraphBlocks.flatMap((block) => block.segments);
+  const maxSentenceIndex =
+    segments.length > 0
+      ? Math.max(...segments.map((segment) => segment.index))
+      : -1;
+
   return illustrations
     .filter((illustration) => illustration.placement === "scene_break")
     .map((illustration) => {
@@ -255,8 +261,13 @@ export function buildSceneBreakRuntimeList(
           ? Math.floor(illustration.sentenceIndex)
           : null;
 
+      const clampedExplicitSentenceIndex =
+        explicitSentenceIndex !== null && maxSentenceIndex >= 0
+          ? Math.min(explicitSentenceIndex, maxSentenceIndex)
+          : explicitSentenceIndex;
+
       const sentenceIndex =
-        explicitSentenceIndex ??
+        clampedExplicitSentenceIndex ??
         resolveSentenceIndexByTargetText(
           paragraphBlocks,
           illustration.anchorText ?? ""

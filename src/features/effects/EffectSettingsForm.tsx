@@ -304,7 +304,7 @@ function AppliedEffectList({
                 {item.title}
               </p>
               <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
-                <p className="min-w-0 flex-1 text-sm leading-7 text-neutral-800">
+                <p className="min-w-0 flex-1 break-words text-sm leading-7 text-neutral-800">
                   {item.detail}
                 </p>
 
@@ -898,7 +898,7 @@ export default function EffectSettingsForm({
     {
       key: "illustration",
       label: "挿絵",
-      value: illustrationUrl || "未設定",
+      value: illustrationUrl ? "画像設定済み" : "未設定",
     },
   ];
 
