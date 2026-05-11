@@ -717,7 +717,7 @@ if (scheduledBeforePreviousIsBlocked) {
                           </div>
                         )}
                       </div>
-                </section>                    )}
+                    )}
                   </div>
                 </section>
 
