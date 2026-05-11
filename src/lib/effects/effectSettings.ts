@@ -149,6 +149,7 @@ export type EffectIllustration = {
   caption: string;
   placement: EffectIllustrationPlacement;
   anchorText: string | null;
+  sentenceIndex: number | null;
 };
 
 export type EffectSceneCue = {
@@ -291,6 +292,12 @@ function normalizeIllustration(
     caption: pickText(value.caption),
     placement,
     anchorText: pickText(value.anchorText) || null,
+    sentenceIndex:
+      typeof value.sentenceIndex === "number" &&
+      Number.isFinite(value.sentenceIndex) &&
+      value.sentenceIndex >= 0
+        ? Math.floor(value.sentenceIndex)
+        : null,
   };
 }
 

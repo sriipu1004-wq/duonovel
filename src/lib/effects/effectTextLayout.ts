@@ -248,10 +248,19 @@ export function buildSceneBreakRuntimeList(
   return illustrations
     .filter((illustration) => illustration.placement === "scene_break")
     .map((illustration) => {
-      const sentenceIndex = resolveSentenceIndexByTargetText(
-        paragraphBlocks,
-        illustration.anchorText ?? ""
-      );
+      const explicitSentenceIndex =
+        typeof illustration.sentenceIndex === "number" &&
+        Number.isFinite(illustration.sentenceIndex) &&
+        illustration.sentenceIndex >= 0
+          ? Math.floor(illustration.sentenceIndex)
+          : null;
+
+      const sentenceIndex =
+        explicitSentenceIndex ??
+        resolveSentenceIndexByTargetText(
+          paragraphBlocks,
+          illustration.anchorText ?? ""
+        );
 
       if (sentenceIndex === null) return null;
 

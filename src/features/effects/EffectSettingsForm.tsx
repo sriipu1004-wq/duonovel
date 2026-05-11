@@ -397,6 +397,8 @@ export default function EffectSettingsForm({
   );
   const [selectedBodyText, setSelectedBodyText] = useState("");
   const [selectedCursorAnchorText, setSelectedCursorAnchorText] = useState("");
+  const [selectedCursorSentenceIndex, setSelectedCursorSentenceIndex] =
+    useState<number | null>(null);
   const [inlineTargetText, setInlineTargetText] = useState(
     firstInlineMark?.targetText ?? ""
   );
@@ -436,6 +438,7 @@ export default function EffectSettingsForm({
       const customEvent = event as CustomEvent<{
         selectedText?: unknown;
         cursorAnchorText?: unknown;
+        cursorSentenceIndex?: unknown;
       }>;
 
       const nextSelectedText =
@@ -454,6 +457,15 @@ export default function EffectSettingsForm({
 
       if (nextCursorAnchorText) {
         setSelectedCursorAnchorText(nextCursorAnchorText);
+      }
+
+      if (
+        typeof customEvent.detail?.cursorSentenceIndex === "number" &&
+        Number.isFinite(customEvent.detail.cursorSentenceIndex)
+      ) {
+        setSelectedCursorSentenceIndex(
+          Math.max(0, Math.floor(customEvent.detail.cursorSentenceIndex))
+        );
       }
     }
 
@@ -628,6 +640,7 @@ export default function EffectSettingsForm({
               illustrationAnchorText.trim() ||
               selectedCursorAnchorText.trim() ||
               null,
+            sentenceIndex: selectedCursorSentenceIndex,
           },
         ],
         sceneCues: [],
@@ -656,6 +669,7 @@ export default function EffectSettingsForm({
       setIllustrationCaption("");
       setIllustrationPlacement("scene_break");
       setIllustrationAnchorText("");
+      setSelectedCursorSentenceIndex(null);
       setIllustrationUploadState("idle");
       setIllustrationUploadMessage("");
     }

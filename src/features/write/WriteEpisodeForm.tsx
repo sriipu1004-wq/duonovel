@@ -172,29 +172,96 @@ function getNextButtonLabel(status: EpisodePostingStatus): string {
     : "下書き保存して次の話へ";
 }
 
-function buildCursorAnchorText(value: string, cursorPosition: number): string {
+function splitTextIntoSentencesForCursor(value: string): Array<{
+  start: number;
+  end: number;
+  text: string;
+}> {
+  const sentences: Array<{ start: number; end: number; text: string }> = [];
+  const pattern = /[^。！？!?\n]+[。！？!?]?|\n+/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(value)) !== null) {
+    const rawText = match[0];
+    const trimmed = rawText.trim();
+
+    if (!trimmed) {
+      continue;
+    }
+
+    sentences.push({
+      start: match.index,
+      end: match.index + rawText.length,
+      text: trimmed,
+    });
+  }
+
+  if (sentences.length === 0 && value.trim()) {
+    sentences.push({
+      start: 0,
+      end: value.length,
+      text: value.trim(),
+    });
+  }
+
+  return sentences;
+}
+
+function resolveCursorSentenceInfo(value: string, cursorPosition: number): {
+  sentenceIndex: number | null;
+  anchorText: string;
+} {
   if (!value.trim()) {
-    return "";
+    return {
+      sentenceIndex: null,
+      anchorText: "",
+    };
   }
 
   const safePosition = Math.min(Math.max(cursorPosition, 0), value.length);
-  const before = value.slice(0, safePosition);
-  const after = value.slice(safePosition);
+  const sentences = splitTextIntoSentencesForCursor(value);
 
-  const beforeMatch = before.match(/[^\n。！？!?、,，]{0,24}$/u)?.[0] ?? "";
-  const afterMatch = after.match(/^[^\n。！？!?、,，]{0,24}/u)?.[0] ?? "";
-  const candidate = (beforeMatch + afterMatch).trim();
-
-  if (candidate.length >= 4) {
-    return candidate.slice(0, 36);
+  if (sentences.length === 0) {
+    return {
+      sentenceIndex: null,
+      anchorText: "",
+    };
   }
 
-  const fallbackLines = value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const directIndex = sentences.findIndex(
+    (sentence) => safePosition >= sentence.start && safePosition <= sentence.end
+  );
 
-  return fallbackLines[0]?.slice(0, 36) ?? "";
+  if (directIndex >= 0) {
+    return {
+      sentenceIndex: directIndex,
+      anchorText: sentences[directIndex].text.slice(0, 80),
+    };
+  }
+
+  let nearestIndex = 0;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  sentences.forEach((sentence, index) => {
+    const distance =
+      safePosition < sentence.start
+        ? sentence.start - safePosition
+        : safePosition - sentence.end;
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+  });
+
+  return {
+    sentenceIndex: nearestIndex,
+    anchorText: sentences[nearestIndex].text.slice(0, 80),
+  };
+}
+
+function buildCursorAnchorText(value: string, cursorPosition: number): string {
+  return resolveCursorSentenceInfo(value, cursorPosition).anchorText;
 }
 function buildReaderPreviewParagraphs(value: string): string[] {
   const normalized = normalizeAozoraTextForLayout(value);
@@ -305,10 +372,11 @@ const scheduledBeforePreviousIsBlocked =
     const selectedText =
       start !== end ? textarea.value.slice(start, end).trim() : "";
     const cursorPosition = end;
-    const cursorAnchorText = buildCursorAnchorText(
+    const cursorSentenceInfo = resolveCursorSentenceInfo(
       textarea.value,
       cursorPosition
     );
+    const cursorAnchorText = cursorSentenceInfo.anchorText;
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(
@@ -319,6 +387,7 @@ const scheduledBeforePreviousIsBlocked =
             selectionEnd: end,
             cursorPosition,
             cursorAnchorText,
+            cursorSentenceIndex: cursorSentenceInfo.sentenceIndex,
           },
         })
       );
