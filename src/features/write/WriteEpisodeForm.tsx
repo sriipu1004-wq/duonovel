@@ -172,6 +172,30 @@ function getNextButtonLabel(status: EpisodePostingStatus): string {
     : "下書き保存して次の話へ";
 }
 
+function buildCursorAnchorText(value: string, cursorPosition: number): string {
+  if (!value.trim()) {
+    return "";
+  }
+
+  const safePosition = Math.min(Math.max(cursorPosition, 0), value.length);
+  const before = value.slice(0, safePosition);
+  const after = value.slice(safePosition);
+
+  const beforeMatch = before.match(/[^\n。！？!?、,，]{0,24}$/u)?.[0] ?? "";
+  const afterMatch = after.match(/^[^\n。！？!?、,，]{0,24}/u)?.[0] ?? "";
+  const candidate = (beforeMatch + afterMatch).trim();
+
+  if (candidate.length >= 4) {
+    return candidate.slice(0, 36);
+  }
+
+  const fallbackLines = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return fallbackLines[0]?.slice(0, 36) ?? "";
+}
 function buildReaderPreviewParagraphs(value: string): string[] {
   const normalized = normalizeAozoraTextForLayout(value);
 
@@ -280,6 +304,11 @@ const scheduledBeforePreviousIsBlocked =
     const end = textarea.selectionEnd ?? 0;
     const selectedText =
       start !== end ? textarea.value.slice(start, end).trim() : "";
+    const cursorPosition = end;
+    const cursorAnchorText = buildCursorAnchorText(
+      textarea.value,
+      cursorPosition
+    );
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(
@@ -288,6 +317,8 @@ const scheduledBeforePreviousIsBlocked =
             selectedText,
             selectionStart: start,
             selectionEnd: end,
+            cursorPosition,
+            cursorAnchorText,
           },
         })
       );

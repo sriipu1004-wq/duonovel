@@ -362,6 +362,7 @@ export default function EffectSettingsForm({
     initialSettings.typography.italic
   );
   const [selectedBodyText, setSelectedBodyText] = useState("");
+  const [selectedCursorAnchorText, setSelectedCursorAnchorText] = useState("");
   const [inlineTargetText, setInlineTargetText] = useState(
     firstInlineMark?.targetText ?? ""
   );
@@ -392,6 +393,7 @@ export default function EffectSettingsForm({
     function handleBodySelection(event: Event) {
       const customEvent = event as CustomEvent<{
         selectedText?: unknown;
+        cursorAnchorText?: unknown;
       }>;
 
       const nextSelectedText =
@@ -399,7 +401,13 @@ export default function EffectSettingsForm({
           ? customEvent.detail.selectedText.trim()
           : "";
 
+      const nextCursorAnchorText =
+        typeof customEvent.detail?.cursorAnchorText === "string"
+          ? customEvent.detail.cursorAnchorText.trim()
+          : "";
+
       setSelectedBodyText(nextSelectedText);
+      setSelectedCursorAnchorText(nextCursorAnchorText);
     }
 
     window.addEventListener(
@@ -788,14 +796,14 @@ export default function EffectSettingsForm({
 
           <div className="mt-4 grid gap-4">
             <label className="grid gap-2">
-              <span className="text-sm text-neutral-700">画像URL</span>
+              <span className="text-sm text-neutral-700">画像URLまたは保存済み画像パス</span>
               <input
                 value={illustrationUrl}
                 onChange={(event) => {
                   setIllustrationUrl(event.target.value);
                   resetSaveUi();
                 }}
-                placeholder="https://..."
+                placeholder="https://... または /storage/..."
                 className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
               />
             </label>
@@ -816,6 +824,9 @@ export default function EffectSettingsForm({
 
               <label className="grid gap-2">
                 <span className="text-sm text-neutral-700">配置</span>
+                <p className="text-xs leading-6 text-neutral-500">
+                  本文中に入れたい場合は「scene_break」を選び、下のボタンでカーソル付近の文字列を指定する。
+                </p>
                 <select
                   value={illustrationPlacement}
                   onChange={(event) => {
@@ -836,6 +847,7 @@ export default function EffectSettingsForm({
             </div>
 
             {illustrationPlacement === "scene_break" ? (
+              <>
               <label className="grid gap-2">
                 <span className="text-sm text-neutral-700">
                   差し込み対象文字列
@@ -850,6 +862,33 @@ export default function EffectSettingsForm({
                   className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                 />
               </label>
+
+              <div className="rounded-2xl border border-black/10 bg-white p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs tracking-[0.16em] text-neutral-500">
+                      CURSOR POSITION
+                    </p>
+                    <p className="mt-1 break-words text-sm text-neutral-700">
+                      {selectedCursorAnchorText || "本文編集欄にカーソルを置くと、ここに差し込み候補が出る。"}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={!selectedCursorAnchorText}
+                    onClick={() => {
+                      setIllustrationPlacement("scene_break");
+                      setIllustrationAnchorText(selectedCursorAnchorText);
+                      resetSaveUi();
+                    }}
+                    className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-black/10 disabled:bg-neutral-100 disabled:text-neutral-400"
+                  >
+                    本文カーソル位置を使う
+                  </button>
+                </div>
+              </div>
+              </>
             ) : null}
           </div>
         </section>
