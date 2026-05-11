@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateNemoRecordingForEpisode } from "@/lib/recording/nemoGeneration";
 import { markEpisodeGeneratedInNemoQueue } from "@/lib/recording/nemoGenerationQueue";
+import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -260,6 +261,16 @@ export async function POST(request: Request) {
         error: "ログイン状態を確認できなかった。",
       },
       { status: 401 }
+    );
+  }
+
+  if (!isOfficialNarrationAccountEmail(user.email)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "この操作は公式朗読アカウントのみ実行できる。",
+      },
+      { status: 403 }
     );
   }
 
