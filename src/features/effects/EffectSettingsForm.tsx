@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -51,6 +51,7 @@ type EffectSettingsFormProps = {
 type AppliedEffectListItem = {
   title: string;
   detail: string;
+  deleteKey?: "background" | "inline" | "illustration";
 };
 
 function StatusBadge({ state }: { state: SaveState }) {
@@ -85,6 +86,76 @@ function StatusBadge({ state }: { state: SaveState }) {
   );
 }
 
+function getInlineMarkKindLabel(kind: EffectInlineMarkKind): string {
+  if (kind === "ruby") return "ルビ";
+  if (kind === "bold") return "太字";
+  if (kind === "italic") return "斜体";
+  if (kind === "color") return "文字色";
+  if (kind === "dot_emphasis") return "傍点";
+  if (kind === "line_emphasis") return "下線";
+  if (kind === "shake") return "震え";
+  if (kind === "typing") return "タイプ表示";
+  if (kind === "fade_out") return "薄くする";
+  return kind;
+}
+
+function getInlineValueHelp(kind: EffectInlineMarkKind): string {
+  if (kind === "ruby") return "ルビとして表示する読みを入れる。例: かんだた";
+  if (kind === "color") return "色を入れる。例: 赤 / 青 / red / #ef4444";
+  if (kind === "shake") return "任意。強さのメモとして small / normal / strong など。";
+  if (kind === "typing") return "任意。表示速度のメモとして slow / normal / fast など。";
+  if (kind === "fade_out") return "任意。薄さのメモとして 0.5 など。";
+  if (kind === "bold" || kind === "italic" || kind === "dot_emphasis" || kind === "line_emphasis") {
+    return "この演出では補助値なしでも使える。";
+  }
+
+  return "必要に応じて補助値を入れる。";
+}
+
+function normalizeInlineValue(kind: EffectInlineMarkKind, value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  if (kind !== "color") {
+    return trimmed;
+  }
+
+  const lower = trimmed.toLowerCase();
+  const colorMap: Record<string, string> = {
+    red: "#ef4444",
+    crimson: "#dc2626",
+    blue: "#2563eb",
+    sky: "#0284c7",
+    green: "#16a34a",
+    yellow: "#ca8a04",
+    amber: "#d97706",
+    orange: "#ea580c",
+    purple: "#9333ea",
+    violet: "#7c3aed",
+    pink: "#db2777",
+    black: "#111827",
+    white: "#ffffff",
+    gray: "#6b7280",
+    grey: "#6b7280",
+    赤: "#ef4444",
+    青: "#2563eb",
+    緑: "#16a34a",
+    黄: "#ca8a04",
+    黄色: "#ca8a04",
+    橙: "#ea580c",
+    オレンジ: "#ea580c",
+    紫: "#9333ea",
+    桃: "#db2777",
+    ピンク: "#db2777",
+    黒: "#111827",
+    白: "#ffffff",
+    灰: "#6b7280",
+    灰色: "#6b7280",
+  };
+
+  return colorMap[lower] ?? colorMap[trimmed] ?? trimmed;
+}
+
 function compactEffectText(value: string, maxLength = 48): string {
   const normalized = value.replace(/\s+/g, " ").trim();
 
@@ -98,10 +169,14 @@ function compactEffectText(value: string, maxLength = 48): string {
 function buildAppliedEffectList(settings: EffectSettings): AppliedEffectListItem[] {
   const items: AppliedEffectListItem[] = [];
 
-  if (settings.backgroundPreset) {
+  if (settings.backgroundPreset || settings.backgroundColor) {
     items.push({
       title: "背景",
-      detail: `背景プリセット: ${settings.backgroundPreset}`,
+      detail: [
+        settings.backgroundPreset ? `背景プリセット: ${settings.backgroundPreset}` : "",
+        settings.backgroundColor ? `背景色: ${settings.backgroundColor}` : "",
+      ].filter(Boolean).join(" / "),
+      deleteKey: "background",
     });
   }
 
@@ -127,13 +202,14 @@ function buildAppliedEffectList(settings: EffectSettings): AppliedEffectListItem
     items.push({
       title: "文字表示",
       detail: typographyParts.join(" / "),
+      deleteKey: "background",
     });
   }
 
   for (const inlineMark of settings.inlineMarks) {
     const parts = [
       `対象: ${compactEffectText(inlineMark.targetText)}`,
-      `種別: ${inlineMark.kind}`,
+      `種別: ${getInlineMarkKindLabel(inlineMark.kind)}`,
     ];
 
     if (inlineMark.value) {
@@ -143,6 +219,7 @@ function buildAppliedEffectList(settings: EffectSettings): AppliedEffectListItem
     items.push({
       title: "文字演出",
       detail: parts.join(" / "),
+      deleteKey: "inline",
     });
   }
 
@@ -161,6 +238,7 @@ function buildAppliedEffectList(settings: EffectSettings): AppliedEffectListItem
     items.push({
       title: "挿絵",
       detail: parts.join(" / "),
+      deleteKey: "illustration",
     });
   }
 
@@ -171,10 +249,12 @@ function AppliedEffectList({
   title,
   items,
   emptyText,
+  onDeleteItem,
 }: {
   title: string;
   items: AppliedEffectListItem[];
   emptyText: string;
+  onDeleteItem?: (item: AppliedEffectListItem) => void;
 }) {
   return (
     <div className="rounded-2xl border border-black/10 bg-white p-4">
@@ -190,9 +270,21 @@ function AppliedEffectList({
               <p className="text-xs tracking-[0.14em] text-neutral-500">
                 {item.title}
               </p>
-              <p className="mt-1 text-sm leading-7 text-neutral-800">
-                {item.detail}
-              </p>
+              <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
+                <p className="min-w-0 flex-1 text-sm leading-7 text-neutral-800">
+                  {item.detail}
+                </p>
+
+                {onDeleteItem && item.deleteKey ? (
+                  <button
+                    type="button"
+                    onClick={() => onDeleteItem(item)}
+                    className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs text-red-700 transition hover:bg-red-100"
+                  >
+                    削除
+                  </button>
+                ) : null}
+              </div>
             </div>
           ))}
         </div>
@@ -254,6 +346,12 @@ export default function EffectSettingsForm({
   const [fontFamily, setFontFamily] = useState(
     initialSettings.typography.fontFamily ?? ""
   );
+  const [fontSize, setFontSize] = useState(
+    initialSettings.typography.fontSize ?? ""
+  );
+  const [backgroundColor, setBackgroundColor] = useState(
+    initialSettings.backgroundColor ?? ""
+  );
   const [textColor, setTextColor] = useState(
     initialSettings.typography.textColor ?? ""
   );
@@ -299,8 +397,10 @@ export default function EffectSettingsForm({
     return parseEffectSettingsFromRow({
       version: 1,
       backgroundPreset: backgroundPreset || null,
+      backgroundColor: backgroundColor.trim() || null,
       typography: {
         fontFamily: fontFamily.trim() || null,
+        fontSize: fontSize.trim() || null,
         textColor: textColor.trim() || null,
         bold: defaultBold,
         italic: defaultItalic,
@@ -311,7 +411,7 @@ export default function EffectSettingsForm({
               id: "inline-1",
               targetText: inlineTargetText.trim(),
               kind: inlineKind,
-              value: inlineValue.trim() || null,
+              value: normalizeInlineValue(inlineKind, inlineValue),
               note: "",
             },
           ]
@@ -357,6 +457,50 @@ export default function EffectSettingsForm({
   const unsavedAppliedEffectItems = hasUnsavedPreviewChanges
     ? draftAppliedEffectItems
     : [];
+
+  function handleApplyPreview() {
+    const previewSettings = buildDraftSettings();
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("libread:episode-effect-preview", {
+          detail: {
+            settings: previewSettings,
+          },
+        })
+      );
+    }
+
+    setSuccessMessage("プレビューに反映した。保存はまだ。");
+    setSaveState("idle");
+  }
+
+  function handleDeleteUnsavedEffect(item: AppliedEffectListItem) {
+    if (item.deleteKey === "background") {
+      setBackgroundPreset("");
+      setBackgroundColor("");
+      setFontFamily("");
+      setFontSize("");
+      setTextColor("");
+      setDefaultBold(false);
+      setDefaultItalic(false);
+    }
+
+    if (item.deleteKey === "inline") {
+      setInlineTargetText("");
+      setInlineValue("");
+      setInlineKind("ruby");
+    }
+
+    if (item.deleteKey === "illustration") {
+      setIllustrationUrl("");
+      setIllustrationCaption("");
+      setIllustrationPlacement("top");
+      setIllustrationAnchorText("");
+    }
+
+    resetSaveUi();
+  }
 
   async function handleSave() {
     showGlobalLoadingFeedback("保存中...", 8000);
@@ -439,14 +583,14 @@ export default function EffectSettingsForm({
             </label>
 
             <label className="grid gap-2">
-              <span className="text-sm text-neutral-700">文字色</span>
+              <span className="text-sm text-neutral-700">背景色</span>
               <input
-                value={textColor}
+                value={backgroundColor}
                 onChange={(event) => {
-                  setTextColor(event.target.value);
+                  setBackgroundColor(event.target.value);
                   resetSaveUi();
                 }}
-                placeholder="例: #111827"
+                placeholder="例: #f7edd8 / ivory / white"
                 className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
               />
             </label>
@@ -460,6 +604,32 @@ export default function EffectSettingsForm({
                   resetSaveUi();
                 }}
                 placeholder="例: serif"
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm text-neutral-700">文字サイズ</span>
+              <input
+                value={fontSize}
+                onChange={(event) => {
+                  setFontSize(event.target.value);
+                  resetSaveUi();
+                }}
+                placeholder="例: 16px / 1.05rem / 105%"
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm text-neutral-700">文字色</span>
+              <input
+                value={textColor}
+                onChange={(event) => {
+                  setTextColor(event.target.value);
+                  resetSaveUi();
+                }}
+                placeholder="例: #111827 / black"
                 className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
               />
             </label>
@@ -530,7 +700,7 @@ export default function EffectSettingsForm({
                 >
                   {EFFECT_INLINE_MARK_KINDS.map((kind) => (
                     <option key={kind} value={kind}>
-                      {kind}
+                      {getInlineMarkKindLabel(kind)}
                     </option>
                   ))}
                 </select>
@@ -538,6 +708,9 @@ export default function EffectSettingsForm({
 
               <label className="grid gap-2">
                 <span className="text-sm text-neutral-700">補助値</span>
+                <p className="text-xs leading-6 text-neutral-500">
+                  {getInlineValueHelp(inlineKind)}
+                </p>
                 <input
                   value={inlineValue}
                   onChange={(event) => {
@@ -639,15 +812,16 @@ export default function EffectSettingsForm({
 
         <div className="mt-4 grid gap-4">
           <AppliedEffectList
-            title="保存済"
-            items={savedAppliedEffectItems}
-            emptyText="保存済の演出はまだない。"
-          />
-
-          <AppliedEffectList
             title="未保存"
             items={unsavedAppliedEffectItems}
             emptyText="未保存の変更はない。"
+            onDeleteItem={handleDeleteUnsavedEffect}
+          />
+
+          <AppliedEffectList
+            title="保存済"
+            items={savedAppliedEffectItems}
+            emptyText="保存済の演出はまだない。"
           />
 
           <div className="flex flex-wrap items-center gap-3">
