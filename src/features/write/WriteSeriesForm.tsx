@@ -151,11 +151,7 @@ function toEditorValue(items: string[]): string {
 function normalizeRecordingPermissionMode(
   value: unknown
 ): RecordingPermissionMode {
-  if (
-    value === "open" ||
-    value === "closed" ||
-    value === "closed"
-  ) {
+  if (value === "open" || value === "closed") {
     return value;
   }
 
@@ -346,9 +342,10 @@ export default function WriteSeriesForm({
 
   const initialGenres = getSeriesGenres(series);
   const initialTags = parseTags(series?.tags);
-  const initialRecordingPermissionMode = normalizeRecordingPermissionMode(
-    series?.recording_permission_mode
-  );
+  const initialRecordingPermissionMode =
+    mode === "create"
+      ? "open"
+      : normalizeRecordingPermissionMode(series?.recording_permission_mode);
   const initialEffectSettings = parseEffectSettingsFromRow(
     series?.effect_settings,
     series?.["effectSettings"]
@@ -711,7 +708,7 @@ const publicVisibleCount = sortedEpisodes.filter(
     await handleUpdate();
   }
 
-  const heading = "作品ワークスペース";
+  const heading = mode === "create" ? "新規作成スペース" : "作品ワークスペース";
   const sub = "";
 
   return (
@@ -719,7 +716,7 @@ const publicVisibleCount = sortedEpisodes.filter(
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
           <span className="text-neutral-700">
-            "作品ワークスペース"
+            {heading}
           </span>
         </div>
 
