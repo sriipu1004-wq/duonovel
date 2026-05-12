@@ -10,7 +10,7 @@ import {
 } from "@/lib/client/loadingFeedback";
 
 type SeriesPublicationStatus = "private" | "public";
-type RecordingPermissionMode = "closed" | "closed" | "open";
+type RecordingPermissionMode = "open" | "closed";
 type ActivePanel = "publication" | "genres" | "tags" | "recording" | null;
 type SaveState = "idle" | "saving" | "success" | "error";
 
@@ -42,7 +42,6 @@ function getPublicationLabel(status: SeriesPublicationStatus): string {
 
 function getRecordingPermissionLabel(mode: RecordingPermissionMode): string {
   if (mode === "open") return "朗読許可";
-  if (mode === "closed") return "朗読不可";
   return "朗読不可";
 }
 
@@ -399,7 +398,7 @@ export default function WriteSeriesCreateForm({
                   <p className="text-sm font-semibold text-black">朗読許可</p>
 
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    {(["closed", "closed", "open"] as RecordingPermissionMode[]).map(
+                    {(["open", "closed"] as RecordingPermissionMode[]).map(
                       (modeValue) => {
                         const active = recordingPermissionMode === modeValue;
 

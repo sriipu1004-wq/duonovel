@@ -162,7 +162,6 @@ function getRecordingPermissionLabel(
   mode: RecordingPermissionMode | null | undefined
 ): string {
   if (mode === "open") return "朗読許可";
-  if (mode === "closed") return "朗読不可";
   return "朗読不可";
 }
 
