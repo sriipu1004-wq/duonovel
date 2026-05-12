@@ -274,7 +274,7 @@ export default async function MyPage() {
             <EntryCard
               eyebrow="RECORD"
               title="朗読ページ"
-              description="朗読可能作品の確認、承認制作品への申請、申請状況確認、制作開始は /record に集約する。"
+              description="朗読可能作品の確認、朗読制作の開始は /record に集約する。"
               href="/record"
               cta="朗読ページを開く"
             />

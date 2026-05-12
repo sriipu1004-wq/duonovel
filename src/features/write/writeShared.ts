@@ -1,4 +1,4 @@
-export type RecordingPermissionMode = "open" | "closed" | "approval_required";
+export type RecordingPermissionMode = "open" | "closed";
 export type SeriesPublicationStatus = "private" | "public";
 export type EpisodePostingStatus = "draft" | "scheduled" | "posted";
 export type EpisodeStatusKind =

@@ -153,7 +153,7 @@ function normalizeRecordingPermissionMode(
 ): RecordingPermissionMode {
   if (
     value === "open" ||
-    value === "approval_required" ||
+    value === "closed" ||
     value === "closed"
   ) {
     return value;
@@ -165,9 +165,9 @@ function normalizeRecordingPermissionMode(
 function getRecordingPermissionLabel(
   mode: RecordingPermissionMode | null | undefined
 ): string {
-  if (mode === "open") return "無条件許可";
-  if (mode === "approval_required") return "承認制";
-  return "非許可";
+  if (mode === "open") return "朗読許可";
+  if (mode === "closed") return "朗読不可";
+  return "朗読不可";
 }
 
 function getSeriesPublicationLabel(
@@ -1291,9 +1291,9 @@ const publicVisibleCount = sortedEpisodes.filter(
                           <div className="mt-3 grid gap-2 sm:grid-cols-3">
                             {(
                               [
-                                ["open", "無条件許可"],
-                                ["approval_required", "承認制"],
-                                ["closed", "非許可"],
+                                ["open", "朗読許可"],
+                                ["closed", "朗読不可"],
+                                ["closed", "朗読不可"],
                               ] as const
                             ).map(([value, label]) => {
                               const active = recordingPermissionMode === value;

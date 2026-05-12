@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -10,7 +10,7 @@ import {
 } from "@/lib/client/loadingFeedback";
 
 type SeriesPublicationStatus = "private" | "public";
-type RecordingPermissionMode = "closed" | "approval_required" | "open";
+type RecordingPermissionMode = "closed" | "closed" | "open";
 type ActivePanel = "publication" | "genres" | "tags" | "recording" | null;
 type SaveState = "idle" | "saving" | "success" | "error";
 
@@ -41,9 +41,9 @@ function getPublicationLabel(status: SeriesPublicationStatus): string {
 }
 
 function getRecordingPermissionLabel(mode: RecordingPermissionMode): string {
-  if (mode === "open") return "無条件許可";
-  if (mode === "approval_required") return "承認制";
-  return "非許可";
+  if (mode === "open") return "朗読許可";
+  if (mode === "closed") return "朗読不可";
+  return "朗読不可";
 }
 
 function buildWorkspaceFields(args: {
@@ -399,7 +399,7 @@ export default function WriteSeriesCreateForm({
                   <p className="text-sm font-semibold text-black">朗読許可</p>
 
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    {(["closed", "approval_required", "open"] as RecordingPermissionMode[]).map(
+                    {(["closed", "closed", "open"] as RecordingPermissionMode[]).map(
                       (modeValue) => {
                         const active = recordingPermissionMode === modeValue;
 

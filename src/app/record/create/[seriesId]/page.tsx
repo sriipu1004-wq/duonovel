@@ -96,9 +96,8 @@ function pickBoolean(row: RawRow, keys: string[], fallback = true): boolean {
 }
 
 function getPermissionLabel(mode: RecordingPermissionMode): string {
-  if (mode === "open") return "自由朗読";
-  if (mode === "approval_required") return "承認制";
-  return "朗読停止";
+  if (mode === "open") return "朗読許可";
+  return "朗読不可";
 }
 
 function resolveCurrentUserReaderName(
@@ -220,7 +219,6 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
   const {
     seriesTitle,
     permissionMode,
-    hasApprovedRequest,
     userId,
   } = await requireRecordingEntryAccess(seriesId);
 
@@ -347,11 +345,6 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
                   <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-sm text-neutral-700">
                     話数: {episodes.length}話
                   </span>
-                  {permissionMode === "approval_required" ? (
-                    <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm text-black">
-                      承認状態: {hasApprovedRequest ? "approved" : "未承認"}
-                    </span>
-                  ) : null}
                 </div>
               </div>
 

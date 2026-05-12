@@ -920,6 +920,7 @@ export default function EpisodePlayback({
   const suppressAutoFollowAfterSettingsRef = useRef(false);
   const bookmarkToastTimeoutRef = useRef<number | null>(null);
   const previousEstimatedSentenceIndexRef = useRef(-1);
+  const hasTrackedRecordingPlayRef = useRef(false);
 
   const readLocalResumeState = useCallback(
     (targetSeriesId: string): ReadResumeState | null => {

@@ -52,11 +52,7 @@ type RecordFilter =
   | "all"
   | "submitted"
   | "ready"
-  | "approval"
-  | "pending"
-  | "approved"
-  | "bookmarked"
-  | "requested";
+  | "bookmarked";
 type RecordOrderKey = "popular" | "updated" | "narration";
 
 type RecordingRequestRow = Record<string, unknown> & {
@@ -141,26 +137,11 @@ const FILTER_META: Record<
     label: "朗読可",
     description: "今すぐ朗読制作へ進める作品だけを見る。",
   },
-  approval: {
-    label: "申請制",
-    description: "承認制で申請が必要な作品だけを見る。",
-  },
-  pending: {
-    label: "申請中",
-    description: "自分が承認待ちの作品だけを見る。",
-  },
-  approved: {
-    label: "承認済み",
-    description: "自分が承認済みの作品だけを見る。",
-  },
   bookmarked: {
     label: "ブックマーク",
     description: "自分が保存した作品だけを見る。",
   },
-  requested: {
-    label: "申請状況",
-    description: "申請した作品だけを見る。",
-  },
+
 };
 
 function normalizeRequestStatus(value: unknown): RequestStatus | null {
@@ -174,11 +155,7 @@ function normalizeRequestStatus(value: unknown): RequestStatus | null {
 function normalizeRecordFilter(value: unknown): RecordFilter {
   if (value === "submitted") return "submitted";
   if (value === "ready") return "ready";
-  if (value === "approval") return "approval";
-  if (value === "pending") return "pending";
-  if (value === "approved") return "approved";
   if (value === "bookmarked") return "bookmarked";
-  if (value === "requested") return "requested";
   return "all";
 }
 
@@ -343,9 +320,8 @@ function parseDateEnd(value: string | undefined): number | null {
 }
 
 function getPermissionLabel(mode: RecordingPermissionMode): string {
-  if (mode === "open") return "自由朗読";
-  if (mode === "approval_required") return "承認制";
-  return "朗読停止";
+  if (mode === "open") return "朗読許可";
+  return "朗読不可";
 }
 
 function getPermissionClass(mode: RecordingPermissionMode): string {
@@ -353,16 +329,12 @@ function getPermissionClass(mode: RecordingPermissionMode): string {
     return "border-sky-200 bg-sky-50 text-black";
   }
 
-  if (mode === "approval_required") {
-    return "border-violet-200 bg-violet-50 text-violet-700";
-  }
-
   return "border-black/10 bg-neutral-100 text-neutral-500";
 }
 
 function getRequestStatusLabel(status: RequestStatus | null): string {
-  if (status === "pending") return "申請中";
-  if (status === "approved") return "承認済み";
+  if (status === "pending") return "未使用";
+  if (status === "approved") return "朗読許可";
   if (status === "rejected") return "却下";
   if (status === "cancelled") return "取消済み";
   return "未申請";
@@ -485,7 +457,7 @@ async function fetchDiscoverableSeries(
   const firstTry = await supabase
     .from("series")
     .select("*")
-    .in("recording_permission_mode", ["open", "approval_required"])
+    .in("recording_permission_mode", ["open"])
     .order("created_at", { ascending: false });
 
   if (!firstTry.error) {
@@ -509,7 +481,7 @@ async function fetchDiscoverableSeries(
     }
 
     const mode = normalizeRecordingPermissionMode(series.recording_permission_mode);
-    return mode === "open" || mode === "approval_required";
+    return mode === "open";
   });
 }
 
@@ -643,7 +615,7 @@ function buildCatalogItem(args: {
   );
   const latestRequest = latestRequestMap.get(series.id) ?? null;
   const latestStatus = normalizeRequestStatus(latestRequest?.status);
-  const isReady = permissionMode === "open" || latestStatus === "approved";
+  const isReady = permissionMode === "open";
   const isSubmitted = submittedSeriesIds.has(series.id);
   const isBookmarked = bookmarkedSeriesIds.has(series.id);
   const tags = getSeriesTags(series);
@@ -675,7 +647,6 @@ function buildCatalogItem(args: {
         title,
         summary,
         getPermissionLabel(permissionMode),
-        getRequestStatusLabel(latestStatus),
         tags.join(" "),
         genres.join(" "),
       ].join(" ")
@@ -687,11 +658,7 @@ function matchesFilter(item: CatalogItem, filter: RecordFilter): boolean {
   if (filter === "all") return true;
   if (filter === "submitted") return item.isSubmitted;
   if (filter === "ready") return item.isReady;
-  if (filter === "approval") return item.permissionMode === "approval_required";
-  if (filter === "pending") return item.latestStatus === "pending";
-  if (filter === "approved") return item.latestStatus === "approved";
   if (filter === "bookmarked") return item.isBookmarked;
-  if (filter === "requested") return item.latestStatus !== null;
   return true;
 }
 
@@ -860,18 +827,9 @@ function getPrimaryAction(
     };
   }
 
-  if (item.latestStatus === "pending") {
-    return {
-      href: buildRecordingRequestPath(item.series.id),
-      label: "申請状況を見る",
-      className:
-        "rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50",
-    };
-  }
-
   return {
-    href: buildRecordingRequestPath(item.series.id),
-    label: "朗読申請へ",
+    href: buildWorkPath(item.series.id),
+    label: "作品ページへ",
     className:
       "rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50",
   };
@@ -939,15 +897,6 @@ function RecordCatalogCard({
               ].join(" ")}
             >
               {getPermissionLabel(item.permissionMode)}
-            </span>
-
-            <span
-              className={[
-                "rounded-full border px-3 py-1 text-xs",
-                getRequestStatusClass(item.latestStatus),
-              ].join(" ")}
-            >
-              自分: {getRequestStatusLabel(item.latestStatus)}
             </span>
 
             {item.isSubmitted ? (
@@ -1227,7 +1176,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
             朗読管理トップ
           </h1>
           <p className="mt-3 max-w-4xl text-sm leading-8 text-neutral-600 sm:text-[15px]">
-            朗読作品の検索、投稿済み朗読、ブックマーク作品、申請状況をここでまとめて管理する。
+            朗読作品の検索、投稿済み朗読、ブックマーク作品、朗読状況をここでまとめて管理する。
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -1253,7 +1202,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
               href="#record-requests"
               className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
             >
-              申請状況
+              朗読状況
             </a>
             <a
               href="#record-search-results"
@@ -1287,143 +1236,6 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
         </div>
 
         <div className="mt-6 grid gap-6">
-          <SectionFrame
-            id="record-submitted"
-            label="SUBMITTED WORKS"
-            title="投稿朗読作品一覧"
-            description="最大5件まで表示。もっと見るで下の検索結果へ移動する。"
-            action={
-              <SearchNavButton
-                href={buildRecordSearchHref({
-                  q: query,
-                  filter: "submitted",
-                  selectedTags: selectedTagLabels,
-                  selectedGenres: selectedGenreLabels,
-                  order,
-                  start: selectedStartInput,
-                  end: selectedEndInput,
-                  showTags: showAllTags,
-                  showGenres: showAllGenres,
-                })}
-                scrollTargetId="record-search-results"
-                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-              >
-                もっと見る
-              </SearchNavButton>
-            }
-          >
-            {!user ? (
-              <div className="rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">
-                ログインすると、自分が投稿済みの朗読作品を表示できる。
-              </div>
-            ) : submittedItems.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">
-                まだ投稿済みの朗読作品はない。
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {submittedItems.map((item) => (
-                  <RecordCatalogCard
-                    key={item.series.id}
-                    item={item}
-                    hasRecordingGlobalConsent={hasRecordingGlobalConsent}
-                  />
-                ))}
-              </div>
-            )}
-          </SectionFrame>
-
-          <SectionFrame
-            id="record-bookmarked"
-            label="BOOKMARKED WORKS"
-            title="ブックマーク作品"
-            description="最大5件まで表示。もっと見るで下の検索結果へ移動する。"
-            action={
-              <SearchNavButton
-                href={buildRecordSearchHref({
-                  q: query,
-                  filter: "bookmarked",
-                  selectedTags: selectedTagLabels,
-                  selectedGenres: selectedGenreLabels,
-                  order,
-                  start: selectedStartInput,
-                  end: selectedEndInput,
-                  showTags: showAllTags,
-                  showGenres: showAllGenres,
-                })}
-                scrollTargetId="record-search-results"
-                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-              >
-                もっと見る
-              </SearchNavButton>
-            }
-          >
-            {!user ? (
-              <div className="rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">
-                ログインすると、ブックマーク作品を表示できる。
-              </div>
-            ) : bookmarkedItems.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">
-                まだブックマーク作品はない。
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {bookmarkedItems.map((item) => (
-                  <RecordCatalogCard
-                    key={item.series.id}
-                    item={item}
-                    hasRecordingGlobalConsent={hasRecordingGlobalConsent}
-                  />
-                ))}
-              </div>
-            )}
-          </SectionFrame>
-
-          <SectionFrame
-            id="record-requests"
-            label="REQUEST STATUS"
-            title="申請状況"
-            description="最大5件まで表示。もっと見るで下の検索結果へ移動する。"
-            action={
-              <SearchNavButton
-                href={buildRecordSearchHref({
-                  q: query,
-                  filter: "requested",
-                  selectedTags: selectedTagLabels,
-                  selectedGenres: selectedGenreLabels,
-                  order,
-                  start: selectedStartInput,
-                  end: selectedEndInput,
-                  showTags: showAllTags,
-                  showGenres: showAllGenres,
-                })}
-                scrollTargetId="record-search-results"
-                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-              >
-                もっと見る
-              </SearchNavButton>
-            }
-          >
-            {!user ? (
-              <div className="rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">
-                ログインすると、申請状況を表示できる。
-              </div>
-            ) : requestItems.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">
-                まだ申請はない。
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {requestItems.map((item) => (
-                  <RequestStatusCard
-                    key={item.seriesId}
-                    item={item}
-                    hasRecordingGlobalConsent={hasRecordingGlobalConsent}
-                  />
-                ))}
-              </div>
-            )}
-          </SectionFrame>
 
           <SectionFrame
             id="record-search-results"

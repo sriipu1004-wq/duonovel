@@ -18,7 +18,6 @@ import {
 } from "@/lib/recording/nemoWav";
 import {
   decideRecordingEntryAccess,
-  hasApprovedRecordingRequest,
   normalizeRecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -369,16 +368,9 @@ async function loadNemoGenerationAccess(
   const permissionMode = normalizeRecordingPermissionMode(
     row.recording_permission_mode
   );
-
-  const hasApprovedRequest =
-    permissionMode === "approval_required"
-      ? await hasApprovedRecordingRequest(supabase, seriesId, userId)
-      : false;
-
   const decision = decideRecordingEntryAccess({
     permissionMode,
     isLoggedIn: true,
-    hasApprovedRequest,
   });
 
   if (!decision.canEnter) {

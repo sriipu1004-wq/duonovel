@@ -124,7 +124,7 @@ type PreviewHistoryItem = {
 
 function getPermissionLabel(mode: RecordingPermissionMode): string {
   if (mode === "open") return "自由朗読";
-  if (mode === "approval_required") return "承認制";
+  if (mode === "closed") return "朗読不可";
   return "朗読停止";
 }
 

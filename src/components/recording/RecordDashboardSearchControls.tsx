@@ -8,11 +8,7 @@ type RecordFilter =
   | "all"
   | "submitted"
   | "ready"
-  | "approval"
-  | "pending"
-  | "approved"
-  | "bookmarked"
-  | "requested";
+  | "bookmarked";
 
 type RecordOrderKey = "popular" | "updated" | "narration";
 
@@ -47,15 +43,12 @@ type RecordDashboardSearchControlsProps = {
 };
 
 const VISIBLE_FILTER_OPTIONS: Array<{
-  value: Exclude<RecordFilter, "bookmarked" | "requested">;
+  value: Exclude<RecordFilter, "bookmarked">;
   label: string;
 }> = [
   { value: "all", label: "すべて" },
   { value: "submitted", label: "投稿済" },
   { value: "ready", label: "朗読可" },
-  { value: "approval", label: "申請制" },
-  { value: "pending", label: "申請中" },
-  { value: "approved", label: "承認済み" },
 ];
 
 function normalizeTagToken(value: string): string {

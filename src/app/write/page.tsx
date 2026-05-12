@@ -133,8 +133,8 @@ function getRecordingPermissionLabel(series: SeriesRow): string {
     return "朗読許可";
   }
 
-  if (mode === "approval_required") {
-    return "承認制";
+  if (mode === "closed") {
+    return "朗読不可";
   }
 
   return "朗読不可";
@@ -150,7 +150,7 @@ function getRecordingPermissionClass(series: SeriesRow): string {
     return "border-sky-200 bg-sky-50 text-black";
   }
 
-  if (mode === "approval_required") {
+  if (mode === "closed") {
     return "border-neutral-200 bg-white text-neutral-700";
   }
 

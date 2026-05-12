@@ -226,26 +226,6 @@ async function removeStorageObjectPaths(
   await adminSupabase.storage.from(bucketName).remove(filtered);
 }
 
-async function hasApprovedRequest(
-  adminSupabase: AdminSupabase,
-  seriesId: string,
-  userId: string
-): Promise<boolean> {
-  const { data, error } = await adminSupabase
-    .from("series_recording_requests")
-    .select("id")
-    .eq("series_id", seriesId)
-    .eq("requester_user_id", userId)
-    .eq("status", "approved")
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`entry_check_failed:${error.message}`);
-  }
-
-  return !!data;
-}
 
 async function loadPublishAccess(
   adminSupabase: AdminSupabase,
@@ -266,16 +246,9 @@ async function loadPublishAccess(
   const permissionMode = normalizeRecordingPermissionMode(
     row.recording_permission_mode
   );
-
-  const approved =
-    permissionMode === "approval_required"
-      ? await hasApprovedRequest(adminSupabase, seriesId, userId)
-      : false;
-
   const decision = decideRecordingEntryAccess({
     permissionMode,
     isLoggedIn: true,
-    hasApprovedRequest: approved,
   });
 
   if (!decision.canEnter) {

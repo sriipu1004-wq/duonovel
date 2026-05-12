@@ -301,19 +301,15 @@ function buildAuthorHref(authorId: string): string {
 function getRecordingPermissionLabel(
   mode: RecordingPermissionMode | null | undefined
 ): string {
-  if (mode === "open") return "無条件許可";
-  if (mode === "approval_required") return "承認制";
-  return "非許可";
+  if (mode === "open") return "朗読許可";
+  return "朗読不可";
 }
 
 function getRecordingPermissionDescription(
   mode: RecordingPermissionMode | null | undefined
 ): string {
   if (mode === "open") {
-    return "朗読制作を募集している。";
-  }
-  if (mode === "approval_required") {
-    return "申請と承認後に朗読制作へ進む。";
+    return "朗読制作を許可している。";
   }
   return "第三者朗読の募集は行っていない。";
 }
@@ -324,15 +320,11 @@ function getRecordingPermissionBadgeClass(
   if (mode === "open") {
     return "border-sky-200 bg-sky-50 text-black";
   }
-  if (mode === "approval_required") {
-    return "border-black/10 bg-neutral-100 text-neutral-700";
-  }
   return "border-black/10 bg-white text-neutral-600";
 }
 
 function resolveRecordingPermissionMode(value: unknown): RecordingPermissionMode {
   if (value === "open") return "open";
-  if (value === "approval_required") return "approval_required";
   return "closed";
 }
 

@@ -1,11 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export type RecordingPermissionMode = "open" | "closed" | "approval_required";
-export type RecordingEntryDeniedReason =
-  | "login_required"
-  | "closed"
-  | "approval_required_not_approved";
+export type RecordingPermissionMode = "open" | "closed";
+export type RecordingEntryDeniedReason = "login_required" | "closed";
 
 export type RecordingEntryDecision = {
   canEnter: boolean;
@@ -16,7 +13,6 @@ export type RecordingEntryGuardResult = {
   seriesId: string;
   seriesTitle: string;
   permissionMode: RecordingPermissionMode;
-  hasApprovedRequest: boolean;
   userId: string;
 };
 
@@ -42,7 +38,6 @@ export function normalizeRecordingPermissionMode(
   value: unknown
 ): RecordingPermissionMode {
   if (value === "open") return "open";
-  if (value === "approval_required") return "approval_required";
   return "closed";
 }
 
@@ -51,7 +46,7 @@ export function buildRecordingEntryPath(seriesId: string): string {
 }
 
 export function buildRecordingRequestPath(seriesId: string): string {
-  return `/recording-request/${seriesId}`;
+  return buildWorkPath(seriesId);
 }
 
 export function buildWorkPath(seriesId: string): string {
@@ -61,11 +56,9 @@ export function buildWorkPath(seriesId: string): string {
 export function decideRecordingEntryAccess({
   permissionMode,
   isLoggedIn,
-  hasApprovedRequest,
 }: {
   permissionMode: RecordingPermissionMode;
   isLoggedIn: boolean;
-  hasApprovedRequest: boolean;
 }): RecordingEntryDecision {
   if (!isLoggedIn) {
     return {
@@ -81,23 +74,9 @@ export function decideRecordingEntryAccess({
     };
   }
 
-  if (permissionMode === "closed") {
-    return {
-      canEnter: false,
-      deniedReason: "closed",
-    };
-  }
-
-  if (hasApprovedRequest) {
-    return {
-      canEnter: true,
-      deniedReason: null,
-    };
-  }
-
   return {
     canEnter: false,
-    deniedReason: "approval_required_not_approved",
+    deniedReason: "closed",
   };
 }
 
@@ -118,28 +97,6 @@ async function fetchSeriesRecordingPermission(
   return data as SeriesRecordingPermissionRow;
 }
 
-export async function hasApprovedRecordingRequest(
-  supabase: ServerSupabase,
-  seriesId: string,
-  userId: string
-): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("series_recording_requests")
-    .select("id")
-    .eq("series_id", seriesId)
-    .eq("requester_user_id", userId)
-    .eq("status", "approved")
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(
-      `approved な series_recording_requests の確認に失敗: ${error.message}`
-    );
-  }
-
-  return !!data;
-}
 
 function redirectForDeniedEntry(
   seriesId: string,
@@ -150,11 +107,7 @@ function redirectForDeniedEntry(
     redirect(`/login?next=${encodeURIComponent(nextPath)}`);
   }
 
-  if (deniedReason === "closed") {
-    redirect(buildWorkPath(seriesId));
-  }
-
-  redirect(buildRecordingRequestPath(seriesId));
+  redirect(buildWorkPath(seriesId));
 }
 
 export async function requireRecordingEntryAccess(
@@ -176,15 +129,9 @@ export async function requireRecordingEntryAccess(
     series.recording_permission_mode
   );
 
-  const hasApprovedRequest =
-    !!user && permissionMode === "approval_required"
-      ? await hasApprovedRecordingRequest(supabase, seriesId, user.id)
-      : false;
-
   const decision = decideRecordingEntryAccess({
     permissionMode,
     isLoggedIn: !!user,
-    hasApprovedRequest,
   });
 
   if (!decision.canEnter) {
@@ -195,7 +142,6 @@ export async function requireRecordingEntryAccess(
     seriesId,
     seriesTitle: pickText(series.title) || "無題",
     permissionMode,
-    hasApprovedRequest,
     userId: user!.id,
   };
 }
