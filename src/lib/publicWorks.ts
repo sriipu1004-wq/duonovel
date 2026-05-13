@@ -14,11 +14,6 @@ import {
 } from "@/features/write/writeShared";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-type UserRow = Record<string, unknown> & {
-  id: string;
-  display_name?: string | null;
-};
-
 export type PublicBaseWorkCard = {
   seriesId: string;
   title: string;
@@ -206,32 +201,46 @@ async function fetchEpisodesBySeriesIds(
   return grouped;
 }
 
-async function fetchAuthorMap(authorIds: string[]): Promise<Map<string, UserRow>> {
-  const supabase = createPublicServerClient();
+function readAuthAccountDisplayName(metadata: unknown): string {
+  if (!metadata || typeof metadata !== "object") {
+    return "";
+  }
 
+  const record = metadata as Record<string, unknown>;
+
+  return pickPublicAuthorName(
+    record.display_name_candidate,
+    record.display_name
+  );
+}
+
+async function fetchAuthorDisplayNameMap(
+  authorIds: string[]
+): Promise<Map<string, string>> {
   if (authorIds.length === 0) {
     return new Map();
   }
 
-  const narrow = await supabase
-    .from("users")
-    .select(PUBLIC_WORK_AUTHOR_SELECT)
-    .in("id", authorIds);
+  const adminSupabase = createAdminClient();
+  const result = new Map<string, string>();
 
-  if (!narrow.error) {
-    return new Map(((narrow.data ?? []) as UserRow[]).map((user) => [user.id, user]));
-  }
+  await Promise.all(
+    authorIds.map(async (authorId) => {
+      const { data, error } = await adminSupabase.auth.admin.getUserById(authorId);
 
-  const fallback = await supabase
-    .from("users")
-    .select("*")
-    .in("id", authorIds);
+      if (error || !data?.user) {
+        return;
+      }
 
-  if (fallback.error) {
-    return new Map();
-  }
+      const displayName = readAuthAccountDisplayName(data.user.user_metadata);
 
-  return new Map(((fallback.data ?? []) as UserRow[]).map((user) => [user.id, user]));
+      if (displayName) {
+        result.set(authorId, displayName);
+      }
+    })
+  );
+
+  return result;
 }
 
 async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
@@ -251,8 +260,8 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
     )
   );
 
-  const [authorMap, episodesBySeriesId] = await Promise.all([
-    fetchAuthorMap(authorIds),
+  const [authorDisplayNameMap, episodesBySeriesId] = await Promise.all([
+    fetchAuthorDisplayNameMap(authorIds),
     fetchEpisodesBySeriesIds(publicSeries.map((series) => series.id)),
   ]);
 
@@ -269,8 +278,6 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 
       const authorId =
         pickText(series.author_id, series["user_id"], series["userId"]) || null;
-
-      const author = authorId ? authorMap.get(authorId) : null;
 
       const latestPostedRaw = latestEpisode
         ? getEpisodePostedAtValue(latestEpisode)
@@ -295,7 +302,9 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         title: pickText(series.title) || "無題",
         summary:
           getSeriesSummary(series) || "あらすじはまだ登録されていません。",
-        authorName: pickPublicAuthorName(author?.display_name) || "作者名未設定",
+        authorName:
+          (authorId ? authorDisplayNameMap.get(authorId) : "") ||
+          "作者名未設定",
         authorId,
         episodeCount: publicEpisodes.length,
         firstEpisodeNumber: firstEpisode ? getEpisodeNumber(firstEpisode) : null,
@@ -374,11 +383,6 @@ const PUBLIC_WORK_EPISODE_SELECT = `
   posting_status,
   scheduled_for,
   posted_at
-`;
-
-const PUBLIC_WORK_AUTHOR_SELECT = `
-  id,
-  display_name
 `;
 
 const PUBLIC_WORK_RECORDING_AGGREGATE_SELECT = `

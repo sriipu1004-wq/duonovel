@@ -1,43 +1,49 @@
 import { normalizeDisplayName } from "@/lib/auth/accountSignupConsent";
 
-type SupabaseLike = {
-  from: (table: string) => any;
+type AdminSupabaseLike = {
+  auth: {
+    admin: {
+      listUsers: (args: { page: number; perPage: number }) => Promise<{
+        data?: {
+          users?: Array<{
+            id: string;
+            user_metadata?: Record<string, unknown> | null;
+          }>;
+        } | null;
+        error?: { message?: string } | null;
+      }>;
+    };
+  };
 };
 
 export type PublicUserProfileRow = Record<string, unknown> & {
   id: string;
   display_name?: string | null;
-  username?: string | null;
-  pen_name?: string | null;
-  name?: string | null;
 };
 
 function normalizeLookupKey(value: string): string {
   return normalizeDisplayName(value).toLowerCase();
 }
 
-function matchesDisplayName(
-  row: PublicUserProfileRow,
-  normalizedDisplayName: string
-): boolean {
-  const lookupKey = normalizeLookupKey(normalizedDisplayName);
+function readText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
 
-  return [
-    row.display_name,
-    row.username,
-    row.pen_name,
-    row.name,
-  ].some((value) => {
-    if (typeof value !== "string" || value.trim().length === 0) {
-      return false;
-    }
+function readAuthAccountDisplayName(metadata: unknown): string {
+  if (!metadata || typeof metadata !== "object") {
+    return "";
+  }
 
-    return normalizeLookupKey(value) === lookupKey;
-  });
+  const record = metadata as Record<string, unknown>;
+
+  return (
+    readText(record.display_name_candidate) ||
+    readText(record.display_name)
+  );
 }
 
 export async function findDisplayNameConflict(args: {
-  supabase: SupabaseLike;
+  supabase: AdminSupabaseLike;
   displayName: string;
   excludeUserId?: string | null;
 }): Promise<PublicUserProfileRow | null> {
@@ -47,46 +53,48 @@ export async function findDisplayNameConflict(args: {
     return null;
   }
 
-  const collected = new Map<string, PublicUserProfileRow>();
-  let successfulQueryCount = 0;
+  const lookupKey = normalizeLookupKey(normalizedDisplayName);
+  const trimmedExcludeUserId = (args.excludeUserId ?? "").trim();
 
-  const columns = ["display_name", "username", "pen_name", "name"] as const;
+  const perPage = 1000;
 
-  for (const column of columns) {
-    const { data, error } = await args.supabase
-      .from("users")
-      .select("*")
-      .ilike(column, normalizedDisplayName)
-      .limit(10);
+  for (let page = 1; page <= 100; page += 1) {
+    const { data, error } = await args.supabase.auth.admin.listUsers({
+      page,
+      perPage,
+    });
 
     if (error) {
-      continue;
+      throw new Error(error.message || "display_name_lookup_failed");
     }
 
-    successfulQueryCount += 1;
+    const users = data?.users ?? [];
 
-    for (const row of (data ?? []) as PublicUserProfileRow[]) {
-      if (!row?.id) {
+    for (const user of users) {
+      if (!user?.id) {
         continue;
       }
 
-      collected.set(row.id, row);
+      if (trimmedExcludeUserId && user.id === trimmedExcludeUserId) {
+        continue;
+      }
+
+      const displayName = readAuthAccountDisplayName(user.user_metadata);
+
+      if (!displayName) {
+        continue;
+      }
+
+      if (normalizeLookupKey(displayName) === lookupKey) {
+        return {
+          id: user.id,
+          display_name: displayName,
+        };
+      }
     }
-  }
 
-  if (successfulQueryCount === 0) {
-    throw new Error("display_name_lookup_failed");
-  }
-
-  const trimmedExcludeUserId = (args.excludeUserId ?? "").trim();
-
-  for (const row of collected.values()) {
-    if (trimmedExcludeUserId && row.id === trimmedExcludeUserId) {
-      continue;
-    }
-
-    if (matchesDisplayName(row, normalizedDisplayName)) {
-      return row;
+    if (users.length < perPage) {
+      break;
     }
   }
 

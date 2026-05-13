@@ -185,6 +185,28 @@ async function savePublicUserProfile(args: {
   throw new Error(lastErrorMessage);
 }
 
+async function saveAuthDisplayNameMetadata(args: {
+  adminSupabase: AdminSupabase;
+  userId: string;
+  displayName: string;
+  currentMetadata: Record<string, unknown>;
+}): Promise<void> {
+  const { error } = await args.adminSupabase.auth.admin.updateUserById(
+    args.userId,
+    {
+      user_metadata: {
+        ...args.currentMetadata,
+        display_name_candidate: args.displayName,
+        display_name: args.displayName,
+      },
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+}
+
 async function syncDisplayNameEverywhere(args: {
   adminSupabase: AdminSupabase;
   userId: string;
@@ -340,6 +362,16 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
+
+    await saveAuthDisplayNameMetadata({
+      adminSupabase,
+      userId: user.id,
+      displayName: normalizedDisplayName,
+      currentMetadata:
+        user.user_metadata && typeof user.user_metadata === "object"
+          ? (user.user_metadata as Record<string, unknown>)
+          : {},
+    });
 
     await savePublicUserProfile({
       adminSupabase,
