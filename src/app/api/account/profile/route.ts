@@ -56,35 +56,48 @@ function buildProfilePayloads(args: {
   includeId: boolean;
   includeUpdatedAt: boolean;
 }): Array<Record<string, unknown>> {
-  const basePayload: Record<string, unknown> = {
+  const identityPayload: Record<string, unknown> = {
     display_name: args.displayName,
   };
 
   if (args.includeId) {
-    basePayload.id = args.userId;
+    identityPayload.id = args.userId;
   }
 
   if (args.includeUpdatedAt) {
-    basePayload.updated_at = new Date().toISOString();
+    identityPayload.updated_at = new Date().toISOString();
   }
 
+  const linkedPayload: Record<string, unknown> = { ...identityPayload };
+
   if (typeof args.xUrl === "string") {
-    basePayload.x_url = args.xUrl;
+    linkedPayload.x_url = args.xUrl;
   }
 
   if (typeof args.noteUrl === "string") {
-    basePayload.note_url = args.noteUrl;
+    linkedPayload.note_url = args.noteUrl;
   }
 
-  if (typeof args.bio !== "string") {
-    return [{ ...basePayload }];
+  const payloads: Array<Record<string, unknown>> = [];
+
+  if (typeof args.bio === "string") {
+    payloads.push(
+      { ...linkedPayload, bio: args.bio },
+      { ...linkedPayload, profile: args.bio },
+      { ...identityPayload, bio: args.bio },
+      { ...identityPayload, profile: args.bio }
+    );
   }
 
-  return [
-    { ...basePayload, bio: args.bio },
-    { ...basePayload, profile: args.bio },
-    { ...basePayload, description: args.bio },
-  ];
+  payloads.push(linkedPayload, identityPayload);
+
+  const seen = new Set<string>();
+  return payloads.filter((payload) => {
+    const key = JSON.stringify(payload);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 async function savePublicUserProfile(args: {

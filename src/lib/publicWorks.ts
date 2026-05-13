@@ -304,7 +304,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
             author?.pen_name,
             author?.username,
             author?.name,
-            series["author_name"]
+            getSeriesAuthorNameFallback(series)
           ) || "作者名未設定",
         authorId,
         episodeCount: publicEpisodes.length,
@@ -369,6 +369,16 @@ const PUBLIC_WORK_SERIES_SELECT = `
   user_id,
   created_at,
   author_name,
+  authorName,
+  author,
+  writer_name,
+  writerName,
+  creator_name,
+  creatorName,
+  original_author,
+  originalAuthor,
+  original_author_name,
+  originalAuthorName,
   tags,
   tag_list,
   genres,
@@ -434,6 +444,48 @@ function pickPublicAuthorName(...values: unknown[]): string {
   }
 
   return "";
+}
+
+function inferAuthorNameFromSeriesTitle(title: unknown): string {
+  const text = pickText(title);
+
+  if (!text.includes("・")) {
+    return "";
+  }
+
+  const parts = text
+    .split("・")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  const candidate = parts[parts.length - 1] ?? "";
+
+  if (candidate.length < 2 || candidate.length > 32) {
+    return "";
+  }
+
+  if (isEmailLike(candidate)) {
+    return "";
+  }
+
+  return candidate;
+}
+
+function getSeriesAuthorNameFallback(series: SeriesRow): string {
+  return pickPublicAuthorName(
+    series["author_name"],
+    series["authorName"],
+    series["author"],
+    series["writer_name"],
+    series["writerName"],
+    series["creator_name"],
+    series["creatorName"],
+    series["original_author"],
+    series["originalAuthor"],
+    series["original_author_name"],
+    series["originalAuthorName"],
+    inferAuthorNameFromSeriesTitle(series.title)
+  );
 }
 
 function getRecordingLikes(recording: RecordingAggregateRow): number {
