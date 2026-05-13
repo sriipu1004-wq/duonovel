@@ -17,9 +17,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 type UserRow = Record<string, unknown> & {
   id: string;
   display_name?: string | null;
-  username?: string | null;
-  pen_name?: string | null;
-  name?: string | null;
 };
 
 export type PublicBaseWorkCard = {
@@ -298,14 +295,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         title: pickText(series.title) || "無題",
         summary:
           getSeriesSummary(series) || "あらすじはまだ登録されていません。",
-        authorName:
-          pickPublicAuthorName(
-            author?.display_name,
-            author?.pen_name,
-            author?.username,
-            author?.name,
-            getSeriesAuthorNameFallback(series)
-          ) || "作者名未設定",
+        authorName: pickPublicAuthorName(author?.display_name) || "作者名未設定",
         authorId,
         episodeCount: publicEpisodes.length,
         firstEpisodeNumber: firstEpisode ? getEpisodeNumber(firstEpisode) : null,
@@ -368,17 +358,7 @@ const PUBLIC_WORK_SERIES_SELECT = `
   author_id,
   user_id,
   created_at,
-  author_name,
-  authorName,
-  author,
-  writer_name,
-  writerName,
-  creator_name,
-  creatorName,
-  original_author,
-  originalAuthor,
-  original_author_name,
-  originalAuthorName,
+
   tags,
   tag_list,
   genres,
@@ -398,10 +378,7 @@ const PUBLIC_WORK_EPISODE_SELECT = `
 
 const PUBLIC_WORK_AUTHOR_SELECT = `
   id,
-  display_name,
-  username,
-  pen_name,
-  name
+  display_name
 `;
 
 const PUBLIC_WORK_RECORDING_AGGREGATE_SELECT = `
@@ -446,47 +423,6 @@ function pickPublicAuthorName(...values: unknown[]): string {
   return "";
 }
 
-function inferAuthorNameFromSeriesTitle(title: unknown): string {
-  const text = pickText(title);
-
-  if (!text.includes("・")) {
-    return "";
-  }
-
-  const parts = text
-    .split("・")
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-
-  const candidate = parts[parts.length - 1] ?? "";
-
-  if (candidate.length < 2 || candidate.length > 32) {
-    return "";
-  }
-
-  if (isEmailLike(candidate)) {
-    return "";
-  }
-
-  return candidate;
-}
-
-function getSeriesAuthorNameFallback(series: SeriesRow): string {
-  return pickPublicAuthorName(
-    series["author_name"],
-    series["authorName"],
-    series["author"],
-    series["writer_name"],
-    series["writerName"],
-    series["creator_name"],
-    series["creatorName"],
-    series["original_author"],
-    series["originalAuthor"],
-    series["original_author_name"],
-    series["originalAuthorName"],
-    inferAuthorNameFromSeriesTitle(series.title)
-  );
-}
 
 function getRecordingLikes(recording: RecordingAggregateRow): number {
   const raw = recording.like_count ?? recording.likes_count ?? 0;

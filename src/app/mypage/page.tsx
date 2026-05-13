@@ -147,6 +147,15 @@ function MySeriesSection({ cards }: { cards: AuthorSeriesCard[] }) {
   );
 }
 
+function readAuthMetadataText(metadata: unknown, key: string): string {
+  if (!metadata || typeof metadata !== "object") {
+    return "";
+  }
+
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function readAuthMetadataDisplayName(metadata: unknown): string {
   if (!metadata || typeof metadata !== "object") {
     return "";
@@ -212,7 +221,12 @@ export default async function MyPage() {
       ? author.note_url
       : typeof author?.noteUrl === "string" && author.noteUrl.trim().length > 0
         ? author.noteUrl
-        : "";          
+        : "";
+
+  const initialLinkLabels = [
+    readAuthMetadataText(user.user_metadata, "profile_link_1_label"),
+    readAuthMetadataText(user.user_metadata, "profile_link_2_label"),
+  ];
 
   const signedInLabel = metadataDisplayName || user.email || "ログイン中";
   const enableOfficialAivisAutogen = isOfficialNarrationAccountEmail(user.email);
@@ -249,6 +263,7 @@ export default async function MyPage() {
           initialBio={initialBio}
           initialXUrl={initialXUrl}
           initialNoteUrl={initialNoteUrl}
+          initialLinkLabels={initialLinkLabels}
           eyebrow="LIB READ MYPAGE"
           actions={[
             {

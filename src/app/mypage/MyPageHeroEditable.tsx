@@ -26,6 +26,7 @@ type MyPageHeroEditableProps = {
   initialBio: string;
   initialXUrl: string;
   initialNoteUrl: string;
+  initialLinkLabels?: string[];
   eyebrow: string;
   actions?: HeroAction[];
 };
@@ -60,15 +61,23 @@ function resolveVisibleLinkFieldCount(values: string[]): number {
   const first = values[0]?.trim().length > 0;
   const second = values[1]?.trim().length > 0;
 
-  if (second) {
-    return 2;
-  }
-
-  return first ? 1 : 1;
+  return first || second ? 2 : 1;
 }
 
 function trimLinkValues(values: string[]): string[] {
   return [values[0]?.trim() ?? "", values[1]?.trim() ?? ""];
+}
+
+function normalizeLinkLabel(value: string, fallback: string): string {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 32) : fallback;
+}
+
+function buildInitialLinkLabels(values: string[] | undefined): string[] {
+  return [
+    normalizeLinkLabel(values?.[0] ?? "", "リンク 1"),
+    normalizeLinkLabel(values?.[1] ?? "", "リンク 2"),
+  ];
 }
 
 export default function MyPageHeroEditable({
@@ -78,6 +87,7 @@ export default function MyPageHeroEditable({
   initialBio,
   initialXUrl,
   initialNoteUrl,
+  initialLinkLabels = [],
   eyebrow,
   actions = [],
 }: MyPageHeroEditableProps) {
@@ -86,6 +96,7 @@ export default function MyPageHeroEditable({
   const normalizedInitialDisplayName = normalizeDisplayName(initialDisplayName);
   const normalizedInitialBio = normalizeBio(initialBio);
   const initialLinkValues = trimLinkValues([initialXUrl, initialNoteUrl]);
+  const initialLinkLabelValues = buildInitialLinkLabels(initialLinkLabels);
 
   const [displayName, setDisplayName] = useState(normalizedInitialDisplayName);
   const [draftName, setDraftName] = useState(normalizedInitialDisplayName);
@@ -95,6 +106,10 @@ export default function MyPageHeroEditable({
 
   const [linkValues, setLinkValues] = useState<string[]>(initialLinkValues);
   const [draftLinks, setDraftLinks] = useState<string[]>(initialLinkValues);
+  const [linkLabels, setLinkLabels] = useState<string[]>(initialLinkLabelValues);
+  const [draftLinkLabels, setDraftLinkLabels] = useState<string[]>(
+    initialLinkLabelValues
+  );
 
   const [visibleLinkFieldCount, setVisibleLinkFieldCount] = useState<number>(
     resolveVisibleLinkFieldCount(initialLinkValues)
@@ -123,11 +138,6 @@ export default function MyPageHeroEditable({
 
   const hasExternalLinks = visibleSavedLinks.length > 0;
 
-  const canAddLinkField =
-    isEditing &&
-    visibleLinkFieldCount < 2 &&
-    draftLinks[visibleLinkFieldCount - 1]?.trim().length > 0;
-
   function resetNotice() {
     setSaveState("idle");
     setErrorMessage("");
@@ -138,6 +148,7 @@ export default function MyPageHeroEditable({
     setDraftName(displayName.trim());
     setDraftBio(bio);
     setDraftLinks([...linkValues]);
+    setDraftLinkLabels([...linkLabels]);
     setVisibleLinkFieldCount(resolveVisibleLinkFieldCount(linkValues));
     setIsEditing(true);
     resetNotice();
@@ -147,6 +158,7 @@ export default function MyPageHeroEditable({
     setDraftName(displayName.trim());
     setDraftBio(bio);
     setDraftLinks([...linkValues]);
+    setDraftLinkLabels([...linkLabels]);
     setVisibleLinkFieldCount(resolveVisibleLinkFieldCount(linkValues));
     setIsEditing(false);
     resetNotice();
@@ -156,13 +168,24 @@ export default function MyPageHeroEditable({
     setDraftLinks((prev) => {
       const next = [...prev];
       next[index] = value;
+
+      if (index === 0) {
+        const shouldShowSecond =
+          value.trim().length > 0 || next[1]?.trim().length > 0;
+        setVisibleLinkFieldCount(shouldShowSecond ? 2 : 1);
+      }
+
       return next;
     });
     resetNotice();
   }
 
-  function handleAddLinkField() {
-    setVisibleLinkFieldCount((prev) => Math.min(2, prev + 1));
+  function handleDraftLinkLabelChange(index: number, value: string) {
+    setDraftLinkLabels((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
     resetNotice();
   }
 
@@ -176,6 +199,10 @@ export default function MyPageHeroEditable({
     const trimmedName = normalizeDisplayName(draftName);
     const normalizedBio = normalizeBio(draftBio);
     const normalizedLinks = trimLinkValues(draftLinks);
+    const normalizedLinkLabels = [
+      normalizeLinkLabel(draftLinkLabels[0] ?? "", "リンク 1"),
+      normalizeLinkLabel(draftLinkLabels[1] ?? "", "リンク 2"),
+    ];
     const validationError = validateDisplayName(trimmedName);
 
     if (validationError) {
@@ -223,6 +250,8 @@ export default function MyPageHeroEditable({
         data: {
           display_name: savedProfile.displayName,
           display_name_candidate: savedProfile.displayName,
+          profile_link_1_label: normalizedLinkLabels[0],
+          profile_link_2_label: normalizedLinkLabels[1],
         },
       });
 
@@ -239,6 +268,8 @@ export default function MyPageHeroEditable({
 
       setLinkValues(nextSavedLinks);
       setDraftLinks(nextSavedLinks);
+      setLinkLabels(normalizedLinkLabels);
+      setDraftLinkLabels(normalizedLinkLabels);
       setVisibleLinkFieldCount(resolveVisibleLinkFieldCount(nextSavedLinks));
 
       setIsEditing(false);
@@ -381,7 +412,34 @@ export default function MyPageHeroEditable({
                   <label className="text-sm text-neutral-700">
                     リンク {index + 1}
                   </label>
-                  <div className="mt-2 rounded-2xl border border-black/10 bg-white p-4">
+
+                  <div className="mt-2 grid gap-2 rounded-2xl border border-black/10 bg-white p-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = document.getElementById(
+                          `profile-link-label-${index}`
+                        );
+                        if (target instanceof HTMLInputElement) {
+                          target.focus();
+                          target.select();
+                        }
+                      }}
+                      className="w-fit rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-600 transition hover:bg-neutral-100"
+                    >
+                      表記を変更
+                    </button>
+
+                    <input
+                      id={`profile-link-label-${index}`}
+                      value={draftLinkLabels[index] ?? `リンク ${index + 1}`}
+                      onChange={(event) =>
+                        handleDraftLinkLabelChange(index, event.target.value)
+                      }
+                      className="w-full border-none bg-transparent p-0 text-sm font-semibold text-black outline-none placeholder:text-neutral-300"
+                      placeholder={`リンク ${index + 1}`}
+                    />
+
                     <input
                       value={draftLinks[index] ?? ""}
                       onChange={(event) =>
@@ -393,21 +451,6 @@ export default function MyPageHeroEditable({
                   </div>
                 </div>
               ))}
-
-              {canAddLinkField ? (
-                <div>
-                  <button
-                    type="button"
-                    onClick={handleAddLinkField}
-                    className="inline-flex rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
-                  >
-                    次のリンクを追加
-                  </button>
-                  <p className="mt-2 text-xs leading-6 text-neutral-500">
-                    今の安全版ではリンクは2本まで保存する。
-                  </p>
-                </div>
-              ) : null}
             </div>
           </div>
         ) : (
@@ -426,7 +469,7 @@ export default function MyPageHeroEditable({
                     rel="noreferrer"
                     className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
                   >
-                    リンク {index + 1}
+                    {linkLabels[index] || `リンク ${index + 1}`}
                   </a>
                 ))}
               </div>
