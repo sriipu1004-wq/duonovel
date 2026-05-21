@@ -6,10 +6,8 @@ import {
   hasRequiredAccountRegistrationConsent,
   isAccountRegistrationCompleted,
   normalizeNextPath,
-  readAccountRegistrationBirthdate,
   readAccountRegistrationConsent,
   readAccountRegistrationDisplayName,
-  readAccountRegistrationGender,
 } from "@/lib/auth/accountSignupConsent";
 
 function buildRedirect(request: NextRequest, pathname: string) {
@@ -118,8 +116,6 @@ export async function GET(request: NextRequest) {
 
   const metadata = user.user_metadata ?? {};
   const displayName = readAccountRegistrationDisplayName(metadata);
-  const birthdate = readAccountRegistrationBirthdate(metadata);
-  const gender = readAccountRegistrationGender(metadata);
   const agreedToTerms = readAccountRegistrationConsent(
     metadata,
     "account_public_profile_ack"
@@ -141,8 +137,6 @@ export async function GET(request: NextRequest) {
     if (!isAccountRegistrationCompleted(metadata)) {
       const hasRequiredInput =
         displayName.length > 0 &&
-        birthdate.length > 0 &&
-        gender.length > 0 &&
         hasRequiredAccountRegistrationConsent({
           agreedToTerms,
           agreedToPrivacy,
@@ -152,8 +146,6 @@ export async function GET(request: NextRequest) {
       if (hasRequiredInput) {
         const completedMetadata = buildCompletedAccountRegistrationMetadata({
           displayName,
-          birthdate,
-          gender,
           agreedToTerms,
           agreedToPrivacy,
           acknowledgedPublicSurface,

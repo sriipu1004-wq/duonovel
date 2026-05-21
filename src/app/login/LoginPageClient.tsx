@@ -9,6 +9,20 @@ import { normalizeNextPath } from "@/lib/auth/accountSignupConsent";
 
 type PendingAction = "signin" | "signout" | null;
 
+function resolveAuthRedirectOrigin(): string {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? "";
+
+  if (siteUrl.length > 0) {
+    return siteUrl.replace(/\/+$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    return window.location.origin.replace(/\/+$/, "");
+  }
+
+  return "";
+}
+
 export default function LoginPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -28,8 +42,6 @@ export default function LoginPageClient() {
 
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -69,9 +81,7 @@ export default function LoginPageClient() {
 
   useEffect(() => {
     if (confirmed) {
-      setMessage(
-        "確認成功。ログイン可。"
-      );
+      setMessage("確認リンクを開いた。ログイン中なら元のページへ戻れる。");
     }
   }, [confirmed]);
 
@@ -82,9 +92,17 @@ export default function LoginPageClient() {
     setMessage("");
     setErrorMessage("");
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const redirectOrigin = resolveAuthRedirectOrigin();
+    const emailRedirectTo = redirectOrigin
+      ? `${redirectOrigin}/auth/callback?next=${encodeURIComponent(nextPath)}`
+      : undefined;
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: {
+        emailRedirectTo,
+        shouldCreateUser: false,
+      },
     });
 
     if (error) {
@@ -93,10 +111,8 @@ export default function LoginPageClient() {
       return;
     }
 
-    setMessage("ログインした。元のページへ戻る。");
+    setMessage("ログイン用メールを送った。メール内のリンクを開いて。");
     setPendingAction(null);
-    router.push(nextPath);
-    router.refresh();
   }
 
   async function handleSignOut() {
@@ -132,8 +148,7 @@ export default function LoginPageClient() {
             </h1>
 
             <p className="mt-4 text-sm leading-7 text-neutral-600">
-              このサイトでは、メールアドレスとパスワードでログインする。
-              アカウント作成時はメール確認を行う。
+              メールリンクでログインする。パスワードは使わない。
             </p>
 
             {user ? (
@@ -195,43 +210,13 @@ export default function LoginPageClient() {
                     />
                   </label>
 
-                  <label className="mt-4 block">
-                    <span className="text-sm text-neutral-700">パスワード</span>
-
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        autoComplete="current-password"
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        inputMode="text"
-                        value={password}
-                        onChange={(event) => setPassword(event.target.value)}
-                        className="h-12 flex-1 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
-                        placeholder="英数字で入力"
-                        required
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((prev) => !prev)}
-                        className="inline-flex h-12 shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-neutral-50 px-4 text-sm text-neutral-700 transition hover:bg-neutral-100"
-                        aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示する"}
-                        aria-pressed={showPassword}
-                      >
-                        {showPassword ? "隠す" : "表示"}
-                      </button>
-                    </div>
-                  </label>
-
                   <div className="mt-6 flex flex-wrap gap-3">
                     <button
                       type="submit"
                       disabled={isPending}
                       className="inline-flex rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {pendingAction === "signin" ? "ログイン中..." : "ログイン"}
+                      {pendingAction === "signin" ? "送信中..." : "ログイン用メールを送る"}
                     </button>
 
                     <Link
@@ -250,12 +235,7 @@ export default function LoginPageClient() {
                   </div>
 
                   <div className="mt-5 rounded-2xl border border-black/10 bg-neutral-50 p-4 text-xs leading-6 text-neutral-600">
-                    <p>
-                      アカウント作成後は、確認メールのリンクを開いてメール確認を完了してから利用を始める。
-                    </p>
-                    <p className="mt-2">
-                      確認が終わったら元の画面に戻るか、このページからログインして進む。
-                    </p>
+                    <p>登録済みのメールアドレスにログイン用リンクを送る。</p>
                   </div>
                 </div>
               </form>

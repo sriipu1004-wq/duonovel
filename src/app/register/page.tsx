@@ -6,17 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import {
-  ACCOUNT_GENDER_OPTIONS,
   buildCompletedAccountRegistrationMetadata,
   buildPendingAccountRegistrationMetadata,
   hasRequiredAccountRegistrationConsent,
   isAccountRegistrationCompleted,
   normalizeDisplayName,
   normalizeNextPath,
-  readAccountRegistrationBirthdate,
   readAccountRegistrationConsent,
   readAccountRegistrationDisplayName,
-  readAccountRegistrationGender,
   validateDisplayName,
 } from "@/lib/auth/accountSignupConsent";
 import { checkDisplayNameAvailability } from "@/lib/auth/checkDisplayNameAvailability";
@@ -56,16 +53,6 @@ function resolveAuthRedirectOrigin(): string {
   return "";
 }
 
-function mapRegistrationErrorMessage(message: string): string {
-  const normalizedMessage = message.toLowerCase();
-
-  if (normalizedMessage.includes("user already registered")) {
-    return "このメールアドレスはすでに登録済み。ログインへ進んで。";
-  }
-
-  return message;
-}
-
 async function prepareSignupEmail(email: string): Promise<string> {
   const normalizedEmail = normalizeEmail(email);
 
@@ -84,9 +71,7 @@ async function prepareSignupEmail(email: string): Promise<string> {
     | null;
 
   if (!response.ok || !payload?.ok) {
-    throw new Error(
-      payload?.error ?? "確認メール送信の準備に失敗した。"
-    );
+    throw new Error(payload?.error ?? "確認メール送信の準備に失敗した。");
   }
 
   return payload.normalizedEmail?.trim() || normalizedEmail;
@@ -112,11 +97,7 @@ export default function RegisterPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loadedUser, setLoadedUser] = useState(false);
   const [email, setEmail] = useState(initialEmail);
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [displayName, setDisplayName] = useState("");
-  const [birthdate, setBirthdate] = useState("");
-  const [gender, setGender] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
   const [acknowledgedPublicSurface, setAcknowledgedPublicSurface] =
@@ -136,8 +117,6 @@ export default function RegisterPage() {
 
   const profileComplete =
     normalizedDisplayName.length > 0 &&
-    birthdate.trim().length > 0 &&
-    gender.trim().length > 0 &&
     consentComplete &&
     !displayNameError;
 
@@ -179,12 +158,6 @@ export default function RegisterPage() {
     setDisplayName((prev) =>
       prev.trim().length > 0 ? prev : readAccountRegistrationDisplayName(metadata)
     );
-    setBirthdate((prev) =>
-      prev.trim().length > 0 ? prev : readAccountRegistrationBirthdate(metadata)
-    );
-    setGender((prev) =>
-      prev.trim().length > 0 ? prev : readAccountRegistrationGender(metadata)
-    );
     setAgreedToTerms((prev) =>
       prev || readAccountRegistrationConsent(metadata, "account_public_profile_ack")
     );
@@ -209,9 +182,7 @@ export default function RegisterPage() {
 
   async function completeSignedInRegistration(sessionUser: User) {
     if (!isEmailConfirmed(sessionUser)) {
-      setErrorMessage(
-        "メール確認がまだ完了していない。確認メールのリンクを開いてからやり直して。"
-      );
+      setErrorMessage("確認メールのリンクを開いてからやり直して。");
       return;
     }
 
@@ -248,8 +219,6 @@ export default function RegisterPage() {
 
     const metadata = buildCompletedAccountRegistrationMetadata({
       displayName: availableDisplayName,
-      birthdate,
-      gender,
       agreedToTerms,
       agreedToPrivacy,
       acknowledgedPublicSurface,
@@ -301,8 +270,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!email.trim() || !password.trim()) {
-      setErrorMessage("メールアドレスとパスワードが必要。");
+    if (!email.trim()) {
+      setErrorMessage("メールアドレスが必要。");
       return;
     }
 
@@ -345,31 +314,27 @@ export default function RegisterPage() {
 
     const metadata = buildPendingAccountRegistrationMetadata({
       displayName: availableDisplayName,
-      birthdate,
-      gender,
       agreedToTerms,
       agreedToPrivacy,
       acknowledgedPublicSurface,
     });
 
-    const { error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signInWithOtp({
       email: availableEmail,
-      password,
       options: {
         emailRedirectTo,
+        shouldCreateUser: true,
         data: metadata,
       },
     });
 
     if (error) {
-      setErrorMessage(mapRegistrationErrorMessage(error.message));
+      setErrorMessage(error.message);
       setPendingAction(null);
       return;
     }
 
-    setMessage(
-      "確認メールを送った。再送した場合は直近の確認メールだけが有効。リンクを開いたらログインページからログインして。"
-    );
+    setMessage("確認メールを送った。メール内のリンクからログインして。");
     setPendingAction(null);
   }
 
@@ -391,7 +356,7 @@ export default function RegisterPage() {
                 {user ? "STEP 2" : "STEP 1"}
               </span>
               <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
-                メールアドレス登録
+                メールリンク登録
               </span>
             </div>
 
@@ -404,8 +369,12 @@ export default function RegisterPage() {
             </h1>
 
             <p className="mt-4 text-sm leading-7 text-neutral-600">
-              メールアドレス・パスワード・公開プロフィール用の基本情報・規約同意を登録する。
+              登録に必要なのはメールアドレスとユーザー名だけ。
             </p>
+
+            <div className="mt-5 rounded-[24px] border border-black/10 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
+              本名、住所、電話番号、支払い情報は求めない。
+            </div>
 
             {user ? (
               <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-neutral-700">
@@ -415,74 +384,35 @@ export default function RegisterPage() {
                   <>
                     <p>ログイン中: {user.email ?? "メールアドレス不明"}</p>
                     <p className="mt-2">
-                      確認済みメールアドレスなら、この画面で公開プロフィール用の基本情報を確定できる。
+                      確認済みメールアドレスなら、この画面で登録を完了できる。
                     </p>
                   </>
                 )}
               </div>
-            ) : (
-              <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-neutral-700">
-                <p>まずメールアドレスとパスワードを登録する。</p>
-                <p className="mt-2">
-                  確認メールのリンクではメール確認だけを受け付ける。リンクを開いたら元の画面に戻ってログインして。
-                </p>
-              </div>
-            )}
+            ) : null}
 
             <form onSubmit={handleEmailRegistration} className="mt-8">
               <div className="rounded-[28px] border border-black/10 bg-white p-6">
                 {!user ? (
-                  <>
-                    <label className="block">
-                      <span className="text-sm text-neutral-700">メールアドレス</span>
-                      <input
-                        type="email"
-                        autoComplete="email"
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        inputMode="email"
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                        className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
-                        placeholder="you@example.com"
-                        required
-                      />
-                    </label>
-
-                    <label className="mt-4 block">
-                      <span className="text-sm text-neutral-700">パスワード</span>
-
-                      <div className="mt-2 flex items-center gap-2">
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          autoComplete="new-password"
-                          autoCapitalize="none"
-                          autoCorrect="off"
-                          spellCheck={false}
-                          inputMode="text"
-                          value={password}
-                          onChange={(event) => setPassword(event.target.value)}
-                          className="h-12 flex-1 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
-                          placeholder="英数字で入力"
-                          required
-                        />
-
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword((prev) => !prev)}
-                          className="inline-flex h-12 shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-neutral-50 px-4 text-sm text-neutral-700 transition hover:bg-neutral-100"
-                          aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示する"}
-                          aria-pressed={showPassword}
-                        >
-                          {showPassword ? "隠す" : "表示"}
-                        </button>
-                      </div>
-                    </label>
-                  </>
+                  <label className="block">
+                    <span className="text-sm text-neutral-700">メールアドレス</span>
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      inputMode="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
+                      placeholder="you@example.com"
+                      required
+                    />
+                  </label>
                 ) : null}
 
-                <label className="mt-4 block">
+                <label className={user ? "block" : "mt-4 block"}>
                   <span className="text-sm text-neutral-700">ユーザー名</span>
                   <input
                     type="text"
@@ -500,36 +430,6 @@ export default function RegisterPage() {
                     {displayNameError}
                   </div>
                 ) : null}
-
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="text-sm text-neutral-700">生年月日</span>
-                    <input
-                      type="date"
-                      value={birthdate}
-                      onChange={(event) => setBirthdate(event.target.value)}
-                      className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none focus:border-sky-200"
-                      required
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm text-neutral-700">性別</span>
-                    <select
-                      value={gender}
-                      onChange={(event) => setGender(event.target.value)}
-                      className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none focus:border-sky-200"
-                      required
-                    >
-                      <option value="">選択する</option>
-                      {ACCOUNT_GENDER_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
 
                 <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
                   <p className="text-sm font-semibold text-black">規約・同意</p>
@@ -583,8 +483,7 @@ export default function RegisterPage() {
                         className="mt-1 h-4 w-4 rounded border-black/20"
                       />
                       <span>
-                        表示名、プロフィール、投稿コンテンツが公開されうること、
-                        および違反時に削除、公開停止、機能制限、利用停止の可能性があることを確認した
+                        表示名、プロフィール、投稿コンテンツが公開されうることを確認した
                       </span>
                     </label>
                   </div>
@@ -610,19 +509,6 @@ export default function RegisterPage() {
                     ログインへ戻る
                   </Link>
                 </div>
-
-                {user ? (
-                  <div className="mt-5 rounded-2xl border border-black/10 bg-neutral-50 p-4 text-xs leading-6 text-neutral-600">
-                    <p>
-                      現在のメール認証状態: {isEmailConfirmed(user) ? "認証済み" : "未認証"}
-                    </p>
-                    <p className="mt-2">
-                      {isEmailConfirmed(user)
-                        ? "認証済みなら、この画面で登録を完了できる。"
-                        : "未認証のままでは登録を完了できない。確認メールのリンクを開いてからやり直して。"}
-                    </p>
-                  </div>
-                ) : null}
               </div>
             </form>
 
