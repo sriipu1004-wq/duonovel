@@ -372,10 +372,6 @@ export default function RegisterPage() {
               登録に必要なのはメールアドレスとユーザー名だけ。
             </p>
 
-            <div className="mt-5 rounded-[24px] border border-black/10 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
-              本名、住所、電話番号、支払い情報は求めない。
-            </div>
-
             {user ? (
               <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-neutral-700">
                 {!loadedUser ? (
