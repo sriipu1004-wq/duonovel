@@ -3,8 +3,9 @@ import Link from "next/link";
 import AuthStatus from "@/components/auth/AuthStatus";
 
 const navItems = [
+  { href: "/generate", label: "AI生成" },
   { href: "/search", label: "作品を探す" },
-  { href: "/record", label: "朗読する" },
+  { href: "/record", label: "作品を朗読する" },
   { href: "/write", label: "投稿する" },
 ];
 

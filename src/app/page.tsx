@@ -292,8 +292,14 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
 
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link
-                  href="/search"
+                  href="/generate"
                   className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800"
+                >
+                  物語を生成する
+                </Link>
+                <Link
+                  href="/search"
+                  className="rounded-full border border-black/10 bg-neutral-100 px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-200"
                 >
                   作品を探す
                 </Link>
@@ -306,10 +312,10 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                 </Link>
 
                 <Link
-                  href="#latest"
+                  href="/record"
                   className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50"
                 >
-                  公開作品を見る
+                  作品を朗読する
                 </Link>
               </div>
 
@@ -318,6 +324,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
                   目次
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <ExploreChip href="/generate" label="物語を生成する" />
                   <ExploreChip href="/write" label="投稿する" />
                   <ExploreChip href="#prelaunch-summary" label="LIB read の特徴" />
                   <ExploreChip href="#latest" label="新着更新" />

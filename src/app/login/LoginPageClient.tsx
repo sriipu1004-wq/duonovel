@@ -10,6 +10,17 @@ import { normalizeNextPath } from "@/lib/auth/accountSignupConsent";
 type PendingAction = "signin" | "signout" | null;
 
 function resolveAuthRedirectOrigin(): string {
+  if (typeof window !== "undefined") {
+    const currentOrigin = window.location.origin.replace(/\/+$/, "");
+
+    if (
+      currentOrigin.includes("localhost") ||
+      currentOrigin.includes("127.0.0.1")
+    ) {
+      return currentOrigin;
+    }
+  }
+
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? "";
 
   if (siteUrl.length > 0) {
