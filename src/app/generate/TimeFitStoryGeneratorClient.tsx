@@ -37,6 +37,8 @@ type GenerateResponse =
   | {
       ok: false;
       error: string;
+      message?: string;
+      limitType?: string;
     };
 
 const TIME_OPTIONS = [5, 10, 15, 20] as const;
@@ -71,6 +73,14 @@ function buildGeneratedStoryStorageKey(storyId: string): string {
   return `libread.generatedStory.${storyId}`;
 }
 
+function readGenerateErrorMessage(data: GenerateResponse): string {
+  if (data.ok) {
+    return "";
+  }
+
+  return data.message?.trim() || data.error || "AI短編の生成に失敗しました。";
+}
+
 export default function TimeFitStoryGeneratorClient() {
   const router = useRouter();
 
@@ -94,6 +104,10 @@ export default function TimeFitStoryGeneratorClient() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (isGenerating) {
+      return;
+    }
+
     setErrorMessage("");
     setIsGenerating(true);
 
@@ -109,9 +123,7 @@ export default function TimeFitStoryGeneratorClient() {
       const data = (await response.json()) as GenerateResponse;
 
       if (!response.ok || !data.ok) {
-        setErrorMessage(
-          data.ok === false ? data.error : "AI短編の生成に失敗しました。"
-        );
+        setErrorMessage(readGenerateErrorMessage(data));
         return;
       }
 
@@ -221,13 +233,15 @@ export default function TimeFitStoryGeneratorClient() {
         <button
           type="submit"
           disabled={isGenerating}
+          aria-busy={isGenerating}
           className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-400"
         >
           {isGenerating ? "生成中..." : "物語を生成する"}
         </button>
 
         <p className="text-xs leading-6 text-neutral-500">
-          未ログインでも生成できます。公開投稿や永続保存には、後続工程でログイン制限と投稿制限を接続します。
+          生成コスト防衛のため、未ログイン生成は直近24時間で3回までです。
+          20分の物語生成はログイン後に利用できます。公開投稿や永続保存にはログインが必要です。
         </p>
       </form>
 

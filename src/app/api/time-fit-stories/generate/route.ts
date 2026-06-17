@@ -1,4 +1,8 @@
+import { createHash, randomUUID } from "crypto";
 import { NextResponse } from "next/server";
+import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -33,6 +37,32 @@ type OpenAIResponseBody = {
   };
 };
 
+type SignedInUser = {
+  id: string;
+  email?: string | null;
+  user_metadata?: unknown;
+};
+
+type LimitType =
+  | "anonymous_daily"
+  | "anonymous_long_generation"
+  | "user_daily"
+  | "ip_hourly"
+  | "ip_daily"
+  | "long_generation_daily";
+
+type RateLimitDecision =
+  | {
+      allowed: true;
+    }
+  | {
+      allowed: false;
+      limitType: LimitType;
+      message: string;
+    };
+
+type AdminSupabase = ReturnType<typeof createAdminClient>;
+
 const ALLOWED_SCENES = ["通勤", "休憩", "睡眠導入", "作業前", "その他"] as const;
 const ALLOWED_TIMES = [5, 10, 15, 20] as const;
 const ALLOWED_GENRES = [
@@ -66,6 +96,37 @@ const MAX_OUTPUT_TOKENS: Record<TimeMinutes, number> = {
   15: 7600,
   20: 9800,
 };
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const rawValue = process.env[name];
+
+  if (!rawValue) {
+    return fallback;
+  }
+
+  const parsed = Number(rawValue);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+
+  return Math.floor(parsed);
+}
+
+const LIMITS = {
+  anonymousDaily: readPositiveIntEnv("TIME_FIT_ANON_24H_LIMIT", 3),
+  anonymousLongGenerationDaily: readPositiveIntEnv(
+    "TIME_FIT_ANON_20M_24H_LIMIT",
+    0
+  ),
+  userDaily: readPositiveIntEnv("TIME_FIT_USER_24H_LIMIT", 10),
+  userLongGenerationDaily: readPositiveIntEnv("TIME_FIT_USER_20M_24H_LIMIT", 2),
+  ipHourly: readPositiveIntEnv("TIME_FIT_IP_1H_LIMIT", 10),
+  ipDaily: readPositiveIntEnv("TIME_FIT_IP_24H_LIMIT", 30),
+} as const;
+
+const ONE_HOUR_MS = 60 * 60 * 1000;
+const ONE_DAY_MS = 24 * ONE_HOUR_MS;
 
 function readText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -215,6 +276,355 @@ function buildPrompt(request: TimeFitStoryRequest): string {
   ].join("\n");
 }
 
+async function getOptionalSignedInUser(): Promise<SignedInUser | null> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error || !user) {
+      return null;
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      user_metadata: user.user_metadata,
+    };
+  } catch (error) {
+    console.warn("[time-fit-story-generate-auth-optional]", error);
+    return null;
+  }
+}
+
+function readForwardedIp(value: string | null): string {
+  return (value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .find(Boolean) ?? "";
+}
+
+function resolveClientIp(headers: Headers): string {
+  const candidates = [
+    readForwardedIp(headers.get("cf-connecting-ip")),
+    readForwardedIp(headers.get("x-real-ip")),
+    readForwardedIp(headers.get("x-forwarded-for")),
+    readForwardedIp(headers.get("x-vercel-forwarded-for")),
+  ];
+
+  return candidates.find(Boolean) ?? "unknown";
+}
+
+function resolveHashSalt(): string {
+  return (
+    process.env.IP_HASH_SALT ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.OPENAI_API_KEY ||
+    "libread-local-dev-ip-hash-salt"
+  );
+}
+
+function hashIdentifier(value: string, salt: string): string {
+  return createHash("sha256")
+    .update(`${salt}:${value}`)
+    .digest("hex");
+}
+
+function buildRequestMeta(request: Request, user: SignedInUser | null) {
+  const salt = resolveHashSalt();
+  const userAgent = readText(request.headers.get("user-agent"));
+  const clientIp = resolveClientIp(request.headers);
+
+  return {
+    requestId: randomUUID(),
+    ipHash: hashIdentifier(clientIp, salt),
+    userAgentHash: userAgent ? hashIdentifier(userAgent, salt) : null,
+    userEmailHash: user?.email
+      ? hashIdentifier(user.email.trim().toLowerCase(), salt)
+      : null,
+    isOfficialUser: isOfficialAccountEmail(user?.email),
+  };
+}
+
+async function countRecentGenerationLogs(args: {
+  supabase: AdminSupabase;
+  cutoffMs: number;
+  ipHash?: string;
+  userId?: string;
+  anonymousOnly?: boolean;
+  requestedMinutes?: TimeMinutes;
+}): Promise<number> {
+  let query = args.supabase
+    .from("time_fit_story_generation_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("is_counted", true)
+    .gte("created_at", new Date(Date.now() - args.cutoffMs).toISOString());
+
+  if (args.ipHash) {
+    query = query.eq("ip_hash", args.ipHash);
+  }
+
+  if (args.userId) {
+    query = query.eq("user_id", args.userId);
+  } else if (args.anonymousOnly) {
+    query = query.is("user_id", null);
+  }
+
+  if (args.requestedMinutes) {
+    query = query.eq("requested_minutes", args.requestedMinutes);
+  }
+
+  const { count, error } = await query;
+
+  if (error) {
+    throw new Error(`生成ログの集計に失敗しました: ${error.message}`);
+  }
+
+  return count ?? 0;
+}
+
+async function checkRateLimit(args: {
+  supabase: AdminSupabase;
+  user: SignedInUser | null;
+  ipHash: string;
+  requestedMinutes: TimeMinutes;
+  isOfficialUser: boolean;
+}): Promise<RateLimitDecision> {
+  if (args.isOfficialUser) {
+    return { allowed: true };
+  }
+
+  const ipHourlyCount = await countRecentGenerationLogs({
+    supabase: args.supabase,
+    cutoffMs: ONE_HOUR_MS,
+    ipHash: args.ipHash,
+  });
+
+  if (ipHourlyCount >= LIMITS.ipHourly) {
+    return {
+      allowed: false,
+      limitType: "ip_hourly",
+      message:
+        "短時間に生成が集中しています。しばらく時間をおいてからお試しください。",
+    };
+  }
+
+  const ipDailyCount = await countRecentGenerationLogs({
+    supabase: args.supabase,
+    cutoffMs: ONE_DAY_MS,
+    ipHash: args.ipHash,
+  });
+
+  if (ipDailyCount >= LIMITS.ipDaily) {
+    return {
+      allowed: false,
+      limitType: "ip_daily",
+      message:
+        "この接続元からの本日の生成回数に達しました。明日またお試しください。",
+    };
+  }
+
+  if (!args.user) {
+    if (
+      args.requestedMinutes === 20 &&
+      LIMITS.anonymousLongGenerationDaily <= 0
+    ) {
+      return {
+        allowed: false,
+        limitType: "anonymous_long_generation",
+        message:
+          "20分の物語生成はログイン後にお試しください。未ログインでは5分・10分・15分を利用できます。",
+      };
+    }
+
+    const anonymousDailyCount = await countRecentGenerationLogs({
+      supabase: args.supabase,
+      cutoffMs: ONE_DAY_MS,
+      ipHash: args.ipHash,
+      anonymousOnly: true,
+    });
+
+    if (anonymousDailyCount >= LIMITS.anonymousDaily) {
+      return {
+        allowed: false,
+        limitType: "anonymous_daily",
+        message:
+          "本日の無料生成回数に達しました。ログインするともう少し生成できます。",
+      };
+    }
+
+    if (args.requestedMinutes === 20) {
+      const anonymousLongGenerationCount = await countRecentGenerationLogs({
+        supabase: args.supabase,
+        cutoffMs: ONE_DAY_MS,
+        ipHash: args.ipHash,
+        anonymousOnly: true,
+        requestedMinutes: 20,
+      });
+
+      if (anonymousLongGenerationCount >= LIMITS.anonymousLongGenerationDaily) {
+        return {
+          allowed: false,
+          limitType: "anonymous_long_generation",
+          message:
+            "20分の物語生成は本日の上限に達しました。5分・10分・15分をお試しください。",
+        };
+      }
+    }
+
+    return { allowed: true };
+  }
+
+  const userDailyCount = await countRecentGenerationLogs({
+    supabase: args.supabase,
+    cutoffMs: ONE_DAY_MS,
+    userId: args.user.id,
+  });
+
+  if (userDailyCount >= LIMITS.userDaily) {
+    return {
+      allowed: false,
+      limitType: "user_daily",
+      message: "本日の生成回数に達しました。明日またお試しください。",
+    };
+  }
+
+  if (args.requestedMinutes === 20) {
+    const longGenerationCount = await countRecentGenerationLogs({
+      supabase: args.supabase,
+      cutoffMs: ONE_DAY_MS,
+      userId: args.user.id,
+      requestedMinutes: 20,
+    });
+
+    if (longGenerationCount >= LIMITS.userLongGenerationDaily) {
+      return {
+        allowed: false,
+        limitType: "long_generation_daily",
+        message:
+          "20分の物語生成は本日の上限に達しました。5分・10分・15分をお試しください。",
+      };
+    }
+  }
+
+  return { allowed: true };
+}
+
+async function insertGenerationLog(args: {
+  supabase: AdminSupabase;
+  requestId: string;
+  user: SignedInUser | null;
+  userEmailHash: string | null;
+  ipHash: string;
+  userAgentHash: string | null;
+  request: TimeFitStoryRequest;
+  model: string | null;
+  status: "started" | "rate_limited";
+  success: boolean | null;
+  isCounted: boolean;
+  limitType?: LimitType;
+  errorCode?: string;
+  errorMessage?: string;
+}): Promise<string> {
+  const { data, error } = await args.supabase
+    .from("time_fit_story_generation_logs")
+    .insert({
+      request_id: args.requestId,
+      user_id: args.user?.id ?? null,
+      user_email_hash: args.userEmailHash,
+      ip_hash: args.ipHash,
+      user_agent_hash: args.userAgentHash,
+      requested_minutes: args.request.timeMinutes,
+      scene: args.request.scene,
+      genre: args.request.genre,
+      mood: args.request.mood,
+      model: args.model,
+      status: args.status,
+      success: args.success,
+      is_counted: args.isCounted,
+      limit_type: args.limitType ?? null,
+      error_code: args.errorCode ?? null,
+      error_message: args.errorMessage ?? null,
+      estimated_output_tokens: MAX_OUTPUT_TOKENS[args.request.timeMinutes],
+    })
+    .select("id")
+    .single();
+
+  if (error || !data?.id) {
+    throw new Error(
+      `生成ログの保存に失敗しました: ${error?.message ?? "unknown error"}`
+    );
+  }
+
+  return String(data.id);
+}
+
+async function updateGenerationLog(args: {
+  supabase: AdminSupabase;
+  logId: string;
+  values: Record<string, unknown>;
+}): Promise<void> {
+  const { error } = await args.supabase
+    .from("time_fit_story_generation_logs")
+    .update({
+      ...args.values,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", args.logId);
+
+  if (error) {
+    console.error("[time-fit-story-generation-log-update]", error);
+  }
+}
+
+async function recordRateLimitedGeneration(args: {
+  supabase: AdminSupabase;
+  requestId: string;
+  user: SignedInUser | null;
+  userEmailHash: string | null;
+  ipHash: string;
+  userAgentHash: string | null;
+  request: TimeFitStoryRequest;
+  model: string | null;
+  limitType: LimitType;
+  message: string;
+}): Promise<void> {
+  try {
+    await insertGenerationLog({
+      supabase: args.supabase,
+      requestId: args.requestId,
+      user: args.user,
+      userEmailHash: args.userEmailHash,
+      ipHash: args.ipHash,
+      userAgentHash: args.userAgentHash,
+      request: args.request,
+      model: args.model,
+      status: "rate_limited",
+      success: false,
+      isCounted: false,
+      limitType: args.limitType,
+      errorCode: "rate_limited",
+      errorMessage: args.message,
+    });
+  } catch (error) {
+    console.error("[time-fit-story-generation-rate-limit-log]", error);
+  }
+}
+
+function buildRateLimitResponse(decision: Exclude<RateLimitDecision, { allowed: true }>) {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: "rate_limited",
+      message: decision.message,
+      limitType: decision.limitType,
+    },
+    { status: 429 }
+  );
+}
+
 export async function POST(request: Request) {
   let payload: Record<string, unknown>;
 
@@ -244,9 +654,108 @@ export async function POST(request: Request) {
     );
   }
 
+  const model = process.env.OPENAI_TEXT_MODEL ?? "gpt-5.4-mini";
+  const user = await getOptionalSignedInUser();
+  const requestMeta = buildRequestMeta(request, user);
+
+  let adminSupabase: AdminSupabase;
+
+  try {
+    adminSupabase = createAdminClient();
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "生成ログの保存設定が不足しています。",
+      },
+      { status: 500 }
+    );
+  }
+
+  try {
+    const rateLimitDecision = await checkRateLimit({
+      supabase: adminSupabase,
+      user,
+      ipHash: requestMeta.ipHash,
+      requestedMinutes: generationRequest.timeMinutes,
+      isOfficialUser: requestMeta.isOfficialUser,
+    });
+
+    if (!rateLimitDecision.allowed) {
+      await recordRateLimitedGeneration({
+        supabase: adminSupabase,
+        requestId: requestMeta.requestId,
+        user,
+        userEmailHash: requestMeta.userEmailHash,
+        ipHash: requestMeta.ipHash,
+        userAgentHash: requestMeta.userAgentHash,
+        request: generationRequest,
+        model,
+        limitType: rateLimitDecision.limitType,
+        message: rateLimitDecision.message,
+      });
+
+      return buildRateLimitResponse(rateLimitDecision);
+    }
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "生成回数の確認に失敗しました。",
+      },
+      { status: 500 }
+    );
+  }
+
+  let generationLogId: string;
+
+  try {
+    generationLogId = await insertGenerationLog({
+      supabase: adminSupabase,
+      requestId: requestMeta.requestId,
+      user,
+      userEmailHash: requestMeta.userEmailHash,
+      ipHash: requestMeta.ipHash,
+      userAgentHash: requestMeta.userAgentHash,
+      request: generationRequest,
+      model,
+      status: "started",
+      success: null,
+      isCounted: true,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "生成ログの保存に失敗しました。",
+      },
+      { status: 500 }
+    );
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
+    await updateGenerationLog({
+      supabase: adminSupabase,
+      logId: generationLogId,
+      values: {
+        status: "failed",
+        success: false,
+        error_code: "missing_openai_api_key",
+        error_message: "OPENAI_API_KEY が設定されていません。",
+      },
+    });
+
     return NextResponse.json(
       {
         ok: false,
@@ -255,8 +764,6 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-
-  const model = process.env.OPENAI_TEXT_MODEL ?? "gpt-5.4-mini";
 
   try {
     const openAIResponse = await fetch("https://api.openai.com/v1/responses", {
@@ -337,12 +844,24 @@ export async function POST(request: Request) {
     const responseBody = (await openAIResponse.json()) as OpenAIResponseBody;
 
     if (!openAIResponse.ok) {
+      const errorMessage =
+        responseBody.error?.message ?? "AI短編の生成に失敗しました。";
+
+      await updateGenerationLog({
+        supabase: adminSupabase,
+        logId: generationLogId,
+        values: {
+          status: "failed",
+          success: false,
+          error_code: `openai_${openAIResponse.status}`,
+          error_message: errorMessage,
+        },
+      });
+
       return NextResponse.json(
         {
           ok: false,
-          error:
-            responseBody.error?.message ??
-            "AI短編の生成に失敗しました。",
+          error: errorMessage,
         },
         { status: openAIResponse.status }
       );
@@ -351,6 +870,17 @@ export async function POST(request: Request) {
     const outputText = extractOutputText(responseBody);
 
     if (!outputText) {
+      await updateGenerationLog({
+        supabase: adminSupabase,
+        logId: generationLogId,
+        values: {
+          status: "failed",
+          success: false,
+          error_code: "empty_openai_output",
+          error_message: "AI生成結果が空でした。",
+        },
+      });
+
       return NextResponse.json(
         {
           ok: false,
@@ -363,6 +893,16 @@ export async function POST(request: Request) {
     const parsedStory = JSON.parse(outputText) as unknown;
     const story = normalizeStory(parsedStory, generationRequest.timeMinutes);
 
+    await updateGenerationLog({
+      supabase: adminSupabase,
+      logId: generationLogId,
+      values: {
+        status: "success",
+        success: true,
+        response_title: story.title,
+      },
+    });
+
     return NextResponse.json({
       ok: true,
       story,
@@ -370,6 +910,20 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("[time-fit-story-generate]", error);
+
+    await updateGenerationLog({
+      supabase: adminSupabase,
+      logId: generationLogId,
+      values: {
+        status: "failed",
+        success: false,
+        error_code: "generation_exception",
+        error_message:
+          error instanceof Error
+            ? error.message
+            : "AI短編の生成中にエラーが発生しました。",
+      },
+    });
 
     return NextResponse.json(
       {
