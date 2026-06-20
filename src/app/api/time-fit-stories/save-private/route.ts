@@ -363,7 +363,7 @@ export async function POST(request: Request) {
     episode_comments_enabled: true,
     genres,
     tags,
-    recording_permission_mode: "closed",
+    recording_permission_mode: "open",
     effect_settings: {
       version: 1,
       source: "time_fit_ai_story",
