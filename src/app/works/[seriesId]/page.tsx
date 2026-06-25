@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
 import { supabase } from "@/lib/supabaseClient";
 import { getCachedPublicBaseWorkCards } from "@/lib/publicWorks";
@@ -183,6 +183,44 @@ function parseTags(raw: unknown): string[] {
 
 function uniqueTags(tags: string[]): string[] {
   return Array.from(new Set(tags));
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object") {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function isShortStorySeries(series: SeriesRow): boolean {
+  const settings = readRecord(
+    series.effect_settings ?? series["effectSettings"]
+  );
+  const tags = parseTags(series["tags"]);
+
+  if (
+    tags.includes("#AI生成") ||
+    settings?.source === "time_fit_ai_story" ||
+    settings?.aiGenerated === true ||
+    settings?.authorName === "AI生成"
+  ) {
+    return true;
+  }
+
+  return settings?.storyFormat === "short";
 }
 
 function getSyntheticReaderTags(name: string): string[] {
@@ -823,6 +861,17 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const firstEpisode = episodes[0] ?? null;
   const firstEpisodeNumber = firstEpisode ? getEpisodeNumber(firstEpisode) : null;
 
+  if (isShortStorySeries(series) && firstEpisodeNumber !== null) {
+    redirect(
+      buildReadHref(
+        seriesId,
+        firstEpisodeNumber,
+        selectedReaderKey,
+        selectedReaderName
+      )
+    );
+  }
+
   const currentRangeRaw = Number(resolvedSearchParams?.range ?? 1);
   const currentRangeStart =
     Number.isFinite(currentRangeRaw) && currentRangeRaw > 0
@@ -857,9 +906,11 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
         fetchErrorMessage: null,
       };
 
-  const recordings = fetchedRecordings.filter(
-    (recording) => !isNemoReaderName(getRecordingReaderName(recording))
-  );
+  const recordings = fetchedRecordings.filter((recording) => {
+    const readerName = getRecordingReaderName(recording);
+
+    return !isNemoReaderName(readerName) && !isAivisReaderName(readerName);
+  });
 
   const episodeNumberById = new Map(
     episodes.map((episode) => [episode.id, getEpisodeNumber(episode)])

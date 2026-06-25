@@ -54,6 +54,8 @@ type EpisodePlaybackProps = {
   episodeNumber: number;
   seriesTitle?: string;
   episodeTitle?: string;
+  workAuthorName?: string;
+  workEditorName?: string;
   body?: string | null;
   selectedReaderKey?: string;
   selectedReaderName?: string;
@@ -883,6 +885,8 @@ export default function EpisodePlayback({
   episodeNumber,
   seriesTitle,
   episodeTitle,
+  workAuthorName,
+  workEditorName,
   body,
   selectedReaderKey,
   selectedReaderName,
@@ -1064,6 +1068,16 @@ export default function EpisodePlayback({
     typeof episodeTitle === "string" && episodeTitle.trim().length > 0
       ? episodeTitle
       : "話タイトル未設定";
+
+  const safeWorkAuthorName =
+    typeof workAuthorName === "string" && workAuthorName.trim().length > 0
+      ? workAuthorName.trim()
+      : "";
+
+  const safeWorkEditorName =
+    typeof workEditorName === "string" && workEditorName.trim().length > 0
+      ? workEditorName.trim()
+      : "";
 
   const safeBody =
     typeof body === "string" && body.trim().length > 0
@@ -3025,6 +3039,26 @@ useEffect(() => {
             <h1 className="mt-2 text-3xl font-bold leading-tight text-black sm:text-4xl">
               {safeEpisodeTitle}
             </h1>
+
+            {safeWorkAuthorName ? (
+              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+                <span className="inline-flex items-center gap-2">
+                  <span className="text-neutral-500">作者</span>
+                  <span className="font-semibold text-black">
+                    {safeWorkAuthorName}
+                  </span>
+                </span>
+
+                {safeWorkEditorName ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="text-neutral-500">編集</span>
+                    <span className="font-semibold text-black">
+                      {safeWorkEditorName}
+                    </span>
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="mt-5 flex flex-wrap gap-2">
               {selectedReaderName ? (

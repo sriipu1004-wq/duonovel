@@ -1,27 +1,18 @@
 import { notFound } from "next/navigation";
-import EpisodePlayback from "@/features/playback/EpisodePlayback";
+import { createAdminClient } from "@/lib/supabase/admin";
+import WebSpeechEpisodePlayback from "@/features/playback/WebSpeechEpisodePlayback";
 import {
-  isSeriesEpisodeCommentVisible,
   getEpisodeBody,
   getEpisodeNumber,
+  getSeriesSummary,
+  isSeriesEpisodeCommentVisible,
   pickText,
-  type RecordingPermissionMode,
+  type SeriesRow,
 } from "@/features/write/writeShared";
 import {
   mergeEffectSettings,
   parseEffectSettingsFromRow,
 } from "@/lib/effects/effectSettings";
-import type {
-  NemoGeneratedAudioSegment,
-  NemoGeneratedSentenceTiming,
-} from "@/lib/recording/nemoTiming";
-import {
-  buildNemoTimingPublicUrlFromAudioPublicUrl,
-  parseNemoGeneratedAudioSegments,
-  parseNemoGeneratedSentenceTimings,
-} from "@/lib/recording/nemoTiming";
-import { normalizeRecordingPermissionMode } from "@/lib/recording/recordingEntry";
-import { resolveNemoAutoGenerationConfig } from "@/lib/recording/nemoAutoGeneration";
 import {
   getCachedPublicReadPagePayload,
   type PublicReadRecordingRow as RecordingRow,
@@ -33,64 +24,105 @@ type PageProps = {
   searchParams?: Promise<{
     readerKey?: string;
     readerName?: string;
-    startAt?: string;
     autoplay?: string;
   }>;
 };
 
-async function fetchGeneratedPlaybackAssets(
-  audioPublicUrl?: string | null
-): Promise<{
-  sentenceTimings: NemoGeneratedSentenceTiming[];
-  audioSegments: NemoGeneratedAudioSegment[];
-}> {
-  const timingUrl = buildNemoTimingPublicUrlFromAudioPublicUrl(
-    audioPublicUrl ?? ""
-  );
-
-  if (!timingUrl) {
-    return {
-      sentenceTimings: [],
-      audioSegments: [],
-    };
-  }
-
-  try {
-    const response = await fetch(timingUrl, {
-      next: { revalidate: 30 },
-    });
-
-    if (!response.ok) {
-      return {
-        sentenceTimings: [],
-        audioSegments: [],
-      };
-    }
-
-    const payload = await response.json();
-
-    return {
-      sentenceTimings: parseNemoGeneratedSentenceTimings(payload),
-      audioSegments: parseNemoGeneratedAudioSegments(payload),
-    };
-  } catch {
-    return {
-      sentenceTimings: [],
-      audioSegments: [],
-    };
-  }
-}
-
 function parseEpisodeNumber(value: string): number {
   const parsed = Number(value);
-  return Number.isNaN(parsed) ? 0 : parsed;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function parseStartAt(value?: string): number | null {
-  if (!value) return null;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return parsed;
+function parseRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object") {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function parseTagList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item).trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return value
+      .split(/[\n,、]/u)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function getAiGeneratedReadAttribution(value: unknown): {
+  authorName: string;
+  editorName: string;
+} | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const series = value as Record<string, unknown>;
+  const tags = parseTagList(series.tags);
+  const settings = parseRecord(
+    series.effect_settings ?? series.effectSettings
+  );
+
+  const isAiGenerated =
+    tags.includes("AI生成") ||
+    settings?.source === "time_fit_ai_story" ||
+    settings?.aiGenerated === true ||
+    settings?.authorName === "AI生成";
+
+  if (!isAiGenerated) {
+    return null;
+  }
+
+  return {
+    authorName: "AI生成",
+    editorName:
+      pickText(settings?.editorName, settings?.editor_name) ||
+      "編集者未設定",
+  };
+}
+
+function getStoryFormat(value: unknown): "short" | "long" {
+  if (!value || typeof value !== "object") {
+    return "long";
+  }
+
+  const series = value as Record<string, unknown>;
+  const tags = parseTagList(series.tags);
+  const settings = parseRecord(
+    series.effect_settings ?? series.effectSettings
+  );
+
+  if (
+    tags.includes("AI生成") ||
+    settings?.source === "time_fit_ai_story" ||
+    settings?.aiGenerated === true ||
+    settings?.authorName === "AI生成"
+  ) {
+    return "short";
+  }
+
+  return settings?.storyFormat === "short" ? "short" : "long";
 }
 
 function getRecordingReaderName(recording: RecordingRow): string {
@@ -104,118 +136,7 @@ function getRecordingReaderName(recording: RecordingRow): string {
   );
 }
 
-function getRecordingReaderId(recording: RecordingRow): string {
-  return pickText(
-    recording.reader_id,
-    recording.reader_user_id,
-    recording.readerUserId
-  );
-}
-
-function doesRecordingMatchRequestedReader(
-  recording: RecordingRow,
-  requestedReaderKey?: string,
-  requestedReaderName?: string
-): boolean {
-  const hasRequestedReader = Boolean(
-    pickText(requestedReaderKey, requestedReaderName)
-  );
-
-  if (!hasRequestedReader) {
-    return false;
-  }
-
-  const readerKey = getRecordingReaderKey(recording);
-  const readerName = getRecordingReaderName(recording);
-
-  if (requestedReaderKey) {
-    if (readerKey === requestedReaderKey || readerName === requestedReaderKey) {
-      return true;
-    }
-  }
-
-  if (requestedReaderName) {
-    if (readerName === requestedReaderName) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function resolveCurrentEpisodeAutoNarrationBadge(args: {
-  permissionMode: RecordingPermissionMode;
-  hasConfig: boolean;
-  hasCurrentEpisodeNemoRecording: boolean;
-}): {
-  label: string;
-  className: string;
-} {
-  const { permissionMode, hasConfig, hasCurrentEpisodeNemoRecording } = args;
-
-  if (permissionMode !== "open") {
-    return {
-      label: "自動朗読停止",
-      className: "border-black/10 bg-neutral-50 text-neutral-500",
-    };
-  }
-
-  if (!hasConfig) {
-    return {
-      label: "自動朗読未設定",
-      className: "border-amber-200 bg-amber-50 text-amber-700",
-    };
-  }
-
-  if (hasCurrentEpisodeNemoRecording) {
-    return {
-      label: "自動朗読生成済み",
-      className: "border-sky-200 bg-sky-50 text-black",
-    };
-  }
-
-  return {
-    label: "自動朗読生成待ち",
-    className: "border-black/10 bg-neutral-50 text-neutral-500",
-  };
-}
-
-function isNemoReaderName(name: string): boolean {
-  return name.startsWith("VOICEVOX Nemo");
-}
-
-function isAivisReaderName(name: string): boolean {
-  return name.startsWith("Aivis ");
-}
-
-function getCanonicalAivisReaderKey(name: string): string {
-  return `aivis:${name}`;
-}
-
-function getCanonicalNemoReaderKey(name: string): string {
-  return `nemo:${name}`;
-}
-
 function getRecordingReaderKey(recording: RecordingRow): string {
-  const voiceModelKey = pickText(
-    recording.voice_model_id,
-    recording.voiceModelId
-  );
-
-  if (voiceModelKey) {
-    return voiceModelKey;
-  }
-
-  const name = getRecordingReaderName(recording);
-
-  if (isNemoReaderName(name)) {
-    return getCanonicalNemoReaderKey(name);
-  }
-
-  if (isAivisReaderName(name)) {
-    return getCanonicalAivisReaderKey(name);
-  }
-
   return (
     pickText(
       recording.reader_id,
@@ -227,6 +148,31 @@ function getRecordingReaderKey(recording: RecordingRow): string {
       recording.speaker_name,
       recording.id
     ) || recording.id
+  );
+}
+
+function isLegacyGeneratedRecording(recording: RecordingRow): boolean {
+  const name = getRecordingReaderName(recording);
+
+  return name.startsWith("Aivis ") || name.startsWith("VOICEVOX Nemo");
+}
+
+function doesRecordingMatchRequestedReader(
+  recording: RecordingRow,
+  requestedReaderKey?: string,
+  requestedReaderName?: string
+): boolean {
+  if (!requestedReaderKey && !requestedReaderName) {
+    return false;
+  }
+
+  const readerKey = getRecordingReaderKey(recording);
+  const readerName = getRecordingReaderName(recording);
+
+  return Boolean(
+    (requestedReaderKey &&
+      (readerKey === requestedReaderKey || readerName === requestedReaderKey)) ||
+    (requestedReaderName && readerName === requestedReaderName)
   );
 }
 
@@ -256,7 +202,39 @@ function buildReadHref(
   if (readerName) query.set("readerName", readerName);
 
   const queryString = query.toString();
-  return `/read/${seriesId}/${episodeNumber}${queryString ? `?${queryString}` : ""}`;
+
+  return `/read/${seriesId}/${episodeNumber}${
+    queryString ? `?${queryString}` : ""
+  }`;
+}
+
+async function getNormalAuthorName(series: SeriesRow): Promise<string> {
+  const authorId =
+    pickText(series.author_id, series["user_id"], series["userId"]) || "";
+
+  if (!authorId) {
+    return pickText(series["author_name"]) || "作者名未設定";
+  }
+
+  const adminSupabase = createAdminClient();
+  const { data, error } = await adminSupabase.auth.admin.getUserById(authorId);
+
+  if (!error && data?.user) {
+    const metadata = data.user.user_metadata as Record<string, unknown> | null;
+    const displayName = pickText(
+      metadata?.display_name_candidate,
+      metadata?.display_name,
+      metadata?.displayName,
+      metadata?.name,
+      metadata?.full_name
+    );
+
+    if (displayName) {
+      return displayName;
+    }
+  }
+
+  return pickText(series["author_name"]) || "作者名未設定";
 }
 
 export default async function ReadEpisodePage({
@@ -265,14 +243,11 @@ export default async function ReadEpisodePage({
 }: PageProps) {
   const { seriesId, episodeNumber } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-
   const parsedEpisodeNumber = parseEpisodeNumber(episodeNumber);
+
   if (!parsedEpisodeNumber) {
     notFound();
   }
-
-  const initialStartAt = parseStartAt(resolvedSearchParams?.startAt);
-  const initialAutoPlay = resolvedSearchParams?.autoplay === "1";
 
   const payload = await getCachedPublicReadPagePayload(
     seriesId,
@@ -284,106 +259,79 @@ export default async function ReadEpisodePage({
   }
 
   const { series, episode, publicEpisodes } = payload;
-  const allEpisodeRecordings = payload.allEpisodeRecordings.filter(
-    (recording) => !isNemoReaderName(getRecordingReaderName(recording))
+  const availableHumanRecordings = payload.allEpisodeRecordings.filter(
+    (recording) => !isLegacyGeneratedRecording(recording)
   );
+  const humanNarrationOptions = availableHumanRecordings
+    .map((recording) => {
+      const recordingId = recording.id;
+      const readerKey = getRecordingReaderKey(recording);
+      const readerName = getRecordingReaderName(recording);
+      const audioStoragePath = pickText(
+        recording.audio_storage_path,
+        recording.audioStoragePath
+      );
 
-  const recordingPermissionMode = normalizeRecordingPermissionMode(
-    series.recording_permission_mode
-  );
+      return {
+        recordingId,
+        readerKey,
+        readerName,
+        audioStoragePath,
+        readerAuthorHref: buildReaderAuthorHref(readerKey, readerName),
+      };
+    })
+    .filter((option) => option.audioStoragePath.length > 0);
 
-  const currentEpisodeNumber = getEpisodeNumber(episode) || parsedEpisodeNumber;
-
-  const prevEpisode =
-    [...publicEpisodes]
-      .reverse()
-      .find((item) => getEpisodeNumber(item) < currentEpisodeNumber) ?? null;
-
-  const nextEpisode =
-    publicEpisodes.find((item) => getEpisodeNumber(item) > currentEpisodeNumber) ??
-    null;
-
-  const prevEpisodeNumber = prevEpisode ? getEpisodeNumber(prevEpisode) : null;
-  const nextEpisodeNumber = nextEpisode ? getEpisodeNumber(nextEpisode) : null;
-
+  const requestedReaderKey = pickText(resolvedSearchParams?.readerKey);
   const requestedReaderName = pickText(resolvedSearchParams?.readerName);
-  const requestedReaderKey =
-    requestedReaderName && isNemoReaderName(requestedReaderName)
-      ? getCanonicalNemoReaderKey(requestedReaderName)
-      : requestedReaderName && isAivisReaderName(requestedReaderName)
-        ? getCanonicalAivisReaderKey(requestedReaderName)
-        : pickText(
-            resolvedSearchParams?.readerKey,
+
+  const selectedRecording =
+    requestedReaderKey || requestedReaderName
+      ? availableHumanRecordings.find((recording) =>
+          doesRecordingMatchRequestedReader(
+            recording,
+            requestedReaderKey,
             requestedReaderName
-          );
-
-  const requestedReaderSpecified = Boolean(
-    pickText(requestedReaderKey, requestedReaderName)
-  );
-
-  let selectedRecording: RecordingRow | null = null;
-
-  if (requestedReaderSpecified) {
-    selectedRecording =
-      allEpisodeRecordings.find((recording) =>
-        doesRecordingMatchRequestedReader(
-          recording,
-          requestedReaderKey,
-          requestedReaderName
-        )
-      ) ?? null;
-  }
+          )
+        ) ?? null
+      : null;
 
   const selectedReaderKey = selectedRecording
     ? getRecordingReaderKey(selectedRecording)
     : requestedReaderKey;
-
   const selectedReaderName = selectedRecording
     ? getRecordingReaderName(selectedRecording)
     : requestedReaderName;
-
-  const nemoAutogenConfig = resolveNemoAutoGenerationConfig();
-
-  const hasCurrentEpisodeNemoRecording = !!nemoAutogenConfig
-    ? allEpisodeRecordings.some(
-        (recording) =>
-          getRecordingReaderId(recording) === nemoAutogenConfig.userId ||
-          getRecordingReaderName(recording) === nemoAutogenConfig.narratorName
-      )
-    : false;
-
-  const autoNarrationBadge = resolveCurrentEpisodeAutoNarrationBadge({
-    permissionMode: recordingPermissionMode,
-    hasConfig: !!nemoAutogenConfig,
-    hasCurrentEpisodeNemoRecording,
-  });
-
-  const recordingAvailable = !!selectedRecording;
-  const audioStoragePath = pickText(
+  const humanAudioStoragePath = pickText(
     selectedRecording?.audio_storage_path,
     selectedRecording?.audioStoragePath
   );
 
-  const shouldFetchGeneratedPlaybackAssets =
-    recordingAvailable && Boolean(audioStoragePath);
+  const currentEpisodeNumber = getEpisodeNumber(episode) || parsedEpisodeNumber;
+  const prevEpisode =
+    [...publicEpisodes]
+      .reverse()
+      .find((item) => getEpisodeNumber(item) < currentEpisodeNumber) ?? null;
+  const nextEpisode =
+    publicEpisodes.find((item) => getEpisodeNumber(item) > currentEpisodeNumber) ??
+    null;
+  const prevEpisodeNumber = prevEpisode ? getEpisodeNumber(prevEpisode) : null;
+  const nextEpisodeNumber = nextEpisode ? getEpisodeNumber(nextEpisode) : null;
 
-  const {
-    sentenceTimings: generatedSentenceTimings,
-    audioSegments: generatedAudioSegments,
-  } = shouldFetchGeneratedPlaybackAssets
-    ? await fetchGeneratedPlaybackAssets(audioStoragePath)
-    : {
-        sentenceTimings: [],
-        audioSegments: [],
-      };
-
+  const storyFormat = getStoryFormat(series);
+  const isShortStory = storyFormat === "short";
+  const storySummary = getSeriesSummary(series);
   const seriesTitle = pickText(series.title) || "無題";
-  const commentsVisible = isSeriesEpisodeCommentVisible(series);
   const episodeTitle =
     pickText(episode.title, episode["episode_title"]) ||
     `第${currentEpisodeNumber}話`;
-
   const body = getEpisodeBody(episode) || "本文がまだ登録されていません。";
+
+  const aiGeneratedAttribution = getAiGeneratedReadAttribution(series);
+  const workAuthorName = aiGeneratedAttribution
+    ? aiGeneratedAttribution.authorName
+    : await getNormalAuthorName(series);
+  const workEditorName = aiGeneratedAttribution?.editorName ?? "";
 
   const prevEpisodeHref =
     prevEpisodeNumber !== null
@@ -394,7 +342,6 @@ export default async function ReadEpisodePage({
           selectedReaderName
         )
       : null;
-
   const nextEpisodeHref =
     nextEpisodeNumber !== null
       ? buildReadHref(
@@ -404,73 +351,65 @@ export default async function ReadEpisodePage({
           selectedReaderName
         )
       : null;
-
-  const workIndexHref = buildWorksHref(
-    seriesId,
-    selectedReaderKey,
-    selectedReaderName
-  );
-
+  const workIndexHref = isShortStory
+    ? null
+    : buildWorksHref(
+        seriesId,
+        selectedReaderKey,
+        selectedReaderName
+      );
   const currentReadHref = buildReadHref(
     seriesId,
     currentEpisodeNumber,
     selectedReaderKey,
     selectedReaderName
   );
-
   const loginHref = `/login?next=${encodeURIComponent(currentReadHref)}`;
-
   const readerAuthorHref =
-    selectedReaderName || selectedReaderKey
+    selectedReaderKey || selectedReaderName
       ? buildReaderAuthorHref(selectedReaderKey, selectedReaderName)
-      : undefined;  
-
-  const seriesEffectSettings = parseEffectSettingsFromRow(
-    series["effect_settings"],
-    series["effectSettings"]
-  );
-
-  const episodeEffectSettings = parseEffectSettingsFromRow(
-    episode["effect_settings"],
-    episode["effectSettings"]
-  );
+      : undefined;
 
   const effectSettings = mergeEffectSettings(
-    seriesEffectSettings,
-    episodeEffectSettings
+    parseEffectSettingsFromRow(
+      series["effect_settings"],
+      series["effectSettings"]
+    ),
+    parseEffectSettingsFromRow(
+      episode["effect_settings"],
+      episode["effectSettings"]
+    )
   );
 
   return (
-    <>
-      <EpisodePlayback
-        seriesId={seriesId}
-        episodeId={episode.id}
-        recordingId={selectedRecording?.id ?? null}
-        episodeNumber={currentEpisodeNumber}
-        seriesTitle={seriesTitle}
-        episodeTitle={episodeTitle}
-        body={body}
-        selectedReaderKey={selectedReaderKey || undefined}
-        selectedReaderName={selectedReaderName}
-        readerAuthorHref={readerAuthorHref}
-        recordingAvailable={recordingAvailable}
-        audioStoragePath={audioStoragePath}
-        generatedSentenceTimings={generatedSentenceTimings}
-        generatedAudioSegments={generatedAudioSegments}
-        prevEpisodeHref={prevEpisodeHref}
-        prevEpisodeNumber={prevEpisodeNumber}
-        nextEpisodeHref={nextEpisodeHref}
-        nextEpisodeNumber={nextEpisodeNumber}
-        workIndexHref={workIndexHref}
-        initialStartAt={initialStartAt}
-        initialAutoPlay={initialAutoPlay}
-        loginHref={loginHref}
-        showComments={commentsVisible}
-        effectSettings={effectSettings}
-        autoNarrationStatusLabel={autoNarrationBadge.label}
-        autoNarrationStatusClassName={autoNarrationBadge.className}
-        stopNarrationByDefault={!requestedReaderSpecified}
-      />
-    </>
+    <WebSpeechEpisodePlayback
+      seriesId={seriesId}
+      episodeId={episode.id}
+      episodeNumber={currentEpisodeNumber}
+      seriesTitle={seriesTitle}
+      episodeTitle={episodeTitle}
+      workAuthorName={workAuthorName}
+      workEditorName={workEditorName}
+      body={body}
+      selectedReaderKey={selectedReaderKey || undefined}
+      selectedReaderName={selectedReaderName}
+      readerAuthorHref={readerAuthorHref}
+      humanRecordingId={selectedRecording?.id ?? humanNarrationOptions[0]?.recordingId ?? null}
+      humanAudioStoragePath={
+        humanAudioStoragePath || humanNarrationOptions[0]?.audioStoragePath || null
+      }
+      humanNarrationOptions={humanNarrationOptions}
+      isShortStory={isShortStory}
+      storySummary={storySummary}
+      prevEpisodeHref={prevEpisodeHref}
+      prevEpisodeNumber={prevEpisodeNumber}
+      nextEpisodeHref={nextEpisodeHref}
+      nextEpisodeNumber={nextEpisodeNumber}
+      workIndexHref={workIndexHref}
+      initialAutoPlay={resolvedSearchParams?.autoplay === "1"}
+      loginHref={loginHref}
+      showComments={isSeriesEpisodeCommentVisible(series)}
+      effectSettings={effectSettings}
+    />
   );
 }

@@ -14,10 +14,47 @@ import {
 import BookmarkedSeriesList from "@/features/bookmark/BookmarkedSeriesList";
 import MyPageHeroEditable from "./MyPageHeroEditable";
 import AccountSettingsCard from "./AccountSettingsCard";
-import AivisAutogenRunner from "./AivisAutogenRunner";
-import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
 import SavedSearchLinksSection from "./SavedSearchLinksSection";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object") {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function isShortStorySeries(series: AuthorSeriesCard["series"]): boolean {
+  const settings = readRecord(
+    series.effect_settings ?? series["effectSettings"]
+  );
+  const tags = Array.isArray(series.tags)
+    ? series.tags.map((item) => String(item).trim())
+    : typeof series.tags === "string"
+      ? series.tags.split(/[\n,、]/u).map((item) => item.trim())
+      : [];
+
+  return (
+    tags.includes("AI生成") ||
+    settings?.source === "time_fit_ai_story" ||
+    settings?.aiGenerated === true ||
+    settings?.authorName === "AI生成" ||
+    settings?.storyFormat === "short"
+  );
+}
 
 function EntryCard({
   eyebrow,
@@ -83,6 +120,11 @@ function MySeriesSection({ cards }: { cards: AuthorSeriesCard[] }) {
                 ? card.series.title
                 : "無題";
             const summary = getProfileSeriesSummary(card.series);
+            const isShortStory = isShortStorySeries(card.series);
+            const publicReadHref =
+              isShortStory && card.firstPublishedEpisodeNumber !== null
+                ? buildReadHref(card.series.id, card.firstPublishedEpisodeNumber)
+                : "";
 
             return (
               <article
@@ -122,10 +164,10 @@ function MySeriesSection({ cards }: { cards: AuthorSeriesCard[] }) {
                     </Link>
 
                     <Link
-                      href={buildWorksHref(card.series.id)}
+                      href={publicReadHref || buildWorksHref(card.series.id)}
                       className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
                     >
-                      作品ページへ
+                      {isShortStory ? "読むページへ" : "作品ページへ"}
                     </Link>
 
                     {card.firstPublishedEpisodeNumber !== null ? (
@@ -229,8 +271,6 @@ export default async function MyPage() {
   ];
 
   const signedInLabel = metadataDisplayName || user.email || "ログイン中";
-  const enableOfficialAivisAutogen = isOfficialNarrationAccountEmail(user.email);
-
   const rawDisplayName =
     typeof author?.display_name === "string" ? author.display_name : "";
 
@@ -245,8 +285,6 @@ export default async function MyPage() {
 
   return (
     <main className="min-h-screen bg-white text-black">
-      <AivisAutogenRunner enabled={enableOfficialAivisAutogen} />
-
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
           <Link href="/" className="hover:text-black">

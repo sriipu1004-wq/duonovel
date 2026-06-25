@@ -368,6 +368,7 @@ export async function POST(request: Request) {
       version: 1,
       source: "time_fit_ai_story",
       aiGenerated: true,
+      storyFormat: "short",
       generatedStoryId: storyId,
       generatedAt: readText(payload.createdAt),
       savedAt: nowIso,

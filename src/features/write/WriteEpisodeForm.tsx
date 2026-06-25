@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { decideNemoRegenerationByBody } from "@/lib/recording/nemoRegenerationDiff";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -567,18 +566,6 @@ if (scheduledBeforePreviousIsBlocked) {
       8000
     );
 
-    const previousBody = episode ? getEpisodeBody(episode) : "";
-    const regenerationDecision =
-      mode === "edit"
-        ? decideNemoRegenerationByBody({
-            previousBody,
-            nextBody: trimmedBody,
-          })
-        : decideNemoRegenerationByBody({
-            previousBody: "",
-            nextBody: trimmedBody,
-          });
-
     const payload = createEpisodePayload({
       seriesId,
       episodeNumber: safeEpisodeNumber,
@@ -611,11 +598,7 @@ if (scheduledBeforePreviousIsBlocked) {
         }
 
         setSaveState("success");
-        setSuccessMessage(
-          regenerationDecision.shouldRegenerate
-            ? "話を作成した。自動朗読は再生成対象。"
-            : "話を作成した。自動朗読の再生成は不要。"
-        );
+        setSuccessMessage("話を作成した。");
 
         router.push(
           destination === "next"
@@ -651,11 +634,7 @@ if (scheduledBeforePreviousIsBlocked) {
       }
 
       setSaveState("success");
-      setSuccessMessage(
-        regenerationDecision.shouldRegenerate
-          ? "話を保存した。自動朗読は再生成対象。"
-          : "話を保存した。自動朗読の再生成は不要。"
-      );
+      setSuccessMessage("話を保存した。");
 
       if (destination === "next") {
         router.push(`/write/series/${seriesId}/episodes/new`);

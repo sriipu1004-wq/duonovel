@@ -41,6 +41,7 @@ import {
 } from "@/features/write/writeShared";
 
 type Mode = "create" | "edit";
+type StoryFormat = "short" | "long";
 
 type WriteSeriesFormProps = {
   mode: Mode;
@@ -53,6 +54,7 @@ type SaveState = "idle" | "saving" | "success" | "error";
 
 type SeriesStatusPanel =
   | "publication"
+  | "format"
   | "reactions"
   | "display"
   | "genres"
@@ -146,6 +148,118 @@ function parseTags(raw: unknown): string[] {
 
 function toEditorValue(items: string[]): string {
   return items.join("\n");
+}
+
+function readObjectRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object") {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    try {
+      const parsed = JSON.parse(value);
+
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function isAiGeneratedSeries(series?: SeriesRow | null): boolean {
+  if (!series) {
+    return false;
+  }
+
+  if (parseTags(series.tags).includes("AI生成")) {
+    return true;
+  }
+
+  const settings = readObjectRecord(
+    series.effect_settings ?? series["effectSettings"]
+  );
+
+  if (!settings) {
+    return false;
+  }
+
+  return (
+    settings.source === "time_fit_ai_story" ||
+    settings.aiGenerated === true ||
+    settings.authorName === "AI生成"
+  );
+}
+
+function getStoryFormatFromSeries(series?: SeriesRow | null): StoryFormat {
+  if (isAiGeneratedSeries(series)) {
+    return "short";
+  }
+
+  const settings = readObjectRecord(
+    series?.effect_settings ?? series?.["effectSettings"]
+  );
+
+  return settings?.storyFormat === "short" ? "short" : "long";
+}
+
+function buildWorkspaceTags(
+  raw: unknown,
+  isAiGenerated: boolean
+): string[] {
+  const tags = parseTags(raw);
+
+  if (!isAiGenerated) {
+    return tags;
+  }
+
+  return ["AI生成", ...tags.filter((tag) => tag !== "AI生成")];
+}
+
+function preserveAiGeneratedAttribution(
+  base: EffectSettings | null,
+  series?: SeriesRow | null
+): EffectSettings | null {
+  if (!isAiGeneratedSeries(series)) {
+    return base;
+  }
+
+  const original = readObjectRecord(
+    series?.effect_settings ?? series?.["effectSettings"]
+  );
+
+  const rawEditorName =
+    original?.editorName ?? original?.editor_name;
+
+  const editorName =
+    typeof rawEditorName === "string"
+      ? rawEditorName.trim()
+      : "";
+
+  return {
+    ...(base ?? {}),
+    version: 1,
+    source: "time_fit_ai_story",
+    aiGenerated: true,
+    authorName: "AI生成",
+    ...(editorName ? { editorName } : {}),
+  } as EffectSettings;
+}
+
+function preserveWorkspaceEffectSettings(
+  base: EffectSettings | null,
+  series: SeriesRow | null | undefined,
+  storyFormat: StoryFormat
+): EffectSettings | null {
+  const preserved = preserveAiGeneratedAttribution(base, series);
+
+  return {
+    ...(preserved ?? {}),
+    storyFormat: isAiGeneratedSeries(series) ? "short" : storyFormat,
+  } as EffectSettings;
 }
 
 function normalizeRecordingPermissionMode(
@@ -339,16 +453,23 @@ export default function WriteSeriesForm({
 }: WriteSeriesFormProps) {
   const router = useRouter();
 
+  const isAiGenerated = isAiGeneratedSeries(series);
   const initialGenres = getSeriesGenres(series);
-  const initialTags = parseTags(series?.tags);
-  const initialRecordingPermissionMode =
-    mode === "create"
+  const initialTags = isAiGenerated
+    ? parseTags(series?.tags).filter((tag) => tag !== "AI生成")
+    : parseTags(series?.tags);
+  const initialRecordingPermissionMode = isAiGenerated
+    ? "open"
+    : mode === "create"
       ? "open"
       : normalizeRecordingPermissionMode(series?.recording_permission_mode);
   const initialEffectSettings = parseEffectSettingsFromRow(
     series?.effect_settings,
     series?.["effectSettings"]
   );
+  const initialStoryFormat = isAiGenerated
+    ? "short"
+    : getStoryFormatFromSeries(series);
 
   const [title, setTitle] = useState(getTitle(series));
   const [summary, setSummary] = useState(getSummary(series));
@@ -370,6 +491,9 @@ export default function WriteSeriesForm({
   const [savedTags, setSavedTags] = useState(initialTags);
   const [recordingPermissionMode, setRecordingPermissionMode] =
     useState<RecordingPermissionMode>(initialRecordingPermissionMode);
+  const [storyFormat, setStoryFormat] = useState<StoryFormat>(
+    initialStoryFormat
+  );
   const [
     savedRecordingPermissionMode,
     setSavedRecordingPermissionMode,
@@ -445,15 +569,24 @@ const publicVisibleCount = sortedEpisodes.filter(
   ? "まだ下書きの話がある。本文編集を開いて、投稿または予約投稿へ切り替える。"
           : "予約投稿や投稿済みの流れを保ったまま次の話へ進む。";
 
-  const tags = parseTags(tagEditorValue);
+  const tags = buildWorkspaceTags(tagEditorValue, isAiGenerated);
   const genres = parseTags(genreEditorValue);
   const recordingPermissionLabel = getRecordingPermissionLabel(
     recordingPermissionMode
   );
+  const effectiveStoryFormat: StoryFormat = isAiGenerated
+    ? "short"
+    : storyFormat;
   const publicSurfaceReady =
     !!series?.id &&
     isPublicSeries(series) &&
     publicVisibleCount > 0;
+  const firstPublicEpisode = sortedEpisodes.find((episode) =>
+    isEpisodePubliclyVisible(episode)
+  );
+  const firstPublicEpisodeNumber = firstPublicEpisode
+    ? getEpisodeNumber(firstPublicEpisode)
+    : 0;
 
   const seriesStatusItems: Array<{
     id: Exclude<SeriesStatusPanel, null>;
@@ -464,6 +597,11 @@ const publicVisibleCount = sortedEpisodes.filter(
       id: "publication",
       label: "公開状態",
       value: getSeriesPublicationLabel(publicationStatus),
+    },
+    {
+      id: "format",
+      label: "作品形式",
+      value: effectiveStoryFormat === "short" ? "短編" : "長編",
     },
     {
       id: "reactions",
@@ -499,7 +637,9 @@ const publicVisibleCount = sortedEpisodes.filter(
     {
       id: "recording",
       label: "朗読許可",
-      value: recordingPermissionLabel,
+      value: isAiGenerated
+        ? "無条件許可（固定）"
+        : recordingPermissionLabel,
     },
   ];
 
@@ -556,15 +696,21 @@ const publicVisibleCount = sortedEpisodes.filter(
 
     const summaryVariants = buildSummaryValue(summary);
     const nextGenres = parseTags(genreEditorValue);
-    const nextTags = parseTags(tagEditorValue);
+    const nextTags = buildWorkspaceTags(tagEditorValue, isAiGenerated);
     const workspaceFields = buildWorkspaceFields({
       publicationStatus,
       reviewsEnabled,
       episodeCommentsEnabled,
       genres: nextGenres,
       tags: nextTags,
-      recordingPermissionMode,
-      effectSettings: buildSeriesDisplayEffectSettings(),
+      recordingPermissionMode: isAiGenerated
+        ? "open"
+        : recordingPermissionMode,
+      effectSettings: preserveWorkspaceEffectSettings(
+        buildSeriesDisplayEffectSettings(),
+        series,
+        effectiveStoryFormat
+      ),
     });
 
     const payloads: Array<Record<string, unknown>> = summaryVariants.map(
@@ -644,15 +790,21 @@ const publicVisibleCount = sortedEpisodes.filter(
 
     const summaryVariants = buildSummaryValue(summary);
     const nextGenres = parseTags(genreEditorValue);
-    const nextTags = parseTags(tagEditorValue);
+    const nextTags = buildWorkspaceTags(tagEditorValue, isAiGenerated);
     const workspaceFields = buildWorkspaceFields({
       publicationStatus,
       reviewsEnabled,
       episodeCommentsEnabled,
       genres: nextGenres,
       tags: nextTags,
-      recordingPermissionMode,
-      effectSettings: buildSeriesDisplayEffectSettings(),
+      recordingPermissionMode: isAiGenerated
+        ? "open"
+        : recordingPermissionMode,
+      effectSettings: preserveWorkspaceEffectSettings(
+        buildSeriesDisplayEffectSettings(),
+        series,
+        effectiveStoryFormat
+      ),
     });
 
     const payloads: Array<Record<string, unknown>> = summaryVariants.map(
@@ -677,9 +829,15 @@ const publicVisibleCount = sortedEpisodes.filter(
       if (!result.error) {
         setSavedGenres(nextGenres);
         setGenreEditorValue(toEditorValue(nextGenres));
-        setSavedTags(nextTags);
-        setTagEditorValue(toEditorValue(nextTags));
-        setSavedRecordingPermissionMode(recordingPermissionMode);
+        const nextEditableTags = isAiGenerated
+          ? nextTags.filter((tag) => tag !== "AI生成")
+          : nextTags;
+
+        setSavedTags(nextEditableTags);
+        setTagEditorValue(toEditorValue(nextEditableTags));
+        setSavedRecordingPermissionMode(
+          isAiGenerated ? "open" : recordingPermissionMode
+        );
 
         hideGlobalLoadingFeedback();
 
@@ -745,10 +903,16 @@ const publicVisibleCount = sortedEpisodes.filter(
 
               {series?.id && publicSurfaceReady ? (
                 <Link
-                  href={`/works/${series.id}`}
+                  href={
+                    effectiveStoryFormat === "short" && firstPublicEpisodeNumber > 0
+                      ? `/read/${series.id}/${firstPublicEpisodeNumber}`
+                      : `/works/${series.id}`
+                  }
                   className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
                 >
-                  作品ページを見る
+                  {effectiveStoryFormat === "short"
+                    ? "読むページを見る"
+                    : "作品ページを見る"}
                 </Link>
               ) : series?.id ? (
                 <span className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-500">
@@ -880,6 +1044,58 @@ const publicVisibleCount = sortedEpisodes.filter(
                           );
                         })}
                       <div className={["mt-4 grid gap-4", activeSeriesStatusPanel ? "" : "hidden"].join(" ")}>
+                        <div className={activeSeriesStatusPanel === "format" ? "rounded-2xl border border-black/10 bg-white p-3" : "hidden"}>
+                          <p className="text-sm font-semibold text-black">
+                            作品形式
+                          </p>
+
+                          {isAiGenerated ? (
+                            <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-3">
+                              <p className="text-sm font-semibold text-black">短編（固定）</p>
+                              <p className="mt-1 text-xs leading-6 text-neutral-600">
+                                AI生成作品は読むページへ直接公開する短編として扱うため、変更できない。
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                              {([
+                                ["short", "短編", "作品ページを作らず、読むページへ直接公開する。あらすじは読むページに表示する。"],
+                                ["long", "長編", "作品ページを作り、目次・朗読者・レビューなどを作品単位で表示する。"],
+                              ] as const).map(([value, label, description]) => {
+                                const active = effectiveStoryFormat === value;
+
+                                return (
+                                  <label
+                                    key={value}
+                                    className={[
+                                      "cursor-pointer rounded-2xl border px-3 py-3 text-sm transition",
+                                      active
+                                        ? "border-sky-200 bg-sky-50 text-black"
+                                        : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                                    ].join(" ")}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name="series-story-format"
+                                      value={value}
+                                      checked={active}
+                                      onChange={() => {
+                                        setStoryFormat(value);
+                                        resetSaveUi();
+                                      }}
+                                      className="sr-only"
+                                    />
+                                    <span className="block font-semibold">{label}</span>
+                                    <span className="mt-2 block text-xs leading-6 text-neutral-500">
+                                      {description}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
                         <div className={activeSeriesStatusPanel === "publication" ? "rounded-2xl border border-black/10 bg-white p-3" : "hidden"}>
                           <p className="text-sm font-semibold text-black">
                             公開状態
@@ -1243,6 +1459,17 @@ const publicVisibleCount = sortedEpisodes.filter(
                             タグ
                           </p>
 
+                          {isAiGenerated ? (
+                            <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-3">
+                              <p className="text-sm font-semibold text-black">
+                                固定タグ: AI生成
+                              </p>
+                              <p className="mt-1 text-xs leading-6 text-neutral-600">
+                                AI生成作品であることを示すタグのため、削除・変更できない。
+                              </p>
+                            </div>
+                          ) : null}
+
                           <textarea
                             value={tagEditorValue}
                             onChange={(event) => {
@@ -1284,55 +1511,68 @@ const publicVisibleCount = sortedEpisodes.filter(
                             朗読許可
                           </p>
 
-                          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                            {(
-                              [
-                                ["open", "朗読許可"],
-                                ["closed", "朗読不可"],
-                                ["closed", "朗読不可"],
-                              ] as const
-                            ).map(([value, label]) => {
-                              const active = recordingPermissionMode === value;
+                          {isAiGenerated ? (
+                            <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-3">
+                              <p className="text-sm font-semibold text-black">
+                                無条件許可（固定）
+                              </p>
+                              <p className="mt-1 text-xs leading-6 text-neutral-600">
+                                AI生成作品は朗読許可を無条件許可として扱うため、この画面では変更できない。
+                              </p>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                                {(
+                                  [
+                                    ["open", "朗読許可"],
+                                    ["closed", "朗読不可"],
+                                    ["closed", "朗読不可"],
+                                  ] as const
+                                ).map(([value, label]) => {
+                                  const active = recordingPermissionMode === value;
 
-                              return (
-                                <label
-                                  key={value}
-                                  className={[
-                                    "cursor-pointer rounded-2xl border px-3 py-3 text-sm transition",
-                                    active
-                                      ? "border-sky-200 bg-sky-50 text-black"
-                                      : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                                  ].join(" ")}
-                                >
-                                  <input
-                                    type="radio"
-                                    name="recording-permission-mode"
-                                    value={value}
-                                    checked={active}
-                                    onChange={() => {
-                                      setRecordingPermissionMode(value);
-                                      resetSaveUi();
-                                    }}
-                                    className="sr-only"
-                                  />
-                                  {label}
-                                </label>
-                              );
-                            })}
-                          </div>
+                                  return (
+                                    <label
+                                      key={value}
+                                      className={[
+                                        "cursor-pointer rounded-2xl border px-3 py-3 text-sm transition",
+                                        active
+                                          ? "border-sky-200 bg-sky-50 text-black"
+                                          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                                      ].join(" ")}
+                                    >
+                                      <input
+                                        type="radio"
+                                        name="recording-permission-mode"
+                                        value={value}
+                                        checked={active}
+                                        onChange={() => {
+                                          setRecordingPermissionMode(value);
+                                          resetSaveUi();
+                                        }}
+                                        className="sr-only"
+                                      />
+                                      {label}
+                                    </label>
+                                  );
+                                })}
+                              </div>
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRecordingPermissionMode(
-                                savedRecordingPermissionMode
-                              );
-                              resetSaveUi();
-                            }}
-                            className="mt-3 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
-                          >
-                            保存済みに戻す
-                          </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRecordingPermissionMode(
+                                    savedRecordingPermissionMode
+                                  );
+                                  resetSaveUi();
+                                }}
+                                className="mt-3 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
+                              >
+                                保存済みに戻す
+                              </button>
+                            </>
+                          )}
                         </div>
 
                         <p className="text-xs leading-6 text-neutral-500">

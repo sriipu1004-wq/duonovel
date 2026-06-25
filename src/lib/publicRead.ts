@@ -38,6 +38,13 @@ export type PublicReadPagePayload = {
 const PUBLIC_READ_SERIES_SELECT = `
   id,
   title,
+  summary,
+  description,
+  catch_copy,
+  author_id,
+  user_id,
+  author_name,
+  tags,
   recording_permission_mode,
   effect_settings,
   episode_comments_enabled,

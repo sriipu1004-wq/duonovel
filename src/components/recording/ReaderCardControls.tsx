@@ -1,10 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  buildNemoTimingPublicUrlFromAudioPublicUrl,
-  parseNemoGeneratedSentenceTimings,
-} from "@/lib/recording/nemoTiming";
 import { useRouter } from "next/navigation";
 
 type ReaderCardControlsProps = {
@@ -26,40 +22,6 @@ type ReaderSelectionEventDetail = {
 const DEMO_PREVIEW_TARGET_SECONDS = 10;
 const DEMO_PREVIEW_MAX_SECONDS = 14;
 const READER_SELECTION_EVENT = "libread:reader-selection-change";
-
-function getDemoPreviewEndSecondsFromPayload(payload: unknown): number {
-  const timings = parseNemoGeneratedSentenceTimings(payload);
-
-  if (timings.length === 0) {
-    return DEMO_PREVIEW_TARGET_SECONDS;
-  }
-
-  const firstBoundaryAfterTarget = timings.find(
-    (timing) =>
-      Number.isFinite(timing.timeSeconds) &&
-      timing.timeSeconds >= DEMO_PREVIEW_TARGET_SECONDS
-  );
-
-  if (firstBoundaryAfterTarget) {
-    return Math.min(
-      Math.max(firstBoundaryAfterTarget.timeSeconds, DEMO_PREVIEW_TARGET_SECONDS),
-      DEMO_PREVIEW_MAX_SECONDS
-    );
-  }
-
-  const lastTiming = timings[timings.length - 1];
-  const lastEndSeconds =
-    lastTiming.timeSeconds + Math.max(lastTiming.durationSeconds, 0);
-
-  if (Number.isFinite(lastEndSeconds) && lastEndSeconds > 0) {
-    return Math.min(
-      Math.max(lastEndSeconds, DEMO_PREVIEW_TARGET_SECONDS),
-      DEMO_PREVIEW_MAX_SECONDS
-    );
-  }
-
-  return DEMO_PREVIEW_TARGET_SECONDS;
-}
 
 function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -281,30 +243,8 @@ export default function ReaderCardControls({
     );
   }
 
-  async function resolveDemoEndSeconds(): Promise<number> {
-    if (!demoAudioUrl) {
-      return DEMO_PREVIEW_TARGET_SECONDS;
-    }
-
-    const timingUrl = buildNemoTimingPublicUrlFromAudioPublicUrl(demoAudioUrl);
-    if (!timingUrl) {
-      return DEMO_PREVIEW_TARGET_SECONDS;
-    }
-
-    try {
-      const response = await fetch(timingUrl, {
-        cache: "force-cache",
-      });
-
-      if (!response.ok) {
-        return DEMO_PREVIEW_TARGET_SECONDS;
-      }
-
-      const payload = await response.json();
-      return getDemoPreviewEndSecondsFromPayload(payload);
-    } catch {
-      return DEMO_PREVIEW_TARGET_SECONDS;
-    }
+  function resolveDemoEndSeconds(): number {
+    return DEMO_PREVIEW_TARGET_SECONDS;
   }
 
   async function handleToggleDemo() {
@@ -328,7 +268,7 @@ export default function ReaderCardControls({
 
     setIsDemoLoading(true);
 
-    const previewEndSeconds = await resolveDemoEndSeconds();
+    const previewEndSeconds = resolveDemoEndSeconds();
     stopAtSecondsRef.current = previewEndSeconds;
 
     const audio = new Audio(demoAudioUrl);
