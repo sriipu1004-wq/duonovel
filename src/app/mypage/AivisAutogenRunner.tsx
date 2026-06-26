@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { LEGACY_AUTO_NARRATION_SUSPENDED } from "@/lib/recording/legacyAutoNarration";
 
 type RunPendingResponse = {
   ok?: boolean;
@@ -33,7 +34,7 @@ export default function AivisAutogenRunner({
   const isRunningRef = useRef(false);
 
   useEffect(() => {
-    if (!enabled) {
+    if (LEGACY_AUTO_NARRATION_SUSPENDED || !enabled) {
       if (process.env.NODE_ENV === "development") {
         console.log("[aivis-autogen-runner] disabled");
       }
