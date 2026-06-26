@@ -14,18 +14,6 @@ type RequestBody = {
 };
 
 export async function POST(request: Request) {
-  if (LEGACY_AUTO_NARRATION_SUSPENDED) {
-    return NextResponse.json(
-      {
-        ok: true,
-        status: "skipped",
-        reason: "legacy_auto_narration_suspended",
-        message: LEGACY_AUTO_NARRATION_SUSPENDED_REASON,
-      },
-      { status: 200 }
-    );
-  }
-
   const supabase = await createClient();
   const {
     data: { user },
@@ -49,6 +37,18 @@ export async function POST(request: Request) {
         error: "この操作は公式朗読アカウントのみ実行できる。",
       },
       { status: 403 }
+    );
+  }
+
+  if (LEGACY_AUTO_NARRATION_SUSPENDED) {
+    return NextResponse.json(
+      {
+        ok: true,
+        status: "skipped",
+        reason: "legacy_auto_narration_suspended",
+        message: LEGACY_AUTO_NARRATION_SUSPENDED_REASON,
+      },
+      { status: 200 }
     );
   }
 
