@@ -1,0 +1,3 @@
+.shortStoryComplete a[href$="/episodes/new"] {
+  display: none;
+}
