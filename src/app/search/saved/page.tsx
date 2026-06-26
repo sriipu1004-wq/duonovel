@@ -1,5 +1,5 @@
-import SavedWorkSearchClient from "@/features/bookmark/SavedWorkSearchClient";
+import SavedWorkSearchShell from "@/features/bookmark/SavedWorkSearchShell";
 
 export default function SavedSearchPage() {
-  return <SavedWorkSearchClient order="updated" />;
+  return <SavedWorkSearchShell />;
 }
