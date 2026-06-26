@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function SavedWorksPage() {
-  return null;
+  redirect("/search/saved");
 }
