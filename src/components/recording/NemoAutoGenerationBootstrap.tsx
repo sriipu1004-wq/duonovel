@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { LEGACY_AUTO_NARRATION_SUSPENDED } from "@/lib/recording/legacyAutoNarration";
 
 type NemoAutoGenerationBootstrapProps = {
   seriesId: string;
@@ -31,7 +32,11 @@ export function NemoAutoGenerationBootstrap({
   const router = useRouter();
 
   useEffect(() => {
-    if (!enabled || episodeIds.length === 0) {
+    if (
+      LEGACY_AUTO_NARRATION_SUSPENDED ||
+      !enabled ||
+      episodeIds.length === 0
+    ) {
       if (process.env.NODE_ENV === "development") {
         console.log("[nemo-autogen bootstrap] disabled", {
           enabled,
