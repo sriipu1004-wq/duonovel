@@ -1,3 +1,3 @@
 export default function SavedSearchPage() {
-  return null;
+  return <main>Saved works</main>;
 }
