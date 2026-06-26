@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
+import {
+  LEGACY_AUTO_NARRATION_SUSPENDED,
+  LEGACY_AUTO_NARRATION_SUSPENDED_REASON,
+} from "@/lib/recording/legacyAutoNarration";
 import { runNextPendingAivisAutogenJob } from "@/lib/recording/aivisAutoGeneration";
 import { createClient } from "@/lib/supabase/server";
 
@@ -10,6 +14,18 @@ type RequestBody = {
 };
 
 export async function POST(request: Request) {
+  if (LEGACY_AUTO_NARRATION_SUSPENDED) {
+    return NextResponse.json(
+      {
+        ok: true,
+        status: "skipped",
+        reason: "legacy_auto_narration_suspended",
+        message: LEGACY_AUTO_NARRATION_SUSPENDED_REASON,
+      },
+      { status: 200 }
+    );
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
