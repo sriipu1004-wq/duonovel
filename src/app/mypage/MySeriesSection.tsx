@@ -2,123 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import {
-  buildReadHref,
-  buildWorksHref,
-  getProfileSeriesSummary,
-  type AuthorSeriesCard,
-} from "@/features/authorProfile/authorProfileShared";
+import { buildReadHref, buildWorksHref, getProfileSeriesSummary, type AuthorSeriesCard } from "@/features/authorProfile/authorProfileShared";
+import { getSeriesPublicationStatus } from "@/features/write/writeShared";
 
 type SeriesOrder = "updated" | "added";
 
-function readRecord(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === "object") return value as Record<string, unknown>;
-  if (typeof value === "string" && value.trim()) {
-    try {
-      const parsed = JSON.parse(value);
-      return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-function isShortStorySeries(series: AuthorSeriesCard["series"]): boolean {
-  const settings = readRecord(series.effect_settings ?? series["effectSettings"]);
-  const tags = Array.isArray(series.tags)
-    ? series.tags.map((item) => String(item).trim())
-    : typeof series.tags === "string"
-      ? series.tags.split(/[\n,、]/u).map((item) => item.trim())
-      : [];
-  return tags.includes("AI生成") || settings?.source === "time_fit_ai_story" || settings?.aiGenerated === true || settings?.authorName === "AI生成" || settings?.storyFormat === "short";
-}
-
-function toTime(value: unknown): number {
-  if (typeof value !== "string") return 0;
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? 0 : time;
-}
+function readRecord(value: unknown): Record<string, unknown> | null { if (value && typeof value === "object") return value as Record<string, unknown>; if (typeof value === "string" && value.trim()) { try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : null; } catch { return null; } } return null; }
+function isShortStorySeries(series: AuthorSeriesCard["series"]): boolean { const settings = readRecord(series.effect_settings ?? series["effectSettings"]); const tags = Array.isArray(series.tags) ? series.tags.map((item) => String(item).trim()) : typeof series.tags === "string" ? series.tags.split(/[\n,、]/u).map((item) => item.trim()) : []; return tags.includes("AI生成") || settings?.source === "time_fit_ai_story" || settings?.aiGenerated === true || settings?.authorName === "AI生成" || settings?.storyFormat === "short"; }
+function toTime(value: unknown): number { if (typeof value !== "string") return 0; const time = new Date(value).getTime(); return Number.isNaN(time) ? 0 : time; }
 
 export default function MySeriesSection({ cards }: { cards: AuthorSeriesCard[] }) {
   const [order, setOrder] = useState<SeriesOrder>("updated");
+  useEffect(() => { try { const stored = window.localStorage.getItem("libread:mypage:series-order"); if (stored === "updated" || stored === "added") setOrder(stored); } catch {} }, []);
+  function changeOrder(nextOrder: SeriesOrder) { setOrder(nextOrder); try { window.localStorage.setItem("libread:mypage:series-order", nextOrder); } catch {} }
+  const visibleCards = useMemo(() => [...cards].sort((a, b) => { const aTime = order === "updated" ? toTime(a.series.updated_at ?? a.series.created_at) : toTime(a.series.created_at); const bTime = order === "updated" ? toTime(b.series.updated_at ?? b.series.created_at) : toTime(b.series.created_at); return bTime - aTime; }).slice(0, 5), [cards, order]);
 
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("libread:mypage:series-order");
-      if (stored === "updated" || stored === "added") setOrder(stored);
-    } catch {
-      // 初期値を使う。
-    }
-  }, []);
-
-  function changeOrder(nextOrder: SeriesOrder) {
-    setOrder(nextOrder);
-    try {
-      window.localStorage.setItem("libread:mypage:series-order", nextOrder);
-    } catch {
-      // 保存できない環境でも、この表示中の順序は変更する。
-    }
-  }
-
-  const visibleCards = useMemo(() => {
-    return [...cards]
-      .sort((a, b) => {
-        const aTime = order === "updated" ? toTime(a.series.updated_at ?? a.series.created_at) : toTime(a.series.created_at);
-        const bTime = order === "updated" ? toTime(b.series.updated_at ?? b.series.created_at) : toTime(b.series.created_at);
-        return bTime - aTime;
-      })
-      .slice(0, 5);
-  }, [cards, order]);
-
-  return (
-    <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs tracking-[0.18em] text-neutral-500">MY SERIES</p>
-          <h2 className="mt-2 text-xl font-semibold text-black">自分の作品一覧</h2>
-          <p className="mt-2 text-sm leading-7 text-neutral-600">公開前の作品も含め、最近使った作品を最大5件まで表示する。</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-neutral-500">並び順</span>
-          {(["updated", "added"] as const).map((key) => (
-            <button key={key} type="button" onClick={() => changeOrder(key)} className={order === key ? "rounded-full bg-black px-3 py-1.5 text-xs text-white" : "rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"}>
-              {key === "updated" ? "更新順" : "追加順"}
-            </button>
-          ))}
-          <Link href="/write" className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-800 transition hover:bg-neutral-50">一覧を見る</Link>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3">
-        {visibleCards.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">まだ作品がない。作品ワークスペースから1本目を作成する。</div>
-        ) : (
-          visibleCards.map((card) => {
-            const isShortStory = isShortStorySeries(card.series);
-            const title = typeof card.series.title === "string" && card.series.title.trim() ? card.series.title : "無題";
-            const publicReadHref = isShortStory && card.firstPublishedEpisodeNumber !== null ? buildReadHref(card.series.id, card.firstPublishedEpisodeNumber) : "";
-            return (
-              <article key={card.series.id} className="rounded-2xl border border-black/10 bg-white p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 max-w-3xl">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-[11px] tracking-[0.18em] text-neutral-500">SERIES</p>
-                      {isShortStory ? <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600">短編</span> : <><span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600">総話数 {card.totalEpisodes}</span><span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600">公開中 {card.publishedCount}</span></>}
-                    </div>
-                    <h3 className="mt-2 text-lg font-semibold text-black">{title}</h3>
-                    <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm leading-7 text-neutral-600">{getProfileSeriesSummary(card.series)}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Link href={`/write/series/${card.series.id}`} className="rounded-full bg-black px-3 py-1.5 text-sm font-medium text-white transition hover:bg-neutral-800">編集</Link>
-                    <Link href={publicReadHref || buildWorksHref(card.series.id)} className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-neutral-800 transition hover:bg-neutral-50">{isShortStory ? "読む" : "作品ページ"}</Link>
-                  </div>
-                </div>
-              </article>
-            );
-          })
-        )}
-      </div>
-    </section>
-  );
+  return <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs tracking-[0.18em] text-neutral-500">MY SERIES</p><h2 className="mt-2 text-xl font-semibold text-black">自分の作品一覧</h2><p className="mt-2 text-sm leading-7 text-neutral-600">公開前の作品も含め、最近使った作品を最大5件まで表示する。</p></div><div className="flex flex-wrap items-center gap-2"><span className="text-xs text-neutral-500">並び順</span>{(["updated", "added"] as const).map((key) => <button key={key} type="button" onClick={() => changeOrder(key)} className={order === key ? "rounded-full bg-black px-3 py-1.5 text-xs text-white" : "rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"}>{key === "updated" ? "更新順" : "追加順"}</button>)}<Link href="/write" className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-800 transition hover:bg-neutral-50">一覧を見る</Link></div></div><div className="mt-4 grid gap-3">{visibleCards.length === 0 ? <div className="rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">まだ作品がない。作品ワークスペースから1本目を作成する。</div> : visibleCards.map((card) => { const isShortStory = isShortStorySeries(card.series); const title = typeof card.series.title === "string" && card.series.title.trim() ? card.series.title : "無題"; const isPublic = getSeriesPublicationStatus(card.series) === "public" && card.publishedCount > 0; const publicHref = isShortStory ? (card.firstPublishedEpisodeNumber !== null ? buildReadHref(card.series.id, card.firstPublishedEpisodeNumber) : "") : buildWorksHref(card.series.id); return <article key={card.series.id} className="rounded-2xl border border-black/10 bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 max-w-3xl"><div className="flex flex-wrap items-center gap-2"><p className="text-[11px] tracking-[0.18em] text-neutral-500">SERIES</p>{isShortStory ? <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600">短編</span> : <><span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600">総話数 {card.totalEpisodes}</span><span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600">公開中 {card.publishedCount}</span></>}<span className={isPublic ? "rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] text-emerald-800" : "rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-800"}>{isPublic ? "公開中" : "非公開"}</span></div><h3 className="mt-2 text-lg font-semibold text-black">{title}</h3><p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm leading-7 text-neutral-600">{getProfileSeriesSummary(card.series)}</p></div><div className="flex flex-wrap gap-2"><Link href={`/write/series/${card.series.id}`} className="rounded-full bg-black px-3 py-1.5 text-sm font-medium text-white transition hover:bg-neutral-800">編集</Link>{isPublic && publicHref ? <Link href={publicHref} className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-neutral-800 transition hover:bg-neutral-50">{isShortStory ? "読む" : "作品ページ"}</Link> : null}</div></div></article>; })}</div></section>;
 }
