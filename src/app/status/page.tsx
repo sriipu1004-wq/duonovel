@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "運営状況 | LIB read",
-  description: "LIB read の現在の試作状況、使える機能、調整中の内容",
+  description: "LIB read の現在の運営状況、利用できる機能、継続的な改善内容",
 };
 
 function Section({
@@ -31,8 +31,8 @@ export default function StatusPage() {
         <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">LIB read</p>
         <h1 className="text-3xl font-bold text-black">運営状況</h1>
         <p className="text-sm leading-7 text-neutral-700">
-          LIB read は現在、公開しながら整えている試作・改善段階のサービスです。
-          使える機能と、まだ調整中の部分をこのページにまとめています。
+          LIB read は、公開中の機能を提供しながら、使いやすさや表示内容を継続的に改善しているサービスです。
+          現在利用できる機能と、更新時に変わる可能性がある内容をこのページにまとめています。
         </p>
         <div className="flex flex-wrap gap-4 text-sm">
           <Link className="text-neutral-700 underline underline-offset-4" href="/">
@@ -49,34 +49,34 @@ export default function StatusPage() {
 
       <Section title="1. 現在の状態">
         <p>
-          LIB read は、小説投稿サイトとしての基本導線を保ちながら、朗読や演出も含めて楽しめる形を目指して調整中です。
+          LIB read は、小説投稿サイトとしての基本導線に加え、AI生成、保存・公開、Web Speech による読み上げ、朗読や演出を楽しめる形を提供しています。
         </p>
         <p>
-          現時点でも公開作品の閲覧、作品導線の確認、説明ページの閲覧などは進められますが、
-          一部の機能や画面は今後も改善・変更される可能性があります。
+          公開作品の閲覧・検索、作品詳細や各話の閲覧、AI生成、ログイン後の保存・投稿などを利用できます。
+          一部の表示や導線、作品ごとの利用条件は今後も改善・更新される可能性があります。
         </p>
       </Section>
 
       <Section title="2. 現在使える主機能">
         <ul className="list-disc space-y-2 pl-5">
-          <li>トップページから公開作品を探す</li>
-          <li>検索ページから作品を探す</li>
+          <li>トップページや検索ページから公開作品を探す</li>
           <li>作品詳細や各話を読む</li>
-          <li>朗読がある作品では、読むだけでなく聞く</li>
-          <li>作者ページや公開導線をたどる</li>
-          <li>使い方、FAQ、規約、問い合わせなどの説明ページを見る</li>
+          <li>Web Speech による読み上げを再生する</li>
+          <li>AI生成ページで条件に合わせた短編を生成する</li>
+          <li>ログイン後に生成した物語を保存、編集、投稿する</li>
+          <li>作者ページ、使い方、FAQ、規約、問い合わせなどの案内ページを見る</li>
         </ul>
       </Section>
 
-      <Section title="3. 現在調整中の主な内容">
+      <Section title="3. 継続的に改善している主な内容">
         <ul className="list-disc space-y-2 pl-5">
           <li>朗読まわりの体験向上</li>
           <li>演出の見せ方や分かりやすさの改善</li>
           <li>導線や案内ページの整理</li>
-          <li>公開中の機能説明と未完成部分の切り分け</li>
+          <li>公開中の機能や案内内容の分かりやすさ</li>
         </ul>
         <p>
-          これらは「使えないから隠す」というより、公開しながら少しずつ整えている段階として理解してほしいです。
+          公開済みの機能を利用できる状態を維持しながら、体験や案内を段階的に改善しています。
         </p>
       </Section>
 
@@ -85,7 +85,7 @@ export default function StatusPage() {
           <li>作品ごとに、朗読の有無や演出の有無が異なります</li>
           <li>画面構成や文言、導線は今後変更されることがあります</li>
           <li>一部機能はログインや作品側の設定状況によって使い方が変わります</li>
-          <li>試作段階のため、更新後に案内内容が変わることがあります</li>
+          <li>機能や表示は順次改善・更新されるため、更新後に案内内容が変わることがあります</li>
         </ul>
       </Section>
 

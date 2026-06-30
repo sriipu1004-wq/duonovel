@@ -75,7 +75,7 @@ type TagChip = {
   count: number;
 };
 
-type GenrePlaceholderChip = {
+type GenreChip = {
   key: string;
   label: string;
   count: number;
@@ -88,12 +88,6 @@ type ShelfConfig = {
   order: OrderKey;
   start: string;
   end: string;
-};
-
-type GenrePlaceholderSection = {
-  key: string;
-  title: string;
-  description: string;
 };
 
 type GenreShelfSection = {
@@ -355,8 +349,8 @@ function buildAvailableTags(works: WorkCard[]): TagChip[] {
   });
 }
 
-function buildAvailableGenres(works: WorkCard[]): GenrePlaceholderChip[] {
-  const counter = new Map<string, GenrePlaceholderChip>();
+function buildAvailableGenres(works: WorkCard[]): GenreChip[] {
+  const counter = new Map<string, GenreChip>();
 
   for (const work of works) {
     const seen = new Set<string>();
@@ -415,15 +409,15 @@ function pickTagChipsWithinBudget(chips: TagChip[], budget: number): TagChip[] {
   return picked;
 }
 
-function estimateGenreChipUnits(chip: GenrePlaceholderChip): number {
+function estimateGenreChipUnits(chip: GenreChip): number {
   return chip.label.length * 2 + String(chip.count).length + 8;
 }
 
 function pickGenreChipsWithinBudget(
-  chips: GenrePlaceholderChip[],
+  chips: GenreChip[],
   budget: number
-): GenrePlaceholderChip[] {
-  const picked: GenrePlaceholderChip[] = [];
+): GenreChip[] {
+  const picked: GenreChip[] = [];
   let used = 0;
 
   for (const chip of chips) {
@@ -640,17 +634,6 @@ function sortWorksForShelfTab(
     : sortByPopular(works, popularityMap);
 }
 
-function buildGenrePlaceholderSections(
-  labels: GenrePlaceholderChip[],
-  description: string
-): GenrePlaceholderSection[] {
-  return labels.slice(0, 5).map((genre) => ({
-    key: genre.key,
-    title: genre.label,
-    description,
-  }));
-}
-
 function getWorkFirstPublicAtValue(work: WorkCard): number {
   return work.earliestPublicAtValue > 0
     ? work.earliestPublicAtValue
@@ -667,13 +650,13 @@ function filterWorksByGenre(
 }
 
 function buildGenreShelfSections(params: {
-  genres: GenrePlaceholderChip[];
+  genres: GenreChip[];
   works: WorkCard[];
   order: OrderKey;
-  descriptionBuilder: (genre: GenrePlaceholderChip) => string;
+  descriptionBuilder: (genre: GenreChip) => string;
   badgeLabel: string;
-  hrefBuilder: (genre: GenrePlaceholderChip) => string;
-  emptyMessageBuilder: (genre: GenrePlaceholderChip) => string;
+  hrefBuilder: (genre: GenreChip) => string;
+  emptyMessageBuilder: (genre: GenreChip) => string;
 }): GenreShelfSection[] {
   return params.genres.slice(0, 5).map((genre) => ({
     key: genre.key,
@@ -1064,14 +1047,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         })
       : [];
 
-  const latestPlaceholderSections =
-    isLatestShelfTab && latestGenreSections.length === 0
-      ? buildGenrePlaceholderSections(
-          genreCandidateSource,
-          "genre 実データがまだ無いため、ここは placeholder を表示している。"
-        )
-      : [];
-
   const weeklyNewStartAtValue = isWeeklyNewShelfTab
     ? subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)
     : 0;
@@ -1118,14 +1093,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           emptyMessageBuilder: (genre) =>
             `直近7日で初公開された ${genre.label} 作品はまだない。`,
         })
-      : [];
-
-  const weeklyNewPlaceholderSections =
-    isWeeklyNewShelfTab && weeklyNewGenreSections.length === 0
-      ? buildGenrePlaceholderSections(
-          genreCandidateSource,
-          "直近7日で初公開された genre 実データがまだ無いため、ここは placeholder を表示している。"
-        )
       : [];
 
   const narrationShelfConfigs: ShelfConfig[] = isNarrationShelfTab
@@ -1474,39 +1441,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 ))}
               </div>
             ) : (
-              <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                {latestPlaceholderSections.map((section) => (
-                  <section
-                    key={section.key}
-                    className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-lg font-semibold text-black">
-                          {section.title}
-                        </h3>
-                        <p className="mt-2 text-sm leading-7 text-neutral-600">
-                          {section.description}
-                        </p>
-                      </div>
-
-                      <span className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700">
-                        genre データ待ち
-                      </span>
-                    </div>
-
-                    <div className="mt-4 grid gap-3">
-                      {Array.from({ length: 5 }).map((_, index) => (
-                        <div
-                          key={`${section.key}-slot-${index + 1}`}
-                          className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 px-4 py-6 text-sm text-neutral-500"
-                        >
-                          作品スロット {index + 1}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                ))}
+              <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
+                この条件に一致するジャンル別作品はまだありません。下の検索結果から公開作品を確認できます。
               </div>
             )
           ) : null}
@@ -1596,39 +1532,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 ))}
               </div>
             ) : (
-              <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                {weeklyNewPlaceholderSections.map((section) => (
-                  <section
-                    key={section.key}
-                    className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-lg font-semibold text-black">
-                          {section.title}
-                        </h3>
-                        <p className="mt-2 text-sm leading-7 text-neutral-600">
-                          {section.description}
-                        </p>
-                      </div>
-
-                      <span className="rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-700">
-                        新作データ待ち
-                      </span>
-                    </div>
-
-                    <div className="mt-4 grid gap-3">
-                      {Array.from({ length: 5 }).map((_, index) => (
-                        <div
-                          key={`${section.key}-slot-${index + 1}`}
-                          className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 px-4 py-6 text-sm text-neutral-500"
-                        >
-                          作品スロット {index + 1}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                ))}
+              <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
+                直近7日で初公開されたジャンル別作品はまだありません。下の検索結果から公開作品を確認できます。
               </div>
             )
           ) : null}
