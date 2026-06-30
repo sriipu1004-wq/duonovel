@@ -68,7 +68,7 @@ export default function NewsPage() {
       <Section title="直近のお知らせ">
         <NewsItem date="2026-04-10" title="運営状況ページ・お知らせページを追加">
           <p>
-            現在の試作状況や更新情報の置き場として、
+            現在の運営状況や更新情報の置き場として、
             <Link className="underline underline-offset-4" href="/status">
               運営状況
             </Link>
@@ -105,7 +105,7 @@ export default function NewsPage() {
       <Section title="最近の更新の見どころ">
         <ul className="list-disc space-y-2 pl-5">
           <li>公開トップから説明ページへ辿りやすくなった</li>
-          <li>試作段階であることと、現在使える範囲が外から見て分かりやすくなった</li>
+          <li>現在使える機能や案内を外から確認しやすくなった</li>
           <li>朗読、演出、閲覧の入口としての説明導線を整理した</li>
         </ul>
       </Section>

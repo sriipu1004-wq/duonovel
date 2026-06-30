@@ -99,7 +99,7 @@ export default function ContactPage() {
           <ul className="list-disc space-y-2 pl-5">
             <li>虚偽の申告や不当な削除要請はしないでください。</li>
             <li>調査や確認のため、追加情報の提出をお願いする場合があります。</li>
-            <li>サービスは試作・改善段階を含むため、対応に時間を要する場合があります。</li>
+            <li>内容の確認や調査のため、対応に時間を要する場合があります。</li>
             <li>緊急対応や法的判断を約束するものではありません。</li>
           </ul>
         </Section>

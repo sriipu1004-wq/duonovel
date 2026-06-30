@@ -70,10 +70,6 @@ export default function FaqPage() {
           question="無料で使える？"
           answer="現状の案内では、トップページでも完全無料サイトとして説明している。"
         />
-        <FaqItem
-          question="試作段階ってどういう意味？"
-          answer="画面、機能、導線、仕様が今後変わる可能性があるという意味。まだ調整中の部分や今後追加される部分がある。"
-        />
       </Section>
 
       <Section title="読む・聞く">
