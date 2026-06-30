@@ -18,6 +18,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "LIB read",
+  other: {
+    "google-adsense-account": "ca-pub-7690891889566825",
+  },
   description: "LIB read（ライブリード）は、テキストと朗読を行き来できる小説投稿サイト",
 };
 
