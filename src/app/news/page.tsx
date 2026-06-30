@@ -46,20 +46,20 @@ export default function NewsPage() {
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 sm:px-6">
       <header className="space-y-3">
-        <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">LIB read</p>
-        <h1 className="text-3xl font-bold text-white">お知らせ</h1>
-        <p className="text-sm leading-7 text-neutral-300">
+        <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">LIB read</p>
+        <h1 className="text-3xl font-bold text-black">お知らせ</h1>
+        <p className="text-sm leading-7 text-neutral-700">
           LIB read の更新履歴と、外から見て分かる範囲の変更内容をまとめています。
           今後の更新情報もこのページに集約していく想定です。
         </p>
         <div className="flex flex-wrap gap-4 text-sm">
-          <Link className="text-neutral-300 underline underline-offset-4" href="/">
+          <Link className="text-neutral-700 underline underline-offset-4" href="/">
             トップへ戻る
           </Link>
-          <Link className="text-neutral-300 underline underline-offset-4" href="/status">
+          <Link className="text-neutral-700 underline underline-offset-4" href="/status">
             運営状況
           </Link>
-          <Link className="text-neutral-300 underline underline-offset-4" href="/guide">
+          <Link className="text-neutral-700 underline underline-offset-4" href="/guide">
             使い方・取り扱い説明
           </Link>
         </div>
@@ -126,6 +126,16 @@ export default function NewsPage() {
           を見てください。
         </p>
       </Section>
+        {/* AI_NEWS_20260630_V1 */}
+        <Section title="2026年6月30日">
+          <NewsItem date="2026-06-30" title="AI生成の案内と公開ページを整理">
+            <p>
+              AI生成機能の利用方法、保存・公開時の注意、通報・削除依頼の案内を整理した。
+              あわせて、公開ページから規約、プライバシーポリシー、お問い合わせへ移動しやすくした。
+            </p>
+          </NewsItem>
+        </Section>
+
       </div>
     </main>
   );

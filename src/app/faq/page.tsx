@@ -43,19 +43,19 @@ export default function FaqPage() {
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 sm:px-6">
       <header className="space-y-3">
-        <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">LIB read</p>
-        <h1 className="text-3xl font-bold text-white">FAQ</h1>
-        <p className="text-sm leading-7 text-neutral-300">
+        <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">LIB read</p>
+        <h1 className="text-3xl font-bold text-black">FAQ</h1>
+        <p className="text-sm leading-7 text-neutral-700">
           LIB read を初めて見る人が迷いやすい点を、よくある質問としてまとめています。
         </p>
         <div className="flex flex-wrap gap-4 text-sm">
-          <Link className="text-neutral-300 underline underline-offset-4" href="/">
+          <Link className="text-neutral-700 underline underline-offset-4" href="/">
             トップへ戻る
           </Link>
-          <Link className="text-neutral-300 underline underline-offset-4" href="/guide">
+          <Link className="text-neutral-700 underline underline-offset-4" href="/guide">
             使い方・取り扱い説明
           </Link>
-          <Link className="text-neutral-300 underline underline-offset-4" href="/contact">
+          <Link className="text-neutral-700 underline underline-offset-4" href="/contact">
             お問い合わせ
           </Link>
         </div>
@@ -157,6 +157,33 @@ export default function FaqPage() {
           }
         />
       </Section>
+        {/* AI_FAQ_V1 */}
+        <Section title="AI生成">
+          <FaqItem
+            question="AI生成は何ができる？"
+            answer={
+              <>
+                <Link className="underline underline-offset-4" href="/generate">
+                  AI生成ページ
+                </Link>
+                で、読む時間、場面、ジャンル、雰囲気を選び、その条件に合わせた短編を作れる。
+              </>
+            }
+          />
+          <FaqItem
+            question="ログインしなくても生成できる？"
+            answer="生成そのものはログインしなくても利用できる。生成後の保存、編集、公開にはログインが必要。"
+          />
+          <FaqItem
+            question="生成した物語はどこに保存される？"
+            answer="生成直後の内容は端末内の一時データとして扱われる。保存または公開の操作をした場合は、機能の提供に必要な範囲でサービス側にも保存される。"
+          />
+          <FaqItem
+            question="AI生成結果をそのまま公開してよい？"
+            answer="公開前に内容を確認し、公開するコンテンツについて利用者が責任を負う。第三者の権利侵害や規約違反がないかを確認する。"
+          />
+        </Section>
+
       </div>
     </main>
   );

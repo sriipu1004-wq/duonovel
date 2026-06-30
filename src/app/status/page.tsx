@@ -28,20 +28,20 @@ export default function StatusPage() {
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 sm:px-6">
       <header className="space-y-3">
-        <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">LIB read</p>
-        <h1 className="text-3xl font-bold text-white">運営状況</h1>
-        <p className="text-sm leading-7 text-neutral-300">
+        <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">LIB read</p>
+        <h1 className="text-3xl font-bold text-black">運営状況</h1>
+        <p className="text-sm leading-7 text-neutral-700">
           LIB read は現在、公開しながら整えている試作・改善段階のサービスです。
           使える機能と、まだ調整中の部分をこのページにまとめています。
         </p>
         <div className="flex flex-wrap gap-4 text-sm">
-          <Link className="text-neutral-300 underline underline-offset-4" href="/">
+          <Link className="text-neutral-700 underline underline-offset-4" href="/">
             トップへ戻る
           </Link>
-          <Link className="text-neutral-300 underline underline-offset-4" href="/news">
+          <Link className="text-neutral-700 underline underline-offset-4" href="/news">
             お知らせ
           </Link>
-          <Link className="text-neutral-300 underline underline-offset-4" href="/guide">
+          <Link className="text-neutral-700 underline underline-offset-4" href="/guide">
             使い方・取り扱い説明
           </Link>
         </div>
@@ -122,6 +122,21 @@ export default function StatusPage() {
           から連絡してください。
         </p>
       </Section>
+        {/* AI_STATUS_V1 */}
+        <Section title="7. AI生成機能について">
+          <p>
+            AI生成ページでは、読む時間、場面、ジャンル、雰囲気を選び、条件に合わせた短編を生成できます。
+          </p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>生成した物語を読む</li>
+            <li>ログイン後に保存、編集、投稿する</li>
+            <li>公開時にAI生成作品として表示する</li>
+          </ul>
+          <p>
+            生成直後の内容は端末内の一時データとして扱われます。公開前には内容を確認し、利用規約に反しないことを確認してください。
+          </p>
+        </Section>
+
       </div>
     </main>
   );

@@ -28,20 +28,20 @@ export default function GuidePage() {
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 sm:px-6">
       <header className="space-y-3">
-        <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">LIB read</p>
-        <h1 className="text-3xl font-bold text-white">使い方・取り扱い説明</h1>
-        <p className="text-sm leading-7 text-neutral-300">
+        <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">LIB read</p>
+        <h1 className="text-3xl font-bold text-black">使い方・取り扱い説明</h1>
+        <p className="text-sm leading-7 text-neutral-700">
           LIB read は、小説投稿サイトの基盤を保ちながら、朗読やささやかな演出も一緒に楽しめるサイトです。
           初見で迷いやすい点を、このページでまとめています。
         </p>
         <div className="flex flex-wrap gap-4 text-sm">
-          <Link className="text-neutral-300 underline underline-offset-4" href="/">
+          <Link className="text-neutral-700 underline underline-offset-4" href="/">
             トップへ戻る
           </Link>
-          <Link className="text-neutral-300 underline underline-offset-4" href="/faq">
+          <Link className="text-neutral-700 underline underline-offset-4" href="/faq">
             FAQ
           </Link>
-          <Link className="text-neutral-300 underline underline-offset-4" href="/contact">
+          <Link className="text-neutral-700 underline underline-offset-4" href="/contact">
             お問い合わせ
           </Link>
         </div>
@@ -155,6 +155,27 @@ export default function GuidePage() {
           を使ってください。
         </p>
       </Section>
+        {/* AI_GUIDE_V1 */}
+        <Section title="9. AI生成で物語を作る">
+          <p>
+            AI生成ページでは、読む時間、場面、ジャンル、雰囲気を選んで、その条件に合わせた短編を作れます。
+          </p>
+          <ol className="list-decimal space-y-2 pl-5">
+            <li>
+              <Link className="underline underline-offset-4" href="/generate">
+                AI生成ページ
+              </Link>
+              で条件を選ぶ
+            </li>
+            <li>生成された物語を読む。生成直後の内容は端末内の一時データとして扱われます</li>
+            <li>残したい場合はログイン後に保存・編集し、公開したい場合は内容を確認して投稿する</li>
+          </ol>
+          <p>
+            AI生成結果は自動出力であり、事実性や第三者権利の非侵害を保証するものではありません。
+            公開前に必ず内容を確認してください。
+          </p>
+        </Section>
+
       </div>
     </main>
   );

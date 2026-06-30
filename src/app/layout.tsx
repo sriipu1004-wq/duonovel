@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import AppHeader from "@/components/layout/AppHeader";
+import AppFooter from "@/components/layout/AppFooter";
 import "./globals.css";
 import GlobalNavigationProgress from "@/components/navigation/GlobalNavigationProgress";
 
@@ -36,6 +37,7 @@ export default function RootLayout({
           </Suspense>
           <AppHeader />
           {children}
+          <AppFooter />
         </div>
       </body>
     </html>
