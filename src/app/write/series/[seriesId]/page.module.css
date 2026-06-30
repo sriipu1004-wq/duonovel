@@ -1,3 +1,7 @@
-.shortStoryComplete a[href$="/episodes/new"] {
+.workspace.shortStoryComplete a[href$="/episodes/new"] {
+  display: none;
+}
+
+.workspace div.ml-auto:has(> a[href*="/episodes/"] + a[href*="/episodes/"]) > a[href*="/episodes/"]:first-child {
   display: none;
 }
