@@ -25,7 +25,7 @@ async function fetchBookmarkSeries(seriesIds: string[]): Promise<{ rows: SeriesR
   let lastError = "";
   for (const selection of selections) {
     const result = await supabase.from("series").select(selection).in("id", seriesIds);
-    if (!result.error) return { rows: (result.data ?? []) as SeriesRow[], errorMessage: "" };
+    if (!result.error) return { rows: (result.data ?? []) as unknown as SeriesRow[], errorMessage: "" };
     lastError = result.error.message;
   }
   return { rows: [], errorMessage: lastError || "作品情報を取得できない。" };
