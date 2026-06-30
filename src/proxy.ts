@@ -5,10 +5,10 @@ export function proxy(request: NextRequest) {
     request.nextUrl.pathname === "/search" &&
     request.nextUrl.searchParams.get("saved") === "bookmarked-works"
   ) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/search/saved";
-    redirectUrl.searchParams.delete("saved");
-    return NextResponse.redirect(redirectUrl);
+    const targetUrl = request.nextUrl.clone();
+    targetUrl.pathname = "/search/saved";
+    targetUrl.searchParams.delete("saved");
+    return NextResponse.rewrite(targetUrl);
   }
 
   return NextResponse.next();
