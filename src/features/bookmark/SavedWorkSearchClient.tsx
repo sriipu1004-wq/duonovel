@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
 import { supabase } from "@/lib/supabaseClient";
 
-type WorkRow = { id: string; title?: string | null; description?: string | null; summary?: string | null; author_id?: string | null; user_id?: string | null; updated_at?: string | null; created_at?: string | null; tags?: unknown };
+type WorkRow = { id: string; title?: string | null; description?: string | null; summary?: string | null; author_id?: string | null; updated_at?: string | null; created_at?: string | null; tags?: unknown };
 type AuthorRow = { id: string; display_name?: string | null; username?: string | null };
 type BookmarkRow = { series_id: string; created_at?: string | null };
 type Item = { seriesId: string; title: string; summary: string; authorId: string | null; authorName: string; tags: string[]; addedAt: string; updatedAt: string };
@@ -16,10 +16,10 @@ function timestamp(value: string): number { const parsed = new Date(value).getTi
 
 async function fetchSeriesRows(seriesIds: string[]): Promise<{ rows: WorkRow[]; error: string }> {
   const selections = [
-    "id, title, description, summary, author_id, user_id, updated_at, created_at, tags",
-    "id, title, description, summary, author_id, user_id, created_at, tags",
-    "id, title, description, author_id, user_id, created_at, tags",
-    "id, title, description, author_id, user_id, tags",
+    "id, title, description, summary, author_id, updated_at, created_at, tags",
+    "id, title, description, summary, author_id, created_at, tags",
+    "id, title, description, author_id, created_at, tags",
+    "id, title, description, author_id, tags",
   ];
   let lastError = "";
   for (const selection of selections) {
@@ -49,11 +49,11 @@ export default function SavedWorkSearchClient({ order }: { order: "updated" | "a
       if (!bookmarks.length) { if (active) { setIsLoggedIn(true); setItems([]); setLoaded(true); } return; }
       const { rows, error: seriesError } = await fetchSeriesRows(Array.from(new Set(bookmarks.map((row) => row.series_id))));
       if (seriesError) { if (active) { setError(`作品情報を取得できない: ${seriesError}`); setIsLoggedIn(true); setLoaded(true); } return; }
-      const authorIds = Array.from(new Set(rows.map((row) => text(row.author_id, row.user_id)).filter(Boolean)));
+      const authorIds = Array.from(new Set(rows.map((row) => text(row.author_id)).filter(Boolean)));
       const { data: authorData } = authorIds.length ? await supabase.from("users").select("id, display_name, username").in("id", authorIds) : { data: [] as AuthorRow[] };
       const authorMap = new Map<string, AuthorRow>(); for (const author of (authorData ?? []) as AuthorRow[]) authorMap.set(author.id, author);
       const bookmarkMap = new Map(bookmarks.map((bookmark) => [bookmark.series_id, text(bookmark.created_at)]));
-      const next = rows.map((row) => { const authorId = text(row.author_id, row.user_id) || null; const author = authorId ? authorMap.get(authorId) : undefined; return { seriesId: row.id, title: text(row.title) || "無題", summary: text(row.summary, row.description) || "あらすじはまだ登録されていない。", authorId, authorName: text(author?.display_name, author?.username) || "作者名未設定", tags: tags(row.tags), addedAt: bookmarkMap.get(row.id) || "", updatedAt: text(row.updated_at, row.created_at, bookmarkMap.get(row.id)) }; });
+      const next = rows.map((row) => { const authorId = text(row.author_id) || null; const author = authorId ? authorMap.get(authorId) : undefined; return { seriesId: row.id, title: text(row.title) || "無題", summary: text(row.summary, row.description) || "あらすじはまだ登録されていない。", authorId, authorName: text(author?.display_name, author?.username) || "作者名未設定", tags: tags(row.tags), addedAt: bookmarkMap.get(row.id) || "", updatedAt: text(row.updated_at, row.created_at, bookmarkMap.get(row.id)) }; });
       if (active) { setIsLoggedIn(true); setItems(next); setLoaded(true); }
     }
     void load(); return () => { active = false; };
