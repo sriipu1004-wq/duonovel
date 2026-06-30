@@ -24,7 +24,7 @@ async function fetchSeriesRows(seriesIds: string[]): Promise<{ rows: WorkRow[]; 
   let lastError = "";
   for (const selection of selections) {
     const result = await supabase.from("series").select(selection).in("id", seriesIds);
-    if (!result.error) return { rows: (result.data ?? []) as WorkRow[], error: "" };
+    if (!result.error) return { rows: (result.data ?? []) as unknown as WorkRow[], error: "" };
     lastError = result.error.message;
   }
   return { rows: [], error: lastError || "作品情報を取得できない。" };
