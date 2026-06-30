@@ -90,7 +90,7 @@ export default function AuthStatus() {
 
   if (loading) {
     return (
-      <div className="text-xs text-neutral-500 dark:text-neutral-400">
+      <div className="shrink-0 whitespace-nowrap text-[10px] text-neutral-500 dark:text-neutral-400 sm:text-xs">
         認証確認中...
       </div>
     );
@@ -98,7 +98,7 @@ export default function AuthStatus() {
 
   if (!user) {
     return (
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 shrink items-center justify-end gap-1.5 sm:gap-3">
         {errorMessage ? (
           <span className="hidden text-xs text-amber-400 sm:inline">
             {errorMessage}
@@ -107,7 +107,7 @@ export default function AuthStatus() {
 
         <Link
           href={loginHref}
-          className="inline-flex items-center rounded-full border border-white/10 bg-white px-4 py-2 text-xs font-semibold text-black transition hover:opacity-90 dark:border-white/20"
+          className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/10 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-black transition hover:opacity-90 dark:border-white/20 sm:px-4 sm:py-2 sm:text-xs"
         >
           ログイン
         </Link>
@@ -116,7 +116,7 @@ export default function AuthStatus() {
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex min-w-0 shrink items-center justify-end gap-1.5 sm:gap-3">
       <div className="hidden text-right sm:block">
         <p className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
           Signed in
@@ -132,7 +132,7 @@ export default function AuthStatus() {
       <Link
         href="/mypage"
         className={[
-          "inline-flex items-center rounded-full px-4 py-2 text-xs font-semibold transition",
+          "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-1.5 text-[clamp(0.625rem,3vw,0.75rem)] font-semibold transition sm:px-4 sm:py-2 sm:text-xs",
           isMyPage
             ? "border border-white/10 bg-white text-black"
             : "border border-white/10 bg-white/5 text-neutral-900 hover:bg-black/5 dark:text-white dark:hover:bg-white/10",
@@ -145,7 +145,7 @@ export default function AuthStatus() {
         type="button"
         onClick={handleLogout}
         disabled={logoutPending}
-        className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-neutral-900 transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60 dark:text-white dark:hover:bg-white/10"
+        className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5 text-[clamp(0.625rem,3vw,0.75rem)] font-semibold text-neutral-900 transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60 dark:text-white dark:hover:bg-white/10 sm:px-4 sm:py-2 sm:text-xs"
       >
         {logoutPending ? "ログアウト中..." : "ログアウト"}
       </button>

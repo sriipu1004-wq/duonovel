@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import SearchNavButton from "@/components/search/SearchNavButton";
 import {
@@ -164,16 +164,16 @@ function buildSearchHref(params: {
 
 export default function PublicSearchControls({
   query,
-  selectedTagLabels,
-  selectedGenreLabels,
+  selectedTagLabels: initialSelectedTagLabels,
+  selectedGenreLabels: initialSelectedGenreLabels,
   savedFilterKey,
   order,
   selectedStartInput,
   selectedEndInput,
   defaultStartInput,
   defaultEndInput,
-  showAllTags,
-  showAllGenres,
+  showAllTags: initialShowAllTags,
+  showAllGenres: initialShowAllGenres,
   shelfTab,
   allTagChips,
   allGenreChips,
@@ -184,8 +184,27 @@ export default function PublicSearchControls({
   const [startValue, setStartValue] = useState(selectedStartInput);
   const [endValue, setEndValue] = useState(selectedEndInput);
   const [genreLimitMessage, setGenreLimitMessage] = useState("");
-  const [localShowAllTags, setLocalShowAllTags] = useState(showAllTags);
-  const [localShowAllGenres, setLocalShowAllGenres] = useState(showAllGenres);  
+  const [localSelectedTagLabels, setLocalSelectedTagLabels] = useState(
+    initialSelectedTagLabels
+  );
+  const [localSelectedGenreLabels, setLocalSelectedGenreLabels] = useState(
+    initialSelectedGenreLabels
+  );
+  const [localShowAllTags, setLocalShowAllTags] = useState(
+    initialShowAllTags
+  );
+  const [localShowAllGenres, setLocalShowAllGenres] = useState(
+    initialShowAllGenres
+  );
+  const [hasHiddenTags, setHasHiddenTags] = useState(false);
+  const [hasHiddenGenres, setHasHiddenGenres] = useState(false);
+  const tagChipListRef = useRef<HTMLDivElement>(null);
+  const genreChipListRef = useRef<HTMLDivElement>(null);
+
+  const selectedTagLabels = localSelectedTagLabels;
+  const selectedGenreLabels = localSelectedGenreLabels;
+  const showAllTags = localShowAllTags;
+  const showAllGenres = localShowAllGenres;
 
   useEffect(() => {
     setQueryValue(query);
@@ -202,6 +221,78 @@ export default function PublicSearchControls({
   useEffect(() => {
     setGenreLimitMessage("");
   }, [selectedGenreLabels]);
+
+  useEffect(() => {
+    setLocalSelectedTagLabels(initialSelectedTagLabels);
+  }, [initialSelectedTagLabels]);
+
+  useEffect(() => {
+    setLocalSelectedGenreLabels(initialSelectedGenreLabels);
+  }, [initialSelectedGenreLabels]);
+
+  useEffect(() => {
+    setLocalShowAllTags(initialShowAllTags);
+  }, [initialShowAllTags]);
+
+  useEffect(() => {
+    setLocalShowAllGenres(initialShowAllGenres);
+  }, [initialShowAllGenres]);
+
+  useEffect(() => {
+    if (showAllTags) {
+      setHasHiddenTags(false);
+      return;
+    }
+
+    const container = tagChipListRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const updateOverflow = () => {
+      setHasHiddenTags(container.scrollHeight > container.clientHeight + 1);
+    };
+
+    updateOverflow();
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(updateOverflow);
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, [allTagChips, showAllTags]);
+
+  useEffect(() => {
+    if (showAllGenres) {
+      setHasHiddenGenres(false);
+      return;
+    }
+
+    const container = genreChipListRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const updateOverflow = () => {
+      setHasHiddenGenres(container.scrollHeight > container.clientHeight + 1);
+    };
+
+    updateOverflow();
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(updateOverflow);
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, [allGenreChips, showAllGenres]);
 
   const selectedFilterChips = useMemo(
     () => [
@@ -225,16 +316,8 @@ export default function PublicSearchControls({
     [savedFilterKey, selectedGenreLabels, selectedTagLabels]
   );
 
-  const visibleTagChips = localShowAllTags
-    ? allTagChips
-    : allTagChips.slice(0, 10);
-
-  const visibleGenreChips = localShowAllGenres
-    ? allGenreChips
-    : allGenreChips.slice(0, 7);
-
-  const hasHiddenTags = allTagChips.length > 10;
-  const hasHiddenGenres = allGenreChips.length > 7;  
+  const visibleTagChips = allTagChips;
+  const visibleGenreChips = allGenreChips;
 
   function navigate(href: string, scrollTargetId?: string) {
     router.replace(href, { scroll: false });
@@ -291,6 +374,8 @@ export default function PublicSearchControls({
     setStartValue(defaultStartInput);
     setEndValue(defaultEndInput);
     setGenreLimitMessage("");
+    setLocalSelectedTagLabels([]);
+    setLocalSelectedGenreLabels([]);
 
     navigate(
       buildSearchHref({
@@ -311,12 +396,34 @@ export default function PublicSearchControls({
     }
 
     setGenreLimitMessage("");
+    setLocalSelectedGenreLabels(result.nextLabels);
 
     navigate(
       buildSearchHref({
         q: queryValue,
         selectedTags: selectedTagLabels,
         selectedGenres: result.nextLabels,
+        saved: savedFilterKey,
+        order,
+        start: startValue,
+        end: endValue,
+        showTags: showAllTags,
+        showGenres: showAllGenres,
+        shelfTab,
+      })
+    );
+  }
+
+  function handleTagToggle(label: string) {
+    const nextLabels = toggleSelectedTagLabels(selectedTagLabels, label);
+
+    setLocalSelectedTagLabels(nextLabels);
+
+    navigate(
+      buildSearchHref({
+        q: queryValue,
+        selectedTags: nextLabels,
+        selectedGenres: selectedGenreLabels,
         saved: savedFilterKey,
         order,
         start: startValue,
@@ -460,64 +567,57 @@ export default function PublicSearchControls({
             ジャンル
           </p>
 
-          <div className="mt-2 flex max-w-full flex-wrap items-start gap-2 overflow-hidden">
-            <div className="min-w-0 max-w-full flex-1 overflow-hidden">
-              {showAllGenres ? (
-                <div className="flex flex-wrap gap-2">
-                  {visibleGenreChips.map((genre) => {
-                    const active = selectedGenreLabels.includes(genre.label);
+          <div className="relative mt-2 max-w-full">
+            <div
+              ref={genreChipListRef}
+              className={
+                showAllGenres
+                  ? "flex flex-wrap gap-2"
+                  : "flex max-h-[64px] flex-wrap gap-2 overflow-hidden pr-[88px]"
+              }
+            >
+              {visibleGenreChips.map((genre) => {
+                const active = selectedGenreLabels.includes(genre.label);
 
-                    return (
-                      <button
-                        key={genre.key}
-                        type="button"
-                        onClick={() => handleGenreToggle(genre.label)}
-                        className={[
-                          "max-w-full rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
-                          active
-                            ? "border-violet-300 bg-violet-100 text-violet-800"
-                            : "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
-                        ].join(" ")}
-                      >
-                        {genre.label}
-                        <span className="ml-1.5 text-[10px] text-violet-400">{genre.count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="flex flex-nowrap gap-2 overflow-hidden">
-                  {visibleGenreChips.map((genre) => {
-                    const active = selectedGenreLabels.includes(genre.label);
-
-                    return (
-                      <button
-                        key={genre.key}
-                        type="button"
-                        onClick={() => handleGenreToggle(genre.label)}
-                        className={[
-                          "shrink-0 rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
-                          active
-                            ? "border-violet-300 bg-violet-100 text-violet-800"
-                            : "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
-                        ].join(" ")}
-                      >
-                        {genre.label}
-                        <span className="ml-1.5 text-[10px] text-violet-400">{genre.count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                return (
+                  <button
+                    key={genre.key}
+                    type="button"
+                    title={genre.label}
+                    onClick={() => handleGenreToggle(genre.label)}
+                    className={[
+                      "inline-flex max-w-full items-center overflow-hidden rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
+                      active
+                        ? "border-violet-300 bg-violet-100 text-violet-800"
+                        : "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
+                    ].join(" ")}
+                  >
+                    <span className="truncate">{genre.label}</span>
+                    <span className="ml-1.5 shrink-0 text-[10px] text-violet-400">
+                      {genre.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
-            {hasHiddenGenres ? (
+            {showAllGenres ? (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => setLocalShowAllGenres(false)}
+                  className="rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-50"
+                >
+                  閉じる
+                </button>
+              </div>
+            ) : hasHiddenGenres ? (
               <button
                 type="button"
-                onClick={() => setLocalShowAllGenres((prev) => !prev)}
-                className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-50"
+                onClick={() => setLocalShowAllGenres(true)}
+                className="absolute bottom-0 right-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 shadow-[0_0_0_4px_white] transition hover:bg-neutral-50"
               >
-                {localShowAllGenres ? "閉じる" : "さらに"}
+                続きを表示
               </button>
             ) : null}
           </div>
@@ -532,92 +632,59 @@ export default function PublicSearchControls({
             タグ
           </p>
 
-          <div className="mt-2 flex max-w-full flex-wrap items-start gap-2 overflow-hidden">
-            <div className="min-w-0 max-w-full flex-1 overflow-hidden">
-              {showAllTags ? (
-                <div className="flex flex-wrap gap-2">
-                  {visibleTagChips.map((tag) => {
-                    const active = selectedTagLabels.some(
-                      (item) => normalizeTagToken(item) === tag.value
-                    );
+          <div className="relative mt-2 max-w-full">
+            <div
+              ref={tagChipListRef}
+              className={
+                showAllTags
+                  ? "flex flex-wrap gap-2"
+                  : "flex max-h-[64px] flex-wrap gap-2 overflow-hidden pr-[88px]"
+              }
+            >
+              {visibleTagChips.map((tag) => {
+                const active = selectedTagLabels.some(
+                  (item) => normalizeTagToken(item) === tag.value
+                );
 
-                    return (
-                      <SearchNavButton
-                        key={tag.value}
-                        href={buildSearchHref({
-                          q: queryValue,
-                          selectedTags: toggleSelectedTagLabels(
-                            selectedTagLabels,
-                            tag.label
-                          ),
-                          selectedGenres: selectedGenreLabels,
-                          order,
-                          start: startValue,
-                          end: endValue,
-                          showTags: true,
-                          showGenres: showAllGenres,
-                          shelfTab,
-                        })}
-                        className={[
-                          "max-w-full rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
-                          active
-                            ? "border-sky-200 bg-sky-50 text-black"
-                            : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
-                        ].join(" ")}
-                      >
-                        {tag.label}
-                        <span className="ml-2 text-neutral-400">{tag.count}</span>
-                      </SearchNavButton>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="flex flex-nowrap gap-2 overflow-hidden">
-                  {visibleTagChips.map((tag) => {
-                    const active = selectedTagLabels.some(
-                      (item) => normalizeTagToken(item) === tag.value
-                    );
-
-                    return (
-                      <SearchNavButton
-                        key={tag.value}
-                        href={buildSearchHref({
-                          q: queryValue,
-                          selectedTags: toggleSelectedTagLabels(
-                            selectedTagLabels,
-                            tag.label
-                          ),
-                          selectedGenres: selectedGenreLabels,
-                          order,
-                          start: startValue,
-                          end: endValue,
-                          showTags: false,
-                          showGenres: showAllGenres,
-                          shelfTab,
-                        })}
-                        className={[
-                          "shrink-0 rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
-                          active
-                            ? "border-sky-200 bg-sky-50 text-black"
-                            : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
-                        ].join(" ")}
-                      >
-                        {tag.label}
-                        <span className="ml-2 text-neutral-400">{tag.count}</span>
-                      </SearchNavButton>
-                    );
-                  })}
-                </div>
-              )}
+                return (
+                  <button
+                    key={tag.value}
+                    type="button"
+                    title={tag.label}
+                    onClick={() => handleTagToggle(tag.label)}
+                    className={[
+                      "inline-flex max-w-full items-center overflow-hidden rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
+                      active
+                        ? "border-sky-200 bg-sky-50 text-black"
+                        : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
+                    ].join(" ")}
+                  >
+                    <span className="truncate">{tag.label}</span>
+                    <span className="ml-2 shrink-0 text-neutral-400">
+                      {tag.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
-            {hasHiddenTags ? (
+            {showAllTags ? (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => setLocalShowAllTags(false)}
+                  className="rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-50"
+                >
+                  閉じる
+                </button>
+              </div>
+            ) : hasHiddenTags ? (
               <button
                 type="button"
-                onClick={() => setLocalShowAllTags((prev) => !prev)}
-                className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-50"
+                onClick={() => setLocalShowAllTags(true)}
+                className="absolute bottom-0 right-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 shadow-[0_0_0_4px_white] transition hover:bg-neutral-50"
               >
-                {localShowAllTags ? "閉じる" : "さらに"}
+                続きを表示
               </button>
             ) : null}
           </div>
