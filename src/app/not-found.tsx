@@ -34,6 +34,12 @@ export default function NotFound() {
           >
             AI生成を試す
           </Link>
+          <Link
+            href="/contact"
+            className="rounded-full border border-black/15 px-5 py-3 font-semibold text-black transition hover:bg-black/5"
+          >
+            お問い合わせ
+          </Link>
         </div>
       </div>
     </main>
