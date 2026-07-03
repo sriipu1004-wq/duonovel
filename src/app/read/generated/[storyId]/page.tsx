@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import GeneratedStoryReaderClient from "./GeneratedStoryReaderClient";
 
 type PageProps = {
@@ -6,9 +7,12 @@ type PageProps = {
   }>;
 };
 
-export const metadata = {
-  title: "生成された物語を読む | LIB read",
-  description: "時間フィットAI物語生成で作成された短編を読みます。",
+export const metadata: Metadata = {
+  title: "一時生成の物語 | LIB read",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default async function GeneratedStoryReadPage({ params }: PageProps) {

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
@@ -12,6 +13,7 @@ import {
   getEpisodePostedAtValue,
   getEpisodeLastEditedAtValue,
   getSeriesPublicationStatus,
+  getSeriesGenres,
   getSeriesSummary,
   isEpisodePubliclyVisible,
   isSeriesReviewVisible,
@@ -789,6 +791,112 @@ function buildRangeOptions(total: number) {
   }
 
   return options;
+}
+
+export async function generateMetadata({
+  params,
+}: Pick<PageProps, "params">): Promise<Metadata> {
+  const { seriesId } = await params;
+
+  try {
+    const { data, error } = await supabase
+      .from("series")
+      .select("*")
+      .eq("id", seriesId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return {
+        title: "作品が見つかりません | LIB read",
+        robots: {
+          index: false,
+          follow: false,
+        },
+      };
+    }
+
+    const series = data as SeriesRow;
+
+    if (getSeriesPublicationStatus(series) !== "public") {
+      return {
+        title: "非公開作品 | LIB read",
+        robots: {
+          index: false,
+          follow: false,
+        },
+      };
+    }
+
+    const publicEpisodes = sortEpisodes(
+      (await fetchEpisodesBySeriesId(seriesId)).filter((episode) =>
+        isEpisodePubliclyVisible(episode)
+      )
+    );
+
+    if (publicEpisodes.length === 0) {
+      return {
+        title: "公開話なし | LIB read",
+        robots: {
+          index: false,
+          follow: false,
+        },
+      };
+    }
+
+    const seriesTitle = pickText(series.title) || "無題";
+    const summary = getSeriesSummary(series).trim();
+    const genreLabel = getSeriesGenres(series).slice(0, 2).join("・");
+    const authorLabel = isShortStorySeries(series)
+      ? "AI生成"
+      : pickText(series["author_name"]) || "LIB read投稿作品";
+
+    const description = [
+      summary || seriesTitle + "の作品ページ。",
+      genreLabel ? "ジャンル: " + genreLabel + "。" : "",
+      "作者: " + authorLabel + "。",
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .slice(0, 160);
+
+    const canonicalPath = "/works/" + encodeURIComponent(seriesId);
+    const metadataTitle = seriesTitle + " | LIB read";
+
+    return {
+      title: metadataTitle,
+      description,
+      alternates: {
+        canonical: canonicalPath,
+      },
+      robots: {
+        index: true,
+        follow: true,
+      },
+      openGraph: {
+        type: "article",
+        locale: "ja_JP",
+        siteName: "LIB read",
+        url: canonicalPath,
+        title: metadataTitle,
+        description,
+        images: ["/opengraph-image"],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: metadataTitle,
+        description,
+        images: ["/opengraph-image"],
+      },
+    };
+  } catch {
+    return {
+      title: "作品ページ | LIB read",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
 }
 
 export default async function WorkPage({ params, searchParams }: PageProps) {

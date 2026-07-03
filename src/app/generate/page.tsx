@@ -1,9 +1,34 @@
+import type { Metadata } from "next";
 import TimeFitStoryGeneratorClient from "./TimeFitStoryGeneratorClient";
 
-export const metadata = {
-  title: "時間フィットAI物語生成 | LIB read",
+export const metadata: Metadata = {
+  title: "5分・10分・15分のAI短編生成 | LIB read",
   description:
-    "空き時間、ジャンル、雰囲気を選ぶだけで、約5分・10分・15分・20分で聴ける短編小説を生成します。",
+    "空き時間、ジャンル、雰囲気を選ぶだけで、約5分・10分・15分・20分で読める・聴けるAI短編を生成します。",
+  alternates: {
+    canonical: "/generate",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    type: "website",
+    locale: "ja_JP",
+    siteName: "LIB read",
+    url: "/generate",
+    title: "5分・10分・15分のAI短編生成 | LIB read",
+    description:
+      "空き時間、ジャンル、雰囲気を選ぶだけで、読める・聴けるAI短編を生成します。",
+    images: ["/opengraph-image"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "5分・10分・15分のAI短編生成 | LIB read",
+    description:
+      "空き時間、ジャンル、雰囲気を選ぶだけで、読める・聴けるAI短編を生成します。",
+    images: ["/opengraph-image"],
+  },
 };
 
 export default function GeneratePage() {

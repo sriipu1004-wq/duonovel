@@ -16,12 +16,51 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = new URL("https://www.syosetu-libread.com");
+
+const defaultTitle = "LIB read | 時間指定AI短編を読む・聴く";
+const defaultDescription =
+  "空き時間に合わせてAI短編を生成し、その場で読む・聴く。LIB readは、小説を読む・聴く・投稿するためのサービスです。";
+
 export const metadata: Metadata = {
-  title: "LIB read",
+  metadataBase: SITE_URL,
+  title: defaultTitle,
+  description: defaultDescription,
+
+  // 公開対象は個別ページで明示的にindex化する。
+  // それ以外の認証・制作・一時生成・検索結果ページはデフォルトでnoindex。
+  robots: {
+    index: false,
+    follow: true,
+  },
+
+  openGraph: {
+    type: "website",
+    locale: "ja_JP",
+    siteName: "LIB read",
+    url: "/",
+    title: defaultTitle,
+    description: defaultDescription,
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "LIB read | 時間指定AI短編を読む・聴く",
+      },
+    ],
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: defaultTitle,
+    description: defaultDescription,
+    images: ["/opengraph-image"],
+  },
+
   other: {
     "google-adsense-account": "ca-pub-7690891889566825",
   },
-  description: "LIB read（ライブリード）は、テキストと朗読を行き来できる小説投稿サイト",
 };
 
 export default function RootLayout({

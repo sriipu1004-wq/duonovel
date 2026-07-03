@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
 import {
@@ -7,6 +8,36 @@ import {
 import { pickText } from "@/features/write/writeShared";
 import PublicAdSlot from "@/components/ads/PublicAdSlot";
 import { createClient as createServerClient } from "@/lib/supabase/server";
+
+export const metadata: Metadata = {
+  title: "時間指定AI短編を読む・聴く | LIB read",
+  description:
+    "空き時間に合わせてAI短編を生成し、その場で読む・聴く。LIB readは、5分・10分・15分の時間に合う物語を作れる小説サービスです。",
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    type: "website",
+    locale: "ja_JP",
+    siteName: "LIB read",
+    url: "/",
+    title: "時間指定AI短編を読む・聴く | LIB read",
+    description:
+      "空き時間に合わせてAI短編を生成し、その場で読む・聴く。5分・10分・15分の時間に合う物語を作れる小説サービスです。",
+    images: ["/opengraph-image"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "時間指定AI短編を読む・聴く | LIB read",
+    description:
+      "空き時間に合わせてAI短編を生成し、その場で読む・聴く。5分・10分・15分の時間に合う物語を作れる小説サービスです。",
+    images: ["/opengraph-image"],
+  },
+};
 
 type PageProps = {
   searchParams?: Promise<{

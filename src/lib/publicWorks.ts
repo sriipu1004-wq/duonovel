@@ -28,6 +28,8 @@ export type PublicBaseWorkCard = {
   createdAtValue: number;
   tags: string[];
   genres: string[];
+  isShortStory: boolean;
+  publicEpisodeNumbers: number[];
 };
 
 function formatDate(value: string | null | undefined): string {
@@ -97,6 +99,43 @@ function getEpisodeSeriesId(episode: EpisodeRow): string {
   const row = episode as Record<string, unknown>;
 
   return pickText(row["series_id"], row["seriesId"]);
+}
+
+function readEffectSettings(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object") {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    if (parsed && typeof parsed === "object") {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function isShortStorySeriesForSitemap(series: SeriesRow): boolean {
+  const tags = getSeriesTags(series);
+  const settings = readEffectSettings(
+    series["effect_settings"] ?? series["effectSettings"]
+  );
+
+  return (
+    tags.includes("#AI生成") ||
+    settings?.source === "time_fit_ai_story" ||
+    settings?.aiGenerated === true ||
+    settings?.authorName === "AI生成" ||
+    settings?.storyFormat === "short"
+  );
 }
 
 async function fetchPublicSeriesRows(): Promise<SeriesRow[]> {
@@ -313,6 +352,10 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         earliestPublicAtValue:
           firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
         createdAtValue,
+        isShortStory: isShortStorySeriesForSitemap(series),
+        publicEpisodeNumbers: publicEpisodes
+          .map((episode) => getEpisodeNumber(episode))
+          .filter((episodeNumber) => episodeNumber > 0),
         tags: getSeriesTags(series),
         genres: getSeriesGenres(series),
       } satisfies PublicBaseWorkCard;
@@ -367,6 +410,7 @@ const PUBLIC_WORK_SERIES_SELECT = `
   author_id,
   user_id,
   created_at,
+  effect_settings,
 
   tags,
   tag_list,

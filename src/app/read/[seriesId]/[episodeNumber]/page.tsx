@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import WebSpeechEpisodePlayback from "@/features/playback/WebSpeechEpisodePlayback";
@@ -235,6 +236,105 @@ async function getNormalAuthorName(series: SeriesRow): Promise<string> {
   }
 
   return pickText(series["author_name"]) || "作者名未設定";
+}
+
+export async function generateMetadata({
+  params,
+}: Pick<PageProps, "params">): Promise<Metadata> {
+  const { seriesId, episodeNumber } = await params;
+  const parsedEpisodeNumber = parseEpisodeNumber(episodeNumber);
+
+  if (!parsedEpisodeNumber) {
+    return {
+      title: "公開話が見つかりません | LIB read",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
+  try {
+    const payload = await getCachedPublicReadPagePayload(
+      seriesId,
+      parsedEpisodeNumber
+    );
+
+    if (!payload) {
+      return {
+        title: "公開話が見つかりません | LIB read",
+        robots: {
+          index: false,
+          follow: false,
+        },
+      };
+    }
+
+    const { series, episode } = payload;
+    const currentEpisodeNumber =
+      getEpisodeNumber(episode) || parsedEpisodeNumber;
+    const seriesTitle = pickText(series.title) || "無題";
+    const episodeTitle =
+      pickText(episode.title, episode["episode_title"]) ||
+      "第" + currentEpisodeNumber + "話";
+    const summary = getSeriesSummary(series).trim();
+    const aiGeneratedAttribution = getAiGeneratedReadAttribution(series);
+    const authorLabel = aiGeneratedAttribution
+      ? "AI生成"
+      : await getNormalAuthorName(series);
+
+    const description = [
+      summary ||
+        seriesTitle + "の" + episodeTitle + "を読む・聴く。",
+      "作者: " + authorLabel + "。",
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .slice(0, 160);
+
+    const canonicalPath =
+      "/read/" +
+      encodeURIComponent(seriesId) +
+      "/" +
+      encodeURIComponent(String(currentEpisodeNumber));
+    const metadataTitle =
+      seriesTitle + " " + episodeTitle + " | LIB read";
+
+    return {
+      title: metadataTitle,
+      description,
+      alternates: {
+        canonical: canonicalPath,
+      },
+      robots: {
+        index: true,
+        follow: true,
+      },
+      openGraph: {
+        type: "article",
+        locale: "ja_JP",
+        siteName: "LIB read",
+        url: canonicalPath,
+        title: metadataTitle,
+        description,
+        images: ["/opengraph-image"],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: metadataTitle,
+        description,
+        images: ["/opengraph-image"],
+      },
+    };
+  } catch {
+    return {
+      title: "公開話 | LIB read",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
 }
 
 export default async function ReadEpisodePage({
