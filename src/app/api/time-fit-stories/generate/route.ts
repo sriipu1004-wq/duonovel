@@ -49,7 +49,13 @@ type LimitType =
   | "user_daily"
   | "ip_hourly"
   | "ip_daily"
-  | "long_generation_daily";
+  | "long_generation_daily"
+  | "global_daily_generation_limit"
+  | "global_daily_cost_limit";
+
+type GlobalLimitType =
+  | "global_daily_generation_limit"
+  | "global_daily_cost_limit";
 
 type RateLimitDecision =
   | {
@@ -124,6 +130,99 @@ const LIMITS = {
   ipHourly: readPositiveIntEnv("TIME_FIT_IP_1H_LIMIT", 10),
   ipDaily: readPositiveIntEnv("TIME_FIT_IP_24H_LIMIT", 30),
 } as const;
+
+function readNonNegativeNumberEnv(
+  name: string,
+  fallback: number
+): number {
+  const rawValue = process.env[name];
+
+  if (!rawValue) {
+    return fallback;
+  }
+
+  const parsed = Number(rawValue);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function readPositiveNumberEnv(
+  name: string,
+  fallback: number
+): number {
+  const rawValue = process.env[name];
+
+  if (!rawValue) {
+    return fallback;
+  }
+
+  const parsed = Number(rawValue);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function readBooleanEnv(name: string, fallback: boolean): boolean {
+  const rawValue = process.env[name]?.trim().toLowerCase();
+
+  if (!rawValue) {
+    return fallback;
+  }
+
+  if (rawValue === "true" || rawValue === "1" || rawValue === "yes") {
+    return true;
+  }
+
+  if (rawValue === "false" || rawValue === "0" || rawValue === "no") {
+    return false;
+  }
+
+  return fallback;
+}
+
+const GLOBAL_LIMITS = {
+  generationEnabled: readBooleanEnv("TIME_FIT_GENERATION_ENABLED", true),
+  dailyMaxGenerations: readPositiveIntEnv(
+    "TIME_FIT_GLOBAL_DAILY_MAX_GENERATIONS",
+    50
+  ),
+  dailyMaxEstimatedCostJpy: readNonNegativeNumberEnv(
+    "TIME_FIT_GLOBAL_DAILY_MAX_ESTIMATED_COST_JPY",
+    300
+  ),
+  estimatedInputTokens: Math.max(
+    1,
+    readPositiveIntEnv(
+      "TIME_FIT_GLOBAL_ESTIMATED_INPUT_TOKENS",
+      2000
+    )
+  ),
+  estimatedInputJpyPer1kTokens: readPositiveNumberEnv(
+    "TIME_FIT_GLOBAL_ESTIMATED_INPUT_JPY_PER_1K_TOKENS",
+    0.2
+  ),
+  estimatedOutputJpyPer1kTokens: readPositiveNumberEnv(
+    "TIME_FIT_GLOBAL_ESTIMATED_OUTPUT_JPY_PER_1K_TOKENS",
+    1
+  ),
+} as const;
+
+function estimateGenerationCostJpy(timeMinutes: TimeMinutes): number {
+  const estimatedCost =
+    (GLOBAL_LIMITS.estimatedInputTokens / 1000) *
+      GLOBAL_LIMITS.estimatedInputJpyPer1kTokens +
+    (MAX_OUTPUT_TOKENS[timeMinutes] / 1000) *
+      GLOBAL_LIMITS.estimatedOutputJpyPer1kTokens;
+
+  return Math.ceil(estimatedCost * 1000) / 1000;
+}
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * ONE_HOUR_MS;
@@ -625,6 +724,100 @@ function buildRateLimitResponse(decision: Exclude<RateLimitDecision, { allowed: 
   );
 }
 
+type GlobalReservationDecision =
+  | {
+      allowed: true;
+      logId: string;
+    }
+  | {
+      allowed: false;
+      limitType: GlobalLimitType;
+    };
+
+function isGlobalLimitType(value: unknown): value is GlobalLimitType {
+  return (
+    value === "global_daily_generation_limit" ||
+    value === "global_daily_cost_limit"
+  );
+}
+
+async function reserveGlobalGeneration(args: {
+  supabase: AdminSupabase;
+  requestId: string;
+  user: SignedInUser | null;
+  userEmailHash: string | null;
+  ipHash: string;
+  userAgentHash: string | null;
+  request: TimeFitStoryRequest;
+  model: string;
+  estimatedCostJpy: number;
+}): Promise<GlobalReservationDecision> {
+  const { data, error } = await args.supabase.rpc(
+    "reserve_time_fit_story_generation",
+    {
+      p_request_id: args.requestId,
+      p_user_id: args.user?.id ?? null,
+      p_user_email_hash: args.userEmailHash,
+      p_ip_hash: args.ipHash,
+      p_user_agent_hash: args.userAgentHash,
+      p_requested_minutes: args.request.timeMinutes,
+      p_scene: args.request.scene,
+      p_genre: args.request.genre,
+      p_mood: args.request.mood,
+      p_model: args.model,
+      p_estimated_input_tokens: GLOBAL_LIMITS.estimatedInputTokens,
+      p_estimated_output_tokens: MAX_OUTPUT_TOKENS[args.request.timeMinutes],
+      p_cost_estimate_jpy: args.estimatedCostJpy,
+      p_global_max_generations: GLOBAL_LIMITS.dailyMaxGenerations,
+      p_global_max_estimated_cost_jpy:
+        GLOBAL_LIMITS.dailyMaxEstimatedCostJpy,
+      p_estimated_input_jpy_per_million_tokens:
+        GLOBAL_LIMITS.estimatedInputJpyPer1kTokens * 1000,
+      p_estimated_output_jpy_per_million_tokens:
+        GLOBAL_LIMITS.estimatedOutputJpyPer1kTokens * 1000,
+    }
+  );
+
+  if (error) {
+    throw new Error(
+      "全体生成上限の予約に失敗しました: " +
+        error.message
+    );
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+
+  if (!row || typeof row.allowed !== "boolean") {
+    throw new Error(
+      "全体生成上限の予約結果を読み取れませんでした。"
+    );
+  }
+
+  if (row.allowed === true) {
+    if (typeof row.log_id !== "string" || !row.log_id) {
+      throw new Error(
+        "全体生成上限の予約ログIDを取得できませんでした。"
+      );
+    }
+
+    return {
+      allowed: true,
+      logId: row.log_id,
+    };
+  }
+
+  if (!isGlobalLimitType(row.limit_type)) {
+    throw new Error(
+      "全体生成上限の判定結果が不正です。"
+    );
+  }
+
+  return {
+    allowed: false,
+    limitType: row.limit_type,
+  };
+}
+
 export async function POST(request: Request) {
   let payload: Record<string, unknown>;
 
@@ -713,10 +906,22 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!GLOBAL_LIMITS.generationEnabled) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "generation_temporarily_disabled",
+        message:
+          "\u73fe\u5728\u3001AI\u77ed\u7de8\u751f\u6210\u306f\u4e00\u6642\u7684\u306b\u505c\u6b62\u3057\u3066\u3044\u307e\u3059\u3002\u3057\u3070\u3089\u304f\u3057\u3066\u304b\u3089\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002",
+      },
+      { status: 503 }
+    );
+  }
+
   let generationLogId: string;
 
   try {
-    generationLogId = await insertGenerationLog({
+    const reservation = await reserveGlobalGeneration({
       supabase: adminSupabase,
       requestId: requestMeta.requestId,
       user,
@@ -725,10 +930,36 @@ export async function POST(request: Request) {
       userAgentHash: requestMeta.userAgentHash,
       request: generationRequest,
       model,
-      status: "started",
-      success: null,
-      isCounted: true,
+      estimatedCostJpy: estimateGenerationCostJpy(
+        generationRequest.timeMinutes
+      ),
     });
+
+    if (!reservation.allowed) {
+      const message =
+        "本日のAI短編生成上限に達しました。明日またお試しください。";
+
+      await recordRateLimitedGeneration({
+        supabase: adminSupabase,
+        requestId: requestMeta.requestId,
+        user,
+        userEmailHash: requestMeta.userEmailHash,
+        ipHash: requestMeta.ipHash,
+        userAgentHash: requestMeta.userAgentHash,
+        request: generationRequest,
+        model,
+        limitType: reservation.limitType,
+        message,
+      });
+
+      return buildRateLimitResponse({
+        allowed: false,
+        limitType: reservation.limitType,
+        message,
+      });
+    }
+
+    generationLogId = reservation.logId;
   } catch (error) {
     return NextResponse.json(
       {
@@ -736,7 +967,7 @@ export async function POST(request: Request) {
         error:
           error instanceof Error
             ? error.message
-            : "生成ログの保存に失敗しました。",
+            : "全体生成上限の確認に失敗しました。",
       },
       { status: 500 }
     );
@@ -751,6 +982,7 @@ export async function POST(request: Request) {
       values: {
         status: "failed",
         success: false,
+        is_counted: false,
         error_code: "missing_openai_api_key",
         error_message: "OPENAI_API_KEY が設定されていません。",
       },
