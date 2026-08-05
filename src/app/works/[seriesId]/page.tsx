@@ -212,17 +212,17 @@ function isShortStorySeries(series: SeriesRow): boolean {
     series.effect_settings ?? series["effectSettings"]
   );
   const tags = parseTags(series["tags"]);
-
-  if (
+  const isAiGenerated =
     tags.includes("#AI生成") ||
     settings?.source === "time_fit_ai_story" ||
     settings?.aiGenerated === true ||
-    settings?.authorName === "AI生成"
-  ) {
-    return true;
+    settings?.authorName === "AI生成";
+
+  if (settings?.storyFormat === "short" || settings?.storyFormat === "long") {
+    return settings.storyFormat === "short";
   }
 
-  return settings?.storyFormat === "short";
+  return isAiGenerated;
 }
 
 function getSyntheticReaderTags(name: string): string[] {

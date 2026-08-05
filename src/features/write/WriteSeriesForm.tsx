@@ -195,15 +195,15 @@ function isAiGeneratedSeries(series?: SeriesRow | null): boolean {
 }
 
 function getStoryFormatFromSeries(series?: SeriesRow | null): StoryFormat {
-  if (isAiGeneratedSeries(series)) {
-    return "short";
-  }
-
   const settings = readObjectRecord(
     series?.effect_settings ?? series?.["effectSettings"]
   );
 
-  return settings?.storyFormat === "short" ? "short" : "long";
+  if (settings?.storyFormat === "short" || settings?.storyFormat === "long") {
+    return settings.storyFormat;
+  }
+
+  return isAiGeneratedSeries(series) ? "short" : "long";
 }
 
 function buildWorkspaceTags(
@@ -240,6 +240,7 @@ function preserveAiGeneratedAttribution(
       : "";
 
   return {
+    ...(original ?? {}),
     ...(base ?? {}),
     version: 1,
     source: "time_fit_ai_story",
@@ -258,7 +259,7 @@ function preserveWorkspaceEffectSettings(
 
   return {
     ...(preserved ?? {}),
-    storyFormat: isAiGeneratedSeries(series) ? "short" : storyFormat,
+    storyFormat,
   } as EffectSettings;
 }
 
@@ -467,9 +468,7 @@ export default function WriteSeriesForm({
     series?.effect_settings,
     series?.["effectSettings"]
   );
-  const initialStoryFormat = isAiGenerated
-    ? "short"
-    : getStoryFormatFromSeries(series);
+  const initialStoryFormat = getStoryFormatFromSeries(series);
 
   const [title, setTitle] = useState(getTitle(series));
   const [summary, setSummary] = useState(getSummary(series));
@@ -574,9 +573,7 @@ const publicVisibleCount = sortedEpisodes.filter(
   const recordingPermissionLabel = getRecordingPermissionLabel(
     recordingPermissionMode
   );
-  const effectiveStoryFormat: StoryFormat = isAiGenerated
-    ? "short"
-    : storyFormat;
+  const effectiveStoryFormat: StoryFormat = storyFormat;
   const publicSurfaceReady =
     !!series?.id &&
     isPublicSeries(series) &&
@@ -1051,9 +1048,11 @@ const publicVisibleCount = sortedEpisodes.filter(
 
                           {isAiGenerated ? (
                             <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-3">
-                              <p className="text-sm font-semibold text-black">短編（固定）</p>
+                              <p className="text-sm font-semibold text-black">
+                                {effectiveStoryFormat === "short" ? "短編" : "長編"}（自動管理）
+                              </p>
                               <p className="mt-1 text-xs leading-6 text-neutral-600">
-                                AI生成作品は読むページへ直接公開する短編として扱うため、変更できない。
+                                AI生成作品は第1話だけの間は短編、続編生成に成功すると長編へ自動で切り替わる。この画面からは変更できない。
                               </p>
                             </div>
                           ) : (
