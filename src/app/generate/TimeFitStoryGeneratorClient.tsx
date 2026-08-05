@@ -21,6 +21,10 @@ type GenerateRequest = {
   mood: string;
 };
 
+type GenerateApiRequest = GenerateRequest & {
+  customRequest?: string;
+};
+
 type GeneratedStoryPayload = {
   id: string;
   createdAt: string;
@@ -61,6 +65,8 @@ const MOOD_OPTIONS = [
   "明るい",
 ] as const;
 
+const CUSTOM_REQUEST_MAX_LENGTH = 500;
+
 function generateStoryId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -88,6 +94,7 @@ export default function TimeFitStoryGeneratorClient() {
   const [timeMinutes, setTimeMinutes] = useState<TimeMinutes>(10);
   const [genre, setGenre] = useState<(typeof GENRE_OPTIONS)[number]>("ホラー");
   const [mood, setMood] = useState<(typeof MOOD_OPTIONS)[number]>("静か");
+  const [customRequest, setCustomRequest] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -108,6 +115,20 @@ export default function TimeFitStoryGeneratorClient() {
       return;
     }
 
+    const normalizedCustomRequest = customRequest.trim();
+
+    if (normalizedCustomRequest.length > CUSTOM_REQUEST_MAX_LENGTH) {
+      setErrorMessage("追加の希望は500文字以内で入力してください。");
+      return;
+    }
+
+    const requestBody: GenerateApiRequest = {
+      ...currentRequest,
+      ...(normalizedCustomRequest
+        ? { customRequest: normalizedCustomRequest }
+        : {}),
+    };
+
     setErrorMessage("");
     setIsGenerating(true);
 
@@ -117,7 +138,7 @@ export default function TimeFitStoryGeneratorClient() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(currentRequest),
+        body: JSON.stringify(requestBody),
       });
 
       const data = (await response.json()) as GenerateResponse;
@@ -228,6 +249,33 @@ export default function TimeFitStoryGeneratorClient() {
               </option>
             ))}
           </select>
+        </label>
+
+        <label className="grid gap-2">
+          <span className="text-sm font-medium text-black">
+            追加の希望（任意）
+          </span>
+          <span
+            id="custom-request-help"
+            className="text-xs leading-6 text-neutral-500"
+          >
+            登場人物、舞台、展開、結末、文体など、物語への希望を自由に入力できます。
+          </span>
+          <textarea
+            value={customRequest}
+            onChange={(event) => setCustomRequest(event.target.value)}
+            maxLength={CUSTOM_REQUEST_MAX_LENGTH}
+            rows={5}
+            aria-describedby="custom-request-help custom-request-count"
+            placeholder="例：雨の夜の無人駅を舞台にして、最後は少し救いのある結末にしてください。"
+            className="min-h-32 w-full box-border resize-y rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-neutral-400 focus:border-sky-300"
+          />
+          <span
+            id="custom-request-count"
+            className="text-right text-xs text-neutral-500"
+          >
+            {customRequest.length} / {CUSTOM_REQUEST_MAX_LENGTH}文字
+          </span>
         </label>
 
         <button
