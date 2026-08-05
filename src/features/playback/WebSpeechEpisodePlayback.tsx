@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ReactNode,
 } from "react";
 import {
   buildContentBlocks,
@@ -80,6 +81,7 @@ type EpisodePlaybackProps = {
   loginHref?: string;
   showComments?: boolean;
   effectSettings?: EffectSettings;
+  ownerActions?: ReactNode;
 };
 
 type BookmarkData = {
@@ -422,6 +424,7 @@ export default function WebSpeechEpisodePlayback({
   loginHref,
   showComments = true,
   effectSettings,
+  ownerActions,
 }: EpisodePlaybackProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -1583,6 +1586,8 @@ export default function WebSpeechEpisodePlayback({
                 </article>
               </div>
             )}
+
+            {!isSettingsOpen ? ownerActions : null}
 
             {!isSettingsOpen && showComments && episodeId ? (
               <EpisodeCommentSection

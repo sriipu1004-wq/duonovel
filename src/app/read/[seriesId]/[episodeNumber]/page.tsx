@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import WebSpeechEpisodePlayback from "@/features/playback/WebSpeechEpisodePlayback";
+import ContinueStoryAction from "@/features/generation/ContinueStoryAction";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -114,16 +115,17 @@ function getStoryFormat(value: unknown): "short" | "long" {
     series.effect_settings ?? series.effectSettings
   );
 
-  if (
+  const isAiGenerated =
     tags.includes("AI生成") ||
     settings?.source === "time_fit_ai_story" ||
     settings?.aiGenerated === true ||
-    settings?.authorName === "AI生成"
-  ) {
-    return "short";
+    settings?.authorName === "AI生成";
+
+  if (settings?.storyFormat === "short" || settings?.storyFormat === "long") {
+    return settings.storyFormat;
   }
 
-  return settings?.storyFormat === "short" ? "short" : "long";
+  return isAiGenerated ? "short" : "long";
 }
 
 function getRecordingReaderName(recording: RecordingRow): string {
@@ -358,7 +360,7 @@ export default async function ReadEpisodePage({
     notFound();
   }
 
-  const { series, episode, publicEpisodes } = payload;
+  const { series, episode, publicEpisodes, isOwner } = payload;
   const availableHumanRecordings = payload.allEpisodeRecordings.filter(
     (recording) => !isLegacyGeneratedRecording(recording)
   );
@@ -425,7 +427,8 @@ export default async function ReadEpisodePage({
   const episodeTitle =
     pickText(episode.title, episode["episode_title"]) ||
     `第${currentEpisodeNumber}話`;
-  const body = getEpisodeBody(episode) || "本文がまだ登録されていません。";
+  const episodeBody = getEpisodeBody(episode);
+  const body = episodeBody || "本文がまだ登録されていません。";
 
   const aiGeneratedAttribution = getAiGeneratedReadAttribution(series);
   const workAuthorName = aiGeneratedAttribution
@@ -510,6 +513,17 @@ export default async function ReadEpisodePage({
       loginHref={loginHref}
       showComments={isSeriesEpisodeCommentVisible(series)}
       effectSettings={effectSettings}
+      ownerActions={
+        isOwner &&
+        aiGeneratedAttribution &&
+        nextEpisodeNumber === null &&
+        episodeBody.trim() ? (
+          <ContinueStoryAction
+            seriesId={seriesId}
+            isShortStory={isShortStory}
+          />
+        ) : null
+      }
     />
   );
 }

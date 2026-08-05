@@ -33,6 +33,7 @@ export type PublicReadPagePayload = {
   episode: EpisodeRow;
   publicEpisodes: EpisodeRow[];
   allEpisodeRecordings: PublicReadRecordingRow[];
+  isOwner: boolean;
 };
 
 function pickText(...values: unknown[]): string {
@@ -97,5 +98,6 @@ export async function getCachedPublicReadPagePayload(
     episode,
     publicEpisodes: visibleEpisodes,
     allEpisodeRecordings: await fetchPublicRecordings(episode.id),
+    isOwner,
   };
 }
