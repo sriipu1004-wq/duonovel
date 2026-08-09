@@ -32,7 +32,7 @@ function syncOtherPaneScroll(
     return;
   }
 
-  const paneSection = source.closest<HTMLElement>("[data-bilingual-pane]");
+  const paneSection = source.closest("[data-bilingual-pane]");
   const readerRoot = paneSection?.parentElement;
   const targetLanguage = language === "ja" ? "en" : "ja";
   const target = readerRoot?.querySelector<HTMLDivElement>(
