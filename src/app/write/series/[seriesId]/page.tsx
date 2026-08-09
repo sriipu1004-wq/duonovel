@@ -88,7 +88,11 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
     .join(" ");
   const isAiGenerated = isAiGeneratedSeries(series);
   const translationPermissionMode =
-    series.translation_permission_mode === "open" ? "open" : "closed";
+    series.translation_permission_mode === "open"
+      ? "open"
+      : series.translation_permission_mode === "closed"
+        ? "closed"
+        : null;
 
   return (
     <div className={className}>
