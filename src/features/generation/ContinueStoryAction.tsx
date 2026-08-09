@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import PromptTagSuggestions from "@/features/generation/PromptTagSuggestions";
+import { getPromptTagsInText } from "@/lib/generation/promptTags";
 
 type TimeMinutes = 5 | 10 | 15 | 20;
 
@@ -47,6 +49,7 @@ export default function ContinueStoryAction({
     setSuccessMessage("");
 
     try {
+      const promptTags = getPromptTagsInText(normalizedRequest);
       const response = await fetch("/api/time-fit-stories/continue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -56,6 +59,7 @@ export default function ContinueStoryAction({
           ...(normalizedRequest
             ? { continuationRequest: normalizedRequest }
             : {}),
+          ...(promptTags.length > 0 ? { promptTags } : {}),
         }),
       });
 
@@ -91,18 +95,15 @@ export default function ContinueStoryAction({
 
   if (!isOpen) {
     return (
-      <section className="mt-6 rounded-[28px] border border-sky-200 bg-sky-50 p-5">
-        <p className="text-sm leading-7 text-neutral-700">
-          これまでの物語を引き継いで、次の話を下書きとして生成できます。
-        </p>
+      <div className="mt-6 flex justify-end">
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 sm:w-auto"
+          className="inline-flex min-h-11 items-center justify-center rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
         >
           この物語の続きを作る
         </button>
-      </section>
+      </div>
     );
   }
 
@@ -152,14 +153,24 @@ export default function ContinueStoryAction({
             </div>
           </fieldset>
 
-          <label className="grid min-w-0 gap-2">
-            <span className="text-sm font-medium text-black">
+          <div className="grid min-w-0 gap-2">
+            <label
+              htmlFor="continuation-request"
+              className="text-sm font-medium text-black"
+            >
               続きへの希望（任意）
-            </span>
+            </label>
             <span id="continuation-request-help" className="text-xs leading-6 text-neutral-600">
               登場人物、展開、視点、雰囲気、次に起きてほしいことなどを自由に入力できます。
             </span>
+            <PromptTagSuggestions
+              value={continuationRequest}
+              onChange={setContinuationRequest}
+              maxLength={CONTINUATION_REQUEST_MAX_LENGTH}
+              disabled={isGenerating}
+            />
             <textarea
+              id="continuation-request"
               value={continuationRequest}
               onChange={(event) => setContinuationRequest(event.target.value)}
               maxLength={CONTINUATION_REQUEST_MAX_LENGTH}
@@ -172,7 +183,7 @@ export default function ContinueStoryAction({
             <span id="continuation-request-count" className="text-right text-xs text-neutral-500">
               {continuationRequest.length} / {CONTINUATION_REQUEST_MAX_LENGTH}文字
             </span>
-          </label>
+          </div>
 
           {errorMessage ? (
             <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">

@@ -1,6 +1,11 @@
 import { createHash, randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import {
+  normalizePromptTags,
+  type PromptTag,
+} from "@/lib/generation/promptTags";
+import { recordPromptTagUsage } from "@/lib/generation/promptTagUsage.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,9 +19,13 @@ type TimeFitStoryRequest = {
   genre: string;
   mood: string;
   customRequest?: string;
+  promptTags?: PromptTag[];
 };
 
-type PublicTimeFitStoryRequest = Omit<TimeFitStoryRequest, "customRequest">;
+type PublicTimeFitStoryRequest = Omit<
+  TimeFitStoryRequest,
+  "customRequest" | "promptTags"
+>;
 
 type TimeFitStory = {
   title: string;
@@ -277,6 +286,7 @@ function parseRequest(payload: Record<string, unknown>): TimeFitStoryRequest {
   const genre = readText(payload.genre);
   const mood = readText(payload.mood);
   const customRequest = parseCustomRequest(payload.customRequest);
+  const promptTags = normalizePromptTags(payload.promptTags);
 
   if (!includesString(ALLOWED_SCENES, scene)) {
     throw new Error("利用シーンを選択してください。");
@@ -300,6 +310,7 @@ function parseRequest(payload: Record<string, unknown>): TimeFitStoryRequest {
     genre,
     mood,
     ...(customRequest ? { customRequest } : {}),
+    ...(promptTags.length > 0 ? { promptTags } : {}),
   };
 }
 
@@ -1190,6 +1201,8 @@ export async function POST(request: Request) {
         response_title: story.title,
       },
     });
+
+    await recordPromptTagUsage(generationRequest.promptTags);
 
     return NextResponse.json({
       ok: true,
