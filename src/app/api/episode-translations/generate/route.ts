@@ -226,23 +226,12 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!access.isOfficialUser) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "translation_generation_forbidden",
-        message: "英語対訳の新規生成は公式アカウントのみ利用できます。",
-      },
-      { status: 403 }
-    );
-  }
-
   if (!access.isAllowlisted) {
     return NextResponse.json(
       {
         ok: false,
-        error: "translation_episode_not_allowlisted",
-        message: "この話は現在の英語対訳試験対象ではありません。",
+        error: "translation_episode_not_eligible",
+        message: "この話では英語対訳を生成できません。",
       },
       { status: 403 }
     );
@@ -280,6 +269,40 @@ export async function POST(request: Request) {
     estimatedTokens.outputTokens
   );
   const admin = createAdminClient();
+
+  const currentTranslationResult = await admin
+    .from("episode_translations")
+    .select("id, status")
+    .eq("episode_id", access.episode.id)
+    .eq("target_language", targetLanguage)
+    .eq("source_hash", sourceHash)
+    .maybeSingle();
+
+  if (currentTranslationResult.error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "translation_storage_unavailable",
+        message: currentTranslationResult.error.message,
+      },
+      { status: 503 }
+    );
+  }
+
+  if (
+    currentTranslationResult.data?.status === "failed" &&
+    !access.isOfficialUser
+  ) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "translation_retry_forbidden",
+        message: "前回失敗した英語対訳の再生成は管理用アカウントから行います。",
+      },
+      { status: 403 }
+    );
+  }
+
   const requestId = randomUUID();
 
   const reservationResult = await admin.rpc("reserve_episode_translation", {
