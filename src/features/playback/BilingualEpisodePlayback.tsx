@@ -20,6 +20,7 @@ type TranslationStatusResponse = {
   ok: boolean;
   status?: Exclude<TranslationStatus, "loading" | "error">;
   canGenerate?: boolean;
+  canAutoGenerate?: boolean;
   isAllowlisted?: boolean;
   sourceHash?: string;
   segments?: BilingualSegment[];
@@ -106,6 +107,8 @@ export default function BilingualEpisodePlayback({
   const enScrollRef = useRef<HTMLDivElement | null>(null);
   const jaSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const enSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
+  const autoGenerationAttemptRef = useRef<string | null>(null);
+  const generationInFlightRef = useRef(false);
 
   useEffect(() => {
     setSplitRatio(preference.splitRatio);
@@ -122,6 +125,52 @@ export default function BilingualEpisodePlayback({
       // local preference persistence is non-critical
     }
   }, [seriesId, splitRatio, upperLanguage]);
+
+  const requestTranslationGeneration = useCallback(async () => {
+    if (generationInFlightRef.current) return false;
+
+    generationInFlightRef.current = true;
+    setIsGenerating(true);
+    setStatusMessage("");
+
+    try {
+      const response = await fetch("/api/episode-translations/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          episodeId,
+          targetLanguage: "en",
+        }),
+      });
+      const payload = (await response.json()) as TranslationStatusResponse;
+
+      if (!response.ok || !payload.ok) {
+        setStatusMessage(payload.message || "英語対訳を生成できませんでした。");
+
+        if (
+          payload.error === "translation_openai_failed" ||
+          payload.error === "translation_exception" ||
+          payload.error === "missing_openai_api_key" ||
+          payload.error === "translation_retry_forbidden"
+        ) {
+          setTranslationStatus("failed");
+        } else {
+          setTranslationStatus("error");
+        }
+        return false;
+      }
+
+      setTranslationStatus("translating");
+      return true;
+    } catch {
+      setStatusMessage("英語対訳を生成できませんでした。");
+      setTranslationStatus("error");
+      return false;
+    } finally {
+      generationInFlightRef.current = false;
+      setIsGenerating(false);
+    }
+  }, [episodeId]);
 
   const loadTranslation = useCallback(async () => {
     try {
@@ -141,28 +190,58 @@ export default function BilingualEpisodePlayback({
 
       setCanGenerate(payload.canGenerate === true);
       const nextStatus = payload.status ?? "missing";
-      setTranslationStatus(nextStatus);
 
       if (nextStatus === "ready" && Array.isArray(payload.segments)) {
+        autoGenerationAttemptRef.current = null;
+        setTranslationStatus("ready");
         setSegments(payload.segments);
         setSelectedSegmentId((current) => current ?? payload.segments?.[0]?.id ?? null);
         setStatusMessage("");
-      } else {
-        setSegments([]);
-        setStatusMessage(
-          payload.message ||
-            (nextStatus === "stale"
-              ? "原文が更新されたため、英語対訳を再生成する必要があります。"
-              : "")
-        );
+        return;
       }
+
+      setSegments([]);
+
+      if (
+        (nextStatus === "missing" || nextStatus === "stale") &&
+        payload.canAutoGenerate === true
+      ) {
+        const attemptKey =
+          episodeId + ":" + (payload.sourceHash || nextStatus);
+
+        if (generationInFlightRef.current) {
+          setTranslationStatus("translating");
+          return;
+        }
+
+        if (autoGenerationAttemptRef.current !== attemptKey) {
+          autoGenerationAttemptRef.current = attemptKey;
+          setTranslationStatus("translating");
+          setStatusMessage(
+            nextStatus === "stale"
+              ? "原文が更新されたため、英語対訳を更新しています。"
+              : "初回利用のため、英語対訳を準備しています。"
+          );
+          void requestTranslationGeneration();
+          return;
+        }
+      }
+
+      setTranslationStatus(nextStatus);
+      setStatusMessage(
+        payload.message ||
+          (nextStatus === "stale"
+            ? "原文が更新されたため、英語対訳を再生成します。"
+            : "")
+      );
     } catch {
       setTranslationStatus("error");
       setStatusMessage("英語対訳の状態を取得できませんでした。");
     }
-  }, [episodeId]);
+  }, [episodeId, requestTranslationGeneration]);
 
   useEffect(() => {
+    autoGenerationAttemptRef.current = null;
     setTranslationStatus("loading");
     setSegments([]);
     setSelectedSegmentId(null);
@@ -215,33 +294,7 @@ export default function BilingualEpisodePlayback({
 
   async function handleGenerateTranslation() {
     if (!canGenerate || isGenerating) return;
-    setIsGenerating(true);
-    setStatusMessage("");
-
-    try {
-      const response = await fetch("/api/episode-translations/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          episodeId,
-          targetLanguage: "en",
-        }),
-      });
-      const payload = (await response.json()) as TranslationStatusResponse;
-
-      if (!response.ok || !payload.ok) {
-        setStatusMessage(payload.message || "英語対訳を生成できませんでした。");
-        if (response.status === 429) setTranslationStatus("failed");
-        return;
-      }
-
-      setTranslationStatus(payload.status === "translating" ? "translating" : "loading");
-      await loadTranslation();
-    } catch {
-      setStatusMessage("英語対訳を生成できませんでした。");
-    } finally {
-      setIsGenerating(false);
-    }
+    await requestTranslationGeneration();
   }
 
   const safeSeriesTitle = safeText(seriesTitle, "無題");
@@ -359,23 +412,23 @@ export default function BilingualEpisodePlayback({
                   </>
                 ) : translationStatus === "translating" ? (
                   <>
-                    <p className="text-lg font-semibold">英語対訳を生成中</p>
+                    <p className="text-lg font-semibold">英語対訳を準備中</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      同じ話への重複生成は行わず、完了後に自動で読み込みます。
+                      初回だけ生成し、完成後は同じ翻訳を全利用者で再利用します。
                     </p>
                   </>
                 ) : translationStatus === "stale" ? (
                   <>
                     <p className="text-lg font-semibold">原文が更新されています</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      {statusMessage || "英語対訳を再生成する必要があります。"}
+                      {statusMessage || "英語対訳を更新しています。"}
                     </p>
                   </>
                 ) : translationStatus === "failed" ? (
                   <>
                     <p className="text-lg font-semibold">英語対訳を表示できません</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      前回の生成が完了していません。公式アカウントから再生成できます。
+                      前回の生成が完了していません。再生成は管理用アカウントから行います。
                     </p>
                   </>
                 ) : translationStatus === "error" ? (
@@ -387,31 +440,22 @@ export default function BilingualEpisodePlayback({
                   </>
                 ) : (
                   <>
-                    <p className="text-lg font-semibold">英語対訳はまだありません</p>
+                    <p className="text-lg font-semibold">英語対訳を準備できません</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      保存済み翻訳が作成されると、原作品を閲覧できる利用者は同じ翻訳を再利用できます。
+                      この作品では現在、自動生成を開始できません。
                     </p>
                   </>
                 )}
 
-                {canGenerate &&
-                (translationStatus === "missing" ||
-                  translationStatus === "failed" ||
-                  translationStatus === "stale") ? (
+                {canGenerate && translationStatus === "failed" ? (
                   <button
                     type="button"
                     onClick={() => void handleGenerateTranslation()}
                     disabled={isGenerating}
                     className="mt-5 rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isGenerating ? "生成中…" : "英語対訳を生成"}
+                    {isGenerating ? "再生成中…" : "英語対訳を再生成"}
                   </button>
-                ) : null}
-
-                {!canGenerate && translationStatus === "missing" ? (
-                  <p className="mt-4 text-xs leading-6 text-neutral-500">
-                    新規翻訳の生成は現在、公式アカウントに限定しています。
-                  </p>
                 ) : null}
 
                 {statusMessage && translationStatus !== "stale" && translationStatus !== "error" ? (
