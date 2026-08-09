@@ -6,7 +6,10 @@ import {
   type SeriesRow,
 } from "@/features/write/writeShared";
 import { getCachedPublicReadPagePayload } from "@/lib/publicRead";
-import { isEpisodeTranslationAllowlisted } from "@/lib/translation/episodeTranslationServer";
+import {
+  isEpisodeTranslationAllowlisted,
+  isSeriesTranslationEligible,
+} from "@/lib/translation/episodeTranslationServer";
 
 type ReadEpisodeLayoutProps = {
   children: ReactNode;
@@ -78,10 +81,6 @@ function resolveReadAttribution(series: SeriesRow): {
   };
 }
 
-function isSeriesTranslationPermitted(series: SeriesRow): boolean {
-  return series.translation_permission_mode === "open";
-}
-
 export default async function ReadEpisodeLayout({
   children,
   params,
@@ -106,7 +105,7 @@ export default async function ReadEpisodeLayout({
     const currentEpisodeNumber =
       getEpisodeNumber(payload.episode) || parsedEpisodeNumber;
     const translationEligible =
-      isSeriesTranslationPermitted(payload.series) ||
+      isSeriesTranslationEligible(payload.series) ||
       isEpisodeTranslationAllowlisted({
         episodeId: payload.episode.id,
         seriesId,
