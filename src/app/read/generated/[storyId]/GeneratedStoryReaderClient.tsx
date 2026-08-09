@@ -1324,7 +1324,22 @@ export default function GeneratedStoryReaderClient({
           </div>
         </section>
 
-        <div className="mt-5 flex justify-end gap-3">
+        <div className="mt-5 flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              void handleSave();
+            }}
+            disabled={saveWorking || publishWorking}
+            className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-medium text-black transition hover:bg-sky-100 disabled:cursor-wait disabled:opacity-70"
+          >
+            {saveWorking
+              ? "保存中..."
+              : isCurrentStorySaved
+                ? "保存済み"
+                : "保存する"}
+          </button>
+
           <button
             type="button"
             onClick={() => {
