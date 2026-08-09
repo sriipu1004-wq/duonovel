@@ -12,6 +12,7 @@ import {
 } from "@/lib/translation/episodeTranslationServer";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 type OpenAIResponseBody = {
   output_text?: string;
@@ -259,10 +260,7 @@ export async function POST(request: Request) {
   }
 
   const sourceHash = buildEpisodeTranslationSourceHash(access.body);
-  const model =
-    process.env.EPISODE_TRANSLATION_MODEL ??
-    process.env.OPENAI_TEXT_MODEL ??
-    "gpt-5.4-mini";
+  const model = process.env.EPISODE_TRANSLATION_MODEL ?? "gpt-5-mini";
   const estimatedTokens = estimateTokens(sourceChars);
   const estimatedCostJpy = estimateCostJpy(
     estimatedTokens.inputTokens,
@@ -412,8 +410,12 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
         Authorization: "Bearer " + apiKey,
       },
+      signal: AbortSignal.timeout(180_000),
       body: JSON.stringify({
         model,
+        reasoning: model.startsWith("gpt-5")
+          ? { effort: "minimal" }
+          : undefined,
         input: [
           {
             role: "developer",
@@ -571,19 +573,29 @@ export async function POST(request: Request) {
       estimatedCostJpy,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "英語対訳の生成に失敗しました。";
+    const isTimeout =
+      error instanceof Error &&
+      (error.name === "TimeoutError" || error.name === "AbortError");
+    const message = isTimeout
+      ? "英語対訳の生成が3分以内に完了しませんでした。"
+      : error instanceof Error
+        ? error.message
+        : "英語対訳の生成に失敗しました。";
 
     await markFailed({
       translationId,
       logId,
-      errorCode: "translation_exception",
+      errorCode: isTimeout ? "translation_timeout" : "translation_exception",
       errorMessage: message,
     });
 
     return NextResponse.json(
-      { ok: false, error: "translation_exception", message },
-      { status: 500 }
+      {
+        ok: false,
+        error: isTimeout ? "translation_timeout" : "translation_exception",
+        message,
+      },
+      { status: isTimeout ? 504 : 500 }
     );
   }
 }
