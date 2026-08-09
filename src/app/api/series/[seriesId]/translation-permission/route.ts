@@ -17,6 +17,12 @@ function normalizeMode(value: unknown): TranslationPermissionMode | null {
   return null;
 }
 
+function normalizeCreatedAfter(value: unknown): number | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export async function POST(request: Request, context: RouteContext) {
   const { seriesId } = await context.params;
   const cleanSeriesId = seriesId.trim();
@@ -48,6 +54,14 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
+  const createdAfter = normalizeCreatedAfter(payload.createdAfter);
+  if (payload.createdAfter !== undefined && createdAfter === null) {
+    return NextResponse.json(
+      { ok: false, error: "invalid_created_after" },
+      { status: 400 }
+    );
+  }
+
   const supabase = await createClient();
   const { data: authData, error: authError } = await supabase.auth.getUser();
   const user = authData.user ?? null;
@@ -61,7 +75,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const seriesResult = await supabase
     .from("series")
-    .select("id, author_id")
+    .select("id, author_id, created_at")
     .eq("id", cleanSeriesId)
     .maybeSingle();
 
@@ -77,6 +91,16 @@ export async function POST(request: Request, context: RouteContext) {
       { ok: false, error: "forbidden" },
       { status: 403 }
     );
+  }
+
+  if (createdAfter !== null) {
+    const createdAt = Date.parse(String(seriesResult.data.created_at ?? ""));
+    if (!Number.isFinite(createdAt) || createdAt < createdAfter) {
+      return NextResponse.json(
+        { ok: false, error: "series_not_created_after_pending_selection" },
+        { status: 409 }
+      );
+    }
   }
 
   const updateResult = await supabase
