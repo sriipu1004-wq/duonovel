@@ -1,6 +1,11 @@
 import { createHash, randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import {
+  normalizePromptTags,
+  type PromptTag,
+} from "@/lib/generation/promptTags";
+import { recordPromptTagUsage } from "@/lib/generation/promptTagUsage.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -12,6 +17,7 @@ type ContinueRequest = {
   seriesId: string;
   requestedMinutes: TimeMinutes;
   continuationRequest?: string;
+  promptTags?: PromptTag[];
 };
 
 type ContinuationStory = {
@@ -233,11 +239,13 @@ function parseRequest(payload: Record<string, unknown>): ContinueRequest {
   if (continuationRequest.length > CONTINUATION_REQUEST_MAX_LENGTH) {
     throw new Error("続きへの希望は500文字以内で入力してください。");
   }
+  const promptTags = normalizePromptTags(payload.promptTags);
 
   return {
     seriesId,
     requestedMinutes: rawRequestedMinutes,
     ...(continuationRequest ? { continuationRequest } : {}),
+    ...(promptTags.length > 0 ? { promptTags } : {}),
   };
 }
 
@@ -1068,6 +1076,8 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    await recordPromptTagUsage(generationRequest.promptTags);
 
     return NextResponse.json({
       ok: true,
