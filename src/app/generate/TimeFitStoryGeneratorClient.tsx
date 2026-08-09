@@ -2,6 +2,8 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import PromptTagSuggestions from "@/features/generation/PromptTagSuggestions";
+import { getPromptTagsInText } from "@/lib/generation/promptTags";
 
 type TimeMinutes = 5 | 10 | 15 | 20;
 
@@ -23,6 +25,7 @@ type GenerateRequest = {
 
 type GenerateApiRequest = GenerateRequest & {
   customRequest?: string;
+  promptTags?: string[];
 };
 
 type GeneratedStoryPayload = {
@@ -116,6 +119,7 @@ export default function TimeFitStoryGeneratorClient() {
     }
 
     const normalizedCustomRequest = customRequest.trim();
+    const promptTags = getPromptTagsInText(normalizedCustomRequest);
 
     if (normalizedCustomRequest.length > CUSTOM_REQUEST_MAX_LENGTH) {
       setErrorMessage("追加の希望は500文字以内で入力してください。");
@@ -126,6 +130,9 @@ export default function TimeFitStoryGeneratorClient() {
       ...currentRequest,
       ...(normalizedCustomRequest
         ? { customRequest: normalizedCustomRequest }
+        : {}),
+      ...(promptTags.length > 0
+        ? { promptTags }
         : {}),
     };
 
@@ -251,24 +258,35 @@ export default function TimeFitStoryGeneratorClient() {
           </select>
         </label>
 
-        <label className="grid gap-2">
-          <span className="text-sm font-medium text-black">
+        <div className="grid gap-2">
+          <label
+            htmlFor="custom-request"
+            className="text-sm font-medium text-black"
+          >
             追加の希望（任意）
-          </span>
+          </label>
           <span
             id="custom-request-help"
             className="text-xs leading-6 text-neutral-500"
           >
             登場人物、舞台、展開、結末、文体など、物語への希望を自由に入力できます。
           </span>
+          <PromptTagSuggestions
+            value={customRequest}
+            onChange={setCustomRequest}
+            maxLength={CUSTOM_REQUEST_MAX_LENGTH}
+            disabled={isGenerating}
+          />
           <textarea
+            id="custom-request"
             value={customRequest}
             onChange={(event) => setCustomRequest(event.target.value)}
             maxLength={CUSTOM_REQUEST_MAX_LENGTH}
             rows={5}
+            disabled={isGenerating}
             aria-describedby="custom-request-help custom-request-count"
             placeholder="例：雨の夜の無人駅を舞台にして、最後は少し救いのある結末にしてください。"
-            className="min-h-32 w-full box-border resize-y rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-neutral-400 focus:border-sky-300"
+            className="min-h-32 w-full box-border resize-y rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 disabled:opacity-60"
           />
           <span
             id="custom-request-count"
@@ -276,7 +294,7 @@ export default function TimeFitStoryGeneratorClient() {
           >
             {customRequest.length} / {CUSTOM_REQUEST_MAX_LENGTH}文字
           </span>
-        </label>
+        </div>
 
         <button
           type="submit"
