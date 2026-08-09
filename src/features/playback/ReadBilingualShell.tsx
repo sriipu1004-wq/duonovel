@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import BilingualEpisodePlayback from "@/features/playback/BilingualEpisodePlayback";
 import BilingualSettingsBridge from "@/features/playback/BilingualSettingsBridge";
 
@@ -42,6 +42,23 @@ export default function ReadBilingualShell({
 
     setMode("bilingual");
   }
+
+  useEffect(() => {
+    if (!translationEligible || typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("bilingual") !== "1") return;
+
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    document.querySelectorAll<HTMLAudioElement>("main audio").forEach((audio) => {
+      audio.pause();
+    });
+
+    setMode("bilingual");
+  }, [translationEligible]);
 
   if (mode === "bilingual") {
     return (
