@@ -67,6 +67,10 @@ export function isEpisodeTranslationAllowlisted(args: {
   return seriesEpisodes.has(args.seriesId + ":" + String(args.episodeNumber));
 }
 
+function hasAuthorTranslationPermission(series: SeriesRow): boolean {
+  return series.translation_permission_mode === "open";
+}
+
 export function buildEpisodeTranslationSourceHash(body: string): string {
   const normalized = normalizeTranslationSourceText(body);
   return createHash("sha256")
@@ -123,6 +127,13 @@ export async function resolveEpisodeTranslationAccess(
     isEpisodePubliclyVisible(episode);
   const body = getEpisodeBody(episode);
   const episodeNumber = getEpisodeNumber(episode);
+  const translationEligible =
+    hasAuthorTranslationPermission(series) ||
+    isEpisodeTranslationAllowlisted({
+      episodeId: episode.id,
+      seriesId,
+      episodeNumber,
+    });
 
   return {
     episode,
@@ -135,10 +146,6 @@ export async function resolveEpisodeTranslationAccess(
     isOwner,
     isOfficialUser: isOfficialAccountEmail(currentUserEmail),
     canRead: isPublic || isOwner,
-    isAllowlisted: isEpisodeTranslationAllowlisted({
-      episodeId: episode.id,
-      seriesId,
-      episodeNumber,
-    }),
+    isAllowlisted: translationEligible,
   };
 }
