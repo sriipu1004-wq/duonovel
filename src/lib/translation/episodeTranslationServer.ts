@@ -26,6 +26,8 @@ const DEFAULT_PREVIEW_SERIES_EPISODE_ALLOWLIST = new Set([
   "af9f56ea-93b4-4e34-8779-89aa8758f3aa:1",
 ]);
 
+type AdminSupabase = ReturnType<typeof createAdminClient>;
+
 export type EpisodeTranslationAccess = {
   episode: EpisodeRow;
   series: SeriesRow;
@@ -101,6 +103,32 @@ export function isSeriesTranslationEligible(series: SeriesRow): boolean {
   }
 
   return series.translation_permission_mode === "open";
+}
+
+async function isSeriesOfficialAuthoredWithAdmin(
+  series: SeriesRow,
+  admin: AdminSupabase
+): Promise<boolean> {
+  const ownerId = pickText(series.author_id, series["user_id"], series["userId"]);
+  if (!ownerId) return false;
+
+  try {
+    const { data, error } = await admin.auth.admin.getUserById(ownerId);
+    if (error || !data.user) return false;
+    return isOfficialAccountEmail(data.user.email);
+  } catch {
+    return false;
+  }
+}
+
+export async function isSeriesTranslationEligibleIncludingOfficial(
+  series: SeriesRow
+): Promise<boolean> {
+  if (isSeriesTranslationEligible(series)) {
+    return true;
+  }
+
+  return isSeriesOfficialAuthoredWithAdmin(series, createAdminClient());
 }
 
 export function isEpisodeTranslationAllowlisted(args: {
@@ -182,6 +210,7 @@ export async function resolveEpisodeTranslationAccess(
     seriesId,
     episodeNumber,
   });
+  const isOfficialAuthored = await isSeriesOfficialAuthoredWithAdmin(series, admin);
 
   return {
     episode,
@@ -195,6 +224,8 @@ export async function resolveEpisodeTranslationAccess(
     isOfficialUser: isOfficialAccountEmail(currentUserEmail),
     canRead: isPublic || isOwner,
     isAllowlisted:
-      explicitlyAllowlisted || isSeriesTranslationEligible(series),
+      explicitlyAllowlisted ||
+      isSeriesTranslationEligible(series) ||
+      isOfficialAuthored,
   };
 }
