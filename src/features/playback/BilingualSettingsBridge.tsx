@@ -12,8 +12,13 @@ function findDisplaySettingsSection(): HTMLElement | null {
   const sections = Array.from(document.querySelectorAll<HTMLElement>("main section"));
 
   for (const section of sections) {
-    const labels = Array.from(section.querySelectorAll<HTMLElement>("p"));
-    if (labels.some((label) => label.textContent?.trim() === "DISPLAY")) {
+    const directLabel = section.querySelector<HTMLElement>(":scope > p");
+    const directHeading = section.querySelector<HTMLElement>(":scope > h3");
+
+    if (
+      directLabel?.textContent?.trim() === "DISPLAY" ||
+      directHeading?.textContent?.trim() === "表示演出"
+    ) {
       return section;
     }
   }
@@ -47,7 +52,7 @@ export default function BilingualSettingsBridge({
       }
 
       const existing = section.querySelector<HTMLElement>(
-        "[data-bilingual-settings-host='true']"
+        ":scope > [data-bilingual-settings-host='true']"
       );
 
       if (existing) {
@@ -60,7 +65,7 @@ export default function BilingualSettingsBridge({
 
       const nextHost = document.createElement("div");
       nextHost.dataset.bilingualSettingsHost = "true";
-      const heading = section.querySelector("h3");
+      const heading = section.querySelector<HTMLElement>(":scope > h3");
 
       if (heading?.nextSibling) {
         section.insertBefore(nextHost, heading.nextSibling);
