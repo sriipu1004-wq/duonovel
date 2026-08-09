@@ -37,7 +37,7 @@ type BilingualEpisodePlaybackProps = {
   workAuthorName?: string;
   workEditorName?: string;
   workIndexHref?: string | null;
-  onDisableBilingual: () => void;
+  onDisableBilingual: (segmentIndex: number) => void;
 };
 
 type BilingualPreference = {
@@ -109,6 +109,7 @@ export default function BilingualEpisodePlayback({
   const enSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const autoGenerationAttemptRef = useRef<string | null>(null);
   const generationInFlightRef = useRef(false);
+  const readingSegmentIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setSplitRatio(preference.splitRatio);
@@ -196,7 +197,9 @@ export default function BilingualEpisodePlayback({
         autoGenerationAttemptRef.current = null;
         setTranslationStatus("ready");
         setSegments(payload.segments);
-        setSelectedSegmentId((current) => current ?? payload.segments?.[0]?.id ?? null);
+        const firstId = payload.segments?.[0]?.id ?? null;
+        setSelectedSegmentId((current) => current ?? firstId);
+        readingSegmentIdRef.current = readingSegmentIdRef.current ?? firstId;
         setStatusMessage("");
         return;
       }
@@ -243,6 +246,7 @@ export default function BilingualEpisodePlayback({
 
   useEffect(() => {
     autoGenerationAttemptRef.current = null;
+    readingSegmentIdRef.current = null;
     setTranslationStatus("loading");
     setSegments([]);
     setSelectedSegmentId(null);
@@ -283,7 +287,12 @@ export default function BilingualEpisodePlayback({
     });
   }
 
+  function handleReadingPositionChange(id: string) {
+    readingSegmentIdRef.current = id;
+  }
+
   function handleSelectSegment(id: string) {
+    readingSegmentIdRef.current = id;
     setSelectedSegmentId(id);
     centerSegment(id);
   }
@@ -291,6 +300,16 @@ export default function BilingualEpisodePlayback({
   function handleSwapLanguages() {
     setUpperLanguage((current) => (current === "ja" ? "en" : "ja"));
     if (selectedSegmentId) centerSegment(selectedSegmentId);
+  }
+
+  function handleDisableBilingual() {
+    const positionId =
+      readingSegmentIdRef.current ?? selectedSegmentId ?? segments[0]?.id ?? null;
+    const segmentIndex = positionId
+      ? Math.max(0, segments.findIndex((segment) => segment.id === positionId))
+      : 0;
+
+    onDisableBilingual(segmentIndex);
   }
 
   async function handleGenerateTranslation() {
@@ -338,7 +357,7 @@ export default function BilingualEpisodePlayback({
                 </span>
                 <button
                   type="button"
-                  onClick={onDisableBilingual}
+                  onClick={handleDisableBilingual}
                   className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
                 >
                   OFFに戻す
@@ -363,6 +382,7 @@ export default function BilingualEpisodePlayback({
                   scrollRef={jaScrollRef}
                   registerSegmentRef={(id, node) => jaSegmentRefs.current.set(id, node)}
                   onSelectSegment={handleSelectSegment}
+                  onReadingPositionChange={handleReadingPositionChange}
                 />
               ) : (
                 <BilingualPane
@@ -372,6 +392,7 @@ export default function BilingualEpisodePlayback({
                   scrollRef={enScrollRef}
                   registerSegmentRef={(id, node) => enSegmentRefs.current.set(id, node)}
                   onSelectSegment={handleSelectSegment}
+                  onReadingPositionChange={handleReadingPositionChange}
                 />
               )}
 
@@ -389,6 +410,7 @@ export default function BilingualEpisodePlayback({
                   scrollRef={enScrollRef}
                   registerSegmentRef={(id, node) => enSegmentRefs.current.set(id, node)}
                   onSelectSegment={handleSelectSegment}
+                  onReadingPositionChange={handleReadingPositionChange}
                 />
               ) : (
                 <BilingualPane
@@ -398,6 +420,7 @@ export default function BilingualEpisodePlayback({
                   scrollRef={jaScrollRef}
                   registerSegmentRef={(id, node) => jaSegmentRefs.current.set(id, node)}
                   onSelectSegment={handleSelectSegment}
+                  onReadingPositionChange={handleReadingPositionChange}
                 />
               )}
             </div>
@@ -472,11 +495,11 @@ export default function BilingualEpisodePlayback({
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="min-w-0 text-xs text-neutral-500">
             <span className="font-medium text-neutral-700">英語対訳</span>
-            <span className="ml-2">文タップ同期</span>
+            <span className="ml-2">スクロール・文タップ同期</span>
           </div>
           <button
             type="button"
-            onClick={onDisableBilingual}
+            onClick={handleDisableBilingual}
             className="shrink-0 rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
           >
             日本語表示に戻る
