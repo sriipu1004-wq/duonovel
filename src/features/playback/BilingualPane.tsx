@@ -22,6 +22,28 @@ type BilingualPaneProps = {
   onSelectSegment: (id: string) => void;
 };
 
+const TAP_CENTER_SYNC_PAUSE_MS = 800;
+
+function findReaderRoot(source: Element): HTMLElement | null {
+  const paneSection = source.closest("[data-bilingual-pane]");
+  const readerRoot = paneSection?.parentElement;
+  return readerRoot instanceof HTMLElement ? readerRoot : null;
+}
+
+function pauseLinkedScrollForTap(source: Element) {
+  const readerRoot = findReaderRoot(source);
+  if (!readerRoot) return;
+
+  const token = `${Date.now()}-${Math.random()}`;
+  readerRoot.dataset.bilingualTapCentering = token;
+
+  window.setTimeout(() => {
+    if (readerRoot.dataset.bilingualTapCentering === token) {
+      delete readerRoot.dataset.bilingualTapCentering;
+    }
+  }, TAP_CENTER_SYNC_PAUSE_MS);
+}
+
 function syncOtherPaneScroll(
   language: "ja" | "en",
   event: UIEvent<HTMLDivElement>
@@ -32,10 +54,13 @@ function syncOtherPaneScroll(
     return;
   }
 
-  const paneSection = source.closest("[data-bilingual-pane]");
-  const readerRoot = paneSection?.parentElement;
+  const readerRoot = findReaderRoot(source);
+  if (!readerRoot || readerRoot.dataset.bilingualTapCentering) {
+    return;
+  }
+
   const targetLanguage = language === "ja" ? "en" : "ja";
-  const target = readerRoot?.querySelector<HTMLDivElement>(
+  const target = readerRoot.querySelector<HTMLDivElement>(
     `[data-bilingual-scroll="${targetLanguage}"]`
   );
 
@@ -105,10 +130,14 @@ export default function BilingualPane({
                     ref={(node) => registerSegmentRef(segment.id, node)}
                     role="button"
                     tabIndex={0}
-                    onClick={() => onSelectSegment(segment.id)}
+                    onClick={(event) => {
+                      pauseLinkedScrollForTap(event.currentTarget);
+                      onSelectSegment(segment.id);
+                    }}
                     onKeyDown={(event) => {
                       if (event.key !== "Enter" && event.key !== " ") return;
                       event.preventDefault();
+                      pauseLinkedScrollForTap(event.currentTarget);
                       onSelectSegment(segment.id);
                     }}
                     className={[
