@@ -87,8 +87,11 @@ function integrateStatusButton(
     button.dataset.recordingPermissionStatus ||
     normalizeRecordingStatus(currentText, isAiGenerated);
   const translationStatus = translationStatusLabel(mode, isAiGenerated);
+  const combinedValue = `・${recordingStatus}　・${translationStatus}`;
 
-  value.textContent = `・${recordingStatus}　・${translationStatus}`;
+  if (value.textContent !== combinedValue) {
+    value.textContent = combinedValue;
+  }
 }
 
 function findPermissionPanel(): HTMLElement | null {
@@ -126,6 +129,15 @@ function integratePermissionPanel(panel: HTMLElement): HTMLElement {
     panel.insertBefore(narrationLabel, firstContent);
   }
 
+  const restoreButton = Array.from(
+    panel.querySelectorAll<HTMLButtonElement>(":scope > button")
+  ).find((button) => button.textContent?.includes("保存済みに戻す"));
+
+  if (restoreButton) {
+    restoreButton.dataset.permissionRestoreSource = "true";
+    restoreButton.style.display = "none";
+  }
+
   let host = panel.querySelector<HTMLElement>(
     ":scope > [data-translation-permission-host='true']"
   );
@@ -136,17 +148,13 @@ function integratePermissionPanel(panel: HTMLElement): HTMLElement {
     panel.appendChild(host);
   }
 
-  const restoreButton = Array.from(
-    panel.querySelectorAll<HTMLButtonElement>(":scope > button")
-  ).find((button) => button.textContent?.includes("保存済みに戻す"));
-
-  if (restoreButton && restoreButton.previousElementSibling !== host) {
-    panel.insertBefore(restoreButton, host.nextSibling);
-    restoreButton.classList.remove("mt-3");
-    restoreButton.classList.add("mt-4");
-  }
-
   return host;
+}
+
+function triggerOriginalRestoreButton() {
+  document
+    .querySelector<HTMLButtonElement>("button[data-permission-restore-source='true']")
+    ?.click();
 }
 
 export default function TranslationPermissionWorkspaceBridge({
@@ -157,11 +165,14 @@ export default function TranslationPermissionWorkspaceBridge({
 }: TranslationPermissionWorkspaceBridgeProps) {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [mode, setMode] = useState<TranslationPermissionMode | null>(initialMode);
+  const [savedMode, setSavedMode] =
+    useState<TranslationPermissionMode | null>(initialMode);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     setMode(initialMode);
+    setSavedMode(initialMode);
   }, [initialMode, seriesId]);
 
   useEffect(() => {
@@ -169,6 +180,7 @@ export default function TranslationPermissionWorkspaceBridge({
       const detail = (event as CustomEvent<{ mode?: unknown }>).detail;
       if (detail?.mode === "open" || detail?.mode === "closed") {
         setMode(detail.mode);
+        setSavedMode(detail.mode);
         setMessage("保存済み");
       }
     }
@@ -286,13 +298,21 @@ export default function TranslationPermissionWorkspaceBridge({
         return;
       }
 
-      setMode(payload.mode === "open" ? "open" : "closed");
+      const saved = payload.mode === "open" ? "open" : "closed";
+      setMode(saved);
+      setSavedMode(saved);
       setMessage("保存済み");
     } catch {
       setMessage("対訳許可を更新できませんでした。");
     } finally {
       setSaving(false);
     }
+  }
+
+  function restoreSavedPermissions() {
+    triggerOriginalRestoreButton();
+    setMode(savedMode);
+    setMessage("");
   }
 
   if (!host) return null;
@@ -364,6 +384,16 @@ export default function TranslationPermissionWorkspaceBridge({
         >
           {message}
         </p>
+      ) : null}
+
+      {!isAiGenerated ? (
+        <button
+          type="button"
+          onClick={restoreSavedPermissions}
+          className="mt-4 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
+        >
+          保存済みに戻す
+        </button>
       ) : null}
     </div>,
     host
