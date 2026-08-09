@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject, UIEvent } from "react";
+import { useEffect, useRef, type RefObject, type UIEvent } from "react";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
 
 export type BilingualSegment = {
@@ -20,6 +20,7 @@ type BilingualPaneProps = {
   scrollRef: RefObject<HTMLDivElement | null>;
   registerSegmentRef: (id: string, node: HTMLSpanElement | null) => void;
   onSelectSegment: (id: string) => void;
+  onReadingPositionChange: (id: string) => void;
 };
 
 const TAP_CENTER_SYNC_PAUSE_MS = 800;
@@ -83,6 +84,37 @@ function syncOtherPaneScroll(
   });
 }
 
+function findCenteredSegmentId(container: HTMLDivElement): string | null {
+  const segments = Array.from(
+    container.querySelectorAll<HTMLElement>("[data-bilingual-segment-id]")
+  );
+
+  if (segments.length === 0) return null;
+
+  const containerRect = container.getBoundingClientRect();
+  const centerY = containerRect.top + containerRect.height / 2;
+  let bestId: string | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const segment of segments) {
+    const rect = segment.getBoundingClientRect();
+
+    if (rect.bottom < containerRect.top || rect.top > containerRect.bottom) {
+      continue;
+    }
+
+    const segmentCenter = rect.top + rect.height / 2;
+    const distance = Math.abs(segmentCenter - centerY);
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestId = segment.dataset.bilingualSegmentId ?? null;
+    }
+  }
+
+  return bestId;
+}
+
 export default function BilingualPane({
   language,
   segments,
@@ -90,13 +122,36 @@ export default function BilingualPane({
   scrollRef,
   registerSegmentRef,
   onSelectSegment,
+  onReadingPositionChange,
 }: BilingualPaneProps) {
   const paragraphMap = new Map<number, BilingualSegment[]>();
+  const positionFrameRef = useRef<number | null>(null);
 
   for (const segment of segments) {
     const current = paragraphMap.get(segment.paragraphIndex) ?? [];
     current.push(segment);
     paragraphMap.set(segment.paragraphIndex, current);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (positionFrameRef.current !== null) {
+        window.cancelAnimationFrame(positionFrameRef.current);
+      }
+    };
+  }, []);
+
+  function handleScroll(event: UIEvent<HTMLDivElement>) {
+    syncOtherPaneScroll(language, event);
+
+    if (positionFrameRef.current !== null) return;
+
+    const source = event.currentTarget;
+    positionFrameRef.current = window.requestAnimationFrame(() => {
+      positionFrameRef.current = null;
+      const centeredId = findCenteredSegmentId(source);
+      if (centeredId) onReadingPositionChange(centeredId);
+    });
   }
 
   return (
@@ -116,7 +171,7 @@ export default function BilingualPane({
       <div
         ref={scrollRef}
         data-bilingual-scroll={language}
-        onScroll={(event) => syncOtherPaneScroll(language, event)}
+        onScroll={handleScroll}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
       >
         <article className="space-y-6 text-[1rem] leading-[2.05] text-black sm:text-[1.05rem]">
@@ -127,17 +182,20 @@ export default function BilingualPane({
                 return (
                   <span
                     key={segment.id}
+                    data-bilingual-segment-id={segment.id}
                     ref={(node) => registerSegmentRef(segment.id, node)}
                     role="button"
                     tabIndex={0}
                     onClick={(event) => {
                       pauseLinkedScrollForTap(event.currentTarget);
+                      onReadingPositionChange(segment.id);
                       onSelectSegment(segment.id);
                     }}
                     onKeyDown={(event) => {
                       if (event.key !== "Enter" && event.key !== " ") return;
                       event.preventDefault();
                       pauseLinkedScrollForTap(event.currentTarget);
+                      onReadingPositionChange(segment.id);
                       onSelectSegment(segment.id);
                     }}
                     className={[
