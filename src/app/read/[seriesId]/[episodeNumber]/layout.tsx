@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import ReadBilingualShell from "@/features/playback/ReadBilingualShell";
+import ReaderSettingsTopBridge from "@/features/playback/ReaderSettingsTopBridge";
 import {
   getEpisodeNumber,
   pickText,
@@ -81,6 +82,15 @@ function resolveReadAttribution(series: SeriesRow): {
   };
 }
 
+function withSettingsTopBridge(content: ReactNode) {
+  return (
+    <>
+      <ReaderSettingsTopBridge />
+      {content}
+    </>
+  );
+}
+
 export default async function ReadEpisodeLayout({
   children,
   params,
@@ -89,7 +99,7 @@ export default async function ReadEpisodeLayout({
   const parsedEpisodeNumber = parseEpisodeNumber(episodeNumber);
 
   if (!parsedEpisodeNumber) {
-    return children;
+    return withSettingsTopBridge(children);
   }
 
   try {
@@ -99,7 +109,7 @@ export default async function ReadEpisodeLayout({
     );
 
     if (!payload) {
-      return children;
+      return withSettingsTopBridge(children);
     }
 
     const currentEpisodeNumber =
@@ -113,12 +123,12 @@ export default async function ReadEpisodeLayout({
       });
 
     if (!translationEligible) {
-      return children;
+      return withSettingsTopBridge(children);
     }
 
     const attribution = resolveReadAttribution(payload.series);
 
-    return (
+    return withSettingsTopBridge(
       <ReadBilingualShell
         translationEligible={translationEligible}
         seriesId={seriesId}
@@ -136,6 +146,6 @@ export default async function ReadEpisodeLayout({
       </ReadBilingualShell>
     );
   } catch {
-    return children;
+    return withSettingsTopBridge(children);
   }
 }
