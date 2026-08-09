@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import BilingualActionBridge from "@/features/playback/BilingualActionBridge";
 import BilingualEpisodePlayback from "@/features/playback/BilingualEpisodePlayback";
-import BilingualSettingsBridge from "@/features/playback/BilingualSettingsBridge";
+import BilingualResumeBridge from "@/features/playback/BilingualResumeBridge";
 
 type ReadBilingualShellProps = {
   children: ReactNode;
@@ -28,6 +29,8 @@ export default function ReadBilingualShell({
   workEditorName,
 }: ReadBilingualShellProps) {
   const [mode, setMode] = useState<"standard" | "bilingual">("standard");
+  const [resumeSegmentIndex, setResumeSegmentIndex] = useState<number | null>(null);
+  const [restoreToken, setRestoreToken] = useState(0);
 
   function enableBilingual() {
     if (!translationEligible) return;
@@ -41,6 +44,12 @@ export default function ReadBilingualShell({
     });
 
     setMode("bilingual");
+  }
+
+  function disableBilingual(segmentIndex: number) {
+    setResumeSegmentIndex(segmentIndex);
+    setMode("standard");
+    setRestoreToken((current) => current + 1);
   }
 
   useEffect(() => {
@@ -70,7 +79,7 @@ export default function ReadBilingualShell({
         episodeTitle={episodeTitle}
         workAuthorName={workAuthorName}
         workEditorName={workEditorName}
-        onDisableBilingual={() => setMode("standard")}
+        onDisableBilingual={disableBilingual}
       />
     );
   }
@@ -78,9 +87,13 @@ export default function ReadBilingualShell({
   return (
     <>
       {children}
-      <BilingualSettingsBridge
+      <BilingualActionBridge
         enabled={translationEligible}
         onEnable={enableBilingual}
+      />
+      <BilingualResumeBridge
+        segmentIndex={resumeSegmentIndex}
+        restoreToken={restoreToken}
       />
     </>
   );
