@@ -78,6 +78,10 @@ function resolveReadAttribution(series: SeriesRow): {
   };
 }
 
+function isSeriesTranslationPermitted(series: SeriesRow): boolean {
+  return series.translation_permission_mode === "open";
+}
+
 export default async function ReadEpisodeLayout({
   children,
   params,
@@ -101,11 +105,13 @@ export default async function ReadEpisodeLayout({
 
     const currentEpisodeNumber =
       getEpisodeNumber(payload.episode) || parsedEpisodeNumber;
-    const translationEligible = isEpisodeTranslationAllowlisted({
-      episodeId: payload.episode.id,
-      seriesId,
-      episodeNumber: currentEpisodeNumber,
-    });
+    const translationEligible =
+      isSeriesTranslationPermitted(payload.series) ||
+      isEpisodeTranslationAllowlisted({
+        episodeId: payload.episode.id,
+        seriesId,
+        episodeNumber: currentEpisodeNumber,
+      });
 
     if (!translationEligible) {
       return children;
