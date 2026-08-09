@@ -77,7 +77,7 @@ export default function BilingualPane({
                   >
                     {language === "ja"
                       ? renderTextWithAozoraRuby(segment.ja)
-                      : segment.en}
+                      : `${segment.en} `}
                   </span>
                 );
               })}
