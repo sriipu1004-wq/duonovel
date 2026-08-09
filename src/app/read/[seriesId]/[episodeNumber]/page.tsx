@@ -6,7 +6,9 @@ import ContinueStoryAction from "@/features/generation/ContinueStoryAction";
 import {
   getEpisodeBody,
   getEpisodeNumber,
+  getSeriesPublicationStatus,
   getSeriesSummary,
+  isEpisodePubliclyVisible,
   isSeriesEpisodeCommentVisible,
   pickText,
   type SeriesRow,
@@ -422,6 +424,9 @@ export default async function ReadEpisodePage({
 
   const storyFormat = getStoryFormat(series);
   const isShortStory = storyFormat === "short";
+  const isPublicReadPage =
+    getSeriesPublicationStatus(series) === "public" &&
+    isEpisodePubliclyVisible(episode);
   const storySummary = getSeriesSummary(series);
   const seriesTitle = pickText(series.title) || "無題";
   const episodeTitle =
@@ -511,7 +516,9 @@ export default async function ReadEpisodePage({
       workIndexHref={workIndexHref}
       initialAutoPlay={resolvedSearchParams?.autoplay === "1"}
       loginHref={loginHref}
-      showComments={isSeriesEpisodeCommentVisible(series)}
+      showComments={
+        isPublicReadPage && isSeriesEpisodeCommentVisible(series)
+      }
       effectSettings={effectSettings}
       ownerActions={
         isOwner &&
