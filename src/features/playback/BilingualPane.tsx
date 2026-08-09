@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import type { RefObject, UIEvent } from "react";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
 
 export type BilingualSegment = {
@@ -22,6 +22,42 @@ type BilingualPaneProps = {
   onSelectSegment: (id: string) => void;
 };
 
+function syncOtherPaneScroll(
+  language: "ja" | "en",
+  event: UIEvent<HTMLDivElement>
+) {
+  const source = event.currentTarget;
+
+  if (source.dataset.bilingualSyncing === "1") {
+    return;
+  }
+
+  const paneSection = source.closest<HTMLElement>("[data-bilingual-pane]");
+  const readerRoot = paneSection?.parentElement;
+  const targetLanguage = language === "ja" ? "en" : "ja";
+  const target = readerRoot?.querySelector<HTMLDivElement>(
+    `[data-bilingual-scroll="${targetLanguage}"]`
+  );
+
+  if (!target || target === source) {
+    return;
+  }
+
+  const sourceMaxScroll = Math.max(0, source.scrollHeight - source.clientHeight);
+  const targetMaxScroll = Math.max(0, target.scrollHeight - target.clientHeight);
+  const progress =
+    sourceMaxScroll > 0
+      ? Math.min(1, Math.max(0, source.scrollTop / sourceMaxScroll))
+      : 0;
+
+  target.dataset.bilingualSyncing = "1";
+  target.scrollTop = progress * targetMaxScroll;
+
+  window.requestAnimationFrame(() => {
+    delete target.dataset.bilingualSyncing;
+  });
+}
+
 export default function BilingualPane({
   language,
   segments,
@@ -39,16 +75,23 @@ export default function BilingualPane({
   }
 
   return (
-    <section className="flex min-h-0 flex-col overflow-hidden bg-white">
+    <section
+      data-bilingual-pane={language}
+      className="flex min-h-0 flex-col overflow-hidden bg-white"
+    >
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-black/10 bg-neutral-50 px-4">
         <span className="text-xs font-medium tracking-[0.14em] text-neutral-600">
           {language === "ja" ? "日本語" : "ENGLISH"}
         </span>
-        <span className="text-[11px] text-neutral-400">文をタップして同期</span>
+        <span className="text-[11px] text-neutral-400">
+          スクロール・文タップ同期
+        </span>
       </div>
 
       <div
         ref={scrollRef}
+        data-bilingual-scroll={language}
+        onScroll={(event) => syncOtherPaneScroll(language, event)}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
       >
         <article className="space-y-6 text-[1rem] leading-[2.05] text-black sm:text-[1.05rem]">
