@@ -7,16 +7,22 @@ import { supabase } from "@/lib/supabaseClient";
 type BookmarkOrder = "updated" | "added";
 type BookmarkedSeriesListProps = { userId: string; surface?: "dark" | "light"; limit?: number; storageKey?: string; showOrderControls?: boolean };
 type BookmarkRow = { id: string; series_id: string; created_at?: string | null };
-type SeriesRow = { id: string; title?: string | null; description?: string | null; summary?: string | null; updated_at?: string | null; created_at?: string | null };
-type BookmarkedSeriesItem = { bookmarkId: string; addedAt: string; updatedAt: string; seriesId: string; title: string; summary: string };
+type SeriesRow = { id: string; title?: string | null; description?: string | null; summary?: string | null; publication_status?: string | null; updated_at?: string | null; created_at?: string | null };
+type EpisodeRow = { series_id?: string | null; seriesId?: string | null; episode_number?: number | string | null; episodeNumber?: number | string | null };
+type BookmarkedSeriesItem = { bookmarkId: string; addedAt: string; updatedAt: string; seriesId: string; title: string; summary: string; href: string; linkLabel: string };
 
 function pickText(...values: unknown[]): string { for (const value of values) if (typeof value === "string" && value.trim()) return value.trim(); return ""; }
 function toTime(value: string): number { const timestamp = new Date(value).getTime(); return Number.isNaN(timestamp) ? 0 : timestamp; }
 function formatDate(value: string): string { const date = new Date(value); return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("ja-JP"); }
 function sortItems(items: BookmarkedSeriesItem[], order: BookmarkOrder) { return [...items].sort((a, b) => toTime(order === "updated" ? b.updatedAt : b.addedAt) - toTime(order === "updated" ? a.updatedAt : a.addedAt)); }
+function getEpisodeNumber(episode: EpisodeRow): number { const raw = episode.episode_number ?? episode.episodeNumber; const parsed = Number(raw); return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0; }
 
 async function fetchBookmarkSeries(seriesIds: string[]): Promise<{ rows: SeriesRow[]; errorMessage: string }> {
   const selections = [
+    "id, title, description, summary, publication_status, updated_at, created_at",
+    "id, title, description, summary, publication_status, created_at",
+    "id, title, description, publication_status, created_at",
+    "id, title, description, publication_status",
     "id, title, description, summary, updated_at, created_at",
     "id, title, description, summary, created_at",
     "id, title, description, created_at",
@@ -29,6 +35,37 @@ async function fetchBookmarkSeries(seriesIds: string[]): Promise<{ rows: SeriesR
     lastError = result.error.message;
   }
   return { rows: [], errorMessage: lastError || "作品情報を取得できない。" };
+}
+
+async function fetchFirstEpisodeNumbers(seriesIds: string[]): Promise<Map<string, number>> {
+  const firstTry = await supabase
+    .from("episodes")
+    .select("series_id, episode_number")
+    .in("series_id", seriesIds);
+  const result = firstTry.error
+    ? await supabase
+        .from("episodes")
+        .select("seriesId, episodeNumber")
+        .in("seriesId", seriesIds)
+    : firstTry;
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  const firstEpisodeNumbers = new Map<string, number>();
+
+  for (const episode of (result.data ?? []) as unknown as EpisodeRow[]) {
+    const seriesId = pickText(episode.series_id, episode.seriesId);
+    const episodeNumber = getEpisodeNumber(episode);
+    const current = firstEpisodeNumbers.get(seriesId);
+
+    if (seriesId && episodeNumber > 0 && (!current || episodeNumber < current)) {
+      firstEpisodeNumbers.set(seriesId, episodeNumber);
+    }
+  }
+
+  return firstEpisodeNumbers;
 }
 
 export default function BookmarkedSeriesList({ userId, surface = "dark", limit, storageKey = "libread:mypage:bookmark-order", showOrderControls = false }: BookmarkedSeriesListProps) {
@@ -48,12 +85,32 @@ export default function BookmarkedSeriesList({ userId, surface = "dark", limit, 
     if (bookmarkError) { setErrorMessage(`ブックマーク一覧の取得に失敗: ${bookmarkError.message}`); setItems([]); setLoaded(true); return; }
     const bookmarks = (bookmarkData ?? []) as BookmarkRow[];
     if (!bookmarks.length) { setItems([]); setLoaded(true); return; }
-    const { rows, errorMessage: seriesError } = await fetchBookmarkSeries(Array.from(new Set(bookmarks.map((row) => row.series_id))));
+    const seriesIds = Array.from(new Set(bookmarks.map((row) => row.series_id)));
+    const { rows, errorMessage: seriesError } = await fetchBookmarkSeries(seriesIds);
     if (seriesError) { setErrorMessage(`作品情報の取得に失敗: ${seriesError}`); setItems([]); setLoaded(true); return; }
+    let firstEpisodeNumbers: Map<string, number>;
+    try {
+      firstEpisodeNumbers = await fetchFirstEpisodeNumbers(seriesIds);
+    } catch (error) {
+      setErrorMessage(`話情報の取得に失敗: ${error instanceof Error ? error.message : "unknown"}`);
+      firstEpisodeNumbers = new Map();
+    }
     const seriesMap = new Map(rows.map((row) => [row.id, row]));
     setItems(bookmarks.map((bookmark) => {
       const series = seriesMap.get(bookmark.series_id);
-      return { bookmarkId: bookmark.id, addedAt: pickText(bookmark.created_at), updatedAt: pickText(series?.updated_at, series?.created_at, bookmark.created_at), seriesId: bookmark.series_id, title: pickText(series?.title) || "無題", summary: pickText(series?.summary, series?.description) || "あらすじはまだ登録されていない。" };
+      const firstEpisodeNumber = firstEpisodeNumbers.get(bookmark.series_id);
+      const isPrivate = series?.publication_status !== "public";
+      const href = isPrivate
+        ? firstEpisodeNumber
+          ? `/read/${bookmark.series_id}/${firstEpisodeNumber}`
+          : `/write/series/${bookmark.series_id}`
+        : `/works/${bookmark.series_id}`;
+      const linkLabel = isPrivate
+        ? firstEpisodeNumber
+          ? "自分だけで読む"
+          : "編集"
+        : "作品ページへ";
+      return { bookmarkId: bookmark.id, addedAt: pickText(bookmark.created_at), updatedAt: pickText(series?.updated_at, series?.created_at, bookmark.created_at), seriesId: bookmark.series_id, title: pickText(series?.title) || "無題", summary: pickText(series?.summary, series?.description) || "あらすじはまだ登録されていない。", href, linkLabel };
     }));
     setLoaded(true);
   }, [userId]);
@@ -72,6 +129,6 @@ export default function BookmarkedSeriesList({ userId, surface = "dark", limit, 
 
   return <div className="mt-4">
     {showOrderControls ? <div className="mb-3 flex flex-wrap items-center justify-end gap-2 text-xs"><span className="text-neutral-500">並び順</span>{(["updated", "added"] as const).map((key) => <button key={key} type="button" onClick={() => changeOrder(key)} className={["rounded-full border px-3 py-1.5 transition", order === key ? isLight ? "border-black bg-black text-white" : "border-white bg-white text-black" : isLight ? "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50" : "border-white/10 bg-white/5 text-neutral-300 hover:bg-white hover:text-black"].join(" ")}>{key === "updated" ? "更新順" : "追加順"}</button>)}</div> : null}
-    {visibleItems.length === 0 ? <div className={`rounded-2xl border border-dashed p-4 ${isLight ? "border-black/15 bg-neutral-50" : "border-white/10 bg-white/[0.03]"}`}><p className={isLight ? "text-sm font-semibold text-black" : "text-sm font-semibold text-white"}>まだブックマーク作品がない</p><p className={`mt-2 text-sm leading-7 ${isLight ? "text-neutral-600" : "text-neutral-400"}`}>作品ページからブックマークした作品がここに並ぶ。</p>{errorMessage ? <p className="mt-3 text-xs leading-6 text-amber-700">{errorMessage}</p> : null}</div> : <div className="space-y-3">{errorMessage ? <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">{errorMessage}</p> : null}{visibleItems.map((item) => <article key={item.bookmarkId} className={`rounded-2xl border p-4 ${isLight ? "border-black/10 bg-white" : "border-white/10 bg-white/[0.03]"}`}><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] tracking-[0.18em] text-neutral-500">BOOKMARK</p><h3 className={`mt-1 text-base font-semibold ${isLight ? "text-black" : "text-white"}`}>{item.title}</h3><p className="mt-1 text-xs text-neutral-500">{order === "updated" ? `更新: ${formatDate(item.updatedAt)}` : `追加: ${formatDate(item.addedAt)}`}</p></div><div className="flex flex-wrap gap-2"><Link href={`/works/${item.seriesId}`} className={isLight ? "rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-neutral-800 transition hover:bg-neutral-50" : "rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-neutral-200 transition hover:bg-white hover:text-black"}>作品ページへ</Link><button type="button" onClick={() => handleRemove(item.bookmarkId)} disabled={workingBookmarkId === item.bookmarkId} className={isLight ? "rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-700 transition hover:bg-neutral-100 disabled:opacity-70" : "rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-neutral-300 transition hover:bg-white hover:text-black disabled:opacity-70"}>{workingBookmarkId === item.bookmarkId ? "解除中..." : "解除"}</button></div></div><p className={`mt-3 line-clamp-2 whitespace-pre-wrap text-sm leading-7 ${isLight ? "text-neutral-600" : "text-neutral-400"}`}>{item.summary}</p></article>)}</div>}
+    {visibleItems.length === 0 ? <div className={`rounded-2xl border border-dashed p-4 ${isLight ? "border-black/15 bg-neutral-50" : "border-white/10 bg-white/[0.03]"}`}><p className={isLight ? "text-sm font-semibold text-black" : "text-sm font-semibold text-white"}>まだブックマーク作品がない</p><p className={`mt-2 text-sm leading-7 ${isLight ? "text-neutral-600" : "text-neutral-400"}`}>作品ページからブックマークした作品がここに並ぶ。</p>{errorMessage ? <p className="mt-3 text-xs leading-6 text-amber-700">{errorMessage}</p> : null}</div> : <div className="space-y-3">{errorMessage ? <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">{errorMessage}</p> : null}{visibleItems.map((item) => <article key={item.bookmarkId} className={`rounded-2xl border p-4 ${isLight ? "border-black/10 bg-white" : "border-white/10 bg-white/[0.03]"}`}><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] tracking-[0.18em] text-neutral-500">BOOKMARK</p><h3 className={`mt-1 text-base font-semibold ${isLight ? "text-black" : "text-white"}`}>{item.title}</h3><p className="mt-1 text-xs text-neutral-500">{order === "updated" ? `更新: ${formatDate(item.updatedAt)}` : `追加: ${formatDate(item.addedAt)}`}</p></div><div className="flex flex-wrap gap-2"><Link href={item.href} className={isLight ? "rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-neutral-800 transition hover:bg-neutral-50" : "rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-neutral-200 transition hover:bg-white hover:text-black"}>{item.linkLabel}</Link><button type="button" onClick={() => handleRemove(item.bookmarkId)} disabled={workingBookmarkId === item.bookmarkId} className={isLight ? "rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-700 transition hover:bg-neutral-100 disabled:opacity-70" : "rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-neutral-300 transition hover:bg-white hover:text-black disabled:opacity-70"}>{workingBookmarkId === item.bookmarkId ? "解除中..." : "解除"}</button></div></div><p className={`mt-3 line-clamp-2 whitespace-pre-wrap text-sm leading-7 ${isLight ? "text-neutral-600" : "text-neutral-400"}`}>{item.summary}</p></article>)}</div>}
   </div>;
 }
