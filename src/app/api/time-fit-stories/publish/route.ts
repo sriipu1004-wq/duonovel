@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 const PUBLISH_LIMIT_PER_24H = 1;
 
@@ -61,6 +62,47 @@ function isAiGeneratedSeries(series: SeriesRow): boolean {
     record.aiGenerated === true ||
     record.authorName === "AI生成"
   );
+}
+
+function scheduleEpisodeTranslation(requestUrl: string, episodeId: string): void {
+  const generateUrl = new URL(
+    "/api/episode-translations/generate",
+    requestUrl
+  ).toString();
+
+  after(async () => {
+    try {
+      const response = await fetch(generateUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          episodeId,
+          targetLanguage: "en",
+        }),
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string; message?: string }
+          | null;
+
+        console.error("AI publish translation generation failed", {
+          episodeId,
+          status: response.status,
+          error: payload?.error ?? "unknown",
+          message: payload?.message ?? "",
+        });
+      }
+    } catch (error) {
+      console.error("AI publish translation generation request failed", {
+        episodeId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
 }
 
 async function requireSignedInUser() {
@@ -165,6 +207,8 @@ export async function POST(request: Request) {
       : 1;
 
   if (episode.posting_status === "posted") {
+    scheduleEpisodeTranslation(request.url, episode.id);
+
     return NextResponse.json({
       ok: true,
       alreadyPublished: true,
@@ -251,6 +295,8 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+
+  scheduleEpisodeTranslation(request.url, episode.id);
 
   return NextResponse.json({
     ok: true,
