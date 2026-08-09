@@ -95,6 +95,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const current = currentResult.data as Record<string, unknown> | null;
   const canGenerate = access.isOfficialUser && access.isAllowlisted;
+  const canAutoGenerate = access.isAllowlisted;
 
   if (current?.status === "ready") {
     const segments = parseSegments(current.segments);
@@ -110,6 +111,7 @@ export async function GET(_request: Request, context: RouteContext) {
       ok: true,
       status: "ready",
       canGenerate,
+      canAutoGenerate,
       isAllowlisted: access.isAllowlisted,
       sourceHash,
       translationId: current.id,
@@ -123,6 +125,7 @@ export async function GET(_request: Request, context: RouteContext) {
       ok: true,
       status: "translating",
       canGenerate,
+      canAutoGenerate,
       isAllowlisted: access.isAllowlisted,
       sourceHash,
       translationId: current.id,
@@ -135,6 +138,7 @@ export async function GET(_request: Request, context: RouteContext) {
       ok: true,
       status: "failed",
       canGenerate,
+      canAutoGenerate: false,
       isAllowlisted: access.isAllowlisted,
       sourceHash,
       translationId: current.id,
@@ -168,9 +172,10 @@ export async function GET(_request: Request, context: RouteContext) {
       ok: true,
       status: "stale",
       canGenerate,
+      canAutoGenerate,
       isAllowlisted: access.isAllowlisted,
       sourceHash,
-      message: "原文が更新されたため、英語対訳を再生成する必要があります。",
+      message: "原文が更新されたため、英語対訳を再生成します。",
     });
   }
 
@@ -178,6 +183,7 @@ export async function GET(_request: Request, context: RouteContext) {
     ok: true,
     status: "missing",
     canGenerate,
+    canAutoGenerate,
     isAllowlisted: access.isAllowlisted,
     sourceHash,
   });
