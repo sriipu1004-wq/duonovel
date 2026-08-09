@@ -8,6 +8,8 @@ import {
 
 export const runtime = "nodejs";
 
+const TRANSLATION_STUCK_MS = 4 * 60 * 1000;
+
 type RouteContext = {
   params: Promise<{ episodeId: string }>;
 };
@@ -121,6 +123,55 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   if (current?.status === "translating") {
+    const startedAtMs =
+      typeof current.started_at === "string"
+        ? Date.parse(current.started_at)
+        : Number.NaN;
+    const isStuck =
+      Number.isFinite(startedAtMs) &&
+      Date.now() - startedAtMs > TRANSLATION_STUCK_MS;
+
+    if (isStuck && typeof current.id === "string") {
+      const now = new Date().toISOString();
+      const errorMessage = "英語対訳の生成が規定時間内に完了しませんでした。";
+
+      await Promise.all([
+        admin
+          .from("episode_translations")
+          .update({
+            status: "failed",
+            error_code: "translation_timeout",
+            completed_at: now,
+            updated_at: now,
+          })
+          .eq("id", current.id)
+          .eq("status", "translating"),
+        admin
+          .from("episode_translation_logs")
+          .update({
+            status: "failed",
+            success: false,
+            error_code: "translation_timeout",
+            error_message: errorMessage,
+            updated_at: now,
+          })
+          .eq("translation_id", current.id)
+          .eq("status", "started"),
+      ]);
+
+      return NextResponse.json({
+        ok: true,
+        status: "failed",
+        canGenerate,
+        canAutoGenerate: false,
+        isAllowlisted: access.isAllowlisted,
+        sourceHash,
+        translationId: current.id,
+        errorCode: "translation_timeout",
+        message: errorMessage,
+      });
+    }
+
     return NextResponse.json({
       ok: true,
       status: "translating",
