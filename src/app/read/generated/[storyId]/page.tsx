@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import GeneratedStoryBilingualBridge from "@/features/playback/GeneratedStoryBilingualBridge";
+import ReaderSettingsTopBridge from "@/features/playback/ReaderSettingsTopBridge";
 import GeneratedStoryReaderClient from "./GeneratedStoryReaderClient";
 
 type PageProps = {
@@ -19,6 +21,10 @@ export default async function GeneratedStoryReadPage({ params }: PageProps) {
   const { storyId } = await params;
 
   return (
-    <GeneratedStoryReaderClient storyId={storyId} />
+    <>
+      <ReaderSettingsTopBridge />
+      <GeneratedStoryBilingualBridge storyId={storyId} />
+      <GeneratedStoryReaderClient storyId={storyId} />
+    </>
   );
 }
