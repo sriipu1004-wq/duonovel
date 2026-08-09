@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import PendingTranslationPermissionBridge from "@/features/write/PendingTranslationPermissionBridge";
 import { requireOfficialAccount } from "@/lib/auth/requireOfficialAccount";
 
 export default async function WriteLayout({
@@ -8,5 +9,10 @@ export default async function WriteLayout({
 }) {
   await requireOfficialAccount("/write");
 
-  return <>{children}</>;
+  return (
+    <>
+      <PendingTranslationPermissionBridge />
+      {children}
+    </>
+  );
 }
