@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
+import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import WriteSeriesForm from "@/features/write/WriteSeriesForm";
 import TranslationPermissionWorkspaceBridge from "@/features/write/TranslationPermissionWorkspaceBridge";
 import { type EpisodeRow, type SeriesRow } from "@/features/write/writeShared";
@@ -98,9 +99,10 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
         episodes={episodes}
       />
       <TranslationPermissionWorkspaceBridge
-        enabled={!isAiGenerated}
         seriesId={series.id}
         initialMode={translationPermissionMode}
+        isAiGenerated={isAiGenerated}
+        isOfficialAuthor={isOfficialAccountEmail(user.email)}
       />
     </div>
   );
