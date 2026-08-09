@@ -37,25 +37,21 @@ type SavePrivateResult = {
 
 const SAVED_STORIES_KEY = "libread.savedGeneratedStories.v1";
 
-function findDisplaySettingsSection(): HTMLElement | null {
-  const sections = Array.from(document.querySelectorAll<HTMLElement>("main section"));
+function readSavedStory(storyId: string): SavedGeneratedStoryPayload | null {
+  const savedRaw = window.localStorage.getItem(SAVED_STORIES_KEY);
+  if (!savedRaw) return null;
 
-  for (const section of sections) {
-    const hasDirectDisplayLabel = Array.from(section.children).some(
-      (child) =>
-        child instanceof HTMLParagraphElement &&
-        child.textContent?.trim() === "DISPLAY"
-    );
-
-    if (hasDirectDisplayLabel) {
-      return section;
-    }
+  try {
+    const parsed = JSON.parse(savedRaw) as SavedGeneratedStoryPayload[];
+    if (!Array.isArray(parsed)) return null;
+    return parsed.find((item) => item?.id === storyId) ?? null;
+  } catch {
+    return null;
   }
-
-  return null;
 }
 
 function readGeneratedStory(storyId: string): SavedGeneratedStoryPayload | null {
+  const savedStory = readSavedStory(storyId);
   const sessionRaw = window.sessionStorage.getItem(
     `libread.generatedStory.${storyId}`
   );
@@ -64,28 +60,48 @@ function readGeneratedStory(storyId: string): SavedGeneratedStoryPayload | null 
     try {
       const parsed = JSON.parse(sessionRaw) as GeneratedStoryPayload;
       if (parsed?.id && parsed?.story?.title && parsed?.story?.body) {
-        return parsed;
+        return {
+          ...parsed,
+          savedSeriesId: savedStory?.savedSeriesId,
+          savedEpisodeId: savedStory?.savedEpisodeId,
+          readHref: savedStory?.readHref,
+        };
       }
     } catch {
       // Fall through to saved-story storage.
     }
   }
 
-  const savedRaw = window.localStorage.getItem(SAVED_STORIES_KEY);
-  if (!savedRaw) return null;
-
-  try {
-    const parsed = JSON.parse(savedRaw) as SavedGeneratedStoryPayload[];
-    if (!Array.isArray(parsed)) return null;
-
-    return parsed.find((item) => item?.id === storyId) ?? null;
-  } catch {
-    return null;
-  }
+  return savedStory;
 }
 
 function buildBilingualHref(readHref: string): string {
   return `${readHref}${readHref.includes("?") ? "&" : "?"}bilingual=1`;
+}
+
+function findSynopsisActionAnchor(
+  generated: SavedGeneratedStoryPayload | null
+): { parent: HTMLElement; before: Element | null } | null {
+  const synopsis = generated?.story.synopsis?.trim() ?? "";
+
+  if (synopsis) {
+    const paragraphs = Array.from(document.querySelectorAll<HTMLElement>("main p"));
+    const synopsisNode = paragraphs.find(
+      (node) => node.textContent?.trim() === synopsis
+    );
+    const card = synopsisNode?.parentElement;
+    const parent = card?.parentElement;
+
+    if (card instanceof HTMLElement && parent instanceof HTMLElement) {
+      return { parent, before: card.nextElementSibling };
+    }
+  }
+
+  const article = document.querySelector<HTMLElement>("main article");
+  const parent = article?.parentElement;
+  return parent instanceof HTMLElement
+    ? { parent, before: article ?? null }
+    : null;
 }
 
 export default function GeneratedStoryBilingualBridge({
@@ -101,9 +117,10 @@ export default function GeneratedStoryBilingualBridge({
     let currentHost: HTMLElement | null = null;
 
     function ensureHost() {
-      const section = findDisplaySettingsSection();
+      const generated = readGeneratedStory(storyId);
+      const anchor = findSynopsisActionAnchor(generated);
 
-      if (!section) {
+      if (!anchor) {
         if (currentHost && !currentHost.isConnected) {
           currentHost = null;
           setHost(null);
@@ -111,8 +128,8 @@ export default function GeneratedStoryBilingualBridge({
         return;
       }
 
-      const existing = section.querySelector<HTMLElement>(
-        "[data-generated-bilingual-settings-host='true']"
+      const existing = anchor.parent.querySelector<HTMLElement>(
+        ":scope > [data-generated-bilingual-action-host='true']"
       );
 
       if (existing) {
@@ -124,16 +141,8 @@ export default function GeneratedStoryBilingualBridge({
       }
 
       const nextHost = document.createElement("div");
-      nextHost.dataset.generatedBilingualSettingsHost = "true";
-      const heading = Array.from(section.children).find(
-        (child) => child instanceof HTMLHeadingElement
-      );
-
-      if (heading) {
-        heading.insertAdjacentElement("afterend", nextHost);
-      } else {
-        section.prepend(nextHost);
-      }
+      nextHost.dataset.generatedBilingualActionHost = "true";
+      anchor.parent.insertBefore(nextHost, anchor.before);
 
       currentHost = nextHost;
       setHost(nextHost);
@@ -149,7 +158,7 @@ export default function GeneratedStoryBilingualBridge({
       if (currentHost?.isConnected) currentHost.remove();
       currentHost = null;
     };
-  }, []);
+  }, [storyId]);
 
   async function enableBilingual() {
     if (working) return;
@@ -216,33 +225,20 @@ export default function GeneratedStoryBilingualBridge({
   if (!host) return null;
 
   return createPortal(
-    <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm text-neutral-700">英語対訳</p>
-          <p className="mt-1 text-xs leading-6 text-neutral-500">
-            生成直後の作品も、日本語と英語を上下に並べて読めます。
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <span className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black">
-            オフ
-          </span>
-          <button
-            type="button"
-            onClick={() => void enableBilingual()}
-            disabled={working}
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-60"
-          >
-            {working ? "準備中…" : "オン"}
-          </button>
-        </div>
-      </div>
-      <p className="mt-3 text-xs leading-6 text-neutral-500">
-        初回ON時に作品を非公開保存し、以後は同じ対訳キャッシュを再利用します。
-      </p>
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-600">
+        ブラウザ読み上げ
+      </span>
+      <button
+        type="button"
+        onClick={() => void enableBilingual()}
+        disabled={working}
+        className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black transition hover:bg-sky-100 disabled:cursor-wait disabled:opacity-60"
+      >
+        {working ? "対訳を準備中…" : "英語対訳をオン"}
+      </button>
       {message ? (
-        <p className="mt-3 text-sm text-red-700">{message}</p>
+        <span className="w-full text-sm text-red-700">{message}</span>
       ) : null}
     </div>,
     host
