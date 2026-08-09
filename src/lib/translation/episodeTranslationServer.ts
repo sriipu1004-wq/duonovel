@@ -49,6 +49,60 @@ function parseCsv(value: string | undefined): Set<string> {
   );
 }
 
+function parseRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object") {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object"
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function parseTags(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(/[\n,、]/u)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+export function isSeriesAiGenerated(series: SeriesRow): boolean {
+  const settings = parseRecord(series.effect_settings ?? series.effectSettings);
+  const tags = parseTags(series.tags);
+
+  return (
+    tags.includes("AI生成") ||
+    settings?.source === "time_fit_ai_story" ||
+    settings?.aiGenerated === true ||
+    settings?.authorName === "AI生成"
+  );
+}
+
+export function isSeriesTranslationEligible(series: SeriesRow): boolean {
+  if (isSeriesAiGenerated(series)) {
+    return true;
+  }
+
+  return series.translation_permission_mode === "open";
+}
+
 export function isEpisodeTranslationAllowlisted(args: {
   episodeId?: string | null;
   seriesId: string;
@@ -65,10 +119,6 @@ export function isEpisodeTranslationAllowlisted(args: {
   }
 
   return seriesEpisodes.has(args.seriesId + ":" + String(args.episodeNumber));
-}
-
-function hasAuthorTranslationPermission(series: SeriesRow): boolean {
-  return series.translation_permission_mode === "open";
 }
 
 export function buildEpisodeTranslationSourceHash(body: string): string {
@@ -127,13 +177,11 @@ export async function resolveEpisodeTranslationAccess(
     isEpisodePubliclyVisible(episode);
   const body = getEpisodeBody(episode);
   const episodeNumber = getEpisodeNumber(episode);
-  const translationEligible =
-    hasAuthorTranslationPermission(series) ||
-    isEpisodeTranslationAllowlisted({
-      episodeId: episode.id,
-      seriesId,
-      episodeNumber,
-    });
+  const explicitlyAllowlisted = isEpisodeTranslationAllowlisted({
+    episodeId: episode.id,
+    seriesId,
+    episodeNumber,
+  });
 
   return {
     episode,
@@ -146,6 +194,7 @@ export async function resolveEpisodeTranslationAccess(
     isOwner,
     isOfficialUser: isOfficialAccountEmail(currentUserEmail),
     canRead: isPublic || isOwner,
-    isAllowlisted: translationEligible,
+    isAllowlisted:
+      explicitlyAllowlisted || isSeriesTranslationEligible(series),
   };
 }
