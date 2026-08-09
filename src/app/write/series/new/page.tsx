@@ -10,7 +10,7 @@ export default async function WriteSeriesNewPage() {
     <>
       <WriteSeriesForm mode="create" currentUserId={user.id} />
       <TranslationPermissionWorkspaceBridge
-        initialMode="closed"
+        initialMode={null}
         isOfficialAuthor={isOfficialAccountEmail(user.email)}
       />
     </>
