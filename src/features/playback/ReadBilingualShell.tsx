@@ -12,6 +12,8 @@ type ReadBilingualShellProps = {
   episodeNumber: number;
   seriesTitle?: string;
   episodeTitle?: string;
+  workAuthorName?: string;
+  workEditorName?: string;
 };
 
 export default function ReadBilingualShell({
@@ -22,6 +24,8 @@ export default function ReadBilingualShell({
   episodeNumber,
   seriesTitle,
   episodeTitle,
+  workAuthorName,
+  workEditorName,
 }: ReadBilingualShellProps) {
   const [mode, setMode] = useState<"standard" | "bilingual">("standard");
 
@@ -47,6 +51,8 @@ export default function ReadBilingualShell({
         episodeNumber={episodeNumber}
         seriesTitle={seriesTitle}
         episodeTitle={episodeTitle}
+        workAuthorName={workAuthorName}
+        workEditorName={workEditorName}
         onDisableBilingual={() => setMode("standard")}
       />
     );
