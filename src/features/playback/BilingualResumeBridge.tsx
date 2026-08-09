@@ -14,6 +14,7 @@ export default function BilingualResumeBridge({
   useEffect(() => {
     if (segmentIndex === null || segmentIndex < 0) return;
 
+    const requestedSegmentIndex = segmentIndex;
     let restored = false;
 
     function restore() {
@@ -22,7 +23,7 @@ export default function BilingualResumeBridge({
       const targets = Array.from(
         document.querySelectorAll<HTMLElement>('main article span[role="button"]')
       );
-      const target = targets[segmentIndex];
+      const target = targets[requestedSegmentIndex];
 
       if (!target) return false;
 
