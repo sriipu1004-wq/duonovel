@@ -151,7 +151,8 @@ export default function BilingualEpisodePlayback({
           payload.error === "translation_openai_failed" ||
           payload.error === "translation_exception" ||
           payload.error === "missing_openai_api_key" ||
-          payload.error === "translation_retry_forbidden"
+          payload.error === "translation_retry_forbidden" ||
+          payload.error === "translation_timeout"
         ) {
           setTranslationStatus("failed");
         } else {
@@ -220,7 +221,7 @@ export default function BilingualEpisodePlayback({
           setStatusMessage(
             nextStatus === "stale"
               ? "原文が更新されたため、英語対訳を更新しています。"
-              : "初回利用のため、英語対訳を準備しています。"
+              : "過去作品の対訳を初回だけ準備しています。"
           );
           void requestTranslationGeneration();
           return;
@@ -414,7 +415,7 @@ export default function BilingualEpisodePlayback({
                   <>
                     <p className="text-lg font-semibold">英語対訳を準備中</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      初回だけ生成し、完成後は同じ翻訳を全利用者で再利用します。
+                      投稿時または過去作品の初回利用時に一度だけ生成し、完成後は同じ翻訳を再利用します。
                     </p>
                   </>
                 ) : translationStatus === "stale" ? (
