@@ -9,7 +9,7 @@ import {
 import { getCachedPublicReadPagePayload } from "@/lib/publicRead";
 import {
   isEpisodeTranslationAllowlisted,
-  isSeriesTranslationEligible,
+  isSeriesTranslationEligibleIncludingOfficial,
 } from "@/lib/translation/episodeTranslationServer";
 
 type ReadEpisodeLayoutProps = {
@@ -115,7 +115,7 @@ export default async function ReadEpisodeLayout({
     const currentEpisodeNumber =
       getEpisodeNumber(payload.episode) || parsedEpisodeNumber;
     const translationEligible =
-      isSeriesTranslationEligible(payload.series) ||
+      (await isSeriesTranslationEligibleIncludingOfficial(payload.series)) ||
       isEpisodeTranslationAllowlisted({
         episodeId: payload.episode.id,
         seriesId,
