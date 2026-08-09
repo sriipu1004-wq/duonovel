@@ -142,11 +142,13 @@ export default function BilingualPane({
   }, []);
 
   function handleScroll(event: UIEvent<HTMLDivElement>) {
+    const source = event.currentTarget;
+    const isProgrammaticCounterpart = source.dataset.bilingualSyncing === "1";
+
     syncOtherPaneScroll(language, event);
 
-    if (positionFrameRef.current !== null) return;
+    if (isProgrammaticCounterpart || positionFrameRef.current !== null) return;
 
-    const source = event.currentTarget;
     positionFrameRef.current = window.requestAnimationFrame(() => {
       positionFrameRef.current = null;
       const centeredId = findCenteredSegmentId(source);
