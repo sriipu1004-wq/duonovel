@@ -87,7 +87,7 @@ function integrateStatusButton(
     button.dataset.recordingPermissionStatus ||
     normalizeRecordingStatus(currentText, isAiGenerated);
   const translationStatus = translationStatusLabel(mode, isAiGenerated);
-  const combinedValue = `・${recordingStatus}　・${translationStatus}`;
+  const combinedValue = `${recordingStatus}・${translationStatus}`;
 
   if (value.textContent !== combinedValue) {
     value.textContent = combinedValue;
@@ -161,7 +161,6 @@ export default function TranslationPermissionWorkspaceBridge({
   seriesId,
   initialMode,
   isAiGenerated = false,
-  isOfficialAuthor = false,
 }: TranslationPermissionWorkspaceBridgeProps) {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [mode, setMode] = useState<TranslationPermissionMode | null>(initialMode);
@@ -271,7 +270,7 @@ export default function TranslationPermissionWorkspaceBridge({
 
     if (!seriesId) {
       setMode(nextMode);
-      setMessage("作品作成時にこの設定を保存します。");
+      setMessage("");
       return;
     }
 
@@ -329,57 +328,38 @@ export default function TranslationPermissionWorkspaceBridge({
           </p>
         </div>
       ) : (
-        <>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {([
-              ["open", "対訳を許可", "この作品を英語対訳の生成対象にする。"],
-              ["closed", "対訳を許可しない", "通常作品では英語対訳を生成・表示しない。"],
-            ] as const).map(([value, label, description]) => {
-              const active = mode === value;
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {([
+            ["open", "対訳を許可"],
+            ["closed", "対訳を許可しない"],
+          ] as const).map(([value, label]) => {
+            const active = mode === value;
 
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void updateMode(value)}
-                  className={[
-                    "rounded-2xl border px-3 py-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50",
-                    active
-                      ? "border-sky-200 bg-sky-50 text-black"
-                      : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                  ].join(" ")}
-                >
-                  <span className="block font-semibold">{label}</span>
-                  <span className="mt-2 block text-xs leading-6 text-neutral-500">
-                    {description}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {mode === null ? (
-            <p className="mt-3 text-xs leading-6 text-neutral-500">
-              対訳許可は未設定です。作品作成前でもここで選択できます。
-            </p>
-          ) : null}
-
-          {isOfficialAuthor ? (
-            <p className="mt-3 text-xs leading-6 text-neutral-500">
-              公式アカウントの投稿は、保存した設定に関係なく実際の対訳生成判定では対象になります。
-            </p>
-          ) : null}
-        </>
+            return (
+              <button
+                key={value}
+                type="button"
+                disabled={saving}
+                onClick={() => void updateMode(value)}
+                className={[
+                  "rounded-2xl border px-3 py-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50",
+                  active
+                    ? "border-sky-200 bg-sky-50 text-black"
+                    : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                ].join(" ")}
+              >
+                <span className="block font-semibold">{label}</span>
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {message ? (
         <p
           className={[
             "mt-3 text-xs",
-            message === "保存済み" || message.includes("作品作成時")
-              ? "text-emerald-700"
-              : "text-red-700",
+            message === "保存済み" ? "text-emerald-700" : "text-red-700",
           ].join(" ")}
         >
           {message}
