@@ -9,10 +9,12 @@ import { pickText } from "@/features/write/writeShared";
 import PublicAdSlot from "@/components/ads/PublicAdSlot";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 
+const HOME_DESCRIPTION =
+  "空いた時間に合わせたAI短編の生成、Web小説の閲覧・投稿、読み上げ、英日対訳に対応。読む・聴く・学ぶをひとつにした読書サービスです。";
+
 export const metadata: Metadata = {
-  title: "時間指定AI短編を読む・聴く | LIB read",
-  description:
-    "空き時間に合わせてAI短編を生成し、その場で読む・聴く。LIB readは、5分・10分・15分の時間に合う物語を作れる小説サービスです。",
+  title: "AI短編・Web小説・読み上げ・英日対訳 | LIB read",
+  description: HOME_DESCRIPTION,
   alternates: {
     canonical: "/",
   },
@@ -25,16 +27,14 @@ export const metadata: Metadata = {
     locale: "ja_JP",
     siteName: "LIB read",
     url: "/",
-    title: "時間指定AI短編を読む・聴く | LIB read",
-    description:
-      "空き時間に合わせてAI短編を生成し、その場で読む・聴く。5分・10分・15分の時間に合う物語を作れる小説サービスです。",
+    title: "読む、聴く、学ぶ。 | LIB read",
+    description: HOME_DESCRIPTION,
     images: ["/opengraph-image"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "時間指定AI短編を読む・聴く | LIB read",
-    description:
-      "空き時間に合わせてAI短編を生成し、その場で読む・聴く。5分・10分・15分の時間に合う物語を作れる小説サービスです。",
+    title: "読む、聴く、学ぶ。 | LIB read",
+    description: HOME_DESCRIPTION,
     images: ["/opengraph-image"],
   },
 };
@@ -299,10 +299,10 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
       <div className="mx-auto w-full max-w-7xl px-4 pb-20 pt-6 sm:px-6 lg:px-8">
         <section className="border-b border-black/10 pb-10">
           <div className="max-w-5xl">
-            <p className="text-[11px] tracking-[0.24em] text-neutral-500">NOVEL / READ / LISTEN</p>
+            <p className="text-[11px] tracking-[0.24em] text-neutral-500">NOVEL / READ / LISTEN / LEARN</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">完全無料</span>
-              <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">小説 / 朗読 / AI生成</span>
+              <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">小説 / 読み上げ / AI生成 / 英日対訳</span>
             </div>
             <h1 className="mt-4 text-3xl font-bold leading-tight text-black sm:text-4xl xl:text-5xl">
               読む、聴く、学ぶ。
@@ -310,7 +310,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
               空いた時間に合わせて物語を。AI短編の生成、Web小説、読み上げ、英日対訳に対応。
             </h1>
             <p className="mt-5 max-w-4xl text-sm leading-8 text-neutral-700 sm:text-[15px]">
-              LIB read は、作品を読む・聞く・投稿することに加え、用途と時間に合わせたAI短編の生成にも対応した小説投稿サイトです。
+              LIB read は、空いた時間に合わせたAI短編の生成、Web小説の閲覧・投稿、読み上げ、英日対訳に対応した読書サービスです。
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/generate" className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800">物語を生成する</Link>
@@ -336,23 +336,23 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
           <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
             <p className="text-[11px] tracking-[0.22em] text-neutral-500">WHY LIB READ</p>
             <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">LIB read の特徴</h2>
-            <p className="mt-2 text-sm leading-7 text-neutral-600">小説投稿サイトとしての使いやすさを土台に、読む・聞く・作る体験をまとめて扱う。</p>
+            <p className="mt-2 text-sm leading-7 text-neutral-600">読む・聴く・作る・学ぶを、ひとつの物語体験として扱う。</p>
             <div className="mt-5 grid gap-3 lg:grid-cols-4">
               <div className="rounded-2xl border border-black/10 bg-white p-4">
                 <p className="text-sm font-semibold text-black">AI生成</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">通勤中や睡眠導入など、用途・時間に合わせて最適な小説を生成し、読み上げることが可能。</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">5分・10分・15分・20分など、空いている時間や気分に合わせてその場で短編を生成できる。</p>
               </div>
               <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">小説</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">探す、読む、投稿するという小説投稿サイトの基本導線を扱える。</p>
+                <p className="text-sm font-semibold text-black">Web小説</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">投稿された作品を探して読み、自分の作品も投稿できる。</p>
               </div>
               <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">朗読</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">読むだけでなく、朗読付き作品を聞き、声で作品を表現する入口も持たせている。</p>
+                <p className="text-sm font-semibold text-black">読み上げ・朗読</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">ブラウザ読み上げや投稿された朗読で、画面を見続けなくても物語を楽しめる。</p>
               </div>
               <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">演出</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">文字や背景などの見せ方を通して、文章主体のまま表現の幅を広げられる。</p>
+                <p className="text-sm font-semibold text-black">英日対訳</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">日本語と英語を上下で同期して読み、物語を楽しみながら英語学習にも使える。</p>
               </div>
             </div>
           </div>
