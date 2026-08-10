@@ -17,6 +17,8 @@ type BilingualPaneProps = {
   language: "ja" | "en";
   segments: BilingualSegment[];
   selectedSegmentId: string | null;
+  revealedSegmentId?: string | null;
+  revealOnlySelected?: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   registerSegmentRef: (id: string, node: HTMLSpanElement | null) => void;
   onSelectSegment: (id: string) => void;
@@ -119,6 +121,8 @@ export default function BilingualPane({
   language,
   segments,
   selectedSegmentId,
+  revealedSegmentId = null,
+  revealOnlySelected = false,
   scrollRef,
   registerSegmentRef,
   onSelectSegment,
@@ -166,7 +170,7 @@ export default function BilingualPane({
           {language === "ja" ? "日本語" : "ENGLISH"}
         </span>
         <span className="text-[11px] text-neutral-400">
-          スクロール・文タップ同期
+          {revealOnlySelected ? "文タップで対訳表示" : "スクロール・文タップ同期"}
         </span>
       </div>
 
@@ -181,19 +185,25 @@ export default function BilingualPane({
             <p key={paragraphIndex} className="whitespace-pre-wrap">
               {paragraphSegments.map((segment) => {
                 const active = selectedSegmentId === segment.id;
+                const revealed =
+                  !revealOnlySelected || revealedSegmentId === segment.id;
+
                 return (
                   <span
                     key={segment.id}
                     data-bilingual-segment-id={segment.id}
                     ref={(node) => registerSegmentRef(segment.id, node)}
                     role="button"
-                    tabIndex={0}
+                    tabIndex={revealed ? 0 : -1}
+                    aria-hidden={!revealed}
                     onClick={(event) => {
+                      if (!revealed) return;
                       pauseLinkedScrollForTap(event.currentTarget);
                       onReadingPositionChange(segment.id);
                       onSelectSegment(segment.id);
                     }}
                     onKeyDown={(event) => {
+                      if (!revealed) return;
                       if (event.key !== "Enter" && event.key !== " ") return;
                       event.preventDefault();
                       pauseLinkedScrollForTap(event.currentTarget);
@@ -201,8 +211,11 @@ export default function BilingualPane({
                       onSelectSegment(segment.id);
                     }}
                     className={[
-                      "inline cursor-pointer rounded-md px-1 py-1 transition-all duration-150 hover:bg-sky-50/80",
-                      active
+                      "inline rounded-md px-1 py-1 transition-all duration-150",
+                      revealed
+                        ? "cursor-pointer hover:bg-sky-50/80"
+                        : "invisible select-none",
+                      active && revealed
                         ? "bg-sky-100 text-black shadow-[0_0_0_3px_rgba(186,230,253,0.55)]"
                         : "",
                     ].join(" ")}
