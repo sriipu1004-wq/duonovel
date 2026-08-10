@@ -6,6 +6,7 @@ import BilingualDivider from "@/features/playback/BilingualDivider";
 import BilingualPane, {
   type BilingualSegment,
 } from "@/features/playback/BilingualPane";
+import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
 
 type TranslationStatus =
   | "loading"
@@ -43,11 +44,13 @@ type BilingualEpisodePlaybackProps = {
 type BilingualPreference = {
   splitRatio: number;
   upperLanguage: "ja" | "en";
+  tapRevealEnabled: boolean;
 };
 
 const DEFAULT_PREFERENCE: BilingualPreference = {
   splitRatio: 50,
   upperLanguage: "ja",
+  tapRevealEnabled: false,
 };
 
 function clampRatio(value: number): number {
@@ -69,6 +72,7 @@ function readPreference(seriesId: string): BilingualPreference {
           : DEFAULT_PREFERENCE.splitRatio,
       upperLanguage:
         parsed.upperLanguage === "en" ? "en" : DEFAULT_PREFERENCE.upperLanguage,
+      tapRevealEnabled: parsed.tapRevealEnabled === true,
     };
   } catch {
     return DEFAULT_PREFERENCE;
@@ -95,6 +99,10 @@ export default function BilingualEpisodePlayback({
   const [upperLanguage, setUpperLanguage] = useState<"ja" | "en">(
     preference.upperLanguage
   );
+  const [tapRevealEnabled, setTapRevealEnabled] = useState(
+    preference.tapRevealEnabled
+  );
+  const [revealedSegmentId, setRevealedSegmentId] = useState<string | null>(null);
   const [translationStatus, setTranslationStatus] =
     useState<TranslationStatus>("loading");
   const [segments, setSegments] = useState<BilingualSegment[]>([]);
@@ -114,18 +122,20 @@ export default function BilingualEpisodePlayback({
   useEffect(() => {
     setSplitRatio(preference.splitRatio);
     setUpperLanguage(preference.upperLanguage);
+    setTapRevealEnabled(preference.tapRevealEnabled);
+    setRevealedSegmentId(null);
   }, [preference]);
 
   useEffect(() => {
     try {
       window.localStorage.setItem(
         "duonovel:bilingual-display:" + seriesId,
-        JSON.stringify({ splitRatio, upperLanguage })
+        JSON.stringify({ splitRatio, upperLanguage, tapRevealEnabled })
       );
     } catch {
       // local preference persistence is non-critical
     }
-  }, [seriesId, splitRatio, upperLanguage]);
+  }, [seriesId, splitRatio, upperLanguage, tapRevealEnabled]);
 
   const requestTranslationGeneration = useCallback(async () => {
     if (generationInFlightRef.current) return false;
@@ -210,8 +220,7 @@ export default function BilingualEpisodePlayback({
         (nextStatus === "missing" || nextStatus === "stale") &&
         payload.canAutoGenerate === true
       ) {
-        const attemptKey =
-          episodeId + ":" + (payload.sourceHash || nextStatus);
+        const attemptKey = episodeId + ":" + (payload.sourceHash || nextStatus);
 
         if (generationInFlightRef.current) {
           setTranslationStatus("translating");
@@ -250,6 +259,7 @@ export default function BilingualEpisodePlayback({
     setTranslationStatus("loading");
     setSegments([]);
     setSelectedSegmentId(null);
+    setRevealedSegmentId(null);
     void loadTranslation();
   }, [episodeId, loadTranslation]);
 
@@ -294,11 +304,18 @@ export default function BilingualEpisodePlayback({
   function handleSelectSegment(id: string) {
     readingSegmentIdRef.current = id;
     setSelectedSegmentId(id);
+    if (tapRevealEnabled) setRevealedSegmentId(id);
     centerSegment(id);
+  }
+
+  function handleToggleTapReveal() {
+    setTapRevealEnabled((current) => !current);
+    setRevealedSegmentId(null);
   }
 
   function handleSwapLanguages() {
     setUpperLanguage((current) => (current === "ja" ? "en" : "ja"));
+    setRevealedSegmentId(null);
     if (selectedSegmentId) centerSegment(selectedSegmentId);
   }
 
@@ -367,63 +384,77 @@ export default function BilingualEpisodePlayback({
           </header>
 
           {translationStatus === "ready" && segments.length > 0 ? (
-            <div
-              className="grid h-[calc(100dvh-13rem)] min-h-[30rem] max-h-[60rem] overflow-hidden bg-white"
-              style={{
-                gridTemplateRows:
-                  String(splitRatio) + "fr 44px " + String(100 - splitRatio) + "fr",
-              }}
-            >
-              {upperLanguage === "ja" ? (
-                <BilingualPane
-                  language="ja"
-                  segments={segments}
-                  selectedSegmentId={selectedSegmentId}
-                  scrollRef={jaScrollRef}
-                  registerSegmentRef={(id, node) => jaSegmentRefs.current.set(id, node)}
-                  onSelectSegment={handleSelectSegment}
-                  onReadingPositionChange={handleReadingPositionChange}
-                />
-              ) : (
-                <BilingualPane
-                  language="en"
-                  segments={segments}
-                  selectedSegmentId={selectedSegmentId}
-                  scrollRef={enScrollRef}
-                  registerSegmentRef={(id, node) => enSegmentRefs.current.set(id, node)}
-                  onSelectSegment={handleSelectSegment}
-                  onReadingPositionChange={handleReadingPositionChange}
-                />
-              )}
-
-              <BilingualDivider
-                splitRatio={splitRatio}
-                onSplitRatioChange={(ratio) => setSplitRatio(clampRatio(ratio))}
-                onSwapLanguages={handleSwapLanguages}
+            <>
+              <BilingualStudyControls
+                segments={segments}
+                selectedSegmentId={selectedSegmentId}
+                tapRevealEnabled={tapRevealEnabled}
+                onToggleTapReveal={handleToggleTapReveal}
+                onSelectSegment={handleSelectSegment}
               />
 
-              {upperLanguage === "ja" ? (
-                <BilingualPane
-                  language="en"
-                  segments={segments}
-                  selectedSegmentId={selectedSegmentId}
-                  scrollRef={enScrollRef}
-                  registerSegmentRef={(id, node) => enSegmentRefs.current.set(id, node)}
-                  onSelectSegment={handleSelectSegment}
-                  onReadingPositionChange={handleReadingPositionChange}
+              <div
+                className="grid h-[calc(100dvh-16rem)] min-h-[27rem] max-h-[57rem] overflow-hidden bg-white"
+                style={{
+                  gridTemplateRows:
+                    String(splitRatio) + "fr 44px " + String(100 - splitRatio) + "fr",
+                }}
+              >
+                {upperLanguage === "ja" ? (
+                  <BilingualPane
+                    language="ja"
+                    segments={segments}
+                    selectedSegmentId={selectedSegmentId}
+                    scrollRef={jaScrollRef}
+                    registerSegmentRef={(id, node) => jaSegmentRefs.current.set(id, node)}
+                    onSelectSegment={handleSelectSegment}
+                    onReadingPositionChange={handleReadingPositionChange}
+                  />
+                ) : (
+                  <BilingualPane
+                    language="en"
+                    segments={segments}
+                    selectedSegmentId={selectedSegmentId}
+                    scrollRef={enScrollRef}
+                    registerSegmentRef={(id, node) => enSegmentRefs.current.set(id, node)}
+                    onSelectSegment={handleSelectSegment}
+                    onReadingPositionChange={handleReadingPositionChange}
+                  />
+                )}
+
+                <BilingualDivider
+                  splitRatio={splitRatio}
+                  onSplitRatioChange={(ratio) => setSplitRatio(clampRatio(ratio))}
+                  onSwapLanguages={handleSwapLanguages}
                 />
-              ) : (
-                <BilingualPane
-                  language="ja"
-                  segments={segments}
-                  selectedSegmentId={selectedSegmentId}
-                  scrollRef={jaScrollRef}
-                  registerSegmentRef={(id, node) => jaSegmentRefs.current.set(id, node)}
-                  onSelectSegment={handleSelectSegment}
-                  onReadingPositionChange={handleReadingPositionChange}
-                />
-              )}
-            </div>
+
+                {upperLanguage === "ja" ? (
+                  <BilingualPane
+                    language="en"
+                    segments={segments}
+                    selectedSegmentId={selectedSegmentId}
+                    revealedSegmentId={revealedSegmentId}
+                    revealOnlySelected={tapRevealEnabled}
+                    scrollRef={enScrollRef}
+                    registerSegmentRef={(id, node) => enSegmentRefs.current.set(id, node)}
+                    onSelectSegment={handleSelectSegment}
+                    onReadingPositionChange={handleReadingPositionChange}
+                  />
+                ) : (
+                  <BilingualPane
+                    language="ja"
+                    segments={segments}
+                    selectedSegmentId={selectedSegmentId}
+                    revealedSegmentId={revealedSegmentId}
+                    revealOnlySelected={tapRevealEnabled}
+                    scrollRef={jaScrollRef}
+                    registerSegmentRef={(id, node) => jaSegmentRefs.current.set(id, node)}
+                    onSelectSegment={handleSelectSegment}
+                    onReadingPositionChange={handleReadingPositionChange}
+                  />
+                )}
+              </div>
+            </>
           ) : (
             <div className="flex min-h-[30rem] items-center justify-center px-5 py-10">
               <div className="w-full max-w-xl rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-center">
@@ -495,7 +526,7 @@ export default function BilingualEpisodePlayback({
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="min-w-0 text-xs text-neutral-500">
             <span className="font-medium text-neutral-700">英語対訳</span>
-            <span className="ml-2">スクロール・文タップ同期</span>
+            <span className="ml-2">タップ対訳・1文再生対応</span>
           </div>
           <button
             type="button"
