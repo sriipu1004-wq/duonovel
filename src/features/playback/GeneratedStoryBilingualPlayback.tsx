@@ -5,6 +5,7 @@ import BilingualDivider from "@/features/playback/BilingualDivider";
 import BilingualPane, {
   type BilingualSegment,
 } from "@/features/playback/BilingualPane";
+import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
 
 type GeneratedStoryPayload = {
   id: string;
@@ -42,12 +43,14 @@ type TranslationResponse = {
 type BilingualPreference = {
   splitRatio: number;
   upperLanguage: "ja" | "en";
+  tapRevealEnabled: boolean;
 };
 
 const SAVED_STORIES_KEY = "libread.savedGeneratedStories.v1";
 const DEFAULT_PREFERENCE: BilingualPreference = {
   splitRatio: 50,
   upperLanguage: "ja",
+  tapRevealEnabled: false,
 };
 
 function clampRatio(value: number): number {
@@ -108,6 +111,7 @@ function readPreference(storyId: string): BilingualPreference {
           : DEFAULT_PREFERENCE.splitRatio,
       upperLanguage:
         parsed.upperLanguage === "en" ? "en" : DEFAULT_PREFERENCE.upperLanguage,
+      tapRevealEnabled: parsed.tapRevealEnabled === true,
     };
   } catch {
     return DEFAULT_PREFERENCE;
@@ -147,6 +151,10 @@ export default function GeneratedStoryBilingualPlayback({
   const [upperLanguage, setUpperLanguage] = useState<"ja" | "en">(
     preference.upperLanguage
   );
+  const [tapRevealEnabled, setTapRevealEnabled] = useState(
+    preference.tapRevealEnabled
+  );
+  const [revealedSegmentId, setRevealedSegmentId] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "translating" | "ready" | "error">(
     "loading"
   );
@@ -164,22 +172,24 @@ export default function GeneratedStoryBilingualPlayback({
   useEffect(() => {
     const generated = readGeneratedStory(storyId);
     setStory(generated);
+    setTapRevealEnabled(preference.tapRevealEnabled);
+    setRevealedSegmentId(null);
     if (!generated) {
       setStatus("error");
       setMessage("生成した物語の一時データを読み込めませんでした。");
     }
-  }, [storyId]);
+  }, [storyId, preference.tapRevealEnabled]);
 
   useEffect(() => {
     try {
       window.localStorage.setItem(
         `duonovel:bilingual-display:generated:${storyId}`,
-        JSON.stringify({ splitRatio, upperLanguage })
+        JSON.stringify({ splitRatio, upperLanguage, tapRevealEnabled })
       );
     } catch {
       // Local preference persistence is non-critical.
     }
-  }, [storyId, splitRatio, upperLanguage]);
+  }, [storyId, splitRatio, upperLanguage, tapRevealEnabled]);
 
   const requestTranslation = useCallback(async () => {
     if (!story || requestInFlightRef.current) return;
@@ -247,6 +257,7 @@ export default function GeneratedStoryBilingualPlayback({
   function handleSelectSegment(id: string) {
     readingSegmentIdRef.current = id;
     setSelectedSegmentId(id);
+    if (tapRevealEnabled) setRevealedSegmentId(id);
     centerSegment(id);
   }
 
@@ -254,8 +265,14 @@ export default function GeneratedStoryBilingualPlayback({
     readingSegmentIdRef.current = id;
   }
 
+  function handleToggleTapReveal() {
+    setTapRevealEnabled((current) => !current);
+    setRevealedSegmentId(null);
+  }
+
   function handleSwapLanguages() {
     setUpperLanguage((current) => (current === "ja" ? "en" : "ja"));
+    setRevealedSegmentId(null);
     if (selectedSegmentId) centerSegment(selectedSegmentId);
   }
 
@@ -311,63 +328,77 @@ export default function GeneratedStoryBilingualPlayback({
           </header>
 
           {status === "ready" && segments.length > 0 ? (
-            <div
-              className="grid h-[calc(100dvh-13rem)] min-h-[30rem] max-h-[60rem] overflow-hidden bg-white"
-              style={{
-                gridTemplateRows:
-                  String(splitRatio) + "fr 44px " + String(100 - splitRatio) + "fr",
-              }}
-            >
-              {upperLanguage === "ja" ? (
-                <BilingualPane
-                  language="ja"
-                  segments={segments}
-                  selectedSegmentId={selectedSegmentId}
-                  scrollRef={jaScrollRef}
-                  registerSegmentRef={(id, node) => jaSegmentRefs.current.set(id, node)}
-                  onSelectSegment={handleSelectSegment}
-                  onReadingPositionChange={handleReadingPositionChange}
-                />
-              ) : (
-                <BilingualPane
-                  language="en"
-                  segments={segments}
-                  selectedSegmentId={selectedSegmentId}
-                  scrollRef={enScrollRef}
-                  registerSegmentRef={(id, node) => enSegmentRefs.current.set(id, node)}
-                  onSelectSegment={handleSelectSegment}
-                  onReadingPositionChange={handleReadingPositionChange}
-                />
-              )}
-
-              <BilingualDivider
-                splitRatio={splitRatio}
-                onSplitRatioChange={(ratio) => setSplitRatio(clampRatio(ratio))}
-                onSwapLanguages={handleSwapLanguages}
+            <>
+              <BilingualStudyControls
+                segments={segments}
+                selectedSegmentId={selectedSegmentId}
+                tapRevealEnabled={tapRevealEnabled}
+                onToggleTapReveal={handleToggleTapReveal}
+                onSelectSegment={handleSelectSegment}
               />
 
-              {upperLanguage === "ja" ? (
-                <BilingualPane
-                  language="en"
-                  segments={segments}
-                  selectedSegmentId={selectedSegmentId}
-                  scrollRef={enScrollRef}
-                  registerSegmentRef={(id, node) => enSegmentRefs.current.set(id, node)}
-                  onSelectSegment={handleSelectSegment}
-                  onReadingPositionChange={handleReadingPositionChange}
+              <div
+                className="grid h-[calc(100dvh-16rem)] min-h-[27rem] max-h-[57rem] overflow-hidden bg-white"
+                style={{
+                  gridTemplateRows:
+                    String(splitRatio) + "fr 44px " + String(100 - splitRatio) + "fr",
+                }}
+              >
+                {upperLanguage === "ja" ? (
+                  <BilingualPane
+                    language="ja"
+                    segments={segments}
+                    selectedSegmentId={selectedSegmentId}
+                    scrollRef={jaScrollRef}
+                    registerSegmentRef={(id, node) => jaSegmentRefs.current.set(id, node)}
+                    onSelectSegment={handleSelectSegment}
+                    onReadingPositionChange={handleReadingPositionChange}
+                  />
+                ) : (
+                  <BilingualPane
+                    language="en"
+                    segments={segments}
+                    selectedSegmentId={selectedSegmentId}
+                    scrollRef={enScrollRef}
+                    registerSegmentRef={(id, node) => enSegmentRefs.current.set(id, node)}
+                    onSelectSegment={handleSelectSegment}
+                    onReadingPositionChange={handleReadingPositionChange}
+                  />
+                )}
+
+                <BilingualDivider
+                  splitRatio={splitRatio}
+                  onSplitRatioChange={(ratio) => setSplitRatio(clampRatio(ratio))}
+                  onSwapLanguages={handleSwapLanguages}
                 />
-              ) : (
-                <BilingualPane
-                  language="ja"
-                  segments={segments}
-                  selectedSegmentId={selectedSegmentId}
-                  scrollRef={jaScrollRef}
-                  registerSegmentRef={(id, node) => jaSegmentRefs.current.set(id, node)}
-                  onSelectSegment={handleSelectSegment}
-                  onReadingPositionChange={handleReadingPositionChange}
-                />
-              )}
-            </div>
+
+                {upperLanguage === "ja" ? (
+                  <BilingualPane
+                    language="en"
+                    segments={segments}
+                    selectedSegmentId={selectedSegmentId}
+                    revealedSegmentId={revealedSegmentId}
+                    revealOnlySelected={tapRevealEnabled}
+                    scrollRef={enScrollRef}
+                    registerSegmentRef={(id, node) => enSegmentRefs.current.set(id, node)}
+                    onSelectSegment={handleSelectSegment}
+                    onReadingPositionChange={handleReadingPositionChange}
+                  />
+                ) : (
+                  <BilingualPane
+                    language="ja"
+                    segments={segments}
+                    selectedSegmentId={selectedSegmentId}
+                    revealedSegmentId={revealedSegmentId}
+                    revealOnlySelected={tapRevealEnabled}
+                    scrollRef={jaScrollRef}
+                    registerSegmentRef={(id, node) => jaSegmentRefs.current.set(id, node)}
+                    onSelectSegment={handleSelectSegment}
+                    onReadingPositionChange={handleReadingPositionChange}
+                  />
+                )}
+              </div>
+            </>
           ) : (
             <div className="flex min-h-[30rem] items-center justify-center px-5 py-10">
               <div className="w-full max-w-xl rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-center">
