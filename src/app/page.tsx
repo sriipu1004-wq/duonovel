@@ -305,9 +305,9 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
               <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">小説 / 朗読 / AI生成</span>
             </div>
             <h1 className="mt-4 text-3xl font-bold leading-tight text-black sm:text-4xl xl:text-5xl">
-              読む、聞く、投稿する。
+              読む、聴く、学ぶ。
               <br />
-              通勤時間や睡眠導入のお供におすすめの小説投稿サイト
+              空いた時間に合わせて物語を。AI短編の生成、Web小説、読み上げ、英日対訳に対応。
             </h1>
             <p className="mt-5 max-w-4xl text-sm leading-8 text-neutral-700 sm:text-[15px]">
               LIB read は、作品を読む・聞く・投稿することに加え、用途と時間に合わせたAI短編の生成にも対応した小説投稿サイトです。
