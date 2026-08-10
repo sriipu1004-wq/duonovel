@@ -27,14 +27,6 @@ type SavedGeneratedStoryPayload = GeneratedStoryPayload & {
   readHref?: string;
 };
 
-type SavePrivateResult = {
-  ok: boolean;
-  seriesId?: string;
-  episodeId?: string;
-  readHref?: string;
-  error?: string;
-};
-
 const SAVED_STORIES_KEY = "libread.savedGeneratedStories.v1";
 
 function readSavedStory(storyId: string): SavedGeneratedStoryPayload | null {
@@ -110,7 +102,6 @@ export default function GeneratedStoryBilingualBridge({
   storyId: string;
 }) {
   const [host, setHost] = useState<HTMLElement | null>(null);
-  const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -160,66 +151,27 @@ export default function GeneratedStoryBilingualBridge({
     };
   }, [storyId]);
 
-  async function enableBilingual() {
-    if (working) return;
-
-    setWorking(true);
+  function enableBilingual() {
     setMessage("");
+    const generated = readGeneratedStory(storyId);
 
-    try {
-      const generated = readGeneratedStory(storyId);
-
-      if (!generated) {
-        setMessage("生成した物語の一時データを読み込めませんでした。");
-        return;
-      }
-
-      if (generated.readHref) {
-        window.location.assign(buildBilingualHref(generated.readHref));
-        return;
-      }
-
-      const response = await fetch("/api/time-fit-stories/save-private", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          storyId: generated.id,
-          createdAt: generated.createdAt,
-          title: generated.story.title,
-          synopsis: generated.story.synopsis ?? "",
-          body: generated.story.body,
-          estimatedReadingMinutes:
-            generated.story.estimatedReadingMinutes ??
-            generated.request.timeMinutes ??
-            0,
-          request: generated.request,
-          tags: generated.story.tags ?? [],
-          bookmarkUnitIndex: 0,
-        }),
-      });
-
-      const result = (await response.json()) as SavePrivateResult;
-
-      if (!response.ok || !result.ok || !result.seriesId) {
-        setMessage(
-          response.status === 401
-            ? "英語対訳を使うにはログインが必要です。"
-            : result.error || "英語対訳の準備に失敗しました。"
-        );
-        return;
-      }
-
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-
-      const readHref = result.readHref ?? `/read/${result.seriesId}/1`;
-      window.location.assign(buildBilingualHref(readHref));
-    } catch {
-      setMessage("英語対訳の準備に失敗しました。");
-    } finally {
-      setWorking(false);
+    if (!generated) {
+      setMessage("生成した物語の一時データを読み込めませんでした。");
+      return;
     }
+
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    if (generated.readHref) {
+      window.location.assign(buildBilingualHref(generated.readHref));
+      return;
+    }
+
+    window.location.assign(
+      `/read/generated/${encodeURIComponent(storyId)}?bilingual=1`
+    );
   }
 
   if (!host) return null;
@@ -231,11 +183,10 @@ export default function GeneratedStoryBilingualBridge({
       </span>
       <button
         type="button"
-        onClick={() => void enableBilingual()}
-        disabled={working}
-        className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black transition hover:bg-sky-100 disabled:cursor-wait disabled:opacity-60"
+        onClick={enableBilingual}
+        className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black transition hover:bg-sky-100"
       >
-        {working ? "対訳を準備中…" : "英語対訳をオン"}
+        英語対訳をオン
       </button>
       {message ? (
         <span className="w-full text-sm text-red-700">{message}</span>
