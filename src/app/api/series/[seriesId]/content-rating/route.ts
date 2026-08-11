@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
-  normalizeSeriesContentRating,
-  type SeriesContentRating,
+  getSeriesContentWarningLocks,
+  normalizeSeriesContentWarnings,
+  type SeriesContentWarning,
 } from "@/lib/contentRating";
 
 export const runtime = "nodejs";
@@ -17,38 +18,17 @@ function normalizeCreatedAfter(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function parseRecord(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === "object") return value as Record<string, unknown>;
-  if (typeof value !== "string" || !value.trim()) return null;
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === "object"
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
+function readRequestedWarnings(payload: Record<string, unknown>): SeriesContentWarning[] | null {
+  if (payload.warnings !== undefined) {
+    if (!Array.isArray(payload.warnings)) return null;
+    const normalized = normalizeSeriesContentWarnings(payload.warnings);
+    if (normalized.length !== payload.warnings.length) return null;
+    return normalized;
   }
-}
 
-function parseTags(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.map(String).map((tag) => tag.trim()).filter(Boolean);
-  }
-  if (typeof value === "string") {
-    return value.split(/[\n,、]/u).map((tag) => tag.trim()).filter(Boolean);
-  }
-  return [];
-}
-
-function isAiGenerated(series: Record<string, unknown>): boolean {
-  const tags = parseTags(series.tags);
-  const settings = parseRecord(series.effect_settings ?? series.effectSettings);
-  return (
-    tags.includes("AI生成") ||
-    settings?.source === "time_fit_ai_story" ||
-    settings?.aiGenerated === true ||
-    settings?.authorName === "AI生成"
-  );
+  if (payload.rating === "general") return [];
+  if (payload.rating === "r18") return ["sexual_r18"];
+  return null;
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -71,13 +51,13 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  if (payload.rating !== "general" && payload.rating !== "r18") {
+  const requestedWarnings = readRequestedWarnings(payload);
+  if (!requestedWarnings) {
     return NextResponse.json(
-      { ok: false, error: "invalid_content_rating" },
+      { ok: false, error: "invalid_content_warnings" },
       { status: 400 }
     );
   }
-  const rating = payload.rating as SeriesContentRating;
 
   const createdAfter = normalizeCreatedAfter(payload.createdAfter);
   if (payload.createdAfter !== undefined && createdAfter === null) {
@@ -131,31 +111,29 @@ export async function POST(request: Request, context: RouteContext) {
     }
   }
 
-  if (rating === "r18" && isAiGenerated(series)) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "ai_generated_r18_forbidden",
-        message: "AI生成作品は全年齢設定で固定されています。",
-      },
-      { status: 409 }
-    );
-  }
+  const lockedWarnings = getSeriesContentWarningLocks(series);
+  const warnings = Array.from(
+    new Set<SeriesContentWarning>([...requestedWarnings, ...lockedWarnings])
+  );
+  const rating = warnings.includes("sexual_r18") ? "r18" : "general";
 
   const update = await supabase
     .from("series")
-    .update({ content_rating: rating })
+    .update({
+      content_warnings: warnings,
+      content_rating: rating,
+    })
     .eq("id", cleanSeriesId)
     .eq("author_id", user.id)
-    .select("content_rating")
+    .select("content_rating, content_warnings, content_warning_locks")
     .single();
 
   if (update.error || !update.data) {
     return NextResponse.json(
       {
         ok: false,
-        error: "content_rating_update_failed",
-        message: update.error?.message ?? "対象年齢を更新できませんでした。",
+        error: "content_warnings_update_failed",
+        message: update.error?.message ?? "コンテンツ警告を更新できませんでした。",
       },
       { status: 500 }
     );
@@ -163,6 +141,8 @@ export async function POST(request: Request, context: RouteContext) {
 
   return NextResponse.json({
     ok: true,
-    rating: normalizeSeriesContentRating(update.data.content_rating),
+    rating,
+    warnings: normalizeSeriesContentWarnings(update.data.content_warnings),
+    lockedWarnings: getSeriesContentWarningLocks(update.data),
   });
 }
