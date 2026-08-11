@@ -71,9 +71,6 @@ export default function BilingualStudyControls({
         >
           ▶ 1文再生
         </button>
-        <span className="text-xs leading-6 text-neutral-500">
-          文に触れると日英が連動。英文の単語をタップすると、その文の日本語対訳を確認できます。
-        </span>
         {!speechAvailable ? (
           <span className="text-xs text-neutral-500">
             このブラウザでは英文読み上げを利用できません。
