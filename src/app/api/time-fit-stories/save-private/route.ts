@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { classifyGeneratedContentWarnings } from "@/lib/generation/generatedContentWarnings.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -355,6 +356,34 @@ export async function POST(request: Request) {
     );
   }
 
+  let contentClassification: Awaited<
+    ReturnType<typeof classifyGeneratedContentWarnings>
+  >;
+  try {
+    contentClassification = await classifyGeneratedContentWarnings({
+      title,
+      synopsis,
+      body,
+    });
+  } catch (error) {
+    console.error("[time-fit-story-content-warnings]", error);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "content_warning_classification_failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "AI生成作品のコンテンツ警告判定に失敗しました。",
+      },
+      { status: 503 }
+    );
+  }
+
+  const contentRating = contentClassification.warnings.includes("sexual_r18")
+    ? "r18"
+    : "general";
+
   const baseSeriesPayload = {
     title,
     author_id: authorId,
@@ -364,6 +393,9 @@ export async function POST(request: Request) {
     genres,
     tags,
     recording_permission_mode: "open",
+    content_rating: contentRating,
+    content_warnings: contentClassification.warnings,
+    content_warning_locks: contentClassification.lockedWarnings,
     effect_settings: {
       version: 1,
       source: "time_fit_ai_story",
@@ -378,6 +410,7 @@ export async function POST(request: Request) {
       editorUserId: user.id,
       request: requestObject,
       estimatedReadingMinutes,
+      generatedContentWarnings: contentClassification.warnings,
     },
   };
 
