@@ -1,83 +1,161 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import type { SeriesContentRating } from "@/lib/contentRating";
+import type { SeriesContentWarning } from "@/lib/contentRating";
 
 type Props = {
   seriesId?: string | null;
-  initialRating: SeriesContentRating;
+  initialWarnings?: SeriesContentWarning[];
+  lockedWarnings?: SeriesContentWarning[];
   isAiGenerated?: boolean;
 };
 
 const PENDING_KEY = "duonovel:pending-content-rating-create";
 
-function findStatusSection(): HTMLElement | null {
-  const headings = Array.from(document.querySelectorAll<HTMLElement>("main h2"));
-  const heading = headings.find((node) => node.textContent?.trim() === "作品状態");
-  return heading?.parentElement instanceof HTMLElement ? heading.parentElement : null;
+const WARNING_OPTIONS: Array<{
+  value: SeriesContentWarning;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "sexual_r18",
+    label: "性的コンテンツを含む（R18）",
+    description:
+      "18歳未満の閲覧を想定しない性的表現を含む作品。R18表示設定がOFFの閲覧者には公開一覧・本文を表示しません。",
+  },
+  {
+    value: "violence",
+    label: "暴力描写あり",
+    description:
+      "戦闘、負傷、流血など、読者が事前に把握した方がよい暴力描写を含む作品。",
+  },
+];
+
+function warningSummary(warnings: SeriesContentWarning[]): string {
+  const labels: string[] = [];
+  if (warnings.includes("sexual_r18")) labels.push("R18");
+  if (warnings.includes("violence")) labels.push("暴力描写あり");
+  return labels.length > 0 ? labels.join("・") : "なし";
 }
 
-function ensureHost(section: HTMLElement): HTMLElement {
-  const existing = section.querySelector<HTMLElement>(
-    ":scope > [data-content-rating-workspace-host='true']"
-  );
-  if (existing) return existing;
+function findStatusGrid(): HTMLElement | null {
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("main button"));
+  const publicationButton = buttons.find((button) => {
+    const first = button.querySelector<HTMLElement>(":scope > span:first-child");
+    return first?.textContent?.trim() === "公開状態";
+  });
+  return publicationButton?.parentElement instanceof HTMLElement
+    ? publicationButton.parentElement
+    : null;
+}
 
-  const host = document.createElement("div");
-  host.dataset.contentRatingWorkspaceHost = "true";
-  host.className = "mt-4";
-  section.appendChild(host);
-  return host;
+function ensureHosts(): {
+  statusHost: HTMLElement;
+  panelHost: HTMLElement;
+} | null {
+  const grid = findStatusGrid();
+  if (!grid) return null;
+
+  let statusHost = grid.querySelector<HTMLElement>(
+    ":scope > [data-content-warning-status-host='true']"
+  );
+  if (!statusHost) {
+    statusHost = document.createElement("div");
+    statusHost.dataset.contentWarningStatusHost = "true";
+    statusHost.style.display = "contents";
+
+    const firstNonButton = Array.from(grid.children).find(
+      (node) => node.tagName !== "BUTTON"
+    );
+    grid.insertBefore(statusHost, firstNonButton ?? null);
+  }
+
+  let panelHost = grid.querySelector<HTMLElement>(
+    ":scope > [data-content-warning-panel-host='true']"
+  );
+  if (!panelHost) {
+    panelHost = document.createElement("div");
+    panelHost.dataset.contentWarningPanelHost = "true";
+    panelHost.style.gridColumn = "1 / -1";
+
+    const firstNonButton = Array.from(grid.children).find(
+      (node) =>
+        node !== statusHost &&
+        node.tagName !== "BUTTON" &&
+        !(node instanceof HTMLElement && node.dataset.contentWarningPanelHost === "true")
+    );
+    grid.insertBefore(panelHost, firstNonButton ?? null);
+  }
+
+  return { statusHost, panelHost };
 }
 
 export default function ContentRatingWorkspaceBridge({
   seriesId,
-  initialRating,
+  initialWarnings = [],
+  lockedWarnings = [],
   isAiGenerated = false,
 }: Props) {
-  const [host, setHost] = useState<HTMLElement | null>(null);
-  const [rating, setRating] = useState<SeriesContentRating>(
-    isAiGenerated ? "general" : initialRating
+  const normalizedInitial = useMemo(
+    () => Array.from(new Set(initialWarnings)),
+    [initialWarnings]
   );
-  const [savedRating, setSavedRating] = useState<SeriesContentRating>(
-    isAiGenerated ? "general" : initialRating
+  const normalizedLocks = useMemo(
+    () => Array.from(new Set(lockedWarnings)),
+    [lockedWarnings]
   );
+  const [statusHost, setStatusHost] = useState<HTMLElement | null>(null);
+  const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
+  const [warnings, setWarnings] = useState<SeriesContentWarning[]>(() =>
+    Array.from(new Set([...normalizedInitial, ...normalizedLocks]))
+  );
+  const [savedWarnings, setSavedWarnings] = useState<SeriesContentWarning[]>(() =>
+    Array.from(new Set([...normalizedInitial, ...normalizedLocks]))
+  );
+  const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const next = isAiGenerated ? "general" : initialRating;
-    setRating(next);
-    setSavedRating(next);
+    const next = Array.from(new Set([...normalizedInitial, ...normalizedLocks]));
+    setWarnings(next);
+    setSavedWarnings(next);
     setMessage("");
-  }, [initialRating, isAiGenerated, seriesId]);
+  }, [normalizedInitial, normalizedLocks, seriesId]);
 
   useEffect(() => {
     function handleApplied(event: Event) {
-      const detail = (event as CustomEvent<{ rating?: unknown }>).detail;
-      if (detail?.rating === "r18") {
-        setRating("r18");
-        setSavedRating("r18");
-        setMessage("保存済み");
-      }
+      const detail = (
+        event as CustomEvent<{ warnings?: SeriesContentWarning[] }>
+      ).detail;
+      if (!Array.isArray(detail?.warnings)) return;
+      const next = Array.from(new Set([...detail.warnings, ...normalizedLocks]));
+      setWarnings(next);
+      setSavedWarnings(next);
+      setMessage("保存済み");
     }
 
     window.addEventListener("libread:content-rating-applied", handleApplied);
     return () =>
       window.removeEventListener("libread:content-rating-applied", handleApplied);
-  }, []);
+  }, [normalizedLocks]);
 
   useEffect(() => {
-    let currentHost: HTMLElement | null = null;
+    let currentStatusHost: HTMLElement | null = null;
+    let currentPanelHost: HTMLElement | null = null;
 
     function ensureUi() {
-      const section = findStatusSection();
-      if (!section) return;
-      const nextHost = ensureHost(section);
-      if (nextHost !== currentHost) {
-        currentHost = nextHost;
-        setHost(nextHost);
+      const hosts = ensureHosts();
+      if (!hosts) return;
+
+      if (currentStatusHost !== hosts.statusHost) {
+        currentStatusHost = hosts.statusHost;
+        setStatusHost(hosts.statusHost);
+      }
+      if (currentPanelHost !== hosts.panelHost) {
+        currentPanelHost = hosts.panelHost;
+        setPanelHost(hosts.panelHost);
       }
     }
 
@@ -87,12 +165,13 @@ export default function ContentRatingWorkspaceBridge({
 
     return () => {
       observer.disconnect();
-      currentHost = null;
+      currentStatusHost = null;
+      currentPanelHost = null;
     };
   }, []);
 
   useEffect(() => {
-    if (seriesId || isAiGenerated) return;
+    if (seriesId) return;
 
     function rememberCreateSelection(event: MouseEvent) {
       const target = event.target;
@@ -100,7 +179,7 @@ export default function ContentRatingWorkspaceBridge({
       const button = target.closest<HTMLButtonElement>("button");
       if (!button || !button.textContent?.includes("作品を作成")) return;
 
-      if (rating === "general") {
+      if (warnings.length === 0) {
         window.sessionStorage.removeItem(PENDING_KEY);
         return;
       }
@@ -108,7 +187,7 @@ export default function ContentRatingWorkspaceBridge({
       window.sessionStorage.setItem(
         PENDING_KEY,
         JSON.stringify({
-          rating,
+          warnings,
           startedAt: Date.now(),
           sourcePath: window.location.pathname,
         })
@@ -117,13 +196,15 @@ export default function ContentRatingWorkspaceBridge({
 
     document.addEventListener("click", rememberCreateSelection, true);
     return () => document.removeEventListener("click", rememberCreateSelection, true);
-  }, [isAiGenerated, rating, seriesId]);
+  }, [seriesId, warnings]);
 
-  async function updateRating(nextRating: SeriesContentRating) {
-    if (saving || isAiGenerated || nextRating === rating) return;
+  async function persistWarnings(nextWarnings: SeriesContentWarning[]) {
+    const protectedWarnings = Array.from(
+      new Set([...nextWarnings, ...normalizedLocks])
+    );
 
     if (!seriesId) {
-      setRating(nextRating);
+      setWarnings(protectedWarnings);
       setMessage("");
       return;
     }
@@ -137,119 +218,170 @@ export default function ContentRatingWorkspaceBridge({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rating: nextRating }),
+          body: JSON.stringify({ warnings: protectedWarnings }),
         }
       );
       const payload = (await response.json()) as {
         ok?: boolean;
-        rating?: SeriesContentRating;
+        warnings?: SeriesContentWarning[];
+        lockedWarnings?: SeriesContentWarning[];
         message?: string;
       };
 
-      if (!response.ok || !payload.ok) {
-        setMessage(payload.message || "対象年齢を更新できませんでした。");
+      if (!response.ok || !payload.ok || !Array.isArray(payload.warnings)) {
+        setMessage(payload.message || "コンテンツ警告を更新できませんでした。");
         return;
       }
 
-      const saved = payload.rating === "r18" ? "r18" : "general";
-      setRating(saved);
-      setSavedRating(saved);
+      const saved = Array.from(
+        new Set([...payload.warnings, ...(payload.lockedWarnings ?? normalizedLocks)])
+      );
+      setWarnings(saved);
+      setSavedWarnings(saved);
       setMessage("保存済み");
     } catch {
-      setMessage("対象年齢を更新できませんでした。");
+      setMessage("コンテンツ警告を更新できませんでした。");
     } finally {
       setSaving(false);
     }
   }
 
-  if (!host) return null;
+  function toggleWarning(warning: SeriesContentWarning) {
+    if (saving || normalizedLocks.includes(warning)) return;
+    const next = warnings.includes(warning)
+      ? warnings.filter((item) => item !== warning)
+      : [...warnings, warning];
+    void persistWarnings(next);
+  }
 
-  return createPortal(
-    <div className="rounded-2xl border border-black/10 bg-white p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] tracking-[0.16em] text-neutral-500">
-            対象年齢
-          </p>
-          <p className="mt-1 text-sm font-semibold text-black">
-            {rating === "r18" ? "R18" : "全年齢"}
-          </p>
-        </div>
-        {rating === "r18" ? (
-          <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
-            R18
-          </span>
-        ) : null}
-      </div>
-
-      {isAiGenerated ? (
-        <div className="mt-3 rounded-2xl border border-black/10 bg-neutral-50 px-3 py-3">
-          <p className="text-sm font-semibold text-black">全年齢（固定）</p>
-          <p className="mt-1 text-xs leading-6 text-neutral-600">
-            AI生成作品は現在、全年齢設定で固定されています。
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {([
-              ["general", "全年齢"],
-              ["r18", "R18"],
-            ] as const).map(([value, label]) => {
-              const active = rating === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void updateRating(value)}
-                  className={[
-                    "rounded-2xl border px-3 py-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50",
-                    active
-                      ? value === "r18"
-                        ? "border-red-200 bg-red-50 text-red-800"
-                        : "border-sky-200 bg-sky-50 text-black"
-                      : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                  ].join(" ")}
-                >
-                  <span className="block font-semibold">{label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {rating === "r18" ? (
-            <p className="mt-3 text-xs leading-6 text-neutral-600">
-              18歳未満の閲覧を想定しない性的表現を含む作品として扱います。公開一覧では、閲覧者が設定で「性的コンテンツを表示する」を有効にした場合だけ表示されます。
-            </p>
-          ) : null}
-
-          {seriesId && rating !== savedRating ? (
-            <button
-              type="button"
-              onClick={() => {
-                setRating(savedRating);
-                setMessage("");
-              }}
-              className="mt-3 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
-            >
-              保存済みに戻す
-            </button>
-          ) : null}
-        </>
-      )}
-
-      {message ? (
-        <p
+  const status = statusHost
+    ? createPortal(
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
           className={[
-            "mt-3 text-xs",
-            message === "保存済み" ? "text-emerald-700" : "text-red-700",
+            "rounded-2xl border px-3 py-3 text-left transition",
+            open
+              ? "border-sky-200 bg-sky-50"
+              : warnings.includes("sexual_r18")
+                ? "border-red-200 bg-red-50 hover:bg-red-100"
+                : "border-black/10 bg-white hover:bg-neutral-50",
           ].join(" ")}
+          aria-expanded={open}
         >
-          {message}
-        </p>
-      ) : null}
-    </div>,
-    host
+          <span className="block text-[11px] tracking-[0.16em] text-neutral-500">
+            コンテンツ警告
+          </span>
+          <span className="mt-1 block text-sm font-semibold text-black">
+            {warningSummary(warnings)}
+          </span>
+          <span className="mt-2 block text-xs text-neutral-500">
+            {open ? "閉じる" : "変更"}
+          </span>
+        </button>,
+        statusHost
+      )
+    : null;
+
+  const panel = panelHost
+    ? createPortal(
+        open ? (
+          <div className="mt-4 rounded-2xl border border-black/10 bg-white p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-black">コンテンツ警告</p>
+                <p className="mt-1 text-xs leading-6 text-neutral-500">
+                  読者が閲覧前に把握した方がよい内容を作品単位で設定します。
+                </p>
+              </div>
+              {warnings.includes("sexual_r18") ? (
+                <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                  R18
+                </span>
+              ) : null}
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {WARNING_OPTIONS.map((option) => {
+                const active = warnings.includes(option.value);
+                const locked = normalizedLocks.includes(option.value);
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    disabled={saving || locked}
+                    onClick={() => toggleWarning(option.value)}
+                    className={[
+                      "rounded-2xl border px-3 py-3 text-left text-sm transition disabled:cursor-not-allowed",
+                      active
+                        ? option.value === "sexual_r18"
+                          ? "border-red-200 bg-red-50 text-red-800"
+                          : "border-amber-200 bg-amber-50 text-amber-900"
+                        : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                      locked ? "opacity-80" : "",
+                    ].join(" ")}
+                    aria-pressed={active}
+                  >
+                    <span className="flex items-center justify-between gap-2 font-semibold">
+                      <span>{option.label}</span>
+                      <span className="text-xs">
+                        {locked ? "固定" : active ? "ON" : "OFF"}
+                      </span>
+                    </span>
+                    <span className="mt-2 block text-xs leading-6 text-neutral-500">
+                      {option.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {isAiGenerated && normalizedLocks.includes("sexual_r18") ? (
+              <p className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs leading-6 text-red-700">
+                この作品はAI生成時点で性的コンテンツを含むと判定されたため、R18警告を解除できません。
+              </p>
+            ) : null}
+
+            {!seriesId && warnings.length > 0 ? (
+              <p className="mt-3 text-xs leading-6 text-neutral-500">
+                選択した警告は作品作成直後に新しい作品へ保存されます。
+              </p>
+            ) : null}
+
+            {seriesId && warningSummary(warnings) !== warningSummary(savedWarnings) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setWarnings(savedWarnings);
+                  setMessage("");
+                }}
+                className="mt-3 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
+              >
+                保存済みに戻す
+              </button>
+            ) : null}
+
+            {message ? (
+              <p
+                className={[
+                  "mt-3 text-xs",
+                  message === "保存済み" ? "text-emerald-700" : "text-red-700",
+                ].join(" ")}
+              >
+                {message}
+              </p>
+            ) : null}
+          </div>
+        ) : null,
+        panelHost
+      )
+    : null;
+
+  return (
+    <>
+      {status}
+      {panel}
+    </>
   );
 }
