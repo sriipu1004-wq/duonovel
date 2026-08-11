@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, type RefObject, type UIEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+  type UIEvent,
+} from "react";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
 
 export type BilingualSegment = {
@@ -17,15 +23,21 @@ type BilingualPaneProps = {
   language: "ja" | "en";
   segments: BilingualSegment[];
   selectedSegmentId: string | null;
-  revealedSegmentId?: string | null;
-  revealOnlySelected?: boolean;
+  hoveredSegmentId: string | null;
   scrollRef: RefObject<HTMLDivElement | null>;
   registerSegmentRef: (id: string, node: HTMLSpanElement | null) => void;
   onSelectSegment: (id: string) => void;
+  onHoverSegment: (id: string | null) => void;
   onReadingPositionChange: (id: string) => void;
 };
 
+type WordLookup = {
+  segmentId: string;
+  word: string;
+};
+
 const TAP_CENTER_SYNC_PAUSE_MS = 800;
+const ENGLISH_WORD_PATTERN = /^[A-Za-z]+(?:['’][A-Za-z]+)*$/u;
 
 function findReaderRoot(source: Element): HTMLElement | null {
   const paneSection = source.closest("[data-bilingual-pane]");
@@ -117,25 +129,34 @@ function findCenteredSegmentId(container: HTMLDivElement): string | null {
   return bestId;
 }
 
+function splitEnglishText(text: string): string[] {
+  return text.split(/([A-Za-z]+(?:['’][A-Za-z]+)*)/gu).filter(Boolean);
+}
+
 export default function BilingualPane({
   language,
   segments,
   selectedSegmentId,
-  revealedSegmentId = null,
-  revealOnlySelected = false,
+  hoveredSegmentId,
   scrollRef,
   registerSegmentRef,
   onSelectSegment,
+  onHoverSegment,
   onReadingPositionChange,
 }: BilingualPaneProps) {
   const paragraphMap = new Map<number, BilingualSegment[]>();
   const positionFrameRef = useRef<number | null>(null);
+  const [wordLookup, setWordLookup] = useState<WordLookup | null>(null);
 
   for (const segment of segments) {
     const current = paragraphMap.get(segment.paragraphIndex) ?? [];
     current.push(segment);
     paragraphMap.set(segment.paragraphIndex, current);
   }
+
+  const wordLookupSegment = wordLookup
+    ? segments.find((segment) => segment.id === wordLookup.segmentId) ?? null
+    : null;
 
   useEffect(() => {
     return () => {
@@ -149,6 +170,7 @@ export default function BilingualPane({
     const source = event.currentTarget;
     const isProgrammaticCounterpart = source.dataset.bilingualSyncing === "1";
 
+    if (language === "en") setWordLookup(null);
     syncOtherPaneScroll(language, event);
 
     if (isProgrammaticCounterpart || positionFrameRef.current !== null) return;
@@ -158,6 +180,12 @@ export default function BilingualPane({
       const centeredId = findCenteredSegmentId(source);
       if (centeredId) onReadingPositionChange(centeredId);
     });
+  }
+
+  function selectSentence(source: Element, segmentId: string) {
+    pauseLinkedScrollForTap(source);
+    onReadingPositionChange(segmentId);
+    onSelectSegment(segmentId);
   }
 
   return (
@@ -170,7 +198,7 @@ export default function BilingualPane({
           {language === "ja" ? "日本語" : "ENGLISH"}
         </span>
         <span className="text-[11px] text-neutral-400">
-          {revealOnlySelected ? "文タップで対訳表示" : "スクロール・文タップ同期"}
+          {language === "en" ? "文同期・単語タップ" : "文同期"}
         </span>
       </div>
 
@@ -178,15 +206,14 @@ export default function BilingualPane({
         ref={scrollRef}
         data-bilingual-scroll={language}
         onScroll={handleScroll}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
+        className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
       >
         <article className="space-y-6 text-[1rem] leading-[2.05] text-black sm:text-[1.05rem]">
           {Array.from(paragraphMap.entries()).map(([paragraphIndex, paragraphSegments]) => (
             <p key={paragraphIndex} className="whitespace-pre-wrap">
               {paragraphSegments.map((segment) => {
-                const active = selectedSegmentId === segment.id;
-                const revealed =
-                  !revealOnlySelected || revealedSegmentId === segment.id;
+                const selected = selectedSegmentId === segment.id;
+                const hovered = hoveredSegmentId === segment.id;
 
                 return (
                   <span
@@ -194,41 +221,91 @@ export default function BilingualPane({
                     data-bilingual-segment-id={segment.id}
                     ref={(node) => registerSegmentRef(segment.id, node)}
                     role="button"
-                    tabIndex={revealed ? 0 : -1}
-                    aria-hidden={!revealed}
+                    tabIndex={0}
+                    onMouseEnter={() => onHoverSegment(segment.id)}
+                    onMouseLeave={() => onHoverSegment(null)}
                     onClick={(event) => {
-                      if (!revealed) return;
-                      pauseLinkedScrollForTap(event.currentTarget);
-                      onReadingPositionChange(segment.id);
-                      onSelectSegment(segment.id);
+                      selectSentence(event.currentTarget, segment.id);
+                      if (language === "en") setWordLookup(null);
                     }}
                     onKeyDown={(event) => {
-                      if (!revealed) return;
                       if (event.key !== "Enter" && event.key !== " ") return;
                       event.preventDefault();
-                      pauseLinkedScrollForTap(event.currentTarget);
-                      onReadingPositionChange(segment.id);
-                      onSelectSegment(segment.id);
+                      selectSentence(event.currentTarget, segment.id);
                     }}
                     className={[
-                      "inline rounded-md px-1 py-1 transition-all duration-150",
-                      revealed
-                        ? "cursor-pointer hover:bg-sky-50/80"
-                        : "invisible select-none",
-                      active && revealed
-                        ? "bg-sky-100 text-black shadow-[0_0_0_3px_rgba(186,230,253,0.55)]"
+                      "inline cursor-pointer rounded-md px-1 py-1 transition-all duration-150",
+                      hovered && !selected
+                        ? "bg-sky-50 underline decoration-sky-400 decoration-2 underline-offset-4"
+                        : "hover:bg-sky-50/80",
+                      selected
+                        ? "bg-sky-100 text-black shadow-[0_0_0_3px_rgba(186,230,253,0.55)] underline decoration-sky-500 decoration-2 underline-offset-4"
                         : "",
                     ].join(" ")}
                   >
                     {language === "ja"
                       ? renderTextWithAozoraRuby(segment.ja)
-                      : `${segment.en} `}
+                      : splitEnglishText(segment.en).map((token, tokenIndex) =>
+                          ENGLISH_WORD_PATTERN.test(token) ? (
+                            <span
+                              key={`${segment.id}-word-${tokenIndex}`}
+                              role="button"
+                              tabIndex={0}
+                              className="rounded-sm border-b border-transparent px-0.5 hover:border-sky-500 hover:bg-sky-100"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                selectSentence(event.currentTarget, segment.id);
+                                setWordLookup({ segmentId: segment.id, word: token });
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key !== "Enter" && event.key !== " ") return;
+                                event.preventDefault();
+                                event.stopPropagation();
+                                selectSentence(event.currentTarget, segment.id);
+                                setWordLookup({ segmentId: segment.id, word: token });
+                              }}
+                            >
+                              {token}
+                            </span>
+                          ) : (
+                            <span key={`${segment.id}-text-${tokenIndex}`}>{token}</span>
+                          )
+                        )}
                   </span>
                 );
               })}
             </p>
           ))}
         </article>
+
+        {language === "en" && wordLookup && wordLookupSegment ? (
+          <div
+            className="sticky bottom-2 z-20 mt-5 rounded-2xl border border-sky-200 bg-white/95 p-4 shadow-lg backdrop-blur"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold tracking-[0.08em] text-sky-700">
+                  {wordLookup.word}
+                </p>
+                <p className="mt-1 text-[11px] text-neutral-500">
+                  この単語を含む文の日本語対訳
+                </p>
+                <p className="mt-2 text-sm leading-6 text-black">
+                  {wordLookupSegment.ja}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWordLookup(null)}
+                className="shrink-0 rounded-full border border-black/10 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
+                aria-label="単語対訳を閉じる"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );
