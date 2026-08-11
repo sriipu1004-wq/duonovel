@@ -14,7 +14,7 @@ export default async function WriteSeriesNewPage() {
         initialMode={null}
         isOfficialAuthor={isOfficialAccountEmail(user.email)}
       />
-      <ContentRatingWorkspaceBridge initialRating="general" />
+      <ContentRatingWorkspaceBridge initialWarnings={[]} />
     </>
   );
 }
