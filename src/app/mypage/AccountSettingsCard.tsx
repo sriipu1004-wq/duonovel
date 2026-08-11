@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-type PendingAction = "change-email" | "delete" | null;
+type PendingAction =
+  | "change-email"
+  | "content-preference"
+  | "delete"
+  | null;
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -16,6 +20,10 @@ export default function AccountSettingsCard() {
   const [currentEmail, setCurrentEmail] = useState("");
   const [loadedUser, setLoadedUser] = useState(false);
   const [newEmail, setNewEmail] = useState("");
+  const [showR18Content, setShowR18Content] = useState(false);
+  const [r18PreferenceLoaded, setR18PreferenceLoaded] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [ageConfirmationChecked, setAgeConfirmationChecked] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [message, setMessage] = useState("");
@@ -39,7 +47,30 @@ export default function AccountSettingsCard() {
       setLoadedUser(true);
     }
 
+    async function loadContentPreference() {
+      try {
+        const response = await fetch("/api/account/content-preferences", {
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          showR18Content?: boolean;
+          ageConfirmed?: boolean;
+        };
+
+        if (!active) return;
+
+        if (response.ok && payload.ok) {
+          setShowR18Content(payload.showR18Content === true);
+          setAgeConfirmed(payload.ageConfirmed === true);
+        }
+      } finally {
+        if (active) setR18PreferenceLoaded(true);
+      }
+    }
+
     void loadUser();
+    void loadContentPreference();
 
     const {
       data: { subscription },
@@ -103,6 +134,53 @@ export default function AccountSettingsCard() {
     setPendingAction(null);
   }
 
+  async function handleR18Preference(nextValue: boolean) {
+    resetNotice();
+
+    if (nextValue && !ageConfirmed && !ageConfirmationChecked) {
+      setErrorMessage("R18作品を表示するには、18歳以上であることを確認して。");
+      return;
+    }
+
+    setPendingAction("content-preference");
+
+    try {
+      const response = await fetch("/api/account/content-preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          showR18Content: nextValue,
+          ageConfirmed: ageConfirmed || ageConfirmationChecked,
+        }),
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        showR18Content?: boolean;
+        ageConfirmed?: boolean;
+        message?: string;
+      };
+
+      if (!response.ok || !payload.ok) {
+        setErrorMessage(payload.message || "性的コンテンツの表示設定を更新できなかった。");
+        return;
+      }
+
+      setShowR18Content(payload.showR18Content === true);
+      setAgeConfirmed(payload.ageConfirmed === true);
+      setAgeConfirmationChecked(false);
+      setMessage(
+        payload.showR18Content
+          ? "R18作品を表示する設定に変更した。"
+          : "R18作品を非表示にした。"
+      );
+      router.refresh();
+    } catch {
+      setErrorMessage("性的コンテンツの表示設定を更新できなかった。");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   async function handleDelete() {
     resetNotice();
 
@@ -141,10 +219,69 @@ export default function AccountSettingsCard() {
       <h2 className="mt-2 text-xl font-semibold text-black">設定</h2>
       <p className="mt-3 text-sm leading-7 text-neutral-600">
         表示名は上のプロフィール欄から変更できる。
-        ここではメールアドレスとアカウント削除を扱う。
+        ここではコンテンツ表示、メールアドレス、アカウント削除を扱う。
       </p>
 
       <div className="mt-5 grid gap-5">
+        <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+          <p className="text-sm font-semibold text-black">コンテンツ表示</p>
+          <p className="mt-2 text-sm leading-7 text-neutral-600">
+            R18に設定された作品は初期状態ではホーム、検索、ランキング、作者ページなどに表示されない。
+          </p>
+
+          <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-black">
+                  性的コンテンツを表示する
+                </p>
+                <p className="mt-1 text-xs leading-6 text-neutral-500">
+                  {r18PreferenceLoaded
+                    ? showR18Content
+                      ? "R18作品を表示中"
+                      : "R18作品は非表示"
+                    : "設定を確認中..."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={!r18PreferenceLoaded || isPending}
+                aria-pressed={showR18Content}
+                onClick={() => void handleR18Preference(!showR18Content)}
+                className={[
+                  "rounded-full border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
+                  showR18Content
+                    ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                    : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                ].join(" ")}
+              >
+                {pendingAction === "content-preference"
+                  ? "変更中..."
+                  : showR18Content
+                    ? "表示する：ON"
+                    : "表示する：OFF"}
+              </button>
+            </div>
+
+            {!ageConfirmed && !showR18Content ? (
+              <label className="mt-4 flex items-start gap-3 border-t border-black/10 pt-4 text-sm leading-7 text-neutral-700">
+                <input
+                  type="checkbox"
+                  checked={ageConfirmationChecked}
+                  onChange={(event) =>
+                    setAgeConfirmationChecked(event.target.checked)
+                  }
+                  className="mt-1 h-4 w-4 rounded border-black/20"
+                />
+                <span>
+                  18歳以上であることを確認した。R18作品の閲覧は自分の判断で行う。
+                </span>
+              </label>
+            ) : null}
+          </div>
+        </div>
+
         <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
           <p className="text-sm font-semibold text-black">現在のログイン情報</p>
 
