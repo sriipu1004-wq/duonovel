@@ -8,6 +8,8 @@ import {
   type EpisodeRow,
   type SeriesRow,
 } from "@/features/write/writeShared";
+import { isR18Series } from "@/lib/contentRating";
+import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 
 export type PublicReadRecordingRow = Record<string, unknown> & {
   id: string;
@@ -34,6 +36,8 @@ export type PublicReadPagePayload = {
   publicEpisodes: EpisodeRow[];
   allEpisodeRecordings: PublicReadRecordingRow[];
   isOwner: boolean;
+  r18Blocked: boolean;
+  viewerSignedIn: boolean;
 };
 
 function pickText(...values: unknown[]): string {
@@ -93,11 +97,24 @@ export async function getCachedPublicReadPagePayload(
     ? allEpisodes
     : allEpisodes.filter((item) => isEpisodePubliclyVisible(item));
 
+  let r18Blocked = false;
+  let viewerSignedIn = Boolean(authData.user);
+
+  if (isR18Series(series)) {
+    const preference = await getCurrentR18ViewerPreference();
+    viewerSignedIn = preference.signedIn;
+    r18Blocked = !preference.showR18Content;
+  }
+
   return {
     series,
     episode,
     publicEpisodes: visibleEpisodes,
-    allEpisodeRecordings: await fetchPublicRecordings(episode.id),
+    allEpisodeRecordings: r18Blocked
+      ? []
+      : await fetchPublicRecordings(episode.id),
     isOwner,
+    r18Blocked,
+    viewerSignedIn,
   };
 }
