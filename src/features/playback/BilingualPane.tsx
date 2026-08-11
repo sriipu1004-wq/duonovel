@@ -171,11 +171,10 @@ export default function BilingualPane({
       data-bilingual-pane={language}
       className="flex min-h-0 flex-col overflow-hidden bg-white"
     >
-      <div className="flex h-10 shrink-0 items-center justify-between border-b border-black/10 bg-neutral-50 px-4">
+      <div className="flex h-10 shrink-0 items-center border-b border-black/10 bg-neutral-50 px-4">
         <span className="text-xs font-medium tracking-[0.14em] text-neutral-600">
           {language === "ja" ? "日本語" : "ENGLISH"}
         </span>
-        <span className="text-[11px] text-neutral-400">文同期</span>
       </div>
 
       <div
