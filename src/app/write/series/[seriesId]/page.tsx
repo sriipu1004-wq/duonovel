@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import WriteSeriesForm from "@/features/write/WriteSeriesForm";
+import ContentRatingWorkspaceBridge from "@/features/write/ContentRatingWorkspaceBridge";
 import TranslationPermissionWorkspaceBridge from "@/features/write/TranslationPermissionWorkspaceBridge";
 import { type EpisodeRow, type SeriesRow } from "@/features/write/writeShared";
+import { getSeriesContentRating } from "@/lib/contentRating";
 import styles from "./page.module.css";
 
 type PageProps = { params: Promise<{ seriesId: string }> };
@@ -107,6 +109,11 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
         initialMode={translationPermissionMode}
         isAiGenerated={isAiGenerated}
         isOfficialAuthor={isOfficialAccountEmail(user.email)}
+      />
+      <ContentRatingWorkspaceBridge
+        seriesId={series.id}
+        initialRating={getSeriesContentRating(series)}
+        isAiGenerated={isAiGenerated}
       />
     </div>
   );
