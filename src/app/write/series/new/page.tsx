@@ -1,6 +1,7 @@
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import WriteSeriesForm from "@/features/write/WriteSeriesForm";
+import ContentRatingWorkspaceBridge from "@/features/write/ContentRatingWorkspaceBridge";
 import TranslationPermissionWorkspaceBridge from "@/features/write/TranslationPermissionWorkspaceBridge";
 
 export default async function WriteSeriesNewPage() {
@@ -13,6 +14,7 @@ export default async function WriteSeriesNewPage() {
         initialMode={null}
         isOfficialAuthor={isOfficialAccountEmail(user.email)}
       />
+      <ContentRatingWorkspaceBridge initialRating="general" />
     </>
   );
 }
