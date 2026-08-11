@@ -7,6 +7,7 @@ import {
   pickText,
   type SeriesRow,
 } from "@/features/write/writeShared";
+import { isR18Series } from "@/lib/contentRating";
 import { getCachedPublicReadPagePayload } from "@/lib/publicRead";
 import {
   isEpisodeTranslationAllowlisted,
@@ -92,6 +93,16 @@ function withSettingsTopBridge(content: ReactNode) {
   );
 }
 
+function withContentRatingSurface(content: ReactNode, series: SeriesRow) {
+  return isR18Series(series) ? (
+    <div data-content-rating="r18" data-ad-eligible="false">
+      {content}
+    </div>
+  ) : (
+    <>{content}</>
+  );
+}
+
 export default async function ReadEpisodeLayout({
   children,
   params,
@@ -133,27 +144,33 @@ export default async function ReadEpisodeLayout({
       });
 
     if (!translationEligible) {
-      return withSettingsTopBridge(children);
+      return withContentRatingSurface(
+        withSettingsTopBridge(children),
+        payload.series
+      );
     }
 
     const attribution = resolveReadAttribution(payload.series);
 
-    return withSettingsTopBridge(
-      <ReadBilingualShell
-        translationEligible={translationEligible}
-        seriesId={seriesId}
-        episodeId={payload.episode.id}
-        episodeNumber={currentEpisodeNumber}
-        seriesTitle={pickText(payload.series.title) || "無題"}
-        episodeTitle={
-          pickText(payload.episode.title, payload.episode["episode_title"]) ||
-          `第${currentEpisodeNumber}話`
-        }
-        workAuthorName={attribution.authorName}
-        workEditorName={attribution.editorName}
-      >
-        {children}
-      </ReadBilingualShell>
+    return withContentRatingSurface(
+      withSettingsTopBridge(
+        <ReadBilingualShell
+          translationEligible={translationEligible}
+          seriesId={seriesId}
+          episodeId={payload.episode.id}
+          episodeNumber={currentEpisodeNumber}
+          seriesTitle={pickText(payload.series.title) || "無題"}
+          episodeTitle={
+            pickText(payload.episode.title, payload.episode["episode_title"]) ||
+            `第${currentEpisodeNumber}話`
+          }
+          workAuthorName={attribution.authorName}
+          workEditorName={attribution.editorName}
+        >
+          {children}
+        </ReadBilingualShell>
+      ),
+      payload.series
     );
   } catch {
     return withSettingsTopBridge(children);
