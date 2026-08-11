@@ -170,7 +170,6 @@ export default function BilingualPane({
     const source = event.currentTarget;
     const isProgrammaticCounterpart = source.dataset.bilingualSyncing === "1";
 
-    if (language === "en") setWordLookup(null);
     syncOtherPaneScroll(language, event);
 
     if (isProgrammaticCounterpart || positionFrameRef.current !== null) return;
@@ -202,11 +201,37 @@ export default function BilingualPane({
         </span>
       </div>
 
+      {language === "en" && wordLookup && wordLookupSegment ? (
+        <div className="shrink-0 border-b border-sky-200 bg-sky-50/70 px-4 py-3 sm:px-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold tracking-[0.08em] text-sky-700">
+                {wordLookup.word}
+              </p>
+              <p className="mt-1 text-[11px] text-neutral-500">
+                この単語を含む文の日本語対訳
+              </p>
+              <p className="mt-2 text-sm leading-6 text-black">
+                {wordLookupSegment.ja}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setWordLookup(null)}
+              className="shrink-0 rounded-full border border-black/10 bg-white px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
+              aria-label="単語対訳を閉じる"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div
         ref={scrollRef}
         data-bilingual-scroll={language}
         onScroll={handleScroll}
-        className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
       >
         <article className="space-y-6 text-[1rem] leading-[2.05] text-black sm:text-[1.05rem]">
           {Array.from(paragraphMap.entries()).map(([paragraphIndex, paragraphSegments]) => (
@@ -226,7 +251,6 @@ export default function BilingualPane({
                     onMouseLeave={() => onHoverSegment(null)}
                     onClick={(event) => {
                       selectSentence(event.currentTarget, segment.id);
-                      if (language === "en") setWordLookup(null);
                     }}
                     onKeyDown={(event) => {
                       if (event.key !== "Enter" && event.key !== " ") return;
@@ -277,35 +301,6 @@ export default function BilingualPane({
             </p>
           ))}
         </article>
-
-        {language === "en" && wordLookup && wordLookupSegment ? (
-          <div
-            className="sticky bottom-2 z-20 mt-5 rounded-2xl border border-sky-200 bg-white/95 p-4 shadow-lg backdrop-blur"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold tracking-[0.08em] text-sky-700">
-                  {wordLookup.word}
-                </p>
-                <p className="mt-1 text-[11px] text-neutral-500">
-                  この単語を含む文の日本語対訳
-                </p>
-                <p className="mt-2 text-sm leading-6 text-black">
-                  {wordLookupSegment.ja}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setWordLookup(null)}
-                className="shrink-0 rounded-full border border-black/10 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
-                aria-label="単語対訳を閉じる"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-        ) : null}
       </div>
     </section>
   );
