@@ -13,6 +13,8 @@ import {
   type EpisodeRow,
   type SeriesRow,
 } from "@/features/write/writeShared";
+import { isR18Series } from "@/lib/contentRating";
+import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 import {
   normalizeTranslationSourceText,
   segmentJapaneseEpisode,
@@ -211,6 +213,9 @@ export async function resolveEpisodeTranslationAccess(
     episodeNumber,
   });
   const isOfficialAuthored = await isSeriesOfficialAuthoredWithAdmin(series, admin);
+  const r18Allowed =
+    !isR18Series(series) ||
+    (await getCurrentR18ViewerPreference()).showR18Content;
 
   return {
     episode,
@@ -222,7 +227,7 @@ export async function resolveEpisodeTranslationAccess(
     currentUserEmail,
     isOwner,
     isOfficialUser: isOfficialAccountEmail(currentUserEmail),
-    canRead: isPublic || isOwner,
+    canRead: (isPublic || isOwner) && r18Allowed,
     isAllowlisted:
       explicitlyAllowlisted ||
       isSeriesTranslationEligible(series) ||
