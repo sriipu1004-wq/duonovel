@@ -54,6 +54,21 @@ export default function ContentRatingWorkspaceBridge({
   }, [initialRating, isAiGenerated, seriesId]);
 
   useEffect(() => {
+    function handleApplied(event: Event) {
+      const detail = (event as CustomEvent<{ rating?: unknown }>).detail;
+      if (detail?.rating === "r18") {
+        setRating("r18");
+        setSavedRating("r18");
+        setMessage("保存済み");
+      }
+    }
+
+    window.addEventListener("libread:content-rating-applied", handleApplied);
+    return () =>
+      window.removeEventListener("libread:content-rating-applied", handleApplied);
+  }, []);
+
+  useEffect(() => {
     let currentHost: HTMLElement | null = null;
 
     function ensureUi() {
