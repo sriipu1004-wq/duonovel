@@ -7,7 +7,11 @@ import {
   pickText,
   type SeriesRow,
 } from "@/features/write/writeShared";
-import { isR18Series } from "@/lib/contentRating";
+import {
+  getSeriesContentWarnings,
+  isR18Series,
+  type SeriesContentWarning,
+} from "@/lib/contentRating";
 import { getCachedPublicReadPagePayload } from "@/lib/publicRead";
 import {
   isEpisodeTranslationAllowlisted,
@@ -93,18 +97,39 @@ function withSettingsTopBridge(content: ReactNode) {
   );
 }
 
-function withContentRatingSurface(content: ReactNode, series: SeriesRow) {
-  return isR18Series(series) ? (
-    <div data-content-rating="r18" data-ad-eligible="false">
-      <div className="mx-auto w-full max-w-4xl px-3 pt-3 sm:px-6">
+function WarningBadges({ warnings }: { warnings: SeriesContentWarning[] }) {
+  if (warnings.length === 0) return null;
+
+  return (
+    <div className="mx-auto flex w-full max-w-4xl flex-wrap gap-2 px-3 pt-3 sm:px-6">
+      {warnings.includes("sexual_r18") ? (
         <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
-          R18
+          R18・性的コンテンツ
         </span>
-      </div>
+      ) : null}
+      {warnings.includes("violence") ? (
+        <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+          暴力描写あり
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function withContentWarningSurface(content: ReactNode, series: SeriesRow) {
+  const warnings = getSeriesContentWarnings(series);
+  const r18 = isR18Series(series);
+
+  if (warnings.length === 0) return <>{content}</>;
+
+  return (
+    <div
+      data-content-rating={r18 ? "r18" : "general"}
+      data-ad-eligible={r18 ? "false" : undefined}
+    >
+      <WarningBadges warnings={warnings} />
       {content}
     </div>
-  ) : (
-    <>{content}</>
   );
 }
 
@@ -149,7 +174,7 @@ export default async function ReadEpisodeLayout({
       });
 
     if (!translationEligible) {
-      return withContentRatingSurface(
+      return withContentWarningSurface(
         withSettingsTopBridge(children),
         payload.series
       );
@@ -157,7 +182,7 @@ export default async function ReadEpisodeLayout({
 
     const attribution = resolveReadAttribution(payload.series);
 
-    return withContentRatingSurface(
+    return withContentWarningSurface(
       withSettingsTopBridge(
         <ReadBilingualShell
           translationEligible={translationEligible}
