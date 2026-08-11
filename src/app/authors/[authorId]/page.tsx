@@ -18,6 +18,8 @@ import {
 import { fetchAuthorFollowSnapshot } from "@/lib/authorFollow";
 import { buildSeriesPopularityMap, fetchSeriesPopularityDataset } from "@/lib/popularity";
 import { isEpisodePubliclyVisible, pickText, type EpisodeRow } from "@/features/write/writeShared";
+import { isR18Series } from "@/lib/contentRating";
+import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 
 type PageProps = { params: Promise<{ authorId: string }> };
 type RecordingRow = Record<string, unknown> & { id: string; series_id?: string | null; seriesId?: string | null; reader_name?: string | null; narrator_name?: string | null; display_name?: string | null; speaker_name?: string | null; is_public?: boolean | null; public?: boolean | null; like_count?: number | null; likes_count?: number | null; play_count?: number | null; plays_count?: number | null };
@@ -35,17 +37,19 @@ export default async function AuthorPage({ params }: PageProps) {
   if (authorId.startsWith("aivis:") || authorId.startsWith("nemo:")) notFound();
   const admin = createAdminClient();
   const auth = await createServerClient();
-  const [author, series, authResult, recordingA, recordingB] = await Promise.all([
+  const [author, series, authResult, recordingA, recordingB, preference] = await Promise.all([
     fetchAuthorById(authorId, admin),
     fetchSeriesByAuthorId(authorId, admin),
     auth.auth.getUser(),
     admin.from("recordings").select("*").eq("reader_id", authorId),
     admin.from("recordings").select("*").eq("reader_user_id", authorId),
+    getCurrentR18ViewerPreference(),
   ]);
   if (!author) notFound();
   const currentUser = authResult.data.user;
   const isOwnPage = currentUser?.id === authorId;
-  const cards = await buildAuthorSeriesCards(series, admin);
+  const visibleSeries = preference.showR18Content ? series : series.filter((item) => !isR18Series(item));
+  const cards = await buildAuthorSeriesCards(visibleSeries, admin);
   const publicCards = cards.filter((card) => card.publishedCount > 0);
   const popularity = buildSeriesPopularityMap(await fetchSeriesPopularityDataset(publicCards.map((card) => card.series.id)));
   const works: AuthorWork[] = publicCards.map((card) => ({ id: card.series.id, title: pickText(card.series.title) || "無題", summary: getProfileSeriesSummary(card.series), episode: card.firstPublishedEpisodeNumber, updatedAt: pickText(card.series.updated_at, card.series.created_at), popularity: popularity.get(card.series.id)?.popularityScore ?? 0 }));
@@ -57,12 +61,13 @@ export default async function AuthorPage({ params }: PageProps) {
     narrationIds.length ? admin.from("series").select("*").in("id", narrationIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
     narrationIds.length ? admin.from("episodes").select("*").in("series_id", narrationIds) : Promise.resolve({ data: [] as EpisodeRow[] }),
   ]);
-  const narrationSeriesMap = new Map((narrationSeriesResult.data ?? []).map((row: Record<string, unknown>) => [String(row.id), row]));
+  const visibleNarrationSeries = (narrationSeriesResult.data ?? []).filter((row: Record<string, unknown>) => preference.showR18Content || !isR18Series(row));
+  const narrationSeriesMap = new Map(visibleNarrationSeries.map((row: Record<string, unknown>) => [String(row.id), row]));
   const firstEpisodeMap = new Map<string, number>();
   for (const episode of (narrationEpisodesResult.data ?? []) as EpisodeRow[]) {
     if (!isEpisodePubliclyVisible(episode, new Date())) continue;
     const id = pickText(episode.series_id, episode.seriesId); const number = Number(episode.episode_number ?? episode.episodeNumber ?? 0);
-    if (!id || !Number.isFinite(number) || number <= 0) continue;
+    if (!id || !narrationSeriesMap.has(id) || !Number.isFinite(number) || number <= 0) continue;
     const current = firstEpisodeMap.get(id); if (current === undefined || number < current) firstEpisodeMap.set(id, number);
   }
   const narrationMap = new Map<string, AuthorWork>();

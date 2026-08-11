@@ -13,6 +13,12 @@ import {
   type SeriesRow,
 } from "@/features/write/writeShared";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  getSeriesContentRating,
+  withSystemContentRatingTag,
+  type SeriesContentRating,
+} from "@/lib/contentRating";
+import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 
 export type PublicBaseWorkCard = {
   seriesId: string;
@@ -28,9 +34,12 @@ export type PublicBaseWorkCard = {
   createdAtValue: number;
   tags: string[];
   genres: string[];
+  contentRating: SeriesContentRating;
   isShortStory: boolean;
   publicEpisodeNumbers: number[];
 };
+
+export type PublicWorkVisibility = "viewer" | "general" | "all";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) {
@@ -335,6 +344,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         : 0;
 
       const createdAtValue = toTimeValue(series["created_at"]);
+      const contentRating = getSeriesContentRating(series);
 
       return {
         seriesId: series.id,
@@ -352,11 +362,12 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         earliestPublicAtValue:
           firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
         createdAtValue,
+        contentRating,
         isShortStory: isShortStorySeriesForSitemap(series),
         publicEpisodeNumbers: publicEpisodes
           .map((episode) => getEpisodeNumber(episode))
           .filter((episodeNumber) => episodeNumber > 0),
-        tags: getSeriesTags(series),
+        tags: withSystemContentRatingTag(getSeriesTags(series), contentRating),
         genres: getSeriesGenres(series),
       } satisfies PublicBaseWorkCard;
     })
@@ -372,14 +383,27 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
   buildPublicBaseWorkCards,
-  ["public-base-work-cards"],
+  ["public-base-work-cards-v2-content-rating"],
   {
     revalidate: 60,
   }
 );
 
-export async function getCachedPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
-  return getCachedPublicBaseWorkCardsInternal();
+export async function getCachedPublicBaseWorkCards(options?: {
+  visibility?: PublicWorkVisibility;
+}): Promise<PublicBaseWorkCard[]> {
+  const cards = await getCachedPublicBaseWorkCardsInternal();
+  const visibility = options?.visibility ?? "viewer";
+
+  if (visibility === "all") return cards;
+  if (visibility === "general") {
+    return cards.filter((card) => card.contentRating !== "r18");
+  }
+
+  const preference = await getCurrentR18ViewerPreference();
+  return preference.showR18Content
+    ? cards
+    : cards.filter((card) => card.contentRating !== "r18");
 }
 
 type RecordingAggregateRow = Record<string, unknown> & {
@@ -411,6 +435,7 @@ const PUBLIC_WORK_SERIES_SELECT = `
   user_id,
   created_at,
   effect_settings,
+  content_rating,
 
   tags,
   tag_list,
@@ -470,7 +495,6 @@ function pickPublicAuthorName(...values: unknown[]): string {
 
   return "";
 }
-
 
 function getRecordingLikes(recording: RecordingAggregateRow): number {
   const raw = recording.like_count ?? recording.likes_count ?? 0;
