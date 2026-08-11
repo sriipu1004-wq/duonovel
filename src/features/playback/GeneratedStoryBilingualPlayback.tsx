@@ -43,14 +43,12 @@ type TranslationResponse = {
 type BilingualPreference = {
   splitRatio: number;
   upperLanguage: "ja" | "en";
-  tapRevealEnabled: boolean;
 };
 
 const SAVED_STORIES_KEY = "libread.savedGeneratedStories.v1";
 const DEFAULT_PREFERENCE: BilingualPreference = {
   splitRatio: 50,
   upperLanguage: "ja",
-  tapRevealEnabled: false,
 };
 
 function clampRatio(value: number): number {
@@ -111,7 +109,6 @@ function readPreference(storyId: string): BilingualPreference {
           : DEFAULT_PREFERENCE.splitRatio,
       upperLanguage:
         parsed.upperLanguage === "en" ? "en" : DEFAULT_PREFERENCE.upperLanguage,
-      tapRevealEnabled: parsed.tapRevealEnabled === true,
     };
   } catch {
     return DEFAULT_PREFERENCE;
@@ -151,16 +148,13 @@ export default function GeneratedStoryBilingualPlayback({
   const [upperLanguage, setUpperLanguage] = useState<"ja" | "en">(
     preference.upperLanguage
   );
-  const [tapRevealEnabled, setTapRevealEnabled] = useState(
-    preference.tapRevealEnabled
-  );
-  const [revealedSegmentId, setRevealedSegmentId] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "translating" | "ready" | "error">(
     "loading"
   );
   const [segments, setSegments] = useState<BilingualSegment[]>([]);
   const [message, setMessage] = useState("");
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
+  const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
 
   const jaScrollRef = useRef<HTMLDivElement | null>(null);
   const enScrollRef = useRef<HTMLDivElement | null>(null);
@@ -172,24 +166,23 @@ export default function GeneratedStoryBilingualPlayback({
   useEffect(() => {
     const generated = readGeneratedStory(storyId);
     setStory(generated);
-    setTapRevealEnabled(preference.tapRevealEnabled);
-    setRevealedSegmentId(null);
+    setHoveredSegmentId(null);
     if (!generated) {
       setStatus("error");
       setMessage("生成した物語の一時データを読み込めませんでした。");
     }
-  }, [storyId, preference.tapRevealEnabled]);
+  }, [storyId]);
 
   useEffect(() => {
     try {
       window.localStorage.setItem(
         `duonovel:bilingual-display:generated:${storyId}`,
-        JSON.stringify({ splitRatio, upperLanguage, tapRevealEnabled })
+        JSON.stringify({ splitRatio, upperLanguage })
       );
     } catch {
       // Local preference persistence is non-critical.
     }
-  }, [storyId, splitRatio, upperLanguage, tapRevealEnabled]);
+  }, [storyId, splitRatio, upperLanguage]);
 
   const requestTranslation = useCallback(async () => {
     if (!story || requestInFlightRef.current) return;
@@ -257,7 +250,6 @@ export default function GeneratedStoryBilingualPlayback({
   function handleSelectSegment(id: string) {
     readingSegmentIdRef.current = id;
     setSelectedSegmentId(id);
-    if (tapRevealEnabled) setRevealedSegmentId(id);
     centerSegment(id);
   }
 
@@ -265,14 +257,8 @@ export default function GeneratedStoryBilingualPlayback({
     readingSegmentIdRef.current = id;
   }
 
-  function handleToggleTapReveal() {
-    setTapRevealEnabled((current) => !current);
-    setRevealedSegmentId(null);
-  }
-
   function handleSwapLanguages() {
     setUpperLanguage((current) => (current === "ja" ? "en" : "ja"));
-    setRevealedSegmentId(null);
     if (selectedSegmentId) centerSegment(selectedSegmentId);
   }
 
@@ -332,8 +318,6 @@ export default function GeneratedStoryBilingualPlayback({
               <BilingualStudyControls
                 segments={segments}
                 selectedSegmentId={selectedSegmentId}
-                tapRevealEnabled={tapRevealEnabled}
-                onToggleTapReveal={handleToggleTapReveal}
                 onSelectSegment={handleSelectSegment}
               />
 
@@ -349,9 +333,11 @@ export default function GeneratedStoryBilingualPlayback({
                     language="ja"
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
+                    hoveredSegmentId={hoveredSegmentId}
                     scrollRef={jaScrollRef}
                     registerSegmentRef={(id, node) => jaSegmentRefs.current.set(id, node)}
                     onSelectSegment={handleSelectSegment}
+                    onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
                   />
                 ) : (
@@ -359,9 +345,11 @@ export default function GeneratedStoryBilingualPlayback({
                     language="en"
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
+                    hoveredSegmentId={hoveredSegmentId}
                     scrollRef={enScrollRef}
                     registerSegmentRef={(id, node) => enSegmentRefs.current.set(id, node)}
                     onSelectSegment={handleSelectSegment}
+                    onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
                   />
                 )}
@@ -377,11 +365,11 @@ export default function GeneratedStoryBilingualPlayback({
                     language="en"
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
-                    revealedSegmentId={revealedSegmentId}
-                    revealOnlySelected={tapRevealEnabled}
+                    hoveredSegmentId={hoveredSegmentId}
                     scrollRef={enScrollRef}
                     registerSegmentRef={(id, node) => enSegmentRefs.current.set(id, node)}
                     onSelectSegment={handleSelectSegment}
+                    onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
                   />
                 ) : (
@@ -389,11 +377,11 @@ export default function GeneratedStoryBilingualPlayback({
                     language="ja"
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
-                    revealedSegmentId={revealedSegmentId}
-                    revealOnlySelected={tapRevealEnabled}
+                    hoveredSegmentId={hoveredSegmentId}
                     scrollRef={jaScrollRef}
                     registerSegmentRef={(id, node) => jaSegmentRefs.current.set(id, node)}
                     onSelectSegment={handleSelectSegment}
+                    onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
                   />
                 )}
