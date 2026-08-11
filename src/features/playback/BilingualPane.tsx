@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  type RefObject,
-  type UIEvent,
-} from "react";
+import { useEffect, useRef, type RefObject, type UIEvent } from "react";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
 
 export type BilingualSegment = {
@@ -31,13 +25,7 @@ type BilingualPaneProps = {
   onReadingPositionChange: (id: string) => void;
 };
 
-type WordLookup = {
-  segmentId: string;
-  word: string;
-};
-
 const TAP_CENTER_SYNC_PAUSE_MS = 800;
-const ENGLISH_WORD_PATTERN = /^[A-Za-z]+(?:['’][A-Za-z]+)*$/u;
 
 function findReaderRoot(source: Element): HTMLElement | null {
   const paneSection = source.closest("[data-bilingual-pane]");
@@ -129,10 +117,6 @@ function findCenteredSegmentId(container: HTMLDivElement): string | null {
   return bestId;
 }
 
-function splitEnglishText(text: string): string[] {
-  return text.split(/([A-Za-z]+(?:['’][A-Za-z]+)*)/gu).filter(Boolean);
-}
-
 export default function BilingualPane({
   language,
   segments,
@@ -146,17 +130,12 @@ export default function BilingualPane({
 }: BilingualPaneProps) {
   const paragraphMap = new Map<number, BilingualSegment[]>();
   const positionFrameRef = useRef<number | null>(null);
-  const [wordLookup, setWordLookup] = useState<WordLookup | null>(null);
 
   for (const segment of segments) {
     const current = paragraphMap.get(segment.paragraphIndex) ?? [];
     current.push(segment);
     paragraphMap.set(segment.paragraphIndex, current);
   }
-
-  const wordLookupSegment = wordLookup
-    ? segments.find((segment) => segment.id === wordLookup.segmentId) ?? null
-    : null;
 
   useEffect(() => {
     return () => {
@@ -196,36 +175,8 @@ export default function BilingualPane({
         <span className="text-xs font-medium tracking-[0.14em] text-neutral-600">
           {language === "ja" ? "日本語" : "ENGLISH"}
         </span>
-        <span className="text-[11px] text-neutral-400">
-          {language === "en" ? "文同期・単語タップ" : "文同期"}
-        </span>
+        <span className="text-[11px] text-neutral-400">文同期</span>
       </div>
-
-      {language === "en" && wordLookup && wordLookupSegment ? (
-        <div className="shrink-0 border-b border-sky-200 bg-sky-50/70 px-4 py-3 sm:px-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold tracking-[0.08em] text-sky-700">
-                {wordLookup.word}
-              </p>
-              <p className="mt-1 text-[11px] text-neutral-500">
-                この単語を含む文の日本語対訳
-              </p>
-              <p className="mt-2 text-sm leading-6 text-black">
-                {wordLookupSegment.ja}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setWordLookup(null)}
-              className="shrink-0 rounded-full border border-black/10 bg-white px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
-              aria-label="単語対訳を閉じる"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       <div
         ref={scrollRef}
@@ -259,42 +210,15 @@ export default function BilingualPane({
                     }}
                     className={[
                       "inline cursor-pointer rounded-md px-1 py-1 transition-all duration-150",
-                      hovered && !selected
-                        ? "bg-sky-50 underline decoration-sky-400 decoration-2 underline-offset-4"
-                        : "hover:bg-sky-50/80",
+                      hovered && !selected ? "bg-sky-50" : "hover:bg-sky-50/80",
                       selected
-                        ? "bg-sky-100 text-black shadow-[0_0_0_3px_rgba(186,230,253,0.55)] underline decoration-sky-500 decoration-2 underline-offset-4"
+                        ? "bg-sky-100 text-black shadow-[0_0_0_3px_rgba(186,230,253,0.55)]"
                         : "",
                     ].join(" ")}
                   >
                     {language === "ja"
                       ? renderTextWithAozoraRuby(segment.ja)
-                      : splitEnglishText(segment.en).map((token, tokenIndex) =>
-                          ENGLISH_WORD_PATTERN.test(token) ? (
-                            <span
-                              key={`${segment.id}-word-${tokenIndex}`}
-                              role="button"
-                              tabIndex={0}
-                              className="rounded-sm border-b border-transparent px-0.5 hover:border-sky-500 hover:bg-sky-100"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                selectSentence(event.currentTarget, segment.id);
-                                setWordLookup({ segmentId: segment.id, word: token });
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key !== "Enter" && event.key !== " ") return;
-                                event.preventDefault();
-                                event.stopPropagation();
-                                selectSentence(event.currentTarget, segment.id);
-                                setWordLookup({ segmentId: segment.id, word: token });
-                              }}
-                            >
-                              {token}
-                            </span>
-                          ) : (
-                            <span key={`${segment.id}-text-${tokenIndex}`}>{token}</span>
-                          )
-                        )}
+                      : `${segment.en} `}
                   </span>
                 );
               })}
