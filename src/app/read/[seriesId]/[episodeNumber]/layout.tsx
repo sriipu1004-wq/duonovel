@@ -96,6 +96,11 @@ function withSettingsTopBridge(content: ReactNode) {
 function withContentRatingSurface(content: ReactNode, series: SeriesRow) {
   return isR18Series(series) ? (
     <div data-content-rating="r18" data-ad-eligible="false">
+      <div className="mx-auto w-full max-w-4xl px-3 pt-3 sm:px-6">
+        <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+          R18
+        </span>
+      </div>
       {content}
     </div>
   ) : (
