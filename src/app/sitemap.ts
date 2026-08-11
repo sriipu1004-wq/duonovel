@@ -4,7 +4,7 @@ import { getCachedPublicBaseWorkCards } from "@/lib/publicWorks";
 const SITE_URL = "https://www.syosetu-libread.com";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const works = await getCachedPublicBaseWorkCards();
+  const works = await getCachedPublicBaseWorkCards({ visibility: "general" });
 
   const dynamicEntries: MetadataRoute.Sitemap = [];
 
