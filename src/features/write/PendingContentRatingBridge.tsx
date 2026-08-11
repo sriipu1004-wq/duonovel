@@ -2,9 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import type { SeriesContentWarning } from "@/lib/contentRating";
 
-type PendingRating = {
-  rating: "r18";
+type PendingWarnings = {
+  warnings: SeriesContentWarning[];
   startedAt: number;
   sourcePath: string;
 };
@@ -12,14 +13,22 @@ type PendingRating = {
 const PENDING_KEY = "duonovel:pending-content-rating-create";
 const PENDING_TTL_MS = 60_000;
 
-function readPending(): PendingRating | null {
+function isWarning(value: unknown): value is SeriesContentWarning {
+  return value === "sexual_r18" || value === "violence";
+}
+
+function readPending(): PendingWarnings | null {
   try {
     const raw = window.sessionStorage.getItem(PENDING_KEY);
     if (!raw) return null;
 
-    const parsed = JSON.parse(raw) as Partial<PendingRating>;
+    const parsed = JSON.parse(raw) as Partial<PendingWarnings>;
+    const warnings = Array.isArray(parsed.warnings)
+      ? Array.from(new Set(parsed.warnings.filter(isWarning)))
+      : [];
+
     if (
-      parsed.rating !== "r18" ||
+      warnings.length === 0 ||
       typeof parsed.startedAt !== "number" ||
       parsed.sourcePath !== "/write/series/new"
     ) {
@@ -32,7 +41,11 @@ function readPending(): PendingRating | null {
       return null;
     }
 
-    return parsed as PendingRating;
+    return {
+      warnings,
+      startedAt: parsed.startedAt,
+      sourcePath: parsed.sourcePath,
+    };
   } catch {
     window.sessionStorage.removeItem(PENDING_KEY);
     return null;
@@ -63,18 +76,21 @@ export default function PendingContentRatingBridge() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              rating: pending.rating,
+              warnings: pending.warnings,
               createdAfter: new Date(pending.startedAt - 5000).toISOString(),
             }),
           }
         );
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; warnings?: SeriesContentWarning[] }
+          | null;
 
         window.sessionStorage.removeItem(PENDING_KEY);
 
-        if (response.ok) {
+        if (response.ok && payload?.ok && Array.isArray(payload.warnings)) {
           window.dispatchEvent(
             new CustomEvent("libread:content-rating-applied", {
-              detail: { rating: pending.rating },
+              detail: { warnings: payload.warnings },
             })
           );
         }
