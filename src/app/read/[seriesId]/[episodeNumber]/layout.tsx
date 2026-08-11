@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import R18ContentGate from "@/components/content/R18ContentGate";
 import ReadBilingualShell from "@/features/playback/ReadBilingualShell";
 import ReaderSettingsTopBridge from "@/features/playback/ReaderSettingsTopBridge";
 import {
@@ -110,6 +111,15 @@ export default async function ReadEpisodeLayout({
 
     if (!payload) {
       return withSettingsTopBridge(children);
+    }
+
+    if (payload.r18Blocked) {
+      return (
+        <R18ContentGate
+          signedIn={payload.viewerSignedIn}
+          returnHref={`/read/${encodeURIComponent(seriesId)}/${parsedEpisodeNumber}`}
+        />
+      );
     }
 
     const currentEpisodeNumber =
