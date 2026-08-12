@@ -1,17 +1,7 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type RefObject,
-  type UIEvent,
-} from "react";
+import { useEffect, useRef, type RefObject, type UIEvent } from "react";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
-import BilingualWordBubble, {
-  type BilingualWordLookup,
-} from "@/features/playback/BilingualWordBubble";
 
 export type BilingualSegment = {
   id: string;
@@ -36,10 +26,6 @@ type BilingualPaneProps = {
 };
 
 const TAP_CENTER_SYNC_PAUSE_MS = 800;
-const ENGLISH_WORD_SPLIT_PATTERN =
-  /([A-Za-z]+(?:['’][A-Za-z]+)*(?:-[A-Za-z]+(?:['’][A-Za-z]+)*)*)/g;
-const ENGLISH_WORD_PATTERN =
-  /^[A-Za-z]+(?:['’][A-Za-z]+)*(?:-[A-Za-z]+(?:['’][A-Za-z]+)*)*$/;
 
 function findReaderRoot(source: Element): HTMLElement | null {
   const paneSection = source.closest("[data-bilingual-pane]");
@@ -144,8 +130,6 @@ export default function BilingualPane({
 }: BilingualPaneProps) {
   const paragraphMap = new Map<number, BilingualSegment[]>();
   const positionFrameRef = useRef<number | null>(null);
-  const [wordLookup, setWordLookup] = useState<BilingualWordLookup | null>(null);
-  const closeWordLookup = useCallback(() => setWordLookup(null), []);
 
   for (const segment of segments) {
     const current = paragraphMap.get(segment.paragraphIndex) ?? [];
@@ -165,8 +149,6 @@ export default function BilingualPane({
     const source = event.currentTarget;
     const isProgrammaticCounterpart = source.dataset.bilingualSyncing === "1";
 
-    closeWordLookup();
-
     syncOtherPaneScroll(language, event);
 
     if (isProgrammaticCounterpart || positionFrameRef.current !== null) return;
@@ -179,49 +161,9 @@ export default function BilingualPane({
   }
 
   function selectSentence(source: Element, segmentId: string) {
-    closeWordLookup();
     pauseLinkedScrollForTap(source);
     onReadingPositionChange(segmentId);
     onSelectSegment(segmentId);
-  }
-
-  function openWordLookup(wordElement: HTMLElement, segmentId: string) {
-    const rect = wordElement.getBoundingClientRect();
-    const viewportWidth = document.documentElement.clientWidth;
-    const bubbleHalfWidth = Math.min(144, Math.max(0, (viewportWidth - 24) / 2));
-    const minimumAnchorX = 12 + bubbleHalfWidth;
-    const maximumAnchorX = viewportWidth - 12 - bubbleHalfWidth;
-
-    setWordLookup({
-      segmentId,
-      word: wordElement.dataset.bilingualWord ?? wordElement.textContent ?? "",
-      anchorX: Math.min(
-        maximumAnchorX,
-        Math.max(minimumAnchorX, rect.left + rect.width / 2)
-      ),
-      anchorTop: rect.top,
-      anchorBottom: rect.bottom,
-    });
-  }
-
-  function renderEnglishWords(text: string, interactive: boolean) {
-    return text.split(ENGLISH_WORD_SPLIT_PATTERN).map((part, index) =>
-      ENGLISH_WORD_PATTERN.test(part) ? (
-        <span
-          key={`${index}-${part}`}
-          data-bilingual-word={part}
-          className={
-            interactive
-              ? "rounded-sm transition-colors hover:bg-sky-200/80 active:bg-sky-300/80"
-              : undefined
-          }
-        >
-          {part}
-        </span>
-      ) : (
-        part
-      )
-    );
   }
 
   return (
@@ -258,22 +200,6 @@ export default function BilingualPane({
                     onMouseEnter={() => onHoverSegment(segment.id)}
                     onMouseLeave={() => onHoverSegment(null)}
                     onClick={(event) => {
-                      const target = event.target;
-                      const wordElement =
-                        target instanceof Element
-                          ? target.closest<HTMLElement>("[data-bilingual-word]")
-                          : null;
-
-                      if (
-                        language === "en" &&
-                        selected &&
-                        wordElement &&
-                        event.currentTarget.contains(wordElement)
-                      ) {
-                        openWordLookup(wordElement, segment.id);
-                        return;
-                      }
-
                       if (selected) return;
                       selectSentence(event.currentTarget, segment.id);
                     }}
@@ -292,7 +218,7 @@ export default function BilingualPane({
                   >
                     {language === "ja"
                       ? renderTextWithAozoraRuby(segment.ja)
-                      : <>{renderEnglishWords(segment.en, selected)} </>}
+                      : `${segment.en} `}
                   </span>
                 );
               })}
@@ -300,16 +226,6 @@ export default function BilingualPane({
           ))}
         </article>
       </div>
-
-      {language === "en" &&
-      wordLookup &&
-      selectedSegmentId === wordLookup.segmentId ? (
-        <BilingualWordBubble
-          key={`${wordLookup.segmentId}:${wordLookup.word}`}
-          lookup={wordLookup}
-          onClose={closeWordLookup}
-        />
-      ) : null}
     </section>
   );
 }

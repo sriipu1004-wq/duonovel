@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BilingualDivider from "@/features/playback/BilingualDivider";
+import BilingualHeightHandle, {
+  clampBilingualReaderHeight,
+} from "@/features/playback/BilingualHeightHandle";
 import BilingualPane, {
   type BilingualSegment,
 } from "@/features/playback/BilingualPane";
@@ -44,11 +47,13 @@ type BilingualEpisodePlaybackProps = {
 type BilingualPreference = {
   splitRatio: number;
   upperLanguage: "ja" | "en";
+  readerHeight: number | null;
 };
 
 const DEFAULT_PREFERENCE: BilingualPreference = {
   splitRatio: 50,
   upperLanguage: "ja",
+  readerHeight: null,
 };
 
 function clampRatio(value: number): number {
@@ -70,6 +75,10 @@ function readPreference(seriesId: string): BilingualPreference {
           : DEFAULT_PREFERENCE.splitRatio,
       upperLanguage:
         parsed.upperLanguage === "en" ? "en" : DEFAULT_PREFERENCE.upperLanguage,
+      readerHeight:
+        typeof parsed.readerHeight === "number"
+          ? clampBilingualReaderHeight(parsed.readerHeight)
+          : DEFAULT_PREFERENCE.readerHeight,
     };
   } catch {
     return DEFAULT_PREFERENCE;
@@ -96,6 +105,9 @@ export default function BilingualEpisodePlayback({
   const [upperLanguage, setUpperLanguage] = useState<"ja" | "en">(
     preference.upperLanguage
   );
+  const [readerHeight, setReaderHeight] = useState<number | null>(
+    preference.readerHeight
+  );
   const [translationStatus, setTranslationStatus] =
     useState<TranslationStatus>("loading");
   const [segments, setSegments] = useState<BilingualSegment[]>([]);
@@ -107,6 +119,7 @@ export default function BilingualEpisodePlayback({
 
   const jaScrollRef = useRef<HTMLDivElement | null>(null);
   const enScrollRef = useRef<HTMLDivElement | null>(null);
+  const readerGridRef = useRef<HTMLDivElement | null>(null);
   const jaSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const enSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const autoGenerationAttemptRef = useRef<string | null>(null);
@@ -116,18 +129,19 @@ export default function BilingualEpisodePlayback({
   useEffect(() => {
     setSplitRatio(preference.splitRatio);
     setUpperLanguage(preference.upperLanguage);
+    setReaderHeight(preference.readerHeight);
   }, [preference]);
 
   useEffect(() => {
     try {
       window.localStorage.setItem(
         "duonovel:bilingual-display:" + seriesId,
-        JSON.stringify({ splitRatio, upperLanguage })
+        JSON.stringify({ splitRatio, upperLanguage, readerHeight })
       );
     } catch {
       // local preference persistence is non-critical
     }
-  }, [seriesId, splitRatio, upperLanguage]);
+  }, [readerHeight, seriesId, splitRatio, upperLanguage]);
 
   const requestTranslationGeneration = useCallback(async () => {
     if (generationInFlightRef.current) return false;
@@ -381,8 +395,12 @@ export default function BilingualEpisodePlayback({
               />
 
               <div
-                className="grid h-[calc(100dvh-16rem)] min-h-[27rem] max-h-[57rem] overflow-hidden bg-white"
+                ref={readerGridRef}
+                className="grid h-[calc(100dvh-16rem)] overflow-hidden bg-white"
                 style={{
+                  height: readerHeight ?? undefined,
+                  minHeight: readerHeight === null ? "27rem" : "20rem",
+                  maxHeight: readerHeight === null ? "57rem" : "90rem",
                   gridTemplateRows:
                     String(splitRatio) + "fr 44px " + String(100 - splitRatio) + "fr",
                 }}
@@ -445,6 +463,12 @@ export default function BilingualEpisodePlayback({
                   />
                 )}
               </div>
+
+              <BilingualHeightHandle
+                readerRef={readerGridRef}
+                readerHeight={readerHeight}
+                onReaderHeightChange={setReaderHeight}
+              />
             </>
           ) : (
             <div className="flex min-h-[30rem] items-center justify-center px-5 py-10">
