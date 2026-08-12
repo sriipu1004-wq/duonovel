@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BilingualDivider from "@/features/playback/BilingualDivider";
+import BilingualHeightHandle, {
+  clampBilingualReaderHeight,
+} from "@/features/playback/BilingualHeightHandle";
 import BilingualPane, {
   type BilingualSegment,
 } from "@/features/playback/BilingualPane";
@@ -43,12 +46,14 @@ type TranslationResponse = {
 type BilingualPreference = {
   splitRatio: number;
   upperLanguage: "ja" | "en";
+  readerHeight: number | null;
 };
 
 const SAVED_STORIES_KEY = "libread.savedGeneratedStories.v1";
 const DEFAULT_PREFERENCE: BilingualPreference = {
   splitRatio: 50,
   upperLanguage: "ja",
+  readerHeight: null,
 };
 
 function clampRatio(value: number): number {
@@ -109,6 +114,10 @@ function readPreference(storyId: string): BilingualPreference {
           : DEFAULT_PREFERENCE.splitRatio,
       upperLanguage:
         parsed.upperLanguage === "en" ? "en" : DEFAULT_PREFERENCE.upperLanguage,
+      readerHeight:
+        typeof parsed.readerHeight === "number"
+          ? clampBilingualReaderHeight(parsed.readerHeight)
+          : DEFAULT_PREFERENCE.readerHeight,
     };
   } catch {
     return DEFAULT_PREFERENCE;
@@ -152,6 +161,9 @@ export default function GeneratedStoryBilingualPlayback({
   const [upperLanguage, setUpperLanguage] = useState<"ja" | "en">(
     preference.upperLanguage
   );
+  const [readerHeight, setReaderHeight] = useState<number | null>(
+    preference.readerHeight
+  );
   const [status, setStatus] = useState<"loading" | "translating" | "ready" | "error">(
     "loading"
   );
@@ -162,6 +174,7 @@ export default function GeneratedStoryBilingualPlayback({
 
   const jaScrollRef = useRef<HTMLDivElement | null>(null);
   const enScrollRef = useRef<HTMLDivElement | null>(null);
+  const readerGridRef = useRef<HTMLDivElement | null>(null);
   const jaSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const enSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const readingSegmentIdRef = useRef<string | null>(null);
@@ -181,12 +194,12 @@ export default function GeneratedStoryBilingualPlayback({
     try {
       window.localStorage.setItem(
         `duonovel:bilingual-display:generated:${storyId}`,
-        JSON.stringify({ splitRatio, upperLanguage })
+        JSON.stringify({ splitRatio, upperLanguage, readerHeight })
       );
     } catch {
       // Local preference persistence is non-critical.
     }
-  }, [storyId, splitRatio, upperLanguage]);
+  }, [readerHeight, storyId, splitRatio, upperLanguage]);
 
   const requestTranslation = useCallback(async () => {
     if (!story || requestInFlightRef.current) return;
@@ -326,8 +339,12 @@ export default function GeneratedStoryBilingualPlayback({
               />
 
               <div
-                className="grid h-[calc(100dvh-16rem)] min-h-[27rem] max-h-[57rem] overflow-hidden bg-white"
+                ref={readerGridRef}
+                className="grid h-[calc(100dvh-16rem)] overflow-hidden bg-white"
                 style={{
+                  height: readerHeight ?? undefined,
+                  minHeight: readerHeight === null ? "27rem" : "20rem",
+                  maxHeight: readerHeight === null ? "57rem" : "90rem",
                   gridTemplateRows:
                     String(splitRatio) + "fr 44px " + String(100 - splitRatio) + "fr",
                 }}
@@ -390,6 +407,12 @@ export default function GeneratedStoryBilingualPlayback({
                   />
                 )}
               </div>
+
+              <BilingualHeightHandle
+                readerRef={readerGridRef}
+                readerHeight={readerHeight}
+                onReaderHeightChange={setReaderHeight}
+              />
             </>
           ) : (
             <div className="flex min-h-[30rem] items-center justify-center px-5 py-10">
