@@ -278,7 +278,11 @@ export default function BilingualEpisodePlayback({
 
     container.scrollTo({
       top: Math.max(0, target),
-      behavior: "smooth",
+      behavior:
+        window.matchMedia("(pointer: coarse)").matches ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
     });
   }
 
