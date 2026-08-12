@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useRef, type RefObject, type UIEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  type KeyboardEvent,
+  type PointerEvent,
+  type RefObject,
+  type UIEvent,
+  type WheelEvent,
+} from "react";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
 
 export type BilingualSegment = {
@@ -26,6 +34,16 @@ type BilingualPaneProps = {
 };
 
 const TAP_CENTER_SYNC_PAUSE_MS = 800;
+const SCROLL_OWNER_RELEASE_MS = 800;
+
+type PaneLanguage = "ja" | "en";
+
+type LinkedScrollState = {
+  owner: PaneLanguage | null;
+  releaseTimer: number | null;
+};
+
+const linkedScrollStates = new WeakMap<HTMLElement, LinkedScrollState>();
 
 function findReaderRoot(source: Element): HTMLElement | null {
   const paneSection = source.closest("[data-bilingual-pane]");
@@ -47,20 +65,68 @@ function pauseLinkedScrollForTap(source: Element) {
   }, TAP_CENTER_SYNC_PAUSE_MS);
 }
 
-function syncOtherPaneScroll(
-  language: "ja" | "en",
-  event: UIEvent<HTMLDivElement>
+function getLinkedScrollState(readerRoot: HTMLElement): LinkedScrollState {
+  const current = linkedScrollStates.get(readerRoot);
+  if (current) return current;
+
+  const created: LinkedScrollState = {
+    owner: null,
+    releaseTimer: null,
+  };
+  linkedScrollStates.set(readerRoot, created);
+  return created;
+}
+
+function claimLinkedScroll(source: Element, language: PaneLanguage) {
+  const readerRoot = findReaderRoot(source);
+  if (!readerRoot) return;
+
+  const state = getLinkedScrollState(readerRoot);
+  if (state.releaseTimer !== null) {
+    window.clearTimeout(state.releaseTimer);
+    state.releaseTimer = null;
+  }
+  state.owner = language;
+  delete (source as HTMLElement).dataset.bilingualSyncing;
+}
+
+function scheduleLinkedScrollRelease(
+  readerRoot: HTMLElement,
+  language: PaneLanguage
 ) {
+  const state = getLinkedScrollState(readerRoot);
+  if (state.releaseTimer !== null) {
+    window.clearTimeout(state.releaseTimer);
+  }
+
+  state.releaseTimer = window.setTimeout(() => {
+    if (state.owner === language) {
+      state.owner = null;
+    }
+    state.releaseTimer = null;
+  }, SCROLL_OWNER_RELEASE_MS);
+}
+
+function syncOtherPaneScroll(
+  language: PaneLanguage,
+  event: UIEvent<HTMLDivElement>
+): boolean {
   const source = event.currentTarget;
 
   if (source.dataset.bilingualSyncing === "1") {
-    return;
+    return true;
   }
 
   const readerRoot = findReaderRoot(source);
   if (!readerRoot || readerRoot.dataset.bilingualTapCentering) {
-    return;
+    return true;
   }
+
+  const state = getLinkedScrollState(readerRoot);
+  if (state.owner !== null && state.owner !== language) {
+    return true;
+  }
+  state.owner = language;
 
   const targetLanguage = language === "ja" ? "en" : "ja";
   const target = readerRoot.querySelector<HTMLDivElement>(
@@ -68,7 +134,8 @@ function syncOtherPaneScroll(
   );
 
   if (!target || target === source) {
-    return;
+    scheduleLinkedScrollRelease(readerRoot, language);
+    return false;
   }
 
   const sourceMaxScroll = Math.max(0, source.scrollHeight - source.clientHeight);
@@ -84,6 +151,9 @@ function syncOtherPaneScroll(
   window.requestAnimationFrame(() => {
     delete target.dataset.bilingualSyncing;
   });
+
+  scheduleLinkedScrollRelease(readerRoot, language);
+  return false;
 }
 
 function findCenteredSegmentId(container: HTMLDivElement): string | null {
@@ -147,9 +217,7 @@ export default function BilingualPane({
 
   function handleScroll(event: UIEvent<HTMLDivElement>) {
     const source = event.currentTarget;
-    const isProgrammaticCounterpart = source.dataset.bilingualSyncing === "1";
-
-    syncOtherPaneScroll(language, event);
+    const isProgrammaticCounterpart = syncOtherPaneScroll(language, event);
 
     if (isProgrammaticCounterpart || positionFrameRef.current !== null) return;
 
@@ -180,6 +248,28 @@ export default function BilingualPane({
       <div
         ref={scrollRef}
         data-bilingual-scroll={language}
+        onPointerDown={(event: PointerEvent<HTMLDivElement>) =>
+          claimLinkedScroll(event.currentTarget, language)
+        }
+        onTouchStart={(event) =>
+          claimLinkedScroll(event.currentTarget, language)
+        }
+        onWheel={(event: WheelEvent<HTMLDivElement>) =>
+          claimLinkedScroll(event.currentTarget, language)
+        }
+        onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+          if (
+            event.key === "ArrowUp" ||
+            event.key === "ArrowDown" ||
+            event.key === "PageUp" ||
+            event.key === "PageDown" ||
+            event.key === "Home" ||
+            event.key === "End" ||
+            event.key === " "
+          ) {
+            claimLinkedScroll(event.currentTarget, language);
+          }
+        }}
         onScroll={handleScroll}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
       >
