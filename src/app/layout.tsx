@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import AppHeader from "@/components/layout/AppHeader";
 import AppFooter from "@/components/layout/AppFooter";
 import "./globals.css";
@@ -81,6 +82,7 @@ export default function RootLayout({
           {children}
           <AppFooter />
         </div>
+        <Analytics />
       </body>
     </html>
   );
