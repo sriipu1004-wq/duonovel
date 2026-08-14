@@ -93,6 +93,7 @@ const ALLOWED_GENRES = [
   "癒し",
 ] as const;
 const ALLOWED_MOODS = [
+  "指定なし",
   "静か",
   "少し怖い",
   "泣ける",
@@ -284,7 +285,7 @@ function parseRequest(payload: Record<string, unknown>): TimeFitStoryRequest {
       ? Number(payload.timeMinutes)
       : payload.timeMinutes;
   const genre = readText(payload.genre);
-  const mood = readText(payload.mood);
+  const mood = readText(payload.mood) || "指定なし";
   const customRequest = parseCustomRequest(payload.customRequest);
   const promptTags = normalizePromptTags(payload.promptTags);
 
@@ -413,13 +414,15 @@ function buildPrompt(request: TimeFitStoryRequest): string {
     "2. 指定JSONスキーマと出力形式",
     "3. 読了時間と本文文字数",
     "4. 利用者の追加希望",
-    "5. 利用シーン、ジャンル、雰囲気",
+    "5. 利用シーン、ジャンル",
     "",
     "条件:",
     `- 利用シーン: ${request.scene}`,
     `- 想定時間: 約${request.timeMinutes}分で聴ける`,
     `- ジャンル: ${request.genre}`,
-    `- 雰囲気: ${request.mood}`,
+    ...(request.mood === "指定なし"
+      ? []
+      : [`- 雰囲気: ${request.mood}`]),
     `- 本文文字数目安: ${range.min}〜${range.max}字`,
     ...customRequestSection,
     "",
@@ -437,7 +440,7 @@ function buildPrompt(request: TimeFitStoryRequest): string {
     "- synopsis: 100〜220字程度のあらすじ",
     "- body: 小説本文",
     "- estimatedReadingMinutes: 数値",
-    "- tags: ジャンル、雰囲気、利用シーンを含む短いタグ配列",
+    "- tags: ジャンル、利用シーン、内容を表す短いタグ配列",
     "- aiGenerated: true",
   ].join("\n");
 }

@@ -4,7 +4,7 @@ import TimeFitStoryGeneratorClient from "./TimeFitStoryGeneratorClient";
 export const metadata: Metadata = {
   title: "5分・10分・15分のAI短編生成 | LIB read",
   description:
-    "空き時間、ジャンル、雰囲気を選ぶだけで、約5分・10分・15分・20分で読める・聴けるAI短編を生成します。",
+    "空き時間とジャンルを選ぶだけで、約5分・10分・15分・20分で読める・聴けるAI短編を生成します。",
   alternates: {
     canonical: "/generate",
   },
@@ -19,14 +19,14 @@ export const metadata: Metadata = {
     url: "/generate",
     title: "5分・10分・15分のAI短編生成 | LIB read",
     description:
-      "空き時間、ジャンル、雰囲気を選ぶだけで、読める・聴けるAI短編を生成します。",
+      "空き時間とジャンルを選ぶだけで、読める・聴けるAI短編を生成します。",
     images: ["/opengraph-image"],
   },
   twitter: {
     card: "summary_large_image",
     title: "5分・10分・15分のAI短編生成 | LIB read",
     description:
-      "空き時間、ジャンル、雰囲気を選ぶだけで、読める・聴けるAI短編を生成します。",
+      "空き時間とジャンルを選ぶだけで、読める・聴けるAI短編を生成します。",
     images: ["/opengraph-image"],
   },
 };
