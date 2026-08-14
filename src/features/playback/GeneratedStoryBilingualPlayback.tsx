@@ -217,7 +217,18 @@ export default function GeneratedStoryBilingualPlayback({
           body: story.story.body,
         }),
       });
-      const payload = (await response.json()) as TranslationResponse;
+      const responseText = await response.text();
+      let payload: TranslationResponse;
+
+      try {
+        payload = JSON.parse(responseText) as TranslationResponse;
+      } catch {
+        setStatus("error");
+        setMessage(
+          `英語対訳サーバーから正しい応答を受け取れませんでした（${response.status}）。もう一度お試しください。`
+        );
+        return;
+      }
 
       if (!response.ok || !payload.ok) {
         setStatus("error");
@@ -237,7 +248,9 @@ export default function GeneratedStoryBilingualPlayback({
       setStatus("translating");
     } catch {
       setStatus("error");
-      setMessage("英語対訳の準備に失敗しました。");
+      setMessage(
+        "英語対訳の通信が中断されました。ページを開いたまま、もう一度お試しください。"
+      );
     } finally {
       requestInFlightRef.current = false;
     }
