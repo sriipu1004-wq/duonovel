@@ -59,14 +59,7 @@ const GENRE_OPTIONS = [
   "ファンタジー",
   "癒し",
 ] as const;
-const MOOD_OPTIONS = [
-  "静か",
-  "少し怖い",
-  "泣ける",
-  "優しい",
-  "不穏",
-  "明るい",
-] as const;
+const DEFAULT_MOOD = "指定なし";
 
 const CUSTOM_REQUEST_MAX_LENGTH = 500;
 
@@ -96,7 +89,6 @@ export default function TimeFitStoryGeneratorClient() {
   const [scene, setScene] = useState<(typeof SCENE_OPTIONS)[number]>("通勤");
   const [timeMinutes, setTimeMinutes] = useState<TimeMinutes>(10);
   const [genre, setGenre] = useState<(typeof GENRE_OPTIONS)[number]>("ホラー");
-  const [mood, setMood] = useState<(typeof MOOD_OPTIONS)[number]>("静か");
   const [customRequest, setCustomRequest] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -106,9 +98,9 @@ export default function TimeFitStoryGeneratorClient() {
       scene,
       timeMinutes,
       genre,
-      mood,
+      mood: DEFAULT_MOOD,
     }),
-    [scene, timeMinutes, genre, mood]
+    [scene, timeMinutes, genre]
   );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -191,7 +183,7 @@ export default function TimeFitStoryGeneratorClient() {
       </h1>
 
       <p className="mt-3 text-sm leading-7 text-neutral-600">
-        時間、利用シーン、ジャンル、雰囲気を選ぶと、その場で読める短編を生成します。
+        時間、利用シーン、ジャンルを選ぶと、その場で読める短編を生成します。
         生成後は読むページへ移動します。保存しない限り、生成結果はこのブラウザ内の一時データとして扱われます。
       </p>
 
@@ -236,21 +228,6 @@ export default function TimeFitStoryGeneratorClient() {
             className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300"
           >
             {GENRE_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="grid gap-2">
-          <span className="text-sm font-medium text-black">雰囲気</span>
-          <select
-            value={mood}
-            onChange={(event) => setMood(event.target.value as typeof mood)}
-            className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300"
-          >
-            {MOOD_OPTIONS.map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>

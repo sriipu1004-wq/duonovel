@@ -14,6 +14,10 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 type OpenAIResponseBody = {
+  status?: string;
+  incomplete_details?: {
+    reason?: string;
+  } | null;
   output_text?: string;
   output?: Array<{
     content?: Array<{
@@ -31,10 +35,7 @@ type OpenAIResponseBody = {
 };
 
 type TranslationOutput = {
-  segments: Array<{
-    id: string;
-    en: string;
-  }>;
+  segments: string[];
 };
 
 type StoredTranslationPayload = {
@@ -97,6 +98,62 @@ function estimateCostJpy(inputTokens: number, outputTokens: number): number {
   return Math.ceil(value * 1000) / 1000;
 }
 
+function calculateMaxOutputTokens(
+  sourceChars: number,
+  segmentCount: number
+): number {
+  return Math.min(
+    24000,
+    Math.max(4000, Math.ceil(sourceChars * 2.5 + segmentCount * 12))
+  );
+}
+
+function assertOpenAIResponseComplete(responseBody: OpenAIResponseBody): void {
+  if (responseBody.status === "incomplete") {
+    if (responseBody.incomplete_details?.reason === "max_output_tokens") {
+      throw new Error(
+        "英語対訳の生成結果が出力上限で途中までになりました。もう一度お試しください。"
+      );
+    }
+
+    if (responseBody.incomplete_details?.reason === "content_filter") {
+      throw new Error(
+        "英語対訳の生成がコンテンツ判定により途中で停止しました。"
+      );
+    }
+
+    throw new Error("英語対訳の生成が完了しませんでした。");
+  }
+
+  if (responseBody.status && responseBody.status !== "completed") {
+    throw new Error("英語対訳の生成が完了しませんでした。");
+  }
+}
+
+function parseTranslationJson(outputText: string): unknown {
+  try {
+    return JSON.parse(outputText) as unknown;
+  } catch {
+    throw new Error(
+      "英語対訳の生成結果が途中で切れました。もう一度お試しください。"
+    );
+  }
+}
+
+async function readOpenAIResponseBody(
+  response: Response
+): Promise<OpenAIResponseBody> {
+  const responseText = await response.text();
+
+  try {
+    return JSON.parse(responseText) as OpenAIResponseBody;
+  } catch {
+    throw new Error(
+      "英語対訳の応答が途中で切れました。もう一度お試しください。"
+    );
+  }
+}
+
 function extractOutputText(responseBody: OpenAIResponseBody): string {
   if (typeof responseBody.output_text === "string") {
     return responseBody.output_text;
@@ -130,25 +187,16 @@ function validateTranslationOutput(
     throw new Error("翻訳結果の文数が原文と一致しません。");
   }
 
-  const seen = new Set<string>();
   const segments: TranslationOutput["segments"] = [];
 
-  root.segments.forEach((item, index) => {
-    if (!item || typeof item !== "object") {
-      throw new Error("翻訳結果に不正なsegmentがあります。");
+  root.segments.forEach((item) => {
+    const en = typeof item === "string" ? item.trim() : "";
+
+    if (!en) {
+      throw new Error("英語対訳に空のsegmentがあります。");
     }
 
-    const row = item as Record<string, unknown>;
-    const id = typeof row.id === "string" ? row.id.trim() : "";
-    const en = typeof row.en === "string" ? row.en.trim() : "";
-    const expectedId = sourceSegments[index]?.id;
-
-    if (!id || !en || id !== expectedId || seen.has(id)) {
-      throw new Error("翻訳segment IDの対応が崩れています。");
-    }
-
-    seen.add(id);
-    segments.push({ id, en });
+    segments.push(en);
   });
 
   return { segments };
@@ -443,7 +491,8 @@ export async function POST(request: Request) {
                 type: "input_text",
                 text: [
                   "Work title: " + title,
-                  "Translate every segment. Keep every id exactly unchanged.",
+                  "Translate every segment in exactly the same order.",
+                  "Return only one English string for each input segment; do not return ids.",
                   "Aozora ruby readings and editorial notes have already been normalized for translation input.",
                   "Segments:",
                   JSON.stringify(inputSegments),
@@ -452,9 +501,9 @@ export async function POST(request: Request) {
             ],
           },
         ],
-        max_output_tokens: Math.min(
-          12000,
-          Math.max(1600, Math.ceil(sourceChars * 1.5))
+        max_output_tokens: calculateMaxOutputTokens(
+          sourceChars,
+          source.segments.length
         ),
         text: {
           format: {
@@ -469,15 +518,7 @@ export async function POST(request: Request) {
                   type: "array",
                   minItems: source.segments.length,
                   maxItems: source.segments.length,
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                      id: { type: "string" },
-                      en: { type: "string" },
-                    },
-                    required: ["id", "en"],
-                  },
+                  items: { type: "string" },
                 },
               },
               required: ["segments"],
@@ -487,7 +528,7 @@ export async function POST(request: Request) {
       }),
     });
 
-    const responseBody = (await openAIResponse.json()) as OpenAIResponseBody;
+    const responseBody = await readOpenAIResponseBody(openAIResponse);
 
     if (!openAIResponse.ok) {
       const errorMessage =
@@ -505,22 +546,21 @@ export async function POST(request: Request) {
       );
     }
 
+    assertOpenAIResponseComplete(responseBody);
+
     const outputText = extractOutputText(responseBody);
     if (!outputText) {
       throw new Error("英語対訳の生成結果が空でした。");
     }
 
     const translated = validateTranslationOutput(
-      JSON.parse(outputText) as unknown,
+      parseTranslationJson(outputText),
       source.segments
     );
-    const englishById = new Map(
-      translated.segments.map((segment) => [segment.id, segment.en])
-    );
-    const storedSegments = source.segments.map((segment) => ({
+    const storedSegments = source.segments.map((segment, index) => ({
       id: segment.id,
       ja: segment.ja,
-      en: englishById.get(segment.id) ?? "",
+      en: translated.segments[index] ?? "",
       paragraphIndex: segment.paragraphIndex,
       sentenceIndex: segment.sentenceIndex,
       startOffset: segment.startOffset,
