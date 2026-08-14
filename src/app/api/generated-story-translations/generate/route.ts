@@ -103,8 +103,8 @@ function calculateMaxOutputTokens(
   segmentCount: number
 ): number {
   return Math.min(
-    24000,
-    Math.max(4000, Math.ceil(sourceChars * 2.5 + segmentCount * 12))
+    64000,
+    Math.max(16000, Math.ceil(sourceChars * 6 + segmentCount * 32))
   );
 }
 
