@@ -459,6 +459,8 @@ export async function POST(request: Request) {
               properties: {
                 segments: {
                   type: "array",
+                  minItems: source.segments.length,
+                  maxItems: source.segments.length,
                   items: {
                     type: "object",
                     additionalProperties: false,
