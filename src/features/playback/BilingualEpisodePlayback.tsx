@@ -159,7 +159,18 @@ export default function BilingualEpisodePlayback({
           targetLanguage: "en",
         }),
       });
-      const payload = (await response.json()) as TranslationStatusResponse;
+      const responseText = await response.text();
+      let payload: TranslationStatusResponse;
+
+      try {
+        payload = JSON.parse(responseText) as TranslationStatusResponse;
+      } catch {
+        setStatusMessage(
+          `英語対訳サーバーから正しい応答を受け取れませんでした（${response.status}）。もう一度お試しください。`
+        );
+        setTranslationStatus("error");
+        return false;
+      }
 
       if (!response.ok || !payload.ok) {
         setStatusMessage(payload.message || "英語対訳を生成できませんでした。");
@@ -181,7 +192,9 @@ export default function BilingualEpisodePlayback({
       setTranslationStatus("translating");
       return true;
     } catch {
-      setStatusMessage("英語対訳を生成できませんでした。");
+      setStatusMessage(
+        "英語対訳の通信が中断されました。ページを開いたまま、もう一度お試しください。"
+      );
       setTranslationStatus("error");
       return false;
     } finally {
