@@ -10,34 +10,13 @@ import {
   TRANSLATION_SOURCE_LANGUAGE,
   TRANSLATION_TARGET_LANGUAGE,
 } from "@/lib/translation/episodeTranslationServer";
+import {
+  OpenAITranslationError,
+  translateJapaneseSegmentsInBatches,
+} from "@/lib/translation/openAITranslation";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-
-type OpenAIResponseBody = {
-  status?: string;
-  incomplete_details?: {
-    reason?: string;
-  } | null;
-  output_text?: string;
-  output?: Array<{
-    content?: Array<{
-      type?: string;
-      text?: string;
-    }>;
-  }>;
-  usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-  };
-  error?: {
-    message?: string;
-  };
-};
-
-type TranslationOutput = {
-  segments: string[];
-};
 
 function readBooleanEnv(name: string, fallback: boolean): boolean {
   const value = process.env[name]?.trim().toLowerCase();
@@ -90,110 +69,6 @@ function estimateCostJpy(inputTokens: number, outputTokens: number): number {
     (inputTokens / 1000) * TRANSLATION_LIMITS.estimatedInputJpyPer1kTokens +
     (outputTokens / 1000) * TRANSLATION_LIMITS.estimatedOutputJpyPer1kTokens;
   return Math.ceil(value * 1000) / 1000;
-}
-
-function calculateMaxOutputTokens(
-  sourceChars: number,
-  segmentCount: number
-): number {
-  return Math.min(
-    64000,
-    Math.max(16000, Math.ceil(sourceChars * 6 + segmentCount * 32))
-  );
-}
-
-function assertOpenAIResponseComplete(responseBody: OpenAIResponseBody): void {
-  if (responseBody.status === "incomplete") {
-    if (responseBody.incomplete_details?.reason === "max_output_tokens") {
-      throw new Error(
-        "英語対訳の生成結果が出力上限で途中までになりました。もう一度お試しください。"
-      );
-    }
-
-    if (responseBody.incomplete_details?.reason === "content_filter") {
-      throw new Error(
-        "英語対訳の生成がコンテンツ判定により途中で停止しました。"
-      );
-    }
-
-    throw new Error("英語対訳の生成が完了しませんでした。");
-  }
-
-  if (responseBody.status && responseBody.status !== "completed") {
-    throw new Error("英語対訳の生成が完了しませんでした。");
-  }
-}
-
-function parseTranslationJson(outputText: string): unknown {
-  try {
-    return JSON.parse(outputText) as unknown;
-  } catch {
-    throw new Error(
-      "英語対訳の生成結果が途中で切れました。もう一度お試しください。"
-    );
-  }
-}
-
-async function readOpenAIResponseBody(
-  response: Response
-): Promise<OpenAIResponseBody> {
-  const responseText = await response.text();
-
-  try {
-    return JSON.parse(responseText) as OpenAIResponseBody;
-  } catch {
-    throw new Error(
-      "英語対訳の応答が途中で切れました。もう一度お試しください。"
-    );
-  }
-}
-
-function extractOutputText(responseBody: OpenAIResponseBody): string {
-  if (typeof responseBody.output_text === "string") {
-    return responseBody.output_text;
-  }
-
-  for (const item of responseBody.output ?? []) {
-    for (const content of item.content ?? []) {
-      if (content.type === "output_text" && typeof content.text === "string") {
-        return content.text;
-      }
-    }
-  }
-
-  return "";
-}
-
-function validateTranslationOutput(
-  value: unknown,
-  sourceSegments: ReturnType<typeof buildEpisodeTranslationSource>["segments"]
-): TranslationOutput {
-  if (!value || typeof value !== "object") {
-    throw new Error("翻訳結果を読み取れませんでした。");
-  }
-
-  const root = value as Record<string, unknown>;
-  if (!Array.isArray(root.segments)) {
-    throw new Error("翻訳結果のsegmentsがありません。");
-  }
-
-  if (root.segments.length !== sourceSegments.length) {
-    throw new Error("翻訳結果の文数が原文と一致しません。");
-  }
-
-  const segments: TranslationOutput["segments"] = [];
-
-  root.segments.forEach((item) => {
-    const en = typeof item === "string" ? item.trim() : "";
-
-    if (!en) {
-      throw new Error("英語対訳に空のsegmentがあります。");
-    }
-
-    segments.push(en);
-  });
-
-  return { segments };
 }
 
 async function markFailed(args: {
@@ -308,7 +183,7 @@ export async function POST(request: Request) {
   }
 
   const sourceHash = buildEpisodeTranslationSourceHash(access.body);
-  const model = process.env.EPISODE_TRANSLATION_MODEL ?? "gpt-5-mini";
+  const model = process.env.EPISODE_TRANSLATION_MODEL ?? "gpt-4.1-mini";
   const estimatedTokens = estimateTokens(sourceChars);
   const estimatedCostJpy = estimateCostJpy(
     estimatedTokens.inputTokens,
@@ -332,20 +207,6 @@ export async function POST(request: Request) {
         message: currentTranslationResult.error.message,
       },
       { status: 503 }
-    );
-  }
-
-  if (
-    currentTranslationResult.data?.status === "failed" &&
-    !access.isOfficialUser
-  ) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "translation_retry_forbidden",
-        message: "前回失敗した英語対訳の再生成は管理用アカウントから行います。",
-      },
-      { status: 403 }
     );
   }
 
@@ -446,109 +307,18 @@ export async function POST(request: Request) {
   const episodeTitle =
     pickText(access.episode.title, access.episode["episode_title"]) ||
     "第" + String(access.episodeNumber) + "話";
-  const inputSegments = source.segments.map((segment) => ({
-    id: segment.id,
-    text: segment.translationInput,
-  }));
 
   try {
-    const openAIResponse = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + apiKey,
-      },
-      signal: AbortSignal.timeout(180_000),
-      body: JSON.stringify({
-        model,
-        reasoning: model.startsWith("gpt-5")
-          ? { effort: "minimal" }
-          : undefined,
-        input: [
-          {
-            role: "developer",
-            content: [
-              {
-                type: "input_text",
-                text:
-                  "You are a literary translator. Translate Japanese fiction into natural, modern, neutral English. Preserve meaning, speakers, tense, names, paragraph intent, and omissions. Do not add explanations or remove content. Return only the requested structured JSON.",
-              },
-            ],
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: [
-                  "Work title: " + seriesTitle,
-                  "Episode title: " + episodeTitle,
-                  "Translate every segment in exactly the same order.",
-                  "Return only one English string for each input segment; do not return ids.",
-                  "Aozora ruby readings and editorial notes have already been normalized for translation input.",
-                  "Segments:",
-                  JSON.stringify(inputSegments),
-                ].join("\n"),
-              },
-            ],
-          },
-        ],
-        max_output_tokens: calculateMaxOutputTokens(
-          sourceChars,
-          source.segments.length
-        ),
-        text: {
-          format: {
-            type: "json_schema",
-            name: "episode_translation",
-            strict: true,
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                segments: {
-                  type: "array",
-                  minItems: source.segments.length,
-                  maxItems: source.segments.length,
-                  items: { type: "string" },
-                },
-              },
-              required: ["segments"],
-            },
-          },
-        },
-      }),
+    const translated = await translateJapaneseSegmentsInBatches({
+      apiKey,
+      model,
+      workTitle: seriesTitle,
+      episodeTitle,
+      segments: source.segments.map((segment) => ({
+        id: segment.id,
+        text: segment.translationInput,
+      })),
     });
-
-    const responseBody = await readOpenAIResponseBody(openAIResponse);
-
-    if (!openAIResponse.ok) {
-      const errorMessage =
-        responseBody.error?.message ?? "英語対訳の生成に失敗しました。";
-      await markFailed({
-        translationId,
-        logId,
-        errorCode: "openai_" + String(openAIResponse.status),
-        errorMessage,
-      });
-
-      return NextResponse.json(
-        { ok: false, error: "translation_openai_failed", message: errorMessage },
-        { status: openAIResponse.status }
-      );
-    }
-
-    assertOpenAIResponseComplete(responseBody);
-
-    const outputText = extractOutputText(responseBody);
-    if (!outputText) {
-      throw new Error("英語対訳の生成結果が空でした。");
-    }
-
-    const translated = validateTranslationOutput(
-      parseTranslationJson(outputText),
-      source.segments
-    );
     const storedSegments = source.segments.map((segment, index) => ({
       id: segment.id,
       ja: segment.ja,
@@ -564,8 +334,8 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString();
-    const actualInputTokens = Number(responseBody.usage?.input_tokens ?? 0) || null;
-    const actualOutputTokens = Number(responseBody.usage?.output_tokens ?? 0) || null;
+    const actualInputTokens = translated.inputTokens;
+    const actualOutputTokens = translated.outputTokens;
     const actualCostJpy =
       actualInputTokens && actualOutputTokens
         ? estimateCostJpy(actualInputTokens, actualOutputTokens)
@@ -616,28 +386,35 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const isTimeout =
-      error instanceof Error &&
-      (error.name === "TimeoutError" || error.name === "AbortError");
+      (error instanceof Error &&
+        (error.name === "TimeoutError" || error.name === "AbortError")) ||
+      (error instanceof OpenAITranslationError && error.status === 504);
+    const isOpenAIError = error instanceof OpenAITranslationError;
     const message = isTimeout
-      ? "英語対訳の生成が3分以内に完了しませんでした。"
+      ? "英語対訳の一部が1分以内に完了しませんでした。"
       : error instanceof Error
         ? error.message
         : "英語対訳の生成に失敗しました。";
+    const errorCode = isTimeout
+      ? "translation_timeout"
+      : isOpenAIError
+        ? "translation_openai_failed"
+        : "translation_exception";
 
     await markFailed({
       translationId,
       logId,
-      errorCode: isTimeout ? "translation_timeout" : "translation_exception",
+      errorCode,
       errorMessage: message,
     });
 
     return NextResponse.json(
       {
         ok: false,
-        error: isTimeout ? "translation_timeout" : "translation_exception",
+        error: errorCode,
         message,
       },
-      { status: isTimeout ? 504 : 500 }
+      { status: isTimeout ? 504 : isOpenAIError ? error.status : 500 }
     );
   }
 }
