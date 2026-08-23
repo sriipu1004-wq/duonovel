@@ -2,7 +2,8 @@
 -- Existing ja -> en rows remain valid and keep their current source hashes.
 
 alter table public.episode_translation_logs
-  add column if not exists source_language text;
+  add column if not exists source_language text,
+  add column if not exists retry_count integer not null default 0;
 
 update public.episode_translation_logs
 set source_language = 'ja'
@@ -13,7 +14,8 @@ alter table public.episode_translation_logs
   alter column source_language set not null;
 
 alter table public.generated_story_translation_logs
-  add column if not exists source_language text;
+  add column if not exists source_language text,
+  add column if not exists retry_count integer not null default 0;
 
 update public.generated_story_translation_logs
 set source_language = 'ja'
@@ -23,15 +25,61 @@ alter table public.generated_story_translation_logs
   alter column source_language set default 'ja',
   alter column source_language set not null;
 
-alter table public.episode_translations
-  drop constraint if exists episode_translations_episode_id_target_language_source_hash_key;
+-- PostgreSQL may shorten automatically generated constraint names to 63 bytes.
+-- Match the legacy unique constraints by their ordered columns so deployment is
+-- independent of the generated name used by the live database.
+do $$
+declare
+  v_constraint record;
+begin
+  for v_constraint in
+    select constraint_row.conname, constraint_row.conrelid::regclass as table_name
+    from pg_constraint as constraint_row
+    where constraint_row.contype = 'u'
+      and constraint_row.conrelid in (
+        'public.episode_translations'::regclass,
+        'public.generated_story_translations'::regclass
+      )
+      and (
+        (
+          constraint_row.conrelid = 'public.episode_translations'::regclass
+          and array(
+            select attribute_row.attname::text
+            from unnest(constraint_row.conkey) with ordinality
+              as key_row(attnum, position)
+            join pg_attribute as attribute_row
+              on attribute_row.attrelid = constraint_row.conrelid
+             and attribute_row.attnum = key_row.attnum
+            order by key_row.position
+          ) = array['episode_id', 'target_language', 'source_hash']
+        )
+        or
+        (
+          constraint_row.conrelid = 'public.generated_story_translations'::regclass
+          and array(
+            select attribute_row.attname::text
+            from unnest(constraint_row.conkey) with ordinality
+              as key_row(attnum, position)
+            join pg_attribute as attribute_row
+              on attribute_row.attrelid = constraint_row.conrelid
+             and attribute_row.attnum = key_row.attnum
+            order by key_row.position
+          ) = array['story_id', 'target_language', 'source_hash']
+        )
+      )
+  loop
+    execute format(
+      'alter table %s drop constraint %I',
+      v_constraint.table_name,
+      v_constraint.conname
+    );
+  end loop;
+end;
+$$;
 
 alter table public.episode_translations
   add constraint episode_translations_episode_source_target_hash_key
   unique (episode_id, source_language, target_language, source_hash);
-
-alter table public.generated_story_translations
-  drop constraint if exists generated_story_translations_story_id_target_language_source_hash_key;
 
 alter table public.generated_story_translations
   add constraint generated_story_translations_story_source_target_hash_key

@@ -119,7 +119,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     if (isStuck && typeof current.id === "string") {
       const now = new Date().toISOString();
-      const errorMessage = "英語対訳の生成が規定時間内に完了しませんでした。";
+      const errorMessage = "対訳の生成が規定時間内に完了しませんでした。";
 
       await Promise.all([
         admin
@@ -213,7 +213,7 @@ export async function GET(request: Request, context: RouteContext) {
       canAutoGenerate,
       isAllowlisted: access.isAllowlisted,
       sourceHash,
-      message: "原文が更新されたため、英語対訳を再生成します。",
+      message: "原文が更新されたため、対訳を再生成します。",
     });
   }
 

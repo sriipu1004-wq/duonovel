@@ -38,6 +38,7 @@ export type OpenAITranslationResult = {
   inputTokens: number | null;
   outputTokens: number | null;
   batchCount: number;
+  retryCount: number;
 };
 
 type TranslationBatch = {
@@ -53,18 +54,19 @@ const BATCH_TIMEOUT_MS = 60_000;
 export class OpenAITranslationError extends Error {
   readonly status: number;
   readonly retryable: boolean;
+  retryCount: number;
 
   constructor(message: string, status = 502, retryable = false) {
     super(message);
     this.name = "OpenAITranslationError";
     this.status = status;
     this.retryable = retryable;
+    this.retryCount = 0;
   }
 }
 
-function translationLabel(targetLanguage: SupportedLanguageTag): string {
-  if (targetLanguage === "en") return "英語対訳";
-  return getSupportedLanguage(targetLanguage).nativeLabel + "対訳";
+function translationLabel(): string {
+  return "対訳";
 }
 
 function splitTranslationBatches(
@@ -110,11 +112,8 @@ function calculateBatchMaxOutputTokens(
   );
 }
 
-function assertOpenAIResponseComplete(
-  responseBody: OpenAIResponseBody,
-  targetLanguage: SupportedLanguageTag
-): void {
-  const label = translationLabel(targetLanguage);
+function assertOpenAIResponseComplete(responseBody: OpenAIResponseBody): void {
+  const label = translationLabel();
 
   if (responseBody.status === "incomplete") {
     if (responseBody.incomplete_details?.reason === "max_output_tokens") {
@@ -150,8 +149,7 @@ function assertOpenAIResponseComplete(
 }
 
 async function readOpenAIResponseBody(
-  response: Response,
-  targetLanguage: SupportedLanguageTag
+  response: Response
 ): Promise<OpenAIResponseBody> {
   const responseText = await response.text();
 
@@ -159,7 +157,7 @@ async function readOpenAIResponseBody(
     return JSON.parse(responseText) as OpenAIResponseBody;
   } catch {
     throw new OpenAITranslationError(
-      translationLabel(targetLanguage) + "サーバーの応答を読み取れませんでした。",
+      translationLabel() + "サーバーの応答を読み取れませんでした。",
       response.ok ? 502 : response.status,
       true
     );
@@ -184,10 +182,9 @@ function extractOutputText(responseBody: OpenAIResponseBody): string {
 
 function validateTranslationOutput(
   outputText: string,
-  expectedSegmentCount: number,
-  targetLanguage: SupportedLanguageTag
+  expectedSegmentCount: number
 ): string[] {
-  const label = translationLabel(targetLanguage);
+  const label = translationLabel();
   let value: unknown;
 
   try {
@@ -254,7 +251,7 @@ async function translateBatch(args: {
   let response: Response;
   const sourceLanguage = getSupportedLanguage(args.sourceLanguage);
   const targetLanguage = getSupportedLanguage(args.targetLanguage);
-  const label = translationLabel(args.targetLanguage);
+  const label = translationLabel();
 
   try {
     response = await fetch("https://api.openai.com/v1/responses", {
@@ -345,7 +342,7 @@ async function translateBatch(args: {
     );
   }
 
-  const responseBody = await readOpenAIResponseBody(response, args.targetLanguage);
+  const responseBody = await readOpenAIResponseBody(response);
 
   if (!response.ok) {
     throw new OpenAITranslationError(
@@ -358,7 +355,7 @@ async function translateBatch(args: {
     );
   }
 
-  assertOpenAIResponseComplete(responseBody, args.targetLanguage);
+  assertOpenAIResponseComplete(responseBody);
 
   const outputText = extractOutputText(responseBody);
   if (!outputText) {
@@ -372,8 +369,7 @@ async function translateBatch(args: {
   return {
     segments: validateTranslationOutput(
       outputText,
-      args.batch.segments.length,
-      args.targetLanguage
+      args.batch.segments.length
     ),
     inputTokens: Number(responseBody.usage?.input_tokens ?? 0) || 0,
     outputTokens: Number(responseBody.usage?.output_tokens ?? 0) || 0,
@@ -381,19 +377,29 @@ async function translateBatch(args: {
 }
 
 async function translateBatchWithRetry(
-  args: Parameters<typeof translateBatch>[0]
-): Promise<Awaited<ReturnType<typeof translateBatch>>> {
+  args: Parameters<typeof translateBatch>[0],
+  onRetry?: () => void
+): Promise<
+  Awaited<ReturnType<typeof translateBatch>> & { retryCount: number }
+> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      return await translateBatch(args);
+      const result = await translateBatch(args);
+      return { ...result, retryCount: attempt };
     } catch (error) {
       lastError = error;
       const retryable =
         error instanceof OpenAITranslationError ? error.retryable : false;
 
-      if (!retryable || attempt === 1) throw error;
+      if (!retryable || attempt === 1) {
+        if (error instanceof OpenAITranslationError) {
+          error.retryCount = attempt;
+        }
+        throw error;
+      }
+      onRetry?.();
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
   }
@@ -433,29 +439,44 @@ export async function translateSegmentsInBatches(args: {
   targetLanguage: SupportedLanguageTag;
   segments: OpenAITranslationSourceSegment[];
 }): Promise<OpenAITranslationResult> {
-  const label = translationLabel(args.targetLanguage);
+  const label = translationLabel();
 
   if (args.segments.length === 0) {
     throw new Error(label + "の原文がありません。");
   }
 
   const batches = splitTranslationBatches(args.segments);
-  const batchResults = await mapWithConcurrency(
-    batches,
-    MAX_PARALLEL_BATCHES,
-    (batch, batchIndex) =>
-      translateBatchWithRetry({
-        apiKey: args.apiKey,
-        model: args.model,
-        workTitle: args.workTitle,
-        episodeTitle: args.episodeTitle,
-        sourceLanguage: args.sourceLanguage,
-        targetLanguage: args.targetLanguage,
-        batch,
-        batchIndex,
-        batchCount: batches.length,
-      })
-  );
+  let attemptedRetries = 0;
+  let batchResults: Awaited<ReturnType<typeof translateBatchWithRetry>>[];
+
+  try {
+    batchResults = await mapWithConcurrency(
+      batches,
+      MAX_PARALLEL_BATCHES,
+      (batch, batchIndex) =>
+        translateBatchWithRetry(
+          {
+            apiKey: args.apiKey,
+            model: args.model,
+            workTitle: args.workTitle,
+            episodeTitle: args.episodeTitle,
+            sourceLanguage: args.sourceLanguage,
+            targetLanguage: args.targetLanguage,
+            batch,
+            batchIndex,
+            batchCount: batches.length,
+          },
+          () => {
+            attemptedRetries += 1;
+          }
+        )
+    );
+  } catch (error) {
+    if (error instanceof OpenAITranslationError) {
+      error.retryCount = attemptedRetries;
+    }
+    throw error;
+  }
 
   const segments = batchResults.flatMap((result) => result.segments);
   if (
@@ -477,11 +498,16 @@ export async function translateSegmentsInBatches(args: {
     (total, result) => total + result.outputTokens,
     0
   );
+  const retryCount = batchResults.reduce(
+    (total, result) => total + result.retryCount,
+    0
+  );
 
   return {
     segments,
     inputTokens: inputTokens || null,
     outputTokens: outputTokens || null,
     batchCount: batches.length,
+    retryCount,
   };
 }

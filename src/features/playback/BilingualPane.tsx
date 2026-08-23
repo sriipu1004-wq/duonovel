@@ -22,7 +22,8 @@ export type BilingualSegment = {
 };
 
 type BilingualPaneProps = {
-  language: "ja" | "en";
+  side: PaneSide;
+  languageLabel: string;
   segments: BilingualSegment[];
   selectedSegmentId: string | null;
   hoveredSegmentId: string | null;
@@ -36,10 +37,10 @@ type BilingualPaneProps = {
 const TAP_CENTER_SYNC_PAUSE_MS = 800;
 const SCROLL_OWNER_RELEASE_MS = 800;
 
-type PaneLanguage = "ja" | "en";
+export type PaneSide = "source" | "target";
 
 type LinkedScrollState = {
-  owner: PaneLanguage | null;
+  owner: PaneSide | null;
   releaseTimer: number | null;
 };
 
@@ -77,7 +78,7 @@ function getLinkedScrollState(readerRoot: HTMLElement): LinkedScrollState {
   return created;
 }
 
-function claimLinkedScroll(source: Element, language: PaneLanguage) {
+function claimLinkedScroll(source: Element, side: PaneSide) {
   const readerRoot = findReaderRoot(source);
   if (!readerRoot) return;
 
@@ -86,13 +87,13 @@ function claimLinkedScroll(source: Element, language: PaneLanguage) {
     window.clearTimeout(state.releaseTimer);
     state.releaseTimer = null;
   }
-  state.owner = language;
+  state.owner = side;
   delete (source as HTMLElement).dataset.bilingualSyncing;
 }
 
 function scheduleLinkedScrollRelease(
   readerRoot: HTMLElement,
-  language: PaneLanguage
+  side: PaneSide
 ) {
   const state = getLinkedScrollState(readerRoot);
   if (state.releaseTimer !== null) {
@@ -100,7 +101,7 @@ function scheduleLinkedScrollRelease(
   }
 
   state.releaseTimer = window.setTimeout(() => {
-    if (state.owner === language) {
+    if (state.owner === side) {
       state.owner = null;
     }
     state.releaseTimer = null;
@@ -108,7 +109,7 @@ function scheduleLinkedScrollRelease(
 }
 
 function syncOtherPaneScroll(
-  language: PaneLanguage,
+  side: PaneSide,
   event: UIEvent<HTMLDivElement>
 ): boolean {
   const source = event.currentTarget;
@@ -123,18 +124,18 @@ function syncOtherPaneScroll(
   }
 
   const state = getLinkedScrollState(readerRoot);
-  if (state.owner !== null && state.owner !== language) {
+  if (state.owner !== null && state.owner !== side) {
     return true;
   }
-  state.owner = language;
+  state.owner = side;
 
-  const targetLanguage = language === "ja" ? "en" : "ja";
+  const targetSide = side === "source" ? "target" : "source";
   const target = readerRoot.querySelector<HTMLDivElement>(
-    `[data-bilingual-scroll="${targetLanguage}"]`
+    `[data-bilingual-scroll="${targetSide}"]`
   );
 
   if (!target || target === source) {
-    scheduleLinkedScrollRelease(readerRoot, language);
+    scheduleLinkedScrollRelease(readerRoot, side);
     return false;
   }
 
@@ -152,7 +153,7 @@ function syncOtherPaneScroll(
     delete target.dataset.bilingualSyncing;
   });
 
-  scheduleLinkedScrollRelease(readerRoot, language);
+  scheduleLinkedScrollRelease(readerRoot, side);
   return false;
 }
 
@@ -188,7 +189,8 @@ function findCenteredSegmentId(container: HTMLDivElement): string | null {
 }
 
 export default function BilingualPane({
-  language,
+  side,
+  languageLabel,
   segments,
   selectedSegmentId,
   hoveredSegmentId,
@@ -217,7 +219,7 @@ export default function BilingualPane({
 
   function handleScroll(event: UIEvent<HTMLDivElement>) {
     const source = event.currentTarget;
-    const isProgrammaticCounterpart = syncOtherPaneScroll(language, event);
+    const isProgrammaticCounterpart = syncOtherPaneScroll(side, event);
 
     if (isProgrammaticCounterpart || positionFrameRef.current !== null) return;
 
@@ -236,26 +238,26 @@ export default function BilingualPane({
 
   return (
     <section
-      data-bilingual-pane={language}
+      data-bilingual-pane={side}
       className="flex min-h-0 flex-col overflow-hidden bg-white"
     >
       <div className="flex h-10 shrink-0 items-center border-b border-black/10 bg-neutral-50 px-4">
         <span className="text-xs font-medium tracking-[0.14em] text-neutral-600">
-          {language === "ja" ? "日本語" : "ENGLISH"}
+          {languageLabel}
         </span>
       </div>
 
       <div
         ref={scrollRef}
-        data-bilingual-scroll={language}
+        data-bilingual-scroll={side}
         onPointerDown={(event: PointerEvent<HTMLDivElement>) =>
-          claimLinkedScroll(event.currentTarget, language)
+          claimLinkedScroll(event.currentTarget, side)
         }
         onTouchStart={(event) =>
-          claimLinkedScroll(event.currentTarget, language)
+          claimLinkedScroll(event.currentTarget, side)
         }
         onWheel={(event: WheelEvent<HTMLDivElement>) =>
-          claimLinkedScroll(event.currentTarget, language)
+          claimLinkedScroll(event.currentTarget, side)
         }
         onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
           if (
@@ -267,7 +269,7 @@ export default function BilingualPane({
             event.key === "End" ||
             event.key === " "
           ) {
-            claimLinkedScroll(event.currentTarget, language);
+            claimLinkedScroll(event.currentTarget, side);
           }
         }}
         onScroll={handleScroll}
@@ -306,7 +308,7 @@ export default function BilingualPane({
                         : "",
                     ].join(" ")}
                   >
-                    {language === "ja"
+                    {side === "source"
                       ? renderTextWithAozoraRuby(segment.sourceText)
                       : `${segment.translatedText} `}
                   </span>

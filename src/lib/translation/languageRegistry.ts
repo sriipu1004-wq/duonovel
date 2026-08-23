@@ -61,6 +61,23 @@ export type SupportedLanguageTag = keyof typeof LANGUAGE_REGISTRY;
 export const DEFAULT_TRANSLATION_SOURCE_LANGUAGE: SupportedLanguageTag = "ja";
 export const DEFAULT_TRANSLATION_TARGET_LANGUAGE: SupportedLanguageTag = "en";
 
+export const PUBLIC_TRANSLATION_TARGET_LANGUAGES = [
+  "en",
+  "ko",
+  "zh-Hans",
+  "zh-Hant",
+  "fr",
+  "de",
+  "es",
+] as const satisfies readonly SupportedLanguageTag[];
+
+export type PublicTranslationTargetLanguage =
+  (typeof PUBLIC_TRANSLATION_TARGET_LANGUAGES)[number];
+
+const PUBLIC_TRANSLATION_TARGET_LANGUAGE_SET = new Set<SupportedLanguageTag>(
+  PUBLIC_TRANSLATION_TARGET_LANGUAGES
+);
+
 const LANGUAGE_TAGS_BY_LOWERCASE = new Map<string, SupportedLanguageTag>(
   (Object.keys(LANGUAGE_REGISTRY) as SupportedLanguageTag[]).map((tag) => [
     tag.toLowerCase(),
@@ -83,12 +100,18 @@ export function getSupportedLanguage(
   return LANGUAGE_REGISTRY[tag];
 }
 
+export function isPublicTranslationTargetLanguage(
+  tag: SupportedLanguageTag
+): tag is PublicTranslationTargetLanguage {
+  return PUBLIC_TRANSLATION_TARGET_LANGUAGE_SET.has(tag);
+}
+
 export function isPublicTranslationLanguagePair(args: {
   sourceLanguage: SupportedLanguageTag;
   targetLanguage: SupportedLanguageTag;
 }): boolean {
   return (
     args.sourceLanguage === DEFAULT_TRANSLATION_SOURCE_LANGUAGE &&
-    args.targetLanguage === DEFAULT_TRANSLATION_TARGET_LANGUAGE
+    isPublicTranslationTargetLanguage(args.targetLanguage)
   );
 }

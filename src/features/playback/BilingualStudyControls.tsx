@@ -2,28 +2,32 @@
 
 import { useEffect, useState } from "react";
 import type { BilingualSegment } from "@/features/playback/BilingualPane";
+import {
+  getSupportedLanguage,
+  type PublicTranslationTargetLanguage,
+} from "@/lib/translation/languageRegistry";
 
 type BilingualStudyControlsProps = {
   segments: BilingualSegment[];
   selectedSegmentId: string | null;
   onSelectSegment: (id: string) => void;
+  targetLanguage: PublicTranslationTargetLanguage;
 };
 
 export default function BilingualStudyControls({
   segments,
   selectedSegmentId,
   onSelectSegment,
+  targetLanguage,
 }: BilingualStudyControlsProps) {
-  const [speechAvailable, setSpeechAvailable] = useState(true);
+  const [speechAvailable, setSpeechAvailable] = useState(
+    () => typeof window !== "undefined" && "speechSynthesis" in window
+  );
 
   const selectedSegment =
     segments.find((segment) => segment.id === selectedSegmentId) ?? segments[0] ?? null;
 
   useEffect(() => {
-    setSpeechAvailable(
-      typeof window !== "undefined" && "speechSynthesis" in window
-    );
-
     return () => {
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
@@ -50,13 +54,25 @@ export default function BilingualStudyControls({
     onSelectSegment(selectedSegment.id);
 
     const utterance = new SpeechSynthesisUtterance(text);
-    const englishVoice = window.speechSynthesis
-      .getVoices()
-      .find((voice) => voice.lang.toLowerCase().startsWith("en"));
+    const speechLanguage = getSupportedLanguage(targetLanguage).speechLanguage;
+    const normalizedSpeechLanguage = speechLanguage.toLowerCase();
+    const primaryLanguage = normalizedSpeechLanguage.split("-")[0];
+    const voices = window.speechSynthesis.getVoices();
+    const selectedVoice =
+      voices.find(
+        (voice) => voice.lang.toLowerCase() === normalizedSpeechLanguage
+      ) ??
+      voices.find((voice) => {
+        const voiceLanguage = voice.lang.toLowerCase();
+        return (
+          voiceLanguage === primaryLanguage ||
+          voiceLanguage.startsWith(primaryLanguage + "-")
+        );
+      });
 
-    utterance.lang = englishVoice?.lang || "en-US";
+    utterance.lang = selectedVoice?.lang || speechLanguage;
     utterance.rate = 1;
-    if (englishVoice) utterance.voice = englishVoice;
+    if (selectedVoice) utterance.voice = selectedVoice;
     window.speechSynthesis.speak(utterance);
   }
 
@@ -73,7 +89,7 @@ export default function BilingualStudyControls({
         </button>
         {!speechAvailable ? (
           <span className="text-xs text-neutral-500">
-            このブラウザでは英文読み上げを利用できません。
+            このブラウザでは対訳文の読み上げを利用できません。
           </span>
         ) : null}
       </div>
