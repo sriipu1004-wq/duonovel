@@ -215,6 +215,8 @@ export default function GeneratedStoryBilingualPlayback({
           storyId: story.id,
           title: story.story.title,
           body: story.story.body,
+          sourceLanguage: "ja",
+          targetLanguage: "en",
         }),
       });
       const responseText = await response.text();

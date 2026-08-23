@@ -17,12 +17,18 @@ import { isR18Series } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 import {
   normalizeTranslationSourceText,
-  segmentJapaneseEpisode,
-} from "@/lib/translation/segmentJapaneseEpisode";
+  segmentSourceDocument,
+} from "@/lib/translation/segmentSourceDocument";
+import {
+  DEFAULT_TRANSLATION_SOURCE_LANGUAGE,
+  DEFAULT_TRANSLATION_TARGET_LANGUAGE,
+  type SupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
+import { TRANSLATION_SEGMENT_VERSION } from "@/lib/translation/translationPayload";
 
-export const TRANSLATION_SOURCE_LANGUAGE = "ja";
-export const TRANSLATION_TARGET_LANGUAGE = "en";
-export const TRANSLATION_SEGMENT_VERSION = 1;
+export const TRANSLATION_SOURCE_LANGUAGE = DEFAULT_TRANSLATION_SOURCE_LANGUAGE;
+export const TRANSLATION_TARGET_LANGUAGE = DEFAULT_TRANSLATION_TARGET_LANGUAGE;
+export { TRANSLATION_SEGMENT_VERSION };
 
 const DEFAULT_PREVIEW_SERIES_EPISODE_ALLOWLIST = new Set([
   "af9f56ea-93b4-4e34-8779-89aa8758f3aa:1",
@@ -158,8 +164,11 @@ export function buildEpisodeTranslationSourceHash(body: string): string {
     .digest("hex");
 }
 
-export function buildEpisodeTranslationSource(body: string) {
-  return segmentJapaneseEpisode(body);
+export function buildEpisodeTranslationSource(
+  body: string,
+  sourceLanguage: SupportedLanguageTag = TRANSLATION_SOURCE_LANGUAGE
+) {
+  return segmentSourceDocument(body, sourceLanguage);
 }
 
 export async function resolveEpisodeTranslationAccess(

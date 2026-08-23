@@ -43,7 +43,7 @@ export default function BilingualStudyControls({
       return;
     }
 
-    const text = selectedSegment.en.trim();
+    const text = selectedSegment.translatedText.trim();
     if (!text) return;
 
     window.speechSynthesis.cancel();

@@ -3,8 +3,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildEpisodeTranslationSourceHash,
   resolveEpisodeTranslationAccess,
+  TRANSLATION_SOURCE_LANGUAGE,
   TRANSLATION_TARGET_LANGUAGE,
 } from "@/lib/translation/episodeTranslationServer";
+import {
+  isPublicTranslationLanguagePair,
+  parseSupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
+import { parseStoredTranslationPayload } from "@/lib/translation/translationPayload";
 
 export const runtime = "nodejs";
 
@@ -14,56 +20,30 @@ type RouteContext = {
   params: Promise<{ episodeId: string }>;
 };
 
-type StoredSegment = {
-  id: string;
-  ja: string;
-  en: string;
-  paragraphIndex: number;
-  sentenceIndex: number;
-  startOffset: number;
-  endOffset: number;
-};
+export async function GET(request: Request, context: RouteContext) {
+  const { episodeId } = await context.params;
+  const requestUrl = new URL(request.url);
+  const rawSourceLanguage = requestUrl.searchParams.get("sourceLanguage");
+  const rawTargetLanguage = requestUrl.searchParams.get("targetLanguage");
+  const sourceLanguage = rawSourceLanguage
+    ? parseSupportedLanguageTag(rawSourceLanguage)
+    : TRANSLATION_SOURCE_LANGUAGE;
+  const targetLanguage = rawTargetLanguage
+    ? parseSupportedLanguageTag(rawTargetLanguage)
+    : TRANSLATION_TARGET_LANGUAGE;
 
-function parseSegments(value: unknown): StoredSegment[] | null {
-  if (!value || typeof value !== "object") return null;
-  const root = value as Record<string, unknown>;
-  const rawSegments = Array.isArray(root.segments) ? root.segments : null;
-  if (!rawSegments) return null;
-
-  const parsed: StoredSegment[] = [];
-
-  for (const item of rawSegments) {
-    if (!item || typeof item !== "object") return null;
-    const row = item as Record<string, unknown>;
-
-    if (
-      typeof row.id !== "string" ||
-      typeof row.ja !== "string" ||
-      typeof row.en !== "string" ||
-      typeof row.paragraphIndex !== "number" ||
-      typeof row.sentenceIndex !== "number" ||
-      typeof row.startOffset !== "number" ||
-      typeof row.endOffset !== "number"
-    ) {
-      return null;
-    }
-
-    parsed.push({
-      id: row.id,
-      ja: row.ja,
-      en: row.en,
-      paragraphIndex: row.paragraphIndex,
-      sentenceIndex: row.sentenceIndex,
-      startOffset: row.startOffset,
-      endOffset: row.endOffset,
-    });
+  if (
+    !sourceLanguage ||
+    !targetLanguage ||
+    sourceLanguage === targetLanguage ||
+    !isPublicTranslationLanguagePair({ sourceLanguage, targetLanguage })
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "invalid_request" },
+      { status: 400 }
+    );
   }
 
-  return parsed;
-}
-
-export async function GET(_request: Request, context: RouteContext) {
-  const { episodeId } = await context.params;
   const access = await resolveEpisodeTranslationAccess(episodeId);
 
   if (!access || !access.canRead || !access.body.trim()) {
@@ -80,7 +60,8 @@ export async function GET(_request: Request, context: RouteContext) {
     .from("episode_translations")
     .select("id, status, segments, source_hash, translation_model, error_code, started_at, completed_at, updated_at")
     .eq("episode_id", access.episode.id)
-    .eq("target_language", TRANSLATION_TARGET_LANGUAGE)
+    .eq("source_language", sourceLanguage)
+    .eq("target_language", targetLanguage)
     .eq("source_hash", sourceHash)
     .maybeSingle();
 
@@ -100,9 +81,12 @@ export async function GET(_request: Request, context: RouteContext) {
   const canAutoGenerate = access.isAllowlisted;
 
   if (current?.status === "ready") {
-    const segments = parseSegments(current.segments);
+    const translation = parseStoredTranslationPayload(current.segments, {
+      sourceLanguage,
+      targetLanguage,
+    });
 
-    if (!segments) {
+    if (!translation) {
       return NextResponse.json(
         { ok: false, error: "invalid_translation_segments" },
         { status: 500 }
@@ -118,7 +102,9 @@ export async function GET(_request: Request, context: RouteContext) {
       sourceHash,
       translationId: current.id,
       translationModel: current.translation_model ?? null,
-      segments,
+      sourceLanguage,
+      targetLanguage,
+      segments: translation.segments,
     });
   }
 
@@ -201,7 +187,8 @@ export async function GET(_request: Request, context: RouteContext) {
     .from("episode_translations")
     .select("id, source_hash, completed_at")
     .eq("episode_id", access.episode.id)
-    .eq("target_language", TRANSLATION_TARGET_LANGUAGE)
+    .eq("source_language", sourceLanguage)
+    .eq("target_language", targetLanguage)
     .eq("status", "ready")
     .neq("source_hash", sourceHash)
     .order("completed_at", { ascending: false })

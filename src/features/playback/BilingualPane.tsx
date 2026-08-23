@@ -13,8 +13,8 @@ import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRender
 
 export type BilingualSegment = {
   id: string;
-  ja: string;
-  en: string;
+  sourceText: string;
+  translatedText: string;
   paragraphIndex: number;
   sentenceIndex: number;
   startOffset: number;
@@ -307,8 +307,8 @@ export default function BilingualPane({
                     ].join(" ")}
                   >
                     {language === "ja"
-                      ? renderTextWithAozoraRuby(segment.ja)
-                      : `${segment.en} `}
+                      ? renderTextWithAozoraRuby(segment.sourceText)
+                      : `${segment.translatedText} `}
                   </span>
                 );
               })}
