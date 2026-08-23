@@ -1,3 +1,8 @@
+import {
+  getSupportedLanguage,
+  type SupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
+
 type OpenAIResponseBody = {
   status?: string;
   incomplete_details?: {
@@ -57,6 +62,11 @@ export class OpenAITranslationError extends Error {
   }
 }
 
+function translationLabel(targetLanguage: SupportedLanguageTag): string {
+  if (targetLanguage === "en") return "英語対訳";
+  return getSupportedLanguage(targetLanguage).nativeLabel + "対訳";
+}
+
 function splitTranslationBatches(
   segments: OpenAITranslationSourceSegment[]
 ): TranslationBatch[] {
@@ -100,11 +110,16 @@ function calculateBatchMaxOutputTokens(
   );
 }
 
-function assertOpenAIResponseComplete(responseBody: OpenAIResponseBody): void {
+function assertOpenAIResponseComplete(
+  responseBody: OpenAIResponseBody,
+  targetLanguage: SupportedLanguageTag
+): void {
+  const label = translationLabel(targetLanguage);
+
   if (responseBody.status === "incomplete") {
     if (responseBody.incomplete_details?.reason === "max_output_tokens") {
       throw new OpenAITranslationError(
-        "英語対訳の一部が出力上限で途中までになりました。自動的に再試行します。",
+        label + "の一部が出力上限で途中までになりました。自動的に再試行します。",
         502,
         true
       );
@@ -112,14 +127,14 @@ function assertOpenAIResponseComplete(responseBody: OpenAIResponseBody): void {
 
     if (responseBody.incomplete_details?.reason === "content_filter") {
       throw new OpenAITranslationError(
-        "英語対訳の生成がコンテンツ判定により途中で停止しました。",
+        label + "の生成がコンテンツ判定により途中で停止しました。",
         422,
         false
       );
     }
 
     throw new OpenAITranslationError(
-      "英語対訳の生成が完了しませんでした。",
+      label + "の生成が完了しませんでした。",
       502,
       true
     );
@@ -127,7 +142,7 @@ function assertOpenAIResponseComplete(responseBody: OpenAIResponseBody): void {
 
   if (responseBody.status && responseBody.status !== "completed") {
     throw new OpenAITranslationError(
-      "英語対訳の生成が完了しませんでした。",
+      label + "の生成が完了しませんでした。",
       502,
       true
     );
@@ -135,7 +150,8 @@ function assertOpenAIResponseComplete(responseBody: OpenAIResponseBody): void {
 }
 
 async function readOpenAIResponseBody(
-  response: Response
+  response: Response,
+  targetLanguage: SupportedLanguageTag
 ): Promise<OpenAIResponseBody> {
   const responseText = await response.text();
 
@@ -143,7 +159,7 @@ async function readOpenAIResponseBody(
     return JSON.parse(responseText) as OpenAIResponseBody;
   } catch {
     throw new OpenAITranslationError(
-      "英語対訳サーバーの応答を読み取れませんでした。",
+      translationLabel(targetLanguage) + "サーバーの応答を読み取れませんでした。",
       response.ok ? 502 : response.status,
       true
     );
@@ -168,15 +184,17 @@ function extractOutputText(responseBody: OpenAIResponseBody): string {
 
 function validateTranslationOutput(
   outputText: string,
-  expectedSegmentCount: number
+  expectedSegmentCount: number,
+  targetLanguage: SupportedLanguageTag
 ): string[] {
+  const label = translationLabel(targetLanguage);
   let value: unknown;
 
   try {
     value = JSON.parse(outputText) as unknown;
   } catch {
     throw new OpenAITranslationError(
-      "英語対訳の生成結果が途中で切れました。",
+      label + "の生成結果が途中で切れました。",
       502,
       true
     );
@@ -184,7 +202,7 @@ function validateTranslationOutput(
 
   if (!value || typeof value !== "object") {
     throw new OpenAITranslationError(
-      "英語対訳の生成結果を読み取れませんでした。",
+      label + "の生成結果を読み取れませんでした。",
       502,
       true
     );
@@ -193,7 +211,7 @@ function validateTranslationOutput(
   const root = value as Record<string, unknown>;
   if (!Array.isArray(root.segments)) {
     throw new OpenAITranslationError(
-      "英語対訳の生成結果にsegmentsがありません。",
+      label + "の生成結果にsegmentsがありません。",
       502,
       true
     );
@@ -201,7 +219,7 @@ function validateTranslationOutput(
 
   if (root.segments.length !== expectedSegmentCount) {
     throw new OpenAITranslationError(
-      "英語対訳の文数が原文と一致しません。",
+      label + "の文数が原文と一致しません。",
       502,
       true
     );
@@ -213,7 +231,7 @@ function validateTranslationOutput(
 
   if (translated.some((item) => !item)) {
     throw new OpenAITranslationError(
-      "英語対訳に空の文が含まれました。",
+      label + "に空の文が含まれました。",
       502,
       true
     );
@@ -227,11 +245,16 @@ async function translateBatch(args: {
   model: string;
   workTitle: string;
   episodeTitle?: string;
+  sourceLanguage: SupportedLanguageTag;
+  targetLanguage: SupportedLanguageTag;
   batch: TranslationBatch;
   batchIndex: number;
   batchCount: number;
 }): Promise<TranslationOutput & { inputTokens: number; outputTokens: number }> {
   let response: Response;
+  const sourceLanguage = getSupportedLanguage(args.sourceLanguage);
+  const targetLanguage = getSupportedLanguage(args.targetLanguage);
+  const label = translationLabel(args.targetLanguage);
 
   try {
     response = await fetch("https://api.openai.com/v1/responses", {
@@ -253,7 +276,7 @@ async function translateBatch(args: {
               {
                 type: "input_text",
                 text:
-                  "You are a literary translator. Translate Japanese fiction into natural, modern, neutral English. Preserve meaning, speakers, tense, names, paragraph intent, punctuation intent, and omissions. Do not add explanations or remove content. Never return an empty or whitespace-only translation. Return only the requested structured JSON.",
+                  `You are a literary translator. Translate fiction from ${sourceLanguage.label} (${sourceLanguage.tag}) into natural, modern, neutral ${targetLanguage.label} (${targetLanguage.tag}). Preserve meaning, speakers, tense, names, paragraph intent, punctuation intent, and omissions. Do not add explanations or remove content. Never return an empty or whitespace-only translation. Return only the requested structured JSON.`,
               },
             ],
           },
@@ -269,9 +292,9 @@ async function translateBatch(args: {
                     : null,
                   `Translation batch: ${args.batchIndex + 1}/${args.batchCount}`,
                   "Translate every segment in exactly the same order.",
-                  "Return exactly one non-empty English string for each input segment; do not return ids.",
+                  `Return exactly one non-empty ${targetLanguage.label} string for each input segment; do not return ids.`,
                   "If a segment contains only punctuation or a symbol, preserve an appropriate non-empty representation.",
-                  "Aozora ruby readings and editorial notes have already been normalized for translation input.",
+                  "Source-language readings and editorial annotations have already been normalized for translation input.",
                   "Segments:",
                   JSON.stringify(args.batch.segments),
                 ]
@@ -315,18 +338,18 @@ async function translateBatch(args: {
 
     throw new OpenAITranslationError(
       isTimeout
-        ? "英語対訳の一部が1分以内に完了しませんでした。"
-        : "英語対訳サーバーに接続できませんでした。",
+        ? label + "の一部が1分以内に完了しませんでした。"
+        : label + "サーバーに接続できませんでした。",
       isTimeout ? 504 : 502,
       true
     );
   }
 
-  const responseBody = await readOpenAIResponseBody(response);
+  const responseBody = await readOpenAIResponseBody(response, args.targetLanguage);
 
   if (!response.ok) {
     throw new OpenAITranslationError(
-      responseBody.error?.message ?? "英語対訳の生成に失敗しました。",
+      responseBody.error?.message ?? label + "の生成に失敗しました。",
       response.status,
       response.status === 408 ||
         response.status === 409 ||
@@ -335,19 +358,23 @@ async function translateBatch(args: {
     );
   }
 
-  assertOpenAIResponseComplete(responseBody);
+  assertOpenAIResponseComplete(responseBody, args.targetLanguage);
 
   const outputText = extractOutputText(responseBody);
   if (!outputText) {
     throw new OpenAITranslationError(
-      "英語対訳の生成結果が空でした。",
+      label + "の生成結果が空でした。",
       502,
       true
     );
   }
 
   return {
-    segments: validateTranslationOutput(outputText, args.batch.segments.length),
+    segments: validateTranslationOutput(
+      outputText,
+      args.batch.segments.length,
+      args.targetLanguage
+    ),
     inputTokens: Number(responseBody.usage?.input_tokens ?? 0) || 0,
     outputTokens: Number(responseBody.usage?.output_tokens ?? 0) || 0,
   };
@@ -397,15 +424,19 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-export async function translateJapaneseSegmentsInBatches(args: {
+export async function translateSegmentsInBatches(args: {
   apiKey: string;
   model: string;
   workTitle: string;
   episodeTitle?: string;
+  sourceLanguage: SupportedLanguageTag;
+  targetLanguage: SupportedLanguageTag;
   segments: OpenAITranslationSourceSegment[];
 }): Promise<OpenAITranslationResult> {
+  const label = translationLabel(args.targetLanguage);
+
   if (args.segments.length === 0) {
-    throw new Error("英語対訳の原文がありません。");
+    throw new Error(label + "の原文がありません。");
   }
 
   const batches = splitTranslationBatches(args.segments);
@@ -418,6 +449,8 @@ export async function translateJapaneseSegmentsInBatches(args: {
         model: args.model,
         workTitle: args.workTitle,
         episodeTitle: args.episodeTitle,
+        sourceLanguage: args.sourceLanguage,
+        targetLanguage: args.targetLanguage,
         batch,
         batchIndex,
         batchCount: batches.length,
@@ -430,7 +463,7 @@ export async function translateJapaneseSegmentsInBatches(args: {
     segments.some((item) => !item.trim())
   ) {
     throw new OpenAITranslationError(
-      "英語対訳の結合結果が原文と一致しません。",
+      label + "の結合結果が原文と一致しません。",
       502,
       true
     );

@@ -7,16 +7,18 @@ import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeNextPath } from "@/lib/auth/accountSignupConsent";
 
-type PendingAction = "signin" | "signout" | null;
+type PendingAction =
+  | "signin"
+  | "email-link"
+  | "reset-password"
+  | "signout"
+  | null;
 
 function resolveAuthRedirectOrigin(): string {
   if (typeof window !== "undefined") {
     const currentOrigin = window.location.origin.replace(/\/+$/, "");
 
-    if (
-      currentOrigin.includes("localhost") ||
-      currentOrigin.includes("127.0.0.1")
-    ) {
+    if (currentOrigin.length > 0) {
       return currentOrigin;
     }
   }
@@ -53,6 +55,7 @@ export default function LoginPageClient() {
 
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -103,13 +106,78 @@ export default function LoginPageClient() {
     setMessage("");
     setErrorMessage("");
 
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+
+    if (error) {
+      setErrorMessage(error.message);
+      setPendingAction(null);
+      return;
+    }
+
+    router.push(nextPath);
+    router.refresh();
+    setPendingAction(null);
+  }
+
+  async function handleResetPassword() {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    setMessage("");
+    setErrorMessage("");
+
+    if (!normalizedEmail) {
+      setErrorMessage("パスワードを再設定するメールアドレスを入力して。");
+      return;
+    }
+
+    setPendingAction("reset-password");
+
+    const redirectOrigin = resolveAuthRedirectOrigin();
+    const resetPath = `/reset-password?next=${encodeURIComponent(nextPath)}`;
+    const redirectTo = redirectOrigin
+      ? `${redirectOrigin}/auth/callback?next=${encodeURIComponent(resetPath)}`
+      : undefined;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      normalizedEmail,
+      redirectTo ? { redirectTo } : undefined
+    );
+
+    if (error) {
+      setErrorMessage(error.message);
+      setPendingAction(null);
+      return;
+    }
+
+    setMessage(
+      "パスワード設定・再設定用メールを送った。メール内のリンクを開いて。"
+    );
+    setPendingAction(null);
+  }
+
+  async function handleEmailLinkSignIn() {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    setMessage("");
+    setErrorMessage("");
+
+    if (!normalizedEmail) {
+      setErrorMessage("ログインするメールアドレスを入力して。");
+      return;
+    }
+
+    setPendingAction("email-link");
+
     const redirectOrigin = resolveAuthRedirectOrigin();
     const emailRedirectTo = redirectOrigin
       ? `${redirectOrigin}/auth/callback?next=${encodeURIComponent(nextPath)}`
       : undefined;
 
     const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
+      email: normalizedEmail,
       options: {
         emailRedirectTo,
         shouldCreateUser: false,
@@ -122,7 +190,9 @@ export default function LoginPageClient() {
       return;
     }
 
-    setMessage("ログイン用メールを送った。メール内のリンクを開いて。");
+    setMessage(
+      "移行用のログインメールを送った。ログイン後、マイページでパスワードを設定して。"
+    );
     setPendingAction(null);
   }
 
@@ -159,7 +229,7 @@ export default function LoginPageClient() {
             </h1>
 
             <p className="mt-4 text-sm leading-7 text-neutral-600">
-              メールリンクでログインする。パスワードは使わない。
+              メールアドレスとパスワードでログインする。
             </p>
 
             {user ? (
@@ -221,13 +291,26 @@ export default function LoginPageClient() {
                     />
                   </label>
 
+                  <label className="mt-4 block">
+                    <span className="text-sm text-neutral-700">パスワード</span>
+                    <input
+                      type="password"
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
+                      placeholder="パスワード"
+                      required
+                    />
+                  </label>
+
                   <div className="mt-6 flex flex-wrap gap-3">
                     <button
                       type="submit"
                       disabled={isPending}
                       className="inline-flex rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {pendingAction === "signin" ? "送信中..." : "ログイン用メールを送る"}
+                      {pendingAction === "signin" ? "ログイン中..." : "ログイン"}
                     </button>
 
                     <Link
@@ -246,7 +329,29 @@ export default function LoginPageClient() {
                   </div>
 
                   <div className="mt-5 rounded-2xl border border-black/10 bg-neutral-50 p-4 text-xs leading-6 text-neutral-600">
-                    <p>登録済みのメールアドレスにログイン用リンクを送る。</p>
+                    <p>
+                      以前メールリンクで登録した場合は、最初にパスワードを設定する。
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleResetPassword()}
+                      disabled={isPending}
+                      className="mt-2 font-medium text-sky-700 underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {pendingAction === "reset-password"
+                        ? "送信中..."
+                        : "パスワードを設定・再設定する"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleEmailLinkSignIn()}
+                      disabled={isPending}
+                      className="ml-4 mt-2 font-medium text-neutral-600 underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {pendingAction === "email-link"
+                        ? "送信中..."
+                        : "従来のメールリンクでログイン"}
+                    </button>
                   </div>
                 </div>
               </form>

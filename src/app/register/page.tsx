@@ -21,6 +21,8 @@ import { syncPublicUserProfile } from "@/lib/auth/syncPublicUserProfile";
 
 type PendingAction = "email-signup" | "complete-profile" | null;
 
+const PASSWORD_MIN_LENGTH = 8;
+
 type PrepareSignupEmailResponse = {
   ok?: boolean;
   normalizedEmail?: string;
@@ -43,10 +45,7 @@ function resolveAuthRedirectOrigin(): string {
   if (typeof window !== "undefined") {
     const currentOrigin = window.location.origin.replace(/\/+$/, "");
 
-    if (
-      currentOrigin.includes("localhost") ||
-      currentOrigin.includes("127.0.0.1")
-    ) {
+    if (currentOrigin.length > 0) {
       return currentOrigin;
     }
   }
@@ -108,6 +107,8 @@ export default function RegisterPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loadedUser, setLoadedUser] = useState(false);
   const [email, setEmail] = useState(initialEmail);
+  const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
@@ -130,6 +131,14 @@ export default function RegisterPage() {
     normalizedDisplayName.length > 0 &&
     consentComplete &&
     !displayNameError;
+
+  const passwordError = user
+    ? ""
+    : password.length < PASSWORD_MIN_LENGTH
+      ? `パスワードは${PASSWORD_MIN_LENGTH}文字以上で入力して。`
+      : password !== passwordConfirmation
+        ? "確認用パスワードが一致していない。"
+        : "";
 
   useEffect(() => {
     let active = true;
@@ -286,6 +295,11 @@ export default function RegisterPage() {
       return;
     }
 
+    if (passwordError) {
+      setErrorMessage(passwordError);
+      return;
+    }
+
     setPendingAction("email-signup");
     setMessage("");
     setErrorMessage("");
@@ -330,11 +344,11 @@ export default function RegisterPage() {
       acknowledgedPublicSurface,
     });
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { data, error } = await supabase.auth.signUp({
       email: availableEmail,
+      password,
       options: {
         emailRedirectTo,
-        shouldCreateUser: true,
         data: metadata,
       },
     });
@@ -345,7 +359,14 @@ export default function RegisterPage() {
       return;
     }
 
-    setMessage("確認メールを送った。メール内のリンクからログインして。");
+    if (data.session && data.user) {
+      await completeSignedInRegistration(data.user);
+      return;
+    }
+
+    setMessage(
+      "確認メールを送った。メール内のリンクを一度開けば、以後はパスワードでログインできる。"
+    );
     setPendingAction(null);
   }
 
@@ -367,7 +388,7 @@ export default function RegisterPage() {
                 {user ? "STEP 2" : "STEP 1"}
               </span>
               <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
-                メールリンク登録
+                パスワード登録
               </span>
             </div>
 
@@ -380,7 +401,7 @@ export default function RegisterPage() {
             </h1>
 
             <p className="mt-4 text-sm leading-7 text-neutral-600">
-              登録に必要なのはメールアドレスとユーザー名だけ。
+              メールアドレス、パスワード、ユーザー名を登録する。
             </p>
 
             {user ? (
@@ -401,22 +422,62 @@ export default function RegisterPage() {
             <form onSubmit={handleEmailRegistration} className="mt-8">
               <div className="rounded-[28px] border border-black/10 bg-white p-6">
                 {!user ? (
-                  <label className="block">
-                    <span className="text-sm text-neutral-700">メールアドレス</span>
-                    <input
-                      type="email"
-                      autoComplete="email"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      inputMode="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
-                      placeholder="you@example.com"
-                      required
-                    />
-                  </label>
+                  <div className="grid gap-4">
+                    <label className="block">
+                      <span className="text-sm text-neutral-700">メールアドレス</span>
+                      <input
+                        type="email"
+                        autoComplete="email"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        inputMode="email"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
+                        placeholder="you@example.com"
+                        required
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm text-neutral-700">パスワード</span>
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
+                        placeholder={`${PASSWORD_MIN_LENGTH}文字以上`}
+                        minLength={PASSWORD_MIN_LENGTH}
+                        required
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm text-neutral-700">
+                        パスワード（確認）
+                      </span>
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        value={passwordConfirmation}
+                        onChange={(event) =>
+                          setPasswordConfirmation(event.target.value)
+                        }
+                        className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
+                        placeholder="もう一度入力"
+                        minLength={PASSWORD_MIN_LENGTH}
+                        required
+                      />
+                    </label>
+                  </div>
+                ) : null}
+
+                {!user && passwordConfirmation.length > 0 && passwordError ? (
+                  <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {passwordError}
+                  </div>
                 ) : null}
 
                 <label className={user ? "block" : "mt-4 block"}>
@@ -502,7 +563,8 @@ export default function RegisterPage() {
                     disabled={
                       pendingAction !== null ||
                       !profileComplete ||
-                      !!displayNameError
+                      !!displayNameError ||
+                      !!passwordError
                     }
                     className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >

@@ -12,8 +12,14 @@ import {
 } from "@/lib/translation/episodeTranslationServer";
 import {
   OpenAITranslationError,
-  translateJapaneseSegmentsInBatches,
+  translateSegmentsInBatches,
 } from "@/lib/translation/openAITranslation";
+import {
+  isPublicTranslationLanguagePair,
+  parseSupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
+import { createTranslationPayload } from "@/lib/translation/translationPayload";
+import { reserveEpisodeTranslation } from "@/lib/translation/translationReservationServer";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -118,12 +124,22 @@ export async function POST(request: Request) {
   }
 
   const episodeId = typeof payload.episodeId === "string" ? payload.episodeId.trim() : "";
+  const sourceLanguage =
+    payload.sourceLanguage === undefined
+      ? TRANSLATION_SOURCE_LANGUAGE
+      : parseSupportedLanguageTag(payload.sourceLanguage);
   const targetLanguage =
-    typeof payload.targetLanguage === "string"
-      ? payload.targetLanguage.trim().toLowerCase()
-      : TRANSLATION_TARGET_LANGUAGE;
+    payload.targetLanguage === undefined
+      ? TRANSLATION_TARGET_LANGUAGE
+      : parseSupportedLanguageTag(payload.targetLanguage);
 
-  if (!episodeId || targetLanguage !== TRANSLATION_TARGET_LANGUAGE) {
+  if (
+    !episodeId ||
+    !sourceLanguage ||
+    !targetLanguage ||
+    sourceLanguage === targetLanguage ||
+    !isPublicTranslationLanguagePair({ sourceLanguage, targetLanguage })
+  ) {
     return NextResponse.json(
       { ok: false, error: "invalid_request" },
       { status: 400 }
@@ -161,7 +177,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const source = buildEpisodeTranslationSource(access.body);
+  const source = buildEpisodeTranslationSource(access.body, sourceLanguage);
   const sourceChars = source.normalizedSource.length;
 
   if (sourceChars > TRANSLATION_LIMITS.maxSourceChars) {
@@ -195,6 +211,7 @@ export async function POST(request: Request) {
     .from("episode_translations")
     .select("id, status")
     .eq("episode_id", access.episode.id)
+    .eq("source_language", sourceLanguage)
     .eq("target_language", targetLanguage)
     .eq("source_hash", sourceHash)
     .maybeSingle();
@@ -212,19 +229,21 @@ export async function POST(request: Request) {
 
   const requestId = randomUUID();
 
-  const reservationResult = await admin.rpc("reserve_episode_translation", {
-    p_request_id: requestId,
-    p_episode_id: access.episode.id,
-    p_source_hash: sourceHash,
-    p_target_language: targetLanguage,
-    p_user_id: access.currentUserId,
-    p_model: model,
-    p_source_chars: sourceChars,
-    p_estimated_input_tokens: estimatedTokens.inputTokens,
-    p_estimated_output_tokens: estimatedTokens.outputTokens,
-    p_cost_estimate_jpy: estimatedCostJpy,
-    p_daily_max_requests: TRANSLATION_LIMITS.dailyMaxRequests,
-    p_daily_max_estimated_cost_jpy: TRANSLATION_LIMITS.dailyMaxEstimatedCostJpy,
+  const reservationResult = await reserveEpisodeTranslation({
+    admin,
+    requestId,
+    episodeId: access.episode.id,
+    sourceHash,
+    sourceLanguage,
+    targetLanguage,
+    userId: access.currentUserId,
+    model,
+    sourceChars,
+    estimatedInputTokens: estimatedTokens.inputTokens,
+    estimatedOutputTokens: estimatedTokens.outputTokens,
+    costEstimateJpy: estimatedCostJpy,
+    dailyMaxRequests: TRANSLATION_LIMITS.dailyMaxRequests,
+    dailyMaxEstimatedCostJpy: TRANSLATION_LIMITS.dailyMaxEstimatedCostJpy,
   });
 
   if (reservationResult.error) {
@@ -309,11 +328,13 @@ export async function POST(request: Request) {
     "第" + String(access.episodeNumber) + "話";
 
   try {
-    const translated = await translateJapaneseSegmentsInBatches({
+    const translated = await translateSegmentsInBatches({
       apiKey,
       model,
       workTitle: seriesTitle,
       episodeTitle,
+      sourceLanguage,
+      targetLanguage,
       segments: source.segments.map((segment) => ({
         id: segment.id,
         text: segment.translationInput,
@@ -321,17 +342,23 @@ export async function POST(request: Request) {
     });
     const storedSegments = source.segments.map((segment, index) => ({
       id: segment.id,
-      ja: segment.ja,
-      en: translated.segments[index] ?? "",
+      sourceText: segment.sourceText,
+      translatedText: translated.segments[index] ?? "",
       paragraphIndex: segment.paragraphIndex,
       sentenceIndex: segment.sentenceIndex,
       startOffset: segment.startOffset,
       endOffset: segment.endOffset,
     }));
 
-    if (storedSegments.some((segment) => !segment.en.trim())) {
+    if (storedSegments.some((segment) => !segment.translatedText.trim())) {
       throw new Error("英語対訳に空のsegmentがあります。");
     }
+
+    const translationPayload = createTranslationPayload({
+      sourceLanguage,
+      targetLanguage,
+      segments: storedSegments,
+    });
 
     const now = new Date().toISOString();
     const actualInputTokens = translated.inputTokens;
@@ -344,16 +371,11 @@ export async function POST(request: Request) {
     const translationUpdate = await admin
       .from("episode_translations")
       .update({
-        source_language: TRANSLATION_SOURCE_LANGUAGE,
-        target_language: TRANSLATION_TARGET_LANGUAGE,
+        source_language: sourceLanguage,
+        target_language: targetLanguage,
         segment_version: TRANSLATION_SEGMENT_VERSION,
         status: "ready",
-        segments: {
-          version: TRANSLATION_SEGMENT_VERSION,
-          sourceLanguage: TRANSLATION_SOURCE_LANGUAGE,
-          targetLanguage: TRANSLATION_TARGET_LANGUAGE,
-          segments: storedSegments,
-        },
+        segments: translationPayload,
         translation_model: model,
         error_code: null,
         completed_at: now,

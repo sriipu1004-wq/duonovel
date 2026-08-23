@@ -11,19 +11,22 @@ import {
 } from "@/lib/translation/episodeTranslationServer";
 import {
   OpenAITranslationError,
-  translateJapaneseSegmentsInBatches,
+  translateSegmentsInBatches,
 } from "@/lib/translation/openAITranslation";
+import {
+  isPublicTranslationLanguagePair,
+  parseSupportedLanguageTag,
+  type SupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
+import {
+  createTranslationPayload,
+  parseStoredTranslationPayload,
+} from "@/lib/translation/translationPayload";
+import { reserveGeneratedStoryTranslation } from "@/lib/translation/translationReservationServer";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 const GENERATED_TRANSLATION_STUCK_MS = 4 * 60 * 1000;
-
-type StoredTranslationPayload = {
-  version?: number;
-  sourceLanguage?: string;
-  targetLanguage?: string;
-  segments?: unknown[];
-};
 
 function readBooleanEnv(name: string, fallback: boolean): boolean {
   const value = process.env[name]?.trim().toLowerCase();
@@ -78,12 +81,6 @@ function estimateCostJpy(inputTokens: number, outputTokens: number): number {
   return Math.ceil(value * 1000) / 1000;
 }
 
-function readStoredSegments(value: unknown): unknown[] | null {
-  if (!value || typeof value !== "object") return null;
-  const payload = value as StoredTranslationPayload;
-  return Array.isArray(payload.segments) ? payload.segments : null;
-}
-
 async function currentUserId(): Promise<string | null> {
   try {
     const supabase = await createClient();
@@ -131,13 +128,16 @@ async function markFailed(args: {
 async function readReadyTranslation(args: {
   storyId: string;
   sourceHash: string;
+  sourceLanguage: SupportedLanguageTag;
+  targetLanguage: SupportedLanguageTag;
 }) {
   const admin = createAdminClient();
   const result = await admin
     .from("generated_story_translations")
     .select("id, status, segments, expires_at, started_at")
     .eq("story_id", args.storyId)
-    .eq("target_language", TRANSLATION_TARGET_LANGUAGE)
+    .eq("source_language", args.sourceLanguage)
+    .eq("target_language", args.targetLanguage)
     .eq("source_hash", args.sourceHash)
     .gte("expires_at", new Date().toISOString())
     .maybeSingle();
@@ -158,13 +158,25 @@ export async function POST(request: Request) {
   const storyId = typeof payload.storyId === "string" ? payload.storyId.trim() : "";
   const title = typeof payload.title === "string" ? payload.title.trim() : "";
   const body = typeof payload.body === "string" ? payload.body.trim() : "";
+  const sourceLanguage =
+    payload.sourceLanguage === undefined
+      ? TRANSLATION_SOURCE_LANGUAGE
+      : parseSupportedLanguageTag(payload.sourceLanguage);
+  const targetLanguage =
+    payload.targetLanguage === undefined
+      ? TRANSLATION_TARGET_LANGUAGE
+      : parseSupportedLanguageTag(payload.targetLanguage);
 
   if (
     !storyId ||
     storyId.length > 100 ||
     !/^[A-Za-z0-9-]+$/u.test(storyId) ||
     !title ||
-    !body
+    !body ||
+    !sourceLanguage ||
+    !targetLanguage ||
+    sourceLanguage === targetLanguage ||
+    !isPublicTranslationLanguagePair({ sourceLanguage, targetLanguage })
   ) {
     return NextResponse.json({ ok: false, error: "invalid_request" }, { status: 400 });
   }
@@ -180,7 +192,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const source = buildEpisodeTranslationSource(body);
+  const source = buildEpisodeTranslationSource(body, sourceLanguage);
   const sourceChars = source.normalizedSource.length;
 
   if (sourceChars > TRANSLATION_LIMITS.maxSourceChars) {
@@ -202,17 +214,27 @@ export async function POST(request: Request) {
   }
 
   const sourceHash = buildEpisodeTranslationSourceHash(body);
-  const existing = await readReadyTranslation({ storyId, sourceHash });
+  const existing = await readReadyTranslation({
+    storyId,
+    sourceHash,
+    sourceLanguage,
+    targetLanguage,
+  });
   const admin = createAdminClient();
 
   if (existing?.status === "ready") {
-    const segments = readStoredSegments(existing.segments);
-    if (segments) {
+    const translation = parseStoredTranslationPayload(existing.segments, {
+      sourceLanguage,
+      targetLanguage,
+    });
+    if (translation) {
       return NextResponse.json({
         ok: true,
         status: "ready",
         sourceHash,
-        segments,
+        sourceLanguage,
+        targetLanguage,
+        segments: translation.segments,
       });
     }
   }
@@ -263,19 +285,21 @@ export async function POST(request: Request) {
   const userId = await currentUserId();
   const requestId = randomUUID();
 
-  const reservationResult = await admin.rpc("reserve_generated_story_translation", {
-    p_request_id: requestId,
-    p_story_id: storyId,
-    p_source_hash: sourceHash,
-    p_target_language: TRANSLATION_TARGET_LANGUAGE,
-    p_user_id: userId,
-    p_model: model,
-    p_source_chars: sourceChars,
-    p_estimated_input_tokens: estimatedTokens.inputTokens,
-    p_estimated_output_tokens: estimatedTokens.outputTokens,
-    p_cost_estimate_jpy: estimatedCostJpy,
-    p_daily_max_requests: TRANSLATION_LIMITS.dailyMaxRequests,
-    p_daily_max_estimated_cost_jpy: TRANSLATION_LIMITS.dailyMaxEstimatedCostJpy,
+  const reservationResult = await reserveGeneratedStoryTranslation({
+    admin,
+    requestId,
+    storyId,
+    sourceHash,
+    sourceLanguage,
+    targetLanguage,
+    userId,
+    model,
+    sourceChars,
+    estimatedInputTokens: estimatedTokens.inputTokens,
+    estimatedOutputTokens: estimatedTokens.outputTokens,
+    costEstimateJpy: estimatedCostJpy,
+    dailyMaxRequests: TRANSLATION_LIMITS.dailyMaxRequests,
+    dailyMaxEstimatedCostJpy: TRANSLATION_LIMITS.dailyMaxEstimatedCostJpy,
   });
 
   if (reservationResult.error) {
@@ -304,14 +328,24 @@ export async function POST(request: Request) {
     const resultType = String(reservation.result_type ?? "");
 
     if (resultType === "ready") {
-      const ready = await readReadyTranslation({ storyId, sourceHash });
-      const segments = readStoredSegments(ready?.segments);
-      if (segments) {
+      const ready = await readReadyTranslation({
+        storyId,
+        sourceHash,
+        sourceLanguage,
+        targetLanguage,
+      });
+      const translation = parseStoredTranslationPayload(ready?.segments, {
+        sourceLanguage,
+        targetLanguage,
+      });
+      if (translation) {
         return NextResponse.json({
           ok: true,
           status: "ready",
           sourceHash,
-          segments,
+          sourceLanguage,
+          targetLanguage,
+          segments: translation.segments,
         });
       }
     }
@@ -364,10 +398,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const translated = await translateJapaneseSegmentsInBatches({
+    const translated = await translateSegmentsInBatches({
       apiKey,
       model,
       workTitle: title,
+      sourceLanguage,
+      targetLanguage,
       segments: source.segments.map((segment) => ({
         id: segment.id,
         text: segment.translationInput,
@@ -375,17 +411,23 @@ export async function POST(request: Request) {
     });
     const storedSegments = source.segments.map((segment, index) => ({
       id: segment.id,
-      ja: segment.ja,
-      en: translated.segments[index] ?? "",
+      sourceText: segment.sourceText,
+      translatedText: translated.segments[index] ?? "",
       paragraphIndex: segment.paragraphIndex,
       sentenceIndex: segment.sentenceIndex,
       startOffset: segment.startOffset,
       endOffset: segment.endOffset,
     }));
 
-    if (storedSegments.some((segment) => !segment.en.trim())) {
+    if (storedSegments.some((segment) => !segment.translatedText.trim())) {
       throw new Error("英語対訳に空のsegmentがあります。");
     }
+
+    const translationPayload = createTranslationPayload({
+      sourceLanguage,
+      targetLanguage,
+      segments: storedSegments,
+    });
 
     const now = new Date().toISOString();
     const actualInputTokens = translated.inputTokens;
@@ -398,16 +440,11 @@ export async function POST(request: Request) {
     const translationUpdate = await admin
       .from("generated_story_translations")
       .update({
-        source_language: TRANSLATION_SOURCE_LANGUAGE,
-        target_language: TRANSLATION_TARGET_LANGUAGE,
+        source_language: sourceLanguage,
+        target_language: targetLanguage,
         segment_version: TRANSLATION_SEGMENT_VERSION,
         status: "ready",
-        segments: {
-          version: TRANSLATION_SEGMENT_VERSION,
-          sourceLanguage: TRANSLATION_SOURCE_LANGUAGE,
-          targetLanguage: TRANSLATION_TARGET_LANGUAGE,
-          segments: storedSegments,
-        },
+        segments: translationPayload,
         translation_model: model,
         error_code: null,
         completed_at: now,
@@ -436,6 +473,8 @@ export async function POST(request: Request) {
       ok: true,
       status: "ready",
       sourceHash,
+      sourceLanguage,
+      targetLanguage,
       segments: storedSegments,
     });
   } catch (error) {

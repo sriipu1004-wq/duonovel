@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 type PendingAction =
   | "change-email"
+  | "change-password"
   | "content-preference"
   | "delete"
   | null;
@@ -14,12 +15,22 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+function passwordUpdateErrorMessage(message: string): string {
+  if (message.toLowerCase().includes("new password should be different")) {
+    return "現在とは異なるパスワードを入力して。";
+  }
+
+  return message;
+}
+
 export default function AccountSettingsCard() {
   const router = useRouter();
 
   const [currentEmail, setCurrentEmail] = useState("");
   const [loadedUser, setLoadedUser] = useState(false);
   const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirmation, setNewPasswordConfirmation] = useState("");
   const [showR18Content, setShowR18Content] = useState(false);
   const [r18PreferenceLoaded, setR18PreferenceLoaded] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
@@ -181,6 +192,37 @@ export default function AccountSettingsCard() {
     }
   }
 
+  async function handleChangePassword() {
+    resetNotice();
+
+    if (newPassword.length < 8) {
+      setErrorMessage("パスワードは8文字以上で入力して。");
+      return;
+    }
+
+    if (newPassword !== newPasswordConfirmation) {
+      setErrorMessage("確認用パスワードが一致していない。");
+      return;
+    }
+
+    setPendingAction("change-password");
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      setErrorMessage(passwordUpdateErrorMessage(error.message));
+      setPendingAction(null);
+      return;
+    }
+
+    setNewPassword("");
+    setNewPasswordConfirmation("");
+    setMessage("パスワードを設定した。次回からパスワードでログインできる。");
+    setPendingAction(null);
+  }
+
   async function handleDelete() {
     resetNotice();
 
@@ -219,7 +261,7 @@ export default function AccountSettingsCard() {
       <h2 className="mt-2 text-xl font-semibold text-black">設定</h2>
       <p className="mt-3 text-sm leading-7 text-neutral-600">
         表示名は上のプロフィール欄から変更できる。
-        ここではコンテンツ表示、メールアドレス、アカウント削除を扱う。
+        ここではコンテンツ表示、ログイン情報、アカウント削除を扱う。
       </p>
 
       <div className="mt-5 grid gap-5">
@@ -324,6 +366,58 @@ export default function AccountSettingsCard() {
                 {pendingAction === "change-email"
                   ? "変更中..."
                   : "メールアドレスを変更"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
+          <p className="text-sm font-semibold text-black">パスワード設定・再設定</p>
+          <p className="mt-2 text-sm leading-7 text-neutral-600">
+            メールリンクで登録したアカウントにも、ここからパスワードを設定できる。
+          </p>
+
+          <div className="mt-4 grid gap-3">
+            <label className="grid gap-2">
+              <span className="text-sm text-neutral-700">新しいパスワード</span>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
+                placeholder="8文字以上"
+                minLength={8}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm text-neutral-700">
+                新しいパスワード（確認）
+              </span>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={newPasswordConfirmation}
+                onChange={(event) =>
+                  setNewPasswordConfirmation(event.target.value)
+                }
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
+                placeholder="もう一度入力"
+                minLength={8}
+              />
+            </label>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void handleChangePassword()}
+                disabled={isPending}
+                className="rounded-full border border-sky-200 bg-sky-50 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pendingAction === "change-password"
+                  ? "設定中..."
+                  : "パスワードを更新"}
               </button>
             </div>
           </div>

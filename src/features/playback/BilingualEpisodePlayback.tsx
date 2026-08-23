@@ -156,6 +156,7 @@ export default function BilingualEpisodePlayback({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           episodeId,
+          sourceLanguage: "ja",
           targetLanguage: "en",
         }),
       });
@@ -206,7 +207,9 @@ export default function BilingualEpisodePlayback({
   const loadTranslation = useCallback(async () => {
     try {
       const response = await fetch(
-        "/api/episode-translations/" + encodeURIComponent(episodeId),
+        "/api/episode-translations/" +
+          encodeURIComponent(episodeId) +
+          "?sourceLanguage=ja&targetLanguage=en",
         { cache: "no-store" }
       );
       const payload = (await response.json()) as TranslationStatusResponse;
