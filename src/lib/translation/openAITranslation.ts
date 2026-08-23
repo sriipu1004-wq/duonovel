@@ -46,8 +46,8 @@ type TranslationBatch = {
   sourceChars: number;
 };
 
-const MAX_BATCH_SOURCE_CHARS = 1800;
-const MAX_BATCH_SEGMENTS = 40;
+const MAX_BATCH_SOURCE_CHARS = 900;
+const MAX_BATCH_SEGMENTS = 20;
 const MAX_PARALLEL_BATCHES = 3;
 const BATCH_TIMEOUT_MS = 60_000;
 
@@ -67,6 +67,48 @@ export class OpenAITranslationError extends Error {
 
 function translationLabel(): string {
   return "対訳";
+}
+
+function hasLexicalContent(value: string): boolean {
+  return /[\p{L}\p{N}]/u.test(value);
+}
+
+function shouldPreserveVerbatim(
+  segment: OpenAITranslationSourceSegment,
+  sourceLanguage: SupportedLanguageTag
+): boolean {
+  const value = segment.text.trim();
+  if (!value || !/\p{L}/u.test(value)) return true;
+
+  return (
+    sourceLanguage === "ja" &&
+    /[A-Za-z]/u.test(value) &&
+    !/[一-龯々〆ヵヶぁ-ゖァ-ヺー]/u.test(value)
+  );
+}
+
+function collectRecurringTerms(
+  segments: OpenAITranslationSourceSegment[]
+): string[] {
+  const counts = new Map<string, number>();
+
+  for (const segment of segments) {
+    const terms = new Set(
+      segment.text.match(/[ァ-ヺー]{2,}|[A-Z][A-Z0-9'-]{3,}/gu) ?? []
+    );
+
+    for (const term of terms) {
+      counts.set(term, (counts.get(term) ?? 0) + 1);
+    }
+  }
+
+  return [...counts.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort(([leftTerm, leftCount], [rightTerm, rightCount]) =>
+      rightCount - leftCount || leftTerm.localeCompare(rightTerm)
+    )
+    .slice(0, 24)
+    .map(([term]) => term);
 }
 
 function splitTranslationBatches(
@@ -182,7 +224,7 @@ function extractOutputText(responseBody: OpenAIResponseBody): string {
 
 function validateTranslationOutput(
   outputText: string,
-  expectedSegmentCount: number
+  expectedSegments: OpenAITranslationSourceSegment[]
 ): string[] {
   const label = translationLabel();
   let value: unknown;
@@ -206,15 +248,26 @@ function validateTranslationOutput(
   }
 
   const root = value as Record<string, unknown>;
-  if (!Array.isArray(root.segments)) {
+  if (
+    !root.translations ||
+    typeof root.translations !== "object" ||
+    Array.isArray(root.translations)
+  ) {
     throw new OpenAITranslationError(
-      label + "の生成結果にsegmentsがありません。",
+      label + "の生成結果にtranslationsがありません。",
       502,
       true
     );
   }
 
-  if (root.segments.length !== expectedSegmentCount) {
+  const translations = root.translations as Record<string, unknown>;
+  const expectedIds = expectedSegments.map((segment) => segment.id);
+  const actualIds = Object.keys(translations);
+
+  if (
+    actualIds.length !== expectedIds.length ||
+    expectedIds.some((id) => !Object.prototype.hasOwnProperty.call(translations, id))
+  ) {
     throw new OpenAITranslationError(
       label + "の文数が原文と一致しません。",
       502,
@@ -222,13 +275,28 @@ function validateTranslationOutput(
     );
   }
 
-  const translated = root.segments.map((item) =>
-    typeof item === "string" ? item.trim() : ""
-  );
+  const translated = expectedSegments.map((segment) => {
+    const item = translations[segment.id];
+    return typeof item === "string" ? item.trim() : "";
+  });
 
   if (translated.some((item) => !item)) {
     throw new OpenAITranslationError(
       label + "に空の文が含まれました。",
+      502,
+      true
+    );
+  }
+
+  if (
+    translated.some(
+      (item, index) =>
+        hasLexicalContent(expectedSegments[index]?.text ?? "") &&
+        !hasLexicalContent(item)
+    )
+  ) {
+    throw new OpenAITranslationError(
+      label + "に内容のない文が含まれました。",
       502,
       true
     );
@@ -247,6 +315,8 @@ async function translateBatch(args: {
   batch: TranslationBatch;
   batchIndex: number;
   batchCount: number;
+  recurringTerms: string[];
+  retryAttempt?: number;
 }): Promise<TranslationOutput & { inputTokens: number; outputTokens: number }> {
   let response: Response;
   const sourceLanguage = getSupportedLanguage(args.sourceLanguage);
@@ -290,7 +360,17 @@ async function translateBatch(args: {
                     : null,
                   `Translation batch: ${args.batchIndex + 1}/${args.batchCount}`,
                   "Translate every segment in exactly the same order.",
-                  `Return exactly one non-empty ${targetLanguage.label} string for each input segment; do not return ids.`,
+                  `Return exactly one non-empty ${targetLanguage.label} string under each supplied segment id.`,
+                  args.recurringTerms.length > 0
+                    ? "Recurring source terms from the full work: " +
+                      JSON.stringify(args.recurringTerms)
+                    : null,
+                  args.recurringTerms.length > 0
+                    ? "Use one identical target rendering for every occurrence of each recurring term."
+                    : null,
+                  (args.retryAttempt ?? 0) > 0
+                    ? "The previous attempt failed validation. Translate every id independently; never use an ellipsis or other placeholder for a segment that contains words."
+                    : null,
                   "If a segment contains only punctuation or a symbol, preserve an appropriate non-empty representation.",
                   "Source-language readings and editorial annotations have already been normalized for translation input.",
                   "Segments:",
@@ -316,14 +396,19 @@ async function translateBatch(args: {
               type: "object",
               additionalProperties: false,
               properties: {
-                segments: {
-                  type: "array",
-                  minItems: args.batch.segments.length,
-                  maxItems: args.batch.segments.length,
-                  items: { type: "string", pattern: "\\S" },
+                translations: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: Object.fromEntries(
+                    args.batch.segments.map((segment) => [
+                      segment.id,
+                      { type: "string", pattern: "\\S" },
+                    ])
+                  ),
+                  required: args.batch.segments.map((segment) => segment.id),
                 },
               },
-              required: ["segments"],
+              required: ["translations"],
             },
           },
         },
@@ -370,7 +455,7 @@ async function translateBatch(args: {
   return {
     segments: validateTranslationOutput(
       outputText,
-      args.batch.segments.length
+      args.batch.segments
     ),
     inputTokens: Number(responseBody.usage?.input_tokens ?? 0) || 0,
     outputTokens: Number(responseBody.usage?.output_tokens ?? 0) || 0,
@@ -387,7 +472,10 @@ async function translateBatchWithRetry(
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const result = await translateBatch(args);
+      const result = await translateBatch({
+        ...args,
+        retryAttempt: attempt,
+      });
       return { ...result, retryCount: attempt };
     } catch (error) {
       lastError = error;
@@ -446,7 +534,11 @@ export async function translateSegmentsInBatches(args: {
     throw new Error(label + "の原文がありません。");
   }
 
-  const batches = splitTranslationBatches(args.segments);
+  const translatableSegments = args.segments.filter(
+    (segment) => !shouldPreserveVerbatim(segment, args.sourceLanguage)
+  );
+  const batches = splitTranslationBatches(translatableSegments);
+  const recurringTerms = collectRecurringTerms(args.segments);
   let attemptedRetries = 0;
   let batchResults: Awaited<ReturnType<typeof translateBatchWithRetry>>[];
 
@@ -466,6 +558,7 @@ export async function translateSegmentsInBatches(args: {
             batch,
             batchIndex,
             batchCount: batches.length,
+            recurringTerms,
           },
           () => {
             attemptedRetries += 1;
@@ -479,7 +572,20 @@ export async function translateSegmentsInBatches(args: {
     throw error;
   }
 
-  const segments = batchResults.flatMap((result) => result.segments);
+  const translatedById = new Map<string, string>();
+  batches.forEach((batch, batchIndex) => {
+    const batchResult = batchResults[batchIndex];
+    batch.segments.forEach((segment, segmentIndex) => {
+      const translated = batchResult?.segments[segmentIndex];
+      if (translated) translatedById.set(segment.id, translated);
+    });
+  });
+
+  const segments = args.segments.map((segment) =>
+    shouldPreserveVerbatim(segment, args.sourceLanguage)
+      ? segment.text.trim()
+      : translatedById.get(segment.id) ?? ""
+  );
   if (
     segments.length !== args.segments.length ||
     segments.some((item) => !item.trim())
