@@ -319,7 +319,7 @@ async function translateBatch(args: {
                   type: "array",
                   minItems: args.batch.segments.length,
                   maxItems: args.batch.segments.length,
-                  items: { type: "string" },
+                  items: { type: "string", pattern: "\\S" },
                 },
               },
               required: ["segments"],
