@@ -394,8 +394,11 @@ async function translateBatch(args: {
                   args.recurringTerms.length > 0
                     ? "Use one identical target rendering for every occurrence of each recurring term."
                     : null,
+                  args.sourceLanguage === "ja" && args.targetLanguage !== "ja"
+                    ? "Do not leave Japanese hiragana or katakana in any translation. Translate or transliterate every Japanese word completely."
+                    : null,
                   (args.retryAttempt ?? 0) > 0
-                    ? "The previous attempt failed validation. Translate every id independently; never use an ellipsis or other placeholder for a segment that contains words."
+                    ? "The previous attempt failed validation. Translate every id independently; never use an ellipsis or other placeholder for a segment that contains words, and remove every remaining source-language fragment."
                     : null,
                   "If a segment contains only punctuation or a symbol, preserve an appropriate non-empty representation.",
                   "Source-language readings and editorial annotations have already been normalized for translation input.",
