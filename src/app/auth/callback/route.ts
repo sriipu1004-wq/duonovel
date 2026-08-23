@@ -164,5 +164,9 @@ export async function GET(request: NextRequest) {
     console.error("[auth-callback finalize]", finalizeError);
   }
 
+  if (nextPath === "/reset-password" || nextPath.startsWith("/reset-password?")) {
+    return NextResponse.redirect(new URL(nextPath, request.url));
+  }
+
   return NextResponse.redirect(redirectTo);
 }
