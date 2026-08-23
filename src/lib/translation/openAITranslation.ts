@@ -73,6 +73,18 @@ function hasLexicalContent(value: string): boolean {
   return /[\p{L}\p{N}]/u.test(value);
 }
 
+function hasResidualSourceScript(
+  value: string,
+  sourceLanguage: SupportedLanguageTag,
+  targetLanguage: SupportedLanguageTag
+): boolean {
+  return (
+    sourceLanguage === "ja" &&
+    targetLanguage !== "ja" &&
+    /[ぁ-ゖゝゞァ-ヺヽヾー]/u.test(value)
+  );
+}
+
 function shouldPreserveVerbatim(
   segment: OpenAITranslationSourceSegment,
   sourceLanguage: SupportedLanguageTag
@@ -224,7 +236,9 @@ function extractOutputText(responseBody: OpenAIResponseBody): string {
 
 function validateTranslationOutput(
   outputText: string,
-  expectedSegments: OpenAITranslationSourceSegment[]
+  expectedSegments: OpenAITranslationSourceSegment[],
+  sourceLanguage: SupportedLanguageTag,
+  targetLanguage: SupportedLanguageTag
 ): string[] {
   const label = translationLabel();
   let value: unknown;
@@ -297,6 +311,18 @@ function validateTranslationOutput(
   ) {
     throw new OpenAITranslationError(
       label + "に内容のない文が含まれました。",
+      502,
+      true
+    );
+  }
+
+  if (
+    translated.some((item) =>
+      hasResidualSourceScript(item, sourceLanguage, targetLanguage)
+    )
+  ) {
+    throw new OpenAITranslationError(
+      label + "に原文の文字が残っています。",
       502,
       true
     );
@@ -455,7 +481,9 @@ async function translateBatch(args: {
   return {
     segments: validateTranslationOutput(
       outputText,
-      args.batch.segments
+      args.batch.segments,
+      args.sourceLanguage,
+      args.targetLanguage
     ),
     inputTokens: Number(responseBody.usage?.input_tokens ?? 0) || 0,
     outputTokens: Number(responseBody.usage?.output_tokens ?? 0) || 0,
