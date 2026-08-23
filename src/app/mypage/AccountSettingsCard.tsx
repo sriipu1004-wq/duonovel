@@ -15,6 +15,14 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+function passwordUpdateErrorMessage(message: string): string {
+  if (message.toLowerCase().includes("new password should be different")) {
+    return "現在とは異なるパスワードを入力して。";
+  }
+
+  return message;
+}
+
 export default function AccountSettingsCard() {
   const router = useRouter();
 
@@ -204,7 +212,7 @@ export default function AccountSettingsCard() {
     });
 
     if (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(passwordUpdateErrorMessage(error.message));
       setPendingAction(null);
       return;
     }
@@ -364,7 +372,7 @@ export default function AccountSettingsCard() {
         </div>
 
         <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
-          <p className="text-sm font-semibold text-black">パスワード設定・変更</p>
+          <p className="text-sm font-semibold text-black">パスワード設定・再設定</p>
           <p className="mt-2 text-sm leading-7 text-neutral-600">
             メールリンクで登録したアカウントにも、ここからパスワードを設定できる。
           </p>
@@ -409,7 +417,7 @@ export default function AccountSettingsCard() {
               >
                 {pendingAction === "change-password"
                   ? "設定中..."
-                  : "パスワードを設定"}
+                  : "パスワードを更新"}
               </button>
             </div>
           </div>

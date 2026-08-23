@@ -9,6 +9,14 @@ import { supabase } from "@/lib/supabaseClient";
 
 const PASSWORD_MIN_LENGTH = 8;
 
+function passwordUpdateErrorMessage(message: string): string {
+  if (message.toLowerCase().includes("new password should be different")) {
+    return "現在とは異なるパスワードを入力して。すでに設定済みなら、そのパスワードでログインできる。";
+  }
+
+  return message;
+}
+
 export default function ResetPasswordPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -71,7 +79,7 @@ export default function ResetPasswordPageClient() {
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(passwordUpdateErrorMessage(error.message));
       setPending(false);
       return;
     }
