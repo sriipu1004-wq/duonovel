@@ -263,6 +263,7 @@ async function translateBatch(args: {
       signal: AbortSignal.timeout(BATCH_TIMEOUT_MS),
       body: JSON.stringify({
         model: args.model,
+        temperature: args.model.startsWith("gpt-4") ? 0 : undefined,
         reasoning: args.model.startsWith("gpt-5")
           ? { effort: "minimal" }
           : undefined,
@@ -273,7 +274,7 @@ async function translateBatch(args: {
               {
                 type: "input_text",
                 text:
-                  `You are a literary translator. Translate fiction from ${sourceLanguage.label} (${sourceLanguage.tag}) into natural, modern, neutral ${targetLanguage.label} (${targetLanguage.tag}). Preserve meaning, speakers, tense, names, paragraph intent, punctuation intent, and omissions. Do not add explanations or remove content. Never return an empty or whitespace-only translation. Return only the requested structured JSON.`,
+                  `You are a literary translator. Translate fiction from ${sourceLanguage.label} (${sourceLanguage.tag}) into natural, modern, neutral ${targetLanguage.label} (${targetLanguage.tag}). Preserve meaning, grammatical roles, speakers, tense, names, paragraph intent, punctuation intent, and omissions. The work may be split into independent batches, so use one standard target-language spelling for each recurring proper name or identifier and never alternate spellings. Use phonetic transliteration for personal names where the target language conventionally transliterates them. If a segment is already written entirely in a third language rather than ${sourceLanguage.label}, preserve that segment verbatim to retain the story's language contrast. Do not add explanations or remove content. Never return an empty or whitespace-only translation. Return only the requested structured JSON.`,
               },
             ],
           },
