@@ -123,6 +123,26 @@ function collectRecurringTerms(
     .map(([term]) => term);
 }
 
+function hasJapaneseFirstPersonNarrator(
+  segments: OpenAITranslationSourceSegment[],
+  sourceLanguage: SupportedLanguageTag
+): boolean {
+  if (sourceLanguage !== "ja") return false;
+
+  let narrativeFirstPersonCount = 0;
+  for (const segment of segments) {
+    const value = segment.text.trim();
+    if (value.startsWith("「") || value.startsWith("『")) continue;
+
+    narrativeFirstPersonCount +=
+      value.match(
+        /(?:^|[。！？!?]\s*)(?:私|僕|俺|自分|あたし)(?:は|が|も|を|に|の)/gu
+      )?.length ?? 0;
+  }
+
+  return narrativeFirstPersonCount >= 3;
+}
+
 function splitTranslationBatches(
   segments: OpenAITranslationSourceSegment[]
 ): TranslationBatch[] {
@@ -342,6 +362,7 @@ async function translateBatch(args: {
   batchIndex: number;
   batchCount: number;
   recurringTerms: string[];
+  usesFirstPersonNarrator: boolean;
   retryAttempt?: number;
 }): Promise<TranslationOutput & { inputTokens: number; outputTokens: number }> {
   let response: Response;
@@ -400,8 +421,11 @@ async function translateBatch(args: {
                   args.targetLanguage === "fr"
                     ? "For a Japanese first-person narrator whose gender is not stated, avoid gender-marked agreement where natural; when unavoidable, use masculine agreement consistently in every batch. Keep explicitly female characters feminine and explicitly male characters masculine. Never switch a character's grammatical gender, subject, or pronoun."
                     : null,
+                  args.usesFirstPersonNarrator
+                    ? "The full work uses a first-person narrator. Preserve that perspective in every batch. In narrative sentences, translate Japanese 私, 僕, 俺, 自分 and naturally omitted continuations as first person; never turn the narrator into a third-person character or invent a name."
+                    : null,
                   (args.retryAttempt ?? 0) > 0
-                    ? "The previous attempt failed validation. Translate every id independently; never use an ellipsis or other placeholder for a segment that contains words, and remove every remaining source-language fragment."
+                    ? "The previous attempt failed validation. Translate every id completely in its surrounding context; never use an ellipsis or other placeholder for a segment that contains words, and remove every remaining source-language fragment."
                     : null,
                   "If a segment contains only punctuation or a symbol, preserve an appropriate non-empty representation.",
                   "Source-language readings and editorial annotations have already been normalized for translation input.",
@@ -573,6 +597,10 @@ export async function translateSegmentsInBatches(args: {
   );
   const batches = splitTranslationBatches(translatableSegments);
   const recurringTerms = collectRecurringTerms(args.segments);
+  const usesFirstPersonNarrator = hasJapaneseFirstPersonNarrator(
+    args.segments,
+    args.sourceLanguage
+  );
   let attemptedRetries = 0;
   let batchResults: Awaited<ReturnType<typeof translateBatchWithRetry>>[];
 
@@ -593,6 +621,7 @@ export async function translateSegmentsInBatches(args: {
             batchIndex,
             batchCount: batches.length,
             recurringTerms,
+            usesFirstPersonNarrator,
           },
           () => {
             attemptedRetries += 1;
