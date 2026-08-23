@@ -108,7 +108,7 @@ function calculateBatchMaxOutputTokens(
   const modelCeiling = model.startsWith("gpt-4.1") ? 16000 : 24000;
   return Math.min(
     modelCeiling,
-    Math.max(6000, Math.ceil(sourceChars * 4 + segmentCount * 24))
+    Math.max(10000, Math.ceil(sourceChars * 6 + segmentCount * 40))
   );
 }
 
