@@ -45,10 +45,7 @@ function resolveAuthRedirectOrigin(): string {
   if (typeof window !== "undefined") {
     const currentOrigin = window.location.origin.replace(/\/+$/, "");
 
-    if (
-      currentOrigin.includes("localhost") ||
-      currentOrigin.includes("127.0.0.1")
-    ) {
+    if (currentOrigin.length > 0) {
       return currentOrigin;
     }
   }
