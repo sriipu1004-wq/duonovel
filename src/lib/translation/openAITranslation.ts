@@ -102,19 +102,40 @@ function shouldPreserveVerbatim(
 function collectRecurringTerms(
   segments: OpenAITranslationSourceSegment[]
 ): string[] {
-  const counts = new Map<string, number>();
+  const candidates = new Set<string>();
 
   for (const segment of segments) {
-    const terms = new Set(
-      segment.text.match(/[ァ-ヺー]{2,}|[A-Z][A-Z0-9'-]{3,}/gu) ?? []
-    );
+    for (const term of
+      segment.text.match(/[ァ-ヺー]{2,}|[A-Z][A-Z0-9'-]{3,}/gu) ?? []) {
+      candidates.add(term);
+    }
 
-    for (const term of terms) {
-      counts.set(term, (counts.get(term) ?? 0) + 1);
+    for (const match of segment.text.matchAll(
+      /(?:お)?[一-龯々]{1,4}(?:さん|君|氏)/gu
+    )) {
+      const term = match[0].replace(/(?:さん|君|氏)$/u, "");
+      if (term) candidates.add(term);
+    }
+
+    for (const match of segment.text.matchAll(
+      /([一-龯々]{1,4})(?=という(?:男|女|人))/gu
+    )) {
+      const term = match[1];
+      if (term) candidates.add(term);
     }
   }
 
-  return [...counts.entries()]
+  return [...candidates]
+    .map(
+      (term) =>
+        [
+          term,
+          segments.reduce(
+            (count, segment) => count + Number(segment.text.includes(term)),
+            0
+          ),
+        ] as const
+    )
     .filter(([, count]) => count >= 2)
     .sort(([leftTerm, leftCount], [rightTerm, rightCount]) =>
       rightCount - leftCount || leftTerm.localeCompare(rightTerm)
@@ -422,7 +443,7 @@ async function translateBatch(args: {
                     ? "For a Japanese first-person narrator whose gender is not stated, avoid gender-marked agreement where natural; when unavoidable, use masculine agreement consistently in every batch. Keep explicitly female characters feminine and explicitly male characters masculine. Never switch a character's grammatical gender, subject, or pronoun."
                     : null,
                   args.usesFirstPersonNarrator
-                    ? "The full work uses a first-person narrator. Preserve that perspective in every batch. In narrative sentences, translate Japanese 私, 僕, 俺, 自分 and naturally omitted continuations as first person; never turn the narrator into a third-person character or invent a name."
+                    ? "The full work uses a first-person narrator. Preserve the narrator's first-person perspective in every batch and never invent a name for the narrator. Resolve each omitted Japanese subject from the nearest explicit actor and surrounding context; do not assume every omitted subject or every reflexive 自分 refers to the narrator."
                     : null,
                   (args.retryAttempt ?? 0) > 0
                     ? "The previous attempt failed validation. Translate every id completely in its surrounding context; never use an ellipsis or other placeholder for a segment that contains words, and remove every remaining source-language fragment."
