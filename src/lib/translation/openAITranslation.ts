@@ -397,6 +397,9 @@ async function translateBatch(args: {
                   args.sourceLanguage === "ja" && args.targetLanguage !== "ja"
                     ? "Do not leave Japanese hiragana or katakana in any translation. Translate or transliterate every Japanese word completely."
                     : null,
+                  args.targetLanguage === "fr"
+                    ? "For a Japanese first-person narrator whose gender is not stated, avoid gender-marked agreement where natural; when unavoidable, use masculine agreement consistently in every batch. Keep explicitly female characters feminine and explicitly male characters masculine. Never switch a character's grammatical gender, subject, or pronoun."
+                    : null,
                   (args.retryAttempt ?? 0) > 0
                     ? "The previous attempt failed validation. Translate every id independently; never use an ellipsis or other placeholder for a segment that contains words, and remove every remaining source-language fragment."
                     : null,
