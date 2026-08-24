@@ -36,8 +36,11 @@ export function normalizeTranslationSourceText(body: string): string {
 
 export function normalizeJapaneseForTranslation(value: string): string {
   return value
-    .replace(/｜([^《》\r\n]+)《([^《》\r\n]+)》/gu, "$1")
-    .replace(/([一-龯々〆ヵヶ〓]+)《([^《》\r\n]+)》/gu, "$1")
+    .replace(/｜([^《》\r\n]+)《([^《》\r\n]+)》/gu, "$1（読み：$2）")
+    .replace(
+      /([一-龯々〆ヵヶ〓]+)《([^《》\r\n]+)》/gu,
+      "$1（読み：$2）"
+    )
     .replace(/［＃[^］\r\n]*］/gu, "")
     .replace(/[ \t]+\n/gu, "\n")
     .replace(/\n[ \t]+/gu, "\n")
