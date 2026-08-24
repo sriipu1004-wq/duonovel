@@ -38,9 +38,13 @@ export function getDefaultTextTokenPricesUsd(
 }
 
 export function getTranslationReasoning(model: string):
-  | { effort: "none" | "minimal" }
+  | { effort: "none" | "minimal" | "low" }
   | undefined {
-  if (/^gpt-5\.(?:4|5|6)(?:-|$)/.test(model)) {
+  if (/^gpt-5\.4(?:-|$)/.test(model)) {
+    return { effort: "low" };
+  }
+
+  if (/^gpt-5\.(?:5|6)(?:-|$)/.test(model)) {
     return { effort: "none" };
   }
 
