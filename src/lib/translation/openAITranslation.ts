@@ -2,6 +2,7 @@ import {
   getSupportedLanguage,
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import { getTranslationReasoning } from "@/lib/translation/openAITranslationModel";
 
 type OpenAIResponseBody = {
   status?: string;
@@ -402,9 +403,7 @@ async function translateBatch(args: {
       body: JSON.stringify({
         model: args.model,
         temperature: args.model.startsWith("gpt-4") ? 0 : undefined,
-        reasoning: args.model.startsWith("gpt-5")
-          ? { effort: "minimal" }
-          : undefined,
+        reasoning: getTranslationReasoning(args.model),
         input: [
           {
             role: "developer",
