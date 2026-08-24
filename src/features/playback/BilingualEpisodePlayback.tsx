@@ -329,10 +329,10 @@ export default function BilingualEpisodePlayback({
 
   useEffect(() => {
     if (translationStatus !== "translating") return;
-    const timer = window.setTimeout(() => {
+    const timer = window.setInterval(() => {
       void loadTranslation();
     }, 2500);
-    return () => window.clearTimeout(timer);
+    return () => window.clearInterval(timer);
   }, [translationStatus, loadTranslation]);
 
   function centerInPane(
