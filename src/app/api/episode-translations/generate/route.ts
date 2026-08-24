@@ -58,6 +58,18 @@ const TRANSLATION_LIMITS = {
     "EPISODE_TRANSLATION_ESTIMATED_OUTPUT_JPY_PER_1K_TOKENS",
     1
   ),
+  actualUsdJpyRate: readNonNegativeNumberEnv(
+    "EPISODE_TRANSLATION_ACTUAL_USD_JPY_RATE",
+    160
+  ),
+  actualInputUsdPer1mTokens: readNonNegativeNumberEnv(
+    "EPISODE_TRANSLATION_ACTUAL_INPUT_USD_PER_1M_TOKENS",
+    0.4
+  ),
+  actualOutputUsdPer1mTokens: readNonNegativeNumberEnv(
+    "EPISODE_TRANSLATION_ACTUAL_OUTPUT_USD_PER_1M_TOKENS",
+    1.6
+  ),
 } as const;
 
 function estimateTokens(sourceChars: number): {
@@ -70,11 +82,28 @@ function estimateTokens(sourceChars: number): {
   };
 }
 
-function estimateCostJpy(inputTokens: number, outputTokens: number): number {
+function estimateGuardrailCostJpy(
+  inputTokens: number,
+  outputTokens: number
+): number {
   const value =
     (inputTokens / 1000) * TRANSLATION_LIMITS.estimatedInputJpyPer1kTokens +
     (outputTokens / 1000) * TRANSLATION_LIMITS.estimatedOutputJpyPer1kTokens;
   return Math.ceil(value * 1000) / 1000;
+}
+
+function estimateActualCostJpy(
+  inputTokens: number,
+  outputTokens: number
+): number {
+  const valueUsd =
+    (inputTokens / 1_000_000) *
+      TRANSLATION_LIMITS.actualInputUsdPer1mTokens +
+    (outputTokens / 1_000_000) *
+      TRANSLATION_LIMITS.actualOutputUsdPer1mTokens;
+  return (
+    Math.ceil(valueUsd * TRANSLATION_LIMITS.actualUsdJpyRate * 1000) / 1000
+  );
 }
 
 async function markFailed(args: {
@@ -203,7 +232,7 @@ export async function POST(request: Request) {
   const sourceHash = buildEpisodeTranslationSourceHash(access.body);
   const model = process.env.EPISODE_TRANSLATION_MODEL ?? "gpt-4.1-mini";
   const estimatedTokens = estimateTokens(sourceChars);
-  const estimatedCostJpy = estimateCostJpy(
+  const estimatedCostJpy = estimateGuardrailCostJpy(
     estimatedTokens.inputTokens,
     estimatedTokens.outputTokens
   );
@@ -367,7 +396,7 @@ export async function POST(request: Request) {
     const actualOutputTokens = translated.outputTokens;
     const actualCostJpy =
       actualInputTokens && actualOutputTokens
-        ? estimateCostJpy(actualInputTokens, actualOutputTokens)
+        ? estimateActualCostJpy(actualInputTokens, actualOutputTokens)
         : null;
 
     const translationUpdate = await admin
