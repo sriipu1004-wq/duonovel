@@ -302,10 +302,10 @@ export default function GeneratedStoryBilingualPlayback({
 
   useEffect(() => {
     if (status !== "translating") return;
-    const timer = window.setTimeout(() => {
+    const timer = window.setInterval(() => {
       void requestTranslation();
     }, 2500);
-    return () => window.clearTimeout(timer);
+    return () => window.clearInterval(timer);
   }, [status, requestTranslation]);
 
   function centerSegment(id: string) {
