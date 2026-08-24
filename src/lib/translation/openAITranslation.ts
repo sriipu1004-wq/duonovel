@@ -47,8 +47,10 @@ type TranslationBatch = {
   sourceChars: number;
 };
 
-const MAX_BATCH_SOURCE_CHARS = 900;
-const MAX_BATCH_SEGMENTS = 20;
+const LEGACY_MAX_BATCH_SOURCE_CHARS = 900;
+const LEGACY_MAX_BATCH_SEGMENTS = 20;
+const CONTEXTUAL_MAX_BATCH_SOURCE_CHARS = 8000;
+const CONTEXTUAL_MAX_BATCH_SEGMENTS = 240;
 const MAX_PARALLEL_BATCHES = 3;
 const BATCH_TIMEOUT_MS = 60_000;
 
@@ -166,8 +168,18 @@ function hasJapaneseFirstPersonNarrator(
 }
 
 function splitTranslationBatches(
-  segments: OpenAITranslationSourceSegment[]
+  segments: OpenAITranslationSourceSegment[],
+  model: string
 ): TranslationBatch[] {
+  const supportsLongContextTranslation = /^gpt-5\.(?:4|5|6)(?:-|$)/.test(
+    model
+  );
+  const maxSourceChars = supportsLongContextTranslation
+    ? CONTEXTUAL_MAX_BATCH_SOURCE_CHARS
+    : LEGACY_MAX_BATCH_SOURCE_CHARS;
+  const maxSegments = supportsLongContextTranslation
+    ? CONTEXTUAL_MAX_BATCH_SEGMENTS
+    : LEGACY_MAX_BATCH_SEGMENTS;
   const batches: TranslationBatch[] = [];
   let currentSegments: OpenAITranslationSourceSegment[] = [];
   let currentChars = 0;
@@ -183,8 +195,8 @@ function splitTranslationBatches(
     const segmentChars = segment.text.length;
     const exceedsBatch =
       currentSegments.length > 0 &&
-      (currentSegments.length >= MAX_BATCH_SEGMENTS ||
-        currentChars + segmentChars > MAX_BATCH_SOURCE_CHARS);
+      (currentSegments.length >= maxSegments ||
+        currentChars + segmentChars > maxSourceChars);
 
     if (exceedsBatch) flush();
 
@@ -615,7 +627,7 @@ export async function translateSegmentsInBatches(args: {
   const translatableSegments = args.segments.filter(
     (segment) => !shouldPreserveVerbatim(segment, args.sourceLanguage)
   );
-  const batches = splitTranslationBatches(translatableSegments);
+  const batches = splitTranslationBatches(translatableSegments, args.model);
   const recurringTerms = collectRecurringTerms(args.segments);
   const usesFirstPersonNarrator = hasJapaneseFirstPersonNarrator(
     args.segments,
