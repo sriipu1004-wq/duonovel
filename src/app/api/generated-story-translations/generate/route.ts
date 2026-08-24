@@ -14,6 +14,10 @@ import {
   translateSegmentsInBatches,
 } from "@/lib/translation/openAITranslation";
 import {
+  DEFAULT_TRANSLATION_MODEL,
+  getDefaultTextTokenPricesUsd,
+} from "@/lib/translation/openAITranslationModel";
+import {
   isPublicTranslationLanguagePair,
   parseSupportedLanguageTag,
   type SupportedLanguageTag,
@@ -62,6 +66,10 @@ const TRANSLATION_LIMITS = {
     "EPISODE_TRANSLATION_ESTIMATED_OUTPUT_JPY_PER_1K_TOKENS",
     1
   ),
+  actualUsdJpyRate: readNonNegativeNumberEnv(
+    "EPISODE_TRANSLATION_ACTUAL_USD_JPY_RATE",
+    160
+  ),
 } as const;
 
 function estimateTokens(sourceChars: number): {
@@ -74,11 +82,36 @@ function estimateTokens(sourceChars: number): {
   };
 }
 
-function estimateCostJpy(inputTokens: number, outputTokens: number): number {
+function estimateGuardrailCostJpy(
+  inputTokens: number,
+  outputTokens: number
+): number {
   const value =
     (inputTokens / 1000) * TRANSLATION_LIMITS.estimatedInputJpyPer1kTokens +
     (outputTokens / 1000) * TRANSLATION_LIMITS.estimatedOutputJpyPer1kTokens;
   return Math.ceil(value * 1000) / 1000;
+}
+
+function estimateActualCostJpy(
+  inputTokens: number,
+  outputTokens: number,
+  model: string
+): number {
+  const defaultPrices = getDefaultTextTokenPricesUsd(model);
+  const inputUsdPer1mTokens = readNonNegativeNumberEnv(
+    "EPISODE_TRANSLATION_ACTUAL_INPUT_USD_PER_1M_TOKENS",
+    defaultPrices.inputPer1mTokens
+  );
+  const outputUsdPer1mTokens = readNonNegativeNumberEnv(
+    "EPISODE_TRANSLATION_ACTUAL_OUTPUT_USD_PER_1M_TOKENS",
+    defaultPrices.outputPer1mTokens
+  );
+  const valueUsd =
+    (inputTokens / 1_000_000) * inputUsdPer1mTokens +
+    (outputTokens / 1_000_000) * outputUsdPer1mTokens;
+  return (
+    Math.ceil(valueUsd * TRANSLATION_LIMITS.actualUsdJpyRate * 1000) / 1000
+  );
 }
 
 async function currentUserId(): Promise<string | null> {
@@ -97,6 +130,7 @@ async function markFailed(args: {
   errorCode: string;
   errorMessage: string;
   uncount?: boolean;
+  retryCount?: number;
 }) {
   const admin = createAdminClient();
   const now = new Date().toISOString();
@@ -119,6 +153,7 @@ async function markFailed(args: {
         ...(args.uncount ? { is_counted: false } : {}),
         error_code: args.errorCode,
         error_message: args.errorMessage,
+        retry_count: args.retryCount ?? 0,
         updated_at: now,
       })
       .eq("id", args.logId),
@@ -186,7 +221,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "translation_temporarily_disabled",
-        message: "現在、英語対訳の生成は一時停止しています。",
+        message: "現在、対訳の生成は一時停止しています。",
       },
       { status: 503 }
     );
@@ -276,9 +311,9 @@ export async function POST(request: Request) {
     }
   }
 
-  const model = process.env.EPISODE_TRANSLATION_MODEL ?? "gpt-4.1-mini";
+  const model = process.env.EPISODE_TRANSLATION_MODEL ?? DEFAULT_TRANSLATION_MODEL;
   const estimatedTokens = estimateTokens(sourceChars);
-  const estimatedCostJpy = estimateCostJpy(
+  const estimatedCostJpy = estimateGuardrailCostJpy(
     estimatedTokens.inputTokens,
     estimatedTokens.outputTokens
   );
@@ -362,7 +397,7 @@ export async function POST(request: Request) {
         {
           ok: false,
           error: resultType,
-          message: "本日の英語対訳生成上限に達しました。",
+          message: "本日の対訳生成上限に達しました。",
         },
         { status: 429 }
       );
@@ -420,7 +455,7 @@ export async function POST(request: Request) {
     }));
 
     if (storedSegments.some((segment) => !segment.translatedText.trim())) {
-      throw new Error("英語対訳に空のsegmentがあります。");
+      throw new Error("対訳に空の文があります。");
     }
 
     const translationPayload = createTranslationPayload({
@@ -434,7 +469,7 @@ export async function POST(request: Request) {
     const actualOutputTokens = translated.outputTokens;
     const actualCostJpy =
       actualInputTokens && actualOutputTokens
-        ? estimateCostJpy(actualInputTokens, actualOutputTokens)
+        ? estimateActualCostJpy(actualInputTokens, actualOutputTokens, model)
         : null;
 
     const translationUpdate = await admin
@@ -465,6 +500,7 @@ export async function POST(request: Request) {
         actual_input_tokens: actualInputTokens,
         actual_output_tokens: actualOutputTokens,
         actual_cost_jpy: actualCostJpy,
+        retry_count: translated.retryCount,
         updated_at: now,
       })
       .eq("id", logId);
@@ -484,10 +520,10 @@ export async function POST(request: Request) {
       (error instanceof OpenAITranslationError && error.status === 504);
     const isOpenAIError = error instanceof OpenAITranslationError;
     const message = isTimeout
-      ? "英語対訳の一部が1分以内に完了しませんでした。"
+      ? "対訳の一部が1分以内に完了しませんでした。"
       : error instanceof Error
         ? error.message
-        : "英語対訳の生成に失敗しました。";
+        : "対訳の生成に失敗しました。";
     const errorCode = isTimeout
       ? "translation_timeout"
       : isOpenAIError
@@ -499,6 +535,8 @@ export async function POST(request: Request) {
       logId,
       errorCode,
       errorMessage: message,
+      retryCount:
+        error instanceof OpenAITranslationError ? error.retryCount : 0,
     });
 
     return NextResponse.json(

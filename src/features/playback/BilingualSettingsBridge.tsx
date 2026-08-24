@@ -34,7 +34,6 @@ export default function BilingualSettingsBridge({
 
   useEffect(() => {
     if (!enabled) {
-      setHost(null);
       return;
     }
 
@@ -104,9 +103,9 @@ export default function BilingualSettingsBridge({
   return createPortal(
     <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
       <div>
-        <p className="text-sm text-neutral-700">英語対訳</p>
+        <p className="text-sm text-neutral-700">対訳</p>
         <p className="mt-1 text-xs leading-6 text-neutral-500">
-          日本語と英語を上下に分け、対応する文を連動して読めます。
+          日本語と選択した言語を上下に分け、対応する文を連動して読めます。
         </p>
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">

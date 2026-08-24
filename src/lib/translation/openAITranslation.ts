@@ -2,6 +2,7 @@ import {
   getSupportedLanguage,
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import { getTranslationReasoning } from "@/lib/translation/openAITranslationModel";
 
 type OpenAIResponseBody = {
   status?: string;
@@ -38,6 +39,7 @@ export type OpenAITranslationResult = {
   inputTokens: number | null;
   outputTokens: number | null;
   batchCount: number;
+  retryCount: number;
 };
 
 type TranslationBatch = {
@@ -45,31 +47,139 @@ type TranslationBatch = {
   sourceChars: number;
 };
 
-const MAX_BATCH_SOURCE_CHARS = 1800;
-const MAX_BATCH_SEGMENTS = 40;
+const LEGACY_MAX_BATCH_SOURCE_CHARS = 900;
+const LEGACY_MAX_BATCH_SEGMENTS = 20;
+const CONTEXTUAL_MAX_BATCH_SOURCE_CHARS = 8000;
+const CONTEXTUAL_MAX_BATCH_SEGMENTS = 240;
 const MAX_PARALLEL_BATCHES = 3;
 const BATCH_TIMEOUT_MS = 60_000;
 
 export class OpenAITranslationError extends Error {
   readonly status: number;
   readonly retryable: boolean;
+  retryCount: number;
 
   constructor(message: string, status = 502, retryable = false) {
     super(message);
     this.name = "OpenAITranslationError";
     this.status = status;
     this.retryable = retryable;
+    this.retryCount = 0;
   }
 }
 
-function translationLabel(targetLanguage: SupportedLanguageTag): string {
-  if (targetLanguage === "en") return "英語対訳";
-  return getSupportedLanguage(targetLanguage).nativeLabel + "対訳";
+function translationLabel(): string {
+  return "対訳";
+}
+
+function hasLexicalContent(value: string): boolean {
+  return /[\p{L}\p{N}]/u.test(value);
+}
+
+function hasResidualSourceScript(
+  value: string,
+  sourceLanguage: SupportedLanguageTag,
+  targetLanguage: SupportedLanguageTag
+): boolean {
+  return (
+    sourceLanguage === "ja" &&
+    targetLanguage !== "ja" &&
+    /[ぁ-ゖゝゞァ-ヺヽヾー]/u.test(value)
+  );
+}
+
+function shouldPreserveVerbatim(
+  segment: OpenAITranslationSourceSegment,
+  sourceLanguage: SupportedLanguageTag
+): boolean {
+  const value = segment.text.trim();
+  if (!value || !/\p{L}/u.test(value)) return true;
+
+  return (
+    sourceLanguage === "ja" &&
+    /[A-Za-z]/u.test(value) &&
+    !/[一-龯々〆ヵヶぁ-ゖァ-ヺー]/u.test(value)
+  );
+}
+
+function collectRecurringTerms(
+  segments: OpenAITranslationSourceSegment[]
+): string[] {
+  const candidates = new Set<string>();
+
+  for (const segment of segments) {
+    for (const term of
+      segment.text.match(/[ァ-ヺー]{2,}|[A-Z][A-Z0-9'-]{3,}/gu) ?? []) {
+      candidates.add(term);
+    }
+
+    for (const match of segment.text.matchAll(
+      /(?:お)?[一-龯々]{1,4}(?:さん|君|氏)/gu
+    )) {
+      const term = match[0].replace(/(?:さん|君|氏)$/u, "");
+      if (term) candidates.add(term);
+    }
+
+    for (const match of segment.text.matchAll(
+      /([一-龯々]{1,4})(?=という(?:男|女|人))/gu
+    )) {
+      const term = match[1];
+      if (term) candidates.add(term);
+    }
+  }
+
+  return [...candidates]
+    .map(
+      (term) =>
+        [
+          term,
+          segments.reduce(
+            (count, segment) => count + Number(segment.text.includes(term)),
+            0
+          ),
+        ] as const
+    )
+    .filter(([, count]) => count >= 2)
+    .sort(([leftTerm, leftCount], [rightTerm, rightCount]) =>
+      rightCount - leftCount || leftTerm.localeCompare(rightTerm)
+    )
+    .slice(0, 24)
+    .map(([term]) => term);
+}
+
+function hasJapaneseFirstPersonNarrator(
+  segments: OpenAITranslationSourceSegment[],
+  sourceLanguage: SupportedLanguageTag
+): boolean {
+  if (sourceLanguage !== "ja") return false;
+
+  let narrativeFirstPersonCount = 0;
+  for (const segment of segments) {
+    const value = segment.text.trim();
+    if (value.startsWith("「") || value.startsWith("『")) continue;
+
+    narrativeFirstPersonCount +=
+      value.match(
+        /(?:^|[。！？!?]\s*)(?:私|僕|俺|自分|あたし)(?:は|が|も|を|に|の)/gu
+      )?.length ?? 0;
+  }
+
+  return narrativeFirstPersonCount >= 3;
 }
 
 function splitTranslationBatches(
-  segments: OpenAITranslationSourceSegment[]
+  segments: OpenAITranslationSourceSegment[],
+  model: string
 ): TranslationBatch[] {
+  const supportsLongContextTranslation = /^gpt-5\.(?:4|5|6)(?:-|$)/.test(
+    model
+  );
+  const maxSourceChars = supportsLongContextTranslation
+    ? CONTEXTUAL_MAX_BATCH_SOURCE_CHARS
+    : LEGACY_MAX_BATCH_SOURCE_CHARS;
+  const maxSegments = supportsLongContextTranslation
+    ? CONTEXTUAL_MAX_BATCH_SEGMENTS
+    : LEGACY_MAX_BATCH_SEGMENTS;
   const batches: TranslationBatch[] = [];
   let currentSegments: OpenAITranslationSourceSegment[] = [];
   let currentChars = 0;
@@ -85,8 +195,8 @@ function splitTranslationBatches(
     const segmentChars = segment.text.length;
     const exceedsBatch =
       currentSegments.length > 0 &&
-      (currentSegments.length >= MAX_BATCH_SEGMENTS ||
-        currentChars + segmentChars > MAX_BATCH_SOURCE_CHARS);
+      (currentSegments.length >= maxSegments ||
+        currentChars + segmentChars > maxSourceChars);
 
     if (exceedsBatch) flush();
 
@@ -106,15 +216,12 @@ function calculateBatchMaxOutputTokens(
   const modelCeiling = model.startsWith("gpt-4.1") ? 16000 : 24000;
   return Math.min(
     modelCeiling,
-    Math.max(6000, Math.ceil(sourceChars * 4 + segmentCount * 24))
+    Math.max(10000, Math.ceil(sourceChars * 6 + segmentCount * 40))
   );
 }
 
-function assertOpenAIResponseComplete(
-  responseBody: OpenAIResponseBody,
-  targetLanguage: SupportedLanguageTag
-): void {
-  const label = translationLabel(targetLanguage);
+function assertOpenAIResponseComplete(responseBody: OpenAIResponseBody): void {
+  const label = translationLabel();
 
   if (responseBody.status === "incomplete") {
     if (responseBody.incomplete_details?.reason === "max_output_tokens") {
@@ -150,8 +257,7 @@ function assertOpenAIResponseComplete(
 }
 
 async function readOpenAIResponseBody(
-  response: Response,
-  targetLanguage: SupportedLanguageTag
+  response: Response
 ): Promise<OpenAIResponseBody> {
   const responseText = await response.text();
 
@@ -159,7 +265,7 @@ async function readOpenAIResponseBody(
     return JSON.parse(responseText) as OpenAIResponseBody;
   } catch {
     throw new OpenAITranslationError(
-      translationLabel(targetLanguage) + "サーバーの応答を読み取れませんでした。",
+      translationLabel() + "サーバーの応答を読み取れませんでした。",
       response.ok ? 502 : response.status,
       true
     );
@@ -184,10 +290,11 @@ function extractOutputText(responseBody: OpenAIResponseBody): string {
 
 function validateTranslationOutput(
   outputText: string,
-  expectedSegmentCount: number,
+  expectedSegments: OpenAITranslationSourceSegment[],
+  sourceLanguage: SupportedLanguageTag,
   targetLanguage: SupportedLanguageTag
 ): string[] {
-  const label = translationLabel(targetLanguage);
+  const label = translationLabel();
   let value: unknown;
 
   try {
@@ -209,15 +316,26 @@ function validateTranslationOutput(
   }
 
   const root = value as Record<string, unknown>;
-  if (!Array.isArray(root.segments)) {
+  if (
+    !root.translations ||
+    typeof root.translations !== "object" ||
+    Array.isArray(root.translations)
+  ) {
     throw new OpenAITranslationError(
-      label + "の生成結果にsegmentsがありません。",
+      label + "の生成結果にtranslationsがありません。",
       502,
       true
     );
   }
 
-  if (root.segments.length !== expectedSegmentCount) {
+  const translations = root.translations as Record<string, unknown>;
+  const expectedIds = expectedSegments.map((segment) => segment.id);
+  const actualIds = Object.keys(translations);
+
+  if (
+    actualIds.length !== expectedIds.length ||
+    expectedIds.some((id) => !Object.prototype.hasOwnProperty.call(translations, id))
+  ) {
     throw new OpenAITranslationError(
       label + "の文数が原文と一致しません。",
       502,
@@ -225,13 +343,40 @@ function validateTranslationOutput(
     );
   }
 
-  const translated = root.segments.map((item) =>
-    typeof item === "string" ? item.trim() : ""
-  );
+  const translated = expectedSegments.map((segment) => {
+    const item = translations[segment.id];
+    return typeof item === "string" ? item.trim() : "";
+  });
 
   if (translated.some((item) => !item)) {
     throw new OpenAITranslationError(
       label + "に空の文が含まれました。",
+      502,
+      true
+    );
+  }
+
+  if (
+    translated.some(
+      (item, index) =>
+        hasLexicalContent(expectedSegments[index]?.text ?? "") &&
+        !hasLexicalContent(item)
+    )
+  ) {
+    throw new OpenAITranslationError(
+      label + "に内容のない文が含まれました。",
+      502,
+      true
+    );
+  }
+
+  if (
+    translated.some((item) =>
+      hasResidualSourceScript(item, sourceLanguage, targetLanguage)
+    )
+  ) {
+    throw new OpenAITranslationError(
+      label + "に原文の文字が残っています。",
       502,
       true
     );
@@ -250,11 +395,14 @@ async function translateBatch(args: {
   batch: TranslationBatch;
   batchIndex: number;
   batchCount: number;
+  recurringTerms: string[];
+  usesFirstPersonNarrator: boolean;
+  retryAttempt?: number;
 }): Promise<TranslationOutput & { inputTokens: number; outputTokens: number }> {
   let response: Response;
   const sourceLanguage = getSupportedLanguage(args.sourceLanguage);
   const targetLanguage = getSupportedLanguage(args.targetLanguage);
-  const label = translationLabel(args.targetLanguage);
+  const label = translationLabel();
 
   try {
     response = await fetch("https://api.openai.com/v1/responses", {
@@ -266,9 +414,8 @@ async function translateBatch(args: {
       signal: AbortSignal.timeout(BATCH_TIMEOUT_MS),
       body: JSON.stringify({
         model: args.model,
-        reasoning: args.model.startsWith("gpt-5")
-          ? { effort: "minimal" }
-          : undefined,
+        temperature: args.model.startsWith("gpt-4") ? 0 : undefined,
+        reasoning: getTranslationReasoning(args.model),
         input: [
           {
             role: "developer",
@@ -276,7 +423,7 @@ async function translateBatch(args: {
               {
                 type: "input_text",
                 text:
-                  `You are a literary translator. Translate fiction from ${sourceLanguage.label} (${sourceLanguage.tag}) into natural, modern, neutral ${targetLanguage.label} (${targetLanguage.tag}). Preserve meaning, speakers, tense, names, paragraph intent, punctuation intent, and omissions. Do not add explanations or remove content. Never return an empty or whitespace-only translation. Return only the requested structured JSON.`,
+                  `You are a literary translator. Translate fiction from ${sourceLanguage.label} (${sourceLanguage.tag}) into natural, modern, neutral ${targetLanguage.label} (${targetLanguage.tag}). Preserve meaning, grammatical roles, speakers, tense, names, paragraph intent, punctuation intent, and omissions. The work may be split into independent batches, so use one standard target-language spelling for each recurring proper name or identifier and never alternate spellings. Use phonetic transliteration for personal names where the target language conventionally transliterates them. If a segment is already written entirely in a third language rather than ${sourceLanguage.label}, preserve that segment verbatim to retain the story's language contrast. Do not add explanations or remove content. Never return an empty or whitespace-only translation. Return only the requested structured JSON.`,
               },
             ],
           },
@@ -292,7 +439,26 @@ async function translateBatch(args: {
                     : null,
                   `Translation batch: ${args.batchIndex + 1}/${args.batchCount}`,
                   "Translate every segment in exactly the same order.",
-                  `Return exactly one non-empty ${targetLanguage.label} string for each input segment; do not return ids.`,
+                  `Return exactly one non-empty ${targetLanguage.label} string under each supplied segment id.`,
+                  args.recurringTerms.length > 0
+                    ? "Recurring source terms from the full work: " +
+                      JSON.stringify(args.recurringTerms)
+                    : null,
+                  args.recurringTerms.length > 0
+                    ? "Use one identical target rendering for every occurrence of each recurring term."
+                    : null,
+                  args.sourceLanguage === "ja" && args.targetLanguage !== "ja"
+                    ? "Do not leave Japanese hiragana or katakana in any translation. Translate or transliterate every Japanese word completely."
+                    : null,
+                  args.targetLanguage === "fr"
+                    ? "For a Japanese first-person narrator whose gender is not stated, avoid gender-marked agreement where natural; when unavoidable, use masculine agreement consistently in every batch. Keep explicitly female characters feminine and explicitly male characters masculine. Never switch a character's grammatical gender, subject, or pronoun."
+                    : null,
+                  args.usesFirstPersonNarrator
+                    ? "The full work uses a first-person narrator. Preserve the narrator's first-person perspective in every batch and never invent a name for the narrator. Resolve each omitted Japanese subject from the nearest explicit actor and surrounding context; do not assume every omitted subject or every reflexive 自分 refers to the narrator."
+                    : null,
+                  (args.retryAttempt ?? 0) > 0
+                    ? "The previous attempt failed validation. Translate every id completely in its surrounding context; never use an ellipsis or other placeholder for a segment that contains words, and remove every remaining source-language fragment."
+                    : null,
                   "If a segment contains only punctuation or a symbol, preserve an appropriate non-empty representation.",
                   "Source-language readings and editorial annotations have already been normalized for translation input.",
                   "Segments:",
@@ -318,14 +484,19 @@ async function translateBatch(args: {
               type: "object",
               additionalProperties: false,
               properties: {
-                segments: {
-                  type: "array",
-                  minItems: args.batch.segments.length,
-                  maxItems: args.batch.segments.length,
-                  items: { type: "string" },
+                translations: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: Object.fromEntries(
+                    args.batch.segments.map((segment) => [
+                      segment.id,
+                      { type: "string", pattern: "\\S" },
+                    ])
+                  ),
+                  required: args.batch.segments.map((segment) => segment.id),
                 },
               },
-              required: ["segments"],
+              required: ["translations"],
             },
           },
         },
@@ -345,7 +516,7 @@ async function translateBatch(args: {
     );
   }
 
-  const responseBody = await readOpenAIResponseBody(response, args.targetLanguage);
+  const responseBody = await readOpenAIResponseBody(response);
 
   if (!response.ok) {
     throw new OpenAITranslationError(
@@ -358,7 +529,7 @@ async function translateBatch(args: {
     );
   }
 
-  assertOpenAIResponseComplete(responseBody, args.targetLanguage);
+  assertOpenAIResponseComplete(responseBody);
 
   const outputText = extractOutputText(responseBody);
   if (!outputText) {
@@ -372,7 +543,8 @@ async function translateBatch(args: {
   return {
     segments: validateTranslationOutput(
       outputText,
-      args.batch.segments.length,
+      args.batch.segments,
+      args.sourceLanguage,
       args.targetLanguage
     ),
     inputTokens: Number(responseBody.usage?.input_tokens ?? 0) || 0,
@@ -381,19 +553,32 @@ async function translateBatch(args: {
 }
 
 async function translateBatchWithRetry(
-  args: Parameters<typeof translateBatch>[0]
-): Promise<Awaited<ReturnType<typeof translateBatch>>> {
+  args: Parameters<typeof translateBatch>[0],
+  onRetry?: () => void
+): Promise<
+  Awaited<ReturnType<typeof translateBatch>> & { retryCount: number }
+> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      return await translateBatch(args);
+      const result = await translateBatch({
+        ...args,
+        retryAttempt: attempt,
+      });
+      return { ...result, retryCount: attempt };
     } catch (error) {
       lastError = error;
       const retryable =
         error instanceof OpenAITranslationError ? error.retryable : false;
 
-      if (!retryable || attempt === 1) throw error;
+      if (!retryable || attempt === 1) {
+        if (error instanceof OpenAITranslationError) {
+          error.retryCount = attempt;
+        }
+        throw error;
+      }
+      onRetry?.();
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
   }
@@ -433,31 +618,69 @@ export async function translateSegmentsInBatches(args: {
   targetLanguage: SupportedLanguageTag;
   segments: OpenAITranslationSourceSegment[];
 }): Promise<OpenAITranslationResult> {
-  const label = translationLabel(args.targetLanguage);
+  const label = translationLabel();
 
   if (args.segments.length === 0) {
     throw new Error(label + "の原文がありません。");
   }
 
-  const batches = splitTranslationBatches(args.segments);
-  const batchResults = await mapWithConcurrency(
-    batches,
-    MAX_PARALLEL_BATCHES,
-    (batch, batchIndex) =>
-      translateBatchWithRetry({
-        apiKey: args.apiKey,
-        model: args.model,
-        workTitle: args.workTitle,
-        episodeTitle: args.episodeTitle,
-        sourceLanguage: args.sourceLanguage,
-        targetLanguage: args.targetLanguage,
-        batch,
-        batchIndex,
-        batchCount: batches.length,
-      })
+  const translatableSegments = args.segments.filter(
+    (segment) => !shouldPreserveVerbatim(segment, args.sourceLanguage)
   );
+  const batches = splitTranslationBatches(translatableSegments, args.model);
+  const recurringTerms = collectRecurringTerms(args.segments);
+  const usesFirstPersonNarrator = hasJapaneseFirstPersonNarrator(
+    args.segments,
+    args.sourceLanguage
+  );
+  let attemptedRetries = 0;
+  let batchResults: Awaited<ReturnType<typeof translateBatchWithRetry>>[];
 
-  const segments = batchResults.flatMap((result) => result.segments);
+  try {
+    batchResults = await mapWithConcurrency(
+      batches,
+      MAX_PARALLEL_BATCHES,
+      (batch, batchIndex) =>
+        translateBatchWithRetry(
+          {
+            apiKey: args.apiKey,
+            model: args.model,
+            workTitle: args.workTitle,
+            episodeTitle: args.episodeTitle,
+            sourceLanguage: args.sourceLanguage,
+            targetLanguage: args.targetLanguage,
+            batch,
+            batchIndex,
+            batchCount: batches.length,
+            recurringTerms,
+            usesFirstPersonNarrator,
+          },
+          () => {
+            attemptedRetries += 1;
+          }
+        )
+    );
+  } catch (error) {
+    if (error instanceof OpenAITranslationError) {
+      error.retryCount = attemptedRetries;
+    }
+    throw error;
+  }
+
+  const translatedById = new Map<string, string>();
+  batches.forEach((batch, batchIndex) => {
+    const batchResult = batchResults[batchIndex];
+    batch.segments.forEach((segment, segmentIndex) => {
+      const translated = batchResult?.segments[segmentIndex];
+      if (translated) translatedById.set(segment.id, translated);
+    });
+  });
+
+  const segments = args.segments.map((segment) =>
+    shouldPreserveVerbatim(segment, args.sourceLanguage)
+      ? segment.text.trim()
+      : translatedById.get(segment.id) ?? ""
+  );
   if (
     segments.length !== args.segments.length ||
     segments.some((item) => !item.trim())
@@ -477,11 +700,16 @@ export async function translateSegmentsInBatches(args: {
     (total, result) => total + result.outputTokens,
     0
   );
+  const retryCount = batchResults.reduce(
+    (total, result) => total + result.retryCount,
+    0
+  );
 
   return {
     segments,
     inputTokens: inputTokens || null,
     outputTokens: outputTokens || null,
     batchCount: batches.length,
+    retryCount,
   };
 }

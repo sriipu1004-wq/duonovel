@@ -52,7 +52,7 @@ export default function BilingualDivider({
   return (
     <div
       role="separator"
-      aria-label="日本語と英語の表示比率"
+      aria-label="原文と対訳の表示比率"
       aria-valuemin={20}
       aria-valuemax={80}
       aria-valuenow={Math.round(splitRatio)}
@@ -65,7 +65,7 @@ export default function BilingualDivider({
       <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-black/15" />
       <button
         type="button"
-        aria-label="日本語と英語の上下を入れ替える"
+        aria-label="原文と対訳の上下を入れ替える"
         title="上下を入れ替える"
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
