@@ -15,6 +15,10 @@ import {
   translateSegmentsInBatches,
 } from "@/lib/translation/openAITranslation";
 import {
+  DEFAULT_TRANSLATION_MODEL,
+  getDefaultTextTokenPricesUsd,
+} from "@/lib/translation/openAITranslationModel";
+import {
   isPublicTranslationLanguagePair,
   parseSupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
@@ -62,14 +66,6 @@ const TRANSLATION_LIMITS = {
     "EPISODE_TRANSLATION_ACTUAL_USD_JPY_RATE",
     160
   ),
-  actualInputUsdPer1mTokens: readNonNegativeNumberEnv(
-    "EPISODE_TRANSLATION_ACTUAL_INPUT_USD_PER_1M_TOKENS",
-    0.4
-  ),
-  actualOutputUsdPer1mTokens: readNonNegativeNumberEnv(
-    "EPISODE_TRANSLATION_ACTUAL_OUTPUT_USD_PER_1M_TOKENS",
-    1.6
-  ),
 } as const;
 
 function estimateTokens(sourceChars: number): {
@@ -94,13 +90,21 @@ function estimateGuardrailCostJpy(
 
 function estimateActualCostJpy(
   inputTokens: number,
-  outputTokens: number
+  outputTokens: number,
+  model: string
 ): number {
+  const defaultPrices = getDefaultTextTokenPricesUsd(model);
+  const inputUsdPer1mTokens = readNonNegativeNumberEnv(
+    "EPISODE_TRANSLATION_ACTUAL_INPUT_USD_PER_1M_TOKENS",
+    defaultPrices.inputPer1mTokens
+  );
+  const outputUsdPer1mTokens = readNonNegativeNumberEnv(
+    "EPISODE_TRANSLATION_ACTUAL_OUTPUT_USD_PER_1M_TOKENS",
+    defaultPrices.outputPer1mTokens
+  );
   const valueUsd =
-    (inputTokens / 1_000_000) *
-      TRANSLATION_LIMITS.actualInputUsdPer1mTokens +
-    (outputTokens / 1_000_000) *
-      TRANSLATION_LIMITS.actualOutputUsdPer1mTokens;
+    (inputTokens / 1_000_000) * inputUsdPer1mTokens +
+    (outputTokens / 1_000_000) * outputUsdPer1mTokens;
   return (
     Math.ceil(valueUsd * TRANSLATION_LIMITS.actualUsdJpyRate * 1000) / 1000
   );
@@ -230,7 +234,7 @@ export async function POST(request: Request) {
   }
 
   const sourceHash = buildEpisodeTranslationSourceHash(access.body);
-  const model = process.env.EPISODE_TRANSLATION_MODEL ?? "gpt-4.1-mini";
+  const model = process.env.EPISODE_TRANSLATION_MODEL ?? DEFAULT_TRANSLATION_MODEL;
   const estimatedTokens = estimateTokens(sourceChars);
   const estimatedCostJpy = estimateGuardrailCostJpy(
     estimatedTokens.inputTokens,
@@ -396,7 +400,7 @@ export async function POST(request: Request) {
     const actualOutputTokens = translated.outputTokens;
     const actualCostJpy =
       actualInputTokens && actualOutputTokens
-        ? estimateActualCostJpy(actualInputTokens, actualOutputTokens)
+        ? estimateActualCostJpy(actualInputTokens, actualOutputTokens, model)
         : null;
 
     const translationUpdate = await admin
