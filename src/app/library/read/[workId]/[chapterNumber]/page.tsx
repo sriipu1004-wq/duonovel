@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import WebSpeechEpisodePlayback from "@/features/playback/WebSpeechEpisodePlayback";
 import LibraryProgressTracker from "@/features/library/LibraryProgressTracker";
+import PrivateLibraryBilingualShell from "@/features/library/PrivateLibraryBilingualShell";
 import {
   buildPrivateLibraryReadHref,
   buildPrivateLibraryWorkHref,
@@ -70,6 +71,7 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
       : null;
   const sourceLanguage = parseSupportedLanguageTag(work.source_language) ?? "ja";
   const language = getSupportedLanguage(sourceLanguage);
+  const workIndexHref = buildPrivateLibraryWorkHref(work.id);
 
   return (
     <>
@@ -77,30 +79,41 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
         workId={work.id}
         chapterNumber={chapter.chapter_number}
       />
-      <WebSpeechEpisodePlayback
-        seriesId={`private-library:${work.id}`}
-        episodeId={chapter.id}
-        episodeNumber={chapter.chapter_number}
-        seriesTitle={work.title}
-        episodeTitle={chapter.title}
-        workAuthorName={work.author_name || "作者未設定"}
-        body={chapter.body}
-        isShortStory={false}
-        prevEpisodeHref={
-          previousNumber
-            ? buildPrivateLibraryReadHref(work.id, previousNumber)
-            : null
-        }
-        prevEpisodeNumber={previousNumber}
-        nextEpisodeHref={
-          nextNumber ? buildPrivateLibraryReadHref(work.id, nextNumber) : null
-        }
-        nextEpisodeNumber={nextNumber}
-        workIndexHref={buildPrivateLibraryWorkHref(work.id)}
-        showComments={false}
-        speechLanguage={language.speechLanguage}
-        trackPopularity={false}
-      />
+      <PrivateLibraryBilingualShell
+        workId={work.id}
+        chapterId={chapter.id}
+        chapterNumber={chapter.chapter_number}
+        workTitle={work.title}
+        chapterTitle={chapter.title}
+        authorName={work.author_name || undefined}
+        sourceLanguage={sourceLanguage}
+        workIndexHref={workIndexHref}
+      >
+        <WebSpeechEpisodePlayback
+          seriesId={`private-library:${work.id}`}
+          episodeId={chapter.id}
+          episodeNumber={chapter.chapter_number}
+          seriesTitle={work.title}
+          episodeTitle={chapter.title}
+          workAuthorName={work.author_name || "作者未設定"}
+          body={chapter.body}
+          isShortStory={false}
+          prevEpisodeHref={
+            previousNumber
+              ? buildPrivateLibraryReadHref(work.id, previousNumber)
+              : null
+          }
+          prevEpisodeNumber={previousNumber}
+          nextEpisodeHref={
+            nextNumber ? buildPrivateLibraryReadHref(work.id, nextNumber) : null
+          }
+          nextEpisodeNumber={nextNumber}
+          workIndexHref={workIndexHref}
+          showComments={false}
+          speechLanguage={language.speechLanguage}
+          trackPopularity={false}
+        />
+      </PrivateLibraryBilingualShell>
     </>
   );
 }
