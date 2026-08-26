@@ -7,6 +7,7 @@ import AuthStatus from "@/components/auth/AuthStatus";
 
 const navItems = [
   { href: "/generate", label: "AI生成" },
+  { href: "/library", label: "個人本棚" },
   { href: "/search", label: "探す" },
   { href: "/record", label: "朗読" },
   { href: "/write", label: "投稿" },
@@ -14,7 +15,8 @@ const navItems = [
 
 export default function AppHeader() {
   const pathname = usePathname();
-  const isReaderPage = pathname.startsWith("/read/");
+  const isReaderPage =
+    pathname.startsWith("/read/") || pathname.startsWith("/library/read/");
 
   return (
     <header className={`${isReaderPage ? "relative" : "sticky top-0"} z-40 border-b border-black/10 bg-white/95 backdrop-blur`}>

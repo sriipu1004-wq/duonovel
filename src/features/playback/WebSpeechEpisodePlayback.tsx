@@ -82,6 +82,8 @@ type EpisodePlaybackProps = {
   showComments?: boolean;
   effectSettings?: EffectSettings;
   ownerActions?: ReactNode;
+  speechLanguage?: string;
+  trackPopularity?: boolean;
 };
 
 type BookmarkData = {
@@ -263,14 +265,16 @@ function readStoredSpeechSettings(seriesId: string): {
   }
 }
 
-function splitForSpeech(text: string): string[] {
+function splitForSpeech(text: string, speechLanguage: string): string[] {
   const normalized = normalizeAozoraTextForDisplay(text).trim();
 
   if (!normalized) return [];
 
-  const matched = normalized.match(
-    /[^、。！？!?…]+(?:[、。！？!?…]+[」』）】]*)?/gu
-  );
+  const matched = speechLanguage.toLowerCase().startsWith("ja")
+    ? normalized.match(/[^、。！？!?…]+(?:[、。！？!?…]+[」』）】]*)?/gu)
+    : normalized.match(
+        /[^。！？!?…．.]+(?:[。！？!?…．.]+["'」』）】»”]*)?/gu
+      );
 
   return (matched ?? [normalized])
     .map((item) => item.trim())
@@ -425,6 +429,8 @@ export default function WebSpeechEpisodePlayback({
   showComments = true,
   effectSettings,
   ownerActions,
+  speechLanguage = "ja-JP",
+  trackPopularity = true,
 }: EpisodePlaybackProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -494,6 +500,10 @@ export default function WebSpeechEpisodePlayback({
     typeof body === "string" && body.trim()
       ? body
       : "本文がまだ登録されていません。";
+  const safeSpeechLanguage = speechLanguage.trim() || "ja-JP";
+  const speechLanguagePrefix = safeSpeechLanguage
+    .split("-")[0]
+    .toLowerCase();
 
   const normalizedHumanNarrationOptions = useMemo(
     () =>
@@ -565,13 +575,13 @@ export default function WebSpeechEpisodePlayback({
     () =>
       paragraphBlocks.flatMap((block) =>
         block.segments.flatMap((segment) =>
-          splitForSpeech(segment.text).map((text) => ({
+          splitForSpeech(segment.text, safeSpeechLanguage).map((text) => ({
             segmentIndex: segment.index,
             text: replaceRubyWithReadingText(text),
           }))
         )
       ),
-    [paragraphBlocks]
+    [paragraphBlocks, safeSpeechLanguage]
   );
   const firstSpeechUnitIndexBySegment = useMemo(() => {
     const map = new Map<number, number>();
@@ -614,12 +624,14 @@ export default function WebSpeechEpisodePlayback({
     : `${Math.min(speechUnits.length, safeActiveUnitIndex + 1)} / ${speechUnits.length}`;
 
   useEffect(() => {
+    if (!trackPopularity) return;
+
     void trackSeriesViewOnce({
       seriesId,
       episodeId: episodeId ?? null,
       episodeNumber,
     });
-  }, [seriesId, episodeId, episodeNumber]);
+  }, [episodeId, episodeNumber, seriesId, trackPopularity]);
 
   useEffect(() => {
     if (
@@ -632,7 +644,9 @@ export default function WebSpeechEpisodePlayback({
     function loadVoices() {
       const voices = window.speechSynthesis
         .getVoices()
-        .filter((voice) => voice.lang.toLowerCase().startsWith("ja"))
+        .filter((voice) =>
+          voice.lang.toLowerCase().startsWith(speechLanguagePrefix)
+        )
         .map((voice) => ({
           voiceURI: voice.voiceURI,
           name: voice.name,
@@ -641,9 +655,14 @@ export default function WebSpeechEpisodePlayback({
 
       setAvailableVoices(voices);
 
-      if (!selectedVoiceURIRef.current && voices[0]) {
-        selectedVoiceURIRef.current = voices[0].voiceURI;
-        setSelectedVoiceURI(voices[0].voiceURI);
+      const selectedVoiceStillMatches = voices.some(
+        (voice) => voice.voiceURI === selectedVoiceURIRef.current
+      );
+
+      if (!selectedVoiceStillMatches) {
+        const nextVoiceURI = voices[0]?.voiceURI ?? "";
+        selectedVoiceURIRef.current = nextVoiceURI;
+        setSelectedVoiceURI(nextVoiceURI);
       }
     }
 
@@ -653,7 +672,7 @@ export default function WebSpeechEpisodePlayback({
     return () => {
       window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
     };
-  }, []);
+  }, [speechLanguagePrefix]);
 
   useEffect(() => {
     playbackRateRef.current = playbackRate;
@@ -883,7 +902,7 @@ export default function WebSpeechEpisodePlayback({
     setIsPlaying(true);
 
     const utterance = new SpeechSynthesisUtterance(unit.text);
-    utterance.lang = "ja-JP";
+    utterance.lang = safeSpeechLanguage;
     utterance.rate = playbackRateRef.current;
     utterance.pitch = speechPitchRef.current;
     utterance.volume = speechVolumeRef.current;
