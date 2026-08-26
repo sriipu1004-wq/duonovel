@@ -4,14 +4,14 @@ import { useEffect, useState } from "react";
 import type { BilingualSegment } from "@/features/playback/BilingualPane";
 import {
   getSupportedLanguage,
-  type PublicTranslationTargetLanguage,
+  type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 
 type BilingualStudyControlsProps = {
   segments: BilingualSegment[];
   selectedSegmentId: string | null;
   onSelectSegment: (id: string) => void;
-  targetLanguage: PublicTranslationTargetLanguage;
+  targetLanguage: SupportedLanguageTag;
 };
 
 export default function BilingualStudyControls({
