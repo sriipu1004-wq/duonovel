@@ -47,7 +47,14 @@ type PrivateLibraryBilingualPlaybackProps = {
   authorName?: string;
   sourceLanguage: SupportedLanguageTag;
   workIndexHref: string;
+  nextChapterId: string | null;
   onDisableBilingual: (segmentIndex: number) => void;
+};
+
+type NextTranslationPrefetchState = {
+  sourceChapterId: string;
+  targetLanguage: SupportedLanguageTag;
+  status: "preparing" | "ready" | "deferred";
 };
 
 type BilingualPreference = {
@@ -58,6 +65,8 @@ type BilingualPreference = {
 };
 
 const ALL_LANGUAGES = Object.keys(LANGUAGE_REGISTRY) as SupportedLanguageTag[];
+const NEXT_CHAPTER_PREFETCH_READING_THRESHOLD = 0.5;
+const NEXT_CHAPTER_PREFETCH_LANGUAGE_STABILITY_MS = 5_000;
 
 function defaultTargetLanguage(
   sourceLanguage: SupportedLanguageTag
@@ -120,6 +129,7 @@ export default function PrivateLibraryBilingualPlayback({
   authorName,
   sourceLanguage,
   workIndexHref,
+  nextChapterId,
   onDisableBilingual,
 }: PrivateLibraryBilingualPlaybackProps) {
   const preference = useMemo(
@@ -145,6 +155,11 @@ export default function PrivateLibraryBilingualPlayback({
   const [statusMessage, setStatusMessage] = useState("");
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
+  const [prefetchEligibleChapterId, setPrefetchEligibleChapterId] = useState<
+    string | null
+  >(null);
+  const [nextTranslationPrefetch, setNextTranslationPrefetch] =
+    useState<NextTranslationPrefetchState | null>(null);
 
   const sourceScrollRef = useRef<HTMLDivElement | null>(null);
   const targetScrollRef = useRef<HTMLDivElement | null>(null);
@@ -155,6 +170,10 @@ export default function PrivateLibraryBilingualPlayback({
   const generationInFlightRef = useRef(false);
   const readingSegmentIdRef = useRef<string | null>(null);
   const targetLanguageRef = useRef<SupportedLanguageTag>(preference.targetLanguage);
+  const nextPrefetchAttemptRef = useRef<{
+    sourceChapterId: string;
+    targetLanguage: SupportedLanguageTag;
+  } | null>(null);
 
   useEffect(() => {
     setSplitRatio(preference.splitRatio);
@@ -335,6 +354,139 @@ export default function PrivateLibraryBilingualPlayback({
     return () => window.clearInterval(timer);
   }, [loadTranslation, translationStatus]);
 
+  useEffect(() => {
+    if (
+      !nextChapterId ||
+      translationStatus !== "ready" ||
+      prefetchEligibleChapterId !== chapterId ||
+      nextPrefetchAttemptRef.current?.sourceChapterId === chapterId
+    ) {
+      return;
+    }
+
+    const stableTargetLanguage = targetLanguage;
+    const timer = window.setTimeout(() => {
+      if (nextPrefetchAttemptRef.current?.sourceChapterId === chapterId) return;
+
+      nextPrefetchAttemptRef.current = {
+        sourceChapterId: chapterId,
+        targetLanguage: stableTargetLanguage,
+      };
+      setNextTranslationPrefetch({
+        sourceChapterId: chapterId,
+        targetLanguage: stableTargetLanguage,
+        status: "preparing",
+      });
+
+      void (async () => {
+        const statusUrl =
+          "/api/library/translations/" +
+          encodeURIComponent(nextChapterId) +
+          "?sourceLanguage=" +
+          encodeURIComponent(sourceLanguage) +
+          "&targetLanguage=" +
+          encodeURIComponent(stableTargetLanguage);
+
+        try {
+          const statusResponse = await fetch(statusUrl, { cache: "no-store" });
+          const statusPayload =
+            (await statusResponse.json()) as TranslationStatusResponse;
+
+          if (!statusResponse.ok || !statusPayload.ok) {
+            setNextTranslationPrefetch({
+              sourceChapterId: chapterId,
+              targetLanguage: stableTargetLanguage,
+              status: "deferred",
+            });
+            return;
+          }
+
+          if (statusPayload.status === "ready") {
+            setNextTranslationPrefetch({
+              sourceChapterId: chapterId,
+              targetLanguage: stableTargetLanguage,
+              status: "ready",
+            });
+            return;
+          }
+
+          if (statusPayload.status === "translating") return;
+
+          if (
+            (statusPayload.status !== "missing" &&
+              statusPayload.status !== "stale") ||
+            statusPayload.canAutoGenerate !== true
+          ) {
+            setNextTranslationPrefetch({
+              sourceChapterId: chapterId,
+              targetLanguage: stableTargetLanguage,
+              status: "deferred",
+            });
+            return;
+          }
+
+          const generationResponse = await fetch(
+            "/api/library/translations/generate",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chapterId: nextChapterId,
+                sourceLanguage,
+                targetLanguage: stableTargetLanguage,
+              }),
+              keepalive: true,
+            }
+          );
+          const generationPayload =
+            (await generationResponse.json()) as TranslationStatusResponse;
+
+          if (
+            generationResponse.ok &&
+            generationPayload.ok &&
+            generationPayload.status === "ready"
+          ) {
+            setNextTranslationPrefetch({
+              sourceChapterId: chapterId,
+              targetLanguage: stableTargetLanguage,
+              status: "ready",
+            });
+            return;
+          }
+
+          if (
+            generationResponse.ok &&
+            generationPayload.ok &&
+            generationPayload.status === "translating"
+          ) {
+            return;
+          }
+
+          setNextTranslationPrefetch({
+            sourceChapterId: chapterId,
+            targetLanguage: stableTargetLanguage,
+            status: "deferred",
+          });
+        } catch {
+          setNextTranslationPrefetch({
+            sourceChapterId: chapterId,
+            targetLanguage: stableTargetLanguage,
+            status: "deferred",
+          });
+        }
+      })();
+    }, NEXT_CHAPTER_PREFETCH_LANGUAGE_STABILITY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    chapterId,
+    nextChapterId,
+    prefetchEligibleChapterId,
+    sourceLanguage,
+    targetLanguage,
+    translationStatus,
+  ]);
+
   function centerInPane(
     container: HTMLDivElement | null,
     node: HTMLSpanElement | null
@@ -375,6 +527,21 @@ export default function PrivateLibraryBilingualPlayback({
     readingSegmentIdRef.current = id;
     setSelectedSegmentId(id);
     centerSegment(id);
+  }
+
+  function handleReadingPositionChange(id: string) {
+    readingSegmentIdRef.current = id;
+
+    if (!nextChapterId || prefetchEligibleChapterId === chapterId) return;
+
+    const segmentIndex = segments.findIndex((segment) => segment.id === id);
+    if (
+      segmentIndex >= 0 &&
+      (segmentIndex + 1) / segments.length >=
+        NEXT_CHAPTER_PREFETCH_READING_THRESHOLD
+    ) {
+      setPrefetchEligibleChapterId(chapterId);
+    }
   }
 
   function handleSwapLanguages() {
@@ -496,9 +663,7 @@ export default function PrivateLibraryBilingualPlayback({
                     }
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
-                    onReadingPositionChange={(id) => {
-                      readingSegmentIdRef.current = id;
-                    }}
+                    onReadingPositionChange={handleReadingPositionChange}
                   />
                 ) : (
                   <BilingualPane
@@ -513,9 +678,7 @@ export default function PrivateLibraryBilingualPlayback({
                     }
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
-                    onReadingPositionChange={(id) => {
-                      readingSegmentIdRef.current = id;
-                    }}
+                    onReadingPositionChange={handleReadingPositionChange}
                   />
                 )}
 
@@ -538,9 +701,7 @@ export default function PrivateLibraryBilingualPlayback({
                     }
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
-                    onReadingPositionChange={(id) => {
-                      readingSegmentIdRef.current = id;
-                    }}
+                    onReadingPositionChange={handleReadingPositionChange}
                   />
                 ) : (
                   <BilingualPane
@@ -555,9 +716,7 @@ export default function PrivateLibraryBilingualPlayback({
                     }
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
-                    onReadingPositionChange={(id) => {
-                      readingSegmentIdRef.current = id;
-                    }}
+                    onReadingPositionChange={handleReadingPositionChange}
                   />
                 )}
               </div>
@@ -635,6 +794,15 @@ export default function PrivateLibraryBilingualPlayback({
               {targetLanguageLabel} 対訳
             </span>
             <span className="ml-2">文同期・1文再生</span>
+            {nextTranslationPrefetch?.sourceChapterId === chapterId ? (
+              <span className="mt-1 block">
+                {nextTranslationPrefetch.status === "ready"
+                  ? `次話の${getSupportedLanguage(nextTranslationPrefetch.targetLanguage).nativeLabel}対訳 準備済み`
+                  : nextTranslationPrefetch.status === "preparing"
+                    ? `次話の${getSupportedLanguage(nextTranslationPrefetch.targetLanguage).nativeLabel}対訳を準備中…`
+                    : "次話の対訳は移動後に準備します"}
+              </span>
+            ) : null}
           </div>
           <button
             type="button"

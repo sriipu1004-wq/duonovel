@@ -49,7 +49,7 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
       .maybeSingle(),
     supabase
       .from("private_library_chapters")
-      .select("chapter_number")
+      .select("id, chapter_number")
       .eq("work_id", workId)
       .order("chapter_number", { ascending: true }),
   ]);
@@ -60,15 +60,27 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
 
   const work = workResult.data as PrivateLibraryWork;
   const chapter = chapterResult.data as PrivateLibraryChapter;
-  const chapterNumbers = (chapterNumbersResult.data ?? [])
-    .map((row) => Number(row.chapter_number))
-    .filter((value) => Number.isInteger(value) && value > 0);
-  const currentIndex = chapterNumbers.indexOf(parsedChapterNumber);
-  const previousNumber = currentIndex > 0 ? chapterNumbers[currentIndex - 1] : null;
-  const nextNumber =
-    currentIndex >= 0 && currentIndex < chapterNumbers.length - 1
-      ? chapterNumbers[currentIndex + 1]
+  const chapters = (chapterNumbersResult.data ?? [])
+    .map((row) => ({
+      id: typeof row.id === "string" ? row.id : "",
+      chapterNumber: Number(row.chapter_number),
+    }))
+    .filter(
+      (row) =>
+        row.id.length > 0 &&
+        Number.isInteger(row.chapterNumber) &&
+        row.chapterNumber > 0
+    );
+  const currentIndex = chapters.findIndex(
+    (row) => row.chapterNumber === parsedChapterNumber
+  );
+  const previousChapter = currentIndex > 0 ? chapters[currentIndex - 1] : null;
+  const nextChapter =
+    currentIndex >= 0 && currentIndex < chapters.length - 1
+      ? chapters[currentIndex + 1]
       : null;
+  const previousNumber = previousChapter?.chapterNumber ?? null;
+  const nextNumber = nextChapter?.chapterNumber ?? null;
   const sourceLanguage = parseSupportedLanguageTag(work.source_language) ?? "ja";
   const language = getSupportedLanguage(sourceLanguage);
   const workIndexHref = buildPrivateLibraryWorkHref(work.id);
@@ -88,6 +100,7 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
         authorName={work.author_name || undefined}
         sourceLanguage={sourceLanguage}
         workIndexHref={workIndexHref}
+        nextChapterId={nextChapter?.id ?? null}
       >
         <WebSpeechEpisodePlayback
           seriesId={`private-library:${work.id}`}
