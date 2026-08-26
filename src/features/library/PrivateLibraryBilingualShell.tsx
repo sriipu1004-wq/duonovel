@@ -16,6 +16,7 @@ type PrivateLibraryBilingualShellProps = {
   authorName?: string;
   sourceLanguage: SupportedLanguageTag;
   workIndexHref: string;
+  nextChapterId: string | null;
 };
 
 export default function PrivateLibraryBilingualShell({
@@ -28,6 +29,7 @@ export default function PrivateLibraryBilingualShell({
   authorName,
   sourceLanguage,
   workIndexHref,
+  nextChapterId,
 }: PrivateLibraryBilingualShellProps) {
   const [mode, setMode] = useState<"standard" | "bilingual">("standard");
   const [resumeSegmentIndex, setResumeSegmentIndex] = useState<number | null>(null);
@@ -62,6 +64,7 @@ export default function PrivateLibraryBilingualShell({
         authorName={authorName}
         sourceLanguage={sourceLanguage}
         workIndexHref={workIndexHref}
+        nextChapterId={nextChapterId}
         onDisableBilingual={disableBilingual}
       />
     );
