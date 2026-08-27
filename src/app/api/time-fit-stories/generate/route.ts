@@ -8,6 +8,10 @@ import {
 import { recordPromptTagUsage } from "@/lib/generation/promptTagUsage.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import {
+  releaseAiAction,
+  reserveAiAction,
+} from "@/lib/aiUsage/aiUsage.server";
 
 export const runtime = "nodejs";
 
@@ -595,89 +599,6 @@ async function checkRateLimit(args: {
     };
   }
 
-  if (!args.user) {
-    if (
-      args.requestedMinutes === 20 &&
-      LIMITS.anonymousLongGenerationDaily <= 0
-    ) {
-      return {
-        allowed: false,
-        limitType: "anonymous_long_generation",
-        message:
-          "20分の物語生成はログイン後にお試しください。未ログインでは5分・10分・15分を利用できます。",
-      };
-    }
-
-    const anonymousDailyCount = await countRecentGenerationLogs({
-      supabase: args.supabase,
-      cutoffMs: ONE_DAY_MS,
-      ipHash: args.ipHash,
-      anonymousOnly: true,
-    });
-
-    if (anonymousDailyCount >= LIMITS.anonymousDaily) {
-      return {
-        allowed: false,
-        limitType: "anonymous_daily",
-        message:
-          "本日の無料生成回数に達しました。ログインするともう少し生成できます。",
-      };
-    }
-
-    if (args.requestedMinutes === 20) {
-      const anonymousLongGenerationCount = await countRecentGenerationLogs({
-        supabase: args.supabase,
-        cutoffMs: ONE_DAY_MS,
-        ipHash: args.ipHash,
-        anonymousOnly: true,
-        requestedMinutes: 20,
-      });
-
-      if (anonymousLongGenerationCount >= LIMITS.anonymousLongGenerationDaily) {
-        return {
-          allowed: false,
-          limitType: "anonymous_long_generation",
-          message:
-            "20分の物語生成は本日の上限に達しました。5分・10分・15分をお試しください。",
-        };
-      }
-    }
-
-    return { allowed: true };
-  }
-
-  const userDailyCount = await countRecentGenerationLogs({
-    supabase: args.supabase,
-    cutoffMs: ONE_DAY_MS,
-    userId: args.user.id,
-  });
-
-  if (userDailyCount >= LIMITS.userDaily) {
-    return {
-      allowed: false,
-      limitType: "user_daily",
-      message: "本日の生成回数に達しました。明日またお試しください。",
-    };
-  }
-
-  if (args.requestedMinutes === 20) {
-    const longGenerationCount = await countRecentGenerationLogs({
-      supabase: args.supabase,
-      cutoffMs: ONE_DAY_MS,
-      userId: args.user.id,
-      requestedMinutes: 20,
-    });
-
-    if (longGenerationCount >= LIMITS.userLongGenerationDaily) {
-      return {
-        allowed: false,
-        limitType: "long_generation_daily",
-        message:
-          "20分の物語生成は本日の上限に達しました。5分・10分・15分をお試しください。",
-      };
-    }
-  }
-
   return { allowed: true };
 }
 
@@ -988,6 +909,37 @@ export async function POST(request: Request) {
     );
   }
 
+  let actionReserved = false;
+  try {
+    const actionReservation = await reserveAiAction({
+      request,
+      requestId: requestMeta.requestId,
+      actionType: "story_generation",
+      userId: user?.id ?? null,
+    });
+    if (!actionReservation.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "daily_action_limit",
+          message: `本日のAI小説生成回数（${actionReservation.used}/${actionReservation.limit}）を使い切りました。`,
+          usage: actionReservation,
+        },
+        { status: 429 }
+      );
+    }
+    actionReserved = true;
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "ai_usage_unavailable",
+        message: error instanceof Error ? error.message : "生成回数を確認できませんでした。",
+      },
+      { status: 503 }
+    );
+  }
+
   let generationLogId: string;
 
   try {
@@ -1006,6 +958,8 @@ export async function POST(request: Request) {
     });
 
     if (!reservation.allowed) {
+      await releaseAiAction(requestMeta.requestId);
+      actionReserved = false;
       const message =
         "本日のAI短編生成上限に達しました。明日またお試しください。";
 
@@ -1031,6 +985,7 @@ export async function POST(request: Request) {
 
     generationLogId = reservation.logId;
   } catch (error) {
+    if (actionReserved) await releaseAiAction(requestMeta.requestId);
     return NextResponse.json(
       {
         ok: false,
@@ -1057,6 +1012,7 @@ export async function POST(request: Request) {
         error_message: "OPENAI_API_KEY が設定されていません。",
       },
     });
+    await releaseAiAction(requestMeta.requestId);
 
     return NextResponse.json(
       {

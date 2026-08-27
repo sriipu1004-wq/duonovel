@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import PromptTagSuggestions from "@/features/generation/PromptTagSuggestions";
 import { getPromptTagsInText } from "@/lib/generation/promptTags";
+import { useAiUsage } from "@/features/usage/useAiUsage";
+import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
 
 type TimeMinutes = 5 | 10 | 15 | 20;
 
@@ -26,6 +28,7 @@ export default function ContinueStoryAction({
   isShortStory,
 }: ContinueStoryActionProps) {
   const router = useRouter();
+  const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
   const [isOpen, setIsOpen] = useState(false);
   const [requestedMinutes, setRequestedMinutes] = useState<TimeMinutes>(10);
   const [continuationRequest, setContinuationRequest] = useState("");
@@ -64,6 +67,7 @@ export default function ContinueStoryAction({
       });
 
       const data = (await response.json()) as ContinueResponse;
+      await refreshAiUsage();
       if (!response.ok || !data.ok || !data.editUrl) {
         throw new Error(data.message || "続編の生成に失敗しました。");
       }
@@ -214,14 +218,19 @@ export default function ContinueStoryAction({
             </button>
             <button
               type="submit"
-              disabled={isGenerating}
+              disabled={
+                isGenerating ||
+                (aiUsage?.actions.story_generation.limit !== undefined &&
+                  aiUsage.actions.story_generation.used >=
+                    aiUsage.actions.story_generation.limit)
+              }
               className="min-h-11 rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isGenerating
                 ? "生成中…"
                 : isShortStory
-                  ? "長編にして続きを作る"
-                  : "続きを作る"}
+                  ? `長編にして続きを作る ${formatAiUsage(aiUsage?.actions.story_generation)}`
+                  : `続きを作る ${formatAiUsage(aiUsage?.actions.story_generation)}`}
             </button>
           </div>
         </form>
@@ -263,10 +272,15 @@ export default function ContinueStoryAction({
               <button
                 type="button"
                 onClick={() => void generateContinuation()}
-                disabled={isGenerating}
+                disabled={
+                  isGenerating ||
+                  (aiUsage?.actions.story_generation.limit !== undefined &&
+                    aiUsage.actions.story_generation.used >=
+                      aiUsage.actions.story_generation.limit)
+                }
                 className="min-h-11 rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-50"
               >
-                長編にして続きを作る
+                長編にして続きを作る {formatAiUsage(aiUsage?.actions.story_generation)}
               </button>
             </div>
           </div>

@@ -13,6 +13,7 @@ import {
   getSupportedLanguage,
   parseSupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 
 type PageProps = {
   params: Promise<{ workId: string; chapterNumber: string }>;
@@ -41,7 +42,7 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
 
   if (workResult.error || !workResult.data) notFound();
 
-  const [chapterResult, previousResult, nextResult] = await Promise.all([
+  const [chapterResult, previousResult, nextResult, subscriber] = await Promise.all([
     supabase
       .from("private_library_chapters")
       .select("*")
@@ -64,6 +65,7 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
       .order("chapter_number", { ascending: true })
       .limit(1)
       .maybeSingle(),
+    isSubscriber(user.id),
   ]);
 
   if (
@@ -115,6 +117,7 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
         sourceLanguage={sourceLanguage}
         workIndexHref={workIndexHref}
         nextChapterId={nextChapter?.id ?? null}
+        isSubscriber={subscriber}
       >
         <WebSpeechEpisodePlayback
           seriesId={`private-library:${work.id}`}

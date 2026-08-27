@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
+import type { PublicTranslationTargetLanguage } from "@/lib/translation/languageRegistry";
 
 type GeneratedStoryPayload = {
   id: string;
@@ -67,8 +69,11 @@ function readGeneratedStory(storyId: string): SavedGeneratedStoryPayload | null 
   return savedStory;
 }
 
-function buildBilingualHref(readHref: string): string {
-  return `${readHref}${readHref.includes("?") ? "&" : "?"}bilingual=1`;
+function buildBilingualHref(
+  readHref: string,
+  targetLanguage: PublicTranslationTargetLanguage
+): string {
+  return `${readHref}${readHref.includes("?") ? "&" : "?"}bilingual=1&targetLanguage=${encodeURIComponent(targetLanguage)}`;
 }
 
 function findSynopsisActionAnchor(
@@ -103,6 +108,9 @@ export default function GeneratedStoryBilingualBridge({
 }) {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [message, setMessage] = useState("");
+  const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
+  const [targetLanguage, setTargetLanguage] =
+    useState<PublicTranslationTargetLanguage>("en");
 
   useEffect(() => {
     let currentHost: HTMLElement | null = null;
@@ -160,17 +168,24 @@ export default function GeneratedStoryBilingualBridge({
       return;
     }
 
+    setIsLanguagePickerOpen(true);
+  }
+
+  function confirmBilingual() {
+    const generated = readGeneratedStory(storyId);
+    if (!generated) return;
+
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
 
     if (generated.readHref) {
-      window.location.assign(buildBilingualHref(generated.readHref));
+      window.location.assign(buildBilingualHref(generated.readHref, targetLanguage));
       return;
     }
 
     window.location.assign(
-      `/read/generated/${encodeURIComponent(storyId)}?bilingual=1`
+      `/read/generated/${encodeURIComponent(storyId)}?bilingual=1&targetLanguage=${encodeURIComponent(targetLanguage)}`
     );
   }
 
@@ -190,6 +205,27 @@ export default function GeneratedStoryBilingualBridge({
       </button>
       {message ? (
         <span className="w-full text-sm text-red-700">{message}</span>
+      ) : null}
+      {isLanguagePickerOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 px-4 py-8">
+          <section className="w-full max-w-md rounded-[28px] bg-white p-6 shadow-xl" role="dialog" aria-modal="true">
+            <h2 className="text-xl font-semibold text-black">対訳する言語を選択</h2>
+            <p className="mt-2 text-sm leading-7 text-neutral-600">
+              保存済み対訳がなければ、開いた後に生成するか選べます。
+            </p>
+            <div className="mt-5">
+              <TranslationLanguageSelect value={targetLanguage} onChange={setTargetLanguage} />
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setIsLanguagePickerOpen(false)} className="rounded-full border border-black/10 px-5 py-2.5 text-sm text-neutral-700">
+                キャンセル
+              </button>
+              <button type="button" onClick={confirmBilingual} className="rounded-full bg-black px-5 py-2.5 text-sm text-white">
+                この言語で対訳を開く
+              </button>
+            </div>
+          </section>
+        </div>
       ) : null}
     </div>,
     host

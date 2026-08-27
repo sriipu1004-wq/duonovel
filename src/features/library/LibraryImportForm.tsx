@@ -15,9 +15,10 @@ import { parseEpubImport } from "@/lib/library/parseEpubImport";
 import { parsePdfImport } from "@/lib/library/parsePdfImport";
 import { decodeTxtBuffer, parseTxtImport } from "@/lib/library/parseTxtImport";
 import {
-  LANGUAGE_REGISTRY,
+  getSupportedLanguage,
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import { detectBookSourceLanguage } from "@/lib/translation/detectSourceLanguage";
 
 type ImportState = "idle" | "reading" | "ready" | "saving" | "error";
 
@@ -30,8 +31,6 @@ type ParsedSelection = {
   suggestedLanguage: SupportedLanguageTag | null;
   detailLabel: string;
 };
-
-const SOURCE_LANGUAGES = Object.values(LANGUAGE_REGISTRY);
 
 function titleFromFileName(fileName: string): string {
   return fileName.replace(/\.(?:txt|epub|docx|pdf)$/iu, "").trim().slice(0, 200);
@@ -159,9 +158,12 @@ export default function LibraryImportForm() {
       setSelection(nextSelection);
       setTitle(nextSelection.suggestedTitle || titleFromFileName(file.name));
       setAuthorName(nextSelection.suggestedAuthor);
-      if (nextSelection.suggestedLanguage) {
-        setSourceLanguage(nextSelection.suggestedLanguage);
-      }
+      setSourceLanguage(
+        detectBookSourceLanguage(
+          nextSelection.parsed,
+          nextSelection.suggestedLanguage
+        )
+      );
       setState("ready");
     } catch (error) {
       setState("error");
@@ -353,22 +355,6 @@ export default function LibraryImportForm() {
                 />
               </label>
 
-              <label className="grid gap-2">
-                <span className="text-sm text-neutral-700">原文言語</span>
-                <select
-                  value={sourceLanguage}
-                  onChange={(event) =>
-                    setSourceLanguage(event.target.value as SupportedLanguageTag)
-                  }
-                  className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-sky-300"
-                >
-                  {SOURCE_LANGUAGES.map((language) => (
-                    <option key={language.tag} value={language.tag}>
-                      {language.nativeLabel}
-                    </option>
-                  ))}
-                </select>
-              </label>
             </div>
 
             {selection ? (
@@ -388,6 +374,9 @@ export default function LibraryImportForm() {
                   </span>
                   <span className="rounded-full border border-black/10 bg-white px-3 py-1.5">
                     {selection.detailLabel}
+                  </span>
+                  <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5">
+                    原文 {getSupportedLanguage(sourceLanguage).nativeLabel}（自動判定）
                   </span>
                 </div>
 

@@ -5,6 +5,7 @@ import { parseDocxImport } from "../src/lib/library/parseDocxImport";
 import { parseEpubImport } from "../src/lib/library/parseEpubImport";
 import { parseTxtImport } from "../src/lib/library/parseTxtImport";
 import { collectTranslationTerminologyCandidates } from "../src/lib/translation/openAITranslation";
+import { detectSourceLanguageFromText } from "../src/lib/translation/detectSourceLanguage";
 
 Object.assign(globalThis, { DOMParser, Element, HTMLElement, Node });
 
@@ -99,11 +100,39 @@ function testTerminologyCandidates() {
   assert.ok(terms.includes("Silver Keep"));
 }
 
+function testSourceLanguageDetection() {
+  assert.equal(
+    detectSourceLanguageFromText("彼女は古い図書館の扉を開けた。そこには不思議な本が並んでいた。"),
+    "ja"
+  );
+  assert.equal(
+    detectSourceLanguageFromText("She opened the old library door, and the lantern was waiting inside."),
+    "en"
+  );
+  assert.equal(
+    detectSourceLanguageFromText("Elle ouvrit la porte de la bibliothèque, mais la lumière était déjà là."),
+    "fr"
+  );
+  assert.equal(
+    detectSourceLanguageFromText("그녀는 오래된 도서관의 문을 열었다. 안에는 등불이 기다리고 있었다."),
+    "ko"
+  );
+  assert.equal(
+    detectSourceLanguageFromText("她打开了图书馆的门，这本书里还有一条龙。"),
+    "zh-Hans"
+  );
+  assert.equal(
+    detectSourceLanguageFromText("她打開了圖書館的門，這本書裡還有一條龍。"),
+    "zh-Hant"
+  );
+}
+
 testThousandChapterTxt();
 testLongLogicalSection();
 testMultilingualHeadings();
 testEpub();
 testDocx();
 testTerminologyCandidates();
+testSourceLanguageDetection();
 
 console.log("private library import tests passed");

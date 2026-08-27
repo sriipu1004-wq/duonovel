@@ -8,6 +8,10 @@ import {
 import { recordPromptTagUsage } from "@/lib/generation/promptTagUsage.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import {
+  releaseAiAction,
+  reserveAiAction,
+} from "@/lib/aiUsage/aiUsage.server";
 
 export const runtime = "nodejs";
 
@@ -557,35 +561,6 @@ async function checkRateLimit(args: {
     };
   }
 
-  const userDailyCount = await countRecentGenerationLogs({
-    supabase: args.supabase,
-    cutoffMs: ONE_DAY_MS,
-    userId: args.user.id,
-  });
-  if (userDailyCount >= LIMITS.userDaily) {
-    return {
-      allowed: false,
-      limitType: "user_daily",
-      message: "本日の生成回数に達しました。明日またお試しください。",
-    };
-  }
-
-  if (args.requestedMinutes === 20) {
-    const longCount = await countRecentGenerationLogs({
-      supabase: args.supabase,
-      cutoffMs: ONE_DAY_MS,
-      userId: args.user.id,
-      requestedMinutes: 20,
-    });
-    if (longCount >= LIMITS.userLongGenerationDaily) {
-      return {
-        allowed: false,
-        limitType: "long_generation_daily",
-        message: "20分の物語生成は本日の上限に達しました。5分・10分・15分をお試しください。",
-      };
-    }
-  }
-
   return { allowed: true };
 }
 
@@ -870,6 +845,24 @@ export async function POST(request: Request) {
     );
   }
 
+  const actionReservation = await reserveAiAction({
+    request,
+    requestId: requestMeta.requestId,
+    actionType: "story_generation",
+    userId: user.id,
+  });
+  if (!actionReservation.allowed) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "daily_action_limit",
+        message: `本日のAI小説生成回数（${actionReservation.used}/${actionReservation.limit}）を使い切りました。`,
+        usage: actionReservation,
+      },
+      { status: 429 }
+    );
+  }
+
   const reservationResult = await adminSupabase.rpc(
     "reserve_time_fit_story_continuation",
     {
@@ -902,6 +895,7 @@ export async function POST(request: Request) {
   );
 
   if (reservationResult.error) {
+    await releaseAiAction(requestMeta.requestId);
     console.error("[time-fit-continuation-reserve]", reservationResult.error);
     return NextResponse.json(
       { ok: false, error: "continuation_generation_failed", message: "続編生成を開始できませんでした。" },
@@ -914,6 +908,7 @@ export async function POST(request: Request) {
     : reservationResult.data) as Record<string, unknown> | null;
 
   if (!reservationRow || typeof reservationRow.allowed !== "boolean") {
+    await releaseAiAction(requestMeta.requestId);
     return NextResponse.json(
       { ok: false, error: "continuation_generation_failed", message: "続編生成の予約結果を確認できませんでした。" },
       { status: 500 }
@@ -921,6 +916,7 @@ export async function POST(request: Request) {
   }
 
   if (!reservationRow.allowed) {
+    await releaseAiAction(requestMeta.requestId);
     const limitType = reservationRow.limit_type;
     if (!isReservationLimitType(limitType)) {
       return NextResponse.json(

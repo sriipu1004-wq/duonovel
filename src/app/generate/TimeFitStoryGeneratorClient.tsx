@@ -4,6 +4,8 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PromptTagSuggestions from "@/features/generation/PromptTagSuggestions";
 import { getPromptTagsInText } from "@/lib/generation/promptTags";
+import { useAiUsage } from "@/features/usage/useAiUsage";
+import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
 
 type TimeMinutes = 5 | 10 | 15 | 20;
 
@@ -85,6 +87,7 @@ function readGenerateErrorMessage(data: GenerateResponse): string {
 
 export default function TimeFitStoryGeneratorClient() {
   const router = useRouter();
+  const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
 
   const [scene, setScene] = useState<(typeof SCENE_OPTIONS)[number]>("通勤");
   const [timeMinutes, setTimeMinutes] = useState<TimeMinutes>(10);
@@ -141,6 +144,7 @@ export default function TimeFitStoryGeneratorClient() {
       });
 
       const data = (await response.json()) as GenerateResponse;
+      await refreshAiUsage();
 
       if (!response.ok || !data.ok) {
         setErrorMessage(readGenerateErrorMessage(data));
@@ -275,16 +279,22 @@ export default function TimeFitStoryGeneratorClient() {
 
         <button
           type="submit"
-          disabled={isGenerating}
+          disabled={
+            isGenerating ||
+            (aiUsage?.actions.story_generation.limit !== undefined &&
+              aiUsage.actions.story_generation.used >=
+                aiUsage.actions.story_generation.limit)
+          }
           aria-busy={isGenerating}
           className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-400"
         >
-          {isGenerating ? "生成中..." : "物語を生成する"}
+          {isGenerating
+            ? "生成中..."
+            : `物語を生成する ${formatAiUsage(aiUsage?.actions.story_generation)}`}
         </button>
 
         <p className="text-xs leading-6 text-neutral-500">
-          生成コスト防衛のため、未ログイン生成は直近24時間で3回までです。
-          20分の物語生成はログイン後に利用できます。公開投稿や永続保存にはログインが必要です。
+          AI小説生成は新規と続編を合算し、毎日0時（日本時間）に回復します。公開投稿や永続保存にはログインが必要です。
         </p>
       </form>
 

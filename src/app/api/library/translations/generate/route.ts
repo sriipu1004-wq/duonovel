@@ -19,6 +19,11 @@ import {
 } from "@/lib/translation/openAITranslationModel";
 import { parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import {
+  isSubscriber,
+  releaseAiAction,
+  reserveAiAction,
+} from "@/lib/aiUsage/aiUsage.server";
+import {
   createTranslationPayload,
   TRANSLATION_SEGMENT_VERSION,
 } from "@/lib/translation/translationPayload";
@@ -163,6 +168,7 @@ export async function POST(request: Request) {
     typeof payload.chapterId === "string" ? payload.chapterId.trim() : "";
   const requestedSourceLanguage = parseSupportedLanguageTag(payload.sourceLanguage);
   const targetLanguage = parseSupportedLanguageTag(payload.targetLanguage);
+  const generationPurpose = payload.generationPurpose === "prefetch" ? "prefetch" : "manual";
 
   if (!chapterId || !targetLanguage) {
     return NextResponse.json(
@@ -199,6 +205,17 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, error: "invalid_request" },
       { status: 400 }
+    );
+  }
+
+  if (generationPurpose === "prefetch" && !(await isSubscriber(access.userId))) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "subscriber_required",
+        message: "次話の先読み対訳はサブスク会員限定です。",
+      },
+      { status: 403 }
     );
   }
 
@@ -294,7 +311,36 @@ export async function POST(request: Request) {
     );
   }
 
+  if (currentTranslationResult.data?.status === "ready") {
+    return NextResponse.json({ ok: true, status: "ready" });
+  }
+  if (currentTranslationResult.data?.status === "translating") {
+    return NextResponse.json(
+      { ok: true, status: "translating" },
+      { status: 202 }
+    );
+  }
+
   const requestId = randomUUID();
+  const actionReservation = await reserveAiAction({
+    request,
+    requestId,
+    actionType: "translation_generation",
+    userId: access.userId,
+  });
+
+  if (!actionReservation.allowed) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "daily_action_limit",
+        message: `本日の対訳生成回数（${actionReservation.used}/${actionReservation.limit}）を使い切りました。`,
+        usage: actionReservation,
+      },
+      { status: 429 }
+    );
+  }
+
   const reservationResult = await admin.rpc(
     "reserve_private_library_chapter_translation",
     {
@@ -315,6 +361,7 @@ export async function POST(request: Request) {
   );
 
   if (reservationResult.error) {
+    await releaseAiAction(requestId);
     return NextResponse.json(
       {
         ok: false,
@@ -330,6 +377,7 @@ export async function POST(request: Request) {
     : reservationResult.data;
 
   if (!reservation || typeof reservation.allowed !== "boolean") {
+    await releaseAiAction(requestId);
     return NextResponse.json(
       { ok: false, error: "translation_reservation_invalid" },
       { status: 500 }
@@ -337,6 +385,7 @@ export async function POST(request: Request) {
   }
 
   if (!reservation.allowed) {
+    await releaseAiAction(requestId);
     const resultType = String(reservation.result_type ?? "");
 
     if (resultType === "ready") {
@@ -369,6 +418,7 @@ export async function POST(request: Request) {
   const logId = String(reservation.log_id ?? "");
 
   if (!translationId || !logId) {
+    await releaseAiAction(requestId);
     return NextResponse.json(
       { ok: false, error: "translation_reservation_invalid" },
       { status: 500 }
@@ -384,6 +434,7 @@ export async function POST(request: Request) {
       errorMessage: "OPENAI_API_KEY が設定されていません。",
       uncount: true,
     });
+    await releaseAiAction(requestId);
 
     return NextResponse.json(
       { ok: false, error: "missing_openai_api_key" },

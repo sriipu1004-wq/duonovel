@@ -3,6 +3,10 @@ import GeneratedStoryBilingualBridge from "@/features/playback/GeneratedStoryBil
 import GeneratedStoryBilingualPlayback from "@/features/playback/GeneratedStoryBilingualPlayback";
 import ReaderSettingsTopBridge from "@/features/playback/ReaderSettingsTopBridge";
 import GeneratedStoryReaderClient from "./GeneratedStoryReaderClient";
+import {
+  isPublicTranslationTargetLanguage,
+  parseSupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
 
 type PageProps = {
   params: Promise<{
@@ -10,6 +14,7 @@ type PageProps = {
   }>;
   searchParams?: Promise<{
     bilingual?: string;
+    targetLanguage?: string;
   }>;
 };
 
@@ -30,7 +35,17 @@ export default async function GeneratedStoryReadPage({
   const bilingual = resolvedSearchParams?.bilingual === "1";
 
   if (bilingual) {
-    return <GeneratedStoryBilingualPlayback storyId={storyId} />;
+    const parsedTarget = parseSupportedLanguageTag(resolvedSearchParams?.targetLanguage);
+    const targetLanguage =
+      parsedTarget && isPublicTranslationTargetLanguage(parsedTarget)
+        ? parsedTarget
+        : "en";
+    return (
+      <GeneratedStoryBilingualPlayback
+        storyId={storyId}
+        initialTargetLanguage={targetLanguage}
+      />
+    );
   }
 
   return (

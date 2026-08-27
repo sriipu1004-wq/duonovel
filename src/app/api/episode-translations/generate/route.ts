@@ -24,6 +24,10 @@ import {
 } from "@/lib/translation/languageRegistry";
 import { createTranslationPayload } from "@/lib/translation/translationPayload";
 import { reserveEpisodeTranslation } from "@/lib/translation/translationReservationServer";
+import {
+  releaseAiAction,
+  reserveAiAction,
+} from "@/lib/aiUsage/aiUsage.server";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -262,7 +266,35 @@ export async function POST(request: Request) {
     );
   }
 
+  if (currentTranslationResult.data?.status === "ready") {
+    return NextResponse.json({ ok: true, status: "ready" });
+  }
+  if (currentTranslationResult.data?.status === "translating") {
+    return NextResponse.json(
+      { ok: true, status: "translating" },
+      { status: 202 }
+    );
+  }
+
   const requestId = randomUUID();
+  const actionReservation = await reserveAiAction({
+    request,
+    requestId,
+    actionType: "translation_generation",
+    userId: access.currentUserId,
+  });
+
+  if (!actionReservation.allowed) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "daily_action_limit",
+        message: `本日の対訳生成回数（${actionReservation.used}/${actionReservation.limit}）を使い切りました。`,
+        usage: actionReservation,
+      },
+      { status: 429 }
+    );
+  }
 
   const reservationResult = await reserveEpisodeTranslation({
     admin,
@@ -282,6 +314,7 @@ export async function POST(request: Request) {
   });
 
   if (reservationResult.error) {
+    await releaseAiAction(requestId);
     return NextResponse.json(
       {
         ok: false,
@@ -297,6 +330,7 @@ export async function POST(request: Request) {
     : reservationResult.data;
 
   if (!reservation || typeof reservation.allowed !== "boolean") {
+    await releaseAiAction(requestId);
     return NextResponse.json(
       { ok: false, error: "translation_reservation_invalid" },
       { status: 500 }
@@ -304,6 +338,7 @@ export async function POST(request: Request) {
   }
 
   if (!reservation.allowed) {
+    await releaseAiAction(requestId);
     const resultType = String(reservation.result_type ?? "");
 
     if (resultType === "ready") {
@@ -335,6 +370,7 @@ export async function POST(request: Request) {
   const logId = String(reservation.log_id ?? "");
 
   if (!translationId || !logId) {
+    await releaseAiAction(requestId);
     return NextResponse.json(
       { ok: false, error: "translation_reservation_invalid" },
       { status: 500 }
@@ -350,6 +386,7 @@ export async function POST(request: Request) {
       errorMessage: "OPENAI_API_KEY が設定されていません。",
       uncount: true,
     });
+    await releaseAiAction(requestId);
 
     return NextResponse.json(
       { ok: false, error: "missing_openai_api_key" },

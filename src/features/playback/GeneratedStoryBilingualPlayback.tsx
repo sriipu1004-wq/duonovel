@@ -13,10 +13,10 @@ import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
 import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
 import {
   getSupportedLanguage,
-  isPublicTranslationTargetLanguage,
-  parseSupportedLanguageTag,
   type PublicTranslationTargetLanguage,
 } from "@/lib/translation/languageRegistry";
+import { useAiUsage } from "@/features/usage/useAiUsage";
+import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
 
 type GeneratedStoryPayload = {
   id: string;
@@ -44,7 +44,7 @@ type SavedGeneratedStoryPayload = GeneratedStoryPayload & {
 
 type TranslationResponse = {
   ok?: boolean;
-  status?: "ready" | "translating";
+  status?: "ready" | "translating" | "missing";
   sourceHash?: string;
   segments?: BilingualSegment[];
   message?: string;
@@ -110,18 +110,19 @@ function readGeneratedStory(storyId: string): SavedGeneratedStoryPayload | null 
   return saved;
 }
 
-function readPreference(storyId: string): BilingualPreference {
+function readPreference(
+  storyId: string,
+  initialTargetLanguage: PublicTranslationTargetLanguage
+): BilingualPreference {
+  const fallback = { ...DEFAULT_PREFERENCE, targetLanguage: initialTargetLanguage };
   try {
     const raw = window.localStorage.getItem(
       `duonovel:bilingual-display:generated:${storyId}`
     );
-    if (!raw) return DEFAULT_PREFERENCE;
+    if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<BilingualPreference> & {
       upperLanguage?: string;
     };
-    const storedTargetLanguage = parseSupportedLanguageTag(
-      parsed.targetLanguage
-    );
     return {
       splitRatio:
         typeof parsed.splitRatio === "number"
@@ -135,14 +136,10 @@ function readPreference(storyId: string): BilingualPreference {
         typeof parsed.readerHeight === "number"
           ? clampBilingualReaderHeight(parsed.readerHeight)
           : DEFAULT_PREFERENCE.readerHeight,
-      targetLanguage:
-        storedTargetLanguage &&
-        isPublicTranslationTargetLanguage(storedTargetLanguage)
-          ? storedTargetLanguage
-          : DEFAULT_PREFERENCE.targetLanguage,
+      targetLanguage: fallback.targetLanguage,
     };
   } catch {
-    return DEFAULT_PREFERENCE;
+    return fallback;
   }
 }
 
@@ -171,13 +168,19 @@ function centerInPane(
 
 export default function GeneratedStoryBilingualPlayback({
   storyId,
+  initialTargetLanguage,
 }: {
   storyId: string;
+  initialTargetLanguage: PublicTranslationTargetLanguage;
 }) {
+  const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
   const [story, setStory] = useState<SavedGeneratedStoryPayload | null>(null);
   const preference = useMemo(
-    () => (typeof window === "undefined" ? DEFAULT_PREFERENCE : readPreference(storyId)),
-    [storyId]
+    () =>
+      typeof window === "undefined"
+        ? { ...DEFAULT_PREFERENCE, targetLanguage: initialTargetLanguage }
+        : readPreference(storyId, initialTargetLanguage),
+    [initialTargetLanguage, storyId]
   );
   const [splitRatio, setSplitRatio] = useState(preference.splitRatio);
   const [upperPane, setUpperPane] = useState<PaneSide>(
@@ -188,7 +191,7 @@ export default function GeneratedStoryBilingualPlayback({
   );
   const [targetLanguage, setTargetLanguage] =
     useState<PublicTranslationTargetLanguage>(preference.targetLanguage);
-  const [status, setStatus] = useState<"loading" | "translating" | "ready" | "error">(
+  const [status, setStatus] = useState<"loading" | "missing" | "translating" | "ready" | "error">(
     "loading"
   );
   const [segments, setSegments] = useState<BilingualSegment[]>([]);
@@ -259,6 +262,7 @@ export default function GeneratedStoryBilingualPlayback({
         );
         return;
       }
+      await refreshAiUsage();
 
       if (targetLanguageRef.current !== targetLanguage) return;
 
@@ -287,6 +291,41 @@ export default function GeneratedStoryBilingualPlayback({
     } finally {
       requestInFlightRef.current = false;
     }
+  }, [refreshAiUsage, story, targetLanguage]);
+
+  const checkTranslation = useCallback(async () => {
+    if (!story) return;
+    try {
+      const response = await fetch("/api/generated-story-translations/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storyId: story.id,
+          title: story.story.title,
+          body: story.story.body,
+          sourceLanguage: "ja",
+          targetLanguage,
+          checkOnly: true,
+        }),
+      });
+      const payload = (await response.json()) as TranslationResponse;
+      if (targetLanguageRef.current !== targetLanguage) return;
+      if (!response.ok || !payload.ok) {
+        setStatus("error");
+        setMessage(payload.message || "対訳の状態を確認できませんでした。");
+      } else if (payload.status === "ready" && Array.isArray(payload.segments)) {
+        setSegments(payload.segments);
+        const firstId = payload.segments[0]?.id ?? null;
+        setSelectedSegmentId((current) => current ?? firstId);
+        readingSegmentIdRef.current = readingSegmentIdRef.current ?? firstId;
+        setStatus("ready");
+      } else {
+        setStatus(payload.status === "translating" ? "translating" : "missing");
+      }
+    } catch {
+      setStatus("error");
+      setMessage("対訳の状態を確認できませんでした。");
+    }
   }, [story, targetLanguage]);
 
   useEffect(() => {
@@ -296,17 +335,17 @@ export default function GeneratedStoryBilingualPlayback({
     setSelectedSegmentId(null);
     setHoveredSegmentId(null);
     readingSegmentIdRef.current = null;
-    setStatus("translating");
-    void requestTranslation();
-  }, [story, requestTranslation, targetLanguage]);
+    setStatus("loading");
+    void checkTranslation();
+  }, [checkTranslation, story, targetLanguage]);
 
   useEffect(() => {
     if (status !== "translating") return;
     const timer = window.setInterval(() => {
-      void requestTranslation();
+      void checkTranslation();
     }, 2500);
     return () => window.clearInterval(timer);
-  }, [status, requestTranslation]);
+  }, [checkTranslation, status]);
 
   function centerSegment(id: string) {
     window.requestAnimationFrame(() => {
@@ -408,6 +447,7 @@ export default function GeneratedStoryBilingualPlayback({
                 selectedSegmentId={selectedSegmentId}
                 onSelectSegment={handleSelectSegment}
                 targetLanguage={targetLanguage}
+                seriesId={`generated:${storyId}`}
               />
 
               <div
@@ -493,11 +533,13 @@ export default function GeneratedStoryBilingualPlayback({
           ) : (
             <div className="flex min-h-[30rem] items-center justify-center px-5 py-10">
               <div className="w-full max-w-xl rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-center">
-                {status === "error" ? (
+                {status === "error" || status === "missing" ? (
                   <>
-                    <p className="text-lg font-semibold">対訳を準備できませんでした</p>
+                    <p className="text-lg font-semibold">
+                      {status === "missing" ? "この言語の対訳は未生成です" : "対訳を準備できませんでした"}
+                    </p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      {message || "時間をおいてからもう一度お試しください。"}
+                      {message || (status === "missing" ? "必要な場合だけ生成します。" : "時間をおいてからもう一度お試しください。")}
                     </p>
                     <button
                       type="button"
@@ -505,16 +547,25 @@ export default function GeneratedStoryBilingualPlayback({
                         setStatus("translating");
                         void requestTranslation();
                       }}
+                      disabled={
+                        aiUsage?.actions.translation_generation.limit !== undefined &&
+                        aiUsage.actions.translation_generation.used >=
+                          aiUsage.actions.translation_generation.limit
+                      }
                       className="mt-5 rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800"
                     >
-                      再試行
+                      {status === "missing" ? "対訳を生成" : "再試行"} {formatAiUsage(aiUsage?.actions.translation_generation)}
                     </button>
                   </>
                 ) : (
                   <>
-                    <p className="text-lg font-semibold">対訳を準備中</p>
+                    <p className="text-lg font-semibold">
+                      {status === "loading" ? "保存済み対訳を確認中" : "対訳を生成中"}
+                    </p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      保存せず、この生成結果の一時対訳を作成しています。
+                      {status === "loading"
+                        ? "選択した言語の対訳cacheを確認しています。"
+                        : "この生成結果の一時対訳を作成しています。"}
                     </p>
                   </>
                 )}
