@@ -15,13 +15,18 @@ function readLimit(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
 }
 
+const FREE_STORY_AND_TRANSLATION_DAILY_LIMIT = readLimit(
+  "LIBREAD_FREE_STORY_AND_TRANSLATION_DAILY_LIMIT",
+  5
+);
+
 const LIMITS: Record<AiActionType, { free: number; subscriber: number }> = {
   story_generation: {
-    free: readLimit("LIBREAD_FREE_STORY_DAILY_LIMIT", 3),
+    free: FREE_STORY_AND_TRANSLATION_DAILY_LIMIT,
     subscriber: readLimit("LIBREAD_SUBSCRIBER_STORY_DAILY_LIMIT", 10),
   },
   translation_generation: {
-    free: readLimit("LIBREAD_FREE_TRANSLATION_DAILY_LIMIT", 5),
+    free: FREE_STORY_AND_TRANSLATION_DAILY_LIMIT,
     subscriber: readLimit("LIBREAD_SUBSCRIBER_TRANSLATION_DAILY_LIMIT", 30),
   },
   word_explanation: {

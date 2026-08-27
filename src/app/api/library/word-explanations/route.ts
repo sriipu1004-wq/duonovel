@@ -7,7 +7,10 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { parseStoredTranslationPayload } from "@/lib/translation/translationPayload";
-import { DEFAULT_TRANSLATION_MODEL } from "@/lib/translation/openAITranslationModel";
+import {
+  DEFAULT_TRANSLATION_MODEL,
+  getDefaultTextTokenPricesUsd,
+} from "@/lib/translation/openAITranslationModel";
 import {
   releaseAiAction,
   reserveAiAction,
@@ -24,6 +27,35 @@ type ExplanationPayload = {
 
 function normalizeSelectedText(value: string): string {
   return value.normalize("NFKC").trim().toLocaleLowerCase().slice(0, 100);
+}
+
+function readNonNegativeNumberEnv(name: string, fallback: number): number {
+  const parsed = Number(process.env[name]);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function estimateActualCostJpy(
+  inputTokens: number,
+  outputTokens: number,
+  model: string
+): number {
+  const defaultPrices = getDefaultTextTokenPricesUsd(model);
+  const inputUsdPer1mTokens = readNonNegativeNumberEnv(
+    "WORD_EXPLANATION_ACTUAL_INPUT_USD_PER_1M_TOKENS",
+    defaultPrices.inputPer1mTokens
+  );
+  const outputUsdPer1mTokens = readNonNegativeNumberEnv(
+    "WORD_EXPLANATION_ACTUAL_OUTPUT_USD_PER_1M_TOKENS",
+    defaultPrices.outputPer1mTokens
+  );
+  const usdJpyRate = readNonNegativeNumberEnv(
+    "WORD_EXPLANATION_ACTUAL_USD_JPY_RATE",
+    readNonNegativeNumberEnv("EPISODE_TRANSLATION_ACTUAL_USD_JPY_RATE", 160)
+  );
+  const valueUsd =
+    (inputTokens / 1_000_000) * inputUsdPer1mTokens +
+    (outputTokens / 1_000_000) * outputUsdPer1mTokens;
+  return Math.ceil(valueUsd * usdJpyRate * 1_000_000) / 1_000_000;
 }
 
 function extractOutputText(value: unknown): string {
@@ -165,7 +197,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "missing_openai_api_key" }, { status: 503 });
   }
 
-  const model = process.env.EPISODE_TRANSLATION_MODEL ?? DEFAULT_TRANSLATION_MODEL;
+  const model =
+    process.env.WORD_EXPLANATION_MODEL ??
+    process.env.EPISODE_TRANSLATION_MODEL ??
+    DEFAULT_TRANSLATION_MODEL;
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -221,6 +256,7 @@ export async function POST(request: Request) {
     const responseBody = (await response.json()) as Record<string, unknown>;
     const explanation = parseExplanation(extractOutputText(responseBody));
     if (!response.ok || !explanation) {
+      await releaseAiAction(requestId);
       return NextResponse.json(
         { ok: false, error: "word_explanation_failed", message: "単語の対応を確認できませんでした。" },
         { status: 502 }
@@ -228,6 +264,13 @@ export async function POST(request: Request) {
     }
 
     const usage = responseBody.usage as Record<string, unknown> | undefined;
+    const inputTokens = Number(usage?.input_tokens ?? 0) || 0;
+    const outputTokens = Number(usage?.output_tokens ?? 0) || 0;
+    const actualCostJpy = estimateActualCostJpy(
+      inputTokens,
+      outputTokens,
+      model
+    );
     const saved = await admin.from("private_library_word_explanations").upsert(
       {
         owner_user_id: access.userId,
@@ -243,8 +286,9 @@ export async function POST(request: Request) {
         part_of_speech: explanation.partOfSpeech,
         note: explanation.note,
         model,
-        input_tokens: Number(usage?.input_tokens ?? 0) || null,
-        output_tokens: Number(usage?.output_tokens ?? 0) || null,
+        input_tokens: inputTokens || null,
+        output_tokens: outputTokens || null,
+        actual_cost_jpy: actualCostJpy,
         updated_at: new Date().toISOString(),
       },
       {
@@ -253,8 +297,14 @@ export async function POST(request: Request) {
     );
     if (saved.error) console.error("[private-library-word-explanation-cache]", saved.error);
 
-    return NextResponse.json({ ok: true, cached: false, ...explanation });
+    return NextResponse.json({
+      ok: true,
+      cached: false,
+      ...explanation,
+      usage: { inputTokens, outputTokens, actualCostJpy },
+    });
   } catch (error) {
+    await releaseAiAction(requestId);
     return NextResponse.json(
       {
         ok: false,
