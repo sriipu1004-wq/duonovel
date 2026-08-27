@@ -56,7 +56,7 @@ function readPositiveIntEnv(name: string, fallback: number): number {
 
 const TRANSLATION_LIMITS = {
   enabled: readBooleanEnv("EPISODE_TRANSLATION_ENABLED", true),
-  dailyMaxRequests: readPositiveIntEnv("EPISODE_TRANSLATION_DAILY_MAX_REQUESTS", 20),
+  dailyMaxRequests: readPositiveIntEnv("EPISODE_TRANSLATION_DAILY_MAX_REQUESTS", 200),
   dailyMaxEstimatedCostJpy: readNonNegativeNumberEnv(
     "EPISODE_TRANSLATION_DAILY_MAX_ESTIMATED_COST_JPY",
     100
