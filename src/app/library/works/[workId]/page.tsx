@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
+import PrivateLibraryWorkManager from "@/features/library/PrivateLibraryWorkManager";
 import {
   buildPrivateLibraryReadHref,
   formatCharacterCount,
-  type PrivateLibraryChapter,
   type PrivateLibraryWork,
 } from "@/lib/library/privateLibrary";
 import {
@@ -14,33 +14,69 @@ import {
 
 type PageProps = {
   params: Promise<{ workId: string }>;
+  searchParams: Promise<{ page?: string }>;
 };
 
-export default async function PrivateLibraryWorkPage({ params }: PageProps) {
+type PrivateLibrarySectionRow = {
+  section_number: number;
+  section_title: string;
+  first_unit_number: number;
+  part_count: number;
+  source_char_count: number;
+  progress_ratio: number | string;
+  is_completed: boolean;
+  has_ready_translation: boolean;
+};
+
+const SECTIONS_PER_PAGE = 100;
+
+function parsePageNumber(value: string | undefined): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+export default async function PrivateLibraryWorkPage({
+  params,
+  searchParams,
+}: PageProps) {
   const { workId } = await params;
+  const { page: rawPage } = await searchParams;
+  const page = parsePageNumber(rawPage);
   const { supabase, user } = await requireLoggedInUser(
     `/library/works/${encodeURIComponent(workId)}`
   );
-  const [workResult, chaptersResult] = await Promise.all([
-    supabase
-      .from("private_library_works")
-      .select("*")
-      .eq("id", workId)
-      .eq("owner_user_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("private_library_chapters")
-      .select("id, work_id, chapter_number, title, source_char_count, created_at, updated_at")
-      .eq("work_id", workId)
-      .order("chapter_number", { ascending: true }),
-  ]);
+  const workResult = await supabase
+    .from("private_library_works")
+    .select("*")
+    .eq("id", workId)
+    .eq("owner_user_id", user.id)
+    .eq("import_status", "ready")
+    .maybeSingle();
 
-  if (workResult.error || !workResult.data || chaptersResult.error) {
+  if (workResult.error || !workResult.data) {
     notFound();
   }
 
   const work = workResult.data as PrivateLibraryWork;
-  const chapters = (chaptersResult.data ?? []) as PrivateLibraryChapter[];
+  const totalPages = Math.max(1, Math.ceil(work.section_count / SECTIONS_PER_PAGE));
+  if (page > totalPages) notFound();
+
+  const sectionsResult = await supabase.rpc("list_private_library_sections", {
+    p_work_id: workId,
+    p_offset: (page - 1) * SECTIONS_PER_PAGE,
+    p_limit: SECTIONS_PER_PAGE,
+  });
+
+  if (sectionsResult.error) {
+    notFound();
+  }
+
+  const sections = (sectionsResult.data ?? []) as PrivateLibrarySectionRow[];
+  /*
+   * The RPC returns one row per logical section, so a 30,000-character EPUB
+   * chapter still occupies one table-of-contents row while its internal units
+   * retain the existing translation/cache model.
+   */
   const language = parseSupportedLanguageTag(work.source_language);
 
   return (
@@ -73,38 +109,106 @@ export default async function PrivateLibraryWorkPage({ params }: PageProps) {
                   : work.source_language}
               </span>
               <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5">
-                {work.chapter_count}話
+                {work.section_count.toLocaleString("ja-JP")}章・話
               </span>
               <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5">
                 {formatCharacterCount(work.source_char_count)}
               </span>
+              <Link
+                href={`/library/works/${encodeURIComponent(work.id)}/glossary`}
+                className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-violet-700 hover:bg-violet-100"
+              >
+                作品用語を管理
+              </Link>
             </div>
+            <PrivateLibraryWorkManager
+              workId={work.id}
+              initialTitle={work.title}
+              initialAuthorName={work.author_name ?? ""}
+            />
           </div>
 
           <div className="grid gap-3 px-5 py-6 sm:px-8">
-            {chapters.map((chapter) => (
+            {sections.map((section) => (
               <Link
-                key={chapter.id}
+                key={section.section_number}
                 href={buildPrivateLibraryReadHref(
                   work.id,
-                  chapter.chapter_number
+                  section.first_unit_number
                 )}
                 className="flex items-center justify-between gap-4 rounded-2xl border border-black/10 bg-white px-4 py-4 transition hover:bg-neutral-50"
               >
                 <span className="min-w-0">
                   <span className="block text-xs text-neutral-500">
-                    第{chapter.chapter_number}話
+                    第{section.section_number}話
                   </span>
                   <span className="mt-1 block truncate text-sm font-medium text-black">
-                    {chapter.title}
+                    {section.section_title}
                   </span>
+                  {section.part_count > 1 ? (
+                    <span className="mt-1 block text-[11px] text-neutral-400">
+                      読書時に{section.part_count}部分へ自動分割
+                    </span>
+                  ) : null}
+                  {section.is_completed || Number(section.progress_ratio) > 0 ? (
+                    <span className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                      <span
+                        className={
+                          section.is_completed
+                            ? "rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700"
+                            : "rounded-full bg-sky-50 px-2 py-0.5 text-sky-700"
+                        }
+                      >
+                        {section.is_completed
+                          ? "読了"
+                          : `読書中 ${Math.max(1, Math.round(Number(section.progress_ratio) * 100))}%`}
+                      </span>
+                      {section.has_ready_translation ? (
+                        <span className="rounded-full bg-violet-50 px-2 py-0.5 text-violet-700">
+                          対訳あり
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : section.has_ready_translation ? (
+                    <span className="mt-2 block text-[11px] text-violet-700">
+                      対訳あり
+                    </span>
+                  ) : null}
                 </span>
                 <span className="shrink-0 text-xs text-neutral-500">
-                  {formatCharacterCount(chapter.source_char_count)}
+                  {formatCharacterCount(section.source_char_count)}
                 </span>
               </Link>
             ))}
           </div>
+
+          {totalPages > 1 ? (
+            <nav className="flex items-center justify-between gap-3 border-t border-black/10 px-5 py-5 text-sm sm:px-8">
+              {page > 1 ? (
+                <Link
+                  href={`/library/works/${encodeURIComponent(work.id)}?page=${page - 1}`}
+                  className="rounded-full border border-black/10 px-4 py-2 hover:bg-neutral-50"
+                >
+                  前の100話
+                </Link>
+              ) : (
+                <span />
+              )}
+              <span className="text-xs text-neutral-500">
+                {page} / {totalPages}
+              </span>
+              {page < totalPages ? (
+                <Link
+                  href={`/library/works/${encodeURIComponent(work.id)}?page=${page + 1}`}
+                  className="rounded-full border border-black/10 px-4 py-2 hover:bg-neutral-50"
+                >
+                  次の100話
+                </Link>
+              ) : (
+                <span />
+              )}
+            </nav>
+          ) : null}
         </section>
       </div>
     </main>

@@ -11,6 +11,7 @@ import BilingualPane, {
   type PaneSide,
 } from "@/features/playback/BilingualPane";
 import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
+import { PRIVATE_LIBRARY_PROGRESS_EVENT } from "@/features/library/LibraryProgressTracker";
 import {
   LANGUAGE_REGISTRY,
   getSupportedLanguage,
@@ -42,6 +43,9 @@ type PrivateLibraryBilingualPlaybackProps = {
   workId: string;
   chapterId: string;
   chapterNumber: number;
+  sectionNumber: number;
+  partNumber: number;
+  partCount: number;
   workTitle: string;
   chapterTitle: string;
   authorName?: string;
@@ -124,6 +128,9 @@ export default function PrivateLibraryBilingualPlayback({
   workId,
   chapterId,
   chapterNumber,
+  sectionNumber,
+  partNumber,
+  partCount,
   workTitle,
   chapterTitle,
   authorName,
@@ -532,9 +539,23 @@ export default function PrivateLibraryBilingualPlayback({
   function handleReadingPositionChange(id: string) {
     readingSegmentIdRef.current = id;
 
+    const segmentIndex = segments.findIndex((segment) => segment.id === id);
+    const progressRatio =
+      segmentIndex >= 0 && segments.length > 0
+        ? (segmentIndex + 1) / segments.length
+        : 0;
+    window.dispatchEvent(
+      new CustomEvent(PRIVATE_LIBRARY_PROGRESS_EVENT, {
+        detail: {
+          chapterId,
+          progressRatio,
+          segmentIndex: segmentIndex >= 0 ? segmentIndex : null,
+        },
+      })
+    );
+
     if (!nextChapterId || prefetchEligibleChapterId === chapterId) return;
 
-    const segmentIndex = segments.findIndex((segment) => segment.id === id);
     if (
       segmentIndex >= 0 &&
       (segmentIndex + 1) / segments.length >=
@@ -595,6 +616,10 @@ export default function PrivateLibraryBilingualPlayback({
                 <h1 className="mt-1 text-xl font-semibold text-black sm:text-2xl">
                   {chapterTitle || `第${chapterNumber}話`}
                 </h1>
+                <p className="mt-1 text-[11px] text-neutral-500">
+                  第{sectionNumber}話
+                  {partCount > 1 ? `・${partNumber}/${partCount}` : ""}
+                </p>
                 <p className="mt-2 text-xs text-neutral-500">
                   {authorName ? `作者 ${authorName}` : "個人本棚・本人限定"}
                 </p>

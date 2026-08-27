@@ -11,6 +11,9 @@ type PrivateLibraryBilingualShellProps = {
   workId: string;
   chapterId: string;
   chapterNumber: number;
+  sectionNumber: number;
+  partNumber: number;
+  partCount: number;
   workTitle: string;
   chapterTitle: string;
   authorName?: string;
@@ -24,6 +27,9 @@ export default function PrivateLibraryBilingualShell({
   workId,
   chapterId,
   chapterNumber,
+  sectionNumber,
+  partNumber,
+  partCount,
   workTitle,
   chapterTitle,
   authorName,
@@ -59,6 +65,9 @@ export default function PrivateLibraryBilingualShell({
         workId={workId}
         chapterId={chapterId}
         chapterNumber={chapterNumber}
+        sectionNumber={sectionNumber}
+        partNumber={partNumber}
+        partCount={partCount}
         workTitle={workTitle}
         chapterTitle={chapterTitle}
         authorName={authorName}

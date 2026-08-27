@@ -28,6 +28,7 @@ export default async function PrivateLibraryPage() {
     .from("private_library_works")
     .select("*")
     .eq("owner_user_id", user.id)
+    .eq("import_status", "ready")
     .order("last_opened_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
@@ -52,7 +53,7 @@ export default async function PrivateLibraryPage() {
                 href="/library/import"
                 className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
               >
-                TXTを取り込む
+                作品を取り込む
               </Link>
             </div>
           </div>
@@ -68,7 +69,7 @@ export default async function PrivateLibraryPage() {
                   まだ作品がありません
                 </p>
                 <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  TXTを取り込むと、見出しや本文量から話数へ自動分割します。
+                  TXT・EPUB・DOCXなどを取り込むと、章構造を保って自動分割します。
                 </p>
               </div>
             ) : (
@@ -96,7 +97,7 @@ export default async function PrivateLibraryPage() {
                             {languageLabel}
                           </span>
                           <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-                            {work.chapter_count}話
+                            {work.section_count}章・話
                           </span>
                         </div>
                         <h2 className="mt-3 text-xl font-semibold text-black">
@@ -126,7 +127,7 @@ export default async function PrivateLibraryPage() {
                           className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
                         >
                           {work.last_opened_chapter_number
-                            ? `${resumeNumber}話から続ける`
+                            ? "続きから読む"
                             : "読み始める"}
                         </Link>
                       </div>

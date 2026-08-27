@@ -7,8 +7,11 @@ import {
   resolvePrivateLibraryTranslationAccess,
 } from "@/lib/library/privateLibraryTranslationServer";
 import {
+  collectTranslationTerminologyCandidates,
   OpenAITranslationError,
   translateSegmentsInBatches,
+  translateTerminology,
+  type TranslationGlossaryTerm,
 } from "@/lib/translation/openAITranslation";
 import {
   DEFAULT_TRANSLATION_MODEL,
@@ -63,10 +66,16 @@ const TRANSLATION_LIMITS = {
   ),
 } as const;
 
-function estimateTokens(sourceChars: number) {
+function estimateTokens(sourceChars: number, newTerminologyCount = 0) {
   return {
-    inputTokens: Math.max(1, Math.ceil(sourceChars * 1.2) + 800),
-    outputTokens: Math.max(1, Math.ceil(sourceChars * 0.9) + 400),
+    inputTokens: Math.max(
+      1,
+      Math.ceil(sourceChars * 1.2) + 800 + (newTerminologyCount > 0 ? 1_000 : 0)
+    ),
+    outputTokens: Math.max(
+      1,
+      Math.ceil(sourceChars * 0.9) + 400 + newTerminologyCount * 20
+    ),
   };
 }
 
@@ -216,12 +225,55 @@ export async function POST(request: Request) {
 
   const sourceHash = buildPrivateLibraryTranslationSourceHash(access.body);
   const model = process.env.EPISODE_TRANSLATION_MODEL ?? DEFAULT_TRANSLATION_MODEL;
-  const estimatedTokens = estimateTokens(sourceChars);
+  const translationSourceSegments = source.segments.map((segment) => ({
+    id: segment.id,
+    text: segment.translationInput,
+  }));
+  const terminologyCandidates = collectTranslationTerminologyCandidates(
+    translationSourceSegments
+  );
+  const admin = createAdminClient();
+  const glossaryResult = await admin
+    .from("private_library_glossary_terms")
+    .select("source_term, target_term, is_locked")
+    .eq("work_id", access.work.id)
+    .eq("owner_user_id", access.userId)
+    .eq("source_language", sourceLanguage)
+    .eq("target_language", targetLanguage)
+    .order("is_locked", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(500);
+  const storedGlossaryTerms: TranslationGlossaryTerm[] = (
+    glossaryResult.data ?? []
+  )
+    .map((row) => ({
+      sourceTerm: String(row.source_term ?? "").trim(),
+      targetTerm: String(row.target_term ?? "").trim(),
+    }))
+    .filter(
+      (term) =>
+        term.sourceTerm &&
+        term.targetTerm &&
+        source.normalizedSource.includes(term.sourceTerm)
+    );
+  const storedSourceTerms = new Set(
+    (glossaryResult.data ?? []).map((row) => String(row.source_term ?? ""))
+  );
+  const terminologyCapacity = Math.max(
+    0,
+    500 - (glossaryResult.data?.length ?? 0)
+  );
+  const newTerminologyCandidates = terminologyCandidates
+    .filter((term) => !storedSourceTerms.has(term))
+    .slice(0, terminologyCapacity);
+  const estimatedTokens = estimateTokens(
+    sourceChars,
+    newTerminologyCandidates.length
+  );
   const estimatedCostJpy = estimateGuardrailCostJpy(
     estimatedTokens.inputTokens,
     estimatedTokens.outputTokens
   );
-  const admin = createAdminClient();
   const currentTranslationResult = await admin
     .from("private_library_chapter_translations")
     .select("id, status")
@@ -340,6 +392,55 @@ export async function POST(request: Request) {
   }
 
   try {
+    let glossaryTerms = storedGlossaryTerms;
+    let terminologyInputTokens = 0;
+    let terminologyOutputTokens = 0;
+
+    if (newTerminologyCandidates.length > 0) {
+      try {
+        const terminology = await translateTerminology({
+          apiKey,
+          model,
+          workTitle: access.work.title || "無題",
+          episodeTitle:
+            access.chapter.section_title ||
+            access.chapter.title ||
+            `第${access.chapter.chapter_number}話`,
+          sourceLanguage,
+          targetLanguage,
+          terms: newTerminologyCandidates,
+          segments: translationSourceSegments,
+        });
+        terminologyInputTokens = terminology.inputTokens;
+        terminologyOutputTokens = terminology.outputTokens;
+        glossaryTerms = [...storedGlossaryTerms, ...terminology.terms];
+
+        if (terminology.terms.length > 0) {
+          await admin.from("private_library_glossary_terms").upsert(
+            terminology.terms.map((term) => ({
+              work_id: access.work.id,
+              owner_user_id: access.userId,
+              source_language: sourceLanguage,
+              target_language: targetLanguage,
+              source_term: term.sourceTerm,
+              target_term: term.targetTerm,
+              is_locked: false,
+              last_seen_chapter_number: access.chapter.chapter_number,
+              updated_at: new Date().toISOString(),
+            })),
+            {
+              onConflict:
+                "work_id,source_language,target_language,source_term",
+              ignoreDuplicates: true,
+            }
+          );
+        }
+      } catch {
+        // Terminology is an enhancement. Existing glossary terms still apply,
+        // and a terminology-only failure must not block the current chapter.
+      }
+    }
+
     const translated = await translateSegmentsInBatches({
       apiKey,
       model,
@@ -347,10 +448,8 @@ export async function POST(request: Request) {
       episodeTitle: access.chapter.title || `第${access.chapter.chapter_number}話`,
       sourceLanguage,
       targetLanguage,
-      segments: source.segments.map((segment) => ({
-        id: segment.id,
-        text: segment.translationInput,
-      })),
+      segments: translationSourceSegments,
+      glossaryTerms,
     });
     const storedSegments = source.segments.map((segment, index) => ({
       id: segment.id,
@@ -372,8 +471,12 @@ export async function POST(request: Request) {
       segments: storedSegments,
     });
     const now = new Date().toISOString();
-    const actualInputTokens = translated.inputTokens;
-    const actualOutputTokens = translated.outputTokens;
+    const combinedInputTokens =
+      (translated.inputTokens ?? 0) + terminologyInputTokens;
+    const combinedOutputTokens =
+      (translated.outputTokens ?? 0) + terminologyOutputTokens;
+    const actualInputTokens = combinedInputTokens || null;
+    const actualOutputTokens = combinedOutputTokens || null;
     const actualCostJpy =
       actualInputTokens && actualOutputTokens
         ? estimateActualCostJpy(actualInputTokens, actualOutputTokens, model)
