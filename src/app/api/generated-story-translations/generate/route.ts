@@ -31,6 +31,7 @@ import {
   releaseAiAction,
   reserveAiAction,
 } from "@/lib/aiUsage/aiUsage.server";
+import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -229,6 +230,13 @@ export async function POST(request: Request) {
         message: "現在、対訳の生成は一時停止しています。",
       },
       { status: 503 }
+    );
+  }
+
+  if (detectSourceLanguageFromText(body) !== sourceLanguage) {
+    return NextResponse.json(
+      { ok: false, error: "invalid_source_language" },
+      { status: 400 }
     );
   }
 

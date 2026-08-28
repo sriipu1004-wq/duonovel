@@ -14,7 +14,9 @@ type PageProps = {
   }>;
   searchParams?: Promise<{
     bilingual?: string;
+    sourceLanguage?: string;
     targetLanguage?: string;
+    autoGenerate?: string;
   }>;
 };
 
@@ -35,15 +37,22 @@ export default async function GeneratedStoryReadPage({
   const bilingual = resolvedSearchParams?.bilingual === "1";
 
   if (bilingual) {
+    const sourceLanguage =
+      parseSupportedLanguageTag(resolvedSearchParams?.sourceLanguage) ?? "ja";
     const parsedTarget = parseSupportedLanguageTag(resolvedSearchParams?.targetLanguage);
     const targetLanguage =
-      parsedTarget && isPublicTranslationTargetLanguage(parsedTarget)
+      parsedTarget &&
+      parsedTarget !== sourceLanguage &&
+      isPublicTranslationTargetLanguage(parsedTarget)
         ? parsedTarget
-        : "en";
+        : sourceLanguage === "ja" ? "en" : "ja";
     return (
       <GeneratedStoryBilingualPlayback
         storyId={storyId}
+        sourceLanguage={sourceLanguage}
         initialTargetLanguage={targetLanguage}
+        autoGenerateMissingTranslation={resolvedSearchParams?.autoGenerate === "1"}
+        targetLanguageLocked={resolvedSearchParams?.autoGenerate === "1"}
       />
     );
   }

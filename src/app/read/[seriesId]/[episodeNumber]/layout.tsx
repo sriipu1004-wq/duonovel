@@ -3,6 +3,7 @@ import R18ContentGate from "@/components/content/R18ContentGate";
 import ReadBilingualShell from "@/features/playback/ReadBilingualShell";
 import ReaderSettingsTopBridge from "@/features/playback/ReaderSettingsTopBridge";
 import {
+  getEpisodeBody,
   getEpisodeNumber,
   pickText,
   type SeriesRow,
@@ -17,6 +18,7 @@ import {
   isEpisodeTranslationAllowlisted,
   isSeriesTranslationEligibleIncludingOfficial,
 } from "@/lib/translation/episodeTranslationServer";
+import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
 
 type ReadEpisodeLayoutProps = {
   children: ReactNode;
@@ -144,65 +146,78 @@ export default async function ReadEpisodeLayout({
     return withSettingsTopBridge(children);
   }
 
+  let payload: Awaited<ReturnType<typeof getCachedPublicReadPagePayload>>;
+
   try {
-    const payload = await getCachedPublicReadPagePayload(
+    payload = await getCachedPublicReadPagePayload(
       seriesId,
       parsedEpisodeNumber
     );
+  } catch {
+    return withSettingsTopBridge(children);
+  }
 
-    if (!payload) {
-      return withSettingsTopBridge(children);
-    }
+  if (!payload) {
+    return withSettingsTopBridge(children);
+  }
 
-    if (payload.r18Blocked) {
-      return (
-        <R18ContentGate
-          signedIn={payload.viewerSignedIn}
-          returnHref={`/read/${encodeURIComponent(seriesId)}/${parsedEpisodeNumber}`}
-        />
-      );
-    }
+  if (payload.r18Blocked) {
+    return (
+      <R18ContentGate
+        signedIn={payload.viewerSignedIn}
+        returnHref={`/read/${encodeURIComponent(seriesId)}/${parsedEpisodeNumber}`}
+      />
+    );
+  }
 
-    const currentEpisodeNumber =
-      getEpisodeNumber(payload.episode) || parsedEpisodeNumber;
-    const translationEligible =
+  const currentEpisodeNumber =
+    getEpisodeNumber(payload.episode) || parsedEpisodeNumber;
+  let translationEligible = false;
+
+  try {
+    translationEligible =
+      payload.isOwner ||
       (await isSeriesTranslationEligibleIncludingOfficial(payload.series)) ||
       isEpisodeTranslationAllowlisted({
         episodeId: payload.episode.id,
         seriesId,
         episodeNumber: currentEpisodeNumber,
       });
-
-    if (!translationEligible) {
-      return withContentWarningSurface(
-        withSettingsTopBridge(children),
-        payload.series
-      );
-    }
-
-    const attribution = resolveReadAttribution(payload.series);
-
-    return withContentWarningSurface(
-      withSettingsTopBridge(
-        <ReadBilingualShell
-          translationEligible={translationEligible}
-          seriesId={seriesId}
-          episodeId={payload.episode.id}
-          episodeNumber={currentEpisodeNumber}
-          seriesTitle={pickText(payload.series.title) || "無題"}
-          episodeTitle={
-            pickText(payload.episode.title, payload.episode["episode_title"]) ||
-            `第${currentEpisodeNumber}話`
-          }
-          workAuthorName={attribution.authorName}
-          workEditorName={attribution.editorName}
-        >
-          {children}
-        </ReadBilingualShell>
-      ),
-      payload.series
-    );
   } catch {
     return withSettingsTopBridge(children);
   }
+
+  if (!translationEligible) {
+    return withContentWarningSurface(
+      withSettingsTopBridge(children),
+      payload.series
+    );
+  }
+
+  const attribution = resolveReadAttribution(payload.series);
+  const sourceLanguage = detectSourceLanguageFromText(
+    getEpisodeBody(payload.episode)
+  );
+
+  return withContentWarningSurface(
+    withSettingsTopBridge(
+      <ReadBilingualShell
+        translationEligible={translationEligible}
+        seriesId={seriesId}
+        episodeId={payload.episode.id}
+        episodeNumber={currentEpisodeNumber}
+        seriesTitle={pickText(payload.series.title) || "無題"}
+        episodeTitle={
+          pickText(payload.episode.title, payload.episode["episode_title"]) ||
+          `第${currentEpisodeNumber}話`
+        }
+        workAuthorName={attribution.authorName}
+        workEditorName={attribution.editorName}
+        sourceLanguage={sourceLanguage}
+      >
+        {children}
+      </ReadBilingualShell>
+    ),
+    payload.series
+  );
 }

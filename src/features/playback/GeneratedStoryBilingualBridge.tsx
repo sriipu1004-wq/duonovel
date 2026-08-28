@@ -3,7 +3,18 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
-import type { PublicTranslationTargetLanguage } from "@/lib/translation/languageRegistry";
+import { useAiUsage } from "@/features/usage/useAiUsage";
+import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
+import {
+  isPublicTranslationTargetLanguage,
+  type PublicTranslationTargetLanguage,
+  type SupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
+import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
+import {
+  readBilingualSessionPreference,
+  writeBilingualSessionPreference,
+} from "@/lib/translation/bilingualSessionPreference";
 
 type GeneratedStoryPayload = {
   id: string;
@@ -71,9 +82,11 @@ function readGeneratedStory(storyId: string): SavedGeneratedStoryPayload | null 
 
 function buildBilingualHref(
   readHref: string,
-  targetLanguage: PublicTranslationTargetLanguage
+  sourceLanguage: SupportedLanguageTag,
+  targetLanguage: PublicTranslationTargetLanguage,
+  autoGenerate: boolean
 ): string {
-  return `${readHref}${readHref.includes("?") ? "&" : "?"}bilingual=1&targetLanguage=${encodeURIComponent(targetLanguage)}`;
+  return `${readHref}${readHref.includes("?") ? "&" : "?"}bilingual=1&sourceLanguage=${encodeURIComponent(sourceLanguage)}&targetLanguage=${encodeURIComponent(targetLanguage)}${autoGenerate ? "&autoGenerate=1" : ""}`;
 }
 
 function findSynopsisActionAnchor(
@@ -106,11 +119,14 @@ export default function GeneratedStoryBilingualBridge({
 }: {
   storyId: string;
 }) {
+  const { snapshot: aiUsage } = useAiUsage();
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [message, setMessage] = useState("");
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
   const [targetLanguage, setTargetLanguage] =
     useState<PublicTranslationTargetLanguage>("en");
+  const [sourceLanguage, setSourceLanguage] =
+    useState<SupportedLanguageTag>("ja");
 
   useEffect(() => {
     let currentHost: HTMLElement | null = null;
@@ -168,25 +184,78 @@ export default function GeneratedStoryBilingualBridge({
       return;
     }
 
+    const detectedSourceLanguage = detectSourceLanguageFromText(
+      generated.story.body
+    );
+    setSourceLanguage(detectedSourceLanguage);
+    const scope = generated.savedSeriesId ? "series" : "generated";
+    const contentId = generated.savedSeriesId || storyId;
+    const sessionPreference = readBilingualSessionPreference(
+      scope,
+      contentId,
+      detectedSourceLanguage
+    );
+    if (
+      sessionPreference &&
+      isPublicTranslationTargetLanguage(sessionPreference.targetLanguage)
+    ) {
+      setTargetLanguage(sessionPreference.targetLanguage);
+      openBilingual(
+        generated,
+        detectedSourceLanguage,
+        sessionPreference.targetLanguage,
+        true
+      );
+      return;
+    }
+
+    if (targetLanguage === detectedSourceLanguage) {
+      setTargetLanguage(detectedSourceLanguage === "ja" ? "en" : "ja");
+    }
+
     setIsLanguagePickerOpen(true);
   }
 
-  function confirmBilingual() {
-    const generated = readGeneratedStory(storyId);
-    if (!generated) return;
-
+  function openBilingual(
+    generated: SavedGeneratedStoryPayload,
+    selectedSourceLanguage: SupportedLanguageTag,
+    selectedTargetLanguage: PublicTranslationTargetLanguage,
+    autoGenerate: boolean
+  ) {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
 
     if (generated.readHref) {
-      window.location.assign(buildBilingualHref(generated.readHref, targetLanguage));
+      window.location.assign(
+        buildBilingualHref(
+          generated.readHref,
+          selectedSourceLanguage,
+          selectedTargetLanguage,
+          autoGenerate
+        )
+      );
       return;
     }
 
     window.location.assign(
-      `/read/generated/${encodeURIComponent(storyId)}?bilingual=1&targetLanguage=${encodeURIComponent(targetLanguage)}`
+      `/read/generated/${encodeURIComponent(storyId)}?bilingual=1&sourceLanguage=${encodeURIComponent(selectedSourceLanguage)}&targetLanguage=${encodeURIComponent(selectedTargetLanguage)}${autoGenerate ? "&autoGenerate=1" : ""}`
     );
+  }
+
+  function confirmBilingual() {
+    const generated = readGeneratedStory(storyId);
+    if (!generated) return;
+    openBilingual(generated, sourceLanguage, targetLanguage, false);
+  }
+
+  function confirmAndRememberForTab() {
+    const generated = readGeneratedStory(storyId);
+    if (!generated) return;
+    const scope = generated.savedSeriesId ? "series" : "generated";
+    const contentId = generated.savedSeriesId || storyId;
+    writeBilingualSessionPreference(scope, contentId, targetLanguage);
+    openBilingual(generated, sourceLanguage, targetLanguage, true);
   }
 
   if (!host) return null;
@@ -214,14 +283,28 @@ export default function GeneratedStoryBilingualBridge({
               保存済み対訳がなければ、開いた後に生成するか選べます。
             </p>
             <div className="mt-5">
-              <TranslationLanguageSelect value={targetLanguage} onChange={setTargetLanguage} />
+              <TranslationLanguageSelect
+                value={targetLanguage}
+                sourceLanguage={sourceLanguage}
+                onChange={setTargetLanguage}
+              />
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            <p className="mt-4 text-xs leading-6 text-neutral-500">
+              下の固定ボタンは、このタブを閉じるまで同じ作品・同じ対訳言語に限って有効です。
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button type="button" onClick={() => setIsLanguagePickerOpen(false)} className="rounded-full border border-black/10 px-5 py-2.5 text-sm text-neutral-700">
                 キャンセル
               </button>
               <button type="button" onClick={confirmBilingual} className="rounded-full bg-black px-5 py-2.5 text-sm text-white">
                 この言語で対訳を開く
+              </button>
+              <button
+                type="button"
+                onClick={confirmAndRememberForTab}
+                className="w-full rounded-full border border-violet-200 bg-violet-50 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-violet-100"
+              >
+                次からはこの作品で表示せず対訳する {formatAiUsage(aiUsage?.actions.translation_generation)}
               </button>
             </div>
           </section>

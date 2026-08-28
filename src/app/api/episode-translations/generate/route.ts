@@ -28,6 +28,7 @@ import {
   releaseAiAction,
   reserveAiAction,
 } from "@/lib/aiUsage/aiUsage.server";
+import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -202,6 +203,14 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, error: "episode_not_found" },
       { status: 404 }
+    );
+  }
+
+
+  if (detectSourceLanguageFromText(access.body) !== sourceLanguage) {
+    return NextResponse.json(
+      { ok: false, error: "invalid_source_language" },
+      { status: 400 }
     );
   }
 

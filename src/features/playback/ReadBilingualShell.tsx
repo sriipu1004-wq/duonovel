@@ -5,11 +5,18 @@ import BilingualActionBridge from "@/features/playback/BilingualActionBridge";
 import BilingualEpisodePlayback from "@/features/playback/BilingualEpisodePlayback";
 import BilingualResumeBridge from "@/features/playback/BilingualResumeBridge";
 import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
+import { useAiUsage } from "@/features/usage/useAiUsage";
+import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
 import {
   isPublicTranslationTargetLanguage,
   parseSupportedLanguageTag,
   type PublicTranslationTargetLanguage,
+  type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import {
+  readBilingualSessionPreference,
+  writeBilingualSessionPreference,
+} from "@/lib/translation/bilingualSessionPreference";
 
 type ReadBilingualShellProps = {
   children: ReactNode;
@@ -21,6 +28,7 @@ type ReadBilingualShellProps = {
   episodeTitle?: string;
   workAuthorName?: string;
   workEditorName?: string;
+  sourceLanguage: SupportedLanguageTag;
 };
 
 export default function ReadBilingualShell({
@@ -33,22 +41,44 @@ export default function ReadBilingualShell({
   episodeTitle,
   workAuthorName,
   workEditorName,
+  sourceLanguage,
 }: ReadBilingualShellProps) {
+  const { snapshot: aiUsage } = useAiUsage();
   const [mode, setMode] = useState<"standard" | "bilingual">("standard");
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
+  const [sessionLanguageLocked, setSessionLanguageLocked] = useState(false);
+  const [autoGenerateMissingTranslation, setAutoGenerateMissingTranslation] =
+    useState(false);
   const [targetLanguage, setTargetLanguage] =
-    useState<PublicTranslationTargetLanguage>("en");
+    useState<PublicTranslationTargetLanguage>(
+      sourceLanguage === "ja" ? "en" : "ja"
+    );
   const [resumeSegmentIndex, setResumeSegmentIndex] = useState<number | null>(null);
   const [restoreToken, setRestoreToken] = useState(0);
 
   function enableBilingual() {
     if (!translationEligible) return;
 
+    const sessionPreference = readBilingualSessionPreference(
+      "series",
+      seriesId,
+      sourceLanguage
+    );
+    if (
+      sessionPreference &&
+      isPublicTranslationTargetLanguage(sessionPreference.targetLanguage)
+    ) {
+      setTargetLanguage(sessionPreference.targetLanguage);
+      setSessionLanguageLocked(true);
+      setAutoGenerateMissingTranslation(true);
+      openBilingual();
+      return;
+    }
+
     setIsLanguagePickerOpen(true);
   }
 
-  function confirmBilingual() {
-
+  function openBilingual() {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -59,6 +89,19 @@ export default function ReadBilingualShell({
 
     setIsLanguagePickerOpen(false);
     setMode("bilingual");
+  }
+
+  function confirmBilingual() {
+    setSessionLanguageLocked(false);
+    setAutoGenerateMissingTranslation(false);
+    openBilingual();
+  }
+
+  function confirmAndRememberForTab() {
+    writeBilingualSessionPreference("series", seriesId, targetLanguage);
+    setSessionLanguageLocked(true);
+    setAutoGenerateMissingTranslation(true);
+    openBilingual();
   }
 
   function disableBilingual(segmentIndex: number) {
@@ -73,12 +116,19 @@ export default function ReadBilingualShell({
     const params = new URLSearchParams(window.location.search);
     if (params.get("bilingual") !== "1") return;
     const requestedTarget = parseSupportedLanguageTag(params.get("targetLanguage"));
+    const requestedAutoGenerate = params.get("autoGenerate") === "1";
     const timer = window.setTimeout(() => {
-    if (!requestedTarget || !isPublicTranslationTargetLanguage(requestedTarget)) {
+    if (
+      !requestedTarget ||
+      requestedTarget === sourceLanguage ||
+      !isPublicTranslationTargetLanguage(requestedTarget)
+    ) {
       setIsLanguagePickerOpen(true);
       return;
     }
     setTargetLanguage(requestedTarget);
+    setSessionLanguageLocked(requestedAutoGenerate);
+    setAutoGenerateMissingTranslation(requestedAutoGenerate);
 
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
@@ -91,7 +141,7 @@ export default function ReadBilingualShell({
     setMode("bilingual");
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [translationEligible]);
+  }, [sourceLanguage, translationEligible]);
 
   if (mode === "bilingual") {
     return (
@@ -104,6 +154,9 @@ export default function ReadBilingualShell({
         workAuthorName={workAuthorName}
         workEditorName={workEditorName}
         initialTargetLanguage={targetLanguage}
+        sourceLanguage={sourceLanguage}
+        autoGenerateMissingTranslation={autoGenerateMissingTranslation}
+        targetLanguageLocked={sessionLanguageLocked}
         onDisableBilingual={disableBilingual}
       />
     );
@@ -128,14 +181,28 @@ export default function ReadBilingualShell({
               保存済み対訳がなければ、開いた後に生成するか選べます。
             </p>
             <div className="mt-5">
-              <TranslationLanguageSelect value={targetLanguage} onChange={setTargetLanguage} />
+              <TranslationLanguageSelect
+                value={targetLanguage}
+                sourceLanguage={sourceLanguage}
+                onChange={setTargetLanguage}
+              />
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            <p className="mt-4 text-xs leading-6 text-neutral-500">
+              下の固定ボタンは、このタブを閉じるまで同じ作品・同じ対訳言語に限って有効です。
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button type="button" onClick={() => setIsLanguagePickerOpen(false)} className="rounded-full border border-black/10 px-5 py-2.5 text-sm text-neutral-700">
                 キャンセル
               </button>
               <button type="button" onClick={confirmBilingual} className="rounded-full bg-black px-5 py-2.5 text-sm text-white">
                 この言語で対訳を開く
+              </button>
+              <button
+                type="button"
+                onClick={confirmAndRememberForTab}
+                className="w-full rounded-full border border-violet-200 bg-violet-50 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-violet-100"
+              >
+                次からはこの作品で表示せず対訳する {formatAiUsage(aiUsage?.actions.translation_generation)}
               </button>
             </div>
           </section>

@@ -8,12 +8,11 @@ import BilingualHeightHandle, {
 } from "@/features/playback/BilingualHeightHandle";
 import BilingualPane, {
   type BilingualSegment,
-  type BilingualWordInsight,
-  type BilingualWordSelection,
   type PaneSide,
 } from "@/features/playback/BilingualPane";
 import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
-import PrivateLibraryBilingualFooter from "@/features/library/PrivateLibraryBilingualFooter";
+import BilingualStoppedFooter from "@/features/playback/BilingualStoppedFooter";
+import { useBilingualWordExplanation } from "@/features/playback/useBilingualWordExplanation";
 import { PRIVATE_LIBRARY_PROGRESS_EVENT } from "@/features/library/LibraryProgressTracker";
 import {
   LANGUAGE_REGISTRY,
@@ -44,14 +43,6 @@ type TranslationStatusResponse = {
   error?: string;
 };
 
-type WordExplanationResponse = {
-  ok?: boolean;
-  oppositeText?: string;
-  partOfSpeech?: string;
-  note?: string;
-  message?: string;
-};
-
 type PrivateLibraryBilingualPlaybackProps = {
   workId: string;
   chapterId: string;
@@ -67,6 +58,8 @@ type PrivateLibraryBilingualPlaybackProps = {
   workIndexHref: string;
   nextChapterId: string | null;
   isSubscriber: boolean;
+  autoGenerateMissingTranslation: boolean;
+  targetLanguageLocked: boolean;
   onDisableBilingual: (segmentIndex: number) => void;
 };
 
@@ -153,6 +146,8 @@ export default function PrivateLibraryBilingualPlayback({
   workIndexHref,
   nextChapterId,
   isSubscriber,
+  autoGenerateMissingTranslation,
+  targetLanguageLocked,
   onDisableBilingual,
 }: PrivateLibraryBilingualPlaybackProps) {
   const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
@@ -177,9 +172,9 @@ export default function PrivateLibraryBilingualPlayback({
   const [canGenerate, setCanGenerate] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [sourceHash, setSourceHash] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
-  const [wordInsight, setWordInsight] = useState<BilingualWordInsight | null>(null);
   const [prefetchEligibleChapterId, setPrefetchEligibleChapterId] = useState<
     string | null
   >(null);
@@ -198,6 +193,19 @@ export default function PrivateLibraryBilingualPlayback({
     sourceChapterId: string;
     targetLanguage: SupportedLanguageTag;
   } | null>(null);
+  const autoGenerationAttemptRef = useRef<string | null>(null);
+  const {
+    wordInsight,
+    clearWordInsight,
+    selectWord: handleSelectWord,
+  } = useBilingualWordExplanation({
+    contentType: "private_library",
+    contentId: chapterId,
+    sourceHash,
+    sourceLanguage,
+    targetLanguage,
+    refreshAiUsage,
+  });
 
   useEffect(() => {
     setSplitRatio(preference.splitRatio);
@@ -306,6 +314,7 @@ export default function PrivateLibraryBilingualPlayback({
       }
 
       setCanGenerate(payload.canGenerate === true);
+      setSourceHash(payload.sourceHash ?? null);
       const nextStatus = payload.status ?? "missing";
 
       if (nextStatus === "ready" && Array.isArray(payload.segments)) {
@@ -335,9 +344,32 @@ export default function PrivateLibraryBilingualPlayback({
     setSegments([]);
     setSelectedSegmentId(null);
     setHoveredSegmentId(null);
-    setWordInsight(null);
+    setSourceHash(null);
+    clearWordInsight();
     void loadTranslation();
-  }, [chapterId, loadTranslation]);
+  }, [chapterId, clearWordInsight, loadTranslation]);
+
+  useEffect(() => {
+    const attemptKey = `${chapterId}:${sourceLanguage}:${targetLanguage}`;
+    if (
+      !autoGenerateMissingTranslation ||
+      translationStatus !== "missing" ||
+      !canGenerate ||
+      autoGenerationAttemptRef.current === attemptKey
+    ) {
+      return;
+    }
+    autoGenerationAttemptRef.current = attemptKey;
+    void requestTranslationGeneration();
+  }, [
+    autoGenerateMissingTranslation,
+    canGenerate,
+    chapterId,
+    requestTranslationGeneration,
+    sourceLanguage,
+    targetLanguage,
+    translationStatus,
+  ]);
 
   useEffect(() => {
     if (translationStatus !== "translating") return;
@@ -564,6 +596,7 @@ export default function PrivateLibraryBilingualPlayback({
   }
 
   function handleTargetLanguageChange(value: string) {
+    if (targetLanguageLocked) return;
     const language = parseSupportedLanguageTag(value);
     if (!language || language === sourceLanguage || language === targetLanguage) {
       return;
@@ -574,63 +607,7 @@ export default function PrivateLibraryBilingualPlayback({
       window.speechSynthesis.cancel();
     }
     setTargetLanguage(language);
-    setWordInsight(null);
-  }
-
-  async function handleSelectWord(selection: BilingualWordSelection) {
-    if (
-      wordInsight?.status === "loading" &&
-      wordInsight.segmentId === selection.segmentId &&
-      wordInsight.side === selection.side &&
-      wordInsight.text === selection.text
-    ) {
-      return;
-    }
-
-    setWordInsight({ ...selection, status: "loading" });
-    try {
-      const response = await fetch("/api/library/word-explanations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chapterId,
-          segmentId: selection.segmentId,
-          selectedSide: selection.side,
-          selectedText: selection.text,
-          sourceLanguage,
-          targetLanguage,
-        }),
-      });
-      const payload = (await response.json()) as WordExplanationResponse;
-      await refreshAiUsage();
-      if (
-        !response.ok ||
-        !payload.ok ||
-        !payload.oppositeText ||
-        !payload.partOfSpeech
-      ) {
-        setWordInsight({
-          ...selection,
-          status: "error",
-          message: payload.message || "単語の対応を確認できませんでした。",
-        });
-        return;
-      }
-
-      setWordInsight({
-        ...selection,
-        status: "ready",
-        oppositeText: payload.oppositeText,
-        partOfSpeech: payload.partOfSpeech,
-        note: payload.note,
-      });
-    } catch {
-      setWordInsight({
-        ...selection,
-        status: "error",
-        message: "単語の対応を確認できませんでした。",
-      });
-    }
+    clearWordInsight();
   }
 
   function handleDisableBilingual() {
@@ -679,8 +656,9 @@ export default function PrivateLibraryBilingualPlayback({
                   <select
                     aria-label="対訳言語"
                     value={targetLanguage}
+                    disabled={targetLanguageLocked}
                     onChange={(event) => handleTargetLanguageChange(event.target.value)}
-                    className="min-w-0 max-w-28 bg-transparent font-medium text-black outline-none sm:max-w-none"
+                    className="min-w-0 max-w-28 bg-transparent font-medium text-black outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:max-w-none"
                   >
                     {targetLanguages.map((language) => (
                       <option key={language} value={language}>
@@ -689,6 +667,11 @@ export default function PrivateLibraryBilingualPlayback({
                     ))}
                   </select>
                 </label>
+                {targetLanguageLocked ? (
+                  <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs text-neutral-700">
+                    このタブで言語固定
+                  </span>
+                ) : null}
                 <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-black">
                   対訳 ON
                 </span>
@@ -890,13 +873,14 @@ export default function PrivateLibraryBilingualPlayback({
             </div>
           )}
         </section>
-        <PrivateLibraryBilingualFooter
-          seriesId={`private-library:${workId}`}
-          languageLabel={targetLanguageLabel}
-          onReturn={handleDisableBilingual}
+        <BilingualStoppedFooter
+          currentIndex={Math.max(
+            0,
+            segments.findIndex((segment) => segment.id === selectedSegmentId)
+          )}
+          total={segments.length}
         >
           <div className="mt-2 text-xs text-neutral-500">
-            <span>文同期・単語確認・1文再生</span>
             {nextTranslationPrefetch?.sourceChapterId === chapterId ? (
               <span className="mt-1 block">
                 {nextTranslationPrefetch.status === "ready"
@@ -910,7 +894,7 @@ export default function PrivateLibraryBilingualPlayback({
               <span className="mt-1 block">50%次話先読みはサブスク限定</span>
             ) : null}
           </div>
-        </PrivateLibraryBilingualFooter>
+        </BilingualStoppedFooter>
       </div>
     </main>
   );

@@ -238,6 +238,7 @@ export async function resolveEpisodeTranslationAccess(
     isOfficialUser: isOfficialAccountEmail(currentUserEmail),
     canRead: (isPublic || isOwner) && r18Allowed,
     isAllowlisted:
+      isOwner ||
       explicitlyAllowlisted ||
       isSeriesTranslationEligible(series) ||
       isOfficialAuthored,

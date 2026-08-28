@@ -10,10 +10,13 @@ import BilingualPane, {
   type PaneSide,
 } from "@/features/playback/BilingualPane";
 import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
+import BilingualStoppedFooter from "@/features/playback/BilingualStoppedFooter";
+import { useBilingualWordExplanation } from "@/features/playback/useBilingualWordExplanation";
 import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
 import {
   getSupportedLanguage,
   type PublicTranslationTargetLanguage,
+  type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { useAiUsage } from "@/features/usage/useAiUsage";
 import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
@@ -168,10 +171,16 @@ function centerInPane(
 
 export default function GeneratedStoryBilingualPlayback({
   storyId,
+  sourceLanguage,
   initialTargetLanguage,
+  autoGenerateMissingTranslation,
+  targetLanguageLocked,
 }: {
   storyId: string;
+  sourceLanguage: SupportedLanguageTag;
   initialTargetLanguage: PublicTranslationTargetLanguage;
+  autoGenerateMissingTranslation: boolean;
+  targetLanguageLocked: boolean;
 }) {
   const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
   const [story, setStory] = useState<SavedGeneratedStoryPayload | null>(null);
@@ -196,6 +205,7 @@ export default function GeneratedStoryBilingualPlayback({
   );
   const [segments, setSegments] = useState<BilingualSegment[]>([]);
   const [message, setMessage] = useState("");
+  const [sourceHash, setSourceHash] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
 
@@ -209,6 +219,19 @@ export default function GeneratedStoryBilingualPlayback({
   const targetLanguageRef = useRef<PublicTranslationTargetLanguage>(
     preference.targetLanguage
   );
+  const autoGenerationAttemptRef = useRef<string | null>(null);
+  const {
+    wordInsight,
+    clearWordInsight,
+    selectWord: handleSelectWord,
+  } = useBilingualWordExplanation({
+    contentType: "generated_story",
+    contentId: storyId,
+    sourceHash,
+    sourceLanguage,
+    targetLanguage,
+    refreshAiUsage,
+  });
 
   useEffect(() => {
     const generated = readGeneratedStory(storyId);
@@ -245,7 +268,7 @@ export default function GeneratedStoryBilingualPlayback({
           storyId: story.id,
           title: story.story.title,
           body: story.story.body,
-          sourceLanguage: "ja",
+          sourceLanguage,
           targetLanguage,
         }),
       });
@@ -272,6 +295,8 @@ export default function GeneratedStoryBilingualPlayback({
         return;
       }
 
+      setSourceHash(payload.sourceHash ?? null);
+
       if (payload.status === "ready" && Array.isArray(payload.segments)) {
         setSegments(payload.segments);
         const firstId = payload.segments[0]?.id ?? null;
@@ -291,7 +316,7 @@ export default function GeneratedStoryBilingualPlayback({
     } finally {
       requestInFlightRef.current = false;
     }
-  }, [refreshAiUsage, story, targetLanguage]);
+  }, [refreshAiUsage, sourceLanguage, story, targetLanguage]);
 
   const checkTranslation = useCallback(async () => {
     if (!story) return;
@@ -303,13 +328,14 @@ export default function GeneratedStoryBilingualPlayback({
           storyId: story.id,
           title: story.story.title,
           body: story.story.body,
-          sourceLanguage: "ja",
+          sourceLanguage,
           targetLanguage,
           checkOnly: true,
         }),
       });
       const payload = (await response.json()) as TranslationResponse;
       if (targetLanguageRef.current !== targetLanguage) return;
+      setSourceHash(payload.sourceHash ?? null);
       if (!response.ok || !payload.ok) {
         setStatus("error");
         setMessage(payload.message || "対訳の状態を確認できませんでした。");
@@ -326,7 +352,7 @@ export default function GeneratedStoryBilingualPlayback({
       setStatus("error");
       setMessage("対訳の状態を確認できませんでした。");
     }
-  }, [story, targetLanguage]);
+  }, [sourceLanguage, story, targetLanguage]);
 
   useEffect(() => {
     if (!story) return;
@@ -334,10 +360,35 @@ export default function GeneratedStoryBilingualPlayback({
     setSegments([]);
     setSelectedSegmentId(null);
     setHoveredSegmentId(null);
+    setSourceHash(null);
+    clearWordInsight();
     readingSegmentIdRef.current = null;
     setStatus("loading");
     void checkTranslation();
-  }, [checkTranslation, story, targetLanguage]);
+  }, [checkTranslation, clearWordInsight, story, targetLanguage]);
+
+  useEffect(() => {
+    const attemptKey = `${storyId}:${sourceLanguage}:${targetLanguage}`;
+    if (
+      !autoGenerateMissingTranslation ||
+      status !== "missing" ||
+      !story ||
+      autoGenerationAttemptRef.current === attemptKey
+    ) {
+      return;
+    }
+    autoGenerationAttemptRef.current = attemptKey;
+    setStatus("translating");
+    void requestTranslation();
+  }, [
+    autoGenerateMissingTranslation,
+    requestTranslation,
+    sourceLanguage,
+    status,
+    story,
+    storyId,
+    targetLanguage,
+  ]);
 
   useEffect(() => {
     if (status !== "translating") return;
@@ -374,12 +425,13 @@ export default function GeneratedStoryBilingualPlayback({
   function handleTargetLanguageChange(
     language: PublicTranslationTargetLanguage
   ) {
-    if (language === targetLanguage) return;
+    if (targetLanguageLocked || language === targetLanguage) return;
     targetLanguageRef.current = language;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
     setTargetLanguage(language);
+    clearWordInsight();
   }
 
   function handleDisableBilingual() {
@@ -401,7 +453,7 @@ export default function GeneratedStoryBilingualPlayback({
     window.location.assign(`/read/generated/${encodeURIComponent(storyId)}`);
   }
 
-  const sourceLanguageLabel = getSupportedLanguage("ja").nativeLabel;
+  const sourceLanguageLabel = getSupportedLanguage(sourceLanguage).nativeLabel;
   const targetLanguageLabel = getSupportedLanguage(targetLanguage).nativeLabel;
 
   return (
@@ -424,8 +476,15 @@ export default function GeneratedStoryBilingualPlayback({
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <TranslationLanguageSelect
                   value={targetLanguage}
+                  sourceLanguage={sourceLanguage}
                   onChange={handleTargetLanguageChange}
+                  disabled={targetLanguageLocked}
                 />
+                {targetLanguageLocked ? (
+                  <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs text-neutral-700">
+                    このタブで言語固定
+                  </span>
+                ) : null}
                 <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-black">
                   対訳 ON
                 </span>
@@ -449,6 +508,9 @@ export default function GeneratedStoryBilingualPlayback({
                 targetLanguage={targetLanguage}
                 seriesId={`generated:${storyId}`}
               />
+              <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
+                文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
+              </div>
 
               <div
                 ref={readerGridRef}
@@ -465,6 +527,7 @@ export default function GeneratedStoryBilingualPlayback({
                   <BilingualPane
                     side="source"
                     languageLabel={sourceLanguageLabel}
+                    languageTag={sourceLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -473,11 +536,14 @@ export default function GeneratedStoryBilingualPlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 ) : (
                   <BilingualPane
                     side="target"
                     languageLabel={targetLanguageLabel}
+                    languageTag={targetLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -486,6 +552,8 @@ export default function GeneratedStoryBilingualPlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 )}
 
@@ -499,6 +567,7 @@ export default function GeneratedStoryBilingualPlayback({
                   <BilingualPane
                     side="target"
                     languageLabel={targetLanguageLabel}
+                    languageTag={targetLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -507,11 +576,14 @@ export default function GeneratedStoryBilingualPlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 ) : (
                   <BilingualPane
                     side="source"
                     languageLabel={sourceLanguageLabel}
+                    languageTag={sourceLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -520,6 +592,8 @@ export default function GeneratedStoryBilingualPlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 )}
               </div>
@@ -574,13 +648,21 @@ export default function GeneratedStoryBilingualPlayback({
           )}
         </section>
 
+        <BilingualStoppedFooter
+          currentIndex={Math.max(
+            0,
+            segments.findIndex((segment) => segment.id === selectedSegmentId)
+          )}
+          total={segments.length}
+        />
+
         <div className="mt-4 flex justify-center">
           <button
             type="button"
             onClick={handleDisableBilingual}
             className="rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm text-neutral-700 transition hover:bg-neutral-50"
           >
-            日本語表示に戻る
+            原文表示に戻る
           </button>
         </div>
       </div>

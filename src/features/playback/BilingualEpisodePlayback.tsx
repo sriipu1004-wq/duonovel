@@ -11,11 +11,13 @@ import BilingualPane, {
   type PaneSide,
 } from "@/features/playback/BilingualPane";
 import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
-import PrivateLibraryBilingualFooter from "@/features/library/PrivateLibraryBilingualFooter";
+import BilingualStoppedFooter from "@/features/playback/BilingualStoppedFooter";
+import { useBilingualWordExplanation } from "@/features/playback/useBilingualWordExplanation";
 import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
 import {
   getSupportedLanguage,
   type PublicTranslationTargetLanguage,
+  type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { useAiUsage } from "@/features/usage/useAiUsage";
 import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
@@ -51,6 +53,9 @@ type BilingualEpisodePlaybackProps = {
   workEditorName?: string;
   workIndexHref?: string | null;
   initialTargetLanguage: PublicTranslationTargetLanguage;
+  sourceLanguage: SupportedLanguageTag;
+  autoGenerateMissingTranslation: boolean;
+  targetLanguageLocked: boolean;
   onDisableBilingual: (segmentIndex: number) => void;
 };
 
@@ -120,6 +125,9 @@ export default function BilingualEpisodePlayback({
   workEditorName,
   workIndexHref,
   initialTargetLanguage,
+  sourceLanguage,
+  autoGenerateMissingTranslation,
+  targetLanguageLocked,
   onDisableBilingual,
 }: BilingualEpisodePlaybackProps) {
   const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
@@ -142,6 +150,7 @@ export default function BilingualEpisodePlayback({
   const [canGenerate, setCanGenerate] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [sourceHash, setSourceHash] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
 
@@ -155,6 +164,19 @@ export default function BilingualEpisodePlayback({
   const targetLanguageRef = useRef<PublicTranslationTargetLanguage>(
     preference.targetLanguage
   );
+  const autoGenerationAttemptRef = useRef<string | null>(null);
+  const {
+    wordInsight,
+    clearWordInsight,
+    selectWord: handleSelectWord,
+  } = useBilingualWordExplanation({
+    contentType: "episode",
+    contentId: episodeId,
+    sourceHash,
+    sourceLanguage,
+    targetLanguage,
+    refreshAiUsage,
+  });
 
   useEffect(() => {
     setSplitRatio(preference.splitRatio);
@@ -188,7 +210,7 @@ export default function BilingualEpisodePlayback({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           episodeId,
-          sourceLanguage: "ja",
+          sourceLanguage,
           targetLanguage,
         }),
       });
@@ -239,14 +261,16 @@ export default function BilingualEpisodePlayback({
       generationInFlightRef.current = false;
       setIsGenerating(false);
     }
-  }, [episodeId, refreshAiUsage, targetLanguage]);
+  }, [episodeId, refreshAiUsage, sourceLanguage, targetLanguage]);
 
   const loadTranslation = useCallback(async () => {
     try {
       const response = await fetch(
         "/api/episode-translations/" +
           encodeURIComponent(episodeId) +
-          "?sourceLanguage=ja&targetLanguage=" +
+          "?sourceLanguage=" +
+          encodeURIComponent(sourceLanguage) +
+          "&targetLanguage=" +
           encodeURIComponent(targetLanguage),
         { cache: "no-store" }
       );
@@ -263,6 +287,7 @@ export default function BilingualEpisodePlayback({
       }
 
       setCanGenerate(payload.canGenerate === true);
+      setSourceHash(payload.sourceHash ?? null);
       const nextStatus = payload.status ?? "missing";
 
       if (nextStatus === "ready" && Array.isArray(payload.segments)) {
@@ -289,7 +314,7 @@ export default function BilingualEpisodePlayback({
       setTranslationStatus("error");
       setStatusMessage("対訳の状態を取得できませんでした。");
     }
-  }, [episodeId, targetLanguage]);
+  }, [episodeId, sourceLanguage, targetLanguage]);
 
   useEffect(() => {
     readingSegmentIdRef.current = null;
@@ -297,8 +322,32 @@ export default function BilingualEpisodePlayback({
     setSegments([]);
     setSelectedSegmentId(null);
     setHoveredSegmentId(null);
+    setSourceHash(null);
+    clearWordInsight();
     void loadTranslation();
-  }, [episodeId, loadTranslation]);
+  }, [clearWordInsight, episodeId, loadTranslation]);
+
+  useEffect(() => {
+    const attemptKey = `${episodeId}:${sourceLanguage}:${targetLanguage}`;
+    if (
+      !autoGenerateMissingTranslation ||
+      translationStatus !== "missing" ||
+      !canGenerate ||
+      autoGenerationAttemptRef.current === attemptKey
+    ) {
+      return;
+    }
+    autoGenerationAttemptRef.current = attemptKey;
+    void requestTranslationGeneration();
+  }, [
+    autoGenerateMissingTranslation,
+    canGenerate,
+    episodeId,
+    requestTranslationGeneration,
+    sourceLanguage,
+    targetLanguage,
+    translationStatus,
+  ]);
 
   useEffect(() => {
     if (translationStatus !== "translating") return;
@@ -358,12 +407,13 @@ export default function BilingualEpisodePlayback({
   function handleTargetLanguageChange(
     language: PublicTranslationTargetLanguage
   ) {
-    if (language === targetLanguage) return;
+    if (targetLanguageLocked || language === targetLanguage) return;
     targetLanguageRef.current = language;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
     setTargetLanguage(language);
+    clearWordInsight();
   }
 
   function handleDisableBilingual() {
@@ -385,7 +435,7 @@ export default function BilingualEpisodePlayback({
   const safeEpisodeTitle = safeText(episodeTitle, "第" + String(episodeNumber) + "話");
   const safeAuthorName = safeText(workAuthorName, "作者名未設定");
   const safeEditorName = safeText(workEditorName, "");
-  const sourceLanguageLabel = getSupportedLanguage("ja").nativeLabel;
+  const sourceLanguageLabel = getSupportedLanguage(sourceLanguage).nativeLabel;
   const targetLanguageLabel = getSupportedLanguage(targetLanguage).nativeLabel;
 
   return (
@@ -420,8 +470,15 @@ export default function BilingualEpisodePlayback({
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <TranslationLanguageSelect
                   value={targetLanguage}
+                  sourceLanguage={sourceLanguage}
                   onChange={handleTargetLanguageChange}
+                  disabled={targetLanguageLocked}
                 />
+                {targetLanguageLocked ? (
+                  <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs text-neutral-700">
+                    このタブで言語固定
+                  </span>
+                ) : null}
                 <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-black">
                   対訳 ON
                 </span>
@@ -445,6 +502,9 @@ export default function BilingualEpisodePlayback({
                 targetLanguage={targetLanguage}
                 seriesId={seriesId}
               />
+              <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
+                文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
+              </div>
 
               <div
                 ref={readerGridRef}
@@ -461,6 +521,7 @@ export default function BilingualEpisodePlayback({
                   <BilingualPane
                     side="source"
                     languageLabel={sourceLanguageLabel}
+                    languageTag={sourceLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -469,11 +530,14 @@ export default function BilingualEpisodePlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 ) : (
                   <BilingualPane
                     side="target"
                     languageLabel={targetLanguageLabel}
+                    languageTag={targetLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -482,6 +546,8 @@ export default function BilingualEpisodePlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 )}
 
@@ -495,6 +561,7 @@ export default function BilingualEpisodePlayback({
                   <BilingualPane
                     side="target"
                     languageLabel={targetLanguageLabel}
+                    languageTag={targetLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -503,11 +570,14 @@ export default function BilingualEpisodePlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 ) : (
                   <BilingualPane
                     side="source"
                     languageLabel={sourceLanguageLabel}
+                    languageTag={sourceLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -516,6 +586,8 @@ export default function BilingualEpisodePlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 )}
               </div>
@@ -601,13 +673,13 @@ export default function BilingualEpisodePlayback({
             </div>
           )}
         </section>
-        <PrivateLibraryBilingualFooter
-          seriesId={seriesId}
-          languageLabel={targetLanguageLabel}
-          onReturn={handleDisableBilingual}
-        >
-          <p className="mt-2 text-xs text-neutral-500">文同期・1文再生</p>
-        </PrivateLibraryBilingualFooter>
+        <BilingualStoppedFooter
+          currentIndex={Math.max(
+            0,
+            segments.findIndex((segment) => segment.id === selectedSegmentId)
+          )}
+          total={segments.length}
+        />
       </div>
     </main>
   );
