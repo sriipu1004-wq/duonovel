@@ -1113,7 +1113,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
             TOP
           </Link>
           <span className="mx-2">/</span>
-          <span className="text-neutral-700">作品ページ</span>
+          <span className="text-neutral-700">作品ページ（目次）</span>
         </div>
 
         <section className="overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-sm sm:rounded-[32px]">

@@ -30,6 +30,10 @@ type ReadBilingualShellProps = {
   workAuthorName?: string;
   workEditorName?: string;
   sourceLanguage: SupportedLanguageTag;
+  hasMultipleEpisodes: boolean;
+  workIndexHref?: string | null;
+  prevEpisodeHref?: string | null;
+  nextEpisodeHref?: string | null;
 };
 
 export default function ReadBilingualShell({
@@ -43,6 +47,10 @@ export default function ReadBilingualShell({
   workAuthorName,
   workEditorName,
   sourceLanguage,
+  hasMultipleEpisodes,
+  workIndexHref,
+  prevEpisodeHref,
+  nextEpisodeHref,
 }: ReadBilingualShellProps) {
   const { snapshot: aiUsage } = useAiUsage();
   const [mode, setMode] = useState<"standard" | "bilingual">("standard");
@@ -97,11 +105,9 @@ export default function ReadBilingualShell({
   function enableBilingual() {
     if (!translationEligible) return;
 
-    const sessionPreference = readBilingualSessionPreference(
-      "series",
-      seriesId,
-      sourceLanguage
-    );
+    const sessionPreference = hasMultipleEpisodes
+      ? readBilingualSessionPreference("series", seriesId, sourceLanguage)
+      : null;
     if (
       sessionPreference &&
       isPublicTranslationTargetLanguage(sessionPreference.targetLanguage)
@@ -132,10 +138,10 @@ export default function ReadBilingualShell({
   }
 
   function confirmBilingual() {
-    if (rememberForTab) {
+    if (rememberForTab && hasMultipleEpisodes) {
       writeBilingualSessionPreference("series", seriesId, targetLanguage);
     }
-    setSessionLanguageLocked(rememberForTab);
+    setSessionLanguageLocked(rememberForTab && hasMultipleEpisodes);
     setAutoGenerateMissingTranslation(translationAvailability !== "ready");
     openBilingual();
   }
@@ -190,6 +196,9 @@ export default function ReadBilingualShell({
         episodeTitle={episodeTitle}
         workAuthorName={workAuthorName}
         workEditorName={workEditorName}
+        workIndexHref={workIndexHref}
+        prevEpisodeHref={prevEpisodeHref}
+        nextEpisodeHref={nextEpisodeHref}
         initialTargetLanguage={targetLanguage}
         sourceLanguage={sourceLanguage}
         autoGenerateMissingTranslation={autoGenerateMissingTranslation}
@@ -216,6 +225,7 @@ export default function ReadBilingualShell({
           targetLanguage={targetLanguage}
           availability={translationAvailability}
           rememberForTab={rememberForTab}
+          showRememberForTab={hasMultipleEpisodes}
           translationUsage={aiUsage?.actions.translation_generation}
           onTargetLanguageChange={(language) => {
             setTargetLanguage(language);

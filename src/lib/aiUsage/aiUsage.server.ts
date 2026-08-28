@@ -87,6 +87,19 @@ export async function reserveAiAction(args: {
   userId?: string | null;
 }) {
   const identity = await resolveAiUsageIdentity(args.request, args.userId);
+  if (
+    args.actionType === "word_explanation" &&
+    identity.userId &&
+    (await isSubscriber(identity.userId))
+  ) {
+    return {
+      allowed: true,
+      used: 0,
+      limit: -1,
+      plan: "subscriber" as AiPlanType,
+      resetAt: "",
+    };
+  }
   const limits = LIMITS[args.actionType];
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("reserve_libread_daily_ai_action", {
@@ -157,6 +170,11 @@ export async function getAiUsageSnapshot(
     };
     if (row.plan_type === "subscriber") plan = "subscriber";
     if (typeof row.reset_at === "string") resetAt = row.reset_at;
+  }
+
+  if (identity.userId && (await isSubscriber(identity.userId))) {
+    plan = "subscriber";
+    actions.word_explanation = { used: 0, limit: -1 };
   }
 
   return { plan, isSubscriber: plan === "subscriber", resetAt, actions };

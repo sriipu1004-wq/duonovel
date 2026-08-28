@@ -20,7 +20,11 @@ import {
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { useAiUsage } from "@/features/usage/useAiUsage";
-import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
+import {
+  formatAiUsage,
+  isAiUsageLimitReached,
+} from "@/lib/aiUsage/aiUsage";
+import { readReadingBookmark } from "@/lib/playback/readingBookmark";
 
 type TranslationStatus =
   | "loading"
@@ -52,6 +56,8 @@ type BilingualEpisodePlaybackProps = {
   workAuthorName?: string;
   workEditorName?: string;
   workIndexHref?: string | null;
+  prevEpisodeHref?: string | null;
+  nextEpisodeHref?: string | null;
   initialTargetLanguage: PublicTranslationTargetLanguage;
   sourceLanguage: SupportedLanguageTag;
   autoGenerateMissingTranslation: boolean;
@@ -86,7 +92,9 @@ function readPreference(
   if (typeof window === "undefined") return fallback;
 
   try {
-    const raw = window.localStorage.getItem("duonovel:bilingual-display:" + seriesId);
+    const raw =
+      window.localStorage.getItem("duonovel:bilingual-display") ??
+      window.localStorage.getItem("duonovel:bilingual-display:" + seriesId);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<BilingualPreference> & {
       upperLanguage?: string;
@@ -124,6 +132,8 @@ export default function BilingualEpisodePlayback({
   workAuthorName,
   workEditorName,
   workIndexHref,
+  prevEpisodeHref,
+  nextEpisodeHref,
   initialTargetLanguage,
   sourceLanguage,
   autoGenerateMissingTranslation,
@@ -153,6 +163,7 @@ export default function BilingualEpisodePlayback({
   const [sourceHash, setSourceHash] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
+  const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
 
   const jaScrollRef = useRef<HTMLDivElement | null>(null);
   const enScrollRef = useRef<HTMLDivElement | null>(null);
@@ -165,6 +176,7 @@ export default function BilingualEpisodePlayback({
     preference.targetLanguage
   );
   const autoGenerationAttemptRef = useRef<string | null>(null);
+  const restoredBookmarkKeyRef = useRef<string | null>(null);
   const {
     wordInsight,
     clearWordInsight,
@@ -189,13 +201,29 @@ export default function BilingualEpisodePlayback({
   useEffect(() => {
     try {
       window.localStorage.setItem(
-        "duonovel:bilingual-display:" + seriesId,
+        "duonovel:bilingual-display",
         JSON.stringify({ splitRatio, upperPane, readerHeight, targetLanguage })
       );
     } catch {
       // local preference persistence is non-critical
     }
   }, [readerHeight, seriesId, splitRatio, targetLanguage, upperPane]);
+
+  useEffect(() => {
+    if (translationStatus !== "ready" || segments.length === 0) return;
+    const restoreKey = `${episodeNumber}:${sourceHash ?? "ready"}`;
+    if (restoredBookmarkKeyRef.current === restoreKey) return;
+    restoredBookmarkKeyRef.current = restoreKey;
+    const bookmark = readReadingBookmark(seriesId);
+    if (!bookmark || bookmark.episodeNumber !== episodeNumber) return;
+    const index = Math.min(bookmark.positionIndex, segments.length - 1);
+    const id = segments[index]?.id;
+    if (!id) return;
+    readingSegmentIdRef.current = id;
+    setCurrentPositionIndex(index);
+    setSelectedSegmentId(id);
+    window.requestAnimationFrame(() => alignSegmentToTop(id));
+  }, [episodeNumber, segments, seriesId, sourceHash, translationStatus]);
 
   const requestTranslationGeneration = useCallback(async () => {
     if (generationInFlightRef.current) return false;
@@ -387,12 +415,33 @@ export default function BilingualEpisodePlayback({
     });
   }
 
+  function alignSegmentToTop(id: string) {
+    const align = (
+      container: HTMLDivElement | null,
+      node: HTMLSpanElement | null
+    ) => {
+      if (!container || !node) return;
+      const containerRect = container.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      container.scrollTo({
+        top: Math.max(0, container.scrollTop + nodeRect.top - containerRect.top),
+        behavior: "auto",
+      });
+    };
+    align(jaScrollRef.current, jaSegmentRefs.current.get(id) ?? null);
+    align(enScrollRef.current, enSegmentRefs.current.get(id) ?? null);
+  }
+
   function handleReadingPositionChange(id: string) {
     readingSegmentIdRef.current = id;
+    const index = segments.findIndex((segment) => segment.id === id);
+    if (index >= 0) setCurrentPositionIndex(index);
   }
 
   function handleSelectSegment(id: string) {
     readingSegmentIdRef.current = id;
+    const index = segments.findIndex((segment) => segment.id === id);
+    if (index >= 0) setCurrentPositionIndex(index);
     setSelectedSegmentId(id);
     centerSegment(id);
   }
@@ -451,9 +500,10 @@ export default function BilingualEpisodePlayback({
                 {workIndexHref ? (
                   <Link
                     href={workIndexHref}
+                    aria-label={`${safeSeriesTitle}の作品ページ（目次）へ`}
                     className="mt-2 inline-flex text-sm text-neutral-600 hover:text-black"
                   >
-                    {safeSeriesTitle}
+                    {safeSeriesTitle} · 作品ページ（目次）
                   </Link>
                 ) : (
                   <p className="mt-2 text-sm text-neutral-600">{safeSeriesTitle}</p>
@@ -654,9 +704,9 @@ export default function BilingualEpisodePlayback({
                     onClick={() => void handleGenerateTranslation()}
                     disabled={
                       isGenerating ||
-                      (aiUsage?.actions.translation_generation.limit !== undefined &&
-                        aiUsage.actions.translation_generation.used >=
-                          aiUsage.actions.translation_generation.limit)
+                      isAiUsageLimitReached(
+                        aiUsage?.actions.translation_generation
+                      )
                     }
                     className="mt-5 rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -673,7 +723,19 @@ export default function BilingualEpisodePlayback({
             </div>
           )}
         </section>
-        <BilingualStoppedFooter />
+        <BilingualStoppedFooter
+          seriesId={seriesId}
+          episodeNumber={episodeNumber}
+          positionIndex={currentPositionIndex}
+          prevHref={prevEpisodeHref}
+          nextHref={nextEpisodeHref}
+          splitRatio={splitRatio}
+          upperPane={upperPane}
+          readerHeight={readerHeight}
+          onSplitRatioChange={setSplitRatio}
+          onSwapLanguages={handleSwapLanguages}
+          onResetReaderHeight={() => setReaderHeight(null)}
+        />
       </div>
     </main>
   );

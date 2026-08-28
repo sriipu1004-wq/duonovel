@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import PrivateLibraryWorkManager from "@/features/library/PrivateLibraryWorkManager";
+import PrivateLibrarySectionList from "@/features/library/PrivateLibrarySectionList";
 import {
-  buildPrivateLibraryReadHref,
   formatCharacterCount,
   type PrivateLibraryWork,
 } from "@/lib/library/privateLibrary";
@@ -87,7 +87,7 @@ export default async function PrivateLibraryWorkPage({
             個人本棚
           </Link>
           <span className="mx-2">/</span>
-          <span className="text-neutral-700">目次</span>
+          <span className="text-neutral-700">作品目次</span>
         </div>
 
         <section className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
@@ -128,59 +128,7 @@ export default async function PrivateLibraryWorkPage({
             />
           </div>
 
-          <div className="grid gap-3 px-5 py-6 sm:px-8">
-            {sections.map((section) => (
-              <Link
-                key={section.section_number}
-                href={buildPrivateLibraryReadHref(
-                  work.id,
-                  section.first_unit_number
-                )}
-                className="flex items-center justify-between gap-4 rounded-2xl border border-black/10 bg-white px-4 py-4 transition hover:bg-neutral-50"
-              >
-                <span className="min-w-0">
-                  <span className="block text-xs text-neutral-500">
-                    第{section.section_number}話
-                  </span>
-                  <span className="mt-1 block truncate text-sm font-medium text-black">
-                    {section.section_title}
-                  </span>
-                  {section.part_count > 1 ? (
-                    <span className="mt-1 block text-[11px] text-neutral-400">
-                      読書時に{section.part_count}部分へ自動分割
-                    </span>
-                  ) : null}
-                  {section.is_completed || Number(section.progress_ratio) > 0 ? (
-                    <span className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-                      <span
-                        className={
-                          section.is_completed
-                            ? "rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700"
-                            : "rounded-full bg-sky-50 px-2 py-0.5 text-sky-700"
-                        }
-                      >
-                        {section.is_completed
-                          ? "読了"
-                          : `読書中 ${Math.max(1, Math.round(Number(section.progress_ratio) * 100))}%`}
-                      </span>
-                      {section.has_ready_translation ? (
-                        <span className="rounded-full bg-violet-50 px-2 py-0.5 text-violet-700">
-                          対訳あり
-                        </span>
-                      ) : null}
-                    </span>
-                  ) : section.has_ready_translation ? (
-                    <span className="mt-2 block text-[11px] text-violet-700">
-                      対訳あり
-                    </span>
-                  ) : null}
-                </span>
-                <span className="shrink-0 text-xs text-neutral-500">
-                  {formatCharacterCount(section.source_char_count)}
-                </span>
-              </Link>
-            ))}
-          </div>
+          <PrivateLibrarySectionList workId={work.id} sections={sections} />
 
           {totalPages > 1 ? (
             <nav className="flex items-center justify-between gap-3 border-t border-black/10 px-5 py-5 text-sm sm:px-8">

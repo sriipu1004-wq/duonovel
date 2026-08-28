@@ -6,16 +6,11 @@ import BilingualLanguagePickerDialog, {
   type BilingualTranslationAvailability,
 } from "@/features/playback/BilingualLanguagePickerDialog";
 import { useAiUsage } from "@/features/usage/useAiUsage";
-import {
-  isPublicTranslationTargetLanguage,
-  type PublicTranslationTargetLanguage,
-  type SupportedLanguageTag,
+import type {
+  PublicTranslationTargetLanguage,
+  SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
-import {
-  readBilingualSessionPreference,
-  writeBilingualSessionPreference,
-} from "@/lib/translation/bilingualSessionPreference";
 
 type GeneratedStoryPayload = {
   id: string;
@@ -251,28 +246,6 @@ export default function GeneratedStoryBilingualBridge({
       generated.story.body
     );
     setSourceLanguage(detectedSourceLanguage);
-    const scope = generated.savedSeriesId ? "series" : "generated";
-    const contentId = generated.savedSeriesId || storyId;
-    const sessionPreference = readBilingualSessionPreference(
-      scope,
-      contentId,
-      detectedSourceLanguage
-    );
-    if (
-      sessionPreference &&
-      isPublicTranslationTargetLanguage(sessionPreference.targetLanguage)
-    ) {
-      setTargetLanguage(sessionPreference.targetLanguage);
-      openBilingual(
-        generated,
-        detectedSourceLanguage,
-        sessionPreference.targetLanguage,
-        true,
-        true
-      );
-      return;
-    }
-
     const selectedLanguage =
       targetLanguage === detectedSourceLanguage
         ? detectedSourceLanguage === "ja"
@@ -321,17 +294,12 @@ export default function GeneratedStoryBilingualBridge({
   function confirmBilingual() {
     const generated = readGeneratedStory(storyId);
     if (!generated) return;
-    if (rememberForTab) {
-      const scope = generated.savedSeriesId ? "series" : "generated";
-      const contentId = generated.savedSeriesId || storyId;
-      writeBilingualSessionPreference(scope, contentId, targetLanguage);
-    }
     openBilingual(
       generated,
       sourceLanguage,
       targetLanguage,
       translationAvailability !== "ready",
-      rememberForTab
+      false
     );
   }
 
@@ -358,6 +326,7 @@ export default function GeneratedStoryBilingualBridge({
           targetLanguage={targetLanguage}
           availability={translationAvailability}
           rememberForTab={rememberForTab}
+          showRememberForTab={false}
           translationUsage={aiUsage?.actions.translation_generation}
           onTargetLanguageChange={(language) => {
             setTargetLanguage(language);

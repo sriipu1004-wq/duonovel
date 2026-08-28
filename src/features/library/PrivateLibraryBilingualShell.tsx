@@ -32,6 +32,9 @@ type PrivateLibraryBilingualShellProps = {
   authorName?: string;
   sourceLanguage: SupportedLanguageTag;
   workIndexHref: string;
+  previousChapterHref: string | null;
+  nextChapterHref: string | null;
+  hasMultipleChapters: boolean;
   nextChapterId: string | null;
   isSubscriber: boolean;
 };
@@ -49,6 +52,9 @@ export default function PrivateLibraryBilingualShell({
   authorName,
   sourceLanguage,
   workIndexHref,
+  previousChapterHref,
+  nextChapterHref,
+  hasMultipleChapters,
   nextChapterId,
   isSubscriber,
 }: PrivateLibraryBilingualShellProps) {
@@ -121,11 +127,13 @@ export default function PrivateLibraryBilingualShell({
   }
 
   function enableBilingual() {
-    const sessionPreference = readBilingualSessionPreference(
-      "private-library",
-      workId,
-      sourceLanguage
-    );
+    const sessionPreference = hasMultipleChapters
+      ? readBilingualSessionPreference(
+          "private-library",
+          workId,
+          sourceLanguage
+        )
+      : null;
     if (sessionPreference) {
       setSelectedTargetLanguage(sessionPreference.targetLanguage);
       setSessionLanguageLocked(true);
@@ -161,14 +169,14 @@ export default function PrivateLibraryBilingualShell({
   }
 
   function confirmBilingualLanguage() {
-    if (rememberForTab) {
+    if (rememberForTab && hasMultipleChapters) {
       writeBilingualSessionPreference(
         "private-library",
         workId,
         selectedTargetLanguage
       );
     }
-    setSessionLanguageLocked(rememberForTab);
+    setSessionLanguageLocked(rememberForTab && hasMultipleChapters);
     setAutoGenerateMissingTranslation(translationAvailability !== "ready");
     openBilingual();
   }
@@ -194,6 +202,8 @@ export default function PrivateLibraryBilingualShell({
         sourceLanguage={sourceLanguage}
         initialTargetLanguage={selectedTargetLanguage}
         workIndexHref={workIndexHref}
+        previousChapterHref={previousChapterHref}
+        nextChapterHref={nextChapterHref}
         nextChapterId={nextChapterId}
         isSubscriber={isSubscriber}
         autoGenerateMissingTranslation={autoGenerateMissingTranslation}
@@ -217,6 +227,7 @@ export default function PrivateLibraryBilingualShell({
           targetLanguage={selectedTargetLanguage}
           availability={translationAvailability}
           rememberForTab={rememberForTab}
+          showRememberForTab={hasMultipleChapters}
           translationUsage={aiUsage?.actions.translation_generation}
           onTargetLanguageChange={(language) => {
             setSelectedTargetLanguage(language);

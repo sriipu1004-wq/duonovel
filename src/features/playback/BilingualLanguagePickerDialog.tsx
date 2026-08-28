@@ -2,7 +2,10 @@
 
 import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
 import type { AiActionUsage } from "@/lib/aiUsage/aiUsage";
-import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
+import {
+  formatAiUsage,
+  isAiUsageLimitReached,
+} from "@/lib/aiUsage/aiUsage";
 import type {
   PublicTranslationTargetLanguage,
   SupportedLanguageTag,
@@ -22,6 +25,7 @@ type BilingualLanguagePickerDialogProps = {
   targetLanguage: PublicTranslationTargetLanguage;
   availability: BilingualTranslationAvailability;
   rememberForTab: boolean;
+  showRememberForTab: boolean;
   translationUsage?: AiActionUsage | null;
   onTargetLanguageChange: (
     language: PublicTranslationTargetLanguage
@@ -48,6 +52,7 @@ export default function BilingualLanguagePickerDialog({
   targetLanguage,
   availability,
   rememberForTab,
+  showRememberForTab,
   translationUsage,
   onTargetLanguageChange,
   onRememberForTabChange,
@@ -60,9 +65,7 @@ export default function BilingualLanguagePickerDialog({
     availability === "stale" ||
     availability === "failed";
   const generationLimitReached =
-    requiresGeneration &&
-    translationUsage?.limit !== undefined &&
-    translationUsage.used >= translationUsage.limit;
+    requiresGeneration && isAiUsageLimitReached(translationUsage);
   const actionDisabled =
     availability === "checking" ||
     availability === "translating" ||
@@ -94,22 +97,17 @@ export default function BilingualLanguagePickerDialog({
           />
         </div>
 
-        <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-black/10 bg-neutral-50 p-4">
-          <input
-            type="checkbox"
-            checked={rememberForTab}
-            onChange={(event) => onRememberForTabChange(event.target.checked)}
-            className="mt-0.5 h-4 w-4 accent-violet-500"
-          />
-          <span className="min-w-0">
-            <span className="block text-sm font-medium text-black">
-              次からはこの作品で表示せず対訳する
-            </span>
-            <span className="mt-1 block text-xs leading-6 text-neutral-500">
-              このタブを閉じるまで、同じ作品・同じ対訳言語で固定します。
-            </span>
-          </span>
-        </label>
+        {showRememberForTab ? (
+          <label className="mt-5 flex cursor-pointer items-center gap-3 text-sm font-medium text-black">
+            <input
+              type="checkbox"
+              checked={rememberForTab}
+              onChange={(event) => onRememberForTabChange(event.target.checked)}
+              className="h-4 w-4 accent-violet-500"
+            />
+            <span>次からはこの作品で表示せず対訳する</span>
+          </label>
+        ) : null}
 
         {availability === "ready" ? (
           <p className="mt-4 text-xs text-emerald-700">保存済み対訳があります。</p>

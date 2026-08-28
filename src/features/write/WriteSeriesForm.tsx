@@ -895,7 +895,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                 href="/write"
                 className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
               >
-                投稿データベースへ
+                作品ワークスペース一覧へ
               </Link>
 
               {series?.id && publicSurfaceReady ? (
@@ -908,8 +908,8 @@ const publicVisibleCount = sortedEpisodes.filter(
                   className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
                 >
                   {effectiveStoryFormat === "short"
-                    ? "読むページを見る"
-                    : "作品ページを見る"}
+                    ? "読む画面を見る"
+                    : "作品ページ（目次）を見る"}
                 </Link>
               ) : series?.id ? (
                 <span className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-500">
@@ -1058,8 +1058,8 @@ const publicVisibleCount = sortedEpisodes.filter(
                           ) : (
                             <div className="mt-3 grid gap-2 sm:grid-cols-2">
                               {([
-                                ["short", "短編", "作品ページを作らず、読むページへ直接公開する。あらすじは読むページに表示する。"],
-                                ["long", "長編", "作品ページを作り、目次・朗読者・レビューなどを作品単位で表示する。"],
+                                ["short", "短編", "作品ページ（目次）を作らず、読む画面へ直接公開する。あらすじは読む画面に表示する。"],
+                                ["long", "長編", "作品ページ（目次）を作り、各話・朗読者・レビューなどを作品単位で表示する。"],
                               ] as const).map(([value, label, description]) => {
                                 const active = effectiveStoryFormat === value;
 

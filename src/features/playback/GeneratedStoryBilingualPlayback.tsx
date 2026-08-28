@@ -19,7 +19,11 @@ import {
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { useAiUsage } from "@/features/usage/useAiUsage";
-import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
+import {
+  formatAiUsage,
+  isAiUsageLimitReached,
+} from "@/lib/aiUsage/aiUsage";
+import { readReadingBookmark } from "@/lib/playback/readingBookmark";
 
 type GeneratedStoryPayload = {
   id: string;
@@ -119,9 +123,11 @@ function readPreference(
 ): BilingualPreference {
   const fallback = { ...DEFAULT_PREFERENCE, targetLanguage: initialTargetLanguage };
   try {
-    const raw = window.localStorage.getItem(
-      `duonovel:bilingual-display:generated:${storyId}`
-    );
+    const raw =
+      window.localStorage.getItem("duonovel:bilingual-display") ??
+      window.localStorage.getItem(
+        `duonovel:bilingual-display:generated:${storyId}`
+      );
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<BilingualPreference> & {
       upperLanguage?: string;
@@ -208,6 +214,7 @@ export default function GeneratedStoryBilingualPlayback({
   const [sourceHash, setSourceHash] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
+  const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
 
   const jaScrollRef = useRef<HTMLDivElement | null>(null);
   const enScrollRef = useRef<HTMLDivElement | null>(null);
@@ -220,6 +227,7 @@ export default function GeneratedStoryBilingualPlayback({
     preference.targetLanguage
   );
   const autoGenerationAttemptRef = useRef<string | null>(null);
+  const restoredBookmarkKeyRef = useRef<string | null>(null);
   const {
     wordInsight,
     clearWordInsight,
@@ -246,13 +254,29 @@ export default function GeneratedStoryBilingualPlayback({
   useEffect(() => {
     try {
       window.localStorage.setItem(
-        `duonovel:bilingual-display:generated:${storyId}`,
+        "duonovel:bilingual-display",
         JSON.stringify({ splitRatio, upperPane, readerHeight, targetLanguage })
       );
     } catch {
       // Local preference persistence is non-critical.
     }
   }, [readerHeight, storyId, splitRatio, targetLanguage, upperPane]);
+
+  useEffect(() => {
+    if (status !== "ready" || segments.length === 0) return;
+    const restoreKey = `${storyId}:${sourceHash ?? "ready"}`;
+    if (restoredBookmarkKeyRef.current === restoreKey) return;
+    restoredBookmarkKeyRef.current = restoreKey;
+    const bookmark = readReadingBookmark(`generated:${storyId}`);
+    if (!bookmark || bookmark.episodeNumber !== 1) return;
+    const index = Math.min(bookmark.positionIndex, segments.length - 1);
+    const id = segments[index]?.id;
+    if (!id) return;
+    readingSegmentIdRef.current = id;
+    setCurrentPositionIndex(index);
+    setSelectedSegmentId(id);
+    window.requestAnimationFrame(() => alignSegmentToTop(id));
+  }, [segments, sourceHash, status, storyId]);
 
   const requestTranslation = useCallback(async () => {
     if (!story || requestInFlightRef.current) return;
@@ -405,14 +429,35 @@ export default function GeneratedStoryBilingualPlayback({
     });
   }
 
+  function alignSegmentToTop(id: string) {
+    const align = (
+      container: HTMLDivElement | null,
+      node: HTMLSpanElement | null
+    ) => {
+      if (!container || !node) return;
+      const containerRect = container.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      container.scrollTo({
+        top: Math.max(0, container.scrollTop + nodeRect.top - containerRect.top),
+        behavior: "auto",
+      });
+    };
+    align(jaScrollRef.current, jaSegmentRefs.current.get(id) ?? null);
+    align(enScrollRef.current, enSegmentRefs.current.get(id) ?? null);
+  }
+
   function handleSelectSegment(id: string) {
     readingSegmentIdRef.current = id;
+    const index = segments.findIndex((segment) => segment.id === id);
+    if (index >= 0) setCurrentPositionIndex(index);
     setSelectedSegmentId(id);
     centerSegment(id);
   }
 
   function handleReadingPositionChange(id: string) {
     readingSegmentIdRef.current = id;
+    const index = segments.findIndex((segment) => segment.id === id);
+    if (index >= 0) setCurrentPositionIndex(index);
   }
 
   function handleSwapLanguages() {
@@ -622,9 +667,9 @@ export default function GeneratedStoryBilingualPlayback({
                         void requestTranslation();
                       }}
                       disabled={
-                        aiUsage?.actions.translation_generation.limit !== undefined &&
-                        aiUsage.actions.translation_generation.used >=
-                          aiUsage.actions.translation_generation.limit
+                        isAiUsageLimitReached(
+                          aiUsage?.actions.translation_generation
+                        )
                       }
                       className="mt-5 rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800"
                     >
@@ -648,7 +693,17 @@ export default function GeneratedStoryBilingualPlayback({
           )}
         </section>
 
-        <BilingualStoppedFooter />
+        <BilingualStoppedFooter
+          seriesId={`generated:${storyId}`}
+          episodeNumber={1}
+          positionIndex={currentPositionIndex}
+          splitRatio={splitRatio}
+          upperPane={upperPane}
+          readerHeight={readerHeight}
+          onSplitRatioChange={setSplitRatio}
+          onSwapLanguages={handleSwapLanguages}
+          onResetReaderHeight={() => setReaderHeight(null)}
+        />
 
         <div className="mt-4 flex justify-center">
           <button

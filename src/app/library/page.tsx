@@ -120,7 +120,7 @@ export default async function PrivateLibraryPage() {
                           href={buildPrivateLibraryWorkHref(work.id)}
                           className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
                         >
-                          目次
+                          作品目次
                         </Link>
                         <Link
                           href={buildPrivateLibraryReadHref(work.id, resumeNumber)}

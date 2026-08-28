@@ -20,5 +20,12 @@ export type AiUsageSnapshot = {
 };
 
 export function formatAiUsage(usage?: AiActionUsage | null): string {
-  return usage ? `${usage.used}/${usage.limit}` : "–/–";
+  if (!usage) return "–/–";
+  return usage.limit < 0 ? "無制限" : `${usage.used}/${usage.limit}`;
+}
+
+export function isAiUsageLimitReached(
+  usage?: AiActionUsage | null
+): boolean {
+  return Boolean(usage && usage.limit >= 0 && usage.used >= usage.limit);
 }

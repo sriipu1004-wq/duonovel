@@ -198,6 +198,19 @@ export default async function ReadEpisodeLayout({
   const sourceLanguage = detectSourceLanguageFromText(
     getEpisodeBody(payload.episode)
   );
+  const orderedEpisodes = [...payload.publicEpisodes].sort(
+    (left, right) => getEpisodeNumber(left) - getEpisodeNumber(right)
+  );
+  const currentEpisodeIndex = orderedEpisodes.findIndex(
+    (episode) => getEpisodeNumber(episode) === currentEpisodeNumber
+  );
+  const hasMultipleEpisodes = orderedEpisodes.length > 1;
+  const previousEpisode =
+    currentEpisodeIndex > 0 ? orderedEpisodes[currentEpisodeIndex - 1] : null;
+  const nextEpisode =
+    currentEpisodeIndex >= 0 && currentEpisodeIndex < orderedEpisodes.length - 1
+      ? orderedEpisodes[currentEpisodeIndex + 1]
+      : null;
 
   return withContentWarningSurface(
     withSettingsTopBridge(
@@ -214,6 +227,20 @@ export default async function ReadEpisodeLayout({
         workAuthorName={attribution.authorName}
         workEditorName={attribution.editorName}
         sourceLanguage={sourceLanguage}
+        hasMultipleEpisodes={hasMultipleEpisodes}
+        workIndexHref={
+          hasMultipleEpisodes ? `/works/${encodeURIComponent(seriesId)}` : null
+        }
+        prevEpisodeHref={
+          previousEpisode
+            ? `/read/${encodeURIComponent(seriesId)}/${getEpisodeNumber(previousEpisode)}`
+            : null
+        }
+        nextEpisodeHref={
+          nextEpisode
+            ? `/read/${encodeURIComponent(seriesId)}/${getEpisodeNumber(nextEpisode)}`
+            : null
+        }
       >
         {children}
       </ReadBilingualShell>

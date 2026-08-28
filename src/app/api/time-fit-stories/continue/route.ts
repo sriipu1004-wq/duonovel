@@ -42,6 +42,7 @@ type SeriesRow = {
   description?: string | null;
   catch_copy?: string | null;
   author_id?: string | null;
+  user_id?: string | null;
   tags?: unknown;
   effect_settings?: unknown;
 };
@@ -51,6 +52,7 @@ type EpisodeRow = {
   title?: string | null;
   body?: string | null;
   episode_number?: number | null;
+  episodeNumber?: number | null;
 };
 
 type OpenAIResponseBody = {
@@ -224,7 +226,7 @@ function parseRequest(payload: Record<string, unknown>): ContinueRequest {
       ? Number(payload.requestedMinutes)
       : payload.requestedMinutes;
 
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(seriesId)) {
+  if (!/^[a-z0-9][a-z0-9_-]{0,99}$/iu.test(seriesId)) {
     throw new Error("作品IDが不正です。");
   }
 
@@ -258,12 +260,13 @@ function isAiGeneratedSeries(series: SeriesRow): boolean {
   return (
     settings?.source === "time_fit_ai_story" ||
     settings?.aiGenerated === true ||
+    settings?.authorName === "AI生成" ||
     readTagList(series.tags).includes("AI生成")
   );
 }
 
 function getEpisodeNumber(episode: EpisodeRow): number {
-  const value = episode.episode_number;
+  const value = episode.episode_number ?? episode.episodeNumber;
   return typeof value === "number" && Number.isFinite(value)
     ? Math.max(0, Math.floor(value))
     : 0;
@@ -697,26 +700,59 @@ export async function POST(request: Request) {
     );
   }
 
-  const seriesResult = await adminSupabase
-    .from("series")
-    .select("id, title, summary, description, catch_copy, author_id, tags, effect_settings")
-    .eq("id", generationRequest.seriesId)
-    .maybeSingle();
+  const seriesSelect =
+    "id, title, summary, description, catch_copy, author_id, user_id, tags, effect_settings";
+  const isCanonicalSeriesId =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+      generationRequest.seriesId
+    );
+  let series: SeriesRow | null = null;
 
-  if (seriesResult.error || !seriesResult.data) {
+  if (isCanonicalSeriesId) {
+    const directResult = await adminSupabase
+      .from("series")
+      .select(seriesSelect)
+      .eq("id", generationRequest.seriesId)
+      .maybeSingle();
+    if (!directResult.error && directResult.data) {
+      series = directResult.data as SeriesRow;
+    }
+  }
+
+  if (!series) {
+    for (const ownerColumn of ["author_id", "user_id"] as const) {
+      const legacyResult = await adminSupabase
+        .from("series")
+        .select(seriesSelect)
+        .eq(ownerColumn, user.id)
+        .contains("effect_settings", {
+          source: "time_fit_ai_story",
+          generatedStoryId: generationRequest.seriesId,
+        })
+        .limit(1)
+        .maybeSingle();
+      if (!legacyResult.error && legacyResult.data) {
+        series = legacyResult.data as SeriesRow;
+        break;
+      }
+    }
+  }
+
+  if (!series) {
     return NextResponse.json(
       { ok: false, error: "series_not_found", message: "作品が見つかりません。" },
       { status: 404 }
     );
   }
 
-  const series = seriesResult.data as SeriesRow;
-  if (series.author_id !== user.id) {
+  if (series.author_id !== user.id && series.user_id !== user.id) {
     return NextResponse.json(
       { ok: false, error: "not_owner", message: "この作品の続きを作る権限がありません。" },
       { status: 403 }
     );
   }
+
+  generationRequest = { ...generationRequest, seriesId: series.id };
 
   if (!isAiGeneratedSeries(series)) {
     return NextResponse.json(
@@ -731,14 +767,26 @@ export async function POST(request: Request) {
     .eq("series_id", generationRequest.seriesId)
     .order("episode_number", { ascending: true });
 
-  if (episodesResult.error || !episodesResult.data?.length) {
+  const compatibleEpisodesResult =
+    episodesResult.error || !episodesResult.data?.length
+      ? await adminSupabase
+          .from("episodes")
+          .select("*")
+          .eq("seriesId", generationRequest.seriesId)
+          .order("episodeNumber", { ascending: true })
+      : episodesResult;
+
+  if (
+    compatibleEpisodesResult.error ||
+    !compatibleEpisodesResult.data?.length
+  ) {
     return NextResponse.json(
       { ok: false, error: "episode_not_found", message: "続きの元になる話が見つかりません。" },
       { status: 404 }
     );
   }
 
-  const episodes = episodesResult.data as EpisodeRow[];
+  const episodes = compatibleEpisodesResult.data as EpisodeRow[];
   const latestEpisode = episodes[episodes.length - 1];
   const latestEpisodeNumber = getEpisodeNumber(latestEpisode);
   const latestBody = readText(latestEpisode.body);

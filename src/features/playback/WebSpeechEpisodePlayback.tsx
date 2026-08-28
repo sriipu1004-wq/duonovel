@@ -31,6 +31,18 @@ import {
 import EpisodeCommentSection from "@/features/comment/EpisodeCommentSection";
 import { trackSeriesViewOnce } from "@/lib/popularityEvents";
 import { buildNemoAlignedParagraphBlocks } from "@/lib/recording/humanTimingShared";
+import {
+  readReadingBookmark,
+  writeReadingBookmark,
+} from "@/lib/playback/readingBookmark";
+import {
+  readNarrationStopped as readGlobalNarrationStopped,
+  readWebSpeechDisplaySettings,
+  readWebSpeechSettings,
+  writeNarrationStopped as writeGlobalNarrationStopped,
+  writeWebSpeechDisplaySettings,
+  writeWebSpeechSettings,
+} from "@/lib/playback/webSpeechPreferences";
 
 type SpeechVoiceOption = {
   voiceURI: string;
@@ -77,6 +89,7 @@ type EpisodePlaybackProps = {
   nextEpisodeHref?: string | null;
   nextEpisodeNumber?: number | null;
   workIndexHref?: string | null;
+  workIndexLabel?: string;
   initialAutoPlay?: boolean;
   loginHref?: string;
   showComments?: boolean;
@@ -84,15 +97,7 @@ type EpisodePlaybackProps = {
   ownerActions?: ReactNode;
   speechLanguage?: string;
   trackPopularity?: boolean;
-};
-
-type BookmarkData = {
-  seriesId: string;
-  episodeNumber: number;
-  unitIndex: number;
-  readerKey?: string;
-  readerName?: string;
-  savedAt: string;
+  constrainBodyScroll?: boolean;
 };
 
 const PLAYER_ICON_PATHS = {
@@ -148,71 +153,16 @@ function normalizeAudioSource(value?: string | null): string {
   return "";
 }
 
-function getNarrationStoppedStorageKey(seriesId: string): string {
-  return `duonovel:web-speech-stopped:${seriesId}`;
-}
-
 function readStoredNarrationStopped(seriesId: string): boolean {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  try {
-    return window.localStorage.getItem(getNarrationStoppedStorageKey(seriesId)) === "true";
-  } catch {
-    return false;
-  }
+  return readGlobalNarrationStopped(seriesId);
 }
 
 function writeStoredNarrationStopped(seriesId: string, value: boolean): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(
-      getNarrationStoppedStorageKey(seriesId),
-      value ? "true" : "false"
-    );
-  } catch {
-    // preference persistence is non-critical
-  }
+  writeGlobalNarrationStopped(seriesId, value);
 }
 
 function readStoredDisplayPreference(seriesId: string): DisplayPreference {
-  if (typeof window === "undefined") {
-    return DEFAULT_DISPLAY_PREFERENCE;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(`duonovel:web-speech-display:${seriesId}`);
-    if (!raw) return DEFAULT_DISPLAY_PREFERENCE;
-
-    const parsed = JSON.parse(raw) as Partial<DisplayPreference>;
-
-    return {
-      fontScale:
-        typeof parsed.fontScale === "number"
-          ? clampFontScale(parsed.fontScale)
-          : DEFAULT_DISPLAY_PREFERENCE.fontScale,
-      lineHeight:
-        parsed.lineHeight === "compact" ||
-        parsed.lineHeight === "normal" ||
-        parsed.lineHeight === "wide"
-          ? parsed.lineHeight
-          : DEFAULT_DISPLAY_PREFERENCE.lineHeight,
-      hideEffects:
-        typeof parsed.hideEffects === "boolean"
-          ? parsed.hideEffects
-          : DEFAULT_DISPLAY_PREFERENCE.hideEffects,
-      showMarker:
-        typeof parsed.showMarker === "boolean"
-          ? parsed.showMarker
-          : DEFAULT_DISPLAY_PREFERENCE.showMarker,
-    };
-  } catch {
-    return DEFAULT_DISPLAY_PREFERENCE;
-  }
+  return readWebSpeechDisplaySettings(seriesId);
 }
 
 function readStoredSpeechSettings(seriesId: string): {
@@ -222,47 +172,7 @@ function readStoredSpeechSettings(seriesId: string): {
   rate: number;
   autoAdvance: boolean;
 } {
-  if (typeof window === "undefined") {
-    return {
-      voiceURI: "",
-      pitch: 1,
-      volume: 1,
-      rate: 1,
-      autoAdvance: true,
-    };
-  }
-
-  try {
-    const raw = window.localStorage.getItem(`duonovel:web-speech-settings:${seriesId}`);
-    if (!raw) {
-      return {
-        voiceURI: "",
-        pitch: 1,
-        volume: 1,
-        rate: 1,
-        autoAdvance: true,
-      };
-    }
-
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-
-    return {
-      voiceURI:
-        typeof parsed.voiceURI === "string" ? parsed.voiceURI : "",
-      pitch: clampSpeechPitch(Number(parsed.pitch ?? 1)),
-      volume: clampVolume(Number(parsed.volume ?? 1)),
-      rate: clampPlaybackRate(Number(parsed.rate ?? 1)),
-      autoAdvance: parsed.autoAdvance !== false,
-    };
-  } catch {
-    return {
-      voiceURI: "",
-      pitch: 1,
-      volume: 1,
-      rate: 1,
-      autoAdvance: true,
-    };
-  }
+  return readWebSpeechSettings(seriesId);
 }
 
 function splitForSpeech(text: string, speechLanguage: string): string[] {
@@ -424,6 +334,7 @@ export default function WebSpeechEpisodePlayback({
   nextEpisodeHref,
   nextEpisodeNumber,
   workIndexHref,
+  workIndexLabel = "作品ページ（目次）",
   initialAutoPlay = false,
   loginHref,
   showComments = true,
@@ -431,6 +342,7 @@ export default function WebSpeechEpisodePlayback({
   ownerActions,
   speechLanguage = "ja-JP",
   trackPopularity = true,
+  constrainBodyScroll = false,
 }: EpisodePlaybackProps) {
   const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -442,6 +354,7 @@ export default function WebSpeechEpisodePlayback({
   const selectedVoiceURIRef = useRef("");
   const initialAutoPlayRef = useRef(false);
   const bookmarkToastTimeoutRef = useRef<number | null>(null);
+  const initialBookmarkScrollRef = useRef<string | null>(null);
 
   const speechSettings = useMemo(
     () => readStoredSpeechSettings(seriesId),
@@ -464,7 +377,6 @@ export default function WebSpeechEpisodePlayback({
   const [autoAdvanceToNext, setAutoAdvanceToNext] = useState(
     speechSettings.autoAdvance
   );
-  const [isBookmarkPanelExpanded, setIsBookmarkPanelExpanded] = useState(false);
   const [isCurrentEpisodeBookmarked, setIsCurrentEpisodeBookmarked] =
     useState(false);
   const [bookmarkMessage, setBookmarkMessage] = useState("");
@@ -680,20 +592,13 @@ export default function WebSpeechEpisodePlayback({
     speechVolumeRef.current = speechVolume;
     selectedVoiceURIRef.current = selectedVoiceURI;
 
-    try {
-      window.localStorage.setItem(
-        `duonovel:web-speech-settings:${seriesId}`,
-        JSON.stringify({
-          voiceURI: selectedVoiceURI,
-          pitch: speechPitch,
-          volume: speechVolume,
-          rate: playbackRate,
-          autoAdvance: autoAdvanceToNext,
-        })
-      );
-    } catch {
-      // preference persistence is non-critical
-    }
+    writeWebSpeechSettings({
+      voiceURI: selectedVoiceURI,
+      pitch: speechPitch,
+      volume: speechVolume,
+      rate: playbackRate,
+      autoAdvance: autoAdvanceToNext,
+    });
   }, [
     seriesId,
     selectedVoiceURI,
@@ -704,15 +609,8 @@ export default function WebSpeechEpisodePlayback({
   ]);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        `duonovel:web-speech-display:${seriesId}`,
-        JSON.stringify(displayPreference)
-      );
-    } catch {
-      // preference persistence is non-critical
-    }
-  }, [seriesId, displayPreference]);
+    writeWebSpeechDisplaySettings(displayPreference);
+  }, [displayPreference]);
 
   useEffect(() => {
     writeStoredNarrationStopped(seriesId, isNarrationStopped);
@@ -726,18 +624,20 @@ export default function WebSpeechEpisodePlayback({
       normalizedHumanNarrationOptions[0] ??
       null;
 
-    setSelectedHumanRecordingId(initialOption?.recordingId ?? "");
-    setNarrationSource("browser");
-    setIsNarrationStopped(readStoredNarrationStopped(seriesId));
-    setIsPlaying(false);
-    setHumanCurrentTime(0);
-    setHumanDuration(0);
-    setActiveUnitIndex(0);
-
     speechRunIdRef.current += 1;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
+    const timer = window.setTimeout(() => {
+      setSelectedHumanRecordingId(initialOption?.recordingId ?? "");
+      setNarrationSource("browser");
+      setIsNarrationStopped(readStoredNarrationStopped(seriesId));
+      setIsPlaying(false);
+      setHumanCurrentTime(0);
+      setHumanDuration(0);
+      setActiveUnitIndex(0);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [
     episodeId,
     humanRecordingId,
@@ -746,29 +646,47 @@ export default function WebSpeechEpisodePlayback({
   ]);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(`duonovel:bookmark:${seriesId}`);
-      const parsed = raw ? (JSON.parse(raw) as Partial<BookmarkData>) : null;
+    const timer = window.setTimeout(() => {
+      try {
+        const parsed = readReadingBookmark(seriesId);
+        const sameEpisode = Number(parsed?.episodeNumber) === episodeNumber;
+        const sameReader =
+          (parsed?.readerKey ?? "") === (selectedReaderKey ?? "") &&
+          (parsed?.readerName ?? "") === (selectedReaderName ?? "");
 
-      const sameEpisode = Number(parsed?.episodeNumber) === episodeNumber;
-      const sameReader =
-        (parsed?.readerKey ?? "") === (selectedReaderKey ?? "") &&
-        (parsed?.readerName ?? "") === (selectedReaderName ?? "");
+        setIsCurrentEpisodeBookmarked(Boolean(sameEpisode && sameReader));
 
-      setIsCurrentEpisodeBookmarked(Boolean(sameEpisode && sameReader));
-
-      if (
-        sameEpisode &&
-        sameReader &&
-        typeof parsed?.unitIndex === "number" &&
-        Number.isFinite(parsed.unitIndex)
-      ) {
-        setActiveUnitIndex(parsed.unitIndex);
+        if (
+          sameEpisode &&
+          sameReader &&
+          typeof parsed?.positionIndex === "number" &&
+          Number.isFinite(parsed.positionIndex)
+        ) {
+          setActiveUnitIndex(parsed.positionIndex);
+          initialBookmarkScrollRef.current = `${seriesId}:${episodeNumber}:${parsed.positionIndex}`;
+        }
+      } catch {
+        setIsCurrentEpisodeBookmarked(false);
       }
-    } catch {
-      setIsCurrentEpisodeBookmarked(false);
-    }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [seriesId, episodeNumber, selectedReaderKey, selectedReaderName]);
+
+  useEffect(() => {
+    const restoreKey = initialBookmarkScrollRef.current;
+    if (!restoreKey || speechUnits.length === 0) return;
+    initialBookmarkScrollRef.current = null;
+    const bookmark = readReadingBookmark(seriesId);
+    if (!bookmark || bookmark.episodeNumber !== episodeNumber) return;
+    const targetIndex = Math.min(bookmark.positionIndex, maxUnitIndex);
+    window.requestAnimationFrame(() => {
+      let node = sentenceRefs.current[targetIndex] ?? null;
+      for (let index = targetIndex; !node && index >= 0; index -= 1) {
+        node = sentenceRefs.current[index] ?? null;
+      }
+      node?.scrollIntoView({ behavior: "auto", block: "start" });
+    });
+  }, [episodeNumber, maxUnitIndex, seriesId, speechUnits.length]);
 
   useEffect(() => {
     if (!displayPreference.showMarker || !autoFollow || !isPlaying) {
@@ -1054,22 +972,16 @@ export default function WebSpeechEpisodePlayback({
 
   function handleSaveBookmark() {
     try {
-      const payload: BookmarkData = {
+      writeReadingBookmark({
         seriesId,
         episodeNumber,
-        unitIndex: markerUnitIndex,
+        positionIndex: markerUnitIndex,
         readerKey: selectedReaderKey,
         readerName: selectedReaderName,
-        savedAt: new Date().toISOString(),
-      };
-
-      window.localStorage.setItem(
-        `duonovel:bookmark:${seriesId}`,
-        JSON.stringify(payload)
-      );
+      });
 
       setIsCurrentEpisodeBookmarked(true);
-      setBookmarkMessage("しおりを保存した");
+      setBookmarkMessage("ブックマーク保存をしました");
 
       if (bookmarkToastTimeoutRef.current) {
         window.clearTimeout(bookmarkToastTimeoutRef.current);
@@ -1079,7 +991,7 @@ export default function WebSpeechEpisodePlayback({
         setBookmarkMessage("");
       }, 1800);
     } catch {
-      setBookmarkMessage("しおり保存に失敗した。");
+      setBookmarkMessage("ブックマークを保存できませんでした");
     }
   }
 
@@ -1160,9 +1072,10 @@ export default function WebSpeechEpisodePlayback({
             {workIndexHref ? (
               <Link
                 href={workIndexHref}
+                aria-label={`${safeSeriesTitle}の${workIndexLabel}へ`}
                 className="mt-3 inline-flex text-sm text-neutral-600 transition hover:text-black"
               >
-                {safeSeriesTitle}
+                {safeSeriesTitle} · {workIndexLabel}
               </Link>
             ) : (
               <p className="mt-3 text-sm text-neutral-600">{safeSeriesTitle}</p>
@@ -1512,11 +1425,6 @@ export default function WebSpeechEpisodePlayback({
               </div>
             ) : null}
 
-            {bookmarkMessage ? (
-              <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-black">
-                {bookmarkMessage}
-              </div>
-            ) : null}
           </div>
 
           <div className="px-5 py-8 sm:px-8 sm:py-10">
@@ -1525,7 +1433,14 @@ export default function WebSpeechEpisodePlayback({
                 設定表示中。本文は一時的に隠れている。
               </div>
             ) : (
-              <div className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6">
+              <div
+                className={[
+                  "rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6",
+                  constrainBodyScroll
+                    ? "max-h-[70dvh] overflow-y-auto overscroll-contain"
+                    : "",
+                ].join(" ")}
+              >
                 {!displayPreference.hideEffects &&
                 appliedEffectSettings.illustrations.length > 0 ? (
                   <div className="mb-6 grid gap-4">
@@ -1621,46 +1536,6 @@ export default function WebSpeechEpisodePlayback({
 
       <div className="fixed inset-x-0 bottom-0 border-t border-black/10 bg-white/92 backdrop-blur">
         <div className="mx-auto max-w-3xl px-4 py-3 sm:px-6">
-          {isBookmarkPanelExpanded ? (
-            <div className="mb-3 rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-black">栞</p>
-                  <p className="mt-1 text-xs leading-6 text-neutral-500">
-                    現在の読み上げ位置を、この端末に保存する。
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsBookmarkPanelExpanded(false)}
-                  className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-                >
-                  閉じる
-                </button>
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleSaveBookmark}
-                  className={[
-                    "rounded-full border px-4 py-2 text-sm font-medium transition",
-                    isCurrentEpisodeBookmarked
-                      ? "border-sky-200 bg-sky-50 text-black hover:bg-sky-100"
-                      : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                  ].join(" ")}
-                >
-                  {isCurrentEpisodeBookmarked
-                    ? "ブックマーク保存済み"
-                    : "現在位置をブックマーク保存"}
-                </button>
-                <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-xs text-neutral-600">
-                  現在 {currentPositionLabel}
-                </span>
-              </div>
-            </div>
-          ) : null}
-
           <div className="rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
               <span>{currentPositionLabel}</span>
@@ -1685,16 +1560,26 @@ export default function WebSpeechEpisodePlayback({
           </div>
 
           <div className="mt-3 grid w-full grid-cols-7 gap-2">
-            <FooterActionButton
-              label={isBookmarkPanelExpanded ? "栞\nOPEN" : "栞"}
-              iconSrc={
-                isCurrentEpisodeBookmarked
-                  ? PLAYER_ICON_PATHS.bookmarkFilled
-                  : PLAYER_ICON_PATHS.bookmark
-              }
-              active={isBookmarkPanelExpanded}
-              onClick={() => setIsBookmarkPanelExpanded((prev) => !prev)}
-            />
+            <div className="relative">
+              {bookmarkMessage ? (
+                <span
+                  role="status"
+                  className="absolute bottom-full left-1/2 z-10 mb-2 w-max max-w-56 -translate-x-1/2 rounded-full bg-black px-3 py-1.5 text-center text-xs text-white shadow-lg"
+                >
+                  {bookmarkMessage}
+                </span>
+              ) : null}
+              <FooterActionButton
+                label="栞"
+                iconSrc={
+                  isCurrentEpisodeBookmarked
+                    ? PLAYER_ICON_PATHS.bookmarkFilled
+                    : PLAYER_ICON_PATHS.bookmark
+                }
+                active={isCurrentEpisodeBookmarked}
+                onClick={handleSaveBookmark}
+              />
+            </div>
             <FooterPlaybackRateControl
               value={playbackRate}
               onDecrease={() => updatePlaybackRate(playbackRate - 0.1)}

@@ -5,7 +5,10 @@ import { useState, type FormEvent } from "react";
 import PromptTagSuggestions from "@/features/generation/PromptTagSuggestions";
 import { getPromptTagsInText } from "@/lib/generation/promptTags";
 import { useAiUsage } from "@/features/usage/useAiUsage";
-import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
+import {
+  formatAiUsage,
+  isAiUsageLimitReached,
+} from "@/lib/aiUsage/aiUsage";
 
 type TimeMinutes = 5 | 10 | 15 | 20;
 
@@ -220,9 +223,7 @@ export default function ContinueStoryAction({
               type="submit"
               disabled={
                 isGenerating ||
-                (aiUsage?.actions.story_generation.limit !== undefined &&
-                  aiUsage.actions.story_generation.used >=
-                    aiUsage.actions.story_generation.limit)
+                isAiUsageLimitReached(aiUsage?.actions.story_generation)
               }
               className="min-h-11 rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -274,9 +275,7 @@ export default function ContinueStoryAction({
                 onClick={() => void generateContinuation()}
                 disabled={
                   isGenerating ||
-                  (aiUsage?.actions.story_generation.limit !== undefined &&
-                    aiUsage.actions.story_generation.used >=
-                      aiUsage.actions.story_generation.limit)
+                  isAiUsageLimitReached(aiUsage?.actions.story_generation)
                 }
                 className="min-h-11 rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-50"
               >

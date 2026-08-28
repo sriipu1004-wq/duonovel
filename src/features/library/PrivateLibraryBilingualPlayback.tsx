@@ -21,7 +21,11 @@ import {
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { useAiUsage } from "@/features/usage/useAiUsage";
-import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
+import {
+  formatAiUsage,
+  isAiUsageLimitReached,
+} from "@/lib/aiUsage/aiUsage";
+import { readReadingBookmark } from "@/lib/playback/readingBookmark";
 
 type TranslationStatus =
   | "loading"
@@ -56,6 +60,8 @@ type PrivateLibraryBilingualPlaybackProps = {
   sourceLanguage: SupportedLanguageTag;
   initialTargetLanguage: SupportedLanguageTag;
   workIndexHref: string;
+  previousChapterHref: string | null;
+  nextChapterHref: string | null;
   nextChapterId: string | null;
   isSubscriber: boolean;
   autoGenerateMissingTranslation: boolean;
@@ -109,9 +115,11 @@ function readPreference(
   if (typeof window === "undefined") return fallback;
 
   try {
-    const raw = window.localStorage.getItem(
-      "duonovel:private-library-bilingual-display:" + workId
-    );
+    const raw =
+      window.localStorage.getItem("duonovel:bilingual-display") ??
+      window.localStorage.getItem(
+        "duonovel:private-library-bilingual-display:" + workId
+      );
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<BilingualPreference>;
     return {
@@ -144,6 +152,8 @@ export default function PrivateLibraryBilingualPlayback({
   sourceLanguage,
   initialTargetLanguage,
   workIndexHref,
+  previousChapterHref,
+  nextChapterHref,
   nextChapterId,
   isSubscriber,
   autoGenerateMissingTranslation,
@@ -175,6 +185,7 @@ export default function PrivateLibraryBilingualPlayback({
   const [sourceHash, setSourceHash] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
+  const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
   const [prefetchEligibleChapterId, setPrefetchEligibleChapterId] = useState<
     string | null
   >(null);
@@ -189,6 +200,7 @@ export default function PrivateLibraryBilingualPlayback({
   const generationInFlightRef = useRef(false);
   const readingSegmentIdRef = useRef<string | null>(null);
   const targetLanguageRef = useRef<SupportedLanguageTag>(preference.targetLanguage);
+  const restoredBookmarkKeyRef = useRef<string | null>(null);
   const nextPrefetchAttemptRef = useRef<{
     sourceChapterId: string;
     targetLanguage: SupportedLanguageTag;
@@ -218,13 +230,29 @@ export default function PrivateLibraryBilingualPlayback({
   useEffect(() => {
     try {
       window.localStorage.setItem(
-        "duonovel:private-library-bilingual-display:" + workId,
+        "duonovel:bilingual-display",
         JSON.stringify({ splitRatio, upperPane, readerHeight, targetLanguage })
       );
     } catch {
       // local display preference persistence is non-critical
     }
   }, [readerHeight, splitRatio, targetLanguage, upperPane, workId]);
+
+  useEffect(() => {
+    if (translationStatus !== "ready" || segments.length === 0) return;
+    const restoreKey = `${chapterNumber}:${sourceHash ?? "ready"}`;
+    if (restoredBookmarkKeyRef.current === restoreKey) return;
+    restoredBookmarkKeyRef.current = restoreKey;
+    const bookmark = readReadingBookmark(`private-library:${workId}`);
+    if (!bookmark || bookmark.episodeNumber !== chapterNumber) return;
+    const index = Math.min(bookmark.positionIndex, segments.length - 1);
+    const id = segments[index]?.id;
+    if (!id) return;
+    readingSegmentIdRef.current = id;
+    setCurrentPositionIndex(index);
+    setSelectedSegmentId(id);
+    window.requestAnimationFrame(() => alignSegmentToTop(id));
+  }, [chapterNumber, segments, sourceHash, translationStatus, workId]);
 
   const requestTranslationGeneration = useCallback(async () => {
     if (generationInFlightRef.current) return false;
@@ -553,8 +581,33 @@ export default function PrivateLibraryBilingualPlayback({
     });
   }
 
+  function alignSegmentToTop(id: string) {
+    const align = (
+      container: HTMLDivElement | null,
+      node: HTMLSpanElement | null
+    ) => {
+      if (!container || !node) return;
+      const containerRect = container.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      container.scrollTo({
+        top: Math.max(0, container.scrollTop + nodeRect.top - containerRect.top),
+        behavior: "auto",
+      });
+    };
+    align(
+      sourceScrollRef.current,
+      sourceSegmentRefs.current.get(id) ?? null
+    );
+    align(
+      targetScrollRef.current,
+      targetSegmentRefs.current.get(id) ?? null
+    );
+  }
+
   function handleSelectSegment(id: string) {
     readingSegmentIdRef.current = id;
+    const index = segments.findIndex((segment) => segment.id === id);
+    if (index >= 0) setCurrentPositionIndex(index);
     setSelectedSegmentId(id);
     centerSegment(id);
   }
@@ -563,6 +616,7 @@ export default function PrivateLibraryBilingualPlayback({
     readingSegmentIdRef.current = id;
 
     const segmentIndex = segments.findIndex((segment) => segment.id === id);
+    if (segmentIndex >= 0) setCurrentPositionIndex(segmentIndex);
     const progressRatio =
       segmentIndex >= 0 && segments.length > 0
         ? (segmentIndex + 1) / segments.length
@@ -634,9 +688,10 @@ export default function PrivateLibraryBilingualPlayback({
                 </p>
                 <Link
                   href={workIndexHref}
+                  aria-label={`${workTitle || "無題"}の作品目次へ`}
                   className="mt-2 inline-flex text-sm text-neutral-600 hover:text-black"
                 >
-                  {workTitle || "無題"}
+                  {workTitle || "無題"} · 作品目次
                 </Link>
                 <h1 className="mt-1 text-xl font-semibold text-black sm:text-2xl">
                   {chapterTitle || `第${chapterNumber}話`}
@@ -852,9 +907,9 @@ export default function PrivateLibraryBilingualPlayback({
                     onClick={() => void requestTranslationGeneration()}
                     disabled={
                       isGenerating ||
-                      (aiUsage?.actions.translation_generation.limit !== undefined &&
-                        aiUsage.actions.translation_generation.used >=
-                          aiUsage.actions.translation_generation.limit)
+                      isAiUsageLimitReached(
+                        aiUsage?.actions.translation_generation
+                      )
                     }
                     className="mt-5 rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -889,7 +944,19 @@ export default function PrivateLibraryBilingualPlayback({
             ) : null}
           </div>
         ) : null}
-        <BilingualStoppedFooter />
+        <BilingualStoppedFooter
+          seriesId={`private-library:${workId}`}
+          episodeNumber={chapterNumber}
+          positionIndex={currentPositionIndex}
+          prevHref={previousChapterHref}
+          nextHref={nextChapterHref}
+          splitRatio={splitRatio}
+          upperPane={upperPane}
+          readerHeight={readerHeight}
+          onSplitRatioChange={setSplitRatio}
+          onSwapLanguages={handleSwapLanguages}
+          onResetReaderHeight={() => setReaderHeight(null)}
+        />
       </div>
     </main>
   );

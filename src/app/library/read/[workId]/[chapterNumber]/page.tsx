@@ -116,6 +116,15 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
         authorName={work.author_name || undefined}
         sourceLanguage={sourceLanguage}
         workIndexHref={workIndexHref}
+        previousChapterHref={
+          previousNumber
+            ? buildPrivateLibraryReadHref(work.id, previousNumber)
+            : null
+        }
+        nextChapterHref={
+          nextNumber ? buildPrivateLibraryReadHref(work.id, nextNumber) : null
+        }
+        hasMultipleChapters={work.section_count > 1}
         nextChapterId={nextChapter?.id ?? null}
         isSubscriber={subscriber}
       >
@@ -139,9 +148,11 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
           }
           nextEpisodeNumber={nextNumber}
           workIndexHref={workIndexHref}
+          workIndexLabel="作品目次"
           showComments={false}
           speechLanguage={language.speechLanguage}
           trackPopularity={false}
+          constrainBodyScroll
         />
       </PrivateLibraryBilingualShell>
     </>

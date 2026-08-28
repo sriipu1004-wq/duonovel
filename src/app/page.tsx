@@ -10,10 +10,10 @@ import PublicAdSlot from "@/components/ads/PublicAdSlot";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 
 const HOME_DESCRIPTION =
-  "空いた時間に合わせたAI短編の生成、Web小説の閲覧・投稿、読み上げ、英日対訳に対応。読む・聴く・学ぶをひとつにした読書サービスです。";
+  "外国語の長編を管理して読む個人本棚、多言語対訳、読み上げ、AI物語生成、Web小説の閲覧・投稿に対応した読書サービスです。";
 
 export const metadata: Metadata = {
-  title: "AI短編・Web小説・読み上げ・英日対訳 | LIB read",
+  title: "個人本棚・多言語対訳・AI物語・Web小説 | LIB read",
   description: HOME_DESCRIPTION,
   alternates: {
     canonical: "/",
@@ -301,19 +301,20 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
           <div className="max-w-5xl">
             <p className="text-[11px] tracking-[0.24em] text-neutral-500">NOVEL / READ / LISTEN / LEARN</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">完全無料</span>
-              <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">小説 / 読み上げ / AI生成 / 英日対訳</span>
+              <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">無料枠あり</span>
+              <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">個人本棚 / 多言語対訳 / 読み上げ / AI生成</span>
             </div>
             <h1 className="mt-4 text-3xl font-bold leading-tight text-black sm:text-4xl xl:text-5xl">
               読む、聴く、学ぶ。
               <br />
-              空いた時間に合わせて物語を。AI短編の生成、Web小説、読み上げ、英日対訳に対応。
+              外国語の長編を、自分の本棚で読み続ける。多言語対訳、読み上げ、AI物語、Web小説にも対応。
             </h1>
             <p className="mt-5 max-w-4xl text-sm leading-8 text-neutral-700 sm:text-[15px]">
-              LIB read は、空いた時間に合わせたAI短編の生成、Web小説の閲覧・投稿、読み上げ、英日対訳に対応した読書サービスです。
+              PDF・EPUB・TXT・DOCXを作品単位で取り込み、章・話ごとの読書位置、対訳、栞を管理できます。公開作品を読む・聴く・投稿する機能と、時間に合わせたAI物語生成も同じ場所で利用できます。
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/generate" className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800">物語を生成する</Link>
+              <Link href="/library" className="rounded-full border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-medium text-violet-900 transition hover:bg-violet-100">個人本棚を開く</Link>
               <Link href="/search" className="rounded-full border border-black/10 bg-neutral-100 px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-200">作品を探す</Link>
               <Link href="/write" className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-medium text-black transition hover:bg-sky-100">作品を投稿する</Link>
               <Link href="/record" className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50">作品を朗読する</Link>
@@ -336,23 +337,23 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
           <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
             <p className="text-[11px] tracking-[0.22em] text-neutral-500">WHY LIB READ</p>
             <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">LIB read の特徴</h2>
-            <p className="mt-2 text-sm leading-7 text-neutral-600">読む・聴く・作る・学ぶを、ひとつの物語体験として扱う。</p>
-            <div className="mt-5 grid gap-3 lg:grid-cols-4">
+            <p className="mt-2 text-sm leading-7 text-neutral-600">長編を読む・聴く・作る・学ぶための機能を、作品単位で管理する。</p>
+            <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">AI生成</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">5分・10分・15分・20分など、空いている時間や気分に合わせてその場で短編を生成できる。</p>
+                <p className="text-sm font-semibold text-black">個人本棚</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">自分で用意したPDF・EPUB・TXT・DOCXを取り込み、長編を章・話単位で管理して続きから読める。</p>
               </div>
               <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">Web小説</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">投稿された作品を探して読み、自分の作品も投稿できる。</p>
+                <p className="text-sm font-semibold text-black">多言語対訳</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">原文と訳文を上下で同期し、語の意味・品詞も確認できる。保存済み対訳は再利用する。</p>
               </div>
               <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">読み上げ・朗読</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">ブラウザ読み上げや投稿された朗読で、画面を見続けなくても物語を楽しめる。</p>
+                <p className="text-sm font-semibold text-black">読み上げ・栞</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">ブラウザ読み上げと投稿朗読に対応。読書位置や栞、表示・朗読設定を保持する。</p>
               </div>
               <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">英日対訳</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">日本語と英語を上下で同期して読み、物語を楽しみながら英語学習にも使える。</p>
+                <p className="text-sm font-semibold text-black">AI物語・投稿</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">読む時間に合わせた物語を生成し、保存後は作品ワークスペースで編集・続編生成・投稿ができる。</p>
               </div>
             </div>
           </div>
@@ -406,9 +407,9 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
         <section id="home-ad-slot" className="pt-12"><PublicAdSlot slotId="home-bottom" minHeightClassName="min-h-[88px]" /></section>
         <section id="home-links" className="pt-6">
           <div className="border-t border-black/10 pt-4 text-[11px] leading-6 text-neutral-500">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">（使い方・取り扱い説明）</span><Link href="/guide" className="transition hover:text-black">使い方</Link><Link href="/faq" className="transition hover:text-black">FAQ</Link></div>
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">（運営状況・お知らせ）</span><Link href="/status" className="transition hover:text-black">運営状況</Link><Link href="/news" className="transition hover:text-black">お知らせ</Link></div>
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">（規約・お問い合わせ）</span><Link href="/terms" className="transition hover:text-black">利用規約</Link><Link href="/privacy" className="transition hover:text-black">プライバシーポリシー</Link><Link href="/contact" className="transition hover:text-black">お問い合わせ</Link></div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">サービス案内</span><Link href="/guide" className="transition hover:text-black">使い方</Link><Link href="/faq" className="transition hover:text-black">FAQ</Link></div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">運営情報</span><Link href="/status" className="transition hover:text-black">運営状況</Link><Link href="/news" className="transition hover:text-black">お知らせ</Link></div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">規約・連絡</span><Link href="/terms" className="transition hover:text-black">利用規約</Link><Link href="/privacy" className="transition hover:text-black">プライバシーポリシー</Link><Link href="/contact" className="transition hover:text-black">お問い合わせ</Link></div>
           </div>
         </section>
       </div>
