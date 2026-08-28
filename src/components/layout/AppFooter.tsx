@@ -8,6 +8,7 @@ const serviceLinks = [
   { href: "/faq", label: "よくある質問" },
   { href: "/status", label: "運営状況" },
   { href: "/news", label: "お知らせ" },
+  { href: "/subscription", label: "サブスク" },
 ];
 
 const legalLinks = [

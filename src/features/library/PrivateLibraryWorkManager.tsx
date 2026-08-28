@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import PrivateLibraryDeleteButton from "@/features/library/PrivateLibraryDeleteButton";
 
 type Props = {
   workId: string;
@@ -47,35 +48,6 @@ export default function PrivateLibraryWorkManager({
     }
   }
 
-  async function deleteWork() {
-    if (
-      busy ||
-      !window.confirm(
-        "この作品の原文、読書進捗、生成済み対訳、作品用語をすべて削除します。元に戻せません。削除しますか？"
-      )
-    ) {
-      return;
-    }
-    setBusy(true);
-    setMessage("");
-    try {
-      const response = await fetch(
-        `/api/library/works/${encodeURIComponent(workId)}`,
-        { method: "DELETE" }
-      );
-      if (!response.ok) {
-        setMessage("作品を削除できませんでした。");
-        return;
-      }
-      router.push("/library");
-      router.refresh();
-    } catch {
-      setMessage("通信が中断されました。");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (!editing) {
     return (
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -87,14 +59,11 @@ export default function PrivateLibraryWorkManager({
         >
           作品情報を編集
         </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void deleteWork()}
-          className="rounded-full border border-red-200 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50"
-        >
-          本棚から削除
-        </button>
+        <PrivateLibraryDeleteButton
+          workId={workId}
+          workTitle={initialTitle}
+          redirectAfterDelete="/library"
+        />
         {message ? <span className="text-xs text-red-700">{message}</span> : null}
       </div>
     );

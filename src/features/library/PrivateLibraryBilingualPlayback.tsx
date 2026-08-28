@@ -940,7 +940,12 @@ export default function PrivateLibraryBilingualPlayback({
               </span>
             ) : null}
             {!isSubscriber && nextChapterId ? (
-              <span className="mt-1 block">50%次話先読みはサブスク限定</span>
+              <Link
+                href="/subscription"
+                className="mt-1 block underline underline-offset-4 hover:text-black"
+              >
+                50%次話先読みはサブスク限定
+              </Link>
             ) : null}
           </div>
         ) : null}

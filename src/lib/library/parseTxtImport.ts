@@ -8,7 +8,7 @@ import { PRIVATE_LIBRARY_LIMITS } from "@/lib/library/privateLibrary";
 export type ParsedTxtImport = ParsedBookImport;
 
 const JAPANESE_CHAPTER_HEADING =
-  /^(?:序章|終章|最終章|プロローグ|エピローグ|幕間|あとがき|まえがき|第[0-9０-９一二三四五六七八九十百千万〇零]+(?:話|章|節|幕|編|部|回)(?:[\s　:：―—-].{0,60})?)$/u;
+  /^(?:序章|終章|最終章|プロローグ|エピローグ|幕間|あとがき|まえがき|第?[0-9０-９一二三四五六七八九十百千万〇零]+(?:話|章|節|幕|編|部|回)(?:[\s　:：―—-].{0,60})?)$/u;
 const ENGLISH_CHAPTER_HEADING =
   /^(?:(?:chapter|episode|part|book|section|prologue|epilogue|interlude)(?:\s+(?:[0-9０-９]+|[ivxlcdm]+))?(?:[\s:：―—-].{0,60})?)$/iu;
 const FRENCH_CHAPTER_HEADING =
@@ -28,6 +28,17 @@ export function normalizeImportedText(value: string): string {
     .replace(/\u0000/gu, "")
     .replace(/\r\n?/gu, "\n")
     .replace(/[\t\u00a0]+/gu, " ")
+    .replace(/︐/gu, "，")
+    .replace(/︑/gu, "、")
+    .replace(/︒/gu, "。")
+    .replace(/︓/gu, "：")
+    .replace(/︔/gu, "；")
+    .replace(/︕/gu, "！")
+    .replace(/︖/gu, "？")
+    .replace(/︵/gu, "（")
+    .replace(/︶/gu, "）")
+    .replace(/︻/gu, "【")
+    .replace(/︼/gu, "】")
     .replace(/[ \u3000]+$/gmu, "")
     .replace(/\n{4,}/gu, "\n\n\n")
     .trim();

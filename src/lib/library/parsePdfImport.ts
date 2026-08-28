@@ -11,6 +11,7 @@ export type ParsedPdfFile = {
 
 type PdfTextItem = {
   str: string;
+  dir?: string;
   transform?: number[];
   hasEOL?: boolean;
 };
@@ -31,7 +32,8 @@ function needsSpace(left: string, right: string): boolean {
 function pageTextFromItems(items: unknown[]): string {
   const lines: string[] = [];
   let currentLine = "";
-  let previousY: number | null = null;
+  let previousCoordinate: number | null = null;
+  let previousDirection = "";
 
   const flush = () => {
     const normalized = currentLine.replace(/[\t ]+/gu, " ").trim();
@@ -40,13 +42,22 @@ function pageTextFromItems(items: unknown[]): string {
   };
 
   for (const item of items) {
-    if (!isPdfTextItem(item) || !item.str) continue;
-    const y = Array.isArray(item.transform) ? Number(item.transform[5]) : NaN;
+    if (!isPdfTextItem(item)) continue;
+    if (!item.str) {
+      if (item.hasEOL) flush();
+      continue;
+    }
+
+    const direction = item.dir ?? "";
+    const coordinate = Array.isArray(item.transform)
+      ? Number(direction === "ttb" ? item.transform[4] : item.transform[5])
+      : NaN;
     if (
       currentLine &&
-      previousY !== null &&
-      Number.isFinite(y) &&
-      Math.abs(y - previousY) > 3
+      ((previousDirection && direction && previousDirection !== direction) ||
+        (previousCoordinate !== null &&
+          Number.isFinite(coordinate) &&
+          Math.abs(coordinate - previousCoordinate) > 3))
     ) {
       flush();
     }
@@ -55,7 +66,8 @@ function pageTextFromItems(items: unknown[]): string {
     currentLine += item.str;
 
     if (item.hasEOL) flush();
-    if (Number.isFinite(y)) previousY = y;
+    if (Number.isFinite(coordinate)) previousCoordinate = coordinate;
+    previousDirection = direction;
   }
 
   flush();
@@ -96,18 +108,35 @@ function stripRepeatedMargins(pages: string[]): string[] {
   });
 }
 
+function labeledPdfMetadataValue(text: string, label: string): string {
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const match = text.match(
+    new RegExp(`(?:【|︻)${escapedLabel}(?:】|︼)\\s*([^\\n]+)`, "u")
+  );
+  return match?.[1]?.trim() ?? "";
+}
+
 export async function parsePdfImport(
   buffer: ArrayBuffer,
   fileName: string
 ): Promise<ParsedPdfFile> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
-    import.meta.url
-  ).toString();
+  const pdfAssetBaseUrl =
+    typeof window === "undefined"
+      ? "./node_modules/pdfjs-dist"
+      : new URL("/api/pdf-assets", window.location.origin).toString();
+  if (typeof window !== "undefined") {
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+      import.meta.url
+    ).toString();
+  }
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(buffer),
+    cMapUrl: `${pdfAssetBaseUrl}/cmaps/`,
+    cMapPacked: true,
     isEvalSupported: false,
+    standardFontDataUrl: `${pdfAssetBaseUrl}/standard_fonts/`,
     useWorkerFetch: false,
   });
   const document = await loadingTask.promise;
@@ -140,16 +169,25 @@ export async function parsePdfImport(
       );
     }
 
-    const normalized = normalizeImportedText(
-      stripRepeatedMargins(pages).join("\n\n")
-    );
+    const pagesWithoutMargins = stripRepeatedMargins(pages);
+    const rawMetadataText = pagesWithoutMargins.slice(0, 8).join("\n");
+    const normalized = normalizeImportedText(pagesWithoutMargins.join("\n\n"));
     const detected = detectTextSections(normalized);
     const metadata = await document.getMetadata().catch(() => null);
     const info = (metadata?.info ?? {}) as Record<string, unknown>;
+    const labeledTitle = normalizeImportedText(
+      labeledPdfMetadataValue(rawMetadataText, "作品タイトル")
+    );
+    const labeledAuthor = normalizeImportedText(
+      labeledPdfMetadataValue(rawMetadataText, "作者名")
+    );
     const title =
+      labeledTitle ||
       (typeof info.Title === "string" ? info.Title.trim() : "") ||
       fileName.replace(/\.pdf$/iu, "");
-    const author = typeof info.Author === "string" ? info.Author.trim() : "";
+    const author =
+      labeledAuthor ||
+      (typeof info.Author === "string" ? info.Author.trim() : "");
 
     return {
       parsed: buildParsedBookImport({

@@ -45,6 +45,16 @@ function testMultilingualHeadings() {
   assert.equal(parsed.sections.length, 3);
 }
 
+function testJapaneseBareEpisodeHeadings() {
+  const parsed = parseTxtImport(
+    "１話\n\n最初の本文︒\n\n２話\n\n次の本文︑続き︒\n\n３話\n\n最後の本文︒"
+  );
+  assert.equal(parsed.sections.length, 3);
+  assert.equal(parsed.sections[0]?.title, "１話");
+  assert.equal(parsed.units[0]?.body, "最初の本文。");
+  assert.equal(parsed.units[1]?.body, "次の本文、続き。");
+}
+
 function testEpub() {
   const epub = zipSync({
     mimetype: strToU8("application/epub+zip"),
@@ -130,6 +140,7 @@ function testSourceLanguageDetection() {
 testThousandChapterTxt();
 testLongLogicalSection();
 testMultilingualHeadings();
+testJapaneseBareEpisodeHeadings();
 testEpub();
 testDocx();
 testTerminologyCandidates();

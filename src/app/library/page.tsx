@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PrivateLibraryDeleteButton from "@/features/library/PrivateLibraryDeleteButton";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import {
   buildPrivateLibraryReadHref,
@@ -130,6 +131,10 @@ export default async function PrivateLibraryPage() {
                             ? "続きから読む"
                             : "読み始める"}
                         </Link>
+                        <PrivateLibraryDeleteButton
+                          workId={work.id}
+                          workTitle={work.title}
+                        />
                       </div>
                     </div>
                   </article>
