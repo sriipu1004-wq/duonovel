@@ -331,7 +331,7 @@ export default function BilingualEpisodePlayback({
     const attemptKey = `${episodeId}:${sourceLanguage}:${targetLanguage}`;
     if (
       !autoGenerateMissingTranslation ||
-      translationStatus !== "missing" ||
+      !["missing", "stale", "failed"].includes(translationStatus) ||
       !canGenerate ||
       autoGenerationAttemptRef.current === attemptKey
     ) {
@@ -673,13 +673,7 @@ export default function BilingualEpisodePlayback({
             </div>
           )}
         </section>
-        <BilingualStoppedFooter
-          currentIndex={Math.max(
-            0,
-            segments.findIndex((segment) => segment.id === selectedSegmentId)
-          )}
-          total={segments.length}
-        />
+        <BilingualStoppedFooter />
       </div>
     </main>
   );

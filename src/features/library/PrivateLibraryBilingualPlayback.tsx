@@ -353,7 +353,7 @@ export default function PrivateLibraryBilingualPlayback({
     const attemptKey = `${chapterId}:${sourceLanguage}:${targetLanguage}`;
     if (
       !autoGenerateMissingTranslation ||
-      translationStatus !== "missing" ||
+      !["missing", "stale", "failed"].includes(translationStatus) ||
       !canGenerate ||
       autoGenerationAttemptRef.current === attemptKey
     ) {
@@ -873,13 +873,7 @@ export default function PrivateLibraryBilingualPlayback({
             </div>
           )}
         </section>
-        <BilingualStoppedFooter
-          currentIndex={Math.max(
-            0,
-            segments.findIndex((segment) => segment.id === selectedSegmentId)
-          )}
-          total={segments.length}
-        >
+        {nextTranslationPrefetch?.sourceChapterId === chapterId || !isSubscriber ? (
           <div className="mt-2 text-xs text-neutral-500">
             {nextTranslationPrefetch?.sourceChapterId === chapterId ? (
               <span className="mt-1 block">
@@ -894,7 +888,8 @@ export default function PrivateLibraryBilingualPlayback({
               <span className="mt-1 block">50%次話先読みはサブスク限定</span>
             ) : null}
           </div>
-        </BilingualStoppedFooter>
+        ) : null}
+        <BilingualStoppedFooter />
       </div>
     </main>
   );

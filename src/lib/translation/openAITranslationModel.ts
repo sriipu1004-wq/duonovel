@@ -1,4 +1,5 @@
 export const DEFAULT_TRANSLATION_MODEL = "gpt-5.4-mini";
+export const DEFAULT_WORD_EXPLANATION_MODEL = "gpt-5.6-luna";
 
 type TextTokenPricesUsd = {
   inputPer1mTokens: number;

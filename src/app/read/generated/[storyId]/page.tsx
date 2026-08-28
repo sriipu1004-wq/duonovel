@@ -17,6 +17,7 @@ type PageProps = {
     sourceLanguage?: string;
     targetLanguage?: string;
     autoGenerate?: string;
+    lockLanguage?: string;
   }>;
 };
 
@@ -52,7 +53,7 @@ export default async function GeneratedStoryReadPage({
         sourceLanguage={sourceLanguage}
         initialTargetLanguage={targetLanguage}
         autoGenerateMissingTranslation={resolvedSearchParams?.autoGenerate === "1"}
-        targetLanguageLocked={resolvedSearchParams?.autoGenerate === "1"}
+        targetLanguageLocked={resolvedSearchParams?.lockLanguage === "1"}
       />
     );
   }

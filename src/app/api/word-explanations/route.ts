@@ -13,7 +13,7 @@ import {
 import { parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { parseStoredTranslationPayload } from "@/lib/translation/translationPayload";
 import {
-  DEFAULT_TRANSLATION_MODEL,
+  DEFAULT_WORD_EXPLANATION_MODEL,
   getDefaultTextTokenPricesUsd,
 } from "@/lib/translation/openAITranslationModel";
 import {
@@ -292,9 +292,7 @@ export async function POST(request: Request) {
   }
 
   const model =
-    process.env.WORD_EXPLANATION_MODEL ??
-    process.env.EPISODE_TRANSLATION_MODEL ??
-    DEFAULT_TRANSLATION_MODEL;
+    process.env.WORD_EXPLANATION_MODEL ?? DEFAULT_WORD_EXPLANATION_MODEL;
 
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {

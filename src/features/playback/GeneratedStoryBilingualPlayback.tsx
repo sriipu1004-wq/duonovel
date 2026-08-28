@@ -648,13 +648,7 @@ export default function GeneratedStoryBilingualPlayback({
           )}
         </section>
 
-        <BilingualStoppedFooter
-          currentIndex={Math.max(
-            0,
-            segments.findIndex((segment) => segment.id === selectedSegmentId)
-          )}
-          total={segments.length}
-        />
+        <BilingualStoppedFooter />
 
         <div className="mt-4 flex justify-center">
           <button

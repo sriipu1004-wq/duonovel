@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
+import BilingualLanguagePickerDialog, {
+  type BilingualTranslationAvailability,
+} from "@/features/playback/BilingualLanguagePickerDialog";
 import { useAiUsage } from "@/features/usage/useAiUsage";
-import { formatAiUsage } from "@/lib/aiUsage/aiUsage";
 import {
   isPublicTranslationTargetLanguage,
   type PublicTranslationTargetLanguage,
@@ -84,9 +85,10 @@ function buildBilingualHref(
   readHref: string,
   sourceLanguage: SupportedLanguageTag,
   targetLanguage: PublicTranslationTargetLanguage,
-  autoGenerate: boolean
+  autoGenerate: boolean,
+  lockLanguage: boolean
 ): string {
-  return `${readHref}${readHref.includes("?") ? "&" : "?"}bilingual=1&sourceLanguage=${encodeURIComponent(sourceLanguage)}&targetLanguage=${encodeURIComponent(targetLanguage)}${autoGenerate ? "&autoGenerate=1" : ""}`;
+  return `${readHref}${readHref.includes("?") ? "&" : "?"}bilingual=1&sourceLanguage=${encodeURIComponent(sourceLanguage)}&targetLanguage=${encodeURIComponent(targetLanguage)}${autoGenerate ? "&autoGenerate=1" : ""}${lockLanguage ? "&lockLanguage=1" : ""}`;
 }
 
 function findSynopsisActionAnchor(
@@ -123,10 +125,14 @@ export default function GeneratedStoryBilingualBridge({
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [message, setMessage] = useState("");
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
+  const [translationAvailability, setTranslationAvailability] =
+    useState<BilingualTranslationAvailability>("checking");
+  const [rememberForTab, setRememberForTab] = useState(false);
   const [targetLanguage, setTargetLanguage] =
     useState<PublicTranslationTargetLanguage>("en");
   const [sourceLanguage, setSourceLanguage] =
     useState<SupportedLanguageTag>("ja");
+  const availabilityCheckVersionRef = useRef(0);
 
   useEffect(() => {
     let currentHost: HTMLElement | null = null;
@@ -175,6 +181,63 @@ export default function GeneratedStoryBilingualBridge({
     };
   }, [storyId]);
 
+  async function checkTranslationAvailability(
+    generated: SavedGeneratedStoryPayload,
+    detectedSourceLanguage: SupportedLanguageTag,
+    language: PublicTranslationTargetLanguage,
+    existingVersion?: number
+  ) {
+    const checkVersion = existingVersion ?? ++availabilityCheckVersionRef.current;
+    if (existingVersion === undefined) setTranslationAvailability("checking");
+
+    try {
+      const response = generated.savedEpisodeId
+        ? await fetch(
+            `/api/episode-translations/${encodeURIComponent(generated.savedEpisodeId)}?sourceLanguage=${encodeURIComponent(detectedSourceLanguage)}&targetLanguage=${encodeURIComponent(language)}`,
+            { cache: "no-store" }
+          )
+        : await fetch("/api/generated-story-translations/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              storyId: generated.id,
+              title: generated.story.title,
+              body: generated.story.body,
+              sourceLanguage: detectedSourceLanguage,
+              targetLanguage: language,
+              checkOnly: true,
+            }),
+          });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        status?: BilingualTranslationAvailability;
+      };
+      if (availabilityCheckVersionRef.current !== checkVersion) return;
+
+      if (!response.ok || !payload.ok || !payload.status) {
+        setTranslationAvailability("error");
+        return;
+      }
+
+      setTranslationAvailability(payload.status);
+      if (payload.status === "translating") {
+        window.setTimeout(
+          () =>
+            void checkTranslationAvailability(
+              generated,
+              detectedSourceLanguage,
+              language,
+              checkVersion
+            ),
+          2500
+        );
+      }
+    } catch {
+      if (availabilityCheckVersionRef.current !== checkVersion) return;
+      setTranslationAvailability("error");
+    }
+  }
+
   function enableBilingual() {
     setMessage("");
     const generated = readGeneratedStory(storyId);
@@ -204,23 +267,34 @@ export default function GeneratedStoryBilingualBridge({
         generated,
         detectedSourceLanguage,
         sessionPreference.targetLanguage,
+        true,
         true
       );
       return;
     }
 
-    if (targetLanguage === detectedSourceLanguage) {
-      setTargetLanguage(detectedSourceLanguage === "ja" ? "en" : "ja");
-    }
-
+    const selectedLanguage =
+      targetLanguage === detectedSourceLanguage
+        ? detectedSourceLanguage === "ja"
+          ? "en"
+          : "ja"
+        : targetLanguage;
+    setTargetLanguage(selectedLanguage);
+    setRememberForTab(false);
     setIsLanguagePickerOpen(true);
+    void checkTranslationAvailability(
+      generated,
+      detectedSourceLanguage,
+      selectedLanguage
+    );
   }
 
   function openBilingual(
     generated: SavedGeneratedStoryPayload,
     selectedSourceLanguage: SupportedLanguageTag,
     selectedTargetLanguage: PublicTranslationTargetLanguage,
-    autoGenerate: boolean
+    autoGenerate: boolean,
+    lockLanguage: boolean
   ) {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
@@ -232,30 +306,33 @@ export default function GeneratedStoryBilingualBridge({
           generated.readHref,
           selectedSourceLanguage,
           selectedTargetLanguage,
-          autoGenerate
+          autoGenerate,
+          lockLanguage
         )
       );
       return;
     }
 
     window.location.assign(
-      `/read/generated/${encodeURIComponent(storyId)}?bilingual=1&sourceLanguage=${encodeURIComponent(selectedSourceLanguage)}&targetLanguage=${encodeURIComponent(selectedTargetLanguage)}${autoGenerate ? "&autoGenerate=1" : ""}`
+      `/read/generated/${encodeURIComponent(storyId)}?bilingual=1&sourceLanguage=${encodeURIComponent(selectedSourceLanguage)}&targetLanguage=${encodeURIComponent(selectedTargetLanguage)}${autoGenerate ? "&autoGenerate=1" : ""}${lockLanguage ? "&lockLanguage=1" : ""}`
     );
   }
 
   function confirmBilingual() {
     const generated = readGeneratedStory(storyId);
     if (!generated) return;
-    openBilingual(generated, sourceLanguage, targetLanguage, false);
-  }
-
-  function confirmAndRememberForTab() {
-    const generated = readGeneratedStory(storyId);
-    if (!generated) return;
-    const scope = generated.savedSeriesId ? "series" : "generated";
-    const contentId = generated.savedSeriesId || storyId;
-    writeBilingualSessionPreference(scope, contentId, targetLanguage);
-    openBilingual(generated, sourceLanguage, targetLanguage, true);
+    if (rememberForTab) {
+      const scope = generated.savedSeriesId ? "series" : "generated";
+      const contentId = generated.savedSeriesId || storyId;
+      writeBilingualSessionPreference(scope, contentId, targetLanguage);
+    }
+    openBilingual(
+      generated,
+      sourceLanguage,
+      targetLanguage,
+      translationAvailability !== "ready",
+      rememberForTab
+    );
   }
 
   if (!host) return null;
@@ -276,39 +353,37 @@ export default function GeneratedStoryBilingualBridge({
         <span className="w-full text-sm text-red-700">{message}</span>
       ) : null}
       {isLanguagePickerOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 px-4 py-8">
-          <section className="w-full max-w-md rounded-[28px] bg-white p-6 shadow-xl" role="dialog" aria-modal="true">
-            <h2 className="text-xl font-semibold text-black">対訳する言語を選択</h2>
-            <p className="mt-2 text-sm leading-7 text-neutral-600">
-              保存済み対訳がなければ、開いた後に生成するか選べます。
-            </p>
-            <div className="mt-5">
-              <TranslationLanguageSelect
-                value={targetLanguage}
-                sourceLanguage={sourceLanguage}
-                onChange={setTargetLanguage}
-              />
-            </div>
-            <p className="mt-4 text-xs leading-6 text-neutral-500">
-              下の固定ボタンは、このタブを閉じるまで同じ作品・同じ対訳言語に限って有効です。
-            </p>
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button type="button" onClick={() => setIsLanguagePickerOpen(false)} className="rounded-full border border-black/10 px-5 py-2.5 text-sm text-neutral-700">
-                キャンセル
-              </button>
-              <button type="button" onClick={confirmBilingual} className="rounded-full bg-black px-5 py-2.5 text-sm text-white">
-                この言語で対訳を開く
-              </button>
-              <button
-                type="button"
-                onClick={confirmAndRememberForTab}
-                className="w-full rounded-full border border-violet-200 bg-violet-50 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-violet-100"
-              >
-                次からはこの作品で表示せず対訳する {formatAiUsage(aiUsage?.actions.translation_generation)}
-              </button>
-            </div>
-          </section>
-        </div>
+        <BilingualLanguagePickerDialog
+          sourceLanguage={sourceLanguage}
+          targetLanguage={targetLanguage}
+          availability={translationAvailability}
+          rememberForTab={rememberForTab}
+          translationUsage={aiUsage?.actions.translation_generation}
+          onTargetLanguageChange={(language) => {
+            setTargetLanguage(language);
+            const generated = readGeneratedStory(storyId);
+            if (generated) {
+              void checkTranslationAvailability(
+                generated,
+                sourceLanguage,
+                language
+              );
+            }
+          }}
+          onRememberForTabChange={setRememberForTab}
+          onCancel={() => setIsLanguagePickerOpen(false)}
+          onConfirm={confirmBilingual}
+          onRetry={() => {
+            const generated = readGeneratedStory(storyId);
+            if (generated) {
+              void checkTranslationAvailability(
+                generated,
+                sourceLanguage,
+                targetLanguage
+              );
+            }
+          }}
+        />
       ) : null}
     </div>,
     host
