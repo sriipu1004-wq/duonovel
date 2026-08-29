@@ -115,7 +115,13 @@ async function readJsonResponse(response: Response): Promise<{
   }
 }
 
-export default function LibraryImportForm() {
+export default function LibraryImportForm({
+  currentWorkCount,
+  isSubscriber,
+}: {
+  currentWorkCount: number;
+  isSubscriber: boolean;
+}) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [authorName, setAuthorName] = useState("");
@@ -125,6 +131,10 @@ export default function LibraryImportForm() {
   const [selection, setSelection] = useState<ParsedSelection | null>(null);
   const [state, setState] = useState<ImportState>("idle");
   const [message, setMessage] = useState("");
+  const workLimit = isSubscriber
+    ? PRIVATE_LIBRARY_LIMITS.subscriberMaxWorksPerUser
+    : PRIVATE_LIBRARY_LIMITS.freeMaxWorksPerUser;
+  const hasReachedWorkLimit = currentWorkCount >= workLimit;
   const [savedUnits, setSavedUnits] = useState(0);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
 
@@ -315,11 +325,31 @@ export default function LibraryImportForm() {
               取り込んだ作品は本人だけが閲覧できます。URLからの取得、公開、共有、検索表示は行いません。DRM・パスワード・ペイウォールを回避したデータは取り込めません。
             </div>
 
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+              <span>
+                {isSubscriber ? "サブスク" : "無料プラン"}の保存数：
+                {currentWorkCount.toLocaleString("ja-JP")} / {workLimit.toLocaleString("ja-JP")}作品
+              </span>
+              {!isSubscriber ? (
+                <Link href="/subscription" className="font-semibold text-sky-800 underline underline-offset-4">
+                  サブスクを見る
+                </Link>
+              ) : null}
+            </div>
+
+            {hasReachedWorkLimit ? (
+              <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-900">
+                保存上限に達しています。新しい作品を取り込むには、既存作品を削除
+                {isSubscriber ? "してください。" : "するか、サブスクを利用してください。"}
+              </p>
+            ) : null}
+
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2 sm:col-span-2">
                 <span className="text-sm text-neutral-700">小説ファイル</span>
                 <input
                   type="file"
+                  disabled={hasReachedWorkLimit}
                   accept=".txt,.epub,.docx,.pdf,text/plain,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
                   onChange={handleFileChange}
                   className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black file:mr-4 file:rounded-full file:border-0 file:bg-black file:px-4 file:py-2 file:text-sm file:text-white"
@@ -401,7 +431,7 @@ export default function LibraryImportForm() {
                       <p className="mt-1 text-xs text-neutral-500">
                         {formatCharacterCount(section.sourceCharCount)}
                         {section.partCount > 1
-                          ? `・内部で${section.partCount}分割`
+                          ? `・対訳用に${section.partCount}分割（末尾 - 1〜 - ${section.partCount}）`
                           : ""}
                       </p>
                     </div>
@@ -467,6 +497,7 @@ export default function LibraryImportForm() {
                   !selection ||
                   !title.trim() ||
                   !rightsConfirmed ||
+                  hasReachedWorkLimit ||
                   state === "saving"
                 }
                 onClick={handleImport}

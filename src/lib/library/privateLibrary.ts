@@ -3,11 +3,13 @@ import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 export const PRIVATE_LIBRARY_LIMITS = {
   maxFileBytes: 20_000_000,
   maxSourceChars: 5_000_000,
-  maxChapterChars: 7_500,
+  // Keeps a new translation unit below the current ¥8 reserved-cost target.
+  maxChapterChars: 6_000,
   maxSections: 1_500,
   maxChapters: 4_000,
   importBatchSize: 50,
-  maxWorksPerUser: 20,
+  freeMaxWorksPerUser: 3,
+  subscriberMaxWorksPerUser: 20,
   maxTotalCharsPerUser: 5_000_000,
 } as const;
 

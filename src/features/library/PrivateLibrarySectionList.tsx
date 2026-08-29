@@ -83,7 +83,7 @@ export default function PrivateLibrarySectionList({
               </span>
               {section.part_count > 1 ? (
                 <span className="mt-1 block text-[11px] text-neutral-400">
-                  読書時に{section.part_count}部分へ自動分割
+                  対訳用に「- 1」〜「- {section.part_count}」へ分割
                 </span>
               ) : null}
               {section.is_completed || Number(section.progress_ratio) > 0 ? (

@@ -70,7 +70,7 @@ export default function FaqPage() {
           question="無料で使える？"
           answer={
             <>
-              公開作品の閲覧、個人本棚、読み上げなどは無料で利用できます。AI機能には無料枠があり、月額500円の
+              公開作品の閲覧、最大3作品の個人本棚、読み上げなどは無料で利用できます。AI機能には無料枠があり、月額500円の
               <Link className="underline underline-offset-4" href="/subscription">サブスク</Link>
               で生成上限の拡大、単語解説無制限、次話対訳の先読みを利用できます。
             </>

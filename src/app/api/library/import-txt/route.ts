@@ -39,8 +39,12 @@ function parseChapters(value: unknown): ChapterInput[] | null {
 function getImportErrorMessage(message: string): string {
   const normalized = message.toLowerCase();
 
+  if (normalized.includes("free private library work limit")) {
+    return `無料プランの個人本棚は${PRIVATE_LIBRARY_LIMITS.freeMaxWorksPerUser}作品までです。作品を削除するか、サブスクを利用してください。`;
+  }
+
   if (normalized.includes("work limit")) {
-    return `個人本棚に保存できる作品は現在${PRIVATE_LIBRARY_LIMITS.maxWorksPerUser}件までです。`;
+    return `サブスクの個人本棚は${PRIVATE_LIBRARY_LIMITS.subscriberMaxWorksPerUser}作品までです。`;
   }
 
   if (normalized.includes("text limit")) {

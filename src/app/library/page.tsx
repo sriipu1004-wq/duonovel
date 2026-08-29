@@ -1,7 +1,9 @@
 import Link from "next/link";
 import PrivateLibraryDeleteButton from "@/features/library/PrivateLibraryDeleteButton";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
+import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 import {
+  PRIVATE_LIBRARY_LIMITS,
   buildPrivateLibraryReadHref,
   buildPrivateLibraryWorkHref,
   formatCharacterCount,
@@ -25,15 +27,26 @@ function formatDate(value: string | null): string {
 
 export default async function PrivateLibraryPage() {
   const { supabase, user } = await requireLoggedInUser("/library");
-  const result = await supabase
-    .from("private_library_works")
-    .select("*")
-    .eq("owner_user_id", user.id)
-    .eq("import_status", "ready")
-    .order("last_opened_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+  const [result, countResult, subscriber] = await Promise.all([
+    supabase
+      .from("private_library_works")
+      .select("*")
+      .eq("owner_user_id", user.id)
+      .eq("import_status", "ready")
+      .order("last_opened_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("private_library_works")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_user_id", user.id),
+    isSubscriber(user.id),
+  ]);
 
   const works = (result.data ?? []) as PrivateLibraryWork[];
+  const storedWorkCount = countResult.count ?? works.length;
+  const workLimit = subscriber
+    ? PRIVATE_LIBRARY_LIMITS.subscriberMaxWorksPerUser
+    : PRIVATE_LIBRARY_LIMITS.freeMaxWorksPerUser;
 
   return (
     <main className="min-h-screen bg-white text-black">
@@ -48,6 +61,9 @@ export default async function PrivateLibraryPage() {
                 <h1 className="text-3xl font-bold text-black">個人本棚</h1>
                 <p className="mt-3 text-sm leading-7 text-neutral-600">
                   自分で取り込んだ作品を、本人だけが読める本棚です。
+                </p>
+                <p className="mt-2 text-xs text-neutral-500">
+                  {subscriber ? "サブスク" : "無料プラン"}：{storedWorkCount} / {workLimit}作品
                 </p>
               </div>
               <Link

@@ -111,7 +111,7 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
         partNumber={chapter.part_number}
         partCount={chapter.part_count}
         workTitle={work.title}
-        chapterTitle={chapter.section_title}
+        chapterTitle={chapter.title}
         authorName={work.author_name || undefined}
         sourceLanguage={sourceLanguage}
         workIndexHref={workIndexHref}

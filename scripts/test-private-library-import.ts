@@ -6,6 +6,7 @@ import { parseEpubImport } from "../src/lib/library/parseEpubImport";
 import { parseTxtImport } from "../src/lib/library/parseTxtImport";
 import { buildParsedBookImport } from "../src/lib/library/bookImport";
 import { normalizeImportedText } from "../src/lib/library/importTextNormalization";
+import { PRIVATE_LIBRARY_LIMITS } from "../src/lib/library/privateLibrary";
 import { collectTranslationTerminologyCandidates } from "../src/lib/translation/openAITranslation";
 import { detectSourceLanguageFromText } from "../src/lib/translation/detectSourceLanguage";
 
@@ -35,7 +36,17 @@ function testLongLogicalSection() {
   const parsed = parseTxtImport(source);
   assert.equal(parsed.sections.length, 2);
   assert.ok((parsed.sections[0]?.partCount ?? 0) > 1);
-  assert.ok(parsed.units.every((unit) => unit.body.length <= 7_500));
+  assert.ok(
+    parsed.units.every(
+      (unit) => unit.body.length <= PRIVATE_LIBRARY_LIMITS.maxChapterChars
+    )
+  );
+  assert.equal(parsed.units[0]?.title, "Chapter 1 - 1");
+  assert.equal(
+    parsed.units[(parsed.sections[0]?.partCount ?? 1) - 1]?.title,
+    `Chapter 1 - ${parsed.sections[0]?.partCount}`
+  );
+  assert.ok(parsed.warnings.some((warning) => warning.includes("対訳原価")));
   assert.equal(parsed.units[0]?.sectionNumber, 1);
   assert.equal(parsed.units.at(-1)?.sectionNumber, 2);
 }

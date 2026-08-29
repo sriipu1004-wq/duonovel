@@ -96,6 +96,12 @@ function splitSectionBody(body: string): string[] {
   return bodies;
 }
 
+function buildSplitUnitTitle(baseTitle: string, partNumber: number): string {
+  const suffix = ` - ${partNumber}`;
+  const availableLength = Math.max(1, 200 - suffix.length);
+  return `${baseTitle.slice(0, availableLength).trimEnd()}${suffix}`;
+}
+
 export function buildParsedBookImport(args: {
   sections: ParsedBookSectionInput[];
   usedDetectedHeadings: boolean;
@@ -144,7 +150,7 @@ export function buildParsedBookImport(args: {
         title:
           partCount === 1
             ? section.title
-            : `${section.title}（${partNumber}/${partCount}）`.slice(0, 200),
+            : buildSplitUnitTitle(section.title, partNumber),
         body,
         sectionNumber,
         sectionTitle: section.title,
@@ -176,6 +182,13 @@ export function buildParsedBookImport(args: {
     units,
     sourceCharCount,
     usedDetectedHeadings: args.usedDetectedHeadings,
-    warnings: args.warnings ?? [],
+    warnings: [
+      ...(args.warnings ?? []),
+      ...(sections.some((section) => section.partCount > 1)
+        ? [
+            `対訳原価を抑えるため、長い話は最大${PRIVATE_LIBRARY_LIMITS.maxChapterChars.toLocaleString("ja-JP")}文字ごとに「タイトル - 1」形式で分割します。`,
+          ]
+        : []),
+    ],
   };
 }

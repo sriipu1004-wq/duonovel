@@ -44,8 +44,8 @@ const comparisons = [
   },
   {
     label: "個人本棚・読書進捗",
-    free: "利用可能",
-    subscriber: "利用可能",
+    free: "最大3作品",
+    subscriber: "最大20作品",
   },
 ];
 
