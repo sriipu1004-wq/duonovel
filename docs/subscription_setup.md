@@ -68,6 +68,8 @@ LIBREAD_LEGAL_SUPPORT_EMAIL=
 
 販売事業者名、責任者、住所、電話番号は実在する正確な情報を設定する。未設定の項目が1つでもある場合、`/subscription` は表示できるがCheckoutは開始しない。
 
+`NEXT_PUBLIC_SITE_URL`はProduction環境だけに正式ドメインを設定する。Vercel Previewでは設定を省略でき、決済後は開いていたPreviewへ戻る。Preview環境へ正式ドメインを上書きしない。
+
 日本の個人事業として提供する場合は、次のように設定する。値そのものはGitHubへcommitせず、Vercelの暗号化された環境変数にだけ保存する。
 
 - `LIBREAD_LEGAL_SELLER_NAME`: 戸籍上の氏名または登記された商号

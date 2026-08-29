@@ -79,8 +79,12 @@ export function getStripeSecretKey(): string {
 export function getRequestOrigin(request: Request): string {
   const configured = readEnv("NEXT_PUBLIC_SITE_URL");
   const requestOrigin = new URL(request.url).origin;
+  const vercelEnvironment = readEnv("VERCEL_ENV").toLowerCase();
+  const isProductionDeployment = vercelEnvironment
+    ? vercelEnvironment === "production"
+    : process.env.NODE_ENV === "production";
 
-  if (process.env.NODE_ENV === "production" && configured) {
+  if (isProductionDeployment && configured) {
     try {
       return new URL(configured).origin;
     } catch {
