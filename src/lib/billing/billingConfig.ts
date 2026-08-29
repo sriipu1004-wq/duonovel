@@ -1,8 +1,8 @@
 import "server-only";
 
-export const LIBREAD_SUBSCRIPTION_PRICE_JPY = 500;
+export const LIBREAD_SUBSCRIPTION_PRICE_JPY = 680;
 export const LIBREAD_SUBSCRIBER_MONTHLY_AI_BUDGET_JPY = 300;
-export const LIBREAD_BILLING_TERMS_VERSION = "2026-08-29";
+export const LIBREAD_BILLING_TERMS_VERSION = "2026-08-29-680";
 
 function readEnv(name: string): string {
   return process.env[name]?.trim() ?? "";

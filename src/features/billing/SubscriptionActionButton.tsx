@@ -83,7 +83,7 @@ export default function SubscriptionActionButton({
           className="mt-1 h-4 w-4 shrink-0 accent-sky-400"
         />
         <span>
-          月額500円（税込）の自動更新、解約後は現在の利用期限まで利用できること、
+          月額680円（税込）の自動更新、解約後は現在の利用期限まで利用できること、
           <Link href="/terms" className="underline underline-offset-4">
             利用規約
           </Link>
@@ -100,7 +100,7 @@ export default function SubscriptionActionButton({
         disabled={pending || !billingReady || !accepted}
         className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {pending ? "決済画面を開いています…" : "月額500円で始める"}
+        {pending ? "決済画面を開いています…" : "月額680円で始める"}
       </button>
       {!billingReady ? (
         <p className="mt-3 text-xs leading-6 text-amber-200">

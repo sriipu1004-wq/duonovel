@@ -419,30 +419,25 @@ export default function LibraryImportForm({
                   </p>
                 ))}
 
-                <div className="mt-4 grid gap-2">
-                  {selection.parsed.sections.slice(0, 8).map((section) => (
-                    <div
-                      key={`${section.sectionNumber}-${section.title}`}
-                      className="rounded-2xl border border-black/10 bg-white px-4 py-3"
-                    >
-                      <p className="text-sm font-medium text-black">
-                        {section.title}
-                      </p>
-                      <p className="mt-1 text-xs text-neutral-500">
-                        {formatCharacterCount(section.sourceCharCount)}
-                        {section.partCount > 1
-                          ? `・対訳用に${section.partCount}分割（末尾 - 1〜 - ${section.partCount}）`
-                          : ""}
-                      </p>
-                    </div>
-                  ))}
-                  {selection.parsed.sections.length > 8 ? (
-                    <p className="px-2 text-xs text-neutral-500">
-                      ほか
-                      {(selection.parsed.sections.length - 8).toLocaleString("ja-JP")}
-                      章・話
-                    </p>
-                  ) : null}
+                <div className="mt-4 overflow-hidden rounded-[20px] border border-black/10 bg-white">
+                  <div className="max-h-[520px] divide-y divide-black/10 overflow-y-auto overscroll-contain">
+                    {selection.parsed.sections.map((section) => (
+                      <div
+                        key={`${section.sectionNumber}-${section.title}`}
+                        className="px-4 py-3"
+                      >
+                        <p className="text-sm font-medium text-black">
+                          {section.title}
+                        </p>
+                        <p className="mt-1 text-xs text-neutral-500">
+                          {formatCharacterCount(section.sourceCharCount)}
+                          {section.partCount > 1
+                            ? `・対訳用に${section.partCount}分割（末尾 - 1〜 - ${section.partCount}）`
+                            : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </section>
             ) : null}

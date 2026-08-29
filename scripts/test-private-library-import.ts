@@ -5,7 +5,10 @@ import { parseDocxImport } from "../src/lib/library/parseDocxImport";
 import { parseEpubImport } from "../src/lib/library/parseEpubImport";
 import { parseTxtImport } from "../src/lib/library/parseTxtImport";
 import { buildParsedBookImport } from "../src/lib/library/bookImport";
-import { normalizeImportedText } from "../src/lib/library/importTextNormalization";
+import {
+  normalizeImportedBodyText,
+  normalizeImportedText,
+} from "../src/lib/library/importTextNormalization";
 import { PRIVATE_LIBRARY_LIMITS } from "../src/lib/library/privateLibrary";
 import { collectTranslationTerminologyCandidates } from "../src/lib/translation/openAITranslation";
 import { detectSourceLanguageFromText } from "../src/lib/translation/detectSourceLanguage";
@@ -47,8 +50,26 @@ function testLongLogicalSection() {
     `Chapter 1 - ${parsed.sections[0]?.partCount}`
   );
   assert.ok(parsed.warnings.some((warning) => warning.includes("対訳原価")));
+  const splitLengths = parsed.units
+    .filter((unit) => unit.sectionNumber === 1)
+    .map((unit) => unit.body.length);
+  assert.ok(Math.max(...splitLengths) - Math.min(...splitLengths) < 200);
+  assert.ok(
+    parsed.units
+      .filter((unit) => unit.sectionNumber === 1)
+      .every((unit) => /[.!?]$/u.test(unit.body))
+  );
   assert.equal(parsed.units[0]?.sectionNumber, 1);
   assert.equal(parsed.units.at(-1)?.sectionNumber, 2);
+
+  assert.throws(
+    () =>
+      buildParsedBookImport({
+        sections: [{ title: "長すぎる一文", body: "あ".repeat(6_001) }],
+        usedDetectedHeadings: true,
+      }),
+    /文を切らずに対訳用分割できません/u
+  );
 }
 
 function testMultilingualHeadings() {
@@ -64,14 +85,24 @@ function testJapaneseBareEpisodeHeadings() {
   );
   assert.equal(parsed.sections.length, 3);
   assert.equal(parsed.sections[0]?.title, "１話");
-  assert.equal(parsed.units[0]?.body, "最初の本文。");
-  assert.equal(parsed.units[1]?.body, "次の本文、続き。");
+  assert.equal(parsed.units[0]?.body, "　最初の本文。");
+  assert.equal(parsed.units[1]?.body, "　次の本文、続き。");
 }
 
 function testVerticalGlyphNormalizationAndTitleFallback() {
   assert.equal(
     normalizeImportedText("﹁台詞︒﹂﹃引用︕﹄︙︙││││"),
     "「台詞。」『引用！』……――"
+  );
+  assert.equal(
+    normalizeImportedBodyText(
+      "一つ目の段落。\n\n二つ目の段落。\n\n「一人目の台詞。」「二人目の台詞。」"
+    ),
+    "　一つ目の段落。\n\n　二つ目の段落。\n\n「一人目の台詞。」\n「二人目の台詞。」"
+  );
+  assert.equal(
+    normalizeImportedBodyText("First paragraph.\n\nSecond paragraph."),
+    "First paragraph.\n\nSecond paragraph."
   );
   const parsed = buildParsedBookImport({
     sections: [

@@ -112,7 +112,7 @@ export async function POST(request: Request) {
       custom_text: {
         submit: {
           message:
-            "月額500円（税込）の自動更新です。解約後も当月の利用期限まで使えます。",
+            "月額680円（税込）の自動更新です。解約後も当月の利用期限まで使えます。",
         },
       },
     });

@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 export const metadata: Metadata = {
   title: "サブスク | LIB read",
   description:
-    "LIB readの月額500円サブスク。単語解説無制限、次話対訳の先読み、AI生成上限の拡大に対応します。",
+    "LIB readの月額680円サブスク。単語解説無制限、次話対訳の先読み、AI生成上限の拡大に対応します。",
 };
 
 type PageProps = {
@@ -164,7 +164,7 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
                 <tr className="border-b border-black/10 text-neutral-500">
                   <th className="px-3 py-3 font-medium">機能</th>
                   <th className="px-3 py-3 font-medium">無料</th>
-                  <th className="px-3 py-3 font-medium text-black">月額500円</th>
+                  <th className="px-3 py-3 font-medium text-black">月額680円</th>
                 </tr>
               </thead>
               <tbody>

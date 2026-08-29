@@ -1,4 +1,4 @@
-# LIB read 月額500円サブスク設定
+# LIB read 月額680円サブスク設定
 
 この実装はStripe Checkout、Stripe Customer Portal、署名検証済みWebhook、Supabaseの有料権限を使う。Checkoutは、Stripe設定と特定商取引法の必須表示がすべて揃うまで自動的に停止する。
 
@@ -22,10 +22,12 @@
 Stripeで商品を1件作成し、Priceを次の条件で作る。
 
 - 通貨: JPY
-- 金額: 500円
+- 金額: 680円
 - 税込価格: `tax_behavior=inclusive`
 - 課金間隔: 1か月
 - 種類: recurring
+
+Stripe Priceの金額は作成後に変更できない。500円のPriceを既に作成している場合はそれをアーカイブし、同じ商品へ680円の新しいPriceを追加する。Vercelの`STRIPE_PRICE_ID`は新しい680円Priceの`price_...`へ差し替える。
 
 Customer Portalでは、支払い方法の変更、請求履歴、契約の解約を有効にする。解約は即時ではなく、支払済み期間の終了時に停止する設定にする。
 
@@ -33,7 +35,11 @@ Checkoutの利用規約同意を表示できるよう、Stripe Dashboardの公�
 
 ## 3. Webhook
 
-Endpoint:
+Test modeのPreview Endpoint:
+
+`https://nextjs-git-feat-private-library-d4d8f7-sriipu1004-wqs-projects.vercel.app/api/billing/webhook`
+
+Live modeのProduction Endpoint:
 
 `https://www.syosetu-libread.com/api/billing/webhook`
 
@@ -46,17 +52,16 @@ Endpoint:
 - `invoice.paid`
 - `invoice.payment_failed`
 
-Webhook署名シークレットを `STRIPE_WEBHOOK_SECRET` に設定する。
+TestとLiveは別々のWebhook署名シークレットになる。それぞれ対応するVercel環境の`STRIPE_WEBHOOK_SECRET`へ設定する。
 
 ## 4. Vercel環境変数
 
-まずPreviewにはStripe test modeの値を設定し、実決済確認後にProductionをlive modeへ切り替える。
+まずPreviewへStripe test modeの値だけを設定する。
 
 ```text
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-STRIPE_PRICE_ID=
-NEXT_PUBLIC_SITE_URL=https://www.syosetu-libread.com
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID=price_...（test modeの680円Price）
 LIBREAD_BILLING_CHECKOUT_ENABLED=true
 
 LIBREAD_LEGAL_SELLER_NAME=
@@ -65,6 +70,24 @@ LIBREAD_LEGAL_ADDRESS=
 LIBREAD_LEGAL_PHONE=
 LIBREAD_LEGAL_SUPPORT_EMAIL=
 ```
+
+Previewで全テストが成功した後、ProductionにはLive modeの別の値を設定する。
+
+```text
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID=price_...（live modeの680円Price）
+NEXT_PUBLIC_SITE_URL=https://www.syosetu-libread.com
+LIBREAD_BILLING_CHECKOUT_ENABLED=false
+
+LIBREAD_LEGAL_SELLER_NAME=
+LIBREAD_LEGAL_RESPONSIBLE_PERSON=
+LIBREAD_LEGAL_ADDRESS=
+LIBREAD_LEGAL_PHONE=
+LIBREAD_LEGAL_SUPPORT_EMAIL=
+```
+
+Productionは最初に`LIBREAD_BILLING_CHECKOUT_ENABLED=false`のままdeployし、公開ページ・法定表示・Live webhookを確認してから`true`へ切り替える。
 
 販売事業者名、責任者、住所、電話番号は実在する正確な情報を設定する。未設定の項目が1つでもある場合、`/subscription` は表示できるがCheckoutは開始しない。
 
@@ -92,4 +115,4 @@ LIBREAD_LEGAL_SUPPORT_EMAIL=
 6. `customer.subscription.deleted` 後に無料権限へ戻ることを確認する。
 7. 契約中のテストアカウントを削除し、Stripe契約が先に停止することを確認する。
 
-本番公開前に、実際の500円決済を1件行い、領収書、カード明細、Webhook、解約、返金時の連絡手順まで通しで確認する。
+本番公開前に、実際の680円決済を1件行い、領収書、カード明細、Webhook、解約、返金時の連絡手順まで通しで確認する。

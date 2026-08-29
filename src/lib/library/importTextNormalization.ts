@@ -39,3 +39,35 @@ export function normalizeImportedText(value: string): string {
     .replace(/\n{4,}/gu, "\n\n\n")
     .trim();
 }
+
+/** Format imported prose for horizontal Japanese reading without touching titles. */
+export function normalizeImportedBodyText(value: string): string {
+  const normalized = normalizeImportedText(value).replace(
+    /([」』])[ \u3000]*(?=[「『])/gu,
+    "$1\n"
+  );
+  const usesJapaneseStyleIndent = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(
+    normalized
+  );
+
+  return normalized
+    .split(/\n{2,}/u)
+    .map((paragraph) => {
+      const lines = paragraph.split("\n").map((line) => line.trimEnd());
+      const firstContentLine = lines.findIndex((line) => Boolean(line.trim()));
+
+      return lines
+        .map((line, index) => {
+          if (!line.trim()) return "";
+          if (!usesJapaneseStyleIndent) return line;
+          const content = line.replace(/^[ \u3000]+/u, "");
+          if (index !== firstContentLine || /^[「『]/u.test(content)) {
+            return content;
+          }
+          return `　${content}`;
+        })
+        .join("\n");
+    })
+    .filter((paragraph) => Boolean(paragraph.trim()))
+    .join("\n\n");
+}

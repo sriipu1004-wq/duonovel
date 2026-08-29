@@ -1266,7 +1266,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   className="mt-5"
                 >
                   <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-                    <p className="leading-6 text-sky-950">月額500円で単語解説が無制限。対訳生成上限と次話先読みも利用できます。</p>
+                    <p className="leading-6 text-sky-950">月額680円で単語解説が無制限。対訳生成上限と次話先読みも利用できます。</p>
                     <Link href="/subscription" className="shrink-0 font-semibold text-sky-800 underline underline-offset-4">サブスクを見る</Link>
                   </div>
                   <ContinueReadingEpisodeList

@@ -162,7 +162,7 @@ export async function verifyConfiguredStripePrice(): Promise<void> {
     price.tax_behavior !== "inclusive"
   ) {
     throw new Error(
-      "Stripe Priceは税込500円・日本円・月額・tax_behavior=inclusiveで作成してください。"
+      "Stripe Priceは税込680円・日本円・月額・tax_behavior=inclusiveで作成してください。"
     );
   }
 }

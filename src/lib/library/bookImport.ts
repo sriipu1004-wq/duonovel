@@ -1,5 +1,8 @@
 import { PRIVATE_LIBRARY_LIMITS } from "@/lib/library/privateLibrary";
-import { normalizeImportedText } from "@/lib/library/importTextNormalization";
+import {
+  normalizeImportedBodyText,
+  normalizeImportedText,
+} from "@/lib/library/importTextNormalization";
 
 export type ParsedBookSectionInput = {
   title: string;
@@ -30,69 +33,101 @@ export type ParsedBookImport = {
   warnings: string[];
 };
 
-function splitParagraphs(value: string): string[] {
-  const paragraphs = value
-    .split(/\n{2,}/u)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
+const SENTENCE_ENDINGS = new Set(["。", "！", "？", "!", "?", ".", "．"]);
+const SENTENCE_CLOSERS = new Set(["」", "』", "）", "】", "〉", "》", "”", '"']);
 
-  if (paragraphs.length > 0) return paragraphs;
-  return value.trim() ? [value.trim()] : [];
+function trimSplitPart(value: string): string {
+  return value
+    .replace(/^[\n\r\t ]+/u, "")
+    .replace(/[\s\u3000]+$/u, "");
 }
 
-function splitOversizedParagraph(value: string, maxChars: number): string[] {
-  const chunks: string[] = [];
-  let remaining = value.trim();
+function collectNaturalSplitBoundaries(value: string): number[] {
+  const boundaries = new Set<number>();
 
-  while (remaining.length > maxChars) {
-    const window = remaining.slice(0, maxChars + 1);
-    const boundaryCandidates = [
-      window.lastIndexOf("。"),
-      window.lastIndexOf("！"),
-      window.lastIndexOf("？"),
-      window.lastIndexOf("."),
-      window.lastIndexOf("!"),
-      window.lastIndexOf("?"),
-      window.lastIndexOf("\n"),
-    ];
-    const bestBoundary = Math.max(...boundaryCandidates);
-    const splitAt =
-      bestBoundary >= Math.floor(maxChars * 0.55)
-        ? bestBoundary + 1
-        : maxChars;
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === "\n") {
+      while (value[index + 1] === "\n") index += 1;
+      boundaries.add(index + 1);
+      continue;
+    }
+    if (!SENTENCE_ENDINGS.has(character)) continue;
+    if (
+      (character === "." || character === "．") &&
+      /[0-9０-９]/u.test(value[index - 1] ?? "") &&
+      /[0-9０-９]/u.test(value[index + 1] ?? "")
+    ) {
+      continue;
+    }
 
-    chunks.push(remaining.slice(0, splitAt).trim());
-    remaining = remaining.slice(splitAt).trim();
+    let boundary = index + 1;
+    while (boundary < value.length && SENTENCE_ENDINGS.has(value[boundary])) {
+      boundary += 1;
+    }
+    while (boundary < value.length && SENTENCE_CLOSERS.has(value[boundary])) {
+      boundary += 1;
+    }
+    boundaries.add(boundary);
+    index = boundary - 1;
   }
 
-  if (remaining) chunks.push(remaining);
-  return chunks;
+  boundaries.add(value.length);
+  return [...boundaries].sort((left, right) => left - right);
 }
 
 function splitSectionBody(body: string): string[] {
   const maxChars = PRIVATE_LIBRARY_LIMITS.maxChapterChars;
-  const paragraphs = splitParagraphs(body).flatMap((paragraph) =>
-    paragraph.length > maxChars
-      ? splitOversizedParagraph(paragraph, maxChars)
-      : [paragraph]
-  );
+  if (body.length <= maxChars) return [body];
 
+  const partCount = Math.ceil(body.length / maxChars);
+  const boundaries = collectNaturalSplitBoundaries(body);
   const bodies: string[] = [];
-  let current = "";
+  let previousBoundary = 0;
 
-  for (const paragraph of paragraphs) {
-    const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
+  for (let partIndex = 1; partIndex < partCount; partIndex += 1) {
+    const remainingParts = partCount - partIndex;
+    const target = Math.round((body.length * partIndex) / partCount);
+    const minimumBoundary = Math.max(
+      previousBoundary + 1,
+      body.length - maxChars * remainingParts
+    );
+    const maximumBoundary = Math.min(
+      previousBoundary + maxChars,
+      body.length - remainingParts
+    );
+    const candidates = boundaries.filter(
+      (boundary) =>
+        boundary >= minimumBoundary &&
+        boundary <= maximumBoundary &&
+        boundary > previousBoundary &&
+        boundary < body.length
+    );
+    const nextBoundary = candidates.reduce<number | null>((closest, boundary) => {
+      if (closest === null) return boundary;
+      return Math.abs(boundary - target) < Math.abs(closest - target)
+        ? boundary
+        : closest;
+    }, null);
 
-    if (candidate.length <= maxChars) {
-      current = candidate;
-      continue;
+    if (nextBoundary === null) {
+      throw new Error(
+        `1文が${maxChars.toLocaleString("ja-JP")}文字を超えているため、文を切らずに対訳用分割できません。該当箇所へ句点または改行を追加してください。`
+      );
     }
 
-    if (current) bodies.push(current);
-    current = paragraph;
+    const part = trimSplitPart(body.slice(previousBoundary, nextBoundary));
+    if (part) bodies.push(part);
+    previousBoundary = nextBoundary;
   }
 
-  if (current) bodies.push(current);
+  const finalPart = trimSplitPart(body.slice(previousBoundary));
+  if (finalPart) bodies.push(finalPart);
+  if (bodies.some((part) => part.length > maxChars)) {
+    throw new Error(
+      `本文を${maxChars.toLocaleString("ja-JP")}文字以内へ分割できませんでした。`
+    );
+  }
   return bodies;
 }
 
@@ -112,7 +147,7 @@ export function buildParsedBookImport(args: {
       const title = normalizeImportedText(section.title);
       return {
         title: (title || `第${index + 1}話`).slice(0, 200),
-        body: normalizeImportedText(section.body),
+        body: normalizeImportedBodyText(section.body),
       };
     })
     .filter((section) => section.body.length > 0);
@@ -186,7 +221,7 @@ export function buildParsedBookImport(args: {
       ...(args.warnings ?? []),
       ...(sections.some((section) => section.partCount > 1)
         ? [
-            `対訳原価を抑えるため、長い話は最大${PRIVATE_LIBRARY_LIMITS.maxChapterChars.toLocaleString("ja-JP")}文字ごとに「タイトル - 1」形式で分割します。`,
+            `対訳原価を抑えるため、長い話は${PRIVATE_LIBRARY_LIMITS.maxChapterChars.toLocaleString("ja-JP")}文字以内になる最小分割数を求め、文末を保ったまま均等に「タイトル - 1」形式で分割します。`,
           ]
         : []),
     ],

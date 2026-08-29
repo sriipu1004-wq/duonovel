@@ -557,7 +557,7 @@ export default function BilingualEpisodePlayback({
                 {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
                 !aiUsage?.isSubscriber ? (
                   <Link href="/subscription" className="ml-2 font-semibold text-sky-700 underline underline-offset-2">
-                    月額500円で無制限
+                    月額680円で無制限
                   </Link>
                 ) : null}
               </div>
@@ -725,7 +725,7 @@ export default function BilingualEpisodePlayback({
                 {isAiUsageLimitReached(aiUsage?.actions.translation_generation) &&
                 !aiUsage?.isSubscriber ? (
                   <Link href="/subscription" className="mt-4 inline-block text-sm font-semibold text-sky-700 underline underline-offset-4">
-                    月額500円で生成上限を増やす
+                    月額680円で生成上限を増やす
                   </Link>
                 ) : null}
 
