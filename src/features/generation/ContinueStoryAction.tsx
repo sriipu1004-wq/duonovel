@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import PromptTagSuggestions from "@/features/generation/PromptTagSuggestions";
 import { getPromptTagsInText } from "@/lib/generation/promptTags";
 import { useAiUsage } from "@/features/usage/useAiUsage";
+import SubscriptionUpgradePrompt from "@/features/billing/SubscriptionUpgradePrompt";
 import {
   formatAiUsage,
   isAiUsageLimitReached,
@@ -208,6 +209,11 @@ export default function ContinueStoryAction({
             <p aria-live="polite" className="rounded-2xl border border-sky-200 bg-white px-4 py-3 text-sm leading-6 text-neutral-700">
               続きを生成しています。画面を閉じずにお待ちください。
             </p>
+          ) : null}
+
+          {isAiUsageLimitReached(aiUsage?.actions.story_generation) &&
+          !aiUsage?.isSubscriber ? (
+            <SubscriptionUpgradePrompt />
           ) : null}
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

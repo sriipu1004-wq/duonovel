@@ -4,6 +4,9 @@ import {
   type ParsedBookSectionInput,
 } from "@/lib/library/bookImport";
 import { PRIVATE_LIBRARY_LIMITS } from "@/lib/library/privateLibrary";
+import { normalizeImportedText } from "@/lib/library/importTextNormalization";
+
+export { normalizeImportedText } from "@/lib/library/importTextNormalization";
 
 export type ParsedTxtImport = ParsedBookImport;
 
@@ -21,28 +24,6 @@ const KOREAN_CHAPTER_HEADING =
   /^(?:(?:제\s*)?[0-9０-９일이삼사오육칠팔구십백천]+(?:화|장|부|절)|프롤로그|에필로그|막간)(?:[\s:：―—-].{0,60})?$/u;
 const CHINESE_CHAPTER_HEADING =
   /^(?:序章|终章|終章|最终章|最終章|楔子|尾声|尾聲|第[0-9０-９一二三四五六七八九十百千万萬〇零两兩]+(?:章|话|話|回|卷|节|節|部)(?:[\s:：―—-].{0,60})?)$/u;
-
-export function normalizeImportedText(value: string): string {
-  return value
-    .replace(/^\uFEFF/u, "")
-    .replace(/\u0000/gu, "")
-    .replace(/\r\n?/gu, "\n")
-    .replace(/[\t\u00a0]+/gu, " ")
-    .replace(/︐/gu, "，")
-    .replace(/︑/gu, "、")
-    .replace(/︒/gu, "。")
-    .replace(/︓/gu, "：")
-    .replace(/︔/gu, "；")
-    .replace(/︕/gu, "！")
-    .replace(/︖/gu, "？")
-    .replace(/︵/gu, "（")
-    .replace(/︶/gu, "）")
-    .replace(/︻/gu, "【")
-    .replace(/︼/gu, "】")
-    .replace(/[ \u3000]+$/gmu, "")
-    .replace(/\n{4,}/gu, "\n\n\n")
-    .trim();
-}
 
 export function isChapterHeading(line: string): boolean {
   const normalized = line.trim();
@@ -62,7 +43,14 @@ export function detectTextSections(text: string): {
   sections: ParsedBookSectionInput[];
   usedDetectedHeadings: boolean;
 } {
-  const lines = text.split("\n");
+  // Vertical PDF generators sometimes place a chapter heading at the end of
+  // the preceding visual column. Restore that heading boundary before the
+  // ordinary line-based detector runs. This is also harmless for TXT/EPUB/DOCX.
+  const textWithHeadingBoundaries = text.replace(
+    /([^\n])((?:第?[0-9０-９一二三四五六七八九十百千万〇零]+(?:話|章|節|幕|編|部|回)))(?=\n{2,})/gu,
+    "$1\n\n$2"
+  );
+  const lines = textWithHeadingBoundaries.split("\n");
   const headingCount = lines.filter(isChapterHeading).length;
 
   if (headingCount < 2) {

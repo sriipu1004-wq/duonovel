@@ -19,6 +19,7 @@ import {
 } from "@/lib/translation/openAITranslationModel";
 import { parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import {
+  aiActionLimitMessage,
   isSubscriber,
   releaseAiAction,
   reserveAiAction,
@@ -334,7 +335,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "daily_action_limit",
-        message: `本日の対訳生成回数（${actionReservation.used}/${actionReservation.limit}）を使い切りました。`,
+        message: aiActionLimitMessage(actionReservation, "対訳生成"),
         usage: actionReservation,
       },
       { status: 429 }

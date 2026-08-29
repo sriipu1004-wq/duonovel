@@ -4,6 +4,8 @@ import { strToU8, zipSync } from "fflate";
 import { parseDocxImport } from "../src/lib/library/parseDocxImport";
 import { parseEpubImport } from "../src/lib/library/parseEpubImport";
 import { parseTxtImport } from "../src/lib/library/parseTxtImport";
+import { buildParsedBookImport } from "../src/lib/library/bookImport";
+import { normalizeImportedText } from "../src/lib/library/importTextNormalization";
 import { collectTranslationTerminologyCandidates } from "../src/lib/translation/openAITranslation";
 import { detectSourceLanguageFromText } from "../src/lib/translation/detectSourceLanguage";
 
@@ -53,6 +55,25 @@ function testJapaneseBareEpisodeHeadings() {
   assert.equal(parsed.sections[0]?.title, "１話");
   assert.equal(parsed.units[0]?.body, "最初の本文。");
   assert.equal(parsed.units[1]?.body, "次の本文、続き。");
+}
+
+function testVerticalGlyphNormalizationAndTitleFallback() {
+  assert.equal(
+    normalizeImportedText("﹁台詞︒﹂﹃引用︕﹄︙︙││││"),
+    "「台詞。」『引用！』……――"
+  );
+  const parsed = buildParsedBookImport({
+    sections: [
+      { title: "冒頭", body: "前付け本文" },
+      { title: "", body: "無題の本文" },
+      { title: "１話", body: "明示タイトル本文" },
+    ],
+    usedDetectedHeadings: true,
+  });
+  assert.deepEqual(
+    parsed.sections.map((section) => section.title),
+    ["冒頭", "第2話", "１話"]
+  );
 }
 
 function testEpub() {
@@ -141,6 +162,7 @@ testThousandChapterTxt();
 testLongLogicalSection();
 testMultilingualHeadings();
 testJapaneseBareEpisodeHeadings();
+testVerticalGlyphNormalizationAndTitleFallback();
 testEpub();
 testDocx();
 testTerminologyCandidates();

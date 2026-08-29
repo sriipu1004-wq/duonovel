@@ -5,6 +5,7 @@ import {
 } from "@/lib/library/bookImport";
 import { detectTextSections } from "@/lib/library/parseTxtImport";
 import { findZipEntry, readSafeZipTextEntries } from "@/lib/library/zipBook";
+import { normalizeImportedText } from "@/lib/library/importTextNormalization";
 
 export type ParsedDocxFile = {
   parsed: ParsedBookImport;
@@ -153,8 +154,8 @@ export function parseDocxImport(
         ? []
         : ["DOCXに見出し設定が見つからなかったため、本文量から分割しました。"],
     }),
-    suggestedTitle: suggestedTitle.slice(0, 200),
-    suggestedAuthor: suggestedAuthor.slice(0, 200),
+    suggestedTitle: normalizeImportedText(suggestedTitle).slice(0, 200),
+    suggestedAuthor: normalizeImportedText(suggestedAuthor).slice(0, 200),
     formatLabel: "DOCX",
   };
 }

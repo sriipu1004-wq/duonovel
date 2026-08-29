@@ -328,6 +328,7 @@ export default function GeneratedStoryBilingualBridge({
           rememberForTab={rememberForTab}
           showRememberForTab={false}
           translationUsage={aiUsage?.actions.translation_generation}
+          isSubscriber={aiUsage?.isSubscriber === true}
           onTargetLanguageChange={(language) => {
             setTargetLanguage(language);
             const generated = readGeneratedStory(storyId);

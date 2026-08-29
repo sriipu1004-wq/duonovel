@@ -227,6 +227,7 @@ export default function ReadBilingualShell({
           rememberForTab={rememberForTab}
           showRememberForTab={hasMultipleEpisodes}
           translationUsage={aiUsage?.actions.translation_generation}
+          isSubscriber={aiUsage?.isSubscriber === true}
           onTargetLanguageChange={(language) => {
             setTargetLanguage(language);
             void checkTranslationAvailability(language);

@@ -25,6 +25,7 @@ import {
 import { createTranslationPayload } from "@/lib/translation/translationPayload";
 import { reserveEpisodeTranslation } from "@/lib/translation/translationReservationServer";
 import {
+  aiActionLimitMessage,
   releaseAiAction,
   reserveAiAction,
 } from "@/lib/aiUsage/aiUsage.server";
@@ -298,7 +299,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "daily_action_limit",
-        message: `本日の対訳生成回数（${actionReservation.used}/${actionReservation.limit}）を使い切りました。`,
+        message: aiActionLimitMessage(actionReservation, "対訳生成"),
         usage: actionReservation,
       },
       { status: 429 }

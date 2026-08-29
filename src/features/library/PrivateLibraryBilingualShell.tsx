@@ -24,7 +24,6 @@ type PrivateLibraryBilingualShellProps = {
   workId: string;
   chapterId: string;
   chapterNumber: number;
-  sectionNumber: number;
   partNumber: number;
   partCount: number;
   workTitle: string;
@@ -44,7 +43,6 @@ export default function PrivateLibraryBilingualShell({
   workId,
   chapterId,
   chapterNumber,
-  sectionNumber,
   partNumber,
   partCount,
   workTitle,
@@ -193,7 +191,6 @@ export default function PrivateLibraryBilingualShell({
         workId={workId}
         chapterId={chapterId}
         chapterNumber={chapterNumber}
-        sectionNumber={sectionNumber}
         partNumber={partNumber}
         partCount={partCount}
         workTitle={workTitle}
@@ -229,6 +226,7 @@ export default function PrivateLibraryBilingualShell({
           rememberForTab={rememberForTab}
           showRememberForTab={hasMultipleChapters}
           translationUsage={aiUsage?.actions.translation_generation}
+          isSubscriber={aiUsage?.isSubscriber === true}
           onTargetLanguageChange={(language) => {
             setSelectedTargetLanguage(language);
             void checkTranslationAvailability(language);

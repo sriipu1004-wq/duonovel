@@ -1,4 +1,5 @@
 import { PRIVATE_LIBRARY_LIMITS } from "@/lib/library/privateLibrary";
+import { normalizeImportedText } from "@/lib/library/importTextNormalization";
 
 export type ParsedBookSectionInput = {
   title: string;
@@ -101,10 +102,13 @@ export function buildParsedBookImport(args: {
   warnings?: string[];
 }): ParsedBookImport {
   const normalizedSections = args.sections
-    .map((section, index) => ({
-      title: (section.title.trim() || `第${index + 1}話`).slice(0, 200),
-      body: section.body.trim(),
-    }))
+    .map((section, index) => {
+      const title = normalizeImportedText(section.title);
+      return {
+        title: (title || `第${index + 1}話`).slice(0, 200),
+        body: normalizeImportedText(section.body),
+      };
+    })
     .filter((section) => section.body.length > 0);
 
   if (normalizedSections.length === 0) {

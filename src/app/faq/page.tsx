@@ -68,7 +68,17 @@ export default function FaqPage() {
         />
         <FaqItem
           question="無料で使える？"
-          answer="現状の案内では、トップページでも完全無料サイトとして説明している。"
+          answer={
+            <>
+              公開作品の閲覧、個人本棚、読み上げなどは無料で利用できます。AI機能には無料枠があり、月額500円の
+              <Link className="underline underline-offset-4" href="/subscription">サブスク</Link>
+              で生成上限の拡大、単語解説無制限、次話対訳の先読みを利用できます。
+            </>
+          }
+        />
+        <FaqItem
+          question="個人本棚へ入れた作品は他の人に見える？"
+          answer="見えません。個人本棚は所有者本人だけが開ける非公開機能で、公開一覧、検索、共有ページ、検索エンジンには表示されません。"
         />
       </Section>
 

@@ -396,7 +396,7 @@ export default function LibraryImportForm() {
                       className="rounded-2xl border border-black/10 bg-white px-4 py-3"
                     >
                       <p className="text-sm font-medium text-black">
-                        {section.sectionNumber}. {section.title}
+                        {section.title}
                       </p>
                       <p className="mt-1 text-xs text-neutral-500">
                         {formatCharacterCount(section.sourceCharCount)}
@@ -426,7 +426,7 @@ export default function LibraryImportForm() {
                   className="mt-1 size-4 shrink-0"
                 />
                 <span>
-                  自分が作成した作品、著作権が切れた作品、利用許諾を得た作品、または自分が適法に用意して個人利用できるファイルであり、DRM等を回避していないことを確認します。
+                  自分が作成した作品、著作権が切れた作品、または複製・クラウド保存・翻訳処理の許諾を得た作品であり、DRM等を回避していないことを確認します。
                 </span>
               </label>
             ) : null}

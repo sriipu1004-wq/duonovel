@@ -9,6 +9,7 @@ import { recordPromptTagUsage } from "@/lib/generation/promptTagUsage.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
+  aiActionLimitMessage,
   releaseAiAction,
   reserveAiAction,
 } from "@/lib/aiUsage/aiUsage.server";
@@ -922,7 +923,7 @@ export async function POST(request: Request) {
         {
           ok: false,
           error: "daily_action_limit",
-          message: `本日のAI小説生成回数（${actionReservation.used}/${actionReservation.limit}）を使い切りました。`,
+          message: aiActionLimitMessage(actionReservation, "AI小説生成"),
           usage: actionReservation,
         },
         { status: 429 }

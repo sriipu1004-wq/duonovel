@@ -14,6 +14,7 @@ const serviceLinks = [
 const legalLinks = [
   { href: "/terms", label: "利用規約" },
   { href: "/privacy", label: "プライバシーポリシー" },
+  { href: "/commercial-transactions", label: "特定商取引法に基づく表記" },
   { href: "/contact", label: "お問い合わせ" },
 ];
 

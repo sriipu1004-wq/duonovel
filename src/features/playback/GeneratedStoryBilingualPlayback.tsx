@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BilingualDivider from "@/features/playback/BilingualDivider";
 import BilingualHeightHandle, {
@@ -555,6 +556,12 @@ export default function GeneratedStoryBilingualPlayback({
               />
               <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
                 文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
+                {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
+                !aiUsage?.isSubscriber ? (
+                  <Link href="/subscription" className="ml-2 font-semibold text-sky-700 underline underline-offset-2">
+                    月額500円で無制限
+                  </Link>
+                ) : null}
               </div>
 
               <div
@@ -675,6 +682,12 @@ export default function GeneratedStoryBilingualPlayback({
                     >
                       {status === "missing" ? "対訳を生成" : "再試行"} {formatAiUsage(aiUsage?.actions.translation_generation)}
                     </button>
+                    {isAiUsageLimitReached(aiUsage?.actions.translation_generation) &&
+                    !aiUsage?.isSubscriber ? (
+                      <Link href="/subscription" className="mt-4 block text-sm font-semibold text-sky-700 underline underline-offset-4">
+                        月額500円で生成上限を増やす
+                      </Link>
+                    ) : null}
                   </>
                 ) : (
                   <>

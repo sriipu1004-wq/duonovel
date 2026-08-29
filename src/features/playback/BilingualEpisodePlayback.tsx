@@ -554,6 +554,12 @@ export default function BilingualEpisodePlayback({
               />
               <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
                 文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
+                {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
+                !aiUsage?.isSubscriber ? (
+                  <Link href="/subscription" className="ml-2 font-semibold text-sky-700 underline underline-offset-2">
+                    月額500円で無制限
+                  </Link>
+                ) : null}
               </div>
 
               <div
@@ -714,6 +720,13 @@ export default function BilingualEpisodePlayback({
                       ? "生成中…"
                       : `${translationStatus === "missing" ? "対訳を生成" : "対訳を再生成"} ${formatAiUsage(aiUsage?.actions.translation_generation)}`}
                   </button>
+                ) : null}
+
+                {isAiUsageLimitReached(aiUsage?.actions.translation_generation) &&
+                !aiUsage?.isSubscriber ? (
+                  <Link href="/subscription" className="mt-4 inline-block text-sm font-semibold text-sky-700 underline underline-offset-4">
+                    月額500円で生成上限を増やす
+                  </Link>
                 ) : null}
 
                 {statusMessage && translationStatus !== "stale" && translationStatus !== "error" ? (

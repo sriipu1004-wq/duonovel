@@ -323,12 +323,30 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
               <p className="text-[11px] tracking-[0.22em] text-neutral-500">目次</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <ExploreChip href="#prelaunch-summary" label="LIB read の特徴" />
+                <ExploreChip href="#subscription" label="月額500円サブスク" />
                 <ExploreChip href="#bookmark-updates" label="ブックマーク更新" />
                 <ExploreChip href="#latest" label="新着更新" />
                 <ExploreChip href="#weekly-new" label="週間新作おすすめ" />
                 <ExploreChip href="#overall-popular" label="総合人気順" />
                 <ExploreChip href="#narration-popular" label="朗読視聴人気順" />
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="subscription" className="pt-10">
+          <div className="overflow-hidden rounded-[28px] bg-neutral-950 px-5 py-7 text-white sm:px-8 sm:py-9">
+            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+              <div className="max-w-3xl">
+                <p className="text-[11px] tracking-[0.22em] text-sky-300">MONTHLY SUBSCRIPTION</p>
+                <h2 className="mt-2 text-2xl font-bold">月額500円で、長編の対訳を止めずに読む。</h2>
+                <p className="mt-3 text-sm leading-7 text-neutral-300">
+                  単語解説は無制限。AI物語は1日10回、対訳生成は1日30回へ拡大し、読書中に次話の対訳を1話だけ先読みします。
+                </p>
+              </div>
+              <Link href="/subscription" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-neutral-100">
+                無料版との違いを見る
+              </Link>
             </div>
           </div>
         </section>
@@ -409,7 +427,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
           <div className="border-t border-black/10 pt-4 text-[11px] leading-6 text-neutral-500">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">サービス案内</span><Link href="/guide" className="transition hover:text-black">使い方</Link><Link href="/faq" className="transition hover:text-black">FAQ</Link></div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">運営情報</span><Link href="/status" className="transition hover:text-black">運営状況</Link><Link href="/news" className="transition hover:text-black">お知らせ</Link></div>
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">規約・連絡</span><Link href="/terms" className="transition hover:text-black">利用規約</Link><Link href="/privacy" className="transition hover:text-black">プライバシーポリシー</Link><Link href="/contact" className="transition hover:text-black">お問い合わせ</Link></div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">規約・連絡</span><Link href="/terms" className="transition hover:text-black">利用規約</Link><Link href="/privacy" className="transition hover:text-black">プライバシーポリシー</Link><Link href="/commercial-transactions" className="transition hover:text-black">特定商取引法に基づく表記</Link><Link href="/contact" className="transition hover:text-black">お問い合わせ</Link></div>
           </div>
         </section>
       </div>

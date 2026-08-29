@@ -5,6 +5,7 @@ import {
 } from "@/lib/library/bookImport";
 import { findZipEntry, readSafeZipTextEntries, resolveZipPath } from "@/lib/library/zipBook";
 import { parseSupportedLanguageTag, type SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import { normalizeImportedText } from "@/lib/library/importTextNormalization";
 
 export type ParsedEpubFile = {
   parsed: ParsedBookImport;
@@ -287,8 +288,8 @@ export function parseEpubImport(
           ? []
           : ["EPUBの目次を取得できなかったため、本文ファイルの順序で章を作成しました。"],
     }),
-    suggestedTitle: suggestedTitle.slice(0, 200),
-    suggestedAuthor: suggestedAuthor.slice(0, 200),
+    suggestedTitle: normalizeImportedText(suggestedTitle).slice(0, 200),
+    suggestedAuthor: normalizeImportedText(suggestedAuthor).slice(0, 200),
     suggestedLanguage,
     formatLabel: "EPUB",
   };

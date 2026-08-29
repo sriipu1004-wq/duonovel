@@ -51,7 +51,6 @@ type PrivateLibraryBilingualPlaybackProps = {
   workId: string;
   chapterId: string;
   chapterNumber: number;
-  sectionNumber: number;
   partNumber: number;
   partCount: number;
   workTitle: string;
@@ -143,7 +142,6 @@ export default function PrivateLibraryBilingualPlayback({
   workId,
   chapterId,
   chapterNumber,
-  sectionNumber,
   partNumber,
   partCount,
   workTitle,
@@ -696,10 +694,11 @@ export default function PrivateLibraryBilingualPlayback({
                 <h1 className="mt-1 text-xl font-semibold text-black sm:text-2xl">
                   {chapterTitle || `第${chapterNumber}話`}
                 </h1>
-                <p className="mt-1 text-[11px] text-neutral-500">
-                  第{sectionNumber}話
-                  {partCount > 1 ? `・${partNumber}/${partCount}` : ""}
-                </p>
+                {partCount > 1 ? (
+                  <p className="mt-1 text-[11px] text-neutral-500">
+                    {partNumber}/{partCount}
+                  </p>
+                ) : null}
                 <p className="mt-2 text-xs text-neutral-500">
                   {authorName ? `作者 ${authorName}` : "個人本棚・本人限定"}
                 </p>
@@ -752,6 +751,12 @@ export default function PrivateLibraryBilingualPlayback({
               />
               <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
                 文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
+                {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
+                !aiUsage?.isSubscriber ? (
+                  <Link href="/subscription" className="ml-2 font-semibold text-sky-700 underline underline-offset-2">
+                    月額500円で無制限
+                  </Link>
+                ) : null}
               </div>
 
               <div
@@ -919,6 +924,13 @@ export default function PrivateLibraryBilingualPlayback({
                         ? `対訳を生成 ${formatAiUsage(aiUsage?.actions.translation_generation)}`
                         : `対訳を再生成 ${formatAiUsage(aiUsage?.actions.translation_generation)}`}
                   </button>
+                ) : null}
+
+                {isAiUsageLimitReached(aiUsage?.actions.translation_generation) &&
+                !aiUsage?.isSubscriber ? (
+                  <Link href="/subscription" className="mt-4 inline-block text-sm font-semibold text-sky-700 underline underline-offset-4">
+                    月額500円で生成上限を増やす
+                  </Link>
                 ) : null}
 
                 {statusMessage && translationStatus !== "error" ? (

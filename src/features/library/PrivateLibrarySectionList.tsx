@@ -71,16 +71,15 @@ export default function PrivateLibrarySectionList({
             className="flex items-center justify-between gap-4 rounded-2xl border border-black/10 bg-white px-4 py-4 transition hover:bg-neutral-50"
           >
             <span className="min-w-0">
-              <span className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
-                <span>第{section.section_number}話</span>
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="truncate text-sm font-medium text-black">
+                  {section.section_title}
+                </span>
                 {hasBookmark ? (
                   <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
                     栞
                   </span>
                 ) : null}
-              </span>
-              <span className="mt-1 block truncate text-sm font-medium text-black">
-                {section.section_title}
               </span>
               {section.part_count > 1 ? (
                 <span className="mt-1 block text-[11px] text-neutral-400">

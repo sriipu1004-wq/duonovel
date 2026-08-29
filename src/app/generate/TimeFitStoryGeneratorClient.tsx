@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import PromptTagSuggestions from "@/features/generation/PromptTagSuggestions";
 import { getPromptTagsInText } from "@/lib/generation/promptTags";
 import { useAiUsage } from "@/features/usage/useAiUsage";
+import SubscriptionUpgradePrompt from "@/features/billing/SubscriptionUpgradePrompt";
 import {
   formatAiUsage,
   isAiUsageLimitReached,
@@ -293,6 +294,11 @@ export default function TimeFitStoryGeneratorClient() {
             ? "生成中..."
             : `物語を生成する ${formatAiUsage(aiUsage?.actions.story_generation)}`}
         </button>
+
+        {isAiUsageLimitReached(aiUsage?.actions.story_generation) &&
+        !aiUsage?.isSubscriber ? (
+          <SubscriptionUpgradePrompt />
+        ) : null}
 
         <p className="text-xs leading-6 text-neutral-500">
           AI小説生成は新規と続編を合算し、毎日0時（日本時間）に回復します。公開投稿や永続保存にはログインが必要です。

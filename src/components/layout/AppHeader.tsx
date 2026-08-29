@@ -11,7 +11,6 @@ const navItems = [
   { href: "/search", label: "探す" },
   { href: "/record", label: "朗読" },
   { href: "/write", label: "投稿" },
-  { href: "/subscription", label: "プラン" },
 ];
 
 export default function AppHeader() {

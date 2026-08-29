@@ -17,6 +17,7 @@ import {
   getDefaultTextTokenPricesUsd,
 } from "@/lib/translation/openAITranslationModel";
 import {
+  aiActionLimitMessage,
   releaseAiAction,
   reserveAiAction,
 } from "@/lib/aiUsage/aiUsage.server";
@@ -278,7 +279,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "daily_action_limit",
-        message: `本日の単語解説回数（${actionReservation.used}/${actionReservation.limit}）を使い切りました。`,
+        message: aiActionLimitMessage(actionReservation, "単語解説"),
         usage: actionReservation,
       },
       { status: 429 }

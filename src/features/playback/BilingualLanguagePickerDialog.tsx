@@ -1,6 +1,7 @@
 "use client";
 
 import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
+import SubscriptionUpgradePrompt from "@/features/billing/SubscriptionUpgradePrompt";
 import type { AiActionUsage } from "@/lib/aiUsage/aiUsage";
 import {
   formatAiUsage,
@@ -27,6 +28,7 @@ type BilingualLanguagePickerDialogProps = {
   rememberForTab: boolean;
   showRememberForTab: boolean;
   translationUsage?: AiActionUsage | null;
+  isSubscriber?: boolean;
   onTargetLanguageChange: (
     language: PublicTranslationTargetLanguage
   ) => void;
@@ -54,6 +56,7 @@ export default function BilingualLanguagePickerDialog({
   rememberForTab,
   showRememberForTab,
   translationUsage,
+  isSubscriber = false,
   onTargetLanguageChange,
   onRememberForTabChange,
   onCancel,
@@ -118,9 +121,13 @@ export default function BilingualLanguagePickerDialog({
           </p>
         ) : null}
         {generationLimitReached ? (
-          <p className="mt-4 text-xs text-red-700">
-            本日の生成回数を使い切っています。
-          </p>
+          isSubscriber ? (
+            <p className="mt-4 text-xs text-red-700">
+              現在のサブスク生成上限に達しています。
+            </p>
+          ) : (
+            <SubscriptionUpgradePrompt compact className="mt-4" />
+          )
         ) : null}
 
         <div className="mt-6 flex justify-end gap-3">
