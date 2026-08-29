@@ -4,13 +4,18 @@
 
 ## 1. Supabase
 
-`supabase/migrations/20260829120000_add_stripe_subscriptions.sql` を全体実行する。
+以下を上から順に、それぞれファイル全体実行する。
+
+1. `supabase/migrations/20260829120000_add_stripe_subscriptions.sql`
+2. `supabase/migrations/20260829130000_limit_free_private_library_works.sql`
 
 このmigrationは次を追加する。
 
 - Stripe顧客・契約・Webhook処理履歴
 - 月間AI原価予約（1加入者あたり月300円相当）
 - 個人本棚の章を削除した際の単語解説cache削除
+- 無料ユーザーの個人本棚を3作品、有料ユーザーを20作品に制限
+- 新規取り込みの対訳単位を最大6,000文字に制限
 
 ## 2. Stripe Product / Price
 
@@ -62,6 +67,16 @@ LIBREAD_LEGAL_SUPPORT_EMAIL=
 ```
 
 販売事業者名、責任者、住所、電話番号は実在する正確な情報を設定する。未設定の項目が1つでもある場合、`/subscription` は表示できるがCheckoutは開始しない。
+
+日本の個人事業として提供する場合は、次のように設定する。値そのものはGitHubへcommitせず、Vercelの暗号化された環境変数にだけ保存する。
+
+- `LIBREAD_LEGAL_SELLER_NAME`: 戸籍上の氏名または登記された商号
+- `LIBREAD_LEGAL_RESPONSIBLE_PERSON`: 本人の戸籍上の氏名
+- `LIBREAD_LEGAL_ADDRESS`: 現在も日本の事業連絡先として機能する完全な住所
+- `LIBREAD_LEGAL_PHONE`: 利用者から確実に連絡を受けられる番号
+- `LIBREAD_LEGAL_SUPPORT_EMAIL`: 継続して確認する問い合わせ先
+
+海外へ一時滞在している間も、日本住所で郵便を受領でき、電話・メールへ対応できる体制を用意する。マイナンバー、カード画像、本人確認書類はサイトや環境変数へ保存しない。
 
 緊急時はStripe設定を消さず、`LIBREAD_BILLING_CHECKOUT_ENABLED=false` にして新規契約だけを停止する。既存加入者のCustomer PortalとWebhookは継続する。
 
