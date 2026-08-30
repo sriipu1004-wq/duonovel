@@ -44,7 +44,7 @@ export function normalizeImportedText(value: string): string {
 export function normalizeImportedBodyText(value: string): string {
   const normalized = normalizeImportedText(value).replace(
     /([」』])[ \u3000]*(?=[「『])/gu,
-    "$1\n"
+    "$1\n\n"
   );
   const usesJapaneseStyleIndent = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(
     normalized

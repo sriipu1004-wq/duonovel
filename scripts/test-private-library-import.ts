@@ -102,7 +102,13 @@ function testVerticalGlyphNormalizationAndTitleFallback() {
     normalizeImportedBodyText(
       "一つ目の段落。\n\n二つ目の段落。\n\n「一人目の台詞。」「二人目の台詞。」"
     ),
-    "　一つ目の段落。\n\n　二つ目の段落。\n\n「一人目の台詞。」\n「二人目の台詞。」"
+    "　一つ目の段落。\n\n　二つ目の段落。\n\n「一人目の台詞。」\n\n「二人目の台詞。」"
+  );
+  assert.equal(
+    normalizeImportedBodyText(
+      "﹁一人目︒﹂﹁二人目︕﹂\n\n次のページの地の文︒"
+    ),
+    "「一人目。」\n\n「二人目！」\n\n　次のページの地の文。"
   );
   assert.equal(
     normalizeImportedBodyText("First paragraph.\n\nSecond paragraph."),

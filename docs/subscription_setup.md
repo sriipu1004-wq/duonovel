@@ -26,6 +26,7 @@ Stripeで商品を1件作成し、Priceを次の条件で作る。
 - 税込価格: `tax_behavior=inclusive`
 - 課金間隔: 1か月
 - 種類: recurring
+- 商品のTax code: Stripeの商品分類から、このサービスに該当するコードを選択する（推測で設定しない）
 
 Stripe Priceの金額は作成後に変更できない。500円のPriceを既に作成している場合はそれをアーカイブし、同じ商品へ680円の新しいPriceを追加する。Vercelの`STRIPE_PRICE_ID`は新しい680円Priceの`price_...`へ差し替える。
 
@@ -59,9 +60,11 @@ TestとLiveは別々のWebhook署名シークレットになる。それぞれ�
 まずPreviewへStripe test modeの値だけを設定する。
 
 ```text
-STRIPE_SECRET_KEY=sk_test_...
+STRIPE_RESTRICTED_KEY=rk_test_...（推奨。必要権限だけを付与）
+# STRIPE_SECRET_KEY=sk_test_...（Restricted keyへ移行するまでの予備）
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_PRICE_ID=price_...（test modeの680円Price）
+STRIPE_AUTOMATIC_TAX_ENABLED=false
 LIBREAD_BILLING_CHECKOUT_ENABLED=true
 
 LIBREAD_LEGAL_SELLER_NAME=
@@ -74,9 +77,11 @@ LIBREAD_LEGAL_SUPPORT_EMAIL=
 Previewで全テストが成功した後、ProductionにはLive modeの別の値を設定する。
 
 ```text
-STRIPE_SECRET_KEY=sk_live_...
+STRIPE_RESTRICTED_KEY=rk_live_...（推奨。必要権限だけを付与）
+# STRIPE_SECRET_KEY=sk_live_...（Restricted keyへ移行するまでの予備）
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_PRICE_ID=price_...（live modeの680円Price）
+STRIPE_AUTOMATIC_TAX_ENABLED=false
 NEXT_PUBLIC_SITE_URL=https://www.syosetu-libread.com
 LIBREAD_BILLING_CHECKOUT_ENABLED=false
 
@@ -88,6 +93,15 @@ LIBREAD_LEGAL_SUPPORT_EMAIL=
 ```
 
 Productionは最初に`LIBREAD_BILLING_CHECKOUT_ENABLED=false`のままdeployし、公開ページ・法定表示・Live webhookを確認してから`true`へ切り替える。
+
+Stripe Taxは次の順で設定する。税務登録がない状態でAutomatic Taxだけを有効化すると、Checkoutは動いても税額0で処理されるため、順番を逆にしない。
+
+1. Stripe TaxのHead officeへ日本の実際の事業住所を登録する。
+2. Stripe Dashboardで、このサービスに法的に必要なTax registrationを登録する。必要な登録先・開始日は税理士等へ確認する。
+3. Test modeで住所別の税計算を確認する。
+4. 上記完了後だけ、対象環境の`STRIPE_AUTOMATIC_TAX_ENABLED=true`へ変更する。
+
+Stripe Taxは税額の計算・徴収を行うが、申告そのものは自動ではない。TestとLiveのTax registrationは別管理なので、両環境で個別に確認する。
 
 販売事業者名、責任者、住所、電話番号は実在する正確な情報を設定する。未設定の項目が1つでもある場合、`/subscription` は表示できるがCheckoutは開始しない。
 
@@ -102,6 +116,8 @@ Productionは最初に`LIBREAD_BILLING_CHECKOUT_ENABLED=false`のままdeployし
 - `LIBREAD_LEGAL_SUPPORT_EMAIL`: 継続して確認する問い合わせ先
 
 海外へ一時滞在している間も、日本住所で郵便を受領でき、電話・メールへ対応できる体制を用意する。マイナンバー、カード画像、本人確認書類はサイトや環境変数へ保存しない。
+
+Restricted keyはPreview / Productionで別々に作り、Checkout Sessions、Customers、Prices、Subscriptions、Customer Portalで実際に使う最小権限だけを付与する。最初にTest modeで動作させ、Stripe Workbenchで403がないことを確認してからLive用を作る。VercelではSensitive扱いにし、値をGitHub、チャット、ログへ貼らない。
 
 緊急時はStripe設定を消さず、`LIBREAD_BILLING_CHECKOUT_ENABLED=false` にして新規契約だけを停止する。既存加入者のCustomer PortalとWebhookは継続する。
 

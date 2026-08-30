@@ -9,6 +9,7 @@ import {
   getRequestOrigin,
   getStripePriceId,
   isPaidSubscriptionReady,
+  isStripeAutomaticTaxEnabled,
   LIBREAD_BILLING_TERMS_VERSION,
 } from "@/lib/billing/billingConfig";
 import { getStripeClient } from "@/lib/billing/stripe.server";
@@ -89,6 +90,7 @@ export async function POST(request: Request) {
     const stripe = getStripeClient();
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
+      integration_identifier: "libread_checkout_kmptzqrx",
       customer: stripeCustomerId,
       client_reference_id: user.id,
       line_items: [{ price: getStripePriceId(), quantity: 1 }],
@@ -96,6 +98,7 @@ export async function POST(request: Request) {
       allow_promotion_codes: false,
       billing_address_collection: "auto",
       customer_update: { address: "auto", name: "auto" },
+      automatic_tax: { enabled: isStripeAutomaticTaxEnabled() },
       consent_collection: { terms_of_service: "required" },
       success_url: `${origin}/subscription?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/subscription?checkout=canceled`,
@@ -125,10 +128,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "checkout_failed",
-        message:
-          checkoutError instanceof Error
-            ? checkoutError.message
-            : "決済画面を開けませんでした。",
+        message: "決済画面を開けませんでした。時間を置いて再度お試しください。",
       },
       { status: 500 }
     );

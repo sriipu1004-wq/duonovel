@@ -323,8 +323,23 @@ export default function BilingualPane({
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
       >
         <article className="space-y-6 text-[1rem] leading-[2.05] text-black sm:text-[1.05rem]">
-          {Array.from(paragraphMap.entries()).map(([paragraphIndex, paragraphSegments]) => (
-            <p key={paragraphIndex} className="whitespace-pre-wrap">
+          {Array.from(paragraphMap.entries()).map(
+            ([paragraphIndex, paragraphSegments], index, paragraphs) => {
+              const firstSource = paragraphSegments[0]?.sourceText.trim() ?? "";
+              const previousSource =
+                paragraphs[index - 1]?.[1]?.[0]?.sourceText.trim() ?? "";
+              const followsDialogue =
+                /^[「『]/u.test(firstSource) && /^[「『]/u.test(previousSource);
+
+              return (
+                <p
+                  key={paragraphIndex}
+                  className={
+                    followsDialogue
+                      ? "!mt-0 whitespace-pre-wrap"
+                      : "whitespace-pre-wrap"
+                  }
+                >
               {paragraphSegments.map((segment) => {
                 const selected = selectedSegmentId === segment.id;
                 const hovered = hoveredSegmentId === segment.id;
@@ -391,8 +406,10 @@ export default function BilingualPane({
                   </span>
                 );
               })}
-            </p>
-          ))}
+                </p>
+              );
+            }
+          )}
         </article>
       </div>
     </section>

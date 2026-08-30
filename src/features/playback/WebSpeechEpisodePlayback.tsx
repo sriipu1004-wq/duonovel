@@ -1461,7 +1461,7 @@ export default function WebSpeechEpisodePlayback({
                     color: "#111111",
                   }}
                 >
-                  {contentBlocks.map((block) => {
+                  {contentBlocks.map((block, blockIndex) => {
                     if (block.kind === "scene_break") {
                       if (displayPreference.hideEffects) return null;
 
@@ -1472,8 +1472,23 @@ export default function WebSpeechEpisodePlayback({
                       );
                     }
 
+                    const firstText = block.sentences[0]?.text.trim() ?? "";
+                    const previousBlock = contentBlocks
+                      .slice(0, blockIndex)
+                      .findLast((candidate) => candidate.kind === "paragraph");
+                    const previousFirstText =
+                      previousBlock?.kind === "paragraph"
+                        ? previousBlock.sentences[0]?.text.trim() ?? ""
+                        : "";
+                    const followsDialogue =
+                      /^[「『]/u.test(firstText) &&
+                      /^[「『]/u.test(previousFirstText);
+
                     return (
-                      <p key={block.key}>
+                      <p
+                        key={block.key}
+                        className={followsDialogue ? "!mt-0" : undefined}
+                      >
                         {block.sentences.map((segment) => {
                           const unitIndex =
                             firstSpeechUnitIndexBySegment.get(segment.index) ?? 0;

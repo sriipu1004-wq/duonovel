@@ -272,7 +272,13 @@ export async function parsePdfImport(
 
     const pagesWithoutMargins = stripRepeatedMargins(pages);
     const rawMetadataText = pagesWithoutMargins.slice(0, 8).join("\n");
-    const normalized = normalizeImportedText(joinPdfPages(pagesWithoutMargins));
+    // Normalize vertical punctuation before joining pages. Otherwise a page that
+    // ends in `﹂` is mistaken for an unfinished sentence and the next page's
+    // narration is appended directly after the closing quote.
+    const normalizedPages = pagesWithoutMargins.map((page) =>
+      normalizeImportedText(page)
+    );
+    const normalized = normalizeImportedText(joinPdfPages(normalizedPages));
     const detected = detectTextSections(normalized);
     const metadata = await document.getMetadata().catch(() => null);
     const info = (metadata?.info ?? {}) as Record<string, unknown>;

@@ -3,6 +3,7 @@ import "server-only";
 import type Stripe from "stripe";
 import {
   getStripePriceId,
+  isStripeAutomaticTaxEnabled,
   LIBREAD_SUBSCRIPTION_PRICE_JPY,
 } from "@/lib/billing/billingConfig";
 import { getStripeClient } from "@/lib/billing/stripe.server";
@@ -152,7 +153,9 @@ export async function findOpenCheckoutSession(
 
 export async function verifyConfiguredStripePrice(): Promise<void> {
   const stripe = getStripeClient();
-  const price = await stripe.prices.retrieve(getStripePriceId());
+  const price = await stripe.prices.retrieve(getStripePriceId(), {
+    expand: ["product"],
+  });
   if (
     !price.active ||
     price.currency !== "jpy" ||
@@ -164,6 +167,16 @@ export async function verifyConfiguredStripePrice(): Promise<void> {
     throw new Error(
       "Stripe Priceは税込680円・日本円・月額・tax_behavior=inclusiveで作成してください。"
     );
+  }
+
+  if (isStripeAutomaticTaxEnabled()) {
+    const product = typeof price.product === "string" ? null : price.product;
+    const taxCode = product && !product.deleted ? product.tax_code : null;
+    if (!taxCode) {
+      throw new Error(
+        "Stripe Taxを有効にする前に、商品へ適切なTax codeを設定してください。"
+      );
+    }
   }
 }
 

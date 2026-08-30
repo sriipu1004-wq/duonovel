@@ -39,10 +39,15 @@ export function hasCompleteLegalSellerDetails(): boolean {
 
 export function isStripeConfigured(): boolean {
   return Boolean(
-    readEnv("STRIPE_SECRET_KEY") &&
+    (readEnv("STRIPE_RESTRICTED_KEY") || readEnv("STRIPE_SECRET_KEY")) &&
       readEnv("STRIPE_WEBHOOK_SECRET") &&
       readEnv("STRIPE_PRICE_ID")
   );
+}
+
+export function isStripeAutomaticTaxEnabled(): boolean {
+  const value = readEnv("STRIPE_AUTOMATIC_TAX_ENABLED").toLowerCase();
+  return value === "true" || value === "1" || value === "on";
 }
 
 export function isBillingCheckoutEnabled(): boolean {
@@ -71,8 +76,10 @@ export function getStripeWebhookSecret(): string {
 }
 
 export function getStripeSecretKey(): string {
-  const value = readEnv("STRIPE_SECRET_KEY");
-  if (!value) throw new Error("STRIPE_SECRET_KEY is missing");
+  const value = readEnv("STRIPE_RESTRICTED_KEY") || readEnv("STRIPE_SECRET_KEY");
+  if (!value) {
+    throw new Error("STRIPE_RESTRICTED_KEY or STRIPE_SECRET_KEY is missing");
+  }
   return value;
 }
 
