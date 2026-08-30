@@ -1369,7 +1369,9 @@ export default function WebSpeechEpisodePlayback({
                         バックグラウンド再生・次話自動再生
                       </p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
-                        サブスクでは別のアプリやタブへ移っても朗読を続け、話末で次の話へ移動して再生する。
+                        {isSubscriber
+                          ? "別のアプリやタブへ移っても朗読を続け、話末で次の話へ移動して再生する。"
+                          : "有料プランで利用できます。"}
                       </p>
                     </div>
                     {isSubscriber ? (

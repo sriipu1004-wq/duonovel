@@ -1,6 +1,6 @@
 import { buildParsedBookImport, type ParsedBookImport } from "@/lib/library/bookImport";
 import { normalizeImportedText } from "@/lib/library/importTextNormalization";
-import { detectTextSections } from "@/lib/library/parseTxtImport";
+import { detectTextSections, isChapterHeading } from "@/lib/library/parseTxtImport";
 import { PRIVATE_LIBRARY_LIMITS } from "@/lib/library/privateLibrary";
 
 export type ParsedPdfFile = {
@@ -158,17 +158,54 @@ function pageTextFromItems(items: unknown[]): string {
 function stripRepeatedMargins(pages: string[]): string[] {
   const firstLineCounts = new Map<string, number>();
   const lastLineCounts = new Map<string, number>();
+  const firstPageNumberOffsets = new Map<number, number>();
+  const lastPageNumberOffsets = new Map<number, number>();
 
-  pages.forEach((page) => {
+  const pageNumberValue = (line: string): number | null => {
+    const match = line.match(/^[-–—]?\s*([0-9０-９]+)\s*[-–—]?$/u);
+    if (!match?.[1]) return null;
+    const parsed = Number(
+      match[1].replace(/[０-９]/gu, (character) =>
+        String(character.codePointAt(0)! - 0xff10)
+      )
+    );
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  };
+
+  pages.forEach((page, pageIndex) => {
     const lines = page.split("\n").map((line) => line.trim()).filter(Boolean);
     const first = lines[0] ?? "";
     const last = lines.at(-1) ?? "";
     if (first) firstLineCounts.set(first, (firstLineCounts.get(first) ?? 0) + 1);
     if (last) lastLineCounts.set(last, (lastLineCounts.get(last) ?? 0) + 1);
+    const firstPageNumber = pageNumberValue(first);
+    const lastPageNumber = pageNumberValue(last);
+    if (firstPageNumber !== null) {
+      const offset = firstPageNumber - (pageIndex + 1);
+      firstPageNumberOffsets.set(offset, (firstPageNumberOffsets.get(offset) ?? 0) + 1);
+    }
+    if (lastPageNumber !== null) {
+      const offset = lastPageNumber - (pageIndex + 1);
+      lastPageNumberOffsets.set(offset, (lastPageNumberOffsets.get(offset) ?? 0) + 1);
+    }
   });
 
   const repeatThreshold = Math.max(3, Math.ceil(pages.length * 0.55));
-  return pages.map((page) => {
+  const dominantSequentialOffset = (offsets: Map<number, number>): number | null => {
+    let selected: number | null = null;
+    let selectedCount = 0;
+    for (const [offset, count] of offsets) {
+      if (count > selectedCount) {
+        selected = offset;
+        selectedCount = count;
+      }
+    }
+    return selectedCount >= repeatThreshold ? selected : null;
+  };
+  const firstSequentialOffset = dominantSequentialOffset(firstPageNumberOffsets);
+  const lastSequentialOffset = dominantSequentialOffset(lastPageNumberOffsets);
+
+  return pages.map((page, pageIndex) => {
     const lines = page.split("\n");
     const firstIndex = lines.findIndex((line) => Boolean(line.trim()));
     const lastIndex = lines.findLastIndex((line) => Boolean(line.trim()));
@@ -176,7 +213,9 @@ function stripRepeatedMargins(pages: string[]): string[] {
     const last = lastIndex >= 0 ? lines[lastIndex].trim() : "";
     if (
       first &&
-      ((firstLineCounts.get(first) ?? 0) >= repeatThreshold || /^[-–—]?\s*\d+\s*[-–—]?$/u.test(first))
+      ((firstLineCounts.get(first) ?? 0) >= repeatThreshold ||
+        (firstSequentialOffset !== null &&
+          pageNumberValue(first) === pageIndex + 1 + firstSequentialOffset))
     ) {
       lines.splice(firstIndex, 1);
     }
@@ -184,7 +223,9 @@ function stripRepeatedMargins(pages: string[]): string[] {
     const updatedLast = updatedLastIndex >= 0 ? lines[updatedLastIndex].trim() : "";
     if (
       updatedLast &&
-      ((lastLineCounts.get(last) ?? 0) >= repeatThreshold || /^[-–—]?\s*\d+\s*[-–—]?$/u.test(updatedLast))
+      ((lastLineCounts.get(last) ?? 0) >= repeatThreshold ||
+        (lastSequentialOffset !== null &&
+          pageNumberValue(updatedLast) === pageIndex + 1 + lastSequentialOffset))
     ) {
       lines.splice(updatedLastIndex, 1);
     }
@@ -199,6 +240,11 @@ function joinPdfPages(pages: string[]): string {
     if (!next) continue;
     if (!result) {
       result = next;
+      continue;
+    }
+    const nextFirstLine = next.split("\n").find((line) => Boolean(line.trim())) ?? "";
+    if (isChapterHeading(nextFirstLine)) {
+      result += `\n\n${next}`;
       continue;
     }
     const previousEndsParagraph = /[。！？!?」』）】〉》…]$/u.test(result);

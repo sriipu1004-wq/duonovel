@@ -1,4 +1,5 @@
 import Link from "next/link";
+import FreePlanOnly from "@/features/billing/FreePlanOnly";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -141,10 +142,12 @@ export default function GuidePage() {
         <p>
           保存したAI生成作品は作品ワークスペースから続きを生成できます。短編で最初の続きを作る場合は、元の第1話を残したまま長編へ切り替え、第2話を下書き保存します。
         </p>
-        <p>
-          <Link className="underline underline-offset-4" href="/subscription">月額680円のサブスク</Link>
-          では、AI物語生成は1日10回、対訳生成は1日30回、単語解説は無制限になります。AI生成には日次上限に加えて月間AI利用上限があります。
-        </p>
+        <FreePlanOnly>
+          <p>
+            <Link className="underline underline-offset-4" href="/subscription">月額680円のサブスク</Link>
+            では、AI物語生成は1日10回、対訳生成は1日30回、単語解説は無制限になります。AI生成には日次上限に加えて月間AI利用上限があります。
+          </p>
+        </FreePlanOnly>
       </Section>
 
       <Section title="9. 継続的な改善について">

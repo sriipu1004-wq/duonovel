@@ -93,6 +93,19 @@ function testJapaneseBareEpisodeHeadings() {
   assert.equal(parsed.units[1]?.body, "　次の本文、続き。");
 }
 
+function testEmbeddedJapaneseEpisodeHeadingKeepsItsPrefix() {
+  const parsed = parseTxtImport(
+    "1話\n\n最初の本文。12話\n\n十二話の本文。１００話\n\n百話の本文。\n\n第201話\n\n二百一話の本文。"
+  );
+  assert.deepEqual(
+    parsed.sections.map((section) => section.title),
+    ["1話", "12話", "１００話", "第201話"]
+  );
+  assert.ok(parsed.units[0]?.body.includes("最初の本文。"));
+  assert.equal(parsed.units[1]?.body, "　十二話の本文。");
+  assert.equal(parsed.units[2]?.body, "　百話の本文。");
+}
+
 function testVerticalGlyphNormalizationAndTitleFallback() {
   assert.equal(
     normalizeImportedText("﹁台詞︒﹂﹃引用︕﹄︙︙││││"),
@@ -243,6 +256,7 @@ testThousandChapterTxt();
 testLongLogicalSection();
 testMultilingualHeadings();
 testJapaneseBareEpisodeHeadings();
+testEmbeddedJapaneseEpisodeHeadingKeepsItsPrefix();
 testVerticalGlyphNormalizationAndTitleFallback();
 testDatabaseCompatibleCharacterCount();
 testEpub();

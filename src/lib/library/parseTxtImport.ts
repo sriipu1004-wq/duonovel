@@ -47,7 +47,7 @@ export function detectTextSections(text: string): {
   // the preceding visual column. Restore that heading boundary before the
   // ordinary line-based detector runs. This is also harmless for TXT/EPUB/DOCX.
   const textWithHeadingBoundaries = text.replace(
-    /([^\n])((?:第?[0-9０-９一二三四五六七八九十百千万〇零]+(?:話|章|節|幕|編|部|回)))(?=\n{2,})/gu,
+    /([^\n0-9０-９一二三四五六七八九十百千万〇零第])((?:第?[0-9０-９一二三四五六七八九十百千万〇零]+(?:話|章|節|幕|編|部|回)))(?=\n{2,})/gu,
     "$1\n\n$2"
   );
   const lines = textWithHeadingBoundaries.split("\n");

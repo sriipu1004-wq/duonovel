@@ -1257,7 +1257,9 @@ export default function GeneratedStoryReaderClient({
                         バックグラウンド再生
                       </p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
-                        サブスクでは別画面を開いても朗読を続ける。
+                        {isSubscriber
+                          ? "別画面を開いても朗読を続ける。"
+                          : "有料プランで利用できます。"}
                       </p>
                     </div>
                     {isSubscriber ? (
