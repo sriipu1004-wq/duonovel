@@ -6,6 +6,7 @@ import {
 } from "@/lib/library/privateLibrary";
 import { getPrivateLibraryImportErrorMessage } from "@/lib/library/privateLibraryImportServer";
 import { parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 
 export const runtime = "nodejs";
 
@@ -78,6 +79,10 @@ export async function POST(request: Request) {
       { status: 401 }
     );
   }
+
+  // Ensure the verified operator account's permanent entitlement exists before
+  // the database applies the free/private-library work limit.
+  await isSubscriber(authData.user.id);
 
   const result = await supabase.rpc("begin_private_library_import", {
     p_title: title,

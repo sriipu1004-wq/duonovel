@@ -10,6 +10,7 @@ import {
 } from "@/lib/billing/billingConfig";
 import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 import { createClient } from "@/lib/supabase/server";
+import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 
 export const metadata: Metadata = {
   title: "サブスク | LIB read",
@@ -65,6 +66,7 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
   const supabase = await createClient();
   const authResult = await supabase.auth.getUser();
   const user = authResult.data.user ?? null;
+  const officialAccount = isOfficialAccountEmail(user?.email);
   const [subscriber, billingSummary] = user
     ? await Promise.all([
         isSubscriber(user.id),
@@ -80,7 +82,9 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
       )
   );
   const currentPlanLabel = subscriber
-    ? "サブスク利用中"
+    ? officialAccount
+      ? "運営アカウント・有料機能有効"
+      : "サブスク利用中"
     : shouldManageExistingContract
       ? "支払い・契約状態の確認が必要"
       : "無料プラン";
@@ -138,7 +142,11 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
                 </p>
               ) : null}
               <div className="mt-5">
-                {shouldManageExistingContract ? (
+                {officialAccount ? (
+                  <span className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white">
+                    Stripe契約は不要です
+                  </span>
+                ) : shouldManageExistingContract ? (
                   <SubscriptionActionButton mode="portal" billingReady={isStripeConfigured()} />
                 ) : user ? (
                   <SubscriptionActionButton mode="checkout" billingReady={billingReady} />

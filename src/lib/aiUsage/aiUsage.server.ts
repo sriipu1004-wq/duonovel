@@ -10,6 +10,7 @@ import {
   type AiUsageSnapshot,
 } from "@/lib/aiUsage/aiUsage";
 import { LIBREAD_SUBSCRIBER_MONTHLY_AI_BUDGET_JPY } from "@/lib/billing/billingConfig";
+import { ensureOfficialSubscriberEntitlement } from "@/lib/auth/officialAccount.server";
 
 function readLimit(name: string, fallback: number): number {
   const parsed = Number(process.env[name]);
@@ -95,10 +96,13 @@ export async function reserveAiAction(args: {
 }) {
   const identity = await resolveAiUsageIdentity(args.request, args.userId);
   const admin = createAdminClient();
+  const subscriber = identity.userId
+    ? await isSubscriber(identity.userId)
+    : false;
   if (
     args.actionType === "word_explanation" &&
     identity.userId &&
-    (await isSubscriber(identity.userId))
+    subscriber
   ) {
     const reservedCost = SUBSCRIBER_RESERVED_COST_JPY.word_explanation ?? 0.05;
     const { data, error } = await admin.rpc(
@@ -291,7 +295,10 @@ export async function isSubscriber(userId: string): Promise<boolean> {
     .select("plan_type, subscriber_until")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error || data?.plan_type !== "subscriber") return false;
-  if (!data.subscriber_until) return true;
-  return Date.parse(String(data.subscriber_until)) > Date.now();
+  if (!error && data?.plan_type === "subscriber") {
+    if (!data.subscriber_until) return true;
+    if (Date.parse(String(data.subscriber_until)) > Date.now()) return true;
+  }
+
+  return ensureOfficialSubscriberEntitlement(userId);
 }
