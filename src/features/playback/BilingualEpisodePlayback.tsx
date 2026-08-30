@@ -745,6 +745,10 @@ export default function BilingualEpisodePlayback({
           splitRatio={splitRatio}
           upperPane={upperPane}
           readerHeight={readerHeight}
+          narrationText={segments.map((segment) => upperPane === "source" ? segment.translatedText : segment.sourceText).join("\n")}
+          narrationLanguage={getSupportedLanguage(upperPane === "source" ? targetLanguage : sourceLanguage).speechLanguage}
+          sourceLanguage={sourceLanguage}
+          targetLanguage={targetLanguage}
           onSplitRatioChange={setSplitRatio}
           onSwapLanguages={handleSwapLanguages}
           onResetReaderHeight={() => setReaderHeight(null)}

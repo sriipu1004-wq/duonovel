@@ -99,7 +99,9 @@ export async function POST(request: Request) {
       billing_address_collection: "auto",
       customer_update: { address: "auto", name: "auto" },
       automatic_tax: { enabled: isStripeAutomaticTaxEnabled() },
-      consent_collection: { terms_of_service: "required" },
+      // The subscription page already records explicit acceptance before this
+      // request. Requiring Checkout's separate consent box also requires a
+      // Dashboard-hosted TOS URL and prevents session creation when it is unset.
       success_url: `${origin}/subscription?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/subscription?checkout=canceled`,
       metadata: {

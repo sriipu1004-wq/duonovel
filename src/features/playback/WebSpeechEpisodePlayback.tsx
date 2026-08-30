@@ -99,6 +99,7 @@ type EpisodePlaybackProps = {
   effectSettings?: EffectSettings;
   ownerActions?: ReactNode;
   speechLanguage?: string;
+  secondarySpeechLanguage?: string;
   trackPopularity?: boolean;
   constrainBodyScroll?: boolean;
 };
@@ -355,6 +356,7 @@ export default function WebSpeechEpisodePlayback({
   effectSettings,
   ownerActions,
   speechLanguage = "ja-JP",
+  secondarySpeechLanguage,
   trackPopularity = true,
   constrainBodyScroll = false,
 }: EpisodePlaybackProps) {
@@ -428,6 +430,9 @@ export default function WebSpeechEpisodePlayback({
       : "本文がまだ登録されていません。";
   const safeSpeechLanguage = speechLanguage.trim() || "ja-JP";
   const speechLanguagePrefix = safeSpeechLanguage
+    .split("-")[0]
+    .toLowerCase();
+  const secondarySpeechLanguagePrefix = (secondarySpeechLanguage ?? "")
     .split("-")[0]
     .toLowerCase();
 
@@ -539,6 +544,7 @@ export default function WebSpeechEpisodePlayback({
   const markerUnitIndex = isHumanNarration
     ? humanMarkerUnitIndex
     : safeActiveUnitIndex;
+  const markerSegmentIndex = speechUnits[markerUnitIndex]?.segmentIndex ?? -1;
   const currentSliderValue = isHumanNarration
     ? Math.min(humanCurrentTime, humanDuration || 0)
     : safeActiveUnitIndex;
@@ -559,11 +565,14 @@ export default function WebSpeechEpisodePlayback({
       }
       setIsPlaying(false);
       audioRef.current?.pause();
-      router.push(
-        continuePlaying && isSubscriber
-          ? addAutoPlayToHref(targetHref)
-          : targetHref
-      );
+      const href = continuePlaying && isSubscriber
+        ? addAutoPlayToHref(targetHref)
+        : targetHref;
+      if (continuePlaying && isSubscriber) {
+        window.location.assign(href);
+      } else {
+        router.push(href);
+      }
     },
     [isSubscriber, router]
   );
@@ -611,10 +620,19 @@ export default function WebSpeechEpisodePlayback({
     }
 
     function loadVoices() {
+      const priority = (lang: string) => {
+        const prefix = lang.toLowerCase().split("-")[0];
+        if (prefix === speechLanguagePrefix) return 0;
+        if (secondarySpeechLanguagePrefix && prefix === secondarySpeechLanguagePrefix) return 1;
+        return 2;
+      };
       const voices = window.speechSynthesis
         .getVoices()
-        .filter((voice) =>
-          voice.lang.toLowerCase().startsWith(speechLanguagePrefix)
+        .slice()
+        .sort((a, b) =>
+          priority(a.lang) - priority(b.lang) ||
+          a.lang.localeCompare(b.lang, "en") ||
+          a.name.localeCompare(b.name)
         )
         .map((voice) => ({
           voiceURI: voice.voiceURI,
@@ -641,7 +659,7 @@ export default function WebSpeechEpisodePlayback({
     return () => {
       window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
     };
-  }, [speechLanguagePrefix]);
+  }, [secondarySpeechLanguagePrefix, speechLanguagePrefix]);
 
   useEffect(() => {
     playbackRateRef.current = playbackRate;
@@ -1210,16 +1228,16 @@ export default function WebSpeechEpisodePlayback({
                     href={humanNarrationAuthorHref}
                     className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black transition hover:bg-sky-100"
                   >
-                    人の朗読: {humanNarrationName}
+                    ユーザー朗読: {humanNarrationName}
                   </Link>
                 ) : (
                   <span className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black">
-                    人の朗読: {humanNarrationName}
+                    ユーザー朗読: {humanNarrationName}
                   </span>
                 )
               ) : (
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-600">
-                  ブラウザ読み上げ
+                  ブラウザ朗読
                 </span>
               )}
             </div>
@@ -1239,23 +1257,23 @@ export default function WebSpeechEpisodePlayback({
                     <div className="mt-3 flex flex-wrap gap-2">
                       <SettingChip
                         active={!isHumanNarration}
-                        label="ブラウザ読み上げ"
+                        label="ブラウザ朗読"
                         onClick={setBrowserSource}
                       />
                       {hasHumanRecording ? (
                         <SettingChip
                           active={isHumanNarration}
-                          label="人の朗読"
+                          label="ユーザー朗読"
                           onClick={setHumanSource}
                         />
                       ) : null}
                     </div>
                   </div>
 
-                  {isHumanNarration && normalizedHumanNarrationOptions.length > 1 ? (
+                  {isHumanNarration ? (
                     <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
                       <p className="text-sm text-neutral-700">朗読者</p>
-                      <select
+                      {normalizedHumanNarrationOptions.length > 1 ? <select
                         value={selectedHumanNarrationOption?.recordingId ?? ""}
                         onChange={(event) => {
                           audioRef.current?.pause();
@@ -1271,7 +1289,7 @@ export default function WebSpeechEpisodePlayback({
                             {option.readerName}
                           </option>
                         ))}
-                      </select>
+                      </select> : <p className="mt-3 text-sm text-black">{humanNarrationName || "朗読者未設定"}</p>}
                     </div>
                   ) : null}
 
@@ -1282,7 +1300,7 @@ export default function WebSpeechEpisodePlayback({
                           朗読者（ブラウザ音声）
                         </p>
                         <p className="mt-1 text-xs leading-6 text-neutral-500">
-                          ブラウザと端末に入っている日本語音声から選ぶ。
+                          原文の言語、対訳の言語、その他の言語の順で、端末に入っている音声から選ぶ。
                         </p>
 
                         <select
@@ -1416,7 +1434,7 @@ export default function WebSpeechEpisodePlayback({
                     <div className="flex flex-wrap gap-2">
                       <SettingChip
                         active={displayPreference.showMarker}
-                        label="表示"
+                        label="ON"
                         onClick={() =>
                           setDisplayPreference((prev) => ({
                             ...prev,
@@ -1426,7 +1444,7 @@ export default function WebSpeechEpisodePlayback({
                       />
                       <SettingChip
                         active={!displayPreference.showMarker}
-                        label="非表示"
+                        label="OFF"
                         onClick={() =>
                           setDisplayPreference((prev) => ({
                             ...prev,
@@ -1439,28 +1457,15 @@ export default function WebSpeechEpisodePlayback({
 
                   <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
                     <div>
-                      <p className="text-sm text-neutral-700">全演出を非表示</p>
+                      <p className="text-sm text-neutral-700">表示演出</p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
                         背景、文字装飾、挿絵を一括で隠す。
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDisplayPreference((prev) => ({
-                          ...prev,
-                          hideEffects: !prev.hideEffects,
-                        }))
-                      }
-                      className={[
-                        "rounded-full border px-4 py-2 text-sm font-medium transition",
-                        displayPreference.hideEffects
-                          ? "border-sky-200 bg-sky-50 text-black hover:bg-sky-100"
-                          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                      ].join(" ")}
-                    >
-                      {displayPreference.hideEffects ? "ON" : "OFF"}
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <SettingChip active={!displayPreference.hideEffects} label="ON" onClick={() => setDisplayPreference((prev) => ({ ...prev, hideEffects: false }))} />
+                      <SettingChip active={displayPreference.hideEffects} label="OFF" onClick={() => setDisplayPreference((prev) => ({ ...prev, hideEffects: true }))} />
+                    </div>
                   </div>
 
                   <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
@@ -1594,17 +1599,17 @@ export default function WebSpeechEpisodePlayback({
                         className={followsDialogue ? "!mt-0" : undefined}
                       >
                         {block.sentences.map((segment) => {
-                          const unitIndex =
-                            firstSpeechUnitIndexBySegment.get(segment.index) ?? 0;
                           const isActive =
                             displayPreference.showMarker &&
-                            unitIndex === markerUnitIndex;
+                            segment.index === markerSegmentIndex;
 
                           return (
                             <span
                               key={segment.index}
                               ref={(node) => {
-                                sentenceRefs.current[unitIndex] = node;
+                                speechUnits.forEach((unit, index) => {
+                                  if (unit.segmentIndex === segment.index) sentenceRefs.current[index] = node;
+                                });
                               }}
                               role="button"
                               tabIndex={0}

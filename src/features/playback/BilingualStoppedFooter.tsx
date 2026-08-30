@@ -17,6 +17,8 @@ import {
 
 const ICONS = {
   settings: "/player-icons/settings.png",
+  play: "/player-icons/play.png",
+  stop: "/player-icons/stop.png",
   next: "/player-icons/next.png",
   prev: "/player-icons/prev.png",
   bookmark: "/player-icons/bookmark.png",
@@ -32,6 +34,10 @@ type BilingualStoppedFooterProps = {
   splitRatio: number;
   upperPane: "source" | "target";
   readerHeight: number | null;
+  narrationText: string;
+  narrationLanguage: string;
+  sourceLanguage: string;
+  targetLanguage: string;
   onSplitRatioChange: (ratio: number) => void;
   onSwapLanguages: () => void;
   onResetReaderHeight: () => void;
@@ -83,6 +89,10 @@ export default function BilingualStoppedFooter({
   splitRatio,
   upperPane,
   readerHeight,
+  narrationText,
+  narrationLanguage,
+  sourceLanguage,
+  targetLanguage,
   onSplitRatioChange,
   onSwapLanguages,
   onResetReaderHeight,
@@ -92,6 +102,7 @@ export default function BilingualStoppedFooter({
   const [bookmarkSaved, setBookmarkSaved] = useState(false);
   const [bookmarkMessage, setBookmarkMessage] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [narrationStopped, setNarrationStopped] = useState(() =>
     readNarrationStopped(seriesId)
   );
@@ -140,6 +151,42 @@ export default function BilingualStoppedFooter({
     if (next && "speechSynthesis" in window) window.speechSynthesis.cancel();
     setNarrationStopped(next);
     writeNarrationStopped(seriesId, next);
+  }
+
+  function bilingualHref(href: string): string {
+    const url = new URL(href, window.location.origin);
+    url.searchParams.set("bilingual", "1");
+    url.searchParams.set("sourceLanguage", sourceLanguage);
+    url.searchParams.set("targetLanguage", targetLanguage);
+    url.searchParams.set("lockLanguage", "1");
+    return `${url.pathname}${url.search}${url.hash}`;
+  }
+
+  function stopNarration() {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setIsPlaying(false);
+  }
+
+  function togglePlayback() {
+    if (isPlaying) {
+      stopNarration();
+      return;
+    }
+    if (!("speechSynthesis" in window) || !narrationText.trim()) return;
+    const utterance = new SpeechSynthesisUtterance(narrationText);
+    utterance.lang = narrationLanguage;
+    utterance.rate = speechSettings.rate;
+    utterance.volume = speechSettings.volume;
+    const voices = window.speechSynthesis.getVoices();
+    utterance.voice = voices.find((voice) => voice.voiceURI === speechSettings.voiceURI)
+      ?? voices.find((voice) => voice.lang.toLowerCase().startsWith(narrationLanguage.split("-")[0].toLowerCase()))
+      ?? null;
+    utterance.onend = () => setIsPlaying(false);
+    utterance.onerror = () => setIsPlaying(false);
+    setNarrationStopped(false);
+    writeNarrationStopped(seriesId, false);
+    setIsPlaying(true);
+    window.speechSynthesis.speak(utterance);
   }
 
   return (
@@ -241,7 +288,7 @@ export default function BilingualStoppedFooter({
         </div>
       ) : null}
 
-      <div className="grid w-full grid-cols-4 gap-2">
+      <div className={`grid w-full gap-2 ${narrationStopped ? "grid-cols-4" : "grid-cols-5"}`}>
         <div className="relative">
           {bookmarkMessage ? (
             <span
@@ -258,17 +305,25 @@ export default function BilingualStoppedFooter({
             onClick={saveBookmark}
           />
         </div>
+        {!narrationStopped ? (
+          <StoppedAction
+            label={isPlaying ? "朗読停止" : "朗読再生"}
+            icon={isPlaying ? ICONS.stop : ICONS.play}
+            active={isPlaying}
+            onClick={togglePlayback}
+          />
+        ) : null}
         <StoppedAction
           label="前話"
           icon={ICONS.prev}
           disabled={!prevHref}
-          onClick={() => prevHref && router.push(prevHref)}
+          onClick={() => prevHref && router.push(bilingualHref(prevHref))}
         />
         <StoppedAction
           label="次話"
           icon={ICONS.next}
           disabled={!nextHref}
-          onClick={() => nextHref && router.push(nextHref)}
+          onClick={() => nextHref && router.push(bilingualHref(nextHref))}
         />
         <StoppedAction
           label="設定"
