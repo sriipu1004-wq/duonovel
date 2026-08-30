@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -43,6 +44,7 @@ import {
   writeWebSpeechDisplaySettings,
   writeWebSpeechSettings,
 } from "@/lib/playback/webSpeechPreferences";
+import { usePremiumBackgroundNarration } from "@/features/playback/usePremiumBackgroundNarration";
 
 type SpeechVoiceOption = {
   voiceURI: string;
@@ -91,6 +93,7 @@ type EpisodePlaybackProps = {
   workIndexHref?: string | null;
   workIndexLabel?: string;
   initialAutoPlay?: boolean;
+  isSubscriber?: boolean;
   loginHref?: string;
   showComments?: boolean;
   effectSettings?: EffectSettings;
@@ -151,6 +154,16 @@ function normalizeAudioSource(value?: string | null): string {
   }
 
   return "";
+}
+
+function addAutoPlayToHref(href: string): string {
+  try {
+    const url = new URL(href, window.location.origin);
+    url.searchParams.set("autoplay", "1");
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return href;
+  }
 }
 
 function readStoredNarrationStopped(seriesId: string): boolean {
@@ -336,6 +349,7 @@ export default function WebSpeechEpisodePlayback({
   workIndexHref,
   workIndexLabel = "作品ページ（目次）",
   initialAutoPlay = false,
+  isSubscriber = false,
   loginHref,
   showComments = true,
   effectSettings,
@@ -535,6 +549,49 @@ export default function WebSpeechEpisodePlayback({
     ? `${Math.floor(humanCurrentTime)}秒 / ${Math.floor(humanDuration)}秒`
     : `${Math.min(speechUnits.length, safeActiveUnitIndex + 1)} / ${speechUnits.length}`;
 
+  const handleMove = useCallback(
+    (targetHref?: string | null, continuePlaying = false) => {
+      if (!targetHref) return;
+
+      speechRunIdRef.current += 1;
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      setIsPlaying(false);
+      audioRef.current?.pause();
+      router.push(
+        continuePlaying && isSubscriber
+          ? addAutoPlayToHref(targetHref)
+          : targetHref
+      );
+    },
+    [isSubscriber, router]
+  );
+
+  usePremiumBackgroundNarration({
+    isSubscriber,
+    isPlaying,
+    title: safeEpisodeTitle,
+    artist: safeAuthorName,
+    album: safeSeriesTitle,
+    onPlay: () => {
+      if (!isPlaying) handleTogglePlay();
+    },
+    onPause: () => {
+      if (isHumanNarration) {
+        audioRef.current?.pause();
+      } else {
+        stopSpeech();
+      }
+    },
+    onNext: nextEpisodeHref
+      ? () => handleMove(nextEpisodeHref, true)
+      : undefined,
+    onPrevious: prevEpisodeHref
+      ? () => handleMove(prevEpisodeHref, true)
+      : undefined,
+  });
+
   useEffect(() => {
     if (!trackPopularity) return;
 
@@ -629,6 +686,7 @@ export default function WebSpeechEpisodePlayback({
       window.speechSynthesis.cancel();
     }
     const timer = window.setTimeout(() => {
+      initialAutoPlayRef.current = false;
       setSelectedHumanRecordingId(initialOption?.recordingId ?? "");
       setNarrationSource("browser");
       setIsNarrationStopped(readStoredNarrationStopped(seriesId));
@@ -730,7 +788,12 @@ export default function WebSpeechEpisodePlayback({
       audio.playbackRate = playbackRate;
       audio.volume = speechVolume;
 
-      if (initialAutoPlay && !initialAutoPlayRef.current && !isNarrationStopped) {
+      if (
+        isSubscriber &&
+        initialAutoPlay &&
+        !initialAutoPlayRef.current &&
+        !isNarrationStopped
+      ) {
         initialAutoPlayRef.current = true;
         void audio.play().catch(() => setIsPlaying(false));
       }
@@ -744,8 +807,8 @@ export default function WebSpeechEpisodePlayback({
     };
     const handleEnded = () => {
       setIsPlaying(false);
-      if (autoAdvanceToNext && nextEpisodeHref) {
-        router.push(nextEpisodeHref);
+      if (isSubscriber && autoAdvanceToNext && nextEpisodeHref) {
+        handleMove(nextEpisodeHref, true);
       }
     };
 
@@ -772,8 +835,9 @@ export default function WebSpeechEpisodePlayback({
     initialAutoPlay,
     isNarrationStopped,
     autoAdvanceToNext,
+    handleMove,
+    isSubscriber,
     nextEpisodeHref,
-    router,
   ]);
 
   useEffect(() => {
@@ -798,7 +862,10 @@ export default function WebSpeechEpisodePlayback({
     setIsPlaying(false);
   }
 
-  function speakFrom(index: number, runId: number) {
+  const speakFrom = useCallback(function speakFromIndex(
+    index: number,
+    runId: number
+  ) {
     if (
       typeof window === "undefined" ||
       !("speechSynthesis" in window)
@@ -841,14 +908,14 @@ export default function WebSpeechEpisodePlayback({
       if (nextIndex >= speechUnits.length) {
         setIsPlaying(false);
 
-        if (autoAdvanceToNext && nextEpisodeHref) {
-          router.push(nextEpisodeHref);
+        if (isSubscriber && autoAdvanceToNext && nextEpisodeHref) {
+          handleMove(nextEpisodeHref, true);
         }
 
         return;
       }
 
-      speakFrom(nextIndex, runId);
+      speakFromIndex(nextIndex, runId);
     };
 
     utterance.onerror = () => {
@@ -858,9 +925,16 @@ export default function WebSpeechEpisodePlayback({
     };
 
     window.speechSynthesis.speak(utterance);
-  }
+  }, [
+    autoAdvanceToNext,
+    handleMove,
+    isSubscriber,
+    nextEpisodeHref,
+    safeSpeechLanguage,
+    speechUnits,
+  ]);
 
-  function startBrowserSpeechFrom(index: number) {
+  const startBrowserSpeechFrom = useCallback((index: number) => {
     if (speechUnits.length === 0) return;
 
     if (
@@ -882,7 +956,7 @@ export default function WebSpeechEpisodePlayback({
     window.setTimeout(() => {
       speakFrom(boundedIndex, runId);
     }, 0);
-  }
+  }, [maxUnitIndex, speakFrom, speechUnits.length]);
 
   function handleTogglePlay() {
     if (isNarrationStopped) {
@@ -962,14 +1036,6 @@ export default function WebSpeechEpisodePlayback({
     }
   }
 
-  function handleMove(targetHref?: string | null) {
-    if (!targetHref) return;
-
-    stopSpeech();
-    audioRef.current?.pause();
-    router.push(targetHref);
-  }
-
   function handleSaveBookmark() {
     try {
       writeReadingBookmark({
@@ -1047,6 +1113,31 @@ export default function WebSpeechEpisodePlayback({
     }
   }
 
+  useEffect(() => {
+    if (
+      !initialAutoPlay ||
+      !isSubscriber ||
+      initialAutoPlayRef.current ||
+      isNarrationStopped ||
+      isHumanNarration ||
+      speechUnits.length === 0
+    ) {
+      return;
+    }
+
+    initialAutoPlayRef.current = true;
+    const timer = window.setTimeout(() => startBrowserSpeechFrom(0), 0);
+    return () => window.clearTimeout(timer);
+  }, [
+    episodeId,
+    initialAutoPlay,
+    isHumanNarration,
+    isNarrationStopped,
+    isSubscriber,
+    speechUnits.length,
+    startBrowserSpeechFrom,
+  ]);
+
   const lineHeightValue =
     displayPreference.lineHeight === "compact"
       ? 1.95
@@ -1056,7 +1147,7 @@ export default function WebSpeechEpisodePlayback({
 
   return (
     <main className="min-h-screen bg-white text-black">
-      <audio ref={audioRef} preload="metadata">
+      <audio ref={audioRef} preload="metadata" playsInline>
         {isHumanNarration && humanAudioSrc ? (
           <source src={humanAudioSrc} />
         ) : null}
@@ -1274,23 +1365,34 @@ export default function WebSpeechEpisodePlayback({
 
                   <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
                     <div>
-                      <p className="text-sm text-neutral-700">次話自動再生</p>
+                      <p className="text-sm text-neutral-700">
+                        バックグラウンド再生・次話自動再生
+                      </p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
-                        最後まで読み終えた時に、次の話へ移動する。
+                        サブスクでは別のアプリやタブへ移っても朗読を続け、話末で次の話へ移動して再生する。
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setAutoAdvanceToNext((prev) => !prev)}
-                      className={[
-                        "rounded-full border px-4 py-2 text-sm font-medium transition",
-                        autoAdvanceToNext
-                          ? "border-sky-200 bg-sky-50 text-black hover:bg-sky-100"
-                          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                      ].join(" ")}
-                    >
-                      {autoAdvanceToNext ? "ON" : "OFF"}
-                    </button>
+                    {isSubscriber ? (
+                      <button
+                        type="button"
+                        onClick={() => setAutoAdvanceToNext((prev) => !prev)}
+                        className={[
+                          "rounded-full border px-4 py-2 text-sm font-medium transition",
+                          autoAdvanceToNext
+                            ? "border-sky-200 bg-sky-50 text-black hover:bg-sky-100"
+                            : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                        ].join(" ")}
+                      >
+                        {autoAdvanceToNext ? "ON" : "OFF"}
+                      </button>
+                    ) : (
+                      <Link
+                        href="/subscription"
+                        className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black"
+                      >
+                        サブスク限定
+                      </Link>
+                    )}
                   </div>
                 </section>
 

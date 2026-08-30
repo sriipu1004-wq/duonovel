@@ -5,7 +5,6 @@ import { getBillingSubscriptionSummary } from "@/lib/billing/billing.server";
 import {
   isPaidSubscriptionReady,
   isStripeConfigured,
-  LIBREAD_SUBSCRIBER_MONTHLY_AI_BUDGET_JPY,
   LIBREAD_SUBSCRIPTION_PRICE_JPY,
 } from "@/lib/billing/billingConfig";
 import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
@@ -25,12 +24,12 @@ type PageProps = {
 const comparisons = [
   {
     label: "AI物語生成",
-    free: "対訳生成と共通で1日5回",
+    free: "対訳生成と共通で1日3回",
     subscriber: "1日10回まで",
   },
   {
     label: "対訳生成",
-    free: "AI物語生成と共通で1日5回",
+    free: "AI物語生成と共通で1日3回",
     subscriber: "1日30回まで",
   },
   {
@@ -42,6 +41,11 @@ const comparisons = [
     label: "次話の対訳",
     free: "次話へ移動後に生成",
     subscriber: "読書50%で次の1話を先読み",
+  },
+  {
+    label: "朗読",
+    free: "画面を開いて再生",
+    subscriber: "バックグラウンド再生・次話自動再生",
   },
   {
     label: "個人本棚・読書進捗",
@@ -186,22 +190,6 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
               </tbody>
             </table>
           </div>
-          <p className="mt-5 text-xs leading-6 text-neutral-500">
-            AIを新規に呼び出す操作には、公平利用と原価保護のため月間AI利用上限があります。現在の内部上限はAI原価{LIBREAD_SUBSCRIBER_MONTHLY_AI_BUDGET_JPY}円相当です。保存済み対訳・単語解説キャッシュの閲覧、読書、読み上げはこの上限を消費しません。
-          </p>
-        </section>
-
-        <section className="mt-8 grid gap-4 sm:grid-cols-3">
-          {[
-            ["次話だけ先読み", "読書が50%に達したら、同じ言語で次の1話だけ対訳を準備します。"],
-            ["単語解説は無制限", "選んだ文の語をタップして、訳語との対応と品詞を確認できます。"],
-            ["契約は自分で管理", "Stripeの契約管理画面から支払い方法の変更、請求履歴の確認、解約ができます。"],
-          ].map(([title, description]) => (
-            <article key={title} className="rounded-[24px] border border-black/10 bg-neutral-50 p-5">
-              <h2 className="font-semibold text-black">{title}</h2>
-              <p className="mt-3 text-sm leading-7 text-neutral-600">{description}</p>
-            </article>
-          ))}
         </section>
 
         <section className="mt-8 rounded-[28px] border border-sky-200 bg-sky-50 px-5 py-7 sm:px-8">
