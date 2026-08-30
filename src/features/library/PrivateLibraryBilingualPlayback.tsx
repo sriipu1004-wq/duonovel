@@ -10,8 +10,8 @@ import BilingualPane, {
   type BilingualSegment,
   type PaneSide,
 } from "@/features/playback/BilingualPane";
-import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
 import BilingualStoppedFooter from "@/features/playback/BilingualStoppedFooter";
+import { useReaderDisplaySettings } from "@/features/playback/useReaderDisplaySettings";
 import { useBilingualWordExplanation } from "@/features/playback/useBilingualWordExplanation";
 import { PRIVATE_LIBRARY_PROGRESS_EVENT } from "@/features/library/LibraryProgressTracker";
 import {
@@ -159,6 +159,8 @@ export default function PrivateLibraryBilingualPlayback({
   onDisableBilingual,
 }: PrivateLibraryBilingualPlaybackProps) {
   const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
+  const { displaySettings, setDisplaySettings } =
+    useReaderDisplaySettings(`private-library:${workId}`);
   const preference = useMemo(
     () => readPreference(workId, sourceLanguage, initialTargetLanguage),
     [initialTargetLanguage, sourceLanguage, workId]
@@ -680,7 +682,7 @@ export default function PrivateLibraryBilingualPlayback({
 
   return (
     <main className="min-h-screen bg-white text-black">
-      <div className="mx-auto w-full max-w-4xl px-3 py-4 sm:px-6 sm:py-6">
+      <div className="mx-auto w-full max-w-4xl px-3 pb-44 pt-4 sm:px-6 sm:pb-44 sm:pt-6">
         <section className="overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-sm">
           <header className="border-b border-black/10 px-4 py-4 sm:px-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -746,13 +748,6 @@ export default function PrivateLibraryBilingualPlayback({
 
           {translationStatus === "ready" && segments.length > 0 ? (
             <>
-              <BilingualStudyControls
-                segments={segments}
-                selectedSegmentId={selectedSegmentId}
-                onSelectSegment={handleSelectSegment}
-                targetLanguage={targetLanguage}
-                seriesId={`private-library:${workId}`}
-              />
               <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
                 文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
                 {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
@@ -791,6 +786,7 @@ export default function PrivateLibraryBilingualPlayback({
                     onReadingPositionChange={handleReadingPositionChange}
                     onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
+                    displaySettings={displaySettings}
                   />
                 ) : (
                   <BilingualPane
@@ -809,6 +805,7 @@ export default function PrivateLibraryBilingualPlayback({
                     onReadingPositionChange={handleReadingPositionChange}
                     onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
+                    displaySettings={displaySettings}
                   />
                 )}
 
@@ -835,6 +832,7 @@ export default function PrivateLibraryBilingualPlayback({
                     onReadingPositionChange={handleReadingPositionChange}
                     onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
+                    displaySettings={displaySettings}
                   />
                 ) : (
                   <BilingualPane
@@ -853,6 +851,7 @@ export default function PrivateLibraryBilingualPlayback({
                     onReadingPositionChange={handleReadingPositionChange}
                     onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
+                    displaySettings={displaySettings}
                   />
                 )}
               </div>
@@ -969,18 +968,28 @@ export default function PrivateLibraryBilingualPlayback({
           seriesId={`private-library:${workId}`}
           episodeNumber={chapterNumber}
           positionIndex={currentPositionIndex}
+          sentenceCount={segments.length}
           prevHref={previousChapterHref}
           nextHref={nextChapterHref}
-          splitRatio={splitRatio}
           upperPane={upperPane}
-          readerHeight={readerHeight}
-          narrationText={segments.map((segment) => upperPane === "source" ? segment.translatedText : segment.sourceText).join("\n")}
+          narrationText={
+            upperPane === "source"
+              ? segments[currentPositionIndex]?.translatedText ?? ""
+              : segments[currentPositionIndex]?.sourceText ?? ""
+          }
           narrationLanguage={getSupportedLanguage(upperPane === "source" ? targetLanguage : sourceLanguage).speechLanguage}
           sourceLanguage={sourceLanguage}
           targetLanguage={targetLanguage}
-          onSplitRatioChange={setSplitRatio}
-          onSwapLanguages={handleSwapLanguages}
-          onResetReaderHeight={() => setReaderHeight(null)}
+          displaySettings={displaySettings}
+          onDisplaySettingsChange={setDisplaySettings}
+          onPositionIndexChange={(index, shouldFollow) => {
+            const segment = segments[index];
+            if (!segment) return;
+            readingSegmentIdRef.current = segment.id;
+            setCurrentPositionIndex(index);
+            setSelectedSegmentId(segment.id);
+            if (shouldFollow) centerSegment(segment.id);
+          }}
         />
       </div>
     </main>

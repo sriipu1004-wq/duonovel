@@ -1,81 +1,81 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import {
+  FooterActionButton,
+  FooterPlaybackRateControl,
+  PLAYER_ICON_PATHS,
+} from "@/features/playback/ReaderFooterControls";
 import {
   readReadingBookmark,
   writeReadingBookmark,
 } from "@/lib/playback/readingBookmark";
 import {
+  getSupportedLanguage,
+  type SupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
+import {
   readNarrationStopped,
   readWebSpeechSettings,
   writeNarrationStopped,
   writeWebSpeechSettings,
+  type StoredWebSpeechDisplaySettings,
   type StoredWebSpeechSettings,
 } from "@/lib/playback/webSpeechPreferences";
 
-const ICONS = {
-  settings: "/player-icons/settings.png",
-  play: "/player-icons/play.png",
-  stop: "/player-icons/stop.png",
-  next: "/player-icons/next.png",
-  prev: "/player-icons/prev.png",
-  bookmark: "/player-icons/bookmark.png",
-  bookmarkFilled: "/player-icons/bookmark-filled.png",
-} as const;
+type SpeechVoiceOption = {
+  voiceURI: string;
+  name: string;
+  lang: string;
+};
 
 type BilingualStoppedFooterProps = {
   seriesId: string;
   episodeNumber: number;
   positionIndex: number;
+  sentenceCount: number;
   prevHref?: string | null;
   nextHref?: string | null;
-  splitRatio: number;
   upperPane: "source" | "target";
-  readerHeight: number | null;
   narrationText: string;
   narrationLanguage: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-  onSplitRatioChange: (ratio: number) => void;
-  onSwapLanguages: () => void;
-  onResetReaderHeight: () => void;
+  sourceLanguage: SupportedLanguageTag;
+  targetLanguage: SupportedLanguageTag;
+  displaySettings: StoredWebSpeechDisplaySettings;
+  onDisplaySettingsChange: (settings: StoredWebSpeechDisplaySettings) => void;
+  onPositionIndexChange: (index: number, autoFollow: boolean) => void;
 };
 
-function StoppedAction({
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function SettingChip({
+  active,
   label,
-  icon,
-  active = false,
   disabled = false,
   onClick,
 }: {
+  active: boolean;
   label: string;
-  icon: string;
-  active?: boolean;
   disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
-      aria-label={label}
-      title={label}
       disabled={disabled}
       onClick={onClick}
       className={[
-        "flex h-12 w-full items-center justify-center rounded-2xl border-0 bg-transparent px-2 text-center text-[10px] font-medium leading-tight transition sm:text-sm",
-        active ? "bg-sky-50" : "hover:bg-neutral-50",
-        disabled ? "cursor-not-allowed opacity-25" : "opacity-80",
+        "rounded-full border px-4 py-2 text-sm font-medium transition",
+        active
+          ? "border-sky-200 bg-sky-50 text-black"
+          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+        disabled ? "cursor-not-allowed opacity-45" : "",
       ].join(" ")}
     >
-      <Image
-        src={icon}
-        alt=""
-        width={28}
-        height={28}
-        className="h-7 w-7 object-contain"
-      />
+      {label}
     </button>
   );
 }
@@ -84,31 +84,42 @@ export default function BilingualStoppedFooter({
   seriesId,
   episodeNumber,
   positionIndex,
+  sentenceCount,
   prevHref,
   nextHref,
-  splitRatio,
   upperPane,
-  readerHeight,
   narrationText,
   narrationLanguage,
   sourceLanguage,
   targetLanguage,
-  onSplitRatioChange,
-  onSwapLanguages,
-  onResetReaderHeight,
+  displaySettings,
+  onDisplaySettingsChange,
+  onPositionIndexChange,
 }: BilingualStoppedFooterProps) {
   const router = useRouter();
   const toastTimerRef = useRef<number | null>(null);
+  const speechRunIdRef = useRef(0);
   const [bookmarkSaved, setBookmarkSaved] = useState(false);
   const [bookmarkMessage, setBookmarkMessage] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [autoFollow, setAutoFollow] = useState(true);
   const [narrationStopped, setNarrationStopped] = useState(() =>
     readNarrationStopped(seriesId)
   );
   const [speechSettings, setSpeechSettings] = useState<StoredWebSpeechSettings>(
     () => readWebSpeechSettings(seriesId)
   );
+  const [availableVoices, setAvailableVoices] = useState<SpeechVoiceOption[]>([]);
+
+  const safePositionIndex = Math.min(
+    Math.max(0, positionIndex),
+    Math.max(0, sentenceCount - 1)
+  );
+  const lowerPaneLanguage =
+    upperPane === "source" ? targetLanguage : sourceLanguage;
+  const upperPaneLanguage =
+    upperPane === "source" ? sourceLanguage : targetLanguage;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -121,14 +132,77 @@ export default function BilingualStoppedFooter({
   }, [episodeNumber, seriesId]);
 
   useEffect(() => {
+    if (!("speechSynthesis" in window)) return;
+
+    function loadVoices() {
+      const lowerPrefix = narrationLanguage.toLowerCase().split("-")[0];
+      const upperPrefix = getSupportedLanguage(upperPaneLanguage)
+        .speechLanguage.toLowerCase().split("-")[0];
+      const priority = (language: string) => {
+        const prefix = language.toLowerCase().split("-")[0];
+        if (prefix === lowerPrefix) return 0;
+        if (prefix === upperPrefix) return 1;
+        return 2;
+      };
+      const voices = window.speechSynthesis.getVoices().slice().sort(
+        (left, right) =>
+          priority(left.lang) - priority(right.lang) ||
+          left.lang.localeCompare(right.lang, "en") ||
+          left.name.localeCompare(right.name)
+      );
+      const options = voices.map((voice) => ({
+        voiceURI: voice.voiceURI,
+        name: voice.name,
+        lang: voice.lang,
+      }));
+      setAvailableVoices(options);
+
+      if (!options.some((voice) => voice.voiceURI === speechSettings.voiceURI)) {
+        const preferred =
+          options.find(
+            (voice) => voice.lang.toLowerCase().split("-")[0] === lowerPrefix
+          ) ?? options[0];
+        if (preferred) {
+          setSpeechSettings((current) => ({
+            ...current,
+            voiceURI: preferred.voiceURI,
+          }));
+        }
+      }
+    }
+
+    loadVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
+    return () =>
+      window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
+  }, [narrationLanguage, speechSettings.voiceURI, upperPaneLanguage]);
+
+  useEffect(() => {
+    writeWebSpeechSettings(speechSettings);
+  }, [speechSettings]);
+
+  useEffect(() => {
     return () => {
+      speechRunIdRef.current += 1;
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     };
   }, []);
 
+  useEffect(() => {
+    speechRunIdRef.current += 1;
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    const timer = window.setTimeout(() => setIsPlaying(false), 0);
+    return () => window.clearTimeout(timer);
+  }, [lowerPaneLanguage, narrationText]);
+
   function saveBookmark() {
     try {
-      writeReadingBookmark({ seriesId, episodeNumber, positionIndex });
+      writeReadingBookmark({
+        seriesId,
+        episodeNumber,
+        positionIndex: safePositionIndex,
+      });
       setBookmarkSaved(true);
       setBookmarkMessage("栞の位置を記録しました");
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
@@ -137,18 +211,19 @@ export default function BilingualStoppedFooter({
         1800
       );
     } catch {
-      setBookmarkMessage("ブックマークを保存できませんでした");
+      setBookmarkMessage("栞の位置を記録できませんでした");
     }
   }
 
   function updateSpeechSettings(next: StoredWebSpeechSettings) {
     setSpeechSettings(next);
-    writeWebSpeechSettings(next);
   }
 
   function toggleNarrationStopped() {
     const next = !narrationStopped;
-    if (next && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    speechRunIdRef.current += 1;
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setIsPlaying(false);
     setNarrationStopped(next);
     writeNarrationStopped(seriesId, next);
   }
@@ -163,6 +238,7 @@ export default function BilingualStoppedFooter({
   }
 
   function stopNarration() {
+    speechRunIdRef.current += 1;
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     setIsPlaying(false);
   }
@@ -172,165 +248,166 @@ export default function BilingualStoppedFooter({
       stopNarration();
       return;
     }
-    if (!("speechSynthesis" in window) || !narrationText.trim()) return;
-    const utterance = new SpeechSynthesisUtterance(narrationText);
+    if (
+      narrationStopped ||
+      !("speechSynthesis" in window) ||
+      typeof SpeechSynthesisUtterance === "undefined" ||
+      !narrationText.trim()
+    ) {
+      return;
+    }
+
+    const runId = speechRunIdRef.current + 1;
+    speechRunIdRef.current = runId;
+    window.speechSynthesis.cancel();
+    onPositionIndexChange(safePositionIndex, autoFollow);
+
+    const utterance = new SpeechSynthesisUtterance(narrationText.trim());
     utterance.lang = narrationLanguage;
     utterance.rate = speechSettings.rate;
+    utterance.pitch = speechSettings.pitch;
     utterance.volume = speechSettings.volume;
     const voices = window.speechSynthesis.getVoices();
-    utterance.voice = voices.find((voice) => voice.voiceURI === speechSettings.voiceURI)
-      ?? voices.find((voice) => voice.lang.toLowerCase().startsWith(narrationLanguage.split("-")[0].toLowerCase()))
-      ?? null;
-    utterance.onend = () => setIsPlaying(false);
-    utterance.onerror = () => setIsPlaying(false);
-    setNarrationStopped(false);
-    writeNarrationStopped(seriesId, false);
+    utterance.voice =
+      voices.find((voice) => voice.voiceURI === speechSettings.voiceURI) ??
+      voices.find((voice) =>
+        voice.lang.toLowerCase().startsWith(
+          narrationLanguage.toLowerCase().split("-")[0]
+        )
+      ) ??
+      null;
+    utterance.onend = () => {
+      if (speechRunIdRef.current === runId) setIsPlaying(false);
+    };
+    utterance.onerror = () => {
+      if (speechRunIdRef.current === runId) setIsPlaying(false);
+    };
     setIsPlaying(true);
     window.speechSynthesis.speak(utterance);
+  }
+
+  function moveTo(href?: string | null) {
+    if (!href) return;
+    stopNarration();
+    router.push(bilingualHref(href));
+  }
+
+  function changePosition(index: number) {
+    stopNarration();
+    onPositionIndexChange(index, autoFollow);
   }
 
   return (
     <section
       aria-label="対訳中の朗読フッター"
-      className="mt-5 border-t border-black/10 bg-white pt-3"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/92 backdrop-blur"
     >
       {settingsOpen ? (
-        <div className="mb-3 grid gap-4 bg-neutral-50 px-4 py-4 text-sm sm:grid-cols-2">
-          <div>
-            <div className="flex items-center justify-between gap-3">
-              <span>朗読停止</span>
-              <button
-                type="button"
-                onClick={toggleNarrationStopped}
-                className="rounded-full bg-white px-4 py-2 text-xs font-medium shadow-sm"
-              >
-                {narrationStopped ? "停止解除" : "停止"}
-              </button>
+        <div className="border-b border-black/10 bg-white/98">
+          <div className="mx-auto max-h-[52dvh] max-w-4xl overflow-y-auto px-4 py-4 sm:px-6">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-4">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">NARRATION</p>
+                <h3 className="mt-2 text-lg font-semibold text-black">朗読</h3>
+
+                <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
+                  <p className="text-sm text-neutral-700">再生方式</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <SettingChip active label="ブラウザ朗読" onClick={() => undefined} />
+                    <SettingChip active={false} disabled label="ユーザー朗読（対訳では未対応）" onClick={() => undefined} />
+                  </div>
+                  <p className="mt-3 text-xs leading-6 text-neutral-500">下段で選択している1文を読み上げます。</p>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
+                  <p className="text-sm text-neutral-700">朗読者（ブラウザ音声）</p>
+                  <select
+                    value={speechSettings.voiceURI}
+                    onChange={(event) => updateSpeechSettings({ ...speechSettings, voiceURI: event.target.value })}
+                    className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300"
+                  >
+                    {availableVoices.length === 0 ? <option value="">標準音声</option> : availableVoices.map((voice) => (
+                      <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name} / {voice.lang}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <label className="mt-4 block rounded-2xl border border-black/10 bg-white p-4">
+                  <span className="flex justify-between text-sm text-neutral-700"><span>声の高さ</span><span>{speechSettings.pitch.toFixed(1)}</span></span>
+                  <input type="range" min={0.8} max={1.3} step={0.1} value={speechSettings.pitch} onChange={(event) => updateSpeechSettings({ ...speechSettings, pitch: Number(event.target.value) })} className="mt-3 w-full accent-sky-300" />
+                </label>
+
+                <label className="mt-4 block rounded-2xl border border-black/10 bg-white p-4">
+                  <span className="flex justify-between text-sm text-neutral-700"><span>朗読音量</span><span>{Math.round(speechSettings.volume * 100)}%</span></span>
+                  <input type="range" min={0} max={1} step={0.01} value={speechSettings.volume} onChange={(event) => updateSpeechSettings({ ...speechSettings, volume: Number(event.target.value) })} className="mt-3 w-full accent-sky-300" />
+                </label>
+
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
+                  <div><p className="text-sm text-neutral-700">朗読停止</p><p className="mt-1 text-xs leading-6 text-neutral-500">停止中は1文再生を開始しません。</p></div>
+                  <button type="button" onClick={toggleNarrationStopped} className={["rounded-full border px-4 py-2 text-sm font-medium transition", narrationStopped ? "border-sky-200 bg-sky-50 text-black" : "border-black/10 bg-white text-neutral-700"].join(" ")}>{narrationStopped ? "停止解除" : "停止"}</button>
+                </div>
+              </section>
+
+              <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-4">
+                <p className="text-xs tracking-[0.18em] text-neutral-500">DISPLAY</p>
+                <h3 className="mt-2 text-lg font-semibold text-black">表示演出</h3>
+
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
+                  <span className="text-sm text-neutral-700">マーカー表示</span>
+                  <div className="flex gap-2">
+                    <SettingChip active={displaySettings.showMarker} label="ON" onClick={() => onDisplaySettingsChange({ ...displaySettings, showMarker: true })} />
+                    <SettingChip active={!displaySettings.showMarker} label="OFF" onClick={() => onDisplaySettingsChange({ ...displaySettings, showMarker: false })} />
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
+                  <span className="text-sm text-neutral-700">全演出</span>
+                  <div className="flex gap-2">
+                    <SettingChip active={!displaySettings.hideEffects} label="ON" onClick={() => onDisplaySettingsChange({ ...displaySettings, hideEffects: false })} />
+                    <SettingChip active={displaySettings.hideEffects} label="OFF" onClick={() => onDisplaySettingsChange({ ...displaySettings, hideEffects: true })} />
+                  </div>
+                </div>
+
+                <label className="mt-4 block rounded-2xl border border-black/10 bg-white p-4">
+                  <span className="flex justify-between text-sm text-neutral-700"><span>文字サイズ</span><span>{Math.round(displaySettings.fontScale * 100)}%</span></span>
+                  <input type="range" min={0.9} max={1.4} step={0.05} value={displaySettings.fontScale} onChange={(event) => onDisplaySettingsChange({ ...displaySettings, fontScale: Number(event.target.value) })} className="mt-3 w-full accent-sky-300" />
+                </label>
+
+                <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
+                  <p className="text-sm text-neutral-700">行間</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(["compact", "normal", "wide"] as const).map((value) => (
+                      <SettingChip key={value} active={displaySettings.lineHeight === value} label={value === "compact" ? "狭め" : value === "wide" ? "広め" : "標準"} onClick={() => onDisplaySettingsChange({ ...displaySettings, lineHeight: value })} />
+                    ))}
+                  </div>
+                </div>
+              </section>
             </div>
-            <label className="mt-4 block">
-              <span className="flex justify-between text-xs text-neutral-600">
-                <span>速度</span>
-                <span>{speechSettings.rate.toFixed(1)}</span>
-              </span>
-              <input
-                type="range"
-                min={0.7}
-                max={1.5}
-                step={0.1}
-                value={speechSettings.rate}
-                onChange={(event) =>
-                  updateSpeechSettings({
-                    ...speechSettings,
-                    rate: Number(event.target.value),
-                  })
-                }
-                className="mt-2 w-full accent-sky-300"
-              />
-            </label>
-            <label className="mt-3 block">
-              <span className="flex justify-between text-xs text-neutral-600">
-                <span>音量</span>
-                <span>{Math.round(speechSettings.volume * 100)}%</span>
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={speechSettings.volume}
-                onChange={(event) =>
-                  updateSpeechSettings({
-                    ...speechSettings,
-                    volume: Number(event.target.value),
-                  })
-                }
-                className="mt-2 w-full accent-sky-300"
-              />
-            </label>
-          </div>
-          <div>
-            <p className="text-xs text-neutral-600">対訳表示</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {[40, 50, 60].map((ratio) => (
-                <button
-                  key={ratio}
-                  type="button"
-                  onClick={() => onSplitRatioChange(ratio)}
-                  className={[
-                    "rounded-full px-3 py-2 text-xs",
-                    splitRatio === ratio ? "bg-sky-100" : "bg-white",
-                  ].join(" ")}
-                >
-                  上 {ratio}%
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={onSwapLanguages}
-                className="rounded-full bg-white px-3 py-2 text-xs"
-              >
-                上下を入れ替える
-              </button>
-              {readerHeight !== null ? (
-                <button
-                  type="button"
-                  onClick={onResetReaderHeight}
-                  className="rounded-full bg-white px-3 py-2 text-xs"
-                >
-                  高さを標準に戻す
-                </button>
-              ) : null}
-            </div>
-            <p className="mt-3 text-xs text-neutral-500">
-              上段: {upperPane === "source" ? "原文" : "訳文"}
-            </p>
           </div>
         </div>
       ) : null}
 
-      <div className={`grid w-full gap-2 ${narrationStopped ? "grid-cols-4" : "grid-cols-5"}`}>
-        <div className="relative">
-          {bookmarkMessage ? (
-            <span
-              role="status"
-              className="absolute bottom-full left-1/2 z-10 mb-2 w-max max-w-56 -translate-x-1/2 rounded-full bg-black px-3 py-1.5 text-center text-xs text-white shadow-lg"
-            >
-              {bookmarkMessage}
-            </span>
-          ) : null}
-          <StoppedAction
-            label="栞"
-            icon={bookmarkSaved ? ICONS.bookmarkFilled : ICONS.bookmark}
-            active={bookmarkSaved}
-            onClick={saveBookmark}
-          />
+      <div className="mx-auto max-w-4xl px-4 py-3 sm:px-6">
+        <div className="rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
+            <span>{sentenceCount > 0 ? safePositionIndex + 1 : 0} / {sentenceCount}</span>
+            <span>下段・1文再生</span>
+          </div>
+          <input type="range" min={0} max={Math.max(0, sentenceCount - 1)} step={1} value={safePositionIndex} disabled={narrationStopped || sentenceCount === 0} onChange={(event) => changePosition(Number(event.target.value))} className="mt-3 w-full accent-sky-300 disabled:opacity-40" />
         </div>
-        {!narrationStopped ? (
-          <StoppedAction
-            label={isPlaying ? "朗読停止" : "朗読再生"}
-            icon={isPlaying ? ICONS.stop : ICONS.play}
-            active={isPlaying}
-            onClick={togglePlayback}
-          />
-        ) : null}
-        <StoppedAction
-          label="前話"
-          icon={ICONS.prev}
-          disabled={!prevHref}
-          onClick={() => prevHref && router.push(bilingualHref(prevHref))}
-        />
-        <StoppedAction
-          label="次話"
-          icon={ICONS.next}
-          disabled={!nextHref}
-          onClick={() => nextHref && router.push(bilingualHref(nextHref))}
-        />
-        <StoppedAction
-          label="設定"
-          icon={ICONS.settings}
-          active={settingsOpen}
-          onClick={() => setSettingsOpen((current) => !current)}
-        />
+
+        <div className="mt-3 grid w-full grid-cols-7 gap-2">
+          <div className="relative">
+            {bookmarkMessage ? <span role="status" className="absolute bottom-full left-1/2 z-10 mb-2 w-max max-w-56 -translate-x-1/2 rounded-full bg-black px-3 py-1.5 text-center text-xs text-white shadow-lg">{bookmarkMessage}</span> : null}
+            <FooterActionButton label="栞" iconSrc={bookmarkSaved ? PLAYER_ICON_PATHS.bookmarkFilled : PLAYER_ICON_PATHS.bookmark} active={bookmarkSaved} onClick={saveBookmark} />
+          </div>
+          <FooterPlaybackRateControl value={speechSettings.rate} onDecrease={() => updateSpeechSettings({ ...speechSettings, rate: clamp(speechSettings.rate - 0.1, 0.7, 1.5) })} onIncrease={() => updateSpeechSettings({ ...speechSettings, rate: clamp(speechSettings.rate + 0.1, 0.7, 1.5) })} />
+          <FooterActionButton label="前話" iconSrc={PLAYER_ICON_PATHS.prev} disabled={!prevHref} onClick={() => moveTo(prevHref)} />
+          <FooterActionButton label={isPlaying ? "停止" : "再生"} iconSrc={isPlaying ? PLAYER_ICON_PATHS.stop : PLAYER_ICON_PATHS.play} disabled={narrationStopped || !narrationText.trim()} active={isPlaying} onClick={togglePlayback} />
+          <FooterActionButton label="次話" iconSrc={PLAYER_ICON_PATHS.next} disabled={!nextHref} onClick={() => moveTo(nextHref)} />
+          <FooterActionButton label={autoFollow ? "自動追尾\nON" : "自動追尾\nOFF"} active={autoFollow} disabled={narrationStopped} onClick={() => setAutoFollow((current) => !current)} />
+          <FooterActionButton label="設定" iconSrc={PLAYER_ICON_PATHS.settings} active={settingsOpen} onClick={() => setSettingsOpen((current) => !current)} />
+        </div>
       </div>
     </section>
   );

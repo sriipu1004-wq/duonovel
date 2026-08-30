@@ -10,8 +10,8 @@ import BilingualPane, {
   type BilingualSegment,
   type PaneSide,
 } from "@/features/playback/BilingualPane";
-import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
 import BilingualStoppedFooter from "@/features/playback/BilingualStoppedFooter";
+import { useReaderDisplaySettings } from "@/features/playback/useReaderDisplaySettings";
 import { useBilingualWordExplanation } from "@/features/playback/useBilingualWordExplanation";
 import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
 import {
@@ -190,6 +190,8 @@ export default function GeneratedStoryBilingualPlayback({
   targetLanguageLocked: boolean;
 }) {
   const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
+  const { displaySettings, setDisplaySettings } =
+    useReaderDisplaySettings(`generated:${storyId}`);
   const [story, setStory] = useState<SavedGeneratedStoryPayload | null>(null);
   const preference = useMemo(
     () =>
@@ -504,7 +506,7 @@ export default function GeneratedStoryBilingualPlayback({
 
   return (
     <main className="min-h-screen bg-white pb-24 text-black">
-      <div className="mx-auto w-full max-w-4xl px-3 py-4 sm:px-6 sm:py-6">
+      <div className="mx-auto w-full max-w-4xl px-3 pb-44 pt-4 sm:px-6 sm:pb-44 sm:pt-6">
         <section className="overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-sm">
           <header className="border-b border-black/10 px-4 py-4 sm:px-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -547,13 +549,6 @@ export default function GeneratedStoryBilingualPlayback({
 
           {status === "ready" && segments.length > 0 ? (
             <>
-              <BilingualStudyControls
-                segments={segments}
-                selectedSegmentId={selectedSegmentId}
-                onSelectSegment={handleSelectSegment}
-                targetLanguage={targetLanguage}
-                seriesId={`generated:${storyId}`}
-              />
               <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
                 文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
                 {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
@@ -590,6 +585,7 @@ export default function GeneratedStoryBilingualPlayback({
                     onReadingPositionChange={handleReadingPositionChange}
                     onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
+                    displaySettings={displaySettings}
                   />
                 ) : (
                   <BilingualPane
@@ -606,6 +602,7 @@ export default function GeneratedStoryBilingualPlayback({
                     onReadingPositionChange={handleReadingPositionChange}
                     onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
+                    displaySettings={displaySettings}
                   />
                 )}
 
@@ -630,6 +627,7 @@ export default function GeneratedStoryBilingualPlayback({
                     onReadingPositionChange={handleReadingPositionChange}
                     onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
+                    displaySettings={displaySettings}
                   />
                 ) : (
                   <BilingualPane
@@ -646,6 +644,7 @@ export default function GeneratedStoryBilingualPlayback({
                     onReadingPositionChange={handleReadingPositionChange}
                     onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
+                    displaySettings={displaySettings}
                   />
                 )}
               </div>
@@ -710,16 +709,26 @@ export default function GeneratedStoryBilingualPlayback({
           seriesId={`generated:${storyId}`}
           episodeNumber={1}
           positionIndex={currentPositionIndex}
-          splitRatio={splitRatio}
+          sentenceCount={segments.length}
           upperPane={upperPane}
-          readerHeight={readerHeight}
-          narrationText={segments.map((segment) => upperPane === "source" ? segment.translatedText : segment.sourceText).join("\n")}
+          narrationText={
+            upperPane === "source"
+              ? segments[currentPositionIndex]?.translatedText ?? ""
+              : segments[currentPositionIndex]?.sourceText ?? ""
+          }
           narrationLanguage={getSupportedLanguage(upperPane === "source" ? targetLanguage : sourceLanguage).speechLanguage}
           sourceLanguage={sourceLanguage}
           targetLanguage={targetLanguage}
-          onSplitRatioChange={setSplitRatio}
-          onSwapLanguages={handleSwapLanguages}
-          onResetReaderHeight={() => setReaderHeight(null)}
+          displaySettings={displaySettings}
+          onDisplaySettingsChange={setDisplaySettings}
+          onPositionIndexChange={(index, shouldFollow) => {
+            const segment = segments[index];
+            if (!segment) return;
+            readingSegmentIdRef.current = segment.id;
+            setCurrentPositionIndex(index);
+            setSelectedSegmentId(segment.id);
+            if (shouldFollow) centerSegment(segment.id);
+          }}
         />
 
         <div className="mt-4 flex justify-center">

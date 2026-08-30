@@ -11,6 +11,7 @@ import {
 } from "react";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import type { StoredWebSpeechDisplaySettings } from "@/lib/playback/webSpeechPreferences";
 
 export type BilingualSegment = {
   id: string;
@@ -36,6 +37,7 @@ type BilingualPaneProps = {
   onReadingPositionChange: (id: string) => void;
   onSelectWord?: (selection: BilingualWordSelection) => void;
   wordInsight?: BilingualWordInsight | null;
+  displaySettings: StoredWebSpeechDisplaySettings;
 };
 
 const TAP_CENTER_SYNC_PAUSE_MS = 800;
@@ -237,6 +239,7 @@ export default function BilingualPane({
   onReadingPositionChange,
   onSelectWord,
   wordInsight,
+  displaySettings,
 }: BilingualPaneProps) {
   const paragraphMap = new Map<number, BilingualSegment[]>();
   const positionFrameRef = useRef<number | null>(null);
@@ -322,7 +325,18 @@ export default function BilingualPane({
         onScroll={handleScroll}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
       >
-        <article className="space-y-6 text-[1rem] leading-[2.05] text-black sm:text-[1.05rem]">
+        <article
+          className="space-y-6 text-black"
+          style={{
+            fontSize: `${displaySettings.fontScale}rem`,
+            lineHeight:
+              displaySettings.lineHeight === "compact"
+                ? 1.85
+                : displaySettings.lineHeight === "wide"
+                  ? 2.35
+                  : 2.05,
+          }}
+        >
           {Array.from(paragraphMap.entries()).map(
             ([paragraphIndex, paragraphSegments], index, paragraphs) => {
               const firstSource = paragraphSegments[0]?.sourceText.trim() ?? "";
@@ -365,8 +379,14 @@ export default function BilingualPane({
                     }}
                     className={[
                       "inline cursor-pointer rounded-md px-1 py-1 transition-all duration-150",
-                      hovered && !selected ? "bg-sky-50" : "hover:bg-sky-50/80",
-                      selected
+                      !displaySettings.hideEffects && hovered && !selected
+                        ? "bg-sky-50"
+                        : displaySettings.hideEffects
+                          ? ""
+                          : "hover:bg-sky-50/80",
+                      selected &&
+                      displaySettings.showMarker &&
+                      !displaySettings.hideEffects
                         ? "bg-sky-100 text-black shadow-[0_0_0_3px_rgba(186,230,253,0.55)]"
                         : "",
                     ].join(" ")}
