@@ -17,8 +17,10 @@ function findPrimaryReaderActions(): HTMLElement | null {
     const text = node.textContent?.trim() ?? "";
     return (
       text === "ブラウザ読み上げ" ||
+      text === "ブラウザ朗読" ||
       text === "朗読停止中" ||
-      text.startsWith("人の朗読:")
+      text.startsWith("人の朗読:") ||
+      text.startsWith("ユーザー朗読:")
     );
   });
 

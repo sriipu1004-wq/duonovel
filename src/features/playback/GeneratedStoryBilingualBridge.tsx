@@ -308,7 +308,7 @@ export default function GeneratedStoryBilingualBridge({
   return createPortal(
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-600">
-        ブラウザ読み上げ
+        ブラウザ朗読
       </span>
       <button
         type="button"

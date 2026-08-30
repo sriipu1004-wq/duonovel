@@ -305,17 +305,21 @@ function SettingChip({
   active,
   label,
   onClick,
+  disabled = false,
 }: {
   active: boolean;
   label: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={[
         "rounded-full border px-4 py-2 text-sm font-medium transition",
+        disabled ? "cursor-not-allowed opacity-45" : "",
         active
           ? "border-sky-200 bg-sky-50 text-black"
           : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
@@ -568,11 +572,7 @@ export default function WebSpeechEpisodePlayback({
       const href = continuePlaying && isSubscriber
         ? addAutoPlayToHref(targetHref)
         : targetHref;
-      if (continuePlaying && isSubscriber) {
-        window.location.assign(href);
-      } else {
-        router.push(href);
-      }
+      router.push(href);
     },
     [isSubscriber, router]
   );
@@ -1065,7 +1065,7 @@ export default function WebSpeechEpisodePlayback({
       });
 
       setIsCurrentEpisodeBookmarked(true);
-      setBookmarkMessage("ブックマーク保存をしました");
+      setBookmarkMessage("栞の位置を記録しました");
 
       if (bookmarkToastTimeoutRef.current) {
         window.clearTimeout(bookmarkToastTimeoutRef.current);
@@ -1144,8 +1144,18 @@ export default function WebSpeechEpisodePlayback({
     }
 
     initialAutoPlayRef.current = true;
-    const timer = window.setTimeout(() => startBrowserSpeechFrom(0), 0);
-    return () => window.clearTimeout(timer);
+    let timer: number | null = null;
+    const startWhenVisible = () => {
+      if (document.hidden) return;
+      document.removeEventListener("visibilitychange", startWhenVisible);
+      timer = window.setTimeout(() => startBrowserSpeechFrom(0), 0);
+    };
+    document.addEventListener("visibilitychange", startWhenVisible);
+    startWhenVisible();
+    return () => {
+      document.removeEventListener("visibilitychange", startWhenVisible);
+      if (timer !== null) window.clearTimeout(timer);
+    };
   }, [
     episodeId,
     initialAutoPlay,
@@ -1260,14 +1270,18 @@ export default function WebSpeechEpisodePlayback({
                         label="ブラウザ朗読"
                         onClick={setBrowserSource}
                       />
-                      {hasHumanRecording ? (
-                        <SettingChip
-                          active={isHumanNarration}
-                          label="ユーザー朗読"
-                          onClick={setHumanSource}
-                        />
-                      ) : null}
+                      <SettingChip
+                        active={isHumanNarration}
+                        label={hasHumanRecording ? "ユーザー朗読" : "ユーザー朗読（未設定）"}
+                        onClick={setHumanSource}
+                        disabled={!hasHumanRecording}
+                      />
                     </div>
+                    {!hasHumanRecording ? (
+                      <p className="mt-3 text-xs leading-6 text-neutral-500">
+                        この作品には公開中のユーザー朗読がありません。
+                      </p>
+                    ) : null}
                   </div>
 
                   {isHumanNarration ? (
@@ -1388,7 +1402,9 @@ export default function WebSpeechEpisodePlayback({
                       </p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
                         {isSubscriber
-                          ? "別のアプリやタブへ移っても朗読を続け、話末で次の話へ移動して再生する。"
+                          ? isHumanNarration
+                            ? "ユーザー朗読は別のアプリへ移動しても再生を続け、話末で次の話へ移動する。"
+                            : "ブラウザ朗読は画面表示中に次話へ移動する。画面ロック中の連続再生は端末によって停止する。"
                           : "有料プランで利用できます。"}
                       </p>
                     </div>

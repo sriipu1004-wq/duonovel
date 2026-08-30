@@ -130,7 +130,7 @@ export default function BilingualStoppedFooter({
     try {
       writeReadingBookmark({ seriesId, episodeNumber, positionIndex });
       setBookmarkSaved(true);
-      setBookmarkMessage("ブックマーク保存をしました");
+      setBookmarkMessage("栞の位置を記録しました");
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = window.setTimeout(
         () => setBookmarkMessage(""),
