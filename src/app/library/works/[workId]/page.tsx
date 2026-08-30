@@ -11,6 +11,7 @@ import {
   getSupportedLanguage,
   parseSupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 
 type PageProps = {
   params: Promise<{ workId: string }>;
@@ -45,13 +46,16 @@ export default async function PrivateLibraryWorkPage({
   const { supabase, user } = await requireLoggedInUser(
     `/library/works/${encodeURIComponent(workId)}`
   );
-  const workResult = await supabase
-    .from("private_library_works")
-    .select("*")
-    .eq("id", workId)
-    .eq("owner_user_id", user.id)
-    .eq("import_status", "ready")
-    .maybeSingle();
+  const [workResult, subscriber] = await Promise.all([
+    supabase
+      .from("private_library_works")
+      .select("*")
+      .eq("id", workId)
+      .eq("owner_user_id", user.id)
+      .eq("import_status", "ready")
+      .maybeSingle(),
+    isSubscriber(user.id),
+  ]);
 
   if (workResult.error || !workResult.data) {
     notFound();
@@ -128,10 +132,12 @@ export default async function PrivateLibraryWorkPage({
             />
           </div>
 
-          <div className="mx-5 mt-5 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm sm:mx-8 sm:flex-row sm:items-center sm:justify-between">
-            <p className="leading-6 text-sky-950">月額680円で単語解説が無制限。対訳生成上限と次話先読みも利用できます。</p>
-            <Link href="/subscription" className="shrink-0 font-semibold text-sky-800 underline underline-offset-4">サブスクを見る</Link>
-          </div>
+          {!subscriber ? (
+            <div className="mx-5 mt-5 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm sm:mx-8 sm:flex-row sm:items-center sm:justify-between">
+              <p className="leading-6 text-sky-950">月額680円で単語解説が無制限。対訳生成上限と次話先読みも利用できます。</p>
+              <Link href="/subscription" className="shrink-0 font-semibold text-sky-800 underline underline-offset-4">サブスクを見る</Link>
+            </div>
+          ) : null}
 
           <PrivateLibrarySectionList workId={work.id} sections={sections} />
 

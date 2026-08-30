@@ -93,6 +93,52 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
       ? "支払い・契約状態の確認が必要"
       : "無料プラン";
 
+  if (subscriber) {
+    return (
+      <main className="min-h-screen bg-white text-black">
+        <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+          <div className="mb-5 text-sm text-neutral-500">
+            <Link href="/" className="hover:text-black">TOP</Link>
+            <span className="mx-2">/</span>
+            <span className="text-neutral-700">契約状態</span>
+          </div>
+
+          {checkout === "success" ? (
+            <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-7 text-emerald-900">
+              決済を受け付けました。有料機能は利用可能です。
+            </div>
+          ) : null}
+
+          <section className="rounded-[32px] border border-black/10 bg-neutral-950 px-6 py-9 text-white shadow-sm sm:px-10">
+            <p className="text-xs tracking-[0.22em] text-sky-300">CURRENT PLAN</p>
+            <h1 className="mt-4 text-3xl font-bold">{currentPlanLabel}</h1>
+            <p className="mt-4 text-sm leading-7 text-neutral-300">
+              有料機能は有効です。
+            </p>
+            {currentPeriodEnd ? (
+              <p className="mt-3 text-sm leading-7 text-neutral-300">
+                {billingSummary?.cancelAtPeriodEnd
+                  ? `${currentPeriodEnd}まで利用可能（更新停止済み）`
+                  : `次回更新日 ${currentPeriodEnd}`}
+              </p>
+            ) : null}
+            <div className="mt-6 flex flex-wrap gap-3">
+              {!officialAccount && shouldManageExistingContract ? (
+                <SubscriptionActionButton mode="portal" billingReady={isStripeConfigured()} />
+              ) : null}
+              <Link
+                href="/"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                トップへ戻る
+              </Link>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 lg:px-8">

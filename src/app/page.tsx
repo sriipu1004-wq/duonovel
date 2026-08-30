@@ -8,6 +8,7 @@ import {
 import { pickText } from "@/features/write/writeShared";
 import PublicAdSlot from "@/components/ads/PublicAdSlot";
 import { createClient as createServerClient } from "@/lib/supabase/server";
+import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 
 const HOME_DESCRIPTION =
   "外国語の長編を管理して読む個人本棚、多言語対訳、読み上げ、AI物語生成、Web小説の閲覧・投稿に対応した読書サービスです。";
@@ -224,6 +225,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
     authSupabase.auth.getUser(),
   ]);
   const currentUser = authResult.data.user;
+  const subscriber = currentUser ? await isSubscriber(currentUser.id) : false;
 
   const recordingAggregateMap = new Map(
     recordingAggregates.map((aggregate) => [aggregate.seriesId, aggregate])
@@ -323,7 +325,9 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
               <p className="text-[11px] tracking-[0.22em] text-neutral-500">目次</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <ExploreChip href="#prelaunch-summary" label="LIB read の特徴" />
-                <ExploreChip href="#subscription" label="月額680円サブスク" />
+                {!subscriber ? (
+                  <ExploreChip href="#subscription" label="月額680円サブスク" />
+                ) : null}
                 <ExploreChip href="#bookmark-updates" label="ブックマーク更新" />
                 <ExploreChip href="#latest" label="新着更新" />
                 <ExploreChip href="#weekly-new" label="週間新作おすすめ" />
@@ -334,6 +338,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
           </div>
         </section>
 
+        {!subscriber ? (
         <section id="subscription" className="pt-10">
           <div className="overflow-hidden rounded-[28px] bg-neutral-950 px-5 py-7 text-white sm:px-8 sm:py-9">
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -350,6 +355,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
             </div>
           </div>
         </section>
+        ) : null}
 
         <section id="prelaunch-summary" className="pt-10">
           <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">

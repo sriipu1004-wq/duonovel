@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAiUsage } from "@/features/usage/useAiUsage";
 
 const serviceLinks = [
   { href: "/guide", label: "使い方" },
@@ -27,6 +28,12 @@ export default function AppFooter() {
     return null;
   }
 
+  return <VisibleAppFooter />;
+}
+
+function VisibleAppFooter() {
+  const { snapshot } = useAiUsage();
+
   return (
     <footer className="border-t border-black/10 bg-white">
       <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -41,11 +48,16 @@ export default function AppFooter() {
           </div>
 
           <div className="grid grid-cols-2 gap-x-10 gap-y-3 text-sm text-neutral-600 sm:text-right">
-            {serviceLinks.map((item) => (
-              <Link key={item.href} href={item.href} className="transition hover:text-black">
-                {item.label}
-              </Link>
-            ))}
+            {serviceLinks
+              .filter(
+                (item) =>
+                  item.href !== "/subscription" || snapshot?.isSubscriber === false
+              )
+              .map((item) => (
+                <Link key={item.href} href={item.href} className="transition hover:text-black">
+                  {item.label}
+                </Link>
+              ))}
             {legalLinks.map((item) => (
               <Link key={item.href} href={item.href} className="transition hover:text-black">
                 {item.label}

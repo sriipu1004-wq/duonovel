@@ -33,6 +33,7 @@ import { buildReaderAuthorHref } from "@/lib/readerAuthorHref";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import ReaderCardLikeButton from "@/components/recording/ReaderCardLikeButton";
 import { fetchReaderCardLikeSnapshotMap } from "@/lib/readerCardLike";
+import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -914,6 +915,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const {
     data: { user: currentUser },
   } = await authSupabase.auth.getUser();
+  const subscriber = currentUser ? await isSubscriber(currentUser.id) : false;
 
   const { data: seriesData, error: seriesError } = await supabase
     .from("series")
@@ -1265,10 +1267,12 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   hidden={currentTab !== "toc"}
                   className="mt-5"
                 >
-                  <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-                    <p className="leading-6 text-sky-950">月額680円で単語解説が無制限。対訳生成上限と次話先読みも利用できます。</p>
-                    <Link href="/subscription" className="shrink-0 font-semibold text-sky-800 underline underline-offset-4">サブスクを見る</Link>
-                  </div>
+                  {!subscriber ? (
+                    <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                      <p className="leading-6 text-sky-950">月額680円で単語解説が無制限。対訳生成上限と次話先読みも利用できます。</p>
+                      <Link href="/subscription" className="shrink-0 font-semibold text-sky-800 underline underline-offset-4">サブスクを見る</Link>
+                    </div>
+                  ) : null}
                   <ContinueReadingEpisodeList
                     seriesId={seriesId}
                     episodes={visibleEpisodes.map((episode) => {
