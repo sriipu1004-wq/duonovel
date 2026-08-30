@@ -63,3 +63,11 @@ export function formatCharacterCount(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return "0文字";
   return `${Math.floor(value).toLocaleString("ja-JP")}文字`;
 }
+
+/** Match PostgreSQL char_length for UTF-8 text instead of UTF-16 code units. */
+export function countUnicodeCharacters(value: string): number {
+  let count = 0;
+  const iterator = value[Symbol.iterator]();
+  while (!iterator.next().done) count += 1;
+  return count;
+}

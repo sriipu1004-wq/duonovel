@@ -1,4 +1,7 @@
-import { PRIVATE_LIBRARY_LIMITS } from "@/lib/library/privateLibrary";
+import {
+  PRIVATE_LIBRARY_LIMITS,
+  countUnicodeCharacters,
+} from "@/lib/library/privateLibrary";
 import {
   normalizeImportedBodyText,
   normalizeImportedText,
@@ -175,7 +178,10 @@ export function buildParsedBookImport(args: {
     sections.push({
       sectionNumber,
       title: section.title,
-      sourceCharCount: bodies.reduce((total, body) => total + body.length, 0),
+      sourceCharCount: bodies.reduce(
+        (total, body) => total + countUnicodeCharacters(body),
+        0
+      ),
       partCount,
     });
 
@@ -202,7 +208,7 @@ export function buildParsedBookImport(args: {
   }
 
   const sourceCharCount = units.reduce(
-    (total, unit) => total + unit.body.length,
+    (total, unit) => total + countUnicodeCharacters(unit.body),
     0
   );
 

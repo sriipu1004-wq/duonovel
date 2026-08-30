@@ -9,7 +9,11 @@ import {
   normalizeImportedBodyText,
   normalizeImportedText,
 } from "../src/lib/library/importTextNormalization";
-import { PRIVATE_LIBRARY_LIMITS } from "../src/lib/library/privateLibrary";
+import {
+  PRIVATE_LIBRARY_LIMITS,
+  countUnicodeCharacters,
+} from "../src/lib/library/privateLibrary";
+import { parsePrivateLibraryImportUnits } from "../src/lib/library/privateLibraryImportUnits";
 import { collectTranslationTerminologyCandidates } from "../src/lib/translation/openAITranslation";
 import { detectSourceLanguageFromText } from "../src/lib/translation/detectSourceLanguage";
 
@@ -118,6 +122,35 @@ function testVerticalGlyphNormalizationAndTitleFallback() {
   );
 }
 
+function testDatabaseCompatibleCharacterCount() {
+  const parsed = buildParsedBookImport({
+    sections: [
+      {
+        title: "字下げとUnicode",
+        body: "本文の段落。\n\n絵文字😀を含む段落。",
+      },
+    ],
+    usedDetectedHeadings: true,
+  });
+  const body = parsed.units[0]?.body ?? "";
+
+  assert.ok(body.startsWith("　本文"));
+  assert.equal(
+    parsed.sourceCharCount,
+    parsed.units.reduce(
+      (total, unit) => total + countUnicodeCharacters(unit.body),
+      0
+    )
+  );
+  assert.equal(countUnicodeCharacters("😀"), 1);
+  assert.equal("😀".length, 2);
+
+  const validated = parsePrivateLibraryImportUnits(parsed.units);
+  assert.ok(validated);
+  assert.equal(validated[0]?.body, body);
+  assert.ok(validated[0]?.body.startsWith("　本文"));
+}
+
 function testEpub() {
   const epub = zipSync({
     mimetype: strToU8("application/epub+zip"),
@@ -205,6 +238,7 @@ testLongLogicalSection();
 testMultilingualHeadings();
 testJapaneseBareEpisodeHeadings();
 testVerticalGlyphNormalizationAndTitleFallback();
+testDatabaseCompatibleCharacterCount();
 testEpub();
 testDocx();
 testTerminologyCandidates();
