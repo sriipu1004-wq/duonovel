@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getPlayLogBySeries } from "@/lib/playLogs";
 import { supabase } from "@/lib/supabaseClient";
 import { READING_BOOKMARK_CHANGED_EVENT } from "@/lib/playback/readingBookmark";
@@ -19,6 +20,9 @@ type EpisodeListItem = {
 type ContinueReadingEpisodeListProps = {
   seriesId: string;
   episodes: EpisodeListItem[];
+  currentRangeStart: number;
+  rangeSize: number;
+  episodeNumbers: number[];
 };
 
 type BookmarkData = {
@@ -167,7 +171,14 @@ function readLocalResume(seriesId: string): ResumeData | null {
 export default function ContinueReadingEpisodeList({
   seriesId,
   episodes,
+  currentRangeStart,
+  rangeSize,
+  episodeNumbers,
 }: ContinueReadingEpisodeListProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const listRef = useRef<HTMLUListElement | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [resumeEpisodeNumber, setResumeEpisodeNumber] = useState<number | null>(
     null
@@ -192,6 +203,36 @@ export default function ContinueReadingEpisodeList({
       window.removeEventListener("storage", syncBookmark);
     };
   }, [seriesId]);
+
+  useEffect(() => {
+    if (bookmarkEpisodeNumber === null) return;
+    const bookmarkIndex = episodeNumbers.indexOf(bookmarkEpisodeNumber);
+    if (bookmarkIndex < 0) return;
+    const targetRangeStart = Math.floor(bookmarkIndex / rangeSize) * rangeSize + 1;
+    if (targetRangeStart !== currentRangeStart) {
+      const query = new URLSearchParams(searchParams.toString());
+      query.set("tab", "toc");
+      query.set("range", String(targetRangeStart));
+      router.replace(`${pathname}?${query.toString()}`);
+      return;
+    }
+    const target = listRef.current?.querySelector<HTMLElement>(
+      `[data-episode-number="${bookmarkEpisodeNumber}"]`
+    );
+    if (target) {
+      window.requestAnimationFrame(() =>
+        target.scrollIntoView({ behavior: "auto", block: "start" })
+      );
+    }
+  }, [
+    bookmarkEpisodeNumber,
+    currentRangeStart,
+    episodeNumbers,
+    pathname,
+    rangeSize,
+    router,
+    searchParams,
+  ]);
 
   useEffect(() => {
     setSelectedReader(readStoredReaderSelection(seriesId));
@@ -228,6 +269,14 @@ export default function ContinueReadingEpisodeList({
       const localResume = readLocalResume(seriesId);
       const localBookmark = readLocalBookmark(seriesId);
 
+      if (localBookmark) {
+        setResumeEpisodeNumber(
+          Math.max(1, Math.floor(toSafeNumber(localBookmark.episodeNumber, 1)))
+        );
+        setLoaded(true);
+        return;
+      }
+
       try {
         const {
           data: { user },
@@ -262,14 +311,6 @@ export default function ContinueReadingEpisodeList({
 
       if (localResume) {
         setResumeEpisodeNumber(localResume.episodeNumber);
-        setLoaded(true);
-        return;
-      }
-
-      if (localBookmark) {
-        setResumeEpisodeNumber(
-          Math.max(1, Math.floor(toSafeNumber(localBookmark.episodeNumber, 1)))
-        );
         setLoaded(true);
         return;
       }
@@ -318,9 +359,9 @@ export default function ContinueReadingEpisodeList({
   return (
     <div className="overflow-hidden rounded-[20px] border border-black/10">
       <div className="max-h-[760px] overflow-y-auto">
-        <ul className="divide-y divide-black/10">
+        <ul ref={listRef} className="divide-y divide-black/10">
           {renderedEpisodes.map((episode) => (
-            <li key={episode.id}>
+            <li key={episode.id} data-episode-number={episode.episodeNumber}>
               <Link
                 href={episode.href}
                 className={[
@@ -358,10 +399,10 @@ export default function ContinueReadingEpisodeList({
 
                         {episode.isContinueTarget ? (
                           <span className="rounded-full bg-sky-600 px-2.5 py-1 text-[11px] font-semibold text-white">
-                            続きから読む
+                            続きを読む
                           </span>
                         ) : null}
-                        {episode.isBookmarked ? (
+                        {episode.isBookmarked && !episode.isContinueTarget ? (
                           <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
                             栞
                           </span>

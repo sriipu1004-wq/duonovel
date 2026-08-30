@@ -578,7 +578,7 @@ export default function WebSpeechEpisodePlayback({
   );
 
   usePremiumBackgroundNarration({
-    isSubscriber,
+    isSubscriber: isSubscriber && isHumanNarration,
     isPlaying,
     title: safeEpisodeTitle,
     artist: safeAuthorName,
@@ -1398,13 +1398,13 @@ export default function WebSpeechEpisodePlayback({
                   <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
                     <div>
                       <p className="text-sm text-neutral-700">
-                        バックグラウンド再生・次話自動再生
+                        次話自動再生
                       </p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
                         {isSubscriber
                           ? isHumanNarration
-                            ? "ユーザー朗読は別のアプリへ移動しても再生を続け、話末で次の話へ移動する。"
-                            : "ブラウザ朗読は画面表示中に次話へ移動する。画面ロック中の連続再生は端末によって停止する。"
+                            ? "ユーザー朗読はバックグラウンド再生に対応し、話末で次の話へ移動する。"
+                            : "ブラウザ朗読は画面表示中のみ再生し、話末で次の話へ移動する。"
                           : "有料プランで利用できます。"}
                       </p>
                     </div>

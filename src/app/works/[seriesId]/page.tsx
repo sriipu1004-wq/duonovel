@@ -1275,6 +1275,9 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   ) : null}
                   <ContinueReadingEpisodeList
                     seriesId={seriesId}
+                    currentRangeStart={currentRangeStart}
+                    rangeSize={50}
+                    episodeNumbers={episodes.map(getEpisodeNumber)}
                     episodes={visibleEpisodes.map((episode) => {
                       const episodeNumber = getEpisodeNumber(episode);
                       const episodeTitle =

@@ -263,6 +263,7 @@ export default function PrivateLibraryBilingualPlayback({
       const response = await fetch("/api/library/translations/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(290_000),
         body: JSON.stringify({
           chapterId,
           sourceLanguage,
@@ -325,7 +326,7 @@ export default function PrivateLibraryBilingualPlayback({
           encodeURIComponent(sourceLanguage) +
           "&targetLanguage=" +
           encodeURIComponent(targetLanguage),
-        { cache: "no-store" }
+        { cache: "no-store", signal: AbortSignal.timeout(20_000) }
       );
       const payload = (await response.json()) as TranslationStatusResponse;
 
@@ -440,7 +441,10 @@ export default function PrivateLibraryBilingualPlayback({
           encodeURIComponent(stableTargetLanguage);
 
         try {
-          const statusResponse = await fetch(statusUrl, { cache: "no-store" });
+          const statusResponse = await fetch(statusUrl, {
+            cache: "no-store",
+            signal: AbortSignal.timeout(20_000),
+          });
           const statusPayload =
             (await statusResponse.json()) as TranslationStatusResponse;
 

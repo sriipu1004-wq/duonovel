@@ -421,18 +421,18 @@ export default function LibraryImportForm({
 
                 <div className="mt-4 overflow-hidden rounded-[20px] border border-black/10 bg-white">
                   <div className="max-h-[520px] divide-y divide-black/10 overflow-y-auto overscroll-contain">
-                    {selection.parsed.sections.map((section) => (
+                    {selection.parsed.units.map((unit, index) => (
                       <div
-                        key={`${section.sectionNumber}-${section.title}`}
+                        key={`${unit.sectionNumber}-${unit.partNumber}-${index}`}
                         className="px-4 py-3"
                       >
                         <p className="text-sm font-medium text-black">
-                          {section.title}
+                          {unit.title}
                         </p>
                         <p className="mt-1 text-xs text-neutral-500">
-                          {formatCharacterCount(section.sourceCharCount)}
-                          {section.partCount > 1
-                            ? `・対訳用に${section.partCount}分割（末尾 - 1〜 - ${section.partCount}）`
+                          {formatCharacterCount([...unit.body].length)}
+                          {unit.partCount > 1
+                            ? `・${unit.partNumber}/${unit.partCount}`
                             : ""}
                         </p>
                       </div>

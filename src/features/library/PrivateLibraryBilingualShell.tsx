@@ -100,7 +100,7 @@ export default function PrivateLibraryBilingualShell({
     try {
       const response = await fetch(
         `/api/library/translations/${encodeURIComponent(chapterId)}?sourceLanguage=${encodeURIComponent(sourceLanguage)}&targetLanguage=${encodeURIComponent(language)}`,
-        { cache: "no-store" }
+        { cache: "no-store", signal: AbortSignal.timeout(20_000) }
       );
       const payload = (await response.json()) as {
         ok?: boolean;

@@ -45,7 +45,7 @@ const comparisons = [
   {
     label: "朗読",
     free: "画面を開いて再生",
-    subscriber: "バックグラウンド再生・次話自動再生",
+    subscriber: "次話自動再生。バックグラウンド再生はユーザー朗読のみ",
   },
   {
     label: "個人本棚・読書進捗",

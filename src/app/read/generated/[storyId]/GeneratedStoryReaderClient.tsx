@@ -9,7 +9,6 @@ import {
   type CSSProperties,
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useAiUsage } from "@/features/usage/useAiUsage";
 import { usePremiumBackgroundNarration } from "@/features/playback/usePremiumBackgroundNarration";
 
 type TimeMinutes = 5 | 10 | 15 | 20;
@@ -402,7 +401,6 @@ export default function GeneratedStoryReaderClient({
 }: {
   storyId: string;
 }) {
-  const { snapshot: aiUsage } = useAiUsage();
   const [payload, setPayload] = useState<GeneratedStoryPayload | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
@@ -579,8 +577,6 @@ export default function GeneratedStoryReaderClient({
     speechUnits.length === 0
       ? 0
       : Math.min(maxUnitIndex, Math.max(0, activeUnitIndex));
-  const isSubscriber = aiUsage?.isSubscriber === true;
-
   const lineHeightValue =
     displayPreference.lineHeight === "compact"
       ? 1.75
@@ -995,7 +991,7 @@ export default function GeneratedStoryReaderClient({
   }
 
   usePremiumBackgroundNarration({
-    isSubscriber,
+    isSubscriber: false,
     isPlaying: playbackState === "playing",
     title: payload?.story.title ?? "AI生成物語",
     artist: currentEditorName || "LIB read",
@@ -1251,30 +1247,6 @@ export default function GeneratedStoryReaderClient({
                     />
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
-                    <div>
-                      <p className="text-sm text-neutral-700">
-                        バックグラウンド再生
-                      </p>
-                      <p className="mt-1 text-xs leading-6 text-neutral-500">
-                        {isSubscriber
-                          ? "別画面を開いても朗読を続ける。"
-                          : "有料プランで利用できます。"}
-                      </p>
-                    </div>
-                    {isSubscriber ? (
-                      <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black">
-                        有効
-                      </span>
-                    ) : (
-                      <Link
-                        href="/subscription"
-                        className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black"
-                      >
-                        サブスク限定
-                      </Link>
-                    )}
-                  </div>
                 </section>
               </div>
             ) : null}

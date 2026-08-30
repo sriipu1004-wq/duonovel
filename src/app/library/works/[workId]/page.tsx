@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import PrivateLibraryWorkManager from "@/features/library/PrivateLibraryWorkManager";
-import PrivateLibrarySectionList from "@/features/library/PrivateLibrarySectionList";
+import PrivateLibrarySectionList, {
+  type PrivateLibraryUnitListItem,
+} from "@/features/library/PrivateLibrarySectionList";
 import {
   formatCharacterCount,
   type PrivateLibraryWork,
@@ -12,24 +14,24 @@ import {
   parseSupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type PageProps = {
   params: Promise<{ workId: string }>;
   searchParams: Promise<{ page?: string }>;
 };
 
-type PrivateLibrarySectionRow = {
+type PrivateLibraryUnitRow = {
+  id: string;
+  chapter_number: number;
+  title: string;
   section_number: number;
-  section_title: string;
-  first_unit_number: number;
+  part_number: number;
   part_count: number;
   source_char_count: number;
-  progress_ratio: number | string;
-  is_completed: boolean;
-  has_ready_translation: boolean;
 };
 
-const SECTIONS_PER_PAGE = 100;
+const UNITS_PER_PAGE = 100;
 
 function parsePageNumber(value: string | undefined): number {
   const parsed = Number(value);
@@ -62,25 +64,50 @@ export default async function PrivateLibraryWorkPage({
   }
 
   const work = workResult.data as PrivateLibraryWork;
-  const totalPages = Math.max(1, Math.ceil(work.section_count / SECTIONS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(work.chapter_count / UNITS_PER_PAGE));
   if (page > totalPages) notFound();
 
-  const sectionsResult = await supabase.rpc("list_private_library_sections", {
-    p_work_id: workId,
-    p_offset: (page - 1) * SECTIONS_PER_PAGE,
-    p_limit: SECTIONS_PER_PAGE,
+  const firstUnitIndex = (page - 1) * UNITS_PER_PAGE;
+  const unitsResult = await supabase
+    .from("private_library_chapters")
+    .select("id, chapter_number, title, section_number, part_number, part_count, source_char_count")
+    .eq("work_id", workId)
+    .order("chapter_number", { ascending: true })
+    .range(firstUnitIndex, firstUnitIndex + UNITS_PER_PAGE - 1);
+  if (unitsResult.error) notFound();
+  const units = (unitsResult.data ?? []) as PrivateLibraryUnitRow[];
+  const unitIds = units.map((unit) => unit.id);
+  const admin = createAdminClient();
+  const [progressResult, translationsResult] = unitIds.length > 0
+    ? await Promise.all([
+        admin
+          .from("private_library_reading_progress")
+          .select("chapter_id, max_progress_ratio, completed")
+          .eq("user_id", user.id)
+          .in("chapter_id", unitIds),
+        admin
+          .from("private_library_chapter_translations")
+          .select("chapter_id")
+          .eq("status", "ready")
+          .in("chapter_id", unitIds),
+      ])
+    : [{ data: [], error: null }, { data: [], error: null }];
+  if (progressResult.error || translationsResult.error) notFound();
+  const progressByChapter = new Map(
+    (progressResult.data ?? []).map((row) => [String(row.chapter_id), row])
+  );
+  const translatedChapterIds = new Set(
+    (translationsResult.data ?? []).map((row) => String(row.chapter_id))
+  );
+  const unitItems: PrivateLibraryUnitListItem[] = units.map((unit) => {
+    const progress = progressByChapter.get(unit.id);
+    return {
+      ...unit,
+      progress_ratio: Number(progress?.max_progress_ratio ?? 0),
+      is_completed: progress?.completed === true,
+      has_ready_translation: translatedChapterIds.has(unit.id),
+    };
   });
-
-  if (sectionsResult.error) {
-    notFound();
-  }
-
-  const sections = (sectionsResult.data ?? []) as PrivateLibrarySectionRow[];
-  /*
-   * The RPC returns one row per logical section, so a 30,000-character EPUB
-   * chapter still occupies one table-of-contents row while its internal units
-   * retain the existing translation/cache model.
-   */
   const language = parseSupportedLanguageTag(work.source_language);
 
   return (
@@ -115,6 +142,11 @@ export default async function PrivateLibraryWorkPage({
               <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5">
                 {work.section_count.toLocaleString("ja-JP")}章・話
               </span>
+              {work.chapter_count !== work.section_count ? (
+                <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5">
+                  {work.chapter_count.toLocaleString("ja-JP")}読書単位
+                </span>
+              ) : null}
               <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5">
                 {formatCharacterCount(work.source_char_count)}
               </span>
@@ -139,7 +171,12 @@ export default async function PrivateLibraryWorkPage({
             </div>
           ) : null}
 
-          <PrivateLibrarySectionList workId={work.id} sections={sections} />
+          <PrivateLibrarySectionList
+            workId={work.id}
+            units={unitItems}
+            currentPage={page}
+            unitsPerPage={UNITS_PER_PAGE}
+          />
 
           {totalPages > 1 ? (
             <nav className="flex items-center justify-between gap-3 border-t border-black/10 px-5 py-5 text-sm sm:px-8">
