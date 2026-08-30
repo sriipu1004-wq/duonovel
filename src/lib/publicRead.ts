@@ -38,6 +38,7 @@ export type PublicReadPagePayload = {
   isOwner: boolean;
   r18Blocked: boolean;
   viewerSignedIn: boolean;
+  viewerUserId: string | null;
 };
 
 function pickText(...values: unknown[]): string {
@@ -116,5 +117,6 @@ export async function getCachedPublicReadPagePayload(
     isOwner,
     r18Blocked,
     viewerSignedIn,
+    viewerUserId: authData.user?.id ?? null,
   };
 }

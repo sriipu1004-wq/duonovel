@@ -124,13 +124,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, url: session.url });
   } catch (checkoutError) {
     console.error("[billing-checkout]", checkoutError);
+    const checkoutMessage =
+      checkoutError instanceof Error ? checkoutError.message : "";
+    const liveChargesUnavailable = checkoutMessage.includes(
+      "cannot currently make live charges"
+    );
     return NextResponse.json(
       {
         ok: false,
-        error: "checkout_failed",
-        message: "決済画面を開けませんでした。時間を置いて再度お試しください。",
+        error: liveChargesUnavailable
+          ? "live_charges_unavailable"
+          : "checkout_failed",
+        message: liveChargesUnavailable
+          ? "現在はStripeの本番決済有効化手続き中です。完了後に申し込みを再開します。"
+          : "決済画面を開けませんでした。時間を置いて再度お試しください。",
       },
-      { status: 500 }
+      { status: liveChargesUnavailable ? 503 : 500 }
     );
   }
 }

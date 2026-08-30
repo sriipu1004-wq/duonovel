@@ -17,6 +17,7 @@ import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 
 type PageProps = {
   params: Promise<{ workId: string; chapterNumber: string }>;
+  searchParams?: Promise<{ autoplay?: string }>;
 };
 
 function parseChapterNumber(value: string): number {
@@ -24,8 +25,9 @@ function parseChapterNumber(value: string): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
 }
 
-export default async function PrivateLibraryReadPage({ params }: PageProps) {
+export default async function PrivateLibraryReadPage({ params, searchParams }: PageProps) {
   const { workId, chapterNumber } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const parsedChapterNumber = parseChapterNumber(chapterNumber);
 
   if (!parsedChapterNumber) notFound();
@@ -148,6 +150,8 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
           nextEpisodeNumber={nextNumber}
           workIndexHref={workIndexHref}
           workIndexLabel="作品目次"
+          initialAutoPlay={resolvedSearchParams?.autoplay === "1"}
+          isSubscriber={subscriber}
           showComments={false}
           speechLanguage={language.speechLanguage}
           trackPopularity={false}

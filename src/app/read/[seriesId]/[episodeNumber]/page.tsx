@@ -22,6 +22,7 @@ import {
   type PublicReadRecordingRow as RecordingRow,
 } from "@/lib/publicRead";
 import { buildReaderAuthorHref } from "@/lib/readerAuthorHref";
+import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -362,7 +363,8 @@ export default async function ReadEpisodePage({
     notFound();
   }
 
-  const { series, episode, publicEpisodes, isOwner } = payload;
+  const { series, episode, publicEpisodes, isOwner, viewerUserId } = payload;
+  const subscriber = viewerUserId ? await isSubscriber(viewerUserId) : false;
   const availableHumanRecordings = payload.allEpisodeRecordings.filter(
     (recording) => !isLegacyGeneratedRecording(recording)
   );
@@ -515,6 +517,7 @@ export default async function ReadEpisodePage({
       nextEpisodeNumber={nextEpisodeNumber}
       workIndexHref={workIndexHref}
       initialAutoPlay={resolvedSearchParams?.autoplay === "1"}
+      isSubscriber={subscriber}
       loginHref={loginHref}
       showComments={
         isPublicReadPage && isSeriesEpisodeCommentVisible(series)

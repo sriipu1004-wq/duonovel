@@ -84,7 +84,7 @@ export default function StatusPage() {
       <Section title="4. 既知の制限">
         <ul className="list-disc space-y-2 pl-5">
           <li>作品ごとに、朗読の有無や演出の有無が異なります</li>
-          <li>無料利用のAI物語生成と対訳生成は共通で1日5回までです</li>
+          <li>無料利用のAI物語生成と対訳生成は共通で1日3回までです</li>
           <li>次話先読みと単語解説無制限はサブスク対象です</li>
           <li>サブスクのAI物語・対訳生成には日次上限と月間AI利用上限があります</li>
           <li>読書設定と栞は現在のブラウザに保存され、別端末には自動同期しません</li>
