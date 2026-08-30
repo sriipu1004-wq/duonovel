@@ -10,6 +10,7 @@ import {
   type WheelEvent,
 } from "react";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 
 export type BilingualSegment = {
   id: string;
@@ -24,6 +25,7 @@ export type BilingualSegment = {
 type BilingualPaneProps = {
   side: PaneSide;
   languageLabel: string;
+  languageTag?: SupportedLanguageTag;
   segments: BilingualSegment[];
   selectedSegmentId: string | null;
   hoveredSegmentId: string | null;
@@ -32,12 +34,28 @@ type BilingualPaneProps = {
   onSelectSegment: (id: string) => void;
   onHoverSegment: (id: string | null) => void;
   onReadingPositionChange: (id: string) => void;
+  onSelectWord?: (selection: BilingualWordSelection) => void;
+  wordInsight?: BilingualWordInsight | null;
 };
 
 const TAP_CENTER_SYNC_PAUSE_MS = 800;
 const SCROLL_OWNER_RELEASE_MS = 800;
 
 export type PaneSide = "source" | "target";
+
+export type BilingualWordSelection = {
+  segmentId: string;
+  side: PaneSide;
+  text: string;
+};
+
+export type BilingualWordInsight = BilingualWordSelection & {
+  status: "loading" | "ready" | "error";
+  oppositeText?: string;
+  partOfSpeech?: string;
+  note?: string;
+  message?: string;
+};
 
 type LinkedScrollState = {
   owner: PaneSide | null;
@@ -188,9 +206,27 @@ function findCenteredSegmentId(container: HTMLDivElement): string | null {
   return bestId;
 }
 
+function tokenizeForWordSelection(
+  value: string,
+  language?: SupportedLanguageTag
+): Array<{ text: string; isWordLike: boolean }> {
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const segmenter = new Intl.Segmenter(language, { granularity: "word" });
+    return Array.from(segmenter.segment(value)).map((item) => ({
+      text: item.segment,
+      isWordLike: item.isWordLike === true,
+    }));
+  }
+
+  return (value.match(/[\p{L}\p{N}\p{M}]+|[^\p{L}\p{N}\p{M}]+/gu) ?? [value]).map(
+    (text) => ({ text, isWordLike: /[\p{L}\p{N}]/u.test(text) })
+  );
+}
+
 export default function BilingualPane({
   side,
   languageLabel,
+  languageTag,
   segments,
   selectedSegmentId,
   hoveredSegmentId,
@@ -199,6 +235,8 @@ export default function BilingualPane({
   onSelectSegment,
   onHoverSegment,
   onReadingPositionChange,
+  onSelectWord,
+  wordInsight,
 }: BilingualPaneProps) {
   const paragraphMap = new Map<number, BilingualSegment[]>();
   const positionFrameRef = useRef<number | null>(null);
@@ -241,10 +279,19 @@ export default function BilingualPane({
       data-bilingual-pane={side}
       className="flex min-h-0 flex-col overflow-hidden bg-white"
     >
-      <div className="flex h-10 shrink-0 items-center border-b border-black/10 bg-neutral-50 px-4">
+      <div className="flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-black/10 bg-neutral-50 px-4 py-2">
         <span className="text-xs font-medium tracking-[0.14em] text-neutral-600">
           {languageLabel}
         </span>
+        {wordInsight?.side === side ? (
+          <span className="min-w-0 text-right text-[11px] leading-5 text-neutral-600">
+            {wordInsight.status === "loading"
+              ? `${wordInsight.text} の対応を確認中…`
+              : wordInsight.status === "ready"
+                ? `${wordInsight.text} → ${wordInsight.oppositeText} ・ ${wordInsight.partOfSpeech}`
+                : wordInsight.message || "単語の対応を確認できませんでした"}
+          </span>
+        ) : null}
       </div>
 
       <div
@@ -276,8 +323,23 @@ export default function BilingualPane({
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"
       >
         <article className="space-y-6 text-[1rem] leading-[2.05] text-black sm:text-[1.05rem]">
-          {Array.from(paragraphMap.entries()).map(([paragraphIndex, paragraphSegments]) => (
-            <p key={paragraphIndex} className="whitespace-pre-wrap">
+          {Array.from(paragraphMap.entries()).map(
+            ([paragraphIndex, paragraphSegments], index, paragraphs) => {
+              const firstSource = paragraphSegments[0]?.sourceText.trim() ?? "";
+              const previousSource =
+                paragraphs[index - 1]?.[1]?.[0]?.sourceText.trim() ?? "";
+              const followsDialogue =
+                /^[「『]/u.test(firstSource) && /^[「『]/u.test(previousSource);
+
+              return (
+                <p
+                  key={paragraphIndex}
+                  className={
+                    followsDialogue
+                      ? "!mt-0 whitespace-pre-wrap"
+                      : "whitespace-pre-wrap"
+                  }
+                >
               {paragraphSegments.map((segment) => {
                 const selected = selectedSegmentId === segment.id;
                 const hovered = hoveredSegmentId === segment.id;
@@ -287,8 +349,8 @@ export default function BilingualPane({
                     key={segment.id}
                     data-bilingual-segment-id={segment.id}
                     ref={(node) => registerSegmentRef(segment.id, node)}
-                    role="button"
-                    tabIndex={0}
+                    role={selected && onSelectWord ? undefined : "button"}
+                    tabIndex={selected && onSelectWord ? undefined : 0}
                     onMouseEnter={() => onHoverSegment(segment.id)}
                     onMouseLeave={() => onHoverSegment(null)}
                     onClick={(event) => {
@@ -296,6 +358,7 @@ export default function BilingualPane({
                       selectSentence(event.currentTarget, segment.id);
                     }}
                     onKeyDown={(event) => {
+                      if (selected && onSelectWord) return;
                       if (event.key !== "Enter" && event.key !== " ") return;
                       event.preventDefault();
                       selectSentence(event.currentTarget, segment.id);
@@ -308,14 +371,45 @@ export default function BilingualPane({
                         : "",
                     ].join(" ")}
                   >
-                    {side === "source"
-                      ? renderTextWithAozoraRuby(segment.sourceText)
-                      : `${segment.translatedText} `}
+                    {selected && onSelectWord
+                      ? tokenizeForWordSelection(
+                          side === "source"
+                            ? segment.sourceText
+                            : segment.translatedText,
+                          languageTag
+                        ).map((token, tokenIndex) =>
+                          token.isWordLike ? (
+                            <button
+                              key={`${segment.id}-word-${tokenIndex}`}
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onSelectWord({
+                                  segmentId: segment.id,
+                                  side,
+                                  text: token.text,
+                                });
+                              }}
+                              className="rounded px-0.5 underline decoration-transparent decoration-2 underline-offset-4 transition hover:bg-white/70 hover:decoration-sky-400 focus:bg-white/70 focus:outline-none focus:decoration-sky-500"
+                            >
+                              {token.text}
+                            </button>
+                          ) : (
+                            <span key={`${segment.id}-text-${tokenIndex}`}>
+                              {token.text}
+                            </span>
+                          )
+                        )
+                      : side === "source"
+                        ? renderTextWithAozoraRuby(segment.sourceText)
+                        : `${segment.translatedText} `}
                   </span>
                 );
               })}
-            </p>
-          ))}
+                </p>
+              );
+            }
+          )}
         </article>
       </div>
     </section>

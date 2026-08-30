@@ -4,6 +4,7 @@ import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import WriteSeriesForm from "@/features/write/WriteSeriesForm";
 import ContentRatingWorkspaceBridge from "@/features/write/ContentRatingWorkspaceBridge";
 import TranslationPermissionWorkspaceBridge from "@/features/write/TranslationPermissionWorkspaceBridge";
+import ContinueStoryAction from "@/features/generation/ContinueStoryAction";
 import { type EpisodeRow, type SeriesRow } from "@/features/write/writeShared";
 import {
   getSeriesContentWarningLocks,
@@ -44,12 +45,11 @@ function isAiGeneratedSeries(series: SeriesRow): boolean {
   );
 }
 
-function isShortStory(series: SeriesRow): boolean {
+function isShortStory(series: SeriesRow, episodeCount: number): boolean {
   const settings = readSettings(series.effect_settings ?? series["effectSettings"]);
-  return (
-    isAiGeneratedSeries(series) ||
-    settings?.storyFormat === "short"
-  );
+  if (settings?.storyFormat === "long") return false;
+  if (settings?.storyFormat === "short") return true;
+  return episodeCount <= 1;
 }
 
 async function fetchSeries(
@@ -84,7 +84,8 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
   if (!series) notFound();
 
   const episodes = await fetchEpisodes(seriesId, supabase);
-  const shortStoryComplete = isShortStory(series) && episodes.length > 0;
+  const shortStoryComplete =
+    isShortStory(series, episodes.length) && episodes.length > 0;
   const className = [
     styles.workspace,
     shortStoryComplete ? styles.shortStoryComplete : "",
@@ -107,6 +108,14 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
         series={series}
         episodes={episodes}
       />
+      {isAiGenerated && episodes.length > 0 ? (
+        <div className="mx-auto w-full max-w-5xl px-4 pb-6 sm:px-6">
+          <ContinueStoryAction
+            seriesId={series.id}
+            isShortStory={shortStoryComplete}
+          />
+        </div>
+      ) : null}
       <TranslationPermissionWorkspaceBridge
         seriesId={series.id}
         initialMode={translationPermissionMode}

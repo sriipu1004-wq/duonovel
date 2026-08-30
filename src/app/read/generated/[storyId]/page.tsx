@@ -3,6 +3,10 @@ import GeneratedStoryBilingualBridge from "@/features/playback/GeneratedStoryBil
 import GeneratedStoryBilingualPlayback from "@/features/playback/GeneratedStoryBilingualPlayback";
 import ReaderSettingsTopBridge from "@/features/playback/ReaderSettingsTopBridge";
 import GeneratedStoryReaderClient from "./GeneratedStoryReaderClient";
+import {
+  isPublicTranslationTargetLanguage,
+  parseSupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
 
 type PageProps = {
   params: Promise<{
@@ -10,6 +14,10 @@ type PageProps = {
   }>;
   searchParams?: Promise<{
     bilingual?: string;
+    sourceLanguage?: string;
+    targetLanguage?: string;
+    autoGenerate?: string;
+    lockLanguage?: string;
   }>;
 };
 
@@ -30,7 +38,24 @@ export default async function GeneratedStoryReadPage({
   const bilingual = resolvedSearchParams?.bilingual === "1";
 
   if (bilingual) {
-    return <GeneratedStoryBilingualPlayback storyId={storyId} />;
+    const sourceLanguage =
+      parseSupportedLanguageTag(resolvedSearchParams?.sourceLanguage) ?? "ja";
+    const parsedTarget = parseSupportedLanguageTag(resolvedSearchParams?.targetLanguage);
+    const targetLanguage =
+      parsedTarget &&
+      parsedTarget !== sourceLanguage &&
+      isPublicTranslationTargetLanguage(parsedTarget)
+        ? parsedTarget
+        : sourceLanguage === "ja" ? "en" : "ja";
+    return (
+      <GeneratedStoryBilingualPlayback
+        storyId={storyId}
+        sourceLanguage={sourceLanguage}
+        initialTargetLanguage={targetLanguage}
+        autoGenerateMissingTranslation={resolvedSearchParams?.autoGenerate === "1"}
+        targetLanguageLocked={resolvedSearchParams?.lockLanguage === "1"}
+      />
+    );
   }
 
   return (

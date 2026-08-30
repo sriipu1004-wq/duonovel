@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { PRIVATE_LIBRARY_LIMITS } from "@/lib/library/privateLibrary";
+import {
+  PRIVATE_LIBRARY_LIMITS,
+  countUnicodeCharacters,
+} from "@/lib/library/privateLibrary";
 import { parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 
 export const runtime = "nodejs";
@@ -19,13 +22,13 @@ function parseChapters(value: unknown): ChapterInput[] | null {
     if (!item || typeof item !== "object") return null;
     const record = item as Record<string, unknown>;
     const title = typeof record.title === "string" ? record.title.trim() : "";
-    const body = typeof record.body === "string" ? record.body.trim() : "";
+    const body = typeof record.body === "string" ? record.body : "";
 
     if (
       !title ||
       title.length > 200 ||
-      !body ||
-      body.length > PRIVATE_LIBRARY_LIMITS.maxChapterChars
+      !body.trim() ||
+      countUnicodeCharacters(body) > PRIVATE_LIBRARY_LIMITS.maxChapterChars
     ) {
       return null;
     }
@@ -39,8 +42,12 @@ function parseChapters(value: unknown): ChapterInput[] | null {
 function getImportErrorMessage(message: string): string {
   const normalized = message.toLowerCase();
 
+  if (normalized.includes("free private library work limit")) {
+    return `無料プランの個人本棚は${PRIVATE_LIBRARY_LIMITS.freeMaxWorksPerUser}作品までです。作品を削除するか、サブスクを利用してください。`;
+  }
+
   if (normalized.includes("work limit")) {
-    return `個人本棚に保存できる作品は現在${PRIVATE_LIBRARY_LIMITS.maxWorksPerUser}件までです。`;
+    return `サブスクの個人本棚は${PRIVATE_LIBRARY_LIMITS.subscriberMaxWorksPerUser}作品までです。`;
   }
 
   if (normalized.includes("text limit")) {
@@ -80,7 +87,10 @@ export async function POST(request: Request) {
   const sourceLanguage = parseSupportedLanguageTag(payload.sourceLanguage);
   const chapters = parseChapters(payload.chapters);
   const totalChars =
-    chapters?.reduce((total, chapter) => total + chapter.body.length, 0) ?? 0;
+    chapters?.reduce(
+      (total, chapter) => total + countUnicodeCharacters(chapter.body),
+      0
+    ) ?? 0;
 
   if (
     !title ||

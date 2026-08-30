@@ -1,7 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import BilingualLanguagePickerDialog, {
+  type BilingualTranslationAvailability,
+} from "@/features/playback/BilingualLanguagePickerDialog";
+import { useAiUsage } from "@/features/usage/useAiUsage";
+import type {
+  PublicTranslationTargetLanguage,
+  SupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
+import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
 
 type GeneratedStoryPayload = {
   id: string;
@@ -67,8 +76,14 @@ function readGeneratedStory(storyId: string): SavedGeneratedStoryPayload | null 
   return savedStory;
 }
 
-function buildBilingualHref(readHref: string): string {
-  return `${readHref}${readHref.includes("?") ? "&" : "?"}bilingual=1`;
+function buildBilingualHref(
+  readHref: string,
+  sourceLanguage: SupportedLanguageTag,
+  targetLanguage: PublicTranslationTargetLanguage,
+  autoGenerate: boolean,
+  lockLanguage: boolean
+): string {
+  return `${readHref}${readHref.includes("?") ? "&" : "?"}bilingual=1&sourceLanguage=${encodeURIComponent(sourceLanguage)}&targetLanguage=${encodeURIComponent(targetLanguage)}${autoGenerate ? "&autoGenerate=1" : ""}${lockLanguage ? "&lockLanguage=1" : ""}`;
 }
 
 function findSynopsisActionAnchor(
@@ -101,8 +116,18 @@ export default function GeneratedStoryBilingualBridge({
 }: {
   storyId: string;
 }) {
+  const { snapshot: aiUsage } = useAiUsage();
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [message, setMessage] = useState("");
+  const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
+  const [translationAvailability, setTranslationAvailability] =
+    useState<BilingualTranslationAvailability>("checking");
+  const [rememberForTab, setRememberForTab] = useState(false);
+  const [targetLanguage, setTargetLanguage] =
+    useState<PublicTranslationTargetLanguage>("en");
+  const [sourceLanguage, setSourceLanguage] =
+    useState<SupportedLanguageTag>("ja");
+  const availabilityCheckVersionRef = useRef(0);
 
   useEffect(() => {
     let currentHost: HTMLElement | null = null;
@@ -151,6 +176,63 @@ export default function GeneratedStoryBilingualBridge({
     };
   }, [storyId]);
 
+  async function checkTranslationAvailability(
+    generated: SavedGeneratedStoryPayload,
+    detectedSourceLanguage: SupportedLanguageTag,
+    language: PublicTranslationTargetLanguage,
+    existingVersion?: number
+  ) {
+    const checkVersion = existingVersion ?? ++availabilityCheckVersionRef.current;
+    if (existingVersion === undefined) setTranslationAvailability("checking");
+
+    try {
+      const response = generated.savedEpisodeId
+        ? await fetch(
+            `/api/episode-translations/${encodeURIComponent(generated.savedEpisodeId)}?sourceLanguage=${encodeURIComponent(detectedSourceLanguage)}&targetLanguage=${encodeURIComponent(language)}`,
+            { cache: "no-store" }
+          )
+        : await fetch("/api/generated-story-translations/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              storyId: generated.id,
+              title: generated.story.title,
+              body: generated.story.body,
+              sourceLanguage: detectedSourceLanguage,
+              targetLanguage: language,
+              checkOnly: true,
+            }),
+          });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        status?: BilingualTranslationAvailability;
+      };
+      if (availabilityCheckVersionRef.current !== checkVersion) return;
+
+      if (!response.ok || !payload.ok || !payload.status) {
+        setTranslationAvailability("error");
+        return;
+      }
+
+      setTranslationAvailability(payload.status);
+      if (payload.status === "translating") {
+        window.setTimeout(
+          () =>
+            void checkTranslationAvailability(
+              generated,
+              detectedSourceLanguage,
+              language,
+              checkVersion
+            ),
+          2500
+        );
+      }
+    } catch {
+      if (availabilityCheckVersionRef.current !== checkVersion) return;
+      setTranslationAvailability("error");
+    }
+  }
+
   function enableBilingual() {
     setMessage("");
     const generated = readGeneratedStory(storyId);
@@ -160,17 +242,64 @@ export default function GeneratedStoryBilingualBridge({
       return;
     }
 
+    const detectedSourceLanguage = detectSourceLanguageFromText(
+      generated.story.body
+    );
+    setSourceLanguage(detectedSourceLanguage);
+    const selectedLanguage =
+      targetLanguage === detectedSourceLanguage
+        ? detectedSourceLanguage === "ja"
+          ? "en"
+          : "ja"
+        : targetLanguage;
+    setTargetLanguage(selectedLanguage);
+    setRememberForTab(false);
+    setIsLanguagePickerOpen(true);
+    void checkTranslationAvailability(
+      generated,
+      detectedSourceLanguage,
+      selectedLanguage
+    );
+  }
+
+  function openBilingual(
+    generated: SavedGeneratedStoryPayload,
+    selectedSourceLanguage: SupportedLanguageTag,
+    selectedTargetLanguage: PublicTranslationTargetLanguage,
+    autoGenerate: boolean,
+    lockLanguage: boolean
+  ) {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
 
     if (generated.readHref) {
-      window.location.assign(buildBilingualHref(generated.readHref));
+      window.location.assign(
+        buildBilingualHref(
+          generated.readHref,
+          selectedSourceLanguage,
+          selectedTargetLanguage,
+          autoGenerate,
+          lockLanguage
+        )
+      );
       return;
     }
 
     window.location.assign(
-      `/read/generated/${encodeURIComponent(storyId)}?bilingual=1`
+      `/read/generated/${encodeURIComponent(storyId)}?bilingual=1&sourceLanguage=${encodeURIComponent(selectedSourceLanguage)}&targetLanguage=${encodeURIComponent(selectedTargetLanguage)}${autoGenerate ? "&autoGenerate=1" : ""}${lockLanguage ? "&lockLanguage=1" : ""}`
+    );
+  }
+
+  function confirmBilingual() {
+    const generated = readGeneratedStory(storyId);
+    if (!generated) return;
+    openBilingual(
+      generated,
+      sourceLanguage,
+      targetLanguage,
+      translationAvailability !== "ready",
+      false
     );
   }
 
@@ -190,6 +319,41 @@ export default function GeneratedStoryBilingualBridge({
       </button>
       {message ? (
         <span className="w-full text-sm text-red-700">{message}</span>
+      ) : null}
+      {isLanguagePickerOpen ? (
+        <BilingualLanguagePickerDialog
+          sourceLanguage={sourceLanguage}
+          targetLanguage={targetLanguage}
+          availability={translationAvailability}
+          rememberForTab={rememberForTab}
+          showRememberForTab={false}
+          translationUsage={aiUsage?.actions.translation_generation}
+          isSubscriber={aiUsage?.isSubscriber === true}
+          onTargetLanguageChange={(language) => {
+            setTargetLanguage(language);
+            const generated = readGeneratedStory(storyId);
+            if (generated) {
+              void checkTranslationAvailability(
+                generated,
+                sourceLanguage,
+                language
+              );
+            }
+          }}
+          onRememberForTabChange={setRememberForTab}
+          onCancel={() => setIsLanguagePickerOpen(false)}
+          onConfirm={confirmBilingual}
+          onRetry={() => {
+            const generated = readGeneratedStory(storyId);
+            if (generated) {
+              void checkTranslationAvailability(
+                generated,
+                sourceLanguage,
+                targetLanguage
+              );
+            }
+          }}
+        />
       ) : null}
     </div>,
     host

@@ -42,6 +42,17 @@ export type OpenAITranslationResult = {
   retryCount: number;
 };
 
+export type TranslationGlossaryTerm = {
+  sourceTerm: string;
+  targetTerm: string;
+};
+
+export type OpenAITerminologyResult = {
+  terms: TranslationGlossaryTerm[];
+  inputTokens: number;
+  outputTokens: number;
+};
+
 type TranslationBatch = {
   segments: OpenAITranslationSourceSegment[];
   sourceChars: number;
@@ -102,7 +113,37 @@ function shouldPreserveVerbatim(
   );
 }
 
-function collectRecurringTerms(
+const LATIN_TERM_STOP_WORDS = new Set([
+  "After",
+  "Before",
+  "Because",
+  "Chapter",
+  "Could",
+  "Every",
+  "First",
+  "From",
+  "However",
+  "Inside",
+  "Later",
+  "Meanwhile",
+  "Never",
+  "Nothing",
+  "Outside",
+  "Perhaps",
+  "Something",
+  "Suddenly",
+  "There",
+  "These",
+  "They",
+  "This",
+  "Those",
+  "When",
+  "Where",
+  "While",
+  "Would",
+]);
+
+export function collectTranslationTerminologyCandidates(
   segments: OpenAITranslationSourceSegment[]
 ): string[] {
   const candidates = new Set<string>();
@@ -118,6 +159,13 @@ function collectRecurringTerms(
     )) {
       const term = match[0].replace(/(?:さん|君|氏)$/u, "");
       if (term) candidates.add(term);
+    }
+
+    for (const match of segment.text.matchAll(
+      /\b([A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]{2,}(?:[-'][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)?(?:\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]{2,}){0,2})\b/gu
+    )) {
+      const term = match[1]?.trim() ?? "";
+      if (term && !LATIN_TERM_STOP_WORDS.has(term)) candidates.add(term);
     }
 
     for (const match of segment.text.matchAll(
@@ -396,6 +444,7 @@ async function translateBatch(args: {
   batchIndex: number;
   batchCount: number;
   recurringTerms: string[];
+  glossaryTerms: TranslationGlossaryTerm[];
   usesFirstPersonNarrator: boolean;
   retryAttempt?: number;
 }): Promise<TranslationOutput & { inputTokens: number; outputTokens: number }> {
@@ -441,8 +490,22 @@ async function translateBatch(args: {
                   "Translate every segment in exactly the same order.",
                   `Return exactly one non-empty ${targetLanguage.label} string under each supplied segment id.`,
                   args.recurringTerms.length > 0
-                    ? "Recurring source terms from the full work: " +
+                    ? "Recurring source terms from the current reading unit: " +
                       JSON.stringify(args.recurringTerms)
+                    : null,
+                  args.glossaryTerms.length > 0
+                    ? "Mandatory work glossary (source -> target): " +
+                      JSON.stringify(
+                        Object.fromEntries(
+                          args.glossaryTerms.map((term) => [
+                            term.sourceTerm,
+                            term.targetTerm,
+                          ])
+                        )
+                      )
+                    : null,
+                  args.glossaryTerms.length > 0
+                    ? "Use every supplied target rendering exactly whenever its source term occurs. Do not create an alternate spelling."
                     : null,
                   args.recurringTerms.length > 0
                     ? "Use one identical target rendering for every occurrence of each recurring term."
@@ -609,6 +672,167 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+export async function translateTerminology(args: {
+  apiKey: string;
+  model: string;
+  workTitle: string;
+  episodeTitle?: string;
+  sourceLanguage: SupportedLanguageTag;
+  targetLanguage: SupportedLanguageTag;
+  terms: string[];
+  segments: OpenAITranslationSourceSegment[];
+}): Promise<OpenAITerminologyResult> {
+  const sourceLanguage = getSupportedLanguage(args.sourceLanguage);
+  const targetLanguage = getSupportedLanguage(args.targetLanguage);
+  const terms = [...new Set(args.terms.map((term) => term.trim()).filter(Boolean))]
+    .filter((term) => term.length <= 120)
+    .slice(0, 24);
+
+  if (terms.length === 0) {
+    return { terms: [], inputTokens: 0, outputTokens: 0 };
+  }
+
+  const excerpts = terms.map((term) => {
+    const source = args.segments.find((segment) => segment.text.includes(term))?.text ?? "";
+    const index = source.indexOf(term);
+    const start = Math.max(0, index - 100);
+    return {
+      term,
+      context: source.slice(start, start + 260),
+    };
+  });
+  let response: Response;
+
+  try {
+    response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + args.apiKey,
+      },
+      signal: AbortSignal.timeout(BATCH_TIMEOUT_MS),
+      body: JSON.stringify({
+        model: args.model,
+        temperature: args.model.startsWith("gpt-4") ? 0 : undefined,
+        reasoning: getTranslationReasoning(args.model),
+        input: [
+          {
+            role: "developer",
+            content: [
+              {
+                type: "input_text",
+                text: `You create a binding literary translation glossary from ${sourceLanguage.label} (${sourceLanguage.tag}) to ${targetLanguage.label} (${targetLanguage.tag}). Choose one concise, natural, reusable rendering for each proper name, place, organization, title, ability, object, or recurring identifier. Transliterate personal names according to target-language convention. Do not explain choices. Return only the requested structured JSON.`,
+              },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: [
+                  "Work title: " + args.workTitle,
+                  args.episodeTitle
+                    ? "Episode title: " + args.episodeTitle
+                    : null,
+                  "Return exactly one non-empty target rendering for every source term.",
+                  "Terms and short source contexts:",
+                  JSON.stringify(excerpts),
+                ]
+                  .filter((line): line is string => typeof line === "string")
+                  .join("\n"),
+              },
+            ],
+          },
+        ],
+        max_output_tokens: Math.max(1_500, terms.length * 100),
+        text: {
+          format: {
+            type: "json_schema",
+            name: "translation_glossary",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                translations: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: Object.fromEntries(
+                    terms.map((term) => [term, { type: "string", pattern: "\\S" }])
+                  ),
+                  required: terms,
+                },
+              },
+              required: ["translations"],
+            },
+          },
+        },
+      }),
+    });
+  } catch (error) {
+    const isTimeout =
+      error instanceof Error &&
+      (error.name === "TimeoutError" || error.name === "AbortError");
+    throw new OpenAITranslationError(
+      isTimeout
+        ? "作品用語の準備が1分以内に完了しませんでした。"
+        : "作品用語の準備サーバーに接続できませんでした。",
+      isTimeout ? 504 : 502,
+      true
+    );
+  }
+
+  const responseBody = await readOpenAIResponseBody(response);
+  if (!response.ok) {
+    throw new OpenAITranslationError(
+      responseBody.error?.message ?? "作品用語の準備に失敗しました。",
+      response.status,
+      response.status === 408 ||
+        response.status === 409 ||
+        response.status === 429 ||
+        response.status >= 500
+    );
+  }
+
+  assertOpenAIResponseComplete(responseBody);
+  const outputText = extractOutputText(responseBody);
+  if (!outputText) {
+    throw new OpenAITranslationError("作品用語の準備結果が空でした。", 502, true);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(outputText);
+  } catch {
+    throw new OpenAITranslationError("作品用語の形式が壊れています。", 502, true);
+  }
+
+  const translations =
+    parsed && typeof parsed === "object"
+      ? (parsed as { translations?: unknown }).translations
+      : null;
+  if (!translations || typeof translations !== "object") {
+    throw new OpenAITranslationError("作品用語の形式が一致しません。", 502, true);
+  }
+
+  const glossaryTerms = terms.map((sourceTerm) => {
+    const targetTerm = String(
+      (translations as Record<string, unknown>)[sourceTerm] ?? ""
+    ).trim();
+    if (!targetTerm || targetTerm.length > 200) {
+      throw new OpenAITranslationError("作品用語に空の訳語があります。", 502, true);
+    }
+    return { sourceTerm, targetTerm };
+  });
+
+  return {
+    terms: glossaryTerms,
+    inputTokens: Number(responseBody.usage?.input_tokens ?? 0) || 0,
+    outputTokens: Number(responseBody.usage?.output_tokens ?? 0) || 0,
+  };
+}
+
 export async function translateSegmentsInBatches(args: {
   apiKey: string;
   model: string;
@@ -617,6 +841,7 @@ export async function translateSegmentsInBatches(args: {
   sourceLanguage: SupportedLanguageTag;
   targetLanguage: SupportedLanguageTag;
   segments: OpenAITranslationSourceSegment[];
+  glossaryTerms?: TranslationGlossaryTerm[];
 }): Promise<OpenAITranslationResult> {
   const label = translationLabel();
 
@@ -628,7 +853,8 @@ export async function translateSegmentsInBatches(args: {
     (segment) => !shouldPreserveVerbatim(segment, args.sourceLanguage)
   );
   const batches = splitTranslationBatches(translatableSegments, args.model);
-  const recurringTerms = collectRecurringTerms(args.segments);
+  const recurringTerms = collectTranslationTerminologyCandidates(args.segments);
+  const glossaryTerms = (args.glossaryTerms ?? []).slice(0, 100);
   const usesFirstPersonNarrator = hasJapaneseFirstPersonNarrator(
     args.segments,
     args.sourceLanguage
@@ -653,6 +879,7 @@ export async function translateSegmentsInBatches(args: {
             batchIndex,
             batchCount: batches.length,
             recurringTerms,
+            glossaryTerms,
             usesFirstPersonNarrator,
           },
           () => {

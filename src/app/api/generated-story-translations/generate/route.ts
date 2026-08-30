@@ -27,6 +27,12 @@ import {
   parseStoredTranslationPayload,
 } from "@/lib/translation/translationPayload";
 import { reserveGeneratedStoryTranslation } from "@/lib/translation/translationReservationServer";
+import {
+  aiActionLimitMessage,
+  releaseAiAction,
+  reserveAiAction,
+} from "@/lib/aiUsage/aiUsage.server";
+import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -52,7 +58,7 @@ function readPositiveIntEnv(name: string, fallback: number): number {
 
 const TRANSLATION_LIMITS = {
   enabled: readBooleanEnv("EPISODE_TRANSLATION_ENABLED", true),
-  dailyMaxRequests: readPositiveIntEnv("EPISODE_TRANSLATION_DAILY_MAX_REQUESTS", 20),
+  dailyMaxRequests: readPositiveIntEnv("EPISODE_TRANSLATION_DAILY_MAX_REQUESTS", 200),
   dailyMaxEstimatedCostJpy: readNonNegativeNumberEnv(
     "EPISODE_TRANSLATION_DAILY_MAX_ESTIMATED_COST_JPY",
     100
@@ -201,6 +207,7 @@ export async function POST(request: Request) {
     payload.targetLanguage === undefined
       ? TRANSLATION_TARGET_LANGUAGE
       : parseSupportedLanguageTag(payload.targetLanguage);
+  const checkOnly = payload.checkOnly === true;
 
   if (
     !storyId ||
@@ -224,6 +231,13 @@ export async function POST(request: Request) {
         message: "現在、対訳の生成は一時停止しています。",
       },
       { status: 503 }
+    );
+  }
+
+  if (detectSourceLanguageFromText(body) !== sourceLanguage) {
+    return NextResponse.json(
+      { ok: false, error: "invalid_source_language" },
+      { status: 400 }
     );
   }
 
@@ -311,6 +325,10 @@ export async function POST(request: Request) {
     }
   }
 
+  if (checkOnly) {
+    return NextResponse.json({ ok: true, status: "missing", sourceHash });
+  }
+
   const model = process.env.EPISODE_TRANSLATION_MODEL ?? DEFAULT_TRANSLATION_MODEL;
   const estimatedTokens = estimateTokens(sourceChars);
   const estimatedCostJpy = estimateGuardrailCostJpy(
@@ -319,6 +337,24 @@ export async function POST(request: Request) {
   );
   const userId = await currentUserId();
   const requestId = randomUUID();
+  const actionReservation = await reserveAiAction({
+    request,
+    requestId,
+    actionType: "translation_generation",
+    userId,
+  });
+
+  if (!actionReservation.allowed) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "daily_action_limit",
+        message: aiActionLimitMessage(actionReservation, "対訳生成"),
+        usage: actionReservation,
+      },
+      { status: 429 }
+    );
+  }
 
   const reservationResult = await reserveGeneratedStoryTranslation({
     admin,
@@ -338,6 +374,7 @@ export async function POST(request: Request) {
   });
 
   if (reservationResult.error) {
+    await releaseAiAction(requestId);
     return NextResponse.json(
       {
         ok: false,
@@ -353,6 +390,7 @@ export async function POST(request: Request) {
     : reservationResult.data;
 
   if (!reservation || typeof reservation.allowed !== "boolean") {
+    await releaseAiAction(requestId);
     return NextResponse.json(
       { ok: false, error: "translation_reservation_invalid" },
       { status: 500 }
@@ -360,6 +398,7 @@ export async function POST(request: Request) {
   }
 
   if (!reservation.allowed) {
+    await releaseAiAction(requestId);
     const resultType = String(reservation.result_type ?? "");
 
     if (resultType === "ready") {
@@ -413,6 +452,7 @@ export async function POST(request: Request) {
   const logId = String(reservation.log_id ?? "");
 
   if (!translationId || !logId) {
+    await releaseAiAction(requestId);
     return NextResponse.json(
       { ok: false, error: "translation_reservation_invalid" },
       { status: 500 }
@@ -428,6 +468,7 @@ export async function POST(request: Request) {
       errorMessage: "OPENAI_API_KEY が設定されていません。",
       uncount: true,
     });
+    await releaseAiAction(requestId);
 
     return NextResponse.json({ ok: false, error: "missing_openai_api_key" }, { status: 500 });
   }

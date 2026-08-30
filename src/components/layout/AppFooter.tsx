@@ -4,15 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const serviceLinks = [
-  { href: "/guide", label: "サービス案内" },
+  { href: "/guide", label: "使い方" },
   { href: "/faq", label: "よくある質問" },
   { href: "/status", label: "運営状況" },
   { href: "/news", label: "お知らせ" },
+  { href: "/subscription", label: "サブスク" },
 ];
 
 const legalLinks = [
   { href: "/terms", label: "利用規約" },
   { href: "/privacy", label: "プライバシーポリシー" },
+  { href: "/commercial-transactions", label: "特定商取引法に基づく表記" },
   { href: "/contact", label: "お問い合わせ" },
 ];
 
@@ -34,7 +36,7 @@ export default function AppFooter() {
               LIB read
             </Link>
             <p className="mt-2 text-sm leading-6 text-neutral-600">
-              読む時間に合わせて物語をつくり、読む・聴く・残すを行き来できる小説投稿サービスです。
+              外国語の長編を個人本棚で読み続け、多言語対訳・読み上げ・AI物語・Web小説を作品単位で楽しめる読書サービスです。
             </p>
           </div>
 

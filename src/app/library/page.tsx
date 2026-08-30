@@ -1,6 +1,9 @@
 import Link from "next/link";
+import PrivateLibraryDeleteButton from "@/features/library/PrivateLibraryDeleteButton";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
+import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 import {
+  PRIVATE_LIBRARY_LIMITS,
   buildPrivateLibraryReadHref,
   buildPrivateLibraryWorkHref,
   formatCharacterCount,
@@ -24,14 +27,26 @@ function formatDate(value: string | null): string {
 
 export default async function PrivateLibraryPage() {
   const { supabase, user } = await requireLoggedInUser("/library");
-  const result = await supabase
-    .from("private_library_works")
-    .select("*")
-    .eq("owner_user_id", user.id)
-    .order("last_opened_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+  const [result, countResult, subscriber] = await Promise.all([
+    supabase
+      .from("private_library_works")
+      .select("*")
+      .eq("owner_user_id", user.id)
+      .eq("import_status", "ready")
+      .order("last_opened_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("private_library_works")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_user_id", user.id),
+    isSubscriber(user.id),
+  ]);
 
   const works = (result.data ?? []) as PrivateLibraryWork[];
+  const storedWorkCount = countResult.count ?? works.length;
+  const workLimit = subscriber
+    ? PRIVATE_LIBRARY_LIMITS.subscriberMaxWorksPerUser
+    : PRIVATE_LIBRARY_LIMITS.freeMaxWorksPerUser;
 
   return (
     <main className="min-h-screen bg-white text-black">
@@ -47,12 +62,15 @@ export default async function PrivateLibraryPage() {
                 <p className="mt-3 text-sm leading-7 text-neutral-600">
                   自分で取り込んだ作品を、本人だけが読める本棚です。
                 </p>
+                <p className="mt-2 text-xs text-neutral-500">
+                  {subscriber ? "サブスク" : "無料プラン"}：{storedWorkCount} / {workLimit}作品
+                </p>
               </div>
               <Link
                 href="/library/import"
                 className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
               >
-                TXTを取り込む
+                作品を取り込む
               </Link>
             </div>
           </div>
@@ -68,7 +86,7 @@ export default async function PrivateLibraryPage() {
                   まだ作品がありません
                 </p>
                 <p className="mt-2 text-sm leading-7 text-neutral-600">
-                  TXTを取り込むと、見出しや本文量から話数へ自動分割します。
+                  TXT・EPUB・DOCXなどを取り込むと、章構造を保って自動分割します。
                 </p>
               </div>
             ) : (
@@ -96,7 +114,7 @@ export default async function PrivateLibraryPage() {
                             {languageLabel}
                           </span>
                           <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-                            {work.chapter_count}話
+                            {work.section_count}章・話
                           </span>
                         </div>
                         <h2 className="mt-3 text-xl font-semibold text-black">
@@ -119,16 +137,20 @@ export default async function PrivateLibraryPage() {
                           href={buildPrivateLibraryWorkHref(work.id)}
                           className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
                         >
-                          目次
+                          作品目次
                         </Link>
                         <Link
                           href={buildPrivateLibraryReadHref(work.id, resumeNumber)}
                           className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
                         >
                           {work.last_opened_chapter_number
-                            ? `${resumeNumber}話から続ける`
+                            ? "続きから読む"
                             : "読み始める"}
                         </Link>
+                        <PrivateLibraryDeleteButton
+                          workId={work.id}
+                          workTitle={work.title}
+                        />
                       </div>
                     </div>
                   </article>

@@ -13,6 +13,7 @@ import {
   getSupportedLanguage,
   parseSupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 
 type PageProps = {
   params: Promise<{ workId: string; chapterNumber: string }>;
@@ -36,11 +37,12 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
     .select("*")
     .eq("id", workId)
     .eq("owner_user_id", user.id)
+    .eq("import_status", "ready")
     .maybeSingle();
 
   if (workResult.error || !workResult.data) notFound();
 
-  const [chapterResult, chapterNumbersResult] = await Promise.all([
+  const [chapterResult, previousResult, nextResult, subscriber] = await Promise.all([
     supabase
       .from("private_library_chapters")
       .select("*")
@@ -51,34 +53,44 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
       .from("private_library_chapters")
       .select("id, chapter_number")
       .eq("work_id", workId)
-      .order("chapter_number", { ascending: true }),
+      .lt("chapter_number", parsedChapterNumber)
+      .order("chapter_number", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("private_library_chapters")
+      .select("id, chapter_number")
+      .eq("work_id", workId)
+      .gt("chapter_number", parsedChapterNumber)
+      .order("chapter_number", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    isSubscriber(user.id),
   ]);
 
-  if (chapterResult.error || !chapterResult.data || chapterNumbersResult.error) {
+  if (
+    chapterResult.error ||
+    !chapterResult.data ||
+    previousResult.error ||
+    nextResult.error
+  ) {
     notFound();
   }
 
   const work = workResult.data as PrivateLibraryWork;
   const chapter = chapterResult.data as PrivateLibraryChapter;
-  const chapters = (chapterNumbersResult.data ?? [])
-    .map((row) => ({
-      id: typeof row.id === "string" ? row.id : "",
-      chapterNumber: Number(row.chapter_number),
-    }))
-    .filter(
-      (row) =>
-        row.id.length > 0 &&
-        Number.isInteger(row.chapterNumber) &&
-        row.chapterNumber > 0
-    );
-  const currentIndex = chapters.findIndex(
-    (row) => row.chapterNumber === parsedChapterNumber
-  );
-  const previousChapter = currentIndex > 0 ? chapters[currentIndex - 1] : null;
-  const nextChapter =
-    currentIndex >= 0 && currentIndex < chapters.length - 1
-      ? chapters[currentIndex + 1]
-      : null;
+  const previousChapter = previousResult.data
+    ? {
+        id: String(previousResult.data.id),
+        chapterNumber: Number(previousResult.data.chapter_number),
+      }
+    : null;
+  const nextChapter = nextResult.data
+    ? {
+        id: String(nextResult.data.id),
+        chapterNumber: Number(nextResult.data.chapter_number),
+      }
+    : null;
   const previousNumber = previousChapter?.chapterNumber ?? null;
   const nextNumber = nextChapter?.chapterNumber ?? null;
   const sourceLanguage = parseSupportedLanguageTag(work.source_language) ?? "ja";
@@ -89,18 +101,31 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
     <>
       <LibraryProgressTracker
         workId={work.id}
+        chapterId={chapter.id}
         chapterNumber={chapter.chapter_number}
       />
       <PrivateLibraryBilingualShell
         workId={work.id}
         chapterId={chapter.id}
         chapterNumber={chapter.chapter_number}
+        partNumber={chapter.part_number}
+        partCount={chapter.part_count}
         workTitle={work.title}
         chapterTitle={chapter.title}
         authorName={work.author_name || undefined}
         sourceLanguage={sourceLanguage}
         workIndexHref={workIndexHref}
+        previousChapterHref={
+          previousNumber
+            ? buildPrivateLibraryReadHref(work.id, previousNumber)
+            : null
+        }
+        nextChapterHref={
+          nextNumber ? buildPrivateLibraryReadHref(work.id, nextNumber) : null
+        }
+        hasMultipleChapters={work.section_count > 1}
         nextChapterId={nextChapter?.id ?? null}
+        isSubscriber={subscriber}
       >
         <WebSpeechEpisodePlayback
           seriesId={`private-library:${work.id}`}
@@ -122,9 +147,11 @@ export default async function PrivateLibraryReadPage({ params }: PageProps) {
           }
           nextEpisodeNumber={nextNumber}
           workIndexHref={workIndexHref}
+          workIndexLabel="作品目次"
           showComments={false}
           speechLanguage={language.speechLanguage}
           trackPopularity={false}
+          constrainBodyScroll
         />
       </PrivateLibraryBilingualShell>
     </>

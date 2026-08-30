@@ -1,9 +1,23 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import BilingualActionBridge from "@/features/playback/BilingualActionBridge";
 import BilingualEpisodePlayback from "@/features/playback/BilingualEpisodePlayback";
+import BilingualLanguagePickerDialog, {
+  type BilingualTranslationAvailability,
+} from "@/features/playback/BilingualLanguagePickerDialog";
 import BilingualResumeBridge from "@/features/playback/BilingualResumeBridge";
+import { useAiUsage } from "@/features/usage/useAiUsage";
+import {
+  isPublicTranslationTargetLanguage,
+  parseSupportedLanguageTag,
+  type PublicTranslationTargetLanguage,
+  type SupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
+import {
+  readBilingualSessionPreference,
+  writeBilingualSessionPreference,
+} from "@/lib/translation/bilingualSessionPreference";
 
 type ReadBilingualShellProps = {
   children: ReactNode;
@@ -15,6 +29,11 @@ type ReadBilingualShellProps = {
   episodeTitle?: string;
   workAuthorName?: string;
   workEditorName?: string;
+  sourceLanguage: SupportedLanguageTag;
+  hasMultipleEpisodes: boolean;
+  workIndexHref?: string | null;
+  prevEpisodeHref?: string | null;
+  nextEpisodeHref?: string | null;
 };
 
 export default function ReadBilingualShell({
@@ -27,14 +46,85 @@ export default function ReadBilingualShell({
   episodeTitle,
   workAuthorName,
   workEditorName,
+  sourceLanguage,
+  hasMultipleEpisodes,
+  workIndexHref,
+  prevEpisodeHref,
+  nextEpisodeHref,
 }: ReadBilingualShellProps) {
+  const { snapshot: aiUsage } = useAiUsage();
   const [mode, setMode] = useState<"standard" | "bilingual">("standard");
+  const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
+  const [translationAvailability, setTranslationAvailability] =
+    useState<BilingualTranslationAvailability>("checking");
+  const [rememberForTab, setRememberForTab] = useState(false);
+  const [sessionLanguageLocked, setSessionLanguageLocked] = useState(false);
+  const [autoGenerateMissingTranslation, setAutoGenerateMissingTranslation] =
+    useState(false);
+  const [targetLanguage, setTargetLanguage] =
+    useState<PublicTranslationTargetLanguage>(
+      sourceLanguage === "ja" ? "en" : "ja"
+    );
   const [resumeSegmentIndex, setResumeSegmentIndex] = useState<number | null>(null);
   const [restoreToken, setRestoreToken] = useState(0);
+  const availabilityCheckVersionRef = useRef(0);
+
+  async function checkTranslationAvailability(
+    language: PublicTranslationTargetLanguage,
+    existingVersion?: number
+  ) {
+    const checkVersion = existingVersion ?? ++availabilityCheckVersionRef.current;
+    if (existingVersion === undefined) setTranslationAvailability("checking");
+    try {
+      const response = await fetch(
+        `/api/episode-translations/${encodeURIComponent(episodeId)}?sourceLanguage=${encodeURIComponent(sourceLanguage)}&targetLanguage=${encodeURIComponent(language)}`,
+        { cache: "no-store" }
+      );
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        status?: BilingualTranslationAvailability;
+      };
+      if (availabilityCheckVersionRef.current !== checkVersion) return;
+      if (!response.ok || !payload.ok || !payload.status) {
+        setTranslationAvailability("error");
+        return;
+      }
+      setTranslationAvailability(payload.status);
+      if (payload.status === "translating") {
+        window.setTimeout(
+          () => void checkTranslationAvailability(language, checkVersion),
+          2500
+        );
+      }
+    } catch {
+      if (availabilityCheckVersionRef.current !== checkVersion) return;
+      setTranslationAvailability("error");
+    }
+  }
 
   function enableBilingual() {
     if (!translationEligible) return;
 
+    const sessionPreference = hasMultipleEpisodes
+      ? readBilingualSessionPreference("series", seriesId, sourceLanguage)
+      : null;
+    if (
+      sessionPreference &&
+      isPublicTranslationTargetLanguage(sessionPreference.targetLanguage)
+    ) {
+      setTargetLanguage(sessionPreference.targetLanguage);
+      setSessionLanguageLocked(true);
+      setAutoGenerateMissingTranslation(true);
+      openBilingual();
+      return;
+    }
+
+    setRememberForTab(false);
+    setIsLanguagePickerOpen(true);
+    void checkTranslationAvailability(targetLanguage);
+  }
+
+  function openBilingual() {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -43,7 +133,17 @@ export default function ReadBilingualShell({
       audio.pause();
     });
 
+    setIsLanguagePickerOpen(false);
     setMode("bilingual");
+  }
+
+  function confirmBilingual() {
+    if (rememberForTab && hasMultipleEpisodes) {
+      writeBilingualSessionPreference("series", seriesId, targetLanguage);
+    }
+    setSessionLanguageLocked(rememberForTab && hasMultipleEpisodes);
+    setAutoGenerateMissingTranslation(translationAvailability !== "ready");
+    openBilingual();
   }
 
   function disableBilingual(segmentIndex: number) {
@@ -57,6 +157,21 @@ export default function ReadBilingualShell({
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("bilingual") !== "1") return;
+    const requestedTarget = parseSupportedLanguageTag(params.get("targetLanguage"));
+    const requestedAutoGenerate = params.get("autoGenerate") === "1";
+    const requestedLanguageLock = params.get("lockLanguage") === "1";
+    const timer = window.setTimeout(() => {
+    if (
+      !requestedTarget ||
+      requestedTarget === sourceLanguage ||
+      !isPublicTranslationTargetLanguage(requestedTarget)
+    ) {
+      setIsLanguagePickerOpen(true);
+      return;
+    }
+    setTargetLanguage(requestedTarget);
+    setSessionLanguageLocked(requestedLanguageLock);
+    setAutoGenerateMissingTranslation(requestedAutoGenerate);
 
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
@@ -67,7 +182,9 @@ export default function ReadBilingualShell({
     });
 
     setMode("bilingual");
-  }, [translationEligible]);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [sourceLanguage, translationEligible]);
 
   if (mode === "bilingual") {
     return (
@@ -79,6 +196,13 @@ export default function ReadBilingualShell({
         episodeTitle={episodeTitle}
         workAuthorName={workAuthorName}
         workEditorName={workEditorName}
+        workIndexHref={workIndexHref}
+        prevEpisodeHref={prevEpisodeHref}
+        nextEpisodeHref={nextEpisodeHref}
+        initialTargetLanguage={targetLanguage}
+        sourceLanguage={sourceLanguage}
+        autoGenerateMissingTranslation={autoGenerateMissingTranslation}
+        targetLanguageLocked={sessionLanguageLocked}
         onDisableBilingual={disableBilingual}
       />
     );
@@ -95,6 +219,25 @@ export default function ReadBilingualShell({
         segmentIndex={resumeSegmentIndex}
         restoreToken={restoreToken}
       />
+      {isLanguagePickerOpen ? (
+        <BilingualLanguagePickerDialog
+          sourceLanguage={sourceLanguage}
+          targetLanguage={targetLanguage}
+          availability={translationAvailability}
+          rememberForTab={rememberForTab}
+          showRememberForTab={hasMultipleEpisodes}
+          translationUsage={aiUsage?.actions.translation_generation}
+          isSubscriber={aiUsage?.isSubscriber === true}
+          onTargetLanguageChange={(language) => {
+            setTargetLanguage(language);
+            void checkTranslationAvailability(language);
+          }}
+          onRememberForTabChange={setRememberForTab}
+          onCancel={() => setIsLanguagePickerOpen(false)}
+          onConfirm={confirmBilingual}
+          onRetry={() => void checkTranslationAvailability(targetLanguage)}
+        />
+      ) : null}
     </>
   );
 }

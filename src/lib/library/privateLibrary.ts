@@ -1,24 +1,32 @@
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 
 export const PRIVATE_LIBRARY_LIMITS = {
-  maxFileBytes: 3_000_000,
-  maxSourceChars: 1_000_000,
-  maxChapterChars: 7_500,
-  maxChapters: 500,
-  maxWorksPerUser: 20,
+  maxFileBytes: 20_000_000,
+  maxSourceChars: 5_000_000,
+  // Keeps a new translation unit below the current ¥8 reserved-cost target.
+  maxChapterChars: 6_000,
+  maxSections: 1_500,
+  maxChapters: 4_000,
+  importBatchSize: 50,
+  freeMaxWorksPerUser: 3,
+  subscriberMaxWorksPerUser: 20,
   maxTotalCharsPerUser: 5_000_000,
 } as const;
+
+export type PrivateLibrarySourceType = "txt" | "epub" | "docx" | "pdf";
 
 export type PrivateLibraryWork = {
   id: string;
   owner_user_id: string;
   title: string;
   author_name: string | null;
-  source_type: "txt";
+  source_type: PrivateLibrarySourceType;
   source_language: SupportedLanguageTag;
   original_file_name: string | null;
   source_char_count: number;
   chapter_count: number;
+  section_count: number;
+  import_status: "uploading" | "ready";
   last_opened_chapter_number: number | null;
   last_opened_at: string | null;
   created_at: string;
@@ -32,6 +40,10 @@ export type PrivateLibraryChapter = {
   title: string;
   body: string;
   source_char_count: number;
+  section_number: number;
+  section_title: string;
+  part_number: number;
+  part_count: number;
   created_at: string;
   updated_at: string;
 };
@@ -50,4 +62,12 @@ export function buildPrivateLibraryReadHref(
 export function formatCharacterCount(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return "0文字";
   return `${Math.floor(value).toLocaleString("ja-JP")}文字`;
+}
+
+/** Match PostgreSQL char_length for UTF-8 text instead of UTF-16 code units. */
+export function countUnicodeCharacters(value: string): number {
+  let count = 0;
+  const iterator = value[Symbol.iterator]();
+  while (!iterator.next().done) count += 1;
+  return count;
 }

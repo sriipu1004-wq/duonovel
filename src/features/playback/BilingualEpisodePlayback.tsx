@@ -11,13 +11,20 @@ import BilingualPane, {
   type PaneSide,
 } from "@/features/playback/BilingualPane";
 import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
+import BilingualStoppedFooter from "@/features/playback/BilingualStoppedFooter";
+import { useBilingualWordExplanation } from "@/features/playback/useBilingualWordExplanation";
 import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
 import {
   getSupportedLanguage,
-  isPublicTranslationTargetLanguage,
-  parseSupportedLanguageTag,
   type PublicTranslationTargetLanguage,
+  type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import { useAiUsage } from "@/features/usage/useAiUsage";
+import {
+  formatAiUsage,
+  isAiUsageLimitReached,
+} from "@/lib/aiUsage/aiUsage";
+import { readReadingBookmark } from "@/lib/playback/readingBookmark";
 
 type TranslationStatus =
   | "loading"
@@ -49,6 +56,12 @@ type BilingualEpisodePlaybackProps = {
   workAuthorName?: string;
   workEditorName?: string;
   workIndexHref?: string | null;
+  prevEpisodeHref?: string | null;
+  nextEpisodeHref?: string | null;
+  initialTargetLanguage: PublicTranslationTargetLanguage;
+  sourceLanguage: SupportedLanguageTag;
+  autoGenerateMissingTranslation: boolean;
+  targetLanguageLocked: boolean;
   onDisableBilingual: (segmentIndex: number) => void;
 };
 
@@ -71,18 +84,21 @@ function clampRatio(value: number): number {
   return Math.min(80, Math.max(20, value));
 }
 
-function readPreference(seriesId: string): BilingualPreference {
-  if (typeof window === "undefined") return DEFAULT_PREFERENCE;
+function readPreference(
+  seriesId: string,
+  initialTargetLanguage: PublicTranslationTargetLanguage
+): BilingualPreference {
+  const fallback = { ...DEFAULT_PREFERENCE, targetLanguage: initialTargetLanguage };
+  if (typeof window === "undefined") return fallback;
 
   try {
-    const raw = window.localStorage.getItem("duonovel:bilingual-display:" + seriesId);
-    if (!raw) return DEFAULT_PREFERENCE;
+    const raw =
+      window.localStorage.getItem("duonovel:bilingual-display") ??
+      window.localStorage.getItem("duonovel:bilingual-display:" + seriesId);
+    if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<BilingualPreference> & {
       upperLanguage?: string;
     };
-    const storedTargetLanguage = parseSupportedLanguageTag(
-      parsed.targetLanguage
-    );
     return {
       splitRatio:
         typeof parsed.splitRatio === "number"
@@ -96,14 +112,10 @@ function readPreference(seriesId: string): BilingualPreference {
         typeof parsed.readerHeight === "number"
           ? clampBilingualReaderHeight(parsed.readerHeight)
           : DEFAULT_PREFERENCE.readerHeight,
-      targetLanguage:
-        storedTargetLanguage &&
-        isPublicTranslationTargetLanguage(storedTargetLanguage)
-          ? storedTargetLanguage
-          : DEFAULT_PREFERENCE.targetLanguage,
+      targetLanguage: fallback.targetLanguage,
     };
   } catch {
-    return DEFAULT_PREFERENCE;
+    return fallback;
   }
 }
 
@@ -120,9 +132,19 @@ export default function BilingualEpisodePlayback({
   workAuthorName,
   workEditorName,
   workIndexHref,
+  prevEpisodeHref,
+  nextEpisodeHref,
+  initialTargetLanguage,
+  sourceLanguage,
+  autoGenerateMissingTranslation,
+  targetLanguageLocked,
   onDisableBilingual,
 }: BilingualEpisodePlaybackProps) {
-  const preference = useMemo(() => readPreference(seriesId), [seriesId]);
+  const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
+  const preference = useMemo(
+    () => readPreference(seriesId, initialTargetLanguage),
+    [initialTargetLanguage, seriesId]
+  );
   const [splitRatio, setSplitRatio] = useState(preference.splitRatio);
   const [upperPane, setUpperPane] = useState<PaneSide>(
     preference.upperPane
@@ -138,20 +160,35 @@ export default function BilingualEpisodePlayback({
   const [canGenerate, setCanGenerate] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [sourceHash, setSourceHash] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
+  const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
 
   const jaScrollRef = useRef<HTMLDivElement | null>(null);
   const enScrollRef = useRef<HTMLDivElement | null>(null);
   const readerGridRef = useRef<HTMLDivElement | null>(null);
   const jaSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const enSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
-  const autoGenerationAttemptRef = useRef<string | null>(null);
   const generationInFlightRef = useRef(false);
   const readingSegmentIdRef = useRef<string | null>(null);
   const targetLanguageRef = useRef<PublicTranslationTargetLanguage>(
     preference.targetLanguage
   );
+  const autoGenerationAttemptRef = useRef<string | null>(null);
+  const restoredBookmarkKeyRef = useRef<string | null>(null);
+  const {
+    wordInsight,
+    clearWordInsight,
+    selectWord: handleSelectWord,
+  } = useBilingualWordExplanation({
+    contentType: "episode",
+    contentId: episodeId,
+    sourceHash,
+    sourceLanguage,
+    targetLanguage,
+    refreshAiUsage,
+  });
 
   useEffect(() => {
     setSplitRatio(preference.splitRatio);
@@ -164,13 +201,29 @@ export default function BilingualEpisodePlayback({
   useEffect(() => {
     try {
       window.localStorage.setItem(
-        "duonovel:bilingual-display:" + seriesId,
+        "duonovel:bilingual-display",
         JSON.stringify({ splitRatio, upperPane, readerHeight, targetLanguage })
       );
     } catch {
       // local preference persistence is non-critical
     }
   }, [readerHeight, seriesId, splitRatio, targetLanguage, upperPane]);
+
+  useEffect(() => {
+    if (translationStatus !== "ready" || segments.length === 0) return;
+    const restoreKey = `${episodeNumber}:${sourceHash ?? "ready"}`;
+    if (restoredBookmarkKeyRef.current === restoreKey) return;
+    restoredBookmarkKeyRef.current = restoreKey;
+    const bookmark = readReadingBookmark(seriesId);
+    if (!bookmark || bookmark.episodeNumber !== episodeNumber) return;
+    const index = Math.min(bookmark.positionIndex, segments.length - 1);
+    const id = segments[index]?.id;
+    if (!id) return;
+    readingSegmentIdRef.current = id;
+    setCurrentPositionIndex(index);
+    setSelectedSegmentId(id);
+    window.requestAnimationFrame(() => alignSegmentToTop(id));
+  }, [episodeNumber, segments, seriesId, sourceHash, translationStatus]);
 
   const requestTranslationGeneration = useCallback(async () => {
     if (generationInFlightRef.current) return false;
@@ -185,7 +238,7 @@ export default function BilingualEpisodePlayback({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           episodeId,
-          sourceLanguage: "ja",
+          sourceLanguage,
           targetLanguage,
         }),
       });
@@ -202,6 +255,7 @@ export default function BilingualEpisodePlayback({
         setTranslationStatus("error");
         return false;
       }
+      await refreshAiUsage();
 
       if (targetLanguageRef.current !== targetLanguage) return true;
 
@@ -235,14 +289,16 @@ export default function BilingualEpisodePlayback({
       generationInFlightRef.current = false;
       setIsGenerating(false);
     }
-  }, [episodeId, targetLanguage]);
+  }, [episodeId, refreshAiUsage, sourceLanguage, targetLanguage]);
 
   const loadTranslation = useCallback(async () => {
     try {
       const response = await fetch(
         "/api/episode-translations/" +
           encodeURIComponent(episodeId) +
-          "?sourceLanguage=ja&targetLanguage=" +
+          "?sourceLanguage=" +
+          encodeURIComponent(sourceLanguage) +
+          "&targetLanguage=" +
           encodeURIComponent(targetLanguage),
         { cache: "no-store" }
       );
@@ -259,10 +315,10 @@ export default function BilingualEpisodePlayback({
       }
 
       setCanGenerate(payload.canGenerate === true);
+      setSourceHash(payload.sourceHash ?? null);
       const nextStatus = payload.status ?? "missing";
 
       if (nextStatus === "ready" && Array.isArray(payload.segments)) {
-        autoGenerationAttemptRef.current = null;
         setTranslationStatus("ready");
         setSegments(payload.segments);
         const firstId = payload.segments?.[0]?.id ?? null;
@@ -273,35 +329,6 @@ export default function BilingualEpisodePlayback({
       }
 
       setSegments([]);
-
-      if (
-        (nextStatus === "missing" || nextStatus === "stale") &&
-        payload.canAutoGenerate === true
-      ) {
-        const attemptKey =
-          episodeId +
-          ":" +
-          targetLanguage +
-          ":" +
-          (payload.sourceHash || nextStatus);
-
-        if (generationInFlightRef.current) {
-          setTranslationStatus("translating");
-          return;
-        }
-
-        if (autoGenerationAttemptRef.current !== attemptKey) {
-          autoGenerationAttemptRef.current = attemptKey;
-          setTranslationStatus("translating");
-          setStatusMessage(
-            nextStatus === "stale"
-              ? "原文が更新されたため、対訳を更新しています。"
-              : "過去作品の対訳を初回だけ準備しています。"
-          );
-          void requestTranslationGeneration();
-          return;
-        }
-      }
 
       setTranslationStatus(nextStatus);
       setStatusMessage(
@@ -315,17 +342,40 @@ export default function BilingualEpisodePlayback({
       setTranslationStatus("error");
       setStatusMessage("対訳の状態を取得できませんでした。");
     }
-  }, [episodeId, requestTranslationGeneration, targetLanguage]);
+  }, [episodeId, sourceLanguage, targetLanguage]);
 
   useEffect(() => {
-    autoGenerationAttemptRef.current = null;
     readingSegmentIdRef.current = null;
     setTranslationStatus("loading");
     setSegments([]);
     setSelectedSegmentId(null);
     setHoveredSegmentId(null);
+    setSourceHash(null);
+    clearWordInsight();
     void loadTranslation();
-  }, [episodeId, loadTranslation]);
+  }, [clearWordInsight, episodeId, loadTranslation]);
+
+  useEffect(() => {
+    const attemptKey = `${episodeId}:${sourceLanguage}:${targetLanguage}`;
+    if (
+      !autoGenerateMissingTranslation ||
+      !["missing", "stale", "failed"].includes(translationStatus) ||
+      !canGenerate ||
+      autoGenerationAttemptRef.current === attemptKey
+    ) {
+      return;
+    }
+    autoGenerationAttemptRef.current = attemptKey;
+    void requestTranslationGeneration();
+  }, [
+    autoGenerateMissingTranslation,
+    canGenerate,
+    episodeId,
+    requestTranslationGeneration,
+    sourceLanguage,
+    targetLanguage,
+    translationStatus,
+  ]);
 
   useEffect(() => {
     if (translationStatus !== "translating") return;
@@ -365,12 +415,33 @@ export default function BilingualEpisodePlayback({
     });
   }
 
+  function alignSegmentToTop(id: string) {
+    const align = (
+      container: HTMLDivElement | null,
+      node: HTMLSpanElement | null
+    ) => {
+      if (!container || !node) return;
+      const containerRect = container.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      container.scrollTo({
+        top: Math.max(0, container.scrollTop + nodeRect.top - containerRect.top),
+        behavior: "auto",
+      });
+    };
+    align(jaScrollRef.current, jaSegmentRefs.current.get(id) ?? null);
+    align(enScrollRef.current, enSegmentRefs.current.get(id) ?? null);
+  }
+
   function handleReadingPositionChange(id: string) {
     readingSegmentIdRef.current = id;
+    const index = segments.findIndex((segment) => segment.id === id);
+    if (index >= 0) setCurrentPositionIndex(index);
   }
 
   function handleSelectSegment(id: string) {
     readingSegmentIdRef.current = id;
+    const index = segments.findIndex((segment) => segment.id === id);
+    if (index >= 0) setCurrentPositionIndex(index);
     setSelectedSegmentId(id);
     centerSegment(id);
   }
@@ -385,12 +456,13 @@ export default function BilingualEpisodePlayback({
   function handleTargetLanguageChange(
     language: PublicTranslationTargetLanguage
   ) {
-    if (language === targetLanguage) return;
+    if (targetLanguageLocked || language === targetLanguage) return;
     targetLanguageRef.current = language;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
     setTargetLanguage(language);
+    clearWordInsight();
   }
 
   function handleDisableBilingual() {
@@ -412,11 +484,11 @@ export default function BilingualEpisodePlayback({
   const safeEpisodeTitle = safeText(episodeTitle, "第" + String(episodeNumber) + "話");
   const safeAuthorName = safeText(workAuthorName, "作者名未設定");
   const safeEditorName = safeText(workEditorName, "");
-  const sourceLanguageLabel = getSupportedLanguage("ja").nativeLabel;
+  const sourceLanguageLabel = getSupportedLanguage(sourceLanguage).nativeLabel;
   const targetLanguageLabel = getSupportedLanguage(targetLanguage).nativeLabel;
 
   return (
-    <main className="min-h-screen bg-white pb-24 text-black">
+    <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-4xl px-3 py-4 sm:px-6 sm:py-6">
         <section className="overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-sm">
           <header className="border-b border-black/10 px-4 py-4 sm:px-6">
@@ -428,9 +500,10 @@ export default function BilingualEpisodePlayback({
                 {workIndexHref ? (
                   <Link
                     href={workIndexHref}
+                    aria-label={`${safeSeriesTitle}の作品ページ（目次）へ`}
                     className="mt-2 inline-flex text-sm text-neutral-600 hover:text-black"
                   >
-                    {safeSeriesTitle}
+                    {safeSeriesTitle} · 作品ページ（目次）
                   </Link>
                 ) : (
                   <p className="mt-2 text-sm text-neutral-600">{safeSeriesTitle}</p>
@@ -447,8 +520,15 @@ export default function BilingualEpisodePlayback({
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <TranslationLanguageSelect
                   value={targetLanguage}
+                  sourceLanguage={sourceLanguage}
                   onChange={handleTargetLanguageChange}
+                  disabled={targetLanguageLocked}
                 />
+                {targetLanguageLocked ? (
+                  <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs text-neutral-700">
+                    このタブで言語固定
+                  </span>
+                ) : null}
                 <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-black">
                   対訳 ON
                 </span>
@@ -470,7 +550,17 @@ export default function BilingualEpisodePlayback({
                 selectedSegmentId={selectedSegmentId}
                 onSelectSegment={handleSelectSegment}
                 targetLanguage={targetLanguage}
+                seriesId={seriesId}
               />
+              <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
+                文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
+                {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
+                !aiUsage?.isSubscriber ? (
+                  <Link href="/subscription" className="ml-2 font-semibold text-sky-700 underline underline-offset-2">
+                    月額680円で無制限
+                  </Link>
+                ) : null}
+              </div>
 
               <div
                 ref={readerGridRef}
@@ -487,6 +577,7 @@ export default function BilingualEpisodePlayback({
                   <BilingualPane
                     side="source"
                     languageLabel={sourceLanguageLabel}
+                    languageTag={sourceLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -495,11 +586,14 @@ export default function BilingualEpisodePlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 ) : (
                   <BilingualPane
                     side="target"
                     languageLabel={targetLanguageLabel}
+                    languageTag={targetLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -508,6 +602,8 @@ export default function BilingualEpisodePlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 )}
 
@@ -521,6 +617,7 @@ export default function BilingualEpisodePlayback({
                   <BilingualPane
                     side="target"
                     languageLabel={targetLanguageLabel}
+                    languageTag={targetLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -529,11 +626,14 @@ export default function BilingualEpisodePlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 ) : (
                   <BilingualPane
                     side="source"
                     languageLabel={sourceLanguageLabel}
+                    languageTag={sourceLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -542,6 +642,8 @@ export default function BilingualEpisodePlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 )}
               </div>
@@ -573,7 +675,7 @@ export default function BilingualEpisodePlayback({
                   <>
                     <p className="text-lg font-semibold">原文が更新されています</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      {statusMessage || "対訳を更新しています。"}
+                      {statusMessage || "必要な場合は対訳を再生成してください。"}
                     </p>
                   </>
                 ) : translationStatus === "failed" ? (
@@ -592,22 +694,39 @@ export default function BilingualEpisodePlayback({
                   </>
                 ) : (
                   <>
-                    <p className="text-lg font-semibold">対訳を準備できません</p>
+                    <p className="text-lg font-semibold">この言語の対訳は未生成です</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      この作品では現在、自動生成を開始できません。
+                      必要な場合だけ対訳を生成します。
                     </p>
                   </>
                 )}
 
-                {canGenerate && translationStatus === "failed" ? (
+                {canGenerate &&
+                (translationStatus === "missing" ||
+                  translationStatus === "stale" ||
+                  translationStatus === "failed") ? (
                   <button
                     type="button"
                     onClick={() => void handleGenerateTranslation()}
-                    disabled={isGenerating}
+                    disabled={
+                      isGenerating ||
+                      isAiUsageLimitReached(
+                        aiUsage?.actions.translation_generation
+                      )
+                    }
                     className="mt-5 rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isGenerating ? "再生成中…" : "対訳を再生成"}
+                    {isGenerating
+                      ? "生成中…"
+                      : `${translationStatus === "missing" ? "対訳を生成" : "対訳を再生成"} ${formatAiUsage(aiUsage?.actions.translation_generation)}`}
                   </button>
+                ) : null}
+
+                {isAiUsageLimitReached(aiUsage?.actions.translation_generation) &&
+                !aiUsage?.isSubscriber ? (
+                  <Link href="/subscription" className="mt-4 inline-block text-sm font-semibold text-sky-700 underline underline-offset-4">
+                    月額680円で生成上限を増やす
+                  </Link>
                 ) : null}
 
                 {statusMessage && translationStatus !== "stale" && translationStatus !== "error" ? (
@@ -617,24 +736,19 @@ export default function BilingualEpisodePlayback({
             </div>
           )}
         </section>
-      </div>
-
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="min-w-0 text-xs text-neutral-500">
-            <span className="font-medium text-neutral-700">
-              {targetLanguageLabel} 対訳
-            </span>
-            <span className="ml-2">文同期・単語確認・1文再生</span>
-          </div>
-          <button
-            type="button"
-            onClick={handleDisableBilingual}
-            className="shrink-0 rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-          >
-            日本語表示に戻る
-          </button>
-        </div>
+        <BilingualStoppedFooter
+          seriesId={seriesId}
+          episodeNumber={episodeNumber}
+          positionIndex={currentPositionIndex}
+          prevHref={prevEpisodeHref}
+          nextHref={nextEpisodeHref}
+          splitRatio={splitRatio}
+          upperPane={upperPane}
+          readerHeight={readerHeight}
+          onSplitRatioChange={setSplitRatio}
+          onSwapLanguages={handleSwapLanguages}
+          onResetReaderHeight={() => setReaderHeight(null)}
+        />
       </div>
     </main>
   );

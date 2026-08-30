@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BilingualDivider from "@/features/playback/BilingualDivider";
 import BilingualHeightHandle, {
@@ -10,13 +11,20 @@ import BilingualPane, {
   type PaneSide,
 } from "@/features/playback/BilingualPane";
 import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
+import BilingualStoppedFooter from "@/features/playback/BilingualStoppedFooter";
+import { useBilingualWordExplanation } from "@/features/playback/useBilingualWordExplanation";
 import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
 import {
   getSupportedLanguage,
-  isPublicTranslationTargetLanguage,
-  parseSupportedLanguageTag,
   type PublicTranslationTargetLanguage,
+  type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import { useAiUsage } from "@/features/usage/useAiUsage";
+import {
+  formatAiUsage,
+  isAiUsageLimitReached,
+} from "@/lib/aiUsage/aiUsage";
+import { readReadingBookmark } from "@/lib/playback/readingBookmark";
 
 type GeneratedStoryPayload = {
   id: string;
@@ -44,7 +52,7 @@ type SavedGeneratedStoryPayload = GeneratedStoryPayload & {
 
 type TranslationResponse = {
   ok?: boolean;
-  status?: "ready" | "translating";
+  status?: "ready" | "translating" | "missing";
   sourceHash?: string;
   segments?: BilingualSegment[];
   message?: string;
@@ -110,18 +118,21 @@ function readGeneratedStory(storyId: string): SavedGeneratedStoryPayload | null 
   return saved;
 }
 
-function readPreference(storyId: string): BilingualPreference {
+function readPreference(
+  storyId: string,
+  initialTargetLanguage: PublicTranslationTargetLanguage
+): BilingualPreference {
+  const fallback = { ...DEFAULT_PREFERENCE, targetLanguage: initialTargetLanguage };
   try {
-    const raw = window.localStorage.getItem(
-      `duonovel:bilingual-display:generated:${storyId}`
-    );
-    if (!raw) return DEFAULT_PREFERENCE;
+    const raw =
+      window.localStorage.getItem("duonovel:bilingual-display") ??
+      window.localStorage.getItem(
+        `duonovel:bilingual-display:generated:${storyId}`
+      );
+    if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<BilingualPreference> & {
       upperLanguage?: string;
     };
-    const storedTargetLanguage = parseSupportedLanguageTag(
-      parsed.targetLanguage
-    );
     return {
       splitRatio:
         typeof parsed.splitRatio === "number"
@@ -135,14 +146,10 @@ function readPreference(storyId: string): BilingualPreference {
         typeof parsed.readerHeight === "number"
           ? clampBilingualReaderHeight(parsed.readerHeight)
           : DEFAULT_PREFERENCE.readerHeight,
-      targetLanguage:
-        storedTargetLanguage &&
-        isPublicTranslationTargetLanguage(storedTargetLanguage)
-          ? storedTargetLanguage
-          : DEFAULT_PREFERENCE.targetLanguage,
+      targetLanguage: fallback.targetLanguage,
     };
   } catch {
-    return DEFAULT_PREFERENCE;
+    return fallback;
   }
 }
 
@@ -171,13 +178,25 @@ function centerInPane(
 
 export default function GeneratedStoryBilingualPlayback({
   storyId,
+  sourceLanguage,
+  initialTargetLanguage,
+  autoGenerateMissingTranslation,
+  targetLanguageLocked,
 }: {
   storyId: string;
+  sourceLanguage: SupportedLanguageTag;
+  initialTargetLanguage: PublicTranslationTargetLanguage;
+  autoGenerateMissingTranslation: boolean;
+  targetLanguageLocked: boolean;
 }) {
+  const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
   const [story, setStory] = useState<SavedGeneratedStoryPayload | null>(null);
   const preference = useMemo(
-    () => (typeof window === "undefined" ? DEFAULT_PREFERENCE : readPreference(storyId)),
-    [storyId]
+    () =>
+      typeof window === "undefined"
+        ? { ...DEFAULT_PREFERENCE, targetLanguage: initialTargetLanguage }
+        : readPreference(storyId, initialTargetLanguage),
+    [initialTargetLanguage, storyId]
   );
   const [splitRatio, setSplitRatio] = useState(preference.splitRatio);
   const [upperPane, setUpperPane] = useState<PaneSide>(
@@ -188,13 +207,15 @@ export default function GeneratedStoryBilingualPlayback({
   );
   const [targetLanguage, setTargetLanguage] =
     useState<PublicTranslationTargetLanguage>(preference.targetLanguage);
-  const [status, setStatus] = useState<"loading" | "translating" | "ready" | "error">(
+  const [status, setStatus] = useState<"loading" | "missing" | "translating" | "ready" | "error">(
     "loading"
   );
   const [segments, setSegments] = useState<BilingualSegment[]>([]);
   const [message, setMessage] = useState("");
+  const [sourceHash, setSourceHash] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
+  const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
 
   const jaScrollRef = useRef<HTMLDivElement | null>(null);
   const enScrollRef = useRef<HTMLDivElement | null>(null);
@@ -206,6 +227,20 @@ export default function GeneratedStoryBilingualPlayback({
   const targetLanguageRef = useRef<PublicTranslationTargetLanguage>(
     preference.targetLanguage
   );
+  const autoGenerationAttemptRef = useRef<string | null>(null);
+  const restoredBookmarkKeyRef = useRef<string | null>(null);
+  const {
+    wordInsight,
+    clearWordInsight,
+    selectWord: handleSelectWord,
+  } = useBilingualWordExplanation({
+    contentType: "generated_story",
+    contentId: storyId,
+    sourceHash,
+    sourceLanguage,
+    targetLanguage,
+    refreshAiUsage,
+  });
 
   useEffect(() => {
     const generated = readGeneratedStory(storyId);
@@ -220,13 +255,29 @@ export default function GeneratedStoryBilingualPlayback({
   useEffect(() => {
     try {
       window.localStorage.setItem(
-        `duonovel:bilingual-display:generated:${storyId}`,
+        "duonovel:bilingual-display",
         JSON.stringify({ splitRatio, upperPane, readerHeight, targetLanguage })
       );
     } catch {
       // Local preference persistence is non-critical.
     }
   }, [readerHeight, storyId, splitRatio, targetLanguage, upperPane]);
+
+  useEffect(() => {
+    if (status !== "ready" || segments.length === 0) return;
+    const restoreKey = `${storyId}:${sourceHash ?? "ready"}`;
+    if (restoredBookmarkKeyRef.current === restoreKey) return;
+    restoredBookmarkKeyRef.current = restoreKey;
+    const bookmark = readReadingBookmark(`generated:${storyId}`);
+    if (!bookmark || bookmark.episodeNumber !== 1) return;
+    const index = Math.min(bookmark.positionIndex, segments.length - 1);
+    const id = segments[index]?.id;
+    if (!id) return;
+    readingSegmentIdRef.current = id;
+    setCurrentPositionIndex(index);
+    setSelectedSegmentId(id);
+    window.requestAnimationFrame(() => alignSegmentToTop(id));
+  }, [segments, sourceHash, status, storyId]);
 
   const requestTranslation = useCallback(async () => {
     if (!story || requestInFlightRef.current) return;
@@ -242,7 +293,7 @@ export default function GeneratedStoryBilingualPlayback({
           storyId: story.id,
           title: story.story.title,
           body: story.story.body,
-          sourceLanguage: "ja",
+          sourceLanguage,
           targetLanguage,
         }),
       });
@@ -259,6 +310,7 @@ export default function GeneratedStoryBilingualPlayback({
         );
         return;
       }
+      await refreshAiUsage();
 
       if (targetLanguageRef.current !== targetLanguage) return;
 
@@ -267,6 +319,8 @@ export default function GeneratedStoryBilingualPlayback({
         setMessage(payload.message || "対訳を生成できませんでした。");
         return;
       }
+
+      setSourceHash(payload.sourceHash ?? null);
 
       if (payload.status === "ready" && Array.isArray(payload.segments)) {
         setSegments(payload.segments);
@@ -287,7 +341,43 @@ export default function GeneratedStoryBilingualPlayback({
     } finally {
       requestInFlightRef.current = false;
     }
-  }, [story, targetLanguage]);
+  }, [refreshAiUsage, sourceLanguage, story, targetLanguage]);
+
+  const checkTranslation = useCallback(async () => {
+    if (!story) return;
+    try {
+      const response = await fetch("/api/generated-story-translations/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storyId: story.id,
+          title: story.story.title,
+          body: story.story.body,
+          sourceLanguage,
+          targetLanguage,
+          checkOnly: true,
+        }),
+      });
+      const payload = (await response.json()) as TranslationResponse;
+      if (targetLanguageRef.current !== targetLanguage) return;
+      setSourceHash(payload.sourceHash ?? null);
+      if (!response.ok || !payload.ok) {
+        setStatus("error");
+        setMessage(payload.message || "対訳の状態を確認できませんでした。");
+      } else if (payload.status === "ready" && Array.isArray(payload.segments)) {
+        setSegments(payload.segments);
+        const firstId = payload.segments[0]?.id ?? null;
+        setSelectedSegmentId((current) => current ?? firstId);
+        readingSegmentIdRef.current = readingSegmentIdRef.current ?? firstId;
+        setStatus("ready");
+      } else {
+        setStatus(payload.status === "translating" ? "translating" : "missing");
+      }
+    } catch {
+      setStatus("error");
+      setMessage("対訳の状態を確認できませんでした。");
+    }
+  }, [sourceLanguage, story, targetLanguage]);
 
   useEffect(() => {
     if (!story) return;
@@ -295,18 +385,43 @@ export default function GeneratedStoryBilingualPlayback({
     setSegments([]);
     setSelectedSegmentId(null);
     setHoveredSegmentId(null);
+    setSourceHash(null);
+    clearWordInsight();
     readingSegmentIdRef.current = null;
+    setStatus("loading");
+    void checkTranslation();
+  }, [checkTranslation, clearWordInsight, story, targetLanguage]);
+
+  useEffect(() => {
+    const attemptKey = `${storyId}:${sourceLanguage}:${targetLanguage}`;
+    if (
+      !autoGenerateMissingTranslation ||
+      status !== "missing" ||
+      !story ||
+      autoGenerationAttemptRef.current === attemptKey
+    ) {
+      return;
+    }
+    autoGenerationAttemptRef.current = attemptKey;
     setStatus("translating");
     void requestTranslation();
-  }, [story, requestTranslation, targetLanguage]);
+  }, [
+    autoGenerateMissingTranslation,
+    requestTranslation,
+    sourceLanguage,
+    status,
+    story,
+    storyId,
+    targetLanguage,
+  ]);
 
   useEffect(() => {
     if (status !== "translating") return;
     const timer = window.setInterval(() => {
-      void requestTranslation();
+      void checkTranslation();
     }, 2500);
     return () => window.clearInterval(timer);
-  }, [status, requestTranslation]);
+  }, [checkTranslation, status]);
 
   function centerSegment(id: string) {
     window.requestAnimationFrame(() => {
@@ -315,14 +430,35 @@ export default function GeneratedStoryBilingualPlayback({
     });
   }
 
+  function alignSegmentToTop(id: string) {
+    const align = (
+      container: HTMLDivElement | null,
+      node: HTMLSpanElement | null
+    ) => {
+      if (!container || !node) return;
+      const containerRect = container.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      container.scrollTo({
+        top: Math.max(0, container.scrollTop + nodeRect.top - containerRect.top),
+        behavior: "auto",
+      });
+    };
+    align(jaScrollRef.current, jaSegmentRefs.current.get(id) ?? null);
+    align(enScrollRef.current, enSegmentRefs.current.get(id) ?? null);
+  }
+
   function handleSelectSegment(id: string) {
     readingSegmentIdRef.current = id;
+    const index = segments.findIndex((segment) => segment.id === id);
+    if (index >= 0) setCurrentPositionIndex(index);
     setSelectedSegmentId(id);
     centerSegment(id);
   }
 
   function handleReadingPositionChange(id: string) {
     readingSegmentIdRef.current = id;
+    const index = segments.findIndex((segment) => segment.id === id);
+    if (index >= 0) setCurrentPositionIndex(index);
   }
 
   function handleSwapLanguages() {
@@ -335,12 +471,13 @@ export default function GeneratedStoryBilingualPlayback({
   function handleTargetLanguageChange(
     language: PublicTranslationTargetLanguage
   ) {
-    if (language === targetLanguage) return;
+    if (targetLanguageLocked || language === targetLanguage) return;
     targetLanguageRef.current = language;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
     setTargetLanguage(language);
+    clearWordInsight();
   }
 
   function handleDisableBilingual() {
@@ -362,7 +499,7 @@ export default function GeneratedStoryBilingualPlayback({
     window.location.assign(`/read/generated/${encodeURIComponent(storyId)}`);
   }
 
-  const sourceLanguageLabel = getSupportedLanguage("ja").nativeLabel;
+  const sourceLanguageLabel = getSupportedLanguage(sourceLanguage).nativeLabel;
   const targetLanguageLabel = getSupportedLanguage(targetLanguage).nativeLabel;
 
   return (
@@ -385,8 +522,15 @@ export default function GeneratedStoryBilingualPlayback({
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <TranslationLanguageSelect
                   value={targetLanguage}
+                  sourceLanguage={sourceLanguage}
                   onChange={handleTargetLanguageChange}
+                  disabled={targetLanguageLocked}
                 />
+                {targetLanguageLocked ? (
+                  <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs text-neutral-700">
+                    このタブで言語固定
+                  </span>
+                ) : null}
                 <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-black">
                   対訳 ON
                 </span>
@@ -408,7 +552,17 @@ export default function GeneratedStoryBilingualPlayback({
                 selectedSegmentId={selectedSegmentId}
                 onSelectSegment={handleSelectSegment}
                 targetLanguage={targetLanguage}
+                seriesId={`generated:${storyId}`}
               />
+              <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
+                文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
+                {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
+                !aiUsage?.isSubscriber ? (
+                  <Link href="/subscription" className="ml-2 font-semibold text-sky-700 underline underline-offset-2">
+                    月額680円で無制限
+                  </Link>
+                ) : null}
+              </div>
 
               <div
                 ref={readerGridRef}
@@ -425,6 +579,7 @@ export default function GeneratedStoryBilingualPlayback({
                   <BilingualPane
                     side="source"
                     languageLabel={sourceLanguageLabel}
+                    languageTag={sourceLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -433,11 +588,14 @@ export default function GeneratedStoryBilingualPlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 ) : (
                   <BilingualPane
                     side="target"
                     languageLabel={targetLanguageLabel}
+                    languageTag={targetLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -446,6 +604,8 @@ export default function GeneratedStoryBilingualPlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 )}
 
@@ -459,6 +619,7 @@ export default function GeneratedStoryBilingualPlayback({
                   <BilingualPane
                     side="target"
                     languageLabel={targetLanguageLabel}
+                    languageTag={targetLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -467,11 +628,14 @@ export default function GeneratedStoryBilingualPlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 ) : (
                   <BilingualPane
                     side="source"
                     languageLabel={sourceLanguageLabel}
+                    languageTag={sourceLanguage}
                     segments={segments}
                     selectedSegmentId={selectedSegmentId}
                     hoveredSegmentId={hoveredSegmentId}
@@ -480,6 +644,8 @@ export default function GeneratedStoryBilingualPlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
+                    onSelectWord={handleSelectWord}
+                    wordInsight={wordInsight}
                   />
                 )}
               </div>
@@ -493,11 +659,13 @@ export default function GeneratedStoryBilingualPlayback({
           ) : (
             <div className="flex min-h-[30rem] items-center justify-center px-5 py-10">
               <div className="w-full max-w-xl rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-center">
-                {status === "error" ? (
+                {status === "error" || status === "missing" ? (
                   <>
-                    <p className="text-lg font-semibold">対訳を準備できませんでした</p>
+                    <p className="text-lg font-semibold">
+                      {status === "missing" ? "この言語の対訳は未生成です" : "対訳を準備できませんでした"}
+                    </p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      {message || "時間をおいてからもう一度お試しください。"}
+                      {message || (status === "missing" ? "必要な場合だけ生成します。" : "時間をおいてからもう一度お試しください。")}
                     </p>
                     <button
                       type="button"
@@ -505,16 +673,31 @@ export default function GeneratedStoryBilingualPlayback({
                         setStatus("translating");
                         void requestTranslation();
                       }}
+                      disabled={
+                        isAiUsageLimitReached(
+                          aiUsage?.actions.translation_generation
+                        )
+                      }
                       className="mt-5 rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800"
                     >
-                      再試行
+                      {status === "missing" ? "対訳を生成" : "再試行"} {formatAiUsage(aiUsage?.actions.translation_generation)}
                     </button>
+                    {isAiUsageLimitReached(aiUsage?.actions.translation_generation) &&
+                    !aiUsage?.isSubscriber ? (
+                      <Link href="/subscription" className="mt-4 block text-sm font-semibold text-sky-700 underline underline-offset-4">
+                        月額680円で生成上限を増やす
+                      </Link>
+                    ) : null}
                   </>
                 ) : (
                   <>
-                    <p className="text-lg font-semibold">対訳を準備中</p>
+                    <p className="text-lg font-semibold">
+                      {status === "loading" ? "保存済み対訳を確認中" : "対訳を生成中"}
+                    </p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      保存せず、この生成結果の一時対訳を作成しています。
+                      {status === "loading"
+                        ? "選択した言語の対訳cacheを確認しています。"
+                        : "この生成結果の一時対訳を作成しています。"}
                     </p>
                   </>
                 )}
@@ -523,13 +706,25 @@ export default function GeneratedStoryBilingualPlayback({
           )}
         </section>
 
+        <BilingualStoppedFooter
+          seriesId={`generated:${storyId}`}
+          episodeNumber={1}
+          positionIndex={currentPositionIndex}
+          splitRatio={splitRatio}
+          upperPane={upperPane}
+          readerHeight={readerHeight}
+          onSplitRatioChange={setSplitRatio}
+          onSwapLanguages={handleSwapLanguages}
+          onResetReaderHeight={() => setReaderHeight(null)}
+        />
+
         <div className="mt-4 flex justify-center">
           <button
             type="button"
             onClick={handleDisableBilingual}
             className="rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm text-neutral-700 transition hover:bg-neutral-50"
           >
-            日本語表示に戻る
+            原文表示に戻る
           </button>
         </div>
       </div>

@@ -48,6 +48,10 @@ import {
   splitSentenceIntoDisplayClauses,
 } from "@/lib/recording/humanTimingShared";
 import { concatNemoWavs } from "@/lib/recording/nemoWav";
+import {
+  readNarrationStopped,
+  writeNarrationStopped,
+} from "@/lib/playback/webSpeechPreferences";
 
 type EpisodePlaybackProps = {
   seriesId: string;
@@ -290,9 +294,9 @@ function readStoredNarrationVolume(seriesId: string): number {
   }
 
   try {
-    const raw = window.localStorage.getItem(
-      `duonovel:narration-volume:${seriesId}`
-    );
+    const raw =
+      window.localStorage.getItem("duonovel:narration-volume") ??
+      window.localStorage.getItem(`duonovel:narration-volume:${seriesId}`);
     if (!raw) {
       return 1;
     }
@@ -303,53 +307,19 @@ function readStoredNarrationVolume(seriesId: string): number {
   }
 }
 
-function getNarrationStoppedStorageKey(seriesId: string): string {
-  return `duonovel:narration-stopped:${seriesId}`;
-}
-
 function readStoredNarrationStopped(
   seriesId: string,
   fallback: boolean
 ): boolean {
-  if (typeof window === "undefined") {
-    return fallback;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(
-      getNarrationStoppedStorageKey(seriesId)
-    );
-
-    if (raw === "true") {
-      return true;
-    }
-
-    if (raw === "false") {
-      return false;
-    }
-
-    return fallback;
-  } catch {
-    return fallback;
-  }
+  if (typeof window === "undefined") return fallback;
+  return readNarrationStopped(seriesId);
 }
 
 function writeStoredNarrationStopped(
   seriesId: string,
   value: boolean
 ): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(
-      getNarrationStoppedStorageKey(seriesId),
-      value ? "true" : "false"
-    );
-  } catch {
-    // 保存失敗でも画面動作は止めない
-  }
+  writeNarrationStopped(seriesId, value);
 }
 
 function getLocalResumePrimaryKey(targetSeriesId: string): string {
@@ -2485,13 +2455,13 @@ useEffect(() => {
   useEffect(() => {
     try {
       window.localStorage.setItem(
-        `duonovel:narration-volume:${seriesId}`,
+        "duonovel:narration-volume",
         String(narrationVolume)
       );
     } catch {
       // noop
     }
-  }, [seriesId, narrationVolume]);
+  }, [narrationVolume]);
 
   useEffect(() => {
     setFiredSceneCueIds({});

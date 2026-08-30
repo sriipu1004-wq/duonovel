@@ -1,138 +1,72 @@
+import {
+  buildParsedBookImport,
+  type ParsedBookImport,
+  type ParsedBookSectionInput,
+} from "@/lib/library/bookImport";
 import { PRIVATE_LIBRARY_LIMITS } from "@/lib/library/privateLibrary";
+import { normalizeImportedText } from "@/lib/library/importTextNormalization";
 
-export type ParsedTxtChapter = {
-  title: string;
-  body: string;
-};
+export { normalizeImportedText } from "@/lib/library/importTextNormalization";
 
-export type ParsedTxtImport = {
-  chapters: ParsedTxtChapter[];
-  sourceCharCount: number;
-  usedDetectedHeadings: boolean;
-};
+export type ParsedTxtImport = ParsedBookImport;
 
-type DraftChapter = {
-  title: string;
-  body: string;
-};
+const JAPANESE_CHAPTER_HEADING =
+  /^(?:序章|終章|最終章|プロローグ|エピローグ|幕間|あとがき|まえがき|第?[0-9０-９一二三四五六七八九十百千万〇零]+(?:話|章|節|幕|編|部|回)(?:[\s　:：―—-].{0,60})?)$/u;
+const ENGLISH_CHAPTER_HEADING =
+  /^(?:(?:chapter|episode|part|book|section|prologue|epilogue|interlude)(?:\s+(?:[0-9０-９]+|[ivxlcdm]+))?(?:[\s:：―—-].{0,60})?)$/iu;
+const FRENCH_CHAPTER_HEADING =
+  /^(?:(?:chapitre|épisode|partie|livre|section|prologue|épilogue)(?:\s+(?:[0-9０-９]+|[ivxlcdm]+))?(?:[\s:：―—-].{0,60})?)$/iu;
+const GERMAN_CHAPTER_HEADING =
+  /^(?:(?:kapitel|episode|teil|buch|abschnitt|prolog|epilog)(?:\s+(?:[0-9０-９]+|[ivxlcdm]+))?(?:[\s:：―—-].{0,60})?)$/iu;
+const SPANISH_CHAPTER_HEADING =
+  /^(?:(?:capítulo|episodio|parte|libro|sección|prólogo|epílogo)(?:\s+(?:[0-9０-９]+|[ivxlcdm]+))?(?:[\s:：―—-].{0,60})?)$/iu;
+const KOREAN_CHAPTER_HEADING =
+  /^(?:(?:제\s*)?[0-9０-９일이삼사오육칠팔구십백천]+(?:화|장|부|절)|프롤로그|에필로그|막간)(?:[\s:：―—-].{0,60})?$/u;
+const CHINESE_CHAPTER_HEADING =
+  /^(?:序章|终章|終章|最终章|最終章|楔子|尾声|尾聲|第[0-9０-９一二三四五六七八九十百千万萬〇零两兩]+(?:章|话|話|回|卷|节|節|部)(?:[\s:：―—-].{0,60})?)$/u;
 
-const JAPANESE_CHAPTER_HEADING = /^(?:序章|終章|最終章|プロローグ|エピローグ|幕間|あとがき|まえがき|第[0-9０-９一二三四五六七八九十百千万〇零]+(?:話|章|節|幕|編|部)(?:[\s　:：―—-].{0,60})?)$/u;
-const LATIN_CHAPTER_HEADING = /^(?:(?:chapter|episode|part|book|section)\s+(?:[0-9０-９]+|[ivxlcdm]+)(?:[\s:：―—-].{0,60})?)$/iu;
-
-function normalizeImportedText(value: string): string {
-  return value
-    .replace(/^\uFEFF/u, "")
-    .replace(/\u0000/gu, "")
-    .replace(/\r\n?/gu, "\n")
-    .replace(/[\t\u00a0]+/gu, " ")
-    .replace(/[ \u3000]+$/gmu, "")
-    .replace(/\n{4,}/gu, "\n\n\n")
-    .trim();
-}
-
-function isChapterHeading(line: string): boolean {
+export function isChapterHeading(line: string): boolean {
   const normalized = line.trim();
   if (!normalized || normalized.length > 80) return false;
   return (
     JAPANESE_CHAPTER_HEADING.test(normalized) ||
-    LATIN_CHAPTER_HEADING.test(normalized)
+    ENGLISH_CHAPTER_HEADING.test(normalized) ||
+    FRENCH_CHAPTER_HEADING.test(normalized) ||
+    GERMAN_CHAPTER_HEADING.test(normalized) ||
+    SPANISH_CHAPTER_HEADING.test(normalized) ||
+    KOREAN_CHAPTER_HEADING.test(normalized) ||
+    CHINESE_CHAPTER_HEADING.test(normalized)
   );
 }
 
-function splitParagraphs(value: string): string[] {
-  const paragraphs = value
-    .split(/\n{2,}/u)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
-
-  if (paragraphs.length > 0) return paragraphs;
-  return value.trim() ? [value.trim()] : [];
-}
-
-function splitOversizedParagraph(value: string, maxChars: number): string[] {
-  const chunks: string[] = [];
-  let remaining = value.trim();
-
-  while (remaining.length > maxChars) {
-    const window = remaining.slice(0, maxChars + 1);
-    const boundaryCandidates = [
-      window.lastIndexOf("。"),
-      window.lastIndexOf("！"),
-      window.lastIndexOf("？"),
-      window.lastIndexOf("."),
-      window.lastIndexOf("!"),
-      window.lastIndexOf("?"),
-      window.lastIndexOf("\n"),
-    ];
-    const bestBoundary = Math.max(...boundaryCandidates);
-    const splitAt = bestBoundary >= Math.floor(maxChars * 0.55)
-      ? bestBoundary + 1
-      : maxChars;
-
-    chunks.push(remaining.slice(0, splitAt).trim());
-    remaining = remaining.slice(splitAt).trim();
-  }
-
-  if (remaining) chunks.push(remaining);
-  return chunks;
-}
-
-function chunkChapter(chapter: DraftChapter): ParsedTxtChapter[] {
-  const maxChars = PRIVATE_LIBRARY_LIMITS.maxChapterChars;
-  const paragraphs = splitParagraphs(chapter.body).flatMap((paragraph) =>
-    paragraph.length > maxChars
-      ? splitOversizedParagraph(paragraph, maxChars)
-      : [paragraph]
-  );
-
-  const bodies: string[] = [];
-  let current = "";
-
-  for (const paragraph of paragraphs) {
-    const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
-
-    if (candidate.length <= maxChars) {
-      current = candidate;
-      continue;
-    }
-
-    if (current) bodies.push(current);
-    current = paragraph;
-  }
-
-  if (current) bodies.push(current);
-
-  if (bodies.length <= 1) {
-    return bodies.map((body) => ({ title: chapter.title, body }));
-  }
-
-  return bodies.map((body, index) => ({
-    title: `${chapter.title}（${index + 1}/${bodies.length}）`.slice(0, 200),
-    body,
-  }));
-}
-
-function detectDraftChapters(text: string): {
-  chapters: DraftChapter[];
+export function detectTextSections(text: string): {
+  sections: ParsedBookSectionInput[];
   usedDetectedHeadings: boolean;
 } {
-  const lines = text.split("\n");
+  // Vertical PDF generators sometimes place a chapter heading at the end of
+  // the preceding visual column. Restore that heading boundary before the
+  // ordinary line-based detector runs. This is also harmless for TXT/EPUB/DOCX.
+  const textWithHeadingBoundaries = text.replace(
+    /([^\n])((?:第?[0-9０-９一二三四五六七八九十百千万〇零]+(?:話|章|節|幕|編|部|回)))(?=\n{2,})/gu,
+    "$1\n\n$2"
+  );
+  const lines = textWithHeadingBoundaries.split("\n");
   const headingCount = lines.filter(isChapterHeading).length;
 
   if (headingCount < 2) {
     return {
-      chapters: [{ title: "本文", body: text }],
+      sections: [{ title: "本文", body: text }],
       usedDetectedHeadings: false,
     };
   }
 
-  const chapters: DraftChapter[] = [];
+  const sections: ParsedBookSectionInput[] = [];
   let currentTitle = "冒頭";
   let currentLines: string[] = [];
 
   function flush() {
     const body = currentLines.join("\n").trim();
-    if (body) chapters.push({ title: currentTitle.slice(0, 200), body });
+    if (body) sections.push({ title: currentTitle.slice(0, 200), body });
     currentLines = [];
   }
 
@@ -146,11 +80,7 @@ function detectDraftChapters(text: string): {
   }
 
   flush();
-
-  return {
-    chapters,
-    usedDetectedHeadings: true,
-  };
+  return { sections, usedDetectedHeadings: true };
 }
 
 export function parseTxtImport(value: string): ParsedTxtImport {
@@ -166,27 +96,8 @@ export function parseTxtImport(value: string): ParsedTxtImport {
     );
   }
 
-  const detected = detectDraftChapters(normalized);
-  const chapters = detected.chapters.flatMap(chunkChapter);
-
-  if (chapters.length === 0) {
-    throw new Error("取り込める本文が見つかりませんでした。");
-  }
-
-  if (chapters.length > PRIVATE_LIBRARY_LIMITS.maxChapters) {
-    throw new Error(
-      `分割後の話数が${PRIVATE_LIBRARY_LIMITS.maxChapters}話を超えています。TXTを複数ファイルに分けてください。`
-    );
-  }
-
-  return {
-    chapters,
-    sourceCharCount: chapters.reduce(
-      (total, chapter) => total + chapter.body.length,
-      0
-    ),
-    usedDetectedHeadings: detected.usedDetectedHeadings,
-  };
+  const detected = detectTextSections(normalized);
+  return buildParsedBookImport(detected);
 }
 
 export function decodeTxtBuffer(buffer: ArrayBuffer): {

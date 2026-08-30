@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getPlayLogBySeries } from "@/lib/playLogs";
 import { supabase } from "@/lib/supabaseClient";
+import { READING_BOOKMARK_CHANGED_EVENT } from "@/lib/playback/readingBookmark";
 
 type EpisodeListItem = {
   id: string;
@@ -172,6 +173,25 @@ export default function ContinueReadingEpisodeList({
     null
   );
   const [selectedReader, setSelectedReader] = useState<ReaderSelection>(() => ({}));
+  const [bookmarkEpisodeNumber, setBookmarkEpisodeNumber] = useState<
+    number | null
+  >(null);
+
+  useEffect(() => {
+    function syncBookmark() {
+      const bookmark = readLocalBookmark(seriesId);
+      setBookmarkEpisodeNumber(
+        bookmark ? Math.max(1, Math.floor(toSafeNumber(bookmark.episodeNumber, 1))) : null
+      );
+    }
+    syncBookmark();
+    window.addEventListener(READING_BOOKMARK_CHANGED_EVENT, syncBookmark);
+    window.addEventListener("storage", syncBookmark);
+    return () => {
+      window.removeEventListener(READING_BOOKMARK_CHANGED_EVENT, syncBookmark);
+      window.removeEventListener("storage", syncBookmark);
+    };
+  }, [seriesId]);
 
   useEffect(() => {
     setSelectedReader(readStoredReaderSelection(seriesId));
@@ -282,10 +302,12 @@ export default function ContinueReadingEpisodeList({
           readerName: selectedReader.readerName,
         }),
         isContinueTarget,
+        isBookmarked: episode.episodeNumber === bookmarkEpisodeNumber,
       };
     });
   }, [
     episodes,
+    bookmarkEpisodeNumber,
     loaded,
     resumeEpisodeNumber,
     selectedReader.readerKey,
@@ -337,6 +359,11 @@ export default function ContinueReadingEpisodeList({
                         {episode.isContinueTarget ? (
                           <span className="rounded-full bg-sky-600 px-2.5 py-1 text-[11px] font-semibold text-white">
                             続きから読む
+                          </span>
+                        ) : null}
+                        {episode.isBookmarked ? (
+                          <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
+                            栞
                           </span>
                         ) : null}
                       </div>

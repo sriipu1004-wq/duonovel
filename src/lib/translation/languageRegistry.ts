@@ -62,6 +62,7 @@ export const DEFAULT_TRANSLATION_SOURCE_LANGUAGE: SupportedLanguageTag = "ja";
 export const DEFAULT_TRANSLATION_TARGET_LANGUAGE: SupportedLanguageTag = "en";
 
 export const PUBLIC_TRANSLATION_TARGET_LANGUAGES = [
+  "ja",
   "en",
   "ko",
   "zh-Hans",
@@ -111,7 +112,7 @@ export function isPublicTranslationLanguagePair(args: {
   targetLanguage: SupportedLanguageTag;
 }): boolean {
   return (
-    args.sourceLanguage === DEFAULT_TRANSLATION_SOURCE_LANGUAGE &&
+    args.sourceLanguage !== args.targetLanguage &&
     isPublicTranslationTargetLanguage(args.targetLanguage)
   );
 }

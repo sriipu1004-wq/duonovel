@@ -11,6 +11,7 @@ import {
   parseSupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { parseStoredTranslationPayload } from "@/lib/translation/translationPayload";
+import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
 
 export const runtime = "nodejs";
 
@@ -53,6 +54,13 @@ export async function GET(request: Request, context: RouteContext) {
     );
   }
 
+  if (detectSourceLanguageFromText(access.body) !== sourceLanguage) {
+    return NextResponse.json(
+      { ok: false, error: "invalid_source_language" },
+      { status: 400 }
+    );
+  }
+
   const sourceHash = buildEpisodeTranslationSourceHash(access.body);
   const admin = createAdminClient();
 
@@ -77,7 +85,7 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   const current = currentResult.data as Record<string, unknown> | null;
-  const canGenerate = access.isOfficialUser && access.isAllowlisted;
+  const canGenerate = access.isAllowlisted;
   const canAutoGenerate = access.isAllowlisted;
 
   if (current?.status === "ready") {
