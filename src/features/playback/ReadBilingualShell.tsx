@@ -156,35 +156,43 @@ export default function ReadBilingualShell({
     if (!translationEligible || typeof window === "undefined") return;
 
     const params = new URLSearchParams(window.location.search);
-    if (params.get("bilingual") !== "1") return;
     const requestedTarget = parseSupportedLanguageTag(params.get("targetLanguage"));
     const requestedAutoGenerate = params.get("autoGenerate") === "1";
     const requestedLanguageLock = params.get("lockLanguage") === "1";
     const timer = window.setTimeout(() => {
-    if (
-      !requestedTarget ||
-      requestedTarget === sourceLanguage ||
-      !isPublicTranslationTargetLanguage(requestedTarget)
-    ) {
-      setIsLanguagePickerOpen(true);
-      return;
-    }
-    setTargetLanguage(requestedTarget);
-    setSessionLanguageLocked(requestedLanguageLock);
-    setAutoGenerateMissingTranslation(requestedAutoGenerate);
+      if (params.get("bilingual") !== "1") {
+        setMode("standard");
+        setSessionLanguageLocked(false);
+        setAutoGenerateMissingTranslation(false);
+        return;
+      }
+      if (
+        !requestedTarget ||
+        requestedTarget === sourceLanguage ||
+        !isPublicTranslationTargetLanguage(requestedTarget)
+      ) {
+        setMode("standard");
+        setIsLanguagePickerOpen(true);
+        return;
+      }
+      setTargetLanguage(requestedTarget);
+      setSessionLanguageLocked(requestedLanguageLock);
+      setAutoGenerateMissingTranslation(requestedAutoGenerate);
 
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
 
-    document.querySelectorAll<HTMLAudioElement>("main audio").forEach((audio) => {
-      audio.pause();
-    });
+      document
+        .querySelectorAll<HTMLAudioElement>("main audio")
+        .forEach((audio) => {
+          audio.pause();
+        });
 
-    setMode("bilingual");
+      setMode("bilingual");
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [sourceLanguage, translationEligible]);
+  }, [episodeId, sourceLanguage, translationEligible]);
 
   if (mode === "bilingual") {
     return (

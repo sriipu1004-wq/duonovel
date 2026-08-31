@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import BilingualActionBridge from "@/features/playback/BilingualActionBridge";
 import BilingualResumeBridge from "@/features/playback/BilingualResumeBridge";
 import PrivateLibraryBilingualPlayback from "@/features/library/PrivateLibraryBilingualPlayback";
@@ -184,6 +184,48 @@ export default function PrivateLibraryBilingualShell({
     setMode("standard");
     setRestoreToken((current) => current + 1);
   }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const timer = window.setTimeout(() => {
+      if (params.get("bilingual") !== "1") {
+        setMode("standard");
+        setSessionLanguageLocked(false);
+        setAutoGenerateMissingTranslation(false);
+        return;
+      }
+
+      const requestedTarget = parseSupportedLanguageTag(
+        params.get("targetLanguage")
+      );
+      if (
+        !requestedTarget ||
+        requestedTarget === sourceLanguage ||
+        !isPublicTranslationTargetLanguage(requestedTarget)
+      ) {
+        setMode("standard");
+        setIsLanguagePickerOpen(true);
+        return;
+      }
+
+      setSelectedTargetLanguage(requestedTarget);
+      setSessionLanguageLocked(params.get("lockLanguage") === "1");
+      setAutoGenerateMissingTranslation(params.get("autoGenerate") === "1");
+      setIsLanguagePickerOpen(false);
+
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      document
+        .querySelectorAll<HTMLAudioElement>("main audio")
+        .forEach((audio) => audio.pause());
+      setMode("bilingual");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [chapterId, sourceLanguage]);
 
   if (mode === "bilingual") {
     return (
