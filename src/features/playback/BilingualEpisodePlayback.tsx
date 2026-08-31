@@ -10,6 +10,7 @@ import BilingualPane, {
   type BilingualSegment,
   type PaneSide,
 } from "@/features/playback/BilingualPane";
+import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
 import BilingualStoppedFooter from "@/features/playback/BilingualStoppedFooter";
 import { useReaderDisplaySettings } from "@/features/playback/useReaderDisplaySettings";
 import { useBilingualWordExplanation } from "@/features/playback/useBilingualWordExplanation";
@@ -491,7 +492,7 @@ export default function BilingualEpisodePlayback({
 
   return (
     <main className="min-h-screen bg-white text-black">
-      <div className="mx-auto w-full max-w-4xl px-3 pb-44 pt-4 sm:px-6 sm:pb-44 sm:pt-6">
+      <div className="mx-auto w-full max-w-4xl px-3 py-4 sm:px-6 sm:py-6">
         <section className="overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-sm">
           <header className="border-b border-black/10 px-4 py-4 sm:px-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -547,6 +548,13 @@ export default function BilingualEpisodePlayback({
 
           {translationStatus === "ready" && segments.length > 0 ? (
             <>
+              <BilingualStudyControls
+                segments={segments}
+                selectedSegmentId={selectedSegmentId}
+                onSelectSegment={handleSelectSegment}
+                targetLanguage={targetLanguage}
+                seriesId={seriesId}
+              />
               <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
                 文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
                 {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
@@ -743,11 +751,11 @@ export default function BilingualEpisodePlayback({
           prevHref={prevEpisodeHref}
           nextHref={nextEpisodeHref}
           upperPane={upperPane}
-          narrationText={
+          narrationUnits={segments.map((segment) =>
             upperPane === "source"
-              ? segments[currentPositionIndex]?.translatedText ?? ""
-              : segments[currentPositionIndex]?.sourceText ?? ""
-          }
+              ? segment.translatedText
+              : segment.sourceText
+          )}
           narrationLanguage={getSupportedLanguage(upperPane === "source" ? targetLanguage : sourceLanguage).speechLanguage}
           sourceLanguage={sourceLanguage}
           targetLanguage={targetLanguage}

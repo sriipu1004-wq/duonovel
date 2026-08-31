@@ -38,7 +38,7 @@ type BilingualStoppedFooterProps = {
   prevHref?: string | null;
   nextHref?: string | null;
   upperPane: "source" | "target";
-  narrationText: string;
+  narrationUnits: string[];
   narrationLanguage: string;
   sourceLanguage: SupportedLanguageTag;
   targetLanguage: SupportedLanguageTag;
@@ -88,7 +88,7 @@ export default function BilingualStoppedFooter({
   prevHref,
   nextHref,
   upperPane,
-  narrationText,
+  narrationUnits,
   narrationLanguage,
   sourceLanguage,
   targetLanguage,
@@ -120,6 +120,7 @@ export default function BilingualStoppedFooter({
     upperPane === "source" ? targetLanguage : sourceLanguage;
   const upperPaneLanguage =
     upperPane === "source" ? sourceLanguage : targetLanguage;
+  const narrationSignature = narrationUnits.join("\u0000");
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -194,7 +195,7 @@ export default function BilingualStoppedFooter({
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     const timer = window.setTimeout(() => setIsPlaying(false), 0);
     return () => window.clearTimeout(timer);
-  }, [lowerPaneLanguage, narrationText]);
+  }, [lowerPaneLanguage, narrationSignature]);
 
   function saveBookmark() {
     try {
@@ -243,26 +244,25 @@ export default function BilingualStoppedFooter({
     setIsPlaying(false);
   }
 
-  function togglePlayback() {
-    if (isPlaying) {
-      stopNarration();
-      return;
-    }
-    if (
-      narrationStopped ||
-      !("speechSynthesis" in window) ||
-      typeof SpeechSynthesisUtterance === "undefined" ||
-      !narrationText.trim()
+  function speakFrom(index: number, runId: number) {
+    if (runId !== speechRunIdRef.current) return;
+
+    let nextIndex = index;
+    while (
+      nextIndex < narrationUnits.length &&
+      !narrationUnits[nextIndex]?.trim()
     ) {
+      nextIndex += 1;
+    }
+
+    const text = narrationUnits[nextIndex]?.trim();
+    if (!text) {
+      setIsPlaying(false);
       return;
     }
 
-    const runId = speechRunIdRef.current + 1;
-    speechRunIdRef.current = runId;
-    window.speechSynthesis.cancel();
-    onPositionIndexChange(safePositionIndex, autoFollow);
-
-    const utterance = new SpeechSynthesisUtterance(narrationText.trim());
+    onPositionIndexChange(nextIndex, autoFollow);
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = narrationLanguage;
     utterance.rate = speechSettings.rate;
     utterance.pitch = speechSettings.pitch;
@@ -277,13 +277,38 @@ export default function BilingualStoppedFooter({
       ) ??
       null;
     utterance.onend = () => {
-      if (speechRunIdRef.current === runId) setIsPlaying(false);
+      if (speechRunIdRef.current !== runId) return;
+      speakFrom(nextIndex + 1, runId);
     };
     utterance.onerror = () => {
       if (speechRunIdRef.current === runId) setIsPlaying(false);
     };
-    setIsPlaying(true);
     window.speechSynthesis.speak(utterance);
+  }
+
+  function startPlaybackFrom(index: number) {
+    if (
+      narrationStopped ||
+      !("speechSynthesis" in window) ||
+      typeof SpeechSynthesisUtterance === "undefined" ||
+      narrationUnits.length === 0
+    ) {
+      return;
+    }
+
+    const runId = speechRunIdRef.current + 1;
+    speechRunIdRef.current = runId;
+    window.speechSynthesis.cancel();
+    setIsPlaying(true);
+    speakFrom(index, runId);
+  }
+
+  function togglePlayback() {
+    if (isPlaying) {
+      stopNarration();
+      return;
+    }
+    startPlaybackFrom(safePositionIndex);
   }
 
   function moveTo(href?: string | null) {
@@ -293,14 +318,14 @@ export default function BilingualStoppedFooter({
   }
 
   function changePosition(index: number) {
-    stopNarration();
     onPositionIndexChange(index, autoFollow);
+    if (isPlaying) startPlaybackFrom(index);
   }
 
   return (
     <section
       aria-label="対訳中の朗読フッター"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/92 backdrop-blur"
+      className="mt-5 border-t border-black/10 bg-white pt-3"
     >
       {settingsOpen ? (
         <div className="border-b border-black/10 bg-white/98">
@@ -316,7 +341,7 @@ export default function BilingualStoppedFooter({
                     <SettingChip active label="ブラウザ朗読" onClick={() => undefined} />
                     <SettingChip active={false} disabled label="ユーザー朗読（対訳では未対応）" onClick={() => undefined} />
                   </div>
-                  <p className="mt-3 text-xs leading-6 text-neutral-500">下段で選択している1文を読み上げます。</p>
+                  <p className="mt-3 text-xs leading-6 text-neutral-500">下段を現在位置から最後まで読み上げます。</p>
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
@@ -391,7 +416,7 @@ export default function BilingualStoppedFooter({
         <div className="rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
             <span>{sentenceCount > 0 ? safePositionIndex + 1 : 0} / {sentenceCount}</span>
-            <span>下段・1文再生</span>
+            <span>下段・全文再生</span>
           </div>
           <input type="range" min={0} max={Math.max(0, sentenceCount - 1)} step={1} value={safePositionIndex} disabled={narrationStopped || sentenceCount === 0} onChange={(event) => changePosition(Number(event.target.value))} className="mt-3 w-full accent-sky-300 disabled:opacity-40" />
         </div>
@@ -403,7 +428,7 @@ export default function BilingualStoppedFooter({
           </div>
           <FooterPlaybackRateControl value={speechSettings.rate} onDecrease={() => updateSpeechSettings({ ...speechSettings, rate: clamp(speechSettings.rate - 0.1, 0.7, 1.5) })} onIncrease={() => updateSpeechSettings({ ...speechSettings, rate: clamp(speechSettings.rate + 0.1, 0.7, 1.5) })} />
           <FooterActionButton label="前話" iconSrc={PLAYER_ICON_PATHS.prev} disabled={!prevHref} onClick={() => moveTo(prevHref)} />
-          <FooterActionButton label={isPlaying ? "停止" : "再生"} iconSrc={isPlaying ? PLAYER_ICON_PATHS.stop : PLAYER_ICON_PATHS.play} disabled={narrationStopped || !narrationText.trim()} active={isPlaying} onClick={togglePlayback} />
+          <FooterActionButton label={isPlaying ? "停止" : "再生"} iconSrc={isPlaying ? PLAYER_ICON_PATHS.stop : PLAYER_ICON_PATHS.play} disabled={narrationStopped || narrationUnits.length === 0} active={isPlaying} onClick={togglePlayback} />
           <FooterActionButton label="次話" iconSrc={PLAYER_ICON_PATHS.next} disabled={!nextHref} onClick={() => moveTo(nextHref)} />
           <FooterActionButton label={autoFollow ? "自動追尾\nON" : "自動追尾\nOFF"} active={autoFollow} disabled={narrationStopped} onClick={() => setAutoFollow((current) => !current)} />
           <FooterActionButton label="設定" iconSrc={PLAYER_ICON_PATHS.settings} active={settingsOpen} onClick={() => setSettingsOpen((current) => !current)} />
