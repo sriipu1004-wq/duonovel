@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import type { ParsedBookImport } from "@/lib/library/bookImport";
 import {
   PRIVATE_LIBRARY_LIMITS,
@@ -137,16 +137,22 @@ export default function LibraryImportForm({
   const hasReachedWorkLimit = currentWorkCount >= workLimit;
   const [savedUnits, setSavedUnits] = useState(0);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
+  const parseRequestIdRef = useRef(0);
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
+    const requestId = parseRequestIdRef.current + 1;
+    parseRequestIdRef.current = requestId;
     setSelection(null);
     setMessage("");
     setSavedUnits(0);
     setRightsConfirmed(false);
+    setTitle(file ? titleFromFileName(file.name) : "");
+    setAuthorName("");
 
     if (!file) {
       setFileName("");
+      setSourceLanguage("ja");
       setState("idle");
       return;
     }
@@ -165,6 +171,7 @@ export default function LibraryImportForm({
 
     try {
       const nextSelection = await parseSelectedFile(file);
+      if (parseRequestIdRef.current !== requestId) return;
       setSelection(nextSelection);
       setTitle(nextSelection.suggestedTitle || titleFromFileName(file.name));
       setAuthorName(nextSelection.suggestedAuthor);
@@ -176,6 +183,7 @@ export default function LibraryImportForm({
       );
       setState("ready");
     } catch (error) {
+      if (parseRequestIdRef.current !== requestId) return;
       setState("error");
       setMessage(
         error instanceof Error

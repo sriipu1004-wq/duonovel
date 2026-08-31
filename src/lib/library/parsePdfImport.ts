@@ -1,7 +1,10 @@
 import { buildParsedBookImport, type ParsedBookImport } from "@/lib/library/bookImport";
 import { normalizeImportedText } from "@/lib/library/importTextNormalization";
 import { detectTextSections, isChapterHeading } from "@/lib/library/parseTxtImport";
-import { PRIVATE_LIBRARY_LIMITS } from "@/lib/library/privateLibrary";
+import {
+  PRIVATE_LIBRARY_LIMITS,
+  countUnicodeCharacters,
+} from "@/lib/library/privateLibrary";
 
 export type ParsedPdfFile = {
   parsed: ParsedBookImport;
@@ -15,8 +18,11 @@ type PdfTextItem = {
   dir?: string;
   transform?: number[];
   height?: number;
+  fontName?: string;
   hasEOL?: boolean;
 };
+
+const PDF_STYLED_HEADING_MARKER = "\uE000";
 
 function isPdfTextItem(value: unknown): value is PdfTextItem {
   return (
@@ -155,6 +161,77 @@ function pageTextFromItems(items: unknown[]): string {
     : horizontalPageText(textItems);
 }
 
+function pdfItemFontSize(item: PdfTextItem): number {
+  if (!Array.isArray(item.transform)) return 0;
+  return Math.max(
+    0,
+    ...item.transform.slice(0, 4).map((value) => Math.abs(Number(value) || 0))
+  );
+}
+
+/** Detect a visually isolated heading at the start of a vertical PDF page. */
+export function detectProminentPdfPageHeading(items: unknown[]): string {
+  const verticalItems = items
+    .filter(isPdfTextItem)
+    .filter(
+      (item) =>
+        item.dir === "ttb" &&
+        Boolean(item.str.trim()) &&
+        Array.isArray(item.transform) &&
+        Number.isFinite(Number(item.transform[4]))
+    );
+  if (verticalItems.length < 2) return "";
+
+  const first = verticalItems[0];
+  const firstX = Number(first.transform?.[4]);
+  const rightmostX = Math.max(
+    ...verticalItems.map((item) => Number(item.transform?.[4]))
+  );
+  if (firstX < rightmostX - 3) return "";
+
+  const nextColumn = verticalItems.find(
+    (item) => Math.abs(Number(item.transform?.[4]) - firstX) > 2
+  );
+  if (!nextColumn) return "";
+
+  const columnXs: number[] = [];
+  for (const item of verticalItems) {
+    const x = Number(item.transform?.[4]);
+    if (columnXs.every((knownX) => Math.abs(knownX - x) > 2)) {
+      columnXs.push(x);
+    }
+  }
+  const ordinaryGaps = columnXs
+    .slice(1)
+    .map((x, index) => Math.abs(x - columnXs[index]))
+    .filter((gap) => gap > 3 && gap < 80)
+    .sort((left, right) => left - right);
+  const typicalGap = ordinaryGaps.length > 0
+    ? ordinaryGaps[Math.floor(ordinaryGaps.length / 2)]
+    : 24;
+  const firstGap = Math.abs(Number(nextColumn.transform?.[4]) - firstX);
+  const visuallyDistinct =
+    Boolean(
+      first.fontName &&
+      nextColumn.fontName &&
+      first.fontName !== nextColumn.fontName
+    ) || pdfItemFontSize(first) > pdfItemFontSize(nextColumn) * 1.15;
+
+  if (!visuallyDistinct || firstGap < Math.max(48, typicalGap * 2.2)) {
+    return "";
+  }
+
+  const heading = normalizeImportedText(first.str);
+  if (
+    !heading ||
+    countUnicodeCharacters(heading) > 80 ||
+    /[。！？!?]$/u.test(heading)
+  ) {
+    return "";
+  }
+  return heading;
+}
+
 function stripRepeatedMargins(pages: string[]): string[] {
   const firstLineCounts = new Map<string, number>();
   const lastLineCounts = new Map<string, number>();
@@ -243,7 +320,10 @@ function joinPdfPages(pages: string[]): string {
       continue;
     }
     const nextFirstLine = next.split("\n").find((line) => Boolean(line.trim())) ?? "";
-    if (isChapterHeading(nextFirstLine)) {
+    if (
+      isChapterHeading(nextFirstLine) ||
+      nextFirstLine.startsWith(PDF_STYLED_HEADING_MARKER)
+    ) {
       result += `\n\n${next}`;
       continue;
     }
@@ -253,6 +333,44 @@ function joinPdfPages(pages: string[]): string {
       : `${needsSpace(result, next) ? " " : ""}${next}`;
   }
   return result;
+}
+
+function detectPdfTextSections(text: string): ReturnType<typeof detectTextSections> {
+  const lines = text.split("\n");
+  const styledHeadingCount = lines.filter((line) =>
+    line.trimStart().startsWith(PDF_STYLED_HEADING_MARKER)
+  ).length;
+  const cleanText = text.replaceAll(PDF_STYLED_HEADING_MARKER, "");
+  if (styledHeadingCount < 2) return detectTextSections(cleanText);
+
+  const sections: Array<{ title: string; body: string }> = [];
+  let currentTitle = "冒頭";
+  let currentLines: string[] = [];
+  const flush = () => {
+    const body = currentLines.join("\n").trim();
+    if (body) sections.push({ title: currentTitle.slice(0, 200), body });
+    currentLines = [];
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const isStyledHeading = trimmed.startsWith(PDF_STYLED_HEADING_MARKER);
+    if (isStyledHeading || isChapterHeading(trimmed)) {
+      flush();
+      currentTitle = normalizeImportedText(
+        isStyledHeading
+          ? trimmed.slice(PDF_STYLED_HEADING_MARKER.length)
+          : trimmed
+      );
+      continue;
+    }
+    currentLines.push(line.replaceAll(PDF_STYLED_HEADING_MARKER, ""));
+  }
+  flush();
+
+  return sections.length >= 2
+    ? { sections, usedDetectedHeadings: true }
+    : detectTextSections(cleanText);
 }
 
 function labeledPdfMetadataValue(text: string, label: string): string {
@@ -294,6 +412,7 @@ export async function parsePdfImport(
     }
 
     const pages: string[] = [];
+    const pageHeadings: string[] = [];
     let extractedChars = 0;
 
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
@@ -301,7 +420,8 @@ export async function parsePdfImport(
       const content = await page.getTextContent();
       const text = pageTextFromItems(content.items);
       pages.push(text);
-      extractedChars += text.length;
+      pageHeadings.push(detectProminentPdfPageHeading(content.items));
+      extractedChars += countUnicodeCharacters(text);
 
       if (extractedChars > PRIVATE_LIBRARY_LIMITS.maxSourceChars * 1.2) {
         throw new Error(
@@ -321,11 +441,15 @@ export async function parsePdfImport(
     // Normalize vertical punctuation before joining pages. Otherwise a page that
     // ends in `﹂` is mistaken for an unfinished sentence and the next page's
     // narration is appended directly after the closing quote.
-    const normalizedPages = pagesWithoutMargins.map((page) =>
-      normalizeImportedText(page)
-    );
+    const normalizedPages = pagesWithoutMargins.map((page, pageIndex) => {
+      const normalizedPage = normalizeImportedText(page);
+      const heading = normalizeImportedText(pageHeadings[pageIndex] ?? "");
+      return heading && normalizedPage.startsWith(heading)
+        ? `${PDF_STYLED_HEADING_MARKER}${normalizedPage}`
+        : normalizedPage;
+    });
     const normalized = normalizeImportedText(joinPdfPages(normalizedPages));
-    const detected = detectTextSections(normalized);
+    const detected = detectPdfTextSections(normalized);
     const metadata = await document.getMetadata().catch(() => null);
     const info = (metadata?.info ?? {}) as Record<string, unknown>;
     const labeledTitle = normalizeImportedText(
@@ -351,8 +475,8 @@ export async function parsePdfImport(
           "テキストPDFから抽出しました。段組み、ルビ、脚注が多いPDFでは順序を確認してください。",
         ],
       }),
-      suggestedTitle: title.slice(0, 200),
-      suggestedAuthor: author.slice(0, 200),
+      suggestedTitle: [...title].slice(0, 200).join(""),
+      suggestedAuthor: [...author].slice(0, 200).join(""),
       formatLabel: "PDF（テキスト抽出）",
     };
   } finally {

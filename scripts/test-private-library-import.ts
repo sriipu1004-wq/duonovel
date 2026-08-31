@@ -3,6 +3,7 @@ import { DOMParser, Element, HTMLElement, Node } from "linkedom";
 import { strToU8, zipSync } from "fflate";
 import { parseDocxImport } from "../src/lib/library/parseDocxImport";
 import { parseEpubImport } from "../src/lib/library/parseEpubImport";
+import { detectProminentPdfPageHeading } from "../src/lib/library/parsePdfImport";
 import { parseTxtImport } from "../src/lib/library/parseTxtImport";
 import { buildParsedBookImport } from "../src/lib/library/bookImport";
 import {
@@ -66,13 +67,49 @@ function testLongLogicalSection() {
   assert.equal(parsed.units[0]?.sectionNumber, 1);
   assert.equal(parsed.units.at(-1)?.sectionNumber, 2);
 
-  assert.throws(
-    () =>
-      buildParsedBookImport({
-        sections: [{ title: "長すぎる一文", body: "あ".repeat(6_001) }],
-        usedDetectedHeadings: true,
-      }),
-    /文を切らずに対訳用分割できません/u
+  const unpunctuated = buildParsedBookImport({
+    sections: [{ title: "長すぎる一文", body: "あ".repeat(6_301) }],
+    usedDetectedHeadings: true,
+  });
+  assert.deepEqual(
+    unpunctuated.units.map((unit) => countUnicodeCharacters(unit.body)),
+    [3_151, 3_151]
+  );
+  assert.ok(
+    unpunctuated.warnings.some((warning) =>
+      warning.includes("Unicode文字境界")
+    )
+  );
+
+  const threeParts = buildParsedBookImport({
+    sections: [{ title: "三分割", body: "い".repeat(12_001) }],
+    usedDetectedHeadings: true,
+  });
+  assert.equal(threeParts.units.length, 3);
+  assert.ok(
+    Math.max(
+      ...threeParts.units.map((unit) => countUnicodeCharacters(unit.body))
+    ) -
+      Math.min(
+        ...threeParts.units.map((unit) => countUnicodeCharacters(unit.body))
+      ) <=
+      1
+  );
+
+  const longCommaSeparatedSentence = buildParsedBookImport({
+    sections: [
+      {
+        title: "読点フォールバック",
+        body: `${"あ".repeat(3_120)}、${"い".repeat(3_180)}`,
+      },
+    ],
+    usedDetectedHeadings: true,
+  });
+  assert.equal(longCommaSeparatedSentence.units.length, 2);
+  assert.ok(
+    longCommaSeparatedSentence.warnings.some((warning) =>
+      warning.includes("読点・括弧・空白")
+    )
   );
 }
 
@@ -164,10 +201,83 @@ function testDatabaseCompatibleCharacterCount() {
   assert.equal(countUnicodeCharacters("😀"), 1);
   assert.equal("😀".length, 2);
 
+  const emojiSplit = buildParsedBookImport({
+    sections: [
+      {
+        title: "絵文字境界",
+        body: "😀".repeat(PRIVATE_LIBRARY_LIMITS.maxChapterChars + 1),
+      },
+    ],
+    usedDetectedHeadings: true,
+  });
+  assert.deepEqual(
+    emojiSplit.units.map((unit) => countUnicodeCharacters(unit.body)),
+    [3_001, 3_000]
+  );
+  assert.ok(emojiSplit.units.every((unit) => !unit.body.includes("�")));
+
+  const unicodeTitle = buildParsedBookImport({
+    sections: [
+      {
+        title: `${"😀".repeat(199)}終😀`,
+        body: "本文。",
+      },
+    ],
+    usedDetectedHeadings: true,
+  });
+  assert.equal(
+    countUnicodeCharacters(unicodeTitle.sections[0]?.title ?? ""),
+    200
+  );
+  assert.ok(!(unicodeTitle.sections[0]?.title ?? "").includes("�"));
+
   const validated = parsePrivateLibraryImportUnits(parsed.units);
   assert.ok(validated);
   assert.equal(validated[0]?.body, body);
   assert.ok(validated[0]?.body.startsWith("　本文"));
+}
+
+function testProminentVerticalPdfHeadingDetection() {
+  const headingItems = [
+    {
+      str: "﹃最初の章﹄",
+      dir: "ttb",
+      transform: [14, 0, 0, 14, 742, 496],
+      fontName: "heading-font",
+    },
+    {
+      str: "本文の最初の段落︒",
+      dir: "ttb",
+      transform: [14, 0, 0, 14, 635, 496],
+      fontName: "body-font",
+    },
+    {
+      str: "本文の続き︒",
+      dir: "ttb",
+      transform: [14, 0, 0, 14, 612, 496],
+      fontName: "body-font",
+    },
+  ];
+  assert.equal(
+    detectProminentPdfPageHeading(headingItems),
+    "『最初の章』"
+  );
+
+  const ordinaryPageItems = [
+    {
+      str: "本文の続き︒",
+      dir: "ttb",
+      transform: [14, 0, 0, 14, 748, 496],
+      fontName: "body-font",
+    },
+    {
+      str: "次の行︒",
+      dir: "ttb",
+      transform: [14, 0, 0, 14, 725, 496],
+      fontName: "body-font",
+    },
+  ];
+  assert.equal(detectProminentPdfPageHeading(ordinaryPageItems), "");
 }
 
 function testEpub() {
@@ -259,6 +369,7 @@ testJapaneseBareEpisodeHeadings();
 testEmbeddedJapaneseEpisodeHeadingKeepsItsPrefix();
 testVerticalGlyphNormalizationAndTitleFallback();
 testDatabaseCompatibleCharacterCount();
+testProminentVerticalPdfHeadingDetection();
 testEpub();
 testDocx();
 testTerminologyCandidates();
