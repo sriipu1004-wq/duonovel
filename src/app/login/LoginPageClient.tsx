@@ -6,6 +6,9 @@ import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeNextPath } from "@/lib/auth/accountSignupConsent";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { authDictionaries } from "@/i18n/dictionaries/auth";
+import { localizePath } from "@/i18n/navigation";
 
 type PendingAction =
   | "signin"
@@ -39,17 +42,20 @@ function resolveAuthRedirectOrigin(): string {
 export default function LoginPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const locale = useUiLocale();
+  const dictionary = authDictionaries[locale];
+  const localizedHome = localizePath("/", locale);
 
   const nextPath = useMemo(
-    () => normalizeNextPath(searchParams.get("next"), "/"),
-    [searchParams]
+    () => normalizeNextPath(searchParams.get("next"), localizedHome),
+    [searchParams, localizedHome]
   );
 
   const registerHref = useMemo(() => {
     const query = new URLSearchParams();
     query.set("next", nextPath);
-    return `/register?${query.toString()}`;
-  }, [nextPath]);
+    return `${localizePath("/register", locale)}?${query.toString()}`;
+  }, [nextPath, locale]);
 
   const confirmed = searchParams.get("confirmed") === "1";
 
@@ -69,7 +75,7 @@ export default function LoginPageClient() {
       if (!active) return;
 
       if (error) {
-        setErrorMessage("認証状態の取得に失敗した");
+        setErrorMessage(dictionary.authStateFailed);
         setUser(null);
         return;
       }
@@ -91,13 +97,13 @@ export default function LoginPageClient() {
       active = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [dictionary.authStateFailed]);
 
   useEffect(() => {
     if (confirmed) {
-      setMessage("確認リンクを開いた。ログイン中なら元のページへ戻れる。");
+      setMessage(dictionary.confirmed);
     }
-  }, [confirmed]);
+  }, [confirmed, dictionary.confirmed]);
 
   async function handleSignIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -129,14 +135,14 @@ export default function LoginPageClient() {
     setErrorMessage("");
 
     if (!normalizedEmail) {
-      setErrorMessage("パスワードを再設定するメールアドレスを入力して。");
+      setErrorMessage(dictionary.resetEmailRequired);
       return;
     }
 
     setPendingAction("reset-password");
 
     const redirectOrigin = resolveAuthRedirectOrigin();
-    const resetPath = `/reset-password?next=${encodeURIComponent(nextPath)}`;
+    const resetPath = `${localizePath("/reset-password", locale)}?next=${encodeURIComponent(nextPath)}`;
     const redirectTo = redirectOrigin
       ? `${redirectOrigin}/auth/callback?next=${encodeURIComponent(resetPath)}`
       : undefined;
@@ -152,9 +158,7 @@ export default function LoginPageClient() {
       return;
     }
 
-    setMessage(
-      "パスワード設定・再設定用メールを送った。メール内のリンクを開いて。"
-    );
+    setMessage(dictionary.resetSent);
     setPendingAction(null);
   }
 
@@ -165,7 +169,7 @@ export default function LoginPageClient() {
     setErrorMessage("");
 
     if (!normalizedEmail) {
-      setErrorMessage("ログインするメールアドレスを入力して。");
+      setErrorMessage(dictionary.emailLinkRequired);
       return;
     }
 
@@ -190,9 +194,7 @@ export default function LoginPageClient() {
       return;
     }
 
-    setMessage(
-      "移行用のログインメールを送った。ログイン後、マイページでパスワードを設定して。"
-    );
+    setMessage(dictionary.emailLinkSent);
     setPendingAction(null);
   }
 
@@ -210,7 +212,7 @@ export default function LoginPageClient() {
     }
 
     setUser(null);
-    setMessage("ログアウトした。");
+    setMessage(dictionary.loggedOut);
     setPendingAction(null);
     router.refresh();
   }
@@ -225,11 +227,11 @@ export default function LoginPageClient() {
             <p className="text-xs tracking-[0.24em] text-neutral-500">AUTH</p>
 
             <h1 className="mt-3 text-3xl font-bold leading-tight text-black sm:text-4xl">
-              ログイン
+              {dictionary.title}
             </h1>
 
             <p className="mt-4 text-sm leading-7 text-neutral-600">
-              メールアドレスとパスワードでログインする。
+              {dictionary.description}
             </p>
 
             {user ? (
@@ -239,11 +241,11 @@ export default function LoginPageClient() {
                 </p>
 
                 <h2 className="mt-2 text-xl font-semibold text-black">
-                  ログイン中
+                  {dictionary.signedIn}
                 </h2>
 
                 <p className="mt-3 text-sm leading-7 text-neutral-700">
-                  {user.email ?? "メールアドレス不明"}
+                  {user.email ?? dictionary.unknownEmail}
                 </p>
 
                 <div className="mt-6 flex flex-wrap gap-3">
@@ -251,14 +253,14 @@ export default function LoginPageClient() {
                     href={nextPath}
                     className="inline-flex rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
                   >
-                    元のページへ戻る
+                    {dictionary.backToPrevious}
                   </Link>
 
                   <Link
-                    href="/"
+                    href={localizedHome}
                     className="inline-flex rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
                   >
-                    ホームへ
+                    {dictionary.home}
                   </Link>
 
                   <button
@@ -267,7 +269,7 @@ export default function LoginPageClient() {
                     disabled={isPending}
                     className="inline-flex rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {pendingAction === "signout" ? "ログアウト中..." : "ログアウト"}
+                    {pendingAction === "signout" ? dictionary.loggingOut : dictionary.logout}
                   </button>
                 </div>
               </div>
@@ -275,7 +277,7 @@ export default function LoginPageClient() {
               <form onSubmit={handleSignIn} className="mt-8">
                 <div className="rounded-[28px] border border-black/10 bg-white p-6">
                   <label className="block">
-                    <span className="text-sm text-neutral-700">メールアドレス</span>
+                    <span className="text-sm text-neutral-700">{dictionary.email}</span>
                     <input
                       type="email"
                       autoComplete="email"
@@ -292,14 +294,14 @@ export default function LoginPageClient() {
                   </label>
 
                   <label className="mt-4 block">
-                    <span className="text-sm text-neutral-700">パスワード</span>
+                    <span className="text-sm text-neutral-700">{dictionary.password}</span>
                     <input
                       type="password"
                       autoComplete="current-password"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
-                      placeholder="パスワード"
+                      placeholder={dictionary.password}
                       required
                     />
                   </label>
@@ -310,28 +312,26 @@ export default function LoginPageClient() {
                       disabled={isPending}
                       className="inline-flex rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {pendingAction === "signin" ? "ログイン中..." : "ログイン"}
+                      {pendingAction === "signin" ? dictionary.loggingIn : dictionary.login}
                     </button>
 
                     <Link
                       href={registerHref}
                       className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-sky-100"
                     >
-                      アカウント作成
+                      {dictionary.createAccount}
                     </Link>
 
                     <Link
                       href={nextPath}
                       className="inline-flex rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm text-neutral-700 transition hover:bg-neutral-50"
                     >
-                      戻る
+                      {dictionary.back}
                     </Link>
                   </div>
 
                   <div className="mt-5 rounded-2xl border border-black/10 bg-neutral-50 p-4 text-xs leading-6 text-neutral-600">
-                    <p>
-                      以前メールリンクで登録した場合は、最初にパスワードを設定する。
-                    </p>
+                    <p>{dictionary.legacyHint}</p>
                     <button
                       type="button"
                       onClick={() => void handleResetPassword()}
@@ -339,8 +339,8 @@ export default function LoginPageClient() {
                       className="mt-2 font-medium text-sky-700 underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {pendingAction === "reset-password"
-                        ? "送信中..."
-                        : "パスワードを設定・再設定する"}
+                        ? dictionary.sending
+                        : dictionary.sendReset}
                     </button>
                     <button
                       type="button"
@@ -349,8 +349,8 @@ export default function LoginPageClient() {
                       className="ml-4 mt-2 font-medium text-neutral-600 underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {pendingAction === "email-link"
-                        ? "送信中..."
-                        : "従来のメールリンクでログイン"}
+                        ? dictionary.sending
+                        : dictionary.legacyEmailLink}
                     </button>
                   </div>
                 </div>
