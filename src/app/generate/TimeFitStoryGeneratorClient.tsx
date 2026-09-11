@@ -17,9 +17,11 @@ import {
 } from "@/lib/translation/languageRegistry";
 import {
   TRANSLATION_LEARNING_LEVELS,
-  TRANSLATION_LEARNING_LEVEL_LABELS,
   type TranslationLearningLevel,
 } from "@/lib/translation/translationLearningPreference";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { generateDictionaries } from "@/i18n/dictionaries/generate";
+import { localizePath } from "@/i18n/navigation";
 
 type TimeMinutes = 5 | 10 | 15 | 20;
 
@@ -98,16 +100,18 @@ function buildGeneratedStoryStorageKey(storyId: string): string {
   return `libread.generatedStory.${storyId}`;
 }
 
-function readGenerateErrorMessage(data: GenerateResponse): string {
-  if (data.ok) {
-    return "";
-  }
-
-  return data.message?.trim() || data.error || "AI短編の生成に失敗しました。";
+function readGenerateErrorMessage(
+  data: GenerateResponse,
+  fallback: string
+): string {
+  if (data.ok) return "";
+  return data.message?.trim() || data.error || fallback;
 }
 
 export default function TimeFitStoryGeneratorClient() {
   const router = useRouter();
+  const locale = useUiLocale();
+  const dictionary = generateDictionaries[locale];
   const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
 
   const [scene, setScene] = useState<(typeof SCENE_OPTIONS)[number]>("通勤");
@@ -135,10 +139,7 @@ export default function TimeFitStoryGeneratorClient() {
             learningLanguage,
             learningLevel,
             ...(translationLearningRequest.trim()
-              ? {
-                  translationLearningRequest:
-                    translationLearningRequest.trim(),
-                }
+              ? { translationLearningRequest: translationLearningRequest.trim() }
               : {}),
           }
         : {}),
@@ -155,34 +156,27 @@ export default function TimeFitStoryGeneratorClient() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (isGenerating) {
-      return;
-    }
+    if (isGenerating) return;
 
     const normalizedCustomRequest = customRequest.trim();
     const promptTags = getPromptTagsInText(normalizedCustomRequest);
 
     if (normalizedCustomRequest.length > CUSTOM_REQUEST_MAX_LENGTH) {
-      setErrorMessage("追加の希望は500文字以内で入力してください。");
+      setErrorMessage(dictionary.customTooLong);
       return;
     }
     if (
       translationLearningRequest.trim().length >
       TRANSLATION_LEARNING_REQUEST_MAX_LENGTH
     ) {
-      setErrorMessage("対訳への希望は300文字以内で入力してください。");
+      setErrorMessage(dictionary.translationTooLong);
       return;
     }
 
     const requestBody: GenerateApiRequest = {
       ...currentRequest,
-      ...(normalizedCustomRequest
-        ? { customRequest: normalizedCustomRequest }
-        : {}),
-      ...(promptTags.length > 0
-        ? { promptTags }
-        : {}),
+      ...(normalizedCustomRequest ? { customRequest: normalizedCustomRequest } : {}),
+      ...(promptTags.length > 0 ? { promptTags } : {}),
     };
 
     setErrorMessage("");
@@ -191,9 +185,7 @@ export default function TimeFitStoryGeneratorClient() {
     try {
       const response = await fetch("/api/time-fit-stories/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
 
@@ -201,7 +193,7 @@ export default function TimeFitStoryGeneratorClient() {
       await refreshAiUsage();
 
       if (!response.ok || !data.ok) {
-        setErrorMessage(readGenerateErrorMessage(data));
+        setErrorMessage(readGenerateErrorMessage(data, dictionary.generationFailed));
         return;
       }
 
@@ -218,12 +210,12 @@ export default function TimeFitStoryGeneratorClient() {
         JSON.stringify(payload)
       );
 
-      router.push(`/read/generated/${encodeURIComponent(storyId)}`);
+      router.push(
+        localizePath(`/read/generated/${encodeURIComponent(storyId)}`, locale)
+      );
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "AI短編の生成中にエラーが発生しました。"
+        error instanceof Error ? error.message : dictionary.generationError
       );
     } finally {
       setIsGenerating(false);
@@ -237,17 +229,16 @@ export default function TimeFitStoryGeneratorClient() {
       </p>
 
       <h1 className="mt-3 text-2xl font-bold leading-tight text-black sm:text-3xl">
-        空き時間に合わせて物語を生成する
+        {dictionary.title}
       </h1>
 
       <p className="mt-3 text-sm leading-7 text-neutral-600">
-        時間、利用シーン、ジャンルを選ぶと、その場で読める短編を生成します。
-        生成後は読むページへ移動します。保存しない限り、生成結果はこのブラウザ内の一時データとして扱われます。
+        {dictionary.description}
       </p>
 
       <form onSubmit={handleSubmit} className="mt-7 grid gap-5">
         <label className="grid gap-2">
-          <span className="text-sm font-medium text-black">時間</span>
+          <span className="text-sm font-medium text-black">{dictionary.time}</span>
           <select
             value={timeMinutes}
             onChange={(event) =>
@@ -257,14 +248,14 @@ export default function TimeFitStoryGeneratorClient() {
           >
             {TIME_OPTIONS.map((option) => (
               <option key={option} value={option}>
-                {option}分
+                {dictionary.minutes(option)}
               </option>
             ))}
           </select>
         </label>
 
         <label className="grid gap-2">
-          <span className="text-sm font-medium text-black">利用シーン</span>
+          <span className="text-sm font-medium text-black">{dictionary.scene}</span>
           <select
             value={scene}
             onChange={(event) => setScene(event.target.value as typeof scene)}
@@ -272,14 +263,14 @@ export default function TimeFitStoryGeneratorClient() {
           >
             {SCENE_OPTIONS.map((option) => (
               <option key={option} value={option}>
-                {option}
+                {dictionary.scenes[option]}
               </option>
             ))}
           </select>
         </label>
 
         <label className="grid gap-2">
-          <span className="text-sm font-medium text-black">ジャンル</span>
+          <span className="text-sm font-medium text-black">{dictionary.genre}</span>
           <select
             value={genre}
             onChange={(event) => setGenre(event.target.value as typeof genre)}
@@ -287,7 +278,7 @@ export default function TimeFitStoryGeneratorClient() {
           >
             {GENRE_OPTIONS.map((option) => (
               <option key={option} value={option}>
-                {option}
+                {dictionary.genres[option]}
               </option>
             ))}
           </select>
@@ -295,10 +286,10 @@ export default function TimeFitStoryGeneratorClient() {
 
         <fieldset className="grid gap-4 rounded-[24px] border border-black/10 bg-neutral-50 p-4 sm:grid-cols-2">
           <legend className="px-2 text-sm font-medium text-black">
-            語学学習向けの対訳（任意）
+            {dictionary.learningTitle}
           </legend>
           <label className="grid gap-2">
-            <span className="text-sm text-neutral-700">学習する言語</span>
+            <span className="text-sm text-neutral-700">{dictionary.learningLanguage}</span>
             <select
               value={learningLanguage}
               onChange={(event) =>
@@ -308,7 +299,7 @@ export default function TimeFitStoryGeneratorClient() {
               }
               className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300"
             >
-              <option value="">指定しない</option>
+              <option value="">{dictionary.none}</option>
               {LEARNING_LANGUAGES.filter((language) => language !== "ja").map(
                 (language) => (
                   <option key={language} value={language}>
@@ -319,7 +310,7 @@ export default function TimeFitStoryGeneratorClient() {
             </select>
           </label>
           <label className="grid gap-2">
-            <span className="text-sm text-neutral-700">対訳の難易度</span>
+            <span className="text-sm text-neutral-700">{dictionary.difficulty}</span>
             <select
               value={learningLevel}
               disabled={!learningLanguage}
@@ -330,18 +321,18 @@ export default function TimeFitStoryGeneratorClient() {
             >
               {TRANSLATION_LEARNING_LEVELS.map((level) => (
                 <option key={level} value={level}>
-                  {TRANSLATION_LEARNING_LEVEL_LABELS[level]}
+                  {dictionary.levels[level]}
                 </option>
               ))}
             </select>
           </label>
           <p className="text-xs leading-6 text-neutral-500 sm:col-span-2">
-            選んだ言語で対訳するとき、内容を省かず、語彙・文法・文の長さを難易度に合わせます。韓国語なども各言語で自然な初級表現を使います。
+            {dictionary.learningHelp}
           </p>
           {learningLanguage ? (
             <label className="grid gap-2 sm:col-span-2">
               <span className="text-sm text-neutral-700">
-                対訳への希望（任意）
+                {dictionary.translationRequest}
               </span>
               <textarea
                 value={translationLearningRequest}
@@ -351,28 +342,22 @@ export default function TimeFitStoryGeneratorClient() {
                 maxLength={TRANSLATION_LEARNING_REQUEST_MAX_LENGTH}
                 rows={3}
                 disabled={isGenerating}
-                placeholder="例：韓国語の初級文法を中心にし、敬語は해요体で統一してください。"
+                placeholder={dictionary.translationPlaceholder}
                 className="w-full resize-y rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 disabled:opacity-60"
               />
               <span className="text-right text-xs text-neutral-500">
-                {translationLearningRequest.length} / {TRANSLATION_LEARNING_REQUEST_MAX_LENGTH}文字
+                {translationLearningRequest.length} / {TRANSLATION_LEARNING_REQUEST_MAX_LENGTH} {dictionary.chars}
               </span>
             </label>
           ) : null}
         </fieldset>
 
         <div className="grid gap-2">
-          <label
-            htmlFor="custom-request"
-            className="text-sm font-medium text-black"
-          >
-            追加の希望（任意）
+          <label htmlFor="custom-request" className="text-sm font-medium text-black">
+            {dictionary.customRequest}
           </label>
-          <span
-            id="custom-request-help"
-            className="text-xs leading-6 text-neutral-500"
-          >
-            登場人物、舞台、展開、結末、文体など、物語への希望を自由に入力できます。
+          <span id="custom-request-help" className="text-xs leading-6 text-neutral-500">
+            {dictionary.customHelp}
           </span>
           <PromptTagSuggestions
             value={customRequest}
@@ -388,14 +373,11 @@ export default function TimeFitStoryGeneratorClient() {
             rows={5}
             disabled={isGenerating}
             aria-describedby="custom-request-help custom-request-count"
-            placeholder="例：雨の夜の無人駅を舞台にして、最後は少し救いのある結末にしてください。"
+            placeholder={dictionary.customPlaceholder}
             className="min-h-32 w-full box-border resize-y rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 disabled:opacity-60"
           />
-          <span
-            id="custom-request-count"
-            className="text-right text-xs text-neutral-500"
-          >
-            {customRequest.length} / {CUSTOM_REQUEST_MAX_LENGTH}文字
+          <span id="custom-request-count" className="text-right text-xs text-neutral-500">
+            {customRequest.length} / {CUSTOM_REQUEST_MAX_LENGTH} {dictionary.chars}
           </span>
         </div>
 
@@ -409,8 +391,8 @@ export default function TimeFitStoryGeneratorClient() {
           className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-400"
         >
           {isGenerating
-            ? "生成中..."
-            : `物語を生成する ${formatAiUsage(aiUsage?.actions.story_generation)}`}
+            ? dictionary.generating
+            : `${dictionary.generate} ${formatAiUsage(aiUsage?.actions.story_generation)}`}
         </button>
 
         {isAiUsageLimitReached(aiUsage?.actions.story_generation) &&
@@ -419,7 +401,7 @@ export default function TimeFitStoryGeneratorClient() {
         ) : null}
 
         <p className="text-xs leading-6 text-neutral-500">
-          AI小説生成は新規と続編を合算し、毎日0時（日本時間）に回復します。公開投稿や永続保存にはログインが必要です。
+          {dictionary.limitHelp}
         </p>
       </form>
 
