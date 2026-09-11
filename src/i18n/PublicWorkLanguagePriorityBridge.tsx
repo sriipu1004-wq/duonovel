@@ -7,32 +7,33 @@ import type { ContentLanguage } from "./contentLanguage";
 
 const DISCOVERY_PATHS = new Set(["/", "/search", "/search/saved"]);
 
-function directLanguageCard(element: Element): HTMLElement | null {
-  if (element instanceof HTMLElement && element.hasAttribute("data-content-language")) {
-    return element;
-  }
-
-  for (const child of Array.from(element.children)) {
-    if (child instanceof HTMLElement && child.hasAttribute("data-content-language")) {
-      return child;
-    }
-  }
-
-  return null;
+function countLanguageCards(element: Element): number {
+  const selfCount =
+    element instanceof HTMLElement && element.hasAttribute("data-content-language")
+      ? 1
+      : 0;
+  return selfCount + element.querySelectorAll("[data-content-language]").length;
 }
 
 function findSortableItem(card: HTMLElement): HTMLElement {
   let item: HTMLElement = card;
 
-  for (let depth = 0; depth < 3; depth += 1) {
+  for (let depth = 0; depth < 5; depth += 1) {
     const parent = item.parentElement;
-    if (!parent) return item;
+    if (!parent) return card;
 
-    const siblingsWithCards = Array.from(parent.children).filter((sibling) =>
-      Boolean(directLanguageCard(sibling))
+    const singleCardChildren = Array.from(parent.children).filter(
+      (sibling) => countLanguageCards(sibling) === 1
     );
 
-    if (siblingsWithCards.length >= 2) return item;
+    if (
+      countLanguageCards(item) === 1 &&
+      singleCardChildren.length >= 2 &&
+      singleCardChildren.includes(item)
+    ) {
+      return item;
+    }
+
     item = parent;
   }
 
