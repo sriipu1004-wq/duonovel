@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
-import { useUiLocale } from "./UiLocaleProvider";
-import { stripUiLocalePrefix } from "./config";
+import { stripUiLocalePrefix, type UiLocale } from "./config";
 import {
   canonicalizeTagList,
   getKnownTagOptions,
@@ -42,9 +41,8 @@ function parseLines(value: string): string[] {
     .filter(Boolean);
 }
 
-export default function AuthoringTagLocalePortal() {
+export default function AuthoringTagLocalePortal({ locale }: { locale: UiLocale }) {
   const pathname = usePathname();
-  const locale = useUiLocale();
   const route = stripUiLocalePrefix(pathname);
   const active = route.startsWith("/write/series/");
   const [source, setSource] = useState<HTMLTextAreaElement | null>(null);
