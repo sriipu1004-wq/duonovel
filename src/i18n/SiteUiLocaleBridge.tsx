@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import type { UiLocale } from "./config";
-import { localizePath } from "./navigation";
+import { isReaderPath, localizePath } from "./navigation";
 
-const en: Record<string, string> = {
+const EN: Record<string, string> = {
   "無料枠あり": "Free tier available",
   "個人本棚 / 多言語対訳 / 読み上げ / AI生成": "Personal library / bilingual reading / read-aloud / AI generation",
   "読む、聴く、学ぶ。": "Read. Listen. Learn.",
   "外国語の長編を、自分の本棚で読み続ける。多言語対訳、読み上げ、AI物語、Web小説にも対応。": "Keep reading long-form stories in another language in your own library. Bilingual text, read-aloud, AI stories and web novels are all supported.",
-  "PDF・EPUB・TXT・DOCXを作品単位で取り込み、章・話ごとの読書位置、対訳、栞を管理できます。公開作品を読む・聴く・投稿する機能と、時間に合わせたAI物語生成も同じ場所で利用できます。": "Import PDF, EPUB, TXT or DOCX files and keep reading position, bilingual text and bookmarks by work and chapter. You can also read, listen to and publish public works or generate AI stories for the time you have.",
+  "PDF・EPUB・TXT・DOCXを作品単位で取り込み、章・話ごとの読書位置、対訳、栞を管理できます。公開作品を読む・聴く・投稿する機能と、時間に合わせたAI物語生成も同じ場所で利用できます。": "Import PDF, EPUB, TXT or DOCX files and keep reading position, bilingual text and bookmarks by work and chapter. Read, listen to and publish public works, or generate AI stories for the time you have.",
   "物語を生成する": "Generate a story",
   "個人本棚を開く": "Open My Library",
   "作品を探す": "Explore works",
@@ -24,17 +25,12 @@ const en: Record<string, string> = {
   "総合人気順": "Overall popular",
   "朗読視聴人気順": "Narration popularity",
   "月額680円で、長編の対訳を止めずに読む。": "Read long-form bilingual text without interruption for ¥680/month.",
-  "単語解説は無制限。AI物語は1日10回、対訳生成は1日30回へ拡大し、読書中に次話の対訳を1話だけ先読みします。": "Unlimited word explanations, up to 10 AI stories and 30 bilingual generations per day, plus one-episode translation prefetch while reading.",
   "無料版との違いを見る": "Compare with the free tier",
-  "長編を読む・聴く・作る・学ぶための機能を、作品単位で管理する。": "Manage the tools for reading, listening, creating and learning around each work.",
+  "長編を読む・聴く・作る・学ぶための機能を、作品単位で管理する。": "Manage reading, listening, creation and learning tools around each work.",
   "個人本棚": "Personal library",
-  "自分で用意したPDF・EPUB・TXT・DOCXを取り込み、長編を章・話単位で管理して続きから読める。": "Import your own PDF, EPUB, TXT and DOCX files, organize long works by chapter or episode, and continue where you left off.",
   "多言語対訳": "Multilingual bilingual reading",
-  "原文と訳文を上下で同期し、語の意味・品詞も確認できる。保存済み対訳は再利用する。": "Synchronize original and translated text and inspect word meanings and parts of speech. Saved translations are reused.",
   "読み上げ・栞": "Read-aloud & bookmarks",
-  "ブラウザ読み上げと投稿朗読に対応。読書位置や栞、表示・朗読設定を保持する。": "Supports browser read-aloud and published narration while preserving reading position, bookmarks and display/audio settings.",
   "AI物語・投稿": "AI stories & publishing",
-  "読む時間に合わせた物語を生成し、保存後は作品ワークスペースで編集・続編生成・投稿ができる。": "Generate a story for the time available, then save it to edit, continue and publish it in the work workspace.",
   "最近更新された公開作品。": "Recently updated public works.",
   "新しめの作品から入りやすくする。": "Discover recently published works.",
   "現時点の人気寄り順で公開作品を表示。": "Public works ordered by current popularity.",
@@ -56,7 +52,6 @@ const en: Record<string, string> = {
   "検索棚": "Discovery shelves",
   "新着更新順": "Latest updates",
   "週間新作おすすめ順": "Weekly new picks",
-  "現在表示:": "Currently shown:",
   "上の棚は作品を見つけるための入口。今の条件に一致した作品一覧は下でまとめて確認できる。": "Use the shelves above to discover works. The complete list matching the current filters appears below.",
   "日間": "Daily",
   "週間": "Weekly",
@@ -79,7 +74,6 @@ const en: Record<string, string> = {
   "歴史": "Historical",
   "冒険": "Adventure",
   "青春": "Coming of age",
-  "作品ワークスペース": "Work workspace",
   "投稿データベース": "Work workspace",
   "公開前の下書きから公開中の作品まで、投稿作品をまとめて管理する。": "Manage drafts and published works in one workspace.",
   "新しい作品を作る": "Create a new work",
@@ -112,12 +106,12 @@ const en: Record<string, string> = {
   "一覧を見る": "View all",
 };
 
-const ko: Record<string, string> = {
+const KO: Record<string, string> = {
   "無料枠あり": "무료 이용 가능",
   "個人本棚 / 多言語対訳 / 読み上げ / AI生成": "개인 서재 / 다국어 대역 / 읽어주기 / AI 생성",
   "読む、聴く、学ぶ。": "읽고, 듣고, 배우기.",
   "外国語の長編を、自分の本棚で読み続ける。多言語対訳、読み上げ、AI物語、Web小説にも対応。": "개인 서재에서 장편 외국어 작품을 이어 읽고, 다국어 대역·읽어주기·AI 이야기·웹소설을 함께 이용할 수 있습니다.",
-  "PDF・EPUB・TXT・DOCXを作品単位で取り込み、章・話ごとの読書位置、対訳、栞を管理できます。公開作品を読む・聴く・投稿する機能と、時間に合わせたAI物語生成も同じ場所で利用できます。": "PDF, EPUB, TXT, DOCX를 작품 단위로 가져와 장·화별 읽던 위치, 대역, 책갈피를 관리할 수 있습니다. 공개 작품을 읽고 듣고 게시하거나, 시간에 맞는 AI 이야기를 만들 수도 있습니다.",
+  "PDF・EPUB・TXT・DOCXを作品単位で取り込み、章・話ごとの読書位置、対訳、栞を管理できます。公開作品を読む・聴く・投稿する機能と、時間に合わせたAI物語生成も同じ場所で利用できます。": "PDF, EPUB, TXT, DOCX를 작품 단위로 가져와 장·화별 읽던 위치, 대역, 책갈피를 관리할 수 있습니다. 공개 작품을 읽고 듣고 게시하거나 시간에 맞는 AI 이야기를 만들 수도 있습니다.",
   "物語を生成する": "AI 이야기 만들기",
   "個人本棚を開く": "개인 서재 열기",
   "作品を探す": "작품 찾기",
@@ -132,17 +126,12 @@ const ko: Record<string, string> = {
   "総合人気順": "종합 인기순",
   "朗読視聴人気順": "낭독 인기순",
   "月額680円で、長編の対訳を止めずに読む。": "월 ¥680으로 장편 대역을 끊김 없이 읽기.",
-  "単語解説は無制限。AI物語は1日10回、対訳生成は1日30回へ拡大し、読書中に次話の対訳を1話だけ先読みします。": "단어 설명 무제한, AI 이야기 하루 10회, 대역 생성 하루 30회로 확대되며 다음 화 대역을 1화 미리 생성합니다.",
   "無料版との違いを見る": "무료 버전과 비교",
   "長編を読む・聴く・作る・学ぶための機能を、作品単位で管理する。": "장편을 읽고 듣고 만들고 학습하는 기능을 작품 단위로 관리합니다.",
   "個人本棚": "개인 서재",
-  "自分で用意したPDF・EPUB・TXT・DOCXを取り込み、長編を章・話単位で管理して続きから読める。": "PDF, EPUB, TXT, DOCX를 가져와 장편을 장·화 단위로 관리하고 이어 읽을 수 있습니다.",
   "多言語対訳": "다국어 대역",
-  "原文と訳文を上下で同期し、語の意味・品詞も確認できる。保存済み対訳は再利用する。": "원문과 번역문을 동기화하고 단어 뜻과 품사를 확인할 수 있습니다. 저장된 대역은 재사용합니다.",
   "読み上げ・栞": "읽어주기·책갈피",
-  "ブラウザ読み上げと投稿朗読に対応。読書位置や栞、表示・朗読設定を保持する。": "브라우저 읽어주기와 게시 낭독을 지원하며 읽던 위치, 책갈피, 표시·낭독 설정을 유지합니다.",
   "AI物語・投稿": "AI 이야기·게시",
-  "読む時間に合わせた物語を生成し、保存後は作品ワークスペースで編集・続編生成・投稿ができる。": "읽을 시간에 맞는 이야기를 만들고 저장 후 작품 워크스페이스에서 편집, 후속편 생성, 게시할 수 있습니다.",
   "最近更新された公開作品。": "최근 업데이트된 공개 작품입니다.",
   "新しめの作品から入りやすくする。": "최근 공개된 작품을 발견합니다.",
   "現時点の人気寄り順で公開作品を表示。": "현재 인기순으로 공개 작품을 표시합니다.",
@@ -164,7 +153,6 @@ const ko: Record<string, string> = {
   "検索棚": "탐색 선반",
   "新着更新順": "최근 업데이트순",
   "週間新作おすすめ順": "주간 신작 추천순",
-  "現在表示:": "현재 표시:",
   "上の棚は作品を見つけるための入口。今の条件に一致した作品一覧は下でまとめて確認できる。": "위 선반에서 작품을 발견하고 현재 조건과 일치하는 전체 목록은 아래에서 확인할 수 있습니다.",
   "日間": "일간",
   "週間": "주간",
@@ -187,7 +175,6 @@ const ko: Record<string, string> = {
   "歴史": "역사",
   "冒険": "모험",
   "青春": "청춘",
-  "作品ワークスペース": "작품 워크스페이스",
   "投稿データベース": "작품 워크스페이스",
   "公開前の下書きから公開中の作品まで、投稿作品をまとめて管理する。": "초안부터 공개 중인 작품까지 한 워크스페이스에서 관리합니다.",
   "新しい作品を作る": "새 작품 만들기",
@@ -220,59 +207,46 @@ const ko: Record<string, string> = {
   "一覧を見る": "전체 보기",
 };
 
-const placeholderMap = {
-  en: {
-    "作品名、作者名、あらすじなどで検索": "Search by title, author, synopsis and more",
-  },
-  ko: {
-    "作品名、作者名、あらすじなどで検索": "제목, 작가, 줄거리 등으로 검색",
-  },
-} as const;
+const PLACEHOLDER: Record<"en" | "ko", Record<string, string>> = {
+  en: { "作品名、作者名、あらすじなどで検索": "Search by title, author, synopsis and more" },
+  ko: { "作品名、作者名、あらすじなどで検索": "제목, 작가, 줄거리 등으로 검색" },
+};
 
-const legalJapaneseOnly = new Set(["/terms", "/privacy", "/commercial-transactions"]);
+const LEGAL_JA_ONLY = new Set(["/terms", "/privacy", "/commercial-transactions"]);
 
-function normalize(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
+function normalized(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
 }
 
-function translateDynamic(text: string, locale: "en" | "ko"): string | null {
-  const countEpisodes = text.match(/^(\d+)話$/);
-  if (countEpisodes) return locale === "en" ? `${countEpisodes[1]} episodes` : `${countEpisodes[1]}화`;
-
-  const period = text.match(/^指定期間: (.+) 〜 (.+) \/ 並び順: (.+)$/);
-  if (period) {
-    const order = (locale === "en" ? en : ko)[period[3]] ?? period[3];
-    return locale === "en"
-      ? `Period: ${period[1]} – ${period[2]} / Order: ${order}`
-      : `기간: ${period[1]} ~ ${period[2]} / 정렬: ${order}`;
-  }
-
-  const requestAt = text.match(/^直近申請日時: (.+)$/);
+function translateDynamic(value: string, locale: "en" | "ko"): string | null {
+  const episodes = value.match(/^(\d+)話$/);
+  if (episodes) return locale === "en" ? `${episodes[1]} episodes` : `${episodes[1]}화`;
+  const requestAt = value.match(/^直近申請日時: (.+)$/);
   if (requestAt) return locale === "en" ? `Latest request: ${requestAt[1]}` : `최근 신청: ${requestAt[1]}`;
-
   return null;
 }
 
-function restyleDisclosureButton(button: HTMLButtonElement) {
-  const value = normalize(button.textContent ?? "");
-  if (!["続きを表示", "閉じる", "Show more", "Show less", "더 보기", "접기"].includes(value)) return;
-
-  button.className = "mt-2 text-xs text-neutral-500 underline decoration-black/20 underline-offset-4 transition hover:text-black";
-  button.style.position = "static";
-  button.style.boxShadow = "none";
+function restyleDisclosureButtons(root: ParentNode) {
+  root.querySelectorAll("button").forEach((element) => {
+    if (!(element instanceof HTMLButtonElement)) return;
+    const value = normalized(element.textContent ?? "");
+    if (!["続きを表示", "閉じる", "Show more", "Show less", "더 보기", "접기"].includes(value)) return;
+    element.className = "mt-2 text-xs text-neutral-500 underline decoration-black/20 underline-offset-4 transition hover:text-black";
+    element.style.position = "static";
+    element.style.boxShadow = "none";
+  });
 }
 
 function localizeElement(root: ParentNode, locale: "en" | "ko") {
-  const dictionary = locale === "en" ? en : ko;
+  const dictionary = locale === "en" ? EN : KO;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
-
   while (walker.nextNode()) nodes.push(walker.currentNode as Text);
 
   for (const node of nodes) {
     const parent = node.parentElement;
     if (!parent || parent.closest("script, style, textarea, [data-no-ui-localize]") || parent.isContentEditable) continue;
-    const value = normalize(node.data);
+    const value = normalized(node.data);
     if (!value) continue;
     const translated = dictionary[value] ?? translateDynamic(value, locale);
     if (!translated || translated === value) continue;
@@ -281,44 +255,34 @@ function localizeElement(root: ParentNode, locale: "en" | "ko") {
     node.data = `${leading}${translated}${trailing}`;
   }
 
-  root.querySelectorAll?.("input[placeholder]").forEach((input) => {
-    if (!(input instanceof HTMLInputElement)) return;
-    const translated = placeholderMap[locale][input.placeholder as keyof (typeof placeholderMap)[typeof locale]];
-    if (translated) input.placeholder = translated;
+  root.querySelectorAll("input[placeholder]").forEach((element) => {
+    if (!(element instanceof HTMLInputElement)) return;
+    const translated = PLACEHOLDER[locale][element.placeholder];
+    if (translated) element.placeholder = translated;
   });
 
-  root.querySelectorAll?.("button").forEach((button) => {
-    if (button instanceof HTMLButtonElement) restyleDisclosureButton(button);
-  });
-
-  root.querySelectorAll?.("a[href]").forEach((anchor) => {
-    if (!(anchor instanceof HTMLAnchorElement)) return;
-    const rawHref = anchor.getAttribute("href") ?? "";
+  root.querySelectorAll("a[href]").forEach((element) => {
+    if (!(element instanceof HTMLAnchorElement)) return;
+    const rawHref = element.getAttribute("href") ?? "";
     if (!rawHref.startsWith("/") || rawHref.startsWith("//")) return;
     const pathOnly = rawHref.split(/[?#]/, 1)[0];
-    if (legalJapaneseOnly.has(pathOnly)) return;
-    const next = localizePath(rawHref, locale);
-    if (next !== rawHref) anchor.setAttribute("href", next);
+    if (LEGAL_JA_ONLY.has(pathOnly)) return;
+    const nextHref = localizePath(rawHref, locale);
+    if (nextHref !== rawHref) element.setAttribute("href", nextHref);
   });
+
+  restyleDisclosureButtons(root);
 }
 
 export default function SiteUiLocaleBridge({ locale }: { locale: UiLocale }) {
-  useEffect(() => {
-    const apply = () => {
-      localizeElement(document.body, locale === "ja" ? "en" : locale);
-      if (locale === "ja") {
-        document.querySelectorAll("button").forEach((button) => {
-          if (button instanceof HTMLButtonElement) restyleDisclosureButton(button);
-        });
-      }
-    };
+  const pathname = usePathname();
 
-    if (locale === "ja") {
-      apply();
-      const observer = new MutationObserver(apply);
-      observer.observe(document.body, { childList: true, subtree: true });
-      return () => observer.disconnect();
-    }
+  useEffect(() => {
+    const reader = isReaderPath(pathname);
+    const apply = () => {
+      if (!reader && locale !== "ja") localizeElement(document.body, locale);
+      restyleDisclosureButtons(document.body);
+    };
 
     apply();
     let scheduled = false;
@@ -330,9 +294,13 @@ export default function SiteUiLocaleBridge({ locale }: { locale: UiLocale }) {
         apply();
       });
     });
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: locale !== "ja" && !reader,
+    });
     return () => observer.disconnect();
-  }, [locale]);
+  }, [locale, pathname]);
 
   return null;
 }
