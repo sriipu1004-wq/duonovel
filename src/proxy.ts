@@ -1,7 +1,5 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
-import { getProxyAuthState } from "@/lib/supabase/proxy";
 import {
   getUiLocaleFromPathname,
   isUiLocale,
@@ -14,31 +12,6 @@ import {
   CONTENT_LANGUAGE_FILTER_COOKIE,
   CONTENT_LANGUAGE_FILTER_HEADER,
 } from "@/i18n/contentLanguage";
-
-const PUBLIC_EXACT_PATHS = new Set([
-  "/",
-  "/search",
-  "/guide",
-  "/faq",
-  "/status",
-  "/news",
-  "/terms",
-  "/privacy",
-  "/contact",
-  "/login",
-  "/record",
-  "/mypage",
-  "/preparing",
-]);
-
-const PUBLIC_PREFIXES = [
-  "/works/",
-  "/read/",
-  "/authors/",
-  "/readers/",
-  "/record/",
-  "/recording-request/",
-];
 
 const SAVED_SEARCH_FILTERS = new Set([
   "bookmarked-works",
@@ -54,13 +27,13 @@ const JAPANESE_CANONICAL_PATHS = new Set([
   "/record/terms",
 ]);
 
-function isPublicPath(pathname: string): boolean {
-  if (PUBLIC_EXACT_PATHS.has(pathname)) return true;
-  return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-}
-
 function hasUiLocalePrefix(pathname: string): boolean {
-  return pathname === "/en" || pathname.startsWith("/en/") || pathname === "/ko" || pathname.startsWith("/ko/");
+  return (
+    pathname === "/en" ||
+    pathname.startsWith("/en/") ||
+    pathname === "/ko" ||
+    pathname.startsWith("/ko/")
+  );
 }
 
 function resolveRequestLocale(request: NextRequest): UiLocale {
@@ -78,11 +51,6 @@ function localizePathname(pathname: string, locale: UiLocale): string {
   return base === "/" ? `/${locale}` : `/${locale}${base}`;
 }
 
-function copyResponseCookies(source: NextResponse, target: NextResponse): NextResponse {
-  source.cookies.getAll().forEach((cookie) => target.cookies.set(cookie));
-  return target;
-}
-
 function withLocaleCookie(response: NextResponse, locale: UiLocale): NextResponse {
   response.cookies.set(UI_LOCALE_COOKIE, locale, {
     path: "/",
@@ -92,20 +60,8 @@ function withLocaleCookie(response: NextResponse, locale: UiLocale): NextRespons
   return response;
 }
 
-function buildPreparingRedirectResponse(
-  request: NextRequest,
-  authResponse: NextResponse,
-  locale: UiLocale
-): NextResponse {
-  const redirectUrl = request.nextUrl.clone();
-  redirectUrl.pathname = localizePathname("/preparing", locale);
-  redirectUrl.search = "";
-  return withLocaleCookie(copyResponseCookies(authResponse, NextResponse.redirect(redirectUrl)), locale);
-}
-
 function buildLocaleAwareResponse(
   request: NextRequest,
-  authResponse: NextResponse,
   locale: UiLocale,
   routePathname: string
 ): NextResponse {
@@ -113,7 +69,9 @@ function buildLocaleAwareResponse(
   requestHeaders.set(UI_LOCALE_HEADER, locale);
 
   if (routePathname === "/search") {
-    const contentLanguageFilter = request.cookies.get(CONTENT_LANGUAGE_FILTER_COOKIE)?.value?.trim();
+    const contentLanguageFilter = request.cookies
+      .get(CONTENT_LANGUAGE_FILTER_COOKIE)
+      ?.value?.trim();
     if (contentLanguageFilter) {
       requestHeaders.set(CONTENT_LANGUAGE_FILTER_HEADER, contentLanguageFilter);
     } else {
@@ -127,20 +85,14 @@ function buildLocaleAwareResponse(
   if (routePathname === "/search" && SAVED_SEARCH_FILTERS.has(savedFilter)) {
     targetUrl.pathname = "/search/saved";
     return withLocaleCookie(
-      copyResponseCookies(
-        authResponse,
-        NextResponse.rewrite(targetUrl, { request: { headers: requestHeaders } })
-      ),
+      NextResponse.rewrite(targetUrl, { request: { headers: requestHeaders } }),
       locale
     );
   }
 
   if (locale === "ja") {
     return withLocaleCookie(
-      copyResponseCookies(
-        authResponse,
-        NextResponse.next({ request: { headers: requestHeaders } })
-      ),
+      NextResponse.next({ request: { headers: requestHeaders } }),
       locale
     );
   }
@@ -160,37 +112,33 @@ function buildLocaleAwareResponse(
   }
 
   return withLocaleCookie(
-    copyResponseCookies(
-      authResponse,
-      NextResponse.rewrite(targetUrl, { request: { headers: requestHeaders } })
-    ),
+    NextResponse.rewrite(targetUrl, { request: { headers: requestHeaders } }),
     locale
   );
 }
 
-export async function proxy(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const locale = resolveRequestLocale(request);
   const hasLocalePrefix = hasUiLocalePrefix(request.nextUrl.pathname);
   const routePathname = stripUiLocalePrefix(request.nextUrl.pathname);
-  const authState = await getProxyAuthState(request);
 
   if (hasLocalePrefix && JAPANESE_CANONICAL_PATHS.has(routePathname)) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = routePathname;
-    return withLocaleCookie(copyResponseCookies(authState.response, NextResponse.redirect(redirectUrl)), locale);
+    return withLocaleCookie(NextResponse.redirect(redirectUrl), locale);
   }
 
-  if (!hasLocalePrefix && locale !== "ja" && !JAPANESE_CANONICAL_PATHS.has(routePathname)) {
+  if (
+    !hasLocalePrefix &&
+    locale !== "ja" &&
+    !JAPANESE_CANONICAL_PATHS.has(routePathname)
+  ) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = localizePathname(routePathname, locale);
-    return withLocaleCookie(copyResponseCookies(authState.response, NextResponse.redirect(redirectUrl)), locale);
+    return withLocaleCookie(NextResponse.redirect(redirectUrl), locale);
   }
 
-  if (!isOfficialAccountEmail(authState.userEmail) && !isPublicPath(routePathname)) {
-    return buildPreparingRedirectResponse(request, authState.response, locale);
-  }
-
-  return buildLocaleAwareResponse(request, authState.response, locale, routePathname);
+  return buildLocaleAwareResponse(request, locale, routePathname);
 }
 
 export const config = {
