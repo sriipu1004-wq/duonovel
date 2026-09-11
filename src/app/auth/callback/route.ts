@@ -9,6 +9,8 @@ import {
   readAccountRegistrationConsent,
   readAccountRegistrationDisplayName,
 } from "@/lib/auth/accountSignupConsent";
+import { getUiLocaleFromPathname, stripUiLocalePrefix } from "@/i18n/config";
+import { localizePath } from "@/i18n/navigation";
 
 function buildRedirect(request: NextRequest, pathname: string) {
   const redirectTo = request.nextUrl.clone();
@@ -84,9 +86,11 @@ export async function GET(request: NextRequest) {
     requestUrl.searchParams.get("next"),
     "/"
   );
+  const locale = getUiLocaleFromPathname(nextPath);
+  const loginPath = localizePath("/login", locale);
 
   if (!code) {
-    const redirectTo = buildRedirect(request, "/login");
+    const redirectTo = buildRedirect(request, loginPath);
     redirectTo.searchParams.set("error", "missing_auth_code");
     redirectTo.searchParams.set("next", nextPath);
     return NextResponse.redirect(redirectTo);
@@ -96,7 +100,7 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    const redirectTo = buildRedirect(request, "/login");
+    const redirectTo = buildRedirect(request, loginPath);
     redirectTo.searchParams.set("error", "email_confirm_callback_failed");
     redirectTo.searchParams.set("next", nextPath);
     return NextResponse.redirect(redirectTo);
@@ -106,7 +110,7 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const redirectTo = buildRedirect(request, "/login");
+  const redirectTo = buildRedirect(request, loginPath);
   redirectTo.searchParams.set("confirmed", "1");
   redirectTo.searchParams.set("next", nextPath);
 
@@ -164,7 +168,11 @@ export async function GET(request: NextRequest) {
     console.error("[auth-callback finalize]", finalizeError);
   }
 
-  if (nextPath === "/reset-password" || nextPath.startsWith("/reset-password?")) {
+  const normalizedNextPath = stripUiLocalePrefix(nextPath);
+  if (
+    normalizedNextPath === "/reset-password" ||
+    normalizedNextPath.startsWith("/reset-password?")
+  ) {
     return NextResponse.redirect(new URL(nextPath, request.url));
   }
 
