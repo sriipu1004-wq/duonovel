@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import PublicTopPage from "../page";
 import { getUiLocale } from "@/i18n/server";
-import { homeDictionaries } from "@/i18n/dictionaries/home";
 import { localizePath } from "@/i18n/navigation";
 
 const SITE_URL = "https://www.syosetu-libread.com";
@@ -79,7 +78,6 @@ export default async function LocalizedHomePage(props: PublicTopProps) {
   const locale = await getUiLocale();
   if (locale === "ja") notFound();
 
-  const dictionary = homeDictionaries[locale];
   const copy = searchLandingCopy[locale];
   const canonical = `${SITE_URL}${localizePath("/", locale)}`;
   const structuredData = {
@@ -103,7 +101,6 @@ export default async function LocalizedHomePage(props: PublicTopProps) {
             <Link className="font-medium underline underline-offset-4" href={localizePath("/guide", locale)}>{copy.guide}</Link>
             <Link className="font-medium underline underline-offset-4" href={localizePath("/generate", locale)}>{copy.generate}</Link>
           </div>
-          <p className="sr-only">{dictionary.description}</p>
         </div>
       </section>
       <script
