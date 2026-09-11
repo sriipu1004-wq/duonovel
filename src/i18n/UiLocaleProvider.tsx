@@ -5,6 +5,7 @@ import type { UiLocale } from "./config";
 import { commonDictionaries } from "./dictionaries/common";
 import ReaderUiLocaleBridge from "./ReaderUiLocaleBridge";
 import SiteUiLocaleBridge from "./SiteUiLocaleBridge";
+import AuthoringUiLocaleBridge from "./AuthoringUiLocaleBridge";
 import SearchLanguageFilterPortal from "@/components/search/SearchLanguageFilterPortal";
 
 const UiLocaleContext = createContext<UiLocale>("ja");
@@ -14,6 +15,7 @@ export function UiLocaleProvider({ locale, children }: { locale: UiLocale; child
     <UiLocaleContext.Provider value={locale}>
       {children}
       <SiteUiLocaleBridge locale={locale} />
+      <AuthoringUiLocaleBridge locale={locale} />
       <ReaderUiLocaleBridge locale={locale} />
       <SearchLanguageFilterPortal />
     </UiLocaleContext.Provider>
