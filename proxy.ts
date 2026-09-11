@@ -2,13 +2,6 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { getProxyAuthState } from "@/lib/supabase/proxy";
-import {
-  getUiLocaleFromPathname,
-  stripUiLocalePrefix,
-  UI_LOCALE_HEADER,
-  type UiLocale,
-} from "@/i18n/config";
-import { localizePath } from "@/i18n/navigation";
 
 const PUBLIC_EXACT_PATHS = new Set([
   "/",
@@ -43,66 +36,36 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
-function copyResponseCookies(source: NextResponse, target: NextResponse): NextResponse {
-  source.cookies.getAll().forEach((cookie) => {
-    target.cookies.set(cookie);
-  });
-  return target;
-}
-
-function buildLocaleResponse(
-  request: NextRequest,
-  authResponse: NextResponse,
-  locale: UiLocale
-): NextResponse {
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set(UI_LOCALE_HEADER, locale);
-
-  if (locale === "ja") {
-    return copyResponseCookies(
-      authResponse,
-      NextResponse.next({ request: { headers: requestHeaders } })
-    );
-  }
-
-  const rewriteUrl = request.nextUrl.clone();
-  const routePathname = stripUiLocalePrefix(request.nextUrl.pathname);
-  rewriteUrl.pathname = routePathname === "/" ? "/_localized-home" : routePathname;
-
-  return copyResponseCookies(
-    authResponse,
-    NextResponse.rewrite(rewriteUrl, {
-      request: { headers: requestHeaders },
-    })
-  );
-}
-
 function buildPreparingRedirectResponse(
   request: NextRequest,
-  authResponse: NextResponse,
-  locale: UiLocale
+  authResponse: NextResponse
 ): NextResponse {
   const redirectUrl = request.nextUrl.clone();
-  redirectUrl.pathname = localizePath("/preparing", locale);
+  redirectUrl.pathname = "/preparing";
   redirectUrl.search = "";
 
-  return copyResponseCookies(authResponse, NextResponse.redirect(redirectUrl));
+  const redirectResponse = NextResponse.redirect(redirectUrl);
+
+  authResponse.cookies.getAll().forEach((cookie) => {
+    redirectResponse.cookies.set(cookie);
+  });
+
+  return redirectResponse;
 }
 
 export async function proxy(request: NextRequest) {
   const authState = await getProxyAuthState(request);
-  const locale = getUiLocaleFromPathname(request.nextUrl.pathname);
-  const routePathname = stripUiLocalePrefix(request.nextUrl.pathname);
+  const { pathname } = request.nextUrl;
 
   if (isOfficialAccountEmail(authState.userEmail)) {
-    return buildLocaleResponse(request, authState.response, locale);
+    return authState.response;
   }
 
-  if (isPublicPath(routePathname)) {
-    return buildLocaleResponse(request, authState.response, locale);
+  if (isPublicPath(pathname)) {
+    return authState.response;
   }
 
-  return buildPreparingRedirectResponse(request, authState.response, locale);
+  return buildPreparingRedirectResponse(request, authState.response);
 }
 
 export const config = {
