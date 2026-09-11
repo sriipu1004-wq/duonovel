@@ -40,7 +40,7 @@ const ja = {
   terms: "利用規約",
   privacy: "プライバシーポリシー",
   commercial: "特定商取引法に基づく表記",
-  acceptBilling: "月額680円（税込・JPY）の自動更新と、解約後も現在の利用期限まで利用できることを確認しました。",
+  acceptBilling: "月額680円（税込・JPY）の自動更新と、解約後は現在の利用期限まで利用できることを確認しました。",
   acceptRequired: "料金・自動更新・解約条件を確認してください。",
   openBillingFailed: "決済画面を開けませんでした。",
   openingPortal: "契約管理を開いています…",
@@ -59,12 +59,17 @@ const ja = {
   ] satisfies SubscriptionComparison[],
 } as const;
 
-type SubscriptionDictionary = Omit<typeof ja, "contractItems" | "comparisons" | "availableUntil" | "nextRenewal"> & {
-  contractItems: readonly string[];
-  comparisons: readonly SubscriptionComparison[];
-  availableUntil: (date: string) => string;
-  nextRenewal: (date: string) => string;
-};
+type Widen<T> = T extends (...args: infer Args) => string
+  ? (...args: Args) => string
+  : T extends readonly (infer Item)[]
+    ? readonly Widen<Item>[]
+    : T extends object
+      ? { [K in keyof T]: Widen<T[K]> }
+      : T extends string
+        ? string
+        : T;
+
+type SubscriptionDictionary = Widen<typeof ja>;
 
 const en: SubscriptionDictionary = {
   pageTitle: "Subscription",
