@@ -19,12 +19,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // AI短編は /works/[seriesId] から公開readへredirectされるため、
     // sitemapにはredirect元を入れない。
     if (!work.isShortStory) {
-      dynamicEntries.push({
-        url: SITE_URL + "/works/" + encodeURIComponent(work.seriesId),
-        ...lastModifiedField,
-        changeFrequency: "weekly",
-        priority: 0.7,
-      });
+      const encodedSeriesId = encodeURIComponent(work.seriesId);
+      dynamicEntries.push(
+        {
+          url: SITE_URL + "/works/" + encodedSeriesId,
+          ...lastModifiedField,
+          changeFrequency: "weekly",
+          priority: 0.7,
+        },
+        {
+          url: SITE_URL + "/en/works/" + encodedSeriesId,
+          ...lastModifiedField,
+          changeFrequency: "weekly",
+          priority: 0.65,
+        },
+        {
+          url: SITE_URL + "/ko/works/" + encodedSeriesId,
+          ...lastModifiedField,
+          changeFrequency: "weekly",
+          priority: 0.65,
+        }
+      );
     }
 
     const uniqueEpisodeNumbers = Array.from(
@@ -53,9 +68,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1,
     },
     {
+      url: SITE_URL + "/en",
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: SITE_URL + "/ko",
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
       url: SITE_URL + "/generate",
       changeFrequency: "monthly",
       priority: 0.8,
+    },
+    {
+      url: SITE_URL + "/en/generate",
+      changeFrequency: "monthly",
+      priority: 0.75,
+    },
+    {
+      url: SITE_URL + "/ko/generate",
+      changeFrequency: "monthly",
+      priority: 0.75,
     },
     {
       url: SITE_URL + "/english-novel-reader",
