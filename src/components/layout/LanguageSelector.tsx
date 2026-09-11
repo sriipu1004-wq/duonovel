@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { UI_LOCALES, UI_LOCALE_COOKIE, uiLocaleLabel, type UiLocale } from "@/i18n/config";
 import { localizePath } from "@/i18n/navigation";
 import { useCommonDictionary, useUiLocale } from "@/i18n/UiLocaleProvider";
@@ -9,14 +9,14 @@ export default function LanguageSelector() {
   const locale = useUiLocale();
   const dictionary = useCommonDictionary();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
 
   function selectLocale(nextLocale: UiLocale) {
     document.cookie = `${UI_LOCALE_COOKIE}=${nextLocale}; Path=/; Max-Age=31536000; SameSite=Lax`;
-    const query = searchParams.toString();
-    const current = `${pathname}${query ? `?${query}` : ""}`;
-    router.push(localizePath(current, nextLocale));
+    const suffix = typeof window === "undefined"
+      ? ""
+      : `${window.location.search}${window.location.hash}`;
+    router.push(localizePath(`${pathname}${suffix}`, nextLocale));
   }
 
   return (
