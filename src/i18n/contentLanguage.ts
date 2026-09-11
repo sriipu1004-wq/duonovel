@@ -2,6 +2,7 @@ import type { UiLocale } from "./config";
 
 export const CONTENT_LANGUAGE_FILTER_COOKIE = "libread-content-languages";
 export const CONTENT_LANGUAGE_FILTER_HEADER = "x-libread-content-languages";
+export const CONTENT_LANGUAGE_FILTER_EVENT = "libread:content-language-filter-changed";
 
 export const CONTENT_LANGUAGES = ["ja", "en", "ko", "other"] as const;
 export type ContentLanguage = (typeof CONTENT_LANGUAGES)[number];
