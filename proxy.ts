@@ -66,7 +66,8 @@ function buildLocaleResponse(
   }
 
   const rewriteUrl = request.nextUrl.clone();
-  rewriteUrl.pathname = stripUiLocalePrefix(request.nextUrl.pathname);
+  const routePathname = stripUiLocalePrefix(request.nextUrl.pathname);
+  rewriteUrl.pathname = routePathname === "/" ? "/_localized-home" : routePathname;
 
   return copyResponseCookies(
     authResponse,
