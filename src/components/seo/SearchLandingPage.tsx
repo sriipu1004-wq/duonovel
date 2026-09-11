@@ -1,5 +1,6 @@
 import Link from "next/link";
 import InteractiveBilingualDemo, {
+  DEFAULT_BILINGUAL_DEMO_SENTENCES,
   type BilingualDemoSentence,
 } from "@/components/seo/InteractiveBilingualDemo";
 
@@ -11,8 +12,10 @@ export type SearchLandingConfig = {
   features: Array<{ title: string; body: string }>;
   demo: {
     sourceLabel: string;
+    sourceText?: string;
     translationLabel: string;
-    sentences: BilingualDemoSentence[];
+    translationText?: string;
+    sentences?: BilingualDemoSentence[];
     note: string;
   };
   steps: string[];
@@ -101,7 +104,7 @@ export default function SearchLandingPage({ config }: { config: SearchLandingCon
           <InteractiveBilingualDemo
             sourceLabel={config.demo.sourceLabel}
             translationLabel={config.demo.translationLabel}
-            sentences={config.demo.sentences}
+            sentences={config.demo.sentences ?? DEFAULT_BILINGUAL_DEMO_SENTENCES}
             note={config.demo.note}
           />
         </section>
