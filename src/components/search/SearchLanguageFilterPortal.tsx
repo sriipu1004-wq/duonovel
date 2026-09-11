@@ -88,6 +88,11 @@ function sumFilterCount(
   );
 }
 
+function writeCount(node: Element, value: number) {
+  const next = String(value);
+  if (node.textContent !== next) node.textContent = next;
+}
+
 function updateSearchChipCounts(
   host: HTMLElement,
   selected: ContentLanguage[],
@@ -110,12 +115,12 @@ function updateSearchChipCounts(
 
     if (title.startsWith("#")) {
       const key = normalizeTagToken(title);
-      countNode.textContent = String(sumFilterCount(filters.tags, key, selected));
+      writeCount(countNode, sumFilterCount(filters.tags, key, selected));
       continue;
     }
 
     const key = normalizeGenreToken(title);
-    countNode.textContent = String(sumFilterCount(filters.genres, key, selected));
+    writeCount(countNode, sumFilterCount(filters.genres, key, selected));
   }
 }
 
