@@ -5,17 +5,21 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { useCommonDictionary, useUiLocale } from "@/i18n/UiLocaleProvider";
+import { localizePath } from "@/i18n/navigation";
+import { stripUiLocalePrefix, type UiLocale } from "@/i18n/config";
 
-function buildLoginHref(pathname: string | null): string {
-  const nextPath = pathname && pathname.startsWith("/") ? pathname : "/";
+function buildLoginHref(pathname: string | null, locale: UiLocale): string {
+  const loginPath = localizePath("/login", locale);
+  const nextPath = pathname && pathname.startsWith("/") ? pathname : localizePath("/", locale);
 
-  if (nextPath === "/login") {
-    return "/login";
+  if (stripUiLocalePrefix(nextPath) === "/login") {
+    return loginPath;
   }
 
-  return nextPath === "/"
-    ? "/login"
-    : `/login?next=${encodeURIComponent(nextPath)}`;
+  return stripUiLocalePrefix(nextPath) === "/"
+    ? loginPath
+    : `${loginPath}?next=${encodeURIComponent(nextPath)}`;
 }
 
 function shortenEmail(email: string): string {
@@ -26,14 +30,16 @@ function shortenEmail(email: string): string {
 export default function AuthStatus() {
   const router = useRouter();
   const pathname = usePathname();
+  const locale = useUiLocale();
+  const dictionary = useCommonDictionary();
 
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [logoutPending, setLogoutPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const loginHref = useMemo(() => buildLoginHref(pathname), [pathname]);
-  const isMyPage = pathname === "/mypage";
+  const loginHref = useMemo(() => buildLoginHref(pathname, locale), [pathname, locale]);
+  const isMyPage = stripUiLocalePrefix(pathname) === "/mypage";
 
   useEffect(() => {
     let active = true;
@@ -44,7 +50,7 @@ export default function AuthStatus() {
       if (!active) return;
 
       if (error) {
-        setErrorMessage("認証状態の取得に失敗した");
+        setErrorMessage(dictionary.authStateFailed);
         setUser(null);
         setLoading(false);
         return;
@@ -69,7 +75,7 @@ export default function AuthStatus() {
       active = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [dictionary.authStateFailed]);
 
   async function handleLogout() {
     setLogoutPending(true);
@@ -78,7 +84,7 @@ export default function AuthStatus() {
     const { error } = await supabase.auth.signOut();
 
     if (error) {
-      setErrorMessage("ログアウトに失敗した");
+      setErrorMessage(dictionary.logoutFailed);
       setLogoutPending(false);
       return;
     }
@@ -91,7 +97,7 @@ export default function AuthStatus() {
   if (loading) {
     return (
       <div className="shrink-0 whitespace-nowrap text-[10px] text-neutral-500 dark:text-neutral-400 sm:text-xs">
-        認証確認中...
+        {dictionary.authChecking}
       </div>
     );
   }
@@ -109,7 +115,7 @@ export default function AuthStatus() {
           href={loginHref}
           className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/10 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-black transition hover:opacity-90 dark:border-white/20 sm:px-4 sm:py-2 sm:text-xs"
         >
-          ログイン
+          {dictionary.login}
         </Link>
       </div>
     );
@@ -119,18 +125,18 @@ export default function AuthStatus() {
     <div className="flex min-w-0 shrink items-center justify-end gap-1.5 sm:gap-3">
       <div className="hidden text-right sm:block">
         <p className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
-          Signed in
+          {dictionary.signedIn}
         </p>
         <p
           className="max-w-[220px] truncate text-xs text-neutral-700 dark:text-neutral-200"
           title={user.email ?? ""}
         >
-          {user.email ? shortenEmail(user.email) : "ログイン中"}
+          {user.email ? shortenEmail(user.email) : dictionary.signedIn}
         </p>
       </div>
 
       <Link
-        href="/mypage"
+        href={localizePath("/mypage", locale)}
         className={[
           "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-1.5 text-[clamp(0.625rem,3vw,0.75rem)] font-semibold transition sm:px-4 sm:py-2 sm:text-xs",
           isMyPage
@@ -138,7 +144,7 @@ export default function AuthStatus() {
             : "border border-white/10 bg-white/5 text-neutral-900 hover:bg-black/5 dark:text-white dark:hover:bg-white/10",
         ].join(" ")}
       >
-        マイページ
+        {dictionary.myPage}
       </Link>
 
       <button
@@ -147,7 +153,7 @@ export default function AuthStatus() {
         disabled={logoutPending}
         className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5 text-[clamp(0.625rem,3vw,0.75rem)] font-semibold text-neutral-900 transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60 dark:text-white dark:hover:bg-white/10 sm:px-4 sm:py-2 sm:text-xs"
       >
-        {logoutPending ? "ログアウト中..." : "ログアウト"}
+        {logoutPending ? dictionary.loggingOut : dictionary.logout}
       </button>
     </div>
   );
