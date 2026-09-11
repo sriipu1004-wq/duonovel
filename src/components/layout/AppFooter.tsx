@@ -7,6 +7,9 @@ import { useAiUsage } from "@/features/usage/useAiUsage";
 const serviceLinks = [
   { href: "/guide", label: "使い方" },
   { href: "/faq", label: "よくある質問" },
+  { href: "/english-novel-reader", label: "英語小説の対訳" },
+  { href: "/web-novel-language-learning", label: "小説で語学学習" },
+  { href: "/pdf-bilingual-reader", label: "PDF・EPUB対訳" },
   { href: "/status", label: "運営状況" },
   { href: "/news", label: "お知らせ" },
   { href: "/subscription", label: "サブスク" },

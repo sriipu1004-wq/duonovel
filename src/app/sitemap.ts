@@ -57,6 +57,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.8,
     },
+    {
+      url: SITE_URL + "/english-novel-reader",
+      changeFrequency: "monthly",
+      priority: 0.85,
+    },
+    {
+      url: SITE_URL + "/web-novel-language-learning",
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
+      url: SITE_URL + "/pdf-bilingual-reader",
+      changeFrequency: "monthly",
+      priority: 0.85,
+    },
     ...dynamicEntries,
   ];
 }
