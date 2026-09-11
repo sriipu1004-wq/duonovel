@@ -34,8 +34,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  targetUrl.pathname =
-    routePathname === "/" ? "/_localized-home" : routePathname;
+  targetUrl.pathname = routePathname === "/" ? "/locale-home" : routePathname;
 
   return NextResponse.rewrite(targetUrl, {
     request: { headers: requestHeaders },
