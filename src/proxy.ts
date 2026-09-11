@@ -4,7 +4,9 @@ import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { getProxyAuthState } from "@/lib/supabase/proxy";
 import {
   getUiLocaleFromPathname,
+  isUiLocale,
   stripUiLocalePrefix,
+  UI_LOCALE_COOKIE,
   UI_LOCALE_HEADER,
   type UiLocale,
 } from "@/i18n/config";
@@ -42,29 +44,52 @@ const SAVED_SEARCH_FILTERS = new Set([
 ]);
 
 function isPublicPath(pathname: string): boolean {
-  if (PUBLIC_EXACT_PATHS.has(pathname)) {
-    return true;
-  }
-
+  if (PUBLIC_EXACT_PATHS.has(pathname)) return true;
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
+function hasUiLocalePrefix(pathname: string): boolean {
+  return pathname === "/en" || pathname.startsWith("/en/") || pathname === "/ko" || pathname.startsWith("/ko/");
+}
+
+function resolveRequestLocale(request: NextRequest): UiLocale {
+  if (hasUiLocalePrefix(request.nextUrl.pathname)) {
+    return getUiLocaleFromPathname(request.nextUrl.pathname);
+  }
+
+  const cookieLocale = request.cookies.get(UI_LOCALE_COOKIE)?.value;
+  return isUiLocale(cookieLocale) ? cookieLocale : "ja";
+}
+
+function localizePathname(pathname: string, locale: UiLocale): string {
+  const base = stripUiLocalePrefix(pathname);
+  if (locale === "ja") return base;
+  return base === "/" ? `/${locale}` : `/${locale}${base}`;
+}
+
 function copyResponseCookies(source: NextResponse, target: NextResponse): NextResponse {
-  source.cookies.getAll().forEach((cookie) => {
-    target.cookies.set(cookie);
-  });
+  source.cookies.getAll().forEach((cookie) => target.cookies.set(cookie));
   return target;
+}
+
+function withLocaleCookie(response: NextResponse, locale: UiLocale): NextResponse {
+  response.cookies.set(UI_LOCALE_COOKIE, locale, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: "lax",
+  });
+  return response;
 }
 
 function buildPreparingRedirectResponse(
   request: NextRequest,
-  authResponse: NextResponse
+  authResponse: NextResponse,
+  locale: UiLocale
 ): NextResponse {
   const redirectUrl = request.nextUrl.clone();
-  redirectUrl.pathname = "/preparing";
+  redirectUrl.pathname = localizePathname("/preparing", locale);
   redirectUrl.search = "";
-
-  return copyResponseCookies(authResponse, NextResponse.redirect(redirectUrl));
+  return withLocaleCookie(copyResponseCookies(authResponse, NextResponse.redirect(redirectUrl)), locale);
 }
 
 function buildLocaleAwareResponse(
@@ -81,18 +106,22 @@ function buildLocaleAwareResponse(
 
   if (routePathname === "/search" && SAVED_SEARCH_FILTERS.has(savedFilter)) {
     targetUrl.pathname = "/search/saved";
-    return copyResponseCookies(
-      authResponse,
-      NextResponse.rewrite(targetUrl, {
-        request: { headers: requestHeaders },
-      })
+    return withLocaleCookie(
+      copyResponseCookies(
+        authResponse,
+        NextResponse.rewrite(targetUrl, { request: { headers: requestHeaders } })
+      ),
+      locale
     );
   }
 
   if (locale === "ja") {
-    return copyResponseCookies(
-      authResponse,
-      NextResponse.next({ request: { headers: requestHeaders } })
+    return withLocaleCookie(
+      copyResponseCookies(
+        authResponse,
+        NextResponse.next({ request: { headers: requestHeaders } })
+      ),
+      locale
     );
   }
 
@@ -110,32 +139,31 @@ function buildLocaleAwareResponse(
     targetUrl.pathname = routePathname;
   }
 
-  return copyResponseCookies(
-    authResponse,
-    NextResponse.rewrite(targetUrl, {
-      request: { headers: requestHeaders },
-    })
+  return withLocaleCookie(
+    copyResponseCookies(
+      authResponse,
+      NextResponse.rewrite(targetUrl, { request: { headers: requestHeaders } })
+    ),
+    locale
   );
 }
 
 export async function proxy(request: NextRequest) {
-  const locale = getUiLocaleFromPathname(request.nextUrl.pathname);
+  const locale = resolveRequestLocale(request);
   const routePathname = stripUiLocalePrefix(request.nextUrl.pathname);
   const authState = await getProxyAuthState(request);
 
-  if (
-    !isOfficialAccountEmail(authState.userEmail) &&
-    !isPublicPath(routePathname)
-  ) {
-    return buildPreparingRedirectResponse(request, authState.response);
+  if (!hasUiLocalePrefix(request.nextUrl.pathname) && locale !== "ja") {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = localizePathname(routePathname, locale);
+    return withLocaleCookie(copyResponseCookies(authState.response, NextResponse.redirect(redirectUrl)), locale);
   }
 
-  return buildLocaleAwareResponse(
-    request,
-    authState.response,
-    locale,
-    routePathname
-  );
+  if (!isOfficialAccountEmail(authState.userEmail) && !isPublicPath(routePathname)) {
+    return buildPreparingRedirectResponse(request, authState.response, locale);
+  }
+
+  return buildLocaleAwareResponse(request, authState.response, locale, routePathname);
 }
 
 export const config = {
