@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PromptTagSuggestions from "@/features/generation/PromptTagSuggestions";
 import { getPromptTagsInText } from "@/lib/generation/promptTags";
@@ -98,42 +98,17 @@ function ExpandableChoiceGroup<T extends string>({
   getLabel: (value: T) => string;
   locale: UiLocale;
 }) {
-  const labelId = useId();
-  const listRef = useRef<HTMLDivElement | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [hasOverflow, setHasOverflow] = useState(false);
   const copy = disclosureLabels[locale];
-
-  useEffect(() => {
-    if (expanded) return;
-    let cancelled = false;
-    let frame = 0;
-
-    const measure = () => {
-      const element = listRef.current;
-      if (!element || cancelled) return;
-      setHasOverflow(element.scrollHeight > element.clientHeight + 2);
-    };
-
-    frame = window.requestAnimationFrame(measure);
-    window.addEventListener("resize", measure);
-    void document.fonts?.ready.then(measure).catch(() => undefined);
-
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", measure);
-    };
-  }, [expanded, options.length, locale]);
+  const showDisclosure = options.length > 4;
 
   return (
-    <div className="grid gap-2" role="group" aria-labelledby={labelId}>
+    <div className="grid gap-2" role="group" aria-label={label}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <span id={labelId} className="text-sm font-medium text-black">{label}</span>
+        <span className="text-sm font-medium text-black">{label}</span>
         <span className="text-xs text-neutral-500">{copy.optional}</span>
       </div>
       <div
-        ref={listRef}
         className={[
           "flex flex-wrap gap-2",
           expanded ? "" : "max-h-[76px] overflow-hidden",
@@ -159,7 +134,7 @@ function ExpandableChoiceGroup<T extends string>({
           );
         })}
       </div>
-      {hasOverflow || expanded ? (
+      {showDisclosure ? (
         <button
           type="button"
           onClick={() => setExpanded((current) => !current)}
@@ -269,10 +244,15 @@ export default function TimeFitStoryGeneratorClient() {
         request: data.request,
         story: data.story,
       };
-      window.sessionStorage.setItem(buildGeneratedStoryStorageKey(storyId), JSON.stringify(payload));
+      window.sessionStorage.setItem(
+        buildGeneratedStoryStorageKey(storyId),
+        JSON.stringify(payload)
+      );
       router.push(localizePath(`/read/generated/${encodeURIComponent(storyId)}`, locale));
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : dictionary.generationError);
+      setErrorMessage(
+        error instanceof Error ? error.message : dictionary.generationError
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -280,20 +260,30 @@ export default function TimeFitStoryGeneratorClient() {
 
   return (
     <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-7">
-      <p className="text-[11px] tracking-[0.24em] text-neutral-500">TIME FIT AI STORY</p>
-      <h1 className="mt-3 text-2xl font-bold leading-tight text-black sm:text-3xl">{dictionary.title}</h1>
-      <p className="mt-3 text-sm leading-7 text-neutral-600">{dictionary.description}</p>
+      <p className="text-[11px] tracking-[0.24em] text-neutral-500">
+        TIME FIT AI STORY
+      </p>
+      <h1 className="mt-3 text-2xl font-bold leading-tight text-black sm:text-3xl">
+        {dictionary.title}
+      </h1>
+      <p className="mt-3 text-sm leading-7 text-neutral-600">
+        {dictionary.description}
+      </p>
 
       <form onSubmit={handleSubmit} className="mt-7 grid gap-5">
         <label className="grid gap-2">
           <span className="text-sm font-medium text-black">{dictionary.time}</span>
           <select
             value={timeMinutes}
-            onChange={(event) => setTimeMinutes(Number(event.target.value) as TimeMinutes)}
+            onChange={(event) =>
+              setTimeMinutes(Number(event.target.value) as TimeMinutes)
+            }
             className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300"
           >
             {TIME_OPTIONS.map((option) => (
-              <option key={option} value={option}>{dictionary.minutes(option)}</option>
+              <option key={option} value={option}>
+                {dictionary.minutes(option)}
+              </option>
             ))}
           </select>
         </label>
@@ -317,18 +307,28 @@ export default function TimeFitStoryGeneratorClient() {
         />
 
         <fieldset className="grid gap-4 rounded-[24px] border border-black/10 bg-neutral-50 p-4 sm:grid-cols-2">
-          <legend className="px-2 text-sm font-medium text-black">{dictionary.learningTitle}</legend>
+          <legend className="px-2 text-sm font-medium text-black">
+            {dictionary.learningTitle}
+          </legend>
           <label className="grid gap-2">
-            <span className="text-sm text-neutral-700">{dictionary.learningLanguage}</span>
+            <span className="text-sm text-neutral-700">
+              {dictionary.learningLanguage}
+            </span>
             <select
               value={learningLanguage}
-              onChange={(event) => setLearningLanguage(event.target.value as SupportedLanguageTag | "")}
+              onChange={(event) =>
+                setLearningLanguage(event.target.value as SupportedLanguageTag | "")
+              }
               className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300"
             >
               <option value="">{dictionary.none}</option>
-              {LEARNING_LANGUAGES.filter((language) => language !== "ja").map((language) => (
-                <option key={language} value={language}>{getSupportedLanguage(language).nativeLabel}</option>
-              ))}
+              {LEARNING_LANGUAGES.filter((language) => language !== "ja").map(
+                (language) => (
+                  <option key={language} value={language}>
+                    {getSupportedLanguage(language).nativeLabel}
+                  </option>
+                )
+              )}
             </select>
           </label>
           <label className="grid gap-2">
@@ -336,21 +336,31 @@ export default function TimeFitStoryGeneratorClient() {
             <select
               value={learningLevel}
               disabled={!learningLanguage}
-              onChange={(event) => setLearningLevel(event.target.value as TranslationLearningLevel)}
+              onChange={(event) =>
+                setLearningLevel(event.target.value as TranslationLearningLevel)
+              }
               className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300 disabled:opacity-50"
             >
               {TRANSLATION_LEARNING_LEVELS.map((level) => (
-                <option key={level} value={level}>{dictionary.levels[level]}</option>
+                <option key={level} value={level}>
+                  {dictionary.levels[level]}
+                </option>
               ))}
             </select>
           </label>
-          <p className="text-xs leading-6 text-neutral-500 sm:col-span-2">{dictionary.learningHelp}</p>
+          <p className="text-xs leading-6 text-neutral-500 sm:col-span-2">
+            {dictionary.learningHelp}
+          </p>
           {learningLanguage ? (
             <label className="grid gap-2 sm:col-span-2">
-              <span className="text-sm text-neutral-700">{dictionary.translationRequest}</span>
+              <span className="text-sm text-neutral-700">
+                {dictionary.translationRequest}
+              </span>
               <textarea
                 value={translationLearningRequest}
-                onChange={(event) => setTranslationLearningRequest(event.target.value)}
+                onChange={(event) =>
+                  setTranslationLearningRequest(event.target.value)
+                }
                 maxLength={TRANSLATION_LEARNING_REQUEST_MAX_LENGTH}
                 rows={3}
                 disabled={isGenerating}
@@ -358,15 +368,26 @@ export default function TimeFitStoryGeneratorClient() {
                 className="w-full resize-y rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 disabled:opacity-60"
               />
               <span className="text-right text-xs text-neutral-500">
-                {translationLearningRequest.length} / {TRANSLATION_LEARNING_REQUEST_MAX_LENGTH} {dictionary.chars}
+                {translationLearningRequest.length} / {TRANSLATION_LEARNING_REQUEST_MAX_LENGTH}{" "}
+                {dictionary.chars}
               </span>
             </label>
           ) : null}
         </fieldset>
 
         <div className="grid gap-2">
-          <label htmlFor="custom-request" className="text-sm font-medium text-black">{dictionary.customRequest}</label>
-          <span id="custom-request-help" className="text-xs leading-6 text-neutral-500">{dictionary.customHelp}</span>
+          <label
+            htmlFor="custom-request"
+            className="text-sm font-medium text-black"
+          >
+            {dictionary.customRequest}
+          </label>
+          <span
+            id="custom-request-help"
+            className="text-xs leading-6 text-neutral-500"
+          >
+            {dictionary.customHelp}
+          </span>
           <PromptTagSuggestions
             value={customRequest}
             onChange={setCustomRequest}
@@ -384,25 +405,35 @@ export default function TimeFitStoryGeneratorClient() {
             placeholder={dictionary.customPlaceholder}
             className="min-h-32 w-full box-border resize-y rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 disabled:opacity-60"
           />
-          <span id="custom-request-count" className="text-right text-xs text-neutral-500">
+          <span
+            id="custom-request-count"
+            className="text-right text-xs text-neutral-500"
+          >
             {customRequest.length} / {CUSTOM_REQUEST_MAX_LENGTH} {dictionary.chars}
           </span>
         </div>
 
         <button
           type="submit"
-          disabled={isGenerating || isAiUsageLimitReached(aiUsage?.actions.story_generation)}
+          disabled={
+            isGenerating || isAiUsageLimitReached(aiUsage?.actions.story_generation)
+          }
           aria-busy={isGenerating}
           className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-400"
         >
-          {isGenerating ? dictionary.generating : `${dictionary.generate} ${formatAiUsage(aiUsage?.actions.story_generation)}`}
+          {isGenerating
+            ? dictionary.generating
+            : `${dictionary.generate} ${formatAiUsage(aiUsage?.actions.story_generation)}`}
         </button>
 
-        {isAiUsageLimitReached(aiUsage?.actions.story_generation) && !aiUsage?.isSubscriber ? (
+        {isAiUsageLimitReached(aiUsage?.actions.story_generation) &&
+        !aiUsage?.isSubscriber ? (
           <SubscriptionUpgradePrompt />
         ) : null}
 
-        <p className="text-xs leading-6 text-neutral-500">{dictionary.limitHelp}</p>
+        <p className="text-xs leading-6 text-neutral-500">
+          {dictionary.limitHelp}
+        </p>
       </form>
 
       {errorMessage ? (
