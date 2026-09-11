@@ -8,10 +8,6 @@ import {
   UI_LOCALE_HEADER,
   type UiLocale,
 } from "@/i18n/config";
-import {
-  CONTENT_LANGUAGE_FILTER_COOKIE,
-  CONTENT_LANGUAGE_FILTER_HEADER,
-} from "@/i18n/contentLanguage";
 
 const SAVED_SEARCH_FILTERS = new Set([
   "bookmarked-works",
@@ -67,17 +63,6 @@ function buildLocaleAwareResponse(
 ): NextResponse {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(UI_LOCALE_HEADER, locale);
-
-  if (routePathname === "/search") {
-    const contentLanguageFilter = request.cookies
-      .get(CONTENT_LANGUAGE_FILTER_COOKIE)
-      ?.value?.trim();
-    if (contentLanguageFilter) {
-      requestHeaders.set(CONTENT_LANGUAGE_FILTER_HEADER, contentLanguageFilter);
-    } else {
-      requestHeaders.delete(CONTENT_LANGUAGE_FILTER_HEADER);
-    }
-  }
 
   const savedFilter = request.nextUrl.searchParams.get("saved") ?? "";
   const targetUrl = request.nextUrl.clone();
