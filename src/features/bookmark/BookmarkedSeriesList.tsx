@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { readPreferredReadingPosition, applyReadingModeToHref } from "@/lib/playback/readingBookmark";
 
 type BookmarkOrder = "updated" | "added";
 type BookmarkedSeriesListProps = { userId: string; surface?: "dark" | "light"; limit?: number; storageKey?: string; showOrderControls?: boolean };
@@ -100,12 +101,15 @@ export default function BookmarkedSeriesList({ userId, surface = "dark", limit, 
       const series = seriesMap.get(bookmark.series_id);
       const firstEpisodeNumber = firstEpisodeNumbers.get(bookmark.series_id);
       const isPrivate = series?.publication_status !== "public";
-      const href = isPrivate
+      const location = readPreferredReadingPosition(bookmark.series_id);
+      const href = location
+        ? applyReadingModeToHref(`/read/${bookmark.series_id}/${location.episodeNumber}`, location)
+        : isPrivate
         ? firstEpisodeNumber
           ? `/read/${bookmark.series_id}/${firstEpisodeNumber}`
           : `/write/series/${bookmark.series_id}`
         : `/works/${bookmark.series_id}`;
-      const linkLabel = isPrivate
+      const linkLabel = location ? "続きから読む" : isPrivate
         ? firstEpisodeNumber
           ? "自分だけで読む"
           : "編集"

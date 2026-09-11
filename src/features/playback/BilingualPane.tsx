@@ -40,8 +40,12 @@ type BilingualPaneProps = {
   displaySettings: StoredWebSpeechDisplaySettings;
 };
 
-const TAP_CENTER_SYNC_PAUSE_MS = 800;
-const SCROLL_OWNER_RELEASE_MS = 800;
+import {
+  claimLinkedScroll,
+  invalidateLinkedScroll,
+  pauseLinkedScrollForTap,
+  syncOtherPaneScroll,
+} from "@/lib/playback/bilingualScroll";
 
 export type PaneSide = "source" | "target";
 
@@ -49,133 +53,19 @@ export type BilingualWordSelection = {
   segmentId: string;
   side: PaneSide;
   text: string;
+  startOffset?: number;
 };
 
 export type BilingualWordInsight = BilingualWordSelection & {
   status: "loading" | "ready" | "error";
+  expression?: string;
+  contextualMeaning?: string;
   oppositeText?: string;
   partOfSpeech?: string;
+  usageType?: string;
   note?: string;
   message?: string;
 };
-
-type LinkedScrollState = {
-  owner: PaneSide | null;
-  releaseTimer: number | null;
-};
-
-const linkedScrollStates = new WeakMap<HTMLElement, LinkedScrollState>();
-
-function findReaderRoot(source: Element): HTMLElement | null {
-  const paneSection = source.closest("[data-bilingual-pane]");
-  const readerRoot = paneSection?.parentElement;
-  return readerRoot instanceof HTMLElement ? readerRoot : null;
-}
-
-function pauseLinkedScrollForTap(source: Element) {
-  const readerRoot = findReaderRoot(source);
-  if (!readerRoot) return;
-
-  const token = `${Date.now()}-${Math.random()}`;
-  readerRoot.dataset.bilingualTapCentering = token;
-
-  window.setTimeout(() => {
-    if (readerRoot.dataset.bilingualTapCentering === token) {
-      delete readerRoot.dataset.bilingualTapCentering;
-    }
-  }, TAP_CENTER_SYNC_PAUSE_MS);
-}
-
-function getLinkedScrollState(readerRoot: HTMLElement): LinkedScrollState {
-  const current = linkedScrollStates.get(readerRoot);
-  if (current) return current;
-
-  const created: LinkedScrollState = {
-    owner: null,
-    releaseTimer: null,
-  };
-  linkedScrollStates.set(readerRoot, created);
-  return created;
-}
-
-function claimLinkedScroll(source: Element, side: PaneSide) {
-  const readerRoot = findReaderRoot(source);
-  if (!readerRoot) return;
-
-  const state = getLinkedScrollState(readerRoot);
-  if (state.releaseTimer !== null) {
-    window.clearTimeout(state.releaseTimer);
-    state.releaseTimer = null;
-  }
-  state.owner = side;
-  delete (source as HTMLElement).dataset.bilingualSyncing;
-}
-
-function scheduleLinkedScrollRelease(
-  readerRoot: HTMLElement,
-  side: PaneSide
-) {
-  const state = getLinkedScrollState(readerRoot);
-  if (state.releaseTimer !== null) {
-    window.clearTimeout(state.releaseTimer);
-  }
-
-  state.releaseTimer = window.setTimeout(() => {
-    if (state.owner === side) {
-      state.owner = null;
-    }
-    state.releaseTimer = null;
-  }, SCROLL_OWNER_RELEASE_MS);
-}
-
-function syncOtherPaneScroll(
-  side: PaneSide,
-  event: UIEvent<HTMLDivElement>
-): boolean {
-  const source = event.currentTarget;
-
-  if (source.dataset.bilingualSyncing === "1") {
-    return true;
-  }
-
-  const readerRoot = findReaderRoot(source);
-  if (!readerRoot || readerRoot.dataset.bilingualTapCentering) {
-    return true;
-  }
-
-  const state = getLinkedScrollState(readerRoot);
-  if (state.owner !== null && state.owner !== side) {
-    return true;
-  }
-  state.owner = side;
-
-  const targetSide = side === "source" ? "target" : "source";
-  const target = readerRoot.querySelector<HTMLDivElement>(
-    `[data-bilingual-scroll="${targetSide}"]`
-  );
-
-  if (!target || target === source) {
-    scheduleLinkedScrollRelease(readerRoot, side);
-    return false;
-  }
-
-  const sourceMaxScroll = Math.max(0, source.scrollHeight - source.clientHeight);
-  const targetMaxScroll = Math.max(0, target.scrollHeight - target.clientHeight);
-  const progress =
-    sourceMaxScroll > 0
-      ? Math.min(1, Math.max(0, source.scrollTop / sourceMaxScroll))
-      : 0;
-
-  target.dataset.bilingualSyncing = "1";
-  target.scrollTop = progress * targetMaxScroll;
-
-  window.requestAnimationFrame(() => {
-    delete target.dataset.bilingualSyncing;
-  });
-
-  scheduleLinkedScrollRelease(readerRoot, side);
-  return false;
-}
 
 function findCenteredSegmentId(container: HTMLDivElement): string | null {
   const segments = Array.from(
@@ -211,18 +101,22 @@ function findCenteredSegmentId(container: HTMLDivElement): string | null {
 function tokenizeForWordSelection(
   value: string,
   language?: SupportedLanguageTag
-): Array<{ text: string; isWordLike: boolean }> {
+): Array<{ text: string; isWordLike: boolean; startOffset: number }> {
   if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
     const segmenter = new Intl.Segmenter(language, { granularity: "word" });
     return Array.from(segmenter.segment(value)).map((item) => ({
       text: item.segment,
+      startOffset: item.index,
       isWordLike: item.isWordLike === true,
     }));
   }
 
-  return (value.match(/[\p{L}\p{N}\p{M}]+|[^\p{L}\p{N}\p{M}]+/gu) ?? [value]).map(
-    (text) => ({ text, isWordLike: /[\p{L}\p{N}]/u.test(text) })
-  );
+  let offset = 0;
+  return (value.match(/[\p{L}\p{N}\p{M}]+|[^\p{L}\p{N}\p{M}]+/gu) ?? [value]).map((text) => {
+    const token = { text, isWordLike: /[\p{L}\p{N}]/u.test(text), startOffset: offset };
+    offset += text.length;
+    return token;
+  });
 }
 
 export default function BilingualPane({
@@ -242,7 +136,8 @@ export default function BilingualPane({
   displaySettings,
 }: BilingualPaneProps) {
   const paragraphMap = new Map<number, BilingualSegment[]>();
-  const positionFrameRef = useRef<number | null>(null);
+  const scrollFrameRef = useRef<number | null>(null);
+  const lastReportedPositionIdRef = useRef<string | null>(null);
 
   for (const segment of segments) {
     const current = paragraphMap.get(segment.paragraphIndex) ?? [];
@@ -252,27 +147,49 @@ export default function BilingualPane({
 
   useEffect(() => {
     return () => {
-      if (positionFrameRef.current !== null) {
-        window.cancelAnimationFrame(positionFrameRef.current);
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
       }
     };
   }, []);
 
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    invalidateLinkedScroll(container);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => invalidateLinkedScroll(container));
+    observer.observe(container);
+    if (container.firstElementChild) observer.observe(container.firstElementChild);
+    return () => observer.disconnect();
+  }, [scrollRef, segments, displaySettings, selectedSegmentId]);
+
   function handleScroll(event: UIEvent<HTMLDivElement>) {
     const source = event.currentTarget;
-    const isProgrammaticCounterpart = syncOtherPaneScroll(side, event);
+    if (
+      Boolean(source.dataset.bilingualSyncing) ||
+      scrollFrameRef.current !== null
+    ) {
+      return;
+    }
 
-    if (isProgrammaticCounterpart || positionFrameRef.current !== null) return;
-
-    positionFrameRef.current = window.requestAnimationFrame(() => {
-      positionFrameRef.current = null;
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      if (syncOtherPaneScroll(side, source)) return;
       const centeredId = findCenteredSegmentId(source);
-      if (centeredId) onReadingPositionChange(centeredId);
+      if (
+        centeredId &&
+        centeredId !== lastReportedPositionIdRef.current
+      ) {
+        lastReportedPositionIdRef.current = centeredId;
+        onReadingPositionChange(centeredId);
+      }
     });
   }
 
   function selectSentence(source: Element, segmentId: string) {
     pauseLinkedScrollForTap(source);
+    lastReportedPositionIdRef.current = segmentId;
     onReadingPositionChange(segmentId);
     onSelectSegment(segmentId);
   }
@@ -289,10 +206,10 @@ export default function BilingualPane({
         {wordInsight?.side === side ? (
           <span className="min-w-0 text-right text-[11px] leading-5 text-neutral-600">
             {wordInsight.status === "loading"
-              ? `${wordInsight.text} の対応を確認中…`
+              ? `${wordInsight.text} の文中での意味を確認中…`
               : wordInsight.status === "ready"
-                ? `${wordInsight.text} → ${wordInsight.oppositeText} ・ ${wordInsight.partOfSpeech}`
-                : wordInsight.message || "単語の対応を確認できませんでした"}
+                ? `${wordInsight.expression || wordInsight.text}：${wordInsight.contextualMeaning || wordInsight.oppositeText} ・ ${wordInsight.partOfSpeech}${wordInsight.usageType ? ` ・ ${wordInsight.usageType}` : ""}${wordInsight.note ? `（${wordInsight.note}）` : ""}`
+                : wordInsight.message || "文中での意味を確認できませんでした"}
           </span>
         ) : null}
       </div>
@@ -306,6 +223,10 @@ export default function BilingualPane({
         onTouchStart={(event) =>
           claimLinkedScroll(event.currentTarget, side)
         }
+        onTouchMove={(event) => claimLinkedScroll(event.currentTarget, side)}
+        onPointerMove={(event) => {
+          if (event.buttons || event.pointerType === "touch") claimLinkedScroll(event.currentTarget, side);
+        }}
         onWheel={(event: WheelEvent<HTMLDivElement>) =>
           claimLinkedScroll(event.currentTarget, side)
         }
@@ -368,7 +289,6 @@ export default function BilingualPane({
                     onMouseEnter={() => onHoverSegment(segment.id)}
                     onMouseLeave={() => onHoverSegment(null)}
                     onClick={(event) => {
-                      if (selected) return;
                       selectSentence(event.currentTarget, segment.id);
                     }}
                     onKeyDown={(event) => {
@@ -378,7 +298,7 @@ export default function BilingualPane({
                       selectSentence(event.currentTarget, segment.id);
                     }}
                     className={[
-                      "inline cursor-pointer rounded-md px-1 py-1 transition-all duration-150",
+                      "inline cursor-pointer rounded-md px-1 py-1 transition-colors duration-150",
                       !displaySettings.hideEffects && hovered && !selected
                         ? "bg-sky-50"
                         : displaySettings.hideEffects
@@ -408,9 +328,10 @@ export default function BilingualPane({
                                   segmentId: segment.id,
                                   side,
                                   text: token.text,
+                                  startOffset: token.startOffset,
                                 });
                               }}
-                              className="rounded px-0.5 underline decoration-transparent decoration-2 underline-offset-4 transition hover:bg-white/70 hover:decoration-sky-400 focus:bg-white/70 focus:outline-none focus:decoration-sky-500"
+                              className="rounded underline decoration-transparent decoration-2 underline-offset-4 transition hover:bg-white/70 hover:decoration-sky-400 focus:bg-white/70 focus:outline-none focus:decoration-sky-500"
                             >
                               {token.text}
                             </button>
@@ -422,7 +343,8 @@ export default function BilingualPane({
                         )
                       : side === "source"
                         ? renderTextWithAozoraRuby(segment.sourceText)
-                        : `${segment.translatedText} `}
+                        : segment.translatedText}
+                    {side === "target" ? " " : null}
                   </span>
                 );
               })}

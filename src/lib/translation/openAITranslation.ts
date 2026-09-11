@@ -3,6 +3,10 @@ import {
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { getTranslationReasoning } from "@/lib/translation/openAITranslationModel";
+import {
+  buildTranslationLearningInstruction,
+  type TranslationLearningPreference,
+} from "@/lib/translation/translationLearningPreference";
 
 type OpenAIResponseBody = {
   status?: string;
@@ -446,12 +450,19 @@ async function translateBatch(args: {
   recurringTerms: string[];
   glossaryTerms: TranslationGlossaryTerm[];
   usesFirstPersonNarrator: boolean;
+  learningPreference?: TranslationLearningPreference | null;
   retryAttempt?: number;
 }): Promise<TranslationOutput & { inputTokens: number; outputTokens: number }> {
   let response: Response;
   const sourceLanguage = getSupportedLanguage(args.sourceLanguage);
   const targetLanguage = getSupportedLanguage(args.targetLanguage);
   const label = translationLabel();
+  const learningInstruction = args.learningPreference
+    ? buildTranslationLearningInstruction(
+        args.learningPreference,
+        args.targetLanguage
+      )
+    : null;
 
   try {
     response = await fetch("https://api.openai.com/v1/responses", {
@@ -519,6 +530,7 @@ async function translateBatch(args: {
                   args.usesFirstPersonNarrator
                     ? "The full work uses a first-person narrator. Preserve the narrator's first-person perspective in every batch and never invent a name for the narrator. Resolve each omitted Japanese subject from the nearest explicit actor and surrounding context; do not assume every omitted subject or every reflexive 自分 refers to the narrator."
                     : null,
+                  learningInstruction,
                   (args.retryAttempt ?? 0) > 0
                     ? "The previous attempt failed validation. Translate every id completely in its surrounding context; never use an ellipsis or other placeholder for a segment that contains words, and remove every remaining source-language fragment."
                     : null,
@@ -842,6 +854,7 @@ export async function translateSegmentsInBatches(args: {
   targetLanguage: SupportedLanguageTag;
   segments: OpenAITranslationSourceSegment[];
   glossaryTerms?: TranslationGlossaryTerm[];
+  learningPreference?: TranslationLearningPreference | null;
 }): Promise<OpenAITranslationResult> {
   const label = translationLabel();
 
@@ -881,6 +894,7 @@ export async function translateSegmentsInBatches(args: {
             recurringTerms,
             glossaryTerms,
             usesFirstPersonNarrator,
+            learningPreference: args.learningPreference,
           },
           () => {
             attemptedRetries += 1;

@@ -3,6 +3,9 @@ import "server-only";
 import { PRIVATE_LIBRARY_LIMITS } from "@/lib/library/privateLibrary";
 
 export function getPrivateLibraryImportErrorMessage(message: string): string {
+  if (message.includes("Free library import daily action limit")) {
+    return "本日の無料共通枠（AI生成・対訳・個人本棚への取り込み、合計3回）を使い切りました。";
+  }
   const normalized = message.toLowerCase();
 
   if (normalized.includes("free private library work limit")) {

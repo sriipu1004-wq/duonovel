@@ -11,6 +11,7 @@ import type {
   SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
+import { parseTranslationLearningPreference, type TranslationLearningLevel } from "@/lib/translation/translationLearningPreference";
 
 type GeneratedStoryPayload = {
   id: string;
@@ -20,6 +21,9 @@ type GeneratedStoryPayload = {
     timeMinutes?: number;
     genre?: string;
     mood?: string;
+    learningLanguage?: SupportedLanguageTag;
+    learningLevel?: TranslationLearningLevel;
+    translationLearningRequest?: string;
   };
   story: {
     title: string;
@@ -200,6 +204,7 @@ export default function GeneratedStoryBilingualBridge({
               body: generated.story.body,
               sourceLanguage: detectedSourceLanguage,
               targetLanguage: language,
+              learningPreference: generated.request,
               checkOnly: true,
             }),
           });
@@ -246,12 +251,14 @@ export default function GeneratedStoryBilingualBridge({
       generated.story.body
     );
     setSourceLanguage(detectedSourceLanguage);
+    const learningPreference = parseTranslationLearningPreference(generated.request);
+    const preferredLanguage = learningPreference?.language ?? targetLanguage;
     const selectedLanguage =
-      targetLanguage === detectedSourceLanguage
+      preferredLanguage === detectedSourceLanguage
         ? detectedSourceLanguage === "ja"
           ? "en"
           : "ja"
-        : targetLanguage;
+        : preferredLanguage;
     setTargetLanguage(selectedLanguage);
     setRememberForTab(false);
     setIsLanguagePickerOpen(true);

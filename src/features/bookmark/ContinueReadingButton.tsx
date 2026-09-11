@@ -4,6 +4,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getPlayLogBySeries } from "@/lib/playLogs";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  applyReadingModeToHref,
+  readReadingBookmark,
+  readPreferredReadingPosition,
+  readReadingHistory,
+  type ReadingMode,
+} from "@/lib/playback/readingBookmark";
 
 type ContinueReadingButtonProps = {
   seriesId: string;
@@ -15,7 +22,11 @@ type ContinueReadingButtonProps = {
 type BookmarkData = {
   seriesId: string;
   episodeNumber: number;
-  currentTime: number;
+  positionIndex: number;
+  currentTime?: number;
+  mode?: ReadingMode;
+  sourceLanguage?: string;
+  targetLanguage?: string;
   readerKey?: string;
   readerName?: string;
 };
@@ -34,6 +45,10 @@ type RecordingLookupRow = Record<string, unknown> & {
 type ResumeData = {
   episodeNumber: number;
   startAt: number;
+  positionIndex?: number;
+  mode?: ReadingMode;
+  sourceLanguage?: string;
+  targetLanguage?: string;
   readerKey?: string;
   readerName?: string;
 };
@@ -109,7 +124,8 @@ function buildReadHref(
   episodeNumber: number,
   readerKey?: string,
   readerName?: string,
-  startAt?: number
+  startAt?: number,
+  readingMode?: Pick<ResumeData, "mode" | "sourceLanguage" | "targetLanguage">
 ): string {
   const query = new URLSearchParams();
 
@@ -120,23 +136,18 @@ function buildReadHref(
   }
 
   const queryString = query.toString();
-  return `/read/${seriesId}/${episodeNumber}${queryString ? `?${queryString}` : ""}`;
+  const href = `/read/${seriesId}/${episodeNumber}${queryString ? `?${queryString}` : ""}`;
+  return readingMode?.mode
+    ? applyReadingModeToHref(href, {
+        mode: readingMode.mode,
+        sourceLanguage: readingMode.sourceLanguage,
+        targetLanguage: readingMode.targetLanguage,
+      })
+    : href;
 }
 
 function readLocalBookmark(seriesId: string): BookmarkData | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.localStorage.getItem(`duonovel:bookmark:${seriesId}`);
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as BookmarkData | null;
-    if (!parsed || parsed.seriesId !== seriesId) return null;
-
-    return parsed;
-  } catch {
-    return null;
-  }
+  return readReadingBookmark(seriesId) ? readPreferredReadingPosition(seriesId) as BookmarkData : null;
 }
 
 function readLocalResume(seriesId: string): ResumeData | null {
@@ -252,6 +263,37 @@ export default function ContinueReadingButton({
 
       const localResume = readLocalResume(seriesId);
       const localBookmark = readLocalBookmark(seriesId);
+      const localHistory = readReadingHistory(seriesId);
+
+      if (localBookmark) {
+        setResume({
+          episodeNumber: Math.max(1, Math.floor(toSafeNumber(localBookmark.episodeNumber, 1))),
+          startAt: toSafeNumber(localBookmark.currentTime, 0),
+          positionIndex: localBookmark.positionIndex,
+          mode: localBookmark.mode,
+          sourceLanguage: localBookmark.sourceLanguage,
+          targetLanguage: localBookmark.targetLanguage,
+          readerKey: localBookmark.readerKey ?? fallbackReaderKey,
+          readerName: localBookmark.readerName ?? fallbackReaderName,
+        });
+        setLoaded(true);
+        return;
+      }
+
+      if (localHistory) {
+        setResume({
+          episodeNumber: localHistory.episodeNumber,
+          startAt: 0,
+          positionIndex: localHistory.positionIndex,
+          mode: localHistory.mode,
+          sourceLanguage: localHistory.sourceLanguage,
+          targetLanguage: localHistory.targetLanguage,
+          readerKey: fallbackReaderKey,
+          readerName: fallbackReaderName,
+        });
+        setLoaded(true);
+        return;
+      }
 
       try {
         const {
@@ -307,16 +349,7 @@ export default function ContinueReadingButton({
         return;
       }
 
-      if (localBookmark) {
-        setResume({
-          episodeNumber: Math.max(1, Math.floor(toSafeNumber(localBookmark.episodeNumber, 1))),
-          startAt: toSafeNumber(localBookmark.currentTime, 0),
-          readerKey: localBookmark.readerKey ?? fallbackReaderKey,
-          readerName: localBookmark.readerName ?? fallbackReaderName,
-        });
-      } else {
-        setResume(null);
-      }
+      setResume(null);
 
       setLoaded(true);
     }
@@ -361,7 +394,8 @@ export default function ContinueReadingButton({
           resume.episodeNumber,
           activeReader.readerKey,
           activeReader.readerName,
-          resume.startAt
+          resume.startAt,
+          resume
         )}
         className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm text-neutral-700 transition hover:bg-neutral-50"
       >

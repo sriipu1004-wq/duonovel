@@ -1,6 +1,8 @@
 import { after, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import { readSeriesTranslationLearningPreference } from "@/lib/translation/translationLearningPreference";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -64,7 +66,11 @@ function isAiGeneratedSeries(series: SeriesRow): boolean {
   );
 }
 
-function scheduleEpisodeTranslation(requestUrl: string, episodeId: string): void {
+function scheduleEpisodeTranslation(
+  requestUrl: string,
+  episodeId: string,
+  targetLanguage: SupportedLanguageTag
+): void {
   const generateUrl = new URL(
     "/api/episode-translations/generate",
     requestUrl
@@ -79,7 +85,7 @@ function scheduleEpisodeTranslation(requestUrl: string, episodeId: string): void
         },
         body: JSON.stringify({
           episodeId,
-          targetLanguage: "en",
+          targetLanguage,
         }),
         cache: "no-store",
       });
@@ -207,7 +213,16 @@ export async function POST(request: Request) {
       : 1;
 
   if (episode.posting_status === "posted") {
-    scheduleEpisodeTranslation(request.url, episode.id);
+    const learningPreference = readSeriesTranslationLearningPreference(
+      series.effect_settings
+    );
+    scheduleEpisodeTranslation(
+      request.url,
+      episode.id,
+      learningPreference && learningPreference.language !== "ja"
+        ? learningPreference.language
+        : "en"
+    );
 
     return NextResponse.json({
       ok: true,
@@ -296,7 +311,16 @@ export async function POST(request: Request) {
     );
   }
 
-  scheduleEpisodeTranslation(request.url, episode.id);
+  const learningPreference = readSeriesTranslationLearningPreference(
+    series.effect_settings
+  );
+  scheduleEpisodeTranslation(
+    request.url,
+    episode.id,
+    learningPreference && learningPreference.language !== "ja"
+      ? learningPreference.language
+      : "en"
+  );
 
   return NextResponse.json({
     ok: true,

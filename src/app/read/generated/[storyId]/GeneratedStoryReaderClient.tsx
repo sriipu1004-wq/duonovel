@@ -10,6 +10,8 @@ import {
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { usePremiumBackgroundNarration } from "@/features/playback/usePremiumBackgroundNarration";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import type { TranslationLearningLevel } from "@/lib/translation/translationLearningPreference";
 
 type TimeMinutes = 5 | 10 | 15 | 20;
 
@@ -18,6 +20,9 @@ type GenerateRequest = {
   timeMinutes: TimeMinutes;
   genre: string;
   mood: string;
+  learningLanguage?: SupportedLanguageTag;
+  learningLevel?: TranslationLearningLevel;
+  translationLearningRequest?: string;
 };
 
 type TimeFitStory = {
@@ -300,14 +305,12 @@ function FooterActionButton({
   iconSrc,
   disabled,
   active,
-  accent,
   onClick,
 }: {
   label: string;
   iconSrc?: string;
   disabled?: boolean;
   active?: boolean;
-  accent?: boolean;
   onClick?: () => void;
 }) {
   return (

@@ -7,7 +7,8 @@
     "build": "node --max-old-space-size=12288 ./node_modules/next/dist/bin/next build",
     "start": "node --max-old-space-size=12288 ./node_modules/next/dist/bin/next start",
     "lint": "eslint",
-    "test:library-import": "node --import tsx scripts/test-private-library-import.ts"
+    "test:library-import": "node --import tsx scripts/test-private-library-import.ts",
+    "test:bilingual-reading": "node --import tsx scripts/test-bilingual-reading.tsx"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

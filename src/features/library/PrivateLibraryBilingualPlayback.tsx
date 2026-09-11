@@ -26,7 +26,12 @@ import {
   formatAiUsage,
   isAiUsageLimitReached,
 } from "@/lib/aiUsage/aiUsage";
-import { readReadingBookmark } from "@/lib/playback/readingBookmark";
+import { scrollBilingualPaneTo } from "@/lib/playback/bilingualScroll";
+import {
+  readEpisodeReadingPosition,
+  resolveReadingPositionIndex,
+  writeReadingHistory,
+} from "@/lib/playback/readingBookmark";
 
 type TranslationStatus =
   | "loading"
@@ -241,19 +246,40 @@ export default function PrivateLibraryBilingualPlayback({
 
   useEffect(() => {
     if (translationStatus !== "ready" || segments.length === 0) return;
-    const restoreKey = `${chapterNumber}:${sourceHash ?? "ready"}`;
+    const restoreKey = `${chapterNumber}:${sourceLanguage}:${targetLanguage}:${sourceHash ?? "ready"}`;
     if (restoredBookmarkKeyRef.current === restoreKey) return;
     restoredBookmarkKeyRef.current = restoreKey;
-    const bookmark = readReadingBookmark(`private-library:${workId}`);
-    if (!bookmark || bookmark.episodeNumber !== chapterNumber) return;
-    const index = Math.min(bookmark.positionIndex, segments.length - 1);
+    const seriesId = `private-library:${workId}`;
+    const location = readEpisodeReadingPosition(seriesId, chapterNumber);
+    const index = location
+      ? resolveReadingPositionIndex(segments, location)
+      : 0;
     const id = segments[index]?.id;
     if (!id) return;
+    const segment = segments[index];
     readingSegmentIdRef.current = id;
     setCurrentPositionIndex(index);
     setSelectedSegmentId(id);
+    writeReadingHistory({
+      seriesId,
+      episodeNumber: chapterNumber,
+      positionIndex: index,
+      paragraphIndex: segment?.paragraphIndex,
+      sentenceIndex: segment?.sentenceIndex,
+      mode: "bilingual",
+      sourceLanguage,
+      targetLanguage,
+    });
     window.requestAnimationFrame(() => alignSegmentToTop(id));
-  }, [chapterNumber, segments, sourceHash, translationStatus, workId]);
+  }, [
+    chapterNumber,
+    segments,
+    sourceHash,
+    sourceLanguage,
+    targetLanguage,
+    translationStatus,
+    workId,
+  ]);
 
   const requestTranslationGeneration = useCallback(async () => {
     if (generationInFlightRef.current) return false;
@@ -555,22 +581,10 @@ export default function PrivateLibraryBilingualPlayback({
     node: HTMLSpanElement | null
   ) {
     if (!container || !node) return;
-    const containerRect = container.getBoundingClientRect();
-    const nodeRect = node.getBoundingClientRect();
-    const target =
-      container.scrollTop +
-      (nodeRect.top - containerRect.top) -
-      container.clientHeight / 2 +
-      nodeRect.height / 2;
-
-    container.scrollTo({
-      top: Math.max(0, target),
-      behavior:
-        window.matchMedia("(pointer: coarse)").matches ||
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "auto"
-          : "smooth",
-    });
+    const a = container.getBoundingClientRect();
+    const b = node.getBoundingClientRect();
+    scrollBilingualPaneTo(container, container.scrollTop + b.top - a.top - container.clientHeight / 2 + b.height / 2,
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
   }
 
   function centerSegment(id: string) {
@@ -594,10 +608,7 @@ export default function PrivateLibraryBilingualPlayback({
       if (!container || !node) return;
       const containerRect = container.getBoundingClientRect();
       const nodeRect = node.getBoundingClientRect();
-      container.scrollTo({
-        top: Math.max(0, container.scrollTop + nodeRect.top - containerRect.top),
-        behavior: "auto",
-      });
+      scrollBilingualPaneTo(container, container.scrollTop + nodeRect.top - containerRect.top, "auto");
     };
     align(
       sourceScrollRef.current,
@@ -621,7 +632,20 @@ export default function PrivateLibraryBilingualPlayback({
     readingSegmentIdRef.current = id;
 
     const segmentIndex = segments.findIndex((segment) => segment.id === id);
-    if (segmentIndex >= 0) setCurrentPositionIndex(segmentIndex);
+    if (segmentIndex >= 0) {
+      const segment = segments[segmentIndex];
+      setCurrentPositionIndex(segmentIndex);
+      writeReadingHistory({
+        seriesId: `private-library:${workId}`,
+        episodeNumber: chapterNumber,
+        positionIndex: segmentIndex,
+        paragraphIndex: segment?.paragraphIndex,
+        sentenceIndex: segment?.sentenceIndex,
+        mode: "bilingual",
+        sourceLanguage,
+        targetLanguage,
+      });
+    }
     const progressRatio =
       segmentIndex >= 0 && segments.length > 0
         ? (segmentIndex + 1) / segments.length
@@ -757,7 +781,7 @@ export default function PrivateLibraryBilingualPlayback({
                 seriesId={`private-library:${workId}`}
               />
               <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
-                文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
+                下段の文を選択後、語をタップして文中の意味・熟語・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
                 {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
                 !aiUsage?.isSubscriber ? (
                   <Link href="/subscription" className="ml-2 font-semibold text-sky-700 underline underline-offset-2">
@@ -792,7 +816,6 @@ export default function PrivateLibraryBilingualPlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
-                    onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
                     displaySettings={displaySettings}
                   />
@@ -811,7 +834,6 @@ export default function PrivateLibraryBilingualPlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
-                    onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
                     displaySettings={displaySettings}
                   />
@@ -976,6 +998,8 @@ export default function PrivateLibraryBilingualPlayback({
           seriesId={`private-library:${workId}`}
           episodeNumber={chapterNumber}
           positionIndex={currentPositionIndex}
+          paragraphIndex={segments[currentPositionIndex]?.paragraphIndex}
+          sentenceIndex={segments[currentPositionIndex]?.sentenceIndex}
           sentenceCount={segments.length}
           prevHref={previousChapterHref}
           nextHref={nextChapterHref}
@@ -994,7 +1018,7 @@ export default function PrivateLibraryBilingualPlayback({
             const segment = segments[index];
             if (!segment) return;
             readingSegmentIdRef.current = segment.id;
-            setCurrentPositionIndex(index);
+            handleReadingPositionChange(segment.id);
             setSelectedSegmentId(segment.id);
             if (shouldFollow) centerSegment(segment.id);
           }}

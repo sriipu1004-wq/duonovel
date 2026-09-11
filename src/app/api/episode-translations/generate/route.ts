@@ -30,6 +30,7 @@ import {
   reserveAiAction,
 } from "@/lib/aiUsage/aiUsage.server";
 import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
+import { readSeriesTranslationLearningPreference } from "@/lib/translation/translationLearningPreference";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -226,6 +227,13 @@ export async function POST(request: Request) {
     );
   }
 
+  const parsedLearningPreference = readSeriesTranslationLearningPreference(
+    access.series.effect_settings ?? access.series.effectSettings
+  );
+  const learningPreference =
+    parsedLearningPreference?.language === targetLanguage
+      ? parsedLearningPreference
+      : null;
   const source = buildEpisodeTranslationSource(access.body, sourceLanguage);
   const sourceChars = source.normalizedSource.length;
 
@@ -247,7 +255,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const sourceHash = buildEpisodeTranslationSourceHash(access.body);
+  const sourceHash = buildEpisodeTranslationSourceHash(
+    access.body,
+    learningPreference ? { learningPreference } : undefined
+  );
   const model = process.env.EPISODE_TRANSLATION_MODEL ?? DEFAULT_TRANSLATION_MODEL;
   const estimatedTokens = estimateTokens(sourceChars);
   const estimatedCostJpy = estimateGuardrailCostJpy(
@@ -417,6 +428,7 @@ export async function POST(request: Request) {
       episodeTitle,
       sourceLanguage,
       targetLanguage,
+      learningPreference,
       segments: source.segments.map((segment) => ({
         id: segment.id,
         text: segment.translationInput,

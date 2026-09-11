@@ -41,6 +41,9 @@ function parseChapters(value: unknown): ChapterInput[] | null {
 
 function getImportErrorMessage(message: string): string {
   const normalized = message.toLowerCase();
+  if (normalized.includes("free library import daily action limit")) {
+    return "本日の無料共通枠（AI生成・対訳・個人本棚への取り込み、合計3回）を使い切りました。";
+  }
 
   if (normalized.includes("free private library work limit")) {
     return `無料プランの個人本棚は${PRIVATE_LIBRARY_LIMITS.freeMaxWorksPerUser}作品までです。作品を削除するか、サブスクを利用してください。`;
@@ -132,10 +135,10 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "private_library_import_failed",
+        error: message.includes("Free library import daily action limit") ? "daily_action_limit" : "private_library_import_failed",
         message: getImportErrorMessage(message),
       },
-      { status: 422 }
+      { status: message.includes("Free library import daily action limit") ? 429 : 422 }
     );
   }
 
