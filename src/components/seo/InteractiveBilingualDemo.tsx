@@ -7,6 +7,41 @@ export type BilingualDemoSentence = {
   translation: string;
 };
 
+export const DEFAULT_BILINGUAL_DEMO_SENTENCES: BilingualDemoSentence[] = [
+  {
+    source: "The station clock had stopped at eleven forty-seven.",
+    translation: "駅の時計は十一時四十七分で止まっていた。",
+  },
+  {
+    source: "I had already missed the last train, yet someone was still standing beneath the departure board.",
+    translation: "私はもう終電を逃していたのに、発車案内板の下にはまだ誰かが立っていた。",
+  },
+  {
+    source: "A girl in a red scarf looked up from her book when she heard my footsteps.",
+    translation: "赤いマフラーを巻いた少女が、私の足音を聞いて本から顔を上げた。",
+  },
+  {
+    source: "“If you're waiting for the northbound train,” she said, “it won't come tonight.”",
+    translation: "「北行きの列車を待っているなら」と彼女は言った。「今夜はもう来ないよ」",
+  },
+  {
+    source: "I asked her how she knew, but she only closed the book and pointed toward the dark platform.",
+    translation: "どうして分かるのかと尋ねると、彼女は本を閉じ、暗いホームの方を指しただけだった。",
+  },
+  {
+    source: "Beyond the glass doors, a single lamp flickered beside the empty tracks.",
+    translation: "ガラス扉の向こうでは、誰もいない線路のそばで一つの灯りだけが明滅していた。",
+  },
+  {
+    source: "For a moment, I thought I heard the sound of wheels somewhere far inside the tunnel.",
+    translation: "一瞬、トンネルのずっと奥から車輪の音が聞こえたような気がした。",
+  },
+  {
+    source: "Then the lights on the platform came on one by one.",
+    translation: "そのとき、ホームの照明が一つずつ点き始めた。",
+  },
+];
+
 type Pane = "source" | "translation";
 
 type Props = {
@@ -84,7 +119,9 @@ export default function InteractiveBilingualDemo({
   sentences,
   note,
 }: Props) {
-  const [activeIndex, setActiveIndex] = useState(1);
+  const [activeIndex, setActiveIndex] = useState(
+    Math.min(1, Math.max(0, sentences.length - 1)),
+  );
   const sourceContainerRef = useRef<HTMLDivElement>(null);
   const translationContainerRef = useRef<HTMLDivElement>(null);
   const sourceItemsRef = useRef<Array<HTMLButtonElement | null>>([]);
