@@ -4,6 +4,7 @@ import { createContext, useContext, type ReactNode } from "react";
 import type { UiLocale } from "./config";
 import { commonDictionaries } from "./dictionaries/common";
 import LegalContentGuardBridge from "./LegalContentGuardBridge";
+import PublicWorkLanguagePriorityBridge from "./PublicWorkLanguagePriorityBridge";
 import ReaderUiLocaleBridge from "./ReaderUiLocaleBridge";
 import SiteUiLocaleBridge from "./SiteUiLocaleBridge";
 import AuthoringUiLocaleBridge from "./AuthoringUiLocaleBridge";
@@ -16,6 +17,7 @@ export function UiLocaleProvider({ locale, children }: { locale: UiLocale; child
     <UiLocaleContext.Provider value={locale}>
       {children}
       <LegalContentGuardBridge />
+      <PublicWorkLanguagePriorityBridge locale={locale} />
       <SiteUiLocaleBridge locale={locale} />
       <AuthoringUiLocaleBridge locale={locale} />
       <ReaderUiLocaleBridge locale={locale} />
