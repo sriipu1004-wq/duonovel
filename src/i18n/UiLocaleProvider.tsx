@@ -6,7 +6,7 @@ import { commonDictionaries } from "./dictionaries/common";
 import LegalContentGuardBridge from "./LegalContentGuardBridge";
 import PublicWorkLanguagePriorityBridge from "./PublicWorkLanguagePriorityBridge";
 import ReaderUiLocaleBridge from "./ReaderUiLocaleBridge";
-import SiteUiLocaleBridge from "./SiteUiLocaleBridge";
+import SiteUiLocaleBridgeGate from "./SiteUiLocaleBridgeGate";
 import AuthoringUiLocaleBridge from "./AuthoringUiLocaleBridge";
 import SearchLanguageFilterPortal from "@/components/search/SearchLanguageFilterPortal";
 
@@ -18,7 +18,7 @@ export function UiLocaleProvider({ locale, children }: { locale: UiLocale; child
       {children}
       <LegalContentGuardBridge />
       <PublicWorkLanguagePriorityBridge locale={locale} />
-      <SiteUiLocaleBridge locale={locale} />
+      <SiteUiLocaleBridgeGate locale={locale} />
       <AuthoringUiLocaleBridge locale={locale} />
       <ReaderUiLocaleBridge locale={locale} />
       <SearchLanguageFilterPortal />
