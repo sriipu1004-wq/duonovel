@@ -1,4 +1,7 @@
 import Link from "next/link";
+import InteractiveBilingualDemo, {
+  type BilingualDemoSentence,
+} from "@/components/seo/InteractiveBilingualDemo";
 
 export type SearchLandingConfig = {
   eyebrow: string;
@@ -8,9 +11,8 @@ export type SearchLandingConfig = {
   features: Array<{ title: string; body: string }>;
   demo: {
     sourceLabel: string;
-    sourceText: string;
     translationLabel: string;
-    translationText: string;
+    sentences: BilingualDemoSentence[];
     note: string;
   };
   steps: string[];
@@ -50,9 +52,13 @@ export default function SearchLandingPage({ config }: { config: SearchLandingCon
             <p className="mt-5 text-base leading-8 text-neutral-700 sm:text-lg">
               {config.intro}
             </p>
-            <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 px-5 py-5 text-sm leading-7 text-neutral-800 sm:px-6">
-              <strong className="font-semibold text-black">直接回答：</strong>{" "}
-              {config.directAnswer}
+            <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 px-5 py-5 sm:px-6">
+              <p className="text-sm font-semibold text-black">
+                LIB readでは、こう読めます
+              </p>
+              <p className="mt-2 text-sm leading-7 text-neutral-800">
+                {config.directAnswer}
+              </p>
             </div>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link
@@ -92,25 +98,12 @@ export default function SearchLandingPage({ config }: { config: SearchLandingCon
 
         <section className="pt-12">
           <SectionHeading eyebrow="READER EXAMPLE" title="原文を消さず、対応する訳文を一緒に読む" />
-          <div className="mt-6 overflow-hidden rounded-[28px] border border-black/10 bg-neutral-950 shadow-sm">
-            <div className="grid md:grid-cols-2">
-              <div className="border-b border-white/10 p-6 md:border-b-0 md:border-r">
-                <p className="text-[11px] font-medium tracking-[0.2em] text-neutral-400">
-                  {config.demo.sourceLabel}
-                </p>
-                <p className="mt-4 text-lg leading-8 text-white">{config.demo.sourceText}</p>
-              </div>
-              <div className="p-6">
-                <p className="text-[11px] font-medium tracking-[0.2em] text-neutral-400">
-                  {config.demo.translationLabel}
-                </p>
-                <p className="mt-4 text-lg leading-8 text-white">{config.demo.translationText}</p>
-              </div>
-            </div>
-            <p className="border-t border-white/10 px-6 py-4 text-xs leading-6 text-neutral-300">
-              {config.demo.note}
-            </p>
-          </div>
+          <InteractiveBilingualDemo
+            sourceLabel={config.demo.sourceLabel}
+            translationLabel={config.demo.translationLabel}
+            sentences={config.demo.sentences}
+            note={config.demo.note}
+          />
         </section>
 
         <section className="pt-12">
