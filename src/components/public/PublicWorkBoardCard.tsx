@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { detectContentLanguage } from "@/i18n/contentLanguage";
 
 type PublicWorkBoardCardProps = {
   title: string;
@@ -15,7 +16,7 @@ type PublicWorkBoardCardProps = {
   viewCount?: number;
   likeCount?: number;
   bookmarkCount?: number;
-  narrationPlayCount?: number;  
+  narrationPlayCount?: number;
 };
 
 function buildTagHref(tag: string): string {
@@ -36,17 +37,24 @@ export default function PublicWorkBoardCard({
   viewCount,
   likeCount,
   bookmarkCount,
-  narrationPlayCount,  
+  narrationPlayCount,
 }: PublicWorkBoardCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const visibleTags = useMemo(() => tags.slice(0, 3), [tags]);
+  const contentLanguage = useMemo(
+    () => detectContentLanguage(title, summary),
+    [title, summary]
+  );
 
   const hasSummary = summary.trim().length > 0;
   const collapsedSummary = hasSummary ? summary.trim() : "あらすじ未設定";
 
   return (
-    <article className="rounded-[20px] border border-black/10 bg-white p-4">
+    <article
+      data-content-language={contentLanguage}
+      className="rounded-[20px] border border-black/10 bg-white p-4"
+    >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -115,7 +123,7 @@ export default function PublicWorkBoardCard({
                 朗読再生 {narrationPlayCount}
               </span>
             ) : null}
-          </div>          
+          </div>
 
           {!expanded ? (
             <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
