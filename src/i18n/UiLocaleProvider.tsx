@@ -3,11 +3,17 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { UiLocale } from "./config";
 import { commonDictionaries } from "./dictionaries/common";
+import ReaderUiLocaleBridge from "./ReaderUiLocaleBridge";
 
 const UiLocaleContext = createContext<UiLocale>("ja");
 
 export function UiLocaleProvider({ locale, children }: { locale: UiLocale; children: ReactNode }) {
-  return <UiLocaleContext.Provider value={locale}>{children}</UiLocaleContext.Provider>;
+  return (
+    <UiLocaleContext.Provider value={locale}>
+      {children}
+      <ReaderUiLocaleBridge locale={locale} />
+    </UiLocaleContext.Provider>
+  );
 }
 
 export function useUiLocale(): UiLocale {
