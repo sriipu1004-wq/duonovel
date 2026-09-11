@@ -11,6 +11,8 @@ import {
   readNarrationStopped,
   readWebSpeechSettings,
 } from "@/lib/playback/webSpeechPreferences";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
 
 type BilingualStudyControlsProps = {
   segments: BilingualSegment[];
@@ -27,6 +29,8 @@ export default function BilingualStudyControls({
   targetLanguage,
   seriesId,
 }: BilingualStudyControlsProps) {
+  const locale = useUiLocale();
+  const dictionary = readerDictionaries[locale];
   const [speechAvailable, setSpeechAvailable] = useState(
     () => typeof window !== "undefined" && "speechSynthesis" in window
   );
@@ -117,11 +121,11 @@ export default function BilingualStudyControls({
           disabled={!speechAvailable || !selectedSegment || narrationStopped}
           className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {narrationStopped ? "朗読停止中" : "▶ 1文再生"}
+          {narrationStopped ? dictionary.narrationStopped : dictionary.playSentence}
         </button>
         {!speechAvailable ? (
           <span className="text-xs text-neutral-500">
-            このブラウザでは対訳文の読み上げを利用できません。
+            {dictionary.speechUnavailable}
           </span>
         ) : null}
       </div>
