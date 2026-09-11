@@ -11,6 +11,8 @@ import type {
   PublicTranslationTargetLanguage,
   SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
 
 export type BilingualTranslationAvailability =
   | "checking"
@@ -38,17 +40,6 @@ type BilingualLanguagePickerDialogProps = {
   onRetry: () => void;
 };
 
-function actionLabel(
-  availability: BilingualTranslationAvailability,
-  translationUsage?: AiActionUsage | null
-): string {
-  if (availability === "ready") return "対訳を開く";
-  if (availability === "checking") return "対訳を確認中…";
-  if (availability === "translating") return "対訳を準備中…";
-  if (availability === "error") return "状態をもう一度確認";
-  return `${availability === "missing" ? "対訳を生成" : "対訳を再生成"} ${formatAiUsage(translationUsage)}`;
-}
-
 export default function BilingualLanguagePickerDialog({
   sourceLanguage,
   targetLanguage,
@@ -63,6 +54,8 @@ export default function BilingualLanguagePickerDialog({
   onConfirm,
   onRetry,
 }: BilingualLanguagePickerDialogProps) {
+  const locale = useUiLocale();
+  const dictionary = readerDictionaries[locale];
   const requiresGeneration =
     availability === "missing" ||
     availability === "stale" ||
@@ -73,6 +66,14 @@ export default function BilingualLanguagePickerDialog({
     availability === "checking" ||
     availability === "translating" ||
     generationLimitReached;
+
+  function actionLabel(): string {
+    if (availability === "ready") return dictionary.openBilingual;
+    if (availability === "checking") return dictionary.checkingBilingual;
+    if (availability === "translating") return dictionary.preparingBilingual;
+    if (availability === "error") return dictionary.retryStatus;
+    return `${availability === "missing" ? dictionary.generateBilingual : dictionary.regenerateBilingual} ${formatAiUsage(translationUsage)}`;
+  }
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 px-4 py-8">
@@ -86,10 +87,10 @@ export default function BilingualLanguagePickerDialog({
           id="bilingual-language-picker-title"
           className="text-xl font-semibold text-black"
         >
-          対訳する言語を選択
+          {dictionary.chooseTranslationLanguage}
         </h2>
         <p className="mt-2 text-sm leading-7 text-neutral-600">
-          保存済み対訳がある場合はそのまま開き、ない場合だけ生成します。
+          {dictionary.chooseTranslationHelp}
         </p>
 
         <div className="mt-5">
@@ -108,22 +109,22 @@ export default function BilingualLanguagePickerDialog({
               onChange={(event) => onRememberForTabChange(event.target.checked)}
               className="h-4 w-4 accent-violet-500"
             />
-            <span>次からはこの作品で表示せず対訳する</span>
+            <span>{dictionary.rememberForWork}</span>
           </label>
         ) : null}
 
         {availability === "ready" ? (
-          <p className="mt-4 text-xs text-emerald-700">保存済み対訳があります。</p>
+          <p className="mt-4 text-xs text-emerald-700">{dictionary.savedTranslationReady}</p>
         ) : null}
         {availability === "error" ? (
           <p className="mt-4 text-xs text-red-700">
-            対訳の保存状況を確認できませんでした。
+            {dictionary.translationStatusFailed}
           </p>
         ) : null}
         {generationLimitReached ? (
           isSubscriber ? (
             <p className="mt-4 text-xs text-red-700">
-              現在のサブスク生成上限に達しています。
+              {dictionary.subscriberLimitReached}
             </p>
           ) : (
             <SubscriptionUpgradePrompt compact className="mt-4" />
@@ -136,7 +137,7 @@ export default function BilingualLanguagePickerDialog({
             onClick={onCancel}
             className="rounded-full border border-black/10 px-5 py-2.5 text-sm text-neutral-700"
           >
-            キャンセル
+            {dictionary.cancel}
           </button>
           <button
             type="button"
@@ -144,7 +145,7 @@ export default function BilingualLanguagePickerDialog({
             disabled={actionDisabled}
             className="rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-45"
           >
-            {actionLabel(availability, translationUsage)}
+            {actionLabel()}
           </button>
         </div>
       </section>

@@ -8,6 +8,8 @@ import {
   type PublicTranslationTargetLanguage,
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
 
 type TranslationLanguageSelectProps = {
   value: PublicTranslationTargetLanguage;
@@ -22,11 +24,14 @@ export default function TranslationLanguageSelect({
   disabled = false,
   sourceLanguage = "ja",
 }: TranslationLanguageSelectProps) {
+  const locale = useUiLocale();
+  const dictionary = readerDictionaries[locale];
+
   return (
     <label className="flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-600">
-      <span className="shrink-0">対訳言語</span>
+      <span className="shrink-0">{dictionary.translationLanguage}</span>
       <select
-        aria-label="対訳言語"
+        aria-label={dictionary.translationLanguage}
         value={value}
         disabled={disabled}
         onChange={(event) => {
@@ -44,7 +49,7 @@ export default function TranslationLanguageSelect({
             disabled={language === sourceLanguage}
           >
             {getSupportedLanguage(language).nativeLabel}
-            {language === sourceLanguage ? "（原文言語）" : ""}
+            {language === sourceLanguage ? dictionary.sourceLanguageSuffix : ""}
           </option>
         ))}
       </select>

@@ -12,6 +12,9 @@ import {
   type ReadingHistory,
 } from "@/lib/playback/readingBookmark";
 import { buildPrivateLibraryReadHref } from "@/lib/library/privateLibrary";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { libraryDictionaries } from "@/i18n/dictionaries/library";
+import { localizePath } from "@/i18n/navigation";
 
 export default function PrivateLibraryResumeLink({
   workId,
@@ -22,6 +25,8 @@ export default function PrivateLibraryResumeLink({
   fallbackChapterNumber: number;
   hasReadingHistory: boolean;
 }) {
+  const locale = useUiLocale();
+  const dictionary = libraryDictionaries[locale];
   const seriesId = `private-library:${workId}`;
   const [location, setLocation] = useState<
     ReadingBookmark | ReadingHistory | null
@@ -41,10 +46,10 @@ export default function PrivateLibraryResumeLink({
   }, [seriesId]);
 
   const chapterNumber = location?.episodeNumber ?? fallbackChapterNumber;
-  const baseHref = buildPrivateLibraryReadHref(workId, chapterNumber);
+  const baseHref = localizePath(buildPrivateLibraryReadHref(workId, chapterNumber), locale);
   const href = location ? applyReadingModeToHref(baseHref, location) : baseHref;
   const title = location
-    ? `第${chapterNumber}話・${formatReadingCoordinates(location)}から再開`
+    ? dictionary.resumeTitle(chapterNumber, formatReadingCoordinates(location))
     : undefined;
 
   return (
@@ -53,7 +58,7 @@ export default function PrivateLibraryResumeLink({
       title={title}
       className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
     >
-      {location || hasReadingHistory ? "続きから読む" : "読み始める"}
+      {location || hasReadingHistory ? dictionary.resume : dictionary.start}
     </Link>
   );
 }

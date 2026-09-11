@@ -1,35 +1,45 @@
 import type { Metadata } from "next";
 import TimeFitStoryGeneratorClient from "./TimeFitStoryGeneratorClient";
+import { getUiLocale } from "@/i18n/server";
+import { generateDictionaries } from "@/i18n/dictionaries/generate";
+import { localizePath } from "@/i18n/navigation";
 
-export const metadata: Metadata = {
-  title: "5分・10分・15分のAI短編生成 | LIB read",
-  description:
-    "空き時間とジャンルを選ぶだけで、約5分・10分・15分・20分で読める・聴けるAI短編を生成します。",
-  alternates: {
-    canonical: "/generate",
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
-  openGraph: {
-    type: "website",
-    locale: "ja_JP",
-    siteName: "LIB read",
-    url: "/generate",
-    title: "5分・10分・15分のAI短編生成 | LIB read",
-    description:
-      "空き時間とジャンルを選ぶだけで、読める・聴けるAI短編を生成します。",
-    images: ["/opengraph-image"],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "5分・10分・15分のAI短編生成 | LIB read",
-    description:
-      "空き時間とジャンルを選ぶだけで、読める・聴けるAI短編を生成します。",
-    images: ["/opengraph-image"],
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getUiLocale();
+  const dictionary = generateDictionaries[locale];
+  const canonical = localizePath("/generate", locale);
+  const title = `${dictionary.title} | LIB read`;
+
+  return {
+    title,
+    description: dictionary.description,
+    alternates: {
+      canonical,
+      languages: {
+        ja: "/generate",
+        en: "/en/generate",
+        ko: "/ko/generate",
+        "x-default": "/generate",
+      },
+    },
+    robots: { index: true, follow: true },
+    openGraph: {
+      type: "website",
+      locale: locale === "ja" ? "ja_JP" : locale === "en" ? "en_US" : "ko_KR",
+      siteName: "LIB read",
+      url: canonical,
+      title,
+      description: dictionary.description,
+      images: ["/opengraph-image"],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: dictionary.description,
+      images: ["/opengraph-image"],
+    },
+  };
+}
 
 export default function GeneratePage() {
   return (

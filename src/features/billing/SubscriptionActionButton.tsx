@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { subscriptionDictionaries } from "@/i18n/dictionaries/subscription";
 
 type SubscriptionActionButtonProps = {
   mode: "checkout" | "portal";
@@ -18,6 +20,8 @@ export default function SubscriptionActionButton({
   mode,
   billingReady,
 }: SubscriptionActionButtonProps) {
+  const locale = useUiLocale();
+  const dictionary = subscriptionDictionaries[locale];
   const [accepted, setAccepted] = useState(false);
   const [pending, setPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -25,7 +29,7 @@ export default function SubscriptionActionButton({
   async function openBilling() {
     if (pending) return;
     if (mode === "checkout" && !accepted) {
-      setErrorMessage("料金・自動更新・解約条件を確認してください。");
+      setErrorMessage(dictionary.acceptRequired);
       return;
     }
 
@@ -42,12 +46,12 @@ export default function SubscriptionActionButton({
       );
       const payload = (await response.json()) as BillingResponse;
       if (!response.ok || !payload.ok || !payload.url) {
-        throw new Error(payload.message || "決済画面を開けませんでした。");
+        throw new Error(payload.message || dictionary.openBillingFailed);
       }
       window.location.assign(payload.url);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "決済画面を開けませんでした。"
+        error instanceof Error ? error.message : dictionary.openBillingFailed
       );
       setPending(false);
     }
@@ -62,7 +66,7 @@ export default function SubscriptionActionButton({
           disabled={pending || !billingReady}
           className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {pending ? "契約管理を開いています…" : "契約・支払いを管理"}
+          {pending ? dictionary.openingPortal : dictionary.manageBilling}
         </button>
         {errorMessage ? (
           <p role="alert" className="mt-3 text-xs leading-6 text-red-200">
@@ -83,15 +87,14 @@ export default function SubscriptionActionButton({
           className="mt-1 h-4 w-4 shrink-0 accent-sky-400"
         />
         <span>
-          月額680円（税込）の自動更新、解約後は現在の利用期限まで利用できること、
+          {dictionary.acceptBilling}{" "}
           <Link href="/terms" className="underline underline-offset-4">
-            利用規約
+            {dictionary.terms}
           </Link>
-          ・
+          {" · "}
           <Link href="/commercial-transactions" className="underline underline-offset-4">
-            特定商取引法に基づく表記
+            {dictionary.commercial}
           </Link>
-          を確認しました。
         </span>
       </label>
       <button
@@ -100,11 +103,11 @@ export default function SubscriptionActionButton({
         disabled={pending || !billingReady || !accepted}
         className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {pending ? "決済画面を開いています…" : "月額680円で始める"}
+        {pending ? dictionary.openingCheckout : dictionary.startPaid}
       </button>
       {!billingReady ? (
         <p className="mt-3 text-xs leading-6 text-amber-200">
-          現在は決済情報と法定表示の設定待ちです。設定完了まで請求は発生しません。
+          {dictionary.billingNotReady}
         </p>
       ) : null}
       {errorMessage ? (

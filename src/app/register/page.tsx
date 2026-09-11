@@ -18,6 +18,9 @@ import {
 } from "@/lib/auth/accountSignupConsent";
 import { checkDisplayNameAvailability } from "@/lib/auth/checkDisplayNameAvailability";
 import { syncPublicUserProfile } from "@/lib/auth/syncPublicUserProfile";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { accountDictionaries } from "@/i18n/dictionaries/account";
+import { localizePath } from "@/i18n/navigation";
 
 type PendingAction = "email-signup" | "complete-profile" | null;
 
@@ -44,17 +47,11 @@ function normalizeEmail(value: string): string {
 function resolveAuthRedirectOrigin(): string {
   if (typeof window !== "undefined") {
     const currentOrigin = window.location.origin.replace(/\/+$/, "");
-
-    if (currentOrigin.length > 0) {
-      return currentOrigin;
-    }
+    if (currentOrigin.length > 0) return currentOrigin;
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? "";
-
-  if (siteUrl.length > 0) {
-    return siteUrl.replace(/\/+$/, "");
-  }
+  if (siteUrl.length > 0) return siteUrl.replace(/\/+$/, "");
 
   if (typeof window !== "undefined") {
     return window.location.origin.replace(/\/+$/, "");
@@ -63,17 +60,15 @@ function resolveAuthRedirectOrigin(): string {
   return "";
 }
 
-async function prepareSignupEmail(email: string): Promise<string> {
+async function prepareSignupEmail(
+  email: string,
+  fallbackError: string
+): Promise<string> {
   const normalizedEmail = normalizeEmail(email);
-
   const response = await fetch("/api/account/email/prepare-signup", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      email: normalizedEmail,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: normalizedEmail }),
   });
 
   const payload = (await response.json().catch(() => null)) as
@@ -81,7 +76,7 @@ async function prepareSignupEmail(email: string): Promise<string> {
     | null;
 
   if (!response.ok || !payload?.ok) {
-    throw new Error(payload?.error ?? "確認メール送信の準備に失敗した。");
+    throw new Error(payload?.error ?? fallbackError);
   }
 
   return payload.normalizedEmail?.trim() || normalizedEmail;
@@ -90,10 +85,12 @@ async function prepareSignupEmail(email: string): Promise<string> {
 export default function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const locale = useUiLocale();
+  const dictionary = accountDictionaries[locale];
 
   const nextPath = useMemo(
-    () => normalizeNextPath(searchParams.get("next"), "/mypage"),
-    [searchParams]
+    () => normalizeNextPath(searchParams.get("next"), localizePath("/mypage", locale)),
+    [searchParams, locale]
   );
 
   const initialEmail = useMemo(
@@ -112,8 +109,7 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
-  const [acknowledgedPublicSurface, setAcknowledgedPublicSurface] =
-    useState(false);
+  const [acknowledgedPublicSurface, setAcknowledgedPublicSurface] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -126,18 +122,15 @@ export default function RegisterPage() {
 
   const normalizedDisplayName = normalizeDisplayName(displayName);
   const displayNameError = validateDisplayName(displayName);
-
   const profileComplete =
-    normalizedDisplayName.length > 0 &&
-    consentComplete &&
-    !displayNameError;
+    normalizedDisplayName.length > 0 && consentComplete && !displayNameError;
 
   const passwordError = user
     ? ""
     : password.length < PASSWORD_MIN_LENGTH
-      ? `パスワードは${PASSWORD_MIN_LENGTH}文字以上で入力して。`
+      ? dictionary.passwordTooShort(PASSWORD_MIN_LENGTH)
       : password !== passwordConfirmation
-        ? "確認用パスワードが一致していない。"
+        ? dictionary.passwordMismatch
         : "";
 
   useEffect(() => {
@@ -145,9 +138,7 @@ export default function RegisterPage() {
 
     async function loadUser() {
       const { data } = await supabase.auth.getUser();
-
       if (!active) return;
-
       setUser(data.user ?? null);
       setLoadedUser(true);
     }
@@ -168,12 +159,9 @@ export default function RegisterPage() {
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      return;
-    }
+    if (!user) return;
 
     const metadata = user.user_metadata ?? {};
-
     setEmail((prev) => (prev.trim().length > 0 ? prev : user.email ?? ""));
     setDisplayName((prev) =>
       prev.trim().length > 0 ? prev : readAccountRegistrationDisplayName(metadata)
@@ -202,17 +190,15 @@ export default function RegisterPage() {
 
   async function completeSignedInRegistration(sessionUser: User) {
     if (!isEmailConfirmed(sessionUser)) {
-      setErrorMessage("確認メールのリンクを開いてからやり直して。");
+      setErrorMessage(dictionary.openConfirmationFirst);
       return;
     }
-
     if (displayNameError) {
       setErrorMessage(displayNameError);
       return;
     }
-
     if (!profileComplete) {
-      setErrorMessage("登録に必要な入力がまだ不足している。");
+      setErrorMessage(dictionary.missingRegistrationInput);
       return;
     }
 
@@ -229,9 +215,7 @@ export default function RegisterPage() {
       );
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "ユーザー名の重複確認に失敗した。"
+        error instanceof Error ? error.message : dictionary.duplicateNameFailed
       );
       setPendingAction(null);
       return;
@@ -244,10 +228,7 @@ export default function RegisterPage() {
       acknowledgedPublicSurface,
     });
 
-    const authResult = await supabase.auth.updateUser({
-      data: metadata,
-    });
-
+    const authResult = await supabase.auth.updateUser({ data: metadata });
     if (authResult.error) {
       setErrorMessage(authResult.error.message);
       setPendingAction(null);
@@ -258,43 +239,37 @@ export default function RegisterPage() {
       await syncPublicUserProfile(availableDisplayName);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "プロフィール保存に失敗した。"
+        error instanceof Error ? error.message : dictionary.profileSaveFailed
       );
       setPendingAction(null);
       return;
     }
 
-    setMessage("登録を完了した。次のページへ移動する。");
+    setMessage(dictionary.registrationComplete);
     setPendingAction(null);
     router.push(nextPath);
     router.refresh();
   }
 
-  async function handleEmailRegistration(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
+  async function handleEmailRegistration(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (user) {
       await completeSignedInRegistration(user);
       return;
     }
-
     if (displayNameError) {
       setErrorMessage(displayNameError);
       return;
     }
-
     if (!profileComplete) {
-      setErrorMessage("登録に必要な入力がまだ不足している。");
+      setErrorMessage(dictionary.missingRegistrationInput);
       return;
     }
-
     if (!email.trim()) {
-      setErrorMessage("メールアドレスが必要。");
+      setErrorMessage(dictionary.emailRequired);
       return;
     }
-
     if (passwordError) {
       setErrorMessage(passwordError);
       return;
@@ -308,25 +283,20 @@ export default function RegisterPage() {
     let availableEmail = normalizeEmail(email);
 
     try {
-      availableEmail = await prepareSignupEmail(email);
+      availableEmail = await prepareSignupEmail(email, dictionary.signupPrepareFailed);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "メールアドレスの重複確認に失敗した。"
+        error instanceof Error ? error.message : dictionary.duplicateEmailFailed
       );
       setPendingAction(null);
       return;
     }
 
     try {
-      availableDisplayName =
-        await ensureDisplayNameAvailable(normalizedDisplayName);
+      availableDisplayName = await ensureDisplayNameAvailable(normalizedDisplayName);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "ユーザー名の重複確認に失敗した。"
+        error instanceof Error ? error.message : dictionary.duplicateNameFailed
       );
       setPendingAction(null);
       return;
@@ -347,10 +317,7 @@ export default function RegisterPage() {
     const { data, error } = await supabase.auth.signUp({
       email: availableEmail,
       password,
-      options: {
-        emailRedirectTo,
-        data: metadata,
-      },
+      options: { emailRedirectTo, data: metadata },
     });
 
     if (error) {
@@ -364,19 +331,19 @@ export default function RegisterPage() {
       return;
     }
 
-    setMessage(
-      "確認メールを送った。メール内のリンクを一度開けば、以後はパスワードでログインできる。"
-    );
+    setMessage(dictionary.confirmationSent);
     setPendingAction(null);
   }
 
   const primaryLabel = user
     ? pendingAction === "complete-profile"
-      ? "登録完了中..."
-      : "登録を完了して進む"
+      ? dictionary.completePending
+      : dictionary.complete
     : pendingAction === "email-signup"
-      ? "確認メールを送信中..."
-      : "確認メールを送る";
+      ? dictionary.sendingConfirmation
+      : dictionary.sendConfirmation;
+
+  const loginHref = `${localizePath("/login", locale)}?next=${encodeURIComponent(nextPath)}`;
 
   return (
     <main className="min-h-screen bg-white px-6 py-8 text-black">
@@ -388,32 +355,26 @@ export default function RegisterPage() {
                 {user ? "STEP 2" : "STEP 1"}
               </span>
               <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
-                パスワード登録
+                {dictionary.passwordRegistration}
               </span>
             </div>
 
-            <p className="mt-4 text-xs tracking-[0.24em] text-neutral-500">
-              ACCOUNT REGISTER
-            </p>
-
+            <p className="mt-4 text-xs tracking-[0.24em] text-neutral-500">ACCOUNT REGISTER</p>
             <h1 className="mt-3 text-3xl font-bold leading-tight text-black sm:text-4xl">
-              アカウント作成
+              {dictionary.registerTitle}
             </h1>
-
             <p className="mt-4 text-sm leading-7 text-neutral-600">
-              メールアドレス、パスワード、ユーザー名を登録する。
+              {dictionary.registerDescription}
             </p>
 
             {user ? (
               <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm leading-7 text-neutral-700">
                 {!loadedUser ? (
-                  <p>認証状態を確認中...</p>
+                  <p>{dictionary.checkingAuth}</p>
                 ) : (
                   <>
-                    <p>ログイン中: {user.email ?? "メールアドレス不明"}</p>
-                    <p className="mt-2">
-                      確認済みメールアドレスなら、この画面で登録を完了できる。
-                    </p>
+                    <p>{dictionary.signedInAs}: {user.email ?? dictionary.unknownEmail}</p>
+                    <p className="mt-2">{dictionary.confirmedEmailHint}</p>
                   </>
                 )}
               </div>
@@ -424,7 +385,7 @@ export default function RegisterPage() {
                 {!user ? (
                   <div className="grid gap-4">
                     <label className="block">
-                      <span className="text-sm text-neutral-700">メールアドレス</span>
+                      <span className="text-sm text-neutral-700">{dictionary.email}</span>
                       <input
                         type="email"
                         autoComplete="email"
@@ -441,32 +402,28 @@ export default function RegisterPage() {
                     </label>
 
                     <label className="block">
-                      <span className="text-sm text-neutral-700">パスワード</span>
+                      <span className="text-sm text-neutral-700">{dictionary.password}</span>
                       <input
                         type="password"
                         autoComplete="new-password"
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
                         className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
-                        placeholder={`${PASSWORD_MIN_LENGTH}文字以上`}
+                        placeholder={dictionary.passwordMin(PASSWORD_MIN_LENGTH)}
                         minLength={PASSWORD_MIN_LENGTH}
                         required
                       />
                     </label>
 
                     <label className="block">
-                      <span className="text-sm text-neutral-700">
-                        パスワード（確認）
-                      </span>
+                      <span className="text-sm text-neutral-700">{dictionary.passwordConfirm}</span>
                       <input
                         type="password"
                         autoComplete="new-password"
                         value={passwordConfirmation}
-                        onChange={(event) =>
-                          setPasswordConfirmation(event.target.value)
-                        }
+                        onChange={(event) => setPasswordConfirmation(event.target.value)}
                         className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
-                        placeholder="もう一度入力"
+                        placeholder={dictionary.enterAgain}
                         minLength={PASSWORD_MIN_LENGTH}
                         required
                       />
@@ -481,14 +438,14 @@ export default function RegisterPage() {
                 ) : null}
 
                 <label className={user ? "block" : "mt-4 block"}>
-                  <span className="text-sm text-neutral-700">ユーザー名</span>
+                  <span className="text-sm text-neutral-700">{dictionary.displayName}</span>
                   <input
                     type="text"
                     autoComplete="nickname"
                     value={displayName}
                     onChange={(event) => setDisplayName(event.target.value)}
                     className="mt-2 h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
-                    placeholder="公開プロフィールに出す名前"
+                    placeholder={dictionary.displayNamePlaceholder}
                     required
                   />
                 </label>
@@ -500,8 +457,7 @@ export default function RegisterPage() {
                 ) : null}
 
                 <div className="mt-6 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
-                  <p className="text-sm font-semibold text-black">規約・同意</p>
-
+                  <p className="text-sm font-semibold text-black">{dictionary.consentTitle}</p>
                   <div className="mt-4 space-y-4 text-sm leading-7 text-neutral-700">
                     <label className="flex items-start gap-3">
                       <input
@@ -511,14 +467,10 @@ export default function RegisterPage() {
                         className="mt-1 h-4 w-4 rounded border-black/20"
                       />
                       <span>
-                        <Link
-                          href="/terms"
-                          target="_blank"
-                          className="underline underline-offset-4"
-                        >
-                          利用規約
+                        <Link href="/terms" target="_blank" className="underline underline-offset-4">
+                          {dictionary.terms}
                         </Link>
-                        に同意する
+                        {dictionary.agreeSuffix}
                       </span>
                     </label>
 
@@ -530,14 +482,10 @@ export default function RegisterPage() {
                         className="mt-1 h-4 w-4 rounded border-black/20"
                       />
                       <span>
-                        <Link
-                          href="/privacy"
-                          target="_blank"
-                          className="underline underline-offset-4"
-                        >
-                          プライバシーポリシー
+                        <Link href="/privacy" target="_blank" className="underline underline-offset-4">
+                          {dictionary.privacy}
                         </Link>
-                        に同意する
+                        {dictionary.agreeSuffix}
                       </span>
                     </label>
 
@@ -545,14 +493,10 @@ export default function RegisterPage() {
                       <input
                         type="checkbox"
                         checked={acknowledgedPublicSurface}
-                        onChange={(event) =>
-                          setAcknowledgedPublicSurface(event.target.checked)
-                        }
+                        onChange={(event) => setAcknowledgedPublicSurface(event.target.checked)}
                         className="mt-1 h-4 w-4 rounded border-black/20"
                       />
-                      <span>
-                        表示名、プロフィール、投稿コンテンツが公開されうることを確認した
-                      </span>
+                      <span>{dictionary.publicSurfaceAck}</span>
                     </label>
                   </div>
                 </div>
@@ -572,10 +516,10 @@ export default function RegisterPage() {
                   </button>
 
                   <Link
-                    href="/login"
+                    href={loginHref}
                     className="inline-flex rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm text-neutral-700 transition hover:bg-neutral-50"
                   >
-                    ログインへ戻る
+                    {dictionary.backToLogin}
                   </Link>
                 </div>
               </div>

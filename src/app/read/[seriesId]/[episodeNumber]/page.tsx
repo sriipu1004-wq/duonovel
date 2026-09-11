@@ -23,6 +23,8 @@ import {
 } from "@/lib/publicRead";
 import { buildReaderAuthorHref } from "@/lib/readerAuthorHref";
 import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
+import { getUiLocale } from "@/i18n/server";
+import { localizePath } from "@/i18n/navigation";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -246,12 +248,46 @@ async function getNormalAuthorName(series: SeriesRow): Promise<string> {
 export async function generateMetadata({
   params,
 }: Pick<PageProps, "params">): Promise<Metadata> {
+  const locale = await getUiLocale();
+  const ui = {
+    ja: {
+      notFound: "公開話が見つかりません",
+      publicEpisode: "公開話",
+      untitled: "無題",
+      episode: (value: number) => `第${value}話`,
+      fallbackDescription: (seriesTitle: string, episodeTitle: string) =>
+        `${seriesTitle}の${episodeTitle}を読む・聴く。`,
+      author: "作者",
+      ogLocale: "ja_JP",
+    },
+    en: {
+      notFound: "Public episode not found",
+      publicEpisode: "Public episode",
+      untitled: "Untitled",
+      episode: (value: number) => `Episode ${value}`,
+      fallbackDescription: (seriesTitle: string, episodeTitle: string) =>
+        `Read and listen to ${episodeTitle} of ${seriesTitle}.`,
+      author: "Author",
+      ogLocale: "en_US",
+    },
+    ko: {
+      notFound: "공개 화를 찾을 수 없습니다",
+      publicEpisode: "공개 화",
+      untitled: "제목 없음",
+      episode: (value: number) => `${value}화`,
+      fallbackDescription: (seriesTitle: string, episodeTitle: string) =>
+        `${seriesTitle}의 ${episodeTitle}를 읽고 들을 수 있습니다.`,
+      author: "작가",
+      ogLocale: "ko_KR",
+    },
+  }[locale];
+
   const { seriesId, episodeNumber } = await params;
   const parsedEpisodeNumber = parseEpisodeNumber(episodeNumber);
 
   if (!parsedEpisodeNumber) {
     return {
-      title: "公開話が見つかりません | LIB read",
+      title: `${ui.notFound} | LIB read`,
       robots: {
         index: false,
         follow: false,
@@ -267,7 +303,7 @@ export async function generateMetadata({
 
     if (!payload) {
       return {
-        title: "公開話が見つかりません | LIB read",
+        title: `${ui.notFound} | LIB read`,
         robots: {
           index: false,
           follow: false,
@@ -278,10 +314,10 @@ export async function generateMetadata({
     const { series, episode } = payload;
     const currentEpisodeNumber =
       getEpisodeNumber(episode) || parsedEpisodeNumber;
-    const seriesTitle = pickText(series.title) || "無題";
+    const seriesTitle = pickText(series.title) || ui.untitled;
     const episodeTitle =
       pickText(episode.title, episode["episode_title"]) ||
-      "第" + currentEpisodeNumber + "話";
+      ui.episode(currentEpisodeNumber);
     const summary = getSeriesSummary(series).trim();
     const aiGeneratedAttribution = getAiGeneratedReadAttribution(series);
     const authorLabel = aiGeneratedAttribution
@@ -289,19 +325,19 @@ export async function generateMetadata({
       : await getNormalAuthorName(series);
 
     const description = [
-      summary ||
-        seriesTitle + "の" + episodeTitle + "を読む・聴く。",
-      "作者: " + authorLabel + "。",
+      summary || ui.fallbackDescription(seriesTitle, episodeTitle),
+      `${ui.author}: ${authorLabel}.`,
     ]
       .filter(Boolean)
       .join(" ")
       .slice(0, 160);
 
-    const canonicalPath =
+    const baseCanonicalPath =
       "/read/" +
       encodeURIComponent(seriesId) +
       "/" +
       encodeURIComponent(String(currentEpisodeNumber));
+    const canonicalPath = localizePath(baseCanonicalPath, locale);
     const metadataTitle =
       seriesTitle + " " + episodeTitle + " | LIB read";
 
@@ -310,6 +346,12 @@ export async function generateMetadata({
       description,
       alternates: {
         canonical: canonicalPath,
+        languages: {
+          ja: localizePath(baseCanonicalPath, "ja"),
+          en: localizePath(baseCanonicalPath, "en"),
+          ko: localizePath(baseCanonicalPath, "ko"),
+          "x-default": localizePath(baseCanonicalPath, "ja"),
+        },
       },
       robots: {
         index: true,
@@ -317,7 +359,7 @@ export async function generateMetadata({
       },
       openGraph: {
         type: "article",
-        locale: "ja_JP",
+        locale: ui.ogLocale,
         siteName: "LIB read",
         url: canonicalPath,
         title: metadataTitle,
@@ -333,7 +375,7 @@ export async function generateMetadata({
     };
   } catch {
     return {
-      title: "公開話 | LIB read",
+      title: `${ui.publicEpisode} | LIB read`,
       robots: {
         index: false,
         follow: false,

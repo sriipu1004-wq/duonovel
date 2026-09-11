@@ -6,6 +6,9 @@ import AppHeader from "@/components/layout/AppHeader";
 import AppFooter from "@/components/layout/AppFooter";
 import "./globals.css";
 import GlobalNavigationProgress from "@/components/navigation/GlobalNavigationProgress";
+import { getUiLocale } from "@/i18n/server";
+import { UiLocaleProvider } from "@/i18n/UiLocaleProvider";
+import type { UiLocale } from "@/i18n/config";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,69 +22,88 @@ const geistMono = Geist_Mono({
 
 const SITE_URL = new URL("https://www.syosetu-libread.com");
 
-const defaultTitle = "LIB read | 時間指定AI短編を読む・聴く";
-const defaultDescription =
-  "空き時間に合わせてAI短編を生成し、その場で読む・聴く。LIB readは、小説を読む・聴く・投稿するためのサービスです。";
-
-export const metadata: Metadata = {
-  metadataBase: SITE_URL,
-  title: defaultTitle,
-  description: defaultDescription,
-
-  // 公開対象は個別ページで明示的にindex化する。
-  // それ以外の認証・制作・一時生成・検索結果ページはデフォルトでnoindex。
-  robots: {
-    index: false,
-    follow: true,
+const metadataByLocale: Record<UiLocale, { title: string; description: string; ogLocale: string }> = {
+  ja: {
+    title: "LIB read | 時間指定AI短編を読む・聴く",
+    description:
+      "空き時間に合わせてAI短編を生成し、その場で読む・聴く。LIB readは、小説を読む・聴く・投稿するためのサービスです。",
+    ogLocale: "ja_JP",
   },
-
-  openGraph: {
-    type: "website",
-    locale: "ja_JP",
-    siteName: "LIB read",
-    url: "/",
-    title: defaultTitle,
-    description: defaultDescription,
-    images: [
-      {
-        url: "/opengraph-image",
-        width: 1200,
-        height: 630,
-        alt: "LIB read | 時間指定AI短編を読む・聴く",
-      },
-    ],
+  en: {
+    title: "LIB read | Read, listen, and learn with stories",
+    description:
+      "Read long-form stories with bilingual text, text-to-speech, AI stories, and your own imported library in one reading service.",
+    ogLocale: "en_US",
   },
-
-  twitter: {
-    card: "summary_large_image",
-    title: defaultTitle,
-    description: defaultDescription,
-    images: ["/opengraph-image"],
-  },
-
-  other: {
-    "google-adsense-account": "ca-pub-7690891889566825",
+  ko: {
+    title: "LIB read | 소설을 읽고, 듣고, 배우기",
+    description:
+      "개인 서재, 다국어 대역, 읽어주기, AI 이야기와 웹소설을 한곳에서 이용하는 독서 서비스입니다.",
+    ogLocale: "ko_KR",
   },
 };
 
-export default function RootLayout({
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getUiLocale();
+  const localized = metadataByLocale[locale];
+
+  return {
+    metadataBase: SITE_URL,
+    title: localized.title,
+    description: localized.description,
+    robots: {
+      index: false,
+      follow: true,
+    },
+    openGraph: {
+      type: "website",
+      locale: localized.ogLocale,
+      siteName: "LIB read",
+      title: localized.title,
+      description: localized.description,
+      images: [
+        {
+          url: "/opengraph-image",
+          width: 1200,
+          height: 630,
+          alt: localized.title,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: localized.title,
+      description: localized.description,
+      images: ["/opengraph-image"],
+    },
+    other: {
+      "google-adsense-account": "ca-pub-7690891889566825",
+    },
+  };
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getUiLocale();
+
   return (
-    <html lang="ja">
+    <html lang={locale}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <div className="min-h-screen bg-background text-foreground">
-          <Suspense fallback={null}>
-            <GlobalNavigationProgress />
-          </Suspense>
-          <AppHeader />
-          {children}
-          <AppFooter />
-        </div>
+        <UiLocaleProvider locale={locale}>
+          <div className="min-h-screen bg-background text-foreground">
+            <Suspense fallback={null}>
+              <GlobalNavigationProgress />
+            </Suspense>
+            <AppHeader />
+            {children}
+            <AppFooter />
+          </div>
+        </UiLocaleProvider>
         <Analytics />
       </body>
     </html>
