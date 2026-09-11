@@ -15,23 +15,25 @@ import {
 } from "@/i18n/contentLanguage";
 
 type Counts = Record<ContentLanguage, number>;
+type PerLanguageFilterCounts = Record<ContentLanguage, Record<string, number>>;
+type FilterCounts = {
+  tags: PerLanguageFilterCounts;
+  genres: PerLanguageFilterCounts;
+};
 
 const copy = {
   ja: {
     title: "LANGUAGE",
-    help: "複数選択可。未選択なら全言語。",
     more: "さらに表示",
     close: "閉じる",
   },
   en: {
     title: "LANGUAGE",
-    help: "Select multiple. None means all languages.",
     more: "Show more",
     close: "Show less",
   },
   ko: {
     title: "LANGUAGE",
-    help: "복수 선택 가능. 미선택 시 전체 언어.",
     more: "더 보기",
     close: "접기",
   },
@@ -66,6 +68,57 @@ function findOrderColumn(section: Element): HTMLElement | null {
   return heading?.parentElement ?? null;
 }
 
+function normalizeTagToken(value: string): string {
+  return value.trim().replace(/^#+/, "").toLowerCase();
+}
+
+function normalizeGenreToken(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function sumFilterCount(
+  table: PerLanguageFilterCounts,
+  key: string,
+  selected: ContentLanguage[]
+): number {
+  const languages = selected.length > 0 ? selected : [...CONTENT_LANGUAGES];
+  return languages.reduce(
+    (total, language) => total + Number(table[language]?.[key] ?? 0),
+    0
+  );
+}
+
+function updateSearchChipCounts(
+  host: HTMLElement,
+  selected: ContentLanguage[],
+  filters: FilterCounts
+) {
+  const controlsSection = host.closest("section");
+  if (!controlsSection) return;
+
+  const chipButtons = Array.from(
+    controlsSection.querySelectorAll<HTMLButtonElement>("button[title]")
+  );
+
+  for (const button of chipButtons) {
+    const title = button.title.trim();
+    if (!title) continue;
+
+    const spans = button.querySelectorAll("span");
+    if (spans.length < 2) continue;
+    const countNode = spans[spans.length - 1];
+
+    if (title.startsWith("#")) {
+      const key = normalizeTagToken(title);
+      countNode.textContent = String(sumFilterCount(filters.tags, key, selected));
+      continue;
+    }
+
+    const key = normalizeGenreToken(title);
+    countNode.textContent = String(sumFilterCount(filters.genres, key, selected));
+  }
+}
+
 export default function SearchLanguageFilterPortal() {
   const pathname = usePathname();
   const locale = useUiLocale();
@@ -76,6 +129,7 @@ export default function SearchLanguageFilterPortal() {
     ko: 0,
     other: 0,
   });
+  const [filterCounts, setFilterCounts] = useState<FilterCounts | null>(null);
   const [selected, setSelected] = useState<ContentLanguage[]>([]);
   const [expanded, setExpanded] = useState(false);
   const route = stripUiLocalePrefix(pathname);
@@ -131,20 +185,53 @@ export default function SearchLanguageFilterPortal() {
     let cancelled = false;
     void fetch("/api/public/work-language-counts", { cache: "no-store" })
       .then((response) => response.json())
-      .then((payload: { counts?: Partial<Counts> }) => {
-        if (cancelled || !payload.counts) return;
-        setCounts({
-          ja: Number(payload.counts.ja ?? 0),
-          en: Number(payload.counts.en ?? 0),
-          ko: Number(payload.counts.ko ?? 0),
-          other: Number(payload.counts.other ?? 0),
-        });
-      })
+      .then(
+        (payload: {
+          counts?: Partial<Counts>;
+          filters?: Partial<FilterCounts>;
+        }) => {
+          if (cancelled) return;
+          if (payload.counts) {
+            setCounts({
+              ja: Number(payload.counts.ja ?? 0),
+              en: Number(payload.counts.en ?? 0),
+              ko: Number(payload.counts.ko ?? 0),
+              other: Number(payload.counts.other ?? 0),
+            });
+          }
+          if (payload.filters?.tags && payload.filters?.genres) {
+            setFilterCounts(payload.filters as FilterCounts);
+          }
+        }
+      )
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, [active]);
+
+  useEffect(() => {
+    if (!active || !host || !filterCounts) return;
+
+    let scheduled = false;
+    const apply = () => updateSearchChipCounts(host, selected, filterCounts);
+    const schedule = () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        apply();
+      });
+    };
+
+    apply();
+    const controlsSection = host.closest("section");
+    if (!controlsSection) return;
+
+    const observer = new MutationObserver(schedule);
+    observer.observe(controlsSection, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [active, filterCounts, host, selected]);
 
   const orderedLanguages = useMemo(() => {
     const preferred = locale as ContentLanguage;
@@ -191,9 +278,6 @@ export default function SearchLanguageFilterPortal() {
       <div>
         <p className="text-[11px] tracking-[0.18em] text-neutral-500">
           {text.title}
-        </p>
-        <p className="mt-1.5 text-xs leading-5 text-neutral-500">
-          {text.help}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {visibleLanguages.map((language) => {
