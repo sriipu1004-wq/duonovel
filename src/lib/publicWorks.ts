@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { headers } from "next/headers";
 import { createPublicServerClient } from "@/lib/supabase/serverPublic";
 import {
   getEpisodeNumber,
@@ -19,6 +20,13 @@ import {
   type SeriesContentRating,
 } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
+import { DEFAULT_UI_LOCALE, isUiLocale, UI_LOCALE_HEADER } from "@/i18n/config";
+import {
+  CONTENT_LANGUAGE_FILTER_HEADER,
+  detectContentLanguage,
+  parseContentLanguageList,
+  type ContentLanguage,
+} from "@/i18n/contentLanguage";
 
 export type PublicBaseWorkCard = {
   seriesId: string;
@@ -35,6 +43,7 @@ export type PublicBaseWorkCard = {
   tags: string[];
   genres: string[];
   contentRating: SeriesContentRating;
+  contentLanguage: ContentLanguage;
   isShortStory: boolean;
   publicEpisodeNumbers: number[];
 };
@@ -42,15 +51,9 @@ export type PublicBaseWorkCard = {
 export type PublicWorkVisibility = "viewer" | "general" | "all";
 
 function formatDate(value: string | null | undefined): string {
-  if (!value) {
-    return "日付未設定";
-  }
-
+  if (!value) return "日付未設定";
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "日付未設定";
-  }
-
+  if (Number.isNaN(parsed.getTime())) return "日付未設定";
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
     month: "2-digit",
@@ -60,10 +63,7 @@ function formatDate(value: string | null | undefined): string {
 }
 
 function toTimeValue(value: unknown): number {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    return 0;
-  }
-
+  if (typeof value !== "string" || value.trim().length === 0) return 0;
   const parsed = new Date(value).getTime();
   return Number.isNaN(parsed) ? 0 : parsed;
 }
@@ -75,7 +75,6 @@ function parseTagList(value: unknown): string[] {
       .filter((item) => item.length > 0)
       .map((item) => (item.startsWith("#") ? item : `#${item}`));
   }
-
   if (typeof value === "string" && value.trim().length > 0) {
     return value
       .split(/[,、\s]+/)
@@ -83,61 +82,38 @@ function parseTagList(value: unknown): string[] {
       .filter((item) => item.length > 0)
       .map((item) => (item.startsWith("#") ? item : `#${item}`));
   }
-
   return [];
 }
 
 function getSeriesTags(series: SeriesRow): string[] {
-  const candidates = [
-    series["tags"],
-    series["tag_list"],
-    series["tagList"],
-  ];
-
+  const candidates = [series["tags"], series["tag_list"], series["tagList"]];
   for (const candidate of candidates) {
     const parsed = parseTagList(candidate);
-    if (parsed.length > 0) {
-      return parsed;
-    }
+    if (parsed.length > 0) return parsed;
   }
-
   return [];
 }
 
 function getEpisodeSeriesId(episode: EpisodeRow): string {
   const row = episode as Record<string, unknown>;
-
   return pickText(row["series_id"], row["seriesId"]);
 }
 
 function readEffectSettings(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === "object") {
-    return value as Record<string, unknown>;
-  }
-
-  if (typeof value !== "string" || value.trim().length === 0) {
-    return null;
-  }
-
+  if (value && typeof value === "object") return value as Record<string, unknown>;
+  if (typeof value !== "string" || value.trim().length === 0) return null;
   try {
     const parsed = JSON.parse(value);
-
-    if (parsed && typeof parsed === "object") {
-      return parsed as Record<string, unknown>;
-    }
+    if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
   } catch {
     return null;
   }
-
   return null;
 }
 
 function isShortStorySeriesForSitemap(series: SeriesRow): boolean {
   const tags = getSeriesTags(series);
-  const settings = readEffectSettings(
-    series["effect_settings"] ?? series["effectSettings"]
-  );
-
+  const settings = readEffectSettings(series["effect_settings"] ?? series["effectSettings"]);
   return (
     tags.includes("#AI生成") ||
     settings?.source === "time_fit_ai_story" ||
@@ -149,7 +125,6 @@ function isShortStorySeriesForSitemap(series: SeriesRow): boolean {
 
 async function fetchPublicSeriesRows(): Promise<SeriesRow[]> {
   const supabase = createPublicServerClient();
-
   const narrow = await supabase
     .from("series")
     .select(PUBLIC_WORK_SERIES_SELECT)
@@ -168,142 +143,82 @@ async function fetchPublicSeriesRows(): Promise<SeriesRow[]> {
     .order("created_at", { ascending: false })
     .limit(120);
 
-  if (fallback.error) {
-    throw new Error(`series の取得に失敗: ${fallback.error.message}`);
-  }
-
+  if (fallback.error) throw new Error(`series の取得に失敗: ${fallback.error.message}`);
   return ((fallback.data ?? []) as SeriesRow[]).filter(
     (series) => getSeriesPublicationStatus(series) === "public"
   );
 }
 
-async function fetchEpisodesBySeriesIds(
-  seriesIds: string[]
-): Promise<Map<string, EpisodeRow[]>> {
+async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string, EpisodeRow[]>> {
   const supabase = createPublicServerClient();
-
-  if (seriesIds.length === 0) {
-    return new Map();
-  }
+  if (seriesIds.length === 0) return new Map();
 
   let episodes: EpisodeRow[] = [];
-
-  const firstTry = await supabase
-    .from("episodes")
-    .select(PUBLIC_WORK_EPISODE_SELECT)
-    .in("series_id", seriesIds);
-
+  const firstTry = await supabase.from("episodes").select(PUBLIC_WORK_EPISODE_SELECT).in("series_id", seriesIds);
   if (!firstTry.error) {
     episodes = (firstTry.data ?? []) as EpisodeRow[];
   } else {
-    const secondTry = await supabase
-      .from("episodes")
-      .select(PUBLIC_WORK_EPISODE_SELECT)
-      .in("seriesId", seriesIds);
-
+    const secondTry = await supabase.from("episodes").select(PUBLIC_WORK_EPISODE_SELECT).in("seriesId", seriesIds);
     if (!secondTry.error) {
       episodes = (secondTry.data ?? []) as EpisodeRow[];
     } else {
-      const fallbackFirstTry = await supabase
-        .from("episodes")
-        .select("*")
-        .in("series_id", seriesIds);
-
+      const fallbackFirstTry = await supabase.from("episodes").select("*").in("series_id", seriesIds);
       if (!fallbackFirstTry.error) {
         episodes = (fallbackFirstTry.data ?? []) as EpisodeRow[];
       } else {
-        const fallbackSecondTry = await supabase
-          .from("episodes")
-          .select("*")
-          .in("seriesId", seriesIds);
-
+        const fallbackSecondTry = await supabase.from("episodes").select("*").in("seriesId", seriesIds);
         if (fallbackSecondTry.error) {
           throw new Error(`episodes の取得に失敗: ${fallbackSecondTry.error.message}`);
         }
-
         episodes = (fallbackSecondTry.data ?? []) as EpisodeRow[];
       }
     }
   }
 
   const grouped = new Map<string, EpisodeRow[]>();
-
   for (const episode of episodes) {
     const seriesId = getEpisodeSeriesId(episode);
-    if (!seriesId) {
-      continue;
-    }
-
+    if (!seriesId) continue;
     const current = grouped.get(seriesId) ?? [];
     current.push(episode);
     grouped.set(seriesId, current);
   }
-
   for (const [seriesId, list] of grouped.entries()) {
-    grouped.set(
-      seriesId,
-      sortEpisodes(list.filter((episode) => isEpisodePubliclyVisible(episode)))
-    );
+    grouped.set(seriesId, sortEpisodes(list.filter((episode) => isEpisodePubliclyVisible(episode))));
   }
-
   return grouped;
 }
 
 function readAuthAccountDisplayName(metadata: unknown): string {
-  if (!metadata || typeof metadata !== "object") {
-    return "";
-  }
-
+  if (!metadata || typeof metadata !== "object") return "";
   const record = metadata as Record<string, unknown>;
-
-  return pickPublicAuthorName(
-    record.display_name_candidate,
-    record.display_name
-  );
+  return pickPublicAuthorName(record.display_name_candidate, record.display_name);
 }
 
-async function fetchAuthorDisplayNameMap(
-  authorIds: string[]
-): Promise<Map<string, string>> {
-  if (authorIds.length === 0) {
-    return new Map();
-  }
-
+async function fetchAuthorDisplayNameMap(authorIds: string[]): Promise<Map<string, string>> {
+  if (authorIds.length === 0) return new Map();
   const adminSupabase = createAdminClient();
   const result = new Map<string, string>();
 
   await Promise.all(
     authorIds.map(async (authorId) => {
       const { data, error } = await adminSupabase.auth.admin.getUserById(authorId);
-
-      if (error || !data?.user) {
-        return;
-      }
-
+      if (error || !data?.user) return;
       const displayName = readAuthAccountDisplayName(data.user.user_metadata);
-
-      if (displayName) {
-        result.set(authorId, displayName);
-      }
+      if (displayName) result.set(authorId, displayName);
     })
   );
-
   return result;
 }
 
 async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
   const publicSeries = await fetchPublicSeriesRows();
-
-  if (publicSeries.length === 0) {
-    return [];
-  }
+  if (publicSeries.length === 0) return [];
 
   const authorIds = Array.from(
     new Set(
       publicSeries
-        .map((series) =>
-          pickText(series.author_id, series["user_id"], series["userId"])
-        )
+        .map((series) => pickText(series.author_id, series["user_id"], series["userId"]))
         .filter((value): value is string => !!value)
     )
   );
@@ -316,53 +231,34 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
   return publicSeries
     .map((series) => {
       const publicEpisodes = episodesBySeriesId.get(series.id) ?? [];
-
-      if (publicEpisodes.length === 0) {
-        return null;
-      }
+      if (publicEpisodes.length === 0) return null;
 
       const firstEpisode = publicEpisodes[0] ?? null;
       const latestEpisode = publicEpisodes[publicEpisodes.length - 1] ?? null;
-
-      const authorId =
-        pickText(series.author_id, series["user_id"], series["userId"]) || null;
-
-      const latestPostedRaw = latestEpisode
-        ? getEpisodePostedAtValue(latestEpisode)
-        : null;
-
-      const firstPostedRaw = firstEpisode
-        ? getEpisodePostedAtValue(firstEpisode)
-        : null;
-
-      const latestPostedAtValue = latestPostedRaw
-        ? new Date(latestPostedRaw).getTime()
-        : 0;
-
-      const firstPostedAtValue = firstPostedRaw
-        ? new Date(firstPostedRaw).getTime()
-        : 0;
-
+      const authorId = pickText(series.author_id, series["user_id"], series["userId"]) || null;
+      const latestPostedRaw = latestEpisode ? getEpisodePostedAtValue(latestEpisode) : null;
+      const firstPostedRaw = firstEpisode ? getEpisodePostedAtValue(firstEpisode) : null;
+      const latestPostedAtValue = latestPostedRaw ? new Date(latestPostedRaw).getTime() : 0;
+      const firstPostedAtValue = firstPostedRaw ? new Date(firstPostedRaw).getTime() : 0;
       const createdAtValue = toTimeValue(series["created_at"]);
       const contentRating = getSeriesContentRating(series);
+      const title = pickText(series.title) || "無題";
+      const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
 
       return {
         seriesId: series.id,
-        title: pickText(series.title) || "無題",
-        summary:
-          getSeriesSummary(series) || "あらすじはまだ登録されていません。",
-        authorName:
-          (authorId ? authorDisplayNameMap.get(authorId) : "") ||
-          "作者名未設定",
+        title,
+        summary,
+        authorName: (authorId ? authorDisplayNameMap.get(authorId) : "") || "作者名未設定",
         authorId,
         episodeCount: publicEpisodes.length,
         firstEpisodeNumber: firstEpisode ? getEpisodeNumber(firstEpisode) : null,
         latestPostedLabel: formatDate(latestPostedRaw),
         latestPostedAtValue,
-        earliestPublicAtValue:
-          firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
+        earliestPublicAtValue: firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
         createdAtValue,
         contentRating,
+        contentLanguage: detectContentLanguage(title, summary),
         isShortStory: isShortStorySeriesForSitemap(series),
         publicEpisodeNumbers: publicEpisodes
           .map((episode) => getEpisodeNumber(episode))
@@ -373,37 +269,62 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
     })
     .filter((card): card is PublicBaseWorkCard => !!card)
     .sort((a, b) => {
-      if (b.latestPostedAtValue !== a.latestPostedAtValue) {
-        return b.latestPostedAtValue - a.latestPostedAtValue;
-      }
-
+      if (b.latestPostedAtValue !== a.latestPostedAtValue) return b.latestPostedAtValue - a.latestPostedAtValue;
       return b.createdAtValue - a.createdAtValue;
     });
 }
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
   buildPublicBaseWorkCards,
-  ["public-base-work-cards-v2-content-rating"],
-  {
-    revalidate: 60,
-  }
+  ["public-base-work-cards-v3-content-language"],
+  { revalidate: 60 }
 );
+
+function prioritizeForLocale(cards: PublicBaseWorkCard[], locale: "ja" | "en" | "ko"): PublicBaseWorkCard[] {
+  return cards
+    .map((card, index) => ({ card, index }))
+    .sort((a, b) => {
+      const aPriority = a.card.contentLanguage === locale ? 0 : 1;
+      const bPriority = b.card.contentLanguage === locale ? 0 : 1;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return a.index - b.index;
+    })
+    .map(({ card }) => card);
+}
 
 export async function getCachedPublicBaseWorkCards(options?: {
   visibility?: PublicWorkVisibility;
+  ignoreContentLanguageFilter?: boolean;
+  prioritizeForUiLocale?: boolean;
 }): Promise<PublicBaseWorkCard[]> {
   const cards = await getCachedPublicBaseWorkCardsInternal();
   const visibility = options?.visibility ?? "viewer";
 
   if (visibility === "all") return cards;
-  if (visibility === "general") {
-    return cards.filter((card) => card.contentRating !== "r18");
-  }
+  if (visibility === "general") return cards.filter((card) => card.contentRating !== "r18");
 
   const preference = await getCurrentR18ViewerPreference();
-  return preference.showR18Content
+  let visibleCards = preference.showR18Content
     ? cards
     : cards.filter((card) => card.contentRating !== "r18");
+
+  const requestHeaders = await headers();
+  const headerLocale = requestHeaders.get(UI_LOCALE_HEADER);
+  const locale = isUiLocale(headerLocale) ? headerLocale : DEFAULT_UI_LOCALE;
+
+  if (!options?.ignoreContentLanguageFilter) {
+    const selectedLanguages = parseContentLanguageList(
+      requestHeaders.get(CONTENT_LANGUAGE_FILTER_HEADER)
+    );
+    if (selectedLanguages.length > 0) {
+      const selectedSet = new Set(selectedLanguages);
+      visibleCards = visibleCards.filter((card) => selectedSet.has(card.contentLanguage));
+    }
+  }
+
+  return options?.prioritizeForUiLocale === false
+    ? visibleCards
+    : prioritizeForLocale(visibleCards, locale);
 }
 
 type RecordingAggregateRow = Record<string, unknown> & {
@@ -471,35 +392,23 @@ function isPublicRecording(recording: RecordingAggregateRow): boolean {
 }
 
 function isEmailLike(value: unknown): boolean {
-  if (typeof value !== "string") {
-    return false;
-  }
-
+  if (typeof value !== "string") return false;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 function pickPublicAuthorName(...values: unknown[]): string {
   for (const value of values) {
     const text = pickText(value);
-
-    if (!text) {
-      continue;
-    }
-
-    if (isEmailLike(text)) {
-      continue;
-    }
-
+    if (!text) continue;
+    if (isEmailLike(text)) continue;
     return text;
   }
-
   return "";
 }
 
 function getRecordingLikes(recording: RecordingAggregateRow): number {
   const raw = recording.like_count ?? recording.likes_count ?? 0;
   if (typeof raw === "number") return raw;
-
   const parsed = Number(raw);
   return Number.isNaN(parsed) ? 0 : parsed;
 }
@@ -507,7 +416,6 @@ function getRecordingLikes(recording: RecordingAggregateRow): number {
 function getRecordingPlays(recording: RecordingAggregateRow): number {
   const raw = recording.play_count ?? recording.plays_count ?? 0;
   if (typeof raw === "number") return raw;
-
   const parsed = Number(raw);
   return Number.isNaN(parsed) ? 0 : parsed;
 }
@@ -518,20 +426,13 @@ function getRecordingSeriesId(recording: RecordingAggregateRow): string {
 
 function normalizeSeriesIds(seriesIds?: string[]): string[] {
   return Array.from(
-    new Set(
-      (seriesIds ?? [])
-        .map((value) => value.trim())
-        .filter((value) => value.length > 0)
-    )
+    new Set((seriesIds ?? []).map((value) => value.trim()).filter((value) => value.length > 0))
   ).sort((left, right) => left.localeCompare(right));
 }
 
-async function buildPublicRecordingAggregates(
-  seriesIds?: string[]
-): Promise<PublicRecordingAggregate[]> {
+async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<PublicRecordingAggregate[]> {
   const supabase = createAdminClient();
   const normalizedSeriesIds = normalizeSeriesIds(seriesIds);
-
   let data: RecordingAggregateRow[] = [];
 
   if (normalizedSeriesIds.length > 0) {
@@ -547,80 +448,50 @@ async function buildPublicRecordingAggregates(
         .from("recordings")
         .select(PUBLIC_WORK_RECORDING_AGGREGATE_SELECT)
         .in("seriesId", normalizedSeriesIds);
-
       if (!secondTry.error) {
         data = (secondTry.data ?? []) as RecordingAggregateRow[];
       } else {
-        const fallback = await supabase
-          .from("recordings")
-          .select("*")
-          .in("series_id", normalizedSeriesIds);
-
+        const fallback = await supabase.from("recordings").select("*").in("series_id", normalizedSeriesIds);
         if (!fallback.error) {
           data = (fallback.data ?? []) as RecordingAggregateRow[];
         } else {
-          const fallbackSecondTry = await supabase
-            .from("recordings")
-            .select("*")
-            .in("seriesId", normalizedSeriesIds);
-
+          const fallbackSecondTry = await supabase.from("recordings").select("*").in("seriesId", normalizedSeriesIds);
           if (fallbackSecondTry.error) {
-            throw new Error(
-              `recordings の取得に失敗: ${fallbackSecondTry.error.message}`
-            );
+            throw new Error(`recordings の取得に失敗: ${fallbackSecondTry.error.message}`);
           }
-
           data = (fallbackSecondTry.data ?? []) as RecordingAggregateRow[];
         }
       }
     }
   } else {
-    const narrow = await supabase
-      .from("recordings")
-      .select(PUBLIC_WORK_RECORDING_AGGREGATE_SELECT);
-
+    const narrow = await supabase.from("recordings").select(PUBLIC_WORK_RECORDING_AGGREGATE_SELECT);
     if (!narrow.error) {
       data = (narrow.data ?? []) as RecordingAggregateRow[];
     } else {
       const fallback = await supabase.from("recordings").select("*");
-
-      if (fallback.error) {
-        throw new Error(`recordings の取得に失敗: ${fallback.error.message}`);
-      }
-
+      if (fallback.error) throw new Error(`recordings の取得に失敗: ${fallback.error.message}`);
       data = (fallback.data ?? []) as RecordingAggregateRow[];
     }
   }
 
   const aggregateMap = new Map<
     string,
-    {
-      totalRecordingLikes: number;
-      totalRecordingPlays: number;
-      totalRecordingCount: number;
-    }
+    { totalRecordingLikes: number; totalRecordingPlays: number; totalRecordingCount: number }
   >();
 
   for (const rawRecording of data) {
-    if (!isPublicRecording(rawRecording)) {
-      continue;
-    }
-
+    if (!isPublicRecording(rawRecording)) continue;
     const seriesId = getRecordingSeriesId(rawRecording);
-    if (!seriesId) {
-      continue;
-    }
+    if (!seriesId) continue;
 
     const current = aggregateMap.get(seriesId) ?? {
       totalRecordingLikes: 0,
       totalRecordingPlays: 0,
       totalRecordingCount: 0,
     };
-
     current.totalRecordingLikes += getRecordingLikes(rawRecording);
     current.totalRecordingPlays += getRecordingPlays(rawRecording);
     current.totalRecordingCount += 1;
-
     aggregateMap.set(seriesId, current);
   }
 
@@ -634,27 +505,18 @@ async function buildPublicRecordingAggregates(
 
 const getCachedPublicRecordingAggregatesInternal = unstable_cache(
   async (seriesIdsKey: string) => {
-    const seriesIds =
-      seriesIdsKey.trim().length > 0
-        ? seriesIdsKey
-            .split(",")
-            .map((value) => value.trim())
-            .filter((value) => value.length > 0)
-        : [];
-
+    const seriesIds = seriesIdsKey.trim().length > 0
+      ? seriesIdsKey.split(",").map((value) => value.trim()).filter((value) => value.length > 0)
+      : [];
     return buildPublicRecordingAggregates(seriesIds);
   },
   ["public-recording-aggregates"],
-  {
-    revalidate: 60,
-  }
+  { revalidate: 60 }
 );
 
 export async function getCachedPublicRecordingAggregates(
   seriesIds?: string[]
 ): Promise<PublicRecordingAggregate[]> {
   const normalizedSeriesIds = normalizeSeriesIds(seriesIds);
-  return getCachedPublicRecordingAggregatesInternal(
-    normalizedSeriesIds.join(",")
-  );
+  return getCachedPublicRecordingAggregatesInternal(normalizedSeriesIds.join(","));
 }
