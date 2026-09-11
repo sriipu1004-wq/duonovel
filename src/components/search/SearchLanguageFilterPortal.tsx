@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { stripUiLocalePrefix } from "@/i18n/config";
 import {
   CONTENT_LANGUAGE_FILTER_COOKIE,
+  CONTENT_LANGUAGE_FILTER_EVENT,
   CONTENT_LANGUAGES,
   contentLanguageLabel,
   parseContentLanguageList,
@@ -67,7 +68,6 @@ function findOrderColumn(section: Element): HTMLElement | null {
 
 export default function SearchLanguageFilterPortal() {
   const pathname = usePathname();
-  const router = useRouter();
   const locale = useUiLocale();
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [counts, setCounts] = useState<Counts>({
@@ -78,7 +78,6 @@ export default function SearchLanguageFilterPortal() {
   });
   const [selected, setSelected] = useState<ContentLanguage[]>([]);
   const [expanded, setExpanded] = useState(false);
-  const [, startTransition] = useTransition();
   const route = stripUiLocalePrefix(pathname);
   const active = route === "/search" || route === "/search/saved";
 
@@ -173,9 +172,11 @@ export default function SearchLanguageFilterPortal() {
       : [...selected, language];
     setSelected(next);
     writeSelectedLanguages(next);
-    startTransition(() => {
-      router.refresh();
-    });
+    window.dispatchEvent(
+      new CustomEvent(CONTENT_LANGUAGE_FILTER_EVENT, {
+        detail: { languages: next },
+      })
+    );
   }
 
   return createPortal(
