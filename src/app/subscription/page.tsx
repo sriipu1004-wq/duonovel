@@ -10,67 +10,50 @@ import {
 import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 import { createClient } from "@/lib/supabase/server";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { getUiLocale } from "@/i18n/server";
+import { subscriptionDictionaries } from "@/i18n/dictionaries/subscription";
+import { localizePath } from "@/i18n/navigation";
+import type { UiLocale } from "@/i18n/config";
 
-export const metadata: Metadata = {
-  title: "サブスク | LIB read",
-  description:
-    "LIB readの月額680円サブスク。単語解説無制限、次話対訳の先読み、AI生成上限の拡大に対応します。",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getUiLocale();
+  const dictionary = subscriptionDictionaries[locale];
+  return {
+    title: `${dictionary.pageTitle} | LIB read`,
+    description: dictionary.metadataDescription,
+    robots: { index: false, follow: true },
+  };
+}
 
 type PageProps = {
   searchParams: Promise<{ checkout?: string }>;
 };
 
-const comparisons = [
-  {
-    label: "AI物語生成",
-    free: "対訳生成・本棚取り込みと共通で1日3回",
-    subscriber: "1日10回まで",
-  },
-  {
-    label: "対訳生成",
-    free: "AI物語生成・本棚取り込みと共通で1日3回",
-    subscriber: "1日30回まで",
-  },
-  {
-    label: "単語解説",
-    free: "1日20回まで",
-    subscriber: "日次回数制限なし",
-  },
-  {
-    label: "次話の対訳",
-    free: "次話へ移動後に生成",
-    subscriber: "読書50%で次の1話を先読み",
-  },
-  {
-    label: "朗読",
-    free: "画面を開いて再生",
-    subscriber: "次話自動再生。バックグラウンド再生はユーザー朗読のみ",
-  },
-  {
-    label: "個人本棚・読書進捗",
-    free: "最大3作品",
-    subscriber: "最大20作品",
-  },
-  {
-    label: "個人本棚への取り込み",
-    free: "AI物語・対訳と共通で1日3回",
-    subscriber: "日次回数制限なし",
-  },
-];
-
-function formatDate(value: string | null): string {
+function formatDate(value: string | null, locale: UiLocale): string {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("ja-JP", {
+  const dateLocale = locale === "ja" ? "ja-JP" : locale === "ko" ? "ko-KR" : "en-US";
+  return new Intl.DateTimeFormat(dateLocale, {
     year: "numeric",
     month: "long",
     day: "numeric",
   }).format(date);
 }
 
+function formatPrice(locale: UiLocale): string {
+  if (locale === "ja") {
+    return `${LIBREAD_SUBSCRIPTION_PRICE_JPY.toLocaleString("ja-JP")}円`;
+  }
+  if (locale === "ko") {
+    return `${LIBREAD_SUBSCRIPTION_PRICE_JPY.toLocaleString("ko-KR")}엔 (JPY)`;
+  }
+  return `¥${LIBREAD_SUBSCRIPTION_PRICE_JPY.toLocaleString("en-US")}`;
+}
+
 export default async function SubscriptionPage({ searchParams }: PageProps) {
+  const locale = await getUiLocale();
+  const dictionary = subscriptionDictionaries[locale];
   const { checkout } = await searchParams;
   const supabase = await createClient();
   const authResult = await supabase.auth.getUser();
@@ -83,7 +66,10 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
       ])
     : [false, null];
   const billingReady = isPaidSubscriptionReady();
-  const currentPeriodEnd = formatDate(billingSummary?.currentPeriodEnd ?? null);
+  const currentPeriodEnd = formatDate(
+    billingSummary?.currentPeriodEnd ?? null,
+    locale
+  );
   const shouldManageExistingContract = Boolean(
     billingSummary &&
       ["active", "trialing", "past_due", "unpaid", "paused", "incomplete"].includes(
@@ -92,25 +78,29 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
   );
   const currentPlanLabel = subscriber
     ? officialAccount
-      ? "運営アカウント・有料機能有効"
-      : "サブスク利用中"
+      ? dictionary.officialPlan
+      : dictionary.subscriberPlan
     : shouldManageExistingContract
-      ? "支払い・契約状態の確認が必要"
-      : "無料プラン";
+      ? dictionary.paymentAttention
+      : dictionary.freePlan;
+  const homeHref = localizePath("/", locale);
+  const loginHref = `${localizePath("/login", locale)}?next=${encodeURIComponent(
+    localizePath("/subscription", locale)
+  )}`;
 
   if (subscriber) {
     return (
       <main className="min-h-screen bg-white text-black">
         <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
           <div className="mb-5 text-sm text-neutral-500">
-            <Link href="/" className="hover:text-black">TOP</Link>
+            <Link href={homeHref} className="hover:text-black">TOP</Link>
             <span className="mx-2">/</span>
-            <span className="text-neutral-700">契約状態</span>
+            <span className="text-neutral-700">{dictionary.contractStatus}</span>
           </div>
 
           {checkout === "success" ? (
             <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-7 text-emerald-900">
-              決済を受け付けました。有料機能は利用可能です。
+              {dictionary.checkoutSuccessActive}
             </div>
           ) : null}
 
@@ -118,13 +108,13 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
             <p className="text-xs tracking-[0.22em] text-sky-300">CURRENT PLAN</p>
             <h1 className="mt-4 text-3xl font-bold">{currentPlanLabel}</h1>
             <p className="mt-4 text-sm leading-7 text-neutral-300">
-              有料機能は有効です。
+              {dictionary.paidFeaturesActive}
             </p>
             {currentPeriodEnd ? (
               <p className="mt-3 text-sm leading-7 text-neutral-300">
                 {billingSummary?.cancelAtPeriodEnd
-                  ? `${currentPeriodEnd}まで利用可能（更新停止済み）`
-                  : `次回更新日 ${currentPeriodEnd}`}
+                  ? dictionary.availableUntil(currentPeriodEnd)
+                  : dictionary.nextRenewal(currentPeriodEnd)}
               </p>
             ) : null}
             <div className="mt-6 flex flex-wrap gap-3">
@@ -132,10 +122,10 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
                 <SubscriptionActionButton mode="portal" billingReady={isStripeConfigured()} />
               ) : null}
               <Link
-                href="/"
+                href={homeHref}
                 className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
               >
-                トップへ戻る
+                {dictionary.backHome}
               </Link>
             </div>
           </section>
@@ -148,18 +138,18 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-5 text-sm text-neutral-500">
-          <Link href="/" className="hover:text-black">TOP</Link>
+          <Link href={homeHref} className="hover:text-black">TOP</Link>
           <span className="mx-2">/</span>
-          <span className="text-neutral-700">サブスク</span>
+          <span className="text-neutral-700">{dictionary.pageTitle}</span>
         </div>
 
         {checkout === "success" ? (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-7 text-emerald-900">
-            決済を受け付けました。Stripeからの決済完了通知後に有料機能へ切り替わります。反映されない場合は数秒後に再読み込みしてください。
+            {dictionary.checkoutSuccessPending}
           </div>
         ) : checkout === "canceled" ? (
           <div className="mb-6 rounded-2xl border border-black/10 bg-neutral-50 px-5 py-4 text-sm leading-7 text-neutral-700">
-            決済はキャンセルされ、請求は発生していません。
+            {dictionary.checkoutCanceled}
           </div>
         ) : null}
 
@@ -168,38 +158,34 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
             <div>
               <p className="text-xs tracking-[0.22em] text-sky-300">LIB READ SUBSCRIPTION</p>
               <h1 className="mt-4 text-3xl font-bold leading-tight sm:text-4xl">
-                長編を、次の1話まで止まらず読む。
+                {dictionary.heroTitle}
               </h1>
               <p className="mt-5 max-w-2xl text-sm leading-8 text-neutral-300 sm:text-base">
-                単語解説を回数を気にせず使い、読書中に次話の対訳を1話だけ準備します。AI物語と対訳生成の1日上限も拡大します。
+                {dictionary.heroDescription}
               </p>
-              <div className="mt-6 flex items-end gap-2">
-                <span className="text-4xl font-bold">
-                  {LIBREAD_SUBSCRIPTION_PRICE_JPY.toLocaleString("ja-JP")}円
-                </span>
-                <span className="pb-1 text-sm text-neutral-300">/ 月（税込）</span>
+              <div className="mt-6 flex flex-wrap items-end gap-2">
+                <span className="text-4xl font-bold">{formatPrice(locale)}</span>
+                <span className="pb-1 text-sm text-neutral-300">{dictionary.perMonth}</span>
               </div>
               <p className="mt-2 text-xs leading-6 text-neutral-400">
-                申込日に課金され、毎月同日に自動更新されます。いつでも解約できます。
+                {dictionary.currencyNote}
               </p>
             </div>
 
             <div className="rounded-[24px] border border-white/15 bg-white/10 p-5">
               <p className="text-xs tracking-[0.18em] text-neutral-300">CURRENT PLAN</p>
-              <p className="mt-2 text-xl font-semibold">
-                {currentPlanLabel}
-              </p>
+              <p className="mt-2 text-xl font-semibold">{currentPlanLabel}</p>
               {subscriber && currentPeriodEnd ? (
                 <p className="mt-3 text-xs leading-6 text-neutral-300">
                   {billingSummary?.cancelAtPeriodEnd
-                    ? `${currentPeriodEnd}まで利用可能（更新停止済み）`
-                    : `次回更新日 ${currentPeriodEnd}`}
+                    ? dictionary.availableUntil(currentPeriodEnd)
+                    : dictionary.nextRenewal(currentPeriodEnd)}
                 </p>
               ) : null}
               <div className="mt-5">
                 {officialAccount ? (
                   <span className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white">
-                    Stripe契約は不要です
+                    {dictionary.noStripeNeeded}
                   </span>
                 ) : shouldManageExistingContract ? (
                   <SubscriptionActionButton mode="portal" billingReady={isStripeConfigured()} />
@@ -207,10 +193,10 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
                   <SubscriptionActionButton mode="checkout" billingReady={billingReady} />
                 ) : (
                   <Link
-                    href="/login?next=%2Fsubscription"
+                    href={loginHref}
                     className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-neutral-100"
                   >
-                    ログインして申し込む
+                    {dictionary.loginToSubscribe}
                   </Link>
                 )}
               </div>
@@ -220,18 +206,18 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
 
         <section className="mt-8 rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-7">
           <p className="text-xs tracking-[0.2em] text-neutral-500">PLAN</p>
-          <h2 className="mt-2 text-2xl font-semibold">無料版との違い</h2>
+          <h2 className="mt-2 text-2xl font-semibold">{dictionary.planDifference}</h2>
           <div className="mt-6 overflow-x-auto">
             <table className="w-full min-w-[620px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-black/10 text-neutral-500">
-                  <th className="px-3 py-3 font-medium">機能</th>
-                  <th className="px-3 py-3 font-medium">無料</th>
-                  <th className="px-3 py-3 font-medium text-black">月額680円</th>
+                  <th className="px-3 py-3 font-medium">{dictionary.feature}</th>
+                  <th className="px-3 py-3 font-medium">{dictionary.free}</th>
+                  <th className="px-3 py-3 font-medium text-black">{dictionary.paid}</th>
                 </tr>
               </thead>
               <tbody>
-                {comparisons.map((item) => (
+                {dictionary.comparisons.map((item) => (
                   <tr key={item.label} className="border-b border-black/10 last:border-0">
                     <th className="px-3 py-4 font-medium text-black">{item.label}</th>
                     <td className="px-3 py-4 text-neutral-600">{item.free}</td>
@@ -244,16 +230,14 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
         </section>
 
         <section className="mt-8 rounded-[28px] border border-sky-200 bg-sky-50 px-5 py-7 sm:px-8">
-          <h2 className="text-xl font-semibold">契約と解約</h2>
+          <h2 className="text-xl font-semibold">{dictionary.contractTitle}</h2>
           <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-7 text-neutral-700">
-            <li>クレジットカード情報はStripeが処理し、LIB readでは保持しません。</li>
-            <li>解約すると次回更新が止まり、支払済み期間の終了までは有料機能を利用できます。</li>
-            <li>アカウント削除時は、継続請求を防ぐためStripe契約を先に停止します。</li>
+            {dictionary.contractItems.map((item) => <li key={item}>{item}</li>)}
           </ul>
           <div className="mt-5 flex flex-wrap gap-4 text-sm">
-            <Link href="/terms" className="underline underline-offset-4">利用規約</Link>
-            <Link href="/privacy" className="underline underline-offset-4">プライバシーポリシー</Link>
-            <Link href="/commercial-transactions" className="underline underline-offset-4">特定商取引法に基づく表記</Link>
+            <Link href="/terms" className="underline underline-offset-4">{dictionary.terms}</Link>
+            <Link href="/privacy" className="underline underline-offset-4">{dictionary.privacy}</Link>
+            <Link href="/commercial-transactions" className="underline underline-offset-4">{dictionary.commercial}</Link>
           </div>
         </section>
       </div>
