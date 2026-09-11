@@ -47,6 +47,13 @@ const SAVED_SEARCH_FILTERS = new Set([
   "liked-readers",
 ]);
 
+const JAPANESE_CANONICAL_PATHS = new Set([
+  "/terms",
+  "/privacy",
+  "/commercial-transactions",
+  "/record/terms",
+]);
+
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_EXACT_PATHS.has(pathname)) return true;
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
@@ -163,10 +170,17 @@ function buildLocaleAwareResponse(
 
 export async function proxy(request: NextRequest) {
   const locale = resolveRequestLocale(request);
+  const hasLocalePrefix = hasUiLocalePrefix(request.nextUrl.pathname);
   const routePathname = stripUiLocalePrefix(request.nextUrl.pathname);
   const authState = await getProxyAuthState(request);
 
-  if (!hasUiLocalePrefix(request.nextUrl.pathname) && locale !== "ja") {
+  if (hasLocalePrefix && JAPANESE_CANONICAL_PATHS.has(routePathname)) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = routePathname;
+    return withLocaleCookie(copyResponseCookies(authState.response, NextResponse.redirect(redirectUrl)), locale);
+  }
+
+  if (!hasLocalePrefix && locale !== "ja" && !JAPANESE_CANONICAL_PATHS.has(routePathname)) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = localizePathname(routePathname, locale);
     return withLocaleCookie(copyResponseCookies(authState.response, NextResponse.redirect(redirectUrl)), locale);
