@@ -38,6 +38,8 @@ export function proxy(request: NextRequest) {
     targetUrl.pathname = "/locale-home";
   } else if (routePathname === "/search") {
     targetUrl.pathname = "/locale-search";
+  } else if (routePathname.startsWith("/works/")) {
+    targetUrl.pathname = routePathname.replace(/^\/works\//, "/locale-work/");
   } else {
     targetUrl.pathname = routePathname;
   }
