@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PromptTagSuggestions from "@/features/generation/PromptTagSuggestions";
 import { getPromptTagsInText } from "@/lib/generation/promptTags";
@@ -98,30 +98,38 @@ function ExpandableChoiceGroup<T extends string>({
   getLabel: (value: T) => string;
   locale: UiLocale;
 }) {
+  const labelId = useId();
   const listRef = useRef<HTMLDivElement | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
   const copy = disclosureLabels[locale];
 
   useEffect(() => {
-    const element = listRef.current;
-    if (!element) return;
+    if (expanded) return;
+    let cancelled = false;
+    let frame = 0;
 
     const measure = () => {
-      if (expanded) return;
+      const element = listRef.current;
+      if (!element || cancelled) return;
       setHasOverflow(element.scrollHeight > element.clientHeight + 2);
     };
 
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [expanded, options.length]);
+    frame = window.requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    void document.fonts?.ready.then(measure).catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", measure);
+    };
+  }, [expanded, options.length, locale]);
 
   return (
-    <fieldset className="grid gap-2">
+    <div className="grid gap-2" role="group" aria-labelledby={labelId}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <legend className="text-sm font-medium text-black">{label}</legend>
+        <span id={labelId} className="text-sm font-medium text-black">{label}</span>
         <span className="text-xs text-neutral-500">{copy.optional}</span>
       </div>
       <div
@@ -160,7 +168,7 @@ function ExpandableChoiceGroup<T extends string>({
           {expanded ? copy.less : copy.more}
         </button>
       ) : null}
-    </fieldset>
+    </div>
   );
 }
 
