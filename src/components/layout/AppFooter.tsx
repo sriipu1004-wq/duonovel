@@ -3,31 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAiUsage } from "@/features/usage/useAiUsage";
-
-const serviceLinks = [
-  { href: "/guide", label: "使い方" },
-  { href: "/faq", label: "よくある質問" },
-  { href: "/english-novel-reader", label: "英語小説の対訳" },
-  { href: "/web-novel-language-learning", label: "小説で語学学習" },
-  { href: "/pdf-bilingual-reader", label: "PDF・EPUB対訳" },
-  { href: "/status", label: "運営状況" },
-  { href: "/news", label: "お知らせ" },
-  { href: "/subscription", label: "サブスク" },
-];
-
-const legalLinks = [
-  { href: "/terms", label: "利用規約" },
-  { href: "/privacy", label: "プライバシーポリシー" },
-  { href: "/commercial-transactions", label: "特定商取引法に基づく表記" },
-  { href: "/contact", label: "お問い合わせ" },
-];
+import { useCommonDictionary, useUiLocale } from "@/i18n/UiLocaleProvider";
+import { isReaderPath, localizePath } from "@/i18n/navigation";
+import { stripUiLocalePrefix } from "@/i18n/config";
 
 export default function AppFooter() {
   const pathname = usePathname();
-  const isReaderPage = pathname.startsWith("/read/");
-  const isHome = pathname === "/";
+  const readerPage = isReaderPath(pathname);
+  const isHome = stripUiLocalePrefix(pathname) === "/";
 
-  if (isHome || isReaderPage) {
+  if (isHome || readerPage) {
     return null;
   }
 
@@ -36,17 +21,37 @@ export default function AppFooter() {
 
 function VisibleAppFooter() {
   const { snapshot } = useAiUsage();
+  const locale = useUiLocale();
+  const dictionary = useCommonDictionary();
+  const serviceLinks = [
+    { href: "/guide", label: dictionary.guide, localized: true },
+    { href: "/faq", label: dictionary.faq, localized: true },
+    { href: "/status", label: dictionary.status, localized: true },
+    { href: "/news", label: dictionary.news, localized: true },
+    { href: "/subscription", label: dictionary.subscription, localized: true },
+  ];
+  const japaneseDiscoveryLinks = [
+    { href: "/english-novel-reader", label: dictionary.englishNovel },
+    { href: "/web-novel-language-learning", label: dictionary.languageLearning },
+    { href: "/pdf-bilingual-reader", label: dictionary.pdfBilingual },
+  ];
+  const legalLinks = [
+    { href: "/terms", label: dictionary.terms },
+    { href: "/privacy", label: dictionary.privacy },
+    { href: "/commercial-transactions", label: dictionary.commercial },
+    { href: "/contact", label: dictionary.contact },
+  ];
 
   return (
     <footer className="border-t border-black/10 bg-white">
       <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-xl">
-            <Link href="/" className="text-base font-semibold tracking-tight text-neutral-900">
+            <Link href={localizePath("/", locale)} className="text-base font-semibold tracking-tight text-neutral-900">
               LIB read
             </Link>
             <p className="mt-2 text-sm leading-6 text-neutral-600">
-              外国語の長編を個人本棚で読み続け、多言語対訳・読み上げ・AI物語・Web小説を作品単位で楽しめる読書サービスです。
+              {dictionary.footerDescription}
             </p>
           </div>
 
@@ -57,13 +62,20 @@ function VisibleAppFooter() {
                   item.href !== "/subscription" || snapshot?.isSubscriber === false
               )
               .map((item) => (
-                <Link key={item.href} href={item.href} className="transition hover:text-black">
+                <Link key={item.href} href={localizePath(item.href, locale)} className="transition hover:text-black">
                   {item.label}
                 </Link>
               ))}
+            {locale === "ja"
+              ? japaneseDiscoveryLinks.map((item) => (
+                  <Link key={item.href} href={item.href} className="transition hover:text-black">
+                    {item.label}
+                  </Link>
+                ))
+              : null}
             {legalLinks.map((item) => (
               <Link key={item.href} href={item.href} className="transition hover:text-black">
-                {item.label}
+                {item.label}{locale === "ja" ? "" : locale === "en" ? " (Japanese)" : " (일본어)"}
               </Link>
             ))}
           </div>
