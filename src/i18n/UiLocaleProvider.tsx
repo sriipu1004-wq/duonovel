@@ -8,6 +8,8 @@ import PublicWorkLanguagePriorityBridge from "./PublicWorkLanguagePriorityBridge
 import ReaderUiLocaleBridge from "./ReaderUiLocaleBridge";
 import SiteUiLocaleBridgeGate from "./SiteUiLocaleBridgeGate";
 import AuthoringUiLocaleBridge from "./AuthoringUiLocaleBridge";
+import SearchTagUiLocaleBridge from "./SearchTagUiLocaleBridge";
+import AuthoringTagLocalePortal from "./AuthoringTagLocalePortal";
 import SearchLanguageFilterPortal from "@/components/search/SearchLanguageFilterPortal";
 
 const UiLocaleContext = createContext<UiLocale>("ja");
@@ -21,6 +23,8 @@ export function UiLocaleProvider({ locale, children }: { locale: UiLocale; child
       <SiteUiLocaleBridgeGate locale={locale} />
       <AuthoringUiLocaleBridge locale={locale} />
       <ReaderUiLocaleBridge locale={locale} />
+      <SearchTagUiLocaleBridge locale={locale} />
+      <AuthoringTagLocalePortal locale={locale} />
       <SearchLanguageFilterPortal />
     </UiLocaleContext.Provider>
   );
