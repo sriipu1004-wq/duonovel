@@ -10,6 +10,16 @@ import {
   formatAiUsage,
   isAiUsageLimitReached,
 } from "@/lib/aiUsage/aiUsage";
+import {
+  LANGUAGE_REGISTRY,
+  getSupportedLanguage,
+  type SupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
+import {
+  TRANSLATION_LEARNING_LEVELS,
+  TRANSLATION_LEARNING_LEVEL_LABELS,
+  type TranslationLearningLevel,
+} from "@/lib/translation/translationLearningPreference";
 
 type TimeMinutes = 5 | 10 | 15 | 20;
 
@@ -27,6 +37,9 @@ type GenerateRequest = {
   timeMinutes: TimeMinutes;
   genre: string;
   mood: string;
+  learningLanguage?: SupportedLanguageTag;
+  learningLevel?: TranslationLearningLevel;
+  translationLearningRequest?: string;
 };
 
 type GenerateApiRequest = GenerateRequest & {
@@ -68,6 +81,10 @@ const GENRE_OPTIONS = [
 const DEFAULT_MOOD = "指定なし";
 
 const CUSTOM_REQUEST_MAX_LENGTH = 500;
+const TRANSLATION_LEARNING_REQUEST_MAX_LENGTH = 300;
+const LEARNING_LANGUAGES = Object.keys(
+  LANGUAGE_REGISTRY
+) as SupportedLanguageTag[];
 
 function generateStoryId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -97,6 +114,13 @@ export default function TimeFitStoryGeneratorClient() {
   const [timeMinutes, setTimeMinutes] = useState<TimeMinutes>(10);
   const [genre, setGenre] = useState<(typeof GENRE_OPTIONS)[number]>("ホラー");
   const [customRequest, setCustomRequest] = useState("");
+  const [learningLanguage, setLearningLanguage] = useState<
+    SupportedLanguageTag | ""
+  >("");
+  const [learningLevel, setLearningLevel] =
+    useState<TranslationLearningLevel>("beginner");
+  const [translationLearningRequest, setTranslationLearningRequest] =
+    useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -106,8 +130,27 @@ export default function TimeFitStoryGeneratorClient() {
       timeMinutes,
       genre,
       mood: DEFAULT_MOOD,
+      ...(learningLanguage
+        ? {
+            learningLanguage,
+            learningLevel,
+            ...(translationLearningRequest.trim()
+              ? {
+                  translationLearningRequest:
+                    translationLearningRequest.trim(),
+                }
+              : {}),
+          }
+        : {}),
     }),
-    [scene, timeMinutes, genre]
+    [
+      scene,
+      timeMinutes,
+      genre,
+      learningLanguage,
+      learningLevel,
+      translationLearningRequest,
+    ]
   );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -122,6 +165,13 @@ export default function TimeFitStoryGeneratorClient() {
 
     if (normalizedCustomRequest.length > CUSTOM_REQUEST_MAX_LENGTH) {
       setErrorMessage("追加の希望は500文字以内で入力してください。");
+      return;
+    }
+    if (
+      translationLearningRequest.trim().length >
+      TRANSLATION_LEARNING_REQUEST_MAX_LENGTH
+    ) {
+      setErrorMessage("対訳への希望は300文字以内で入力してください。");
       return;
     }
 
@@ -242,6 +292,74 @@ export default function TimeFitStoryGeneratorClient() {
             ))}
           </select>
         </label>
+
+        <fieldset className="grid gap-4 rounded-[24px] border border-black/10 bg-neutral-50 p-4 sm:grid-cols-2">
+          <legend className="px-2 text-sm font-medium text-black">
+            語学学習向けの対訳（任意）
+          </legend>
+          <label className="grid gap-2">
+            <span className="text-sm text-neutral-700">学習する言語</span>
+            <select
+              value={learningLanguage}
+              onChange={(event) =>
+                setLearningLanguage(
+                  event.target.value as SupportedLanguageTag | ""
+                )
+              }
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300"
+            >
+              <option value="">指定しない</option>
+              {LEARNING_LANGUAGES.filter((language) => language !== "ja").map(
+                (language) => (
+                  <option key={language} value={language}>
+                    {getSupportedLanguage(language).nativeLabel}
+                  </option>
+                )
+              )}
+            </select>
+          </label>
+          <label className="grid gap-2">
+            <span className="text-sm text-neutral-700">対訳の難易度</span>
+            <select
+              value={learningLevel}
+              disabled={!learningLanguage}
+              onChange={(event) =>
+                setLearningLevel(event.target.value as TranslationLearningLevel)
+              }
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300 disabled:opacity-50"
+            >
+              {TRANSLATION_LEARNING_LEVELS.map((level) => (
+                <option key={level} value={level}>
+                  {TRANSLATION_LEARNING_LEVEL_LABELS[level]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-xs leading-6 text-neutral-500 sm:col-span-2">
+            選んだ言語で対訳するとき、内容を省かず、語彙・文法・文の長さを難易度に合わせます。韓国語なども各言語で自然な初級表現を使います。
+          </p>
+          {learningLanguage ? (
+            <label className="grid gap-2 sm:col-span-2">
+              <span className="text-sm text-neutral-700">
+                対訳への希望（任意）
+              </span>
+              <textarea
+                value={translationLearningRequest}
+                onChange={(event) =>
+                  setTranslationLearningRequest(event.target.value)
+                }
+                maxLength={TRANSLATION_LEARNING_REQUEST_MAX_LENGTH}
+                rows={3}
+                disabled={isGenerating}
+                placeholder="例：韓国語の初級文法を中心にし、敬語は해요体で統一してください。"
+                className="w-full resize-y rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 disabled:opacity-60"
+              />
+              <span className="text-right text-xs text-neutral-500">
+                {translationLearningRequest.length} / {TRANSLATION_LEARNING_REQUEST_MAX_LENGTH}文字
+              </span>
+            </label>
+          ) : null}
+        </fieldset>
 
         <div className="grid gap-2">
           <label

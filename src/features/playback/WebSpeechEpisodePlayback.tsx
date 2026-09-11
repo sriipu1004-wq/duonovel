@@ -33,7 +33,10 @@ import { trackSeriesViewOnce } from "@/lib/popularityEvents";
 import { buildNemoAlignedParagraphBlocks } from "@/lib/recording/humanTimingShared";
 import {
   readReadingBookmark,
+  readEpisodeReadingPosition,
+  resolveReadingPositionIndex,
   writeReadingBookmark,
+  writeReadingHistory,
 } from "@/lib/playback/readingBookmark";
 import {
   readNarrationStopped as readGlobalNarrationStopped,
@@ -303,6 +306,7 @@ export default function WebSpeechEpisodePlayback({
     humanRecordingId ?? humanNarrationOptions[0]?.recordingId ?? ""
   );
   const [activeUnitIndex, setActiveUnitIndex] = useState(0);
+  const [positionRestoreReady, setPositionRestoreReady] = useState(false);
   const [humanCurrentTime, setHumanCurrentTime] = useState(0);
   const [humanDuration, setHumanDuration] = useState(0);
   const [audioError, setAudioError] = useState("");
@@ -421,10 +425,12 @@ export default function WebSpeechEpisodePlayback({
 
   const speechUnits = useMemo(
     () =>
-      paragraphBlocks.flatMap((block) =>
-        block.segments.flatMap((segment) =>
+      paragraphBlocks.flatMap((block, paragraphIndex) =>
+        block.segments.flatMap((segment, sentenceIndex) =>
           splitForSpeech(segment.text, safeSpeechLanguage).map((text) => ({
             segmentIndex: segment.index,
+            paragraphIndex,
+            sentenceIndex,
             text: replaceRubyWithReadingText(text),
           }))
         )
@@ -625,6 +631,7 @@ export default function WebSpeechEpisodePlayback({
       setHumanCurrentTime(0);
       setHumanDuration(0);
       setActiveUnitIndex(0);
+      setPositionRestoreReady(false);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [
@@ -637,37 +644,45 @@ export default function WebSpeechEpisodePlayback({
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        const parsed = readReadingBookmark(seriesId);
+        const bookmark = readReadingBookmark(seriesId);
+        const currentBookmark =
+          bookmark?.episodeNumber === episodeNumber ? bookmark : null;
+        const parsed = readEpisodeReadingPosition(seriesId, episodeNumber);
         const sameEpisode = Number(parsed?.episodeNumber) === episodeNumber;
         const sameReader =
-          (parsed?.readerKey ?? "") === (selectedReaderKey ?? "") &&
-          (parsed?.readerName ?? "") === (selectedReaderName ?? "");
+          !currentBookmark ||
+          ((currentBookmark.readerKey ?? "") === (selectedReaderKey ?? "") &&
+            (currentBookmark.readerName ?? "") === (selectedReaderName ?? ""));
 
-        setIsCurrentEpisodeBookmarked(Boolean(sameEpisode && sameReader));
+        setIsCurrentEpisodeBookmarked(
+          Boolean(currentBookmark && sameReader)
+        );
 
         if (
           sameEpisode &&
-          sameReader &&
           typeof parsed?.positionIndex === "number" &&
           Number.isFinite(parsed.positionIndex)
         ) {
-          setActiveUnitIndex(parsed.positionIndex);
-          initialBookmarkScrollRef.current = `${seriesId}:${episodeNumber}:${parsed.positionIndex}`;
+          const restoredIndex = resolveReadingPositionIndex(speechUnits, parsed);
+          setActiveUnitIndex(restoredIndex);
+          initialBookmarkScrollRef.current = `${seriesId}:${episodeNumber}:${restoredIndex}`;
         }
+        setPositionRestoreReady(true);
       } catch {
         setIsCurrentEpisodeBookmarked(false);
+        setPositionRestoreReady(true);
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [seriesId, episodeNumber, selectedReaderKey, selectedReaderName]);
+  }, [seriesId, episodeNumber, selectedReaderKey, selectedReaderName, speechUnits]);
 
   useEffect(() => {
     const restoreKey = initialBookmarkScrollRef.current;
     if (!restoreKey || speechUnits.length === 0) return;
     initialBookmarkScrollRef.current = null;
-    const bookmark = readReadingBookmark(seriesId);
-    if (!bookmark || bookmark.episodeNumber !== episodeNumber) return;
-    const targetIndex = Math.min(bookmark.positionIndex, maxUnitIndex);
+    const location = readEpisodeReadingPosition(seriesId, episodeNumber);
+    if (!location) return;
+    const targetIndex = resolveReadingPositionIndex(speechUnits, location);
     window.requestAnimationFrame(() => {
       let node = sentenceRefs.current[targetIndex] ?? null;
       for (let index = targetIndex; !node && index >= 0; index -= 1) {
@@ -675,7 +690,26 @@ export default function WebSpeechEpisodePlayback({
       }
       node?.scrollIntoView({ behavior: "auto", block: "start" });
     });
-  }, [episodeNumber, maxUnitIndex, seriesId, speechUnits.length]);
+  }, [episodeNumber, maxUnitIndex, seriesId, speechUnits, positionRestoreReady]);
+
+  useEffect(() => {
+    if (!positionRestoreReady) return;
+    const unit = speechUnits[markerUnitIndex];
+    writeReadingHistory({
+      seriesId,
+      episodeNumber,
+      positionIndex: markerUnitIndex,
+      paragraphIndex: unit?.paragraphIndex,
+      sentenceIndex: unit?.sentenceIndex,
+      mode: "standard",
+    });
+  }, [
+    episodeNumber,
+    markerUnitIndex,
+    positionRestoreReady,
+    seriesId,
+    speechUnits,
+  ]);
 
   useEffect(() => {
     if (!displayPreference.showMarker || !autoFollow || !isPlaying) {
@@ -973,6 +1007,10 @@ export default function WebSpeechEpisodePlayback({
         seriesId,
         episodeNumber,
         positionIndex: markerUnitIndex,
+        paragraphIndex: speechUnits[markerUnitIndex]?.paragraphIndex,
+        sentenceIndex: speechUnits[markerUnitIndex]?.sentenceIndex,
+        mode: "standard",
+        episodeTitle: safeEpisodeTitle,
         readerKey: selectedReaderKey,
         readerName: selectedReaderName,
       });

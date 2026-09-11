@@ -19,6 +19,11 @@ import {
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { detectBookSourceLanguage } from "@/lib/translation/detectSourceLanguage";
+import { useAiUsage } from "@/features/usage/useAiUsage";
+import {
+  formatAiUsage,
+  isAiUsageLimitReached,
+} from "@/lib/aiUsage/aiUsage";
 
 type ImportState = "idle" | "reading" | "ready" | "saving" | "error";
 
@@ -123,6 +128,7 @@ export default function LibraryImportForm({
   isSubscriber: boolean;
 }) {
   const router = useRouter();
+  const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
   const [title, setTitle] = useState("");
   const [authorName, setAuthorName] = useState("");
   const [sourceLanguage, setSourceLanguage] =
@@ -135,6 +141,9 @@ export default function LibraryImportForm({
     ? PRIVATE_LIBRARY_LIMITS.subscriberMaxWorksPerUser
     : PRIVATE_LIBRARY_LIMITS.freeMaxWorksPerUser;
   const hasReachedWorkLimit = currentWorkCount >= workLimit;
+  const hasReachedFreeUsageLimit =
+    !isSubscriber &&
+    isAiUsageLimitReached(aiUsage?.actions.story_generation);
   const [savedUnits, setSavedUnits] = useState(0);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const parseRequestIdRef = useRef(0);
@@ -282,6 +291,7 @@ export default function LibraryImportForm({
       const completePayload = await readJsonResponse(completeResponse);
 
       if (!completeResponse.ok || !completePayload.ok) {
+        void refreshAiUsage();
         throw new Error(
           completePayload.message || "作品の保存完了を確認できませんでした。"
         );
@@ -345,10 +355,29 @@ export default function LibraryImportForm({
               ) : null}
             </div>
 
+            {!isSubscriber ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                <span>
+                  無料利用（AI生成・対訳・取り込み共通）：
+                  {formatAiUsage(aiUsage?.actions.story_generation)}
+                </span>
+                {hasReachedFreeUsageLimit ? (
+                  <Link href="/subscription" className="font-semibold text-sky-800 underline underline-offset-4">
+                    サブスクを見る
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
+
             {hasReachedWorkLimit ? (
               <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-900">
                 保存上限に達しています。新しい作品を取り込むには、既存作品を削除
                 {isSubscriber ? "してください。" : "するか、サブスクを利用してください。"}
+              </p>
+            ) : null}
+            {hasReachedFreeUsageLimit ? (
+              <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-900">
+                本日の無料利用3回を使い切っています。取り込み済み作品を読むことはできます。
               </p>
             ) : null}
 
@@ -357,7 +386,7 @@ export default function LibraryImportForm({
                 <span className="text-sm text-neutral-700">小説ファイル</span>
                 <input
                   type="file"
-                  disabled={hasReachedWorkLimit}
+                  disabled={hasReachedWorkLimit || hasReachedFreeUsageLimit}
                   accept=".txt,.epub,.docx,.pdf,text/plain,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
                   onChange={handleFileChange}
                   className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black file:mr-4 file:rounded-full file:border-0 file:bg-black file:px-4 file:py-2 file:text-sm file:text-white"
@@ -501,6 +530,7 @@ export default function LibraryImportForm({
                   !title.trim() ||
                   !rightsConfirmed ||
                   hasReachedWorkLimit ||
+                  hasReachedFreeUsageLimit ||
                   state === "saving"
                 }
                 onClick={handleImport}

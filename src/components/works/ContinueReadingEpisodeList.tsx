@@ -5,7 +5,17 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getPlayLogBySeries } from "@/lib/playLogs";
 import { supabase } from "@/lib/supabaseClient";
-import { READING_BOOKMARK_CHANGED_EVENT } from "@/lib/playback/readingBookmark";
+import {
+  READING_BOOKMARK_CHANGED_EVENT,
+  READING_HISTORY_CHANGED_EVENT,
+  applyReadingModeToHref,
+  formatReadingCoordinates,
+  hasSameReadingCoordinates,
+  readReadingBookmark,
+  readReadingHistory,
+  type ReadingBookmark,
+  type ReadingHistory,
+} from "@/lib/playback/readingBookmark";
 
 type EpisodeListItem = {
   id: string;
@@ -124,19 +134,7 @@ function buildReadHref(args: {
 }
 
 function readLocalBookmark(seriesId: string): BookmarkData | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.localStorage.getItem(`duonovel:bookmark:${seriesId}`);
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as BookmarkData | null;
-    if (!parsed || parsed.seriesId !== seriesId) return null;
-
-    return parsed;
-  } catch {
-    return null;
-  }
+  return readReadingBookmark(seriesId) as BookmarkData | null;
 }
 
 function readLocalResume(seriesId: string): ResumeData | null {
@@ -184,31 +182,45 @@ export default function ContinueReadingEpisodeList({
     null
   );
   const [selectedReader, setSelectedReader] = useState<ReaderSelection>(() => ({}));
+  const autoLocatedSeriesRef = useRef<string | null>(null);
   const [bookmarkEpisodeNumber, setBookmarkEpisodeNumber] = useState<
     number | null
   >(null);
+  const [bookmarkLocation, setBookmarkLocation] =
+    useState<ReadingBookmark | null>(null);
+  const [historyLocation, setHistoryLocation] =
+    useState<ReadingHistory | null>(null);
 
   useEffect(() => {
     function syncBookmark() {
-      const bookmark = readLocalBookmark(seriesId);
+      const bookmark = readReadingBookmark(seriesId);
+      const history = readReadingHistory(seriesId);
+      setBookmarkLocation(bookmark);
+      setHistoryLocation(history);
       setBookmarkEpisodeNumber(
         bookmark ? Math.max(1, Math.floor(toSafeNumber(bookmark.episodeNumber, 1))) : null
       );
     }
     syncBookmark();
     window.addEventListener(READING_BOOKMARK_CHANGED_EVENT, syncBookmark);
+    window.addEventListener(READING_HISTORY_CHANGED_EVENT, syncBookmark);
     window.addEventListener("storage", syncBookmark);
     return () => {
       window.removeEventListener(READING_BOOKMARK_CHANGED_EVENT, syncBookmark);
+      window.removeEventListener(READING_HISTORY_CHANGED_EVENT, syncBookmark);
       window.removeEventListener("storage", syncBookmark);
     };
   }, [seriesId]);
 
   useEffect(() => {
-    if (bookmarkEpisodeNumber === null) return;
-    const bookmarkIndex = episodeNumbers.indexOf(bookmarkEpisodeNumber);
-    if (bookmarkIndex < 0) return;
-    const targetRangeStart = Math.floor(bookmarkIndex / rangeSize) * rangeSize + 1;
+    const preferredEpisodeNumber =
+      bookmarkEpisodeNumber ?? historyLocation?.episodeNumber ?? null;
+    if (preferredEpisodeNumber === null) return;
+    if (autoLocatedSeriesRef.current === seriesId) return;
+    autoLocatedSeriesRef.current = seriesId;
+    const preferredIndex = episodeNumbers.indexOf(preferredEpisodeNumber);
+    if (preferredIndex < 0) return;
+    const targetRangeStart = Math.floor(preferredIndex / rangeSize) * rangeSize + 1;
     if (targetRangeStart !== currentRangeStart) {
       const query = new URLSearchParams(searchParams.toString());
       query.set("tab", "toc");
@@ -217,7 +229,7 @@ export default function ContinueReadingEpisodeList({
       return;
     }
     const target = listRef.current?.querySelector<HTMLElement>(
-      `[data-episode-number="${bookmarkEpisodeNumber}"]`
+      `[data-episode-number="${preferredEpisodeNumber}"]`
     );
     if (target) {
       window.requestAnimationFrame(() =>
@@ -232,6 +244,7 @@ export default function ContinueReadingEpisodeList({
     rangeSize,
     router,
     searchParams,
+    historyLocation?.episodeNumber,
   ]);
 
   useEffect(() => {
@@ -268,11 +281,18 @@ export default function ContinueReadingEpisodeList({
 
       const localResume = readLocalResume(seriesId);
       const localBookmark = readLocalBookmark(seriesId);
+      const localHistory = readReadingHistory(seriesId);
 
       if (localBookmark) {
         setResumeEpisodeNumber(
           Math.max(1, Math.floor(toSafeNumber(localBookmark.episodeNumber, 1)))
         );
+        setLoaded(true);
+        return;
+      }
+
+      if (localHistory) {
+        setResumeEpisodeNumber(localHistory.episodeNumber);
         setLoaded(true);
         return;
       }
@@ -333,21 +353,40 @@ export default function ContinueReadingEpisodeList({
         resumeEpisodeNumber !== null &&
         episode.episodeNumber === resumeEpisodeNumber;
 
+      const readingLocation =
+        bookmarkLocation?.episodeNumber === episode.episodeNumber
+          ? bookmarkLocation
+          : historyLocation?.episodeNumber === episode.episodeNumber
+            ? historyLocation
+            : null;
+      const baseHref = buildReadHref({
+        seriesId,
+        episodeNumber: episode.episodeNumber,
+        fallbackHref: episode.href,
+        readerKey: selectedReader.readerKey,
+        readerName: selectedReader.readerName,
+      });
       return {
         ...episode,
-        href: buildReadHref({
-          seriesId,
-          episodeNumber: episode.episodeNumber,
-          fallbackHref: episode.href,
-          readerKey: selectedReader.readerKey,
-          readerName: selectedReader.readerName,
-        }),
+        href: readingLocation
+          ? applyReadingModeToHref(baseHref, readingLocation)
+          : baseHref,
         isContinueTarget,
         isBookmarked: episode.episodeNumber === bookmarkEpisodeNumber,
+        bookmarkLocation:
+          bookmarkLocation?.episodeNumber === episode.episodeNumber
+            ? bookmarkLocation
+            : null,
+        historyLocation:
+          historyLocation?.episodeNumber === episode.episodeNumber
+            ? historyLocation
+            : null,
       };
     });
   }, [
     episodes,
+    bookmarkLocation,
+    historyLocation,
     bookmarkEpisodeNumber,
     loaded,
     resumeEpisodeNumber,
@@ -402,9 +441,19 @@ export default function ContinueReadingEpisodeList({
                             続きを読む
                           </span>
                         ) : null}
-                        {episode.isBookmarked && !episode.isContinueTarget ? (
+                        {episode.bookmarkLocation ? (
                           <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
-                            栞
+                            栞・{formatReadingCoordinates(episode.bookmarkLocation)}
+                          </span>
+                        ) : null}
+                        {episode.historyLocation &&
+                        (!episode.bookmarkLocation ||
+                          !hasSameReadingCoordinates(
+                            episode.bookmarkLocation,
+                            episode.historyLocation
+                          )) ? (
+                          <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-semibold text-neutral-700">
+                            最終閲覧・{formatReadingCoordinates(episode.historyLocation)}
                           </span>
                         ) : null}
                       </div>

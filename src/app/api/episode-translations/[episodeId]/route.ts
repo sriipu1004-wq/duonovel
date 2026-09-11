@@ -12,6 +12,7 @@ import {
 } from "@/lib/translation/languageRegistry";
 import { parseStoredTranslationPayload } from "@/lib/translation/translationPayload";
 import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
+import { readSeriesTranslationLearningPreference } from "@/lib/translation/translationLearningPreference";
 
 export const runtime = "nodejs";
 
@@ -61,7 +62,17 @@ export async function GET(request: Request, context: RouteContext) {
     );
   }
 
-  const sourceHash = buildEpisodeTranslationSourceHash(access.body);
+  const parsedLearningPreference = readSeriesTranslationLearningPreference(
+    access.series.effect_settings ?? access.series.effectSettings
+  );
+  const learningPreference =
+    parsedLearningPreference?.language === targetLanguage
+      ? parsedLearningPreference
+      : null;
+  const sourceHash = buildEpisodeTranslationSourceHash(
+    access.body,
+    learningPreference ? { learningPreference } : undefined
+  );
   const admin = createAdminClient();
 
   const currentResult = await admin

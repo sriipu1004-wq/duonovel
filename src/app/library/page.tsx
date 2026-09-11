@@ -1,10 +1,10 @@
 import Link from "next/link";
 import PrivateLibraryDeleteButton from "@/features/library/PrivateLibraryDeleteButton";
+import PrivateLibraryResumeLink from "@/features/library/PrivateLibraryResumeLink";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 import {
   PRIVATE_LIBRARY_LIMITS,
-  buildPrivateLibraryReadHref,
   buildPrivateLibraryWorkHref,
   formatCharacterCount,
   type PrivateLibraryWork,
@@ -139,14 +139,11 @@ export default async function PrivateLibraryPage() {
                         >
                           作品目次
                         </Link>
-                        <Link
-                          href={buildPrivateLibraryReadHref(work.id, resumeNumber)}
-                          className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
-                        >
-                          {work.last_opened_chapter_number
-                            ? "続きから読む"
-                            : "読み始める"}
-                        </Link>
+                        <PrivateLibraryResumeLink
+                          workId={work.id}
+                          fallbackChapterNumber={resumeNumber}
+                          hasReadingHistory={Boolean(work.last_opened_chapter_number)}
+                        />
                         <PrivateLibraryDeleteButton
                           workId={work.id}
                           workTitle={work.title}

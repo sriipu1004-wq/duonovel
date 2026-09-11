@@ -34,6 +34,8 @@ type BilingualStoppedFooterProps = {
   seriesId: string;
   episodeNumber: number;
   positionIndex: number;
+  paragraphIndex?: number;
+  sentenceIndex?: number;
   sentenceCount: number;
   prevHref?: string | null;
   nextHref?: string | null;
@@ -84,6 +86,8 @@ export default function BilingualStoppedFooter({
   seriesId,
   episodeNumber,
   positionIndex,
+  paragraphIndex,
+  sentenceIndex,
   sentenceCount,
   prevHref,
   nextHref,
@@ -203,6 +207,11 @@ export default function BilingualStoppedFooter({
         seriesId,
         episodeNumber,
         positionIndex: safePositionIndex,
+        paragraphIndex,
+        sentenceIndex,
+        mode: "bilingual",
+        sourceLanguage,
+        targetLanguage,
       });
       setBookmarkSaved(true);
       setBookmarkMessage("栞の位置を記録しました");

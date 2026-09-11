@@ -25,7 +25,13 @@ import {
   formatAiUsage,
   isAiUsageLimitReached,
 } from "@/lib/aiUsage/aiUsage";
-import { readReadingBookmark } from "@/lib/playback/readingBookmark";
+import { scrollBilingualPaneTo } from "@/lib/playback/bilingualScroll";
+import {
+  readEpisodeReadingPosition,
+  resolveReadingPositionIndex,
+  writeReadingHistory,
+} from "@/lib/playback/readingBookmark";
+import type { TranslationLearningLevel } from "@/lib/translation/translationLearningPreference";
 
 type GeneratedStoryPayload = {
   id: string;
@@ -35,6 +41,9 @@ type GeneratedStoryPayload = {
     timeMinutes?: number;
     genre?: string;
     mood?: string;
+    learningLanguage?: SupportedLanguageTag;
+    learningLevel?: TranslationLearningLevel;
+    translationLearningRequest?: string;
   };
   story: {
     title: string;
@@ -159,22 +168,10 @@ function centerInPane(
   node: HTMLSpanElement | null
 ) {
   if (!container || !node) return;
-  const containerRect = container.getBoundingClientRect();
-  const nodeRect = node.getBoundingClientRect();
-  const target =
-    container.scrollTop +
-    (nodeRect.top - containerRect.top) -
-    container.clientHeight / 2 +
-    nodeRect.height / 2;
-
-  container.scrollTo({
-    top: Math.max(0, target),
-    behavior:
-      window.matchMedia("(pointer: coarse)").matches ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? "auto"
-        : "smooth",
-  });
+  const a = container.getBoundingClientRect();
+  const b = node.getBoundingClientRect();
+  scrollBilingualPaneTo(container, container.scrollTop + b.top - a.top - container.clientHeight / 2 + b.height / 2,
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
 }
 
 export default function GeneratedStoryBilingualPlayback({
@@ -268,19 +265,39 @@ export default function GeneratedStoryBilingualPlayback({
 
   useEffect(() => {
     if (status !== "ready" || segments.length === 0) return;
-    const restoreKey = `${storyId}:${sourceHash ?? "ready"}`;
+    const restoreKey = `${storyId}:${sourceLanguage}:${targetLanguage}:${sourceHash ?? "ready"}`;
     if (restoredBookmarkKeyRef.current === restoreKey) return;
     restoredBookmarkKeyRef.current = restoreKey;
-    const bookmark = readReadingBookmark(`generated:${storyId}`);
-    if (!bookmark || bookmark.episodeNumber !== 1) return;
-    const index = Math.min(bookmark.positionIndex, segments.length - 1);
+    const seriesId = `generated:${storyId}`;
+    const location = readEpisodeReadingPosition(seriesId, 1);
+    const index = location?.episodeNumber === 1
+      ? resolveReadingPositionIndex(segments, location)
+      : 0;
     const id = segments[index]?.id;
     if (!id) return;
+    const segment = segments[index];
     readingSegmentIdRef.current = id;
     setCurrentPositionIndex(index);
     setSelectedSegmentId(id);
+    writeReadingHistory({
+      seriesId,
+      episodeNumber: 1,
+      positionIndex: index,
+      paragraphIndex: segment?.paragraphIndex,
+      sentenceIndex: segment?.sentenceIndex,
+      mode: "bilingual",
+      sourceLanguage,
+      targetLanguage,
+    });
     window.requestAnimationFrame(() => alignSegmentToTop(id));
-  }, [segments, sourceHash, status, storyId]);
+  }, [
+    segments,
+    sourceHash,
+    sourceLanguage,
+    status,
+    storyId,
+    targetLanguage,
+  ]);
 
   const requestTranslation = useCallback(async () => {
     if (!story || requestInFlightRef.current) return;
@@ -298,6 +315,7 @@ export default function GeneratedStoryBilingualPlayback({
           body: story.story.body,
           sourceLanguage,
           targetLanguage,
+          learningPreference: story.request,
         }),
       });
       const responseText = await response.text();
@@ -358,6 +376,7 @@ export default function GeneratedStoryBilingualPlayback({
           body: story.story.body,
           sourceLanguage,
           targetLanguage,
+          learningPreference: story.request,
           checkOnly: true,
         }),
       });
@@ -441,10 +460,7 @@ export default function GeneratedStoryBilingualPlayback({
       if (!container || !node) return;
       const containerRect = container.getBoundingClientRect();
       const nodeRect = node.getBoundingClientRect();
-      container.scrollTo({
-        top: Math.max(0, container.scrollTop + nodeRect.top - containerRect.top),
-        behavior: "auto",
-      });
+      scrollBilingualPaneTo(container, container.scrollTop + nodeRect.top - containerRect.top, "auto");
     };
     align(jaScrollRef.current, jaSegmentRefs.current.get(id) ?? null);
     align(enScrollRef.current, enSegmentRefs.current.get(id) ?? null);
@@ -461,7 +477,20 @@ export default function GeneratedStoryBilingualPlayback({
   function handleReadingPositionChange(id: string) {
     readingSegmentIdRef.current = id;
     const index = segments.findIndex((segment) => segment.id === id);
-    if (index >= 0) setCurrentPositionIndex(index);
+    if (index >= 0) {
+      const segment = segments[index];
+      setCurrentPositionIndex(index);
+      writeReadingHistory({
+        seriesId: `generated:${storyId}`,
+        episodeNumber: 1,
+        positionIndex: index,
+        paragraphIndex: segment?.paragraphIndex,
+        sentenceIndex: segment?.sentenceIndex,
+        mode: "bilingual",
+        sourceLanguage,
+        targetLanguage,
+      });
+    }
   }
 
   function handleSwapLanguages() {
@@ -558,7 +587,7 @@ export default function GeneratedStoryBilingualPlayback({
                 seriesId={`generated:${storyId}`}
               />
               <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
-                文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
+                下段の文を選択後、語をタップして文中の意味・熟語・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
                 {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
                 !aiUsage?.isSubscriber ? (
                   <Link href="/subscription" className="ml-2 font-semibold text-sky-700 underline underline-offset-2">
@@ -591,7 +620,6 @@ export default function GeneratedStoryBilingualPlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
-                    onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
                     displaySettings={displaySettings}
                   />
@@ -608,7 +636,6 @@ export default function GeneratedStoryBilingualPlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
-                    onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
                     displaySettings={displaySettings}
                   />
@@ -717,6 +744,8 @@ export default function GeneratedStoryBilingualPlayback({
           seriesId={`generated:${storyId}`}
           episodeNumber={1}
           positionIndex={currentPositionIndex}
+          paragraphIndex={segments[currentPositionIndex]?.paragraphIndex}
+          sentenceIndex={segments[currentPositionIndex]?.sentenceIndex}
           sentenceCount={segments.length}
           upperPane={upperPane}
           narrationUnits={segments.map((segment) =>
@@ -733,7 +762,7 @@ export default function GeneratedStoryBilingualPlayback({
             const segment = segments[index];
             if (!segment) return;
             readingSegmentIdRef.current = segment.id;
-            setCurrentPositionIndex(index);
+            handleReadingPositionChange(segment.id);
             setSelectedSegmentId(segment.id);
             if (shouldFollow) centerSegment(segment.id);
           }}

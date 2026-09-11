@@ -7,6 +7,7 @@ import PrivateLibraryBilingualPlayback from "@/features/library/PrivateLibraryBi
 import BilingualLanguagePickerDialog, {
   type BilingualTranslationAvailability,
 } from "@/features/playback/BilingualLanguagePickerDialog";
+import { readReadingHistory, readEpisodeReadingPosition, applyReadingModeToHref } from "@/lib/playback/readingBookmark";
 import { useAiUsage } from "@/features/usage/useAiUsage";
 import {
   isPublicTranslationTargetLanguage,
@@ -136,7 +137,7 @@ export default function PrivateLibraryBilingualShell({
       setSelectedTargetLanguage(sessionPreference.targetLanguage);
       setSessionLanguageLocked(true);
       setAutoGenerateMissingTranslation(true);
-      openBilingual();
+      openBilingual(sessionPreference.targetLanguage, true, true);
       return;
     }
     setRememberForTab(false);
@@ -144,7 +145,11 @@ export default function PrivateLibraryBilingualShell({
     void checkTranslationAvailability(selectedTargetLanguage);
   }
 
-  function openBilingual() {
+  function openBilingual(
+    nextTargetLanguage = selectedTargetLanguage,
+    autoGenerate = autoGenerateMissingTranslation,
+    lockLanguage = sessionLanguageLocked
+  ) {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -156,11 +161,26 @@ export default function PrivateLibraryBilingualShell({
     try {
       window.localStorage.setItem(
         `duonovel:private-library-bilingual-target:${workId}`,
-        selectedTargetLanguage
+        nextTargetLanguage
       );
     } catch {
       // local preference persistence is non-critical
     }
+
+    const history = readReadingHistory(`private-library:${workId}`);
+    const baseHref = history?.episodeNumber === chapterNumber
+      ? applyReadingModeToHref(window.location.href, { ...history, mode: "bilingual", sourceLanguage, targetLanguage: nextTargetLanguage })
+      : window.location.href;
+    const url = new URL(baseHref, window.location.origin);
+    url.searchParams.set("readingMode", "bilingual");
+    url.searchParams.set("bilingual", "1");
+    url.searchParams.set("sourceLanguage", sourceLanguage);
+    url.searchParams.set("targetLanguage", nextTargetLanguage);
+    if (autoGenerate) url.searchParams.set("autoGenerate", "1");
+    else url.searchParams.delete("autoGenerate");
+    if (lockLanguage) url.searchParams.set("lockLanguage", "1");
+    else url.searchParams.delete("lockLanguage");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
 
     setIsLanguagePickerOpen(false);
     setMode("bilingual");
@@ -176,10 +196,30 @@ export default function PrivateLibraryBilingualShell({
     }
     setSessionLanguageLocked(rememberForTab && hasMultipleChapters);
     setAutoGenerateMissingTranslation(translationAvailability !== "ready");
-    openBilingual();
+    openBilingual(
+      selectedTargetLanguage,
+      translationAvailability !== "ready",
+      rememberForTab && hasMultipleChapters
+    );
   }
 
   function disableBilingual(segmentIndex: number) {
+    const history = readReadingHistory(`private-library:${workId}`);
+    const baseHref = history?.episodeNumber === chapterNumber
+      ? applyReadingModeToHref(window.location.href, { ...history, mode: "standard" })
+      : window.location.href;
+    const url = new URL(baseHref, window.location.origin);
+    url.searchParams.set("readingMode", "standard");
+    for (const key of [
+      "bilingual",
+      "sourceLanguage",
+      "targetLanguage",
+      "autoGenerate",
+      "lockLanguage",
+    ]) {
+      url.searchParams.delete(key);
+    }
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
     setResumeSegmentIndex(segmentIndex);
     setMode("standard");
     setRestoreToken((current) => current + 1);
@@ -189,6 +229,13 @@ export default function PrivateLibraryBilingualShell({
     if (typeof window === "undefined") return;
 
     const params = new URLSearchParams(window.location.search);
+    const remembered = readReadingHistory(`private-library:${workId}`) ?? readEpisodeReadingPosition(`private-library:${workId}`, chapterNumber);
+    if (!params.has("bilingual") && params.get("readingMode") !== "standard" && remembered?.mode === "bilingual" && remembered.targetLanguage) {
+      params.set("bilingual", "1");
+      params.set("sourceLanguage", sourceLanguage);
+      params.set("targetLanguage", remembered.targetLanguage);
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}?${params}${window.location.hash}`);
+    }
     const timer = window.setTimeout(() => {
       if (params.get("bilingual") !== "1") {
         setMode("standard");

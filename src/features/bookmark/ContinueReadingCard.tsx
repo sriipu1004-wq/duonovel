@@ -4,6 +4,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getPlayLogBySeries } from "@/lib/playLogs";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  applyReadingModeToHref,
+  readReadingBookmark,
+  readPreferredReadingPosition,
+  readReadingHistory,
+  type ReadingMode,
+} from "@/lib/playback/readingBookmark";
 
 type ContinueReadingCardProps = {
   seriesId: string;
@@ -22,6 +29,10 @@ type BookmarkData = {
   readerKey?: string;
   readerName?: string;
   savedAt: string;
+  positionIndex?: number;
+  mode?: ReadingMode;
+  sourceLanguage?: string;
+  targetLanguage?: string;
 };
 
 type RecordingLookupRow = Record<string, unknown> & {
@@ -45,6 +56,10 @@ type ResumeData = {
   readerName?: string;
   savedAt?: string;
   progressPercent?: number;
+  positionIndex?: number;
+  mode?: ReadingMode;
+  sourceLanguage?: string;
+  targetLanguage?: string;
 };
 
 function pickText(...values: unknown[]): string {
@@ -93,7 +108,8 @@ function buildReadHref(
   episodeNumber: number,
   readerKey?: string,
   readerName?: string,
-  startAt?: number
+  startAt?: number,
+  readingMode?: Pick<ResumeData, "mode" | "sourceLanguage" | "targetLanguage">
 ): string {
   const query = new URLSearchParams();
 
@@ -104,29 +120,18 @@ function buildReadHref(
   }
 
   const queryString = query.toString();
-  return `/read/${seriesId}/${episodeNumber}${queryString ? `?${queryString}` : ""}`;
+  const href = `/read/${seriesId}/${episodeNumber}${queryString ? `?${queryString}` : ""}`;
+  return readingMode?.mode
+    ? applyReadingModeToHref(href, {
+        mode: readingMode.mode,
+        sourceLanguage: readingMode.sourceLanguage,
+        targetLanguage: readingMode.targetLanguage,
+      })
+    : href;
 }
 
 function readLocalBookmark(seriesId: string): BookmarkData | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(`duonovel:bookmark:${seriesId}`);
-    if (!raw) {
-      return null;
-    }
-
-    const parsed = JSON.parse(raw) as BookmarkData | null;
-    if (!parsed || parsed.seriesId !== seriesId) {
-      return null;
-    }
-
-    return parsed;
-  } catch {
-    return null;
-  }
+  return readReadingBookmark(seriesId) ? readPreferredReadingPosition(seriesId) as BookmarkData : null;
 }
 
 async function fetchEpisodeTitle(episodeId: string): Promise<string | undefined> {
@@ -211,6 +216,10 @@ function toLocalResumeData(
     readerName: bookmark.readerName ?? fallbackReaderName,
     savedAt: bookmark.savedAt,
     progressPercent,
+    positionIndex: bookmark.positionIndex,
+    mode: bookmark.mode,
+    sourceLanguage: bookmark.sourceLanguage,
+    targetLanguage: bookmark.targetLanguage,
   };
 }
 
@@ -258,7 +267,8 @@ function InlineContinueButton({
     resume.episodeNumber,
     resume.readerKey ?? fallbackReaderKey,
     resume.readerName ?? fallbackReaderName,
-    resume.startAt
+    resume.startAt,
+    resume
   );
 
   const title = resume.episodeTitle
@@ -296,6 +306,30 @@ export default function ContinueReadingCard({
       setLoadError(null);
 
       const localBookmark = readLocalBookmark(seriesId);
+      const localHistory = readReadingHistory(seriesId);
+
+      if (localBookmark) {
+        setResume(toLocalResumeData(localBookmark, fallbackReaderKey, fallbackReaderName));
+        setLoaded(true);
+        return;
+      }
+
+      if (localHistory) {
+        setResume({
+          source: "local",
+          episodeNumber: localHistory.episodeNumber,
+          startAt: 0,
+          positionIndex: localHistory.positionIndex,
+          mode: localHistory.mode,
+          sourceLanguage: localHistory.sourceLanguage,
+          targetLanguage: localHistory.targetLanguage,
+          savedAt: localHistory.savedAt,
+          readerKey: fallbackReaderKey,
+          readerName: fallbackReaderName,
+        });
+        setLoaded(true);
+        return;
+      }
 
       try {
         const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -494,7 +528,8 @@ export default function ContinueReadingCard({
           resume.episodeNumber,
           resume.readerKey,
           resume.readerName,
-          resume.startAt
+          resume.startAt,
+          resume
         )}
         className="mt-4 inline-flex rounded-full border border-black/10 bg-neutral-200 px-4 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
       >

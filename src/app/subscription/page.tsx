@@ -24,12 +24,12 @@ type PageProps = {
 const comparisons = [
   {
     label: "AI物語生成",
-    free: "対訳生成と共通で1日3回",
+    free: "対訳生成・本棚取り込みと共通で1日3回",
     subscriber: "1日10回まで",
   },
   {
     label: "対訳生成",
-    free: "AI物語生成と共通で1日3回",
+    free: "AI物語生成・本棚取り込みと共通で1日3回",
     subscriber: "1日30回まで",
   },
   {
@@ -51,6 +51,11 @@ const comparisons = [
     label: "個人本棚・読書進捗",
     free: "最大3作品",
     subscriber: "最大20作品",
+  },
+  {
+    label: "個人本棚への取り込み",
+    free: "AI物語・対訳と共通で1日3回",
+    subscriber: "日次回数制限なし",
   },
 ];
 

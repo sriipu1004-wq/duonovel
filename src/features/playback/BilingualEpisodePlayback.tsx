@@ -25,7 +25,12 @@ import {
   formatAiUsage,
   isAiUsageLimitReached,
 } from "@/lib/aiUsage/aiUsage";
-import { readReadingBookmark } from "@/lib/playback/readingBookmark";
+import { scrollBilingualPaneTo } from "@/lib/playback/bilingualScroll";
+import {
+  readEpisodeReadingPosition,
+  resolveReadingPositionIndex,
+  writeReadingHistory,
+} from "@/lib/playback/readingBookmark";
 
 type TranslationStatus =
   | "loading"
@@ -214,19 +219,39 @@ export default function BilingualEpisodePlayback({
 
   useEffect(() => {
     if (translationStatus !== "ready" || segments.length === 0) return;
-    const restoreKey = `${episodeNumber}:${sourceHash ?? "ready"}`;
+    const restoreKey = `${episodeNumber}:${sourceLanguage}:${targetLanguage}:${sourceHash ?? "ready"}`;
     if (restoredBookmarkKeyRef.current === restoreKey) return;
     restoredBookmarkKeyRef.current = restoreKey;
-    const bookmark = readReadingBookmark(seriesId);
-    if (!bookmark || bookmark.episodeNumber !== episodeNumber) return;
-    const index = Math.min(bookmark.positionIndex, segments.length - 1);
+    const location = readEpisodeReadingPosition(seriesId, episodeNumber);
+    const index = location
+      ? resolveReadingPositionIndex(segments, location)
+      : 0;
     const id = segments[index]?.id;
     if (!id) return;
+    const segment = segments[index];
     readingSegmentIdRef.current = id;
     setCurrentPositionIndex(index);
     setSelectedSegmentId(id);
+    writeReadingHistory({
+      seriesId,
+      episodeNumber,
+      positionIndex: index,
+      paragraphIndex: segment?.paragraphIndex,
+      sentenceIndex: segment?.sentenceIndex,
+      mode: "bilingual",
+      sourceLanguage,
+      targetLanguage,
+    });
     window.requestAnimationFrame(() => alignSegmentToTop(id));
-  }, [episodeNumber, segments, seriesId, sourceHash, translationStatus]);
+  }, [
+    episodeNumber,
+    segments,
+    seriesId,
+    sourceHash,
+    sourceLanguage,
+    targetLanguage,
+    translationStatus,
+  ]);
 
   const requestTranslationGeneration = useCallback(async () => {
     if (generationInFlightRef.current) return false;
@@ -393,22 +418,10 @@ export default function BilingualEpisodePlayback({
     node: HTMLSpanElement | null
   ) {
     if (!container || !node) return;
-    const containerRect = container.getBoundingClientRect();
-    const nodeRect = node.getBoundingClientRect();
-    const target =
-      container.scrollTop +
-      (nodeRect.top - containerRect.top) -
-      container.clientHeight / 2 +
-      nodeRect.height / 2;
-
-    container.scrollTo({
-      top: Math.max(0, target),
-      behavior:
-        window.matchMedia("(pointer: coarse)").matches ||
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "auto"
-          : "smooth",
-    });
+    const a = container.getBoundingClientRect();
+    const b = node.getBoundingClientRect();
+    scrollBilingualPaneTo(container, container.scrollTop + b.top - a.top - container.clientHeight / 2 + b.height / 2,
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
   }
 
   function centerSegment(id: string) {
@@ -426,10 +439,7 @@ export default function BilingualEpisodePlayback({
       if (!container || !node) return;
       const containerRect = container.getBoundingClientRect();
       const nodeRect = node.getBoundingClientRect();
-      container.scrollTo({
-        top: Math.max(0, container.scrollTop + nodeRect.top - containerRect.top),
-        behavior: "auto",
-      });
+      scrollBilingualPaneTo(container, container.scrollTop + nodeRect.top - containerRect.top, "auto");
     };
     align(jaScrollRef.current, jaSegmentRefs.current.get(id) ?? null);
     align(enScrollRef.current, enSegmentRefs.current.get(id) ?? null);
@@ -438,7 +448,20 @@ export default function BilingualEpisodePlayback({
   function handleReadingPositionChange(id: string) {
     readingSegmentIdRef.current = id;
     const index = segments.findIndex((segment) => segment.id === id);
-    if (index >= 0) setCurrentPositionIndex(index);
+    if (index >= 0) {
+      const segment = segments[index];
+      setCurrentPositionIndex(index);
+      writeReadingHistory({
+        seriesId,
+        episodeNumber,
+        positionIndex: index,
+        paragraphIndex: segment?.paragraphIndex,
+        sentenceIndex: segment?.sentenceIndex,
+        mode: "bilingual",
+        sourceLanguage,
+        targetLanguage,
+      });
+    }
   }
 
   function handleSelectSegment(id: string) {
@@ -556,7 +579,7 @@ export default function BilingualEpisodePlayback({
                 seriesId={seriesId}
               />
               <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
-                文を選択後、語をタップして意味・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
+                下段の文を選択後、語をタップして文中の意味・熟語・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
                 {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
                 !aiUsage?.isSubscriber ? (
                   <Link href="/subscription" className="ml-2 font-semibold text-sky-700 underline underline-offset-2">
@@ -589,7 +612,6 @@ export default function BilingualEpisodePlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
-                    onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
                     displaySettings={displaySettings}
                   />
@@ -606,7 +628,6 @@ export default function BilingualEpisodePlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
-                    onSelectWord={handleSelectWord}
                     wordInsight={wordInsight}
                     displaySettings={displaySettings}
                   />
@@ -747,6 +768,8 @@ export default function BilingualEpisodePlayback({
           seriesId={seriesId}
           episodeNumber={episodeNumber}
           positionIndex={currentPositionIndex}
+          paragraphIndex={segments[currentPositionIndex]?.paragraphIndex}
+          sentenceIndex={segments[currentPositionIndex]?.sentenceIndex}
           sentenceCount={segments.length}
           prevHref={prevEpisodeHref}
           nextHref={nextEpisodeHref}
@@ -765,7 +788,7 @@ export default function BilingualEpisodePlayback({
             const segment = segments[index];
             if (!segment) return;
             readingSegmentIdRef.current = segment.id;
-            setCurrentPositionIndex(index);
+            handleReadingPositionChange(segment.id);
             setSelectedSegmentId(segment.id);
             if (shouldFollow) centerSegment(segment.id);
           }}

@@ -7,6 +7,7 @@ import BilingualLanguagePickerDialog, {
   type BilingualTranslationAvailability,
 } from "@/features/playback/BilingualLanguagePickerDialog";
 import BilingualResumeBridge from "@/features/playback/BilingualResumeBridge";
+import { readReadingHistory, readEpisodeReadingPosition, applyReadingModeToHref } from "@/lib/playback/readingBookmark";
 import { useAiUsage } from "@/features/usage/useAiUsage";
 import {
   isPublicTranslationTargetLanguage,
@@ -115,7 +116,7 @@ export default function ReadBilingualShell({
       setTargetLanguage(sessionPreference.targetLanguage);
       setSessionLanguageLocked(true);
       setAutoGenerateMissingTranslation(true);
-      openBilingual();
+      openBilingual(sessionPreference.targetLanguage, true, true);
       return;
     }
 
@@ -124,7 +125,11 @@ export default function ReadBilingualShell({
     void checkTranslationAvailability(targetLanguage);
   }
 
-  function openBilingual() {
+  function openBilingual(
+    nextTargetLanguage = targetLanguage,
+    autoGenerate = autoGenerateMissingTranslation,
+    lockLanguage = sessionLanguageLocked
+  ) {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -132,6 +137,21 @@ export default function ReadBilingualShell({
     document.querySelectorAll<HTMLAudioElement>("main audio").forEach((audio) => {
       audio.pause();
     });
+
+    const history = readReadingHistory(seriesId);
+    const baseHref = history?.episodeNumber === episodeNumber
+      ? applyReadingModeToHref(window.location.href, { ...history, mode: "bilingual", sourceLanguage, targetLanguage: nextTargetLanguage })
+      : window.location.href;
+    const url = new URL(baseHref, window.location.origin);
+    url.searchParams.set("readingMode", "bilingual");
+    url.searchParams.set("bilingual", "1");
+    url.searchParams.set("sourceLanguage", sourceLanguage);
+    url.searchParams.set("targetLanguage", nextTargetLanguage);
+    if (autoGenerate) url.searchParams.set("autoGenerate", "1");
+    else url.searchParams.delete("autoGenerate");
+    if (lockLanguage) url.searchParams.set("lockLanguage", "1");
+    else url.searchParams.delete("lockLanguage");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
 
     setIsLanguagePickerOpen(false);
     setMode("bilingual");
@@ -143,10 +163,30 @@ export default function ReadBilingualShell({
     }
     setSessionLanguageLocked(rememberForTab && hasMultipleEpisodes);
     setAutoGenerateMissingTranslation(translationAvailability !== "ready");
-    openBilingual();
+    openBilingual(
+      targetLanguage,
+      translationAvailability !== "ready",
+      rememberForTab && hasMultipleEpisodes
+    );
   }
 
   function disableBilingual(segmentIndex: number) {
+    const history = readReadingHistory(seriesId);
+    const baseHref = history?.episodeNumber === episodeNumber
+      ? applyReadingModeToHref(window.location.href, { ...history, mode: "standard" })
+      : window.location.href;
+    const url = new URL(baseHref, window.location.origin);
+    url.searchParams.set("readingMode", "standard");
+    for (const key of [
+      "bilingual",
+      "sourceLanguage",
+      "targetLanguage",
+      "autoGenerate",
+      "lockLanguage",
+    ]) {
+      url.searchParams.delete(key);
+    }
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
     setResumeSegmentIndex(segmentIndex);
     setMode("standard");
     setRestoreToken((current) => current + 1);
@@ -156,6 +196,13 @@ export default function ReadBilingualShell({
     if (!translationEligible || typeof window === "undefined") return;
 
     const params = new URLSearchParams(window.location.search);
+    const remembered = readReadingHistory(seriesId) ?? readEpisodeReadingPosition(seriesId, episodeNumber);
+    if (!params.has("bilingual") && params.get("readingMode") !== "standard" && remembered?.mode === "bilingual" && remembered.targetLanguage) {
+      params.set("bilingual", "1");
+      params.set("sourceLanguage", sourceLanguage);
+      params.set("targetLanguage", remembered.targetLanguage);
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}?${params}${window.location.hash}`);
+    }
     const requestedTarget = parseSupportedLanguageTag(params.get("targetLanguage"));
     const requestedAutoGenerate = params.get("autoGenerate") === "1";
     const requestedLanguageLock = params.get("lockLanguage") === "1";

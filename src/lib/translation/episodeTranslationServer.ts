@@ -157,10 +157,16 @@ export function isEpisodeTranslationAllowlisted(args: {
   return seriesEpisodes.has(args.seriesId + ":" + String(args.episodeNumber));
 }
 
-export function buildEpisodeTranslationSourceHash(body: string): string {
+export function buildEpisodeTranslationSourceHash(
+  body: string,
+  cacheVariant?: unknown
+): string {
   const normalized = normalizeTranslationSourceText(body);
+  const variant = cacheVariant === undefined || cacheVariant === null
+    ? ""
+    : "\0variant-v1\0" + JSON.stringify(cacheVariant);
   return createHash("sha256")
-    .update("episode-translation-source-v1\0" + normalized, "utf8")
+    .update("episode-translation-source-v1\0" + normalized + variant, "utf8")
     .digest("hex");
 }
 

@@ -33,6 +33,7 @@ import {
   reserveAiAction,
 } from "@/lib/aiUsage/aiUsage.server";
 import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
+import { parseTranslationLearningPreference } from "@/lib/translation/translationLearningPreference";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -208,6 +209,13 @@ export async function POST(request: Request) {
       ? TRANSLATION_TARGET_LANGUAGE
       : parseSupportedLanguageTag(payload.targetLanguage);
   const checkOnly = payload.checkOnly === true;
+  const parsedLearningPreference = parseTranslationLearningPreference(
+    payload.learningPreference
+  );
+  const learningPreference =
+    parsedLearningPreference?.language === targetLanguage
+      ? parsedLearningPreference
+      : null;
 
   if (
     !storyId ||
@@ -262,7 +270,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const sourceHash = buildEpisodeTranslationSourceHash(body);
+  const sourceHash = buildEpisodeTranslationSourceHash(
+    body,
+    learningPreference ? { learningPreference } : undefined
+  );
   const existing = await readReadyTranslation({
     storyId,
     sourceHash,
@@ -480,6 +491,7 @@ export async function POST(request: Request) {
       workTitle: title,
       sourceLanguage,
       targetLanguage,
+      learningPreference,
       segments: source.segments.map((segment) => ({
         id: segment.id,
         text: segment.translationInput,

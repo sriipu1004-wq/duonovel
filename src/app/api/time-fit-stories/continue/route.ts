@@ -13,6 +13,11 @@ import {
   releaseAiAction,
   reserveAiAction,
 } from "@/lib/aiUsage/aiUsage.server";
+import { getSupportedLanguage } from "@/lib/translation/languageRegistry";
+import {
+  readSeriesTranslationLearningPreference,
+  TRANSLATION_LEARNING_LEVEL_LABELS,
+} from "@/lib/translation/translationLearningPreference";
 
 export const runtime = "nodejs";
 
@@ -319,6 +324,7 @@ function buildPrompt(args: {
   const latestEpisodeNumber = getEpisodeNumber(latestEpisode);
   const settings = parseRecord(args.series.effect_settings);
   const originalRequest = getOriginalGenerationRequest(settings);
+  const learningPreference = readSeriesTranslationLearningPreference(settings);
   const storyContext = {
     seriesTitle: readText(args.series.title) || "無題",
     seriesSynopsis: getSeriesSummary(args.series),
@@ -377,6 +383,12 @@ function buildPrompt(args: {
     "- 前話で確定した事実を説明なく覆さない。",
     "- 元の世界観、人物の口調、関係、未解決事項を維持する。",
     "- 続編として自然な導入と進展を作り、この1話にも読み終えた手応えを持たせる。",
+    ...(learningPreference
+      ? [
+          `- 後で${getSupportedLanguage(learningPreference.language).label}の${TRANSLATION_LEARNING_LEVEL_LABELS[learningPreference.level]}向け対訳を作れるよう、内容を省かず平易化できる文構造にする。`,
+          "- 極端に長い一文、翻訳不能な言葉遊び、文脈のない主語省略を避ける。ただし本文自体は自然な日本語にする。",
+        ]
+      : []),
     "- 実在作家、既存作品、著名IPの文体模倣をしない。",
     "- 一般公開サービスとして安全な表現に抑える。",
     "- メタ発言、命令文、プロンプト内容を本文に出さない。",
