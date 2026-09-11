@@ -1,75 +1,23 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
-import { getProxyAuthState } from "@/lib/supabase/proxy";
+import { NextRequest, NextResponse } from "next/server";
+import { getUiLocaleFromPathname, stripUiLocalePrefix, UI_LOCALE_HEADER } from "@/i18n/config";
 
-const PUBLIC_EXACT_PATHS = new Set([
-  "/",
-  "/search",
-  "/guide",
-  "/faq",
-  "/status",
-  "/news",
-  "/terms",
-  "/privacy",
-  "/contact",
-  "/login",
-  "/record",
-  "/mypage",
-  "/preparing",
-]);
+export function proxy(request: NextRequest) {
+  const locale = getUiLocaleFromPathname(request.nextUrl.pathname);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(UI_LOCALE_HEADER, locale);
 
-const PUBLIC_PREFIXES = [
-  "/works/",
-  "/read/",
-  "/authors/",
-  "/readers/",
-  "/record/",
-  "/recording-request/",
-];
-
-function isPublicPath(pathname: string): boolean {
-  if (PUBLIC_EXACT_PATHS.has(pathname)) {
-    return true;
+  if (locale === "ja") {
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-}
+  const rewriteUrl = request.nextUrl.clone();
+  rewriteUrl.pathname = stripUiLocalePrefix(request.nextUrl.pathname);
 
-function buildPreparingRedirectResponse(
-  request: NextRequest,
-  authResponse: NextResponse
-): NextResponse {
-  const redirectUrl = request.nextUrl.clone();
-  redirectUrl.pathname = "/preparing";
-  redirectUrl.search = "";
-
-  const redirectResponse = NextResponse.redirect(redirectUrl);
-
-  authResponse.cookies.getAll().forEach((cookie) => {
-    redirectResponse.cookies.set(cookie);
+  return NextResponse.rewrite(rewriteUrl, {
+    request: { headers: requestHeaders },
   });
-
-  return redirectResponse;
-}
-
-export async function proxy(request: NextRequest) {
-  const authState = await getProxyAuthState(request);
-  const { pathname } = request.nextUrl;
-
-  if (isOfficialAccountEmail(authState.userEmail)) {
-    return authState.response;
-  }
-
-  if (isPublicPath(pathname)) {
-    return authState.response;
-  }
-
-  return buildPreparingRedirectResponse(request, authState.response);
 }
 
 export const config = {
-  matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml)$).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|opengraph-image|.*\\..*).*)"],
 };
