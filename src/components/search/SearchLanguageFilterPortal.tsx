@@ -18,19 +18,19 @@ type Counts = Record<ContentLanguage, number>;
 const copy = {
   ja: {
     title: "作品の言語",
-    help: "複数選択可。何も選ばない場合は全言語の作品を表示する。",
+    help: "複数選択可。未選択なら全言語を表示。",
     more: "さらに表示",
     close: "閉じる",
   },
   en: {
     title: "Work language",
-    help: "You can select multiple languages. With none selected, works in every language are shown.",
+    help: "Select multiple languages. No selection shows all languages.",
     more: "Show more",
     close: "Show less",
   },
   ko: {
     title: "작품 언어",
-    help: "여러 언어를 선택할 수 있습니다. 아무것도 선택하지 않으면 모든 언어의 작품을 표시합니다.",
+    help: "여러 언어를 선택할 수 있습니다. 미선택 시 모든 언어를 표시합니다.",
     more: "더 보기",
     close: "접기",
   },
@@ -52,6 +52,13 @@ function writeSelectedLanguages(languages: ContentLanguage[]) {
     return;
   }
   document.cookie = `${CONTENT_LANGUAGE_FILTER_COOKIE}=${encodeURIComponent(languages.join(","))}; Path=/; Max-Age=2592000; SameSite=Lax`;
+}
+
+function findOrderColumn(section: Element): HTMLElement | null {
+  const heading = Array.from(section.querySelectorAll("p")).find(
+    (item) => item.textContent?.trim() === "ORDER"
+  );
+  return heading?.parentElement ?? null;
 }
 
 export default function SearchLanguageFilterPortal() {
@@ -76,21 +83,21 @@ export default function SearchLanguageFilterPortal() {
 
     const attach = () => {
       if (cancelled) return;
-      const section = document.querySelector("main section");
-      const filterGrid = section?.querySelector(":scope > div.mt-6.grid.gap-4");
-      if (section && filterGrid) {
-        let slot = section.querySelector<HTMLElement>("[data-libread-language-filter-slot]");
+      const sections = Array.from(document.querySelectorAll("main section"));
+      const orderColumn = sections.map(findOrderColumn).find(Boolean) ?? null;
+      if (orderColumn) {
+        let slot = orderColumn.querySelector<HTMLElement>("[data-libread-language-filter-slot]");
         if (!slot) {
           slot = document.createElement("div");
           slot.dataset.libreadLanguageFilterSlot = "true";
-          slot.className = "mt-6";
-          filterGrid.insertAdjacentElement("afterend", slot);
+          slot.className = "mt-5";
+          orderColumn.appendChild(slot);
         }
         setHost(slot);
         return;
       }
       attempts += 1;
-      if (attempts < 20) window.setTimeout(attach, 100);
+      if (attempts < 30) window.setTimeout(attach, 100);
     };
 
     attach();
@@ -147,9 +154,9 @@ export default function SearchLanguageFilterPortal() {
   }
 
   return createPortal(
-    <div className="border-t border-black/10 pt-5">
+    <div className="border-t border-black/10 pt-4">
       <p className="text-[11px] tracking-[0.18em] text-neutral-500">{text.title}</p>
-      <p className="mt-2 text-xs leading-6 text-neutral-500">{text.help}</p>
+      <p className="mt-1.5 text-xs leading-6 text-neutral-500">{text.help}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {visibleLanguages.map((language) => {
           const activeLanguage = selected.includes(language);
