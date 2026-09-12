@@ -166,6 +166,7 @@ export default function BilingualEpisodePlayback({
     useState<TranslationStatus>("loading");
   const [segments, setSegments] = useState<BilingualSegment[]>([]);
   const [canGenerate, setCanGenerate] = useState(false);
+  const [canAutoGenerate, setCanAutoGenerate] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [sourceHash, setSourceHash] = useState<string | null>(null);
@@ -335,6 +336,7 @@ export default function BilingualEpisodePlayback({
       if (targetLanguageRef.current !== targetLanguage) return;
 
       if (!response.ok || !payload.ok) {
+        setCanAutoGenerate(false);
         setTranslationStatus("error");
         setStatusMessage(
           payload.message || "対訳の状態を取得できませんでした。"
@@ -343,6 +345,7 @@ export default function BilingualEpisodePlayback({
       }
 
       setCanGenerate(payload.canGenerate === true);
+      setCanAutoGenerate(payload.canAutoGenerate === true);
       setSourceHash(payload.sourceHash ?? null);
       const nextStatus = payload.status ?? "missing";
 
@@ -367,6 +370,7 @@ export default function BilingualEpisodePlayback({
       );
     } catch {
       if (targetLanguageRef.current !== targetLanguage) return;
+      setCanAutoGenerate(false);
       setTranslationStatus("error");
       setStatusMessage("対訳の状態を取得できませんでした。");
     }
@@ -375,6 +379,7 @@ export default function BilingualEpisodePlayback({
   useEffect(() => {
     readingSegmentIdRef.current = null;
     setTranslationStatus("loading");
+    setCanAutoGenerate(false);
     setSegments([]);
     setSelectedSegmentId(null);
     setHoveredSegmentId(null);
@@ -389,6 +394,7 @@ export default function BilingualEpisodePlayback({
       !autoGenerateMissingTranslation ||
       !["missing", "stale", "failed"].includes(translationStatus) ||
       !canGenerate ||
+      !canAutoGenerate ||
       autoGenerationAttemptRef.current === attemptKey
     ) {
       return;
@@ -397,6 +403,7 @@ export default function BilingualEpisodePlayback({
     void requestTranslationGeneration();
   }, [
     autoGenerateMissingTranslation,
+    canAutoGenerate,
     canGenerate,
     episodeId,
     requestTranslationGeneration,

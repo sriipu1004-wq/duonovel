@@ -11,6 +11,9 @@ import {
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { readerDictionaries } from "@/i18n/dictionaries/reader";
 
+export const TRANSLATION_TARGET_LANGUAGE_CHANGED_EVENT =
+  "libread:translation-target-language-changed";
+
 type TranslationLanguageSelectProps = {
   value: PublicTranslationTargetLanguage;
   onChange: (language: PublicTranslationTargetLanguage) => void;
@@ -38,6 +41,11 @@ export default function TranslationLanguageSelect({
           const language = parseSupportedLanguageTag(event.target.value);
           if (language && isPublicTranslationTargetLanguage(language)) {
             onChange(language);
+            window.dispatchEvent(
+              new CustomEvent(TRANSLATION_TARGET_LANGUAGE_CHANGED_EVENT, {
+                detail: { language },
+              })
+            );
           }
         }}
         className="min-w-0 max-w-28 bg-transparent font-medium text-black outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:max-w-none"

@@ -10,7 +10,10 @@ import {
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { usePremiumBackgroundNarration } from "@/features/playback/usePremiumBackgroundNarration";
-import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import {
+  getSupportedLanguage,
+  type SupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
 import type { TranslationLearningLevel } from "@/lib/translation/translationLearningPreference";
 
 type TimeMinutes = 5 | 10 | 15 | 20;
@@ -20,6 +23,7 @@ type GenerateRequest = {
   timeMinutes: TimeMinutes;
   genre: string;
   mood: string;
+  outputLanguage?: SupportedLanguageTag;
   learningLanguage?: SupportedLanguageTag;
   learningLevel?: TranslationLearningLevel;
   translationLearningRequest?: string;
@@ -31,6 +35,7 @@ type TimeFitStory = {
   body: string;
   estimatedReadingMinutes: number;
   tags: string[];
+  sourceLanguage?: SupportedLanguageTag;
   aiGenerated: true;
 };
 
@@ -138,7 +143,7 @@ function splitSentences(text: string): string[] {
     .trim();
 
   return normalized
-    .split(/(?<=[。！？\n])/)
+    .split(/(?<=[。！？!?．.\n])/)
     .map((chunk) => chunk.trim())
     .filter(Boolean);
 }
@@ -437,6 +442,10 @@ export default function GeneratedStoryReaderClient({
   const speechPitchRef = useRef(speechPitch);
   const playbackRunIdRef = useRef(0);
   const bookmarkToastTimeoutRef = useRef<number | null>(null);
+  const storySourceLanguage =
+    payload?.story.sourceLanguage ?? payload?.request.outputLanguage ?? "ja";
+  const storySpeechLanguage = getSupportedLanguage(storySourceLanguage).speechLanguage;
+  const storySpeechPrefix = storySpeechLanguage.toLowerCase().split("-")[0];
 
   useEffect(() => {
     const record = readGeneratedStoryRecord(storyId);
@@ -471,7 +480,7 @@ export default function GeneratedStoryReaderClient({
     function loadVoices() {
       const voices = window.speechSynthesis
         .getVoices()
-        .filter((voice) => voice.lang.toLowerCase().startsWith("ja"))
+        .filter((voice) => voice.lang.toLowerCase().startsWith(storySpeechPrefix))
         .map((voice) => ({
           voiceURI: voice.voiceURI,
           name: voice.name,
@@ -492,7 +501,7 @@ export default function GeneratedStoryReaderClient({
     return () => {
       window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
     };
-  }, []);
+  }, [storySpeechPrefix]);
 
   useEffect(() => {
     async function loadCurrentUserName() {
@@ -789,7 +798,7 @@ export default function GeneratedStoryReaderClient({
     setPlaybackState("playing");
 
     const utterance = new SpeechSynthesisUtterance(unit);
-    utterance.lang = "ja-JP";
+    utterance.lang = storySpeechLanguage;
     utterance.rate = playbackRateRef.current;
     utterance.pitch = speechPitchRef.current;
     utterance.volume = 1;

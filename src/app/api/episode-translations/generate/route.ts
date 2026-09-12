@@ -29,7 +29,6 @@ import {
   releaseAiAction,
   reserveAiAction,
 } from "@/lib/aiUsage/aiUsage.server";
-import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
 import { readSeriesTranslationLearningPreference } from "@/lib/translation/translationLearningPreference";
 
 export const runtime = "nodejs";
@@ -208,8 +207,7 @@ export async function POST(request: Request) {
     );
   }
 
-
-  if (detectSourceLanguageFromText(access.body) !== sourceLanguage) {
+  if (!access.sourceLanguage || access.sourceLanguage !== sourceLanguage) {
     return NextResponse.json(
       { ok: false, error: "invalid_source_language" },
       { status: 400 }

@@ -16,7 +16,7 @@ export type ReadingBookmark = {
   savedAt: string;
 };
 
-export type ReadingMode = "standard" | "bilingual";
+export type ReadingMode = "standard" | "bilingual" | "translation";
 
 export type ReadingHistory = {
   seriesId: string;
@@ -65,7 +65,9 @@ function optionalText(value: unknown): string | undefined {
 }
 
 function readingMode(value: unknown): ReadingMode {
-  return value === "bilingual" ? "bilingual" : "standard";
+  if (value === "bilingual") return "bilingual";
+  if (value === "translation" || value === "translation-only") return "translation";
+  return "standard";
 }
 
 export function readReadingBookmark(seriesId: string): ReadingBookmark | null {
@@ -138,6 +140,7 @@ export function writeReadingBookmark(
     episodeNumber: Math.max(1, Math.floor(bookmark.episodeNumber)),
     positionIndex,
     unitIndex: positionIndex,
+    mode: readingMode(bookmark.mode),
     savedAt: bookmark.savedAt ?? new Date().toISOString(),
   };
 
@@ -228,9 +231,13 @@ export function readPreferredReadingPosition(
   const bookmark = readReadingBookmark(seriesId);
   const history = readReadingHistory(seriesId);
   if (!bookmark) return history;
-  // Resume at the explicit bookmark, using the most recently used reading mode.
   if (history && Date.parse(history.savedAt) >= Date.parse(bookmark.savedAt)) {
-    return { ...bookmark, mode: history.mode, sourceLanguage: history.sourceLanguage, targetLanguage: history.targetLanguage };
+    return {
+      ...bookmark,
+      mode: history.mode,
+      sourceLanguage: history.sourceLanguage,
+      targetLanguage: history.targetLanguage,
+    };
   }
   return bookmark;
 }
@@ -305,7 +312,8 @@ export function applyReadingModeToHref(
     Partial<Pick<ReadingHistory, "positionIndex" | "paragraphIndex" | "sentenceIndex">>
 ): string {
   const url = new URL(href, "https://libread.local");
-  url.searchParams.set("readingMode", location.mode ?? "standard");
+  const mode = readingMode(location.mode);
+  url.searchParams.set("readingMode", mode);
   for (const [key, value] of [
     ["resumeIndex", location.positionIndex],
     ["resumeParagraph", location.paragraphIndex],
@@ -314,15 +322,23 @@ export function applyReadingModeToHref(
     if (value !== undefined) url.searchParams.set(key, String(safeIndex(value)));
     else url.searchParams.delete(key);
   }
-  if (location.mode === "bilingual" && location.targetLanguage) {
-    url.searchParams.set("bilingual", "1");
+
+  if ((mode === "bilingual" || mode === "translation") && location.targetLanguage) {
     if (location.sourceLanguage) {
       url.searchParams.set("sourceLanguage", location.sourceLanguage);
     }
     url.searchParams.set("targetLanguage", location.targetLanguage);
     url.searchParams.set("lockLanguage", "1");
+    if (mode === "bilingual") {
+      url.searchParams.set("bilingual", "1");
+      url.searchParams.delete("translationOnly");
+    } else {
+      url.searchParams.set("translationOnly", "1");
+      url.searchParams.delete("bilingual");
+    }
   } else {
     url.searchParams.delete("bilingual");
+    url.searchParams.delete("translationOnly");
     url.searchParams.delete("sourceLanguage");
     url.searchParams.delete("targetLanguage");
     url.searchParams.delete("autoGenerate");
@@ -331,7 +347,6 @@ export function applyReadingModeToHref(
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-// Explicit location links must win over an older bookmark in the same chapter.
 export function readRequestedReadingPosition(
   seriesId: string,
   episodeNumber: number
@@ -346,7 +361,12 @@ export function readRequestedReadingPosition(
     positionIndex,
     paragraphIndex: optionalIndex(params.get("resumeParagraph")),
     sentenceIndex: optionalIndex(params.get("resumeSentence")),
-    mode: params.get("bilingual") === "1" ? "bilingual" : "standard",
+    mode:
+      params.get("translationOnly") === "1" || params.get("readingMode") === "translation"
+        ? "translation"
+        : params.get("bilingual") === "1" || params.get("readingMode") === "bilingual"
+          ? "bilingual"
+          : "standard",
     sourceLanguage: params.get("sourceLanguage") ?? undefined,
     targetLanguage: params.get("targetLanguage") ?? undefined,
     savedAt: new Date(0).toISOString(),

@@ -1,20 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  PROMPT_TAGS,
-  appendPromptTag,
-  getPromptTagsInText,
-  removePromptTag,
-  type PromptTag,
-} from "@/lib/generation/promptTags";
+import { PROMPT_TAGS, type PromptTag } from "@/lib/generation/promptTags";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import type { UiLocale } from "@/i18n/config";
 
 type PromptTagSuggestionsProps = {
-  value: string;
-  onChange: (value: string) => void;
-  maxLength: number;
+  selectedTags: readonly PromptTag[];
+  onSelectedTagsChange: (tags: PromptTag[]) => void;
   disabled?: boolean;
 };
 
@@ -144,18 +137,14 @@ function parseRankedTags(data: PromptTagResponse): RankedPromptTag[] {
 }
 
 export default function PromptTagSuggestions({
-  value,
-  onChange,
-  maxLength,
+  selectedTags,
+  onSelectedTagsChange,
   disabled = false,
 }: PromptTagSuggestionsProps) {
   const locale = useUiLocale();
   const [rankedTags, setRankedTags] = useState(DEFAULT_RANKED_TAGS);
   const [isExpanded, setIsExpanded] = useState(false);
-  const selectedTags = useMemo(
-    () => new Set(getPromptTagsInText(value)),
-    [value]
-  );
+  const selectedTagSet = useMemo(() => new Set(selectedTags), [selectedTags]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -181,10 +170,10 @@ export default function PromptTagSuggestions({
   function toggleTag(tag: PromptTag) {
     if (disabled) return;
 
-    onChange(
-      selectedTags.has(tag)
-        ? removePromptTag(value, tag)
-        : appendPromptTag(value, tag, maxLength)
+    onSelectedTagsChange(
+      selectedTagSet.has(tag)
+        ? selectedTags.filter((item) => item !== tag)
+        : [...selectedTags, tag]
     );
   }
 
@@ -199,7 +188,7 @@ export default function PromptTagSuggestions({
         ].join(" ")}
       >
         {rankedTags.map(({ label }) => {
-          const isSelected = selectedTags.has(label);
+          const isSelected = selectedTagSet.has(label);
           return (
             <button
               key={label}

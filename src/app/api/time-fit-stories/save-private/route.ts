@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { classifyGeneratedContentWarnings } from "@/lib/generation/generatedContentWarnings.server";
+import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -387,6 +388,7 @@ export async function POST(request: Request) {
   const baseSeriesPayload = {
     title,
     author_id: authorId,
+    source_language: detectSourceLanguageFromText(body),
     publication_status: "private",
     reviews_enabled: true,
     episode_comments_enabled: true,

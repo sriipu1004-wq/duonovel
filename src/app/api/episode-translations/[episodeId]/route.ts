@@ -11,7 +11,6 @@ import {
   parseSupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { parseStoredTranslationPayload } from "@/lib/translation/translationPayload";
-import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
 import { readSeriesTranslationLearningPreference } from "@/lib/translation/translationLearningPreference";
 
 export const runtime = "nodejs";
@@ -55,10 +54,21 @@ export async function GET(request: Request, context: RouteContext) {
     );
   }
 
-  if (detectSourceLanguageFromText(access.body) !== sourceLanguage) {
+  if (!access.sourceLanguage || access.sourceLanguage !== sourceLanguage) {
     return NextResponse.json(
       { ok: false, error: "invalid_source_language" },
       { status: 400 }
+    );
+  }
+
+  if (!access.isAllowlisted) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "translation_episode_not_eligible",
+        message: "この話では翻訳を利用できません。",
+      },
+      { status: 403 }
     );
   }
 

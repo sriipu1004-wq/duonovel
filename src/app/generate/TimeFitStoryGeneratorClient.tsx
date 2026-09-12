@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PromptTagSuggestions from "@/features/generation/PromptTagSuggestions";
-import { getPromptTagsInText } from "@/lib/generation/promptTags";
+import type { PromptTag } from "@/lib/generation/promptTags";
 import { useAiUsage } from "@/features/usage/useAiUsage";
 import SubscriptionUpgradePrompt from "@/features/billing/SubscriptionUpgradePrompt";
 import {
@@ -32,6 +32,7 @@ type TimeFitStory = {
   body: string;
   estimatedReadingMinutes: number;
   tags: string[];
+  sourceLanguage: SupportedLanguageTag;
   aiGenerated: true;
 };
 
@@ -40,6 +41,7 @@ type GenerateRequest = {
   timeMinutes: TimeMinutes;
   genre: string;
   mood: string;
+  outputLanguage: SupportedLanguageTag;
   learningLanguage?: SupportedLanguageTag;
   learningLevel?: TranslationLearningLevel;
   translationLearningRequest?: string;
@@ -47,7 +49,7 @@ type GenerateRequest = {
 
 type GenerateApiRequest = GenerateRequest & {
   customRequest?: string;
-  promptTags?: string[];
+  promptTags?: PromptTag[];
 };
 
 type GeneratedStoryPayload = {
@@ -173,6 +175,7 @@ export default function TimeFitStoryGeneratorClient() {
   const [timeMinutes, setTimeMinutes] = useState<TimeMinutes>(10);
   const [genre, setGenre] = useState<(typeof GENRE_OPTIONS)[number] | "">("");
   const [customRequest, setCustomRequest] = useState("");
+  const [promptTags, setPromptTags] = useState<PromptTag[]>([]);
   const [learningLanguage, setLearningLanguage] = useState<SupportedLanguageTag | "">("");
   const [learningLevel, setLearningLevel] = useState<TranslationLearningLevel>("beginner");
   const [translationLearningRequest, setTranslationLearningRequest] = useState("");
@@ -185,6 +188,7 @@ export default function TimeFitStoryGeneratorClient() {
       timeMinutes,
       genre,
       mood: DEFAULT_MOOD,
+      outputLanguage: locale as SupportedLanguageTag,
       ...(learningLanguage
         ? {
             learningLanguage,
@@ -195,7 +199,7 @@ export default function TimeFitStoryGeneratorClient() {
           }
         : {}),
     }),
-    [scene, timeMinutes, genre, learningLanguage, learningLevel, translationLearningRequest]
+    [scene, timeMinutes, genre, locale, learningLanguage, learningLevel, translationLearningRequest]
   );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -203,7 +207,6 @@ export default function TimeFitStoryGeneratorClient() {
     if (isGenerating) return;
 
     const normalizedCustomRequest = customRequest.trim();
-    const promptTags = getPromptTagsInText(normalizedCustomRequest);
 
     if (normalizedCustomRequest.length > CUSTOM_REQUEST_MAX_LENGTH) {
       setErrorMessage(dictionary.customTooLong);
@@ -389,9 +392,8 @@ export default function TimeFitStoryGeneratorClient() {
             {dictionary.customHelp}
           </span>
           <PromptTagSuggestions
-            value={customRequest}
-            onChange={setCustomRequest}
-            maxLength={CUSTOM_REQUEST_MAX_LENGTH}
+            selectedTags={promptTags}
+            onSelectedTagsChange={setPromptTags}
             disabled={isGenerating}
           />
           <textarea
