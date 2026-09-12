@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { stripUiLocalePrefix } from "@/i18n/config";
 import { parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 
 const PENDING_CREATE_SOURCE_LANGUAGE_KEY =
@@ -19,10 +20,14 @@ function readPendingSourceLanguage(): PendingSourceLanguage | null {
     const raw = window.sessionStorage.getItem(PENDING_CREATE_SOURCE_LANGUAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<PendingSourceLanguage>;
+    const sourcePath =
+      typeof parsed.sourcePath === "string"
+        ? stripUiLocalePrefix(parsed.sourcePath)
+        : "";
     if (
       !parseSupportedLanguageTag(parsed.language) ||
       typeof parsed.startedAt !== "number" ||
-      parsed.sourcePath !== "/write/series/new"
+      sourcePath !== "/write/series/new"
     ) {
       window.sessionStorage.removeItem(PENDING_CREATE_SOURCE_LANGUAGE_KEY);
       return null;
@@ -44,7 +49,8 @@ export default function PendingSourceLanguageBridge() {
 
   useEffect(() => {
     if (applyingRef.current) return;
-    const match = pathname.match(/^\/write\/series\/([^/]+)(?:\/|$)/u);
+    const routePath = stripUiLocalePrefix(pathname);
+    const match = routePath.match(/^\/write\/series\/([^/]+)(?:\/|$)/u);
     const seriesId = match?.[1] ?? "";
     if (!seriesId || seriesId === "new") return;
 
