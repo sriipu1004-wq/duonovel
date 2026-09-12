@@ -9,6 +9,11 @@ import { pickText } from "@/features/write/writeShared";
 import PublicAdSlot from "@/components/ads/PublicAdSlot";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
+import { getUiLocale } from "@/i18n/server";
+import { homeDictionaries, type HomeDictionary } from "@/i18n/dictionaries/home";
+import { localizePath } from "@/i18n/navigation";
+import { localizeTagLabel } from "@/i18n/tagLabels";
+import type { UiLocale } from "@/i18n/config";
 
 const HOME_DESCRIPTION =
   "外国語の長編を管理して読む個人本棚、多言語対訳、読み上げ、AI物語生成、Web小説の閲覧・投稿に対応した読書サービスです。";
@@ -65,6 +70,12 @@ type WorkCard = {
   popularityScore: number;
 };
 
+const fallbackLabels: Record<UiLocale, { untitled: string; unknownAuthor: string }> = {
+  ja: { untitled: "無題", unknownAuthor: "作者名未設定" },
+  en: { untitled: "Untitled", unknownAuthor: "Unknown author" },
+  ko: { untitled: "제목 없음", unknownAuthor: "작가명 없음" },
+};
+
 function buildReadHref(seriesId: string, episodeNumber: number): string {
   return `/read/${seriesId}/${episodeNumber}`;
 }
@@ -83,16 +94,33 @@ function buildMoreHref(mode: string): string {
   return `/search?${query.toString()}`;
 }
 
+function formatLatestPostedLabel(
+  value: number,
+  locale: UiLocale,
+  fallback: string
+): string {
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  const dateLocale = locale === "ja" ? "ja-JP" : locale === "ko" ? "ko-KR" : "en-US";
+  return new Intl.DateTimeFormat(dateLocale, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Asia/Tokyo",
+  }).format(new Date(value));
+}
+
 function SectionHeading({
   eyebrow,
   title,
   description,
   moreHref,
+  showMore,
 }: {
   eyebrow: string;
   title: string;
   description: string;
   moreHref: string;
+  showMore: string;
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-3">
@@ -105,7 +133,7 @@ function SectionHeading({
         href={moreHref}
         className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
       >
-        さらに表示
+        {showMore}
       </Link>
     </div>
   );
@@ -160,11 +188,11 @@ function sortNarrationPopular(works: WorkCard[]) {
   });
 }
 
-function WorkGrid({ works }: { works: WorkCard[] }) {
+function WorkGrid({ works, emptyLabel }: { works: WorkCard[]; emptyLabel: string }) {
   if (works.length === 0) {
     return (
       <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
-        条件に合う公開作品がない。
+        {emptyLabel}
       </div>
     );
   }
@@ -192,26 +220,75 @@ function WorkGrid({ works }: { works: WorkCard[] }) {
   );
 }
 
-function ResultHeading({ mode, tag }: { mode: string; tag: string }) {
+function ResultHeading({
+  mode,
+  tag,
+  locale,
+  dictionary,
+}: {
+  mode: string;
+  tag: string;
+  locale: UiLocale;
+  dictionary: HomeDictionary;
+}) {
   if (mode === "latest") {
-    return { title: "新着更新の結果", description: "新着更新順で表示中。" };
+    return {
+      title: dictionary.resultsLatestTitle,
+      description: dictionary.resultsLatestDescription,
+    };
   }
   if (mode === "weekly-new") {
-    return { title: "週間新作おすすめの結果", description: "新作寄りの順で表示中。" };
+    return {
+      title: dictionary.resultsWeeklyTitle,
+      description: dictionary.resultsWeeklyDescription,
+    };
   }
   if (mode === "overall-popular") {
-    return { title: "総合人気順の結果", description: "公開中作品を人気寄りの順で表示中。" };
+    return {
+      title: dictionary.resultsOverallTitle,
+      description: dictionary.resultsOverallDescription,
+    };
   }
   if (mode === "narration-popular") {
-    return { title: "朗読視聴人気順の結果", description: "朗読視聴寄りの順で表示中。" };
+    return {
+      title: dictionary.resultsNarrationTitle,
+      description: dictionary.resultsNarrationDescription,
+    };
   }
   if (mode === "tag" && tag) {
-    return { title: `${tag} の結果`, description: "タグ一致作品を人気寄りの順で表示中。" };
+    const displayTag = localizeTagLabel(tag, locale);
+    return {
+      title: dictionary.tagResultTitle(displayTag),
+      description: dictionary.tagResultDescription(displayTag),
+    };
   }
-  return { title: "検索結果", description: "条件に合う公開作品を表示中。" };
+  return {
+    title: dictionary.resultsLatestTitle,
+    description: dictionary.resultsLatestDescription,
+  };
+}
+
+function getDiscoveryLinks(locale: UiLocale, dictionary: HomeDictionary) {
+  if (locale === "ja") {
+    return [
+      { href: "/english-novel-reader", title: dictionary.readerGuideTitle, description: dictionary.readerGuideDescription },
+      { href: "/web-novel-language-learning", title: dictionary.learningGuideTitle, description: dictionary.learningGuideDescription },
+      { href: "/pdf-bilingual-reader", title: dictionary.fileGuideTitle, description: dictionary.fileGuideDescription },
+      { href: "/subscription", title: dictionary.pricingGuideTitle, description: dictionary.pricingGuideDescription },
+    ];
+  }
+
+  return [
+    { href: localizePath("/japanese-novel-reader", locale), title: dictionary.readerGuideTitle, description: dictionary.readerGuideDescription },
+    { href: localizePath("/learn-japanese-with-web-novels", locale), title: dictionary.learningGuideTitle, description: dictionary.learningGuideDescription },
+    { href: localizePath("/pdf-epub-bilingual-reader", locale), title: dictionary.fileGuideTitle, description: dictionary.fileGuideDescription },
+    { href: localizePath("/subscription", locale), title: dictionary.pricingGuideTitle, description: dictionary.pricingGuideDescription },
+  ];
 }
 
 export default async function PublicTopPage({ searchParams }: PageProps) {
+  const locale = await getUiLocale();
+  const dictionary = homeDictionaries[locale];
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const mode = pickText(resolvedSearchParams?.mode);
   const tag = pickText(resolvedSearchParams?.tag);
@@ -236,15 +313,27 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
       totalRecordingPlays: 0,
       totalRecordingCount: 0,
     };
+    const title = work.title === "無題" ? fallbackLabels[locale].untitled : work.title;
+    const authorName =
+      work.authorName === "作者名未設定"
+        ? fallbackLabels[locale].unknownAuthor
+        : work.authorName;
+    const summary =
+      work.summary === "あらすじはまだ登録されていません。" ? "" : work.summary;
+
     return {
       seriesId: work.seriesId,
-      title: work.title,
-      summary: work.summary,
-      authorName: work.authorName,
+      title,
+      summary,
+      authorName,
       authorId: work.authorId,
       episodeCount: work.episodeCount,
       firstEpisodeNumber: work.firstEpisodeNumber,
-      latestPostedLabel: work.latestPostedLabel,
+      latestPostedLabel: formatLatestPostedLabel(
+        work.latestPostedAtValue,
+        locale,
+        dictionary.dateUnknown
+      ),
       latestPostedAtValue: work.latestPostedAtValue,
       createdAtValue: work.createdAtValue,
       tags: work.tags,
@@ -294,146 +383,173 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
             : mode === "tag"
               ? sortOverallPopular(filteredForResults)
               : [];
-  const resultHeading = ResultHeading({ mode, tag });
+  const resultHeading = ResultHeading({ mode, tag, locale, dictionary });
+  const loginHref = `${localizePath("/login", locale)}?next=${encodeURIComponent(
+    localizePath("/", locale)
+  )}`;
+  const discoveryLinks = getDiscoveryLinks(locale, dictionary);
 
   return (
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-7xl px-4 pb-20 pt-6 sm:px-6 lg:px-8">
         <section className="border-b border-black/10 pb-10">
           <div className="max-w-5xl">
-            <p className="text-[11px] tracking-[0.24em] text-neutral-500">NOVEL / READ / LISTEN / LEARN</p>
+            <p className="text-[11px] tracking-[0.24em] text-neutral-500">{dictionary.eyebrow}</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">無料枠あり</span>
-              <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">個人本棚 / 多言語対訳 / 読み上げ / AI生成</span>
+              <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">{dictionary.freeBadge}</span>
+              <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">{dictionary.featureBadge}</span>
             </div>
             <h1 className="mt-4 text-3xl font-bold leading-tight text-black sm:text-4xl xl:text-5xl">
-              読む、聴く、学ぶ。
-              <br />
-              外国語の長編を、自分の本棚で読み続ける。多言語対訳、読み上げ、AI物語、Web小説にも対応。
+              {dictionary.title}
             </h1>
-            <p className="mt-5 max-w-4xl text-sm leading-8 text-neutral-700 sm:text-[15px]">
-              PDF・EPUB・TXT・DOCXを作品単位で取り込み、章・話ごとの読書位置、対訳、栞を管理できます。公開作品を読む・聴く・投稿する機能と、時間に合わせたAI物語生成も同じ場所で利用できます。
+            <p className="mt-5 max-w-4xl text-base leading-8 text-neutral-800 sm:text-lg">
+              {dictionary.lead}
+            </p>
+            <p className="mt-3 max-w-4xl text-sm leading-8 text-neutral-700 sm:text-[15px]">
+              {dictionary.description}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/generate" className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800">物語を生成する</Link>
-              <Link href="/library" className="rounded-full border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-medium text-violet-900 transition hover:bg-violet-100">個人本棚を開く</Link>
-              <Link href="/search" className="rounded-full border border-black/10 bg-neutral-100 px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-200">作品を探す</Link>
-              <Link href="/write" className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-medium text-black transition hover:bg-sky-100">作品を投稿する</Link>
-              <Link href="/record" className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50">作品を朗読する</Link>
+              <Link href={localizePath("/generate", locale)} className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800">{dictionary.generate}</Link>
+              <Link href={localizePath("/library", locale)} className="rounded-full border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-medium text-violet-900 transition hover:bg-violet-100">{dictionary.library}</Link>
+              <Link href={localizePath("/search", locale)} className="rounded-full border border-black/10 bg-neutral-100 px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-200">{dictionary.explore}</Link>
+              <Link href={localizePath("/write", locale)} className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-medium text-black transition hover:bg-sky-100">{dictionary.write}</Link>
+              <Link href={localizePath("/record", locale)} className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50">{dictionary.narrate}</Link>
             </div>
             <div className="mt-8">
-              <p className="text-[11px] tracking-[0.22em] text-neutral-500">目次</p>
+              <p className="text-[11px] tracking-[0.22em] text-neutral-500">{dictionary.toc}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <ExploreChip href="#prelaunch-summary" label="LIB read の特徴" />
-                {!subscriber ? (
-                  <ExploreChip href="#subscription" label="月額680円サブスク" />
-                ) : null}
-                <ExploreChip href="#bookmark-updates" label="ブックマーク更新" />
-                <ExploreChip href="#latest" label="新着更新" />
-                <ExploreChip href="#weekly-new" label="週間新作おすすめ" />
-                <ExploreChip href="#overall-popular" label="総合人気順" />
-                <ExploreChip href="#narration-popular" label="朗読視聴人気順" />
+                <ExploreChip href="#prelaunch-summary" label={dictionary.featuresChip} />
+                {!subscriber ? <ExploreChip href="#subscription" label={dictionary.subscriptionChip} /> : null}
+                <ExploreChip href="#bookmark-updates" label={dictionary.bookmarkChip} />
+                <ExploreChip href="#latest" label={dictionary.latestChip} />
+                <ExploreChip href="#weekly-new" label={dictionary.weeklyChip} />
+                <ExploreChip href="#overall-popular" label={dictionary.overallChip} />
+                <ExploreChip href="#narration-popular" label={dictionary.narrationChip} />
               </div>
             </div>
           </div>
         </section>
 
         {!subscriber ? (
-        <section id="subscription" className="pt-10">
-          <div className="overflow-hidden rounded-[28px] bg-neutral-950 px-5 py-7 text-white sm:px-8 sm:py-9">
-            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <div className="max-w-3xl">
-                <p className="text-[11px] tracking-[0.22em] text-sky-300">MONTHLY SUBSCRIPTION</p>
-                <h2 className="mt-2 text-2xl font-bold">月額680円で、長編の対訳を止めずに読む。</h2>
-                <p className="mt-3 text-sm leading-7 text-neutral-300">
-                  単語解説は無制限。AI物語は1日10回、対訳生成は1日30回へ拡大し、読書中に次話の対訳を1話だけ先読みします。
-                </p>
+          <section id="subscription" className="pt-10">
+            <div className="overflow-hidden rounded-[28px] bg-neutral-950 px-5 py-7 text-white sm:px-8 sm:py-9">
+              <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                <div className="max-w-3xl">
+                  <p className="text-[11px] tracking-[0.22em] text-sky-300">{dictionary.subscriptionEyebrow}</p>
+                  <h2 className="mt-2 text-2xl font-bold">{dictionary.subscriptionTitle}</h2>
+                  <p className="mt-3 text-sm leading-7 text-neutral-300">{dictionary.subscriptionDescription}</p>
+                </div>
+                <Link href={localizePath("/subscription", locale)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-neutral-100">
+                  {dictionary.subscriptionCta}
+                </Link>
               </div>
-              <Link href="/subscription" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-neutral-100">
-                無料版との違いを見る
-              </Link>
             </div>
-          </div>
-        </section>
+          </section>
         ) : null}
 
         <section id="prelaunch-summary" className="pt-10">
           <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
-            <p className="text-[11px] tracking-[0.22em] text-neutral-500">WHY LIB READ</p>
-            <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">LIB read の特徴</h2>
-            <p className="mt-2 text-sm leading-7 text-neutral-600">長編を読む・聴く・作る・学ぶための機能を、作品単位で管理する。</p>
+            <p className="text-[11px] tracking-[0.22em] text-neutral-500">{dictionary.whyEyebrow}</p>
+            <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">{dictionary.features}</h2>
+            <p className="mt-2 text-sm leading-7 text-neutral-600">{dictionary.featuresBody}</p>
             <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">個人本棚</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">自分で用意したPDF・EPUB・TXT・DOCXを取り込み、長編を章・話単位で管理して続きから読める。</p>
-              </div>
-              <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">多言語対訳</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">原文と訳文を上下で同期し、語の意味・品詞も確認できる。保存済み対訳は再利用する。</p>
-              </div>
-              <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">読み上げ・栞</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">ブラウザ読み上げと投稿朗読に対応。読書位置や栞、表示・朗読設定を保持する。</p>
-              </div>
-              <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-sm font-semibold text-black">AI物語・投稿</p>
-                <p className="mt-2 text-sm leading-7 text-neutral-600">読む時間に合わせた物語を生成し、保存後は作品ワークスペースで編集・続編生成・投稿ができる。</p>
-              </div>
+              {[
+                [dictionary.privateLibraryTitle, dictionary.privateLibraryBody],
+                [dictionary.bilingualTitle, dictionary.bilingualBody],
+                [dictionary.ttsTitle, dictionary.ttsBody],
+                [dictionary.aiTitle, dictionary.aiBody],
+              ].map(([title, body]) => (
+                <div key={title} className="rounded-2xl border border-black/10 bg-white p-4">
+                  <p className="text-sm font-semibold text-black">{title}</p>
+                  <p className="mt-2 text-sm leading-7 text-neutral-600">{body}</p>
+                </div>
+              ))}
             </div>
+          </div>
+        </section>
+
+        <section className="pt-10" aria-labelledby="reading-guides-title">
+          <div className="border-b border-black/10 pb-3">
+            <p className="text-[11px] tracking-[0.22em] text-neutral-500">{dictionary.discoveryEyebrow}</p>
+            <h2 id="reading-guides-title" className="mt-2 text-xl font-bold text-black sm:text-2xl">{dictionary.discoveryTitle}</h2>
+            <p className="mt-2 text-sm leading-7 text-neutral-600">{dictionary.discoveryDescription}</p>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            {discoveryLinks.map((item) => (
+              <Link key={item.href} href={item.href} className="rounded-[20px] border border-black/10 bg-neutral-50 p-4 transition hover:border-black/20 hover:bg-white">
+                <p className="text-sm font-semibold text-black">{item.title}</p>
+                <p className="mt-2 text-sm leading-7 text-neutral-600">{item.description}</p>
+              </Link>
+            ))}
           </div>
         </section>
 
         <section id="bookmark-updates" className="pt-10">
           <SectionHeading
             eyebrow="BOOKMARK UPDATES"
-            title="ブックマーク更新"
-            description={currentUser ? "ブックマークした作品のうち、最近更新された作品。" : "ログインすると、ブックマークした作品の更新をここで確認できる。"}
-            moreHref={currentUser ? "/search?saved=bookmarked-works&order=updated" : "/login?next=/"}
+            title={dictionary.bookmarkTitle}
+            description={currentUser ? dictionary.bookmarkSignedIn : dictionary.bookmarkSignedOut}
+            moreHref={currentUser ? localizePath("/search?saved=bookmarked-works&order=updated", locale) : loginHref}
+            showMore={dictionary.showMore}
           />
           {currentUser ? (
-            <WorkGrid works={bookmarkedWorks} />
+            <WorkGrid works={bookmarkedWorks} emptyLabel={dictionary.noWorks} />
           ) : (
             <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
-              ブックマーク更新を表示するにはログインが必要。{" "}
-              <Link href="/login?next=/" className="font-medium text-black underline underline-offset-4">ログインする</Link>
+              {dictionary.bookmarkLoginPrompt}{" "}
+              <Link href={loginHref} className="font-medium text-black underline underline-offset-4">{dictionary.login}</Link>
             </div>
           )}
         </section>
 
         <section id="latest" className="pt-10">
-          <SectionHeading eyebrow="LATEST UPDATES" title="新着更新" description="最近更新された公開作品。" moreHref={buildMoreHref("latest")} />
-          <WorkGrid works={latestWorks} />
+          <SectionHeading eyebrow="LATEST UPDATES" title={dictionary.latestTitle} description={dictionary.latestDescription} moreHref={localizePath(buildMoreHref("latest"), locale)} showMore={dictionary.showMore} />
+          <WorkGrid works={latestWorks} emptyLabel={dictionary.noWorks} />
         </section>
         <section id="weekly-new" className="pt-12">
-          <SectionHeading eyebrow="WEEKLY NEW RECOMMEND" title="週間新作おすすめ" description="新しめの作品から入りやすくする。" moreHref={buildMoreHref("weekly-new")} />
-          <WorkGrid works={weeklyNewWorks} />
+          <SectionHeading eyebrow="WEEKLY NEW RECOMMEND" title={dictionary.weeklyTitle} description={dictionary.weeklyDescription} moreHref={localizePath(buildMoreHref("weekly-new"), locale)} showMore={dictionary.showMore} />
+          <WorkGrid works={weeklyNewWorks} emptyLabel={dictionary.noWorks} />
         </section>
         <section id="overall-popular" className="pt-12">
-          <SectionHeading eyebrow="OVERALL POPULAR" title="総合人気順" description="現時点の人気寄り順で公開作品を表示。" moreHref={buildMoreHref("overall-popular")} />
-          <WorkGrid works={overallPopularWorks} />
+          <SectionHeading eyebrow="OVERALL POPULAR" title={dictionary.overallTitle} description={dictionary.overallDescription} moreHref={localizePath(buildMoreHref("overall-popular"), locale)} showMore={dictionary.showMore} />
+          <WorkGrid works={overallPopularWorks} emptyLabel={dictionary.noWorks} />
         </section>
         <section id="narration-popular" className="pt-12">
-          <SectionHeading eyebrow="NARRATION POPULAR" title="朗読視聴人気順" description="朗読視聴寄りの順で公開作品を表示。" moreHref={buildMoreHref("narration-popular")} />
-          <WorkGrid works={narrationPopularWorks} />
+          <SectionHeading eyebrow="NARRATION POPULAR" title={dictionary.narrationTitle} description={dictionary.narrationDescription} moreHref={localizePath(buildMoreHref("narration-popular"), locale)} showMore={dictionary.showMore} />
+          <WorkGrid works={narrationPopularWorks} emptyLabel={dictionary.noWorks} />
         </section>
 
         {mode ? (
           <section id="results" className="pt-12">
             <div className="border-b border-black/10 pb-3">
-              <p className="text-[11px] tracking-[0.22em] text-neutral-500">RESULTS</p>
+              <p className="text-[11px] tracking-[0.22em] text-neutral-500">{dictionary.resultsEyebrow}</p>
               <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">{resultHeading.title}</h2>
               <p className="mt-2 text-sm leading-7 text-neutral-600">{resultHeading.description}</p>
             </div>
-            <WorkGrid works={resultWorks} />
+            <WorkGrid works={resultWorks} emptyLabel={dictionary.noWorks} />
           </section>
         ) : null}
 
         <section id="home-ad-slot" className="pt-12"><PublicAdSlot slotId="home-bottom" minHeightClassName="min-h-[88px]" /></section>
         <section id="home-links" className="pt-6">
           <div className="border-t border-black/10 pt-4 text-[11px] leading-6 text-neutral-500">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">サービス案内</span><Link href="/guide" className="transition hover:text-black">使い方</Link><Link href="/faq" className="transition hover:text-black">FAQ</Link></div>
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">運営情報</span><Link href="/status" className="transition hover:text-black">運営状況</Link><Link href="/news" className="transition hover:text-black">お知らせ</Link></div>
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><span className="text-neutral-400">規約・連絡</span><Link href="/terms" className="transition hover:text-black">利用規約</Link><Link href="/privacy" className="transition hover:text-black">プライバシーポリシー</Link><Link href="/commercial-transactions" className="transition hover:text-black">特定商取引法に基づく表記</Link><Link href="/contact" className="transition hover:text-black">お問い合わせ</Link></div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="text-neutral-400">{dictionary.serviceInfo}</span>
+              <Link href={localizePath("/guide", locale)} className="transition hover:text-black">{dictionary.guide}</Link>
+              <Link href={localizePath("/faq", locale)} className="transition hover:text-black">{dictionary.faq}</Link>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="text-neutral-400">{dictionary.operationsInfo}</span>
+              <Link href={localizePath("/status", locale)} className="transition hover:text-black">{dictionary.status}</Link>
+              <Link href={localizePath("/news", locale)} className="transition hover:text-black">{dictionary.news}</Link>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="text-neutral-400">{dictionary.legalContact}</span>
+              <Link href="/terms" className="transition hover:text-black">{dictionary.terms}</Link>
+              <Link href="/privacy" className="transition hover:text-black">{dictionary.privacy}</Link>
+              <Link href="/commercial-transactions" className="transition hover:text-black">{dictionary.commercial}</Link>
+              <Link href="/contact" className="transition hover:text-black">{dictionary.contact}</Link>
+            </div>
           </div>
         </section>
       </div>

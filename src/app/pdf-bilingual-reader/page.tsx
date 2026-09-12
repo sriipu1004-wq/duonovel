@@ -11,6 +11,12 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   alternates: {
     canonical: "/pdf-bilingual-reader",
+    languages: {
+      ja: "/pdf-bilingual-reader",
+      en: "/en/pdf-epub-bilingual-reader",
+      ko: "/ko/pdf-epub-bilingual-reader",
+      "x-default": "/pdf-bilingual-reader",
+    },
   },
   robots: {
     index: true,

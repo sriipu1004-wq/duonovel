@@ -4,6 +4,55 @@ import InteractiveBilingualDemo, {
   type BilingualDemoSentence,
 } from "@/components/seo/InteractiveBilingualDemo";
 
+export type SearchLandingUi = {
+  directAnswerLabel: string;
+  featuresEyebrow: string;
+  featuresTitle: string;
+  demoEyebrow: string;
+  demoTitle: string;
+  howEyebrow: string;
+  howTitle: string;
+  differencesEyebrow: string;
+  differencesTitle: string;
+  supportedEyebrow: string;
+  supportedTitle: string;
+  factsEyebrow: string;
+  factsTitle: string;
+  faqEyebrow: string;
+  faqTitle: string;
+  relatedEyebrow: string;
+  relatedTitle: string;
+  finalTitle: string;
+  finalBody: string;
+  guideLabel: string;
+  guideHref: string;
+};
+
+const DEFAULT_UI: SearchLandingUi = {
+  directAnswerLabel: "LIB readでは、こう読めます",
+  featuresEyebrow: "WHAT LIB READ DOES",
+  featuresTitle: "LIB read（ライブリード）でできること",
+  demoEyebrow: "READER EXAMPLE",
+  demoTitle: "原文を消さず、対応する訳文を一緒に読む",
+  howEyebrow: "HOW TO USE",
+  howTitle: "使い方",
+  differencesEyebrow: "WHY PARALLEL READING",
+  differencesTitle: "一般的な翻訳方法との違い",
+  supportedEyebrow: "SUPPORTED",
+  supportedTitle: "対応している読書機能",
+  factsEyebrow: "PLAN & ACCESS",
+  factsTitle: "料金・利用条件",
+  faqEyebrow: "FAQ",
+  faqTitle: "よくある質問",
+  relatedEyebrow: "RELATED GUIDES",
+  relatedTitle: "関連する読み方",
+  finalTitle: "長編を、対訳のまま続きから読む。",
+  finalBody:
+    "LIB readは、翻訳結果だけを作るのではなく、原文・対訳・話数・読書位置を同じ読書体験の中で維持するためのサービスです。",
+  guideLabel: "使い方を見る",
+  guideHref: "/guide",
+};
+
 export type SearchLandingConfig = {
   eyebrow: string;
   title: string;
@@ -16,15 +65,18 @@ export type SearchLandingConfig = {
     translationLabel: string;
     translationText?: string;
     sentences?: BilingualDemoSentence[];
+    instruction?: string;
     note: string;
   };
   steps: string[];
   differences: Array<{ title: string; body: string }>;
   capabilities: string[];
+  facts?: Array<{ label: string; value: string }>;
   faq: Array<{ question: string; answer: string }>;
   primaryCta: { href: string; label: string; note?: string };
   secondaryCta?: { href: string; label: string };
   related: Array<{ href: string; label: string; description: string }>;
+  ui?: Partial<SearchLandingUi>;
 };
 
 function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
@@ -41,6 +93,8 @@ function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) 
 }
 
 export default function SearchLandingPage({ config }: { config: SearchLandingConfig }) {
+  const ui = { ...DEFAULT_UI, ...config.ui };
+
   return (
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-6xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
@@ -57,7 +111,7 @@ export default function SearchLandingPage({ config }: { config: SearchLandingCon
             </p>
             <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 px-5 py-5 sm:px-6">
               <p className="text-sm font-semibold text-black">
-                LIB readでは、こう読めます
+                {ui.directAnswerLabel}
               </p>
               <p className="mt-2 text-sm leading-7 text-neutral-800">
                 {config.directAnswer}
@@ -88,7 +142,7 @@ export default function SearchLandingPage({ config }: { config: SearchLandingCon
         </section>
 
         <section className="pt-12">
-          <SectionHeading eyebrow="WHAT LIB READ DOES" title="LIB read（ライブリード）でできること" />
+          <SectionHeading eyebrow={ui.featuresEyebrow} title={ui.featuresTitle} />
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             {config.features.map((feature) => (
               <article key={feature.title} className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
@@ -100,17 +154,18 @@ export default function SearchLandingPage({ config }: { config: SearchLandingCon
         </section>
 
         <section className="pt-12">
-          <SectionHeading eyebrow="READER EXAMPLE" title="原文を消さず、対応する訳文を一緒に読む" />
+          <SectionHeading eyebrow={ui.demoEyebrow} title={ui.demoTitle} />
           <InteractiveBilingualDemo
             sourceLabel={config.demo.sourceLabel}
             translationLabel={config.demo.translationLabel}
             sentences={config.demo.sentences ?? DEFAULT_BILINGUAL_DEMO_SENTENCES}
+            instruction={config.demo.instruction}
             note={config.demo.note}
           />
         </section>
 
         <section className="pt-12">
-          <SectionHeading eyebrow="HOW TO USE" title="使い方" />
+          <SectionHeading eyebrow={ui.howEyebrow} title={ui.howTitle} />
           <ol className="mt-6 grid gap-3">
             {config.steps.map((step, index) => (
               <li key={step} className="flex gap-4 rounded-[20px] border border-black/10 bg-white p-4 sm:p-5">
@@ -124,7 +179,7 @@ export default function SearchLandingPage({ config }: { config: SearchLandingCon
         </section>
 
         <section className="pt-12">
-          <SectionHeading eyebrow="WHY PARALLEL READING" title="一般的な翻訳方法との違い" />
+          <SectionHeading eyebrow={ui.differencesEyebrow} title={ui.differencesTitle} />
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             {config.differences.map((difference) => (
               <article key={difference.title} className="rounded-[24px] border border-black/10 bg-white p-5">
@@ -136,7 +191,7 @@ export default function SearchLandingPage({ config }: { config: SearchLandingCon
         </section>
 
         <section className="pt-12">
-          <SectionHeading eyebrow="SUPPORTED" title="対応している読書機能" />
+          <SectionHeading eyebrow={ui.supportedEyebrow} title={ui.supportedTitle} />
           <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {config.capabilities.map((capability) => (
               <li key={capability} className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm leading-6 text-neutral-700">
@@ -146,8 +201,22 @@ export default function SearchLandingPage({ config }: { config: SearchLandingCon
           </ul>
         </section>
 
+        {config.facts && config.facts.length > 0 ? (
+          <section className="pt-12">
+            <SectionHeading eyebrow={ui.factsEyebrow} title={ui.factsTitle} />
+            <dl className="mt-6 grid gap-3 md:grid-cols-2">
+              {config.facts.map((fact) => (
+                <div key={fact.label} className="rounded-[20px] border border-black/10 bg-white p-5">
+                  <dt className="text-sm font-semibold text-black">{fact.label}</dt>
+                  <dd className="mt-2 text-sm leading-7 text-neutral-600">{fact.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ) : null}
+
         <section className="pt-12">
-          <SectionHeading eyebrow="FAQ" title="よくある質問" />
+          <SectionHeading eyebrow={ui.faqEyebrow} title={ui.faqTitle} />
           <div className="mt-6 grid gap-3">
             {config.faq.map((item) => (
               <article key={item.question} className="rounded-[22px] border border-black/10 bg-white p-5">
@@ -159,7 +228,7 @@ export default function SearchLandingPage({ config }: { config: SearchLandingCon
         </section>
 
         <section className="pt-12">
-          <SectionHeading eyebrow="RELATED GUIDES" title="関連する読み方" />
+          <SectionHeading eyebrow={ui.relatedEyebrow} title={ui.relatedTitle} />
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             {config.related.map((item) => (
               <Link key={item.href} href={item.href} className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 transition hover:border-black/20 hover:bg-white">
@@ -172,16 +241,16 @@ export default function SearchLandingPage({ config }: { config: SearchLandingCon
 
         <section className="pt-12">
           <div className="rounded-[28px] bg-neutral-950 px-6 py-8 text-white sm:px-8 sm:py-10">
-            <h2 className="text-2xl font-bold tracking-tight">長編を、対訳のまま続きから読む。</h2>
+            <h2 className="text-2xl font-bold tracking-tight">{ui.finalTitle}</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-neutral-300">
-              LIB readは、翻訳結果だけを作るのではなく、原文・対訳・話数・読書位置を同じ読書体験の中で維持するためのサービスです。
+              {ui.finalBody}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href={config.primaryCta.href} className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-neutral-100">
                 {config.primaryCta.label}
               </Link>
-              <Link href="/guide" className="rounded-full border border-white/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
-                使い方を見る
+              <Link href={ui.guideHref} className="rounded-full border border-white/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+                {ui.guideLabel}
               </Link>
             </div>
           </div>

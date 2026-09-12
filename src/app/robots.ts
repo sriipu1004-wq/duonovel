@@ -8,7 +8,15 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/api/", "/auth/callback", "/library/", "/_next/"],
+        // Keep private/user-specific surfaces out of crawling, while leaving
+        // Next.js assets crawlable so search engines can render public pages.
+        disallow: [
+          "/api/",
+          "/auth/callback",
+          "/library",
+          "/en/library",
+          "/ko/library",
+        ],
       },
     ],
     sitemap: SITE_URL + "/sitemap.xml",

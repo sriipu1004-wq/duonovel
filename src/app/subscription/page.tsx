@@ -15,13 +15,64 @@ import { subscriptionDictionaries } from "@/i18n/dictionaries/subscription";
 import { localizePath } from "@/i18n/navigation";
 import type { UiLocale } from "@/i18n/config";
 
+const SITE_URL = "https://www.syosetu-libread.com";
+
+const pricingSeoCopy: Record<UiLocale, { title: string; description: string; summary: string; freeHeader: string; premiumHeader: string }> = {
+  ja: {
+    title: "料金・Free / Premiumプラン | LIB read",
+    description: "LIB readの料金。Freeは¥0。Premiumは月額680円（JPY）。AI物語・対訳生成・個人本棚取り込みの利用枠、単語解説、次話対訳、個人本棚上限を比較できます。",
+    summary: "Freeは¥0。Premiumは月額680円（税込・JPY）です。FreeではAI物語生成・対訳生成・個人本棚への取り込みが合計1日3回の共通枠です。",
+    freeHeader: "Free — ¥0",
+    premiumHeader: "Premium — 月額680円",
+  },
+  en: {
+    title: "Pricing: Free and Premium plans | LIB read",
+    description: "LIB read pricing: Free is ¥0 and Premium is ¥680/month in JPY. Compare shared Free usage, Premium daily allowances, word explanations, next-episode bilingual text, read-aloud, and My Library limits.",
+    summary: "Free costs ¥0. Premium costs ¥680 per month and is charged in Japanese yen (JPY). On Free, AI story generation, bilingual generation, and My Library imports share a total allowance of 3 uses per day.",
+    freeHeader: "Free — ¥0",
+    premiumHeader: "Premium — ¥680/month (JPY)",
+  },
+  ko: {
+    title: "요금: Free와 Premium 플랜 | LIB read",
+    description: "LIB read 요금은 Free ¥0, Premium 월 ¥680(JPY)입니다. Free 공통 이용량, Premium 일일 한도, 단어 설명, 다음 화 대역, 읽어주기, 개인 서재 한도를 비교할 수 있습니다.",
+    summary: "Free는 ¥0입니다. Premium은 월 ¥680이며 일본 엔(JPY)으로 결제됩니다. Free에서는 AI 이야기 생성, 대역 생성, 개인 서재 가져오기가 합산 하루 3회의 공통 이용량을 공유합니다.",
+    freeHeader: "Free — ¥0",
+    premiumHeader: "Premium — 월 ¥680 (JPY)",
+  },
+};
+
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getUiLocale();
-  const dictionary = subscriptionDictionaries[locale];
+  const copy = pricingSeoCopy[locale];
+  const canonical = localizePath("/subscription", locale);
   return {
-    title: `${dictionary.pageTitle} | LIB read`,
-    description: dictionary.metadataDescription,
-    robots: { index: false, follow: true },
+    title: copy.title,
+    description: copy.description,
+    alternates: {
+      canonical,
+      languages: {
+        ja: "/subscription",
+        en: "/en/subscription",
+        ko: "/ko/subscription",
+        "x-default": "/subscription",
+      },
+    },
+    robots: { index: true, follow: true },
+    openGraph: {
+      type: "website",
+      locale: locale === "ja" ? "ja_JP" : locale === "ko" ? "ko_KR" : "en_US",
+      siteName: "LIB read",
+      url: canonical,
+      title: copy.title,
+      description: copy.description,
+      images: ["/opengraph-image"],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: copy.title,
+      description: copy.description,
+      images: ["/opengraph-image"],
+    },
   };
 }
 
@@ -51,9 +102,46 @@ function formatPrice(locale: UiLocale): string {
   return `¥${LIBREAD_SUBSCRIPTION_PRICE_JPY.toLocaleString("en-US")}`;
 }
 
+function buildPricingStructuredData(locale: UiLocale) {
+  const copy = pricingSeoCopy[locale];
+  const canonical = `${SITE_URL}${localizePath("/subscription", locale)}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "LIB read",
+    url: canonical,
+    operatingSystem: "Web",
+    inLanguage: locale,
+    description: copy.description,
+    offers: [
+      {
+        "@type": "Offer",
+        name: "Free",
+        price: "0",
+        priceCurrency: "JPY",
+        description: copy.summary,
+      },
+      {
+        "@type": "Offer",
+        name: "Premium",
+        price: String(LIBREAD_SUBSCRIPTION_PRICE_JPY),
+        priceCurrency: "JPY",
+        description:
+          locale === "ja"
+            ? "月額680円（税込）のPremiumプラン。"
+            : locale === "ko"
+              ? "월 ¥680의 Premium 플랜입니다."
+              : "Premium plan for ¥680 per month.",
+      },
+    ],
+  };
+}
+
 export default async function SubscriptionPage({ searchParams }: PageProps) {
   const locale = await getUiLocale();
   const dictionary = subscriptionDictionaries[locale];
+  const seoCopy = pricingSeoCopy[locale];
+  const structuredData = buildPricingStructuredData(locale);
   const { checkout } = await searchParams;
   const supabase = await createClient();
   const authResult = await supabase.auth.getUser();
@@ -87,10 +175,17 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
   const loginHref = `${localizePath("/login", locale)}?next=${encodeURIComponent(
     localizePath("/subscription", locale)
   )}`;
+  const jsonLd = (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+    />
+  );
 
   if (subscriber) {
     return (
       <main className="min-h-screen bg-white text-black">
+        {jsonLd}
         <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
           <div className="mb-5 text-sm text-neutral-500">
             <Link href={homeHref} className="hover:text-black">TOP</Link>
@@ -136,6 +231,7 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
 
   return (
     <main className="min-h-screen bg-white text-black">
+      {jsonLd}
       <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-5 text-sm text-neutral-500">
           <Link href={homeHref} className="hover:text-black">TOP</Link>
@@ -156,12 +252,15 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
         <section className="overflow-hidden rounded-[32px] border border-black/10 bg-neutral-950 text-white shadow-sm">
           <div className="grid gap-8 px-6 py-10 sm:px-10 lg:grid-cols-[1.35fr_0.85fr] lg:items-center">
             <div>
-              <p className="text-xs tracking-[0.22em] text-sky-300">LIB READ SUBSCRIPTION</p>
+              <p className="text-xs tracking-[0.22em] text-sky-300">FREE / PREMIUM</p>
               <h1 className="mt-4 text-3xl font-bold leading-tight sm:text-4xl">
                 {dictionary.heroTitle}
               </h1>
               <p className="mt-5 max-w-2xl text-sm leading-8 text-neutral-300 sm:text-base">
                 {dictionary.heroDescription}
+              </p>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-200">
+                {seoCopy.summary}
               </p>
               <div className="mt-6 flex flex-wrap items-end gap-2">
                 <span className="text-4xl font-bold">{formatPrice(locale)}</span>
@@ -207,13 +306,14 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
         <section className="mt-8 rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-7">
           <p className="text-xs tracking-[0.2em] text-neutral-500">PLAN</p>
           <h2 className="mt-2 text-2xl font-semibold">{dictionary.planDifference}</h2>
+          <p className="mt-3 max-w-4xl text-sm leading-7 text-neutral-600">{seoCopy.summary}</p>
           <div className="mt-6 overflow-x-auto">
             <table className="w-full min-w-[620px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-black/10 text-neutral-500">
                   <th className="px-3 py-3 font-medium">{dictionary.feature}</th>
-                  <th className="px-3 py-3 font-medium">{dictionary.free}</th>
-                  <th className="px-3 py-3 font-medium text-black">{dictionary.paid}</th>
+                  <th className="px-3 py-3 font-medium">{seoCopy.freeHeader}</th>
+                  <th className="px-3 py-3 font-medium text-black">{seoCopy.premiumHeader}</th>
                 </tr>
               </thead>
               <tbody>
