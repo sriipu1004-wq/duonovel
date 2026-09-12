@@ -21,6 +21,28 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Normalize staged patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/child60_polish_patch.py')
+          s = p.read_text()
+          old = '''text = read(path)
+          if text.count(old_publish) != 2:
+              raise SystemExit(f"expected 2 publish translation blocks, got {text.count(old_publish)}")
+          write(path, text.replace(old_publish, new_publish))'''
+          new = '''text = read(path)
+          old_publish_2 = "\\n".join(line[2:] if line.startswith("  ") else line for line in old_publish.splitlines())
+          new_publish_2 = "\\n".join(line[2:] if line.startswith("  ") else line for line in new_publish.splitlines())
+          matches = text.count(old_publish) + text.count(old_publish_2)
+          if matches != 2:
+              raise SystemExit(f"expected 2 publish translation blocks, got {matches}")
+          write(path, text.replace(old_publish, new_publish).replace(old_publish_2, new_publish_2))'''
+          if old not in s:
+              raise SystemExit('publish patch guard not found')
+          p.write_text(s.replace(old, new))
+          PY
       - name: Apply patch
         run: python scripts/child60_polish_patch.py
       - name: Install dependencies
