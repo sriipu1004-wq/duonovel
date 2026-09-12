@@ -1,0 +1,31 @@
+name: Audit Child60 locale leaks
+
+on:
+  push:
+    branches:
+      - feat/multilingual-work-reader
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Japanese literals in reader and generator surfaces
+        shell: bash
+        run: |
+          for f in \
+            src/features/playback/WebSpeechEpisodePlayback.tsx \
+            src/features/playback/BilingualEpisodePlayback.tsx \
+            src/features/playback/TranslationOnlyEpisodePlayback.tsx \
+            src/features/playback/TranslationOnlyFooter.tsx \
+            src/features/playback/EpisodePlayback.tsx \
+            src/features/playback/BilingualPane.tsx \
+            src/features/playback/TranslationLanguageSelect.tsx \
+            src/features/playback/ReaderModeSelector.tsx \
+            'src/app/read/generated/[storyId]/GeneratedStoryReaderClient.tsx' \
+            src/app/generate/TimeFitStoryGeneratorClient.tsx \
+            src/features/generation/PromptTagSuggestions.tsx \
+            src/features/generation/ContinueStoryAction.tsx; do
+            echo "===== $f ====="
+            grep -nP '[ぁ-んァ-ヶ一-龯]' "$f" || true
+          done
