@@ -65,6 +65,7 @@ function main() {
     assert.equal(JAPANESE_SCRIPT.test(episodeCommentsDictionaries[locale].count(2)), false);
     assert.equal(JAPANESE_SCRIPT.test(episodeCommentsDictionaries[locale].listTitle(3)), false);
     assert.equal(JAPANESE_SCRIPT.test(episodeCommentsDictionaries[locale].commentTooLong(300)), false);
+    assert.equal(JAPANESE_SCRIPT.test(generatedReaderDictionaries[locale].metadataTitle), false);
     assert.equal(JAPANESE_SCRIPT.test(generatedReaderDictionaries[locale].approxMinutes(10)), false);
     assert.equal(JAPANESE_SCRIPT.test(readPageDictionaries[locale].episode(3)), false);
   }
@@ -80,6 +81,26 @@ function main() {
     "OFFに戻す",
     "単語解説",
     "対訳を生成できませんでした。",
+  ]);
+  assertNoKnownUiLiteral("src/features/playback/GeneratedStoryBilingualPlayback.tsx", [
+    "AI生成短編",
+    "生成した物語",
+    "作者 AI生成",
+    "このタブで言語固定",
+    "対訳 ON",
+    "OFFに戻す",
+    "この言語の対訳は未生成です",
+    "保存済み対訳を確認中",
+    "原文表示に戻る",
+  ]);
+  assertNoKnownUiLiteral("src/features/playback/GeneratedStoryBilingualBridge.tsx", [
+    "生成した物語の一時データを読み込めませんでした。",
+    "ブラウザ朗読",
+    "対訳をオン",
+  ]);
+  assertNoKnownUiLiteral("src/features/playback/useBilingualWordExplanation.ts", [
+    "対訳を確認できませんでした。",
+    "文中での意味を確認できませんでした。",
   ]);
   assertNoKnownUiLiteral("src/features/playback/BilingualDivider.tsx", [
     "原文と対訳の表示比率",
@@ -111,6 +132,9 @@ function main() {
     "src/app/read/generated/[storyId]/GeneratedStoryReaderClient.tsx",
     ["{sceneLabel} / {genreLabel} / {request.mood}"]
   );
+  assertNoKnownUiLiteral("src/app/read/generated/[storyId]/page.tsx", [
+    "title: \"一時生成の物語 | LIB read\"",
+  ]);
   assertSourceContains("src/features/playback/ReaderFooterControls.tsx", [
     "aria-label={dictionary.slower}",
     "aria-label={dictionary.faster}",
@@ -124,10 +148,27 @@ function main() {
     "WEB_SPEECH_LOCALE_COPY[locale].seconds",
     "WEB_SPEECH_LOCALE_COPY[locale].publicNarrationLoadFailed",
   ]);
+  assertSourceContains("src/features/playback/GeneratedStoryBilingualPlayback.tsx", [
+    "bilingualReaderDictionaries[locale]",
+    "localizePath(`/read/generated/${encodeURIComponent(storyId)}`, locale)",
+    "readerDictionary.studyWordHelp",
+  ]);
+  assertSourceContains("src/features/playback/GeneratedStoryBilingualBridge.tsx", [
+    "readerDictionaries[locale]",
+    "localizePath(generated.readHref, locale)",
+  ]);
+  assertSourceContains("src/features/playback/useBilingualWordExplanation.ts", [
+    "readerDictionaries[locale]",
+    "locale === \"ja\" && payload.message?.trim()",
+  ]);
   assertSourceContains(
     "src/app/read/generated/[storyId]/GeneratedStoryReaderClient.tsx",
     ["request.mood === \"指定なし\" ? generateDictionary.none : request.mood", "{moodLabel}"]
   );
+  assertSourceContains("src/app/read/generated/[storyId]/page.tsx", [
+    "generatedReaderDictionaries[locale]",
+    "dictionary.metadataTitle",
+  ]);
 
   console.log("PASS: EN/KO i18n dictionaries and known residual UI literals");
 }
