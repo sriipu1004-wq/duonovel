@@ -79,7 +79,7 @@ export async function getPublicWorkTranslationOverview(
   if (getSeriesPublicationStatus(series) !== "public") return null;
 
   const episodes = (await fetchSeriesEpisodes(admin, cleanSeriesId))
-    .filter(isEpisodePubliclyVisible)
+    .filter((episode) => isEpisodePubliclyVisible(episode))
     .sort((left, right) => getEpisodeNumber(left) - getEpisodeNumber(right));
   if (episodes.length === 0) return null;
 
