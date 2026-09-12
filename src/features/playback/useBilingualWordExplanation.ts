@@ -6,6 +6,8 @@ import type {
   BilingualWordSelection,
 } from "@/features/playback/BilingualPane";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
 
 type WordExplanationResponse = {
   ok?: boolean;
@@ -46,6 +48,8 @@ export function useBilingualWordExplanation({
   targetLanguage,
   refreshAiUsage,
 }: UseBilingualWordExplanationArgs) {
+  const locale = useUiLocale();
+  const dictionary = readerDictionaries[locale];
   const [wordInsight, setWordInsight] =
     useState<BilingualWordInsight | null>(null);
   const selectionVersionRef = useRef(0);
@@ -58,19 +62,32 @@ export function useBilingualWordExplanation({
 
   useEffect(() => {
     selectionVersionRef.current += 1;
-    return () => { selectionVersionRef.current += 1; };
+    return () => {
+      selectionVersionRef.current += 1;
+    };
   }, [contentId, sourceHash, sourceLanguage, targetLanguage]);
 
   const selectWord = useCallback(
     async (selection: BilingualWordSelection) => {
       const version = ++selectionVersionRef.current;
       if (!sourceHash) {
-        setWordInsight({ ...selection, status: "error", message: "対訳を確認できませんでした。" });
+        setWordInsight({
+          ...selection,
+          status: "error",
+          message: dictionary.meaningFailed,
+        });
         return;
       }
       const requestKey = JSON.stringify([
-        contentType, contentId, sourceHash, sourceLanguage, targetLanguage,
-        selection.segmentId, selection.side, selection.text, selection.startOffset,
+        contentType,
+        contentId,
+        sourceHash,
+        sourceLanguage,
+        targetLanguage,
+        selection.segmentId,
+        selection.side,
+        selection.text,
+        selection.startOffset,
       ]);
       const instant = instantWordInsightCache.get(requestKey);
       if (instant) {
@@ -86,22 +103,39 @@ export function useBilingualWordExplanation({
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                contentType, contentId, sourceHash,
+                contentType,
+                contentId,
+                sourceHash,
                 segmentId: selection.segmentId,
                 selectedSide: selection.side,
                 selectedText: selection.text,
                 selectedOffset: selection.startOffset,
-                sourceLanguage, targetLanguage,
+                sourceLanguage,
+                targetLanguage,
               }),
             });
             const payload = (await response.json()) as WordExplanationResponse;
-            if (!response.ok || !payload.ok || !(payload.contextualMeaning || payload.oppositeText) || !payload.partOfSpeech) {
-              return { ...selection, status: "error", message: payload.message || "文中での意味を確認できませんでした。" };
+            if (
+              !response.ok ||
+              !payload.ok ||
+              !(payload.contextualMeaning || payload.oppositeText) ||
+              !payload.partOfSpeech
+            ) {
+              return {
+                ...selection,
+                status: "error",
+                message:
+                  locale === "ja" && payload.message?.trim()
+                    ? payload.message
+                    : dictionary.meaningFailed,
+              };
             }
             const insight: BilingualWordInsight = {
-              ...selection, status: "ready",
+              ...selection,
+              status: "ready",
               expression: payload.expression || selection.text,
-              contextualMeaning: payload.contextualMeaning || payload.oppositeText,
+              contextualMeaning:
+                payload.contextualMeaning || payload.oppositeText,
               oppositeText: payload.oppositeText,
               partOfSpeech: payload.partOfSpeech,
               usageType: payload.usageType,
@@ -110,7 +144,11 @@ export function useBilingualWordExplanation({
             rememberInstantInsight(requestKey, insight);
             return insight;
           } catch {
-            return { ...selection, status: "error", message: "文中での意味を確認できませんでした。" };
+            return {
+              ...selection,
+              status: "error",
+              message: dictionary.meaningFailed,
+            };
           } finally {
             void refreshAiUsage();
           }
@@ -125,6 +163,8 @@ export function useBilingualWordExplanation({
     [
       contentId,
       contentType,
+      dictionary.meaningFailed,
+      locale,
       refreshAiUsage,
       sourceHash,
       sourceLanguage,
