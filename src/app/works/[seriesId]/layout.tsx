@@ -8,6 +8,11 @@ import {
   type SeriesContentWarning,
 } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
+import { getUiLocale } from "@/i18n/server";
+import {
+  readPageDictionaries,
+  type ReadPageDictionary,
+} from "@/i18n/dictionaries/readPage";
 
 type Props = {
   children: ReactNode;
@@ -21,19 +26,25 @@ type WorkSurfaceState = {
   viewerSignedIn: boolean;
 };
 
-function WarningBadges({ warnings }: { warnings: SeriesContentWarning[] }) {
+function WarningBadges({
+  warnings,
+  dictionary,
+}: {
+  warnings: SeriesContentWarning[];
+  dictionary: ReadPageDictionary;
+}) {
   if (warnings.length === 0) return null;
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-wrap gap-2 px-4 pt-4 sm:px-6 lg:px-8">
       {warnings.includes("sexual_r18") ? (
         <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
-          R18・性的コンテンツ
+          {dictionary.sexualR18Warning}
         </span>
       ) : null}
       {warnings.includes("violence") ? (
         <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
-          暴力描写あり
+          {dictionary.violenceWarning}
         </span>
       ) : null}
     </div>
@@ -78,6 +89,8 @@ async function loadWorkSurfaceState(
 }
 
 export default async function WorkLayout({ children, params }: Props) {
+  const locale = await getUiLocale();
+  const dictionary = readPageDictionaries[locale];
   const { seriesId } = await params;
   const surface = await loadWorkSurfaceState(seriesId);
 
@@ -86,6 +99,7 @@ export default async function WorkLayout({ children, params }: Props) {
       <R18ContentGate
         signedIn={surface.viewerSignedIn}
         returnHref={`/works/${encodeURIComponent(seriesId)}`}
+        locale={locale}
       />
     );
   }
@@ -103,7 +117,7 @@ export default async function WorkLayout({ children, params }: Props) {
         data-content-rating={surface.r18 ? "r18" : "general"}
         data-ad-eligible={surface.r18 ? "false" : undefined}
       >
-        <WarningBadges warnings={surface.warnings} />
+        <WarningBadges warnings={surface.warnings} dictionary={dictionary} />
         {body}
       </div>
     );
