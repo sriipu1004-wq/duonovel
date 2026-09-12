@@ -18,7 +18,7 @@ import {
   isEpisodeTranslationAllowlisted,
   isSeriesTranslationEligibleIncludingOfficial,
 } from "@/lib/translation/episodeTranslationServer";
-import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
+import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 
 type ReadEpisodeLayoutProps = {
   children: ReactNode;
@@ -195,9 +195,16 @@ export default async function ReadEpisodeLayout({
   }
 
   const attribution = resolveReadAttribution(payload.series);
-  const sourceLanguage = detectSourceLanguageFromText(
-    getEpisodeBody(payload.episode)
-  );
+  const episodeBody = getEpisodeBody(payload.episode);
+  const sourceLanguage = inferSeriesSourceLanguage(payload.series, episodeBody);
+
+  if (!sourceLanguage) {
+    return withContentWarningSurface(
+      withSettingsTopBridge(children),
+      payload.series
+    );
+  }
+
   const orderedEpisodes = [...payload.publicEpisodes].sort(
     (left, right) => getEpisodeNumber(left) - getEpisodeNumber(right)
   );
