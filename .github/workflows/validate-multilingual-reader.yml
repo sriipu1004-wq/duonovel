@@ -41,20 +41,28 @@ jobs:
       - name: ESLint changed application files
         shell: bash
         run: |
-          git fetch origin main --quiet
-          mapfile -t files < <(git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx')
-          printf 'Linting %s changed application files\n' "${#files[@]}"
-          if ((${#files[@]})); then
-            npx eslint "${files[@]}"
+          mapfile -t changed < <(
+            git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' \
+              | grep -v '^scripts/' \
+              | grep -v '^\.github/' \
+              || true
+          )
+          if ((${#changed[@]} == 0)); then
+            echo "No changed application JS/TS files."
+            exit 0
           fi
+          npx eslint "${changed[@]}"
 
       - name: Full repository ESLint diagnostic
+        id: full_lint
         continue-on-error: true
         shell: bash
         run: |
           set +e
           npm run lint 2>&1 | tee lint.log
-          exit ${PIPESTATUS[0]}
+          status=${PIPESTATUS[0]}
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
 
       - name: Upload ESLint log
         if: always()
@@ -65,12 +73,15 @@ jobs:
           if-no-files-found: ignore
 
       - name: Next.js build diagnostic
+        id: build
         continue-on-error: true
         shell: bash
         run: |
           set +e
           npm run build 2>&1 | tee build.log
-          exit ${PIPESTATUS[0]}
+          status=${PIPESTATUS[0]}
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
 
       - name: Upload build log
         if: always()
