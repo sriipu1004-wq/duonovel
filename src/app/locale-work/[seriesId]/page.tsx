@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import WorkPage from "../../works/[seriesId]/page";
+import WorkTranslationAvailability from "@/features/works/WorkTranslationAvailability";
 import { getUiLocale } from "@/i18n/server";
 import { workDictionaries } from "@/i18n/dictionaries/work";
 import { localizePath } from "@/i18n/navigation";
@@ -67,9 +68,12 @@ export async function generateMetadata({
 export default async function LocaleWorkPage(props: WorkPageProps) {
   const locale = await getUiLocale();
   if (locale === "ja") notFound();
+  const { seriesId } = await props.params;
 
-  // The localized route intentionally renders the canonical work page.
-  // This keeps tabs, reviews, narration, reactions, bookmarks, ads, and all
-  // future structural/behavioral fixes identical in every UI language.
-  return <WorkPage {...props} />;
+  return (
+    <>
+      <WorkTranslationAvailability seriesId={seriesId} />
+      <WorkPage {...props} />
+    </>
+  );
 }
