@@ -979,6 +979,8 @@ export default function GeneratedStoryReaderClient({
   const genreLabel =
     (generateDictionary.genres as Record<string, string>)[request.genre] ??
     request.genre;
+  const moodLabel =
+    request.mood === "指定なし" ? generateDictionary.none : request.mood;
 
   return (
     <main className="min-h-screen bg-white text-black">
@@ -1019,7 +1021,7 @@ export default function GeneratedStoryReaderClient({
                 {generatedDictionary.approxMinutes(story.estimatedReadingMinutes)}
               </span>
               <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
-                {sceneLabel} / {genreLabel} / {request.mood}
+                {sceneLabel} / {genreLabel} / {moodLabel}
               </span>
             </div>
 
