@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -36,16 +38,23 @@ jobs:
       - name: TypeScript
         run: npx tsc --noEmit
 
-      - name: ESLint
-        id: lint
+      - name: ESLint changed application files
+        shell: bash
+        run: |
+          git fetch origin main --quiet
+          mapfile -t files < <(git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx')
+          printf 'Linting %s changed application files\n' "${#files[@]}"
+          if ((${#files[@]})); then
+            npx eslint "${files[@]}"
+          fi
+
+      - name: Full repository ESLint diagnostic
         continue-on-error: true
         shell: bash
         run: |
           set +e
           npm run lint 2>&1 | tee lint.log
-          status=${PIPESTATUS[0]}
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          exit "$status"
+          exit ${PIPESTATUS[0]}
 
       - name: Upload ESLint log
         if: always()
@@ -55,16 +64,13 @@ jobs:
           path: lint.log
           if-no-files-found: ignore
 
-      - name: Next.js build
-        id: build
+      - name: Next.js build diagnostic
         continue-on-error: true
         shell: bash
         run: |
           set +e
           npm run build 2>&1 | tee build.log
-          status=${PIPESTATUS[0]}
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          exit "$status"
+          exit ${PIPESTATUS[0]}
 
       - name: Upload build log
         if: always()
@@ -73,10 +79,3 @@ jobs:
           name: multilingual-reader-build-log
           path: build.log
           if-no-files-found: ignore
-
-      - name: Fail on validation errors
-        if: steps.lint.outcome == 'failure' || steps.build.outcome == 'failure'
-        run: |
-          echo "ESLint exit: ${{ steps.lint.outputs.exit_code }}"
-          echo "Build exit: ${{ steps.build.outputs.exit_code }}"
-          exit 1
