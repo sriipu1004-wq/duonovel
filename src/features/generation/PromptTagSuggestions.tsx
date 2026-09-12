@@ -104,10 +104,10 @@ const PROMPT_TAG_LABELS: Record<UiLocale, Record<PromptTag, string>> = {
     恋愛要素: "로맨스 요소",
     怪異: "괴이",
     ハッピーエンド: "해피 엔딩",
-    救いのある結말: "구원이 있는 결말",
+    救いのある結末: "구원이 있는 결말",
     バッドエンド: "배드 엔딩",
     謎を残す: "수수께끼를 남김",
-  } as Record<PromptTag, string>,
+  },
 };
 
 const UI_COPY: Record<UiLocale, { aria: string; more: string; less: string }> = {
