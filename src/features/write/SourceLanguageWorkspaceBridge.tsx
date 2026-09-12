@@ -17,17 +17,19 @@ const SOURCE_LANGUAGE_OPTIONS = Object.keys(
 type Props = {
   seriesId?: string | null;
   initialLanguage?: SupportedLanguageTag | null;
+  confirmed?: boolean;
 };
 
 export default function SourceLanguageWorkspaceBridge({
   seriesId,
   initialLanguage = null,
+  confirmed = false,
 }: Props) {
   const [language, setLanguage] = useState<SupportedLanguageTag>(
     initialLanguage ?? "ja"
   );
   const [savedLanguage, setSavedLanguage] = useState<SupportedLanguageTag | null>(
-    initialLanguage
+    confirmed ? initialLanguage : null
   );
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -35,18 +37,29 @@ export default function SourceLanguageWorkspaceBridge({
   useEffect(() => {
     if (!initialLanguage) return;
     setLanguage(initialLanguage);
-    setSavedLanguage(initialLanguage);
-  }, [initialLanguage, seriesId]);
+    setSavedLanguage(confirmed ? initialLanguage : null);
+  }, [confirmed, initialLanguage, seriesId]);
+
+  useEffect(() => {
+    function handleApplied(event: Event) {
+      const detail = (event as CustomEvent<{ language?: unknown }>).detail;
+      const applied = parseSupportedLanguageTag(detail?.language);
+      if (!applied) return;
+      setLanguage(applied);
+      setSavedLanguage(applied);
+      setMessage("保存済み");
+    }
+
+    window.addEventListener("libread:source-language-applied", handleApplied);
+    return () =>
+      window.removeEventListener("libread:source-language-applied", handleApplied);
+  }, []);
 
   useEffect(() => {
     if (seriesId) return;
 
-    function rememberCreateSelection(event: MouseEvent) {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const button = target.closest<HTMLButtonElement>("button");
-      if (!button || !button.textContent?.includes("作品を作成して")) return;
-
+    function rememberCreateSelection(event: Event) {
+      if (!(event.target instanceof HTMLFormElement)) return;
       window.sessionStorage.setItem(
         PENDING_CREATE_SOURCE_LANGUAGE_KEY,
         JSON.stringify({
@@ -57,14 +70,15 @@ export default function SourceLanguageWorkspaceBridge({
       );
     }
 
-    document.addEventListener("click", rememberCreateSelection, true);
-    return () => document.removeEventListener("click", rememberCreateSelection, true);
+    document.addEventListener("submit", rememberCreateSelection, true);
+    return () => document.removeEventListener("submit", rememberCreateSelection, true);
   }, [language, seriesId]);
 
-  async function updateLanguage(nextLanguage: SupportedLanguageTag) {
+  async function persistLanguage(nextLanguage: SupportedLanguageTag) {
     setLanguage(nextLanguage);
     setMessage("");
-    if (!seriesId || nextLanguage === savedLanguage || saving) return;
+    if (!seriesId || saving) return;
+    if (nextLanguage === savedLanguage) return;
 
     setSaving(true);
     try {
@@ -108,24 +122,41 @@ export default function SourceLanguageWorkspaceBridge({
         <p className="mt-2 text-sm leading-7 text-neutral-600">
           UIの表示言語とは別です。この作品が最初に書かれた言語を指定します。
         </p>
-        <select
-          value={language}
-          disabled={saving}
-          onChange={(event) => {
-            const next = parseSupportedLanguageTag(event.target.value);
-            if (next) void updateLanguage(next);
-          }}
-          className="mt-4 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none transition focus:border-sky-300 disabled:opacity-60 sm:max-w-sm"
-        >
-          {SOURCE_LANGUAGE_OPTIONS.map((tag) => {
-            const item = LANGUAGE_REGISTRY[tag];
-            return (
-              <option key={tag} value={tag}>
-                {item.nativeLabel} / {item.label}
-              </option>
-            );
-          })}
-        </select>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <select
+            value={language}
+            disabled={saving}
+            onChange={(event) => {
+              const next = parseSupportedLanguageTag(event.target.value);
+              if (next) void persistLanguage(next);
+            }}
+            className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none transition focus:border-sky-300 disabled:opacity-60 sm:max-w-sm"
+          >
+            {SOURCE_LANGUAGE_OPTIONS.map((tag) => {
+              const item = LANGUAGE_REGISTRY[tag];
+              return (
+                <option key={tag} value={tag}>
+                  {item.nativeLabel} / {item.label}
+                </option>
+              );
+            })}
+          </select>
+          {seriesId && !savedLanguage ? (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void persistLanguage(language)}
+              className="rounded-full bg-black px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              この言語を原文言語として確定
+            </button>
+          ) : null}
+        </div>
+        {seriesId && !savedLanguage ? (
+          <p className="mt-3 text-xs leading-6 text-amber-700">
+            既存作品の推定値です。内容を確認して確定してください。
+          </p>
+        ) : null}
         {message ? (
           <p
             className={`mt-3 text-xs ${
