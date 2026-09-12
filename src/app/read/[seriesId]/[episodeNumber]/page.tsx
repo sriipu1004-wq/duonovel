@@ -25,6 +25,7 @@ import { buildReaderAuthorHref } from "@/lib/readerAuthorHref";
 import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 import { getUiLocale } from "@/i18n/server";
 import { localizePath } from "@/i18n/navigation";
+import { readPageDictionaries } from "@/i18n/dictionaries/readPage";
 import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 import { getSupportedLanguage } from "@/lib/translation/languageRegistry";
 
@@ -50,7 +51,6 @@ function parseRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value === "string" && value.trim()) {
     try {
       const parsed = JSON.parse(value);
-
       if (parsed && typeof parsed === "object") {
         return parsed as Record<string, unknown>;
       }
@@ -64,9 +64,7 @@ function parseRecord(value: unknown): Record<string, unknown> | null {
 
 function parseTagList(value: unknown): string[] {
   if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter(Boolean);
+    return value.map((item) => String(item).trim()).filter(Boolean);
   }
 
   if (typeof value === "string" && value.trim()) {
@@ -79,70 +77,62 @@ function parseTagList(value: unknown): string[] {
   return [];
 }
 
-function getAiGeneratedReadAttribution(value: unknown): {
-  authorName: string;
-  editorName: string;
-} | null {
-  if (!value || typeof value !== "object") {
+function isAiGeneratedSeries(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const series = value as Record<string, unknown>;
+  const tags = parseTagList(series.tags);
+  const settings = parseRecord(series.effect_settings ?? series.effectSettings);
+  return (
+    tags.includes("AI生成") ||
+    settings?.source === "time_fit_ai_story" ||
+    settings?.aiGenerated === true ||
+    settings?.authorName === "AI生成"
+  );
+}
+
+function getAiGeneratedReadAttribution(
+  value: unknown,
+  aiGeneratedLabel: string,
+  editorUnsetLabel: string
+): { authorName: string; editorName: string } | null {
+  if (!value || typeof value !== "object" || !isAiGeneratedSeries(value)) {
     return null;
   }
 
   const series = value as Record<string, unknown>;
-  const tags = parseTagList(series.tags);
-  const settings = parseRecord(
-    series.effect_settings ?? series.effectSettings
-  );
-
-  const isAiGenerated =
-    tags.includes("AI生成") ||
-    settings?.source === "time_fit_ai_story" ||
-    settings?.aiGenerated === true ||
-    settings?.authorName === "AI生成";
-
-  if (!isAiGenerated) {
-    return null;
-  }
+  const settings = parseRecord(series.effect_settings ?? series.effectSettings);
 
   return {
-    authorName: "AI生成",
+    authorName: aiGeneratedLabel,
     editorName:
-      pickText(settings?.editorName, settings?.editor_name) ||
-      "編集者未設定",
+      pickText(settings?.editorName, settings?.editor_name) || editorUnsetLabel,
   };
 }
 
 function getStoryFormat(value: unknown): "short" | "long" {
-  if (!value || typeof value !== "object") {
-    return "long";
-  }
+  if (!value || typeof value !== "object") return "long";
 
   const series = value as Record<string, unknown>;
-  const tags = parseTagList(series.tags);
-  const settings = parseRecord(
-    series.effect_settings ?? series.effectSettings
-  );
-
-  const isAiGenerated =
-    tags.includes("AI生成") ||
-    settings?.source === "time_fit_ai_story" ||
-    settings?.aiGenerated === true ||
-    settings?.authorName === "AI生成";
+  const settings = parseRecord(series.effect_settings ?? series.effectSettings);
 
   if (settings?.storyFormat === "short" || settings?.storyFormat === "long") {
     return settings.storyFormat;
   }
 
-  return isAiGenerated ? "short" : "long";
+  return isAiGeneratedSeries(value) ? "short" : "long";
 }
 
-function getRecordingReaderName(recording: RecordingRow): string {
+function getRecordingReaderName(
+  recording: RecordingRow,
+  fallback = "朗読者未設定"
+): string {
   return (
     pickText(
       recording.reader_name,
       recording.narrator_name,
       recording.display_name,
       recording.speaker_name
-    ) || "朗読者未設定"
+    ) || fallback
   );
 }
 
@@ -163,7 +153,6 @@ function getRecordingReaderKey(recording: RecordingRow): string {
 
 function isLegacyGeneratedRecording(recording: RecordingRow): boolean {
   const name = getRecordingReaderName(recording);
-
   return name.startsWith("Aivis ") || name.startsWith("VOICEVOX Nemo");
 }
 
@@ -172,17 +161,13 @@ function doesRecordingMatchRequestedReader(
   requestedReaderKey?: string,
   requestedReaderName?: string
 ): boolean {
-  if (!requestedReaderKey && !requestedReaderName) {
-    return false;
-  }
-
+  if (!requestedReaderKey && !requestedReaderName) return false;
   const readerKey = getRecordingReaderKey(recording);
   const readerName = getRecordingReaderName(recording);
-
   return Boolean(
     (requestedReaderKey &&
       (readerKey === requestedReaderKey || readerName === requestedReaderKey)) ||
-    (requestedReaderName && readerName === requestedReaderName)
+      (requestedReaderName && readerName === requestedReaderName)
   );
 }
 
@@ -193,10 +178,8 @@ function buildWorksHref(
 ): string {
   const query = new URLSearchParams();
   query.set("tab", "toc");
-
   if (readerKey) query.set("readerKey", readerKey);
   if (readerName) query.set("readerName", readerName);
-
   return `/works/${seriesId}?${query.toString()}`;
 }
 
@@ -207,23 +190,21 @@ function buildReadHref(
   readerName?: string
 ): string {
   const query = new URLSearchParams();
-
   if (readerKey) query.set("readerKey", readerKey);
   if (readerName) query.set("readerName", readerName);
-
   const queryString = query.toString();
-
-  return `/read/${seriesId}/${episodeNumber}${
-    queryString ? `?${queryString}` : ""
-  }`;
+  return `/read/${seriesId}/${episodeNumber}${queryString ? `?${queryString}` : ""}`;
 }
 
-async function getNormalAuthorName(series: SeriesRow): Promise<string> {
+async function getNormalAuthorName(
+  series: SeriesRow,
+  authorUnsetLabel: string
+): Promise<string> {
   const authorId =
     pickText(series.author_id, series["user_id"], series["userId"]) || "";
 
   if (!authorId) {
-    return pickText(series["author_name"]) || "作者名未設定";
+    return pickText(series["author_name"]) || authorUnsetLabel;
   }
 
   const adminSupabase = createAdminClient();
@@ -238,25 +219,21 @@ async function getNormalAuthorName(series: SeriesRow): Promise<string> {
       metadata?.name,
       metadata?.full_name
     );
-
-    if (displayName) {
-      return displayName;
-    }
+    if (displayName) return displayName;
   }
 
-  return pickText(series["author_name"]) || "作者名未設定";
+  return pickText(series["author_name"]) || authorUnsetLabel;
 }
 
 export async function generateMetadata({
   params,
 }: Pick<PageProps, "params">): Promise<Metadata> {
   const locale = await getUiLocale();
+  const readUi = readPageDictionaries[locale];
   const ui = {
     ja: {
       notFound: "公開話が見つかりません",
       publicEpisode: "公開話",
-      untitled: "無題",
-      episode: (value: number) => `第${value}話`,
       fallbackDescription: (seriesTitle: string, episodeTitle: string) =>
         `${seriesTitle}の${episodeTitle}を読む・聴く。`,
       author: "作者",
@@ -265,8 +242,6 @@ export async function generateMetadata({
     en: {
       notFound: "Public episode not found",
       publicEpisode: "Public episode",
-      untitled: "Untitled",
-      episode: (value: number) => `Episode ${value}`,
       fallbackDescription: (seriesTitle: string, episodeTitle: string) =>
         `Read and listen to ${episodeTitle} of ${seriesTitle}.`,
       author: "Author",
@@ -275,8 +250,6 @@ export async function generateMetadata({
     ko: {
       notFound: "공개 화를 찾을 수 없습니다",
       publicEpisode: "공개 화",
-      untitled: "제목 없음",
-      episode: (value: number) => `${value}화`,
       fallbackDescription: (seriesTitle: string, episodeTitle: string) =>
         `${seriesTitle}의 ${episodeTitle}를 읽고 들을 수 있습니다.`,
       author: "작가",
@@ -290,10 +263,7 @@ export async function generateMetadata({
   if (!parsedEpisodeNumber) {
     return {
       title: `${ui.notFound} | LIB read`,
-      robots: {
-        index: false,
-        follow: false,
-      },
+      robots: { index: false, follow: false },
     };
   }
 
@@ -306,25 +276,25 @@ export async function generateMetadata({
     if (!payload) {
       return {
         title: `${ui.notFound} | LIB read`,
-        robots: {
-          index: false,
-          follow: false,
-        },
+        robots: { index: false, follow: false },
       };
     }
 
     const { series, episode } = payload;
-    const currentEpisodeNumber =
-      getEpisodeNumber(episode) || parsedEpisodeNumber;
-    const seriesTitle = pickText(series.title) || ui.untitled;
+    const currentEpisodeNumber = getEpisodeNumber(episode) || parsedEpisodeNumber;
+    const seriesTitle = pickText(series.title) || readUi.untitled;
     const episodeTitle =
       pickText(episode.title, episode["episode_title"]) ||
-      ui.episode(currentEpisodeNumber);
+      readUi.episode(currentEpisodeNumber);
     const summary = getSeriesSummary(series).trim();
-    const aiGeneratedAttribution = getAiGeneratedReadAttribution(series);
+    const aiGeneratedAttribution = getAiGeneratedReadAttribution(
+      series,
+      readUi.aiGenerated,
+      readUi.editorUnset
+    );
     const authorLabel = aiGeneratedAttribution
-      ? "AI生成"
-      : await getNormalAuthorName(series);
+      ? aiGeneratedAttribution.authorName
+      : await getNormalAuthorName(series, readUi.authorUnset);
 
     const description = [
       summary || ui.fallbackDescription(seriesTitle, episodeTitle),
@@ -340,8 +310,7 @@ export async function generateMetadata({
       "/" +
       encodeURIComponent(String(currentEpisodeNumber));
     const canonicalPath = localizePath(baseCanonicalPath, locale);
-    const metadataTitle =
-      seriesTitle + " " + episodeTitle + " | LIB read";
+    const metadataTitle = `${seriesTitle} ${episodeTitle} | LIB read`;
 
     return {
       title: metadataTitle,
@@ -355,10 +324,7 @@ export async function generateMetadata({
           "x-default": localizePath(baseCanonicalPath, "ja"),
         },
       },
-      robots: {
-        index: true,
-        follow: true,
-      },
+      robots: { index: true, follow: true },
       openGraph: {
         type: "article",
         locale: ui.ogLocale,
@@ -378,10 +344,7 @@ export async function generateMetadata({
   } catch {
     return {
       title: `${ui.publicEpisode} | LIB read`,
-      robots: {
-        index: false,
-        follow: false,
-      },
+      robots: { index: false, follow: false },
     };
   }
 }
@@ -390,22 +353,19 @@ export default async function ReadEpisodePage({
   params,
   searchParams,
 }: PageProps) {
+  const locale = await getUiLocale();
+  const ui = readPageDictionaries[locale];
   const { seriesId, episodeNumber } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const parsedEpisodeNumber = parseEpisodeNumber(episodeNumber);
 
-  if (!parsedEpisodeNumber) {
-    notFound();
-  }
+  if (!parsedEpisodeNumber) notFound();
 
   const payload = await getCachedPublicReadPagePayload(
     seriesId,
     parsedEpisodeNumber
   );
-
-  if (!payload) {
-    notFound();
-  }
+  if (!payload) notFound();
 
   const { series, episode, publicEpisodes, isOwner, viewerUserId } = payload;
   const subscriber = viewerUserId ? await isSubscriber(viewerUserId) : false;
@@ -416,7 +376,7 @@ export default async function ReadEpisodePage({
     .map((recording) => {
       const recordingId = recording.id;
       const readerKey = getRecordingReaderKey(recording);
-      const readerName = getRecordingReaderName(recording);
+      const readerName = getRecordingReaderName(recording, ui.readerUnset);
       const audioStoragePath = pickText(
         recording.audio_storage_path,
         recording.audioStoragePath
@@ -427,7 +387,10 @@ export default async function ReadEpisodePage({
         readerKey,
         readerName,
         audioStoragePath,
-        readerAuthorHref: buildReaderAuthorHref(readerKey, readerName),
+        readerAuthorHref: localizePath(
+          buildReaderAuthorHref(readerKey, readerName),
+          locale
+        ),
       };
     })
     .filter((option) => option.audioStoragePath.length > 0);
@@ -450,7 +413,7 @@ export default async function ReadEpisodePage({
     ? getRecordingReaderKey(selectedRecording)
     : requestedReaderKey;
   const selectedReaderName = selectedRecording
-    ? getRecordingReaderName(selectedRecording)
+    ? getRecordingReaderName(selectedRecording, ui.readerUnset)
     : requestedReaderName;
   const humanAudioStoragePath = pickText(
     selectedRecording?.audio_storage_path,
@@ -474,58 +437,76 @@ export default async function ReadEpisodePage({
     getSeriesPublicationStatus(series) === "public" &&
     isEpisodePubliclyVisible(episode);
   const storySummary = getSeriesSummary(series);
-  const seriesTitle = pickText(series.title) || "無題";
+  const seriesTitle = pickText(series.title) || ui.untitled;
   const episodeTitle =
     pickText(episode.title, episode["episode_title"]) ||
-    `第${currentEpisodeNumber}話`;
+    ui.episode(currentEpisodeNumber);
   const episodeBody = getEpisodeBody(episode);
-  const body = episodeBody || "本文がまだ登録されていません。";
+  const body = episodeBody || ui.bodyMissing;
   const sourceLanguage = inferSeriesSourceLanguage(series, episodeBody);
   const speechLanguage = sourceLanguage
     ? getSupportedLanguage(sourceLanguage).speechLanguage
     : "ja-JP";
 
-  const aiGeneratedAttribution = getAiGeneratedReadAttribution(series);
+  const aiGeneratedAttribution = getAiGeneratedReadAttribution(
+    series,
+    ui.aiGenerated,
+    ui.editorUnset
+  );
   const workAuthorName = aiGeneratedAttribution
     ? aiGeneratedAttribution.authorName
-    : await getNormalAuthorName(series);
+    : await getNormalAuthorName(series, ui.authorUnset);
   const workEditorName = aiGeneratedAttribution?.editorName ?? "";
 
   const prevEpisodeHref =
     prevEpisodeNumber !== null
-      ? buildReadHref(
-          seriesId,
-          prevEpisodeNumber,
-          selectedReaderKey,
-          selectedReaderName
+      ? localizePath(
+          buildReadHref(
+            seriesId,
+            prevEpisodeNumber,
+            selectedReaderKey,
+            selectedReaderName
+          ),
+          locale
         )
       : null;
   const nextEpisodeHref =
     nextEpisodeNumber !== null
-      ? buildReadHref(
-          seriesId,
-          nextEpisodeNumber,
-          selectedReaderKey,
-          selectedReaderName
+      ? localizePath(
+          buildReadHref(
+            seriesId,
+            nextEpisodeNumber,
+            selectedReaderKey,
+            selectedReaderName
+          ),
+          locale
         )
       : null;
   const workIndexHref = isShortStory
     ? null
-    : buildWorksHref(
-        seriesId,
-        selectedReaderKey,
-        selectedReaderName
+    : localizePath(
+        buildWorksHref(seriesId, selectedReaderKey, selectedReaderName),
+        locale
       );
-  const currentReadHref = buildReadHref(
-    seriesId,
-    currentEpisodeNumber,
-    selectedReaderKey,
-    selectedReaderName
+  const currentReadHref = localizePath(
+    buildReadHref(
+      seriesId,
+      currentEpisodeNumber,
+      selectedReaderKey,
+      selectedReaderName
+    ),
+    locale
   );
-  const loginHref = `/login?next=${encodeURIComponent(currentReadHref)}`;
+  const loginHref = localizePath(
+    `/login?next=${encodeURIComponent(currentReadHref)}`,
+    locale
+  );
   const readerAuthorHref =
     selectedReaderKey || selectedReaderName
-      ? buildReaderAuthorHref(selectedReaderKey, selectedReaderName)
+      ? localizePath(
+          buildReaderAuthorHref(selectedReaderKey, selectedReaderName),
+          locale
+        )
       : undefined;
 
   const effectSettings = mergeEffectSettings(
@@ -567,9 +548,7 @@ export default async function ReadEpisodePage({
       initialAutoPlay={resolvedSearchParams?.autoplay === "1"}
       isSubscriber={subscriber}
       loginHref={loginHref}
-      showComments={
-        isPublicReadPage && isSeriesEpisodeCommentVisible(series)
-      }
+      showComments={isPublicReadPage && isSeriesEpisodeCommentVisible(series)}
       effectSettings={effectSettings}
       speechLanguage={speechLanguage}
       ownerActions={
@@ -577,10 +556,7 @@ export default async function ReadEpisodePage({
         aiGeneratedAttribution &&
         nextEpisodeNumber === null &&
         episodeBody.trim() ? (
-          <ContinueStoryAction
-            seriesId={seriesId}
-            isShortStory={isShortStory}
-          />
+          <ContinueStoryAction seriesId={seriesId} isShortStory={isShortStory} />
         ) : null
       }
     />
