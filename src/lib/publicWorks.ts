@@ -27,6 +27,10 @@ import {
   parseContentLanguageList,
   type ContentLanguage,
 } from "@/i18n/contentLanguage";
+import {
+  readCanonicalSeriesSourceLanguage,
+  sourceLanguageToContentLanguage,
+} from "@/lib/translation/seriesSourceLanguage";
 
 export type PublicBaseWorkCard = {
   seriesId: string;
@@ -244,6 +248,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
       const contentRating = getSeriesContentRating(series);
       const title = pickText(series.title) || "無題";
       const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
+      const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
 
       return {
         seriesId: series.id,
@@ -258,7 +263,9 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         earliestPublicAtValue: firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
         createdAtValue,
         contentRating,
-        contentLanguage: detectContentLanguage(title, summary),
+        contentLanguage: canonicalSourceLanguage
+          ? sourceLanguageToContentLanguage(canonicalSourceLanguage)
+          : detectContentLanguage(title, summary),
         isShortStory: isShortStorySeriesForSitemap(series),
         publicEpisodeNumbers: publicEpisodes
           .map((episode) => getEpisodeNumber(episode))
@@ -276,7 +283,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
   buildPublicBaseWorkCards,
-  ["public-base-work-cards-v3-content-language"],
+  ["public-base-work-cards-v4-canonical-source-language"],
   { revalidate: 60 }
 );
 
@@ -357,7 +364,7 @@ const PUBLIC_WORK_SERIES_SELECT = `
   created_at,
   effect_settings,
   content_rating,
-
+  source_language,
   tags,
   tag_list,
   genres,
