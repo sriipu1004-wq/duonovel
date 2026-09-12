@@ -14,6 +14,13 @@ type Props = {
   params: Promise<{ seriesId: string }>;
 };
 
+type WorkSurfaceState = {
+  warnings: SeriesContentWarning[];
+  r18: boolean;
+  r18Blocked: boolean;
+  viewerSignedIn: boolean;
+};
+
 function WarningBadges({ warnings }: { warnings: SeriesContentWarning[] }) {
   if (warnings.length === 0) return null;
 
@@ -33,9 +40,9 @@ function WarningBadges({ warnings }: { warnings: SeriesContentWarning[] }) {
   );
 }
 
-export default async function WorkLayout({ children, params }: Props) {
-  const { seriesId } = await params;
-
+async function loadWorkSurfaceState(
+  seriesId: string
+): Promise<WorkSurfaceState | null> {
   try {
     const admin = createAdminClient();
     const result = await admin
@@ -44,52 +51,63 @@ export default async function WorkLayout({ children, params }: Props) {
       .eq("id", seriesId)
       .maybeSingle();
 
-    if (!result.error && result.data) {
-      const warnings = getSeriesContentWarnings(result.data);
-      const r18 = isR18Series(result.data);
+    if (result.error || !result.data) return null;
 
-      if (r18) {
-        const preference = await getCurrentR18ViewerPreference();
-
-        if (!preference.showR18Content) {
-          return (
-            <R18ContentGate
-              signedIn={preference.signedIn}
-              returnHref={`/works/${encodeURIComponent(seriesId)}`}
-            />
-          );
-        }
-      }
-
-      const body = (
-        <>
-          <WorkTranslationAvailability seriesId={seriesId} />
-          {children}
-        </>
-      );
-
-      if (warnings.length > 0) {
-        return (
-          <div
-            data-content-rating={r18 ? "r18" : "general"}
-            data-ad-eligible={r18 ? "false" : undefined}
-          >
-            <WarningBadges warnings={warnings} />
-            {body}
-          </div>
-        );
-      }
-
-      return body;
+    const warnings = getSeriesContentWarnings(result.data);
+    const r18 = isR18Series(result.data);
+    if (!r18) {
+      return {
+        warnings,
+        r18,
+        r18Blocked: false,
+        viewerSignedIn: false,
+      };
     }
+
+    const preference = await getCurrentR18ViewerPreference();
+    return {
+      warnings,
+      r18,
+      r18Blocked: !preference.showR18Content,
+      viewerSignedIn: preference.signedIn,
+    };
   } catch {
     // Existing not-found/error behavior remains owned by the page.
+    return null;
+  }
+}
+
+export default async function WorkLayout({ children, params }: Props) {
+  const { seriesId } = await params;
+  const surface = await loadWorkSurfaceState(seriesId);
+
+  if (surface?.r18Blocked) {
+    return (
+      <R18ContentGate
+        signedIn={surface.viewerSignedIn}
+        returnHref={`/works/${encodeURIComponent(seriesId)}`}
+      />
+    );
   }
 
-  return (
+  const body = (
     <>
       <WorkTranslationAvailability seriesId={seriesId} />
       {children}
     </>
   );
+
+  if (surface && surface.warnings.length > 0) {
+    return (
+      <div
+        data-content-rating={surface.r18 ? "r18" : "general"}
+        data-ad-eligible={surface.r18 ? "false" : undefined}
+      >
+        <WarningBadges warnings={surface.warnings} />
+        {body}
+      </div>
+    );
+  }
+
+  return body;
 }
