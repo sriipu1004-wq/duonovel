@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import R18ContentGate from "@/components/content/R18ContentGate";
+import WorkTranslationAvailability from "@/features/works/WorkTranslationAvailability";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getSeriesContentWarnings,
@@ -60,6 +61,13 @@ export default async function WorkLayout({ children, params }: Props) {
         }
       }
 
+      const body = (
+        <>
+          <WorkTranslationAvailability seriesId={seriesId} />
+          {children}
+        </>
+      );
+
       if (warnings.length > 0) {
         return (
           <div
@@ -67,14 +75,21 @@ export default async function WorkLayout({ children, params }: Props) {
             data-ad-eligible={r18 ? "false" : undefined}
           >
             <WarningBadges warnings={warnings} />
-            {children}
+            {body}
           </div>
         );
       }
+
+      return body;
     }
   } catch {
     // Existing not-found/error behavior remains owned by the page.
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <WorkTranslationAvailability seriesId={seriesId} />
+      {children}
+    </>
+  );
 }
