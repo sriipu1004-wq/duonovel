@@ -233,11 +233,19 @@ begin
     raise exception 'Invalid idempotency key' using errcode = '22023';
   end if;
 
-  -- Serialize all unlock attempts for the same user/episode/language, even when
-  -- retries arrive with different idempotency keys.
+  -- Every balance-consuming operation must serialize on the user-level credit
+  -- namespace before reading SUM(amount). This prevents two simultaneous unlocks
+  -- for different episodes from both spending the same last credit.
+  perform pg_advisory_xact_lock(
+    hashtextextended('credit-balance:' || p_user_id::text, 0)
+  );
+
+  -- Keep an entitlement-specific lock as a second line of defense for duplicate
+  -- taps/retries. The lock order is always user balance first, entitlement second.
   perform pg_advisory_xact_lock(
     hashtextextended(
-      p_user_id::text || ':' || p_episode_id::text || ':' || lower(v_target_language),
+      'translation-unlock:' || p_user_id::text || ':' || p_episode_id::text || ':' ||
+        lower(v_target_language),
       0
     )
   );
@@ -255,7 +263,7 @@ begin
   from public.credit_ledger as ledger
   where ledger.user_id = p_user_id;
 
-  if found and v_unlock.id is not null then
+  if v_unlock.id is not null then
     select ledger.id
     into v_ledger_id
     from public.credit_ledger as ledger
