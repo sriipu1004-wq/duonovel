@@ -28,6 +28,7 @@ jobs:
           from pathlib import Path
           p = Path('scripts/child60_polish_patch.py')
           s = p.read_text()
+
           old = '''text = read(path)
           if text.count(old_publish) != 2:
               raise SystemExit(f"expected 2 publish translation blocks, got {text.count(old_publish)}")
@@ -53,9 +54,36 @@ jobs:
           if not stripped.endswith(ending):
               raise SystemExit("translation footer ending not found")
           write(path, stripped[:-len(ending)] + '      </div>\\n      </div>\\n    </section>\\n  );\\n}\\n')'''
-          if old_footer not in s:
-              raise SystemExit('translation footer patch guard not found')
-          p.write_text(s.replace(old_footer, new_footer))
+          if old_footer in s:
+              s = s.replace(old_footer, new_footer)
+
+          # Ref callbacks must return void.
+          s = s.replace(
+              'ref={(node) => segmentRefs.current.set(segment.id, node)}',
+              'ref={(node) => { segmentRefs.current.set(segment.id, node); }}'
+          )
+
+          # Continue-story prompt tags use structured canonical values too, so an
+          # English/Korean localized tag never gets written into the textarea.
+          s += r'''
+
+# Continue story structured prompt tags.
+path = "src/features/generation/ContinueStoryAction.tsx"
+repl(path, 'import { getPromptTagsInText } from "@/lib/generation/promptTags";', 'import type { PromptTag } from "@/lib/generation/promptTags";')
+repl(path, '  const [continuationRequest, setContinuationRequest] = useState("");', '  const [continuationRequest, setContinuationRequest] = useState("");\n  const [promptTags, setPromptTags] = useState<PromptTag[]>([]);')
+repl(path, '      const promptTags = getPromptTagsInText(normalizedRequest);\n', '')
+repl(path, '''            <PromptTagSuggestions
+              value={continuationRequest}
+              onChange={setContinuationRequest}
+              maxLength={CONTINUATION_REQUEST_MAX_LENGTH}
+              disabled={isGenerating}
+            />''', '''            <PromptTagSuggestions
+              selectedTags={promptTags}
+              onSelectedTagsChange={setPromptTags}
+              disabled={isGenerating}
+            />''')
+'''
+          p.write_text(s)
           PY
       - name: Apply patch
         run: python scripts/child60_polish_patch.py
@@ -80,6 +108,7 @@ jobs:
           src/features/playback/WebSpeechEpisodePlayback.tsx
           src/features/playback/BilingualPane.tsx
           src/features/generation/PromptTagSuggestions.tsx
+          src/features/generation/ContinueStoryAction.tsx
           src/i18n/dictionaries/reader.ts
           src/i18n/dictionaries/generate.ts
           src/lib/playback/translationReaderPreference.ts
