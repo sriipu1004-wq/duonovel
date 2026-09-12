@@ -42,6 +42,23 @@ type TranslationRow = {
   status: string;
 };
 
+async function fetchSeriesEpisodes(
+  admin: ReturnType<typeof createAdminClient>,
+  seriesId: string
+): Promise<EpisodeRow[]> {
+  const firstTry = await admin
+    .from("episodes")
+    .select("*")
+    .eq("series_id", seriesId);
+  if (!firstTry.error) return (firstTry.data ?? []) as EpisodeRow[];
+
+  const secondTry = await admin
+    .from("episodes")
+    .select("*")
+    .eq("seriesId", seriesId);
+  return secondTry.error ? [] : ((secondTry.data ?? []) as EpisodeRow[]);
+}
+
 export async function getPublicWorkTranslationOverview(
   seriesId: string
 ): Promise<PublicWorkTranslationOverview | null> {
@@ -59,13 +76,7 @@ export async function getPublicWorkTranslationOverview(
   const series = seriesResult.data as SeriesRow;
   if (getSeriesPublicationStatus(series) !== "public") return null;
 
-  const firstEpisodeResult = await admin
-    .from("episodes")
-    .select("*")
-    .or(`series_id.eq.${cleanSeriesId},seriesId.eq.${cleanSeriesId}`);
-  if (firstEpisodeResult.error) return null;
-
-  const episodes = ((firstEpisodeResult.data ?? []) as EpisodeRow[])
+  const episodes = (await fetchSeriesEpisodes(admin, cleanSeriesId))
     .filter(isEpisodePubliclyVisible)
     .sort((left, right) => getEpisodeNumber(left) - getEpisodeNumber(right));
   if (episodes.length === 0) return null;
