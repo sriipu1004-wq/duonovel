@@ -39,6 +39,7 @@ type TranslationStatusResponse = {
   ok: boolean;
   status?: Exclude<TranslationStatus, "loading" | "error">;
   canGenerate?: boolean;
+  canAutoGenerate?: boolean;
   sourceHash?: string;
   segments?: BilingualSegment[];
   message?: string;
@@ -92,6 +93,7 @@ export default function TranslationOnlyEpisodePlayback({
     useState<TranslationStatus>("loading");
   const [segments, setSegments] = useState<BilingualSegment[]>([]);
   const [canGenerate, setCanGenerate] = useState(false);
+  const [canAutoGenerate, setCanAutoGenerate] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
@@ -117,11 +119,13 @@ export default function TranslationOnlyEpisodePlayback({
       const payload = (await response.json()) as TranslationStatusResponse;
       if (targetLanguageRef.current !== targetLanguage) return;
       if (!response.ok || !payload.ok) {
+        setCanAutoGenerate(false);
         setTranslationStatus("error");
         setStatusMessage(payload.message || dictionary.translationLoadFailed);
         return;
       }
       setCanGenerate(payload.canGenerate === true);
+      setCanAutoGenerate(payload.canAutoGenerate === true);
       const nextStatus = payload.status ?? "missing";
       if (nextStatus === "ready" && Array.isArray(payload.segments)) {
         setTranslationStatus("ready");
@@ -136,6 +140,7 @@ export default function TranslationOnlyEpisodePlayback({
       setStatusMessage(payload.message || "");
     } catch {
       if (targetLanguageRef.current !== targetLanguage) return;
+      setCanAutoGenerate(false);
       setTranslationStatus("error");
       setStatusMessage(dictionary.translationLoadFailed);
     }
@@ -203,6 +208,7 @@ export default function TranslationOnlyEpisodePlayback({
 
   useEffect(() => {
     setTranslationStatus("loading");
+    setCanAutoGenerate(false);
     setSegments([]);
     setSelectedSegmentId(null);
     setHoveredSegmentId(null);
@@ -222,6 +228,7 @@ export default function TranslationOnlyEpisodePlayback({
       !autoGenerateMissingTranslation ||
       !["missing", "stale", "failed"].includes(translationStatus) ||
       !canGenerate ||
+      !canAutoGenerate ||
       autoGenerationAttemptRef.current === attemptKey
     ) {
       return;
@@ -230,6 +237,7 @@ export default function TranslationOnlyEpisodePlayback({
     void requestTranslationGeneration();
   }, [
     autoGenerateMissingTranslation,
+    canAutoGenerate,
     canGenerate,
     episodeId,
     requestTranslationGeneration,
