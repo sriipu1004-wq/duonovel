@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { stripUiLocalePrefix } from "@/i18n/config";
 import {
   LANGUAGE_REGISTRY,
   parseSupportedLanguageTag,
@@ -123,7 +124,7 @@ export default function SourceLanguageWorkspaceBridge({
         JSON.stringify({
           language,
           startedAt: Date.now(),
-          sourcePath: window.location.pathname,
+          sourcePath: stripUiLocalePrefix(window.location.pathname),
         })
       );
     }
