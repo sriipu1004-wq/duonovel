@@ -227,12 +227,13 @@ export default function TranslationOnlyFooter({
   }
 
   return (
-    <section className="mt-5 border-t border-black/10 bg-white pt-3">
+    <section className="fixed inset-x-0 bottom-0 z-50 border-t border-black/10 bg-white/95 backdrop-blur">
+      <div className="mx-auto max-w-3xl px-4 py-3 sm:px-6">
       {settingsOpen ? (
-        <div className="mb-3 grid gap-3 rounded-[24px] border border-black/10 bg-neutral-50 p-4 sm:grid-cols-2">
+        <div className="mb-3 grid max-h-[62vh] gap-3 overflow-y-auto rounded-[24px] border border-black/10 bg-neutral-50 p-4 sm:grid-cols-2">
           <label className="rounded-2xl border border-black/10 bg-white p-4 text-sm">
             <span className="flex justify-between gap-3">
-              <span>Font</span>
+              <span>{dictionary.fontSize}</span>
               <span>{displaySettings.fontScale.toFixed(2)}×</span>
             </span>
             <input
@@ -251,7 +252,7 @@ export default function TranslationOnlyFooter({
             />
           </label>
           <div className="rounded-2xl border border-black/10 bg-white p-4 text-sm">
-            <p>Line height</p>
+            <p>{dictionary.lineHeight}</p>
             <div className="mt-3 flex gap-2">
               {(["compact", "normal", "wide"] as const).map((value) => (
                 <button
@@ -267,14 +268,18 @@ export default function TranslationOnlyFooter({
                       : "border-black/10 bg-white",
                   ].join(" ")}
                 >
-                  {value}
+                  {value === "compact"
+                    ? dictionary.compact
+                    : value === "wide"
+                      ? dictionary.wide
+                      : dictionary.normal}
                 </button>
               ))}
             </div>
           </div>
           <label className="rounded-2xl border border-black/10 bg-white p-4 text-sm">
             <span className="flex justify-between gap-3">
-              <span>Voice</span>
+              <span>{dictionary.voice}</span>
               <span>{narrationLanguage}</span>
             </span>
             <select
@@ -284,7 +289,7 @@ export default function TranslationOnlyFooter({
               }
               className="mt-3 w-full rounded-xl border border-black/10 bg-white px-3 py-2"
             >
-              <option value="">Default</option>
+              <option value="">{dictionary.defaultVoice}</option>
               {voices.map((voice) => (
                 <option key={voice.voiceURI} value={voice.voiceURI}>
                   {voice.name} / {voice.lang}
@@ -361,6 +366,7 @@ export default function TranslationOnlyFooter({
           active={settingsOpen}
           onClick={() => setSettingsOpen((current) => !current)}
         />
+      </div>
       </div>
     </section>
   );

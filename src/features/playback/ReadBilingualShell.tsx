@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import BilingualActionBridge from "@/features/playback/BilingualActionBridge";
 import BilingualEpisodePlayback from "@/features/playback/BilingualEpisodePlayback";
+import BilingualSettingsBridge from "@/features/playback/BilingualSettingsBridge";
 import BilingualLanguagePickerDialog, {
   type BilingualTranslationAvailability,
 } from "@/features/playback/BilingualLanguagePickerDialog";
@@ -26,10 +26,14 @@ import {
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import {
-  readBilingualSessionPreference,
   writeBilingualSessionPreference,
 } from "@/lib/translation/bilingualSessionPreference";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import {
+  TRANSLATION_READER_VISIBILITY_EVENT,
+  readTranslationReaderVisible,
+  writeTranslationReaderVisible,
+} from "@/lib/playback/translationReaderPreference";
 
 type ReadBilingualShellProps = {
   children: ReactNode;
@@ -77,6 +81,7 @@ export default function ReadBilingualShell({
   const uiLocale = useUiLocale();
   const { snapshot: aiUsage } = useAiUsage();
   const [mode, setMode] = useState<ReadingMode>("standard");
+  const [translationUiVisible, setTranslationUiVisible] = useState(true);
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
   const [translationAvailability, setTranslationAvailability] =
     useState<BilingualTranslationAvailability>("checking");
@@ -187,13 +192,19 @@ export default function ReadBilingualShell({
     );
   }
 
+  function setTranslationFeaturesVisible(visible: boolean) {
+    writeTranslationReaderVisible(visible);
+    setTranslationUiVisible(visible);
+    if (!visible && mode !== "standard") disableTranslated(resumeSegmentIndex ?? 0);
+  }
+
   function openTranslatedMode(
     nextMode: "bilingual" | "translation",
     nextTargetLanguage = targetLanguage,
     autoGenerate = true,
     lockLanguage = sessionLanguageLocked
   ) {
-    if (!translationEligible || nextTargetLanguage === sourceLanguage) return;
+    if (!translationEligible || !translationUiVisible || nextTargetLanguage === sourceLanguage) return;
     stopOriginalPlayback();
     setTargetLanguage(nextTargetLanguage);
     setAutoGenerateMissingTranslation(autoGenerate);
@@ -208,27 +219,6 @@ export default function ReadBilingualShell({
     setMode(nextMode);
   }
 
-  function enableBilingual() {
-    if (!translationEligible) return;
-    const sessionPreference = hasMultipleEpisodes
-      ? readBilingualSessionPreference("series", seriesId, sourceLanguage)
-      : null;
-    if (
-      sessionPreference &&
-      isPublicTranslationTargetLanguage(sessionPreference.targetLanguage) &&
-      sessionPreference.targetLanguage !== sourceLanguage
-    ) {
-      setTargetLanguage(sessionPreference.targetLanguage);
-      setSessionLanguageLocked(true);
-      setAutoGenerateMissingTranslation(true);
-      openTranslatedMode("bilingual", sessionPreference.targetLanguage, true, true);
-      return;
-    }
-
-    setRememberForTab(false);
-    setIsLanguagePickerOpen(true);
-    void checkTranslationAvailability(targetLanguage);
-  }
 
   function confirmBilingual() {
     if (rememberForTab && hasMultipleEpisodes) {
@@ -256,9 +246,25 @@ export default function ReadBilingualShell({
       disableTranslated(resumeSegmentIndex ?? 0);
       return;
     }
-    if (!translationEligible) return;
+    if (!translationEligible || !translationUiVisible) return;
     openTranslatedMode(nextMode, targetLanguage, true, sessionLanguageLocked);
   }
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setTranslationUiVisible(readTranslationReaderVisible());
+    });
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ visible?: unknown }>).detail;
+      if (typeof detail?.visible !== "boolean") return;
+      setTranslationUiVisible(detail.visible);
+    };
+    window.addEventListener(TRANSLATION_READER_VISIBILITY_EVENT, handler);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener(TRANSLATION_READER_VISIBILITY_EVENT, handler);
+    };
+  }, []);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -293,6 +299,10 @@ export default function ReadBilingualShell({
 
   useEffect(() => {
     if (!translationEligible || typeof window === "undefined") return;
+    if (!translationUiVisible) {
+      replaceReaderUrl("standard");
+      return;
+    }
 
     const params = new URLSearchParams(window.location.search);
     const remembered =
@@ -354,16 +364,18 @@ export default function ReadBilingualShell({
       setMode(requestedMode);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [episodeId, episodeNumber, seriesId, sourceLanguage, translationEligible]);
+  }, [episodeId, episodeNumber, seriesId, sourceLanguage, translationEligible, translationUiVisible]);
 
   if (mode === "bilingual") {
     return (
       <>
-        <ReaderModeSelector
-          mode={mode}
-          translationEnabled={translationEligible}
-          onChange={handleModeChange}
-        />
+        {translationUiVisible ? (
+          <ReaderModeSelector
+            mode={mode}
+            translationEnabled={translationEligible}
+            onChange={handleModeChange}
+          />
+        ) : null}
         <BilingualEpisodePlayback
           seriesId={seriesId}
           episodeId={episodeId}
@@ -388,11 +400,13 @@ export default function ReadBilingualShell({
   if (mode === "translation") {
     return (
       <>
-        <ReaderModeSelector
-          mode={mode}
-          translationEnabled={translationEligible}
-          onChange={handleModeChange}
-        />
+        {translationUiVisible ? (
+          <ReaderModeSelector
+            mode={mode}
+            translationEnabled={translationEligible}
+            onChange={handleModeChange}
+          />
+        ) : null}
         <TranslationOnlyEpisodePlayback
           seriesId={seriesId}
           episodeId={episodeId}
@@ -415,12 +429,14 @@ export default function ReadBilingualShell({
 
   return (
     <>
-      <ReaderModeSelector
-        mode={mode}
-        translationEnabled={translationEligible}
-        onChange={handleModeChange}
-      />
-      {translationEligible ? (
+      {translationUiVisible ? (
+        <ReaderModeSelector
+          mode={mode}
+          translationEnabled={translationEligible}
+          onChange={handleModeChange}
+        />
+      ) : null}
+      {translationEligible && translationUiVisible ? (
         <div className="mx-auto flex w-full max-w-4xl justify-end px-3 pt-2 sm:px-6">
           <TranslationLanguageSelect
             value={targetLanguage}
@@ -430,9 +446,10 @@ export default function ReadBilingualShell({
         </div>
       ) : null}
       {children}
-      <BilingualActionBridge
-        enabled={translationEligible}
-        onEnable={enableBilingual}
+      <BilingualSettingsBridge
+        available={translationEligible}
+        visible={translationUiVisible}
+        onVisibleChange={setTranslationFeaturesVisible}
       />
       <BilingualResumeBridge
         segmentIndex={resumeSegmentIndex}

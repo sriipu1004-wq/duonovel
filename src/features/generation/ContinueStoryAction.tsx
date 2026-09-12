@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import PromptTagSuggestions from "@/features/generation/PromptTagSuggestions";
-import { getPromptTagsInText } from "@/lib/generation/promptTags";
+import type { PromptTag } from "@/lib/generation/promptTags";
 import { useAiUsage } from "@/features/usage/useAiUsage";
 import SubscriptionUpgradePrompt from "@/features/billing/SubscriptionUpgradePrompt";
 import {
@@ -36,6 +36,7 @@ export default function ContinueStoryAction({
   const [isOpen, setIsOpen] = useState(false);
   const [requestedMinutes, setRequestedMinutes] = useState<TimeMinutes>(10);
   const [continuationRequest, setContinuationRequest] = useState("");
+  const [promptTags, setPromptTags] = useState<PromptTag[]>([]);
   const [isConfirmingConversion, setIsConfirmingConversion] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -56,7 +57,6 @@ export default function ContinueStoryAction({
     setSuccessMessage("");
 
     try {
-      const promptTags = getPromptTagsInText(normalizedRequest);
       const response = await fetch("/api/time-fit-stories/continue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -172,9 +172,8 @@ export default function ContinueStoryAction({
               登場人物、展開、視点、雰囲気、次に起きてほしいことなどを自由に入力できます。
             </span>
             <PromptTagSuggestions
-              value={continuationRequest}
-              onChange={setContinuationRequest}
-              maxLength={CONTINUATION_REQUEST_MAX_LENGTH}
+              selectedTags={promptTags}
+              onSelectedTagsChange={setPromptTags}
               disabled={isGenerating}
             />
             <textarea

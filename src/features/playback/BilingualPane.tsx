@@ -12,6 +12,8 @@ import {
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import type { StoredWebSpeechDisplaySettings } from "@/lib/playback/webSpeechPreferences";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
 
 export type BilingualSegment = {
   id: string;
@@ -135,6 +137,7 @@ export default function BilingualPane({
   wordInsight,
   displaySettings,
 }: BilingualPaneProps) {
+  const dictionary = readerDictionaries[useUiLocale()];
   const paragraphMap = new Map<number, BilingualSegment[]>();
   const scrollFrameRef = useRef<number | null>(null);
   const lastReportedPositionIdRef = useRef<string | null>(null);
@@ -206,10 +209,10 @@ export default function BilingualPane({
         {wordInsight?.side === side ? (
           <span className="min-w-0 text-right text-[11px] leading-5 text-neutral-600">
             {wordInsight.status === "loading"
-              ? `${wordInsight.text} の文中での意味を確認中…`
+              ? dictionary.meaningLoading(wordInsight.text)
               : wordInsight.status === "ready"
                 ? `${wordInsight.expression || wordInsight.text}：${wordInsight.contextualMeaning || wordInsight.oppositeText} ・ ${wordInsight.partOfSpeech}${wordInsight.usageType ? ` ・ ${wordInsight.usageType}` : ""}${wordInsight.note ? `（${wordInsight.note}）` : ""}`
-                : wordInsight.message || "文中での意味を確認できませんでした"}
+                : wordInsight.message || dictionary.meaningFailed}
           </span>
         ) : null}
       </div>

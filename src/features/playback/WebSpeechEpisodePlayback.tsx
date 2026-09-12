@@ -47,6 +47,8 @@ import {
   writeWebSpeechSettings,
 } from "@/lib/playback/webSpeechPreferences";
 import { usePremiumBackgroundNarration } from "@/features/playback/usePremiumBackgroundNarration";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
 import {
   FooterActionButton,
   FooterPlaybackRateControl,
@@ -268,7 +270,7 @@ export default function WebSpeechEpisodePlayback({
   nextEpisodeHref,
   nextEpisodeNumber,
   workIndexHref,
-  workIndexLabel = "作品ページ（目次）",
+  workIndexLabel = "",
   initialAutoPlay = false,
   isSubscriber = false,
   loginHref,
@@ -281,6 +283,7 @@ export default function WebSpeechEpisodePlayback({
   constrainBodyScroll = false,
 }: EpisodePlaybackProps) {
   const router = useRouter();
+  const dictionary = readerDictionaries[useUiLocale()];
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const sentenceRefs = useRef<Record<number, HTMLSpanElement | null>>({});
   const speechRunIdRef = useRef(0);
@@ -332,15 +335,15 @@ export default function WebSpeechEpisodePlayback({
   const safeSeriesTitle =
     typeof seriesTitle === "string" && seriesTitle.trim()
       ? seriesTitle.trim()
-      : "無題";
+      : dictionary.untitled;
   const safeEpisodeTitle =
     typeof episodeTitle === "string" && episodeTitle.trim()
       ? episodeTitle.trim()
-      : "話タイトル未設定";
+      : dictionary.untitledEpisode;
   const safeAuthorName =
     typeof workAuthorName === "string" && workAuthorName.trim()
       ? workAuthorName.trim()
-      : "作者名未設定";
+      : dictionary.authorUnknown;
   const safeEditorName =
     typeof workEditorName === "string" && workEditorName.trim()
       ? workEditorName.trim()
@@ -348,7 +351,8 @@ export default function WebSpeechEpisodePlayback({
   const safeBody =
     typeof body === "string" && body.trim()
       ? body
-      : "本文がまだ登録されていません。";
+      : dictionary.bodyMissing;
+  const resolvedWorkIndexLabel = workIndexLabel.trim() || dictionary.workIndex;
   const safeSpeechLanguage = speechLanguage.trim() || "ja-JP";
   const speechLanguagePrefix = safeSpeechLanguage
     .split("-")[0]
@@ -835,7 +839,7 @@ export default function WebSpeechEpisodePlayback({
       typeof window === "undefined" ||
       !("speechSynthesis" in window)
     ) {
-      setAudioError("このブラウザでは読み上げ機能を利用できません。");
+      setAudioError(dictionary.speechUnavailable);
       setIsPlaying(false);
       return;
     }
@@ -906,7 +910,7 @@ export default function WebSpeechEpisodePlayback({
       typeof window === "undefined" ||
       !("speechSynthesis" in window)
     ) {
-      setAudioError("このブラウザでは読み上げ機能を利用できません。");
+      setAudioError(dictionary.speechUnavailable);
       return;
     }
 
@@ -936,7 +940,7 @@ export default function WebSpeechEpisodePlayback({
 
       if (audio.paused) {
         void audio.play().catch(() => {
-          setAudioError("公開朗読を開始できなかった。");
+          setAudioError(dictionary.narrationStartFailed);
           setIsPlaying(false);
         });
       } else {
@@ -1016,7 +1020,7 @@ export default function WebSpeechEpisodePlayback({
       });
 
       setIsCurrentEpisodeBookmarked(true);
-      setBookmarkMessage("栞の位置を記録しました");
+      setBookmarkMessage(dictionary.bookmarkSaved);
 
       if (bookmarkToastTimeoutRef.current) {
         window.clearTimeout(bookmarkToastTimeoutRef.current);
@@ -1026,7 +1030,7 @@ export default function WebSpeechEpisodePlayback({
         setBookmarkMessage("");
       }, 1800);
     } catch {
-      setBookmarkMessage("ブックマークを保存できませんでした");
+      setBookmarkMessage(dictionary.bookmarkFailed);
     }
   }
 
@@ -1142,10 +1146,10 @@ export default function WebSpeechEpisodePlayback({
             {workIndexHref ? (
               <Link
                 href={workIndexHref}
-                aria-label={`${safeSeriesTitle}の${workIndexLabel}へ`}
+                aria-label={`${safeSeriesTitle} · ${resolvedWorkIndexLabel}`}
                 className="mt-3 inline-flex text-sm text-neutral-600 transition hover:text-black"
               >
-                {safeSeriesTitle} · {workIndexLabel}
+                {safeSeriesTitle} · {resolvedWorkIndexLabel}
               </Link>
             ) : (
               <p className="mt-3 text-sm text-neutral-600">{safeSeriesTitle}</p>
@@ -1157,13 +1161,13 @@ export default function WebSpeechEpisodePlayback({
 
             <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-neutral-600">
               <span className="inline-flex items-center gap-2">
-                <span>作者</span>
+                <span>{dictionary.author}</span>
                 <span>{safeAuthorName}</span>
               </span>
 
               {safeEditorName ? (
                 <span className="inline-flex items-center gap-2">
-                  <span>編集</span>
+                  <span>{dictionary.editor}</span>
                   <span>{safeEditorName}</span>
                 </span>
               ) : null}
@@ -1171,7 +1175,7 @@ export default function WebSpeechEpisodePlayback({
 
             {isShortStory && storySummary?.trim() ? (
               <div className="mt-5 rounded-[24px] bg-neutral-50 px-4 py-4">
-                <p className="text-xs tracking-[0.16em] text-neutral-500">あらすじ</p>
+                <p className="text-xs tracking-[0.16em] text-neutral-500">{dictionary.synopsis}</p>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-neutral-700">
                   {storySummary.trim()}
                 </p>
@@ -1181,7 +1185,7 @@ export default function WebSpeechEpisodePlayback({
             <div className="mt-5 flex flex-wrap gap-2">
               {isNarrationStopped ? (
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-600">
-                  朗読停止中
+                  {dictionary.narrationStopped}
                 </span>
               ) : isHumanNarration && humanNarrationName ? (
                 humanNarrationAuthorHref ? (
@@ -1189,16 +1193,16 @@ export default function WebSpeechEpisodePlayback({
                     href={humanNarrationAuthorHref}
                     className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black transition hover:bg-sky-100"
                   >
-                    ユーザー朗読: {humanNarrationName}
+                    {dictionary.humanNarration}: {humanNarrationName}
                   </Link>
                 ) : (
                   <span className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black">
-                    ユーザー朗読: {humanNarrationName}
+                    {dictionary.humanNarration}: {humanNarrationName}
                   </span>
                 )
               ) : (
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-600">
-                  ブラウザ朗読
+                  {dictionary.browserNarration}
                 </span>
               )}
             </div>
@@ -1210,34 +1214,34 @@ export default function WebSpeechEpisodePlayback({
                     NARRATION
                   </p>
                   <h3 className="mt-2 text-lg font-semibold text-black">
-                    朗読
+                    {dictionary.narrationTitle}
                   </h3>
 
                   <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
-                    <p className="text-sm text-neutral-700">再生方式</p>
+                    <p className="text-sm text-neutral-700">{dictionary.narrationMode}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <SettingChip
                         active={!isHumanNarration}
-                        label="ブラウザ朗読"
+                        label={dictionary.browserNarration}
                         onClick={setBrowserSource}
                       />
                       <SettingChip
                         active={isHumanNarration}
-                        label={hasHumanRecording ? "ユーザー朗読" : "ユーザー朗読（未設定）"}
+                        label={hasHumanRecording ? dictionary.humanNarration : dictionary.humanNarrationUnset}
                         onClick={setHumanSource}
                         disabled={!hasHumanRecording}
                       />
                     </div>
                     {!hasHumanRecording ? (
                       <p className="mt-3 text-xs leading-6 text-neutral-500">
-                        この作品には公開中のユーザー朗読がありません。
+                        {dictionary.humanNarrationUnavailable}
                       </p>
                     ) : null}
                   </div>
 
                   {isHumanNarration ? (
                     <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
-                      <p className="text-sm text-neutral-700">朗読者</p>
+                      <p className="text-sm text-neutral-700">{dictionary.narrator}</p>
                       {normalizedHumanNarrationOptions.length > 1 ? <select
                         value={selectedHumanNarrationOption?.recordingId ?? ""}
                         onChange={(event) => {
@@ -1254,7 +1258,7 @@ export default function WebSpeechEpisodePlayback({
                             {option.readerName}
                           </option>
                         ))}
-                      </select> : <p className="mt-3 text-sm text-black">{humanNarrationName || "朗読者未設定"}</p>}
+                      </select> : <p className="mt-3 text-sm text-black">{humanNarrationName || dictionary.narratorUnset}</p>}
                     </div>
                   ) : null}
 
@@ -1262,10 +1266,10 @@ export default function WebSpeechEpisodePlayback({
                     <>
                       <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
                         <p className="text-sm text-neutral-700">
-                          朗読者（ブラウザ音声）
+                          {dictionary.browserVoice}
                         </p>
                         <p className="mt-1 text-xs leading-6 text-neutral-500">
-                          原文の言語、対訳の言語、その他の言語の順で、端末に入っている音声から選ぶ。
+                          {dictionary.browserVoiceHelp}
                         </p>
 
                         <select
@@ -1274,7 +1278,7 @@ export default function WebSpeechEpisodePlayback({
                           className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300"
                         >
                           {availableVoices.length === 0 ? (
-                            <option value="">標準音声</option>
+                            <option value="">{dictionary.defaultVoice}</option>
                           ) : (
                             availableVoices.map((voice) => (
                               <option key={voice.voiceURI} value={voice.voiceURI}>
@@ -1287,7 +1291,7 @@ export default function WebSpeechEpisodePlayback({
 
                       <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
                         <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
-                          <span>声の高さ</span>
+                          <span>{dictionary.voicePitch}</span>
                           <span>{speechPitch.toFixed(1)}</span>
                         </div>
                         <input
@@ -1305,7 +1309,7 @@ export default function WebSpeechEpisodePlayback({
 
                   <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
                     <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
-                      <span>朗読音量</span>
+                      <span>{dictionary.narrationVolume}</span>
                       <span>{Math.round(speechVolume * 100)}%</span>
                     </div>
                     <input
@@ -1327,9 +1331,9 @@ export default function WebSpeechEpisodePlayback({
 
                   <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
                     <div>
-                      <p className="text-sm text-neutral-700">朗読停止</p>
+                      <p className="text-sm text-neutral-700">{dictionary.narrationStopTitle}</p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
-                        停止中は再生を開始しない。停止解除すると、現在位置から再生できる。
+                        {dictionary.narrationStopHelp}
                       </p>
                     </div>
                     <button
@@ -1342,21 +1346,21 @@ export default function WebSpeechEpisodePlayback({
                           : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
                       ].join(" ")}
                     >
-                      {isNarrationStopped ? "停止解除" : "停止"}
+                      {isNarrationStopped ? dictionary.resumeNarration : dictionary.stop}
                     </button>
                   </div>
 
                   <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
                     <div>
                       <p className="text-sm text-neutral-700">
-                        次話自動再生
+                        {dictionary.autoAdvance}
                       </p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
                         {isSubscriber
                           ? isHumanNarration
-                            ? "ユーザー朗読はバックグラウンド再生に対応し、話末で次の話へ移動する。"
-                            : "ブラウザ朗読は画面表示中のみ再生し、話末で次の話へ移動する。"
-                          : "有料プランで利用できます。"}
+                            ? dictionary.autoAdvanceHumanHelp
+                            : dictionary.autoAdvanceBrowserHelp
+                          : dictionary.paidOnly}
                       </p>
                     </div>
                     {isSubscriber ? (
@@ -1377,25 +1381,25 @@ export default function WebSpeechEpisodePlayback({
                         href="/subscription"
                         className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black"
                       >
-                        サブスク限定
+                        {dictionary.subscriptionOnly}
                       </Link>
                     )}
                   </div>
                 </section>
 
-                <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-4">
+                <section data-reader-display-settings="true" className="rounded-[28px] border border-black/10 bg-neutral-50 p-4">
                   <p className="text-xs tracking-[0.18em] text-neutral-500">
                     DISPLAY
                   </p>
                   <h3 className="mt-2 text-lg font-semibold text-black">
-                    表示演出
+                    {dictionary.displayTitle}
                   </h3>
 
                   <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
                     <div>
-                      <p className="text-sm text-neutral-700">マーカー表示</p>
+                      <p className="text-sm text-neutral-700">{dictionary.markerTitle}</p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
-                        読み上げ中の文章を青いマーカーで強調する。
+                        {dictionary.markerHelp}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -1424,9 +1428,9 @@ export default function WebSpeechEpisodePlayback({
 
                   <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
                     <div>
-                      <p className="text-sm text-neutral-700">表示演出</p>
+                      <p className="text-sm text-neutral-700">{dictionary.effectsTitle}</p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
-                        背景、文字装飾、挿絵を一括で隠す。
+                        {dictionary.effectsHelp}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -1437,7 +1441,7 @@ export default function WebSpeechEpisodePlayback({
 
                   <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
                     <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
-                      <span>文字サイズ</span>
+                      <span>{dictionary.fontSize}</span>
                       <span>{Math.round(displayPreference.fontScale * 100)}%</span>
                     </div>
                     <input
@@ -1457,11 +1461,11 @@ export default function WebSpeechEpisodePlayback({
                   </div>
 
                   <div className="mt-4">
-                    <p className="text-sm text-neutral-700">行間</p>
+                    <p className="text-sm text-neutral-700">{dictionary.lineHeight}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <SettingChip
                         active={displayPreference.lineHeight === "compact"}
-                        label="狭め"
+                        label={dictionary.compact}
                         onClick={() =>
                           setDisplayPreference((prev) => ({
                             ...prev,
@@ -1471,7 +1475,7 @@ export default function WebSpeechEpisodePlayback({
                       />
                       <SettingChip
                         active={displayPreference.lineHeight === "normal"}
-                        label="標準"
+                        label={dictionary.normal}
                         onClick={() =>
                           setDisplayPreference((prev) => ({
                             ...prev,
@@ -1481,7 +1485,7 @@ export default function WebSpeechEpisodePlayback({
                       />
                       <SettingChip
                         active={displayPreference.lineHeight === "wide"}
-                        label="広め"
+                        label={dictionary.wide}
                         onClick={() =>
                           setDisplayPreference((prev) => ({
                             ...prev,
@@ -1506,7 +1510,7 @@ export default function WebSpeechEpisodePlayback({
           <div className="px-5 py-8 sm:px-8 sm:py-10">
             {isSettingsOpen ? (
               <div className="rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-sm leading-7 text-neutral-600">
-                設定表示中。本文は一時的に隠れている。
+                {dictionary.settingsBodyHidden}
               </div>
             ) : (
               <div
@@ -1631,7 +1635,7 @@ export default function WebSpeechEpisodePlayback({
             <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
               <span>{currentPositionLabel}</span>
               <span>
-                {isHumanNarration ? "公開朗読" : `全${speechUnits.length}ブロック`}
+                {isHumanNarration ? dictionary.publicNarration : dictionary.totalBlocks(speechUnits.length)}
               </span>
             </div>
 
@@ -1661,7 +1665,7 @@ export default function WebSpeechEpisodePlayback({
                 </span>
               ) : null}
               <FooterActionButton
-                label="栞"
+                label={dictionary.bookmark}
                 iconSrc={
                   isCurrentEpisodeBookmarked
                     ? PLAYER_ICON_PATHS.bookmarkFilled
@@ -1677,13 +1681,13 @@ export default function WebSpeechEpisodePlayback({
               onIncrease={() => updatePlaybackRate(playbackRate + 0.1)}
             />
             <FooterActionButton
-              label="前話"
+              label={dictionary.previousEpisode}
               iconSrc={PLAYER_ICON_PATHS.prev}
               disabled={typeof prevEpisodeNumber !== "number" || !prevEpisodeHref}
               onClick={() => handleMove(prevEpisodeHref)}
             />
             <FooterActionButton
-              label={isPlaying ? "停止" : "再生"}
+              label={isPlaying ? dictionary.stop : dictionary.play}
               iconSrc={isPlaying ? PLAYER_ICON_PATHS.stop : PLAYER_ICON_PATHS.play}
               disabled={
                 isNarrationStopped ||
@@ -1694,19 +1698,19 @@ export default function WebSpeechEpisodePlayback({
               onClick={handleTogglePlay}
             />
             <FooterActionButton
-              label="次話"
+              label={dictionary.nextEpisode}
               iconSrc={PLAYER_ICON_PATHS.next}
               disabled={typeof nextEpisodeNumber !== "number" || !nextEpisodeHref}
               onClick={() => handleMove(nextEpisodeHref)}
             />
             <FooterActionButton
-              label={autoFollow ? "自動追尾\nON" : "自動追尾\nOFF"}
+              label={autoFollow ? dictionary.autoFollowOn : dictionary.autoFollowOff}
               active={autoFollow}
               disabled={isNarrationStopped}
               onClick={() => setAutoFollow((prev) => !prev)}
             />
             <FooterActionButton
-              label="設定"
+              label={dictionary.settings}
               iconSrc={PLAYER_ICON_PATHS.settings}
               active={isSettingsOpen}
               onClick={() => setIsSettingsOpen((prev) => !prev)}

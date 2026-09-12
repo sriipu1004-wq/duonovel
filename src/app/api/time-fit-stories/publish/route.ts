@@ -18,6 +18,7 @@ type SeriesRow = {
   author_id?: string | null;
   tags?: unknown;
   effect_settings?: unknown;
+  source_language?: SupportedLanguageTag | null;
 };
 
 type EpisodeRow = {
@@ -159,7 +160,7 @@ export async function POST(request: Request) {
 
   const seriesResult = await adminSupabase
     .from("series")
-    .select("id, author_id, tags, effect_settings")
+    .select("id, author_id, tags, effect_settings, source_language")
     .eq("id", seriesId)
     .maybeSingle();
 
@@ -216,12 +217,15 @@ export async function POST(request: Request) {
     const learningPreference = readSeriesTranslationLearningPreference(
       series.effect_settings
     );
+    const sourceLanguage = series.source_language ?? "ja";
     scheduleEpisodeTranslation(
       request.url,
       episode.id,
-      learningPreference && learningPreference.language !== "ja"
+      learningPreference && learningPreference.language !== sourceLanguage
         ? learningPreference.language
-        : "en"
+        : sourceLanguage === "ja"
+          ? "en"
+          : "ja"
     );
 
     return NextResponse.json({
@@ -314,12 +318,15 @@ export async function POST(request: Request) {
   const learningPreference = readSeriesTranslationLearningPreference(
     series.effect_settings
   );
+  const sourceLanguage = series.source_language ?? "ja";
   scheduleEpisodeTranslation(
     request.url,
     episode.id,
-    learningPreference && learningPreference.language !== "ja"
+    learningPreference && learningPreference.language !== sourceLanguage
       ? learningPreference.language
-      : "en"
+      : sourceLanguage === "ja"
+        ? "en"
+        : "ja"
   );
 
   return NextResponse.json({

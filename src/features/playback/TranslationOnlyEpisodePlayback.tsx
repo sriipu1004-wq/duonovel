@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import BilingualPane, {
-  type BilingualSegment,
-} from "@/features/playback/BilingualPane";
+import type { BilingualSegment } from "@/features/playback/BilingualPane";
 import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
 import TranslationOnlyFooter from "@/features/playback/TranslationOnlyFooter";
 import { useReaderDisplaySettings } from "@/features/playback/useReaderDisplaySettings";
@@ -19,7 +17,6 @@ import {
   writeReadingHistory,
 } from "@/lib/playback/readingBookmark";
 import {
-  getSupportedLanguage,
   type PublicTranslationTargetLanguage,
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
@@ -97,9 +94,7 @@ export default function TranslationOnlyEpisodePlayback({
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
-  const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
   const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const segmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const generationInFlightRef = useRef(false);
   const autoGenerationAttemptRef = useRef<string | null>(null);
@@ -211,7 +206,6 @@ export default function TranslationOnlyEpisodePlayback({
     setCanAutoGenerate(false);
     setSegments([]);
     setSelectedSegmentId(null);
-    setHoveredSegmentId(null);
     restoredKeyRef.current = null;
     void loadTranslation();
   }, [episodeId, loadTranslation]);
@@ -268,12 +262,10 @@ export default function TranslationOnlyEpisodePlayback({
       targetLanguage,
     });
     window.requestAnimationFrame(() => {
-      const container = scrollRef.current;
-      const node = segmentRefs.current.get(segment.id);
-      if (!container || !node) return;
-      const a = container.getBoundingClientRect();
-      const b = node.getBoundingClientRect();
-      container.scrollTop += b.top - a.top;
+      segmentRefs.current.get(segment.id)?.scrollIntoView({
+        block: "center",
+        behavior: "auto",
+      });
     });
   }, [
     episodeNumber,
@@ -283,6 +275,58 @@ export default function TranslationOnlyEpisodePlayback({
     targetLanguage,
     translationStatus,
   ]);
+
+  useEffect(() => {
+    if (translationStatus !== "ready" || segments.length === 0) return;
+    let frame: number | null = null;
+    let lastId = "";
+
+    const updatePosition = () => {
+      frame = null;
+      const targetY = window.innerHeight * 0.42;
+      let best: BilingualSegment | null = null;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (const segment of segments) {
+        const node = segmentRefs.current.get(segment.id);
+        if (!node) continue;
+        const rect = node.getBoundingClientRect();
+        const distance = Math.abs(rect.top + rect.height / 2 - targetY);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = segment;
+        }
+      }
+      if (!best || best.id === lastId) return;
+      lastId = best.id;
+      const index = segments.findIndex((segment) => segment.id === best?.id);
+      if (index < 0) return;
+      setCurrentPositionIndex(index);
+      setSelectedSegmentId(best.id);
+      writeReadingHistory({
+        seriesId,
+        episodeNumber,
+        positionIndex: index,
+        paragraphIndex: best.paragraphIndex,
+        sentenceIndex: best.sentenceIndex,
+        mode: "translation",
+        sourceLanguage,
+        targetLanguage,
+      });
+    };
+
+    const schedule = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(updatePosition);
+    };
+    schedule();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
+  }, [episodeNumber, segments, seriesId, sourceLanguage, targetLanguage, translationStatus]);
 
   function handlePositionChange(id: string) {
     const index = segments.findIndex((segment) => segment.id === id);
@@ -315,22 +359,30 @@ export default function TranslationOnlyEpisodePlayback({
     setTargetLanguage(language);
   }
 
-  const safeSeriesTitle = safeText(seriesTitle, "無題");
-  const safeEpisodeTitle = safeText(episodeTitle, `第${episodeNumber}話`);
-  const safeAuthorName = safeText(workAuthorName, "作者名未設定");
+  const safeSeriesTitle = safeText(seriesTitle, dictionary.untitled);
+  const safeEpisodeTitle = safeText(episodeTitle, dictionary.untitledEpisode);
+  const safeAuthorName = safeText(workAuthorName, dictionary.authorUnknown);
   const safeEditorName = safeText(workEditorName, "");
-  const targetLanguageLabel = getSupportedLanguage(targetLanguage).nativeLabel;
   const currentSegment = segments[currentPositionIndex];
   const narrationUnits = useMemo(
     () => segments.map((segment) => segment.translatedText),
     [segments]
   );
+  const paragraphGroups = useMemo(() => {
+    const groups = new Map<number, BilingualSegment[]>();
+    for (const segment of segments) {
+      const group = groups.get(segment.paragraphIndex) ?? [];
+      group.push(segment);
+      groups.set(segment.paragraphIndex, group);
+    }
+    return Array.from(groups.entries());
+  }, [segments]);
 
   return (
-    <main className="min-h-screen bg-white text-black">
-      <div className="mx-auto w-full max-w-4xl px-3 py-4 sm:px-6 sm:py-6">
-        <section className="overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-sm">
-          <header className="border-b border-black/10 px-4 py-4 sm:px-6">
+    <main className="min-h-screen bg-white pb-36 text-black">
+      <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
+        <section className="bg-white">
+          <header className="rounded-[28px] border border-black/10 bg-white px-5 py-6 shadow-sm sm:px-8">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs tracking-[0.18em] text-neutral-500">
@@ -364,21 +416,49 @@ export default function TranslationOnlyEpisodePlayback({
           </header>
 
           {translationStatus === "ready" && segments.length > 0 ? (
-            <div className="h-[calc(100dvh-16rem)] min-h-[30rem] max-h-[64rem] bg-white">
-              <BilingualPane
-                side="target"
-                languageLabel={targetLanguageLabel}
-                languageTag={targetLanguage}
-                segments={segments}
-                selectedSegmentId={selectedSegmentId}
-                hoveredSegmentId={hoveredSegmentId}
-                scrollRef={scrollRef}
-                registerSegmentRef={(id, node) => segmentRefs.current.set(id, node)}
-                onSelectSegment={handleSelectSegment}
-                onHoverSegment={setHoveredSegmentId}
-                onReadingPositionChange={handlePositionChange}
-                displaySettings={displaySettings}
-              />
+            <div className="px-1 py-8 sm:px-3 sm:py-10">
+              <article
+                className="space-y-7 text-black"
+                style={{
+                  fontSize: `${displaySettings.fontScale}rem`,
+                  lineHeight:
+                    displaySettings.lineHeight === "compact"
+                      ? 1.85
+                      : displaySettings.lineHeight === "wide"
+                        ? 2.35
+                        : 2.05,
+                }}
+              >
+                {paragraphGroups.map(([paragraphIndex, paragraphSegments]) => (
+                  <p key={paragraphIndex} className="whitespace-pre-wrap">
+                    {paragraphSegments.map((segment) => {
+                      const selected = selectedSegmentId === segment.id;
+                      return (
+                        <span
+                          key={segment.id}
+                          ref={(node) => { segmentRefs.current.set(segment.id, node); }}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => handleSelectSegment(segment.id)}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ") return;
+                            event.preventDefault();
+                            handleSelectSegment(segment.id);
+                          }}
+                          className={[
+                            "inline cursor-pointer rounded-md px-1 py-1 transition-colors duration-150 hover:bg-sky-50/70",
+                            selected && displaySettings.showMarker && !displaySettings.hideEffects
+                              ? "bg-sky-100 text-black shadow-[0_0_0_3px_rgba(186,230,253,0.55)]"
+                              : "",
+                          ].join(" ")}
+                        >
+                          {segment.translatedText}{" "}
+                        </span>
+                      );
+                    })}
+                  </p>
+                ))}
+              </article>
             </div>
           ) : (
             <div className="flex min-h-[30rem] items-center justify-center px-5 py-10">
@@ -442,16 +522,10 @@ export default function TranslationOnlyEpisodePlayback({
               handlePositionChange(segment.id);
               setSelectedSegmentId(segment.id);
               if (shouldFollow) {
-                const container = scrollRef.current;
-                const node = segmentRefs.current.get(segment.id);
-                if (container && node) {
-                  const a = container.getBoundingClientRect();
-                  const b = node.getBoundingClientRect();
-                  container.scrollTo({
-                    top: container.scrollTop + b.top - a.top - container.clientHeight / 2,
-                    behavior: "smooth",
-                  });
-                }
+                segmentRefs.current.get(segment.id)?.scrollIntoView({
+                  block: "center",
+                  behavior: "smooth",
+                });
               }
             }}
           />
