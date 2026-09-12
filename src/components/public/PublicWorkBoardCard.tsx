@@ -6,6 +6,7 @@ import { detectContentLanguage } from "@/i18n/contentLanguage";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { localizePath } from "@/i18n/navigation";
 import { localizeTagLabel } from "@/i18n/tagLabels";
+import type { UiLocale } from "@/i18n/config";
 
 type PublicWorkBoardCardProps = {
   title: string;
@@ -20,6 +21,48 @@ type PublicWorkBoardCardProps = {
   likeCount?: number;
   bookmarkCount?: number;
   narrationPlayCount?: number;
+};
+
+const labels: Record<UiLocale, {
+  noSummary: string;
+  noTags: string;
+  views: string;
+  likes: string;
+  bookmarks: string;
+  narrationPlays: string;
+  readFirst: string;
+  unpublished: string;
+}> = {
+  ja: {
+    noSummary: "あらすじ未設定",
+    noTags: "タグ未設定",
+    views: "閲覧",
+    likes: "いいね",
+    bookmarks: "ブックマーク",
+    narrationPlays: "朗読再生",
+    readFirst: "第1話から読む",
+    unpublished: "未公開",
+  },
+  en: {
+    noSummary: "No summary provided",
+    noTags: "No tags",
+    views: "Views",
+    likes: "Likes",
+    bookmarks: "Bookmarks",
+    narrationPlays: "Narration plays",
+    readFirst: "Read from episode 1",
+    unpublished: "Unpublished",
+  },
+  ko: {
+    noSummary: "줄거리 없음",
+    noTags: "태그 없음",
+    views: "조회",
+    likes: "좋아요",
+    bookmarks: "책갈피",
+    narrationPlays: "낭독 재생",
+    readFirst: "1화부터 읽기",
+    unpublished: "비공개",
+  },
 };
 
 function buildTagHref(tag: string): string {
@@ -43,6 +86,7 @@ export default function PublicWorkBoardCard({
   narrationPlayCount,
 }: PublicWorkBoardCardProps) {
   const locale = useUiLocale();
+  const copy = labels[locale];
   const [expanded, setExpanded] = useState(false);
 
   const visibleTags = useMemo(() => tags.slice(0, 3), [tags]);
@@ -52,7 +96,7 @@ export default function PublicWorkBoardCard({
   );
 
   const hasSummary = summary.trim().length > 0;
-  const collapsedSummary = hasSummary ? summary.trim() : "あらすじ未設定";
+  const collapsedSummary = hasSummary ? summary.trim() : copy.noSummary;
 
   return (
     <article
@@ -81,7 +125,7 @@ export default function PublicWorkBoardCard({
               ))
             ) : (
               <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-500">
-                タグ未設定
+                {copy.noTags}
               </span>
             )}
 
@@ -106,25 +150,25 @@ export default function PublicWorkBoardCard({
           <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-neutral-500">
             {typeof viewCount === "number" ? (
               <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-                閲覧 {viewCount}
+                {copy.views} {viewCount}
               </span>
             ) : null}
 
             {typeof likeCount === "number" ? (
               <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-                いいね {likeCount}
+                {copy.likes} {likeCount}
               </span>
             ) : null}
 
             {typeof bookmarkCount === "number" ? (
               <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-                ブックマーク {bookmarkCount}
+                {copy.bookmarks} {bookmarkCount}
               </span>
             ) : null}
 
             {typeof narrationPlayCount === "number" ? (
               <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-                朗読再生 {narrationPlayCount}
+                {copy.narrationPlays} {narrationPlayCount}
               </span>
             ) : null}
           </div>
@@ -146,11 +190,11 @@ export default function PublicWorkBoardCard({
                   href={localizePath(firstReadHref, locale)}
                   className="shrink-0 rounded-full border border-black/10 bg-neutral-200 px-3.5 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
                 >
-                  第1話から読む
+                  {copy.readFirst}
                 </Link>
               ) : (
                 <span className="shrink-0 rounded-full border border-black/10 bg-neutral-50 px-3.5 py-2 text-sm text-neutral-500">
-                  未公開
+                  {copy.unpublished}
                 </span>
               )}
             </div>
@@ -170,11 +214,11 @@ export default function PublicWorkBoardCard({
                     href={localizePath(firstReadHref, locale)}
                     className="rounded-full border border-black/10 bg-neutral-200 px-3.5 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
                   >
-                    第1話から読む
+                    {copy.readFirst}
                   </Link>
                 ) : (
                   <span className="rounded-full border border-black/10 bg-neutral-50 px-3.5 py-2 text-sm text-neutral-500">
-                    未公開
+                    {copy.unpublished}
                   </span>
                 )}
               </div>
