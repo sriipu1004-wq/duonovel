@@ -61,6 +61,17 @@ export async function GET(request: Request, context: RouteContext) {
     );
   }
 
+  if (!access.isAllowlisted) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "translation_episode_not_eligible",
+        message: "この話では翻訳を利用できません。",
+      },
+      { status: 403 }
+    );
+  }
+
   const parsedLearningPreference = readSeriesTranslationLearningPreference(
     access.series.effect_settings ?? access.series.effectSettings
   );
