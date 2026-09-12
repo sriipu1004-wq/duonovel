@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { billingPromptDictionaries } from "../src/i18n/dictionaries/billingPrompt";
 import { bilingualReaderDictionaries } from "../src/i18n/dictionaries/bilingualReader";
 import { continuationDictionaries } from "../src/i18n/dictionaries/continuation";
+import { episodeCommentsDictionaries } from "../src/i18n/dictionaries/episodeComments";
 import { generatedReaderDictionaries } from "../src/i18n/dictionaries/generatedReader";
 import { readPageDictionaries } from "../src/i18n/dictionaries/readPage";
 
@@ -54,12 +55,16 @@ function main() {
     assertDictionaryHasNoJapanese(`billingPrompt.${locale}`, billingPromptDictionaries[locale]);
     assertDictionaryHasNoJapanese(`bilingualReader.${locale}`, bilingualReaderDictionaries[locale]);
     assertDictionaryHasNoJapanese(`continuation.${locale}`, continuationDictionaries[locale]);
+    assertDictionaryHasNoJapanese(`episodeComments.${locale}`, episodeCommentsDictionaries[locale]);
     assertDictionaryHasNoJapanese(`generatedReader.${locale}`, generatedReaderDictionaries[locale]);
     assertDictionaryHasNoJapanese(`readPage.${locale}`, readPageDictionaries[locale]);
 
     assert.equal(JAPANESE_SCRIPT.test(bilingualReaderDictionaries[locale].responseInvalid(500)), false);
     assert.equal(JAPANESE_SCRIPT.test(bilingualReaderDictionaries[locale].episodeFallback(3)), false);
     assert.equal(JAPANESE_SCRIPT.test(continuationDictionaries[locale].minutes(10)), false);
+    assert.equal(JAPANESE_SCRIPT.test(episodeCommentsDictionaries[locale].count(2)), false);
+    assert.equal(JAPANESE_SCRIPT.test(episodeCommentsDictionaries[locale].listTitle(3)), false);
+    assert.equal(JAPANESE_SCRIPT.test(episodeCommentsDictionaries[locale].commentTooLong(300)), false);
     assert.equal(JAPANESE_SCRIPT.test(generatedReaderDictionaries[locale].approxMinutes(10)), false);
     assert.equal(JAPANESE_SCRIPT.test(readPageDictionaries[locale].episode(3)), false);
   }
@@ -88,6 +93,16 @@ function main() {
     "無料分を使い切りました。",
     "サブスクを見る",
   ]);
+  assertNoKnownUiLiteral("src/features/playback/ReaderFooterControls.tsx", [
+    "aria-label=\"朗読速度を下げる\"",
+    "aria-label=\"朗読速度を上げる\"",
+  ]);
+  assertNoKnownUiLiteral("src/features/comment/EpisodeCommentSection.tsx", [
+    "この話の感想",
+    "ログインして感想を書く",
+    "感想一覧を読み込み中...",
+    "コメント一覧の取得に失敗した。",
+  ]);
   assertNoKnownUiLiteral("src/features/playback/WebSpeechEpisodePlayback.tsx", [
     "`${Math.floor(humanCurrentTime)}秒 / ${Math.floor(humanDuration)}秒`",
     "setAudioError(\"公開朗読音声の読み込みに失敗した。\")",
@@ -96,6 +111,15 @@ function main() {
     "src/app/read/generated/[storyId]/GeneratedStoryReaderClient.tsx",
     ["{sceneLabel} / {genreLabel} / {request.mood}"]
   );
+  assertSourceContains("src/features/playback/ReaderFooterControls.tsx", [
+    "aria-label={dictionary.slower}",
+    "aria-label={dictionary.faster}",
+  ]);
+  assertSourceContains("src/features/comment/EpisodeCommentSection.tsx", [
+    "episodeCommentsDictionaries[useUiLocale()]",
+    "{dictionary.title}",
+    "{dictionary.loading}",
+  ]);
   assertSourceContains("src/features/playback/WebSpeechEpisodePlayback.tsx", [
     "WEB_SPEECH_LOCALE_COPY[locale].seconds",
     "WEB_SPEECH_LOCALE_COPY[locale].publicNarrationLoadFailed",
