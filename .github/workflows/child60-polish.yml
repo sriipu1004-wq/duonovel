@@ -39,9 +39,23 @@ jobs:
           if matches != 2:
               raise SystemExit(f"expected 2 publish translation blocks, got {matches}")
           write(path, text.replace(old_publish, new_publish).replace(old_publish_2, new_publish_2))'''
-          if old not in s:
-              raise SystemExit('publish patch guard not found')
-          p.write_text(s.replace(old, new))
+          if old in s:
+              s = s.replace(old, new)
+
+          old_footer = '''text = read(path)
+          ending = '      </div>\\n    </section>\\n  );\\n}'
+          if not text.endswith(ending):
+              raise SystemExit("translation footer ending not found")
+          write(path, text[:-len(ending)] + '      </div>\\n      </div>\\n    </section>\\n  );\\n}')'''
+          new_footer = '''text = read(path)
+          ending = '      </div>\\n    </section>\\n  );\\n}'
+          stripped = text.rstrip()
+          if not stripped.endswith(ending):
+              raise SystemExit("translation footer ending not found")
+          write(path, stripped[:-len(ending)] + '      </div>\\n      </div>\\n    </section>\\n  );\\n}\\n')'''
+          if old_footer not in s:
+              raise SystemExit('translation footer patch guard not found')
+          p.write_text(s.replace(old_footer, new_footer))
           PY
       - name: Apply patch
         run: python scripts/child60_polish_patch.py
