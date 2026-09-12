@@ -6,12 +6,19 @@ import ContentRatingWorkspaceBridge from "@/features/write/ContentRatingWorkspac
 import TranslationPermissionWorkspaceBridge from "@/features/write/TranslationPermissionWorkspaceBridge";
 import SourceLanguageWorkspaceBridge from "@/features/write/SourceLanguageWorkspaceBridge";
 import ContinueStoryAction from "@/features/generation/ContinueStoryAction";
-import { type EpisodeRow, type SeriesRow } from "@/features/write/writeShared";
+import {
+  getEpisodeBody,
+  type EpisodeRow,
+  type SeriesRow,
+} from "@/features/write/writeShared";
 import {
   getSeriesContentWarningLocks,
   getSeriesContentWarnings,
 } from "@/lib/contentRating";
-import { readCanonicalSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
+import {
+  inferSeriesSourceLanguage,
+  readCanonicalSeriesSourceLanguage,
+} from "@/lib/translation/seriesSourceLanguage";
 import styles from "./page.module.css";
 
 type PageProps = { params: Promise<{ seriesId: string }> };
@@ -101,7 +108,13 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
       : series.translation_permission_mode === "closed"
         ? "closed"
         : null;
-  const sourceLanguage = readCanonicalSeriesSourceLanguage(series);
+  const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
+  const sourceLanguage =
+    canonicalSourceLanguage ??
+    inferSeriesSourceLanguage(
+      series,
+      episodes[0] ? getEpisodeBody(episodes[0]) : null
+    );
 
   return (
     <div className={className}>
@@ -114,6 +127,7 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
       <SourceLanguageWorkspaceBridge
         seriesId={series.id}
         initialLanguage={sourceLanguage}
+        confirmed={Boolean(canonicalSourceLanguage)}
       />
       {isAiGenerated && episodes.length > 0 ? (
         <div className="mx-auto w-full max-w-5xl px-4 pb-6 sm:px-6">
