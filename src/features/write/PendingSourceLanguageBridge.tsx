@@ -8,12 +8,21 @@ import { parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 const PENDING_CREATE_SOURCE_LANGUAGE_KEY =
   "duonovel:pending-source-language-create";
 const PENDING_TTL_MS = 60_000;
+const RETRY_DELAY_MS = 2_000;
 
 type PendingSourceLanguage = {
   language: string;
   startedAt: number;
   sourcePath: string;
 };
+
+function clearPendingSourceLanguage() {
+  window.sessionStorage.removeItem(PENDING_CREATE_SOURCE_LANGUAGE_KEY);
+}
+
+function isPendingExpired(pending: PendingSourceLanguage): boolean {
+  return Date.now() - pending.startedAt > PENDING_TTL_MS;
+}
 
 function readPendingSourceLanguage(): PendingSourceLanguage | null {
   try {
@@ -29,16 +38,17 @@ function readPendingSourceLanguage(): PendingSourceLanguage | null {
       typeof parsed.startedAt !== "number" ||
       sourcePath !== "/write/series/new"
     ) {
-      window.sessionStorage.removeItem(PENDING_CREATE_SOURCE_LANGUAGE_KEY);
+      clearPendingSourceLanguage();
       return null;
     }
-    if (Date.now() - parsed.startedAt > PENDING_TTL_MS) {
-      window.sessionStorage.removeItem(PENDING_CREATE_SOURCE_LANGUAGE_KEY);
+    const pending = parsed as PendingSourceLanguage;
+    if (isPendingExpired(pending)) {
+      clearPendingSourceLanguage();
       return null;
     }
-    return parsed as PendingSourceLanguage;
+    return pending;
   } catch {
-    window.sessionStorage.removeItem(PENDING_CREATE_SOURCE_LANGUAGE_KEY);
+    clearPendingSourceLanguage();
     return null;
   }
 }
@@ -48,7 +58,6 @@ export default function PendingSourceLanguageBridge() {
   const applyingRef = useRef(false);
 
   useEffect(() => {
-    if (applyingRef.current) return;
     const routePath = stripUiLocalePrefix(pathname);
     const match = routePath.match(/^\/write\/series\/([^/]+)(?:\/|$)/u);
     const seriesId = match?.[1] ?? "";
@@ -59,8 +68,21 @@ export default function PendingSourceLanguageBridge() {
     const language = parseSupportedLanguageTag(pending.language);
     if (!language) return;
 
-    applyingRef.current = true;
-    void (async () => {
+    let cancelled = false;
+    let retryTimer: number | null = null;
+
+    const scheduleRetry = () => {
+      if (cancelled) return;
+      if (isPendingExpired(pending)) {
+        clearPendingSourceLanguage();
+        return;
+      }
+      retryTimer = window.setTimeout(() => void applyPendingLanguage(), RETRY_DELAY_MS);
+    };
+
+    const applyPendingLanguage = async () => {
+      if (cancelled || applyingRef.current) return;
+      applyingRef.current = true;
       try {
         const response = await fetch(
           `/api/series/${encodeURIComponent(seriesId)}/source-language`,
@@ -73,24 +95,49 @@ export default function PendingSourceLanguageBridge() {
             }),
           }
         );
-        const payload = (await response.json()) as {
-          ok?: boolean;
-          language?: unknown;
-        };
-        window.sessionStorage.removeItem(PENDING_CREATE_SOURCE_LANGUAGE_KEY);
+
+        let payload: { ok?: boolean; language?: unknown } = {};
+        try {
+          payload = (await response.json()) as {
+            ok?: boolean;
+            language?: unknown;
+          };
+        } catch {
+          // A transient non-JSON server response can be retried below.
+        }
+
         if (response.ok && payload.ok) {
+          clearPendingSourceLanguage();
           window.dispatchEvent(
             new CustomEvent("libread:source-language-applied", {
               detail: { language: payload.language ?? language },
             })
           );
+          return;
         }
+
+        if (response.status >= 500 || response.status === 429) {
+          scheduleRetry();
+          return;
+        }
+
+        // Authentication/ownership/mismatch failures are not transient. Do not
+        // risk applying this pending selection to another series later.
+        clearPendingSourceLanguage();
       } catch {
-        // Non-blocking; the pending value expires shortly.
+        scheduleRetry();
       } finally {
         applyingRef.current = false;
       }
-    })();
+    };
+
+    void applyPendingLanguage();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      applyingRef.current = false;
+    };
   }, [pathname]);
 
   return null;
