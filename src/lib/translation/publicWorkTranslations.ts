@@ -13,6 +13,7 @@ import {
 import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 import {
   buildEpisodeTranslationSourceHash,
+  isSeriesTranslationEligibleIncludingOfficial,
 } from "@/lib/translation/episodeTranslationServer";
 import { readSeriesTranslationLearningPreference } from "@/lib/translation/translationLearningPreference";
 import {
@@ -30,6 +31,7 @@ export type PublicWorkTranslationEpisode = {
 export type PublicWorkTranslationOverview = {
   series: SeriesRow;
   sourceLanguage: SupportedLanguageTag;
+  translationEligible: boolean;
   episodes: PublicWorkTranslationEpisode[];
   availableLanguages: SupportedLanguageTag[];
 };
@@ -85,44 +87,49 @@ export async function getPublicWorkTranslationOverview(
   const sourceLanguage = inferSeriesSourceLanguage(series, firstBody);
   if (!sourceLanguage) return null;
 
-  const episodeIds = episodes.map((episode) => episode.id).filter(Boolean);
-  const translationResult = await admin
-    .from("episode_translations")
-    .select("episode_id, source_language, target_language, source_hash, status")
-    .in("episode_id", episodeIds)
-    .eq("source_language", sourceLanguage)
-    .eq("status", "ready");
-
-  const rows = translationResult.error
-    ? []
-    : ((translationResult.data ?? []) as TranslationRow[]);
-  const learningPreference = readSeriesTranslationLearningPreference(
-    series.effect_settings ?? series.effectSettings
-  );
+  const translationEligible =
+    await isSeriesTranslationEligibleIncludingOfficial(series);
   const availableByEpisode = new Map<string, Set<SupportedLanguageTag>>();
 
-  for (const episode of episodes) {
-    const body = getEpisodeBody(episode);
-    const episodeRows = rows.filter((row) => row.episode_id === episode.id);
-    const languages = new Set<SupportedLanguageTag>();
+  if (translationEligible) {
+    const episodeIds = episodes.map((episode) => episode.id).filter(Boolean);
+    const translationResult = await admin
+      .from("episode_translations")
+      .select("episode_id, source_language, target_language, source_hash, status")
+      .in("episode_id", episodeIds)
+      .eq("source_language", sourceLanguage)
+      .eq("status", "ready");
 
-    for (const row of episodeRows) {
-      const targetLanguage = parseSupportedLanguageTag(row.target_language);
-      if (!targetLanguage || targetLanguage === sourceLanguage) continue;
-      const effectiveLearningPreference =
-        learningPreference?.language === targetLanguage
-          ? learningPreference
-          : null;
-      const expectedHash = buildEpisodeTranslationSourceHash(
-        body,
-        effectiveLearningPreference
-          ? { learningPreference: effectiveLearningPreference }
-          : undefined
-      );
-      if (row.source_hash === expectedHash) languages.add(targetLanguage);
+    const rows = translationResult.error
+      ? []
+      : ((translationResult.data ?? []) as TranslationRow[]);
+    const learningPreference = readSeriesTranslationLearningPreference(
+      series.effect_settings ?? series.effectSettings
+    );
+
+    for (const episode of episodes) {
+      const body = getEpisodeBody(episode);
+      const episodeRows = rows.filter((row) => row.episode_id === episode.id);
+      const languages = new Set<SupportedLanguageTag>();
+
+      for (const row of episodeRows) {
+        const targetLanguage = parseSupportedLanguageTag(row.target_language);
+        if (!targetLanguage || targetLanguage === sourceLanguage) continue;
+        const effectiveLearningPreference =
+          learningPreference?.language === targetLanguage
+            ? learningPreference
+            : null;
+        const expectedHash = buildEpisodeTranslationSourceHash(
+          body,
+          effectiveLearningPreference
+            ? { learningPreference: effectiveLearningPreference }
+            : undefined
+        );
+        if (row.source_hash === expectedHash) languages.add(targetLanguage);
+      }
+
+      availableByEpisode.set(episode.id, languages);
     }
-
-    availableByEpisode.set(episode.id, languages);
   }
 
   const publicEpisodes = episodes.map((episode) => ({
@@ -142,6 +149,7 @@ export async function getPublicWorkTranslationOverview(
   return {
     series,
     sourceLanguage,
+    translationEligible,
     episodes: publicEpisodes,
     availableLanguages: allLanguages,
   };
