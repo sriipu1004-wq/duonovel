@@ -23,6 +23,9 @@ import {
   type StoredWebSpeechDisplaySettings,
   type StoredWebSpeechSettings,
 } from "@/lib/playback/webSpeechPreferences";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
+import { bilingualReaderDictionaries } from "@/i18n/dictionaries/bilingualReader";
 
 type SpeechVoiceOption = {
   voiceURI: string;
@@ -101,6 +104,9 @@ export default function BilingualStoppedFooter({
   onPositionIndexChange,
 }: BilingualStoppedFooterProps) {
   const router = useRouter();
+  const locale = useUiLocale();
+  const dictionary = readerDictionaries[locale];
+  const bilingualDictionary = bilingualReaderDictionaries[locale];
   const toastTimerRef = useRef<number | null>(null);
   const speechRunIdRef = useRef(0);
   const [bookmarkSaved, setBookmarkSaved] = useState(false);
@@ -142,19 +148,23 @@ export default function BilingualStoppedFooter({
     function loadVoices() {
       const lowerPrefix = narrationLanguage.toLowerCase().split("-")[0];
       const upperPrefix = getSupportedLanguage(upperPaneLanguage)
-        .speechLanguage.toLowerCase().split("-")[0];
+        .speechLanguage.toLowerCase()
+        .split("-")[0];
       const priority = (language: string) => {
         const prefix = language.toLowerCase().split("-")[0];
         if (prefix === lowerPrefix) return 0;
         if (prefix === upperPrefix) return 1;
         return 2;
       };
-      const voices = window.speechSynthesis.getVoices().slice().sort(
-        (left, right) =>
-          priority(left.lang) - priority(right.lang) ||
-          left.lang.localeCompare(right.lang, "en") ||
-          left.name.localeCompare(right.name)
-      );
+      const voices = window.speechSynthesis
+        .getVoices()
+        .slice()
+        .sort(
+          (left, right) =>
+            priority(left.lang) - priority(right.lang) ||
+            left.lang.localeCompare(right.lang, "en") ||
+            left.name.localeCompare(right.name)
+        );
       const options = voices.map((voice) => ({
         voiceURI: voice.voiceURI,
         name: voice.name,
@@ -214,14 +224,14 @@ export default function BilingualStoppedFooter({
         targetLanguage,
       });
       setBookmarkSaved(true);
-      setBookmarkMessage("栞の位置を記録しました");
+      setBookmarkMessage(dictionary.bookmarkSaved);
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = window.setTimeout(
         () => setBookmarkMessage(""),
         1800
       );
     } catch {
-      setBookmarkMessage("栞の位置を記録できませんでした");
+      setBookmarkMessage(dictionary.bookmarkFailed);
     }
   }
 
@@ -280,9 +290,9 @@ export default function BilingualStoppedFooter({
     utterance.voice =
       voices.find((voice) => voice.voiceURI === speechSettings.voiceURI) ??
       voices.find((voice) =>
-        voice.lang.toLowerCase().startsWith(
-          narrationLanguage.toLowerCase().split("-")[0]
-        )
+        voice.lang
+          .toLowerCase()
+          .startsWith(narrationLanguage.toLowerCase().split("-")[0])
       ) ??
       null;
     utterance.onend = () => {
@@ -333,7 +343,7 @@ export default function BilingualStoppedFooter({
 
   return (
     <section
-      aria-label="対訳中の朗読フッター"
+      aria-label={bilingualDictionary.footerAria}
       className="mt-5 border-t border-black/10 bg-white pt-3"
     >
       {settingsOpen ? (
@@ -342,76 +352,214 @@ export default function BilingualStoppedFooter({
             <div className="grid gap-4 sm:grid-cols-2">
               <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-4">
                 <p className="text-xs tracking-[0.18em] text-neutral-500">NARRATION</p>
-                <h3 className="mt-2 text-lg font-semibold text-black">朗読</h3>
+                <h3 className="mt-2 text-lg font-semibold text-black">
+                  {dictionary.narrationTitle}
+                </h3>
 
                 <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm text-neutral-700">再生方式</p>
+                  <p className="text-sm text-neutral-700">{dictionary.narrationMode}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <SettingChip active label="ブラウザ朗読" onClick={() => undefined} />
-                    <SettingChip active={false} disabled label="ユーザー朗読（対訳では未対応）" onClick={() => undefined} />
+                    <SettingChip active label={dictionary.browserNarration} onClick={() => undefined} />
+                    <SettingChip
+                      active={false}
+                      disabled
+                      label={bilingualDictionary.bilingualHumanNarrationUnavailable}
+                      onClick={() => undefined}
+                    />
                   </div>
-                  <p className="mt-3 text-xs leading-6 text-neutral-500">下段を現在位置から最後まで読み上げます。</p>
+                  <p className="mt-3 text-xs leading-6 text-neutral-500">
+                    {bilingualDictionary.lowerPaneReadHelp}
+                  </p>
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm text-neutral-700">朗読者（ブラウザ音声）</p>
+                  <p className="text-sm text-neutral-700">{dictionary.browserVoice}</p>
                   <select
                     value={speechSettings.voiceURI}
-                    onChange={(event) => updateSpeechSettings({ ...speechSettings, voiceURI: event.target.value })}
+                    onChange={(event) =>
+                      updateSpeechSettings({
+                        ...speechSettings,
+                        voiceURI: event.target.value,
+                      })
+                    }
                     className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300"
                   >
-                    {availableVoices.length === 0 ? <option value="">標準音声</option> : availableVoices.map((voice) => (
-                      <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name} / {voice.lang}</option>
-                    ))}
+                    {availableVoices.length === 0 ? (
+                      <option value="">{dictionary.defaultVoice}</option>
+                    ) : (
+                      availableVoices.map((voice) => (
+                        <option key={voice.voiceURI} value={voice.voiceURI}>
+                          {voice.name} / {voice.lang}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
                 <label className="mt-4 block rounded-2xl border border-black/10 bg-white p-4">
-                  <span className="flex justify-between text-sm text-neutral-700"><span>声の高さ</span><span>{speechSettings.pitch.toFixed(1)}</span></span>
-                  <input type="range" min={0.8} max={1.3} step={0.1} value={speechSettings.pitch} onChange={(event) => updateSpeechSettings({ ...speechSettings, pitch: Number(event.target.value) })} className="mt-3 w-full accent-sky-300" />
+                  <span className="flex justify-between text-sm text-neutral-700">
+                    <span>{dictionary.voicePitch}</span>
+                    <span>{speechSettings.pitch.toFixed(1)}</span>
+                  </span>
+                  <input
+                    type="range"
+                    min={0.8}
+                    max={1.3}
+                    step={0.1}
+                    value={speechSettings.pitch}
+                    onChange={(event) =>
+                      updateSpeechSettings({
+                        ...speechSettings,
+                        pitch: Number(event.target.value),
+                      })
+                    }
+                    className="mt-3 w-full accent-sky-300"
+                  />
                 </label>
 
                 <label className="mt-4 block rounded-2xl border border-black/10 bg-white p-4">
-                  <span className="flex justify-between text-sm text-neutral-700"><span>朗読音量</span><span>{Math.round(speechSettings.volume * 100)}%</span></span>
-                  <input type="range" min={0} max={1} step={0.01} value={speechSettings.volume} onChange={(event) => updateSpeechSettings({ ...speechSettings, volume: Number(event.target.value) })} className="mt-3 w-full accent-sky-300" />
+                  <span className="flex justify-between text-sm text-neutral-700">
+                    <span>{dictionary.narrationVolume}</span>
+                    <span>{Math.round(speechSettings.volume * 100)}%</span>
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={speechSettings.volume}
+                    onChange={(event) =>
+                      updateSpeechSettings({
+                        ...speechSettings,
+                        volume: Number(event.target.value),
+                      })
+                    }
+                    className="mt-3 w-full accent-sky-300"
+                  />
                 </label>
 
                 <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
-                  <div><p className="text-sm text-neutral-700">朗読停止</p><p className="mt-1 text-xs leading-6 text-neutral-500">停止中は1文再生を開始しません。</p></div>
-                  <button type="button" onClick={toggleNarrationStopped} className={["rounded-full border px-4 py-2 text-sm font-medium transition", narrationStopped ? "border-sky-200 bg-sky-50 text-black" : "border-black/10 bg-white text-neutral-700"].join(" ")}>{narrationStopped ? "停止解除" : "停止"}</button>
+                  <div>
+                    <p className="text-sm text-neutral-700">{dictionary.narrationStopTitle}</p>
+                    <p className="mt-1 text-xs leading-6 text-neutral-500">
+                      {bilingualDictionary.narrationStopShortHelp}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleNarrationStopped}
+                    className={[
+                      "rounded-full border px-4 py-2 text-sm font-medium transition",
+                      narrationStopped
+                        ? "border-sky-200 bg-sky-50 text-black"
+                        : "border-black/10 bg-white text-neutral-700",
+                    ].join(" ")}
+                  >
+                    {narrationStopped ? dictionary.resumeNarration : dictionary.stop}
+                  </button>
                 </div>
               </section>
 
               <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-4">
                 <p className="text-xs tracking-[0.18em] text-neutral-500">DISPLAY</p>
-                <h3 className="mt-2 text-lg font-semibold text-black">表示演出</h3>
+                <h3 className="mt-2 text-lg font-semibold text-black">
+                  {dictionary.displayTitle}
+                </h3>
 
                 <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
-                  <span className="text-sm text-neutral-700">マーカー表示</span>
+                  <span className="text-sm text-neutral-700">{dictionary.markerTitle}</span>
                   <div className="flex gap-2">
-                    <SettingChip active={displaySettings.showMarker} label="ON" onClick={() => onDisplaySettingsChange({ ...displaySettings, showMarker: true })} />
-                    <SettingChip active={!displaySettings.showMarker} label="OFF" onClick={() => onDisplaySettingsChange({ ...displaySettings, showMarker: false })} />
+                    <SettingChip
+                      active={displaySettings.showMarker}
+                      label="ON"
+                      onClick={() =>
+                        onDisplaySettingsChange({
+                          ...displaySettings,
+                          showMarker: true,
+                        })
+                      }
+                    />
+                    <SettingChip
+                      active={!displaySettings.showMarker}
+                      label="OFF"
+                      onClick={() =>
+                        onDisplaySettingsChange({
+                          ...displaySettings,
+                          showMarker: false,
+                        })
+                      }
+                    />
                   </div>
                 </div>
 
                 <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
-                  <span className="text-sm text-neutral-700">全演出</span>
+                  <span className="text-sm text-neutral-700">{bilingualDictionary.allEffects}</span>
                   <div className="flex gap-2">
-                    <SettingChip active={!displaySettings.hideEffects} label="ON" onClick={() => onDisplaySettingsChange({ ...displaySettings, hideEffects: false })} />
-                    <SettingChip active={displaySettings.hideEffects} label="OFF" onClick={() => onDisplaySettingsChange({ ...displaySettings, hideEffects: true })} />
+                    <SettingChip
+                      active={!displaySettings.hideEffects}
+                      label="ON"
+                      onClick={() =>
+                        onDisplaySettingsChange({
+                          ...displaySettings,
+                          hideEffects: false,
+                        })
+                      }
+                    />
+                    <SettingChip
+                      active={displaySettings.hideEffects}
+                      label="OFF"
+                      onClick={() =>
+                        onDisplaySettingsChange({
+                          ...displaySettings,
+                          hideEffects: true,
+                        })
+                      }
+                    />
                   </div>
                 </div>
 
                 <label className="mt-4 block rounded-2xl border border-black/10 bg-white p-4">
-                  <span className="flex justify-between text-sm text-neutral-700"><span>文字サイズ</span><span>{Math.round(displaySettings.fontScale * 100)}%</span></span>
-                  <input type="range" min={0.9} max={1.4} step={0.05} value={displaySettings.fontScale} onChange={(event) => onDisplaySettingsChange({ ...displaySettings, fontScale: Number(event.target.value) })} className="mt-3 w-full accent-sky-300" />
+                  <span className="flex justify-between text-sm text-neutral-700">
+                    <span>{dictionary.fontSize}</span>
+                    <span>{Math.round(displaySettings.fontScale * 100)}%</span>
+                  </span>
+                  <input
+                    type="range"
+                    min={0.9}
+                    max={1.4}
+                    step={0.05}
+                    value={displaySettings.fontScale}
+                    onChange={(event) =>
+                      onDisplaySettingsChange({
+                        ...displaySettings,
+                        fontScale: Number(event.target.value),
+                      })
+                    }
+                    className="mt-3 w-full accent-sky-300"
+                  />
                 </label>
 
                 <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
-                  <p className="text-sm text-neutral-700">行間</p>
+                  <p className="text-sm text-neutral-700">{dictionary.lineHeight}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(["compact", "normal", "wide"] as const).map((value) => (
-                      <SettingChip key={value} active={displaySettings.lineHeight === value} label={value === "compact" ? "狭め" : value === "wide" ? "広め" : "標準"} onClick={() => onDisplaySettingsChange({ ...displaySettings, lineHeight: value })} />
+                      <SettingChip
+                        key={value}
+                        active={displaySettings.lineHeight === value}
+                        label={
+                          value === "compact"
+                            ? dictionary.compact
+                            : value === "wide"
+                              ? dictionary.wide
+                              : dictionary.normal
+                        }
+                        onClick={() =>
+                          onDisplaySettingsChange({
+                            ...displaySettings,
+                            lineHeight: value,
+                          })
+                        }
+                      />
                     ))}
                   </div>
                 </div>
@@ -424,23 +572,90 @@ export default function BilingualStoppedFooter({
       <div className="mx-auto max-w-4xl px-4 py-3 sm:px-6">
         <div className="rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
-            <span>{sentenceCount > 0 ? safePositionIndex + 1 : 0} / {sentenceCount}</span>
-            <span>下段・全文再生</span>
+            <span>
+              {sentenceCount > 0 ? safePositionIndex + 1 : 0} / {sentenceCount}
+            </span>
+            <span>{bilingualDictionary.lowerPaneFullPlayback}</span>
           </div>
-          <input type="range" min={0} max={Math.max(0, sentenceCount - 1)} step={1} value={safePositionIndex} disabled={narrationStopped || sentenceCount === 0} onChange={(event) => changePosition(Number(event.target.value))} className="mt-3 w-full accent-sky-300 disabled:opacity-40" />
+          <input
+            type="range"
+            min={0}
+            max={Math.max(0, sentenceCount - 1)}
+            step={1}
+            value={safePositionIndex}
+            disabled={narrationStopped || sentenceCount === 0}
+            onChange={(event) => changePosition(Number(event.target.value))}
+            className="mt-3 w-full accent-sky-300 disabled:opacity-40"
+          />
         </div>
 
         <div className="mt-3 grid w-full grid-cols-7 gap-2">
           <div className="relative">
-            {bookmarkMessage ? <span role="status" className="absolute bottom-full left-1/2 z-10 mb-2 w-max max-w-56 -translate-x-1/2 rounded-full bg-black px-3 py-1.5 text-center text-xs text-white shadow-lg">{bookmarkMessage}</span> : null}
-            <FooterActionButton label="栞" iconSrc={bookmarkSaved ? PLAYER_ICON_PATHS.bookmarkFilled : PLAYER_ICON_PATHS.bookmark} active={bookmarkSaved} onClick={saveBookmark} />
+            {bookmarkMessage ? (
+              <span
+                role="status"
+                className="absolute bottom-full left-1/2 z-10 mb-2 w-max max-w-56 -translate-x-1/2 rounded-full bg-black px-3 py-1.5 text-center text-xs text-white shadow-lg"
+              >
+                {bookmarkMessage}
+              </span>
+            ) : null}
+            <FooterActionButton
+              label={dictionary.bookmark}
+              iconSrc={
+                bookmarkSaved
+                  ? PLAYER_ICON_PATHS.bookmarkFilled
+                  : PLAYER_ICON_PATHS.bookmark
+              }
+              active={bookmarkSaved}
+              onClick={saveBookmark}
+            />
           </div>
-          <FooterPlaybackRateControl value={speechSettings.rate} onDecrease={() => updateSpeechSettings({ ...speechSettings, rate: clamp(speechSettings.rate - 0.1, 0.7, 1.5) })} onIncrease={() => updateSpeechSettings({ ...speechSettings, rate: clamp(speechSettings.rate + 0.1, 0.7, 1.5) })} />
-          <FooterActionButton label="前話" iconSrc={PLAYER_ICON_PATHS.prev} disabled={!prevHref} onClick={() => moveTo(prevHref)} />
-          <FooterActionButton label={isPlaying ? "停止" : "再生"} iconSrc={isPlaying ? PLAYER_ICON_PATHS.stop : PLAYER_ICON_PATHS.play} disabled={narrationStopped || narrationUnits.length === 0} active={isPlaying} onClick={togglePlayback} />
-          <FooterActionButton label="次話" iconSrc={PLAYER_ICON_PATHS.next} disabled={!nextHref} onClick={() => moveTo(nextHref)} />
-          <FooterActionButton label={autoFollow ? "自動追尾\nON" : "自動追尾\nOFF"} active={autoFollow} disabled={narrationStopped} onClick={() => setAutoFollow((current) => !current)} />
-          <FooterActionButton label="設定" iconSrc={PLAYER_ICON_PATHS.settings} active={settingsOpen} onClick={() => setSettingsOpen((current) => !current)} />
+          <FooterPlaybackRateControl
+            value={speechSettings.rate}
+            onDecrease={() =>
+              updateSpeechSettings({
+                ...speechSettings,
+                rate: clamp(speechSettings.rate - 0.1, 0.7, 1.5),
+              })
+            }
+            onIncrease={() =>
+              updateSpeechSettings({
+                ...speechSettings,
+                rate: clamp(speechSettings.rate + 0.1, 0.7, 1.5),
+              })
+            }
+          />
+          <FooterActionButton
+            label={dictionary.previousEpisode}
+            iconSrc={PLAYER_ICON_PATHS.prev}
+            disabled={!prevHref}
+            onClick={() => moveTo(prevHref)}
+          />
+          <FooterActionButton
+            label={isPlaying ? dictionary.stop : dictionary.play}
+            iconSrc={isPlaying ? PLAYER_ICON_PATHS.stop : PLAYER_ICON_PATHS.play}
+            disabled={narrationStopped || narrationUnits.length === 0}
+            active={isPlaying}
+            onClick={togglePlayback}
+          />
+          <FooterActionButton
+            label={dictionary.nextEpisode}
+            iconSrc={PLAYER_ICON_PATHS.next}
+            disabled={!nextHref}
+            onClick={() => moveTo(nextHref)}
+          />
+          <FooterActionButton
+            label={autoFollow ? dictionary.autoFollowOn : dictionary.autoFollowOff}
+            active={autoFollow}
+            disabled={narrationStopped}
+            onClick={() => setAutoFollow((current) => !current)}
+          />
+          <FooterActionButton
+            label={dictionary.settings}
+            iconSrc={PLAYER_ICON_PATHS.settings}
+            active={settingsOpen}
+            onClick={() => setSettingsOpen((current) => !current)}
+          />
         </div>
       </div>
     </section>
