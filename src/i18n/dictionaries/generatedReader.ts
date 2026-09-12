@@ -1,6 +1,7 @@
 import type { UiLocale } from "../config";
 
 const ja = {
+  metadataTitle: "一時生成の物語",
   loading: "読み込み中...",
   missingTitle: "生成された物語が見つかりません",
   missingHelp:
@@ -43,6 +44,7 @@ type GeneratedReaderDictionary = {
 };
 
 const en = {
+  metadataTitle: "Temporary generated story",
   loading: "Loading...",
   missingTitle: "Generated story not found",
   missingHelp:
@@ -79,6 +81,7 @@ const en = {
 } satisfies GeneratedReaderDictionary;
 
 const ko = {
+  metadataTitle: "임시 생성 이야기",
   loading: "불러오는 중...",
   missingTitle: "생성한 이야기를 찾을 수 없습니다",
   missingHelp:
