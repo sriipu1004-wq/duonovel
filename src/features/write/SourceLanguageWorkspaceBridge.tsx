@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import {
   LANGUAGE_REGISTRY,
   parseSupportedLanguageTag,
@@ -14,6 +15,39 @@ const SOURCE_LANGUAGE_OPTIONS = Object.keys(
   LANGUAGE_REGISTRY
 ) as SupportedLanguageTag[];
 
+const copy = {
+  ja: {
+    heading: "作品の原文言語",
+    help: "UIの表示言語とは別です。この作品が最初に書かれた言語を指定します。",
+    placeholder: "原文言語を選択",
+    confirm: "この言語を原文言語として確定",
+    legacyNotice: "既存作品の推定値です。内容を確認して確定してください。",
+    required: "作品を作成する前に原文言語を選択してください。",
+    saved: "保存済み",
+    failed: "原文言語を更新できませんでした。",
+  },
+  en: {
+    heading: "Original language",
+    help: "This is independent of the interface language. Choose the language in which the work was originally written.",
+    placeholder: "Choose original language",
+    confirm: "Confirm as original language",
+    legacyNotice: "This is an inferred value for an existing work. Review it and confirm the language.",
+    required: "Choose the original language before creating the work.",
+    saved: "Saved",
+    failed: "Could not update the original language.",
+  },
+  ko: {
+    heading: "작품 원문 언어",
+    help: "UI 표시 언어와는 별개입니다. 이 작품이 처음 작성된 언어를 지정하세요.",
+    placeholder: "원문 언어 선택",
+    confirm: "이 언어를 원문 언어로 확정",
+    legacyNotice: "기존 작품에서 추정한 값입니다. 내용을 확인한 뒤 확정하세요.",
+    required: "작품을 만들기 전에 원문 언어를 선택하세요.",
+    saved: "저장됨",
+    failed: "원문 언어를 업데이트하지 못했습니다.",
+  },
+} as const;
+
 type Props = {
   seriesId?: string | null;
   initialLanguage?: SupportedLanguageTag | null;
@@ -25,8 +59,9 @@ export default function SourceLanguageWorkspaceBridge({
   initialLanguage = null,
   confirmed = false,
 }: Props) {
-  const [language, setLanguage] = useState<SupportedLanguageTag>(
-    initialLanguage ?? "ja"
+  const dictionary = copy[useUiLocale()];
+  const [language, setLanguage] = useState<SupportedLanguageTag | "">(
+    initialLanguage ?? ""
   );
   const [savedLanguage, setSavedLanguage] = useState<SupportedLanguageTag | null>(
     confirmed ? initialLanguage : null
@@ -47,19 +82,25 @@ export default function SourceLanguageWorkspaceBridge({
       if (!applied) return;
       setLanguage(applied);
       setSavedLanguage(applied);
-      setMessage("保存済み");
+      setMessage(dictionary.saved);
     }
 
     window.addEventListener("libread:source-language-applied", handleApplied);
     return () =>
       window.removeEventListener("libread:source-language-applied", handleApplied);
-  }, []);
+  }, [dictionary.saved]);
 
   useEffect(() => {
     if (seriesId) return;
 
     function rememberCreateSelection(event: Event) {
       if (!(event.target instanceof HTMLFormElement)) return;
+      if (!language) {
+        event.preventDefault();
+        event.stopPropagation();
+        setMessage(dictionary.required);
+        return;
+      }
       window.sessionStorage.setItem(
         PENDING_CREATE_SOURCE_LANGUAGE_KEY,
         JSON.stringify({
@@ -72,7 +113,7 @@ export default function SourceLanguageWorkspaceBridge({
 
     document.addEventListener("submit", rememberCreateSelection, true);
     return () => document.removeEventListener("submit", rememberCreateSelection, true);
-  }, [language, seriesId]);
+  }, [dictionary.required, language, seriesId]);
 
   async function persistLanguage(nextLanguage: SupportedLanguageTag) {
     setLanguage(nextLanguage);
@@ -98,15 +139,15 @@ export default function SourceLanguageWorkspaceBridge({
       const saved = parseSupportedLanguageTag(payload.language);
       if (!response.ok || !payload.ok || !saved) {
         setLanguage(savedLanguage ?? nextLanguage);
-        setMessage(payload.message || "原文言語を更新できませんでした。");
+        setMessage(payload.message || dictionary.failed);
         return;
       }
       setLanguage(saved);
       setSavedLanguage(saved);
-      setMessage("保存済み");
+      setMessage(dictionary.saved);
     } catch {
       setLanguage(savedLanguage ?? nextLanguage);
-      setMessage("原文言語を更新できませんでした。");
+      setMessage(dictionary.failed);
     } finally {
       setSaving(false);
     }
@@ -118,9 +159,11 @@ export default function SourceLanguageWorkspaceBridge({
         <p className="text-xs tracking-[0.18em] text-neutral-500">
           SOURCE LANGUAGE
         </p>
-        <h2 className="mt-2 text-lg font-semibold text-black">作品の原文言語</h2>
+        <h2 className="mt-2 text-lg font-semibold text-black">
+          {dictionary.heading}
+        </h2>
         <p className="mt-2 text-sm leading-7 text-neutral-600">
-          UIの表示言語とは別です。この作品が最初に書かれた言語を指定します。
+          {dictionary.help}
         </p>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           <select
@@ -132,6 +175,11 @@ export default function SourceLanguageWorkspaceBridge({
             }}
             className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none transition focus:border-sky-300 disabled:opacity-60 sm:max-w-sm"
           >
+            {!language ? (
+              <option value="" disabled>
+                {dictionary.placeholder}
+              </option>
+            ) : null}
             {SOURCE_LANGUAGE_OPTIONS.map((tag) => {
               const item = LANGUAGE_REGISTRY[tag];
               return (
@@ -141,26 +189,26 @@ export default function SourceLanguageWorkspaceBridge({
               );
             })}
           </select>
-          {seriesId && !savedLanguage ? (
+          {seriesId && language && !savedLanguage ? (
             <button
               type="button"
               disabled={saving}
               onClick={() => void persistLanguage(language)}
               className="rounded-full bg-black px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
             >
-              この言語を原文言語として確定
+              {dictionary.confirm}
             </button>
           ) : null}
         </div>
-        {seriesId && !savedLanguage ? (
+        {seriesId && language && !savedLanguage ? (
           <p className="mt-3 text-xs leading-6 text-amber-700">
-            既存作品の推定値です。内容を確認して確定してください。
+            {dictionary.legacyNotice}
           </p>
         ) : null}
         {message ? (
           <p
             className={`mt-3 text-xs ${
-              message === "保存済み" ? "text-emerald-700" : "text-red-700"
+              message === dictionary.saved ? "text-emerald-700" : "text-red-700"
             }`}
           >
             {message}
