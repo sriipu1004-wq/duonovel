@@ -40,6 +40,60 @@ function pushLocalizedEntries(
   }
 }
 
+function pushEnKoSearchEntries(
+  entries: MetadataRoute.Sitemap,
+  path: "/japanese-novel-reader" | "/learn-japanese-with-web-novels",
+  priority: number
+) {
+  const languages = {
+    en: `${SITE_URL}/en${path}`,
+    ko: `${SITE_URL}/ko${path}`,
+  };
+  entries.push(
+    {
+      url: languages.en,
+      changeFrequency: "monthly",
+      priority,
+      alternates: { languages },
+    },
+    {
+      url: languages.ko,
+      changeFrequency: "monthly",
+      priority,
+      alternates: { languages },
+    }
+  );
+}
+
+function pushPdfReaderEntries(entries: MetadataRoute.Sitemap) {
+  const languages = {
+    ja: `${SITE_URL}/pdf-bilingual-reader`,
+    en: `${SITE_URL}/en/pdf-epub-bilingual-reader`,
+    ko: `${SITE_URL}/ko/pdf-epub-bilingual-reader`,
+    "x-default": `${SITE_URL}/pdf-bilingual-reader`,
+  };
+  entries.push(
+    {
+      url: languages.ja,
+      changeFrequency: "monthly",
+      priority: 0.85,
+      alternates: { languages },
+    },
+    {
+      url: languages.en,
+      changeFrequency: "monthly",
+      priority: 0.85,
+      alternates: { languages },
+    },
+    {
+      url: languages.ko,
+      changeFrequency: "monthly",
+      priority: 0.85,
+      alternates: { languages },
+    }
+  );
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const works = await getCachedPublicBaseWorkCards({ visibility: "general" });
   const entries: MetadataRoute.Sitemap = [];
@@ -52,6 +106,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "monthly",
     priority: 0.8,
   });
+  pushLocalizedEntries(entries, "/subscription", {
+    changeFrequency: "monthly",
+    priority: 0.85,
+  });
 
   entries.push(
     {
@@ -63,13 +121,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: SITE_URL + "/web-novel-language-learning",
       changeFrequency: "monthly",
       priority: 0.9,
-    },
-    {
-      url: SITE_URL + "/pdf-bilingual-reader",
-      changeFrequency: "monthly",
-      priority: 0.85,
     }
   );
+
+  pushEnKoSearchEntries(entries, "/japanese-novel-reader", 0.9);
+  pushEnKoSearchEntries(entries, "/learn-japanese-with-web-novels", 0.9);
+  pushPdfReaderEntries(entries);
 
   for (const work of works) {
     const lastModified =
