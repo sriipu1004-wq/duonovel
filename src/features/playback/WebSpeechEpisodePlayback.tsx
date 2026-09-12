@@ -122,6 +122,21 @@ const DEFAULT_DISPLAY_PREFERENCE: DisplayPreference = {
 
 const EMPTY_HUMAN_NARRATION_OPTIONS: HumanNarrationOption[] = [];
 
+const WEB_SPEECH_LOCALE_COPY = {
+  ja: {
+    seconds: (value: number) => `${value}秒`,
+    publicNarrationLoadFailed: "公開朗読音声の読み込みに失敗した。",
+  },
+  en: {
+    seconds: (value: number) => `${value}s`,
+    publicNarrationLoadFailed: "Could not load the published narration audio.",
+  },
+  ko: {
+    seconds: (value: number) => `${value}초`,
+    publicNarrationLoadFailed: "공개 낭독 오디오를 불러오지 못했습니다.",
+  },
+} as const;
+
 function clampFontScale(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_DISPLAY_PREFERENCE.fontScale;
   return Math.min(1.4, Math.max(0.9, value));
@@ -283,7 +298,8 @@ export default function WebSpeechEpisodePlayback({
   constrainBodyScroll = false,
 }: EpisodePlaybackProps) {
   const router = useRouter();
-  const dictionary = readerDictionaries[useUiLocale()];
+  const locale = useUiLocale();
+  const dictionary = readerDictionaries[locale];
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const sentenceRefs = useRef<Record<number, HTMLSpanElement | null>>({});
   const speechRunIdRef = useRef(0);
@@ -479,7 +495,7 @@ export default function WebSpeechEpisodePlayback({
     ? humanDuration || 0
     : maxUnitIndex;
   const currentPositionLabel = isHumanNarration
-    ? `${Math.floor(humanCurrentTime)}秒 / ${Math.floor(humanDuration)}秒`
+    ? `${WEB_SPEECH_LOCALE_COPY[locale].seconds(Math.floor(humanCurrentTime))} / ${WEB_SPEECH_LOCALE_COPY[locale].seconds(Math.floor(humanDuration))}`
     : `${Math.min(speechUnits.length, safeActiveUnitIndex + 1)} / ${speechUnits.length}`;
 
   const handleMove = useCallback(
@@ -771,7 +787,7 @@ export default function WebSpeechEpisodePlayback({
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
     const handleError = () => {
-      setAudioError("公開朗読音声の読み込みに失敗した。");
+      setAudioError(WEB_SPEECH_LOCALE_COPY[locale].publicNarrationLoadFailed);
       setIsPlaying(false);
     };
     const handleEnded = () => {
@@ -807,6 +823,7 @@ export default function WebSpeechEpisodePlayback({
     handleMove,
     isSubscriber,
     nextEpisodeHref,
+    locale,
   ]);
 
   useEffect(() => {
@@ -901,6 +918,7 @@ export default function WebSpeechEpisodePlayback({
     nextEpisodeHref,
     safeSpeechLanguage,
     speechUnits,
+    dictionary.speechUnavailable,
   ]);
 
   const startBrowserSpeechFrom = useCallback((index: number) => {
@@ -925,7 +943,7 @@ export default function WebSpeechEpisodePlayback({
     window.setTimeout(() => {
       speakFrom(boundedIndex, runId);
     }, 0);
-  }, [maxUnitIndex, speakFrom, speechUnits.length]);
+  }, [dictionary.speechUnavailable, maxUnitIndex, speakFrom, speechUnits.length]);
 
   function handleTogglePlay() {
     if (isNarrationStopped) {
