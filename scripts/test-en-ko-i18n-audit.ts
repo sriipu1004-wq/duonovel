@@ -38,6 +38,17 @@ function assertNoKnownUiLiteral(path: string, literals: readonly string[]) {
   }
 }
 
+function assertSourceContains(path: string, literals: readonly string[]) {
+  const source = readFileSync(path, "utf8");
+  for (const literal of literals) {
+    assert.equal(
+      source.includes(literal),
+      true,
+      `${path} must contain localized render guard: ${literal}`
+    );
+  }
+}
+
 function main() {
   for (const locale of ["en", "ko"] as const) {
     assertDictionaryHasNoJapanese(`billingPrompt.${locale}`, billingPromptDictionaries[locale]);
@@ -77,6 +88,22 @@ function main() {
     "無料分を使い切りました。",
     "サブスクを見る",
   ]);
+  assertNoKnownUiLiteral("src/features/playback/WebSpeechEpisodePlayback.tsx", [
+    "`${Math.floor(humanCurrentTime)}秒 / ${Math.floor(humanDuration)}秒`",
+    "setAudioError(\"公開朗読音声の読み込みに失敗した。\")",
+  ]);
+  assertNoKnownUiLiteral(
+    "src/app/read/generated/[storyId]/GeneratedStoryReaderClient.tsx",
+    ["{sceneLabel} / {genreLabel} / {request.mood}"]
+  );
+  assertSourceContains("src/features/playback/WebSpeechEpisodePlayback.tsx", [
+    "WEB_SPEECH_LOCALE_COPY[locale].seconds",
+    "WEB_SPEECH_LOCALE_COPY[locale].publicNarrationLoadFailed",
+  ]);
+  assertSourceContains(
+    "src/app/read/generated/[storyId]/GeneratedStoryReaderClient.tsx",
+    ["request.mood === \"指定なし\" ? generateDictionary.none : request.mood", "{moodLabel}"]
+  );
 
   console.log("PASS: EN/KO i18n dictionaries and known residual UI literals");
 }
