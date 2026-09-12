@@ -67,6 +67,7 @@ async function resolvePageData(params: Props["params"]) {
 
   if (
     !overview ||
+    !overview.translationEligible ||
     !targetLanguage ||
     !isPublicTranslationTargetLanguage(targetLanguage) ||
     targetLanguage === overview.sourceLanguage
