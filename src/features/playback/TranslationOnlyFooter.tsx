@@ -46,6 +46,25 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function buildTranslatedEpisodeHref(
+  href: string,
+  sourceLanguage: SupportedLanguageTag,
+  targetLanguage: SupportedLanguageTag
+): string {
+  const baseHref = applyReadingModeToHref(href, {
+    mode: "translation",
+    sourceLanguage,
+    targetLanguage,
+    positionIndex: 0,
+  });
+  const url = new URL(baseHref, "https://libread.local");
+  // Navigation itself is an explicit Reader request. Preserve generation intent
+  // so a ready shared asset stays quota-free while a missing asset follows the
+  // existing generation/quota path on arrival.
+  url.searchParams.set("autoGenerate", "1");
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 export default function TranslationOnlyFooter({
   seriesId,
   episodeNumber,
@@ -86,11 +105,7 @@ export default function TranslationOnlyFooter({
   const nextReaderHref = useMemo(
     () =>
       nextHref
-        ? applyReadingModeToHref(nextHref, {
-            mode: "translation",
-            sourceLanguage,
-            targetLanguage,
-          })
+        ? buildTranslatedEpisodeHref(nextHref, sourceLanguage, targetLanguage)
         : null,
     [nextHref, sourceLanguage, targetLanguage]
   );
@@ -181,14 +196,7 @@ export default function TranslationOnlyFooter({
   function moveTo(href?: string | null) {
     if (!href) return;
     stopSpeech();
-    router.push(
-      applyReadingModeToHref(href, {
-        mode: "translation",
-        sourceLanguage,
-        targetLanguage,
-        positionIndex: 0,
-      })
-    );
+    router.push(buildTranslatedEpisodeHref(href, sourceLanguage, targetLanguage));
   }
 
   function saveBookmark() {
