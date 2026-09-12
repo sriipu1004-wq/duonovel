@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   applyReadingModeToHref,
   readReadingHistory,
@@ -28,6 +29,25 @@ function installLocalStorage() {
       }
     },
   });
+}
+
+function assertAutoGenerationGuard(path: string) {
+  const source = readFileSync(path, "utf8");
+  assert.match(
+    source,
+    /const \[canAutoGenerate, setCanAutoGenerate\] = useState\(false\);/u,
+    `${path} must track the server auto-generation permission separately from manual generation`
+  );
+  assert.match(
+    source,
+    /!canGenerate \|\|\s*!canAutoGenerate \|\|/u,
+    `${path} must require both manual-generation and auto-generation permission before automatic generation`
+  );
+  assert.match(
+    source,
+    /setCanAutoGenerate\(payload\.canAutoGenerate === true\);/u,
+    `${path} must consume canAutoGenerate from the translation status API`
+  );
 }
 
 function main() {
@@ -106,8 +126,15 @@ function main() {
   assert.equal(originalUrl.searchParams.get("translationOnly"), null);
   assert.equal(originalUrl.searchParams.get("targetLanguage"), null);
 
+  assertAutoGenerationGuard(
+    "src/features/playback/BilingualEpisodePlayback.tsx"
+  );
+  assertAutoGenerationGuard(
+    "src/features/playback/TranslationOnlyEpisodePlayback.tsx"
+  );
+
   console.log(
-    "PASS: canonical source language, legacy fallback, translation-only state and mode URLs"
+    "PASS: canonical source language, legacy fallback, translation-only state, mode URLs and auto-generation guard"
   );
 }
 
