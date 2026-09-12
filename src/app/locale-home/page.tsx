@@ -9,14 +9,14 @@ type PublicTopProps = Parameters<typeof PublicTopPage>[0];
 
 const searchLandingCopy = {
   en: {
-    title: "Bilingual Web Novel Reader for English & Japanese Learning",
+    title: "Bilingual Long-Form Novel Reader",
     description:
-      "Read web novels and imported books with the original text and synchronized translations. Use bilingual reading, read-aloud, PDF/EPUB/TXT/DOCX import, and AI stories to study English or Japanese through fiction.",
+      "LIB read is a bilingual long-form reading platform for novels and web novels. Keep the original text beside a translation, continue across chapters, import TXT/EPUB/DOCX/text PDFs privately, use read-aloud, and browse public works.",
   },
   ko: {
-    title: "대역 웹소설 리더·영어/일본어 학습",
+    title: "장편소설·웹소설 대역 리더",
     description:
-      "웹소설과 가져온 책을 원문과 동기화된 번역문으로 함께 읽을 수 있습니다. 대역 읽기, 읽어주기, PDF·EPUB·TXT·DOCX 가져오기, AI 이야기로 영어와 일본어를 소설을 통해 학습하세요.",
+      "LIB read는 장편소설과 웹소설을 위한 다국어 독서 플랫폼입니다. 원문과 번역을 함께 유지하고 장과 화를 넘어 이어 읽으며 TXT·EPUB·DOCX·텍스트 PDF 개인 서재, 읽어주기, 공개 작품을 이용할 수 있습니다.",
   },
 } as const;
 
@@ -74,9 +74,6 @@ export default async function LocalizedHomePage(props: PublicTopProps) {
     description: copy.description,
   };
 
-  // Keep every locale on the same PublicTopPage component. Locale-specific
-  // differences belong in dictionaries/metadata so layout and behavior fixes
-  // automatically apply to Japanese, English, and Korean together.
   return (
     <>
       <script
