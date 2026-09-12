@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getUiLocale } from "@/i18n/server";
 import { localizePath } from "@/i18n/navigation";
+import { isR18Series } from "@/lib/contentRating";
+import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 import { getSupportedLanguage } from "@/lib/translation/languageRegistry";
 import { getPublicWorkTranslationOverview } from "@/lib/translation/publicWorkTranslations";
 
@@ -41,6 +43,11 @@ export default async function WorkTranslationAvailability({ seriesId }: Props) {
     getPublicWorkTranslationOverview(seriesId),
   ]);
   if (!overview) return null;
+
+  if (isR18Series(overview.series)) {
+    const preference = await getCurrentR18ViewerPreference();
+    if (!preference.showR18Content) return null;
+  }
 
   const dictionary = text[locale];
   const totalEpisodes = overview.episodes.length;
