@@ -25,6 +25,8 @@ import { buildReaderAuthorHref } from "@/lib/readerAuthorHref";
 import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 import { getUiLocale } from "@/i18n/server";
 import { localizePath } from "@/i18n/navigation";
+import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
+import { getSupportedLanguage } from "@/lib/translation/languageRegistry";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -478,6 +480,10 @@ export default async function ReadEpisodePage({
     `第${currentEpisodeNumber}話`;
   const episodeBody = getEpisodeBody(episode);
   const body = episodeBody || "本文がまだ登録されていません。";
+  const sourceLanguage = inferSeriesSourceLanguage(series, episodeBody);
+  const speechLanguage = sourceLanguage
+    ? getSupportedLanguage(sourceLanguage).speechLanguage
+    : "ja-JP";
 
   const aiGeneratedAttribution = getAiGeneratedReadAttribution(series);
   const workAuthorName = aiGeneratedAttribution
@@ -565,6 +571,7 @@ export default async function ReadEpisodePage({
         isPublicReadPage && isSeriesEpisodeCommentVisible(series)
       }
       effectSettings={effectSettings}
+      speechLanguage={speechLanguage}
       ownerActions={
         isOwner &&
         aiGeneratedAttribution &&
