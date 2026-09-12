@@ -24,6 +24,7 @@ import {
   DEFAULT_TRANSLATION_TARGET_LANGUAGE,
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 import { TRANSLATION_SEGMENT_VERSION } from "@/lib/translation/translationPayload";
 
 export const TRANSLATION_SOURCE_LANGUAGE = DEFAULT_TRANSLATION_SOURCE_LANGUAGE;
@@ -40,6 +41,7 @@ export type EpisodeTranslationAccess = {
   episode: EpisodeRow;
   series: SeriesRow;
   body: string;
+  sourceLanguage: SupportedLanguageTag | null;
   seriesId: string;
   episodeNumber: number;
   currentUserId: string | null;
@@ -162,9 +164,10 @@ export function buildEpisodeTranslationSourceHash(
   cacheVariant?: unknown
 ): string {
   const normalized = normalizeTranslationSourceText(body);
-  const variant = cacheVariant === undefined || cacheVariant === null
-    ? ""
-    : "\0variant-v1\0" + JSON.stringify(cacheVariant);
+  const variant =
+    cacheVariant === undefined || cacheVariant === null
+      ? ""
+      : "\0variant-v1\0" + JSON.stringify(cacheVariant);
   return createHash("sha256")
     .update("episode-translation-source-v1\0" + normalized + variant, "utf8")
     .digest("hex");
@@ -221,6 +224,7 @@ export async function resolveEpisodeTranslationAccess(
     getSeriesPublicationStatus(series) === "public" &&
     isEpisodePubliclyVisible(episode);
   const body = getEpisodeBody(episode);
+  const sourceLanguage = inferSeriesSourceLanguage(series, body);
   const episodeNumber = getEpisodeNumber(episode);
   const explicitlyAllowlisted = isEpisodeTranslationAllowlisted({
     episodeId: episode.id,
@@ -236,6 +240,7 @@ export async function resolveEpisodeTranslationAccess(
     episode,
     series,
     body,
+    sourceLanguage,
     seriesId,
     episodeNumber,
     currentUserId,
