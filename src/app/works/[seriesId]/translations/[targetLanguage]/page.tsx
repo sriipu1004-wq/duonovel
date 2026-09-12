@@ -176,7 +176,6 @@ export default async function WorkTranslationPage({ params }: Props) {
                 translationOnly: "1",
                 sourceLanguage: overview.sourceLanguage,
                 targetLanguage,
-                lockLanguage: "1",
               });
               if (!ready) params.set("autoGenerate", "1");
               const href = localizePath(`${baseReadPath}?${params.toString()}`, locale);
