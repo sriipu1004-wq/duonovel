@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   patch:
-    if: ${{ github.actor != 'github-actions[bot]' }}
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,72 +21,12 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - name: Normalize staged patch
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('scripts/child60_polish_patch.py')
-          s = p.read_text()
-
-          old = '''text = read(path)
-          if text.count(old_publish) != 2:
-              raise SystemExit(f"expected 2 publish translation blocks, got {text.count(old_publish)}")
-          write(path, text.replace(old_publish, new_publish))'''
-          new = '''text = read(path)
-          old_publish_2 = "\\n".join(line[2:] if line.startswith("  ") else line for line in old_publish.splitlines())
-          new_publish_2 = "\\n".join(line[2:] if line.startswith("  ") else line for line in new_publish.splitlines())
-          matches = text.count(old_publish) + text.count(old_publish_2)
-          if matches != 2:
-              raise SystemExit(f"expected 2 publish translation blocks, got {matches}")
-          write(path, text.replace(old_publish, new_publish).replace(old_publish_2, new_publish_2))'''
-          if old in s:
-              s = s.replace(old, new)
-
-          old_footer = '''text = read(path)
-          ending = '      </div>\\n    </section>\\n  );\\n}'
-          if not text.endswith(ending):
-              raise SystemExit("translation footer ending not found")
-          write(path, text[:-len(ending)] + '      </div>\\n      </div>\\n    </section>\\n  );\\n}')'''
-          new_footer = '''text = read(path)
-          ending = '      </div>\\n    </section>\\n  );\\n}'
-          stripped = text.rstrip()
-          if not stripped.endswith(ending):
-              raise SystemExit("translation footer ending not found")
-          write(path, stripped[:-len(ending)] + '      </div>\\n      </div>\\n    </section>\\n  );\\n}\\n')'''
-          if old_footer in s:
-              s = s.replace(old_footer, new_footer)
-
-          # Ref callbacks must return void.
-          s = s.replace(
-              'ref={(node) => segmentRefs.current.set(segment.id, node)}',
-              'ref={(node) => { segmentRefs.current.set(segment.id, node); }}'
-          )
-
-          # Continue-story prompt tags use structured canonical values too, so an
-          # English/Korean localized tag never gets written into the textarea.
-          s += r'''
-
-# Continue story structured prompt tags.
-path = "src/features/generation/ContinueStoryAction.tsx"
-repl(path, 'import { getPromptTagsInText } from "@/lib/generation/promptTags";', 'import type { PromptTag } from "@/lib/generation/promptTags";')
-repl(path, '  const [continuationRequest, setContinuationRequest] = useState("");', '  const [continuationRequest, setContinuationRequest] = useState("");\n  const [promptTags, setPromptTags] = useState<PromptTag[]>([]);')
-repl(path, '      const promptTags = getPromptTagsInText(normalizedRequest);\n', '')
-repl(path, '''            <PromptTagSuggestions
-              value={continuationRequest}
-              onChange={setContinuationRequest}
-              maxLength={CONTINUATION_REQUEST_MAX_LENGTH}
-              disabled={isGenerating}
-            />''', '''            <PromptTagSuggestions
-              selectedTags={promptTags}
-              onSelectedTagsChange={setPromptTags}
-              disabled={isGenerating}
-            />''')
-'''
-          p.write_text(s)
-          PY
-      - name: Apply patch
+      - name: Normalize patch script
+        run: python scripts/child60_normalize_patch.py
+      - name: Apply main patch
         run: python scripts/child60_polish_patch.py
+      - name: Apply post-patch fixes
+        run: python scripts/child60_postpatch_fix.py
       - name: Install dependencies
         run: npm ci
       - name: TypeScript
