@@ -42,12 +42,16 @@ export const DEFAULT_BILINGUAL_DEMO_SENTENCES: BilingualDemoSentence[] = [
   },
 ];
 
+const DEFAULT_INSTRUCTION =
+  "上下どちらかをスクロールすると対応位置が連動します。文をタップすると、対応する文が両方で反応し、それぞれの枠の中央付近へ移動します。";
+
 type Pane = "source" | "translation";
 
 type Props = {
   sourceLabel: string;
   translationLabel: string;
   sentences: BilingualDemoSentence[];
+  instruction?: string;
   note: string;
 };
 
@@ -117,6 +121,7 @@ export default function InteractiveBilingualDemo({
   sourceLabel,
   translationLabel,
   sentences,
+  instruction = DEFAULT_INSTRUCTION,
   note,
 }: Props) {
   const [activeIndex, setActiveIndex] = useState(
@@ -271,7 +276,7 @@ export default function InteractiveBilingualDemo({
   return (
     <div className="mt-6 overflow-hidden rounded-[28px] border border-black/10 bg-neutral-950 shadow-sm">
       <div className="border-b border-white/10 px-4 py-3 text-xs leading-6 text-neutral-300 sm:px-5">
-        上下どちらかをスクロールすると対応位置が連動します。文をタップすると、対応する文が両方で反応し、それぞれの枠の中央付近へ移動します。
+        {instruction}
       </div>
       <div className="divide-y divide-white/10">
         {renderPane(
