@@ -4,6 +4,7 @@ export const TRANSLATION_READER_VISIBILITY_EVENT =
 const TRANSLATION_READER_VISIBLE_KEY =
   "duonovel:translation-reader-visible";
 
+// Reader visibility is a local display preference only; it never changes translation eligibility.
 export function readTranslationReaderVisible(): boolean {
   if (typeof window === "undefined") return true;
 
