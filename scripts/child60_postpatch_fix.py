@@ -25,24 +25,16 @@ repl(path, '''            <PromptTagSuggestions
               disabled={isGenerating}
             />''')
 
-# Reader visibility bootstrap is deferred one frame so the effect only subscribes
-# synchronously; hiding while already translated is handled by the explicit setter.
+# Reader visibility: remove now-unused session preference reader and make local
+# preference hydration occur in an animation-frame callback, not synchronously in
+# the effect body.
 path = "src/features/playback/ReadBilingualShell.tsx"
 p = Path(path)
 text = p.read_text()
-text = text.replace(
-'''  useEffect(() => {
-    const initialVisible = readTranslationReaderVisible();
-    setTranslationUiVisible(initialVisible);
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent<{ visible?: unknown }>).detail;
-      if (typeof detail?.visible !== "boolean") return;
-      setTranslationUiVisible(detail.visible);
-    };
-    window.addEventListener(TRANSLATION_READER_VISIBILITY_EVENT, handler);
-    return () => window.removeEventListener(TRANSLATION_READER_VISIBILITY_EVENT, handler);
-  }, []);''',
-'''  useEffect(() => {
+text = text.replace('  readBilingualSessionPreference,\n', '')
+text, changed = re.subn(
+    r'''  useEffect\(\(\) => \{\n    const initialVisible = readTranslationReaderVisible\(\);\n    setTranslationUiVisible\(initialVisible\);\n    const handler = \(event: Event\) => \{\n      const detail = \(event as CustomEvent<\{ visible\?: unknown \}>\)\.detail;\n      if \(typeof detail\?\.visible === "boolean"\)(?: return;\n      setTranslationUiVisible\(detail\.visible\);| setTranslationUiVisible\(detail\.visible\);)\n    \};\n    window\.addEventListener\(TRANSLATION_READER_VISIBILITY_EVENT, handler\);\n    return \(\) => window\.removeEventListener\(TRANSLATION_READER_VISIBILITY_EVENT, handler\);\n  \}, \[\]\);''',
+    '''  useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       setTranslationUiVisible(readTranslationReaderVisible());
     });
@@ -56,8 +48,12 @@ text = text.replace(
       window.cancelAnimationFrame(frame);
       window.removeEventListener(TRANSLATION_READER_VISIBILITY_EVENT, handler);
     };
-  }, []);'''
+  }, []);''',
+    text,
+    count=1,
 )
+if changed != 1:
+    raise SystemExit("visibility bootstrap effect not replaced")
 text = text.replace(
 '''    if (!translationUiVisible) {
       replaceReaderUrl("standard");
