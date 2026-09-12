@@ -1,0 +1,126 @@
+name: Patch translation auto-generation guard
+
+on:
+  push:
+    branches:
+      - feat/multilingual-work-reader
+    paths:
+      - .github/workflows/patch-translation-autogenerate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/multilingual-work-reader
+          fetch-depth: 0
+
+      - name: Apply guarded auto-generation patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str):
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected exactly one match, found {count}: {old[:80]!r}")
+              path.write_text(text.replace(old, new, 1))
+
+          translation_only = Path("src/features/playback/TranslationOnlyEpisodePlayback.tsx")
+          replace_once(
+              translation_only,
+              '  canGenerate?: boolean;\n  sourceHash?: string;',
+              '  canGenerate?: boolean;\n  canAutoGenerate?: boolean;\n  sourceHash?: string;',
+          )
+          replace_once(
+              translation_only,
+              '  const [canGenerate, setCanGenerate] = useState(false);\n  const [isGenerating, setIsGenerating] = useState(false);',
+              '  const [canGenerate, setCanGenerate] = useState(false);\n  const [canAutoGenerate, setCanAutoGenerate] = useState(false);\n  const [isGenerating, setIsGenerating] = useState(false);',
+          )
+          replace_once(
+              translation_only,
+              '      if (!response.ok || !payload.ok) {\n        setTranslationStatus("error");',
+              '      if (!response.ok || !payload.ok) {\n        setCanAutoGenerate(false);\n        setTranslationStatus("error");',
+          )
+          replace_once(
+              translation_only,
+              '      setCanGenerate(payload.canGenerate === true);\n      const nextStatus = payload.status ?? "missing";',
+              '      setCanGenerate(payload.canGenerate === true);\n      setCanAutoGenerate(payload.canAutoGenerate === true);\n      const nextStatus = payload.status ?? "missing";',
+          )
+          replace_once(
+              translation_only,
+              '    } catch {\n      if (targetLanguageRef.current !== targetLanguage) return;\n      setTranslationStatus("error");',
+              '    } catch {\n      if (targetLanguageRef.current !== targetLanguage) return;\n      setCanAutoGenerate(false);\n      setTranslationStatus("error");',
+          )
+          replace_once(
+              translation_only,
+              '    setTranslationStatus("loading");\n    setSegments([]);',
+              '    setTranslationStatus("loading");\n    setCanAutoGenerate(false);\n    setSegments([]);',
+          )
+          replace_once(
+              translation_only,
+              '      !["missing", "stale", "failed"].includes(translationStatus) ||\n      !canGenerate ||',
+              '      !["missing", "stale", "failed"].includes(translationStatus) ||\n      !canGenerate ||\n      !canAutoGenerate ||',
+          )
+          replace_once(
+              translation_only,
+              '    autoGenerateMissingTranslation,\n    canGenerate,\n    episodeId,',
+              '    autoGenerateMissingTranslation,\n    canAutoGenerate,\n    canGenerate,\n    episodeId,',
+          )
+
+          bilingual = Path("src/features/playback/BilingualEpisodePlayback.tsx")
+          replace_once(
+              bilingual,
+              '  const [canGenerate, setCanGenerate] = useState(false);\n  const [isGenerating, setIsGenerating] = useState(false);',
+              '  const [canGenerate, setCanGenerate] = useState(false);\n  const [canAutoGenerate, setCanAutoGenerate] = useState(false);\n  const [isGenerating, setIsGenerating] = useState(false);',
+          )
+          replace_once(
+              bilingual,
+              '      if (!response.ok || !payload.ok) {\n        setTranslationStatus("error");',
+              '      if (!response.ok || !payload.ok) {\n        setCanAutoGenerate(false);\n        setTranslationStatus("error");',
+          )
+          replace_once(
+              bilingual,
+              '      setCanGenerate(payload.canGenerate === true);\n      setSourceHash(payload.sourceHash ?? null);',
+              '      setCanGenerate(payload.canGenerate === true);\n      setCanAutoGenerate(payload.canAutoGenerate === true);\n      setSourceHash(payload.sourceHash ?? null);',
+          )
+          replace_once(
+              bilingual,
+              '    } catch {\n      if (targetLanguageRef.current !== targetLanguage) return;\n      setTranslationStatus("error");',
+              '    } catch {\n      if (targetLanguageRef.current !== targetLanguage) return;\n      setCanAutoGenerate(false);\n      setTranslationStatus("error");',
+          )
+          replace_once(
+              bilingual,
+              '    readingSegmentIdRef.current = null;\n    setTranslationStatus("loading");\n    setSegments([]);',
+              '    readingSegmentIdRef.current = null;\n    setTranslationStatus("loading");\n    setCanAutoGenerate(false);\n    setSegments([]);',
+          )
+          replace_once(
+              bilingual,
+              '      !["missing", "stale", "failed"].includes(translationStatus) ||\n      !canGenerate ||',
+              '      !["missing", "stale", "failed"].includes(translationStatus) ||\n      !canGenerate ||\n      !canAutoGenerate ||',
+          )
+          replace_once(
+              bilingual,
+              '    autoGenerateMissingTranslation,\n    canGenerate,\n    episodeId,',
+              '    autoGenerateMissingTranslation,\n    canAutoGenerate,\n    canGenerate,\n    episodeId,',
+          )
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          if git diff --quiet -- src/features/playback/BilingualEpisodePlayback.tsx src/features/playback/TranslationOnlyEpisodePlayback.tsx; then
+            echo "No patch needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/features/playback/BilingualEpisodePlayback.tsx src/features/playback/TranslationOnlyEpisodePlayback.tsx
+          git commit -m "fix: respect translation auto-generation eligibility"
+          git push origin HEAD:feat/multilingual-work-reader
