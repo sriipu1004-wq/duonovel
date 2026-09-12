@@ -15,6 +15,11 @@ import {
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import type { TranslationLearningLevel } from "@/lib/translation/translationLearningPreference";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
+import { generatedReaderDictionaries } from "@/i18n/dictionaries/generatedReader";
+import { generateDictionaries } from "@/i18n/dictionaries/generate";
+import { localizePath } from "@/i18n/navigation";
 
 type TimeMinutes = 5 | 10 | 15 | 20;
 
@@ -335,11 +340,7 @@ function FooterActionButton({
     >
       {iconSrc ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={iconSrc}
-          alt=""
-          className="h-7 w-7"
-        />
+        <img src={iconSrc} alt="" className="h-7 w-7" />
       ) : (
         <span className="whitespace-pre-line text-xs font-medium">{label}</span>
       )}
@@ -409,6 +410,10 @@ export default function GeneratedStoryReaderClient({
 }: {
   storyId: string;
 }) {
+  const locale = useUiLocale();
+  const dictionary = readerDictionaries[locale];
+  const generatedDictionary = generatedReaderDictionaries[locale];
+  const generateDictionary = generateDictionaries[locale];
   const [payload, setPayload] = useState<GeneratedStoryPayload | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
@@ -444,7 +449,8 @@ export default function GeneratedStoryReaderClient({
   const bookmarkToastTimeoutRef = useRef<number | null>(null);
   const storySourceLanguage =
     payload?.story.sourceLanguage ?? payload?.request.outputLanguage ?? "ja";
-  const storySpeechLanguage = getSupportedLanguage(storySourceLanguage).speechLanguage;
+  const storyLanguage = getSupportedLanguage(storySourceLanguage);
+  const storySpeechLanguage = storyLanguage.speechLanguage;
   const storySpeechPrefix = storySpeechLanguage.toLowerCase().split("-")[0];
 
   useEffect(() => {
@@ -622,27 +628,14 @@ export default function GeneratedStoryReaderClient({
   }, [speechPitch]);
 
   useEffect(() => {
-    if (!autoFollow || safeActiveUnitIndex < 0) {
-      return;
-    }
-
+    if (!autoFollow || safeActiveUnitIndex < 0) return;
     const node = unitRefs.current[safeActiveUnitIndex];
-
-    if (!node) {
-      return;
-    }
-
-    node.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
+    if (!node) return;
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [safeActiveUnitIndex, autoFollow]);
 
   function buildSavePrivatePayload() {
-    if (!payload) {
-      return null;
-    }
-
+    if (!payload) return null;
     return {
       storyId: payload.id,
       createdAt: payload.createdAt,
@@ -658,9 +651,7 @@ export default function GeneratedStoryReaderClient({
   }
 
   async function ensureSavedPrivateStory(): Promise<SavedPrivateStoryResult | null> {
-    if (!payload) {
-      return null;
-    }
+    if (!payload) return null;
 
     if (savedSeriesId) {
       saveGeneratedStory(payload, safeActiveUnitIndex, {
@@ -670,7 +661,6 @@ export default function GeneratedStoryReaderClient({
         editHref: savedEditHref,
         readHref: savedReadHref,
       });
-
       return {
         ok: true,
         alreadySaved: true,
@@ -683,10 +673,7 @@ export default function GeneratedStoryReaderClient({
     }
 
     const apiPayload = buildSavePrivatePayload();
-
-    if (!apiPayload) {
-      return null;
-    }
+    if (!apiPayload) return null;
 
     setSaveWorking(true);
     setErrorMessage("");
@@ -694,16 +681,16 @@ export default function GeneratedStoryReaderClient({
     try {
       const response = await fetch("/api/time-fit-stories/save-private", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(apiPayload),
       });
-
       const result = (await response.json()) as SavedPrivateStoryResult;
 
       if (!response.ok || !result.ok || !result.seriesId) {
-        const message = result.error || "保存に失敗した。";
+        const message =
+          locale === "ja" && result.error
+            ? result.error
+            : generatedDictionary.saveFailed;
         setErrorMessage(message);
         showBookmarkMessage(message);
         return result;
@@ -744,7 +731,7 @@ export default function GeneratedStoryReaderClient({
         readHref: nextReadHref,
       };
     } catch {
-      const message = "保存通信に失敗した。";
+      const message = generatedDictionary.saveCommunicationFailed;
       setErrorMessage(message);
       showBookmarkMessage(message);
       return null;
@@ -755,11 +742,9 @@ export default function GeneratedStoryReaderClient({
 
   function showBookmarkMessage(message: string) {
     setBookmarkMessage(message);
-
     if (bookmarkToastTimeoutRef.current) {
       window.clearTimeout(bookmarkToastTimeoutRef.current);
     }
-
     bookmarkToastTimeoutRef.current = window.setTimeout(() => {
       setBookmarkMessage("");
     }, 1800);
@@ -767,28 +752,22 @@ export default function GeneratedStoryReaderClient({
 
   function stopSpeech() {
     playbackRunIdRef.current += 1;
-
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
-
     setPlaybackState("idle");
   }
 
   function speakFrom(index: number, runId: number) {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      setErrorMessage("このブラウザでは読み上げ機能を利用できません。");
+      setErrorMessage(dictionary.speechUnavailable);
       setPlaybackState("idle");
       return;
     }
-
-    if (runId !== playbackRunIdRef.current) {
-      return;
-    }
+    if (runId !== playbackRunIdRef.current) return;
 
     const units = speechUnitsRef.current;
     const unit = units[index];
-
     if (!unit) {
       setPlaybackState("idle");
       return;
@@ -806,57 +785,37 @@ export default function GeneratedStoryReaderClient({
     const selectedVoice = window.speechSynthesis
       .getVoices()
       .find((voice) => voice.voiceURI === selectedVoiceURIRef.current);
-
-    if (selectedVoice) {
-      utterance.voice = selectedVoice;
-    }
+    if (selectedVoice) utterance.voice = selectedVoice;
 
     utterance.onend = () => {
-      if (runId !== playbackRunIdRef.current) {
-        return;
-      }
-
+      if (runId !== playbackRunIdRef.current) return;
       const nextIndex = index + 1;
-
       if (nextIndex >= units.length) {
         setPlaybackState("idle");
         return;
       }
-
       speakFrom(nextIndex, runId);
     };
-
     utterance.onerror = () => {
-      if (runId === playbackRunIdRef.current) {
-        setPlaybackState("idle");
-      }
+      if (runId === playbackRunIdRef.current) setPlaybackState("idle");
     };
-
     window.speechSynthesis.speak(utterance);
   }
 
   function startPlaybackFrom(index: number) {
-    if (speechUnits.length === 0) {
-      return;
-    }
-
+    if (speechUnits.length === 0) return;
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      setErrorMessage("このブラウザでは読み上げ機能を利用できません。");
+      setErrorMessage(dictionary.speechUnavailable);
       return;
     }
 
     playbackRunIdRef.current += 1;
     window.speechSynthesis.cancel();
-
     const runId = playbackRunIdRef.current;
     const boundedIndex = Math.min(Math.max(0, index), speechUnits.length - 1);
-
     setActiveUnitIndex(boundedIndex);
     setPlaybackState("playing");
-
-    window.setTimeout(() => {
-      speakFrom(boundedIndex, runId);
-    }, 0);
+    window.setTimeout(() => speakFrom(boundedIndex, runId), 0);
   }
 
   function handleTogglePlay() {
@@ -864,137 +823,97 @@ export default function GeneratedStoryReaderClient({
       stopSpeech();
       return;
     }
-
     startPlaybackFrom(safeActiveUnitIndex);
   }
 
   function handleSliderChange(event: React.ChangeEvent<HTMLInputElement>) {
     const nextIndex = Number(event.target.value);
-
-    if (!Number.isFinite(nextIndex)) {
-      return;
-    }
-
+    if (!Number.isFinite(nextIndex)) return;
     const boundedIndex = Math.min(
       Math.max(0, nextIndex),
       Math.max(0, speechUnits.length - 1)
     );
-
     setActiveUnitIndex(boundedIndex);
-
-    if (playbackState === "playing") {
-      startPlaybackFrom(boundedIndex);
-    }
+    if (playbackState === "playing") startPlaybackFrom(boundedIndex);
   }
 
   function handleJumpToUnit(index: number) {
     setActiveUnitIndex(index);
-
-    if (playbackState === "playing") {
-      startPlaybackFrom(index);
-    }
+    if (playbackState === "playing") startPlaybackFrom(index);
   }
 
   function handleDecreasePlaybackRate() {
     const nextRate = clampPlaybackRate(playbackRate - 0.1);
     setPlaybackRate(nextRate);
-
-    if (playbackState === "playing") {
-      startPlaybackFrom(safeActiveUnitIndex);
-    }
+    if (playbackState === "playing") startPlaybackFrom(safeActiveUnitIndex);
   }
 
   function handleIncreasePlaybackRate() {
     const nextRate = clampPlaybackRate(playbackRate + 0.1);
     setPlaybackRate(nextRate);
-
-    if (playbackState === "playing") {
-      startPlaybackFrom(safeActiveUnitIndex);
-    }
+    if (playbackState === "playing") startPlaybackFrom(safeActiveUnitIndex);
   }
 
   async function handleSave() {
-    if (!payload) {
-      return;
-    }
-
+    if (!payload) return;
     const result = await ensureSavedPrivateStory();
-
-    if (!result?.ok) {
-      return;
-    }
-
+    if (!result?.ok) return;
     showBookmarkMessage(
       result.alreadySaved
-        ? "保存済み作品の現在位置を更新した"
-        : "マイページに保存した"
+        ? generatedDictionary.savedPositionUpdated
+        : generatedDictionary.savedToMyPage
     );
   }
 
   async function handleEditAndPost() {
-    if (!payload) {
-      return;
-    }
-
+    if (!payload) return;
     buildPostDraftPayload(payload, currentEditorName);
-
     const result = await ensureSavedPrivateStory();
+    if (!result?.ok || !result.seriesId) return;
 
-    if (!result?.ok || !result.seriesId) {
-      return;
-    }
-
-    window.location.href =
+    const href =
       result.editHref ||
       savedEditHref ||
       (result.episodeId
         ? `/write/series/${result.seriesId}/episodes/${result.episodeId}`
         : `/write/series/${result.seriesId}`);
+    window.location.href = localizePath(href, locale);
   }
 
   async function handlePublish() {
-    if (!payload) {
-      return;
-    }
-
+    if (!payload) return;
     buildPostDraftPayload(payload, currentEditorName);
-
     const saveResult = await ensureSavedPrivateStory();
-
-    if (!saveResult?.ok || !saveResult.seriesId) {
-      return;
-    }
+    if (!saveResult?.ok || !saveResult.seriesId) return;
 
     setPublishWorking(true);
     setErrorMessage("");
-
     try {
       const response = await fetch("/api/time-fit-stories/publish", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          seriesId: saveResult.seriesId,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seriesId: saveResult.seriesId }),
       });
-
       const result = (await response.json()) as PublishStoryResult;
 
       if (!response.ok || !result.ok) {
-        const message = result.error || "投稿に失敗した。";
+        const message =
+          locale === "ja" && result.error
+            ? result.error
+            : generatedDictionary.publishFailed;
         setErrorMessage(message);
         showBookmarkMessage(message);
         return;
       }
 
-      window.location.href =
+      const href =
         result.readHref ||
         saveResult.readHref ||
         savedReadHref ||
         `/read/${saveResult.seriesId}/1`;
+      window.location.href = localizePath(href, locale);
     } catch {
-      const message = "投稿通信に失敗した。";
+      const message = generatedDictionary.publishCommunicationFailed;
       setErrorMessage(message);
       showBookmarkMessage(message);
     } finally {
@@ -1005,9 +924,9 @@ export default function GeneratedStoryReaderClient({
   usePremiumBackgroundNarration({
     isSubscriber: false,
     isPlaying: playbackState === "playing",
-    title: payload?.story.title ?? "AI生成物語",
+    title: payload?.story.title ?? generatedDictionary.mediaTitle,
     artist: currentEditorName || "LIB read",
-    album: "LIB read AI生成物語",
+    album: generatedDictionary.mediaAlbum,
     onPlay: () => {
       if (playbackState !== "playing") handleTogglePlay();
     },
@@ -1019,7 +938,7 @@ export default function GeneratedStoryReaderClient({
       <main className="min-h-screen bg-white text-black">
         <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
           <div className="rounded-[32px] border border-black/10 bg-white p-6 shadow-sm">
-            <p className="text-sm text-neutral-600">読み込み中...</p>
+            <p className="text-sm text-neutral-600">{generatedDictionary.loading}</p>
           </div>
         </div>
       </main>
@@ -1035,17 +954,16 @@ export default function GeneratedStoryReaderClient({
               GENERATED STORY
             </p>
             <h1 className="mt-3 text-2xl font-bold text-black">
-              生成された物語が見つかりません
+              {generatedDictionary.missingTitle}
             </h1>
             <p className="mt-3 text-sm leading-7 text-neutral-600">
-              保存していない生成結果は、このブラウザの一時データが消えると開けなくなります。
-              もう一度生成してください。
+              {generatedDictionary.missingHelp}
             </p>
             <Link
-              href="/generate"
+              href={localizePath("/generate", locale)}
               className="mt-6 inline-flex rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800"
             >
-              物語を生成する
+              {generatedDictionary.generateStory}
             </Link>
           </div>
         </div>
@@ -1055,6 +973,12 @@ export default function GeneratedStoryReaderClient({
 
   const story = payload.story;
   const request = payload.request;
+  const sceneLabel =
+    (generateDictionary.scenes as Record<string, string>)[request.scene] ??
+    request.scene;
+  const genreLabel =
+    (generateDictionary.genres as Record<string, string>)[request.genre] ??
+    request.genre;
 
   return (
     <main className="min-h-screen bg-white text-black">
@@ -1064,66 +988,60 @@ export default function GeneratedStoryReaderClient({
             <p className="text-xs tracking-[0.22em] text-neutral-500">
               LIB READ READER
             </p>
-
             <p className="mt-3 text-sm text-neutral-600">
-              時間フィットAI短編
+              {generatedDictionary.timeFitStory}
             </p>
-
             <h1 className="mt-2 text-3xl font-bold leading-tight text-black sm:text-4xl">
               {story.title}
             </h1>
 
             <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-neutral-600">
-              <span>作者:</span>
+              <span>{dictionary.author}:</span>
               <Link
-                href="/search?tag=AI%E7%94%9F%E6%88%90"
+                href={localizePath("/search?tag=AI%E7%94%9F%E6%88%90", locale)}
                 className="font-medium text-sky-700 underline-offset-4 hover:underline"
               >
-                AI生成
+                {generatedDictionary.aiGenerated}
               </Link>
-
               {currentEditorName ? (
                 <>
                   <span className="text-neutral-400">/</span>
-                  <span>編集: {currentEditorName}</span>
+                  <span>{dictionary.editor}: {currentEditorName}</span>
                 </>
               ) : null}
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
               <span className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black">
-                AI生成
+                {generatedDictionary.aiGenerated}
               </span>
               <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
-                約{story.estimatedReadingMinutes}分
+                {generatedDictionary.approxMinutes(story.estimatedReadingMinutes)}
               </span>
               <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
-                {request.scene} / {request.genre} / {request.mood}
+                {sceneLabel} / {genreLabel} / {request.mood}
               </span>
             </div>
 
             {isSettingsOpen ? (
               <div className="mt-4 grid gap-4">
                 <section className="rounded-[28px] border border-black/10 bg-neutral-50 p-4">
-                  <p className="text-xs tracking-[0.18em] text-neutral-500">
-                    DISPLAY
-                  </p>
+                  <p className="text-xs tracking-[0.18em] text-neutral-500">DISPLAY</p>
                   <h3 className="mt-2 text-lg font-semibold text-black">
-                    表示設定
+                    {generatedDictionary.displaySettings}
                   </h3>
 
                   <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4">
                     <div>
-                      <p className="text-sm text-neutral-700">マーカー表示</p>
+                      <p className="text-sm text-neutral-700">{dictionary.markerTitle}</p>
                       <p className="mt-1 text-xs leading-6 text-neutral-500">
-                        読み上げ中の文章を青いマーカーで強調する。
+                        {dictionary.markerHelp}
                       </p>
                     </div>
-
                     <div className="flex flex-wrap gap-2">
                       <SettingChip
                         active={displayPreference.showMarker}
-                        label="表示"
+                        label="ON"
                         onClick={() =>
                           setDisplayPreference((prev) => ({
                             ...prev,
@@ -1133,7 +1051,7 @@ export default function GeneratedStoryReaderClient({
                       />
                       <SettingChip
                         active={!displayPreference.showMarker}
-                        label="非表示"
+                        label="OFF"
                         onClick={() =>
                           setDisplayPreference((prev) => ({
                             ...prev,
@@ -1146,12 +1064,9 @@ export default function GeneratedStoryReaderClient({
 
                   <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
                     <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
-                      <span>文字サイズ</span>
-                      <span>
-                        {Math.round(displayPreference.fontScale * 100)}%
-                      </span>
+                      <span>{dictionary.fontSize}</span>
+                      <span>{Math.round(displayPreference.fontScale * 100)}%</span>
                     </div>
-
                     <input
                       type="range"
                       min={0.9}
@@ -1169,11 +1084,11 @@ export default function GeneratedStoryReaderClient({
                   </div>
 
                   <div className="mt-4">
-                    <p className="text-sm text-neutral-700">行間</p>
+                    <p className="text-sm text-neutral-700">{dictionary.lineHeight}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <SettingChip
                         active={displayPreference.lineHeight === "compact"}
-                        label="狭め"
+                        label={dictionary.compact}
                         onClick={() =>
                           setDisplayPreference((prev) => ({
                             ...prev,
@@ -1183,7 +1098,7 @@ export default function GeneratedStoryReaderClient({
                       />
                       <SettingChip
                         active={displayPreference.lineHeight === "normal"}
-                        label="標準"
+                        label={dictionary.normal}
                         onClick={() =>
                           setDisplayPreference((prev) => ({
                             ...prev,
@@ -1193,7 +1108,7 @@ export default function GeneratedStoryReaderClient({
                       />
                       <SettingChip
                         active={displayPreference.lineHeight === "wide"}
-                        label="広め"
+                        label={dictionary.wide}
                         onClick={() =>
                           setDisplayPreference((prev) => ({
                             ...prev,
@@ -1205,17 +1120,15 @@ export default function GeneratedStoryReaderClient({
                   </div>
 
                   <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
-                    <p className="text-sm text-neutral-700">読み上げ音声</p>
+                    <p className="text-sm text-neutral-700">{generatedDictionary.speechVoice}</p>
                     <p className="mt-1 text-xs leading-6 text-neutral-500">
-                      ブラウザと端末に入っている日本語音声から選ぶ。
+                      {generatedDictionary.speechVoiceHelp(storyLanguage.nativeLabel)}
                     </p>
-
                     <select
                       value={selectedVoiceURI}
                       onChange={(event) => {
                         selectedVoiceURIRef.current = event.target.value;
                         setSelectedVoiceURI(event.target.value);
-
                         if (playbackState === "playing") {
                           startPlaybackFrom(safeActiveUnitIndex);
                         }
@@ -1223,7 +1136,7 @@ export default function GeneratedStoryReaderClient({
                       className="mt-3 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-300"
                     >
                       {availableVoices.length === 0 ? (
-                        <option value="">標準音声</option>
+                        <option value="">{dictionary.defaultVoice}</option>
                       ) : (
                         availableVoices.map((voice) => (
                           <option key={voice.voiceURI} value={voice.voiceURI}>
@@ -1236,10 +1149,9 @@ export default function GeneratedStoryReaderClient({
 
                   <div className="mt-4 rounded-2xl border border-black/10 bg-white p-4">
                     <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
-                      <span>声の高さ</span>
+                      <span>{dictionary.voicePitch}</span>
                       <span>{speechPitch.toFixed(1)}</span>
                     </div>
-
                     <input
                       type="range"
                       min={0.8}
@@ -1250,7 +1162,6 @@ export default function GeneratedStoryReaderClient({
                         const nextPitch = Number(event.target.value);
                         speechPitchRef.current = nextPitch;
                         setSpeechPitch(nextPitch);
-
                         if (playbackState === "playing") {
                           startPlaybackFrom(safeActiveUnitIndex);
                         }
@@ -1258,7 +1169,6 @@ export default function GeneratedStoryReaderClient({
                       className="mt-3 w-full accent-sky-300"
                     />
                   </div>
-
                 </section>
               </div>
             ) : null}
@@ -1268,7 +1178,6 @@ export default function GeneratedStoryReaderClient({
                 {errorMessage}
               </div>
             ) : null}
-
             {bookmarkMessage ? (
               <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-black">
                 {bookmarkMessage}
@@ -1279,36 +1188,27 @@ export default function GeneratedStoryReaderClient({
           <div className="px-5 py-8 sm:px-8 sm:py-10">
             {isSettingsOpen ? (
               <div className="rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-sm leading-7 text-neutral-600">
-                設定表示中。本文は一時的に隠れている。
+                {dictionary.settingsBodyHidden}
               </div>
             ) : (
               <>
                 <div className="rounded-[28px] bg-neutral-50 p-5 sm:p-7">
-                  <p className="text-sm leading-7 text-neutral-700">
-                    {story.synopsis}
-                  </p>
+                  <p className="text-sm leading-7 text-neutral-700">{story.synopsis}</p>
                 </div>
 
-                <article
-                  className="mt-8 space-y-7 text-black"
-                  style={readingStyle}
-                >
+                <article className="mt-8 space-y-7 text-black" style={readingStyle}>
                   {bodySentenceGroups.map((sentences, paragraphIndex) => {
                     const previousSentenceCount = bodySentenceGroups
                       .slice(0, paragraphIndex)
                       .reduce((sum, group) => sum + group.length, 0);
-
                     return (
                       <p key={paragraphIndex}>
                         {sentences.map((sentence, sentenceIndex) => {
                           const unitIndex =
-                            bodyUnitStartIndex +
-                            previousSentenceCount +
-                            sentenceIndex;
+                            bodyUnitStartIndex + previousSentenceCount + sentenceIndex;
                           const isActive =
                             displayPreference.showMarker &&
                             unitIndex === safeActiveUnitIndex;
-
                           return (
                             <span
                               key={`${paragraphIndex}-${sentenceIndex}`}
@@ -1319,13 +1219,7 @@ export default function GeneratedStoryReaderClient({
                               tabIndex={0}
                               onClick={() => handleJumpToUnit(unitIndex)}
                               onKeyDown={(event) => {
-                                if (
-                                  event.key !== "Enter" &&
-                                  event.key !== " "
-                                ) {
-                                  return;
-                                }
-
+                                if (event.key !== "Enter" && event.key !== " ") return;
                                 event.preventDefault();
                                 handleJumpToUnit(unitIndex);
                               }}
@@ -1352,39 +1246,35 @@ export default function GeneratedStoryReaderClient({
         <div className="mt-5 flex flex-wrap justify-end gap-3">
           <button
             type="button"
-            onClick={() => {
-              void handleSave();
-            }}
+            onClick={() => void handleSave()}
             disabled={saveWorking || publishWorking}
             className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-medium text-black transition hover:bg-sky-100 disabled:cursor-wait disabled:opacity-70"
           >
             {saveWorking
-              ? "保存中..."
+              ? generatedDictionary.saving
               : isCurrentStorySaved
-                ? "保存済み"
-                : "保存する"}
+                ? generatedDictionary.saved
+                : generatedDictionary.save}
           </button>
-
           <button
             type="button"
-            onClick={() => {
-              void handleEditAndPost();
-            }}
+            onClick={() => void handleEditAndPost()}
             disabled={saveWorking || publishWorking}
             className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-70"
           >
-            {saveWorking ? "保存中..." : "編集して投稿する"}
+            {saveWorking ? generatedDictionary.saving : generatedDictionary.editAndPublish}
           </button>
-
           <button
             type="button"
-            onClick={() => {
-              void handlePublish();
-            }}
+            onClick={() => void handlePublish()}
             disabled={saveWorking || publishWorking}
             className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-70"
           >
-            {publishWorking ? "投稿中..." : saveWorking ? "保存中..." : "投稿する"}
+            {publishWorking
+              ? generatedDictionary.publishing
+              : saveWorking
+                ? generatedDictionary.saving
+                : generatedDictionary.publish}
           </button>
         </div>
       </div>
@@ -1395,27 +1285,26 @@ export default function GeneratedStoryReaderClient({
             <div className="mb-3 rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-black">この物語を保存</p>
+                  <p className="text-sm font-medium text-black">
+                    {generatedDictionary.savePanelTitle}
+                  </p>
                   <p className="mt-1 text-xs leading-6 text-neutral-500">
-                    保存するとマイページのブックマーク作品に追加されます。保存は直近24時間で5回まで、公開投稿は直近24時間で1回までです。
+                    {generatedDictionary.savePanelHelp}
                   </p>
                 </div>
-
                 <button
                   type="button"
                   onClick={() => setIsBookmarkPanelExpanded(false)}
                   className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
                 >
-                  閉じる
+                  {generatedDictionary.close}
                 </button>
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    void handleSave();
-                  }}
+                  onClick={() => void handleSave()}
                   disabled={saveWorking}
                   className={[
                     "rounded-full border px-4 py-2 text-sm font-medium transition",
@@ -1426,14 +1315,13 @@ export default function GeneratedStoryReaderClient({
                   ].join(" ")}
                 >
                   {saveWorking
-                    ? "保存中..."
+                    ? generatedDictionary.saving
                     : isCurrentStorySaved
-                      ? "保存位置を更新"
-                      : "この物語を保存"}
+                      ? generatedDictionary.updateSavePosition
+                      : generatedDictionary.savePanelTitle}
                 </button>
-
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-xs text-neutral-600">
-                  現在 {formatGeneratedTime(safeActiveUnitIndex, speechUnits.length)}
+                  {generatedDictionary.current} {formatGeneratedTime(safeActiveUnitIndex, speechUnits.length)}
                 </span>
               </div>
             </div>
@@ -1442,9 +1330,8 @@ export default function GeneratedStoryReaderClient({
           <div className="rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3 text-sm text-neutral-700">
               <span>{formatGeneratedTime(safeActiveUnitIndex, speechUnits.length)}</span>
-              <span>全{speechUnits.length}ブロック</span>
+              <span>{dictionary.totalBlocks(speechUnits.length)}</span>
             </div>
-
             <input
               type="range"
               min={0}
@@ -1461,10 +1348,10 @@ export default function GeneratedStoryReaderClient({
             <FooterActionButton
               label={
                 isBookmarkPanelExpanded
-                  ? "保存 OPEN"
+                  ? generatedDictionary.saveOpen
                   : isCurrentStorySaved
-                    ? "保存済み"
-                    : "保存"
+                    ? generatedDictionary.saved
+                    : generatedDictionary.save
               }
               iconSrc={
                 isCurrentStorySaved
@@ -1474,21 +1361,18 @@ export default function GeneratedStoryReaderClient({
               active={isBookmarkPanelExpanded || isCurrentStorySaved}
               onClick={() => setIsBookmarkPanelExpanded((prev) => !prev)}
             />
-
             <FooterPlaybackRateControl
               value={playbackRate}
               onDecrease={handleDecreasePlaybackRate}
               onIncrease={handleIncreasePlaybackRate}
             />
-
             <FooterActionButton
-              label="前話"
+              label={dictionary.previousEpisode}
               iconSrc={PLAYER_ICON_PATHS.prev}
               disabled
             />
-
             <FooterActionButton
-              label={playbackState === "playing" ? "停止" : "再生"}
+              label={playbackState === "playing" ? dictionary.stop : dictionary.play}
               iconSrc={
                 playbackState === "playing"
                   ? PLAYER_ICON_PATHS.stop
@@ -1497,21 +1381,18 @@ export default function GeneratedStoryReaderClient({
               disabled={speechUnits.length === 0}
               onClick={handleTogglePlay}
             />
-
             <FooterActionButton
-              label="次話"
+              label={dictionary.nextEpisode}
               iconSrc={PLAYER_ICON_PATHS.next}
               disabled
             />
-
             <FooterActionButton
-              label={autoFollow ? "自動追尾\nON" : "自動追尾\nOFF"}
+              label={autoFollow ? dictionary.autoFollowOn : dictionary.autoFollowOff}
               active={autoFollow}
               onClick={() => setAutoFollow((prev) => !prev)}
             />
-
             <FooterActionButton
-              label="設定"
+              label={dictionary.settings}
               iconSrc={PLAYER_ICON_PATHS.settings}
               active={isSettingsOpen}
               onClick={() => setIsSettingsOpen((prev) => !prev)}
