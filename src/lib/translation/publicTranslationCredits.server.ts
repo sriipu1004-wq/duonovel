@@ -55,12 +55,16 @@ async function currentUserId(): Promise<string | null> {
 
 async function getBalance(userId: string): Promise<number> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("credit_ledger")
-    .select("amount")
-    .eq("user_id", userId);
-  if (error) throw new Error(`クレジット残高を取得できませんでした: ${error.message}`);
-  return (data ?? []).reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+  // Purchased-credit expiration is lazy by design. Refresh it before every
+  // user-facing balance/entitlement read so expired lots are never shown as
+  // spendable simply because the account has not unlocked anything recently.
+  const { data, error } = await admin.rpc("refresh_credit_expirations", {
+    p_user_id: userId,
+  });
+  if (error) {
+    throw new Error(`クレジット有効期限の反映に失敗しました: ${error.message}`);
+  }
+  return Number(data ?? 0);
 }
 
 export async function getPublicTranslationEntitlementState(args: {
