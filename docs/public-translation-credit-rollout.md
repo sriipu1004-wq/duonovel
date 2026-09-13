@@ -30,13 +30,56 @@ Server-side priority is authoritative even for direct API calls:
 
 A client cannot force a credit debit while included allowance remains by spoofing the unlock method.
 
+## Approved Live credit catalog
+
+Approved on 2026-09-14:
+
+| Pack ID | Credits | Price | Expiration | Stripe Product | Stripe Price |
+| --- | ---: | ---: | ---: | --- | --- |
+| `credits_5` | 5 | ¥300 | 150 days | `prod_VFratXRAVtsp5w` | `price_1UFLrkLuEpSwUk8MmDN2oYv1` |
+| `credits_8` | 8 | ¥450 | 150 days | `prod_VFrblDBc1RRuRs` | `price_1UFLroLuEpSwUk8M3T4fla86` |
+| `credits_12` | 12 | ¥600 | 150 days | `prod_VFrbx1mgcdrJuu` | `price_1UFLryLuEpSwUk8MMmg0Ubt1` |
+
+These are Live-mode Stripe resources, but no Payment Link has been created and the application purchase flag remains disabled. Creation of Stripe Product/Price resources alone does not enable LIB read credit sales.
+
+Intended production catalog value after the remaining rollout gates are satisfied:
+
+```json
+[
+  {
+    "id": "credits_5",
+    "credits": 5,
+    "stripePriceId": "price_1UFLrkLuEpSwUk8MmDN2oYv1",
+    "displayPriceJpy": 300,
+    "currency": "jpy",
+    "expiresInDays": 150
+  },
+  {
+    "id": "credits_8",
+    "credits": 8,
+    "stripePriceId": "price_1UFLroLuEpSwUk8M3T4fla86",
+    "displayPriceJpy": 450,
+    "currency": "jpy",
+    "expiresInDays": 150
+  },
+  {
+    "id": "credits_12",
+    "credits": 12,
+    "stripePriceId": "price_1UFLryLuEpSwUk8MMmg0Ubt1",
+    "displayPriceJpy": 600,
+    "currency": "jpy",
+    "expiresInDays": 150
+  }
+]
+```
+
 ## Live credit sales gate
 
 Do not enable Live credit sales until all of the following are approved/configured:
 
-- pack credit quantities and JPY prices
-- expiration period
-- Live Stripe Product/Price IDs
+- pack credit quantities and JPY prices — **approved**
+- expiration period — **approved: 150 days**
+- Live Stripe Product/Price IDs — **created**
 - `LIBREAD_CREDIT_PACK_CATALOG_JSON`
 - `LIBREAD_CREDIT_TERMS_VERSION`
 - `LIBREAD_CREDIT_PURCHASE_ENABLED=true`
@@ -75,8 +118,8 @@ git status
 - Preview deployment: **completed successfully**.
 - `/commercial-transactions` on Preview: **HTTP 200**. Credit sales remain fail-closed because required seller details are not fully configured.
 - Local checkout execution is unavailable in the current agent runtime because outbound GitHub DNS is blocked; therefore standalone test scripts, scoped ESLint, and git diff checks still require a checkout/CI environment.
-- Supabase was connected during this work, but its database-action namespace did not hot-load into this tool session. The four new migrations have not been applied by this agent.
-- The exposed Vercel connector does not provide environment-variable mutation, so Preview enforcement has not been switched on by this agent.
-- The connected Stripe account exposed to this session is Live mode only. No Live Product/Price has been created because pricing and expiration require explicit approval.
+- Supabase is now connected and exposes database actions in this session. The only available Supabase project has no development branches, so the four new migrations have deliberately **not** been applied to the production database without a separate rollout decision.
+- The exposed Vercel connector still does not provide environment-variable mutation, so Preview enforcement has not been switched on by this agent.
+- Live Stripe Products/Prices for the approved three-pack catalog have been created. No Payment Link was created and `LIBREAD_CREDIT_PURCHASE_ENABLED` has not been enabled.
 
 Production merge and feature-flag activation require explicit user approval after Preview verification.
