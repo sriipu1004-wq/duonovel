@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  hasCompleteLegalSellerDetails,
+  isStripeConfigured,
+} from "@/lib/billing/billingConfig";
 import { isPublicTranslationCreditsEnabled } from "@/lib/translation/publicTranslationCredits.server";
 
 export type CreditPack = {
@@ -92,6 +96,8 @@ export function isCreditPurchaseEnabled(): boolean {
     isPublicTranslationCreditsEnabled() &&
     readBooleanEnv("LIBREAD_CREDIT_PURCHASE_ENABLED", false) &&
     Boolean(process.env.LIBREAD_CREDIT_TERMS_VERSION?.trim()) &&
+    isStripeConfigured() &&
+    hasCompleteLegalSellerDetails() &&
     getCreditPackCatalog().length > 0
   );
 }
