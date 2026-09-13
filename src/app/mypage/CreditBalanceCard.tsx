@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 
@@ -24,6 +25,7 @@ const COPY = {
     description: "公開作品の翻訳で、本日の利用枠を超えた話を1話・1翻訳言語ごとに解放できる。解放済みの話は再読無料。",
     buy: "クレジットを購入",
     terms: "価格・有効期限・返金条件を確認した",
+    legal: "販売条件・利用規約を確認",
     expiry: (days: number) => `購入日から${days}日`,
     unavailable: "クレジット販売は現在準備中。",
     processing: "決済画面を準備中…",
@@ -35,6 +37,7 @@ const COPY = {
     description: "Use credits to unlock public episode translations after your included daily usage. An unlocked episode/language can be reread without another charge.",
     buy: "Buy credits",
     terms: "I reviewed the price, expiry, and refund terms",
+    legal: "Review sale terms and Terms of Service",
     expiry: (days: number) => `${days} days from purchase`,
     unavailable: "Credit purchases are not available yet.",
     processing: "Opening checkout…",
@@ -46,6 +49,7 @@ const COPY = {
     description: "오늘 포함된 이용 횟수를 초과한 공개 작품 번역을 화·번역 언어별로 잠금 해제할 수 있습니다. 잠금 해제한 번역은 다시 읽어도 추가 차감되지 않습니다.",
     buy: "크레딧 구매",
     terms: "가격, 유효기간, 환불 조건을 확인했습니다",
+    legal: "판매 조건 및 이용약관 확인",
     expiry: (days: number) => `구매일로부터 ${days}일`,
     unavailable: "크레딧 판매는 현재 준비 중입니다.",
     processing: "결제 화면 준비 중…",
@@ -95,7 +99,15 @@ export default function CreditBalanceCard({ balance, packs, purchaseEnabled }: P
 
       {purchaseEnabled && packs.length > 0 ? (
         <div className="mt-5">
-          <label className="flex items-start gap-2 text-sm text-neutral-700">
+          <div className="flex flex-wrap gap-3 text-sm text-neutral-600">
+            <Link href="/commercial-transactions" className="underline underline-offset-4">
+              {copy.legal}
+            </Link>
+            <Link href="/terms" className="underline underline-offset-4">
+              Terms
+            </Link>
+          </div>
+          <label className="mt-3 flex items-start gap-2 text-sm text-neutral-700">
             <input
               type="checkbox"
               checked={accepted}
