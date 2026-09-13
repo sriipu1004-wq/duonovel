@@ -11,7 +11,9 @@ import { reserveEpisodeTranslation } from "@/lib/translation/translationReservat
 import {
   aiActionLimitMessage,
   releaseAiAction,
+  releaseSubscriberAiCostOnly,
   reserveAiAction,
+  reserveSubscriberAiCostOnly,
 } from "@/lib/aiUsage/aiUsage.server";
 import {
   EPISODE_TRANSLATION_LIMITS,
@@ -56,7 +58,8 @@ async function markFailed(args: {
 
 export async function executeEpisodeTranslationGeneration(
   request: Request,
-  prepared: PreparedEpisodeTranslationGeneration
+  prepared: PreparedEpisodeTranslationGeneration,
+  options?: { entitlementRuntime?: boolean }
 ) {
   const {
     access,
@@ -73,19 +76,37 @@ export async function executeEpisodeTranslationGeneration(
   } = prepared;
   const admin = createAdminClient();
   const requestId = randomUUID();
-  const actionReservation = await reserveAiAction({
-    request,
-    requestId,
-    actionType: "translation_generation",
-    userId: access.currentUserId,
-  });
+  const entitlementRuntime = options?.entitlementRuntime === true;
+  const actionReservation = entitlementRuntime
+    ? await reserveSubscriberAiCostOnly({
+        requestId,
+        actionType: "translation_generation",
+        userId: access.currentUserId,
+      })
+    : await reserveAiAction({
+        request,
+        requestId,
+        actionType: "translation_generation",
+        userId: access.currentUserId,
+      });
+  const releaseActionReservation = () =>
+    entitlementRuntime
+      ? releaseSubscriberAiCostOnly(requestId)
+      : releaseAiAction(requestId);
 
   if (!actionReservation.allowed) {
+    const usageReservation = {
+      used: "used" in actionReservation ? Number(actionReservation.used ?? 0) : 0,
+      limit: "limit" in actionReservation ? Number(actionReservation.limit ?? -1) : -1,
+      limitReason: actionReservation.limitReason,
+      monthlyBudgetUsed: actionReservation.monthlyBudgetUsed,
+      monthlyBudgetLimit: actionReservation.monthlyBudgetLimit,
+    };
     return NextResponse.json(
       {
         ok: false,
-        error: "daily_action_limit",
-        message: aiActionLimitMessage(actionReservation, "対訳生成"),
+        error: entitlementRuntime ? "subscriber_monthly_budget" : "daily_action_limit",
+        message: aiActionLimitMessage(usageReservation, "対訳生成"),
         usage: actionReservation,
       },
       { status: 429 }
@@ -109,7 +130,7 @@ export async function executeEpisodeTranslationGeneration(
     dailyMaxEstimatedCostJpy: EPISODE_TRANSLATION_LIMITS.dailyMaxEstimatedCostJpy,
   });
   if (reservationResult.error) {
-    await releaseAiAction(requestId);
+    await releaseActionReservation();
     return NextResponse.json(
       {
         ok: false,
@@ -124,14 +145,14 @@ export async function executeEpisodeTranslationGeneration(
     ? reservationResult.data[0]
     : reservationResult.data;
   if (!reservation || typeof reservation.allowed !== "boolean") {
-    await releaseAiAction(requestId);
+    await releaseActionReservation();
     return NextResponse.json(
       { ok: false, error: "translation_reservation_invalid" },
       { status: 500 }
     );
   }
   if (!reservation.allowed) {
-    await releaseAiAction(requestId);
+    await releaseActionReservation();
     const resultType = String(reservation.result_type ?? "");
     if (resultType === "ready") {
       return NextResponse.json({ ok: true, status: "ready" });
@@ -164,7 +185,7 @@ export async function executeEpisodeTranslationGeneration(
   const translationId = String(reservation.translation_id ?? "");
   const logId = String(reservation.log_id ?? "");
   if (!translationId || !logId) {
-    await releaseAiAction(requestId);
+    await releaseActionReservation();
     return NextResponse.json(
       { ok: false, error: "translation_reservation_invalid" },
       { status: 500 }
@@ -180,7 +201,7 @@ export async function executeEpisodeTranslationGeneration(
       errorMessage: "OPENAI_API_KEY が設定されていません。",
       uncount: true,
     });
-    await releaseAiAction(requestId);
+    await releaseActionReservation();
     return NextResponse.json(
       { ok: false, error: "missing_openai_api_key" },
       { status: 500 }

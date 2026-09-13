@@ -11,7 +11,9 @@
     "test:bilingual-reading": "node --import tsx scripts/test-bilingual-reading.tsx",
     "test:multilingual-work-reader": "node --import tsx scripts/test-multilingual-work-reader.ts",
     "test:en-ko-i18n": "node --import tsx scripts/test-en-ko-i18n-audit.ts",
-    "test:translation-consistency": "node --import tsx scripts/test-series-translation-consistency.ts"
+    "test:translation-consistency": "node --import tsx scripts/test-series-translation-consistency.ts",
+    "test:translation-credit-runtime": "node --import tsx scripts/test-public-translation-credit-runtime.ts",
+    "test:stripe-credit-webhook": "node --import tsx scripts/test-stripe-credit-webhook.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

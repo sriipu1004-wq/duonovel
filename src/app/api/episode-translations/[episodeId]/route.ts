@@ -12,6 +12,10 @@ import {
 } from "@/lib/translation/languageRegistry";
 import { parseStoredTranslationPayload } from "@/lib/translation/translationPayload";
 import { readSeriesTranslationLearningPreference } from "@/lib/translation/translationLearningPreference";
+import {
+  getPublicTranslationEntitlementState,
+  publicTranslationCanAutoGenerate,
+} from "@/lib/translation/publicTranslationCredits.server";
 
 export const runtime = "nodejs";
 
@@ -84,6 +88,14 @@ export async function GET(request: Request, context: RouteContext) {
     learningPreference ? { learningPreference } : undefined
   );
   const admin = createAdminClient();
+  const entitlement = await getPublicTranslationEntitlementState({
+    request,
+    episodeId: access.episode.id,
+    targetLanguage,
+  });
+  const canGenerate = access.isAllowlisted;
+  const canAutoGenerate =
+    access.isAllowlisted && publicTranslationCanAutoGenerate(entitlement);
 
   const currentResult = await admin
     .from("episode_translations")
@@ -106,10 +118,26 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   const current = currentResult.data as Record<string, unknown> | null;
-  const canGenerate = access.isAllowlisted;
-  const canAutoGenerate = access.isAllowlisted;
 
   if (current?.status === "ready") {
+    // Under credit enforcement, asset availability and user entitlement are
+    // deliberately separate. Never leak cached translated text before unlock.
+    if (entitlement && entitlement.status !== "unlocked") {
+      return NextResponse.json({
+        ok: true,
+        status: "ready",
+        canGenerate,
+        canAutoGenerate,
+        isAllowlisted: access.isAllowlisted,
+        sourceHash,
+        translationId: current.id,
+        translationModel: current.translation_model ?? null,
+        sourceLanguage,
+        targetLanguage,
+        entitlement,
+      });
+    }
+
     const translation = parseStoredTranslationPayload(current.segments, {
       sourceLanguage,
       targetLanguage,
@@ -134,6 +162,7 @@ export async function GET(request: Request, context: RouteContext) {
       sourceLanguage,
       targetLanguage,
       segments: translation.segments,
+      ...(entitlement ? { entitlement } : {}),
     });
   }
 
@@ -184,6 +213,7 @@ export async function GET(request: Request, context: RouteContext) {
         translationId: current.id,
         errorCode: "translation_timeout",
         message: errorMessage,
+        ...(entitlement ? { entitlement } : {}),
       });
     }
 
@@ -196,6 +226,7 @@ export async function GET(request: Request, context: RouteContext) {
       sourceHash,
       translationId: current.id,
       startedAt: current.started_at ?? null,
+      ...(entitlement ? { entitlement } : {}),
     });
   }
 
@@ -209,6 +240,7 @@ export async function GET(request: Request, context: RouteContext) {
       sourceHash,
       translationId: current.id,
       errorCode: current.error_code ?? null,
+      ...(entitlement ? { entitlement } : {}),
     });
   }
 
@@ -243,6 +275,7 @@ export async function GET(request: Request, context: RouteContext) {
       isAllowlisted: access.isAllowlisted,
       sourceHash,
       message: "原文が更新されたため、対訳を再生成します。",
+      ...(entitlement ? { entitlement } : {}),
     });
   }
 
@@ -253,5 +286,6 @@ export async function GET(request: Request, context: RouteContext) {
     canAutoGenerate,
     isAllowlisted: access.isAllowlisted,
     sourceHash,
+    ...(entitlement ? { entitlement } : {}),
   });
 }
