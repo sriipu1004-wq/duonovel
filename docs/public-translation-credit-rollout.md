@@ -22,6 +22,14 @@ For entitlement testing only:
 
 Original public reading remains available without translation entitlement. Public Bilingual / Translation-only access becomes account-bound when the feature flag is enabled.
 
+Server-side priority is authoritative even for direct API calls:
+
+1. existing unlock
+2. included daily allowance
+3. purchased credit
+
+A client cannot force a credit debit while included allowance remains by spoofing the unlock method.
+
 ## Live credit sales gate
 
 Do not enable Live credit sales until all of the following are approved/configured:
@@ -57,5 +65,18 @@ git diff --check
 git diff --cached --check
 git status
 ```
+
+## Current verification status
+
+- Vercel Preview build for commit `98bd7cb789a2e6f78e3596c640c7b8725fc972fa`: **READY**.
+- Next.js production compilation: **passed**.
+- Next.js build-time TypeScript phase: **passed**.
+- Static page generation: **87/87 passed**.
+- Preview deployment: **completed successfully**.
+- `/commercial-transactions` on Preview: **HTTP 200**. Credit sales remain fail-closed because required seller details are not fully configured.
+- Local checkout execution is unavailable in the current agent runtime because outbound GitHub DNS is blocked; therefore standalone test scripts, scoped ESLint, and git diff checks still require a checkout/CI environment.
+- Supabase was connected during this work, but its database-action namespace did not hot-load into this tool session. The four new migrations have not been applied by this agent.
+- The exposed Vercel connector does not provide environment-variable mutation, so Preview enforcement has not been switched on by this agent.
+- The connected Stripe account exposed to this session is Live mode only. No Live Product/Price has been created because pricing and expiration require explicit approval.
 
 Production merge and feature-flag activation require explicit user approval after Preview verification.
