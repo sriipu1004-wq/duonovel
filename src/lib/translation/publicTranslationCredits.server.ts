@@ -7,13 +7,12 @@ import {
   getAiUsageSnapshot,
   getPublicTranslationDailyLimits,
 } from "@/lib/aiUsage/aiUsage.server";
+import {
+  resolveTranslationCreditPolicy,
+  type TranslationCreditPolicyStatus,
+} from "@/lib/translation/publicTranslationCreditPolicy";
 
-export type PublicTranslationEntitlementStatus =
-  | "unlocked"
-  | "included_available"
-  | "credit_required"
-  | "purchase_required"
-  | "login_required";
+export type PublicTranslationEntitlementStatus = TranslationCreditPolicyStatus;
 
 export type PublicTranslationEntitlementState = {
   enabled: true;
@@ -75,7 +74,13 @@ export async function getPublicTranslationEntitlementState(args: {
   if (!userId) {
     return {
       enabled: true,
-      status: "login_required",
+      status: resolveTranslationCreditPolicy({
+        authenticated: false,
+        alreadyUnlocked: false,
+        dailyUsed: 0,
+        dailyLimit: 0,
+        creditBalance: 0,
+      }),
       isSubscriber: false,
       dailyUsed: 0,
       dailyLimit: 0,
@@ -103,19 +108,21 @@ export async function getPublicTranslationEntitlementState(args: {
   }
 
   const daily = usage.actions.translation_generation;
-  const base = {
-    enabled: true as const,
+  return {
+    enabled: true,
+    status: resolveTranslationCreditPolicy({
+      authenticated: true,
+      alreadyUnlocked: Boolean(unlockResult.data?.id),
+      dailyUsed: daily.used,
+      dailyLimit: daily.limit,
+      creditBalance,
+    }),
     isSubscriber: usage.isSubscriber,
     dailyUsed: daily.used,
     dailyLimit: daily.limit,
     creditBalance,
     resetAt: usage.resetAt,
   };
-
-  if (unlockResult.data?.id) return { ...base, status: "unlocked" };
-  if (daily.limit > daily.used) return { ...base, status: "included_available" };
-  if (creditBalance >= 1) return { ...base, status: "credit_required" };
-  return { ...base, status: "purchase_required" };
 }
 
 export async function finalizePublicTranslationIncludedUnlock(args: {
@@ -129,8 +136,6 @@ export async function finalizePublicTranslationIncludedUnlock(args: {
     return { allowed: false as const, resultType: "login_required" as const };
   }
 
-  // Synchronizes any official-account subscriber entitlement before the atomic RPC
-  // resolves Free vs Premium limits from libread_user_entitlements.
   await getAiUsageSnapshot(args.request, userId);
   const limits = getPublicTranslationDailyLimits();
   const admin = createAdminClient();
@@ -164,7 +169,11 @@ export async function finalizePublicTranslationCreditUnlock(args: {
 }) {
   const userId = await currentUserId();
   if (!userId) {
-    return { allowed: false as const, resultType: "login_required" as const, balanceAfter: 0 };
+    return {
+      allowed: false as const,
+      resultType: "login_required" as const,
+      balanceAfter: 0,
+    };
   }
 
   const admin = createAdminClient();
