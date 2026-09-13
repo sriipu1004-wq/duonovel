@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { stripUiLocalePrefix } from "@/i18n/config";
 import {
@@ -69,6 +70,7 @@ export default function SourceLanguageWorkspaceBridge({
   initialLanguage = null,
   confirmed = false,
 }: Props) {
+  const router = useRouter();
   const dictionary = copy[useUiLocale()];
   const [language, setLanguage] = useState<SupportedLanguageTag | "">(
     initialLanguage ?? ""
@@ -93,12 +95,13 @@ export default function SourceLanguageWorkspaceBridge({
       setLanguage(applied);
       setSavedLanguage(applied);
       setMessage(dictionary.saved);
+      router.refresh();
     }
 
     window.addEventListener("libread:source-language-applied", handleApplied);
     return () =>
       window.removeEventListener("libread:source-language-applied", handleApplied);
-  }, [dictionary.saved]);
+  }, [dictionary.saved, router]);
 
   useEffect(() => {
     if (seriesId) return;
@@ -163,6 +166,7 @@ export default function SourceLanguageWorkspaceBridge({
       setLanguage(saved);
       setSavedLanguage(saved);
       setMessage(dictionary.saved);
+      router.refresh();
     } catch {
       setLanguage(savedLanguage ?? nextLanguage);
       setMessage(dictionary.failed);
