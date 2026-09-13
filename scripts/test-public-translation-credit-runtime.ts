@@ -171,8 +171,18 @@ function main() {
 
   const unlockRoute = source("src/app/api/episode-translations/unlock/route.ts");
   assert.ok(unlockRoute.includes("resolveEpisodeTranslationAccess"));
+  assert.ok(unlockRoute.includes("getPublicTranslationEntitlementState"));
   assert.ok(unlockRoute.includes('translation_not_ready'));
   assert.ok(unlockRoute.includes('authentication_required'));
+  assert.ok(
+    unlockRoute.includes('entitlement.status === "included_available" && method !== "included"') &&
+      unlockRoute.includes('error: "included_unlock_required"'),
+    "cache-ready API must not let a caller spend credit before included allowance"
+  );
+  assert.ok(
+    unlockRoute.includes('entitlement.status === "credit_required" && method !== "credit"'),
+    "credit unlock must require the server-computed credit-required state"
+  );
   assert.equal(
     /credits\s*:\s*payload\./.test(unlockRoute),
     false,
