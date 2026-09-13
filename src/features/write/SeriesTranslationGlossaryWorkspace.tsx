@@ -19,8 +19,6 @@ export type {
   SeriesTranslationProfileRow,
 } from "@/features/write/seriesTranslationGlossaryWorkspaceShared";
 
-type FieldEvent = ChangeEvent<{ value: string; checked: boolean }>;
-
 export default function SeriesTranslationGlossaryWorkspace(
   props: SeriesTranslationGlossaryWorkspaceProps
 ) {
@@ -32,30 +30,28 @@ export default function SeriesTranslationGlossaryWorkspace(
       <details className="rounded-[28px] border border-black/10 bg-white p-5" open>
         <summary className="cursor-pointer text-lg font-semibold">{copy.title}</summary>
         <p className="mt-2 text-sm text-neutral-600">{copy.help}</p>
-
         <div className="mt-5 grid gap-3 rounded-2xl bg-neutral-50 p-4 md:grid-cols-2">
           <label className="grid gap-1 md:col-span-2">
             <span className="text-xs text-neutral-600">{copy.targetLanguage}</span>
-            <select value={editor.targetLanguage} onChange={(e: FieldEvent) => editor.changeTargetLanguage(e.target.value as typeof editor.targetLanguage)} className="rounded-xl border p-2">
+            <select value={editor.targetLanguage} onChange={(e: ChangeEvent<HTMLSelectElement>) => editor.changeTargetLanguage(e.target.value as typeof editor.targetLanguage)} className="rounded-xl border p-2">
               {editor.targetLanguages.map((language) => <option key={language} value={language}>{getSupportedLanguage(language).nativeLabel}</option>)}
             </select>
           </label>
-          <label className="grid gap-1"><span className="text-xs">{copy.sourceTerm}</span><input maxLength={120} value={editor.sourceTerm} onChange={(e: FieldEvent) => editor.setSourceTerm(e.target.value)} className="rounded-xl border p-2" /></label>
-          <label className="grid gap-1"><span className="text-xs">{copy.targetTerm}</span><input maxLength={200} value={editor.targetTerm} onChange={(e: FieldEvent) => editor.setTargetTerm(e.target.value)} className="rounded-xl border p-2" /></label>
-          <label className="grid gap-1"><span className="text-xs">{copy.type}</span><select value={editor.termType} onChange={(e: FieldEvent) => editor.setTermType(e.target.value)} className="rounded-xl border p-2">{TERM_TYPES.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label className="grid gap-1"><span className="text-xs">{copy.status}</span><select value={editor.status} onChange={(e: FieldEvent) => editor.setStatus(e.target.value as GlossaryStatus)} className="rounded-xl border p-2"><option value="confirmed">{copy.confirmed}</option><option value="suggested">{copy.suggested}</option><option value="disabled">{copy.disabled}</option></select></label>
-          <label className="grid gap-1 md:col-span-2"><span className="text-xs">{copy.note}</span><textarea rows={2} maxLength={1000} value={editor.note} onChange={(e: FieldEvent) => editor.setNote(e.target.value)} className="rounded-xl border p-2" /></label>
-          <label className="grid gap-1"><span className="text-xs">{copy.effectiveFrom}</span><input type="number" min={1} value={editor.effectiveFrom} onChange={(e: FieldEvent) => editor.setEffectiveFrom(e.target.value)} className="rounded-xl border p-2" /></label>
+          <label className="grid gap-1"><span className="text-xs">{copy.sourceTerm}</span><input maxLength={120} value={editor.sourceTerm} onChange={(e: ChangeEvent<HTMLInputElement>) => editor.setSourceTerm(e.target.value)} className="rounded-xl border p-2" /></label>
+          <label className="grid gap-1"><span className="text-xs">{copy.targetTerm}</span><input maxLength={200} value={editor.targetTerm} onChange={(e: ChangeEvent<HTMLInputElement>) => editor.setTargetTerm(e.target.value)} className="rounded-xl border p-2" /></label>
+          <label className="grid gap-1"><span className="text-xs">{copy.type}</span><select value={editor.termType} onChange={(e: ChangeEvent<HTMLSelectElement>) => editor.setTermType(e.target.value)} className="rounded-xl border p-2">{TERM_TYPES.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label className="grid gap-1"><span className="text-xs">{copy.status}</span><select value={editor.status} onChange={(e: ChangeEvent<HTMLSelectElement>) => editor.setStatus(e.target.value as GlossaryStatus)} className="rounded-xl border p-2"><option value="confirmed">{copy.confirmed}</option><option value="suggested">{copy.suggested}</option><option value="disabled">{copy.disabled}</option></select></label>
+          <label className="grid gap-1 md:col-span-2"><span className="text-xs">{copy.note}</span><textarea rows={2} maxLength={1000} value={editor.note} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => editor.setNote(e.target.value)} className="rounded-xl border p-2" /></label>
+          <label className="grid gap-1"><span className="text-xs">{copy.effectiveFrom}</span><input type="number" min={1} value={editor.effectiveFrom} onChange={(e: ChangeEvent<HTMLInputElement>) => editor.setEffectiveFrom(e.target.value)} className="rounded-xl border p-2" /></label>
           <div className="flex items-end gap-4 pb-2 text-sm">
-            <label><input type="checkbox" checked={editor.isLocked} onChange={(e: FieldEvent) => { editor.setIsLocked(e.target.checked); if (!e.target.checked) editor.setIsGlobal(false); }} /> {copy.locked}</label>
-            <label><input type="checkbox" checked={editor.isGlobal} disabled={!editor.isLocked} onChange={(e: FieldEvent) => editor.setIsGlobal(e.target.checked)} /> {copy.global}</label>
+            <label><input type="checkbox" checked={editor.isLocked} onChange={(e: ChangeEvent<HTMLInputElement>) => { editor.setIsLocked(e.target.checked); if (!e.target.checked) editor.setIsGlobal(false); }} /> {copy.locked}</label>
+            <label><input type="checkbox" checked={editor.isGlobal} disabled={!editor.isLocked} onChange={(e: ChangeEvent<HTMLInputElement>) => editor.setIsGlobal(e.target.checked)} /> {copy.global}</label>
           </div>
           <div className="flex justify-end gap-2 md:col-span-2">
             {editor.editingTargetId ? <button type="button" onClick={editor.resetForm} className="rounded-full border px-4 py-2">{copy.cancel}</button> : null}
             <button type="button" disabled={editor.saving || !editor.sourceTerm.trim() || !editor.targetTerm.trim()} onClick={() => void editor.saveTerm()} className="rounded-full bg-black px-5 py-2 text-white disabled:opacity-40">{editor.editingTargetId ? copy.save : copy.add}</button>
           </div>
         </div>
-
         <div className="mt-4 grid gap-2">
           {editor.visibleTargets.length === 0 ? <p className="rounded-2xl border border-dashed p-4 text-sm text-neutral-500">{copy.empty}</p> : editor.visibleTargets.map(({ entry, target }) => (
             <div key={target.id} className="rounded-2xl border p-4">
@@ -70,11 +66,10 @@ export default function SeriesTranslationGlossaryWorkspace(
             </div>
           ))}
         </div>
-
         <div className="mt-6 grid gap-3 rounded-2xl border p-4">
           <h3 className="font-semibold">{copy.profileTitle}</h3>
           {([['style', copy.styleNotes], ['honorific', copy.honorificPolicy], ['formatting', copy.formattingNotes]] as const).map(([key, label]) => (
-            <label key={key} className="grid gap-1"><span className="text-xs">{label}</span><textarea rows={2} maxLength={2000} value={editor.profileDraft[key]} onChange={(e: FieldEvent) => editor.updateProfileDraft(key, e.target.value)} className="rounded-xl border p-2" /></label>
+            <label key={key} className="grid gap-1"><span className="text-xs">{label}</span><textarea rows={2} maxLength={2000} value={editor.profileDraft[key]} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => editor.updateProfileDraft(key, e.target.value)} className="rounded-xl border p-2" /></label>
           ))}
           <div className="flex justify-end"><button type="button" disabled={editor.saving} onClick={() => void editor.saveProfile()} className="rounded-full bg-black px-5 py-2 text-white disabled:opacity-40">{copy.saveProfile}</button></div>
         </div>
