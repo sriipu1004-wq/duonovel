@@ -17,7 +17,7 @@ function readLimit(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
 }
 
-const FREE_STORY_AND_TRANSLATION_DAILY_LIMIT = 3;
+export const FREE_STORY_AND_TRANSLATION_DAILY_LIMIT = 3;
 
 const LIMITS: Record<AiActionType, { free: number; subscriber: number }> = {
   story_generation: {
@@ -41,6 +41,21 @@ const SUBSCRIBER_RESERVED_COST_JPY: Partial<Record<AiActionType, number>> = {
 };
 
 type UsageIdentity = { userId: string | null; anonymousKey: string };
+
+type SubscriberCostReservation = {
+  allowed: boolean;
+  plan: AiPlanType;
+  limitReason?: "subscriber_monthly_budget";
+  monthlyBudgetUsed?: number;
+  monthlyBudgetLimit?: number;
+};
+
+export function getPublicTranslationDailyLimits(): {
+  free: number;
+  subscriber: number;
+} {
+  return { ...LIMITS.translation_generation };
+}
 
 function forwardedIp(headers: Headers): string {
   for (const name of [
@@ -83,6 +98,62 @@ export async function resolveAiUsageIdentity(
   }
 
   return { userId, anonymousKey: anonymousKey(request) };
+}
+
+/**
+ * Reserve only the subscriber monthly AI-cost budget, without touching daily
+ * action allowance. Public translation credit runtime uses this for missing
+ * shared assets: the daily allowance belongs to the eventual entitlement, not
+ * to the provider generation event.
+ */
+export async function reserveSubscriberAiCostOnly(args: {
+  requestId: string;
+  userId: string | null;
+  actionType: AiActionType;
+}): Promise<SubscriberCostReservation> {
+  if (!args.userId) return { allowed: true, plan: "free" };
+  const subscriber = await isSubscriber(args.userId);
+  if (!subscriber) return { allowed: true, plan: "free" };
+
+  const reservedCost = SUBSCRIBER_RESERVED_COST_JPY[args.actionType] ?? 0;
+  if (reservedCost <= 0) return { allowed: true, plan: "subscriber" };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc(
+    "reserve_libread_subscriber_monthly_ai_budget",
+    {
+      p_request_id: args.requestId,
+      p_user_id: args.userId,
+      p_action_type: args.actionType,
+      p_reserved_cost_jpy: reservedCost,
+      p_monthly_limit_jpy: LIBREAD_SUBSCRIBER_MONTHLY_AI_BUDGET_JPY,
+    }
+  );
+  if (error) throw new Error(`月間AI利用枠の予約に失敗しました: ${error.message}`);
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row.allowed !== "boolean") {
+    throw new Error("月間AI利用枠の予約結果を読み取れませんでした。");
+  }
+  if (!row.allowed) {
+    return {
+      allowed: false,
+      plan: "subscriber",
+      limitReason: "subscriber_monthly_budget",
+      monthlyBudgetUsed: Number(row.used_cost_jpy ?? 0),
+      monthlyBudgetLimit: Number(row.limit_cost_jpy ?? 0),
+    };
+  }
+  return { allowed: true, plan: "subscriber" };
+}
+
+export async function releaseSubscriberAiCostOnly(requestId: string): Promise<void> {
+  const admin = createAdminClient();
+  const result = await admin.rpc("release_libread_subscriber_monthly_ai_budget", {
+    p_request_id: requestId,
+  });
+  if (result.error) {
+    console.error("[ai-usage-release-monthly]", result.error);
+  }
 }
 
 export async function reserveAiAction(args: {
