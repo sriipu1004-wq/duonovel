@@ -160,8 +160,13 @@ function buildGeneratedStoryStorageKey(storyId: string): string {
   return `libread.generatedStory.${storyId}`;
 }
 
-function readGenerateErrorMessage(data: GenerateResponse, fallback: string): string {
+function readGenerateErrorMessage(
+  data: GenerateResponse,
+  fallback: string,
+  locale: UiLocale
+): string {
   if (data.ok) return "";
+  if (locale !== "ja") return fallback;
   return data.message?.trim() || data.error || fallback;
 }
 
@@ -236,7 +241,9 @@ export default function TimeFitStoryGeneratorClient() {
       await refreshAiUsage();
 
       if (!response.ok || !data.ok) {
-        setErrorMessage(readGenerateErrorMessage(data, dictionary.generationFailed));
+        setErrorMessage(
+          readGenerateErrorMessage(data, dictionary.generationFailed, locale)
+        );
         return;
       }
 
@@ -252,10 +259,8 @@ export default function TimeFitStoryGeneratorClient() {
         JSON.stringify(payload)
       );
       router.push(localizePath(`/read/generated/${encodeURIComponent(storyId)}`, locale));
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : dictionary.generationError
-      );
+    } catch {
+      setErrorMessage(dictionary.generationError);
     } finally {
       setIsGenerating(false);
     }
@@ -379,16 +384,10 @@ export default function TimeFitStoryGeneratorClient() {
         </fieldset>
 
         <div className="grid gap-2">
-          <label
-            htmlFor="custom-request"
-            className="text-sm font-medium text-black"
-          >
+          <label htmlFor="custom-request" className="text-sm font-medium text-black">
             {dictionary.customRequest}
           </label>
-          <span
-            id="custom-request-help"
-            className="text-xs leading-6 text-neutral-500"
-          >
+          <span id="custom-request-help" className="text-xs leading-6 text-neutral-500">
             {dictionary.customHelp}
           </span>
           <PromptTagSuggestions
@@ -407,10 +406,7 @@ export default function TimeFitStoryGeneratorClient() {
             placeholder={dictionary.customPlaceholder}
             className="min-h-32 w-full box-border resize-y rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-neutral-400 focus:border-sky-300 disabled:opacity-60"
           />
-          <span
-            id="custom-request-count"
-            className="text-right text-xs text-neutral-500"
-          >
+          <span id="custom-request-count" className="text-right text-xs text-neutral-500">
             {customRequest.length} / {CUSTOM_REQUEST_MAX_LENGTH} {dictionary.chars}
           </span>
         </div>
@@ -433,9 +429,7 @@ export default function TimeFitStoryGeneratorClient() {
           <SubscriptionUpgradePrompt />
         ) : null}
 
-        <p className="text-xs leading-6 text-neutral-500">
-          {dictionary.limitHelp}
-        </p>
+        <p className="text-xs leading-6 text-neutral-500">{dictionary.limitHelp}</p>
       </form>
 
       {errorMessage ? (

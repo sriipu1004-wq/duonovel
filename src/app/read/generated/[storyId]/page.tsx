@@ -7,6 +7,8 @@ import {
   isPublicTranslationTargetLanguage,
   parseSupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
+import { getUiLocale } from "@/i18n/server";
+import { generatedReaderDictionaries } from "@/i18n/dictionaries/generatedReader";
 
 type PageProps = {
   params: Promise<{
@@ -21,13 +23,18 @@ type PageProps = {
   }>;
 };
 
-export const metadata: Metadata = {
-  title: "一時生成の物語 | LIB read",
-  robots: {
-    index: false,
-    follow: false,
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getUiLocale();
+  const dictionary = generatedReaderDictionaries[locale];
+
+  return {
+    title: `${dictionary.metadataTitle} | LIB read`,
+    robots: {
+      index: false,
+      follow: false,
+    },
+  };
+}
 
 export default async function GeneratedStoryReadPage({
   params,

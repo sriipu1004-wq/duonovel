@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test:library-import": "node --import tsx scripts/test-private-library-import.ts",
     "test:bilingual-reading": "node --import tsx scripts/test-bilingual-reading.tsx",
-    "test:multilingual-work-reader": "node --import tsx scripts/test-multilingual-work-reader.ts"
+    "test:multilingual-work-reader": "node --import tsx scripts/test-multilingual-work-reader.ts",
+    "test:en-ko-i18n": "node --import tsx scripts/test-en-ko-i18n-audit.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

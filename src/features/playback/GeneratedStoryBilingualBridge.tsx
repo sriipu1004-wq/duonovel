@@ -11,7 +11,14 @@ import type {
   SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { detectSourceLanguageFromText } from "@/lib/translation/detectSourceLanguage";
-import { parseTranslationLearningPreference, type TranslationLearningLevel } from "@/lib/translation/translationLearningPreference";
+import {
+  parseTranslationLearningPreference,
+  type TranslationLearningLevel,
+} from "@/lib/translation/translationLearningPreference";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { generatedReaderDictionaries } from "@/i18n/dictionaries/generatedReader";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
+import { localizePath } from "@/i18n/navigation";
 
 type GeneratedStoryPayload = {
   id: string;
@@ -120,6 +127,9 @@ export default function GeneratedStoryBilingualBridge({
 }: {
   storyId: string;
 }) {
+  const locale = useUiLocale();
+  const dictionary = readerDictionaries[locale];
+  const generatedDictionary = generatedReaderDictionaries[locale];
   const { snapshot: aiUsage } = useAiUsage();
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [message, setMessage] = useState("");
@@ -243,7 +253,7 @@ export default function GeneratedStoryBilingualBridge({
     const generated = readGeneratedStory(storyId);
 
     if (!generated) {
-      setMessage("生成した物語の一時データを読み込めませんでした。");
+      setMessage(generatedDictionary.missingHelp);
       return;
     }
 
@@ -283,7 +293,7 @@ export default function GeneratedStoryBilingualBridge({
     if (generated.readHref) {
       window.location.assign(
         buildBilingualHref(
-          generated.readHref,
+          localizePath(generated.readHref, locale),
           selectedSourceLanguage,
           selectedTargetLanguage,
           autoGenerate,
@@ -293,9 +303,8 @@ export default function GeneratedStoryBilingualBridge({
       return;
     }
 
-    window.location.assign(
-      `/read/generated/${encodeURIComponent(storyId)}?bilingual=1&sourceLanguage=${encodeURIComponent(selectedSourceLanguage)}&targetLanguage=${encodeURIComponent(selectedTargetLanguage)}${autoGenerate ? "&autoGenerate=1" : ""}${lockLanguage ? "&lockLanguage=1" : ""}`
-    );
+    const href = `/read/generated/${encodeURIComponent(storyId)}?bilingual=1&sourceLanguage=${encodeURIComponent(selectedSourceLanguage)}&targetLanguage=${encodeURIComponent(selectedTargetLanguage)}${autoGenerate ? "&autoGenerate=1" : ""}${lockLanguage ? "&lockLanguage=1" : ""}`;
+    window.location.assign(localizePath(href, locale));
   }
 
   function confirmBilingual() {
@@ -315,14 +324,14 @@ export default function GeneratedStoryBilingualBridge({
   return createPortal(
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-600">
-        ブラウザ朗読
+        {dictionary.browserNarration}
       </span>
       <button
         type="button"
         onClick={enableBilingual}
         className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black transition hover:bg-sky-100"
       >
-        対訳をオン
+        {dictionary.openBilingual}
       </button>
       {message ? (
         <span className="w-full text-sm text-red-700">{message}</span>

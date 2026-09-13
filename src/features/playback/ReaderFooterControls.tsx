@@ -1,6 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
 
 export const PLAYER_ICON_PATHS = {
   settings: "/player-icons/settings.png",
@@ -68,11 +70,13 @@ export function FooterPlaybackRateControl({
   onDecrease: () => void;
   onIncrease: () => void;
 }) {
+  const dictionary = readerDictionaries[useUiLocale()];
+
   return (
     <div className="flex h-12 w-full overflow-hidden rounded-2xl border border-black/10 bg-white">
       <button
         type="button"
-        aria-label="朗読速度を下げる"
+        aria-label={dictionary.slower}
         onClick={onDecrease}
         disabled={value <= 0.7}
         className="flex w-1/4 items-center justify-center border-r border-black/10 text-sm text-black transition hover:bg-neutral-50 disabled:text-neutral-400"
@@ -84,7 +88,7 @@ export function FooterPlaybackRateControl({
       </div>
       <button
         type="button"
-        aria-label="朗読速度を上げる"
+        aria-label={dictionary.faster}
         onClick={onIncrease}
         disabled={value >= 1.5}
         className="flex w-1/4 items-center justify-center border-l border-black/10 text-sm text-black transition hover:bg-neutral-50 disabled:text-neutral-400"

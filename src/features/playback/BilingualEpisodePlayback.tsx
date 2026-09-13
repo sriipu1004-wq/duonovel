@@ -31,6 +31,10 @@ import {
   resolveReadingPositionIndex,
   writeReadingHistory,
 } from "@/lib/playback/readingBookmark";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
+import { bilingualReaderDictionaries } from "@/i18n/dictionaries/bilingualReader";
+import { localizePath } from "@/i18n/navigation";
 
 type TranslationStatus =
   | "loading"
@@ -146,6 +150,9 @@ export default function BilingualEpisodePlayback({
   targetLanguageLocked,
   onDisableBilingual,
 }: BilingualEpisodePlaybackProps) {
+  const locale = useUiLocale();
+  const dictionary = readerDictionaries[locale];
+  const bilingualDictionary = bilingualReaderDictionaries[locale];
   const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
   const { displaySettings, setDisplaySettings } =
     useReaderDisplaySettings(seriesId);
@@ -278,9 +285,7 @@ export default function BilingualEpisodePlayback({
         payload = JSON.parse(responseText) as TranslationStatusResponse;
       } catch {
         if (targetLanguageRef.current !== targetLanguage) return false;
-        setStatusMessage(
-          `対訳サーバーから正しい応答を受け取れませんでした（${response.status}）。もう一度お試しください。`
-        );
+        setStatusMessage(bilingualDictionary.responseInvalid(response.status));
         setTranslationStatus("error");
         return false;
       }
@@ -289,7 +294,11 @@ export default function BilingualEpisodePlayback({
       if (targetLanguageRef.current !== targetLanguage) return true;
 
       if (!response.ok || !payload.ok) {
-        setStatusMessage(payload.message || "対訳を生成できませんでした。");
+        setStatusMessage(
+          locale === "ja" && payload.message
+            ? payload.message
+            : bilingualDictionary.generationFailed
+        );
 
         if (
           payload.error === "translation_openai_failed" ||
@@ -309,16 +318,21 @@ export default function BilingualEpisodePlayback({
       return true;
     } catch {
       if (targetLanguageRef.current !== targetLanguage) return false;
-      setStatusMessage(
-        "対訳の通信が中断されました。ページを開いたまま、もう一度お試しください。"
-      );
+      setStatusMessage(bilingualDictionary.communicationInterrupted);
       setTranslationStatus("error");
       return false;
     } finally {
       generationInFlightRef.current = false;
       setIsGenerating(false);
     }
-  }, [episodeId, refreshAiUsage, sourceLanguage, targetLanguage]);
+  }, [
+    bilingualDictionary,
+    episodeId,
+    locale,
+    refreshAiUsage,
+    sourceLanguage,
+    targetLanguage,
+  ]);
 
   const loadTranslation = useCallback(async () => {
     try {
@@ -339,7 +353,9 @@ export default function BilingualEpisodePlayback({
         setCanAutoGenerate(false);
         setTranslationStatus("error");
         setStatusMessage(
-          payload.message || "対訳の状態を取得できませんでした。"
+          locale === "ja" && payload.message
+            ? payload.message
+            : bilingualDictionary.statusUnavailable
         );
         return;
       }
@@ -363,18 +379,25 @@ export default function BilingualEpisodePlayback({
 
       setTranslationStatus(nextStatus);
       setStatusMessage(
-        payload.message ||
-          (nextStatus === "stale"
-            ? "原文が更新されたため、対訳を再生成します。"
-            : "")
+        locale === "ja" && payload.message
+          ? payload.message
+          : nextStatus === "stale"
+            ? bilingualDictionary.staleRegenerating
+            : ""
       );
     } catch {
       if (targetLanguageRef.current !== targetLanguage) return;
       setCanAutoGenerate(false);
       setTranslationStatus("error");
-      setStatusMessage("対訳の状態を取得できませんでした。");
+      setStatusMessage(bilingualDictionary.statusUnavailable);
     }
-  }, [episodeId, sourceLanguage, targetLanguage]);
+  }, [
+    bilingualDictionary,
+    episodeId,
+    locale,
+    sourceLanguage,
+    targetLanguage,
+  ]);
 
   useEffect(() => {
     readingSegmentIdRef.current = null;
@@ -427,8 +450,13 @@ export default function BilingualEpisodePlayback({
     if (!container || !node) return;
     const a = container.getBoundingClientRect();
     const b = node.getBoundingClientRect();
-    scrollBilingualPaneTo(container, container.scrollTop + b.top - a.top - container.clientHeight / 2 + b.height / 2,
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+    scrollBilingualPaneTo(
+      container,
+      container.scrollTop + b.top - a.top - container.clientHeight / 2 + b.height / 2,
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth"
+    );
   }
 
   function centerSegment(id: string) {
@@ -446,7 +474,11 @@ export default function BilingualEpisodePlayback({
       if (!container || !node) return;
       const containerRect = container.getBoundingClientRect();
       const nodeRect = node.getBoundingClientRect();
-      scrollBilingualPaneTo(container, container.scrollTop + nodeRect.top - containerRect.top, "auto");
+      scrollBilingualPaneTo(
+        container,
+        container.scrollTop + nodeRect.top - containerRect.top,
+        "auto"
+      );
     };
     align(jaScrollRef.current, jaSegmentRefs.current.get(id) ?? null);
     align(enScrollRef.current, enSegmentRefs.current.get(id) ?? null);
@@ -513,9 +545,12 @@ export default function BilingualEpisodePlayback({
     await requestTranslationGeneration();
   }
 
-  const safeSeriesTitle = safeText(seriesTitle, "無題");
-  const safeEpisodeTitle = safeText(episodeTitle, "第" + String(episodeNumber) + "話");
-  const safeAuthorName = safeText(workAuthorName, "作者名未設定");
+  const safeSeriesTitle = safeText(seriesTitle, dictionary.untitled);
+  const safeEpisodeTitle = safeText(
+    episodeTitle,
+    bilingualDictionary.episodeFallback(episodeNumber)
+  );
+  const safeAuthorName = safeText(workAuthorName, dictionary.authorUnknown);
   const safeEditorName = safeText(workEditorName, "");
   const sourceLanguageLabel = getSupportedLanguage(sourceLanguage).nativeLabel;
   const targetLanguageLabel = getSupportedLanguage(targetLanguage).nativeLabel;
@@ -533,10 +568,10 @@ export default function BilingualEpisodePlayback({
                 {workIndexHref ? (
                   <Link
                     href={workIndexHref}
-                    aria-label={`${safeSeriesTitle}の作品ページ（目次）へ`}
+                    aria-label={bilingualDictionary.workIndexAria(safeSeriesTitle)}
                     className="mt-2 inline-flex text-sm text-neutral-600 hover:text-black"
                   >
-                    {safeSeriesTitle} · 作品ページ（目次）
+                    {safeSeriesTitle} · {dictionary.workIndex}
                   </Link>
                 ) : (
                   <p className="mt-2 text-sm text-neutral-600">{safeSeriesTitle}</p>
@@ -545,8 +580,8 @@ export default function BilingualEpisodePlayback({
                   {safeEpisodeTitle}
                 </h1>
                 <p className="mt-2 text-xs text-neutral-500">
-                  作者 {safeAuthorName}
-                  {safeEditorName ? " / 編集 " + safeEditorName : ""}
+                  {dictionary.author} {safeAuthorName}
+                  {safeEditorName ? ` / ${dictionary.editor} ${safeEditorName}` : ""}
                 </p>
               </div>
 
@@ -559,18 +594,18 @@ export default function BilingualEpisodePlayback({
                 />
                 {targetLanguageLocked ? (
                   <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs text-neutral-700">
-                    このタブで言語固定
+                    {dictionary.languageLockedThisTab}
                   </span>
                 ) : null}
                 <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-black">
-                  対訳 ON
+                  {bilingualDictionary.bilingualOn}
                 </span>
                 <button
                   type="button"
                   onClick={handleDisableBilingual}
                   className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
                 >
-                  OFFに戻す
+                  {bilingualDictionary.disableBilingual}
                 </button>
               </div>
             </div>
@@ -586,11 +621,15 @@ export default function BilingualEpisodePlayback({
                 seriesId={seriesId}
               />
               <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
-                下段の文を選択後、語をタップして文中の意味・熟語・品詞を確認　単語解説 {formatAiUsage(aiUsage?.actions.word_explanation)}
+                {dictionary.studyWordHelp} {bilingualDictionary.wordExplanation}{" "}
+                {formatAiUsage(aiUsage?.actions.word_explanation)}
                 {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
                 !aiUsage?.isSubscriber ? (
-                  <Link href="/subscription" className="ml-2 font-semibold text-sky-700 underline underline-offset-2">
-                    月額680円で無制限
+                  <Link
+                    href={localizePath("/subscription", locale)}
+                    className="ml-2 font-semibold text-sky-700 underline underline-offset-2"
+                  >
+                    {bilingualDictionary.unlimitedUpgrade}
                   </Link>
                 ) : null}
               </div>
@@ -694,44 +733,44 @@ export default function BilingualEpisodePlayback({
               <div className="w-full max-w-xl rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-center">
                 {translationStatus === "loading" ? (
                   <>
-                    <p className="text-lg font-semibold">対訳を確認中</p>
+                    <p className="text-lg font-semibold">{dictionary.checkingBilingual}</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      保存済みの翻訳があるか確認しています。
+                      {dictionary.translationCheckingHelp}
                     </p>
                   </>
                 ) : translationStatus === "translating" ? (
                   <>
-                    <p className="text-lg font-semibold">対訳を準備中</p>
+                    <p className="text-lg font-semibold">{dictionary.preparingBilingual}</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      投稿時または過去作品の初回利用時に一度だけ生成し、完成後は同じ翻訳を再利用します。
+                      {dictionary.translationPreparingHelp}
                     </p>
                   </>
                 ) : translationStatus === "stale" ? (
                   <>
-                    <p className="text-lg font-semibold">原文が更新されています</p>
+                    <p className="text-lg font-semibold">{dictionary.translationStale}</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      {statusMessage || "必要な場合は対訳を再生成してください。"}
+                      {statusMessage || dictionary.translationStaleHelp}
                     </p>
                   </>
                 ) : translationStatus === "failed" ? (
                   <>
-                    <p className="text-lg font-semibold">対訳を表示できません</p>
+                    <p className="text-lg font-semibold">{dictionary.translationFailed}</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      前回の生成が完了していません。再生成は管理用アカウントから行います。
+                      {bilingualDictionary.failedHelp}
                     </p>
                   </>
                 ) : translationStatus === "error" ? (
                   <>
-                    <p className="text-lg font-semibold">対訳を読み込めません</p>
+                    <p className="text-lg font-semibold">{dictionary.translationLoadFailed}</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      {statusMessage || "翻訳データ基盤を確認してください。"}
+                      {statusMessage || bilingualDictionary.errorHelp}
                     </p>
                   </>
                 ) : (
                   <>
-                    <p className="text-lg font-semibold">この言語の対訳は未生成です</p>
+                    <p className="text-lg font-semibold">{dictionary.translationMissing}</p>
                     <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      必要な場合だけ対訳を生成します。
+                      {dictionary.translationMissingHelp}
                     </p>
                   </>
                 )}
@@ -752,15 +791,18 @@ export default function BilingualEpisodePlayback({
                     className="mt-5 rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isGenerating
-                      ? "生成中…"
-                      : `${translationStatus === "missing" ? "対訳を生成" : "対訳を再生成"} ${formatAiUsage(aiUsage?.actions.translation_generation)}`}
+                      ? dictionary.generating
+                      : `${translationStatus === "missing" ? dictionary.generateBilingual : dictionary.regenerateBilingual} ${formatAiUsage(aiUsage?.actions.translation_generation)}`}
                   </button>
                 ) : null}
 
                 {isAiUsageLimitReached(aiUsage?.actions.translation_generation) &&
                 !aiUsage?.isSubscriber ? (
-                  <Link href="/subscription" className="mt-4 inline-block text-sm font-semibold text-sky-700 underline underline-offset-4">
-                    月額680円で生成上限を増やす
+                  <Link
+                    href={localizePath("/subscription", locale)}
+                    className="mt-4 inline-block text-sm font-semibold text-sky-700 underline underline-offset-4"
+                  >
+                    {bilingualDictionary.generationUpgrade}
                   </Link>
                 ) : null}
 
@@ -786,7 +828,11 @@ export default function BilingualEpisodePlayback({
               ? segment.translatedText
               : segment.sourceText
           )}
-          narrationLanguage={getSupportedLanguage(upperPane === "source" ? targetLanguage : sourceLanguage).speechLanguage}
+          narrationLanguage={
+            getSupportedLanguage(
+              upperPane === "source" ? targetLanguage : sourceLanguage
+            ).speechLanguage
+          }
           sourceLanguage={sourceLanguage}
           targetLanguage={targetLanguage}
           displaySettings={displaySettings}

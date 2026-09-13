@@ -135,6 +135,7 @@ export default async function WorkTranslationPage({ params }: Props) {
             `/works/${encodeURIComponent(seriesId)}/translations/${encodeURIComponent(targetLanguage)}`,
             locale
           )}
+          locale={locale}
         />
       );
     }

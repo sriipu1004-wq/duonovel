@@ -10,6 +10,11 @@ import {
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import {
+  episodeCommentsDictionaries,
+  type EpisodeCommentsDictionary,
+} from "@/i18n/dictionaries/episodeComments";
 
 type EpisodeCommentSectionProps = {
   episodeId: string;
@@ -46,13 +51,16 @@ function pickText(...values: unknown[]): string {
   return "";
 }
 
-function formatDateTime(value?: string | null): string {
-  if (!value) return "日時未取得";
+function formatDateTime(
+  value: string | null | undefined,
+  dictionary: EpisodeCommentsDictionary
+): string {
+  if (!value) return dictionary.dateUnavailable;
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "日時未取得";
+  if (Number.isNaN(date.getTime())) return dictionary.dateUnavailable;
 
-  return new Intl.DateTimeFormat("ja-JP", {
+  return new Intl.DateTimeFormat(dictionary.dateLocale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -61,7 +69,10 @@ function formatDateTime(value?: string | null): string {
   }).format(date);
 }
 
-function resolveUserDisplayName(user: User | null | undefined): string {
+function resolveUserDisplayName(
+  user: User | null | undefined,
+  dictionary: EpisodeCommentsDictionary
+): string {
   const metadata = (user?.user_metadata ?? {}) as Record<string, unknown>;
 
   return (
@@ -71,7 +82,7 @@ function resolveUserDisplayName(user: User | null | undefined): string {
       metadata.username,
       metadata.name,
       user?.email?.split("@")[0]
-    ) || "ユーザー"
+    ) || dictionary.userFallback
   );
 }
 
@@ -106,7 +117,10 @@ async function fetchProfileName(userId: string): Promise<string> {
   return pickText(row.display_name, row.pen_name, row.username, row.name);
 }
 
-async function fetchComments(episodeId: string): Promise<{
+async function fetchComments(
+  episodeId: string,
+  dictionary: EpisodeCommentsDictionary
+): Promise<{
   comments: EpisodeCommentRow[];
   errorMessage: string | null;
 }> {
@@ -122,7 +136,7 @@ async function fetchComments(episodeId: string): Promise<{
   if (error) {
     return {
       comments: [],
-      errorMessage: "コメント一覧の取得に失敗した。",
+      errorMessage: dictionary.fetchCommentsFailed,
     };
   }
 
@@ -132,7 +146,10 @@ async function fetchComments(episodeId: string): Promise<{
   };
 }
 
-async function fetchCommentLikeCounts(commentIds: string[]): Promise<{
+async function fetchCommentLikeCounts(
+  commentIds: string[],
+  dictionary: EpisodeCommentsDictionary
+): Promise<{
   likeCountMap: Record<string, number>;
   errorMessage: string | null;
 }> {
@@ -151,7 +168,7 @@ async function fetchCommentLikeCounts(commentIds: string[]): Promise<{
   if (error) {
     return {
       likeCountMap: {},
-      errorMessage: "コメントいいね数の取得に失敗した。",
+      errorMessage: dictionary.fetchLikeCountsFailed,
     };
   }
 
@@ -163,7 +180,8 @@ async function fetchCommentLikeCounts(commentIds: string[]): Promise<{
 
 async function fetchOwnLikedCommentIds(
   commentIds: string[],
-  userId: string
+  userId: string,
+  dictionary: EpisodeCommentsDictionary
 ): Promise<{
   likedCommentIds: string[];
   errorMessage: string | null;
@@ -184,7 +202,7 @@ async function fetchOwnLikedCommentIds(
   if (error) {
     return {
       likedCommentIds: [],
-      errorMessage: "自分のコメントいいね状態の取得に失敗した。",
+      errorMessage: dictionary.fetchLikedStateFailed,
     };
   }
 
@@ -203,6 +221,7 @@ function CommentItem({
   isLoggedIn,
   isWorking,
   loginHref,
+  dictionary,
   onToggleLike,
 }: {
   comment: EpisodeCommentRow;
@@ -211,10 +230,15 @@ function CommentItem({
   isLoggedIn: boolean | null;
   isWorking: boolean;
   loginHref: string;
+  dictionary: EpisodeCommentsDictionary;
   onToggleLike: () => void;
 }) {
-  const authorName = pickText(comment.author_name_snapshot) || "読者";
-  const postedAt = formatDateTime(comment.updated_at ?? comment.created_at);
+  const authorName =
+    pickText(comment.author_name_snapshot) || dictionary.readerFallback;
+  const postedAt = formatDateTime(
+    comment.updated_at ?? comment.created_at,
+    dictionary
+  );
 
   return (
     <article className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
@@ -248,17 +272,17 @@ function CommentItem({
             ].join(" ")}
           >
             {isWorking
-              ? "処理中..."
+              ? dictionary.working
               : isLiked
-                ? "♥ いいね済み"
-                : "♡ この感想にいいね"}
+                ? dictionary.liked
+                : dictionary.likeComment}
           </button>
         ) : (
           <Link
             href={loginHref}
             className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
           >
-            ログインしていいね
+            {dictionary.loginToLike}
           </Link>
         )}
       </div>
@@ -271,6 +295,7 @@ export default function EpisodeCommentSection({
   episodeNumber,
   loginHref = "/login",
 }: EpisodeCommentSectionProps) {
+  const dictionary = episodeCommentsDictionaries[useUiLocale()];
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [isBooting, setIsBooting] = useState(true);
@@ -299,12 +324,12 @@ export default function EpisodeCommentSection({
     setIsBooting(true);
     setMessage(null);
 
-    const commentResult = await fetchComments(episodeId);
+    const commentResult = await fetchComments(episodeId, dictionary);
     const commentIds = commentResult.comments.map((comment) => comment.id);
 
     setComments(commentResult.comments);
 
-    const likeCountResult = await fetchCommentLikeCounts(commentIds);
+    const likeCountResult = await fetchCommentLikeCounts(commentIds, dictionary);
     setLikeCountMap(likeCountResult.likeCountMap);
 
     const {
@@ -322,7 +347,11 @@ export default function EpisodeCommentSection({
 
     setIsLoggedIn(true);
 
-    const ownLikedResult = await fetchOwnLikedCommentIds(commentIds, user.id);
+    const ownLikedResult = await fetchOwnLikedCommentIds(
+      commentIds,
+      user.id,
+      dictionary
+    );
     setLikedCommentIds(ownLikedResult.likedCommentIds);
 
     setMessage(
@@ -331,7 +360,7 @@ export default function EpisodeCommentSection({
         ownLikedResult.errorMessage
     );
     setIsBooting(false);
-  }, [episodeId]);
+  }, [dictionary, episodeId]);
 
   useEffect(() => {
     void loadState();
@@ -355,12 +384,12 @@ export default function EpisodeCommentSection({
     const trimmed = draft.trim();
 
     if (!trimmed) {
-      setMessage("感想を入力して。");
+      setMessage(dictionary.enterComment);
       return;
     }
 
     if (trimmed.length > MAX_COMMENT_LENGTH) {
-      setMessage(`感想は ${MAX_COMMENT_LENGTH}文字以内にして。`);
+      setMessage(dictionary.commentTooLong(MAX_COMMENT_LENGTH));
       return;
     }
 
@@ -371,7 +400,7 @@ export default function EpisodeCommentSection({
 
     if (authError || !user) {
       setIsLoggedIn(false);
-      setMessage("感想投稿にはログインが必要。");
+      setMessage(dictionary.loginRequiredToPost);
       return;
     }
 
@@ -381,7 +410,8 @@ export default function EpisodeCommentSection({
     try {
       const profileName = await fetchProfileName(user.id);
       const authorName =
-        pickText(profileName, resolveUserDisplayName(user)) || "ユーザー";
+        pickText(profileName, resolveUserDisplayName(user, dictionary)) ||
+        dictionary.userFallback;
 
       const { error } = await supabase.from("user_episode_comments").insert({
         user_id: user.id,
@@ -391,13 +421,13 @@ export default function EpisodeCommentSection({
       });
 
       if (error) {
-        setMessage("感想投稿に失敗した。");
+        setMessage(dictionary.postFailed);
         return;
       }
 
       setDraft("");
       await loadState();
-      setMessage("感想を投稿した。");
+      setMessage(dictionary.postSucceeded);
     } finally {
       setIsSaving(false);
     }
@@ -411,7 +441,7 @@ export default function EpisodeCommentSection({
 
     if (authError || !user) {
       setIsLoggedIn(false);
-      setMessage("感想へのいいねにはログインが必要。");
+      setMessage(dictionary.loginRequiredToLike);
       return;
     }
 
@@ -429,7 +459,7 @@ export default function EpisodeCommentSection({
           .eq("comment_id", commentId);
 
         if (error) {
-          setMessage("感想いいね解除に失敗した。");
+          setMessage(dictionary.unlikeFailed);
           return;
         }
 
@@ -453,7 +483,7 @@ export default function EpisodeCommentSection({
       );
 
       if (error) {
-        setMessage("感想いいね保存に失敗した。");
+        setMessage(dictionary.likeFailed);
         return;
       }
 
@@ -518,11 +548,13 @@ export default function EpisodeCommentSection({
           <p className="text-xs tracking-[0.18em] text-neutral-500">
             EPISODE COMMENTS
           </p>
-          <h2 className="mt-2 text-xl font-semibold text-black">この話の感想</h2>
+          <h2 className="mt-2 text-xl font-semibold text-black">
+            {dictionary.title}
+          </h2>
         </div>
 
         <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-600">
-          感想 {comments.length}件
+          {dictionary.count(comments.length)}
         </span>
       </div>
 
@@ -530,8 +562,12 @@ export default function EpisodeCommentSection({
         <div className="mt-5 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-black">感想を投稿する</p>
-              <p className="mt-1 text-xs text-neutral-500">300文字まで</p>
+              <p className="text-sm font-semibold text-black">
+                {dictionary.postTitle}
+              </p>
+              <p className="mt-1 text-xs text-neutral-500">
+                {dictionary.maxChars(MAX_COMMENT_LENGTH)}
+              </p>
             </div>
 
             <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
@@ -545,7 +581,7 @@ export default function EpisodeCommentSection({
             onChange={(event) => setDraft(event.target.value)}
             rows={2}
             maxLength={MAX_COMMENT_LENGTH}
-            placeholder="この話の感想を書く"
+            placeholder={dictionary.placeholder}
             className="mt-4 min-h-[84px] w-full resize-none overflow-hidden rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm leading-7 text-black outline-none placeholder:text-neutral-400"
           />
 
@@ -556,7 +592,7 @@ export default function EpisodeCommentSection({
               disabled={isSaving}
               className="rounded-full border border-black/10 bg-neutral-200 px-4 py-2 text-sm text-black transition hover:bg-neutral-300 disabled:opacity-70"
             >
-              {isSaving ? "投稿中..." : "感想を投稿"}
+              {isSaving ? dictionary.posting : dictionary.postComment}
             </button>
           </div>
         </div>
@@ -566,14 +602,14 @@ export default function EpisodeCommentSection({
             href={loginHref}
             className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
           >
-            ログインして感想を書く
+            {dictionary.loginToComment}
           </Link>
         </div>
       )}
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-black/10 bg-neutral-50 p-4">
         <p className="text-sm font-semibold text-black">
-          {episodeNumber}話感想一覧
+          {dictionary.listTitle(episodeNumber)}
         </p>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -590,7 +626,9 @@ export default function EpisodeCommentSection({
             onClick={handleToggleSortField}
             className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
           >
-            {sortField === "created_at" ? "投稿順" : "いいね順"}
+            {sortField === "created_at"
+              ? dictionary.postOrder
+              : dictionary.likeOrder}
           </button>
         </div>
       </div>
@@ -604,11 +642,11 @@ export default function EpisodeCommentSection({
       <div className="mt-6 grid gap-3">
         {isBooting ? (
           <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4 text-sm text-neutral-500">
-            感想一覧を読み込み中...
+            {dictionary.loading}
           </div>
         ) : sortedComments.length === 0 ? (
           <div className="rounded-[24px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
-            まだこの話への感想はない。
+            {dictionary.empty}
           </div>
         ) : (
           sortedComments.map((comment) => (
@@ -620,6 +658,7 @@ export default function EpisodeCommentSection({
               isLoggedIn={isLoggedIn}
               isWorking={workingLikeCommentId === comment.id}
               loginHref={loginHref}
+              dictionary={dictionary}
               onToggleLike={() => {
                 void handleToggleLike(comment.id);
               }}

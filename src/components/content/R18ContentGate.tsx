@@ -1,14 +1,27 @@
 import Link from "next/link";
+import type { UiLocale } from "@/i18n/config";
+import { readPageDictionaries } from "@/i18n/dictionaries/readPage";
+import { localizePath } from "@/i18n/navigation";
 
 type Props = {
   signedIn: boolean;
   returnHref: string;
+  locale: UiLocale;
 };
 
-export default function R18ContentGate({ signedIn, returnHref }: Props) {
+export default function R18ContentGate({
+  signedIn,
+  returnHref,
+  locale,
+}: Props) {
+  const dictionary = readPageDictionaries[locale];
+  const localizedReturnHref = localizePath(returnHref, locale);
   const settingsHref = signedIn
-    ? "/mypage#content-display"
-    : `/login?next=${encodeURIComponent(returnHref)}`;
+    ? localizePath("/mypage#content-display", locale)
+    : localizePath(
+        `/login?next=${encodeURIComponent(localizedReturnHref)}`,
+        locale
+      );
 
   return (
     <main
@@ -22,14 +35,16 @@ export default function R18ContentGate({ signedIn, returnHref }: Props) {
             <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
               R18
             </span>
-            <span className="text-xs text-neutral-500">成人向け作品</span>
+            <span className="text-xs text-neutral-500">
+              {dictionary.r18AdultWork}
+            </span>
           </div>
 
           <h1 className="mt-5 text-2xl font-bold text-black">
-            この作品はR18に設定されています
+            {dictionary.r18GateTitle}
           </h1>
           <p className="mt-4 text-sm leading-8 text-neutral-700">
-            R18作品は初期状態では表示されません。18歳以上の場合は、設定の「性的コンテンツを表示する」を有効にすると閲覧できます。
+            {dictionary.r18GateHelp}
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -37,13 +52,15 @@ export default function R18ContentGate({ signedIn, returnHref }: Props) {
               href={settingsHref}
               className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800"
             >
-              {signedIn ? "表示設定を開く" : "ログインして設定する"}
+              {signedIn
+                ? dictionary.openDisplaySettings
+                : dictionary.loginAndConfigure}
             </Link>
             <Link
-              href="/"
+              href={localizePath("/", locale)}
               className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-700 transition hover:bg-neutral-50"
             >
-              TOPへ戻る
+              {dictionary.backTop}
             </Link>
           </div>
         </section>

@@ -19,6 +19,11 @@ import {
   isSeriesTranslationEligibleIncludingOfficial,
 } from "@/lib/translation/episodeTranslationServer";
 import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
+import { getUiLocale } from "@/i18n/server";
+import {
+  readPageDictionaries,
+  type ReadPageDictionary,
+} from "@/i18n/dictionaries/readPage";
 
 type ReadEpisodeLayoutProps = {
   children: ReactNode;
@@ -64,7 +69,10 @@ function parseTags(value: unknown): string[] {
   return [];
 }
 
-function resolveReadAttribution(series: SeriesRow): {
+function resolveReadAttribution(
+  series: SeriesRow,
+  dictionary: ReadPageDictionary
+): {
   authorName: string;
   editorName: string;
 } {
@@ -78,14 +86,15 @@ function resolveReadAttribution(series: SeriesRow): {
 
   if (isAiGenerated) {
     return {
-      authorName: "AI生成",
+      authorName: dictionary.aiGenerated,
       editorName:
-        pickText(settings?.editorName, settings?.editor_name) || "編集者未設定",
+        pickText(settings?.editorName, settings?.editor_name) ||
+        dictionary.editorUnset,
     };
   }
 
   return {
-    authorName: pickText(series["author_name"]) || "作者名未設定",
+    authorName: pickText(series["author_name"]) || dictionary.authorUnset,
     editorName: "",
   };
 }
@@ -99,26 +108,36 @@ function withSettingsTopBridge(content: ReactNode) {
   );
 }
 
-function WarningBadges({ warnings }: { warnings: SeriesContentWarning[] }) {
+function WarningBadges({
+  warnings,
+  dictionary,
+}: {
+  warnings: SeriesContentWarning[];
+  dictionary: ReadPageDictionary;
+}) {
   if (warnings.length === 0) return null;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-wrap gap-2 px-3 pt-3 sm:px-6">
       {warnings.includes("sexual_r18") ? (
         <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
-          R18・性的コンテンツ
+          {dictionary.sexualR18Warning}
         </span>
       ) : null}
       {warnings.includes("violence") ? (
         <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
-          暴力描写あり
+          {dictionary.violenceWarning}
         </span>
       ) : null}
     </div>
   );
 }
 
-function withContentWarningSurface(content: ReactNode, series: SeriesRow) {
+function withContentWarningSurface(
+  content: ReactNode,
+  series: SeriesRow,
+  dictionary: ReadPageDictionary
+) {
   const warnings = getSeriesContentWarnings(series);
   const r18 = isR18Series(series);
 
@@ -129,7 +148,7 @@ function withContentWarningSurface(content: ReactNode, series: SeriesRow) {
       data-content-rating={r18 ? "r18" : "general"}
       data-ad-eligible={r18 ? "false" : undefined}
     >
-      <WarningBadges warnings={warnings} />
+      <WarningBadges warnings={warnings} dictionary={dictionary} />
       {content}
     </div>
   );
@@ -139,6 +158,8 @@ export default async function ReadEpisodeLayout({
   children,
   params,
 }: ReadEpisodeLayoutProps) {
+  const locale = await getUiLocale();
+  const dictionary = readPageDictionaries[locale];
   const { seriesId, episodeNumber } = await params;
   const parsedEpisodeNumber = parseEpisodeNumber(episodeNumber);
 
@@ -166,6 +187,7 @@ export default async function ReadEpisodeLayout({
       <R18ContentGate
         signedIn={payload.viewerSignedIn}
         returnHref={`/read/${encodeURIComponent(seriesId)}/${parsedEpisodeNumber}`}
+        locale={locale}
       />
     );
   }
@@ -190,18 +212,20 @@ export default async function ReadEpisodeLayout({
   if (!translationEligible) {
     return withContentWarningSurface(
       withSettingsTopBridge(children),
-      payload.series
+      payload.series,
+      dictionary
     );
   }
 
-  const attribution = resolveReadAttribution(payload.series);
+  const attribution = resolveReadAttribution(payload.series, dictionary);
   const episodeBody = getEpisodeBody(payload.episode);
   const sourceLanguage = inferSeriesSourceLanguage(payload.series, episodeBody);
 
   if (!sourceLanguage) {
     return withContentWarningSurface(
       withSettingsTopBridge(children),
-      payload.series
+      payload.series,
+      dictionary
     );
   }
 
@@ -226,10 +250,10 @@ export default async function ReadEpisodeLayout({
         seriesId={seriesId}
         episodeId={payload.episode.id}
         episodeNumber={currentEpisodeNumber}
-        seriesTitle={pickText(payload.series.title) || "無題"}
+        seriesTitle={pickText(payload.series.title) || dictionary.untitled}
         episodeTitle={
           pickText(payload.episode.title, payload.episode["episode_title"]) ||
-          `第${currentEpisodeNumber}話`
+          dictionary.episode(currentEpisodeNumber)
         }
         workAuthorName={attribution.authorName}
         workEditorName={attribution.editorName}
@@ -252,6 +276,7 @@ export default async function ReadEpisodeLayout({
         {children}
       </ReadBilingualShell>
     ),
-    payload.series
+    payload.series,
+    dictionary
   );
 }

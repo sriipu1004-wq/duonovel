@@ -6,6 +6,8 @@ import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from "react";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { bilingualReaderDictionaries } from "@/i18n/dictionaries/bilingualReader";
 
 type BilingualHeightHandleProps = {
   readerRef: RefObject<HTMLDivElement | null>;
@@ -29,6 +31,7 @@ export default function BilingualHeightHandle({
   readerHeight,
   onReaderHeightChange,
 }: BilingualHeightHandleProps) {
+  const dictionary = bilingualReaderDictionaries[useUiLocale()];
   const draggingRef = useRef(false);
   const startClientYRef = useRef(0);
   const startHeightRef = useRef(0);
@@ -82,14 +85,14 @@ export default function BilingualHeightHandle({
     <div
       role="separator"
       tabIndex={0}
-      aria-label="対訳表示全体の高さ"
+      aria-label={dictionary.heightAria}
       aria-orientation="horizontal"
       aria-valuemin={MIN_BILINGUAL_READER_HEIGHT}
       aria-valuemax={MAX_BILINGUAL_READER_HEIGHT}
       aria-valuenow={
         readerHeight === null ? undefined : Math.round(readerHeight)
       }
-      title="上下にドラッグして対訳表示の高さを変更"
+      title={dictionary.heightTitle}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
