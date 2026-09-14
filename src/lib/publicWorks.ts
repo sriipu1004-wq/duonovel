@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { headers } from "next/headers";
 import { createPublicServerClient } from "@/lib/supabase/serverPublic";
 import {
+  getEpisodeBody,
   getEpisodeNumber,
   getEpisodePostedAtValue,
   getSeriesGenres,
@@ -28,9 +29,15 @@ import {
   type ContentLanguage,
 } from "@/i18n/contentLanguage";
 import {
+  inferSeriesSourceLanguage,
   readCanonicalSeriesSourceLanguage,
   sourceLanguageToContentLanguage,
 } from "@/lib/translation/seriesSourceLanguage";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import { isSeriesTranslationEligible } from "@/lib/translation/episodeTranslationServer";
+import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { matchesPublicWorkLanguageFilters } from "@/lib/search/publicWorkLanguageFilter";
+import { getPublicSearchLanguageFilters } from "@/lib/search/publicSearchRequestContext";
 
 export type PublicBaseWorkCard = {
   seriesId: string;
@@ -48,11 +55,18 @@ export type PublicBaseWorkCard = {
   genres: string[];
   contentRating: SeriesContentRating;
   contentLanguage: ContentLanguage;
+  sourceLanguage: SupportedLanguageTag | null;
+  translationEligible: boolean;
   isShortStory: boolean;
   publicEpisodeNumbers: number[];
 };
 
 export type PublicWorkVisibility = "viewer" | "general" | "all";
+
+type PublicAuthorAccount = {
+  displayName: string;
+  isOfficial: boolean;
+};
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "日付未設定";
@@ -193,23 +207,45 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
   return grouped;
 }
 
+async function fetchEpisodeBodyMapByIds(
+  episodeIds: string[]
+): Promise<Map<string, string>> {
+  const ids = Array.from(new Set(episodeIds.filter(Boolean)));
+  if (ids.length === 0) return new Map();
+
+  const supabase = createPublicServerClient();
+  const narrow = await supabase
+    .from("episodes")
+    .select("id, body")
+    .in("id", ids);
+  const rows = !narrow.error
+    ? ((narrow.data ?? []) as EpisodeRow[])
+    : (((await supabase.from("episodes").select("*").in("id", ids)).data ?? []) as EpisodeRow[]);
+
+  return new Map(
+    rows.map((episode) => [episode.id, getEpisodeBody(episode)] as const)
+  );
+}
+
 function readAuthAccountDisplayName(metadata: unknown): string {
   if (!metadata || typeof metadata !== "object") return "";
   const record = metadata as Record<string, unknown>;
   return pickPublicAuthorName(record.display_name_candidate, record.display_name);
 }
 
-async function fetchAuthorDisplayNameMap(authorIds: string[]): Promise<Map<string, string>> {
+async function fetchAuthorAccountMap(authorIds: string[]): Promise<Map<string, PublicAuthorAccount>> {
   if (authorIds.length === 0) return new Map();
   const adminSupabase = createAdminClient();
-  const result = new Map<string, string>();
+  const result = new Map<string, PublicAuthorAccount>();
 
   await Promise.all(
     authorIds.map(async (authorId) => {
       const { data, error } = await adminSupabase.auth.admin.getUserById(authorId);
       if (error || !data?.user) return;
-      const displayName = readAuthAccountDisplayName(data.user.user_metadata);
-      if (displayName) result.set(authorId, displayName);
+      result.set(authorId, {
+        displayName: readAuthAccountDisplayName(data.user.user_metadata),
+        isOfficial: isOfficialAccountEmail(data.user.email),
+      });
     })
   );
   return result;
@@ -227,10 +263,18 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
     )
   );
 
-  const [authorDisplayNameMap, episodesBySeriesId] = await Promise.all([
-    fetchAuthorDisplayNameMap(authorIds),
+  const [authorAccountMap, episodesBySeriesId] = await Promise.all([
+    fetchAuthorAccountMap(authorIds),
     fetchEpisodesBySeriesIds(publicSeries.map((series) => series.id)),
   ]);
+
+  const legacyFirstEpisodeIds = publicSeries
+    .filter((series) => !readCanonicalSeriesSourceLanguage(series))
+    .map((series) => episodesBySeriesId.get(series.id)?.[0]?.id ?? "")
+    .filter((episodeId) => episodeId.length > 0);
+  const legacyFirstEpisodeBodyMap = await fetchEpisodeBodyMapByIds(
+    legacyFirstEpisodeIds
+  );
 
   return publicSeries
     .map((series) => {
@@ -240,6 +284,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
       const firstEpisode = publicEpisodes[0] ?? null;
       const latestEpisode = publicEpisodes[publicEpisodes.length - 1] ?? null;
       const authorId = pickText(series.author_id, series["user_id"], series["userId"]) || null;
+      const authorAccount = authorId ? authorAccountMap.get(authorId) : undefined;
       const latestPostedRaw = latestEpisode ? getEpisodePostedAtValue(latestEpisode) : null;
       const firstPostedRaw = firstEpisode ? getEpisodePostedAtValue(firstEpisode) : null;
       const latestPostedAtValue = latestPostedRaw ? new Date(latestPostedRaw).getTime() : 0;
@@ -249,12 +294,16 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
       const title = pickText(series.title) || "無題";
       const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
       const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
+      const sourceLanguage = inferSeriesSourceLanguage(
+        series,
+        firstEpisode ? legacyFirstEpisodeBodyMap.get(firstEpisode.id) : null
+      );
 
       return {
         seriesId: series.id,
         title,
         summary,
-        authorName: (authorId ? authorDisplayNameMap.get(authorId) : "") || "作者名未設定",
+        authorName: authorAccount?.displayName || "作者名未設定",
         authorId,
         episodeCount: publicEpisodes.length,
         firstEpisodeNumber: firstEpisode ? getEpisodeNumber(firstEpisode) : null,
@@ -266,6 +315,9 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         contentLanguage: canonicalSourceLanguage
           ? sourceLanguageToContentLanguage(canonicalSourceLanguage)
           : detectContentLanguage(title, summary),
+        sourceLanguage,
+        translationEligible:
+          isSeriesTranslationEligible(series) || authorAccount?.isOfficial === true,
         isShortStory: isShortStorySeriesForSitemap(series),
         publicEpisodeNumbers: publicEpisodes
           .map((episode) => getEpisodeNumber(episode))
@@ -283,7 +335,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
   buildPublicBaseWorkCards,
-  ["public-base-work-cards-v4-canonical-source-language"],
+  ["public-base-work-cards-v7-search-language-metadata"],
   { revalidate: 60 }
 );
 
@@ -329,6 +381,20 @@ export async function getCachedPublicBaseWorkCards(options?: {
     }
   }
 
+  const searchLanguageFilters = getPublicSearchLanguageFilters();
+  if (
+    searchLanguageFilters &&
+    (searchLanguageFilters.sourceLanguage || searchLanguageFilters.readLanguage)
+  ) {
+    visibleCards = visibleCards.filter((work) =>
+      matchesPublicWorkLanguageFilters({
+        work,
+        sourceLanguage: searchLanguageFilters.sourceLanguage,
+        readLanguage: searchLanguageFilters.readLanguage,
+      })
+    );
+  }
+
   return options?.prioritizeForUiLocale === false
     ? visibleCards
     : prioritizeForLocale(visibleCards, locale);
@@ -365,6 +431,7 @@ const PUBLIC_WORK_SERIES_SELECT = `
   effect_settings,
   content_rating,
   source_language,
+  translation_permission_mode,
   tags,
   tag_list,
   genres,

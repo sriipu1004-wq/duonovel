@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "LIB read | Time-fit AI stories to read and listen to";
+export const alt = "LIB read | Long-form and web novels for multilingual reading";
 export const size = {
   width: 1200,
   height: 630,
@@ -31,7 +31,7 @@ export default function OpenGraphImage() {
             color: "#666666",
           }}
         >
-          NOVEL / READ / LISTEN
+          ORIGINAL / BILINGUAL / TRANSLATION
         </div>
 
         <div
@@ -44,23 +44,23 @@ export default function OpenGraphImage() {
           <div
             style={{
               display: "flex",
-              fontSize: 78,
+              fontSize: 72,
               fontWeight: 700,
               lineHeight: 1.15,
             }}
           >
-            TIME-FIT AI STORIES
+            LONG-FORM & WEB NOVELS
           </div>
 
           <div
             style={{
               display: "flex",
-              fontSize: 78,
+              fontSize: 72,
               fontWeight: 700,
               lineHeight: 1.15,
             }}
           >
-            READ & LISTEN
+            READ ACROSS LANGUAGES
           </div>
         </div>
 
@@ -73,7 +73,7 @@ export default function OpenGraphImage() {
           }}
         >
           <span>LIB read</span>
-          <span style={{ color: "#666666" }}>5 / 10 / 15 MIN</span>
+          <span style={{ color: "#666666" }}>ORIGINAL FIRST</span>
         </div>
       </div>
     ),
