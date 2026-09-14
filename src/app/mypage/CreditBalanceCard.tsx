@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { localizePath } from "@/i18n/navigation";
 
 type PublicCreditPack = {
   id: string;
@@ -15,6 +16,7 @@ type Props = {
   balance: number;
   packs: PublicCreditPack[];
   purchaseEnabled: boolean;
+  showStoreLink?: boolean;
 };
 
 const COPY = {
@@ -23,6 +25,7 @@ const COPY = {
     title: "クレジット",
     balance: (value: number) => `クレジット: ${value}`,
     description: "公開作品の翻訳で、本日の利用枠を超えた話を1話・1翻訳言語ごとに解放できる。解放済みの話は再読無料。",
+    store: "クレジット購入ページ",
     buy: "クレジットを購入",
     terms: "価格・有効期限・返金条件を確認した",
     legal: "販売条件・利用規約を確認",
@@ -35,6 +38,7 @@ const COPY = {
     title: "Credits",
     balance: (value: number) => `Credits: ${value}`,
     description: "Use credits to unlock public episode translations after your included daily usage. An unlocked episode/language can be reread without another charge.",
+    store: "Credit store",
     buy: "Buy credits",
     terms: "I reviewed the price, expiry, and refund terms",
     legal: "Review sale terms and Terms of Service",
@@ -47,6 +51,7 @@ const COPY = {
     title: "크레딧",
     balance: (value: number) => `크레딧: ${value}`,
     description: "오늘 포함된 이용 횟수를 초과한 공개 작품 번역을 화·번역 언어별로 잠금 해제할 수 있습니다. 잠금 해제한 번역은 다시 읽어도 추가 차감되지 않습니다.",
+    store: "크레딧 구매 페이지",
     buy: "크레딧 구매",
     terms: "가격, 유효기간, 환불 조건을 확인했습니다",
     legal: "판매 조건 및 이용약관 확인",
@@ -56,7 +61,12 @@ const COPY = {
   },
 } as const;
 
-export default function CreditBalanceCard({ balance, packs, purchaseEnabled }: Props) {
+export default function CreditBalanceCard({
+  balance,
+  packs,
+  purchaseEnabled,
+  showStoreLink = true,
+}: Props) {
   const locale = useUiLocale();
   const copy = COPY[locale];
   const [accepted, setAccepted] = useState(false);
@@ -95,6 +105,14 @@ export default function CreditBalanceCard({ balance, packs, purchaseEnabled }: P
           <p className="mt-2 text-2xl font-semibold text-black">{copy.balance(balance)}</p>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-neutral-600">{copy.description}</p>
         </div>
+        {showStoreLink ? (
+          <Link
+            href={localizePath("/credits", locale)}
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+          >
+            {copy.store}
+          </Link>
+        ) : null}
       </div>
 
       {purchaseEnabled && packs.length > 0 ? (
