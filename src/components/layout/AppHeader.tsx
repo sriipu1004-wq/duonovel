@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 import AuthStatus from "@/components/auth/AuthStatus";
 import { useCommonDictionary, useUiLocale } from "@/i18n/UiLocaleProvider";
 import { isReaderPath, localizePath } from "@/i18n/navigation";
@@ -29,7 +30,15 @@ export default function AppHeader() {
               <Image src="/brand/libread-mark.jpg" alt={dictionary.symbolAlt} width={900} height={900} priority className="h-8 w-8 shrink-0 rounded-full border border-black/10 object-cover sm:h-12 sm:w-12" />
               <Image src="/brand/libread-logo-wide.jpg" alt="LIB read" width={1600} height={520} priority className="h-7 w-auto max-w-[104px] object-contain sm:h-10 sm:max-w-none" />
             </Link>
-            <AuthStatus />
+            <Suspense
+              fallback={
+                <div className="shrink-0 whitespace-nowrap text-[10px] text-neutral-500 dark:text-neutral-400 sm:text-xs">
+                  {dictionary.authChecking}
+                </div>
+              }
+            >
+              <AuthStatus />
+            </Suspense>
           </div>
           <nav className="flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto text-xs text-neutral-600 sm:gap-2 sm:text-sm">
             {navItems.map((item) => (

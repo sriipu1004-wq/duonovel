@@ -1,26 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { useCommonDictionary, useUiLocale } from "@/i18n/UiLocaleProvider";
 import { localizePath } from "@/i18n/navigation";
-import { stripUiLocalePrefix, type UiLocale } from "@/i18n/config";
-
-function buildLoginHref(pathname: string | null, locale: UiLocale): string {
-  const loginPath = localizePath("/login", locale);
-  const nextPath = pathname && pathname.startsWith("/") ? pathname : localizePath("/", locale);
-
-  if (stripUiLocalePrefix(nextPath) === "/login") {
-    return loginPath;
-  }
-
-  return stripUiLocalePrefix(nextPath) === "/"
-    ? loginPath
-    : `${loginPath}?next=${encodeURIComponent(nextPath)}`;
-}
+import { stripUiLocalePrefix } from "@/i18n/config";
+import { buildCurrentLoginHref } from "@/lib/auth/loginRedirect";
 
 function shortenEmail(email: string): string {
   if (email.length <= 28) return email;
@@ -30,6 +18,7 @@ function shortenEmail(email: string): string {
 export default function AuthStatus() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const locale = useUiLocale();
   const dictionary = useCommonDictionary();
 
@@ -38,7 +27,11 @@ export default function AuthStatus() {
   const [logoutPending, setLogoutPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const loginHref = useMemo(() => buildLoginHref(pathname, locale), [pathname, locale]);
+  const search = searchParams.toString();
+  const loginHref = useMemo(
+    () => buildCurrentLoginHref({ pathname, search, locale }),
+    [locale, pathname, search]
+  );
   const isMyPage = stripUiLocalePrefix(pathname) === "/mypage";
 
   useEffect(() => {
