@@ -5,3 +5,12 @@
 .workspace div.ml-auto:has(> a[href*="/episodes/"] + a[href*="/episodes/"]) > a[href*="/episodes/"]:first-child {
   display: none;
 }
+
+/* Keep the workspace height stable once the episode list becomes long. */
+.workspace section:has(a[href$="/episodes/new"]) div[class~="mt-4"][class~="grid"][class~="gap-3"] {
+  max-height: 36rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.25rem;
+  scrollbar-gutter: stable;
+}

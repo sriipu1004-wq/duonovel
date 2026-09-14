@@ -63,12 +63,14 @@ type Props = {
   seriesId?: string | null;
   initialLanguage?: SupportedLanguageTag | null;
   confirmed?: boolean;
+  embedded?: boolean;
 };
 
 export default function SourceLanguageWorkspaceBridge({
   seriesId,
   initialLanguage = null,
   confirmed = false,
+  embedded = false,
 }: Props) {
   const router = useRouter();
   const dictionary = copy[useUiLocale()];
@@ -176,8 +178,20 @@ export default function SourceLanguageWorkspaceBridge({
   }
 
   return (
-    <section className="mx-auto mb-6 w-full max-w-5xl px-4 sm:px-6">
-      <div className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
+    <section
+      className={
+        embedded
+          ? "w-full"
+          : "mx-auto mb-6 w-full max-w-5xl px-4 sm:px-6"
+      }
+    >
+      <div
+        className={
+          embedded
+            ? "rounded-2xl border border-black/10 bg-white p-4"
+            : "rounded-[28px] border border-black/10 bg-white p-5 shadow-sm"
+        }
+      >
         <p className="text-xs tracking-[0.18em] text-neutral-500">
           SOURCE LANGUAGE
         </p>

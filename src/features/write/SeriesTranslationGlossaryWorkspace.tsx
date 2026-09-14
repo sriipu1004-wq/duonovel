@@ -19,15 +19,33 @@ export type {
   SeriesTranslationProfileRow,
 } from "@/features/write/seriesTranslationGlossaryWorkspaceShared";
 
-export default function SeriesTranslationGlossaryWorkspace(
-  props: SeriesTranslationGlossaryWorkspaceProps
-) {
+type Props = SeriesTranslationGlossaryWorkspaceProps & {
+  embedded?: boolean;
+};
+
+export default function SeriesTranslationGlossaryWorkspace({
+  embedded = false,
+  ...props
+}: Props) {
   const copy = SERIES_TRANSLATION_GLOSSARY_COPY[useUiLocale()];
   const editor = useSeriesTranslationGlossaryEditor(props, copy.saved, copy.failed);
 
   return (
-    <section id="translation-glossary" className="mx-auto w-full max-w-5xl px-4 pb-8 sm:px-6">
-      <details className="rounded-[28px] border border-black/10 bg-white p-5" open>
+    <section
+      id="translation-glossary"
+      className={
+        embedded
+          ? "w-full"
+          : "mx-auto w-full max-w-5xl px-4 pb-8 sm:px-6"
+      }
+    >
+      <details
+        className={
+          embedded
+            ? "rounded-2xl border border-black/10 bg-white p-4"
+            : "rounded-[28px] border border-black/10 bg-white p-5"
+        }
+      >
         <summary className="cursor-pointer text-lg font-semibold">{copy.title}</summary>
         <p className="mt-2 text-sm text-neutral-600">{copy.help}</p>
         <div className="mt-5 grid gap-3 rounded-2xl bg-neutral-50 p-4 md:grid-cols-2">
@@ -68,7 +86,7 @@ export default function SeriesTranslationGlossaryWorkspace(
         </div>
         <div className="mt-6 grid gap-3 rounded-2xl border p-4">
           <h3 className="font-semibold">{copy.profileTitle}</h3>
-          {([['style', copy.styleNotes], ['honorific', copy.honorificPolicy], ['formatting', copy.formattingNotes]] as const).map(([key, label]) => (
+          {([["style", copy.styleNotes], ["honorific", copy.honorificPolicy], ["formatting", copy.formattingNotes]] as const).map(([key, label]) => (
             <label key={key} className="grid gap-1"><span className="text-xs">{label}</span><textarea rows={2} maxLength={2000} value={editor.profileDraft[key]} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => editor.updateProfileDraft(key, e.target.value)} className="rounded-xl border p-2" /></label>
           ))}
           <div className="flex justify-end"><button type="button" disabled={editor.saving} onClick={() => void editor.saveProfile()} className="rounded-full bg-black px-5 py-2 text-white disabled:opacity-40">{copy.saveProfile}</button></div>

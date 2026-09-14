@@ -5,6 +5,7 @@ import WriteSeriesForm from "@/features/write/WriteSeriesForm";
 import ContentRatingWorkspaceBridge from "@/features/write/ContentRatingWorkspaceBridge";
 import TranslationPermissionWorkspaceBridge from "@/features/write/TranslationPermissionWorkspaceBridge";
 import SourceLanguageWorkspaceBridge from "@/features/write/SourceLanguageWorkspaceBridge";
+import SeriesStatusPortal from "@/features/write/SeriesStatusPortal";
 import SeriesTranslationGlossaryWorkspace, {
   type SeriesTranslationGlossaryEntryRow,
   type SeriesTranslationGlossaryTargetRow,
@@ -141,17 +142,25 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
   return (
     <div className={className}>
       <WriteSeriesForm mode="edit" currentUserId={user.id} series={series} episodes={episodes} />
-      <SourceLanguageWorkspaceBridge seriesId={series.id} initialLanguage={sourceLanguage} confirmed={Boolean(canonicalSourceLanguage)} />
-      {canonicalSourceLanguage && glossaryData ? (
-        <SeriesTranslationGlossaryWorkspace
+      <SeriesStatusPortal>
+        <SourceLanguageWorkspaceBridge
           seriesId={series.id}
-          currentUserId={user.id}
-          sourceLanguage={canonicalSourceLanguage}
-          initialEntries={glossaryData.entries}
-          initialTargets={glossaryData.targets}
-          initialProfiles={glossaryData.profiles}
+          initialLanguage={sourceLanguage}
+          confirmed={Boolean(canonicalSourceLanguage)}
+          embedded
         />
-      ) : null}
+        {canonicalSourceLanguage && glossaryData ? (
+          <SeriesTranslationGlossaryWorkspace
+            seriesId={series.id}
+            currentUserId={user.id}
+            sourceLanguage={canonicalSourceLanguage}
+            initialEntries={glossaryData.entries}
+            initialTargets={glossaryData.targets}
+            initialProfiles={glossaryData.profiles}
+            embedded
+          />
+        ) : null}
+      </SeriesStatusPortal>
       {isAiGenerated && episodes.length > 0 ? (
         <div className="mx-auto w-full max-w-5xl px-4 pb-6 sm:px-6">
           <ContinueStoryAction seriesId={series.id} isShortStory={shortStoryComplete} />

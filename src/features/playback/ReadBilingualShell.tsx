@@ -100,7 +100,6 @@ export default function ReadBilingualShell({
   const [resumeSegmentIndex, setResumeSegmentIndex] = useState<number | null>(null);
   const [restoreToken, setRestoreToken] = useState(0);
   const availabilityCheckVersionRef = useRef(0);
-  const entitlementActionKeyRef = useRef<string | null>(null);
 
   async function checkTranslationAvailability(
     language: PublicTranslationTargetLanguage,
@@ -277,7 +276,6 @@ export default function ReadBilingualShell({
     setAutoGenerateMissingTranslation(false);
     setSessionLanguageLocked(false);
     setTranslationEntitlement(null);
-    entitlementActionKeyRef.current = null;
     setRestoreToken((current) => current + 1);
   }
 
@@ -319,7 +317,6 @@ export default function ReadBilingualShell({
         return;
       }
       setTargetLanguage(language);
-      entitlementActionKeyRef.current = null;
       if (mode === "bilingual" || mode === "translation") {
         replaceReaderUrl(
           mode,
@@ -410,34 +407,8 @@ export default function ReadBilingualShell({
 
   useEffect(() => {
     if (mode !== "bilingual" && mode !== "translation") return;
-    entitlementActionKeyRef.current = null;
     void checkTranslationAvailability(targetLanguage);
   }, [episodeId, mode, targetLanguage]);
-
-  useEffect(() => {
-    if (
-      (mode !== "bilingual" && mode !== "translation") ||
-      !translationEntitlement ||
-      translationEntitlement.status !== "included_available" ||
-      entitlementBusy ||
-      translationAvailability === "checking" ||
-      translationAvailability === "translating" ||
-      translationAvailability === "error"
-    ) {
-      return;
-    }
-    const key = `${episodeId}:${targetLanguage}:${translationAvailability}:included`;
-    if (entitlementActionKeyRef.current === key) return;
-    entitlementActionKeyRef.current = key;
-    void completeEntitlement("included");
-  }, [
-    entitlementBusy,
-    episodeId,
-    mode,
-    targetLanguage,
-    translationAvailability,
-    translationEntitlement,
-  ]);
 
   const translatedModeLocked =
     (mode === "bilingual" || mode === "translation") &&
@@ -460,6 +431,8 @@ export default function ReadBilingualShell({
               <PublicTranslationUnlockGate
                 entitlement={translationEntitlement}
                 busy={entitlementBusy}
+                requiresGeneration={translationAvailability !== "ready"}
+                onConfirmIncluded={() => completeEntitlement("included")}
                 onConfirmCredit={() => completeEntitlement("credit")}
               />
             </div>
@@ -546,7 +519,6 @@ export default function ReadBilingualShell({
             sourceLanguage={sourceLanguage}
             onChange={(language) => {
               setTargetLanguage(language);
-              entitlementActionKeyRef.current = null;
             }}
           />
         </div>
@@ -572,7 +544,6 @@ export default function ReadBilingualShell({
           isSubscriber={translationEntitlement ? false : aiUsage?.isSubscriber === true}
           onTargetLanguageChange={(language) => {
             setTargetLanguage(language);
-            entitlementActionKeyRef.current = null;
             void checkTranslationAvailability(language);
           }}
           onRememberForTabChange={setRememberForTab}

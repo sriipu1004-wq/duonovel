@@ -101,14 +101,12 @@ export default async function MyPage() {
   if (creditBalance !== null) {
     try {
       purchaseEnabled = isCreditPurchaseEnabled();
-      if (purchaseEnabled) {
-        publicPacks = getCreditPackCatalog().map((pack) => ({
-          id: pack.id,
-          credits: pack.credits,
-          displayPriceJpy: pack.displayPriceJpy,
-          expiresInDays: pack.expiresInDays,
-        }));
-      }
+      publicPacks = getCreditPackCatalog().map((pack) => ({
+        id: pack.id,
+        credits: pack.credits,
+        displayPriceJpy: pack.displayPriceJpy,
+        expiresInDays: pack.expiresInDays,
+      }));
     } catch (error) {
       console.error("[mypage-credit-catalog]", error);
     }

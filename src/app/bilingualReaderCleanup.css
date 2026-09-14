@@ -1,0 +1,22 @@
+/* Public bilingual Reader cleanup.
+ * The ReaderModeSelector already owns Original / Bilingual / Translation-only
+ * switching, so the duplicate title-area bilingual ON/OFF controls are hidden.
+ * Word-tap lookup is disabled in BilingualPane; hide its obsolete helper row too.
+ */
+main section:has(> header > div > div > label > select)
+  > header
+  > div
+  > div:last-child
+  > span:last-of-type,
+main section:has(> header > div > div > label > select)
+  > header
+  > div
+  > div:last-child
+  > button:last-child {
+  display: none;
+}
+
+main section:has([data-bilingual-scroll])
+  > div:has(+ div [data-bilingual-scroll]) {
+  display: none;
+}

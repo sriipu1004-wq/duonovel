@@ -20,22 +20,22 @@ const SITE_URL = "https://www.syosetu-libread.com";
 const pricingSeoCopy: Record<UiLocale, { title: string; description: string; summary: string; freeHeader: string; premiumHeader: string }> = {
   ja: {
     title: "料金・Free / Premiumプラン | LIB read",
-    description: "LIB readの料金。Freeは¥0。Premiumは月額680円（JPY）。AI物語・対訳生成・個人本棚取り込みの利用枠、単語解説、次話対訳、個人本棚上限を比較できます。",
-    summary: "Freeは¥0。Premiumは月額680円（税込・JPY）です。FreeではAI物語生成・対訳生成・個人本棚への取り込みが合計1日3回の共通枠です。",
+    description: "LIB readの料金。Freeは¥0、Premiumは月額680円（JPY）。AI物語、公開作品の翻訳解放、個人本棚への取り込み回数と保存上限を比較できます。",
+    summary: "Freeは¥0。Premiumは月額680円（税込・JPY）です。FreeではAI物語生成・公開作品の翻訳解放・個人本棚への取り込みが合計1日3回の共通枠です。PremiumではAI物語生成は1日10回、公開作品の翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なしです。",
     freeHeader: "Free — ¥0",
     premiumHeader: "Premium — 月額680円",
   },
   en: {
     title: "Pricing: Free and Premium plans | LIB read",
-    description: "LIB read pricing: Free is ¥0 and Premium is ¥680/month in JPY. Compare shared Free usage, Premium daily allowances, word explanations, next-episode bilingual text, read-aloud, and My Library limits.",
-    summary: "Free costs ¥0. Premium costs ¥680 per month and is charged in Japanese yen (JPY). On Free, AI story generation, bilingual generation, and My Library imports share a total allowance of 3 uses per day.",
+    description: "LIB read pricing: Free is ¥0 and Premium is ¥680/month in JPY. Compare AI-story limits, public-translation unlocks, My Library imports, read-aloud, and library storage limits.",
+    summary: "Free costs ¥0. Premium costs ¥680 per month in JPY. On Free, AI story generation, public-translation unlocks, and My Library imports share 3 uses per day. Premium provides up to 10 AI stories/day, 30 public-translation unlocks/day, and no daily count limit for library imports.",
     freeHeader: "Free — ¥0",
     premiumHeader: "Premium — ¥680/month (JPY)",
   },
   ko: {
     title: "요금: Free와 Premium 플랜 | LIB read",
-    description: "LIB read 요금은 Free ¥0, Premium 월 ¥680(JPY)입니다. Free 공통 이용량, Premium 일일 한도, 단어 설명, 다음 화 대역, 읽어주기, 개인 서재 한도를 비교할 수 있습니다.",
-    summary: "Free는 ¥0입니다. Premium은 월 ¥680이며 일본 엔(JPY)으로 결제됩니다. Free에서는 AI 이야기 생성, 대역 생성, 개인 서재 가져오기가 합산 하루 3회의 공통 이용량을 공유합니다.",
+    description: "LIB read 요금은 Free ¥0, Premium 월 ¥680(JPY)입니다. AI 이야기, 공개 작품 번역 잠금 해제, 개인 서재 가져오기, 읽어주기와 보관 한도를 비교할 수 있습니다.",
+    summary: "Free는 ¥0, Premium은 월 ¥680(JPY)입니다. Free에서는 AI 이야기 생성·공개 작품 번역 잠금 해제·개인 서재 가져오기가 합산 하루 3회를 공유합니다. Premium은 AI 이야기 하루 10회, 공개 번역 하루 30회, 개인 서재 가져오기 일일 횟수 제한 없음입니다.",
     freeHeader: "Free — ¥0",
     premiumHeader: "Premium — 월 ¥680 (JPY)",
   },
