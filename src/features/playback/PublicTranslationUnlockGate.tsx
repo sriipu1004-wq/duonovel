@@ -122,7 +122,7 @@ export default function PublicTranslationUnlockGate({
         : `${window.location.pathname}${window.location.search}`;
     return localizePath(`/login?next=${encodeURIComponent(current)}`, locale);
   }, [locale]);
-  const myPageHref = localizePath("/mypage#credits", locale);
+  const creditStoreHref = localizePath("/credits", locale);
   const premiumHref = localizePath("/subscription", locale);
 
   if (entitlement.status === "unlocked") return null;
@@ -180,7 +180,7 @@ export default function PublicTranslationUnlockGate({
               </button>
             ) : (
               <Link
-                href={myPageHref}
+                href={creditStoreHref}
                 className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white"
               >
                 {copy.buy}
