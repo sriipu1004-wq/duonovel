@@ -30,6 +30,7 @@ import {
 } from "@/lib/translation/languageRegistry";
 import { writeBilingualSessionPreference } from "@/lib/translation/bilingualSessionPreference";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
 import {
   TRANSLATION_READER_VISIBILITY_EVENT,
   readTranslationReaderVisible,
@@ -414,6 +415,30 @@ export default function ReadBilingualShell({
     (mode === "bilingual" || mode === "translation") &&
     translationEntitlement !== null &&
     translationEntitlement.status !== "unlocked";
+  const translatedModeChecking =
+    (mode === "bilingual" || mode === "translation") &&
+    translationAvailability === "checking";
+
+  if (translatedModeChecking) {
+    return (
+      <>
+        {translationUiVisible ? (
+          <ReaderModeSelector
+            mode={mode}
+            translationEnabled={translationEligible}
+            onChange={handleModeChange}
+          />
+        ) : null}
+        <main className="min-h-[70vh] bg-white text-black">
+          <div className="mx-auto flex w-full max-w-xl justify-center px-4 py-12 sm:px-6">
+            <p className="rounded-[28px] border border-black/10 bg-neutral-50 px-6 py-5 text-sm text-neutral-700">
+              {readerDictionaries[uiLocale].checkingTranslation}
+            </p>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   if (translatedModeLocked && translationEntitlement) {
     return (

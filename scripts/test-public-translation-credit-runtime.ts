@@ -201,6 +201,17 @@ function main() {
     false,
     "included allowance must never be consumed automatically on mode switch"
   );
+  const entitlementCheck = shell.indexOf("const translatedModeChecking");
+  const bilingualPlayback = shell.indexOf("<BilingualEpisodePlayback");
+  assert.ok(
+    entitlementCheck >= 0 && entitlementCheck < bilingualPlayback,
+    "translated modes must wait for entitlement status before rendering a generation control"
+  );
+  assert.ok(
+    shell.includes('translationAvailability === "checking"') &&
+      shell.includes("readerDictionaries[uiLocale].checkingTranslation"),
+    "the entitlement check must have a non-generating loading state"
+  );
 
   const gate = source("src/features/playback/PublicTranslationUnlockGate.tsx");
   assert.ok(gate.includes("本日の利用枠を1回使って"));

@@ -14,6 +14,10 @@
     "test:translation-consistency": "node --import tsx scripts/test-series-translation-consistency.ts",
     "test:translation-credit-runtime": "node --import tsx scripts/test-public-translation-credit-runtime.ts",
     "test:auth-login-redirect": "node --import tsx scripts/test-auth-login-redirect.ts",
+    "test:public-recording-selects": "node --import tsx scripts/test-public-recording-selects.ts",
+    "test:locale-work-state": "node --import tsx scripts/test-locale-work-state.ts",
+    "test:sitemap-resilience": "node --import tsx scripts/test-sitemap-resilience.ts",
+    "test:series-translation-permission-schema": "node --import tsx scripts/test-series-translation-permission-schema.ts",
     "test:ai-story-continuation-language": "node --import tsx scripts/test-ai-story-continuation-language.ts",
     "test:public-search-language-filters": "node --import tsx scripts/test-public-search-language-filters.ts",
     "test:stripe-credit-webhook": "node --import tsx scripts/test-stripe-credit-webhook.ts"
