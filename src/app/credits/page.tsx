@@ -119,6 +119,7 @@ export default async function CreditsPage({ searchParams }: PageProps) {
             balance={balance ?? 0}
             packs={publicPacks}
             purchaseEnabled={purchaseEnabled}
+            showStoreLink={false}
           />
         </div>
       </div>
