@@ -29,7 +29,7 @@ const ja = {
   logout: "ログアウト",
   loggingOut: "ログアウト中...",
   logoutFailed: "ログアウトに失敗した",
-  footerDescription: "外国語の長編を個人本棚で読み続け、多言語対訳・読み上げ・AI物語・Web小説を作品単位で楽しめる読書サービスです。",
+  footerDescription: "長編・Web小説を原文を正本として多言語で読み、公開翻訳を共有・再利用できる読書サービスです。個人本棚、読み上げ、投稿にも対応します。",
 } as const;
 
 type CommonDictionary = { [K in keyof typeof ja]: string };
@@ -63,7 +63,7 @@ const en = {
   logout: "Log out",
   loggingOut: "Logging out...",
   logoutFailed: "Could not log out.",
-  footerDescription: "A reading service for long-form books in your own library, bilingual text, read-aloud, AI stories, and web novels.",
+  footerDescription: "A multilingual reading service for long-form fiction and web novels that keeps the source work canonical and reuses shared public translations, with private library import, read-aloud, and publishing also available.",
 } satisfies CommonDictionary;
 
 const ko = {
@@ -95,7 +95,7 @@ const ko = {
   logout: "로그아웃",
   loggingOut: "로그아웃 중...",
   logoutFailed: "로그아웃하지 못했습니다.",
-  footerDescription: "개인 서재에서 장편 외국어 작품을 이어 읽고, 다국어 대역·읽어주기·AI 이야기·웹소설을 함께 이용하는 독서 서비스입니다.",
+  footerDescription: "장편소설과 웹소설을 원문 작품을 정본으로 유지한 채 여러 언어로 읽고 저장된 공개 번역을 공유·재사용하는 독서 서비스입니다. 개인 서재, 읽어주기, 작품 게시도 지원합니다.",
 } satisfies CommonDictionary;
 
 export const commonDictionaries: Record<UiLocale, CommonDictionary> = { ja, en, ko };
