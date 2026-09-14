@@ -5,18 +5,14 @@ import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import type { UiLocale } from "@/i18n/config";
 import {
   LANGUAGE_REGISTRY,
-  type PublicTranslationTargetLanguage,
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import {
   PUBLIC_SEARCH_READ_LANGUAGES,
   PUBLIC_SEARCH_SOURCE_LANGUAGES,
+  parsePublicSearchReadLanguage,
+  parsePublicSearchSourceLanguage,
 } from "@/lib/search/publicWorkLanguageFilter";
-
-type Props = {
-  sourceLanguage: SupportedLanguageTag | null;
-  readLanguage: PublicTranslationTargetLanguage | null;
-};
 
 const copy: Record<UiLocale, {
   source: string;
@@ -62,15 +58,18 @@ function getLanguageLabel(tag: SupportedLanguageTag, locale: UiLocale): string {
   return language.nativeLabel;
 }
 
-export default function PublicSearchLanguageFilters({
-  sourceLanguage,
-  readLanguage,
-}: Props) {
+export default function PublicSearchLanguageFilters() {
   const locale = useUiLocale();
   const labels = copy[locale];
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const sourceLanguage = parsePublicSearchSourceLanguage(
+    searchParams.get("source_language")
+  );
+  const readLanguage = parsePublicSearchReadLanguage(
+    searchParams.get("read_language")
+  );
 
   function updateLanguageParam(
     key: "source_language" | "read_language",
@@ -86,7 +85,7 @@ export default function PublicSearchLanguageFilters({
   }
 
   return (
-    <section className="mb-4 rounded-[24px] border border-black/10 bg-white p-4 shadow-sm sm:p-5">
+    <div className="mt-6 rounded-[20px] border border-black/10 bg-neutral-50 p-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="grid gap-2 text-sm font-medium text-black">
           <span>{labels.source}</span>
@@ -125,6 +124,6 @@ export default function PublicSearchLanguageFilters({
         </label>
       </div>
       <p className="mt-3 text-xs leading-6 text-neutral-500">{labels.hint}</p>
-    </section>
+    </div>
   );
 }
