@@ -68,8 +68,8 @@ export async function POST(request: Request) {
       billing_address_collection: "auto",
       customer_update: { address: "auto", name: "auto" },
       automatic_tax: { enabled: isStripeAutomaticTaxEnabled() },
-      success_url: `${origin}/mypage?credit_checkout=success&session_id={CHECKOUT_SESSION_ID}#credits`,
-      cancel_url: `${origin}/mypage?credit_checkout=canceled#credits`,
+      success_url: `${origin}/credits?credit_checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/credits?credit_checkout=canceled`,
       metadata: {
         libread_kind: "credit_pack",
         libread_user_id: user.id,
