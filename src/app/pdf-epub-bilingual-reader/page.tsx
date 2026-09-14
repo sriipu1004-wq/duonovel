@@ -6,7 +6,7 @@ import {
   buildSearchDiscoveryMetadata,
   buildSearchDiscoveryStructuredData,
   getSearchDiscoveryDefinition,
-} from "@/lib/seo/searchDiscovery";
+} from "@/lib/seo/currentSearchDiscovery";
 
 const SLUG = "pdf-epub-bilingual-reader" as const;
 
