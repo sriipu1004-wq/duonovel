@@ -212,6 +212,13 @@ function main() {
       shell.includes("readerDictionaries[uiLocale].checkingTranslation"),
     "the entitlement check must have a non-generating loading state"
   );
+  assert.ok(
+    shell.includes("const response = await fetch(endpoint") &&
+      shell.includes("if (!response.ok)") &&
+      shell.includes("setEntitlementError(readerDictionaries[uiLocale].translationUnlockFailed)") &&
+      shell.includes("} catch {"),
+    "unlock network and non-2xx failures must keep the reader actionable without an unhandled rejection"
+  );
 
   const gate = source("src/features/playback/PublicTranslationUnlockGate.tsx");
   assert.ok(gate.includes("本日の利用枠を1回使って"));
@@ -219,6 +226,8 @@ function main() {
   assert.ok(gate.includes("1크레딧으로 이 화 잠금 해제"));
   assert.ok(gate.includes("1クレジットで解放"));
   assert.ok(gate.includes("same translation language without another charge"));
+  assert.ok(gate.includes('role="alert"'));
+  assert.ok(gate.includes(".catch(() => undefined)"));
   assert.equal(
     buildPublicTranslationLoginHref(
       "/en/read/work/2?readingMode=bilingual&sourceLanguage=ja&targetLanguage=en",

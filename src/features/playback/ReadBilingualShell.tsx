@@ -90,6 +90,7 @@ export default function ReadBilingualShell({
   const [translationEntitlement, setTranslationEntitlement] =
     useState<ReaderTranslationEntitlement | null>(null);
   const [entitlementBusy, setEntitlementBusy] = useState(false);
+  const [entitlementError, setEntitlementError] = useState<string | null>(null);
   const [rememberForTab, setRememberForTab] = useState(false);
   const [sessionLanguageLocked, setSessionLanguageLocked] = useState(false);
   const [autoGenerateMissingTranslation, setAutoGenerateMissingTranslation] =
@@ -144,6 +145,7 @@ export default function ReadBilingualShell({
       return;
     }
 
+    setEntitlementError(null);
     setEntitlementBusy(true);
     try {
       const isReady = translationAvailability === "ready";
@@ -163,13 +165,20 @@ export default function ReadBilingualShell({
             targetLanguage,
             unlockMethod: method,
           };
-      await fetch(endpoint, {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      if (!response.ok) {
+        setEntitlementError(readerDictionaries[uiLocale].translationUnlockFailed);
+        await checkTranslationAvailability(targetLanguage);
+        return;
+      }
       await refreshAiUsage();
       await checkTranslationAvailability(targetLanguage);
+    } catch {
+      setEntitlementError(readerDictionaries[uiLocale].translationUnlockFailed);
     } finally {
       setEntitlementBusy(false);
     }
@@ -457,6 +466,7 @@ export default function ReadBilingualShell({
                 entitlement={translationEntitlement}
                 busy={entitlementBusy}
                 requiresGeneration={translationAvailability !== "ready"}
+                errorMessage={entitlementError}
                 onConfirmIncluded={() => completeEntitlement("included")}
                 onConfirmCredit={() => completeEntitlement("credit")}
               />

@@ -25,6 +25,7 @@ type Props = {
   entitlement: ReaderTranslationEntitlement;
   busy: boolean;
   requiresGeneration: boolean;
+  errorMessage?: string | null;
   onConfirmIncluded: () => Promise<void> | void;
   onConfirmCredit: () => Promise<void> | void;
 };
@@ -117,6 +118,7 @@ export default function PublicTranslationUnlockGate({
   entitlement,
   busy,
   requiresGeneration,
+  errorMessage,
   onConfirmIncluded,
   onConfirmCredit,
 }: Props) {
@@ -137,6 +139,11 @@ export default function PublicTranslationUnlockGate({
 
   return (
     <div className="mt-5 rounded-2xl border border-black/10 bg-white p-4 text-left">
+      {errorMessage ? (
+        <p role="alert" className="mb-3 text-sm leading-6 text-rose-700">
+          {errorMessage}
+        </p>
+      ) : null}
       {entitlement.status === "login_required" ? (
         <>
           <p className="text-sm leading-6 text-neutral-700">{copy.login}</p>
@@ -242,7 +249,9 @@ export default function PublicTranslationUnlockGate({
                 disabled={busy}
                 onClick={() => {
                   const action = confirmingIncluded ? onConfirmIncluded : onConfirmCredit;
-                  void Promise.resolve(action()).finally(() => setConfirmKind(null));
+                  void Promise.resolve(action())
+                    .catch(() => undefined)
+                    .finally(() => setConfirmKind(null));
                 }}
                 className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
