@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getUiLocale } from "@/i18n/server";
 import { localizePath } from "@/i18n/navigation";
@@ -6,6 +7,10 @@ import {
   parseSupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { getPublicWorkTranslationOverview } from "@/lib/translation/publicWorkTranslations";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 type Props = {
   params: Promise<{ seriesId: string; readLanguage: string }>;
