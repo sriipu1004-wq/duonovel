@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next";
 import AppHeader from "@/components/layout/AppHeader";
 import AppFooter from "@/components/layout/AppFooter";
 import "./globals.css";
+import "./bilingualReaderCleanup.css";
 import GlobalNavigationProgress from "@/components/navigation/GlobalNavigationProgress";
 import { getUiLocale } from "@/i18n/server";
 import { UiLocaleProvider } from "@/i18n/UiLocaleProvider";
