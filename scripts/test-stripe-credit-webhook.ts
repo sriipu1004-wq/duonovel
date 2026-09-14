@@ -25,6 +25,8 @@ function main() {
   assert.ok(checkout.includes("getCreditPack(packId)"));
   assert.ok(checkout.includes("accepted !== true"));
   assert.ok(checkout.includes("line_items: [{ price: pack.stripePriceId, quantity: 1 }]"));
+  assert.ok(checkout.includes("/credits?credit_checkout=success"));
+  assert.ok(checkout.includes("/credits?credit_checkout=canceled"));
   assert.equal(
     /credits\s*=\s*(payload|body)/.test(checkout),
     false,
@@ -35,6 +37,17 @@ function main() {
   assert.ok(balanceCard.includes('type="checkbox"'));
   assert.ok(balanceCard.includes('/commercial-transactions'));
   assert.ok(balanceCard.includes('accepted: true'));
+  assert.ok(balanceCard.includes('localizePath("/credits"'));
+
+  const creditStore = source("src/app/credits/page.tsx");
+  assert.ok(creditStore.includes('requireLoggedInUser("/credits")'));
+  assert.ok(creditStore.includes("getAuthenticatedCreditBalance"));
+  assert.ok(creditStore.includes("getCreditPackCatalog"));
+  assert.ok(creditStore.includes("isCreditPurchaseEnabled"));
+  assert.ok(creditStore.includes("showStoreLink={false}"));
+
+  const unlockGate = source("src/features/playback/PublicTranslationUnlockGate.tsx");
+  assert.ok(unlockGate.includes('localizePath("/credits"'));
 
   const commercial = source("src/app/commercial-transactions/page.tsx");
   assert.ok(commercial.includes("getCreditPackCatalog"));
