@@ -447,50 +447,24 @@ async function fetchEpisodesBySeriesId(
   supabase: AdminSupabase,
   seriesId: string
 ): Promise<EpisodeRow[]> {
-  const firstTry = await supabase
+  const result = await supabase
     .from("episodes")
     .select("*")
     .eq("series_id", seriesId);
 
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as EpisodeRow[];
-  }
-
-  const secondTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("seriesId", seriesId);
-
-  if (!secondTry.error) {
-    return (secondTry.data ?? []) as EpisodeRow[];
-  }
-
-  return [];
+  return result.error ? [] : ((result.data ?? []) as EpisodeRow[]);
 }
 
 async function fetchRecordingsByEpisodeId(
   supabase: AdminSupabase,
   episodeId: string
 ): Promise<RecordingRow[]> {
-  const firstTry = await supabase
+  const result = await supabase
     .from("recordings")
     .select("*")
     .eq("episode_id", episodeId);
 
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as RecordingRow[];
-  }
-
-  const secondTry = await supabase
-    .from("recordings")
-    .select("*")
-    .eq("episodeId", episodeId);
-
-  if (!secondTry.error) {
-    return (secondTry.data ?? []) as RecordingRow[];
-  }
-
-  return [];
+  return result.error ? [] : ((result.data ?? []) as RecordingRow[]);
 }
 
 async function fetchRecordingsByEpisodeIds(
@@ -503,45 +477,22 @@ async function fetchRecordingsByEpisodeIds(
     return [];
   }
 
-  const chunks = chunkArray(uniqueEpisodeIds);
-  const firstTryRows: RecordingRow[] = [];
+  const rows: RecordingRow[] = [];
 
-  let firstTryFailed = false;
-
-  for (const chunk of chunks) {
+  for (const chunk of chunkArray(uniqueEpisodeIds)) {
     const result = await supabase
       .from("recordings")
       .select("*")
       .in("episode_id", chunk);
 
     if (result.error) {
-      firstTryFailed = true;
-      break;
-    }
-
-    firstTryRows.push(...((result.data ?? []) as RecordingRow[]));
-  }
-
-  if (!firstTryFailed) {
-    return firstTryRows;
-  }
-
-  const secondTryRows: RecordingRow[] = [];
-
-  for (const chunk of chunks) {
-    const result = await supabase
-      .from("recordings")
-      .select("*")
-      .in("episodeId", chunk);
-
-    if (result.error) {
       throw new Error(`recordings_bulk_lookup_failed:${result.error.message}`);
     }
 
-    secondTryRows.push(...((result.data ?? []) as RecordingRow[]));
+    rows.push(...((result.data ?? []) as RecordingRow[]));
   }
 
-  return secondTryRows;
+  return rows;
 }
 
 async function fetchQueueRowsByEpisodeIds(

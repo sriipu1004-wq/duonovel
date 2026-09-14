@@ -54,25 +54,12 @@ async function fetchEpisodesBySeriesId(
   seriesId: string,
   supabase: Awaited<ReturnType<typeof requireLoggedInUser>>["supabase"]
 ): Promise<EpisodeRow[]> {
-  const firstTry = await supabase
+  const result = await supabase
     .from("episodes")
     .select("*")
     .eq("series_id", seriesId);
 
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as EpisodeRow[];
-  }
-
-  const secondTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("seriesId", seriesId);
-
-  if (!secondTry.error) {
-    return (secondTry.data ?? []) as EpisodeRow[];
-  }
-
-  return [];
+  return result.error ? [] : ((result.data ?? []) as EpisodeRow[]);
 }
 
 function getTimeValue(value: unknown): number {

@@ -129,13 +129,6 @@ async function findExistingRecordingsForSeriesUserEpisode(args: {
         .eq("series_id", args.seriesId)
         .eq("reader_user_id", args.userId)
         .order("created_at", { ascending: false }),
-    () =>
-      args.adminSupabase
-        .from("recordings")
-        .select("*")
-        .eq("seriesId", args.seriesId)
-        .eq("readerUserId", args.userId)
-        .order("created_at", { ascending: false }),
   ];
 
   const deduped = new Map<string, RecordingRow>();

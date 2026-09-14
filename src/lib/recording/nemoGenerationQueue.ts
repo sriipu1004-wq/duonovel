@@ -353,25 +353,12 @@ async function fetchEpisodesBySeriesId(
   supabase: AdminSupabase,
   seriesId: string
 ): Promise<EpisodeRow[]> {
-  const firstTry = await supabase
+  const result = await supabase
     .from("episodes")
     .select("*")
     .eq("series_id", seriesId);
 
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as EpisodeRow[];
-  }
-
-  const secondTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("seriesId", seriesId);
-
-  if (!secondTry.error) {
-    return (secondTry.data ?? []) as EpisodeRow[];
-  }
-
-  return [];
+  return result.error ? [] : ((result.data ?? []) as EpisodeRow[]);
 }
 
 async function fetchRecordingsByEpisodeIds(
@@ -384,25 +371,12 @@ async function fetchRecordingsByEpisodeIds(
     return [];
   }
 
-  const firstTry = await supabase
+  const result = await supabase
     .from("recordings")
     .select("*")
     .in("episode_id", uniqueEpisodeIds);
 
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as RecordingRow[];
-  }
-
-  const secondTry = await supabase
-    .from("recordings")
-    .select("*")
-    .in("episodeId", uniqueEpisodeIds);
-
-  if (!secondTry.error) {
-    return (secondTry.data ?? []) as RecordingRow[];
-  }
-
-  return [];
+  return result.error ? [] : ((result.data ?? []) as RecordingRow[]);
 }
 
 async function fetchQueueRowsByEpisodeIds(

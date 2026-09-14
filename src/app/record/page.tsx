@@ -547,11 +547,6 @@ async function fetchMySubmittedSeriesIds(
         .from("recordings")
         .select("series_id")
         .eq("reader_user_id", userId),
-    () =>
-      adminSupabase
-        .from("recordings")
-        .select("seriesId")
-        .eq("readerUserId", userId),
   ];
 
   for (const run of tries) {

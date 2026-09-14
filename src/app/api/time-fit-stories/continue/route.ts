@@ -801,18 +801,9 @@ export async function POST(request: Request) {
     .eq("series_id", generationRequest.seriesId)
     .order("episode_number", { ascending: true });
 
-  const compatibleEpisodesResult =
-    episodesResult.error || !episodesResult.data?.length
-      ? await adminSupabase
-          .from("episodes")
-          .select("*")
-          .eq("seriesId", generationRequest.seriesId)
-          .order("episodeNumber", { ascending: true })
-      : episodesResult;
-
   if (
-    compatibleEpisodesResult.error ||
-    !compatibleEpisodesResult.data?.length
+    episodesResult.error ||
+    !episodesResult.data?.length
   ) {
     return NextResponse.json(
       { ok: false, error: "episode_not_found", message: "続きの元になる話が見つかりません。" },
@@ -820,7 +811,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const episodes = compatibleEpisodesResult.data as EpisodeRow[];
+  const episodes = episodesResult.data as EpisodeRow[];
   const latestEpisode = episodes[episodes.length - 1];
   const latestEpisodeNumber = getEpisodeNumber(latestEpisode);
   const latestBody = readText(latestEpisode.body);

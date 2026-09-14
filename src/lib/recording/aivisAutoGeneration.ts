@@ -273,54 +273,30 @@ async function fetchEpisodesBySeriesId(
   supabase: AdminSupabase,
   seriesId: string
 ): Promise<EpisodeRow[]> {
-  const firstTry = await supabase
+  const result = await supabase
     .from("episodes")
     .select("*")
     .eq("series_id", seriesId);
 
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as EpisodeRow[];
-  }
-
-  const secondTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("seriesId", seriesId);
-
-  if (!secondTry.error) {
-    return (secondTry.data ?? []) as EpisodeRow[];
-  }
-
-  return [];
+  return result.error ? [] : ((result.data ?? []) as EpisodeRow[]);
 }
 
 async function fetchRecordingsByEpisodeId(
   supabase: AdminSupabase,
   episodeId: string
 ): Promise<RecordingRow[]> {
-  const firstTry = await supabase
+  const result = await supabase
     .from("recordings")
     .select(
       "id, episode_id, reader_name, voice_model_id, is_public, created_at"
     )
     .eq("episode_id", episodeId);
 
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as RecordingRow[];
+  if (result.error) {
+    throw new Error(`recording_lookup_failed:${result.error.message}`);
   }
 
-  const secondTry = await supabase
-    .from("recordings")
-    .select(
-      "id, episodeId, reader_name, voice_model_id, is_public, created_at"
-    )
-    .eq("episodeId", episodeId);
-
-  if (!secondTry.error) {
-    return (secondTry.data ?? []) as RecordingRow[];
-  }
-
-  throw new Error(`recording_lookup_failed:${secondTry.error.message}`);
+  return (result.data ?? []) as RecordingRow[];
 }
 
 async function fetchStaleAivisRecordings(
@@ -331,7 +307,7 @@ async function fetchStaleAivisRecordings(
     return [];
   }
 
-  const firstTry = await supabase
+  const result = await supabase
     .from("recordings")
     .select(
       "id, series_id, episode_id, reader_name, voice_model_id, audio_storage_path, is_public, created_at"
@@ -342,26 +318,11 @@ async function fetchStaleAivisRecordings(
     .order("id", { ascending: true })
     .limit(STALE_AIVIS_LOOKUP_LIMIT);
 
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as RecordingRow[];
+  if (result.error) {
+    throw new Error(`stale_aivis_recording_lookup_failed:${result.error.message}`);
   }
 
-  const secondTry = await supabase
-    .from("recordings")
-    .select(
-      "id, seriesId, episodeId, reader_name, voice_model_id, audio_storage_path, is_public, created_at"
-    )
-    .in("voice_model_id", voiceModelIds)
-    .lt("created_at", AIVIS_REGENERATE_BEFORE_ISO)
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true })
-    .limit(STALE_AIVIS_LOOKUP_LIMIT);
-
-  if (!secondTry.error) {
-    return (secondTry.data ?? []) as RecordingRow[];
-  }
-
-  throw new Error(`stale_aivis_recording_lookup_failed:${secondTry.error.message}`);
+  return (result.data ?? []) as RecordingRow[];
 }
 
 function hasRecordingForVoiceModel(args: {

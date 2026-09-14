@@ -27,10 +27,8 @@ function isShortStory(series: Record<string, unknown>): boolean {
 }
 
 async function fetchEpisodes(seriesId: string, supabase: Awaited<ReturnType<typeof requireOwnedSeries>>["supabase"]): Promise<EpisodeRow[]> {
-  const firstTry = await supabase.from("episodes").select("*").eq("series_id", seriesId);
-  if (!firstTry.error) return (firstTry.data ?? []) as EpisodeRow[];
-  const secondTry = await supabase.from("episodes").select("*").eq("seriesId", seriesId);
-  return secondTry.error ? [] : ((secondTry.data ?? []) as EpisodeRow[]);
+  const result = await supabase.from("episodes").select("*").eq("series_id", seriesId);
+  return result.error ? [] : ((result.data ?? []) as EpisodeRow[]);
 }
 
 function resolveInitialPostingStatus(value?: string): EpisodePostingStatus {

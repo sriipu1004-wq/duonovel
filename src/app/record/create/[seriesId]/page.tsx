@@ -160,13 +160,6 @@ async function fetchExistingRecordingsForSeriesUser(
         .eq("series_id", seriesId)
         .eq("reader_user_id", userId)
         .order("created_at", { ascending: false }),
-    () =>
-      adminSupabase
-        .from("recordings")
-        .select("*")
-        .eq("seriesId", seriesId)
-        .eq("readerUserId", userId)
-        .order("created_at", { ascending: false }),
   ];
 
   for (const run of tries) {
