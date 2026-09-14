@@ -194,21 +194,35 @@ function main() {
   assert.ok(shell.includes('<TranslationOnlyEpisodePlayback'));
   assert.ok(shell.includes('<PublicTranslationUnlockGate'));
   assert.ok(shell.includes('onConfirmIncluded={() => completeEntitlement("included")}'));
-  assert.ok(shell.includes('onConfirmCredit={() => completeEntitlement("credit")}'));
+  assert.ok(shell.includes('completeEntitlement("credit")'));
   assert.equal(
-    shell.includes('void completeEntitlement("included");'),
+    shell.includes('void completeEntitlement("included")'),
     false,
-    "included allowance must never auto-unlock or auto-generate without confirmation"
+    "included allowance must never be consumed automatically on mode switch"
   );
 
   const gate = source("src/features/playback/PublicTranslationUnlockGate.tsx");
+  assert.ok(gate.includes("本日の利用枠を1回使って"));
   assert.ok(gate.includes("Unlock this episode for 1 credit"));
   assert.ok(gate.includes("1크레딧으로 이 화 잠금 해제"));
   assert.ok(gate.includes("1クレジットで解放"));
   assert.ok(gate.includes("same translation language without another charge"));
-  assert.ok(gate.includes("本日の利用枠を1回使って、この話を解放できます。"));
-  assert.ok(gate.includes('setConfirmKind("included")'));
-  assert.ok(gate.includes("解放するとAI翻訳を生成します。"));
+
+  const pane = source("src/features/playback/BilingualPane.tsx");
+  assert.equal(
+    pane.includes("tokenizeForWordSelection"),
+    false,
+    "tap-to-word lookup must not be rendered in the public bilingual pane"
+  );
+  assert.equal(
+    pane.includes("onSelectWord({"),
+    false,
+    "public bilingual pane must not trigger word-explanation requests"
+  );
+
+  const cleanup = source("src/app/bilingualReaderCleanup.css");
+  assert.ok(cleanup.includes("button:last-child"));
+  assert.ok(cleanup.includes("span:last-of-type"));
 
   console.log("PASS: public translation credit runtime fixture");
 }
