@@ -34,6 +34,13 @@ import {
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { isSeriesTranslationEligible } from "@/lib/translation/episodeTranslationServer";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import {
+  PUBLIC_SEARCH_READ_LANGUAGE_HEADER,
+  PUBLIC_SEARCH_SOURCE_LANGUAGE_HEADER,
+  matchesPublicWorkLanguageFilters,
+  parsePublicSearchReadLanguage,
+  parsePublicSearchSourceLanguage,
+} from "@/lib/search/publicWorkLanguageFilter";
 
 export type PublicBaseWorkCard = {
   seriesId: string;
@@ -343,6 +350,18 @@ export async function getCachedPublicBaseWorkCards(options?: {
       const selectedSet = new Set(selectedLanguages);
       visibleCards = visibleCards.filter((card) => selectedSet.has(card.contentLanguage));
     }
+  }
+
+  const sourceLanguage = parsePublicSearchSourceLanguage(
+    requestHeaders.get(PUBLIC_SEARCH_SOURCE_LANGUAGE_HEADER)
+  );
+  const readLanguage = parsePublicSearchReadLanguage(
+    requestHeaders.get(PUBLIC_SEARCH_READ_LANGUAGE_HEADER)
+  );
+  if (sourceLanguage || readLanguage) {
+    visibleCards = visibleCards.filter((work) =>
+      matchesPublicWorkLanguageFilters({ work, sourceLanguage, readLanguage })
+    );
   }
 
   return options?.prioritizeForUiLocale === false
