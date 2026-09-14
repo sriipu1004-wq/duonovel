@@ -15,6 +15,35 @@ export type CreditPack = {
   expiresInDays: number;
 };
 
+export const LIBREAD_DEFAULT_CREDIT_TERMS_VERSION = "2026-09-14-credit-v1";
+
+const APPROVED_PRODUCTION_CREDIT_PACKS: readonly CreditPack[] = [
+  {
+    id: "credits_5",
+    credits: 5,
+    stripePriceId: "price_1UFLrkLuEpSwUk8MmDN2oYv1",
+    displayPriceJpy: 300,
+    currency: "JPY",
+    expiresInDays: 150,
+  },
+  {
+    id: "credits_8",
+    credits: 8,
+    stripePriceId: "price_1UFLroLuEpSwUk8M3T4fla86",
+    displayPriceJpy: 450,
+    currency: "JPY",
+    expiresInDays: 150,
+  },
+  {
+    id: "credits_12",
+    credits: 12,
+    stripePriceId: "price_1UFLryLuEpSwUk8MMmg0Ubt1",
+    displayPriceJpy: 600,
+    currency: "JPY",
+    expiresInDays: 150,
+  },
+] as const;
+
 function readBooleanEnv(name: string, fallback = false): boolean {
   const value = process.env[name]?.trim().toLowerCase();
   if (!value) return fallback;
@@ -58,9 +87,21 @@ function parsePack(value: unknown): CreditPack | null {
   };
 }
 
+function validateCatalog(packs: CreditPack[]): CreditPack[] {
+  const ids = new Set(packs.map((pack) => pack.id));
+  const prices = new Set(packs.map((pack) => pack.stripePriceId));
+  if (ids.size !== packs.length || prices.size !== packs.length) {
+    throw new Error("Credit pack IDs and Stripe price IDs must be unique");
+  }
+  return packs;
+}
+
 export function getCreditPackCatalog(): CreditPack[] {
   const raw = process.env.LIBREAD_CREDIT_PACK_CATALOG_JSON?.trim();
-  if (!raw) return [];
+  if (!raw) {
+    return validateCatalog(APPROVED_PRODUCTION_CREDIT_PACKS.map((pack) => ({ ...pack })));
+  }
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -74,13 +115,7 @@ export function getCreditPackCatalog(): CreditPack[] {
   if (packs.some((pack) => pack === null)) {
     throw new Error("LIBREAD_CREDIT_PACK_CATALOG_JSON contains an invalid pack");
   }
-  const valid = packs as CreditPack[];
-  const ids = new Set(valid.map((pack) => pack.id));
-  const prices = new Set(valid.map((pack) => pack.stripePriceId));
-  if (ids.size !== valid.length || prices.size !== valid.length) {
-    throw new Error("Credit pack IDs and Stripe price IDs must be unique");
-  }
-  return valid;
+  return validateCatalog(packs as CreditPack[]);
 }
 
 export function getCreditPack(packId: string): CreditPack | null {
@@ -95,7 +130,7 @@ export function isCreditPurchaseEnabled(): boolean {
   return (
     isPublicTranslationCreditsEnabled() &&
     readBooleanEnv("LIBREAD_CREDIT_PURCHASE_ENABLED", false) &&
-    Boolean(process.env.LIBREAD_CREDIT_TERMS_VERSION?.trim()) &&
+    Boolean(getCreditTermsVersion()) &&
     isStripeConfigured() &&
     hasCompleteLegalSellerDetails() &&
     getCreditPackCatalog().length > 0
@@ -103,7 +138,8 @@ export function isCreditPurchaseEnabled(): boolean {
 }
 
 export function getCreditTermsVersion(): string {
-  const value = process.env.LIBREAD_CREDIT_TERMS_VERSION?.trim();
-  if (!value) throw new Error("LIBREAD_CREDIT_TERMS_VERSION is missing");
-  return value;
+  return (
+    process.env.LIBREAD_CREDIT_TERMS_VERSION?.trim() ||
+    LIBREAD_DEFAULT_CREDIT_TERMS_VERSION
+  );
 }
