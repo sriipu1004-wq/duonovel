@@ -43,6 +43,8 @@ type PublicSearchControlsProps = {
   shelfTab: ShelfTabKey;
   allTagChips: TagChip[];
   allGenreChips: GenrePlaceholderChip[];
+  sourceLanguage?: string;
+  readLanguage?: string;
 };
 
 function normalizeTagToken(value: string): string {
@@ -104,7 +106,7 @@ function toggleSelectedGenreLabels(current: string[], nextLabel: string): {
   };
 }
 
-function buildSearchHref(params: {
+function buildBaseSearchHref(params: {
   q?: string;
   selectedTags?: string[];
   selectedGenres?: string[];
@@ -115,6 +117,8 @@ function buildSearchHref(params: {
   showTags?: boolean;
   showGenres?: boolean;
   shelfTab?: ShelfTabKey;
+  sourceLanguage?: string;
+  readLanguage?: string;
 }): string {
   const query = new URLSearchParams();
 
@@ -158,6 +162,14 @@ function buildSearchHref(params: {
     query.set("shelfTab", params.shelfTab);
   }
 
+  if (params.sourceLanguage) {
+    query.set("source_language", params.sourceLanguage);
+  }
+
+  if (params.readLanguage) {
+    query.set("read_language", params.readLanguage);
+  }
+
   const queryString = query.toString();
   return queryString ? `/search?${queryString}` : "/search";
 }
@@ -177,8 +189,18 @@ export default function PublicSearchControls({
   shelfTab,
   allTagChips,
   allGenreChips,
+  sourceLanguage,
+  readLanguage,
 }: PublicSearchControlsProps) {
   const router = useRouter();
+  const buildSearchHref = (
+    params: Parameters<typeof buildBaseSearchHref>[0]
+  ) =>
+    buildBaseSearchHref({
+      ...params,
+      sourceLanguage,
+      readLanguage,
+    });
 
   const [queryValue, setQueryValue] = useState(query);
   const [startValue, setStartValue] = useState(selectedStartInput);
