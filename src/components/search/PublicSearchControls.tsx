@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import SearchNavButton from "@/components/search/SearchNavButton";
+import PublicSearchLanguageFilters from "@/components/search/PublicSearchLanguageFilters";
 import {
   getSavedFilterLabel,
   type SavedFilterKey,
@@ -134,41 +135,15 @@ function buildBaseSearchHref(params: {
     query.set("genres", params.selectedGenres.join(","));
   }
 
-  if (params.order) {
-    query.set("order", params.order);
-  }
-
-  if (params.start) {
-    query.set("start", params.start);
-  }
-
-  if (params.end) {
-    query.set("end", params.end);
-  }
-
-  if (params.showTags) {
-    query.set("showTags", "1");
-  }
-
-  if (params.showGenres) {
-    query.set("showGenres", "1");
-  }
-
-  if (params.saved) {
-    query.set("saved", params.saved);
-  }
-
-  if (params.shelfTab) {
-    query.set("shelfTab", params.shelfTab);
-  }
-
-  if (params.sourceLanguage) {
-    query.set("source_language", params.sourceLanguage);
-  }
-
-  if (params.readLanguage) {
-    query.set("read_language", params.readLanguage);
-  }
+  if (params.order) query.set("order", params.order);
+  if (params.start) query.set("start", params.start);
+  if (params.end) query.set("end", params.end);
+  if (params.showTags) query.set("showTags", "1");
+  if (params.showGenres) query.set("showGenres", "1");
+  if (params.saved) query.set("saved", params.saved);
+  if (params.shelfTab) query.set("shelfTab", params.shelfTab);
+  if (params.sourceLanguage) query.set("source_language", params.sourceLanguage);
+  if (params.readLanguage) query.set("read_language", params.readLanguage);
 
   const queryString = query.toString();
   return queryString ? `/search?${queryString}` : "/search";
@@ -193,13 +168,18 @@ export default function PublicSearchControls({
   readLanguage,
 }: PublicSearchControlsProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const effectiveSourceLanguage =
+    sourceLanguage ?? searchParams.get("source_language") ?? undefined;
+  const effectiveReadLanguage =
+    readLanguage ?? searchParams.get("read_language") ?? undefined;
   const buildSearchHref = (
     params: Parameters<typeof buildBaseSearchHref>[0]
   ) =>
     buildBaseSearchHref({
       ...params,
-      sourceLanguage,
-      readLanguage,
+      sourceLanguage: effectiveSourceLanguage,
+      readLanguage: effectiveReadLanguage,
     });
 
   const [queryValue, setQueryValue] = useState(query);
@@ -228,63 +208,28 @@ export default function PublicSearchControls({
   const showAllTags = localShowAllTags;
   const showAllGenres = localShowAllGenres;
 
-  useEffect(() => {
-    setQueryValue(query);
-  }, [query]);
-
-  useEffect(() => {
-    setStartValue(selectedStartInput);
-  }, [selectedStartInput]);
-
-  useEffect(() => {
-    setEndValue(selectedEndInput);
-  }, [selectedEndInput]);
-
-  useEffect(() => {
-    setGenreLimitMessage("");
-  }, [selectedGenreLabels]);
-
-  useEffect(() => {
-    setLocalSelectedTagLabels(initialSelectedTagLabels);
-  }, [initialSelectedTagLabels]);
-
-  useEffect(() => {
-    setLocalSelectedGenreLabels(initialSelectedGenreLabels);
-  }, [initialSelectedGenreLabels]);
-
-  useEffect(() => {
-    setLocalShowAllTags(initialShowAllTags);
-  }, [initialShowAllTags]);
-
-  useEffect(() => {
-    setLocalShowAllGenres(initialShowAllGenres);
-  }, [initialShowAllGenres]);
+  useEffect(() => setQueryValue(query), [query]);
+  useEffect(() => setStartValue(selectedStartInput), [selectedStartInput]);
+  useEffect(() => setEndValue(selectedEndInput), [selectedEndInput]);
+  useEffect(() => setGenreLimitMessage(""), [selectedGenreLabels]);
+  useEffect(() => setLocalSelectedTagLabels(initialSelectedTagLabels), [initialSelectedTagLabels]);
+  useEffect(() => setLocalSelectedGenreLabels(initialSelectedGenreLabels), [initialSelectedGenreLabels]);
+  useEffect(() => setLocalShowAllTags(initialShowAllTags), [initialShowAllTags]);
+  useEffect(() => setLocalShowAllGenres(initialShowAllGenres), [initialShowAllGenres]);
 
   useEffect(() => {
     if (showAllTags) {
       setHasHiddenTags(false);
       return;
     }
-
     const container = tagChipListRef.current;
-
-    if (!container) {
-      return;
-    }
-
-    const updateOverflow = () => {
+    if (!container) return;
+    const updateOverflow = () =>
       setHasHiddenTags(container.scrollHeight > container.clientHeight + 1);
-    };
-
     updateOverflow();
-
-    if (typeof ResizeObserver === "undefined") {
-      return;
-    }
-
+    if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(updateOverflow);
     observer.observe(container);
-
     return () => observer.disconnect();
   }, [allTagChips, showAllTags]);
 
@@ -293,47 +238,24 @@ export default function PublicSearchControls({
       setHasHiddenGenres(false);
       return;
     }
-
     const container = genreChipListRef.current;
-
-    if (!container) {
-      return;
-    }
-
-    const updateOverflow = () => {
+    if (!container) return;
+    const updateOverflow = () =>
       setHasHiddenGenres(container.scrollHeight > container.clientHeight + 1);
-    };
-
     updateOverflow();
-
-    if (typeof ResizeObserver === "undefined") {
-      return;
-    }
-
+    if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(updateOverflow);
     observer.observe(container);
-
     return () => observer.disconnect();
   }, [allGenreChips, showAllGenres]);
 
   const selectedFilterChips = useMemo(
     () => [
       ...(savedFilterKey
-        ? [
-            {
-              type: "saved" as const,
-              label: getSavedFilterLabel(savedFilterKey),
-            },
-          ]
+        ? [{ type: "saved" as const, label: getSavedFilterLabel(savedFilterKey) }]
         : []),
-      ...selectedGenreLabels.map((label) => ({
-        type: "genre" as const,
-        label,
-      })),
-      ...selectedTagLabels.map((label) => ({
-        type: "tag" as const,
-        label,
-      })),
+      ...selectedGenreLabels.map((label) => ({ type: "genre" as const, label })),
+      ...selectedTagLabels.map((label) => ({ type: "tag" as const, label })),
     ],
     [savedFilterKey, selectedGenreLabels, selectedTagLabels]
   );
@@ -343,37 +265,23 @@ export default function PublicSearchControls({
 
   function navigate(href: string, scrollTargetId?: string) {
     router.replace(href, { scroll: false });
-
-    if (!scrollTargetId || typeof window === "undefined") {
-      return;
-    }
-
+    if (!scrollTargetId || typeof window === "undefined") return;
     let attempts = 0;
-
     const tryScroll = () => {
       const target = document.getElementById(scrollTargetId);
-
       if (target) {
-        target.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
-
       attempts += 1;
-      if (attempts < 12) {
-        window.setTimeout(tryScroll, 120);
-      }
+      if (attempts < 12) window.setTimeout(tryScroll, 120);
     };
-
     window.setTimeout(tryScroll, 0);
   }
 
   function handleSearch() {
     const nextStart = startValue.trim().length > 0 ? startValue : defaultStartInput;
     const nextEnd = endValue.trim().length > 0 ? endValue : defaultEndInput;
-
     navigate(
       buildSearchHref({
         q: queryValue,
@@ -398,7 +306,6 @@ export default function PublicSearchControls({
     setGenreLimitMessage("");
     setLocalSelectedTagLabels([]);
     setLocalSelectedGenreLabels([]);
-
     navigate(
       buildSearchHref({
         saved: savedFilterKey,
@@ -411,15 +318,12 @@ export default function PublicSearchControls({
 
   function handleGenreToggle(label: string) {
     const result = toggleSelectedGenreLabels(selectedGenreLabels, label);
-
     if (result.overLimit) {
       setGenreLimitMessage("ジャンルは3つまで選択可能です");
       return;
     }
-
     setGenreLimitMessage("");
     setLocalSelectedGenreLabels(result.nextLabels);
-
     navigate(
       buildSearchHref({
         q: queryValue,
@@ -438,9 +342,7 @@ export default function PublicSearchControls({
 
   function handleTagToggle(label: string) {
     const nextLabels = toggleSelectedTagLabels(selectedTagLabels, label);
-
     setLocalSelectedTagLabels(nextLabels);
-
     navigate(
       buildSearchHref({
         q: queryValue,
@@ -461,9 +363,7 @@ export default function PublicSearchControls({
     <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6 lg:p-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-[11px] tracking-[0.24em] text-neutral-500">
-            PUBLIC SEARCH
-          </p>
+          <p className="text-[11px] tracking-[0.24em] text-neutral-500">PUBLIC SEARCH</p>
           <h1 className="mt-3 text-2xl font-bold leading-tight text-black sm:text-3xl">
             公開作品を探す
           </h1>
@@ -488,6 +388,8 @@ export default function PublicSearchControls({
           className="h-12 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none placeholder:text-neutral-400 focus:border-sky-200"
         />
       </div>
+
+      <PublicSearchLanguageFilters />
 
       <div className="mt-6 grid gap-3">
         <div className="min-h-12 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm">
@@ -522,9 +424,7 @@ export default function PublicSearchControls({
                     href={buildSearchHref({
                       q: queryValue,
                       selectedTags: selectedTagLabels,
-                      selectedGenres: selectedGenreLabels.filter(
-                        (item) => item !== chip.label
-                      ),
+                      selectedGenres: selectedGenreLabels.filter((item) => item !== chip.label),
                       saved: savedFilterKey,
                       order,
                       start: startValue,
@@ -543,8 +443,7 @@ export default function PublicSearchControls({
                     href={buildSearchHref({
                       q: queryValue,
                       selectedTags: selectedTagLabels.filter(
-                        (item) =>
-                          normalizeTagToken(item) !== normalizeTagToken(chip.label)
+                        (item) => normalizeTagToken(item) !== normalizeTagToken(chip.label)
                       ),
                       selectedGenres: selectedGenreLabels,
                       saved: savedFilterKey,
@@ -585,22 +484,14 @@ export default function PublicSearchControls({
 
       <div className="mt-6 grid gap-4">
         <div>
-          <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-            ジャンル
-          </p>
-
+          <p className="text-[11px] tracking-[0.18em] text-neutral-500">ジャンル</p>
           <div className="relative mt-2 max-w-full">
             <div
               ref={genreChipListRef}
-              className={
-                showAllGenres
-                  ? "flex flex-wrap gap-2"
-                  : "flex max-h-[64px] flex-wrap gap-2 overflow-hidden pr-[88px]"
-              }
+              className={showAllGenres ? "flex flex-wrap gap-2" : "flex max-h-[64px] flex-wrap gap-2 overflow-hidden pr-[88px]"}
             >
               {visibleGenreChips.map((genre) => {
                 const active = selectedGenreLabels.includes(genre.label);
-
                 return (
                   <button
                     key={genre.key}
@@ -615,59 +506,35 @@ export default function PublicSearchControls({
                     ].join(" ")}
                   >
                     <span className="truncate">{genre.label}</span>
-                    <span className="ml-1.5 shrink-0 text-[10px] text-violet-400">
-                      {genre.count}
-                    </span>
+                    <span className="ml-1.5 shrink-0 text-[10px] text-violet-400">{genre.count}</span>
                   </button>
                 );
               })}
             </div>
-
             {showAllGenres ? (
               <div className="mt-2">
-                <button
-                  type="button"
-                  onClick={() => setLocalShowAllGenres(false)}
-                  className="rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-50"
-                >
+                <button type="button" onClick={() => setLocalShowAllGenres(false)} className="rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-50">
                   閉じる
                 </button>
               </div>
             ) : hasHiddenGenres ? (
-              <button
-                type="button"
-                onClick={() => setLocalShowAllGenres(true)}
-                className="absolute bottom-0 right-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 shadow-[0_0_0_4px_white] transition hover:bg-neutral-50"
-              >
+              <button type="button" onClick={() => setLocalShowAllGenres(true)} className="absolute bottom-0 right-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 shadow-[0_0_0_4px_white] transition hover:bg-neutral-50">
                 続きを表示
               </button>
             ) : null}
           </div>
-
-          {genreLimitMessage ? (
-            <p className="mt-2 text-sm text-red-500">{genreLimitMessage}</p>
-          ) : null}
+          {genreLimitMessage ? <p className="mt-2 text-sm text-red-500">{genreLimitMessage}</p> : null}
         </div>
 
         <div>
-          <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-            タグ
-          </p>
-
+          <p className="text-[11px] tracking-[0.18em] text-neutral-500">タグ</p>
           <div className="relative mt-2 max-w-full">
             <div
               ref={tagChipListRef}
-              className={
-                showAllTags
-                  ? "flex flex-wrap gap-2"
-                  : "flex max-h-[64px] flex-wrap gap-2 overflow-hidden pr-[88px]"
-              }
+              className={showAllTags ? "flex flex-wrap gap-2" : "flex max-h-[64px] flex-wrap gap-2 overflow-hidden pr-[88px]"}
             >
               {visibleTagChips.map((tag) => {
-                const active = selectedTagLabels.some(
-                  (item) => normalizeTagToken(item) === tag.value
-                );
-
+                const active = selectedTagLabels.some((item) => normalizeTagToken(item) === tag.value);
                 return (
                   <button
                     key={tag.value}
@@ -682,30 +549,19 @@ export default function PublicSearchControls({
                     ].join(" ")}
                   >
                     <span className="truncate">{tag.label}</span>
-                    <span className="ml-2 shrink-0 text-neutral-400">
-                      {tag.count}
-                    </span>
+                    <span className="ml-2 shrink-0 text-neutral-400">{tag.count}</span>
                   </button>
                 );
               })}
             </div>
-
             {showAllTags ? (
               <div className="mt-2">
-                <button
-                  type="button"
-                  onClick={() => setLocalShowAllTags(false)}
-                  className="rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-50"
-                >
+                <button type="button" onClick={() => setLocalShowAllTags(false)} className="rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-50">
                   閉じる
                 </button>
               </div>
             ) : hasHiddenTags ? (
-              <button
-                type="button"
-                onClick={() => setLocalShowAllTags(true)}
-                className="absolute bottom-0 right-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 shadow-[0_0_0_4px_white] transition hover:bg-neutral-50"
-              >
+              <button type="button" onClick={() => setLocalShowAllTags(true)} className="absolute bottom-0 right-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 shadow-[0_0_0_4px_white] transition hover:bg-neutral-50">
                 続きを表示
               </button>
             ) : null}
@@ -715,51 +571,17 @@ export default function PublicSearchControls({
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div>
-          <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-            ORDER
-          </p>
-
+          <p className="text-[11px] tracking-[0.18em] text-neutral-500">ORDER</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <SearchNavButton
-              href={buildSearchHref({
-                q: queryValue,
-                selectedTags: selectedTagLabels,
-                selectedGenres: selectedGenreLabels,
-                order: "popular",
-                start: startValue,
-                end: endValue,
-                showTags: showAllTags,
-                showGenres: showAllGenres,
-                shelfTab,
-              })}
-              className={[
-                "rounded-full border px-4 py-2 text-sm transition",
-                order === "popular"
-                  ? "border-sky-200 bg-sky-50 text-black"
-                  : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-              ].join(" ")}
+              href={buildSearchHref({ q: queryValue, selectedTags: selectedTagLabels, selectedGenres: selectedGenreLabels, order: "popular", start: startValue, end: endValue, showTags: showAllTags, showGenres: showAllGenres, shelfTab })}
+              className={["rounded-full border px-4 py-2 text-sm transition", order === "popular" ? "border-sky-200 bg-sky-50 text-black" : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"].join(" ")}
             >
               人気順
             </SearchNavButton>
-
             <SearchNavButton
-              href={buildSearchHref({
-                q: queryValue,
-                selectedTags: selectedTagLabels,
-                selectedGenres: selectedGenreLabels,
-                order: "updated",
-                start: startValue,
-                end: endValue,
-                showTags: showAllTags,
-                showGenres: showAllGenres,
-                shelfTab,
-              })}
-              className={[
-                "rounded-full border px-4 py-2 text-sm transition",
-                order === "updated"
-                  ? "border-sky-200 bg-sky-50 text-black"
-                  : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-              ].join(" ")}
+              href={buildSearchHref({ q: queryValue, selectedTags: selectedTagLabels, selectedGenres: selectedGenreLabels, order: "updated", start: startValue, end: endValue, showTags: showAllTags, showGenres: showAllGenres, shelfTab })}
+              className={["rounded-full border px-4 py-2 text-sm transition", order === "updated" ? "border-sky-200 bg-sky-50 text-black" : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"].join(" ")}
             >
               更新順
             </SearchNavButton>
@@ -767,36 +589,17 @@ export default function PublicSearchControls({
         </div>
 
         <div>
-          <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-            PERIOD
-          </p>
-
+          <p className="text-[11px] tracking-[0.18em] text-neutral-500">PERIOD</p>
           <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-            <input
-              type="date"
-              value={startValue}
-              onChange={(event) => setStartValue(event.target.value)}
-              className="h-12 min-w-0 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none focus:border-sky-200"
-            />
-
+            <input type="date" value={startValue} onChange={(event) => setStartValue(event.target.value)} className="h-12 min-w-0 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none focus:border-sky-200" />
             <span className="text-sm text-neutral-500">〜</span>
-
-            <input
-              type="date"
-              value={endValue}
-              onChange={(event) => setEndValue(event.target.value)}
-              className="h-12 min-w-0 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none focus:border-sky-200"
-            />
+            <input type="date" value={endValue} onChange={(event) => setEndValue(event.target.value)} className="h-12 min-w-0 rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none focus:border-sky-200" />
           </div>
         </div>
       </div>
 
       <div className="mt-8 flex justify-end">
-        <button
-          type="button"
-          onClick={handleSearch}
-          className="inline-flex h-12 items-center justify-center rounded-2xl border border-black/10 bg-neutral-200 px-6 text-sm font-medium text-black transition hover:bg-neutral-300"
-        >
+        <button type="button" onClick={handleSearch} className="inline-flex h-12 items-center justify-center rounded-2xl border border-black/10 bg-neutral-200 px-6 text-sm font-medium text-black transition hover:bg-neutral-300">
           検索する
         </button>
       </div>
