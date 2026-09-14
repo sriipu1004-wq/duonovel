@@ -8,6 +8,12 @@ import {
   UI_LOCALE_HEADER,
   type UiLocale,
 } from "@/i18n/config";
+import {
+  PUBLIC_SEARCH_READ_LANGUAGE_HEADER,
+  PUBLIC_SEARCH_SOURCE_LANGUAGE_HEADER,
+  parsePublicSearchReadLanguage,
+  parsePublicSearchSourceLanguage,
+} from "@/lib/search/publicWorkLanguageFilter";
 
 const SAVED_SEARCH_FILTERS = new Set([
   "bookmarked-works",
@@ -63,6 +69,27 @@ function buildLocaleAwareResponse(
 ): NextResponse {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(UI_LOCALE_HEADER, locale);
+
+  if (routePathname === "/search") {
+    const sourceLanguage = parsePublicSearchSourceLanguage(
+      request.nextUrl.searchParams.get("source_language")
+    );
+    const readLanguage = parsePublicSearchReadLanguage(
+      request.nextUrl.searchParams.get("read_language")
+    );
+
+    if (sourceLanguage) {
+      requestHeaders.set(PUBLIC_SEARCH_SOURCE_LANGUAGE_HEADER, sourceLanguage);
+    } else {
+      requestHeaders.delete(PUBLIC_SEARCH_SOURCE_LANGUAGE_HEADER);
+    }
+
+    if (readLanguage) {
+      requestHeaders.set(PUBLIC_SEARCH_READ_LANGUAGE_HEADER, readLanguage);
+    } else {
+      requestHeaders.delete(PUBLIC_SEARCH_READ_LANGUAGE_HEADER);
+    }
+  }
 
   const savedFilter = request.nextUrl.searchParams.get("saved") ?? "";
   const targetUrl = request.nextUrl.clone();
