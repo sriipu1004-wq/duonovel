@@ -193,14 +193,22 @@ function main() {
   assert.ok(shell.includes('<BilingualEpisodePlayback'));
   assert.ok(shell.includes('<TranslationOnlyEpisodePlayback'));
   assert.ok(shell.includes('<PublicTranslationUnlockGate'));
-  assert.ok(shell.includes('completeEntitlement("included")'));
-  assert.ok(shell.includes('completeEntitlement("credit")'));
+  assert.ok(shell.includes('onConfirmIncluded={() => completeEntitlement("included")}'));
+  assert.ok(shell.includes('onConfirmCredit={() => completeEntitlement("credit")}'));
+  assert.equal(
+    shell.includes('void completeEntitlement("included");'),
+    false,
+    "included allowance must never auto-unlock or auto-generate without confirmation"
+  );
 
   const gate = source("src/features/playback/PublicTranslationUnlockGate.tsx");
   assert.ok(gate.includes("Unlock this episode for 1 credit"));
   assert.ok(gate.includes("1크레딧으로 이 화 잠금 해제"));
   assert.ok(gate.includes("1クレジットで解放"));
   assert.ok(gate.includes("same translation language without another charge"));
+  assert.ok(gate.includes("本日の利用枠を1回使って、この話を解放できます。"));
+  assert.ok(gate.includes('setConfirmKind("included")'));
+  assert.ok(gate.includes("解放するとAI翻訳を生成します。"));
 
   console.log("PASS: public translation credit runtime fixture");
 }
