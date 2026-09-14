@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { detectContentLanguage } from "@/i18n/contentLanguage";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { localizePath } from "@/i18n/navigation";
 import { localizeTagLabel } from "@/i18n/tagLabels";
 import type { UiLocale } from "@/i18n/config";
+import { parsePublicSearchReadLanguage } from "@/lib/search/publicWorkLanguageFilter";
 
 type PublicWorkBoardCardProps = {
   title: string;
@@ -65,9 +67,21 @@ const labels: Record<UiLocale, {
   },
 };
 
-function buildTagHref(tag: string): string {
+function readSeriesIdFromWorkHref(workHref: string): string | null {
+  const match = workHref.match(/^\/works\/([^/?#]+)/u);
+  if (!match?.[1]) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
+function buildTagHref(tag: string, sourceLanguage: string | null, readLanguage: string | null): string {
   const query = new URLSearchParams();
   query.set("tag", tag);
+  if (sourceLanguage) query.set("source_language", sourceLanguage);
+  if (readLanguage) query.set("read_language", readLanguage);
   return `/search?${query.toString()}`;
 }
 
@@ -87,6 +101,7 @@ export default function PublicWorkBoardCard({
 }: PublicWorkBoardCardProps) {
   const locale = useUiLocale();
   const copy = labels[locale];
+  const searchParams = useSearchParams();
   const [expanded, setExpanded] = useState(false);
 
   const visibleTags = useMemo(() => tags.slice(0, 3), [tags]);
@@ -94,6 +109,17 @@ export default function PublicWorkBoardCard({
     () => detectContentLanguage(title, summary),
     [title, summary]
   );
+  const readLanguage = parsePublicSearchReadLanguage(
+    searchParams.get("read_language")
+  );
+  const sourceLanguage = searchParams.get("source_language")?.trim() || null;
+  const seriesId = readSeriesIdFromWorkHref(workHref);
+  const readIntentHref =
+    readLanguage && seriesId
+      ? `/read-intent/${encodeURIComponent(seriesId)}/${encodeURIComponent(readLanguage)}`
+      : null;
+  const resolvedWorkHref = readIntentHref ?? workHref;
+  const resolvedFirstReadHref = readIntentHref ?? firstReadHref;
 
   const hasSummary = summary.trim().length > 0;
   const collapsedSummary = hasSummary ? summary.trim() : copy.noSummary;
@@ -107,7 +133,7 @@ export default function PublicWorkBoardCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              href={localizePath(workHref, locale)}
+              href={localizePath(resolvedWorkHref, locale)}
               className="min-w-0 max-w-full truncate text-base font-semibold leading-tight text-black transition hover:opacity-70"
             >
               {title}
@@ -117,7 +143,10 @@ export default function PublicWorkBoardCard({
               visibleTags.map((tag) => (
                 <Link
                   key={tag}
-                  href={localizePath(buildTagHref(tag), locale)}
+                  href={localizePath(
+                    buildTagHref(tag, sourceLanguage, readLanguage),
+                    locale
+                  )}
                   className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-black"
                 >
                   {localizeTagLabel(tag, locale)}
@@ -185,9 +214,9 @@ export default function PublicWorkBoardCard({
                 {hasSummary ? "…" : ""}
               </button>
 
-              {firstReadHref ? (
+              {resolvedFirstReadHref ? (
                 <Link
-                  href={localizePath(firstReadHref, locale)}
+                  href={localizePath(resolvedFirstReadHref, locale)}
                   className="shrink-0 rounded-full border border-black/10 bg-neutral-200 px-3.5 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
                 >
                   {copy.readFirst}
@@ -209,9 +238,9 @@ export default function PublicWorkBoardCard({
               </button>
 
               <div className="mt-3 flex justify-end">
-                {firstReadHref ? (
+                {resolvedFirstReadHref ? (
                   <Link
-                    href={localizePath(firstReadHref, locale)}
+                    href={localizePath(resolvedFirstReadHref, locale)}
                     className="rounded-full border border-black/10 bg-neutral-200 px-3.5 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
                   >
                     {copy.readFirst}
