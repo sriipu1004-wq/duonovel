@@ -25,21 +25,21 @@ const SITE_URL = new URL("https://www.syosetu-libread.com");
 
 const metadataByLocale: Record<UiLocale, { title: string; description: string; ogLocale: string }> = {
   ja: {
-    title: "LIB read | 時間指定AI短編を読む・聴く",
+    title: "LIB read | 長編・Web小説を原文付きで多言語読書",
     description:
-      "空き時間に合わせてAI短編を生成し、その場で読む・聴く。LIB readは、小説を読む・聴く・投稿するためのサービスです。",
+      "長編小説・Web小説を、原文を正本としてOriginal・Bilingual・Translation onlyで読み分ける多言語読書サービス。公開翻訳は保存して再利用し、個人本棚・読み上げ・投稿にも対応します。",
     ogLocale: "ja_JP",
   },
   en: {
-    title: "LIB read | Read, listen, and learn with stories",
+    title: "LIB read | Multilingual Long-Form & Web Novel Reader",
     description:
-      "Read long-form stories with bilingual text, text-to-speech, AI stories, and your own imported library in one reading service.",
+      "Read long-form fiction and web novels as Original, Bilingual, or Translation only while keeping the source work canonical. Saved public translations are reused, with private library import, read-aloud, and publishing also available.",
     ogLocale: "en_US",
   },
   ko: {
-    title: "LIB read | 소설을 읽고, 듣고, 배우기",
+    title: "LIB read | 다국어 장편소설·웹소설 리더",
     description:
-      "개인 서재, 다국어 대역, 읽어주기, AI 이야기와 웹소설을 한곳에서 이용하는 독서 서비스입니다.",
+      "장편소설과 웹소설을 원문 작품을 정본으로 유지한 채 원문·대역·번역만 보기로 읽는 다국어 독서 서비스입니다. 저장된 공개 번역을 재사용하며 개인 서재, 읽어주기, 작품 게시도 지원합니다.",
     ogLocale: "ko_KR",
   },
 };
