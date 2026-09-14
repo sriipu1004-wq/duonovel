@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { headers } from "next/headers";
 import { createPublicServerClient } from "@/lib/supabase/serverPublic";
 import {
+  getEpisodeBody,
   getEpisodeNumber,
   getEpisodePostedAtValue,
   getSeriesGenres,
@@ -29,18 +30,12 @@ import {
 } from "@/i18n/contentLanguage";
 import {
   inferSeriesSourceLanguage,
+  readCanonicalSeriesSourceLanguage,
   sourceLanguageToContentLanguage,
 } from "@/lib/translation/seriesSourceLanguage";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { isSeriesTranslationEligible } from "@/lib/translation/episodeTranslationServer";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
-import {
-  PUBLIC_SEARCH_READ_LANGUAGE_HEADER,
-  PUBLIC_SEARCH_SOURCE_LANGUAGE_HEADER,
-  matchesPublicWorkLanguageFilters,
-  parsePublicSearchReadLanguage,
-  parsePublicSearchSourceLanguage,
-} from "@/lib/search/publicWorkLanguageFilter";
 
 export type PublicBaseWorkCard = {
   seriesId: string;
@@ -268,7 +263,11 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
       const contentRating = getSeriesContentRating(series);
       const title = pickText(series.title) || "無題";
       const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
-      const sourceLanguage = inferSeriesSourceLanguage(series);
+      const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
+      const sourceLanguage = inferSeriesSourceLanguage(
+        series,
+        firstEpisode ? getEpisodeBody(firstEpisode) : null
+      );
 
       return {
         seriesId: series.id,
@@ -283,8 +282,8 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         earliestPublicAtValue: firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
         createdAtValue,
         contentRating,
-        contentLanguage: sourceLanguage
-          ? sourceLanguageToContentLanguage(sourceLanguage)
+        contentLanguage: canonicalSourceLanguage
+          ? sourceLanguageToContentLanguage(canonicalSourceLanguage)
           : detectContentLanguage(title, summary),
         sourceLanguage,
         translationEligible:
@@ -306,7 +305,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
   buildPublicBaseWorkCards,
-  ["public-base-work-cards-v5-search-language-metadata"],
+  ["public-base-work-cards-v6-search-language-metadata"],
   { revalidate: 60 }
 );
 
@@ -350,18 +349,6 @@ export async function getCachedPublicBaseWorkCards(options?: {
       const selectedSet = new Set(selectedLanguages);
       visibleCards = visibleCards.filter((card) => selectedSet.has(card.contentLanguage));
     }
-  }
-
-  const sourceLanguage = parsePublicSearchSourceLanguage(
-    requestHeaders.get(PUBLIC_SEARCH_SOURCE_LANGUAGE_HEADER)
-  );
-  const readLanguage = parsePublicSearchReadLanguage(
-    requestHeaders.get(PUBLIC_SEARCH_READ_LANGUAGE_HEADER)
-  );
-  if (sourceLanguage || readLanguage) {
-    visibleCards = visibleCards.filter((work) =>
-      matchesPublicWorkLanguageFilters({ work, sourceLanguage, readLanguage })
-    );
   }
 
   return options?.prioritizeForUiLocale === false
@@ -415,7 +402,8 @@ const PUBLIC_WORK_EPISODE_SELECT = `
   episode_number,
   posting_status,
   scheduled_for,
-  posted_at
+  posted_at,
+  body
 `;
 
 const PUBLIC_WORK_RECORDING_AGGREGATE_SELECT = `
