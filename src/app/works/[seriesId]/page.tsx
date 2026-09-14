@@ -352,17 +352,7 @@ async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> 
   if (!firstTry.error) {
     return (firstTry.data ?? []) as EpisodeRow[];
   }
-
-  const secondTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("seriesId", seriesId);
-
-  if (secondTry.error) {
-    throw new Error(`episodes の取得に失敗: ${secondTry.error.message}`);
-  }
-
-  return (secondTry.data ?? []) as EpisodeRow[];
+  throw new Error(`episodes の取得に失敗: ${firstTry.error.message}`);
 }
 
 async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
@@ -390,46 +380,16 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
     };
   }
 
-  const secondTry = await adminSupabase
-    .from("recordings")
-    .select(PUBLIC_WORK_RECORDING_SELECT)
-    .in("episodeId", episodeIds)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
-
-  if (!secondTry.error) {
-    return {
-      recordings: ((secondTry.data ?? []) as RecordingRow[]).filter(isPublicRecording),
-      fetchErrorMessage: null,
-    };
-  }
-
-  const fallbackFirstTry = await adminSupabase
+  const fallback = await adminSupabase
     .from("recordings")
     .select("*")
     .in("episode_id", episodeIds)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
 
-  if (!fallbackFirstTry.error) {
+  if (!fallback.error) {
     return {
-      recordings: ((fallbackFirstTry.data ?? []) as RecordingRow[]).filter(
-        isPublicRecording
-      ),
-      fetchErrorMessage: null,
-    };
-  }
-
-  const fallbackSecondTry = await adminSupabase
-    .from("recordings")
-    .select("*")
-    .in("episodeId", episodeIds)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
-
-  if (!fallbackSecondTry.error) {
-    return {
-      recordings: ((fallbackSecondTry.data ?? []) as RecordingRow[]).filter(
+      recordings: ((fallback.data ?? []) as RecordingRow[]).filter(
         isPublicRecording
       ),
       fetchErrorMessage: null,
@@ -438,7 +398,7 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
 
   return {
     recordings: [],
-    fetchErrorMessage: `recordings の取得に失敗: ${fallbackSecondTry.error.message}`,
+    fetchErrorMessage: `recordings の取得に失敗: ${fallback.error.message}`,
   };
 }
 

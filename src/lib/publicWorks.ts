@@ -168,21 +168,14 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
   if (!firstTry.error) {
     episodes = (firstTry.data ?? []) as EpisodeRow[];
   } else {
-    const secondTry = await supabase.from("episodes").select(PUBLIC_WORK_EPISODE_SELECT).in("seriesId", seriesIds);
-    if (!secondTry.error) {
-      episodes = (secondTry.data ?? []) as EpisodeRow[];
-    } else {
-      const fallbackFirstTry = await supabase.from("episodes").select("*").in("series_id", seriesIds);
-      if (!fallbackFirstTry.error) {
-        episodes = (fallbackFirstTry.data ?? []) as EpisodeRow[];
-      } else {
-        const fallbackSecondTry = await supabase.from("episodes").select("*").in("seriesId", seriesIds);
-        if (fallbackSecondTry.error) {
-          throw new Error(`episodes の取得に失敗: ${fallbackSecondTry.error.message}`);
-        }
-        episodes = (fallbackSecondTry.data ?? []) as EpisodeRow[];
-      }
+    const fallback = await supabase
+      .from("episodes")
+      .select("*")
+      .in("series_id", seriesIds);
+    if (fallback.error) {
+      throw new Error(`episodes の取得に失敗: ${fallback.error.message}`);
     }
+    episodes = (fallback.data ?? []) as EpisodeRow[];
   }
 
   const grouped = new Map<string, EpisodeRow[]>();
@@ -479,24 +472,14 @@ async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<Pub
     if (!narrow.error) {
       data = (narrow.data ?? []) as RecordingAggregateRow[];
     } else {
-      const secondTry = await supabase
+      const fallback = await supabase
         .from("recordings")
-        .select(PUBLIC_RECORDING_AGGREGATE_SELECT)
-        .in("seriesId", normalizedSeriesIds);
-      if (!secondTry.error) {
-        data = (secondTry.data ?? []) as RecordingAggregateRow[];
-      } else {
-        const fallback = await supabase.from("recordings").select("*").in("series_id", normalizedSeriesIds);
-        if (!fallback.error) {
-          data = (fallback.data ?? []) as RecordingAggregateRow[];
-        } else {
-          const fallbackSecondTry = await supabase.from("recordings").select("*").in("seriesId", normalizedSeriesIds);
-          if (fallbackSecondTry.error) {
-            throw new Error(`recordings の取得に失敗: ${fallbackSecondTry.error.message}`);
-          }
-          data = (fallbackSecondTry.data ?? []) as RecordingAggregateRow[];
-        }
+        .select("*")
+        .in("series_id", normalizedSeriesIds);
+      if (fallback.error) {
+        throw new Error(`recordings の取得に失敗: ${fallback.error.message}`);
       }
+      data = (fallback.data ?? []) as RecordingAggregateRow[];
     }
   } else {
     const narrow = await supabase.from("recordings").select(PUBLIC_RECORDING_AGGREGATE_SELECT);

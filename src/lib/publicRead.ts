@@ -56,8 +56,7 @@ async function fetchEpisodes(seriesId: string): Promise<EpisodeRow[]> {
   const admin = createAdminClient();
   const firstTry = await admin.from("episodes").select("*").eq("series_id", seriesId);
   if (!firstTry.error) return (firstTry.data ?? []) as EpisodeRow[];
-  const secondTry = await admin.from("episodes").select("*").eq("seriesId", seriesId);
-  return secondTry.error ? [] : (secondTry.data ?? []) as EpisodeRow[];
+  return [];
 }
 
 async function fetchPublicRecordings(episodeId: string): Promise<PublicReadRecordingRow[]> {
@@ -65,8 +64,7 @@ async function fetchPublicRecordings(episodeId: string): Promise<PublicReadRecor
   const admin = createAdminClient();
   const firstTry = await admin.from("recordings").select("*").eq("episode_id", episodeId).order("created_at", { ascending: false });
   if (!firstTry.error) return ((firstTry.data ?? []) as PublicReadRecordingRow[]).filter(isPublicRecording);
-  const secondTry = await admin.from("recordings").select("*").eq("episodeId", episodeId).order("created_at", { ascending: false });
-  return secondTry.error ? [] : ((secondTry.data ?? []) as PublicReadRecordingRow[]).filter(isPublicRecording);
+  return [];
 }
 
 export async function getCachedPublicReadPagePayload(
