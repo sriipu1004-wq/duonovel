@@ -6,6 +6,11 @@ import {
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 
+export const PUBLIC_SEARCH_SOURCE_LANGUAGE_HEADER =
+  "x-libread-search-source-language";
+export const PUBLIC_SEARCH_READ_LANGUAGE_HEADER =
+  "x-libread-search-read-language";
+
 export type PublicWorkLanguageFilterCandidate = {
   sourceLanguage: SupportedLanguageTag | null;
   translationEligible: boolean;
