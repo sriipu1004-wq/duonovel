@@ -207,6 +207,26 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
   return grouped;
 }
 
+async function fetchEpisodeBodyMapByIds(
+  episodeIds: string[]
+): Promise<Map<string, string>> {
+  const ids = Array.from(new Set(episodeIds.filter(Boolean)));
+  if (ids.length === 0) return new Map();
+
+  const supabase = createPublicServerClient();
+  const narrow = await supabase
+    .from("episodes")
+    .select("id, body")
+    .in("id", ids);
+  const rows = !narrow.error
+    ? ((narrow.data ?? []) as EpisodeRow[])
+    : (((await supabase.from("episodes").select("*").in("id", ids)).data ?? []) as EpisodeRow[]);
+
+  return new Map(
+    rows.map((episode) => [episode.id, getEpisodeBody(episode)] as const)
+  );
+}
+
 function readAuthAccountDisplayName(metadata: unknown): string {
   if (!metadata || typeof metadata !== "object") return "";
   const record = metadata as Record<string, unknown>;
@@ -248,6 +268,14 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
     fetchEpisodesBySeriesIds(publicSeries.map((series) => series.id)),
   ]);
 
+  const legacyFirstEpisodeIds = publicSeries
+    .filter((series) => !readCanonicalSeriesSourceLanguage(series))
+    .map((series) => episodesBySeriesId.get(series.id)?.[0]?.id ?? "")
+    .filter((episodeId) => episodeId.length > 0);
+  const legacyFirstEpisodeBodyMap = await fetchEpisodeBodyMapByIds(
+    legacyFirstEpisodeIds
+  );
+
   return publicSeries
     .map((series) => {
       const publicEpisodes = episodesBySeriesId.get(series.id) ?? [];
@@ -268,7 +296,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
       const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
       const sourceLanguage = inferSeriesSourceLanguage(
         series,
-        firstEpisode ? getEpisodeBody(firstEpisode) : null
+        firstEpisode ? legacyFirstEpisodeBodyMap.get(firstEpisode.id) : null
       );
 
       return {
@@ -307,7 +335,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
   buildPublicBaseWorkCards,
-  ["public-base-work-cards-v6-search-language-metadata"],
+  ["public-base-work-cards-v7-search-language-metadata"],
   { revalidate: 60 }
 );
 
@@ -418,8 +446,7 @@ const PUBLIC_WORK_EPISODE_SELECT = `
   episode_number,
   posting_status,
   scheduled_for,
-  posted_at,
-  body
+  posted_at
 `;
 
 const PUBLIC_WORK_RECORDING_AGGREGATE_SELECT = `
