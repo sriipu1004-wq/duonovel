@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import type { UiLocale } from "@/i18n/config";
 import { localizePath } from "@/i18n/navigation";
 
 export type ReaderTranslationEntitlement = {
@@ -29,6 +30,13 @@ type Props = {
 };
 
 type ConfirmKind = "included" | "credit" | null;
+
+export function buildPublicTranslationLoginHref(
+  currentPath: string,
+  locale: UiLocale
+): string {
+  return localizePath(`/login?next=${encodeURIComponent(currentPath)}`, locale);
+}
 
 const COPY = {
   ja: {
@@ -115,13 +123,11 @@ export default function PublicTranslationUnlockGate({
   const locale = useUiLocale();
   const copy = COPY[locale];
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
-  const loginHref = useMemo(() => {
-    const current =
-      typeof window === "undefined"
-        ? "/"
-        : `${window.location.pathname}${window.location.search}`;
-    return localizePath(`/login?next=${encodeURIComponent(current)}`, locale);
-  }, [locale]);
+  const current =
+    typeof window === "undefined"
+      ? "/"
+      : `${window.location.pathname}${window.location.search}`;
+  const loginHref = buildPublicTranslationLoginHref(current, locale);
   const creditStoreHref = localizePath("/credits", locale);
   const premiumHref = localizePath("/subscription", locale);
 

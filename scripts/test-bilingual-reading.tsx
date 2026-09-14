@@ -3,7 +3,6 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { parseHTML } from "linkedom";
 import BilingualPane from "../src/features/playback/BilingualPane";
-import { useBilingualWordExplanation } from "../src/features/playback/useBilingualWordExplanation";
 import {
   applyReadingModeToHref, readEpisodeReadingPosition, readPreferredReadingPosition,
   readReadingHistory, writeReadingBookmark, writeReadingHistory,
@@ -104,43 +103,24 @@ async function main() {
   const span = host.querySelector<HTMLElement>('[data-bilingual-segment-id="s"]')!;
   await act(async () => { span.click(); span.click(); });
   assert.equal(sentenceTaps, 2, "repeated tap on highlighted upper sentence recenters it");
-  const offsets: number[] = [];
-  await act(async () => { root.render(<BilingualPane {...common} side="target" onSelectWord={(word) => offsets.push(word.startOffset!)} />); });
-  const haveButtons = Array.from(host.querySelectorAll<HTMLButtonElement>("button")).filter((button) => button.textContent === "have");
-  await act(async () => { haveButtons[0].click(); haveButtons[1].click(); });
-  assert.deepEqual(offsets, [2, 10], "the two occurrences of have can receive different explanations");
-
-  let latest!: ReturnType<typeof useBilingualWordExplanation>;
-  const responses: Array<(response: Response) => void> = [];
-  let calls = 0;
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (() => { calls += 1; return new Promise<Response>((resolve) => responses.push(resolve)); }) as typeof fetch;
-  const refresh = async () => {};
-  function Probe() {
-    latest = useBilingualWordExplanation({ contentType: "episode", contentId: "test", sourceHash: "hash", sourceLanguage: "ja", targetLanguage: "en", refreshAiUsage: refresh });
-    return <div>{latest.wordInsight?.text}</div>;
-  }
-  await act(async () => { root.render(<Probe />); });
-  let first!: Promise<void>;
-  let second!: Promise<void>;
-  const selection = { segmentId: "s", side: "target" as const, text: "have", startOffset: 2 };
-  await act(async () => { first = latest.selectWord(selection); });
-  await act(async () => { second = latest.selectWord({ ...selection, text: "it", startOffset: 15 }); });
-  const answer = (meaning: string) => Response.json({ ok: true, contextualMeaning: meaning, partOfSpeech: "動詞", usageType: "文法表現" });
-  await act(async () => { responses[1](answer("それ")); await second; });
-  await act(async () => { responses[0](answer("しなければならない")); await first; });
-  assert.equal(latest.wordInsight?.text, "it", "slow response never replaces the newer selection");
-  await act(async () => { await latest.selectWord(selection); });
-  assert.equal(calls, 2, "cached lookup makes no network request");
-  let pending!: Promise<void>;
-  let repeated!: Promise<void>;
-  await act(async () => { pending = latest.selectWord({ ...selection, text: "to", startOffset: 7 }); repeated = latest.selectWord({ ...selection, text: "to", startOffset: 7 }); });
-  assert.equal(calls, 3, "double tap shares one request and one quota use");
-  await act(async () => { latest.clearWordInsight(); responses[2](answer("〜する")); await Promise.all([pending, repeated]); });
-  assert.equal(latest.wordInsight, null, "closed word explanation stays closed");
-  globalThis.fetch = originalFetch;
+  await act(async () => {
+    root.render(
+      <BilingualPane
+        {...common}
+        side="target"
+        onSelectWord={() => {
+          throw new Error("tap word lookup must not be invoked");
+        }}
+      />
+    );
+  });
+  assert.equal(
+    host.querySelectorAll("button").length,
+    0,
+    "the current Reader must not render removed tap word-lookup controls"
+  );
   await act(async () => { root.unmount(); });
-  console.log("PASS: reading positions, learning preferences, linked scrolling, sentence/word taps, lookup races and caching");
+  console.log("PASS: reading positions, learning preferences, linked scrolling and current bilingual sentence controls");
 }
 
 void main().catch((error) => { console.error(error); process.exitCode = 1; });

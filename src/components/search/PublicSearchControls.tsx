@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import SearchNavButton from "@/components/search/SearchNavButton";
 import PublicSearchLanguageFilters from "@/components/search/PublicSearchLanguageFilters";
 import {
   getSavedFilterLabel,
   type SavedFilterKey,
 } from "@/lib/searchSavedFilters";
+import type {
+  PublicTranslationTargetLanguage,
+  SupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
 
 type OrderKey = "popular" | "updated";
 
@@ -44,8 +48,8 @@ type PublicSearchControlsProps = {
   shelfTab: ShelfTabKey;
   allTagChips: TagChip[];
   allGenreChips: GenrePlaceholderChip[];
-  sourceLanguage?: string;
-  readLanguage?: string;
+  sourceLanguage?: SupportedLanguageTag | null;
+  readLanguage?: PublicTranslationTargetLanguage | null;
 };
 
 function normalizeTagToken(value: string): string {
@@ -107,7 +111,7 @@ function toggleSelectedGenreLabels(current: string[], nextLabel: string): {
   };
 }
 
-function buildBaseSearchHref(params: {
+export function buildPublicSearchHref(params: {
   q?: string;
   selectedTags?: string[];
   selectedGenres?: string[];
@@ -168,18 +172,19 @@ export default function PublicSearchControls({
   readLanguage,
 }: PublicSearchControlsProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const effectiveSourceLanguage =
-    sourceLanguage ?? searchParams.get("source_language") ?? undefined;
-  const effectiveReadLanguage =
-    readLanguage ?? searchParams.get("read_language") ?? undefined;
+  const [selectedSourceLanguage, setSelectedSourceLanguage] = useState<
+    SupportedLanguageTag | null
+  >(sourceLanguage ?? null);
+  const [selectedReadLanguage, setSelectedReadLanguage] = useState<
+    PublicTranslationTargetLanguage | null
+  >(readLanguage ?? null);
   const buildSearchHref = (
-    params: Parameters<typeof buildBaseSearchHref>[0]
+    params: Parameters<typeof buildPublicSearchHref>[0]
   ) =>
-    buildBaseSearchHref({
+    buildPublicSearchHref({
       ...params,
-      sourceLanguage: effectiveSourceLanguage,
-      readLanguage: effectiveReadLanguage,
+      sourceLanguage: selectedSourceLanguage ?? undefined,
+      readLanguage: selectedReadLanguage ?? undefined,
     });
 
   const [queryValue, setQueryValue] = useState(query);
@@ -389,7 +394,12 @@ export default function PublicSearchControls({
         />
       </div>
 
-      <PublicSearchLanguageFilters />
+      <PublicSearchLanguageFilters
+        sourceLanguage={selectedSourceLanguage}
+        readLanguage={selectedReadLanguage}
+        onSourceLanguageChange={setSelectedSourceLanguage}
+        onReadLanguageChange={setSelectedReadLanguage}
+      />
 
       <div className="mt-6 grid gap-3">
         <div className="min-h-12 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm">
