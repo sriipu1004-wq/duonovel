@@ -30,7 +30,7 @@ const COPY = {
     terms: "価格・有効期限・返金条件を確認した",
     legal: "販売条件・利用規約を確認",
     expiry: (days: number) => `購入日から${days}日`,
-    processing: "決済画面を準備中…",
+    processing: "決済画面を開いています…",
   },
   en: {
     eyebrow: "CREDITS",
@@ -54,7 +54,7 @@ const COPY = {
     terms: "가격, 유효기간, 환불 조건을 확인했습니다",
     legal: "판매 조건 및 이용약관 확인",
     expiry: (days: number) => `구매일로부터 ${days}일`,
-    processing: "결제 화면 준비 중…",
+    processing: "결제 화면을 여는 중…",
   },
 } as const;
 
