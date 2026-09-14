@@ -12,8 +12,12 @@ import {
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import type { StoredWebSpeechDisplaySettings } from "@/lib/playback/webSpeechPreferences";
-import { useUiLocale } from "@/i18n/UiLocaleProvider";
-import { readerDictionaries } from "@/i18n/dictionaries/reader";
+import {
+  claimLinkedScroll,
+  invalidateLinkedScroll,
+  pauseLinkedScrollForTap,
+  syncOtherPaneScroll,
+} from "@/lib/playback/bilingualScroll";
 
 export type BilingualSegment = {
   id: string;
@@ -24,30 +28,6 @@ export type BilingualSegment = {
   startOffset: number;
   endOffset: number;
 };
-
-type BilingualPaneProps = {
-  side: PaneSide;
-  languageLabel: string;
-  languageTag?: SupportedLanguageTag;
-  segments: BilingualSegment[];
-  selectedSegmentId: string | null;
-  hoveredSegmentId: string | null;
-  scrollRef: RefObject<HTMLDivElement | null>;
-  registerSegmentRef: (id: string, node: HTMLSpanElement | null) => void;
-  onSelectSegment: (id: string) => void;
-  onHoverSegment: (id: string | null) => void;
-  onReadingPositionChange: (id: string) => void;
-  onSelectWord?: (selection: BilingualWordSelection) => void;
-  wordInsight?: BilingualWordInsight | null;
-  displaySettings: StoredWebSpeechDisplaySettings;
-};
-
-import {
-  claimLinkedScroll,
-  invalidateLinkedScroll,
-  pauseLinkedScrollForTap,
-  syncOtherPaneScroll,
-} from "@/lib/playback/bilingualScroll";
 
 export type PaneSide = "source" | "target";
 
@@ -67,6 +47,23 @@ export type BilingualWordInsight = BilingualWordSelection & {
   usageType?: string;
   note?: string;
   message?: string;
+};
+
+type BilingualPaneProps = {
+  side: PaneSide;
+  languageLabel: string;
+  languageTag?: SupportedLanguageTag;
+  segments: BilingualSegment[];
+  selectedSegmentId: string | null;
+  hoveredSegmentId: string | null;
+  scrollRef: RefObject<HTMLDivElement | null>;
+  registerSegmentRef: (id: string, node: HTMLSpanElement | null) => void;
+  onSelectSegment: (id: string) => void;
+  onHoverSegment: (id: string | null) => void;
+  onReadingPositionChange: (id: string) => void;
+  onSelectWord?: (selection: BilingualWordSelection) => void;
+  wordInsight?: BilingualWordInsight | null;
+  displaySettings: StoredWebSpeechDisplaySettings;
 };
 
 function findCenteredSegmentId(container: HTMLDivElement): string | null {
@@ -100,31 +97,9 @@ function findCenteredSegmentId(container: HTMLDivElement): string | null {
   return bestId;
 }
 
-function tokenizeForWordSelection(
-  value: string,
-  language?: SupportedLanguageTag
-): Array<{ text: string; isWordLike: boolean; startOffset: number }> {
-  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
-    const segmenter = new Intl.Segmenter(language, { granularity: "word" });
-    return Array.from(segmenter.segment(value)).map((item) => ({
-      text: item.segment,
-      startOffset: item.index,
-      isWordLike: item.isWordLike === true,
-    }));
-  }
-
-  let offset = 0;
-  return (value.match(/[\p{L}\p{N}\p{M}]+|[^\p{L}\p{N}\p{M}]+/gu) ?? [value]).map((text) => {
-    const token = { text, isWordLike: /[\p{L}\p{N}]/u.test(text), startOffset: offset };
-    offset += text.length;
-    return token;
-  });
-}
-
 export default function BilingualPane({
   side,
   languageLabel,
-  languageTag,
   segments,
   selectedSegmentId,
   hoveredSegmentId,
@@ -133,11 +108,8 @@ export default function BilingualPane({
   onSelectSegment,
   onHoverSegment,
   onReadingPositionChange,
-  onSelectWord,
-  wordInsight,
   displaySettings,
 }: BilingualPaneProps) {
-  const dictionary = readerDictionaries[useUiLocale()];
   const paragraphMap = new Map<number, BilingualSegment[]>();
   const scrollFrameRef = useRef<number | null>(null);
   const lastReportedPositionIdRef = useRef<string | null>(null);
@@ -206,15 +178,6 @@ export default function BilingualPane({
         <span className="text-xs font-medium tracking-[0.14em] text-neutral-600">
           {languageLabel}
         </span>
-        {wordInsight?.side === side ? (
-          <span className="min-w-0 text-right text-[11px] leading-5 text-neutral-600">
-            {wordInsight.status === "loading"
-              ? dictionary.meaningLoading(wordInsight.text)
-              : wordInsight.status === "ready"
-                ? `${wordInsight.expression || wordInsight.text}：${wordInsight.contextualMeaning || wordInsight.oppositeText} ・ ${wordInsight.partOfSpeech}${wordInsight.usageType ? ` ・ ${wordInsight.usageType}` : ""}${wordInsight.note ? `（${wordInsight.note}）` : ""}`
-                : wordInsight.message || dictionary.meaningFailed}
-          </span>
-        ) : null}
       </div>
 
       <div
@@ -228,7 +191,9 @@ export default function BilingualPane({
         }
         onTouchMove={(event) => claimLinkedScroll(event.currentTarget, side)}
         onPointerMove={(event) => {
-          if (event.buttons || event.pointerType === "touch") claimLinkedScroll(event.currentTarget, side);
+          if (event.buttons || event.pointerType === "touch") {
+            claimLinkedScroll(event.currentTarget, side);
+          }
         }}
         onWheel={(event: WheelEvent<HTMLDivElement>) =>
           claimLinkedScroll(event.currentTarget, side)
@@ -278,79 +243,48 @@ export default function BilingualPane({
                       : "whitespace-pre-wrap"
                   }
                 >
-              {paragraphSegments.map((segment) => {
-                const selected = selectedSegmentId === segment.id;
-                const hovered = hoveredSegmentId === segment.id;
+                  {paragraphSegments.map((segment) => {
+                    const selected = selectedSegmentId === segment.id;
+                    const hovered = hoveredSegmentId === segment.id;
 
-                return (
-                  <span
-                    key={segment.id}
-                    data-bilingual-segment-id={segment.id}
-                    ref={(node) => registerSegmentRef(segment.id, node)}
-                    role={selected && onSelectWord ? undefined : "button"}
-                    tabIndex={selected && onSelectWord ? undefined : 0}
-                    onMouseEnter={() => onHoverSegment(segment.id)}
-                    onMouseLeave={() => onHoverSegment(null)}
-                    onClick={(event) => {
-                      selectSentence(event.currentTarget, segment.id);
-                    }}
-                    onKeyDown={(event) => {
-                      if (selected && onSelectWord) return;
-                      if (event.key !== "Enter" && event.key !== " ") return;
-                      event.preventDefault();
-                      selectSentence(event.currentTarget, segment.id);
-                    }}
-                    className={[
-                      "inline cursor-pointer rounded-md px-1 py-1 transition-colors duration-150",
-                      !displaySettings.hideEffects && hovered && !selected
-                        ? "bg-sky-50"
-                        : displaySettings.hideEffects
-                          ? ""
-                          : "hover:bg-sky-50/80",
-                      selected &&
-                      displaySettings.showMarker &&
-                      !displaySettings.hideEffects
-                        ? "bg-sky-100 text-black shadow-[0_0_0_3px_rgba(186,230,253,0.55)]"
-                        : "",
-                    ].join(" ")}
-                  >
-                    {selected && onSelectWord
-                      ? tokenizeForWordSelection(
-                          side === "source"
-                            ? segment.sourceText
-                            : segment.translatedText,
-                          languageTag
-                        ).map((token, tokenIndex) =>
-                          token.isWordLike ? (
-                            <button
-                              key={`${segment.id}-word-${tokenIndex}`}
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                onSelectWord({
-                                  segmentId: segment.id,
-                                  side,
-                                  text: token.text,
-                                  startOffset: token.startOffset,
-                                });
-                              }}
-                              className="rounded underline decoration-transparent decoration-2 underline-offset-4 transition hover:bg-white/70 hover:decoration-sky-400 focus:bg-white/70 focus:outline-none focus:decoration-sky-500"
-                            >
-                              {token.text}
-                            </button>
-                          ) : (
-                            <span key={`${segment.id}-text-${tokenIndex}`}>
-                              {token.text}
-                            </span>
-                          )
-                        )
-                      : side === "source"
-                        ? renderTextWithAozoraRuby(segment.sourceText)
-                        : segment.translatedText}
-                    {side === "target" ? " " : null}
-                  </span>
-                );
-              })}
+                    return (
+                      <span
+                        key={segment.id}
+                        data-bilingual-segment-id={segment.id}
+                        ref={(node) => registerSegmentRef(segment.id, node)}
+                        role="button"
+                        tabIndex={0}
+                        onMouseEnter={() => onHoverSegment(segment.id)}
+                        onMouseLeave={() => onHoverSegment(null)}
+                        onClick={(event) => {
+                          selectSentence(event.currentTarget, segment.id);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" && event.key !== " ") return;
+                          event.preventDefault();
+                          selectSentence(event.currentTarget, segment.id);
+                        }}
+                        className={[
+                          "inline cursor-pointer rounded-md px-1 py-1 transition-colors duration-150",
+                          !displaySettings.hideEffects && hovered && !selected
+                            ? "bg-sky-50"
+                            : displaySettings.hideEffects
+                              ? ""
+                              : "hover:bg-sky-50/80",
+                          selected &&
+                          displaySettings.showMarker &&
+                          !displaySettings.hideEffects
+                            ? "bg-sky-100 text-black shadow-[0_0_0_3px_rgba(186,230,253,0.55)]"
+                            : "",
+                        ].join(" ")}
+                      >
+                        {side === "source"
+                          ? renderTextWithAozoraRuby(segment.sourceText)
+                          : segment.translatedText}
+                        {side === "target" ? " " : null}
+                      </span>
+                    );
+                  })}
                 </p>
               );
             }
