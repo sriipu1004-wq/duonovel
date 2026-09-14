@@ -17,6 +17,7 @@
     "test:public-recording-selects": "node --import tsx scripts/test-public-recording-selects.ts",
     "test:public-schema-queries": "node --import tsx scripts/test-public-schema-queries.ts",
     "test:workspace-schema-queries": "node --import tsx scripts/test-workspace-schema-queries.ts",
+    "test:public-route-params": "node --import tsx scripts/test-public-route-params.ts",
     "test:locale-work-state": "node --import tsx scripts/test-locale-work-state.ts",
     "test:sitemap-resilience": "node --import tsx scripts/test-sitemap-resilience.ts",
     "test:series-translation-permission-schema": "node --import tsx scripts/test-series-translation-permission-schema.ts",

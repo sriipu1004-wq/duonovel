@@ -37,6 +37,7 @@ import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 import { PUBLIC_WORK_RECORDING_SELECT } from "@/lib/recording/publicRecordingSelects";
 import { getUiLocale } from "@/i18n/server";
 import { localizePath } from "@/i18n/navigation";
+import { isUuid } from "@/lib/uuid";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -733,6 +734,16 @@ export async function generateMetadata({
 }: Pick<PageProps, "params">): Promise<Metadata> {
   const { seriesId } = await params;
 
+  if (!isUuid(seriesId)) {
+    return {
+      title: "作品が見つかりません | LIB read",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
   try {
     const { data, error } = await supabase
       .from("series")
@@ -837,6 +848,9 @@ export async function generateMetadata({
 export default async function WorkPage({ params, searchParams }: PageProps) {
   const locale = await getUiLocale();
   const { seriesId } = await params;
+
+  if (!isUuid(seriesId)) notFound();
+
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const currentTab = resolvedSearchParams?.tab === "readers" ? "readers" : "toc";
 

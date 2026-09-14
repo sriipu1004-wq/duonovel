@@ -6,6 +6,7 @@ import { getUiLocale } from "@/i18n/server";
 import { workDictionaries } from "@/i18n/dictionaries/work";
 import { localizePath } from "@/i18n/navigation";
 import { getCachedPublicBaseWorkCards } from "@/lib/publicWorks";
+import { isUuid } from "@/lib/uuid";
 
 type WorkPageProps = Parameters<typeof WorkPage>[0];
 
@@ -69,6 +70,8 @@ export default async function LocaleWorkPage(props: WorkPageProps) {
   const locale = await getUiLocale();
   if (locale === "ja") notFound();
   const { seriesId } = await props.params;
+
+  if (!isUuid(seriesId)) notFound();
 
   return (
     <>
