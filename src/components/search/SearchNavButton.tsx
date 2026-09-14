@@ -19,31 +19,24 @@ function scrollToTarget(targetId: string) {
   if (typeof window === "undefined") return;
 
   const target = document.getElementById(targetId);
-  if (!target) {
-    return;
-  }
+  if (!target) return;
 
-  target.scrollIntoView({
-    behavior: "smooth",
-    block: "start",
-  });
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function appendSavedParamIfNeeded(
+function appendPersistentSearchParams(
   href: string,
   currentSearchParams: SearchParamsLike
 ): string {
-  const currentSaved = currentSearchParams.get("saved")?.trim() ?? "";
-
-  if (!currentSaved) {
-    return href;
-  }
-
   const [pathname, rawQuery = ""] = href.split("?");
-  const nextQuery = new URLSearchParams(rawQuery);
+  if (pathname !== "/search") return href;
 
-  if (!nextQuery.has("saved")) {
-    nextQuery.set("saved", currentSaved);
+  const nextQuery = new URLSearchParams(rawQuery);
+  for (const key of ["saved", "source_language", "read_language"] as const) {
+    const currentValue = currentSearchParams.get(key)?.trim() ?? "";
+    if (currentValue && !nextQuery.has(key)) {
+      nextQuery.set(key, currentValue);
+    }
   }
 
   const queryString = nextQuery.toString();
@@ -62,7 +55,7 @@ export default function SearchNavButton({
   const [isPending, setIsPending] = useState(false);
 
   const resolvedHref = useMemo(
-    () => appendSavedParamIfNeeded(href, searchParams),
+    () => appendPersistentSearchParams(href, searchParams),
     [href, searchParams]
   );
 
