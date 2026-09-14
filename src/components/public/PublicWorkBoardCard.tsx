@@ -7,6 +7,7 @@ import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { localizePath } from "@/i18n/navigation";
 import { localizeTagLabel } from "@/i18n/tagLabels";
 import type { UiLocale } from "@/i18n/config";
+import { usePublicSearchReadIntent } from "@/components/search/PublicSearchReadIntentProvider";
 
 type PublicWorkBoardCardProps = {
   title: string;
@@ -31,6 +32,7 @@ const labels: Record<UiLocale, {
   bookmarks: string;
   narrationPlays: string;
   readFirst: string;
+  readTranslation: string;
   unpublished: string;
 }> = {
   ja: {
@@ -41,6 +43,7 @@ const labels: Record<UiLocale, {
     bookmarks: "ブックマーク",
     narrationPlays: "朗読再生",
     readFirst: "第1話から読む",
+    readTranslation: "翻訳で読む",
     unpublished: "未公開",
   },
   en: {
@@ -51,6 +54,7 @@ const labels: Record<UiLocale, {
     bookmarks: "Bookmarks",
     narrationPlays: "Narration plays",
     readFirst: "Read from episode 1",
+    readTranslation: "Read translation",
     unpublished: "Unpublished",
   },
   ko: {
@@ -61,13 +65,30 @@ const labels: Record<UiLocale, {
     bookmarks: "책갈피",
     narrationPlays: "낭독 재생",
     readFirst: "1화부터 읽기",
+    readTranslation: "번역으로 읽기",
     unpublished: "비공개",
   },
 };
 
-function buildTagHref(tag: string): string {
+function readSeriesIdFromWorkHref(workHref: string): string | null {
+  const match = workHref.match(/^\/works\/([^/?#]+)/u);
+  if (!match?.[1]) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
+function buildTagHref(
+  tag: string,
+  sourceLanguage?: string | null,
+  readLanguage?: string | null
+): string {
   const query = new URLSearchParams();
   query.set("tag", tag);
+  if (sourceLanguage) query.set("source_language", sourceLanguage);
+  if (readLanguage) query.set("read_language", readLanguage);
   return `/search?${query.toString()}`;
 }
 
@@ -87,6 +108,7 @@ export default function PublicWorkBoardCard({
 }: PublicWorkBoardCardProps) {
   const locale = useUiLocale();
   const copy = labels[locale];
+  const searchReadIntent = usePublicSearchReadIntent();
   const [expanded, setExpanded] = useState(false);
 
   const visibleTags = useMemo(() => tags.slice(0, 3), [tags]);
@@ -94,6 +116,29 @@ export default function PublicWorkBoardCard({
     () => detectContentLanguage(title, summary),
     [title, summary]
   );
+
+  const seriesId = readSeriesIdFromWorkHref(workHref);
+  const workLanguageMetadata = seriesId
+    ? searchReadIntent?.workMetadata.get(seriesId)
+    : undefined;
+  const useTranslationRoute = Boolean(
+    seriesId &&
+      searchReadIntent?.readLanguage &&
+      workLanguageMetadata?.sourceLanguage &&
+      searchReadIntent.readLanguage !== workLanguageMetadata.sourceLanguage &&
+      workLanguageMetadata.translationEligible
+  );
+  const translatedWorkHref =
+    useTranslationRoute && seriesId && searchReadIntent?.readLanguage
+      ? `/works/${encodeURIComponent(seriesId)}/translations/${encodeURIComponent(
+          searchReadIntent.readLanguage
+        )}`
+      : null;
+  const resolvedWorkHref = translatedWorkHref ?? workHref;
+  const resolvedFirstReadHref = translatedWorkHref ?? firstReadHref;
+  const readActionLabel = useTranslationRoute
+    ? copy.readTranslation
+    : copy.readFirst;
 
   const hasSummary = summary.trim().length > 0;
   const collapsedSummary = hasSummary ? summary.trim() : copy.noSummary;
@@ -107,7 +152,7 @@ export default function PublicWorkBoardCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              href={localizePath(workHref, locale)}
+              href={localizePath(resolvedWorkHref, locale)}
               className="min-w-0 max-w-full truncate text-base font-semibold leading-tight text-black transition hover:opacity-70"
             >
               {title}
@@ -117,7 +162,14 @@ export default function PublicWorkBoardCard({
               visibleTags.map((tag) => (
                 <Link
                   key={tag}
-                  href={localizePath(buildTagHref(tag), locale)}
+                  href={localizePath(
+                    buildTagHref(
+                      tag,
+                      searchReadIntent?.sourceLanguage,
+                      searchReadIntent?.readLanguage
+                    ),
+                    locale
+                  )}
                   className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-black"
                 >
                   {localizeTagLabel(tag, locale)}
@@ -185,12 +237,12 @@ export default function PublicWorkBoardCard({
                 {hasSummary ? "…" : ""}
               </button>
 
-              {firstReadHref ? (
+              {resolvedFirstReadHref ? (
                 <Link
-                  href={localizePath(firstReadHref, locale)}
+                  href={localizePath(resolvedFirstReadHref, locale)}
                   className="shrink-0 rounded-full border border-black/10 bg-neutral-200 px-3.5 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
                 >
-                  {copy.readFirst}
+                  {readActionLabel}
                 </Link>
               ) : (
                 <span className="shrink-0 rounded-full border border-black/10 bg-neutral-50 px-3.5 py-2 text-sm text-neutral-500">
@@ -209,12 +261,12 @@ export default function PublicWorkBoardCard({
               </button>
 
               <div className="mt-3 flex justify-end">
-                {firstReadHref ? (
+                {resolvedFirstReadHref ? (
                   <Link
-                    href={localizePath(firstReadHref, locale)}
+                    href={localizePath(resolvedFirstReadHref, locale)}
                     className="rounded-full border border-black/10 bg-neutral-200 px-3.5 py-2 text-sm font-medium text-black transition hover:bg-neutral-300"
                   >
-                    {copy.readFirst}
+                    {readActionLabel}
                   </Link>
                 ) : (
                   <span className="rounded-full border border-black/10 bg-neutral-50 px-3.5 py-2 text-sm text-neutral-500">
