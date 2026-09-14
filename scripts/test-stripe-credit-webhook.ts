@@ -38,6 +38,12 @@ function main() {
   assert.ok(balanceCard.includes('/commercial-transactions'));
   assert.ok(balanceCard.includes('accepted: true'));
   assert.ok(balanceCard.includes('localizePath("/credits"'));
+  assert.ok(balanceCard.includes('store: "クレジットを購入"'));
+  assert.equal(
+    balanceCard.includes("クレジット販売は現在準備中"),
+    false,
+    "My Page must not show the old credit-sale preparation message"
+  );
 
   const creditStore = source("src/app/credits/page.tsx");
   assert.ok(creditStore.includes('requireLoggedInUser("/credits")'));
@@ -48,6 +54,17 @@ function main() {
 
   const unlockGate = source("src/features/playback/PublicTranslationUnlockGate.tsx");
   assert.ok(unlockGate.includes('localizePath("/credits"'));
+  assert.ok(unlockGate.includes('entitlement.status === "credit_required"'));
+  assert.ok(unlockGate.includes("{copy.buy}"));
+
+  const subscriptionPage = source("src/app/subscription/page.tsx");
+  const subscriptionCopy = source("src/i18n/dictionaries/subscription.ts");
+  assert.ok(subscriptionPage.includes("公開作品の翻訳解放"));
+  assert.ok(subscriptionCopy.includes("公開作品の翻訳解放"));
+  assert.equal(subscriptionPage.includes("単語解説"), false);
+  assert.equal(subscriptionCopy.includes("単語解説"), false);
+  assert.equal(subscriptionCopy.includes("Word explanations"), false);
+  assert.equal(subscriptionCopy.includes("단어 설명"), false);
 
   const commercial = source("src/app/commercial-transactions/page.tsx");
   assert.ok(commercial.includes("getCreditPackCatalog"));
