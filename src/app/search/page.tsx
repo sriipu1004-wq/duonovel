@@ -1,3 +1,9 @@
+import {
+  cloneElement,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import PublicSearchReadIntentProvider from "@/components/search/PublicSearchReadIntentProvider";
 import { getCachedPublicBaseWorkCards } from "@/lib/publicWorks";
 import {
@@ -8,6 +14,33 @@ import { runWithPublicSearchLanguageFilters } from "@/lib/search/publicSearchReq
 import SearchPageLegacy from "./SearchPageLegacy";
 
 type SearchPageProps = Parameters<typeof SearchPageLegacy>[0];
+
+function replaceExactText(
+  node: ReactNode,
+  from: string,
+  to: string
+): ReactNode {
+  if (typeof node === "string") {
+    return node === from ? to : node;
+  }
+
+  if (Array.isArray(node)) {
+    return node.map((child) => replaceExactText(child, from, to));
+  }
+
+  if (!isValidElement(node)) {
+    return node;
+  }
+
+  const element = node as ReactElement<{ children?: ReactNode }>;
+  if (!("children" in element.props)) {
+    return element;
+  }
+
+  return cloneElement(element, {
+    children: replaceExactText(element.props.children, from, to),
+  });
+}
 
 export default async function SearchPage(props: SearchPageProps) {
   const resolvedSearchParams = props.searchParams
@@ -32,13 +65,22 @@ export default async function SearchPage(props: SearchPageProps) {
     () => SearchPageLegacy(props)
   );
 
+  const renderedPage =
+    sourceLanguage || readLanguage
+      ? replaceExactText(
+          page,
+          "まだ公開作品がない。",
+          "条件に合う公開作品がない。"
+        )
+      : page;
+
   return (
     <PublicSearchReadIntentProvider
       sourceLanguage={sourceLanguage}
       readLanguage={readLanguage}
       workMetadata={visibleWorkMetadata}
     >
-      {page}
+      {renderedPage}
     </PublicSearchReadIntentProvider>
   );
 }
