@@ -43,7 +43,7 @@ const COPY = {
     includedConfirmBody: "本日の利用枠を1回使います。解放後は、この話の同じ翻訳言語を何度読み直しても追加消費されません。",
     includedGenerateConfirm: "翻訳が未生成のため、続行するとAI翻訳を生成します。",
     includedConfirm: "解放する",
-    exhausted: "本日の無料利用回数を使い切りました。",
+    exhausted: "本日の利用回数を使い切りました。",
     creditOffer: "この話は1クレジットで解放できます。",
     unlock: "この話を1クレジットで解放",
     balance: (value: number) => `クレジット: ${value}`,
@@ -178,14 +178,17 @@ export default function PublicTranslationUnlockGate({
               >
                 {busy ? copy.processing : copy.unlock}
               </button>
-            ) : (
-              <Link
-                href={creditStoreHref}
-                className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white"
-              >
-                {copy.buy}
-              </Link>
-            )}
+            ) : null}
+            <Link
+              href={creditStoreHref}
+              className={
+                entitlement.status === "purchase_required"
+                  ? "rounded-full bg-black px-4 py-2 text-sm font-medium text-white"
+                  : "rounded-full border border-black/10 px-4 py-2 text-sm text-neutral-700"
+              }
+            >
+              {copy.buy}
+            </Link>
             <Link
               href={premiumHref}
               className="rounded-full border border-black/10 px-4 py-2 text-sm text-neutral-700"
