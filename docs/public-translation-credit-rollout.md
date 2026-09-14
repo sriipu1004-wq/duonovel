@@ -31,6 +31,11 @@ The Reader requires explicit confirmation before consuming either an included tr
 - Tap-to-word AI explanation is disabled in the public bilingual pane because the current latency is not appropriate for an inline dictionary interaction.
 - Same episode + same target-language unlock remains reusable without further allowance/credit consumption.
 
+## Workspace follow-up
+
+- Long episode lists are capped to a stable workspace height and scroll internally.
+- Original-language settings and translation glossary tools are rendered inside the work-status area rather than as standalone workspace cards.
+
 ## Approved Live credit catalog
 
 Approved on 2026-09-14:
