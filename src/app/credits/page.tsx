@@ -16,10 +16,11 @@ const COPY = {
   ja: {
     eyebrow: "CREDIT STORE",
     title: "クレジット購入",
-    lead: "公開作品の翻訳で本日の利用枠を使い切った後、1クレジットで1話・1翻訳言語を解放できます。",
+    lead: "公開作品の翻訳解放で本日の利用枠を使い切った後、1クレジットで公開作品1話 × 1翻訳言語を解放できます。",
     rule1: "同じ話・同じ翻訳言語は、一度解放すれば再読で追加消費しません。",
-    rule2: "Free / Premium の本日の利用枠が残っている場合は、購入クレジットより先に利用枠を使います。",
-    rule3: "購入クレジットには各パック記載の有効期限があります。現金化・譲渡はできません。",
+    rule2: "原文本文が更新されて翻訳を作り直す場合も、その話・翻訳言語の解放状態は維持されます。",
+    rule3: "Free / Premium の本日の利用枠が残っている場合は、購入クレジットより先に利用枠を使います。",
+    rule4: "購入クレジットは5クレジット¥300、8クレジット¥450、12クレジット¥600で、いずれも購入から150日有効です。現金化・譲渡はできません。",
     success: "決済を受け付けました。Stripeからの決済完了通知後、残高へ反映されます。",
     canceled: "決済はキャンセルされました。クレジットは追加されていません。",
     mypage: "マイページへ戻る",
@@ -28,10 +29,11 @@ const COPY = {
   en: {
     eyebrow: "CREDIT STORE",
     title: "Buy credits",
-    lead: "After using today's included public translations, 1 credit unlocks 1 episode in 1 translation language.",
-    rule1: "Once an episode/language is unlocked, rereading it does not consume another credit.",
-    rule2: "If your Free or Premium included allowance remains, it is used before purchased credits.",
-    rule3: "Purchased credits expire as shown for each pack and cannot be cashed out or transferred.",
+    lead: "After using today's included public-work translation unlocks, 1 credit unlocks 1 public-work episode × 1 target language.",
+    rule1: "Once an episode/target-language pair is unlocked, rereading it does not consume another credit.",
+    rule2: "If the source episode is updated and its translation is regenerated, the unlock for that episode/target-language pair remains.",
+    rule3: "If your Free or Premium included allowance remains, it is used before purchased credits.",
+    rule4: "Packs are 5 credits for ¥300, 8 for ¥450, or 12 for ¥600. All purchased credits are valid for 150 days and cannot be cashed out or transferred.",
     success: "Your payment was received. The balance updates after Stripe confirms the completed payment.",
     canceled: "Checkout was canceled. No credits were added.",
     mypage: "Back to My Page",
@@ -40,10 +42,11 @@ const COPY = {
   ko: {
     eyebrow: "CREDIT STORE",
     title: "크레딧 구매",
-    lead: "오늘 포함된 공개 번역 이용 횟수를 모두 사용한 뒤, 1크레딧으로 1화·1번역 언어를 잠금 해제할 수 있습니다.",
-    rule1: "같은 화·같은 번역 언어는 한 번 잠금 해제하면 다시 읽어도 추가 차감되지 않습니다.",
-    rule2: "Free / Premium 포함 이용 횟수가 남아 있으면 구매 크레딧보다 먼저 사용됩니다.",
-    rule3: "구매 크레딧에는 각 팩에 표시된 유효기간이 있으며 현금화·양도할 수 없습니다.",
+    lead: "오늘 포함된 공개 작품 번역 잠금 해제 이용량을 모두 사용한 뒤, 1크레딧으로 공개 작품 1화 × 대상 언어 1개를 잠금 해제할 수 있습니다.",
+    rule1: "같은 화·같은 대상 언어는 한 번 잠금 해제하면 다시 읽어도 추가 차감되지 않습니다.",
+    rule2: "원문 회차가 수정되어 번역을 다시 생성해도 해당 화·대상 언어의 잠금 해제 상태는 유지됩니다.",
+    rule3: "Free / Premium 포함 이용량이 남아 있으면 구매 크레딧보다 먼저 사용됩니다.",
+    rule4: "5크레딧 ¥300, 8크레딧 ¥450, 12크레딧 ¥600이며 구매 크레딧은 모두 150일 동안 유효합니다. 현금화·양도는 할 수 없습니다.",
     success: "결제가 접수되었습니다. Stripe의 결제 완료 확인 후 잔액에 반영됩니다.",
     canceled: "결제가 취소되었습니다. 크레딧은 추가되지 않았습니다.",
     mypage: "마이페이지로 돌아가기",
@@ -102,6 +105,7 @@ export default async function CreditsPage({ searchParams }: PageProps) {
           <p>{copy.rule1}</p>
           <p>{copy.rule2}</p>
           <p>{copy.rule3}</p>
+          <p>{copy.rule4}</p>
         </div>
 
         {params.credit_checkout === "success" ? (
