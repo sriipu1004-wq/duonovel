@@ -21,6 +21,8 @@ function readBoolean(value: unknown): boolean {
   return value === true || value === "true";
 }
 
+const NEXT_PATH_VALIDATION_ORIGIN = "https://libread.invalid";
+
 export function normalizeNextPath(
   value: string | null | undefined,
   fallback = "/"
@@ -30,12 +32,19 @@ export function normalizeNextPath(
   }
 
   const trimmed = value.trim();
-
-  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
+  if (!trimmed.startsWith("/") || /[\u0000-\u001f\u007f]/u.test(trimmed)) {
     return fallback;
   }
 
-  return trimmed;
+  try {
+    const parsed = new URL(trimmed, NEXT_PATH_VALIDATION_ORIGIN);
+    if (parsed.origin !== NEXT_PATH_VALIDATION_ORIGIN) {
+      return fallback;
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return fallback;
+  }
 }
 
 export function hasRequiredAccountRegistrationConsent(
