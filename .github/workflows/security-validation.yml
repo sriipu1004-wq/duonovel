@@ -37,6 +37,8 @@ jobs:
         run: npm run test:public-search-language-filters
       - name: Billing locale routing regression
         run: npm run test:billing-locale-routing
+      - name: Lint
+        run: npm run lint
       - name: Production build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
