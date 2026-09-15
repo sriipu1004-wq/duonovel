@@ -43,3 +43,5 @@ jobs:
         run: npm audit --omit=dev
       - name: Lint baseline
         run: npm run lint || true
+
+# Temporary workflow used only while the security audit refreshes the lockfile.
