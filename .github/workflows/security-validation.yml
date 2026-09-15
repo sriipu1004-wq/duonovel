@@ -1,0 +1,41 @@
+name: Security regression validation
+
+on:
+  push:
+    branches:
+      - security/auth-rls-payment-audit
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: contains(github.event.head_commit.message, '[security-validate]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Runtime dependency audit
+        run: npm audit --omit=dev
+      - name: Auth redirect regression
+        run: npm run test:auth-login-redirect
+      - name: Stripe credit webhook regression
+        run: npm run test:stripe-credit-webhook
+      - name: Public schema query regression
+        run: npm run test:public-schema-queries
+      - name: Workspace schema query regression
+        run: npm run test:workspace-schema-queries
+      - name: Translation permission schema regression
+        run: npm run test:series-translation-permission-schema
+      - name: Public search language regression
+        run: npm run test:public-search-language-filters
+      - name: Billing locale routing regression
+        run: npm run test:billing-locale-routing
+      - name: Production build
+        run: npm run build
