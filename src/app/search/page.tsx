@@ -51,6 +51,16 @@ function replaceExactText(
   });
 }
 
+function localizeSplitLegacyText(value: string, locale: Exclude<UiLocale, "ja">) {
+  if (value.trim() === "現在表示:") {
+    return value.replace(
+      "現在表示:",
+      locale === "en" ? "Current shelf:" : "현재 표시:"
+    );
+  }
+  return localizeLegacySearchText(value, locale);
+}
+
 function localizeLegacySearchNode(
   node: ReactNode,
   locale: UiLocale
@@ -58,10 +68,25 @@ function localizeLegacySearchNode(
   if (locale === "ja") return node;
 
   if (typeof node === "string") {
-    return localizeLegacySearchText(node, locale);
+    return localizeSplitLegacyText(node, locale);
   }
 
   if (Array.isArray(node)) {
+    if (
+      node.length === 2 &&
+      typeof node[0] === "number" &&
+      node[1] === "件"
+    ) {
+      const count = node[0];
+      return [
+        count,
+        locale === "en"
+          ? count === 1
+            ? " work"
+            : " works"
+          : "개 작품",
+      ];
+    }
     return node.map((child) => localizeLegacySearchNode(child, locale));
   }
 
