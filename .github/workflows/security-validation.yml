@@ -38,4 +38,8 @@ jobs:
       - name: Billing locale routing regression
         run: npm run test:billing-locale-routing
       - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
         run: npm run build
