@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import React, { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { parseHTML } from "linkedom";
 import PublicSearchLanguageFilters from "../src/components/search/PublicSearchLanguageFilters";
 import { buildPublicSearchHref } from "../src/components/search/PublicSearchControls";
+import {
+  getLocalizedSavedFilterLabel,
+  localizeLegacySearchText,
+  publicSearchControlCopy,
+} from "../src/lib/search/searchLocaleCopy";
 import {
   matchesPublicWorkLanguageFilters,
   parsePublicSearchReadLanguage,
@@ -90,6 +96,51 @@ async function verifyLanguageControlsKeepBothSelections() {
   });
 }
 
+function verifySearchLocaleCopy() {
+  assert.equal(publicSearchControlCopy.en.title, "Explore public works");
+  assert.equal(publicSearchControlCopy.ko.search, "검색");
+  assert.equal(
+    getLocalizedSavedFilterLabel("bookmarked-works", "en"),
+    "Bookmarked works"
+  );
+  assert.equal(
+    localizeLegacySearchText("検索結果", "en"),
+    "Search results"
+  );
+  assert.equal(
+    localizeLegacySearchText("条件に合う公開作品がない。", "ko"),
+    "조건에 맞는 공개 작품이 없습니다."
+  );
+  assert.equal(
+    localizeLegacySearchText("現在表示: 総合人気順", "en"),
+    "Current shelf: Overall popularity"
+  );
+  assert.equal(
+    localizeLegacySearchText(
+      "指定期間: 2026-09-01 〜 2026-09-15 / 並び順: 更新順",
+      "ko"
+    ),
+    "기간: 2026-09-01 〜 2026-09-15 / 정렬: 업데이트순"
+  );
+
+  const controlsSource = readFileSync(
+    "src/components/search/PublicSearchControls.tsx",
+    "utf8"
+  );
+  assert.ok(controlsSource.includes("useUiLocale"));
+  assert.ok(controlsSource.includes("publicSearchControlCopy[locale]"));
+  assert.ok(controlsSource.includes("localizePath("));
+  assert.equal(
+    controlsSource.includes("公開作品を探す"),
+    false,
+    "client search controls must not hardcode Japanese UI copy"
+  );
+
+  const pageSource = readFileSync("src/app/search/page.tsx", "utf8");
+  assert.ok(pageSource.includes("getUiLocale"));
+  assert.ok(pageSource.includes("localizeLegacySearchNode"));
+}
+
 async function main() {
   assert.equal(parsePublicSearchSourceLanguage("ja"), "ja");
   assert.equal(parsePublicSearchSourceLanguage("en"), "en");
@@ -150,10 +201,11 @@ async function main() {
     "a search submission must retain both independently chosen language filters"
   );
 
+  verifySearchLocaleCopy();
   await verifyLanguageControlsKeepBothSelections();
 
   console.log(
-    "PASS: public search source/read language semantics, controlled selections and no-filter compatibility"
+    "PASS: public search source/read language semantics, locale copy, controlled selections and no-filter compatibility"
   );
 }
 
