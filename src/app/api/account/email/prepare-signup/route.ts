@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
-type PrepareSignupStatus =
-  | "available"
-  | "deleted_unconfirmed"
-  | "confirmed";
+type PrepareSignupStatus = "available";
 
 function readText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -24,10 +20,6 @@ function validateEmail(value: string): string {
   }
 
   return "";
-}
-
-function isEmailConfirmed(value: unknown): boolean {
-  return typeof value === "string" && value.trim().length > 0;
 }
 
 export async function POST(request: Request) {
@@ -60,78 +52,18 @@ export async function POST(request: Request) {
     );
   }
 
-  try {
-    const adminSupabase = createAdminClient();
-    let page = 1;
-    const perPage = 200;
-
-    while (true) {
-      const { data, error } = await adminSupabase.auth.admin.listUsers({
-        page,
-        perPage,
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      const users = data?.users ?? [];
-      const matchedUser =
-        users.find(
-          (user) => normalizeEmail(user.email ?? "") === normalizedEmail
-        ) ?? null;
-
-      if (matchedUser) {
-        if (isEmailConfirmed(matchedUser.email_confirmed_at)) {
-          return NextResponse.json(
-            {
-              ok: false,
-              status: "confirmed" satisfies PrepareSignupStatus,
-              normalizedEmail,
-              error: "このメールアドレスはすでに登録済み。ログインへ進んで。",
-            },
-            { status: 409 }
-          );
-        }
-
-        const { error: deleteError } =
-          await adminSupabase.auth.admin.deleteUser(matchedUser.id);
-
-        if (deleteError) {
-          throw deleteError;
-        }
-
-        return NextResponse.json({
-          ok: true,
-          status: "deleted_unconfirmed" satisfies PrepareSignupStatus,
-          normalizedEmail,
-          error: "",
-        });
-      }
-
-      if (users.length < perPage) {
-        break;
-      }
-
-      page += 1;
-    }
-
-    return NextResponse.json({
-      ok: true,
-      status: "available" satisfies PrepareSignupStatus,
-      normalizedEmail,
-      error: "",
-    });
-  } catch (error) {
-    console.error("[prepare-signup-email]", error);
-
-    return NextResponse.json(
-      {
-        ok: false,
-        status: "available" satisfies PrepareSignupStatus,
-        error: "確認メール送信の準備に失敗した。",
-      },
-      { status: 500 }
-    );
-  }
+  // Do not inspect Supabase Auth users here. The previous implementation exposed
+  // whether an arbitrary email was registered and, more seriously, deleted any
+  // matching unconfirmed user through the admin API before signup. A third party
+  // could therefore repeatedly remove another person's pending account.
+  //
+  // Supabase Auth owns duplicate-signup / confirmation behavior. This endpoint
+  // now only preserves the existing client contract by validating and
+  // normalizing the address before supabase.auth.signUp().
+  return NextResponse.json({
+    ok: true,
+    status: "available" satisfies PrepareSignupStatus,
+    normalizedEmail,
+    error: "",
+  });
 }

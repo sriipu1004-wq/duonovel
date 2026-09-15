@@ -58,11 +58,14 @@ export function getPublicTranslationDailyLimits(): {
 }
 
 function forwardedIp(headers: Headers): string {
+  // Vercel overwrites x-forwarded-for at the edge to prevent client spoofing.
+  // Prefer it over caller-supplied forwarding headers. The fallbacks only help
+  // non-Vercel/local environments where x-forwarded-for is absent.
   for (const name of [
-    "cf-connecting-ip",
-    "x-real-ip",
     "x-forwarded-for",
     "x-vercel-forwarded-for",
+    "cf-connecting-ip",
+    "x-real-ip",
   ]) {
     const value = headers.get(name)?.split(",")[0]?.trim();
     if (value) return value;
@@ -76,9 +79,8 @@ function anonymousKey(request: Request): string {
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.OPENAI_API_KEY ||
     "libread-local-ai-usage";
-  const userAgent = request.headers.get("user-agent")?.trim() ?? "unknown";
   return createHash("sha256")
-    .update(`${salt}:${forwardedIp(request.headers)}:${userAgent}`)
+    .update(`${salt}:${forwardedIp(request.headers)}`)
     .digest("hex");
 }
 

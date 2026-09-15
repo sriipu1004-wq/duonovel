@@ -1,9 +1,30 @@
 import { NextResponse } from "next/server";
 import { analyzeAudioUploadServer } from "@/lib/recording/audioUploadServerValidation";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  // Authenticate before parsing a potentially large multipart body. The audio
+  // policy permits long-form files, so accepting anonymous request bodies here
+  // creates avoidable bandwidth/memory pressure even though validation itself
+  // only sniffs a small header slice.
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "ログイン状態を確認できなかった。",
+      },
+      { status: 401 }
+    );
+  }
+
   let formData: FormData;
 
   try {

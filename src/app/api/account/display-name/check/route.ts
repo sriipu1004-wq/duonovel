@@ -5,6 +5,7 @@ import {
 } from "@/lib/auth/accountSignupConsent";
 import { findDisplayNameConflict } from "@/lib/auth/displayNameAvailability";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 function readText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -29,7 +30,6 @@ export async function POST(request: Request) {
   const normalizedDisplayName = normalizeDisplayName(
     readText(payload.displayName)
   );
-  const excludeUserId = readText(payload.excludeUserId);
 
   const validationError = validateDisplayName(normalizedDisplayName);
 
@@ -45,12 +45,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    const adminSupabase = createAdminClient();
+    // Never trust a caller-provided excludeUserId. Anonymous signup checks have
+    // no exclusion; signed-in profile edits may exclude only the current session
+    // user resolved by Supabase Auth on the server.
+    const sessionClient = await createClient();
+    const {
+      data: { user },
+    } = await sessionClient.auth.getUser();
 
+    const adminSupabase = createAdminClient();
     const conflict = await findDisplayNameConflict({
       supabase: adminSupabase,
       displayName: normalizedDisplayName,
-      excludeUserId: excludeUserId || undefined,
+      excludeUserId: user?.id ?? undefined,
     });
 
     return NextResponse.json({
