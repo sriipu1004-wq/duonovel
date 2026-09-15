@@ -9,18 +9,24 @@ import {
   getCreditTermsVersion,
   isCreditPurchaseEnabled,
 } from "@/lib/billing/creditPackCatalog";
+import {
+  creditCheckoutSubmitMessage,
+  localizeBillingPath,
+  parseBillingUiLocale,
+} from "@/lib/billing/billingLocale";
 import { getStripeClient } from "@/lib/billing/stripe.server";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  let payload: { packId?: unknown; accepted?: unknown } = {};
+  let payload: { packId?: unknown; accepted?: unknown; locale?: unknown } = {};
   try {
     payload = (await request.json()) as typeof payload;
   } catch {
     return NextResponse.json({ ok: false, error: "invalid_request" }, { status: 400 });
   }
+  const locale = parseBillingUiLocale(payload.locale);
 
   if (!isCreditPurchaseEnabled()) {
     return NextResponse.json(
@@ -57,19 +63,20 @@ export async function POST(request: Request) {
       email: user.email,
     });
     const origin = getRequestOrigin(request);
+    const returnPath = localizeBillingPath("/credits", locale);
     const stripe = getStripeClient();
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer: stripeCustomerId,
       client_reference_id: user.id,
       line_items: [{ price: pack.stripePriceId, quantity: 1 }],
-      locale: "ja",
+      locale,
       allow_promotion_codes: false,
       billing_address_collection: "auto",
       customer_update: { address: "auto", name: "auto" },
       automatic_tax: { enabled: isStripeAutomaticTaxEnabled() },
-      success_url: `${origin}/credits?credit_checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/credits?credit_checkout=canceled`,
+      success_url: `${origin}${returnPath}?credit_checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}${returnPath}?credit_checkout=canceled`,
       metadata: {
         libread_kind: "credit_pack",
         libread_user_id: user.id,
@@ -78,12 +85,16 @@ export async function POST(request: Request) {
       },
       custom_text: {
         submit: {
-          message: `${pack.credits}クレジットの買い切りです。有効期限は購入日から${pack.expiresInDays}日です。`,
+          message: creditCheckoutSubmitMessage({
+            locale,
+            credits: pack.credits,
+            expiresInDays: pack.expiresInDays,
+          }),
         },
       },
     });
 
-    if (!session.url) throw new Error("Stripe Checkout URLを取得できませんでした。");
+    if (!session.url) throw new Error("Stripe Checkout URL is unavailable");
     return NextResponse.json({ ok: true, url: session.url });
   } catch (checkoutError) {
     console.error("[credit-checkout]", checkoutError);

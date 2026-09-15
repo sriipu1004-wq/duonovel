@@ -1,18 +1,31 @@
 import { NextResponse } from "next/server";
 import { getBillingCustomerId } from "@/lib/billing/billing.server";
 import { getRequestOrigin, isStripeConfigured } from "@/lib/billing/billingConfig";
+import {
+  billingMessage,
+  localizeBillingPath,
+  parseBillingUiLocale,
+} from "@/lib/billing/billingLocale";
 import { getStripeClient } from "@/lib/billing/stripe.server";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  let payload: { locale?: unknown } = {};
+  try {
+    payload = (await request.json()) as typeof payload;
+  } catch {
+    // Older clients may send no body; keep the Japanese default in that case.
+  }
+  const locale = parseBillingUiLocale(payload.locale);
+
   if (!isStripeConfigured()) {
     return NextResponse.json(
       {
         ok: false,
         error: "billing_not_ready",
-        message: "契約管理は現在準備中です。",
+        message: billingMessage(locale, "billingNotReady"),
       },
       { status: 503 }
     );
@@ -34,7 +47,7 @@ export async function POST(request: Request) {
         {
           ok: false,
           error: "billing_customer_not_found",
-          message: "管理対象の契約がありません。",
+          message: billingMessage(locale, "billingCustomerNotFound"),
         },
         { status: 404 }
       );
@@ -42,8 +55,8 @@ export async function POST(request: Request) {
 
     const session = await getStripeClient().billingPortal.sessions.create({
       customer: stripeCustomerId,
-      return_url: `${getRequestOrigin(request)}/subscription`,
-      locale: "ja",
+      return_url: `${getRequestOrigin(request)}${localizeBillingPath("/subscription", locale)}`,
+      locale,
     });
     return NextResponse.json({ ok: true, url: session.url });
   } catch (portalError) {
@@ -52,7 +65,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "portal_failed",
-        message: "契約管理画面を開けませんでした。",
+        message: billingMessage(locale, "portalFailed"),
       },
       { status: 500 }
     );

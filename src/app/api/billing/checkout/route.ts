@@ -11,26 +11,34 @@ import {
   isPaidSubscriptionReady,
   isStripeAutomaticTaxEnabled,
   LIBREAD_BILLING_TERMS_VERSION,
+  LIBREAD_SUBSCRIPTION_PRICE_JPY,
 } from "@/lib/billing/billingConfig";
+import {
+  billingMessage,
+  localizeBillingPath,
+  parseBillingUiLocale,
+  subscriptionCheckoutSubmitMessage,
+} from "@/lib/billing/billingLocale";
 import { getStripeClient } from "@/lib/billing/stripe.server";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  let payload: { accepted?: boolean } = {};
+  let payload: { accepted?: boolean; locale?: unknown } = {};
   try {
-    payload = (await request.json()) as { accepted?: boolean };
+    payload = (await request.json()) as typeof payload;
   } catch {
     // The explicit acceptance below still rejects an empty or malformed body.
   }
+  const locale = parseBillingUiLocale(payload.locale);
 
   if (payload.accepted !== true) {
     return NextResponse.json(
       {
         ok: false,
         error: "terms_acceptance_required",
-        message: "料金・自動更新・解約条件を確認してから進んでください。",
+        message: billingMessage(locale, "termsAcceptanceRequired"),
       },
       { status: 400 }
     );
@@ -41,8 +49,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "billing_not_ready",
-        message:
-          "決済設定または特定商取引法に基づく表記が未完了のため、現在は契約できません。",
+        message: billingMessage(locale, "billingNotReady"),
       },
       { status: 503 }
     );
@@ -56,7 +63,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "authentication_required",
-        message: "サブスクの契約にはログインが必要です。",
+        message: billingMessage(locale, "authenticationRequired"),
       },
       { status: 401 }
     );
@@ -74,19 +81,19 @@ export async function POST(request: Request) {
         {
           ok: false,
           error: "subscription_already_exists",
-          message:
-            "処理中または利用中の契約があります。契約管理から状態を確認してください。",
+          message: billingMessage(locale, "subscriptionAlreadyExists"),
         },
         { status: 409 }
       );
     }
 
     const openSession = await findOpenCheckoutSession(stripeCustomerId);
-    if (openSession?.url) {
+    if (openSession?.url && openSession.locale === locale) {
       return NextResponse.json({ ok: true, url: openSession.url });
     }
 
     const origin = getRequestOrigin(request);
+    const returnPath = localizeBillingPath("/subscription", locale);
     const stripe = getStripeClient();
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -94,7 +101,7 @@ export async function POST(request: Request) {
       customer: stripeCustomerId,
       client_reference_id: user.id,
       line_items: [{ price: getStripePriceId(), quantity: 1 }],
-      locale: "ja",
+      locale,
       allow_promotion_codes: false,
       billing_address_collection: "auto",
       customer_update: { address: "auto", name: "auto" },
@@ -102,8 +109,8 @@ export async function POST(request: Request) {
       // The subscription page already records explicit acceptance before this
       // request. Requiring Checkout's separate consent box also requires a
       // Dashboard-hosted TOS URL and prevents session creation when it is unset.
-      success_url: `${origin}/subscription?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/subscription?checkout=canceled`,
+      success_url: `${origin}${returnPath}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}${returnPath}?checkout=canceled`,
       metadata: {
         libread_user_id: user.id,
         terms_version: LIBREAD_BILLING_TERMS_VERSION,
@@ -116,13 +123,15 @@ export async function POST(request: Request) {
       },
       custom_text: {
         submit: {
-          message:
-            "月額680円（税込）の自動更新です。解約後も当月の利用期限まで使えます。",
+          message: subscriptionCheckoutSubmitMessage(
+            locale,
+            LIBREAD_SUBSCRIPTION_PRICE_JPY
+          ),
         },
       },
     });
 
-    if (!session.url) throw new Error("Stripe Checkout URLを取得できませんでした。");
+    if (!session.url) throw new Error("Stripe Checkout URL is unavailable");
     return NextResponse.json({ ok: true, url: session.url });
   } catch (checkoutError) {
     console.error("[billing-checkout]", checkoutError);
@@ -137,9 +146,10 @@ export async function POST(request: Request) {
         error: liveChargesUnavailable
           ? "live_charges_unavailable"
           : "checkout_failed",
-        message: liveChargesUnavailable
-          ? "現在はStripeの本番決済有効化手続き中です。完了後に申し込みを再開します。"
-          : "決済画面を開けませんでした。時間を置いて再度お試しください。",
+        message: billingMessage(
+          locale,
+          liveChargesUnavailable ? "liveChargesUnavailable" : "checkoutFailed"
+        ),
       },
       { status: liveChargesUnavailable ? 503 : 500 }
     );

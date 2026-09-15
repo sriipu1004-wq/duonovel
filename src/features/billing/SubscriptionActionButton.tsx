@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { subscriptionDictionaries } from "@/i18n/dictionaries/subscription";
+import { localizePath } from "@/i18n/navigation";
 
 type SubscriptionActionButtonProps = {
   mode: "checkout" | "portal";
@@ -41,7 +42,7 @@ export default function SubscriptionActionButton({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accepted }),
+          body: JSON.stringify({ accepted, locale }),
         }
       );
       const payload = (await response.json()) as BillingResponse;
@@ -88,11 +89,11 @@ export default function SubscriptionActionButton({
         />
         <span>
           {dictionary.acceptBilling}{" "}
-          <Link href="/terms" className="underline underline-offset-4">
+          <Link href={localizePath("/terms", locale)} className="underline underline-offset-4">
             {dictionary.terms}
           </Link>
           {" · "}
-          <Link href="/commercial-transactions" className="underline underline-offset-4">
+          <Link href={localizePath("/commercial-transactions", locale)} className="underline underline-offset-4">
             {dictionary.commercial}
           </Link>
         </span>
