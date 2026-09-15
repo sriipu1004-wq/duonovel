@@ -169,6 +169,12 @@ function main() {
     "generatedReaderDictionaries[locale]",
     "dictionary.metadataTitle",
   ]);
+  assertSourceContains("src/app/library/layout.tsx", [
+    "getUiLocale",
+    "generateMetadata",
+    "My Library | LIB read",
+    "개인 서재 | LIB read",
+  ]);
 
   console.log("PASS: EN/KO i18n dictionaries and known residual UI literals");
 }
