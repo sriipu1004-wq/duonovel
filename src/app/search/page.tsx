@@ -13,8 +13,13 @@ import {
   parsePublicSearchReadLanguage,
   parsePublicSearchSourceLanguage,
 } from "@/lib/search/publicWorkLanguageFilter";
+import { preservePublicSearchLanguageFilters } from "@/lib/search/publicSearchLanguageHref";
 import { runWithPublicSearchLanguageFilters } from "@/lib/search/publicSearchRequestContext";
 import { localizeLegacySearchText } from "@/lib/search/searchLocaleCopy";
+import type {
+  PublicTranslationTargetLanguage,
+  SupportedLanguageTag,
+} from "@/lib/translation/languageRegistry";
 import SearchPageLegacy from "./SearchPageLegacy";
 
 type SearchPageProps = Parameters<typeof SearchPageLegacy>[0];
@@ -63,16 +68,17 @@ function localizeSplitLegacyText(value: string, locale: Exclude<UiLocale, "ja">)
 
 function localizeLegacySearchNode(
   node: ReactNode,
-  locale: UiLocale
+  locale: UiLocale,
+  sourceLanguage: SupportedLanguageTag | null,
+  readLanguage: PublicTranslationTargetLanguage | null
 ): ReactNode {
-  if (locale === "ja") return node;
-
   if (typeof node === "string") {
-    return localizeSplitLegacyText(node, locale);
+    return locale === "ja" ? node : localizeSplitLegacyText(node, locale);
   }
 
   if (Array.isArray(node)) {
     if (
+      locale !== "ja" &&
       node.length === 2 &&
       typeof node[0] === "number" &&
       node[1] === "件"
@@ -87,7 +93,9 @@ function localizeLegacySearchNode(
           : "개 작품",
       ];
     }
-    return node.map((child) => localizeLegacySearchNode(child, locale));
+    return node.map((child) =>
+      localizeLegacySearchNode(child, locale, sourceLanguage, readLanguage)
+    );
   }
 
   if (!isValidElement(node)) {
@@ -99,12 +107,21 @@ function localizeLegacySearchNode(
   let changed = false;
 
   if ("children" in element.props) {
-    nextProps.children = localizeLegacySearchNode(element.props.children, locale);
+    nextProps.children = localizeLegacySearchNode(
+      element.props.children,
+      locale,
+      sourceLanguage,
+      readLanguage
+    );
     changed = nextProps.children !== element.props.children;
   }
 
   if (typeof element.props.href === "string" && element.props.href.startsWith("/")) {
-    const localizedHref = localizePath(element.props.href, locale);
+    const preservedHref = preservePublicSearchLanguageFilters(element.props.href, {
+      sourceLanguage,
+      readLanguage,
+    });
+    const localizedHref = localizePath(preservedHref, locale);
     if (localizedHref !== element.props.href) {
       nextProps.href = localizedHref;
       changed = true;
@@ -147,7 +164,12 @@ export default async function SearchPage(props: SearchPageProps) {
         )
       : page;
 
-  const renderedPage = localizeLegacySearchNode(filteredEmptyStatePage, locale);
+  const renderedPage = localizeLegacySearchNode(
+    filteredEmptyStatePage,
+    locale,
+    sourceLanguage,
+    readLanguage
+  );
 
   return (
     <PublicSearchReadIntentProvider

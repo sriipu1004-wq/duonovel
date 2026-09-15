@@ -10,6 +10,7 @@ import {
   localizeLegacySearchText,
   publicSearchControlCopy,
 } from "../src/lib/search/searchLocaleCopy";
+import { preservePublicSearchLanguageFilters } from "../src/lib/search/publicSearchLanguageHref";
 import {
   matchesPublicWorkLanguageFilters,
   parsePublicSearchReadLanguage,
@@ -139,6 +140,33 @@ function verifySearchLocaleCopy() {
   const pageSource = readFileSync("src/app/search/page.tsx", "utf8");
   assert.ok(pageSource.includes("getUiLocale"));
   assert.ok(pageSource.includes("localizeLegacySearchNode"));
+  assert.ok(pageSource.includes("preservePublicSearchLanguageFilters"));
+}
+
+function verifyServerSearchLinksKeepLanguageFilters() {
+  assert.equal(
+    preservePublicSearchLanguageFilters(
+      "/search?q=detective&shelfTab=latest",
+      { sourceLanguage: "ja", readLanguage: "en" }
+    ),
+    "/search?q=detective&shelfTab=latest&source_language=ja&read_language=en"
+  );
+  assert.equal(
+    preservePublicSearchLanguageFilters(
+      "/search?source_language=ko&read_language=ko&order=updated",
+      { sourceLanguage: "ja", readLanguage: "en" }
+    ),
+    "/search?source_language=ja&read_language=en&order=updated",
+    "current request language filters must override stale server-link values"
+  );
+  assert.equal(
+    preservePublicSearchLanguageFilters(
+      "/works/example",
+      { sourceLanguage: "ja", readLanguage: "en" }
+    ),
+    "/works/example",
+    "non-search links must not be mutated"
+  );
 }
 
 async function main() {
@@ -202,10 +230,11 @@ async function main() {
   );
 
   verifySearchLocaleCopy();
+  verifyServerSearchLinksKeepLanguageFilters();
   await verifyLanguageControlsKeepBothSelections();
 
   console.log(
-    "PASS: public search source/read language semantics, locale copy, controlled selections and no-filter compatibility"
+    "PASS: public search source/read language semantics, locale copy, navigation state, controlled selections and no-filter compatibility"
   );
 }
 
