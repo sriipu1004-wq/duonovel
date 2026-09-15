@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { buildCurrentLoginHref } from "../src/lib/auth/loginRedirect";
 
 function main() {
@@ -24,7 +25,19 @@ function main() {
     "/ko/login"
   );
 
-  console.log("PASS: header login preserves the current locale, reader mode and target language");
+  const unlockGate = readFileSync(
+    "src/features/playback/PublicTranslationUnlockGate.tsx",
+    "utf8"
+  );
+  assert.equal(unlockGate.includes("useSyncExternalStore"), true);
+  assert.equal(unlockGate.includes("getServerLocationSnapshot"), true);
+  assert.equal(
+    unlockGate.includes('typeof window === "undefined"'),
+    false,
+    "translation unlock login href must not diverge between SSR and hydration"
+  );
+
+  console.log("PASS: login redirects preserve Reader state without hydration mismatch");
 }
 
 main();

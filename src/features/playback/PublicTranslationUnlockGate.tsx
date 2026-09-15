@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import type { UiLocale } from "@/i18n/config";
 import { localizePath } from "@/i18n/navigation";
@@ -37,6 +37,19 @@ export function buildPublicTranslationLoginHref(
   locale: UiLocale
 ): string {
   return localizePath(`/login?next=${encodeURIComponent(currentPath)}`, locale);
+}
+
+function subscribeToLocationChange(onStoreChange: () => void) {
+  window.addEventListener("popstate", onStoreChange);
+  return () => window.removeEventListener("popstate", onStoreChange);
+}
+
+function getClientLocationSnapshot(): string {
+  return `${window.location.pathname}${window.location.search}`;
+}
+
+function getServerLocationSnapshot(): string {
+  return "/";
 }
 
 const COPY = {
@@ -125,10 +138,11 @@ export default function PublicTranslationUnlockGate({
   const locale = useUiLocale();
   const copy = COPY[locale];
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
-  const current =
-    typeof window === "undefined"
-      ? "/"
-      : `${window.location.pathname}${window.location.search}`;
+  const current = useSyncExternalStore(
+    subscribeToLocationChange,
+    getClientLocationSnapshot,
+    getServerLocationSnapshot
+  );
   const loginHref = buildPublicTranslationLoginHref(current, locale);
   const creditStoreHref = localizePath("/credits", locale);
   const premiumHref = localizePath("/subscription", locale);
