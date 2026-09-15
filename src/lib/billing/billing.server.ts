@@ -100,10 +100,19 @@ export async function getOrCreateBillingCustomer(args: {
     return existing;
   }
 
-  const customer = await stripe.customers.create({
-    email: args.email,
-    metadata: { libread_user_id: args.userId },
-  });
+  // Checkout and credit-purchase requests can be double-submitted or arrive in
+  // parallel. Without a Stripe idempotency key both requests can create a
+  // different Customer before either request stores the user->customer mapping.
+  // The later upsert then strands the first Customer and any Checkout Session
+  // attached to it, causing a successful payment to fail ownership validation
+  // in the webhook. Stripe's idempotency key collapses those concurrent creates.
+  const customer = await stripe.customers.create(
+    {
+      email: args.email,
+      metadata: { libread_user_id: args.userId },
+    },
+    { idempotencyKey: `libread-customer-v1:${args.userId}` }
+  );
   const admin = createAdminClient();
   const { error } = await admin.from("libread_billing_customers").upsert(
     {
