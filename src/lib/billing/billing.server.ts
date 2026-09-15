@@ -183,16 +183,24 @@ export async function verifyConfiguredStripePrice(): Promise<void> {
 async function resolveSubscriptionUserId(
   subscription: Stripe.Subscription
 ): Promise<string | null> {
-  const metadataUserId = subscription.metadata.libread_user_id?.trim();
-  if (metadataUserId) return metadataUserId;
-
+  const stripeCustomerId = customerId(subscription.customer);
   const admin = createAdminClient();
-  const { data } = await admin
+  const { data, error } = await admin
     .from("libread_billing_customers")
     .select("user_id")
-    .eq("stripe_customer_id", customerId(subscription.customer))
+    .eq("stripe_customer_id", stripeCustomerId)
     .maybeSingle();
-  return data?.user_id ? String(data.user_id) : null;
+  if (error) {
+    throw new Error(`Stripe顧客の所有者確認に失敗しました: ${error.message}`);
+  }
+  if (!data?.user_id) return null;
+
+  const mappedUserId = String(data.user_id);
+  const metadataUserId = subscription.metadata.libread_user_id?.trim();
+  if (metadataUserId && metadataUserId !== mappedUserId) {
+    throw new Error("Stripe契約metadataと顧客所有者が一致しません。");
+  }
+  return mappedUserId;
 }
 
 export async function syncStripeSubscription(
