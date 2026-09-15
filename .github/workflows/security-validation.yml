@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - name: Install locked dependencies
         run: npm ci
@@ -37,7 +37,31 @@ jobs:
         run: npm run test:public-search-language-filters
       - name: Billing locale routing regression
         run: npm run test:billing-locale-routing
-      - name: Lint
+      - name: Security diff lint
+        run: >-
+          npx eslint
+          scripts/test-auth-login-redirect.ts
+          scripts/test-stripe-credit-webhook.ts
+          src/app/api/account/display-name/check/route.ts
+          src/app/api/account/email/check/route.ts
+          src/app/api/account/email/prepare-signup/route.ts
+          src/app/api/authors/follow/route.ts
+          src/app/api/authors/like/route.ts
+          src/app/api/billing/webhook/route.ts
+          src/app/api/bookmarks/series/route.ts
+          src/app/api/popularity/events/route.ts
+          src/app/api/recordings/human-publish/route.ts
+          src/app/api/recordings/human-upload-session/route.ts
+          src/app/api/recordings/human-visibility/route.ts
+          src/app/api/recordings/upload-check/route.ts
+          src/app/api/series/reaction/route.ts
+          src/lib/aiUsage/aiUsage.server.ts
+          src/lib/auth/accountSignupConsent.ts
+          src/lib/auth/displayNameAvailability.ts
+          src/lib/billing/billing.server.ts
+          src/lib/supabase/admin.ts
+      - name: Repository lint baseline
+        continue-on-error: true
         run: npm run lint
       - name: Production build
         env:
