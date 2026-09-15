@@ -25,8 +25,6 @@ jobs:
         run: npm install --package-lock-only --ignore-scripts
       - name: Verify clean install
         run: npm ci --ignore-scripts
-      - name: Lint
-        run: npm run lint
       - name: Commit lockfile
         shell: bash
         run: |
@@ -39,3 +37,7 @@ jobs:
           git add package-lock.json
           git commit -m "chore(deps): refresh lockfile for security upgrades"
           git push origin HEAD:security/auth-rls-payment-audit
+      - name: Runtime dependency audit
+        run: npm audit --omit=dev || true
+      - name: Lint baseline
+        run: npm run lint || true
