@@ -28,6 +28,7 @@ import { localizePath } from "@/i18n/navigation";
 import { readPageDictionaries } from "@/i18n/dictionaries/readPage";
 import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 import { getSupportedLanguage } from "@/lib/translation/languageRegistry";
+import { isUuid } from "@/lib/uuid";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -260,7 +261,7 @@ export async function generateMetadata({
   const { seriesId, episodeNumber } = await params;
   const parsedEpisodeNumber = parseEpisodeNumber(episodeNumber);
 
-  if (!parsedEpisodeNumber) {
+  if (!isUuid(seriesId) || !parsedEpisodeNumber) {
     return {
       title: `${ui.notFound} | LIB read`,
       robots: { index: false, follow: false },
@@ -359,7 +360,7 @@ export default async function ReadEpisodePage({
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const parsedEpisodeNumber = parseEpisodeNumber(episodeNumber);
 
-  if (!parsedEpisodeNumber) notFound();
+  if (!isUuid(seriesId) || !parsedEpisodeNumber) notFound();
 
   const payload = await getCachedPublicReadPagePayload(
     seriesId,

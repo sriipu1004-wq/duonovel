@@ -15,19 +15,18 @@ async function fetchSeries(seriesId: string, supabase: Awaited<ReturnType<typeof
 }
 
 async function fetchEpisode(seriesId: string, episodeId: string, supabase: Awaited<ReturnType<typeof requireOwnedSeries>>["supabase"]): Promise<EpisodeRow | null> {
-  const first = await supabase.from("episodes").select("*").eq("id", episodeId).eq("series_id", seriesId).maybeSingle();
-  if (!first.error && first.data) return first.data as EpisodeRow;
-  const second = await supabase.from("episodes").select("*").eq("id", episodeId).eq("seriesId", seriesId).maybeSingle();
-  if (!second.error && second.data) return second.data as EpisodeRow;
-  const fallback = await supabase.from("episodes").select("*").eq("id", episodeId).maybeSingle();
-  return fallback.error || !fallback.data ? null : (fallback.data as EpisodeRow);
+  const { data, error } = await supabase
+    .from("episodes")
+    .select("*")
+    .eq("id", episodeId)
+    .eq("series_id", seriesId)
+    .maybeSingle();
+  return error || !data ? null : (data as EpisodeRow);
 }
 
 async function fetchEpisodes(seriesId: string, supabase: Awaited<ReturnType<typeof requireOwnedSeries>>["supabase"]): Promise<EpisodeRow[]> {
-  const first = await supabase.from("episodes").select("*").eq("series_id", seriesId);
-  if (!first.error) return (first.data ?? []) as EpisodeRow[];
-  const second = await supabase.from("episodes").select("*").eq("seriesId", seriesId);
-  return second.error ? [] : ((second.data ?? []) as EpisodeRow[]);
+  const result = await supabase.from("episodes").select("*").eq("series_id", seriesId);
+  return result.error ? [] : ((result.data ?? []) as EpisodeRow[]);
 }
 
 function findPreviousEpisode(episodes: EpisodeRow[], currentEpisodeNumber: number, currentEpisodeId: string): EpisodeRow | null {

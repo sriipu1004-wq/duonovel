@@ -2,6 +2,10 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import {
+  isLocalizedPath,
+  isLocalizedPathWithin,
+} from "@/lib/navigation/matchLocalizedPath";
 
 type ReaderSelectionBootstrapProps = {
   seriesId: string;
@@ -122,7 +126,8 @@ function applyReaderSelectionToPageLinks(args: {
     }
 
     const shouldUpdate =
-      url.pathname.startsWith(readPathPrefix) || url.pathname === worksPath;
+      isLocalizedPathWithin(url.pathname, readPathPrefix) ||
+      isLocalizedPath(url.pathname, worksPath);
 
     if (!shouldUpdate) {
       return;
@@ -304,7 +309,7 @@ export default function ReaderSelectionBootstrap({
       }
 
       const readPathPrefix = `/read/${seriesId}/`;
-      if (!url.pathname.startsWith(readPathPrefix)) {
+      if (!isLocalizedPathWithin(url.pathname, readPathPrefix)) {
         return;
       }
 

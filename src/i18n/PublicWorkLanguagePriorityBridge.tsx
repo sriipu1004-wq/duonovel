@@ -3,15 +3,9 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { stripUiLocalePrefix, type UiLocale } from "./config";
-import {
-  CONTENT_LANGUAGE_FILTER_COOKIE,
-  CONTENT_LANGUAGE_FILTER_EVENT,
-  parseContentLanguageList,
-  type ContentLanguage,
-} from "./contentLanguage";
+import type { ContentLanguage } from "./contentLanguage";
 
-const DISCOVERY_PATHS = new Set(["/", "/search", "/search/saved"]);
-const SEARCH_PATHS = new Set(["/search", "/search/saved"]);
+const DISCOVERY_PATHS = new Set(["/"]);
 
 function countLanguageCards(element: Element): number {
   const selfCount =
@@ -46,30 +40,10 @@ function findSortableItem(card: HTMLElement): HTMLElement {
   return card;
 }
 
-function readSelectedLanguages(): ContentLanguage[] {
-  const cookie = document.cookie
-    .split(";")
-    .map((item) => item.trim())
-    .find((item) => item.startsWith(`${CONTENT_LANGUAGE_FILTER_COOKIE}=`));
-  if (!cookie) return [];
-
-  try {
-    return parseContentLanguageList(
-      decodeURIComponent(cookie.slice(cookie.indexOf("=") + 1))
-    );
-  } catch {
-    return [];
-  }
-}
-
-function applyPriorityAndFilter(locale: UiLocale, route: string) {
+function applyPriority(locale: UiLocale) {
   const cards = Array.from(
     document.querySelectorAll<HTMLElement>("[data-content-language]")
   );
-  const selectedLanguages = SEARCH_PATHS.has(route)
-    ? new Set(readSelectedLanguages())
-    : null;
-  const hasLanguageFilter = Boolean(selectedLanguages && selectedLanguages.size > 0);
   const handledItems = new Set<HTMLElement>();
 
   for (const card of cards) {
@@ -78,9 +52,6 @@ function applyPriorityAndFilter(locale: UiLocale, route: string) {
 
     if (!handledItems.has(item)) {
       item.style.order = language === locale ? "-1" : "0";
-      item.hidden = Boolean(
-        hasLanguageFilter && language && !selectedLanguages?.has(language)
-      );
       handledItems.add(item);
     }
   }
@@ -97,7 +68,7 @@ export default function PublicWorkLanguagePriorityBridge({
   useEffect(() => {
     if (!DISCOVERY_PATHS.has(route)) return;
 
-    const run = () => applyPriorityAndFilter(locale, route);
+    const run = () => applyPriority(locale);
     run();
 
     let scheduled = false;
@@ -110,17 +81,10 @@ export default function PublicWorkLanguagePriorityBridge({
       });
     });
 
-    const handleLanguageFilterChange = () => run();
-
     observer.observe(document.body, { childList: true, subtree: true });
-    window.addEventListener(CONTENT_LANGUAGE_FILTER_EVENT, handleLanguageFilterChange);
 
     return () => {
       observer.disconnect();
-      window.removeEventListener(
-        CONTENT_LANGUAGE_FILTER_EVENT,
-        handleLanguageFilterChange
-      );
     };
   }, [locale, route]);
 

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import type { UiLocale } from "@/i18n/config";
 import { localizePath } from "@/i18n/navigation";
 
 export type ReaderTranslationEntitlement = {
@@ -24,11 +25,32 @@ type Props = {
   entitlement: ReaderTranslationEntitlement;
   busy: boolean;
   requiresGeneration: boolean;
+  errorMessage?: string | null;
   onConfirmIncluded: () => Promise<void> | void;
   onConfirmCredit: () => Promise<void> | void;
 };
 
 type ConfirmKind = "included" | "credit" | null;
+
+export function buildPublicTranslationLoginHref(
+  currentPath: string,
+  locale: UiLocale
+): string {
+  return localizePath(`/login?next=${encodeURIComponent(currentPath)}`, locale);
+}
+
+function subscribeToLocationChange(onStoreChange: () => void) {
+  window.addEventListener("popstate", onStoreChange);
+  return () => window.removeEventListener("popstate", onStoreChange);
+}
+
+function getClientLocationSnapshot(): string {
+  return `${window.location.pathname}${window.location.search}`;
+}
+
+function getServerLocationSnapshot(): string {
+  return "/";
+}
 
 const COPY = {
   ja: {
@@ -109,19 +131,19 @@ export default function PublicTranslationUnlockGate({
   entitlement,
   busy,
   requiresGeneration,
+  errorMessage,
   onConfirmIncluded,
   onConfirmCredit,
 }: Props) {
   const locale = useUiLocale();
   const copy = COPY[locale];
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
-  const loginHref = useMemo(() => {
-    const current =
-      typeof window === "undefined"
-        ? "/"
-        : `${window.location.pathname}${window.location.search}`;
-    return localizePath(`/login?next=${encodeURIComponent(current)}`, locale);
-  }, [locale]);
+  const current = useSyncExternalStore(
+    subscribeToLocationChange,
+    getClientLocationSnapshot,
+    getServerLocationSnapshot
+  );
+  const loginHref = buildPublicTranslationLoginHref(current, locale);
   const creditStoreHref = localizePath("/credits", locale);
   const premiumHref = localizePath("/subscription", locale);
 
@@ -131,6 +153,11 @@ export default function PublicTranslationUnlockGate({
 
   return (
     <div className="mt-5 rounded-2xl border border-black/10 bg-white p-4 text-left">
+      {errorMessage ? (
+        <p role="alert" className="mb-3 text-sm leading-6 text-rose-700">
+          {errorMessage}
+        </p>
+      ) : null}
       {entitlement.status === "login_required" ? (
         <>
           <p className="text-sm leading-6 text-neutral-700">{copy.login}</p>
@@ -236,7 +263,9 @@ export default function PublicTranslationUnlockGate({
                 disabled={busy}
                 onClick={() => {
                   const action = confirmingIncluded ? onConfirmIncluded : onConfirmCredit;
-                  void Promise.resolve(action()).finally(() => setConfirmKind(null));
+                  void Promise.resolve(action())
+                    .catch(() => undefined)
+                    .finally(() => setConfirmKind(null));
                 }}
                 className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >

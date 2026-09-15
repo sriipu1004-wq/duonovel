@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isLocalizedPath } from "@/lib/navigation/matchLocalizedPath";
 
 type ReaderCardControlsProps = {
   seriesId: string;
@@ -56,7 +57,7 @@ function updateCurrentWorksUrl(args: {
   const url = new URL(window.location.href);
   const worksPath = `/works/${args.seriesId}`;
 
-  if (url.pathname !== worksPath) {
+  if (!isLocalizedPath(url.pathname, worksPath)) {
     return;
   }
 
@@ -104,7 +105,13 @@ function buildCurrentWorksHref(args: {
 
   const queryString = query.toString();
 
-  return `/works/${args.seriesId}${queryString ? `?${queryString}` : ""}`;
+  const canonicalPath = `/works/${args.seriesId}`;
+  const pathname =
+    typeof window !== "undefined" && isLocalizedPath(window.location.pathname, canonicalPath)
+      ? window.location.pathname
+      : canonicalPath;
+
+  return `${pathname}${queryString ? `?${queryString}` : ""}`;
 }
 
 function dispatchReaderSelection(args: {

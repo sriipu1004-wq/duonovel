@@ -39,16 +39,10 @@ async function fetchBookmarkSeries(seriesIds: string[]): Promise<{ rows: SeriesR
 }
 
 async function fetchFirstEpisodeNumbers(seriesIds: string[]): Promise<Map<string, number>> {
-  const firstTry = await supabase
+  const result = await supabase
     .from("episodes")
     .select("series_id, episode_number")
     .in("series_id", seriesIds);
-  const result = firstTry.error
-    ? await supabase
-        .from("episodes")
-        .select("seriesId, episodeNumber")
-        .in("seriesId", seriesIds)
-    : firstTry;
 
   if (result.error) {
     throw new Error(result.error.message);

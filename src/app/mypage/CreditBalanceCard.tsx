@@ -31,6 +31,7 @@ const COPY = {
     legal: "販売条件・利用規約を確認",
     expiry: (days: number) => `購入日から${days}日`,
     processing: "決済画面を開いています…",
+    checkoutFailed: "決済画面を開けませんでした。時間を置いて再度お試しください。",
   },
   en: {
     eyebrow: "CREDITS",
@@ -43,6 +44,7 @@ const COPY = {
     legal: "Review sale terms and Terms of Service",
     expiry: (days: number) => `${days} days from purchase`,
     processing: "Opening checkout…",
+    checkoutFailed: "The checkout page could not be opened. Try again later.",
   },
   ko: {
     eyebrow: "CREDITS",
@@ -55,6 +57,7 @@ const COPY = {
     legal: "판매 조건 및 이용약관 확인",
     expiry: (days: number) => `구매일로부터 ${days}일`,
     processing: "결제 화면을 여는 중…",
+    checkoutFailed: "결제 화면을 열 수 없습니다. 잠시 후 다시 시도해 주세요.",
   },
 } as const;
 
@@ -78,16 +81,16 @@ export default function CreditBalanceCard({
       const response = await fetch("/api/billing/credits/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ packId, accepted: true }),
+        body: JSON.stringify({ packId, accepted: true, locale }),
       });
       const payload = (await response.json()) as { ok?: boolean; url?: string; error?: string };
       if (!response.ok || !payload.ok || !payload.url) {
-        setError(payload.error || "credit_checkout_failed");
+        setError(copy.checkoutFailed);
         return;
       }
       window.location.assign(payload.url);
     } catch {
-      setError("credit_checkout_failed");
+      setError(copy.checkoutFailed);
     } finally {
       setBusyPackId(null);
     }
@@ -115,10 +118,10 @@ export default function CreditBalanceCard({
       {!showStoreLink && purchaseEnabled && packs.length > 0 ? (
         <div className="mt-5">
           <div className="flex flex-wrap gap-3 text-sm text-neutral-600">
-            <Link href="/commercial-transactions" className="underline underline-offset-4">
+            <Link href={localizePath("/commercial-transactions", locale)} className="underline underline-offset-4">
               {copy.legal}
             </Link>
-            <Link href="/terms" className="underline underline-offset-4">
+            <Link href={localizePath("/terms", locale)} className="underline underline-offset-4">
               Terms
             </Link>
           </div>
@@ -151,7 +154,7 @@ export default function CreditBalanceCard({
           </div>
         </div>
       ) : null}
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <p role="alert" className="mt-3 text-sm text-red-600">{error}</p> : null}
     </section>
   );
 }

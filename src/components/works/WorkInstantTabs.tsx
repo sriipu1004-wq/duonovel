@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { isLocalizedPath } from "@/lib/navigation/matchLocalizedPath";
 
 type WorkTab = "toc" | "readers";
 
@@ -33,7 +34,7 @@ function updateCurrentUrl(args: {
   const url = new URL(window.location.href);
   const worksPath = `/works/${args.seriesId}`;
 
-  if (url.pathname !== worksPath) {
+  if (!isLocalizedPath(url.pathname, worksPath)) {
     return;
   }
 

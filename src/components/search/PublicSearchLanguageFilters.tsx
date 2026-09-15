@@ -1,17 +1,15 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import type { UiLocale } from "@/i18n/config";
 import {
   LANGUAGE_REGISTRY,
+  type PublicTranslationTargetLanguage,
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import {
   PUBLIC_SEARCH_READ_LANGUAGES,
   PUBLIC_SEARCH_SOURCE_LANGUAGES,
-  parsePublicSearchReadLanguage,
-  parsePublicSearchSourceLanguage,
 } from "@/lib/search/publicWorkLanguageFilter";
 
 const copy: Record<UiLocale, {
@@ -58,31 +56,23 @@ function getLanguageLabel(tag: SupportedLanguageTag, locale: UiLocale): string {
   return language.nativeLabel;
 }
 
-export default function PublicSearchLanguageFilters() {
+type PublicSearchLanguageFiltersProps = {
+  sourceLanguage: SupportedLanguageTag | null;
+  readLanguage: PublicTranslationTargetLanguage | null;
+  onSourceLanguageChange: (language: SupportedLanguageTag | null) => void;
+  onReadLanguageChange: (
+    language: PublicTranslationTargetLanguage | null
+  ) => void;
+};
+
+export default function PublicSearchLanguageFilters({
+  sourceLanguage,
+  readLanguage,
+  onSourceLanguageChange,
+  onReadLanguageChange,
+}: PublicSearchLanguageFiltersProps) {
   const locale = useUiLocale();
   const labels = copy[locale];
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const sourceLanguage = parsePublicSearchSourceLanguage(
-    searchParams.get("source_language")
-  );
-  const readLanguage = parsePublicSearchReadLanguage(
-    searchParams.get("read_language")
-  );
-
-  function updateLanguageParam(
-    key: "source_language" | "read_language",
-    value: string
-  ) {
-    const next = new URLSearchParams(searchParams.toString());
-    if (value) next.set(key, value);
-    else next.delete(key);
-    next.delete("page");
-
-    const query = next.toString();
-    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }
 
   return (
     <div className="mt-6 rounded-[20px] border border-black/10 bg-neutral-50 p-4">
@@ -92,7 +82,9 @@ export default function PublicSearchLanguageFilters() {
           <select
             value={sourceLanguage ?? ""}
             onChange={(event) =>
-              updateLanguageParam("source_language", event.target.value)
+              onSourceLanguageChange(
+                (event.target.value as SupportedLanguageTag) || null
+              )
             }
             className="h-11 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm text-black outline-none focus:border-sky-200"
           >
@@ -110,7 +102,9 @@ export default function PublicSearchLanguageFilters() {
           <select
             value={readLanguage ?? ""}
             onChange={(event) =>
-              updateLanguageParam("read_language", event.target.value)
+              onReadLanguageChange(
+                (event.target.value as PublicTranslationTargetLanguage) || null
+              )
             }
             className="h-11 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm text-black outline-none focus:border-sky-200"
           >

@@ -34,6 +34,10 @@ import { createClient as createServerClient } from "@/lib/supabase/server";
 import ReaderCardLikeButton from "@/components/recording/ReaderCardLikeButton";
 import { fetchReaderCardLikeSnapshotMap } from "@/lib/readerCardLike";
 import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
+import { PUBLIC_WORK_RECORDING_SELECT } from "@/lib/recording/publicRecordingSelects";
+import { getUiLocale } from "@/i18n/server";
+import { localizePath } from "@/i18n/navigation";
+import { isUuid } from "@/lib/uuid";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -115,35 +119,6 @@ type RelatedWorkCard = {
 };
 
 const adminSupabase = createAdminClient();
-
-const WORK_PAGE_RECORDING_SELECT = `
-  id,
-  series_id,
-  reader_id,
-  reader_user_id,
-  reader_name,
-  narrator_name,
-  display_name,
-  speaker_name,
-  description,
-  reader_comment,
-  tags,
-  like_count,
-  likes_count,
-  play_count,
-  plays_count,
-  is_public,
-  allow_download,
-  episode_id,
-  audio_storage_path,
-  voice_model_id,
-  created_at,
-  voice_models (
-    display_name,
-    name,
-    tags
-  )
-`;
 
 function isPublicRecording(recording: RecordingRow): boolean {
   if (recording.is_public === false) return false;
@@ -378,17 +353,7 @@ async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> 
   if (!firstTry.error) {
     return (firstTry.data ?? []) as EpisodeRow[];
   }
-
-  const secondTry = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("seriesId", seriesId);
-
-  if (secondTry.error) {
-    throw new Error(`episodes の取得に失敗: ${secondTry.error.message}`);
-  }
-
-  return (secondTry.data ?? []) as EpisodeRow[];
+  throw new Error(`episodes の取得に失敗: ${firstTry.error.message}`);
 }
 
 async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
@@ -404,7 +369,7 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
 
   const firstTry = await adminSupabase
     .from("recordings")
-    .select(WORK_PAGE_RECORDING_SELECT)
+    .select(PUBLIC_WORK_RECORDING_SELECT)
     .in("episode_id", episodeIds)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
@@ -416,46 +381,16 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
     };
   }
 
-  const secondTry = await adminSupabase
-    .from("recordings")
-    .select(WORK_PAGE_RECORDING_SELECT)
-    .in("episodeId", episodeIds)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
-
-  if (!secondTry.error) {
-    return {
-      recordings: ((secondTry.data ?? []) as RecordingRow[]).filter(isPublicRecording),
-      fetchErrorMessage: null,
-    };
-  }
-
-  const fallbackFirstTry = await adminSupabase
+  const fallback = await adminSupabase
     .from("recordings")
     .select("*")
     .in("episode_id", episodeIds)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
 
-  if (!fallbackFirstTry.error) {
+  if (!fallback.error) {
     return {
-      recordings: ((fallbackFirstTry.data ?? []) as RecordingRow[]).filter(
-        isPublicRecording
-      ),
-      fetchErrorMessage: null,
-    };
-  }
-
-  const fallbackSecondTry = await adminSupabase
-    .from("recordings")
-    .select("*")
-    .in("episodeId", episodeIds)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
-
-  if (!fallbackSecondTry.error) {
-    return {
-      recordings: ((fallbackSecondTry.data ?? []) as RecordingRow[]).filter(
+      recordings: ((fallback.data ?? []) as RecordingRow[]).filter(
         isPublicRecording
       ),
       fetchErrorMessage: null,
@@ -464,7 +399,7 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
 
   return {
     recordings: [],
-    fetchErrorMessage: `recordings の取得に失敗: ${fallbackSecondTry.error.message}`,
+    fetchErrorMessage: `recordings の取得に失敗: ${fallback.error.message}`,
   };
 }
 
@@ -799,6 +734,16 @@ export async function generateMetadata({
 }: Pick<PageProps, "params">): Promise<Metadata> {
   const { seriesId } = await params;
 
+  if (!isUuid(seriesId)) {
+    return {
+      title: "作品が見つかりません | LIB read",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
   try {
     const { data, error } = await supabase
       .from("series")
@@ -901,7 +846,11 @@ export async function generateMetadata({
 }
 
 export default async function WorkPage({ params, searchParams }: PageProps) {
+  const locale = await getUiLocale();
   const { seriesId } = await params;
+
+  if (!isUuid(seriesId)) notFound();
+
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const currentTab = resolvedSearchParams?.tab === "readers" ? "readers" : "toc";
 
@@ -973,11 +922,14 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
   if (isShortStorySeries(series) && firstEpisodeNumber !== null) {
     redirect(
-      buildReadHref(
-        seriesId,
-        firstEpisodeNumber,
-        selectedReaderKey,
-        selectedReaderName
+      localizePath(
+        buildReadHref(
+          seriesId,
+          firstEpisodeNumber,
+          selectedReaderKey,
+          selectedReaderName
+        ),
+        locale
       )
     );
   }
@@ -1096,7 +1048,20 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     ) || "作者名未設定";
 
   const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
-  const loginHref = `/login?next=${encodeURIComponent(buildWorksHref(seriesId, currentTab, selectedReaderKey, selectedReaderName, currentRangeStart))}`;
+  const workHref = (href: string) => localizePath(href, locale);
+  const loginHref = workHref(
+    `/login?next=${encodeURIComponent(
+      workHref(
+        buildWorksHref(
+          seriesId,
+          currentTab,
+          selectedReaderKey,
+          selectedReaderName,
+          currentRangeStart
+        )
+      )
+    )}`
+  );
 
   const reviewsVisible = isSeriesReviewVisible(series);
 
@@ -1111,7 +1076,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       /> 
       <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
         <div className="mb-4 text-sm text-neutral-500">
-          <Link href="/" className="hover:text-black">
+          <Link href={workHref("/")} className="hover:text-black">
             TOP
           </Link>
           <span className="mx-2">/</span>
@@ -1130,7 +1095,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
               <span>作者</span>
               {authorId ? (
                 <Link
-                  href={buildAuthorHref(authorId)}
+                  href={workHref(buildAuthorHref(authorId))}
                   className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-neutral-800 transition hover:border-sky-200 hover:bg-sky-50"
                 >
                   {authorName}
@@ -1157,11 +1122,13 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
             <div className="mt-5 flex flex-wrap items-center gap-2.5">
               {firstEpisodeNumber !== null ? (
                 <Link
-                  href={buildReadHref(
-                    seriesId,
-                    firstEpisodeNumber,
-                    selectedReaderKey,
-                    selectedReaderName
+                  href={workHref(
+                    buildReadHref(
+                      seriesId,
+                      firstEpisodeNumber,
+                      selectedReaderKey,
+                      selectedReaderName
+                    )
                   )}
                   className="rounded-full border border-black/10 bg-neutral-200 px-4 py-2.5 text-sm font-medium text-black transition hover:bg-neutral-300"
                 >
@@ -1180,7 +1147,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                 fallbackReaderName={selectedReaderName}
               />
 
-              <FavoriteBookmarkButton seriesId={seriesId} />
+              <FavoriteBookmarkButton seriesId={seriesId} loginHref={loginHref} />
               <SeriesReactionButton seriesId={seriesId} loginHref={loginHref} />
             </div>
           </div>
@@ -1241,12 +1208,14 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                       {rangeOptions.map((range) => (
                         <Link
                           key={range.start}
-                          href={buildWorksHref(
-                            seriesId,
-                            "toc",
-                            selectedReaderKey,
-                            selectedReaderName,
-                            range.start
+                          href={workHref(
+                            buildWorksHref(
+                              seriesId,
+                              "toc",
+                              selectedReaderKey,
+                              selectedReaderName,
+                              range.start
+                            )
                           )}
                           className={[
                             "rounded-full border px-3 py-1.5 text-xs transition",
@@ -1270,7 +1239,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   {!subscriber ? (
                     <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                       <p className="leading-6 text-sky-950">月額680円で単語解説が無制限。対訳生成上限と次話先読みも利用できます。</p>
-                      <Link href="/subscription" className="shrink-0 font-semibold text-sky-800 underline underline-offset-4">サブスクを見る</Link>
+                      <Link href={workHref("/subscription")} className="shrink-0 font-semibold text-sky-800 underline underline-offset-4">サブスクを見る</Link>
                     </div>
                   ) : null}
                   <ContinueReadingEpisodeList
@@ -1297,11 +1266,13 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                         episodeTitle,
                         postedDate,
                         editedDate,
-                        href: buildReadHref(
-                          seriesId,
-                          episodeNumber,
-                          selectedReaderKey,
-                          selectedReaderName
+                        href: workHref(
+                          buildReadHref(
+                            seriesId,
+                            episodeNumber,
+                            selectedReaderKey,
+                            selectedReaderName
+                          )
                         ),
                         readerAvailability: requestedReaderSpecified
                           ? selectedReaderEpisodeIdSet.has(episode.id)
@@ -1355,7 +1326,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                                 </span>
 
                                 <Link
-                                  href={buildReaderAuthorHref(reader.readerKey, reader.name)}
+                                  href={workHref(buildReaderAuthorHref(reader.readerKey, reader.name))}
                                   className="text-base font-semibold text-black transition hover:text-neutral-700"
                                 >
                                   {reader.name}
@@ -1450,14 +1421,14 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   <PublicWorkBoardCard
                     key={work.seriesId}
                     title={work.title}
-                    workHref={`/works/${work.seriesId}`}
+                    workHref={workHref(`/works/${work.seriesId}`)}
                     authorName={work.authorName}
-                    authorHref={work.authorId ? buildAuthorHref(work.authorId) : undefined}
+                    authorHref={work.authorId ? workHref(buildAuthorHref(work.authorId)) : undefined}
                     latestPostedLabel={work.latestPostedLabel}
                     summary={work.summary}
                     firstReadHref={
                       work.firstEpisodeNumber
-                        ? `/read/${work.seriesId}/${work.firstEpisodeNumber}`
+                        ? workHref(`/read/${work.seriesId}/${work.firstEpisodeNumber}`)
                         : undefined
                     }
                     tags={work.tags}
@@ -1492,14 +1463,14 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   <PublicWorkBoardCard
                     key={work.seriesId}
                     title={work.title}
-                    workHref={`/works/${work.seriesId}`}
+                    workHref={workHref(`/works/${work.seriesId}`)}
                     authorName={work.authorName}
-                    authorHref={work.authorId ? buildAuthorHref(work.authorId) : undefined}
+                    authorHref={work.authorId ? workHref(buildAuthorHref(work.authorId)) : undefined}
                     latestPostedLabel={work.latestPostedLabel}
                     summary={work.summary}
                     firstReadHref={
                       work.firstEpisodeNumber
-                        ? `/read/${work.seriesId}/${work.firstEpisodeNumber}`
+                        ? workHref(`/read/${work.seriesId}/${work.firstEpisodeNumber}`)
                         : undefined
                     }
                     tags={work.tags}

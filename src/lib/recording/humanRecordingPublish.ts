@@ -265,13 +265,13 @@ async function resolveCanonicalEpisodeIdForSeries(
   if (requestedEpisodeId) {
     const byId = await adminSupabase
       .from("episodes")
-      .select("id, series_id, seriesId")
+      .select("id, series_id")
       .eq("id", requestedEpisodeId)
       .maybeSingle();
 
     if (!byId.error && byId.data) {
       const row = byId.data as RawRow;
-      const resolvedSeriesId = pickText(row.series_id, row.seriesId);
+      const resolvedSeriesId = pickText(row.series_id);
 
       if (resolvedSeriesId === seriesId) {
         return String(row.id);
@@ -280,28 +280,16 @@ async function resolveCanonicalEpisodeIdForSeries(
   }
 
   if (episodeNumber && Number.isInteger(episodeNumber) && episodeNumber > 0) {
-    const lookupPatterns: Array<{
-      seriesKey: "series_id" | "seriesId";
-      numberKey: "episode_number" | "episodeNumber";
-    }> = [
-      { seriesKey: "series_id", numberKey: "episode_number" },
-      { seriesKey: "series_id", numberKey: "episodeNumber" },
-      { seriesKey: "seriesId", numberKey: "episode_number" },
-      { seriesKey: "seriesId", numberKey: "episodeNumber" },
-    ];
+    const result = await adminSupabase
+      .from("episodes")
+      .select("id")
+      .eq("series_id", seriesId)
+      .eq("episode_number", episodeNumber)
+      .maybeSingle();
 
-    for (const pattern of lookupPatterns) {
-      const result = await adminSupabase
-        .from("episodes")
-        .select("id")
-        .eq(pattern.seriesKey, seriesId)
-        .eq(pattern.numberKey, episodeNumber)
-        .maybeSingle();
-
-      if (!result.error && result.data) {
-        const row = result.data as RawRow;
-        return String(row.id);
-      }
+    if (!result.error && result.data) {
+      const row = result.data as RawRow;
+      return String(row.id);
     }
   }
 
@@ -425,33 +413,18 @@ async function findExistingRecordings(
   adminSupabase: AdminSupabase,
   episodeId: string
 ): Promise<ExistingRecording[]> {
-  const firstTry = await adminSupabase
+  const result = await adminSupabase
     .from("recordings")
     .select("*")
     .eq("episode_id", episodeId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
 
-  if (!firstTry.error) {
-    return mapRecordingRows((firstTry.data ?? []) as RawRow[]);
+  if (result.error) {
+    throw new Error(`recording_lookup_failed:${result.error.message}`);
   }
 
-  const secondTry = await adminSupabase
-    .from("recordings")
-    .select("*")
-    .eq("episodeId", episodeId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
-
-  if (!secondTry.error) {
-    return mapRecordingRows((secondTry.data ?? []) as RawRow[]);
-  }
-
-  throw new Error(
-    `recording_lookup_failed:${
-      secondTry.error?.message || firstTry.error.message
-    }`
-  );
+  return mapRecordingRows((result.data ?? []) as RawRow[]);
 }
 
 async function deleteDuplicateRecordings(

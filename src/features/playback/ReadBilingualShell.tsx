@@ -30,6 +30,7 @@ import {
 } from "@/lib/translation/languageRegistry";
 import { writeBilingualSessionPreference } from "@/lib/translation/bilingualSessionPreference";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readerDictionaries } from "@/i18n/dictionaries/reader";
 import {
   TRANSLATION_READER_VISIBILITY_EVENT,
   readTranslationReaderVisible,
@@ -89,6 +90,7 @@ export default function ReadBilingualShell({
   const [translationEntitlement, setTranslationEntitlement] =
     useState<ReaderTranslationEntitlement | null>(null);
   const [entitlementBusy, setEntitlementBusy] = useState(false);
+  const [entitlementError, setEntitlementError] = useState<string | null>(null);
   const [rememberForTab, setRememberForTab] = useState(false);
   const [sessionLanguageLocked, setSessionLanguageLocked] = useState(false);
   const [autoGenerateMissingTranslation, setAutoGenerateMissingTranslation] =
@@ -143,6 +145,7 @@ export default function ReadBilingualShell({
       return;
     }
 
+    setEntitlementError(null);
     setEntitlementBusy(true);
     try {
       const isReady = translationAvailability === "ready";
@@ -162,13 +165,20 @@ export default function ReadBilingualShell({
             targetLanguage,
             unlockMethod: method,
           };
-      await fetch(endpoint, {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      if (!response.ok) {
+        setEntitlementError(readerDictionaries[uiLocale].translationUnlockFailed);
+        await checkTranslationAvailability(targetLanguage);
+        return;
+      }
       await refreshAiUsage();
       await checkTranslationAvailability(targetLanguage);
+    } catch {
+      setEntitlementError(readerDictionaries[uiLocale].translationUnlockFailed);
     } finally {
       setEntitlementBusy(false);
     }
@@ -414,6 +424,30 @@ export default function ReadBilingualShell({
     (mode === "bilingual" || mode === "translation") &&
     translationEntitlement !== null &&
     translationEntitlement.status !== "unlocked";
+  const translatedModeChecking =
+    (mode === "bilingual" || mode === "translation") &&
+    translationAvailability === "checking";
+
+  if (translatedModeChecking) {
+    return (
+      <>
+        {translationUiVisible ? (
+          <ReaderModeSelector
+            mode={mode}
+            translationEnabled={translationEligible}
+            onChange={handleModeChange}
+          />
+        ) : null}
+        <main className="min-h-[70vh] bg-white text-black">
+          <div className="mx-auto flex w-full max-w-xl justify-center px-4 py-12 sm:px-6">
+            <p className="rounded-[28px] border border-black/10 bg-neutral-50 px-6 py-5 text-sm text-neutral-700">
+              {readerDictionaries[uiLocale].checkingTranslation}
+            </p>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   if (translatedModeLocked && translationEntitlement) {
     return (
@@ -432,6 +466,7 @@ export default function ReadBilingualShell({
                 entitlement={translationEntitlement}
                 busy={entitlementBusy}
                 requiresGeneration={translationAvailability !== "ready"}
+                errorMessage={entitlementError}
                 onConfirmIncluded={() => completeEntitlement("included")}
                 onConfirmCredit={() => completeEntitlement("credit")}
               />

@@ -38,6 +38,7 @@ import { isSeriesTranslationEligible } from "@/lib/translation/episodeTranslatio
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { matchesPublicWorkLanguageFilters } from "@/lib/search/publicWorkLanguageFilter";
 import { getPublicSearchLanguageFilters } from "@/lib/search/publicSearchRequestContext";
+import { PUBLIC_RECORDING_AGGREGATE_SELECT } from "@/lib/recording/publicRecordingSelects";
 
 export type PublicBaseWorkCard = {
   seriesId: string;
@@ -143,26 +144,17 @@ function isShortStorySeriesForSitemap(series: SeriesRow): boolean {
 
 async function fetchPublicSeriesRows(): Promise<SeriesRow[]> {
   const supabase = createPublicServerClient();
-  const narrow = await supabase
+  const result = await supabase
     .from("series")
-    .select(PUBLIC_WORK_SERIES_SELECT)
-    .order("created_at", { ascending: false })
-    .limit(120);
-
-  if (!narrow.error) {
-    return ((narrow.data ?? []) as SeriesRow[]).filter(
-      (series) => getSeriesPublicationStatus(series) === "public"
-    );
-  }
-
-  const fallback = await supabase
-    .from("series")
+    // The production schema has evolved several times. Selecting the full row
+    // keeps public discovery compatible while the card builder intentionally
+    // reads only the fields it needs below.
     .select("*")
     .order("created_at", { ascending: false })
     .limit(120);
 
-  if (fallback.error) throw new Error(`series の取得に失敗: ${fallback.error.message}`);
-  return ((fallback.data ?? []) as SeriesRow[]).filter(
+  if (result.error) throw new Error(`series の取得に失敗: ${result.error.message}`);
+  return ((result.data ?? []) as SeriesRow[]).filter(
     (series) => getSeriesPublicationStatus(series) === "public"
   );
 }
@@ -176,21 +168,14 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
   if (!firstTry.error) {
     episodes = (firstTry.data ?? []) as EpisodeRow[];
   } else {
-    const secondTry = await supabase.from("episodes").select(PUBLIC_WORK_EPISODE_SELECT).in("seriesId", seriesIds);
-    if (!secondTry.error) {
-      episodes = (secondTry.data ?? []) as EpisodeRow[];
-    } else {
-      const fallbackFirstTry = await supabase.from("episodes").select("*").in("series_id", seriesIds);
-      if (!fallbackFirstTry.error) {
-        episodes = (fallbackFirstTry.data ?? []) as EpisodeRow[];
-      } else {
-        const fallbackSecondTry = await supabase.from("episodes").select("*").in("seriesId", seriesIds);
-        if (fallbackSecondTry.error) {
-          throw new Error(`episodes の取得に失敗: ${fallbackSecondTry.error.message}`);
-        }
-        episodes = (fallbackSecondTry.data ?? []) as EpisodeRow[];
-      }
+    const fallback = await supabase
+      .from("episodes")
+      .select("*")
+      .in("series_id", seriesIds);
+    if (fallback.error) {
+      throw new Error(`episodes の取得に失敗: ${fallback.error.message}`);
     }
+    episodes = (fallback.data ?? []) as EpisodeRow[];
   }
 
   const grouped = new Map<string, EpisodeRow[]>();
@@ -419,27 +404,6 @@ export type PublicRecordingAggregate = {
   totalRecordingCount: number;
 };
 
-const PUBLIC_WORK_SERIES_SELECT = `
-  id,
-  title,
-  summary,
-  description,
-  catch_copy,
-  author_id,
-  user_id,
-  created_at,
-  effect_settings,
-  content_rating,
-  source_language,
-  translation_permission_mode,
-  tags,
-  tag_list,
-  genres,
-  genre,
-  genre_list,
-  publication_status
-`;
-
 const PUBLIC_WORK_EPISODE_SELECT = `
   id,
   series_id,
@@ -447,16 +411,6 @@ const PUBLIC_WORK_EPISODE_SELECT = `
   posting_status,
   scheduled_for,
   posted_at
-`;
-
-const PUBLIC_WORK_RECORDING_AGGREGATE_SELECT = `
-  id,
-  series_id,
-  like_count,
-  likes_count,
-  play_count,
-  plays_count,
-  is_public
 `;
 
 function isPublicRecording(recording: RecordingAggregateRow): boolean {
@@ -512,33 +466,23 @@ async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<Pub
   if (normalizedSeriesIds.length > 0) {
     const narrow = await supabase
       .from("recordings")
-      .select(PUBLIC_WORK_RECORDING_AGGREGATE_SELECT)
+      .select(PUBLIC_RECORDING_AGGREGATE_SELECT)
       .in("series_id", normalizedSeriesIds);
 
     if (!narrow.error) {
       data = (narrow.data ?? []) as RecordingAggregateRow[];
     } else {
-      const secondTry = await supabase
+      const fallback = await supabase
         .from("recordings")
-        .select(PUBLIC_WORK_RECORDING_AGGREGATE_SELECT)
-        .in("seriesId", normalizedSeriesIds);
-      if (!secondTry.error) {
-        data = (secondTry.data ?? []) as RecordingAggregateRow[];
-      } else {
-        const fallback = await supabase.from("recordings").select("*").in("series_id", normalizedSeriesIds);
-        if (!fallback.error) {
-          data = (fallback.data ?? []) as RecordingAggregateRow[];
-        } else {
-          const fallbackSecondTry = await supabase.from("recordings").select("*").in("seriesId", normalizedSeriesIds);
-          if (fallbackSecondTry.error) {
-            throw new Error(`recordings の取得に失敗: ${fallbackSecondTry.error.message}`);
-          }
-          data = (fallbackSecondTry.data ?? []) as RecordingAggregateRow[];
-        }
+        .select("*")
+        .in("series_id", normalizedSeriesIds);
+      if (fallback.error) {
+        throw new Error(`recordings の取得に失敗: ${fallback.error.message}`);
       }
+      data = (fallback.data ?? []) as RecordingAggregateRow[];
     }
   } else {
-    const narrow = await supabase.from("recordings").select(PUBLIC_WORK_RECORDING_AGGREGATE_SELECT);
+    const narrow = await supabase.from("recordings").select(PUBLIC_RECORDING_AGGREGATE_SELECT);
     if (!narrow.error) {
       data = (narrow.data ?? []) as RecordingAggregateRow[];
     } else {

@@ -16,6 +16,7 @@ import {
   parseSupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import { getPublicWorkTranslationOverview } from "@/lib/translation/publicWorkTranslations";
+import { isUuid } from "@/lib/uuid";
 
 type Props = {
   params: Promise<{ seriesId: string; targetLanguage: string }>;
@@ -59,6 +60,11 @@ const copy = {
 
 async function resolvePageData(params: Props["params"]) {
   const { seriesId, targetLanguage: rawTargetLanguage } = await params;
+
+  if (!isUuid(seriesId)) {
+    return null;
+  }
+
   const [overview, locale] = await Promise.all([
     getPublicWorkTranslationOverview(seriesId),
     getUiLocale(),

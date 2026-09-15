@@ -53,12 +53,7 @@ async function fetchSeriesEpisodes(
     .select("*")
     .eq("series_id", seriesId);
   if (!firstTry.error) return (firstTry.data ?? []) as EpisodeRow[];
-
-  const secondTry = await admin
-    .from("episodes")
-    .select("*")
-    .eq("seriesId", seriesId);
-  return secondTry.error ? [] : ((secondTry.data ?? []) as EpisodeRow[]);
+  return [];
 }
 
 export async function getPublicWorkTranslationOverview(

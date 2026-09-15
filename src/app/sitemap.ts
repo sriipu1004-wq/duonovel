@@ -1,5 +1,9 @@
 import type { MetadataRoute } from "next";
-import { getCachedPublicBaseWorkCards } from "@/lib/publicWorks";
+import {
+  getCachedPublicBaseWorkCards,
+  type PublicBaseWorkCard,
+} from "@/lib/publicWorks";
+import { loadSitemapWorkFallback } from "@/lib/sitemap/loadSitemapWorkFallback";
 
 const SITE_URL = "https://www.syosetu-libread.com";
 
@@ -94,8 +98,16 @@ function pushPdfReaderEntries(entries: MetadataRoute.Sitemap) {
   );
 }
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const works = await getCachedPublicBaseWorkCards({ visibility: "general" });
+export async function loadSitemapWorks(
+  loadWorks: () => Promise<PublicBaseWorkCard[]> = () =>
+    getCachedPublicBaseWorkCards({ visibility: "general" })
+): Promise<PublicBaseWorkCard[]> {
+  return loadSitemapWorkFallback(loadWorks);
+}
+
+export function buildSitemapEntries(
+  works: PublicBaseWorkCard[]
+): MetadataRoute.Sitemap {
   const entries: MetadataRoute.Sitemap = [];
 
   pushLocalizedEntries(entries, "/", {
@@ -160,4 +172,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   return entries;
+}
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  return buildSitemapEntries(await loadSitemapWorks());
 }
