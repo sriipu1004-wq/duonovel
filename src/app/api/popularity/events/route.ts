@@ -29,6 +29,17 @@ function forwardedIp(headers: Headers): string {
   return "unknown";
 }
 
+function tokyoCalendarDate(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  return `${values.get("year")}-${values.get("month")}-${values.get("day")}`;
+}
+
 function popularitySessionId(args: {
   request: Request;
   userId: string | null;
@@ -37,7 +48,7 @@ function popularitySessionId(args: {
     process.env.IP_HASH_SALT ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     "libread-local-popularity";
-  const day = new Date().toISOString().slice(0, 10);
+  const day = tokyoCalendarDate();
   const actor = args.userId
     ? `user:${args.userId}`
     : `ip:${forwardedIp(args.request.headers)}`;
@@ -100,9 +111,6 @@ export async function POST(request: Request) {
   const adminSupabase = createAdminClient();
   const userId = await getCurrentUserId();
 
-  // Do not trust seriesId, episodeNumber, recording relationships, or public
-  // visibility supplied by the browser. Popularity rows feed ranking counters,
-  // so all canonical event dimensions are resolved from the database.
   const { data: episode, error: episodeError } = await adminSupabase
     .from("episodes")
     .select("id, series_id, episode_number, posting_status, is_published")
