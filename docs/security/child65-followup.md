@@ -31,31 +31,65 @@ Fix:
 
 Regression: `scripts/test-security-authz.ts` statically verifies these server-side guards.
 
+### SEC-23 — P2 — unauthenticated multipart parsing on human narration publish
+
+Surface: `/api/recordings/human-publish`.
+
+Impact: the route parsed `multipart/form-data` before checking the Supabase session. Although the audio file was size/type validated before expensive transcription and publication work, unauthenticated callers could still force multipart parsing and allocation.
+
+Fix: authenticate with the session client before calling `request.formData()`. Existing exact series/episode RLS checks, recording permission checks, consent checks, audio validation, and publication logic remain unchanged.
+
+Regression: `scripts/test-security-authz.ts` asserts that `auth.getUser()` occurs before multipart parsing.
+
+### SEC-24 — P2 — blocked R18 reader payload / metadata minimization
+
+Surface: public reader route `/read/[seriesId]/[episodeNumber]`.
+
+Impact: the parent layout rendered an R18 gate when the viewer preference blocked an R18 work, but the child page and metadata path still received the full server payload and could construct title/summary/body-derived values before the gate was rendered. That was unnecessary data handling at the denied boundary.
+
+Fix:
+- blocked R18 metadata now returns generic `noindex, nofollow` metadata before title/summary/author extraction;
+- the reader page returns `null` immediately for `r18Blocked`, leaving the parent layout to render the gate and preventing construction/serialization of the child reader payload.
+
+Production currently has no public R18 episode available for a safe live negative test, so this is enforced by regression/build validation rather than a destructive or synthetic Production data test.
+
 ## Supabase Security Advisor re-check
 
 Current security advisor state was re-read after the deployed Child 65 migrations.
 
 - `rls_enabled_no_policy`: INFO only for 27 intentionally server/internal tables. With RLS enabled and no policy, browser roles receive no row access; these are not treated as exposure findings by themselves.
-- `authenticated_security_definer_function_executable`: 10 remaining functions. These are the previously reviewed private-library/session-self/read RPCs (`begin/append/complete/abort/import private library`, private-library section/progress helpers, and self credit/unlock reads). The dangerous server-contract RPCs found in the original Child 65 audit are no longer browser-executable. No new privilege escalation was established in this follow-up.
-- Supabase Auth leaked-password protection remains disabled. This stays P2 hardening and requires an Auth configuration change rather than an application-code security patch.
+- `authenticated_security_definer_function_executable`: 10 remaining notices were re-checked against live function metadata. All have `search_path=public`; neither `anon` nor `authenticated` can `CREATE` in the `public` schema, so a caller cannot use a public-schema object shadowing attack. Nine functions explicitly reference `auth.uid()`. The tenth, `count_private_library_import_usage()`, is a `RETURNS trigger` function rather than a normal client RPC and is therefore an advisor false-positive for direct RPC execution. The dangerous server-contract RPCs found in the original Child 65 audit remain unavailable to browser roles.
+- Supabase Auth leaked-password protection remains disabled. This stays P2 account hardening and requires an Auth configuration change rather than an application-code security patch.
+
+Read-only grant/policy verification also reconfirmed that `episode_translations` and `bilingual_word_explanations` have no browser SELECT/mutation grants, financial ledger/lot/unlock tables expose at most user-scoped reads through RLS, and canonical public/owner policies remain on `series`, `episodes`, and `recordings`.
 
 ## Remaining bounded P2 / P3
 
 P2:
 - generated-story translation still accepts generated-story source text supplied by the browser rather than a server-issued proof binding it to the immediately preceding generation. Existing source-size, AI action, translation request and cost limits bound the impact; this is not a public-translation credit entitlement bypass.
-- `human-publish` still parses multipart form data before its later authenticated ownership check. The upload is size/type checked after parsing; moving auth ahead of multipart parsing remains resource-hardening work.
-- Reader metadata for an R18 work is assembled from the same server payload that later returns `r18Blocked`; the layout blocks the content body, but metadata minimization for a blocked viewer remains a privacy-hardening item.
 - time-fit save/publish quota checks remain count-then-write and can exceed the nominal limit under concurrent requests.
-- leaked-password protection remains disabled in Supabase Auth.
+- time-fit private-save still accepts an editor display-name candidate from the client for the same user's profile path; DB uniqueness prevents duplicate normalized display names, but canonical server profile data would be cleaner.
+- Supabase Auth leaked-password protection remains disabled.
+- the episode-translation status GET route can perform timeout cleanup of a shared `translating` row after the stuck threshold when the original episode is readable. This is bounded shared-state cleanup, but moving timeout finalization to the generation/worker boundary would reduce mutation in a GET path.
+- selected server error paths still return underlying storage/reservation error messages. No secret value exposure was established, but normalizing those responses remains low-risk information-minimization work.
 
 P3:
-- legacy reader-card-like structures and performance-advisor warnings remain deferred unless they become operationally relevant.
+- legacy reader-card-like structures and performance-advisor warnings remain deferred unless they become operationally relevant;
+- `search_path=public` on the remaining reviewed SECURITY DEFINER functions is safe under current schema CREATE grants, but schema-qualified references plus an empty/minimal search path would be stronger defense-in-depth if those functions are rewritten later;
+- the Turbopack dynamic ffmpeg output-tracing warning remains an operational/build-hardening item, not an authorization finding.
 
 ## Validation plan
 
 The follow-up branch adds `npm run test:security-authz` and includes it in the security validation workflow together with the existing auth, Stripe webhook, public/workspace schema, translation permission, public search, billing locale, dependency audit, diff lint, and Production build checks.
 
-No database migration is required for SEC-21 or SEC-22.
+The authorization regression now covers:
+- translation entitlement before service-role cached translation reads;
+- canonical public-work filtering after service-role profile aggregation;
+- R18 and episode visibility on reader aggregation;
+- authentication before `human-publish` multipart parsing;
+- blocked R18 reader payload and metadata minimization.
+
+No database migration is required for SEC-21 through SEC-24.
 
 ## Deployment state
 
