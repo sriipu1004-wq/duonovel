@@ -162,19 +162,26 @@ function localizeHref(value: string, locale: Exclude<UiLocale, "ja">): string {
   return `${localized.pathname}${localized.search}${localized.hash}`;
 }
 
-function repairRecordNavigation(root: HTMLElement, locale: UiLocale) {
-  const submitted = root.querySelector<HTMLAnchorElement>('a[href="#record-submitted"]');
-  if (submitted) {
-    submitted.href = localizePath("/record?filter=submitted#record-search-results", locale);
+function setHrefIfChanged(anchor: HTMLAnchorElement | null, next: string) {
+  if (!anchor) return;
+  if (anchor.getAttribute("href") !== next) {
+    anchor.setAttribute("href", next);
   }
+}
 
-  const bookmarked = root.querySelector<HTMLAnchorElement>('a[href="#record-bookmarked"]');
-  if (bookmarked) {
-    bookmarked.href = localizePath("/record?filter=bookmarked#record-search-results", locale);
-  }
+function repairRecordNavigation(root: HTMLElement, locale: UiLocale) {
+  setHrefIfChanged(
+    root.querySelector<HTMLAnchorElement>('a[href="#record-submitted"]'),
+    localizePath("/record?filter=submitted#record-search-results", locale)
+  );
+
+  setHrefIfChanged(
+    root.querySelector<HTMLAnchorElement>('a[href="#record-bookmarked"]'),
+    localizePath("/record?filter=bookmarked#record-search-results", locale)
+  );
 
   const legacyRequests = root.querySelector<HTMLAnchorElement>('a[href="#record-requests"]');
-  if (legacyRequests) {
+  if (legacyRequests && !legacyRequests.hidden) {
     legacyRequests.hidden = true;
   }
 }
