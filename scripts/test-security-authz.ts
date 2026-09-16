@@ -62,6 +62,16 @@ for (const required of [
   );
 }
 
+const humanPublish = source("src/app/api/recordings/human-publish/route.ts");
+const humanPublishAuth = humanPublish.indexOf("await supabase.auth.getUser()");
+const humanPublishMultipart = humanPublish.indexOf("await request.formData()");
+assert.ok(
+  humanPublishAuth >= 0 &&
+    humanPublishMultipart >= 0 &&
+    humanPublishAuth < humanPublishMultipart,
+  "human-publish must authenticate before parsing multipart input"
+);
+
 console.log(
-  "PASS: Child 65 follow-up authorization guards protect translation-derived and public-profile data"
+  "PASS: Child 65 follow-up authorization and request-cost guards are present"
 );
