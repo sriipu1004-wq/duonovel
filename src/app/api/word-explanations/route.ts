@@ -23,6 +23,7 @@ import {
 } from "@/lib/aiUsage/aiUsage.server";
 import type { BilingualSegment } from "@/features/playback/BilingualPane";
 import { readSeriesTranslationLearningPreference } from "@/lib/translation/translationLearningPreference";
+import { getPublicTranslationEntitlementState } from "@/lib/translation/publicTranslationCredits.server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -159,6 +160,7 @@ function parseStoredExplanationNote(value: unknown): StoredExplanationNote | nul
 }
 
 async function resolveContent(args: {
+  request: Request;
   contentType: ContentType;
   contentId: string;
   sourceHash: string;
@@ -211,6 +213,16 @@ async function resolveContent(args: {
     ) {
       return null;
     }
+
+    const entitlement = await getPublicTranslationEntitlementState({
+      request: args.request,
+      episodeId: access.episode.id,
+      targetLanguage: args.targetLanguage,
+    });
+    if (entitlement && entitlement.status !== "unlocked") {
+      return null;
+    }
+
     ownerUserId = access.currentUserId;
     const result = await admin
       .from("episode_translations")
@@ -295,6 +307,7 @@ export async function POST(request: Request) {
   }
 
   const resolved = await resolveContent({
+    request,
     contentType,
     contentId,
     sourceHash,
