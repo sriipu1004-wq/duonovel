@@ -20,6 +20,23 @@ async function requireSignedInUser() {
   return user;
 }
 
+async function authorProfileExists(
+  adminSupabase: ReturnType<typeof createAdminClient>,
+  authorId: string
+): Promise<boolean> {
+  const { data, error } = await adminSupabase
+    .from("users")
+    .select("id")
+    .eq("id", authorId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return Boolean(data?.id);
+}
+
 export async function POST(request: Request) {
   let payload: Record<string, unknown>;
 
@@ -58,6 +75,13 @@ export async function POST(request: Request) {
 
   try {
     const adminSupabase = createAdminClient();
+
+    if (!(await authorProfileExists(adminSupabase, authorId))) {
+      return NextResponse.json(
+        { ok: false, error: "対象ユーザーが見つからない。" },
+        { status: 404 }
+      );
+    }
 
     const { error } = await adminSupabase.from("author_follows").upsert(
       {

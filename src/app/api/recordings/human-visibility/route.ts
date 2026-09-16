@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
 
@@ -44,6 +45,41 @@ function readBoolean(value: unknown, fallback = true): boolean {
   return fallback;
 }
 
+async function canExposeRecordingTarget(args: {
+  adminSupabase: ReturnType<typeof createAdminClient>;
+  seriesId: string;
+  episodeId: string;
+}): Promise<boolean> {
+  const [seriesResult, episodeResult] = await Promise.all([
+    args.adminSupabase
+      .from("series")
+      .select("id, publication_status")
+      .eq("id", args.seriesId)
+      .maybeSingle(),
+    args.adminSupabase
+      .from("episodes")
+      .select("id, series_id, posting_status, is_published")
+      .eq("id", args.episodeId)
+      .maybeSingle(),
+  ]);
+
+  if (seriesResult.error) {
+    throw new Error(`series_visibility_lookup_failed:${seriesResult.error.message}`);
+  }
+  if (episodeResult.error) {
+    throw new Error(`episode_visibility_lookup_failed:${episodeResult.error.message}`);
+  }
+
+  return Boolean(
+    seriesResult.data?.id &&
+      seriesResult.data.publication_status === "public" &&
+      episodeResult.data?.id &&
+      String(episodeResult.data.series_id) === args.seriesId &&
+      episodeResult.data.posting_status === "posted" &&
+      episodeResult.data.is_published === true
+  );
+}
+
 export async function POST(request: Request) {
   let payload: RawRow;
 
@@ -64,11 +100,18 @@ export async function POST(request: Request) {
   const episodeId = pickText(payload, ["episodeId", "episode_id"]);
   const isPublic = readBoolean(payload.isPublic, true);
 
-  if (!recordingId || !seriesId || !episodeId) {
+  if (
+    !recordingId ||
+    !seriesId ||
+    !episodeId ||
+    !isUuid(recordingId) ||
+    !isUuid(seriesId) ||
+    !isUuid(episodeId)
+  ) {
     return NextResponse.json(
       {
         ok: false,
-        error: "recordingId / seriesId / episodeId が足りない。",
+        error: "recordingId / seriesId / episodeId が不正。",
       },
       { status: 400 }
     );
@@ -103,7 +146,6 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "対象朗読が見つからない。",
-        detail: lookupError?.message,
       },
       { status: 404 }
     );
@@ -124,48 +166,78 @@ export async function POST(request: Request) {
     );
   }
 
-  const firstTry = await adminSupabase
-    .from("recordings")
-    .update({ is_public: isPublic })
-    .eq("id", recordingId)
-    .select("id, is_public")
-    .maybeSingle();
+  try {
+    // Hiding an existing recording is always allowed for its reader. Exposing it
+    // publicly is stricter: the underlying work and episode must themselves be
+    // canonically public at the time of the change.
+    if (
+      isPublic &&
+      !(await canExposeRecordingTarget({
+        adminSupabase,
+        seriesId,
+        episodeId,
+      }))
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "非公開または未投稿の作品・話では朗読を公開できない。",
+        },
+        { status: 409 }
+      );
+    }
 
-  if (!firstTry.error) {
+    const firstTry = await adminSupabase
+      .from("recordings")
+      .update({ is_public: isPublic })
+      .eq("id", recordingId)
+      .select("id, is_public")
+      .maybeSingle();
+
+    if (!firstTry.error) {
+      return NextResponse.json(
+        {
+          ok: true,
+          recordingId,
+          isPublic,
+        },
+        { status: 200 }
+      );
+    }
+
+    const secondTry = await adminSupabase
+      .from("recordings")
+      .update({ isPublic })
+      .eq("id", recordingId)
+      .select("id, isPublic")
+      .maybeSingle();
+
+    if (!secondTry.error) {
+      return NextResponse.json(
+        {
+          ok: true,
+          recordingId,
+          isPublic,
+        },
+        { status: 200 }
+      );
+    }
+
     return NextResponse.json(
       {
-        ok: true,
-        recordingId,
-        isPublic,
+        ok: false,
+        error: "公開範囲の更新に失敗した。",
       },
-      { status: 200 }
+      { status: 500 }
     );
-  }
-
-  const secondTry = await adminSupabase
-    .from("recordings")
-    .update({ isPublic })
-    .eq("id", recordingId)
-    .select("id, isPublic")
-    .maybeSingle();
-
-  if (!secondTry.error) {
+  } catch (error) {
+    console.error("[human-visibility]", error);
     return NextResponse.json(
       {
-        ok: true,
-        recordingId,
-        isPublic,
+        ok: false,
+        error: "公開範囲の確認または更新に失敗した。",
       },
-      { status: 200 }
+      { status: 500 }
     );
   }
-
-  return NextResponse.json(
-    {
-      ok: false,
-      error: "公開範囲の更新に失敗した。",
-      detail: secondTry.error?.message || firstTry.error.message,
-    },
-    { status: 500 }
-  );
 }

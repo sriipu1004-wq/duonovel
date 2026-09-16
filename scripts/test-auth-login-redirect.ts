@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildCurrentLoginHref } from "../src/lib/auth/loginRedirect";
+import { normalizeNextPath } from "../src/lib/auth/accountSignupConsent";
 
 function main() {
   assert.equal(
@@ -25,6 +26,12 @@ function main() {
     "/ko/login"
   );
 
+  assert.equal(normalizeNextPath("/en/read/work/2?x=1#here"), "/en/read/work/2?x=1#here");
+  assert.equal(normalizeNextPath("https://evil.example/path", "/safe"), "/safe");
+  assert.equal(normalizeNextPath("//evil.example/path", "/safe"), "/safe");
+  assert.equal(normalizeNextPath("/\\evil.example/path", "/safe"), "/safe");
+  assert.equal(normalizeNextPath("/\u0000evil", "/safe"), "/safe");
+
   const unlockGate = readFileSync(
     "src/features/playback/PublicTranslationUnlockGate.tsx",
     "utf8"
@@ -37,7 +44,7 @@ function main() {
     "translation unlock login href must not diverge between SSR and hydration"
   );
 
-  console.log("PASS: login redirects preserve Reader state without hydration mismatch");
+  console.log("PASS: login redirects preserve Reader state and reject unsafe return paths");
 }
 
 main();

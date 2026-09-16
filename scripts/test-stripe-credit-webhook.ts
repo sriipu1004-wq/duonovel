@@ -26,10 +26,15 @@ function main() {
   const checkout = source("src/app/api/billing/credits/checkout/route.ts");
   assert.ok(checkout.includes('mode: "payment"'));
   assert.ok(checkout.includes("getCreditPack(packId)"));
-  assert.ok(checkout.includes("accepted !== true"));
+  assert.ok(checkout.includes("payload.accepted !== true"));
   assert.ok(checkout.includes("line_items: [{ price: pack.stripePriceId, quantity: 1 }]"));
-  assert.ok(checkout.includes("/credits?credit_checkout=success"));
-  assert.ok(checkout.includes("/credits?credit_checkout=canceled"));
+  assert.ok(checkout.includes('localizeBillingPath("/credits", locale)'));
+  assert.ok(
+    checkout.includes(
+      "?credit_checkout=success&session_id={CHECKOUT_SESSION_ID}"
+    )
+  );
+  assert.ok(checkout.includes("?credit_checkout=canceled"));
 
   const balanceCard = source("src/app/mypage/CreditBalanceCard.tsx");
   assert.ok(balanceCard.includes('localizePath("/credits"'));

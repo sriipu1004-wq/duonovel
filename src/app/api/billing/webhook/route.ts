@@ -40,15 +40,48 @@ async function processCreditCheckoutSession(
   if (!packId || !userId || hydrated.client_reference_id !== userId) {
     throw new Error("Credit checkout user/pack metadata mismatch");
   }
+  if (hydrated.payment_status !== "paid") {
+    throw new Error("Credit checkout is not currently paid");
+  }
+
+  const customerId = stripeId(hydrated.customer);
+  if (!customerId) {
+    throw new Error("Paid credit checkout is missing customer");
+  }
+  const admin = createAdminClient();
+  const { data: billingCustomer, error: billingCustomerError } = await admin
+    .from("libread_billing_customers")
+    .select("user_id")
+    .eq("stripe_customer_id", customerId)
+    .maybeSingle();
+  if (
+    billingCustomerError ||
+    !billingCustomer?.user_id ||
+    String(billingCustomer.user_id) !== userId
+  ) {
+    throw new Error("Credit checkout customer ownership mismatch");
+  }
+
   const lines = hydrated.line_items?.data ?? [];
   if (lines.length !== 1 || lines[0]?.quantity !== 1) {
     throw new Error("Credit checkout must contain exactly one catalog price");
   }
-  const priceId = stripeId(lines[0]?.price ?? null);
+  const price = lines[0]?.price ?? null;
+  const priceId = stripeId(price);
   const byPack = getCreditPack(packId);
   const byPrice = priceId ? getCreditPackByStripePriceId(priceId) : null;
   if (!byPack || !byPrice || byPack.id !== byPrice.id || byPack.stripePriceId !== priceId) {
     throw new Error("Credit checkout price does not match server-side catalog");
+  }
+  if (
+    !price ||
+    typeof price === "string" ||
+    price.currency.toUpperCase() !== byPack.currency ||
+    price.unit_amount !== byPack.displayPriceJpy ||
+    (hydrated.currency ?? "").toUpperCase() !== byPack.currency ||
+    hydrated.amount_subtotal !== byPack.displayPriceJpy
+  ) {
+    throw new Error("Credit checkout amount/currency does not match server-side catalog");
   }
 
   const paymentIntentId = stripeId(hydrated.payment_intent);
@@ -57,7 +90,6 @@ async function processCreditCheckoutSession(
   const expiresAt = new Date(
     purchasedAtMs + byPack.expiresInDays * 24 * 60 * 60 * 1000
   ).toISOString();
-  const admin = createAdminClient();
   const { error } = await admin.rpc("grant_credit_purchase", {
     p_user_id: userId,
     p_pack_id: byPack.id,

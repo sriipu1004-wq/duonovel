@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import {
+  decideRecordingEntryAccess,
+  normalizeRecordingPermissionMode,
+} from "@/lib/recording/recordingEntry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -6,7 +10,10 @@ import {
   HUMAN_MULTIPART_MAX_TOTAL_BYTES,
   HUMAN_MULTIPART_MIN_TRIGGER_BYTES,
 } from "@/lib/recording/humanMultipartUploadShared";
-import { getAudioFileExtension, isSupportedAudioFile } from "@/lib/recording/audioUploadPolicy";
+import {
+  getAudioFileExtension,
+  isSupportedAudioFile,
+} from "@/lib/recording/audioUploadPolicy";
 
 export const runtime = "nodejs";
 
@@ -37,7 +44,10 @@ function resolveErrorResponse(message: string) {
   }
 
   if (message === "invalid_payload") {
-    return { status: 400, error: "multipart upload session 作成に必要な情報が足りない。" };
+    return {
+      status: 400,
+      error: "multipart upload session 作成に必要な情報が足りない。",
+    };
   }
 
   if (message === "unsupported_type") {
@@ -48,7 +58,18 @@ function resolveErrorResponse(message: string) {
     return { status: 413, error: "ファイルが大きすぎる。今の上限を超えている。" };
   }
 
-  return { status: 500, error: "multipart upload session 作成中に想定外エラーが出た。" };
+  if (message === "recording_entry_denied") {
+    return { status: 403, error: "この作品に対する朗読投稿権限がない。" };
+  }
+
+  if (message === "episode_not_accessible") {
+    return { status: 404, error: "対象話が見つからない。" };
+  }
+
+  return {
+    status: 500,
+    error: "multipart upload session 作成中に想定外エラーが出た。",
+  };
 }
 
 export async function POST(request: Request) {
@@ -96,6 +117,44 @@ export async function POST(request: Request) {
       throw new Error("unauthorized");
     }
 
+    // Resolve authorization through the session-bound client rather than the
+    // service role. The canonical RLS rules already express the intended
+    // visibility boundary: owners can access their drafts, while other users
+    // only see publicly posted works/episodes.
+    const { data: series, error: seriesError } = await supabase
+      .from("series")
+      .select("id, recording_permission_mode")
+      .eq("id", seriesId)
+      .maybeSingle();
+
+    if (seriesError || !series) {
+      throw new Error("recording_entry_denied");
+    }
+
+    const decision = decideRecordingEntryAccess({
+      permissionMode: normalizeRecordingPermissionMode(
+        series.recording_permission_mode
+      ),
+      isLoggedIn: true,
+    });
+    if (!decision.canEnter) {
+      throw new Error("recording_entry_denied");
+    }
+
+    const { data: episode, error: episodeError } = await supabase
+      .from("episodes")
+      .select("id, series_id")
+      .eq("id", episodeId)
+      .maybeSingle();
+
+    if (
+      episodeError ||
+      !episode ||
+      String(episode.series_id) !== seriesId
+    ) {
+      throw new Error("episode_not_accessible");
+    }
+
     const sourceExtension = getAudioFileExtension(fileName) || "bin";
     const session = buildHumanMultipartUploadSession({
       seriesId,
@@ -106,7 +165,6 @@ export async function POST(request: Request) {
     });
 
     const adminSupabase = createAdminClient();
-
     const signedParts: SignedPart[] = [];
 
     for (const part of session.parts) {

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { analyzeAudioUploadServer } from "@/lib/recording/audioUploadServerValidation";
+import {
+  decideRecordingEntryAccess,
+  normalizeRecordingPermissionMode,
+} from "@/lib/recording/recordingEntry";
 import { publishHumanRecording } from "@/lib/recording/humanRecordingPublish";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -395,6 +399,54 @@ export async function POST(request: Request) {
         error: "ログイン状態を確認できなかった。",
       },
       { status: 401 }
+    );
+  }
+
+  // Authorize the exact target with the session-bound client before handing the
+  // payload to service-role processing. This mirrors the page/RLS boundary:
+  // owners may access their own drafts, while other users only see public,
+  // posted works/episodes; recording_permission_mode must still be open.
+  const { data: accessibleSeries, error: accessibleSeriesError } = await supabase
+    .from("series")
+    .select("id, recording_permission_mode")
+    .eq("id", seriesId)
+    .maybeSingle();
+
+  if (accessibleSeriesError || !accessibleSeries) {
+    return NextResponse.json(
+      { ok: false, error: "対象作品が見つからない。" },
+      { status: 404 }
+    );
+  }
+
+  const entryDecision = decideRecordingEntryAccess({
+    permissionMode: normalizeRecordingPermissionMode(
+      accessibleSeries.recording_permission_mode
+    ),
+    isLoggedIn: true,
+  });
+  if (!entryDecision.canEnter) {
+    return NextResponse.json(
+      { ok: false, error: "この作品に対する朗読 publish 権限がない。" },
+      { status: 403 }
+    );
+  }
+
+  const { data: accessibleEpisode, error: accessibleEpisodeError } =
+    await supabase
+      .from("episodes")
+      .select("id, series_id")
+      .eq("id", episodeId)
+      .maybeSingle();
+
+  if (
+    accessibleEpisodeError ||
+    !accessibleEpisode ||
+    String(accessibleEpisode.series_id) !== seriesId
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "対象話が見つからないか、この作品に属していない。" },
+      { status: 404 }
     );
   }
 

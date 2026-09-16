@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isUuid } from "@/lib/uuid";
 
 type BookmarkRow = {
   id: string;
@@ -41,6 +42,21 @@ async function requireSignedInUser() {
   return user;
 }
 
+async function requireCanonicalPublicSeries(seriesId: string): Promise<boolean> {
+  const adminSupabase = createAdminClient();
+  const { data, error } = await adminSupabase
+    .from("series")
+    .select("id, publication_status")
+    .eq("id", seriesId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`作品状態の確認に失敗した: ${error.message}`);
+  }
+
+  return Boolean(data?.id && data.publication_status === "public");
+}
+
 async function getBookmarkState(args: {
   userId: string;
   seriesId: string;
@@ -74,9 +90,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const seriesId = readText(url.searchParams.get("seriesId"));
 
-  if (!seriesId) {
+  if (!seriesId || !isUuid(seriesId)) {
     return NextResponse.json(
-      { ok: false, error: "seriesId が足りない。" },
+      { ok: false, error: "seriesId が不正。" },
       { status: 400 }
     );
   }
@@ -127,14 +143,24 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!seriesId) {
+  if (!seriesId || !isUuid(seriesId)) {
     return NextResponse.json(
-      { ok: false, error: "seriesId が足りない。" },
+      { ok: false, error: "seriesId が不正。" },
       { status: 400 }
     );
   }
 
   try {
+    // The admin client bypasses RLS. New bookmarks are only valid for works that
+    // are canonically public at the time of creation. Existing bookmarks may be
+    // removed later even if the author subsequently unpublishes the work.
+    if (!(await requireCanonicalPublicSeries(seriesId))) {
+      return NextResponse.json(
+        { ok: false, error: "作品が見つからない。" },
+        { status: 404 }
+      );
+    }
+
     const adminSupabase = createAdminClient();
 
     const alreadyBookmarked = await getBookmarkState({
@@ -198,9 +224,9 @@ export async function DELETE(request: Request) {
     );
   }
 
-  if (!seriesId) {
+  if (!seriesId || !isUuid(seriesId)) {
     return NextResponse.json(
-      { ok: false, error: "seriesId が足りない。" },
+      { ok: false, error: "seriesId が不正。" },
       { status: 400 }
     );
   }
