@@ -111,6 +111,9 @@ export async function POST(request: Request) {
   const adminSupabase = createAdminClient();
   const userId = await getCurrentUserId();
 
+  // Do not trust seriesId, episodeNumber, recording relationships, or public
+  // visibility supplied by the browser. Popularity rows feed ranking counters,
+  // so all canonical event dimensions are resolved from the database.
   const { data: episode, error: episodeError } = await adminSupabase
     .from("episodes")
     .select("id, series_id, episode_number, posting_status, is_published")
