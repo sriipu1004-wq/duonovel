@@ -17,7 +17,7 @@ import {
 } from "@/features/authorProfile/authorProfileShared";
 import { fetchAuthorFollowSnapshot } from "@/lib/authorFollow";
 import { buildSeriesPopularityMap, fetchSeriesPopularityDataset } from "@/lib/popularity";
-import { getSeriesPublicationStatus, isEpisodePubliclyVisible, pickText, type EpisodeRow } from "@/features/write/writeShared";
+import { getSeriesPublicationStatus, isEpisodePubliclyVisible, pickText, type EpisodeRow, type SeriesRow } from "@/features/write/writeShared";
 import { isR18Series } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 
@@ -59,11 +59,11 @@ export default async function AuthorPage({ params }: PageProps) {
   for (const row of [...(recordingA.data ?? []), ...(recordingB.data ?? [])] as RecordingRow[]) if (row.id && isPublic(row)) recordings.set(row.id, row);
   const narrationIds = Array.from(new Set(Array.from(recordings.values()).map(seriesId).filter(Boolean)));
   const [narrationSeriesResult, narrationEpisodesResult] = await Promise.all([
-    narrationIds.length ? admin.from("series").select("*").in("id", narrationIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    narrationIds.length ? admin.from("series").select("*").in("id", narrationIds) : Promise.resolve({ data: [] as SeriesRow[] }),
     narrationIds.length ? admin.from("episodes").select("*").in("series_id", narrationIds) : Promise.resolve({ data: [] as EpisodeRow[] }),
   ]);
-  const visibleNarrationSeries = (narrationSeriesResult.data ?? []).filter((row: Record<string, unknown>) => getSeriesPublicationStatus(row) === "public" && (preference.showR18Content || !isR18Series(row)));
-  const narrationSeriesMap = new Map(visibleNarrationSeries.map((row: Record<string, unknown>) => [String(row.id), row]));
+  const visibleNarrationSeries = ((narrationSeriesResult.data ?? []) as SeriesRow[]).filter((row) => getSeriesPublicationStatus(row) === "public" && (preference.showR18Content || !isR18Series(row)));
+  const narrationSeriesMap = new Map(visibleNarrationSeries.map((row) => [String(row.id), row]));
   const firstEpisodeMap = new Map<string, number>();
   for (const episode of (narrationEpisodesResult.data ?? []) as EpisodeRow[]) {
     if (!isEpisodePubliclyVisible(episode, new Date())) continue;
