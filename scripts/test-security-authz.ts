@@ -72,6 +72,21 @@ assert.ok(
   "human-publish must authenticate before parsing multipart input"
 );
 
+const readPage = source("src/app/read/[seriesId]/[episodeNumber]/page.tsx");
+assert.equal(
+  readPage.includes("if (payload.r18Blocked) return null;"),
+  true,
+  "blocked R18 reader pages must not build or serialize the child reader payload"
+);
+const r18MetadataGuard = readPage.indexOf("if (payload.r18Blocked) {");
+const metadataSeriesRead = readPage.indexOf("const { series, episode } = payload;");
+assert.ok(
+  r18MetadataGuard >= 0 &&
+    metadataSeriesRead >= 0 &&
+    r18MetadataGuard < metadataSeriesRead,
+  "R18 metadata must be reduced to generic noindex metadata before title/summary/author fields are read"
+);
+
 console.log(
-  "PASS: Child 65 follow-up authorization and request-cost guards are present"
+  "PASS: Child 65 follow-up authorization, privacy, and request-cost guards are present"
 );
