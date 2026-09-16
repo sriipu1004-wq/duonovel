@@ -162,6 +162,23 @@ function localizeHref(value: string, locale: Exclude<UiLocale, "ja">): string {
   return `${localized.pathname}${localized.search}${localized.hash}`;
 }
 
+function repairRecordNavigation(root: HTMLElement, locale: UiLocale) {
+  const submitted = root.querySelector<HTMLAnchorElement>('a[href="#record-submitted"]');
+  if (submitted) {
+    submitted.href = localizePath("/record?filter=submitted#record-search-results", locale);
+  }
+
+  const bookmarked = root.querySelector<HTMLAnchorElement>('a[href="#record-bookmarked"]');
+  if (bookmarked) {
+    bookmarked.href = localizePath("/record?filter=bookmarked#record-search-results", locale);
+  }
+
+  const legacyRequests = root.querySelector<HTMLAnchorElement>('a[href="#record-requests"]');
+  if (legacyRequests) {
+    legacyRequests.hidden = true;
+  }
+}
+
 function applyLocale(root: HTMLElement, locale: Exclude<UiLocale, "ja">) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
@@ -189,13 +206,15 @@ function applyLocale(root: HTMLElement, locale: Exclude<UiLocale, "ja">) {
 
 export default function RecordUiLocaleBridge({ locale }: { locale: UiLocale }) {
   useEffect(() => {
-    if (locale === "ja") return;
     if (stripUiLocalePrefix(window.location.pathname) !== "/record") return;
 
     const root = document.querySelector<HTMLElement>("main");
     if (!root) return;
 
-    const run = () => applyLocale(root, locale);
+    const run = () => {
+      repairRecordNavigation(root, locale);
+      if (locale !== "ja") applyLocale(root, locale);
+    };
     run();
 
     const observer = new MutationObserver(run);
