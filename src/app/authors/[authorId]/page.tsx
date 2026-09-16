@@ -17,6 +17,7 @@ import {
   resolveAuthorNoteUrl,
   resolveAuthorXUrl,
 } from "@/features/authorProfile/authorProfileShared";
+import { fetchAuthorFollowSnapshot } from "@/lib/authorFollow";
 import {
   buildSeriesPopularityMap,
   fetchSeriesPopularityDataset,
