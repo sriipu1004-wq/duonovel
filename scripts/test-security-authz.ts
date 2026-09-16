@@ -43,7 +43,7 @@ for (const path of [
 
 const authorPage = source("src/app/authors/[authorId]/page.tsx");
 assert.equal(
-  authorPage.includes('row.publication_status === "public"'),
+  authorPage.includes('getSeriesPublicationStatus(row) === "public"'),
   true,
   "author narration metadata must not surface a nonpublic series fetched with service-role access"
 );
