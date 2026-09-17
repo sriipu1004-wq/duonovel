@@ -14,6 +14,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -38,9 +40,10 @@ jobs:
         run: >-
           npx eslint
           scripts/test-final-pricing-copy.ts
+          scripts/test-public-translation-credit-runtime.ts
           src/app/credits/page.tsx
           src/app/terms/page.tsx
-          src/app/works/[seriesId]/translations/[targetLanguage]/page.tsx
+          'src/app/works/[seriesId]/translations/[targetLanguage]/page.tsx'
           src/features/library/LibraryImportForm.tsx
           src/features/playback/PublicTranslationUnlockGate.tsx
           src/i18n/dictionaries/bilingualReader.ts
