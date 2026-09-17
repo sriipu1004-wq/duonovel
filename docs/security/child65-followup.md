@@ -128,7 +128,7 @@ P3:
 - `search_path=public` on the remaining reviewed SECURITY DEFINER functions is safe under current schema CREATE grants, but schema-qualified references plus an empty/minimal search path would be stronger defense-in-depth if those functions are rewritten later;
 - the Turbopack dynamic ffmpeg output-tracing warning remains an operational/build-hardening item, not an authorization finding.
 
-## Validation plan
+## Validation
 
 The follow-up branch adds `npm run test:security-authz` and includes it in the security validation workflow together with the existing auth, Stripe webhook, public/workspace schema, translation permission, public search, billing locale, dependency audit, diff lint, and Production build checks.
 
@@ -142,7 +142,7 @@ The authorization/security regression covers:
 - time-fit publish authentication ordering, UUID/ownership predicates, and error minimization;
 - translation-status UUID validation and storage-error minimization.
 
-No database migration is required for SEC-21 through SEC-27.
+No database migration is required for SEC-21 through SEC-27. The latest branch head must pass the security workflow and Vercel Preview build before merge approval is requested.
 
 ## Deployment state
 
