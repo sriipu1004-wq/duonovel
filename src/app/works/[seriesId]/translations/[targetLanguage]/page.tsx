@@ -31,7 +31,7 @@ const copy = {
     ready: "翻訳あり",
     missing: "未生成",
     read: "翻訳で読む",
-    generateAndRead: "Readerで翻訳して読む",
+    generateAndRead: "Readerで翻訳を解放",
     noMetadataTranslation: "タイトル・あらすじは現在原文を表示しています。本文翻訳は各話の共有翻訳レイヤーを利用します。",
   },
   en: {
@@ -42,7 +42,7 @@ const copy = {
     ready: "Translation ready",
     missing: "Not generated",
     read: "Read translation",
-    generateAndRead: "Translate in Reader",
+    generateAndRead: "Unlock translation in Reader",
     noMetadataTranslation: "Title and synopsis currently remain in the original language. Episode text uses the shared translation layer.",
   },
   ko: {
@@ -53,7 +53,7 @@ const copy = {
     ready: "번역 있음",
     missing: "미생성",
     read: "번역으로 읽기",
-    generateAndRead: "리더에서 번역해 읽기",
+    generateAndRead: "Reader에서 번역 잠금 해제",
     noMetadataTranslation: "제목과 줄거리는 현재 원문을 표시합니다. 본문은 각 회차의 공유 번역 레이어를 사용합니다.",
   },
 } as const;

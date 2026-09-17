@@ -141,9 +141,22 @@ function main() {
   assert.ok(creditsServer.includes('reader_unlock'));
 
   const readRoute = source("src/app/api/episode-translations/[episodeId]/route.ts");
+  const readyBlock = readRoute.indexOf('if (current?.status === "ready")');
+  const entitlementGuard = readRoute.indexOf(
+    'if (entitlement && entitlement.status !== "unlocked")',
+    readyBlock
+  );
+  const parseReadyPayload = readRoute.indexOf(
+    "parseStoredTranslationPayload(current.segments",
+    entitlementGuard
+  );
+  const lockedReadyGuard = readRoute.slice(entitlementGuard, parseReadyPayload);
   assert.ok(
-    readRoute.includes('entitlement.status !== "unlocked"') &&
-      readRoute.includes("Never leak cached translated text before unlock"),
+    readyBlock >= 0 &&
+      entitlementGuard > readyBlock &&
+      parseReadyPayload > entitlementGuard &&
+      lockedReadyGuard.includes("return NextResponse.json({") &&
+      !lockedReadyGuard.includes("segments:"),
     "ready cache payload must be withheld until entitlement exists"
   );
 
@@ -222,9 +235,9 @@ function main() {
 
   const gate = source("src/features/playback/PublicTranslationUnlockGate.tsx");
   assert.ok(gate.includes("本日の利用枠を1回使って"));
-  assert.ok(gate.includes("Unlock this episode for 1 credit"));
-  assert.ok(gate.includes("1크레딧으로 이 화 잠금 해제"));
-  assert.ok(gate.includes("1クレジットで解放"));
+  assert.ok(gate.includes("Unlock this episode's translation for 1 credit"));
+  assert.ok(gate.includes("1크레딧으로 이 화의 번역 잠금 해제"));
+  assert.ok(gate.includes("1クレジットでこの話の翻訳を解放"));
   assert.ok(gate.includes("same translation language without another charge"));
   assert.ok(gate.includes('role="alert"'));
   assert.ok(gate.includes(".catch(() => undefined)"));
