@@ -132,6 +132,44 @@ for (const forbidden of [
   );
 }
 
+const timeFitPublish = source("src/app/api/time-fit-stories/publish/route.ts");
+const timeFitPublishAuth = timeFitPublish.indexOf(
+  "const user = await requireSignedInUser()"
+);
+const timeFitPublishJson = timeFitPublish.indexOf("await request.json()");
+assert.ok(
+  timeFitPublishAuth >= 0 &&
+    timeFitPublishJson >= 0 &&
+    timeFitPublishAuth < timeFitPublishJson,
+  "time-fit publish must authenticate before parsing the JSON body"
+);
+for (const required of [
+  "MAX_REQUEST_BYTES",
+  "isUuid(seriesId)",
+  '.eq("author_id", user.id)',
+  '.eq("series_id", seriesId)',
+]) {
+  assert.equal(
+    timeFitPublish.includes(required),
+    true,
+    `time-fit publish must retain server-side request/ownership guard: ${required}`
+  );
+}
+for (const forbidden of [
+  "seriesResult.error?.message",
+  "episodeResult.error?.message",
+  "aiSeriesResult.error.message",
+  "publishCountResult.error.message",
+  "seriesUpdate.error.message",
+  "episodeUpdate.error.message",
+]) {
+  assert.equal(
+    timeFitPublish.includes(forbidden),
+    false,
+    `time-fit publish must not return raw database errors: ${forbidden}`
+  );
+}
+
 console.log(
-  "PASS: Child 65 follow-up authorization, privacy, input, and request-cost guards are present"
+  "PASS: Child 65 follow-up authorization, privacy, input, ownership, and request-cost guards are present"
 );
