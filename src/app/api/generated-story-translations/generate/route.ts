@@ -38,6 +38,8 @@ import { parseTranslationLearningPreference } from "@/lib/translation/translatio
 export const runtime = "nodejs";
 export const maxDuration = 300;
 const GENERATED_TRANSLATION_STUCK_MS = 4 * 60 * 1000;
+const MAX_REQUEST_BYTES = 64 * 1024;
+const TITLE_MAX_LENGTH = 300;
 
 function readBooleanEnv(name: string, fallback: boolean): boolean {
   const value = process.env[name]?.trim().toLowerCase();
@@ -55,6 +57,13 @@ function readNonNegativeNumberEnv(name: string, fallback: number): number {
 function readPositiveIntEnv(name: string, fallback: number): number {
   const parsed = Number(process.env[name]);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+function requestTooLarge(request: Request): boolean {
+  const raw = request.headers.get("content-length");
+  if (!raw) return false;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > MAX_REQUEST_BYTES;
 }
 
 const TRANSLATION_LIMITS = {
@@ -189,6 +198,13 @@ async function readReadyTranslation(args: {
 }
 
 export async function POST(request: Request) {
+  if (requestTooLarge(request)) {
+    return NextResponse.json(
+      { ok: false, error: "request_too_large" },
+      { status: 413 }
+    );
+  }
+
   let payload: Record<string, unknown>;
 
   try {
@@ -222,6 +238,7 @@ export async function POST(request: Request) {
     storyId.length > 100 ||
     !/^[A-Za-z0-9-]+$/u.test(storyId) ||
     !title ||
+    title.length > TITLE_MAX_LENGTH ||
     !body ||
     !sourceLanguage ||
     !targetLanguage ||
@@ -325,11 +342,12 @@ export async function POST(request: Request) {
       .eq("status", "translating");
 
     if (staleUpdate.error) {
+      console.error("[generated-story-translation-timeout-cleanup]", staleUpdate.error);
       return NextResponse.json(
         {
           ok: false,
           error: "translation_storage_unavailable",
-          message: staleUpdate.error.message,
+          message: "対訳の状態を更新できません。",
         },
         { status: 503 }
       );
@@ -385,12 +403,13 @@ export async function POST(request: Request) {
   });
 
   if (reservationResult.error) {
+    console.error("[generated-story-translation-reservation]", reservationResult.error);
     await releaseAiAction(requestId);
     return NextResponse.json(
       {
         ok: false,
         error: "translation_reservation_failed",
-        message: reservationResult.error.message,
+        message: "対訳の準備に失敗しました。",
       },
       { status: 503 }
     );
@@ -542,7 +561,8 @@ export async function POST(request: Request) {
       .eq("id", translationId);
 
     if (translationUpdate.error) {
-      throw new Error("翻訳結果の保存に失敗しました: " + translationUpdate.error.message);
+      console.error("[generated-story-translation-save]", translationUpdate.error);
+      throw new Error("翻訳結果の保存に失敗しました。");
     }
 
     await admin
@@ -572,22 +592,26 @@ export async function POST(request: Request) {
         (error.name === "TimeoutError" || error.name === "AbortError")) ||
       (error instanceof OpenAITranslationError && error.status === 504);
     const isOpenAIError = error instanceof OpenAITranslationError;
-    const message = isTimeout
+    const internalMessage = isTimeout
       ? "対訳の一部が1分以内に完了しませんでした。"
       : error instanceof Error
         ? error.message
         : "対訳の生成に失敗しました。";
+    const clientMessage = isTimeout
+      ? "対訳の一部が1分以内に完了しませんでした。"
+      : "対訳の生成に失敗しました。";
     const errorCode = isTimeout
       ? "translation_timeout"
       : isOpenAIError
         ? "translation_openai_failed"
         : "translation_exception";
 
+    console.error("[generated-story-translation-generate]", error);
     await markFailed({
       translationId,
       logId,
       errorCode,
-      errorMessage: message,
+      errorMessage: internalMessage,
       retryCount:
         error instanceof OpenAITranslationError ? error.retryCount : 0,
     });
@@ -596,7 +620,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: errorCode,
-        message,
+        message: clientMessage,
       },
       { status: isTimeout ? 504 : isOpenAIError ? error.status : 500 }
     );
