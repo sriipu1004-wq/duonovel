@@ -63,6 +63,56 @@ function mapStrings<T>(value: T, locale: SearchLocale): T {
   return value;
 }
 
+function currentPlanFacts(locale: SearchLocale) {
+  if (locale === "en") {
+    return [
+      {
+        label: "Price",
+        value: "Free is ¥0. Premium is ¥680 per month and is charged in Japanese yen (JPY).",
+      },
+      {
+        label: "Free included daily allowance",
+        value: "On Free, AI story generation, public-work translation unlocks, and My Library imports share 3 uses per day in total.",
+      },
+      {
+        label: "Premium included daily allowances",
+        value: "Premium provides up to 10 AI story generations per day and up to 30 public-work translation unlocks per day. My Library imports have no daily count limit.",
+      },
+      {
+        label: "My Library capacity",
+        value: "Free stores up to 3 works. Premium stores up to 20 works.",
+      },
+      {
+        label: "Public translation unlock",
+        value: "One unlock covers one public-work episode in one target language. Rereading the same episode in that language uses no additional allowance or credit, and Bilingual and Translation only share the same unlock. Original reading does not require a translation unlock.",
+      },
+    ];
+  }
+
+  return [
+    {
+      label: "요금",
+      value: "Free는 ¥0입니다. Premium은 월 ¥680이며 일본 엔(JPY)으로 결제됩니다.",
+    },
+    {
+      label: "Free 포함 일일 이용 한도",
+      value: "Free에서는 AI 이야기 생성, 공개 작품 번역 잠금 해제, 개인 서재 가져오기가 합산 하루 3회를 공유합니다.",
+    },
+    {
+      label: "Premium 포함 일일 이용 한도",
+      value: "Premium은 AI 이야기 생성 하루 최대 10회, 공개 작품 번역 잠금 해제 하루 최대 30회를 제공하며 개인 서재 가져오기는 일일 횟수 제한이 없습니다.",
+    },
+    {
+      label: "개인 서재 보관 한도",
+      value: "Free는 최대 3작품, Premium은 최대 20작품을 보관할 수 있습니다.",
+    },
+    {
+      label: "공개 작품 번역 잠금 해제",
+      value: "한 번의 잠금 해제는 공개 작품 1화 × 대상 언어 1개에 적용됩니다. 같은 화를 같은 언어로 다시 읽을 때는 추가 이용 한도나 크레딧이 필요하지 않으며 대역과 번역만 보기는 같은 잠금 해제를 공유합니다. 원문 읽기에는 번역 잠금 해제가 필요하지 않습니다.",
+    },
+  ];
+}
+
 function currentPublicTranslationFeatures(locale: SearchLocale) {
   if (locale === "en") {
     return [
@@ -110,6 +160,7 @@ export function getSearchDiscoveryDefinition(
     ...legacy,
     config: {
       ...legacy.config,
+      facts: currentPlanFacts(locale),
       features: [
         ...legacy.config.features,
         ...currentPublicTranslationFeatures(locale),
