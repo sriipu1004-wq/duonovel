@@ -53,6 +53,7 @@ jobs:
           src/app/api/authors/like/route.ts
           src/app/api/billing/webhook/route.ts
           src/app/api/bookmarks/series/route.ts
+          src/app/api/episode-translations/[episodeId]/route.ts
           src/app/api/popularity/events/route.ts
           src/app/api/recordings/human-publish/route.ts
           src/app/api/recordings/human-upload-session/route.ts
