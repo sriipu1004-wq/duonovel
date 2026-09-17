@@ -59,6 +59,7 @@ jobs:
           src/app/api/recordings/human-visibility/route.ts
           src/app/api/recordings/upload-check/route.ts
           src/app/api/series/reaction/route.ts
+          src/app/api/time-fit-stories/publish/route.ts
           src/app/api/time-fit-stories/save-private/route.ts
           src/app/api/word-explanations/route.ts
           src/app/authors/[authorId]/page.tsx
