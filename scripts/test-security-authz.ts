@@ -230,6 +230,23 @@ for (const forbidden of [
   );
 }
 
+const aiUsage = source("src/app/api/ai-usage/route.ts");
+assert.equal(
+  aiUsage.includes('console.error("[ai-usage-snapshot]", error)'),
+  true,
+  "AI usage failures should retain server-side diagnostics"
+);
+assert.equal(
+  aiUsage.includes("message: error instanceof Error ? error.message"),
+  false,
+  "AI usage must not reflect provider/database error messages to the client"
+);
+assert.equal(
+  aiUsage.includes('message: "利用回数を取得できませんでした。"'),
+  true,
+  "AI usage should return a stable generic client failure message"
+);
+
 console.log(
   "PASS: Child 65 follow-up authorization, privacy, input, ownership, and error-minimization guards are present"
 );
