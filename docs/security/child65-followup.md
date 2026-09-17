@@ -53,6 +53,55 @@ Fix:
 
 Production currently has no public R18 episode available for a safe live negative test, so this is enforced by regression/build validation rather than a destructive or synthetic Production data test.
 
+### SEC-25 — P2 — time-fit private-save mass-assignment / input / error boundary
+
+Surface: `/api/time-fit-stories/save-private`.
+
+Impact:
+- JSON parsing happened before authentication;
+- the service-role route accepted a client-supplied `editorName` as the first public display-name candidate and also fell back to the account email;
+- direct requests could provide much larger story/profile payloads than the normal generation UI;
+- several database errors were returned verbatim to the client.
+
+No existing public profile row with an email-shaped `display_name` was found in the live aggregate-only check. The `users` table has RLS enabled; authenticated users have self-only SELECT/UPDATE policies and anon has no row-select policy. The issue is therefore classified as P2 route hardening rather than an established cross-user exposure.
+
+Fix:
+- authenticate before JSON parsing;
+- enforce request/title/synopsis/body/tag bounds;
+- derive the display name from the existing server profile or authenticated metadata and never from `payload.editorName` or email;
+- do not overwrite an existing public profile row merely because the story-save route ran;
+- keep detailed database failures in server logs and return stable generic client errors.
+
+Regression: `scripts/test-security-authz.ts` checks ordering, field trust, bounds, and raw-error suppression.
+
+### SEC-26 — P2 — time-fit publish request / service-role mutation hardening
+
+Surface: `/api/time-fit-stories/publish`.
+
+Impact: JSON parsing occurred before authentication, `seriesId` was not explicitly validated as a UUID, and several Supabase error strings were returned verbatim. The route already checked the loaded series owner, but the later service-role updates relied on the earlier application check rather than repeating owner/parent predicates in the mutation query.
+
+Fix:
+- authenticate before JSON parsing and bound the request size;
+- reject malformed `seriesId` before database access;
+- retain `author_id = current user` on the service-role series UPDATE;
+- retain `series_id` on the episode UPDATE;
+- normalize database failures returned to the client while preserving server diagnostics.
+
+The existing count-then-write publish limit is intentionally not redesigned in this patch; that requires a transactional DB reservation rather than a route-local check.
+
+### SEC-27 — P2 — translation-status storage error disclosure
+
+Surface: `/api/episode-translations/[episodeId]` GET.
+
+Impact: underlying storage error messages from current/stale translation lookups were reflected to the client. No secret value exposure was established, but the responses disclosed unnecessary database/provider detail.
+
+Fix:
+- reject malformed episode UUIDs before the database path;
+- log detailed storage errors server-side;
+- return a stable generic `translation_storage_unavailable` message to the client.
+
+The existing stuck-translation timeout cleanup performed by the GET route remains listed below as bounded shared-state cleanup; moving it to a worker/generation boundary would be a behavioral refactor beyond this follow-up.
+
 ## Supabase Security Advisor re-check
 
 Current security advisor state was re-read after the deployed Child 65 migrations.
@@ -63,15 +112,16 @@ Current security advisor state was re-read after the deployed Child 65 migration
 
 Read-only grant/policy verification also reconfirmed that `episode_translations` and `bilingual_word_explanations` have no browser SELECT/mutation grants, financial ledger/lot/unlock tables expose at most user-scoped reads through RLS, and canonical public/owner policies remain on `series`, `episodes`, and `recordings`.
 
+The live `users` table re-check confirmed RLS is enabled with authenticated self-only SELECT/UPDATE policies; anon has no row-select policy. An aggregate-only query found zero email-shaped `display_name` rows at the time of this follow-up.
+
 ## Remaining bounded P2 / P3
 
 P2:
-- generated-story translation still accepts generated-story source text supplied by the browser rather than a server-issued proof binding it to the immediately preceding generation. Existing source-size, AI action, translation request and cost limits bound the impact; this is not a public-translation credit entitlement bypass.
-- time-fit save/publish quota checks remain count-then-write and can exceed the nominal limit under concurrent requests.
-- time-fit private-save still accepts an editor display-name candidate from the client for the same user's profile path; DB uniqueness prevents duplicate normalized display names, but canonical server profile data would be cleaner.
-- Supabase Auth leaked-password protection remains disabled.
-- the episode-translation status GET route can perform timeout cleanup of a shared `translating` row after the stuck threshold when the original episode is readable. This is bounded shared-state cleanup, but moving timeout finalization to the generation/worker boundary would reduce mutation in a GET path.
-- selected server error paths still return underlying storage/reservation error messages. No secret value exposure was established, but normalizing those responses remains low-risk information-minimization work.
+- generated-story translation still accepts generated-story source text supplied by the browser rather than a server-issued proof binding it to the immediately preceding generation. The generation endpoint records request/rate/cost metadata but does not persist the generated body; the Reader stores the generated story in browser session/local storage. Correctly binding the translation request therefore requires a new server receipt/state mechanism. Existing authentication, source-size, AI-action, translation-request, and cost limits bound the impact; this is not a public-translation credit entitlement bypass.
+- time-fit private-save and publish quota checks remain count-then-write and can exceed the nominal limit under concurrent requests. A correct fix needs a transactional reservation/advisory-lock RPC or equivalent DB constraint, so it is not replaced by another route-local check during feature freeze.
+- Supabase Auth leaked-password protection remains disabled and requires an explicit Auth configuration change.
+- the episode-translation status GET route can perform timeout cleanup of a shared `translating` row after the stuck threshold when the original episode is readable. This is bounded shared-state cleanup; moving timeout finalization to the generation/worker boundary would reduce mutation in a GET path but changes runtime behavior.
+- other legacy AI/generation paths still contain some provider/internal error strings. No secret-key/token exposure was established in the audited paths; broad response normalization should be handled as a separate low-risk hardening pass rather than rewriting every generation route inside this freeze.
 
 P3:
 - legacy reader-card-like structures and performance-advisor warnings remain deferred unless they become operationally relevant;
@@ -82,14 +132,17 @@ P3:
 
 The follow-up branch adds `npm run test:security-authz` and includes it in the security validation workflow together with the existing auth, Stripe webhook, public/workspace schema, translation permission, public search, billing locale, dependency audit, diff lint, and Production build checks.
 
-The authorization regression now covers:
+The authorization/security regression covers:
 - translation entitlement before service-role cached translation reads;
 - canonical public-work filtering after service-role profile aggregation;
 - R18 and episode visibility on reader aggregation;
 - authentication before `human-publish` multipart parsing;
-- blocked R18 reader payload and metadata minimization.
+- blocked R18 reader payload and metadata minimization;
+- time-fit private-save authentication ordering, profile source, input bounds, and error minimization;
+- time-fit publish authentication ordering, UUID/ownership predicates, and error minimization;
+- translation-status UUID validation and storage-error minimization.
 
-No database migration is required for SEC-21 through SEC-24.
+No database migration is required for SEC-21 through SEC-27.
 
 ## Deployment state
 
