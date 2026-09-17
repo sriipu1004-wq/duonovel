@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 import type { UiLocale } from "./config";
 import { stripUiLocalePrefix } from "./config";
 import { localizePath } from "./navigation";
@@ -40,6 +40,7 @@ const EN: Record<string, string> = {
   "上の検索へ": "Back to search",
   "フィルタ:": "Filter:",
   "検索語:": "Query:",
+  "タグ:": "Tags:",
   "ジャンル:": "Genre:",
   "並び順:": "Order:",
   "未入力": "None",
@@ -52,7 +53,10 @@ const EN: Record<string, string> = {
   "ブックマーク": "Bookmarked",
   "朗読視聴": "Narration plays",
   "閲覧": "Views",
+  "/ 閲覧": "/ Views",
   "いいね": "Likes",
+  "/ いいね": "/ Likes",
+  "/ ブックマーク": "/ Bookmarks",
   "作品ページ": "Work page",
   "作品ページへ": "Work page",
   "朗読制作へ": "Create narration",
@@ -98,6 +102,7 @@ const KO: Record<string, string> = {
   "上の検索へ": "위 검색으로",
   "フィルタ:": "필터:",
   "検索語:": "검색어:",
+  "タグ:": "태그:",
   "ジャンル:": "장르:",
   "並び順:": "정렬:",
   "未入力": "입력 없음",
@@ -110,7 +115,10 @@ const KO: Record<string, string> = {
   "ブックマーク": "북마크",
   "朗読視聴": "낭독 재생",
   "閲覧": "조회",
+  "/ 閲覧": "/ 조회",
   "いいね": "좋아요",
+  "/ いいね": "/ 좋아요",
+  "/ ブックマーク": "/ 북마크",
   "作品ページ": "작품 페이지",
   "作品ページへ": "작품 페이지",
   "朗読制作へ": "낭독 만들기",
@@ -212,7 +220,7 @@ function applyLocale(root: HTMLElement, locale: Exclude<UiLocale, "ja">) {
 }
 
 export default function RecordUiLocaleBridge({ locale }: { locale: UiLocale }) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (stripUiLocalePrefix(window.location.pathname) !== "/record") return;
 
     const root = document.querySelector<HTMLElement>("main");
