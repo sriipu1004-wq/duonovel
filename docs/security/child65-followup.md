@@ -102,6 +102,22 @@ Fix:
 
 The existing stuck-translation timeout cleanup performed by the GET route remains listed below as bounded shared-state cleanup; moving it to a worker/generation boundary would be a behavioral refactor beyond this follow-up.
 
+### SEC-28 — P2 — generated-story translation input / error boundary
+
+Surface: `/api/generated-story-translations/generate`.
+
+Impact: the route accepted an unbounded declared JSON request before applying the translation source-character limit, did not bound the work title, and returned several database/provider error strings verbatim. No secret key/token exposure was established, but the raw messages exposed unnecessary backend/provider detail and oversized declared payloads could force avoidable parsing work.
+
+Fix:
+- reject declared request bodies above 64 KiB before JSON parsing;
+- bound the generated-story title to 300 characters;
+- keep detailed timeout cleanup, reservation, save, and OpenAI failures in server logs/internal translation logs;
+- return stable generic client messages instead of raw Supabase/OpenAI error text.
+
+This does not add a server-issued proof for generated-story source text; that larger state-binding change remains listed below as bounded P2 work.
+
+Regression: `scripts/test-security-authz.ts` verifies the request bound precedes JSON parsing and raw storage/provider messages are not reflected to the client. The route is also included in focused security lint.
+
 ## Supabase Security Advisor re-check
 
 Current security advisor state was re-read after the deployed Child 65 migrations.
@@ -110,7 +126,7 @@ Current security advisor state was re-read after the deployed Child 65 migration
 - `authenticated_security_definer_function_executable`: 10 remaining notices were re-checked against live function metadata. All have `search_path=public`; neither `anon` nor `authenticated` can `CREATE` in the `public` schema, so a caller cannot use a public-schema object shadowing attack. Nine functions explicitly reference `auth.uid()`. The tenth, `count_private_library_import_usage()`, is a `RETURNS trigger` function rather than a normal client RPC and is therefore an advisor false-positive for direct RPC execution. The dangerous server-contract RPCs found in the original Child 65 audit remain unavailable to browser roles.
 - Supabase Auth leaked-password protection remains disabled. This stays P2 account hardening and requires an Auth configuration change rather than an application-code security patch.
 
-Read-only grant/policy verification also reconfirmed that `episode_translations` and `bilingual_word_explanations` have no browser SELECT/mutation grants, financial ledger/lot/unlock tables expose at most user-scoped reads through RLS, and canonical public/owner policies remain on `series`, `episodes`, and `recordings`.
+Read-only grant/policy verification also reconfirmed that `episode_translations`, `generated_story_translations`, `generated_story_translation_logs`, and `bilingual_word_explanations` have no browser SELECT/mutation grants, financial ledger/lot/unlock tables expose at most user-scoped reads through RLS, and canonical public/owner policies remain on `series`, `episodes`, and `recordings`.
 
 The live `users` table re-check confirmed RLS is enabled with authenticated self-only SELECT/UPDATE policies; anon has no row-select policy. An aggregate-only query found zero email-shaped `display_name` rows at the time of this follow-up.
 
@@ -121,7 +137,7 @@ P2:
 - time-fit private-save and publish quota checks remain count-then-write and can exceed the nominal limit under concurrent requests. A correct fix needs a transactional reservation/advisory-lock RPC or equivalent DB constraint, so it is not replaced by another route-local check during feature freeze.
 - Supabase Auth leaked-password protection remains disabled and requires an explicit Auth configuration change.
 - the episode-translation status GET route can perform timeout cleanup of a shared `translating` row after the stuck threshold when the original episode is readable. This is bounded shared-state cleanup; moving timeout finalization to the generation/worker boundary would reduce mutation in a GET path but changes runtime behavior.
-- other legacy AI/generation paths still contain some provider/internal error strings. No secret-key/token exposure was established in the audited paths; broad response normalization should be handled as a separate low-risk hardening pass rather than rewriting every generation route inside this freeze.
+- other legacy AI/generation paths may still contain some provider/internal error strings. No secret-key/token exposure was established in the audited paths; a repository-wide normalization rewrite remains outside this freeze unless a concrete higher-impact path is found.
 
 P3:
 - legacy reader-card-like structures and performance-advisor warnings remain deferred unless they become operationally relevant;
@@ -140,9 +156,10 @@ The authorization/security regression covers:
 - blocked R18 reader payload and metadata minimization;
 - time-fit private-save authentication ordering, profile source, input bounds, and error minimization;
 - time-fit publish authentication ordering, UUID/ownership predicates, and error minimization;
-- translation-status UUID validation and storage-error minimization.
+- translation-status UUID validation and storage-error minimization;
+- generated-story translation request-size/title bounds and provider/storage error minimization.
 
-No database migration is required for SEC-21 through SEC-27. The latest branch head must pass the security workflow and Vercel Preview build before merge approval is requested.
+No database migration is required for SEC-21 through SEC-28. The latest branch head must pass the security workflow and Vercel Preview build before merge approval is requested.
 
 ## Deployment state
 
