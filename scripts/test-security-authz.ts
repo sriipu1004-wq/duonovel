@@ -170,6 +170,30 @@ for (const forbidden of [
   );
 }
 
+const translationStatus = source(
+  "src/app/api/episode-translations/[episodeId]/route.ts"
+);
+assert.equal(
+  translationStatus.includes("isUuid(episodeId)"),
+  true,
+  "translation status must reject malformed episode identifiers before database access"
+);
+assert.equal(
+  translationStatus.includes("message: currentResult.error.message"),
+  false,
+  "translation status must not return the current-row storage error verbatim"
+);
+assert.equal(
+  translationStatus.includes("message: olderReadyResult.error.message"),
+  false,
+  "translation status must not return stale-row storage errors verbatim"
+);
+assert.equal(
+  translationStatus.includes('message: "対訳の状態を確認できません。"'),
+  true,
+  "translation status should return a stable generic storage failure message"
+);
+
 console.log(
-  "PASS: Child 65 follow-up authorization, privacy, input, ownership, and request-cost guards are present"
+  "PASS: Child 65 follow-up authorization, privacy, input, ownership, and error-minimization guards are present"
 );
