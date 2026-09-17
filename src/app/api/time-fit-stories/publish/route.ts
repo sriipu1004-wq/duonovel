@@ -3,11 +3,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { readSeriesTranslationLearningPreference } from "@/lib/translation/translationLearningPreference";
+import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const PUBLISH_LIMIT_PER_24H = 1;
+const MAX_REQUEST_BYTES = 16 * 1024;
 
 type PublishRequest = {
   seriesId?: unknown;
@@ -126,7 +128,30 @@ async function requireSignedInUser() {
   return user;
 }
 
+function requestTooLarge(request: Request): boolean {
+  const raw = request.headers.get("content-length");
+  if (!raw) return false;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > MAX_REQUEST_BYTES;
+}
+
 export async function POST(request: Request) {
+  const user = await requireSignedInUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { ok: false, error: "投稿するにはログインが必要です。" },
+      { status: 401 }
+    );
+  }
+
+  if (requestTooLarge(request)) {
+    return NextResponse.json(
+      { ok: false, error: "リクエストが大きすぎる。" },
+      { status: 413 }
+    );
+  }
+
   let payload: PublishRequest;
 
   try {
@@ -138,20 +163,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const user = await requireSignedInUser();
-
-  if (!user) {
-    return NextResponse.json(
-      { ok: false, error: "投稿するにはログインが必要です。" },
-      { status: 401 }
-    );
-  }
-
   const seriesId = readText(payload.seriesId);
 
-  if (!seriesId) {
+  if (!isUuid(seriesId)) {
     return NextResponse.json(
-      { ok: false, error: "seriesId が足りない。" },
+      { ok: false, error: "seriesId が不正です。" },
       { status: 400 }
     );
   }
@@ -164,12 +180,12 @@ export async function POST(request: Request) {
     .eq("id", seriesId)
     .maybeSingle();
 
+  if (seriesResult.error) {
+    console.error("[time-fit-publish-series-read]", seriesResult.error);
+  }
   if (seriesResult.error || !seriesResult.data) {
     return NextResponse.json(
-      {
-        ok: false,
-        error: seriesResult.error?.message ?? "作品が見つからない。",
-      },
+      { ok: false, error: "作品が見つからない。" },
       { status: 404 }
     );
   }
@@ -197,19 +213,20 @@ export async function POST(request: Request) {
     .order("episode_number", { ascending: true })
     .limit(1);
 
+  if (episodeResult.error) {
+    console.error("[time-fit-publish-episode-read]", episodeResult.error);
+  }
   if (episodeResult.error || !episodeResult.data?.[0]) {
     return NextResponse.json(
-      {
-        ok: false,
-        error: episodeResult.error?.message ?? "投稿対象の話が見つからない。",
-      },
+      { ok: false, error: "投稿対象の話が見つからない。" },
       { status: 404 }
     );
   }
 
   const episode = episodeResult.data[0] as EpisodeRow;
   const episodeNumber =
-    typeof episode.episode_number === "number" && Number.isFinite(episode.episode_number)
+    typeof episode.episode_number === "number" &&
+    Number.isFinite(episode.episode_number)
       ? episode.episode_number
       : 1;
 
@@ -246,8 +263,9 @@ export async function POST(request: Request) {
     .eq("author_id", user.id);
 
   if (aiSeriesResult.error) {
+    console.error("[time-fit-publish-series-count-read]", aiSeriesResult.error);
     return NextResponse.json(
-      { ok: false, error: aiSeriesResult.error.message },
+      { ok: false, error: "公開回数の確認に失敗した。" },
       { status: 500 }
     );
   }
@@ -265,8 +283,9 @@ export async function POST(request: Request) {
       .gte("posted_at", cutoffIso);
 
     if (publishCountResult.error) {
+      console.error("[time-fit-publish-count]", publishCountResult.error);
       return NextResponse.json(
-        { ok: false, error: publishCountResult.error.message },
+        { ok: false, error: "公開回数の確認に失敗した。" },
         { status: 500 }
       );
     }
@@ -289,11 +308,13 @@ export async function POST(request: Request) {
     .update({
       publication_status: "public",
     })
-    .eq("id", seriesId);
+    .eq("id", seriesId)
+    .eq("author_id", user.id);
 
   if (seriesUpdate.error) {
+    console.error("[time-fit-publish-series-update]", seriesUpdate.error);
     return NextResponse.json(
-      { ok: false, error: seriesUpdate.error.message },
+      { ok: false, error: "作品の公開状態を更新できなかった。" },
       { status: 500 }
     );
   }
@@ -306,11 +327,13 @@ export async function POST(request: Request) {
       posted_at: nowIso,
       last_edited_at: nowIso,
     })
-    .eq("id", episode.id);
+    .eq("id", episode.id)
+    .eq("series_id", seriesId);
 
   if (episodeUpdate.error) {
+    console.error("[time-fit-publish-episode-update]", episodeUpdate.error);
     return NextResponse.json(
-      { ok: false, error: episodeUpdate.error.message },
+      { ok: false, error: "話の公開状態を更新できなかった。" },
       { status: 500 }
     );
   }
