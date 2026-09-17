@@ -13,6 +13,7 @@ type RecordPageProps = Parameters<typeof RecordPortalPage>[0];
 type RecordElementProps = {
   children?: ReactNode;
   href?: string;
+  className?: string;
 };
 
 const JAPANESE_CANONICAL_PATHS = new Set([
@@ -27,6 +28,20 @@ const EXPANDABLE_SERVER_COMPONENTS = new Set([
   "RecordCatalogCard",
   "RequestStatusCard",
   "RecordingLegalFooter",
+]);
+
+const SOURCE_TEXT_CLASSES = new Set([
+  "text-lg font-semibold text-black",
+  "mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-700",
+  "mt-2 whitespace-pre-wrap text-sm leading-7 text-neutral-700",
+  "rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs text-violet-700",
+  "rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-600",
+]);
+
+const LOCALIZABLE_SOURCE_FALLBACKS = new Set([
+  "作品概要はまだ設定されていない。",
+  "無題",
+  "申請メッセージは未入力。",
 ]);
 
 const EN: Record<string, string> = {
@@ -158,6 +173,23 @@ function translateText(value: string, locale: Exclude<UiLocale, "ja">): string {
   return `${leading}${translated}${trailing}`;
 }
 
+function localizeSourceFallbacks(
+  node: ReactNode,
+  locale: Exclude<UiLocale, "ja">
+): ReactNode {
+  if (typeof node === "string") {
+    return LOCALIZABLE_SOURCE_FALLBACKS.has(node.trim())
+      ? translateText(node, locale)
+      : node;
+  }
+
+  if (Array.isArray(node)) {
+    return node.map((child) => localizeSourceFallbacks(child, locale));
+  }
+
+  return node;
+}
+
 function localizeNestedNext(href: string, locale: UiLocale): string {
   if (locale === "ja" || !href.startsWith("/") || href.startsWith("//")) {
     return href;
@@ -211,7 +243,9 @@ function localizeNode(node: ReactNode, locale: Exclude<UiLocale, "ja">): ReactNo
   let changed = false;
 
   if ("children" in element.props) {
-    const children = localizeNode(element.props.children, locale);
+    const children = SOURCE_TEXT_CLASSES.has(element.props.className ?? "")
+      ? localizeSourceFallbacks(element.props.children, locale)
+      : localizeNode(element.props.children, locale);
     if (children !== element.props.children) {
       nextProps.children = children;
       changed = true;
