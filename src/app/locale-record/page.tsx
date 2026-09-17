@@ -15,11 +15,26 @@ type RecordElementProps = {
   href?: string;
 };
 
+const JAPANESE_CANONICAL_PATHS = new Set([
+  "/terms",
+  "/privacy",
+  "/commercial-transactions",
+  "/record/terms",
+]);
+
+const EXPANDABLE_SERVER_COMPONENTS = new Set([
+  "SectionFrame",
+  "RecordCatalogCard",
+  "RequestStatusCard",
+  "RecordingLegalFooter",
+]);
+
 const EN: Record<string, string> = {
   "作品概要はまだ設定されていない。": "Work summary has not been added yet.",
   "無題": "Untitled",
   "朗読許可": "Narration allowed",
   "朗読不可": "Narration unavailable",
+  "朗読可": "Available",
   "未使用": "Pending",
   "却下": "Rejected",
   "取消済み": "Cancelled",
@@ -30,10 +45,14 @@ const EN: Record<string, string> = {
   "投稿済": "Submitted",
   "ブックマーク": "Bookmarked",
   "朗読視聴": "Narration plays",
+  "/ 閲覧": "/ Views",
+  "/ いいね": "/ Likes",
+  "/ ブックマーク": "/ Bookmarks",
   "閲覧": "Views",
   "いいね": "Likes",
   "直近申請日時:": "Latest request:",
   "申請メッセージは未入力。": "No request message.",
+  "未記録": "Not recorded",
   "制作開始": "Start creating",
   "申請ページ": "Request page",
   "朗読ページ": "Narration",
@@ -50,6 +69,11 @@ const EN: Record<string, string> = {
   "今すぐ朗読制作へ進める作品だけを見る。": "Show only works available for narration now.",
   "自分が保存した作品だけを見る。": "Show only your bookmarked works.",
   "上の検索へ": "Back to search",
+  "フィルタ:": "Filter:",
+  "検索語:": "Query:",
+  "タグ:": "Tags:",
+  "ジャンル:": "Genre:",
+  "並び順:": "Order:",
   "条件に合う朗読関連作品はない。": "No narration-related works match these filters.",
   "すべて": "All",
   "人気順": "Popular",
@@ -57,6 +81,10 @@ const EN: Record<string, string> = {
   "朗読視聴順": "Narration plays",
   "未入力": "None",
   "未指定": "None",
+  "朗読投稿規約": "Narration Posting Terms (Japanese)",
+  "利用規約": "Terms (Japanese)",
+  "プライバシーポリシー": "Privacy Policy (Japanese)",
+  "お問い合わせ": "Contact",
 };
 
 const KO: Record<string, string> = {
@@ -64,6 +92,7 @@ const KO: Record<string, string> = {
   "無題": "제목 없음",
   "朗読許可": "낭독 허용",
   "朗読不可": "낭독 불가",
+  "朗読可": "낭독 가능",
   "未使用": "대기 중",
   "却下": "거절",
   "取消済み": "취소됨",
@@ -74,10 +103,14 @@ const KO: Record<string, string> = {
   "投稿済": "제출 완료",
   "ブックマーク": "북마크",
   "朗読視聴": "낭독 재생",
+  "/ 閲覧": "/ 조회",
+  "/ いいね": "/ 좋아요",
+  "/ ブックマーク": "/ 북마크",
   "閲覧": "조회",
   "いいね": "좋아요",
   "直近申請日時:": "최근 신청 일시:",
   "申請メッセージは未入力。": "신청 메시지가 없습니다.",
+  "未記録": "기록 없음",
   "制作開始": "제작 시작",
   "申請ページ": "신청 페이지",
   "朗読ページ": "낭독",
@@ -94,6 +127,11 @@ const KO: Record<string, string> = {
   "今すぐ朗読制作へ進める作品だけを見る。": "지금 낭독 제작을 시작할 수 있는 작품만 봅니다.",
   "自分が保存した作品だけを見る。": "내가 북마크한 작품만 봅니다.",
   "上の検索へ": "위 검색으로",
+  "フィルタ:": "필터:",
+  "検索語:": "검색어:",
+  "タグ:": "태그:",
+  "ジャンル:": "장르:",
+  "並び順:": "정렬:",
   "条件に合う朗読関連作品はない。": "조건에 맞는 낭독 관련 작품이 없습니다.",
   "すべて": "전체",
   "人気順": "인기순",
@@ -101,6 +139,10 @@ const KO: Record<string, string> = {
   "朗読視聴順": "낭독 재생순",
   "未入力": "입력 없음",
   "未指定": "지정 안 함",
+  "朗読投稿規約": "낭독 게시 약관 (일본어)",
+  "利用規約": "이용약관 (일본어)",
+  "プライバシーポリシー": "개인정보 처리방침 (일본어)",
+  "お問い合わせ": "문의",
 };
 
 function translateText(value: string, locale: Exclude<UiLocale, "ja">): string {
@@ -117,15 +159,37 @@ function translateText(value: string, locale: Exclude<UiLocale, "ja">): string {
 }
 
 function localizeNestedNext(href: string, locale: UiLocale): string {
+  if (locale === "ja" || !href.startsWith("/") || href.startsWith("//")) {
+    return href;
+  }
+
+  const original = new URL(href, "https://libread.local");
+  if (JAPANESE_CANONICAL_PATHS.has(original.pathname)) {
+    return `${original.pathname}${original.search}${original.hash}`;
+  }
+
   const localized = localizePath(href, locale);
-  if (locale === "ja" || !localized.startsWith("/")) return localized;
+  if (!localized.startsWith("/")) return localized;
 
   const url = new URL(localized, "https://libread.local");
   const next = url.searchParams.get("next");
   if (next?.startsWith("/") && !next.startsWith("//")) {
-    url.searchParams.set("next", localizePath(next, locale));
+    const nextUrl = new URL(next, "https://libread.local");
+    if (!JAPANESE_CANONICAL_PATHS.has(nextUrl.pathname)) {
+      url.searchParams.set("next", localizePath(next, locale));
+    }
   }
   return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function renderKnownServerComponent(
+  element: ReactElement<RecordElementProps>
+): ReactNode | null {
+  if (typeof element.type !== "function") return null;
+  if (!EXPANDABLE_SERVER_COMPONENTS.has(element.type.name)) return null;
+
+  const render = element.type as unknown as (props: RecordElementProps) => ReactNode;
+  return render(element.props);
 }
 
 function localizeNode(node: ReactNode, locale: Exclude<UiLocale, "ja">): ReactNode {
@@ -138,6 +202,11 @@ function localizeNode(node: ReactNode, locale: Exclude<UiLocale, "ja">): ReactNo
   if (!isValidElement(node)) return node;
 
   const element = node as ReactElement<RecordElementProps>;
+  const rendered = renderKnownServerComponent(element);
+  if (rendered !== null) {
+    return localizeNode(rendered, locale);
+  }
+
   const nextProps: RecordElementProps = {};
   let changed = false;
 
