@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { subscriptionDictionaries } from "../src/i18n/dictionaries/subscription";
 import { billingPromptDictionaries } from "../src/i18n/dictionaries/billingPrompt";
-import { bilingualReaderDictionaries } from "../src/i18n/dictionaries/bilingualReader";
 
 function source(path: string): string {
   return readFileSync(path, "utf8");
