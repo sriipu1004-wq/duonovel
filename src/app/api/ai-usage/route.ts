@@ -10,11 +10,12 @@ export async function GET(request: Request) {
       ...(await getAiUsageSnapshot(request)),
     });
   } catch (error) {
+    console.error("[ai-usage-snapshot]", error);
     return NextResponse.json(
       {
         ok: false,
         error: "ai_usage_unavailable",
-        message: error instanceof Error ? error.message : "利用回数を取得できませんでした。",
+        message: "利用回数を取得できませんでした。",
       },
       { status: 503 }
     );

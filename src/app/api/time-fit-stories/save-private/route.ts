@@ -7,6 +7,13 @@ import { createClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 
 const SAVE_LIMIT_PER_24H = 5;
+const MAX_REQUEST_BYTES = 256 * 1024;
+const STORY_ID_MAX_LENGTH = 120;
+const TITLE_MAX_LENGTH = 300;
+const SYNOPSIS_MAX_LENGTH = 4_000;
+const BODY_MAX_LENGTH = 40_000;
+const TAG_MAX_COUNT = 20;
+const TAG_MAX_LENGTH = 100;
 
 type TimeFitStorySaveRequest = {
   storyId?: unknown;
@@ -28,6 +35,14 @@ type SupabaseLikeError = {
 
 type AdminSupabase = ReturnType<typeof createAdminClient>;
 
+type PublicUserRow = Record<string, unknown> & {
+  id?: string | null;
+  display_name?: string | null;
+  username?: string | null;
+  pen_name?: string | null;
+  name?: string | null;
+};
+
 function readText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -48,20 +63,16 @@ function readNumber(value: unknown, fallback = 0): number {
 }
 
 function readStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter((item) => item.length > 0);
-  }
+  const raw = Array.isArray(value)
+    ? value.map((item) => String(item))
+    : typeof value === "string" && value.trim().length > 0
+      ? value.split(/[\n,、]/)
+      : [];
 
-  if (typeof value === "string" && value.trim().length > 0) {
-    return value
-      .split(/[\n,、]/)
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0);
-  }
-
-  return [];
+  return raw
+    .map((item) => item.trim().slice(0, TAG_MAX_LENGTH))
+    .filter((item) => item.length > 0)
+    .slice(0, TAG_MAX_COUNT);
 }
 
 function isDuplicateError(error: SupabaseLikeError | null): boolean {
@@ -81,8 +92,7 @@ function readRequestObject(value: unknown): Record<string, unknown> {
 }
 
 function buildGenres(request: Record<string, unknown>): string[] {
-  const genre = readText(request.genre);
-
+  const genre = readText(request.genre).slice(0, TAG_MAX_LENGTH);
   return Array.from(new Set([genre].filter(Boolean)));
 }
 
@@ -91,9 +101,9 @@ function buildTags(args: {
   storyTags: string[];
   estimatedReadingMinutes: number;
 }): string[] {
-  const scene = readText(args.request.scene);
-  const genre = readText(args.request.genre);
-  const mood = readText(args.request.mood);
+  const scene = readText(args.request.scene).slice(0, TAG_MAX_LENGTH);
+  const genre = readText(args.request.genre).slice(0, TAG_MAX_LENGTH);
+  const mood = readText(args.request.mood).slice(0, TAG_MAX_LENGTH);
   const timeMinutes =
     readNumber(args.request.timeMinutes, args.estimatedReadingMinutes) ||
     args.estimatedReadingMinutes;
@@ -110,12 +120,11 @@ function buildTags(args: {
         ...args.storyTags,
       ].filter(Boolean)
     )
-  );
+  ).slice(0, TAG_MAX_COUNT);
 }
 
 function resolvePublicDisplayName(args: {
-  editorName: string;
-  userEmail?: string | null;
+  publicUserRow?: PublicUserRow | null;
   metadata: unknown;
 }): string {
   const metadata =
@@ -124,17 +133,19 @@ function resolvePublicDisplayName(args: {
       : {};
 
   const candidates = [
-    args.editorName,
+    readText(args.publicUserRow?.display_name),
+    readText(args.publicUserRow?.pen_name),
+    readText(args.publicUserRow?.username),
+    readText(args.publicUserRow?.name),
     readText(metadata.display_name),
     readText(metadata.displayName),
     readText(metadata.name),
     readText(metadata.full_name),
     readText(metadata.display_name_candidate),
-    readText(args.userEmail),
     "ユーザー",
   ];
 
-  return candidates.find((value) => value.trim().length > 0) ?? "ユーザー";
+  return candidates.find((value) => value.length > 0) ?? "ユーザー";
 }
 
 async function ensurePublicUserRow(args: {
@@ -142,30 +153,22 @@ async function ensurePublicUserRow(args: {
   userId: string;
   displayName: string;
 }): Promise<void> {
-  const updatedAt = new Date().toISOString();
+  const existing = await args.supabase
+    .from("users")
+    .select("id")
+    .eq("id", args.userId)
+    .maybeSingle();
 
-  const updatePayloads: Array<Record<string, unknown>> = [
-    { display_name: args.displayName, updated_at: updatedAt },
-    { display_name: args.displayName },
-  ];
-
-  for (const payload of updatePayloads) {
-    const result = await args.supabase
-      .from("users")
-      .update(payload)
-      .eq("id", args.userId)
-      .select("id")
-      .maybeSingle();
-
-    if (!result.error && result.data?.id) {
-      return;
-    }
+  if (!existing.error && existing.data?.id) {
+    return;
   }
 
+  const updatedAt = new Date().toISOString();
   const roleCandidates = ["author", "user", "member", "reader", "voice"];
+  const errors: string[] = [];
 
-  const insertPayloads: Array<Record<string, unknown>> = roleCandidates.flatMap(
-    (role) => [
+  for (const role of roleCandidates) {
+    for (const payload of [
       {
         id: args.userId,
         display_name: args.displayName,
@@ -177,28 +180,28 @@ async function ensurePublicUserRow(args: {
         display_name: args.displayName,
         role,
       },
-    ]
-  );
+    ]) {
+      const result = await args.supabase
+        .from("users")
+        .insert(payload)
+        .select("id")
+        .maybeSingle();
 
-  const errors: string[] = [];
+      if (!result.error && result.data?.id) {
+        return;
+      }
 
-  for (const payload of insertPayloads) {
-    const result = await args.supabase
-      .from("users")
-      .upsert(payload, { onConflict: "id" })
-      .select("id")
-      .maybeSingle();
+      if (isDuplicateError(result.error)) {
+        return;
+      }
 
-    if (!result.error && result.data?.id) {
-      return;
-    }
-
-    if (result.error?.message) {
-      errors.push(`${JSON.stringify(payload)} => ${result.error.message}`);
+      if (result.error?.message) {
+        errors.push(result.error.message);
+      }
     }
   }
 
-  throw new Error(`ユーザー情報の準備に失敗した: ${errors.join(" | ")}`);
+  throw new Error(errors.join(" | ") || "public_user_prepare_failed");
 }
 
 async function requireSignedInUser() {
@@ -215,7 +218,30 @@ async function requireSignedInUser() {
   return user;
 }
 
+function requestTooLarge(request: Request): boolean {
+  const raw = request.headers.get("content-length");
+  if (!raw) return false;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > MAX_REQUEST_BYTES;
+}
+
 export async function POST(request: Request) {
+  const user = await requireSignedInUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { ok: false, error: "保存するにはログインが必要です。" },
+      { status: 401 }
+    );
+  }
+
+  if (requestTooLarge(request)) {
+    return NextResponse.json(
+      { ok: false, error: "リクエストが大きすぎる。" },
+      { status: 413 }
+    );
+  }
+
   let payload: TimeFitStorySaveRequest;
 
   try {
@@ -227,15 +253,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const user = await requireSignedInUser();
-
-  if (!user) {
-    return NextResponse.json(
-      { ok: false, error: "保存するにはログインが必要です。" },
-      { status: 401 }
-    );
-  }
-
   const storyId = readText(payload.storyId);
   const title = readText(payload.title);
   const synopsis = readText(payload.synopsis);
@@ -244,16 +261,18 @@ export async function POST(request: Request) {
   const storyTags = readStringArray(payload.tags);
   const estimatedReadingMinutes = readNumber(payload.estimatedReadingMinutes, 0);
   const bookmarkUnitIndex = readNumber(payload.bookmarkUnitIndex, 0);
-  const editorName = readText(payload.editorName) || readText(user.email);
-  const publicDisplayName = resolvePublicDisplayName({
-    editorName,
-    userEmail: user.email,
-    metadata: user.user_metadata,
-  });
 
-  if (!storyId || !title || !body) {
+  if (
+    !storyId ||
+    storyId.length > STORY_ID_MAX_LENGTH ||
+    !title ||
+    title.length > TITLE_MAX_LENGTH ||
+    synopsis.length > SYNOPSIS_MAX_LENGTH ||
+    !body ||
+    body.length > BODY_MAX_LENGTH
+  ) {
     return NextResponse.json(
-      { ok: false, error: "保存に必要な生成作品データが足りない。" },
+      { ok: false, error: "保存に必要な生成作品データが不正です。" },
       { status: 400 }
     );
   }
@@ -262,6 +281,21 @@ export async function POST(request: Request) {
   const nowIso = new Date().toISOString();
   const cutoffIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
+  const publicUserResult = await adminSupabase
+    .from("users")
+    .select("id, display_name, username, pen_name, name")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (publicUserResult.error) {
+    console.error("[time-fit-save-private-user-read]", publicUserResult.error);
+  }
+
+  const publicDisplayName = resolvePublicDisplayName({
+    publicUserRow: (publicUserResult.data as PublicUserRow | null) ?? null,
+    metadata: user.user_metadata,
+  });
+
   try {
     await ensurePublicUserRow({
       supabase: adminSupabase,
@@ -269,20 +303,14 @@ export async function POST(request: Request) {
       displayName: publicDisplayName,
     });
   } catch (error) {
+    console.error("[time-fit-save-private-user-prepare]", error);
     return NextResponse.json(
-      {
-        ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "ユーザー情報の準備に失敗した。",
-      },
+      { ok: false, error: "ユーザー情報の準備に失敗した。" },
       { status: 500 }
     );
   }
 
   const authorId = user.id;
-
   const genres = buildGenres(requestObject);
   const tags = buildTags({
     request: requestObject,
@@ -303,14 +331,12 @@ export async function POST(request: Request) {
 
     if (!existingSeries.error && existingSeries.data?.[0]?.id) {
       const seriesId = String(existingSeries.data[0].id);
-
       const existingEpisode = await adminSupabase
         .from("episodes")
         .select("id, episode_number")
         .eq("series_id", seriesId)
         .order("episode_number", { ascending: true })
         .limit(1);
-
       const episodeId =
         existingEpisode.data?.[0]?.id &&
         typeof existingEpisode.data[0].id === "string"
@@ -341,8 +367,9 @@ export async function POST(request: Request) {
     .contains("tags", ["AI生成"]);
 
   if (saveCountResult.error) {
+    console.error("[time-fit-save-private-count]", saveCountResult.error);
     return NextResponse.json(
-      { ok: false, error: saveCountResult.error.message },
+      { ok: false, error: "保存回数の確認に失敗した。" },
       { status: 500 }
     );
   }
@@ -372,10 +399,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "content_warning_classification_failed",
-        message:
-          error instanceof Error
-            ? error.message
-            : "AI生成作品のコンテンツ警告判定に失敗しました。",
+        message: "AI生成作品のコンテンツ警告判定に失敗しました。",
       },
       { status: 503 }
     );
@@ -404,7 +428,7 @@ export async function POST(request: Request) {
       aiGenerated: true,
       storyFormat: "short",
       generatedStoryId: storyId,
-      generatedAt: readText(payload.createdAt),
+      generatedAt: readText(payload.createdAt).slice(0, 100),
       savedAt: nowIso,
       bookmarkUnitIndex,
       authorName: "AI生成",
@@ -424,7 +448,7 @@ export async function POST(request: Request) {
   ];
 
   let createdSeriesId = "";
-  let lastSeriesError = "作品保存に失敗した。";
+  let lastSeriesError: unknown = null;
 
   for (const seriesPayload of seriesPayloads) {
     const result = await adminSupabase
@@ -438,12 +462,13 @@ export async function POST(request: Request) {
       break;
     }
 
-    lastSeriesError = result.error?.message ?? lastSeriesError;
+    lastSeriesError = result.error;
   }
 
   if (!createdSeriesId) {
+    console.error("[time-fit-save-private-series]", lastSeriesError);
     return NextResponse.json(
-      { ok: false, error: lastSeriesError },
+      { ok: false, error: "作品保存に失敗した。" },
       { status: 500 }
     );
   }
@@ -467,13 +492,10 @@ export async function POST(request: Request) {
     .single();
 
   if (episodeResult.error || !episodeResult.data?.id) {
+    console.error("[time-fit-save-private-episode]", episodeResult.error);
     await adminSupabase.from("series").delete().eq("id", createdSeriesId);
-
     return NextResponse.json(
-      {
-        ok: false,
-        error: episodeResult.error?.message ?? "話の保存に失敗した。",
-      },
+      { ok: false, error: "話の保存に失敗した。" },
       { status: 500 }
     );
   }
@@ -486,14 +508,14 @@ export async function POST(request: Request) {
     });
 
   if (bookmarkResult.error && !isDuplicateError(bookmarkResult.error)) {
+    console.error("[time-fit-save-private-bookmark]", bookmarkResult.error);
     await adminSupabase
       .from("episodes")
       .delete()
       .eq("id", episodeResult.data.id);
     await adminSupabase.from("series").delete().eq("id", createdSeriesId);
-
     return NextResponse.json(
-      { ok: false, error: bookmarkResult.error.message },
+      { ok: false, error: "保存後のブックマーク登録に失敗した。" },
       { status: 500 }
     );
   }

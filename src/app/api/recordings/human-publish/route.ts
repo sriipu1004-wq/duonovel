@@ -333,6 +333,25 @@ function resolveErrorResponse(error: unknown): {
 }
 
 export async function POST(request: Request) {
+  // Reject unauthenticated callers before parsing multipart input. Parsing a
+  // large multipart body is materially more expensive than verifying the
+  // session and should never be available as an anonymous resource sink.
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "ログイン状態を確認できなかった。",
+      },
+      { status: 401 }
+    );
+  }
+
   let formData: FormData;
 
   try {
@@ -383,22 +402,6 @@ export async function POST(request: Request) {
         validationResult,
       },
       { status: 400 }
-    );
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "ログイン状態を確認できなかった。",
-      },
-      { status: 401 }
     );
   }
 
