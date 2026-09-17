@@ -194,6 +194,42 @@ assert.equal(
   "translation status should return a stable generic storage failure message"
 );
 
+const generatedTranslation = source(
+  "src/app/api/generated-story-translations/generate/route.ts"
+);
+const generatedRequestLimit = generatedTranslation.indexOf("requestTooLarge(request)");
+const generatedJsonParse = generatedTranslation.indexOf("await request.json()");
+assert.ok(
+  generatedRequestLimit >= 0 &&
+    generatedJsonParse >= 0 &&
+    generatedRequestLimit < generatedJsonParse,
+  "generated-story translation must reject oversized declared requests before JSON parsing"
+);
+for (const required of [
+  "MAX_REQUEST_BYTES",
+  "TITLE_MAX_LENGTH",
+  'message: "対訳の状態を更新できません。"',
+  'message: "対訳の準備に失敗しました。"',
+  "message: clientMessage",
+]) {
+  assert.equal(
+    generatedTranslation.includes(required),
+    true,
+    `generated-story translation must retain input/error-minimization guard: ${required}`
+  );
+}
+for (const forbidden of [
+  "message: staleUpdate.error.message",
+  "message: reservationResult.error.message",
+  "translationUpdate.error.message",
+]) {
+  assert.equal(
+    generatedTranslation.includes(forbidden),
+    false,
+    `generated-story translation must not return raw provider/database errors: ${forbidden}`
+  );
+}
+
 console.log(
   "PASS: Child 65 follow-up authorization, privacy, input, ownership, and error-minimization guards are present"
 );
