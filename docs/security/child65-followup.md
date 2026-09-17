@@ -159,10 +159,9 @@ The authorization/security regression covers:
 - translation-status UUID validation and storage-error minimization;
 - generated-story translation request-size/title bounds and provider/storage error minimization.
 
-Latest validated head before this documentation-only Preview note: `6fd72d95820c05ba97f6568ff95f58c6a0f9f82e`.
-Security validation run `35168170249` completed successfully on that head, including dependency audit, auth/security regressions, Stripe credit webhook fixture, focused security lint and Production build.
+Security validation is rerun on the exact final branch head after this report synchronization. The previously validated code head `6fd72d95820c05ba97f6568ff95f58c6a0f9f82e` passed run `35168170249`, including dependency audit, auth/security regressions, Stripe credit webhook fixture, focused security lint and Production build.
 
-Vercel Preview for that head: `https://nextjs-c0xe6mhkx-sriipu1004-wqs-projects.vercel.app`.
+Vercel Preview for the validated code state: `https://nextjs-c0xe6mhkx-sriipu1004-wqs-projects.vercel.app`.
 Read-only smoke checks returned HTTP 200 at the root, malformed `/api/episode-translations/not-a-uuid` returned a minimal 404 `episode_not_found`, and no Preview `error` / `fatal` runtime logs were observed in the checked 30-minute window after the smoke. Security headers retained frame protection, `nosniff`, HSTS, Referrer-Policy and Permissions-Policy, and Preview remained `noindex`.
 
 No database migration is required for SEC-21 through SEC-28.
