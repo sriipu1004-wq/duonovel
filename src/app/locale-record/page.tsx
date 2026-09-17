@@ -7,6 +7,7 @@ import {
 import { getUiLocale } from "@/i18n/server";
 import { localizePath } from "@/i18n/navigation";
 import type { UiLocale } from "@/i18n/config";
+import { RecordingLegalFooter } from "@/components/recording/RecordingLegalFooter";
 import RecordPortalPage from "../record/page";
 
 type RecordPageProps = Parameters<typeof RecordPortalPage>[0];
@@ -14,6 +15,7 @@ type RecordElementProps = {
   children?: ReactNode;
   href?: string;
   className?: string;
+  [key: string]: unknown;
 };
 
 const JAPANESE_CANONICAL_PATHS = new Set([
@@ -21,13 +23,6 @@ const JAPANESE_CANONICAL_PATHS = new Set([
   "/privacy",
   "/commercial-transactions",
   "/record/terms",
-]);
-
-const EXPANDABLE_SERVER_COMPONENTS = new Set([
-  "SectionFrame",
-  "RecordCatalogCard",
-  "RequestStatusCard",
-  "RecordingLegalFooter",
 ]);
 
 const SOURCE_TEXT_CLASSES = new Set([
@@ -218,10 +213,29 @@ function renderKnownServerComponent(
   element: ReactElement<RecordElementProps>
 ): ReactNode | null {
   if (typeof element.type !== "function") return null;
-  if (!EXPANDABLE_SERVER_COMPONENTS.has(element.type.name)) return null;
+
+  const props = element.props;
+  const item = props.item as Record<string, unknown> | undefined;
+  const isSectionFrame =
+    typeof props.label === "string" &&
+    typeof props.title === "string" &&
+    Object.prototype.hasOwnProperty.call(props, "children");
+  const isCatalogCard =
+    Boolean(item?.series) &&
+    Boolean(item?.popularity) &&
+    Object.prototype.hasOwnProperty.call(props, "hasRecordingGlobalConsent");
+  const isRequestStatusCard =
+    Boolean(item?.request) &&
+    typeof item?.seriesTitle === "string" &&
+    Object.prototype.hasOwnProperty.call(props, "hasRecordingGlobalConsent");
+  const isLegalFooter = element.type === RecordingLegalFooter;
+
+  if (!isSectionFrame && !isCatalogCard && !isRequestStatusCard && !isLegalFooter) {
+    return null;
+  }
 
   const render = element.type as unknown as (props: RecordElementProps) => ReactNode;
-  return render(element.props);
+  return render(props);
 }
 
 function localizeNode(node: ReactNode, locale: Exclude<UiLocale, "ja">): ReactNode {
