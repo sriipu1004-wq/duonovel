@@ -25,7 +25,8 @@
     "test:public-search-language-filters": "node --import tsx scripts/test-public-search-language-filters.ts",
     "test:billing-locale-routing": "node --import tsx scripts/test-billing-locale-routing.ts",
     "test:stripe-credit-webhook": "node --import tsx scripts/test-stripe-credit-webhook.ts",
-    "test:security-authz": "node --import tsx scripts/test-security-authz.ts"
+    "test:security-authz": "node --import tsx scripts/test-security-authz.ts",
+    "test:pricing-copy": "node --import tsx scripts/test-final-pricing-copy.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
