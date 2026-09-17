@@ -15,7 +15,10 @@ export default function ReaderModeSelector({
   translationEnabled,
   onChange,
 }: Props) {
-  const dictionary = readerDictionaries[useUiLocale()];
+  const locale = useUiLocale();
+  const dictionary = readerDictionaries[locale];
+  const readerModeAriaLabel =
+    locale === "ja" ? "Readerモード" : locale === "ko" ? "리더 모드" : "Reader mode";
   const options: Array<{ mode: ReadingMode; label: string; disabled?: boolean }> = [
     { mode: "standard", label: dictionary.originalMode },
     {
@@ -34,7 +37,7 @@ export default function ReaderModeSelector({
     <div className="mx-auto w-full max-w-4xl px-3 pt-3 sm:px-6">
       <div
         role="tablist"
-        aria-label="Reader mode"
+        aria-label={readerModeAriaLabel}
         className="grid grid-cols-3 rounded-2xl border border-black/10 bg-white p-1 shadow-sm"
       >
         {options.map((option) => {
