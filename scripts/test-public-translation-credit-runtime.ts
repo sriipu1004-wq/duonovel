@@ -141,9 +141,22 @@ function main() {
   assert.ok(creditsServer.includes('reader_unlock'));
 
   const readRoute = source("src/app/api/episode-translations/[episodeId]/route.ts");
+  const readyBlock = readRoute.indexOf('if (current?.status === "ready")');
+  const entitlementGuard = readRoute.indexOf(
+    'if (entitlement && entitlement.status !== "unlocked")',
+    readyBlock
+  );
+  const parseReadyPayload = readRoute.indexOf(
+    "parseStoredTranslationPayload(current.segments",
+    entitlementGuard
+  );
+  const lockedReadyGuard = readRoute.slice(entitlementGuard, parseReadyPayload);
   assert.ok(
-    readRoute.includes('entitlement.status !== "unlocked"') &&
-      readRoute.includes("Never leak cached translated text before unlock"),
+    readyBlock >= 0 &&
+      entitlementGuard > readyBlock &&
+      parseReadyPayload > entitlementGuard &&
+      lockedReadyGuard.includes("return NextResponse.json({") &&
+      !lockedReadyGuard.includes("segments:"),
     "ready cache payload must be withheld until entitlement exists"
   );
 
