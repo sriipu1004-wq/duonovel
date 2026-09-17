@@ -16,6 +16,7 @@ import {
   getPublicTranslationEntitlementState,
   publicTranslationCanAutoGenerate,
 } from "@/lib/translation/publicTranslationCredits.server";
+import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,14 @@ type RouteContext = {
 
 export async function GET(request: Request, context: RouteContext) {
   const { episodeId } = await context.params;
+
+  if (!isUuid(episodeId)) {
+    return NextResponse.json(
+      { ok: false, error: "episode_not_found" },
+      { status: 404 }
+    );
+  }
+
   const requestUrl = new URL(request.url);
   const rawSourceLanguage = requestUrl.searchParams.get("sourceLanguage");
   const rawTargetLanguage = requestUrl.searchParams.get("targetLanguage");
@@ -99,7 +108,9 @@ export async function GET(request: Request, context: RouteContext) {
 
   const currentResult = await admin
     .from("episode_translations")
-    .select("id, status, segments, source_hash, translation_model, error_code, started_at, completed_at, updated_at")
+    .select(
+      "id, status, segments, source_hash, translation_model, error_code, started_at, completed_at, updated_at"
+    )
     .eq("episode_id", access.episode.id)
     .eq("source_language", sourceLanguage)
     .eq("target_language", targetLanguage)
@@ -107,11 +118,12 @@ export async function GET(request: Request, context: RouteContext) {
     .maybeSingle();
 
   if (currentResult.error) {
+    console.error("[episode-translation-status-current]", currentResult.error);
     return NextResponse.json(
       {
         ok: false,
         error: "translation_storage_unavailable",
-        message: currentResult.error.message,
+        message: "対訳の状態を確認できません。",
       },
       { status: 503 }
     );
@@ -120,8 +132,6 @@ export async function GET(request: Request, context: RouteContext) {
   const current = currentResult.data as Record<string, unknown> | null;
 
   if (current?.status === "ready") {
-    // Under credit enforcement, asset availability and user entitlement are
-    // deliberately separate. Never leak cached translated text before unlock.
     if (entitlement && entitlement.status !== "unlocked") {
       return NextResponse.json({
         ok: true,
@@ -256,11 +266,12 @@ export async function GET(request: Request, context: RouteContext) {
     .limit(1);
 
   if (olderReadyResult.error) {
+    console.error("[episode-translation-status-older]", olderReadyResult.error);
     return NextResponse.json(
       {
         ok: false,
         error: "translation_storage_unavailable",
-        message: olderReadyResult.error.message,
+        message: "対訳の状態を確認できません。",
       },
       { status: 503 }
     );
