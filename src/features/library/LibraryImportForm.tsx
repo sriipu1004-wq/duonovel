@@ -24,6 +24,7 @@ import {
   formatAiUsage,
   isAiUsageLimitReached,
 } from "@/lib/aiUsage/aiUsage";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
 
 type ImportState = "idle" | "reading" | "ready" | "saving" | "error";
 
@@ -36,6 +37,48 @@ type ParsedSelection = {
   suggestedLanguage: SupportedLanguageTag | null;
   detailLabel: string;
 };
+
+const USAGE_COPY = {
+  ja: {
+    storage: (isSubscriber: boolean, current: number, limit: number) =>
+      `${isSubscriber ? "Premium" : "Free"}の保存数：${current.toLocaleString("ja-JP")} / ${limit.toLocaleString("ja-JP")}作品`,
+    compare: "Free / Premiumを見る",
+    sharedAllowance:
+      "Freeの1日の利用枠（AI物語生成・公開作品の翻訳解放・個人本棚への取り込みで共有）：",
+    workLimitPremium:
+      "保存上限に達しています。新しい作品を取り込むには、既存作品を削除してください。",
+    workLimitFree:
+      "保存上限に達しています。新しい作品を取り込むには、既存作品を削除するか、Premiumを利用してください。",
+    exhausted:
+      "本日のFree共通利用枠3回を使い切っています。取り込み済み作品を読むことはできます。",
+  },
+  en: {
+    storage: (isSubscriber: boolean, current: number, limit: number) =>
+      `${isSubscriber ? "Premium" : "Free"} storage: ${current.toLocaleString("en-US")} / ${limit.toLocaleString("en-US")} works`,
+    compare: "Compare Free and Premium",
+    sharedAllowance:
+      "Free included daily allowance (shared by AI story generation, public-translation unlocks, and My Library imports):",
+    workLimitPremium:
+      "You've reached your storage limit. Delete an existing work before importing another one.",
+    workLimitFree:
+      "You've reached your storage limit. Delete an existing work or use Premium before importing another one.",
+    exhausted:
+      "You've used all 3 shared Free allowance uses for today. You can still read works already in My Library.",
+  },
+  ko: {
+    storage: (isSubscriber: boolean, current: number, limit: number) =>
+      `${isSubscriber ? "Premium" : "Free"} 보관 수: ${current.toLocaleString("ko-KR")} / ${limit.toLocaleString("ko-KR")}작품`,
+    compare: "Free와 Premium 비교",
+    sharedAllowance:
+      "Free 포함 일일 이용 한도(AI 이야기 생성·공개 작품 번역 잠금 해제·개인 서재 가져오기가 공유):",
+    workLimitPremium:
+      "보관 한도에 도달했습니다. 새 작품을 가져오려면 기존 작품을 삭제하세요.",
+    workLimitFree:
+      "보관 한도에 도달했습니다. 새 작품을 가져오려면 기존 작품을 삭제하거나 Premium을 이용하세요.",
+    exhausted:
+      "오늘의 Free 공용 이용 한도 3회를 모두 사용했습니다. 이미 가져온 작품은 계속 읽을 수 있습니다.",
+  },
+} as const;
 
 function titleFromFileName(fileName: string): string {
   return fileName.replace(/\.(?:txt|epub|docx|pdf)$/iu, "").trim().slice(0, 200);
@@ -128,6 +171,8 @@ export default function LibraryImportForm({
   isSubscriber: boolean;
 }) {
   const router = useRouter();
+  const locale = useUiLocale();
+  const usageCopy = USAGE_COPY[locale];
   const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
   const [title, setTitle] = useState("");
   const [authorName, setAuthorName] = useState("");
@@ -344,13 +389,10 @@ export default function LibraryImportForm({
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
-              <span>
-                {isSubscriber ? "サブスク" : "無料プラン"}の保存数：
-                {currentWorkCount.toLocaleString("ja-JP")} / {workLimit.toLocaleString("ja-JP")}作品
-              </span>
+              <span>{usageCopy.storage(isSubscriber, currentWorkCount, workLimit)}</span>
               {!isSubscriber ? (
                 <Link href="/subscription" className="font-semibold text-sky-800 underline underline-offset-4">
-                  サブスクを見る
+                  {usageCopy.compare}
                 </Link>
               ) : null}
             </div>
@@ -358,12 +400,13 @@ export default function LibraryImportForm({
             {!isSubscriber ? (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
                 <span>
-                  無料利用（AI生成・対訳・取り込み共通）：
+                  {usageCopy.sharedAllowance}
+                  {" "}
                   {formatAiUsage(aiUsage?.actions.story_generation)}
                 </span>
                 {hasReachedFreeUsageLimit ? (
                   <Link href="/subscription" className="font-semibold text-sky-800 underline underline-offset-4">
-                    サブスクを見る
+                    {usageCopy.compare}
                   </Link>
                 ) : null}
               </div>
@@ -371,13 +414,12 @@ export default function LibraryImportForm({
 
             {hasReachedWorkLimit ? (
               <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-900">
-                保存上限に達しています。新しい作品を取り込むには、既存作品を削除
-                {isSubscriber ? "してください。" : "するか、サブスクを利用してください。"}
+                {isSubscriber ? usageCopy.workLimitPremium : usageCopy.workLimitFree}
               </p>
             ) : null}
             {hasReachedFreeUsageLimit ? (
               <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-900">
-                本日の無料利用3回を使い切っています。取り込み済み作品を読むことはできます。
+                {usageCopy.exhausted}
               </p>
             ) : null}
 
