@@ -49,6 +49,7 @@ jobs:
           src/app/api/account/display-name/check/route.ts
           src/app/api/account/email/check/route.ts
           src/app/api/account/email/prepare-signup/route.ts
+          src/app/api/ai-usage/route.ts
           src/app/api/authors/follow/route.ts
           src/app/api/authors/like/route.ts
           src/app/api/billing/webhook/route.ts
