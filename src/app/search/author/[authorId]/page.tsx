@@ -4,7 +4,7 @@ import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildAuthorSeriesCards, fetchAuthorById, fetchSeriesByAuthorId, getProfileSeriesSummary, resolveAuthorName } from "@/features/authorProfile/authorProfileShared";
 import { buildSeriesPopularityMap, fetchSeriesPopularityDataset } from "@/lib/popularity";
-import { pickText } from "@/features/write/writeShared";
+import { getSeriesPublicationStatus, pickText } from "@/features/write/writeShared";
 import { isR18Series, withSystemContentRatingTag } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 
@@ -19,7 +19,8 @@ export default async function AuthorSearchPage({ params, searchParams }: Props) 
   const db = createAdminClient();
   const [author, series, preference] = await Promise.all([fetchAuthorById(authorId, db), fetchSeriesByAuthorId(authorId, db), getCurrentR18ViewerPreference()]);
   if (!author) notFound();
-  const visibleSeries = preference.showR18Content ? series : series.filter((item) => !isR18Series(item));
+  const publicSeries = series.filter((item) => getSeriesPublicationStatus(item) === "public");
+  const visibleSeries = preference.showR18Content ? publicSeries : publicSeries.filter((item) => !isR18Series(item));
   const cards = (await buildAuthorSeriesCards(visibleSeries, db)).filter((card) => card.publishedCount > 0);
   const popularity = buildSeriesPopularityMap(await fetchSeriesPopularityDataset(cards.map((card) => card.series.id)));
   const works = [...cards].sort((a, b) => order === "popular" ? (popularity.get(b.series.id)?.popularityScore ?? 0) - (popularity.get(a.series.id)?.popularityScore ?? 0) : time(pickText(b.series.updated_at, b.series.created_at)) - time(pickText(a.series.updated_at, a.series.created_at)));

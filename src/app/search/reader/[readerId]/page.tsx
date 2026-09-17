@@ -1,7 +1,9 @@
 import Link from "next/link";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { pickText } from "@/features/write/writeShared";
+import { getSeriesPublicationStatus, isEpisodePubliclyVisible, pickText, type EpisodeRow, type SeriesRow } from "@/features/write/writeShared";
+import { isR18Series } from "@/lib/contentRating";
+import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 
 type Props = { params: Promise<{ readerId: string }>; searchParams?: Promise<{ order?: string }> };
 type Row = Record<string, unknown> & { id: string };
@@ -14,18 +16,34 @@ export default async function ReaderSearchPage({ params, searchParams }: Props) 
   const query = searchParams ? await searchParams : undefined;
   const order = query?.order === "popular" ? "popular" : "updated";
   const db = createAdminClient();
-  const [first, second] = await Promise.all([db.from("recordings").select("*").eq("reader_id", readerId), db.from("recordings").select("*").eq("reader_user_id", readerId)]);
+  const [first, second, preference] = await Promise.all([db.from("recordings").select("*").eq("reader_id", readerId), db.from("recordings").select("*").eq("reader_user_id", readerId), getCurrentR18ViewerPreference()]);
   const recordings = new Map<string, Row>();
   for (const row of [...(first.data ?? []), ...(second.data ?? [])] as Row[]) {
     const name = text(row.reader_name, row.narrator_name, row.display_name, row.speaker_name) ?? "";
     if (row.id && row.is_public !== false && row.public !== false && !name.startsWith("Aivis ") && !name.startsWith("VOICEVOX Nemo")) recordings.set(row.id, row);
   }
   const ids = [...new Set([...recordings.values()].map((row) => text(row.series_id, row.seriesId) ?? "").filter(Boolean))];
-  const { data } = ids.length ? await db.from("series").select("*").in("id", ids) : { data: [] as Row[] };
-  const series = new Map((data ?? []).map((row: Row) => [String(row.id), row]));
+  const episodeIds = [...new Set([...recordings.values()].map((row) => text(row.episode_id, row.episodeId) ?? "").filter(Boolean))];
+  const [seriesResult, episodesResult] = await Promise.all([
+    ids.length ? db.from("series").select("*").in("id", ids) : Promise.resolve({ data: [] as SeriesRow[] }),
+    episodeIds.length ? db.from("episodes").select("*").in("id", episodeIds) : Promise.resolve({ data: [] as EpisodeRow[] }),
+  ]);
+  const series = new Map<string, SeriesRow>();
+  for (const row of (seriesResult.data ?? []) as SeriesRow[]) {
+    if (getSeriesPublicationStatus(row) !== "public") continue;
+    if (!preference.showR18Content && isR18Series(row)) continue;
+    series.set(row.id, row);
+  }
+  const visibleEpisodeIds = new Set<string>();
+  for (const episode of (episodesResult.data ?? []) as EpisodeRow[]) {
+    const parentSeriesId = pickText(episode.series_id, episode.seriesId);
+    if (!parentSeriesId || !series.has(parentSeriesId) || !isEpisodePubliclyVisible(episode, new Date())) continue;
+    visibleEpisodeIds.add(episode.id);
+  }
   const works = new Map<string, { id: string; title: string; summary: string; updatedAt: string; count: number; likes: number; plays: number; tags: string[] }>();
   for (const row of recordings.values()) {
     const id = text(row.series_id, row.seriesId) ?? ""; const source = series.get(id); if (!id || !source) continue;
+    const recordingEpisodeId = text(row.episode_id, row.episodeId) ?? ""; if (recordingEpisodeId && !visibleEpisodeIds.has(recordingEpisodeId)) continue;
     const item = works.get(id) ?? { id, title: text(source.title) ?? "無題", summary: text(source.summary, source.description, source.catch_copy) ?? "あらすじはまだ登録されていない。", updatedAt: text(source.updated_at, source.created_at) ?? "", count: 0, likes: 0, plays: 0, tags: Array.isArray(source.tags) ? source.tags.map(String) : [] };
     item.count += 1; item.likes += count(row.like_count ?? row.likes_count); item.plays += count(row.play_count ?? row.plays_count); works.set(id, item);
   }

@@ -281,6 +281,13 @@ export async function generateMetadata({
       };
     }
 
+    if (payload.r18Blocked) {
+      return {
+        title: `${ui.publicEpisode} | LIB read`,
+        robots: { index: false, follow: false },
+      };
+    }
+
     const { series, episode } = payload;
     const currentEpisodeNumber = getEpisodeNumber(episode) || parsedEpisodeNumber;
     const seriesTitle = pickText(series.title) || readUi.untitled;
@@ -367,6 +374,10 @@ export default async function ReadEpisodePage({
     parsedEpisodeNumber
   );
   if (!payload) notFound();
+
+  // The parent layout renders the R18 gate. Do not build or serialize the child
+  // reader payload at all for a viewer whose R18 preference blocks this work.
+  if (payload.r18Blocked) return null;
 
   const { series, episode, publicEpisodes, isOwner, viewerUserId } = payload;
   const subscriber = viewerUserId ? await isSubscriber(viewerUserId) : false;

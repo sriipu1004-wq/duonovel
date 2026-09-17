@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - security/auth-rls-payment-audit
+      - security/child65-followup
 
 permissions:
   contents: read
@@ -25,6 +26,8 @@ jobs:
         run: npm audit --omit=dev
       - name: Auth redirect regression
         run: npm run test:auth-login-redirect
+      - name: Authorization regression
+        run: npm run test:security-authz
       - name: Stripe credit webhook regression
         run: npm run test:stripe-credit-webhook
       - name: Public schema query regression
@@ -41,20 +44,30 @@ jobs:
         run: >-
           npx eslint
           scripts/test-auth-login-redirect.ts
+          scripts/test-security-authz.ts
           scripts/test-stripe-credit-webhook.ts
           src/app/api/account/display-name/check/route.ts
           src/app/api/account/email/check/route.ts
           src/app/api/account/email/prepare-signup/route.ts
+          src/app/api/ai-usage/route.ts
           src/app/api/authors/follow/route.ts
           src/app/api/authors/like/route.ts
           src/app/api/billing/webhook/route.ts
           src/app/api/bookmarks/series/route.ts
+          src/app/api/episode-translations/[episodeId]/route.ts
+          src/app/api/generated-story-translations/generate/route.ts
           src/app/api/popularity/events/route.ts
           src/app/api/recordings/human-publish/route.ts
           src/app/api/recordings/human-upload-session/route.ts
           src/app/api/recordings/human-visibility/route.ts
           src/app/api/recordings/upload-check/route.ts
           src/app/api/series/reaction/route.ts
+          src/app/api/time-fit-stories/publish/route.ts
+          src/app/api/time-fit-stories/save-private/route.ts
+          src/app/api/word-explanations/route.ts
+          src/app/authors/[authorId]/page.tsx
+          src/app/search/author/[authorId]/page.tsx
+          src/app/search/reader/[readerId]/page.tsx
           src/lib/aiUsage/aiUsage.server.ts
           src/lib/auth/accountSignupConsent.ts
           src/lib/auth/displayNameAvailability.ts
