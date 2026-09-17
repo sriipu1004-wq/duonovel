@@ -87,6 +87,51 @@ assert.ok(
   "R18 metadata must be reduced to generic noindex metadata before title/summary/author fields are read"
 );
 
+const savePrivate = source("src/app/api/time-fit-stories/save-private/route.ts");
+const savePrivateAuth = savePrivate.indexOf("const user = await requireSignedInUser()");
+const savePrivateJson = savePrivate.indexOf("await request.json()");
+assert.ok(
+  savePrivateAuth >= 0 &&
+    savePrivateJson >= 0 &&
+    savePrivateAuth < savePrivateJson,
+  "time-fit private save must authenticate before parsing the JSON body"
+);
+assert.equal(
+  savePrivate.includes("payload.editorName"),
+  false,
+  "time-fit private save must not trust a client-supplied editor display name"
+);
+assert.equal(
+  savePrivate.includes("readText(args.userEmail)"),
+  false,
+  "time-fit private save must not copy the account email into the public display-name fallback"
+);
+for (const required of [
+  "MAX_REQUEST_BYTES",
+  "STORY_ID_MAX_LENGTH",
+  "TITLE_MAX_LENGTH",
+  "SYNOPSIS_MAX_LENGTH",
+  "BODY_MAX_LENGTH",
+]) {
+  assert.equal(
+    savePrivate.includes(required),
+    true,
+    `time-fit private save must keep server-side input bound: ${required}`
+  );
+}
+for (const forbidden of [
+  "saveCountResult.error.message },",
+  "error: lastSeriesError",
+  "error: episodeResult.error?.message",
+  "error: bookmarkResult.error.message",
+]) {
+  assert.equal(
+    savePrivate.includes(forbidden),
+    false,
+    `time-fit private save must not return raw database errors: ${forbidden}`
+  );
+}
+
 console.log(
-  "PASS: Child 65 follow-up authorization, privacy, and request-cost guards are present"
+  "PASS: Child 65 follow-up authorization, privacy, input, and request-cost guards are present"
 );
