@@ -1,0 +1,56 @@
+name: Child67 wording validation
+
+on:
+  push:
+    branches:
+      - fix/final-pricing-credit-wording
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Pricing copy regression
+        run: npm run test:pricing-copy
+      - name: EN KO i18n regression
+        run: npm run test:en-ko-i18n
+      - name: Translation credit runtime regression
+        run: npm run test:translation-credit-runtime
+      - name: Billing locale routing regression
+        run: npm run test:billing-locale-routing
+      - name: Multilingual Reader regression
+        run: npm run test:multilingual-work-reader
+      - name: Security authz regression
+        run: npm run test:security-authz
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Changed-scope lint
+        run: >-
+          npx eslint
+          scripts/test-final-pricing-copy.ts
+          src/app/credits/page.tsx
+          src/app/terms/page.tsx
+          src/app/works/[seriesId]/translations/[targetLanguage]/page.tsx
+          src/features/library/LibraryImportForm.tsx
+          src/features/playback/PublicTranslationUnlockGate.tsx
+          src/i18n/dictionaries/bilingualReader.ts
+          src/i18n/dictionaries/billingPrompt.ts
+          src/lib/seo/currentSearchDiscovery.ts
+      - name: Diff check
+        run: git diff --check origin/main...HEAD
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
