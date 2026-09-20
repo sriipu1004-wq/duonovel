@@ -1,64 +1,44 @@
 import {
   LANGUAGE_REGISTRY,
-  PUBLIC_TRANSLATION_TARGET_LANGUAGES,
   parseSupportedLanguageTag,
-  type PublicTranslationTargetLanguage,
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 
 export type PublicWorkLanguageFilterCandidate = {
   sourceLanguage: SupportedLanguageTag | null;
-  translationEligible: boolean;
 };
 
 export const PUBLIC_SEARCH_SOURCE_LANGUAGES = Object.keys(
   LANGUAGE_REGISTRY
 ) as SupportedLanguageTag[];
 
-export const PUBLIC_SEARCH_READ_LANGUAGES = [
-  ...PUBLIC_TRANSLATION_TARGET_LANGUAGES,
-] as readonly PublicTranslationTargetLanguage[];
-
-export function parsePublicSearchSourceLanguage(
+export function parsePublicSearchSourceLanguages(
   value: unknown
-): SupportedLanguageTag | null {
-  return parseSupportedLanguageTag(value);
-}
+): SupportedLanguageTag[] {
+  const raw = Array.isArray(value)
+    ? value.map((item) => String(item)).join(",")
+    : typeof value === "string"
+      ? value
+      : "";
 
-export function parsePublicSearchReadLanguage(
-  value: unknown
-): PublicTranslationTargetLanguage | null {
-  const parsed = parseSupportedLanguageTag(value);
-  if (!parsed) return null;
-  return PUBLIC_SEARCH_READ_LANGUAGES.includes(
-    parsed as PublicTranslationTargetLanguage
-  )
-    ? (parsed as PublicTranslationTargetLanguage)
-    : null;
+  const selected = new Set<SupportedLanguageTag>();
+  for (const token of raw.split(",")) {
+    const parsed = parseSupportedLanguageTag(token);
+    if (parsed) selected.add(parsed);
+  }
+
+  return PUBLIC_SEARCH_SOURCE_LANGUAGES.filter((language) =>
+    selected.has(language)
+  );
 }
 
 export function matchesPublicWorkLanguageFilters(args: {
   work: PublicWorkLanguageFilterCandidate;
-  sourceLanguage: SupportedLanguageTag | null;
-  readLanguage: PublicTranslationTargetLanguage | null;
+  sourceLanguages: readonly SupportedLanguageTag[];
 }): boolean {
-  const { work, sourceLanguage, readLanguage } = args;
-
-  if (sourceLanguage && work.sourceLanguage !== sourceLanguage) {
-    return false;
-  }
-
-  if (!readLanguage) {
-    return true;
-  }
-
-  if (!work.sourceLanguage) {
-    return false;
-  }
-
-  if (work.sourceLanguage === readLanguage) {
-    return true;
-  }
-
-  return work.translationEligible;
+  if (args.sourceLanguages.length === 0) return true;
+  return (
+    args.work.sourceLanguage !== null &&
+    args.sourceLanguages.includes(args.work.sourceLanguage)
+  );
 }
