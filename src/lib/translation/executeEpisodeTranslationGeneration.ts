@@ -330,9 +330,11 @@ export async function executeEpisodeTranslationGeneration(
       logId,
       errorCode,
       errorMessage: message,
+      uncount: true,
       retryCount:
         error instanceof OpenAITranslationError ? error.retryCount : 0,
     });
+    await releaseActionReservation();
     return NextResponse.json(
       { ok: false, error: errorCode, message },
       { status: isTimeout ? 504 : isOpenAIError ? error.status : 500 }
