@@ -251,7 +251,7 @@ export default function PrivateLibraryBilingualPlayback({
 
   useEffect(() => {
     if (translationStatus !== "ready" || segments.length === 0) return;
-    const restoreKey = `${chapterNumber}:${sourceLanguage}:${targetLanguage}:${sourceHash ?? "ready"}`;
+    const restoreKey = `${chapterNumber}:${mode}:${sourceLanguage}:${targetLanguage}:${sourceHash ?? "ready"}`;
     if (restoredBookmarkKeyRef.current === restoreKey) return;
     restoredBookmarkKeyRef.current = restoreKey;
     const seriesId = `private-library:${workId}`;
@@ -278,6 +278,7 @@ export default function PrivateLibraryBilingualPlayback({
     window.requestAnimationFrame(() => alignSegmentToTop(id));
   }, [
     chapterNumber,
+    mode,
     segments,
     sourceHash,
     sourceLanguage,
@@ -737,7 +738,9 @@ export default function PrivateLibraryBilingualPlayback({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  PRIVATE LIBRARY BILINGUAL
+                  {mode === "translation"
+                    ? "PRIVATE LIBRARY TRANSLATION"
+                    : "PRIVATE LIBRARY BILINGUAL"}
                 </p>
                 <Link
                   href={workIndexHref}
