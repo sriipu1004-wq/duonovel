@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import UiLanguageSetting from "./UiLanguageSetting";
 
 type PendingAction =
   | "change-email"
@@ -265,6 +266,9 @@ export default function AccountSettingsCard() {
       </p>
 
       <div className="mt-5 grid gap-5">
+        <div id="content-display" className="scroll-mt-6">
+          <UiLanguageSetting />
+        </div>
         <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-4">
           <p className="text-sm font-semibold text-black">コンテンツ表示</p>
           <p className="mt-2 text-sm leading-7 text-neutral-600">
