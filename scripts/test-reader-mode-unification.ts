@@ -6,6 +6,21 @@ function source(path: string): string {
 }
 
 function main() {
+  const original = source(
+    "src/features/playback/WebSpeechEpisodePlayback.tsx"
+  );
+  assert.ok(
+    original.includes("visibleMarkerUnitIndex") &&
+      original.includes("bookmarkUnitIndex") &&
+      original.includes("readerBodyScrollRef"),
+    "Original must separate the visible marker from scroll/narration reading anchor"
+  );
+  assert.equal(
+    original.includes("markerUnitIndex"),
+    false,
+    "Original must not reuse the active reading index as its visible marker"
+  );
+
   const translationOnly = source(
     "src/features/playback/TranslationOnlyEpisodePlayback.tsx"
   );
