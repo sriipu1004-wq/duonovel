@@ -1,25 +1,13 @@
 import type { Metadata } from "next";
-import GeneratedStoryBilingualBridge from "@/features/playback/GeneratedStoryBilingualBridge";
-import GeneratedStoryBilingualPlayback from "@/features/playback/GeneratedStoryBilingualPlayback";
 import ReaderSettingsTopBridge from "@/features/playback/ReaderSettingsTopBridge";
+import GeneratedStoryReaderShell from "@/features/playback/GeneratedStoryReaderShell";
 import GeneratedStoryReaderClient from "./GeneratedStoryReaderClient";
-import {
-  isPublicTranslationTargetLanguage,
-  parseSupportedLanguageTag,
-} from "@/lib/translation/languageRegistry";
 import { getUiLocale } from "@/i18n/server";
 import { generatedReaderDictionaries } from "@/i18n/dictionaries/generatedReader";
 
 type PageProps = {
   params: Promise<{
     storyId: string;
-  }>;
-  searchParams?: Promise<{
-    bilingual?: string;
-    sourceLanguage?: string;
-    targetLanguage?: string;
-    autoGenerate?: string;
-    lockLanguage?: string;
   }>;
 };
 
@@ -36,40 +24,15 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function GeneratedStoryReadPage({
-  params,
-  searchParams,
-}: PageProps) {
+export default async function GeneratedStoryReadPage({ params }: PageProps) {
   const { storyId } = await params;
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const bilingual = resolvedSearchParams?.bilingual === "1";
-
-  if (bilingual) {
-    const sourceLanguage =
-      parseSupportedLanguageTag(resolvedSearchParams?.sourceLanguage) ?? "ja";
-    const parsedTarget = parseSupportedLanguageTag(resolvedSearchParams?.targetLanguage);
-    const targetLanguage =
-      parsedTarget &&
-      parsedTarget !== sourceLanguage &&
-      isPublicTranslationTargetLanguage(parsedTarget)
-        ? parsedTarget
-        : sourceLanguage === "ja" ? "en" : "ja";
-    return (
-      <GeneratedStoryBilingualPlayback
-        storyId={storyId}
-        sourceLanguage={sourceLanguage}
-        initialTargetLanguage={targetLanguage}
-        autoGenerateMissingTranslation={resolvedSearchParams?.autoGenerate === "1"}
-        targetLanguageLocked={resolvedSearchParams?.lockLanguage === "1"}
-      />
-    );
-  }
 
   return (
     <>
       <ReaderSettingsTopBridge />
-      <GeneratedStoryBilingualBridge storyId={storyId} />
-      <GeneratedStoryReaderClient storyId={storyId} />
+      <GeneratedStoryReaderShell storyId={storyId}>
+        <GeneratedStoryReaderClient storyId={storyId} />
+      </GeneratedStoryReaderShell>
     </>
   );
 }
