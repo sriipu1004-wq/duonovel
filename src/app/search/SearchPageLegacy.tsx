@@ -16,10 +16,7 @@ import {
   getSavedFilterLabel,
   resolveSavedFilter,
 } from "@/lib/searchSavedFilters";
-import {
-  parsePublicSearchReadLanguage,
-  parsePublicSearchSourceLanguage,
-} from "@/lib/search/publicWorkLanguageFilter";
+import { parsePublicSearchSourceLanguages } from "@/lib/search/publicWorkLanguageFilter";
 
 type SearchPageProps = {
   searchParams?: Promise<{
@@ -692,11 +689,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const selectedGenreLabels = parseSelectedGenreLabels(
     pickText(resolvedSearchParams?.genres)
   );
-  const sourceLanguage = parsePublicSearchSourceLanguage(
-    pickText(resolvedSearchParams?.source_language)
-  );
-  const readLanguage = parsePublicSearchReadLanguage(
-    pickText(resolvedSearchParams?.read_language)
+  const sourceLanguages = parsePublicSearchSourceLanguages(
+    resolvedSearchParams?.source_language
   );
 
   const order = resolveOrder(
@@ -1228,7 +1222,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         </div>
 
         <PublicSearchControls
-          key={`search-language:${sourceLanguage ?? "none"}:${readLanguage ?? "none"}`}
+          key={`search-language:${sourceLanguages.join(",") || "none"}`}
           query={query}
           selectedTagLabels={selectedTagLabels}
           selectedGenreLabels={selectedGenreLabels}
@@ -1243,8 +1237,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           shelfTab={shelfTab}
           allTagChips={availableTags}
           allGenreChips={genreCandidateSource}
-          sourceLanguage={sourceLanguage}
-          readLanguage={readLanguage}
+          sourceLanguages={sourceLanguages}
         />
 
         <section id="shelves" className="pt-10 scroll-mt-24">
