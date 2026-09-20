@@ -643,7 +643,7 @@ export default function PrivateLibraryBilingualPlayback({
         positionIndex: segmentIndex,
         paragraphIndex: segment?.paragraphIndex,
         sentenceIndex: segment?.sentenceIndex,
-        mode: "bilingual",
+        mode,
         sourceLanguage,
         targetLanguage,
       });
