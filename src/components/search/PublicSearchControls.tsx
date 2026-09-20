@@ -8,7 +8,7 @@ import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { localizePath } from "@/i18n/navigation";
 import type { SavedFilterKey } from "@/lib/searchSavedFilters";
 import { getLocalizedSavedFilterLabel, publicSearchControlCopy } from "@/lib/search/searchLocaleCopy";
-import type { PublicTranslationTargetLanguage, SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 
 type OrderKey = "popular" | "updated";
 type ShelfTabKey = "overall-popular" | "latest" | "weekly-new" | "narration-popular";
@@ -30,8 +30,7 @@ type PublicSearchControlsProps = {
   shelfTab: ShelfTabKey;
   allTagChips: TagChip[];
   allGenreChips: GenrePlaceholderChip[];
-  sourceLanguage?: SupportedLanguageTag | null;
-  readLanguage?: PublicTranslationTargetLanguage | null;
+  sourceLanguages: SupportedLanguageTag[];
 };
 
 function normalizeTagToken(value: string): string {
@@ -73,8 +72,7 @@ export function buildPublicSearchHref(params: {
   showTags?: boolean;
   showGenres?: boolean;
   shelfTab?: ShelfTabKey;
-  sourceLanguage?: string;
-  readLanguage?: string;
+  sourceLanguages?: SupportedLanguageTag[];
 }): string {
   const query = new URLSearchParams();
   if (params.q?.trim()) query.set("q", params.q.trim());
@@ -87,8 +85,9 @@ export function buildPublicSearchHref(params: {
   if (params.showGenres) query.set("showGenres", "1");
   if (params.saved) query.set("saved", params.saved);
   if (params.shelfTab) query.set("shelfTab", params.shelfTab);
-  if (params.sourceLanguage) query.set("source_language", params.sourceLanguage);
-  if (params.readLanguage) query.set("read_language", params.readLanguage);
+  if (params.sourceLanguages?.length) {
+    query.set("source_language", params.sourceLanguages.join(","));
+  }
   const queryString = query.toString();
   return queryString ? `/search?${queryString}` : "/search";
 }
@@ -108,14 +107,13 @@ export default function PublicSearchControls({
   shelfTab,
   allTagChips,
   allGenreChips,
-  sourceLanguage,
-  readLanguage,
+  sourceLanguages: initialSourceLanguages,
 }: PublicSearchControlsProps) {
   const router = useRouter();
   const locale = useUiLocale();
   const copy = publicSearchControlCopy[locale];
-  const [selectedSourceLanguage, setSelectedSourceLanguage] = useState<SupportedLanguageTag | null>(sourceLanguage ?? null);
-  const [selectedReadLanguage, setSelectedReadLanguage] = useState<PublicTranslationTargetLanguage | null>(readLanguage ?? null);
+  const [selectedSourceLanguages, setSelectedSourceLanguages] =
+    useState<SupportedLanguageTag[]>(initialSourceLanguages);
   const [queryValue, setQueryValue] = useState(query);
   const [startValue, setStartValue] = useState(selectedStartInput);
   const [endValue, setEndValue] = useState(selectedEndInput);
@@ -138,8 +136,7 @@ export default function PublicSearchControls({
     localizePath(
       buildPublicSearchHref({
         ...params,
-        sourceLanguage: selectedSourceLanguage ?? undefined,
-        readLanguage: selectedReadLanguage ?? undefined,
+        sourceLanguages: selectedSourceLanguages,
       }),
       locale
     );
@@ -152,6 +149,7 @@ export default function PublicSearchControls({
   useEffect(() => setLocalSelectedGenreLabels(initialSelectedGenreLabels), [initialSelectedGenreLabels]);
   useEffect(() => setLocalShowAllTags(initialShowAllTags), [initialShowAllTags]);
   useEffect(() => setLocalShowAllGenres(initialShowAllGenres), [initialShowAllGenres]);
+  useEffect(() => setSelectedSourceLanguages(initialSourceLanguages), [initialSourceLanguages]);
 
   useEffect(() => {
     if (showAllTags) {
@@ -243,7 +241,19 @@ export default function PublicSearchControls({
     setGenreLimitMessage("");
     setLocalSelectedTagLabels([]);
     setLocalSelectedGenreLabels([]);
-    navigate(buildSearchHref({ saved: savedFilterKey, shelfTab, showTags: showAllTags, showGenres: showAllGenres }));
+    setSelectedSourceLanguages([]);
+    navigate(
+      localizePath(
+        buildPublicSearchHref({
+          saved: savedFilterKey,
+          shelfTab,
+          showTags: showAllTags,
+          showGenres: showAllGenres,
+          sourceLanguages: [],
+        }),
+        locale
+      )
+    );
   }
 
   function handleGenreToggle(label: string) {
@@ -264,6 +274,7 @@ export default function PublicSearchControls({
   }
 
   const hasClearableConditions =
+    selectedSourceLanguages.length > 0 ||
     query.length > 0 ||
     selectedTagLabels.length > 0 ||
     selectedGenreLabels.length > 0 ||
@@ -298,10 +309,14 @@ export default function PublicSearchControls({
       </div>
 
       <PublicSearchLanguageFilters
-        sourceLanguage={selectedSourceLanguage}
-        readLanguage={selectedReadLanguage}
-        onSourceLanguageChange={setSelectedSourceLanguage}
-        onReadLanguageChange={setSelectedReadLanguage}
+        sourceLanguages={selectedSourceLanguages}
+        onSourceLanguagesChange={(nextLanguages) => {
+          setSelectedSourceLanguages(nextLanguages);
+          navigate(
+            commonHref({ sourceLanguages: nextLanguages }),
+            "results"
+          );
+        }}
       />
 
       <div className="mt-6 grid gap-3">
