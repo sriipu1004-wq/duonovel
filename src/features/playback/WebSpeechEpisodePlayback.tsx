@@ -310,6 +310,8 @@ export default function WebSpeechEpisodePlayback({
   const initialAutoPlayRef = useRef(false);
   const bookmarkToastTimeoutRef = useRef<number | null>(null);
   const initialBookmarkScrollRef = useRef<string | null>(null);
+  const readerBodyScrollRef = useRef<HTMLDivElement | null>(null);
+  const settingsResumeUnitIndexRef = useRef<number | null>(null);
 
   const speechSettings = useMemo(
     () => readStoredSpeechSettings(seriesId),
@@ -325,6 +327,7 @@ export default function WebSpeechEpisodePlayback({
     humanRecordingId ?? humanNarrationOptions[0]?.recordingId ?? ""
   );
   const [activeUnitIndex, setActiveUnitIndex] = useState(0);
+  const [visibleMarkerUnitIndex, setVisibleMarkerUnitIndex] = useState<number | null>(null);
   const [positionRestoreReady, setPositionRestoreReady] = useState(false);
   const [humanCurrentTime, setHumanCurrentTime] = useState(0);
   const [humanDuration, setHumanDuration] = useState(0);
@@ -484,10 +487,19 @@ export default function WebSpeechEpisodePlayback({
           )
         )
       : 0;
-  const markerUnitIndex = isHumanNarration
-    ? humanMarkerUnitIndex
-    : safeActiveUnitIndex;
-  const markerSegmentIndex = speechUnits[markerUnitIndex]?.segmentIndex ?? -1;
+  const safeVisibleMarkerUnitIndex =
+    visibleMarkerUnitIndex === null || speechUnits.length === 0
+      ? null
+      : Math.min(
+          maxUnitIndex,
+          Math.max(0, visibleMarkerUnitIndex)
+        );
+  const bookmarkUnitIndex =
+    safeVisibleMarkerUnitIndex ?? safeActiveUnitIndex;
+  const markerSegmentIndex =
+    safeVisibleMarkerUnitIndex === null
+      ? -1
+      : speechUnits[safeVisibleMarkerUnitIndex]?.segmentIndex ?? -1;
   const currentSliderValue = isHumanNarration
     ? Math.min(humanCurrentTime, humanDuration || 0)
     : safeActiveUnitIndex;
@@ -651,6 +663,7 @@ export default function WebSpeechEpisodePlayback({
       setHumanCurrentTime(0);
       setHumanDuration(0);
       setActiveUnitIndex(0);
+      setVisibleMarkerUnitIndex(null);
       setPositionRestoreReady(false);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -685,6 +698,7 @@ export default function WebSpeechEpisodePlayback({
         ) {
           const restoredIndex = resolveReadingPositionIndex(speechUnits, parsed);
           setActiveUnitIndex(restoredIndex);
+          setVisibleMarkerUnitIndex(restoredIndex);
           initialBookmarkScrollRef.current = `${seriesId}:${episodeNumber}:${restoredIndex}`;
         }
         setPositionRestoreReady(true);
@@ -714,18 +728,18 @@ export default function WebSpeechEpisodePlayback({
 
   useEffect(() => {
     if (!positionRestoreReady) return;
-    const unit = speechUnits[markerUnitIndex];
+    const unit = speechUnits[safeActiveUnitIndex];
     writeReadingHistory({
       seriesId,
       episodeNumber,
-      positionIndex: markerUnitIndex,
+      positionIndex: safeActiveUnitIndex,
       paragraphIndex: unit?.paragraphIndex,
       sentenceIndex: unit?.sentenceIndex,
       mode: "standard",
     });
   }, [
     episodeNumber,
-    markerUnitIndex,
+    safeActiveUnitIndex,
     positionRestoreReady,
     seriesId,
     speechUnits,
@@ -736,13 +750,13 @@ export default function WebSpeechEpisodePlayback({
       return;
     }
 
-    const node = sentenceRefs.current[markerUnitIndex];
+    const node = sentenceRefs.current[safeActiveUnitIndex];
     node?.scrollIntoView({
       behavior: "smooth",
       block: "center",
     });
   }, [
-    markerUnitIndex,
+    safeActiveUnitIndex,
     autoFollow,
     isPlaying,
     displayPreference.showMarker,
@@ -824,6 +838,72 @@ export default function WebSpeechEpisodePlayback({
     isSubscriber,
     nextEpisodeHref,
     locale,
+  ]);
+
+  useEffect(() => {
+    if (!isHumanNarration || speechUnits.length === 0) return;
+    setActiveUnitIndex(humanMarkerUnitIndex);
+  }, [humanMarkerUnitIndex, isHumanNarration, speechUnits.length]);
+
+  useEffect(() => {
+    if (!positionRestoreReady || speechUnits.length === 0 || isSettingsOpen) {
+      return;
+    }
+
+    let frame: number | null = null;
+    let lastIndex = safeActiveUnitIndex;
+    const scrollRoot = readerBodyScrollRef.current;
+
+    const updatePosition = () => {
+      frame = null;
+      const targetY = scrollRoot
+        ? scrollRoot.getBoundingClientRect().top +
+          Math.min(scrollRoot.clientHeight, window.innerHeight) * 0.42
+        : window.innerHeight * 0.42;
+
+      let bestIndex = -1;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      const seenNodes = new Set<HTMLSpanElement>();
+
+      for (let index = 0; index < speechUnits.length; index += 1) {
+        const node = sentenceRefs.current[index];
+        if (!node || seenNodes.has(node)) continue;
+        seenNodes.add(node);
+        const rect = node.getBoundingClientRect();
+        if (rect.bottom < 0 || rect.top > window.innerHeight) continue;
+        const distance = Math.abs(rect.top + rect.height / 2 - targetY);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = index;
+        }
+      }
+
+      if (bestIndex < 0 || bestIndex === lastIndex) return;
+      lastIndex = bestIndex;
+      setActiveUnitIndex(bestIndex);
+    };
+
+    const schedule = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(updatePosition);
+    };
+
+    schedule();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    scrollRoot?.addEventListener("scroll", schedule, { passive: true });
+
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      scrollRoot?.removeEventListener("scroll", schedule);
+    };
+  }, [
+    isSettingsOpen,
+    positionRestoreReady,
+    safeActiveUnitIndex,
+    speechUnits,
   ]);
 
   useEffect(() => {
@@ -987,6 +1067,17 @@ export default function WebSpeechEpisodePlayback({
 
       audio.currentTime = nextValue;
       setHumanCurrentTime(nextValue);
+      if (humanDuration > 0 && speechUnits.length > 1) {
+        setActiveUnitIndex(
+          Math.min(
+            maxUnitIndex,
+            Math.max(
+              0,
+              Math.floor((nextValue / humanDuration) * speechUnits.length)
+            )
+          )
+        );
+      }
       return;
     }
 
@@ -1005,6 +1096,7 @@ export default function WebSpeechEpisodePlayback({
 
     setAutoFollow(true);
     setActiveUnitIndex(targetIndex);
+    setVisibleMarkerUnitIndex(targetIndex);
 
     if (isHumanNarration) {
       const audio = audioRef.current;
@@ -1028,9 +1120,9 @@ export default function WebSpeechEpisodePlayback({
       writeReadingBookmark({
         seriesId,
         episodeNumber,
-        positionIndex: markerUnitIndex,
-        paragraphIndex: speechUnits[markerUnitIndex]?.paragraphIndex,
-        sentenceIndex: speechUnits[markerUnitIndex]?.sentenceIndex,
+        positionIndex: bookmarkUnitIndex,
+        paragraphIndex: speechUnits[bookmarkUnitIndex]?.paragraphIndex,
+        sentenceIndex: speechUnits[bookmarkUnitIndex]?.sentenceIndex,
         mode: "standard",
         episodeTitle: safeEpisodeTitle,
         readerKey: selectedReaderKey,
@@ -1532,6 +1624,7 @@ export default function WebSpeechEpisodePlayback({
               </div>
             ) : (
               <div
+                ref={readerBodyScrollRef}
                 className={[
                   "rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6",
                   constrainBodyScroll
@@ -1731,7 +1824,25 @@ export default function WebSpeechEpisodePlayback({
               label={dictionary.settings}
               iconSrc={PLAYER_ICON_PATHS.settings}
               active={isSettingsOpen}
-              onClick={() => setIsSettingsOpen((prev) => !prev)}
+              onClick={() =>
+                setIsSettingsOpen((prev) => {
+                  const next = !prev;
+                  if (next) {
+                    settingsResumeUnitIndexRef.current = safeActiveUnitIndex;
+                  } else {
+                    const resumeIndex = settingsResumeUnitIndexRef.current;
+                    window.requestAnimationFrame(() => {
+                      if (resumeIndex !== null) {
+                        sentenceRefs.current[resumeIndex]?.scrollIntoView({
+                          behavior: "auto",
+                          block: "start",
+                        });
+                      }
+                    });
+                  }
+                  return next;
+                })
+              }
             />
           </div>
         </div>
