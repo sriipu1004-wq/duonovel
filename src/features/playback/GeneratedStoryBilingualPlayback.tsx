@@ -231,6 +231,7 @@ export default function GeneratedStoryBilingualPlayback({
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
   const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const jaScrollRef = useRef<HTMLDivElement | null>(null);
   const enScrollRef = useRef<HTMLDivElement | null>(null);
@@ -238,6 +239,7 @@ export default function GeneratedStoryBilingualPlayback({
   const jaSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const enSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const readingSegmentIdRef = useRef<string | null>(null);
+  const settingsResumeSegmentIdRef = useRef<string | null>(null);
   const requestInFlightRef = useRef(false);
   const targetLanguageRef = useRef<PublicTranslationTargetLanguage>(
     preference.targetLanguage
@@ -547,6 +549,26 @@ export default function GeneratedStoryBilingualPlayback({
     clearWordInsight();
   }
 
+  const settingsPortalId = `generated-settings-${storyId}`;
+
+  function handleSettingsOpenChange(open: boolean) {
+    if (open) {
+      settingsResumeSegmentIdRef.current =
+        readingSegmentIdRef.current ??
+        selectedSegmentId ??
+        segments[currentPositionIndex]?.id ??
+        null;
+      setSettingsOpen(true);
+      return;
+    }
+
+    setSettingsOpen(false);
+    const resumeId = settingsResumeSegmentIdRef.current;
+    window.requestAnimationFrame(() => {
+      if (resumeId) alignSegmentToTop(resumeId);
+    });
+  }
+
   const sourceLanguageLabel = getSupportedLanguage(sourceLanguage).nativeLabel;
   const targetLanguageLabel = getSupportedLanguage(targetLanguage).nativeLabel;
 
@@ -610,6 +632,11 @@ export default function GeneratedStoryBilingualPlayback({
                   displaySettings={displaySettings}
                 />
               </div>
+            ) : settingsOpen ? (
+              <div
+                id={settingsPortalId}
+                className="min-h-[30rem] bg-white px-4 py-4 sm:px-6"
+              />
             ) : (
             <>
               <BilingualStudyControls
@@ -881,6 +908,8 @@ export default function GeneratedStoryBilingualPlayback({
             handleReadingPositionChange(segment.id);
             if (shouldFollow) centerSegment(segment.id);
           }}
+          settingsPortalId={settingsPortalId}
+          onSettingsOpenChange={handleSettingsOpenChange}
         />
         )}
       </div>
