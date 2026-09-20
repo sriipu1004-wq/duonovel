@@ -4,22 +4,16 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import PublicSearchReadIntentProvider from "@/components/search/PublicSearchReadIntentProvider";
 import { getUiLocale } from "@/i18n/server";
 import { localizePath } from "@/i18n/navigation";
 import type { UiLocale } from "@/i18n/config";
-import { getCachedPublicBaseWorkCards } from "@/lib/publicWorks";
 import {
-  parsePublicSearchReadLanguage,
-  parsePublicSearchSourceLanguage,
+  parsePublicSearchSourceLanguages,
 } from "@/lib/search/publicWorkLanguageFilter";
 import { preservePublicSearchLanguageFilters } from "@/lib/search/publicSearchLanguageHref";
 import { runWithPublicSearchLanguageFilters } from "@/lib/search/publicSearchRequestContext";
 import { localizeLegacySearchText } from "@/lib/search/searchLocaleCopy";
-import type {
-  PublicTranslationTargetLanguage,
-  SupportedLanguageTag,
-} from "@/lib/translation/languageRegistry";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import SearchPageLegacy from "./SearchPageLegacy";
 
 type SearchPageProps = Parameters<typeof SearchPageLegacy>[0];
@@ -56,7 +50,10 @@ function replaceExactText(
   });
 }
 
-function localizeSplitLegacyText(value: string, locale: Exclude<UiLocale, "ja">) {
+function localizeSplitLegacyText(
+  value: string,
+  locale: Exclude<UiLocale, "ja">
+) {
   if (value.trim() === "現在表示:") {
     return value.replace(
       "現在表示:",
@@ -69,8 +66,7 @@ function localizeSplitLegacyText(value: string, locale: Exclude<UiLocale, "ja">)
 function localizeLegacySearchNode(
   node: ReactNode,
   locale: UiLocale,
-  sourceLanguage: SupportedLanguageTag | null,
-  readLanguage: PublicTranslationTargetLanguage | null
+  sourceLanguages: SupportedLanguageTag[]
 ): ReactNode {
   if (typeof node === "string") {
     return locale === "ja" ? node : localizeSplitLegacyText(node, locale);
@@ -94,7 +90,7 @@ function localizeLegacySearchNode(
       ];
     }
     return node.map((child) =>
-      localizeLegacySearchNode(child, locale, sourceLanguage, readLanguage)
+      localizeLegacySearchNode(child, locale, sourceLanguages)
     );
   }
 
@@ -110,17 +106,19 @@ function localizeLegacySearchNode(
     nextProps.children = localizeLegacySearchNode(
       element.props.children,
       locale,
-      sourceLanguage,
-      readLanguage
+      sourceLanguages
     );
     changed = nextProps.children !== element.props.children;
   }
 
-  if (typeof element.props.href === "string" && element.props.href.startsWith("/")) {
-    const preservedHref = preservePublicSearchLanguageFilters(element.props.href, {
-      sourceLanguage,
-      readLanguage,
-    });
+  if (
+    typeof element.props.href === "string" &&
+    element.props.href.startsWith("/")
+  ) {
+    const preservedHref = preservePublicSearchLanguageFilters(
+      element.props.href,
+      { sourceLanguages }
+    );
     const localizedHref = localizePath(preservedHref, locale);
     if (localizedHref !== element.props.href) {
       nextProps.href = localizedHref;
@@ -137,26 +135,17 @@ export default async function SearchPage(props: SearchPageProps) {
     ? await props.searchParams
     : undefined;
   const rawParams = (resolvedSearchParams ?? {}) as Record<string, unknown>;
-  const sourceLanguage = parsePublicSearchSourceLanguage(
+  const sourceLanguages = parsePublicSearchSourceLanguages(
     rawParams.source_language
   );
-  const readLanguage = parsePublicSearchReadLanguage(rawParams.read_language);
-
-  const visibleWorkMetadata = readLanguage
-    ? (await getCachedPublicBaseWorkCards()).map((work) => ({
-        seriesId: work.seriesId,
-        sourceLanguage: work.sourceLanguage,
-        translationEligible: work.translationEligible,
-      }))
-    : [];
 
   const page = await runWithPublicSearchLanguageFilters(
-    { sourceLanguage, readLanguage },
+    { sourceLanguages },
     () => SearchPageLegacy(props)
   );
 
   const filteredEmptyStatePage =
-    sourceLanguage || readLanguage
+    sourceLanguages.length > 0
       ? replaceExactText(
           page,
           "まだ公開作品がない。",
@@ -164,20 +153,9 @@ export default async function SearchPage(props: SearchPageProps) {
         )
       : page;
 
-  const renderedPage = localizeLegacySearchNode(
+  return localizeLegacySearchNode(
     filteredEmptyStatePage,
     locale,
-    sourceLanguage,
-    readLanguage
-  );
-
-  return (
-    <PublicSearchReadIntentProvider
-      sourceLanguage={sourceLanguage}
-      readLanguage={readLanguage}
-      workMetadata={visibleWorkMetadata}
-    >
-      {renderedPage}
-    </PublicSearchReadIntentProvider>
+    sourceLanguages
   );
 }
