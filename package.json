@@ -12,6 +12,7 @@
     "test:multilingual-work-reader": "node --import tsx scripts/test-multilingual-work-reader.ts",
     "test:en-ko-i18n": "node --import tsx scripts/test-en-ko-i18n-audit.ts",
     "test:translation-consistency": "node --import tsx scripts/test-series-translation-consistency.ts",
+    "test:public-classic-translation": "node --import tsx scripts/test-public-classic-translation.ts",
     "test:translation-credit-runtime": "node --import tsx scripts/test-public-translation-credit-runtime.ts",
     "test:auth-login-redirect": "node --import tsx scripts/test-auth-login-redirect.ts",
     "test:public-recording-selects": "node --import tsx scripts/test-public-recording-selects.ts",
