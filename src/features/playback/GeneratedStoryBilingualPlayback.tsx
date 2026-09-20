@@ -12,6 +12,7 @@ import BilingualPane, {
 } from "@/features/playback/BilingualPane";
 import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
 import BilingualStoppedFooter from "@/features/playback/BilingualStoppedFooter";
+import TranslationOnlyFooter from "@/features/playback/TranslationOnlyFooter";
 import { useReaderDisplaySettings } from "@/features/playback/useReaderDisplaySettings";
 import { useBilingualWordExplanation } from "@/features/playback/useBilingualWordExplanation";
 import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
@@ -185,12 +186,14 @@ function centerInPane(
 }
 
 export default function GeneratedStoryBilingualPlayback({
+  mode,
   storyId,
   sourceLanguage,
   initialTargetLanguage,
   autoGenerateMissingTranslation,
   targetLanguageLocked,
 }: {
+  mode: "bilingual" | "translation";
   storyId: string;
   sourceLanguage: SupportedLanguageTag;
   initialTargetLanguage: PublicTranslationTargetLanguage;
@@ -228,6 +231,7 @@ export default function GeneratedStoryBilingualPlayback({
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
   const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const jaScrollRef = useRef<HTMLDivElement | null>(null);
   const enScrollRef = useRef<HTMLDivElement | null>(null);
@@ -235,6 +239,7 @@ export default function GeneratedStoryBilingualPlayback({
   const jaSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const enSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const readingSegmentIdRef = useRef<string | null>(null);
+  const settingsResumeSegmentIdRef = useRef<string | null>(null);
   const requestInFlightRef = useRef(false);
   const targetLanguageRef = useRef<PublicTranslationTargetLanguage>(
     preference.targetLanguage
@@ -277,7 +282,7 @@ export default function GeneratedStoryBilingualPlayback({
 
   useEffect(() => {
     if (status !== "ready" || segments.length === 0) return;
-    const restoreKey = `${storyId}:${sourceLanguage}:${targetLanguage}:${sourceHash ?? "ready"}`;
+    const restoreKey = `${storyId}:${mode}:${sourceLanguage}:${targetLanguage}:${sourceHash ?? "ready"}`;
     if (restoredBookmarkKeyRef.current === restoreKey) return;
     restoredBookmarkKeyRef.current = restoreKey;
     const seriesId = `generated:${storyId}`;
@@ -291,19 +296,20 @@ export default function GeneratedStoryBilingualPlayback({
     const segment = segments[index];
     readingSegmentIdRef.current = id;
     setCurrentPositionIndex(index);
-    setSelectedSegmentId(id);
+    if (location) setSelectedSegmentId(id);
     writeReadingHistory({
       seriesId,
       episodeNumber: 1,
       positionIndex: index,
       paragraphIndex: segment?.paragraphIndex,
       sentenceIndex: segment?.sentenceIndex,
-      mode: "bilingual",
+      mode,
       sourceLanguage,
       targetLanguage,
     });
     window.requestAnimationFrame(() => alignSegmentToTop(id));
   }, [
+    mode,
     segments,
     sourceHash,
     sourceLanguage,
@@ -361,7 +367,6 @@ export default function GeneratedStoryBilingualPlayback({
       if (payload.status === "ready" && Array.isArray(payload.segments)) {
         setSegments(payload.segments);
         const firstId = payload.segments[0]?.id ?? null;
-        setSelectedSegmentId((current) => current ?? firstId);
         readingSegmentIdRef.current = readingSegmentIdRef.current ?? firstId;
         setStatus("ready");
         return;
@@ -413,7 +418,6 @@ export default function GeneratedStoryBilingualPlayback({
       } else if (payload.status === "ready" && Array.isArray(payload.segments)) {
         setSegments(payload.segments);
         const firstId = payload.segments[0]?.id ?? null;
-        setSelectedSegmentId((current) => current ?? firstId);
         readingSegmentIdRef.current = readingSegmentIdRef.current ?? firstId;
         setStatus("ready");
       } else {
@@ -520,7 +524,7 @@ export default function GeneratedStoryBilingualPlayback({
         positionIndex: index,
         paragraphIndex: segment?.paragraphIndex,
         sentenceIndex: segment?.sentenceIndex,
-        mode: "bilingual",
+        mode,
         sourceLanguage,
         targetLanguage,
       });
@@ -546,25 +550,24 @@ export default function GeneratedStoryBilingualPlayback({
     clearWordInsight();
   }
 
-  function handleDisableBilingual() {
-    const currentId =
-      readingSegmentIdRef.current ?? selectedSegmentId ?? segments[0]?.id ?? null;
-    const segmentIndex = currentId
-      ? Math.max(0, segments.findIndex((segment) => segment.id === currentId))
-      : 0;
+  const settingsPortalId = `generated-settings-${storyId}`;
 
-    try {
-      window.sessionStorage.setItem(
-        `libread.generatedStoryResume.${storyId}`,
-        String(segmentIndex)
-      );
-    } catch {
-      // Position restore is best effort.
+  function handleSettingsOpenChange(open: boolean) {
+    if (open) {
+      settingsResumeSegmentIdRef.current =
+        readingSegmentIdRef.current ??
+        selectedSegmentId ??
+        segments[currentPositionIndex]?.id ??
+        null;
+      setSettingsOpen(true);
+      return;
     }
 
-    window.location.assign(
-      localizePath(`/read/generated/${encodeURIComponent(storyId)}`, locale)
-    );
+    setSettingsOpen(false);
+    const resumeId = settingsResumeSegmentIdRef.current;
+    window.requestAnimationFrame(() => {
+      if (resumeId) alignSegmentToTop(resumeId);
+    });
   }
 
   const sourceLanguageLabel = getSupportedLanguage(sourceLanguage).nativeLabel;
@@ -578,7 +581,9 @@ export default function GeneratedStoryBilingualPlayback({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  LIB READ BILINGUAL
+                  {mode === "translation"
+                    ? `LIB READ · ${readerDictionary.translationOnlyTitle}`
+                    : "LIB READ BILINGUAL"}
                 </p>
                 <p className="mt-2 text-sm text-neutral-600">
                   {generatedDictionary.timeFitStory}
@@ -603,21 +608,39 @@ export default function GeneratedStoryBilingualPlayback({
                     {readerDictionary.languageLockedThisTab}
                   </span>
                 ) : null}
-                <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-black">
-                  {bilingualDictionary.bilingualOn}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleDisableBilingual}
-                  className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
-                >
-                  {bilingualDictionary.disableBilingual}
-                </button>
+
               </div>
             </div>
           </header>
 
           {status === "ready" && segments.length > 0 ? (
+            mode === "translation" ? (
+              <div className="h-[calc(100dvh-16rem)] min-h-[27rem] overflow-hidden bg-white">
+                <BilingualPane
+                  side="target"
+                  languageLabel={targetLanguageLabel}
+                  languageTag={targetLanguage}
+                  segments={segments}
+                  selectedSegmentId={selectedSegmentId}
+                  hoveredSegmentId={hoveredSegmentId}
+                  scrollRef={enScrollRef}
+                  registerSegmentRef={(id, node) =>
+                    enSegmentRefs.current.set(id, node)
+                  }
+                  onSelectSegment={handleSelectSegment}
+                  onHoverSegment={setHoveredSegmentId}
+                  onReadingPositionChange={handleReadingPositionChange}
+                  onSelectWord={handleSelectWord}
+                  wordInsight={wordInsight}
+                  displaySettings={displaySettings}
+                />
+              </div>
+            ) : settingsOpen ? (
+              <div
+                id={settingsPortalId}
+                className="min-h-[30rem] bg-white px-4 py-4 sm:px-6"
+              />
+            ) : (
             <>
               <BilingualStudyControls
                 segments={segments}
@@ -745,6 +768,7 @@ export default function GeneratedStoryBilingualPlayback({
                 onReaderHeightChange={setReaderHeight}
               />
             </>
+            )
           ) : (
             <div className="flex min-h-[30rem] items-center justify-center px-5 py-10">
               <div className="w-full max-w-xl rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-center">
@@ -807,12 +831,63 @@ export default function GeneratedStoryBilingualPlayback({
           )}
         </section>
 
+        {mode === "translation" ? (
+          <TranslationOnlyFooter
+            seriesId={`generated:${storyId}`}
+            episodeNumber={1}
+            positionIndex={(() => {
+              const selectedIndex = selectedSegmentId
+                ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+                : -1;
+              return selectedIndex >= 0 ? selectedIndex : currentPositionIndex;
+            })()}
+            paragraphIndex={(() => {
+              const selectedIndex = selectedSegmentId
+                ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+                : -1;
+              return segments[selectedIndex >= 0 ? selectedIndex : currentPositionIndex]?.paragraphIndex;
+            })()}
+            sentenceIndex={(() => {
+              const selectedIndex = selectedSegmentId
+                ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+                : -1;
+              return segments[selectedIndex >= 0 ? selectedIndex : currentPositionIndex]?.sentenceIndex;
+            })()}
+            narrationUnits={segments.map((segment) => segment.translatedText)}
+            sourceLanguage={sourceLanguage}
+            targetLanguage={targetLanguage}
+            displaySettings={displaySettings}
+            onDisplaySettingsChange={setDisplaySettings}
+            onPositionIndexChange={(index, shouldFollow) => {
+              const segment = segments[index];
+              if (!segment) return;
+              readingSegmentIdRef.current = segment.id;
+              handleReadingPositionChange(segment.id);
+              if (shouldFollow) centerSegment(segment.id);
+            }}
+          />
+        ) : (
         <BilingualStoppedFooter
           seriesId={`generated:${storyId}`}
           episodeNumber={1}
-          positionIndex={currentPositionIndex}
-          paragraphIndex={segments[currentPositionIndex]?.paragraphIndex}
-          sentenceIndex={segments[currentPositionIndex]?.sentenceIndex}
+          positionIndex={(() => {
+            const selectedIndex = selectedSegmentId
+              ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+              : -1;
+            return selectedIndex >= 0 ? selectedIndex : currentPositionIndex;
+          })()}
+          paragraphIndex={(() => {
+            const selectedIndex = selectedSegmentId
+              ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+              : -1;
+            return segments[selectedIndex >= 0 ? selectedIndex : currentPositionIndex]?.paragraphIndex;
+          })()}
+          sentenceIndex={(() => {
+            const selectedIndex = selectedSegmentId
+              ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+              : -1;
+            return segments[selectedIndex >= 0 ? selectedIndex : currentPositionIndex]?.sentenceIndex;
+          })()}
           sentenceCount={segments.length}
           upperPane={upperPane}
           narrationUnits={segments.map((segment) =>
@@ -834,20 +909,12 @@ export default function GeneratedStoryBilingualPlayback({
             if (!segment) return;
             readingSegmentIdRef.current = segment.id;
             handleReadingPositionChange(segment.id);
-            setSelectedSegmentId(segment.id);
             if (shouldFollow) centerSegment(segment.id);
           }}
+          settingsPortalId={settingsPortalId}
+          onSettingsOpenChange={handleSettingsOpenChange}
         />
-
-        <div className="mt-4 flex justify-center">
-          <button
-            type="button"
-            onClick={handleDisableBilingual}
-            className="rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm text-neutral-700 transition hover:bg-neutral-50"
-          >
-            {readerDictionary.backToOriginal}
-          </button>
-        </div>
+        )}
       </div>
     </main>
   );

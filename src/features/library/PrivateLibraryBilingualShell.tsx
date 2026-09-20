@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import BilingualActionBridge from "@/features/playback/BilingualActionBridge";
 import BilingualResumeBridge from "@/features/playback/BilingualResumeBridge";
 import PrivateLibraryBilingualPlayback from "@/features/library/PrivateLibraryBilingualPlayback";
 import BilingualLanguagePickerDialog, {
   type BilingualTranslationAvailability,
 } from "@/features/playback/BilingualLanguagePickerDialog";
-import { readReadingHistory, readEpisodeReadingPosition, applyReadingModeToHref } from "@/lib/playback/readingBookmark";
+import ReaderModeSelector from "@/features/playback/ReaderModeSelector";
+import TranslationLanguageSelect from "@/features/playback/TranslationLanguageSelect";
+import {
+  readReadingHistory,
+  readEpisodeReadingPosition,
+  applyReadingModeToHref,
+  type ReadingMode,
+} from "@/lib/playback/readingBookmark";
 import { useAiUsage } from "@/features/usage/useAiUsage";
 import {
   isPublicTranslationTargetLanguage,
@@ -58,7 +64,10 @@ export default function PrivateLibraryBilingualShell({
   isSubscriber,
 }: PrivateLibraryBilingualShellProps) {
   const { snapshot: aiUsage } = useAiUsage();
-  const [mode, setMode] = useState<"standard" | "bilingual">("standard");
+  const [mode, setMode] = useState<ReadingMode>("standard");
+  const [pendingMode, setPendingMode] = useState<"bilingual" | "translation">(
+    "bilingual"
+  );
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
   const [translationAvailability, setTranslationAvailability] =
     useState<BilingualTranslationAvailability>("checking");
@@ -83,12 +92,14 @@ export default function PrivateLibraryBilingualShell({
             return stored;
           }
         } catch {
-          // fall through to a safe non-source language
+          // local preference is best effort
         }
       }
       return sourceLanguage === "ja" ? "en" : "ja";
     });
-  const [resumeSegmentIndex, setResumeSegmentIndex] = useState<number | null>(null);
+  const [resumeSegmentIndex, setResumeSegmentIndex] = useState<number | null>(
+    null
+  );
   const [restoreToken, setRestoreToken] = useState(0);
   const availabilityCheckVersionRef = useRef(0);
 
@@ -96,8 +107,12 @@ export default function PrivateLibraryBilingualShell({
     language: PublicTranslationTargetLanguage,
     existingVersion?: number
   ) {
-    const checkVersion = existingVersion ?? ++availabilityCheckVersionRef.current;
-    if (existingVersion === undefined) setTranslationAvailability("checking");
+    const checkVersion =
+      existingVersion ?? ++availabilityCheckVersionRef.current;
+    if (existingVersion === undefined) {
+      setTranslationAvailability("checking");
+    }
+
     try {
       const response = await fetch(
         `/api/library/translations/${encodeURIComponent(chapterId)}?sourceLanguage=${encodeURIComponent(sourceLanguage)}&targetLanguage=${encodeURIComponent(language)}`,
@@ -107,11 +122,13 @@ export default function PrivateLibraryBilingualShell({
         ok?: boolean;
         status?: BilingualTranslationAvailability;
       };
+
       if (availabilityCheckVersionRef.current !== checkVersion) return;
       if (!response.ok || !payload.ok || !payload.status) {
         setTranslationAvailability("error");
         return;
       }
+
       setTranslationAvailability(payload.status);
       if (payload.status === "translating") {
         window.setTimeout(
@@ -125,38 +142,22 @@ export default function PrivateLibraryBilingualShell({
     }
   }
 
-  function enableBilingual() {
-    const sessionPreference = hasMultipleChapters
-      ? readBilingualSessionPreference(
-          "private-library",
-          workId,
-          sourceLanguage
-        )
-      : null;
-    if (sessionPreference) {
-      setSelectedTargetLanguage(sessionPreference.targetLanguage);
-      setSessionLanguageLocked(true);
-      setAutoGenerateMissingTranslation(true);
-      openBilingual(sessionPreference.targetLanguage, true, true);
-      return;
+  function stopOriginalPlayback() {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
     }
-    setRememberForTab(false);
-    setIsLanguagePickerOpen(true);
-    void checkTranslationAvailability(selectedTargetLanguage);
+    document.querySelectorAll<HTMLAudioElement>("main audio").forEach((audio) => {
+      audio.pause();
+    });
   }
 
-  function openBilingual(
+  function openTranslatedMode(
+    nextMode: "bilingual" | "translation",
     nextTargetLanguage = selectedTargetLanguage,
     autoGenerate = autoGenerateMissingTranslation,
     lockLanguage = sessionLanguageLocked
   ) {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-
-    document.querySelectorAll<HTMLAudioElement>("main audio").forEach((audio) => {
-      audio.pause();
-    });
+    stopOriginalPlayback();
 
     try {
       window.localStorage.setItem(
@@ -164,54 +165,114 @@ export default function PrivateLibraryBilingualShell({
         nextTargetLanguage
       );
     } catch {
-      // local preference persistence is non-critical
+      // local preference is best effort
     }
 
-    const history = readReadingHistory(`private-library:${workId}`);
-    const baseHref = history?.episodeNumber === chapterNumber
-      ? applyReadingModeToHref(window.location.href, { ...history, mode: "bilingual", sourceLanguage, targetLanguage: nextTargetLanguage })
-      : window.location.href;
+    const seriesId = `private-library:${workId}`;
+    const history = readReadingHistory(seriesId);
+    const baseHref =
+      history?.episodeNumber === chapterNumber
+        ? applyReadingModeToHref(window.location.href, {
+            ...history,
+            mode: nextMode,
+            sourceLanguage,
+            targetLanguage: nextTargetLanguage,
+          })
+        : window.location.href;
+
     const url = new URL(baseHref, window.location.origin);
-    url.searchParams.set("readingMode", "bilingual");
-    url.searchParams.set("bilingual", "1");
+    url.searchParams.set("readingMode", nextMode);
     url.searchParams.set("sourceLanguage", sourceLanguage);
     url.searchParams.set("targetLanguage", nextTargetLanguage);
+
+    if (nextMode === "bilingual") {
+      url.searchParams.set("bilingual", "1");
+      url.searchParams.delete("translationOnly");
+    } else {
+      url.searchParams.set("translationOnly", "1");
+      url.searchParams.delete("bilingual");
+    }
+
     if (autoGenerate) url.searchParams.set("autoGenerate", "1");
     else url.searchParams.delete("autoGenerate");
     if (lockLanguage) url.searchParams.set("lockLanguage", "1");
     else url.searchParams.delete("lockLanguage");
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
 
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`
+    );
+
+    setSelectedTargetLanguage(nextTargetLanguage);
+    setAutoGenerateMissingTranslation(autoGenerate);
+    setSessionLanguageLocked(lockLanguage);
     setIsLanguagePickerOpen(false);
-    setMode("bilingual");
+    setMode(nextMode);
   }
 
-  function confirmBilingualLanguage() {
-    if (rememberForTab && hasMultipleChapters) {
+  function requestTranslatedMode(nextMode: "bilingual" | "translation") {
+    const sessionPreference = hasMultipleChapters
+      ? readBilingualSessionPreference(
+          "private-library",
+          workId,
+          sourceLanguage
+        )
+      : null;
+
+    if (sessionPreference) {
+      setSelectedTargetLanguage(sessionPreference.targetLanguage);
+      setSessionLanguageLocked(true);
+      setAutoGenerateMissingTranslation(true);
+      openTranslatedMode(
+        nextMode,
+        sessionPreference.targetLanguage,
+        true,
+        true
+      );
+      return;
+    }
+
+    setPendingMode(nextMode);
+    setRememberForTab(false);
+    setIsLanguagePickerOpen(true);
+    void checkTranslationAvailability(selectedTargetLanguage);
+  }
+
+  function confirmTranslatedLanguage() {
+    const lockLanguage = rememberForTab && hasMultipleChapters;
+    if (lockLanguage) {
       writeBilingualSessionPreference(
         "private-library",
         workId,
         selectedTargetLanguage
       );
     }
-    setSessionLanguageLocked(rememberForTab && hasMultipleChapters);
-    setAutoGenerateMissingTranslation(translationAvailability !== "ready");
-    openBilingual(
+
+    openTranslatedMode(
+      pendingMode,
       selectedTargetLanguage,
       translationAvailability !== "ready",
-      rememberForTab && hasMultipleChapters
+      lockLanguage
     );
   }
 
-  function disableBilingual(segmentIndex: number) {
-    const history = readReadingHistory(`private-library:${workId}`);
-    const baseHref = history?.episodeNumber === chapterNumber
-      ? applyReadingModeToHref(window.location.href, { ...history, mode: "standard" })
-      : window.location.href;
+  function disableTranslated(segmentIndex = 0) {
+    const seriesId = `private-library:${workId}`;
+    const history = readReadingHistory(seriesId);
+    const baseHref =
+      history?.episodeNumber === chapterNumber
+        ? applyReadingModeToHref(window.location.href, {
+            ...history,
+            mode: "standard",
+          })
+        : window.location.href;
     const url = new URL(baseHref, window.location.origin);
     url.searchParams.set("readingMode", "standard");
+
     for (const key of [
       "bilingual",
+      "translationOnly",
       "sourceLanguage",
       "targetLanguage",
       "autoGenerate",
@@ -219,90 +280,163 @@ export default function PrivateLibraryBilingualShell({
     ]) {
       url.searchParams.delete(key);
     }
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`
+    );
     setResumeSegmentIndex(segmentIndex);
     setMode("standard");
+    setAutoGenerateMissingTranslation(false);
+    setSessionLanguageLocked(false);
     setRestoreToken((current) => current + 1);
+  }
+
+  function handleModeChange(nextMode: ReadingMode) {
+    if (nextMode === mode) return;
+
+    if (nextMode === "standard") {
+      disableTranslated(resumeSegmentIndex ?? 0);
+      return;
+    }
+
+    if (mode === "bilingual" || mode === "translation") {
+      openTranslatedMode(
+        nextMode,
+        selectedTargetLanguage,
+        autoGenerateMissingTranslation,
+        sessionLanguageLocked
+      );
+      return;
+    }
+
+    requestTranslatedMode(nextMode);
   }
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const params = new URLSearchParams(window.location.search);
-    const remembered = readReadingHistory(`private-library:${workId}`) ?? readEpisodeReadingPosition(`private-library:${workId}`, chapterNumber);
-    if (!params.has("bilingual") && params.get("readingMode") !== "standard" && remembered?.mode === "bilingual" && remembered.targetLanguage) {
-      params.set("bilingual", "1");
+    const seriesId = `private-library:${workId}`;
+    const remembered =
+      readReadingHistory(seriesId) ??
+      readEpisodeReadingPosition(seriesId, chapterNumber);
+
+    const explicitMode = params.get("readingMode");
+    const hasTranslatedFlag =
+      params.get("bilingual") === "1" ||
+      params.get("translationOnly") === "1";
+
+    if (
+      !hasTranslatedFlag &&
+      explicitMode !== "standard" &&
+      (remembered?.mode === "bilingual" ||
+        remembered?.mode === "translation") &&
+      remembered.targetLanguage
+    ) {
+      params.set("readingMode", remembered.mode);
+      params.set(
+        remembered.mode === "translation" ? "translationOnly" : "bilingual",
+        "1"
+      );
       params.set("sourceLanguage", sourceLanguage);
       params.set("targetLanguage", remembered.targetLanguage);
-      window.history.replaceState(window.history.state, "", `${window.location.pathname}?${params}${window.location.hash}`);
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}?${params}${window.location.hash}`
+      );
     }
+
+    const requestedMode: ReadingMode =
+      params.get("translationOnly") === "1" ||
+      params.get("readingMode") === "translation"
+        ? "translation"
+        : params.get("bilingual") === "1" ||
+            params.get("readingMode") === "bilingual"
+          ? "bilingual"
+          : "standard";
+
+    const requestedTarget = parseSupportedLanguageTag(
+      params.get("targetLanguage")
+    );
+
     const timer = window.setTimeout(() => {
-      if (params.get("bilingual") !== "1") {
+      if (requestedMode === "standard") {
         setMode("standard");
         setSessionLanguageLocked(false);
         setAutoGenerateMissingTranslation(false);
         return;
       }
 
-      const requestedTarget = parseSupportedLanguageTag(
-        params.get("targetLanguage")
-      );
       if (
         !requestedTarget ||
         requestedTarget === sourceLanguage ||
         !isPublicTranslationTargetLanguage(requestedTarget)
       ) {
         setMode("standard");
-        setIsLanguagePickerOpen(true);
         return;
       }
 
       setSelectedTargetLanguage(requestedTarget);
       setSessionLanguageLocked(params.get("lockLanguage") === "1");
       setAutoGenerateMissingTranslation(params.get("autoGenerate") === "1");
-      setIsLanguagePickerOpen(false);
-
-      if ("speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-      document
-        .querySelectorAll<HTMLAudioElement>("main audio")
-        .forEach((audio) => audio.pause());
-      setMode("bilingual");
+      stopOriginalPlayback();
+      setMode(requestedMode);
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [chapterId, sourceLanguage]);
+  }, [chapterId, chapterNumber, sourceLanguage, workId]);
 
-  if (mode === "bilingual") {
+  if (mode === "bilingual" || mode === "translation") {
     return (
-      <PrivateLibraryBilingualPlayback
-        workId={workId}
-        chapterId={chapterId}
-        chapterNumber={chapterNumber}
-        partNumber={partNumber}
-        partCount={partCount}
-        workTitle={workTitle}
-        chapterTitle={chapterTitle}
-        authorName={authorName}
-        sourceLanguage={sourceLanguage}
-        initialTargetLanguage={selectedTargetLanguage}
-        workIndexHref={workIndexHref}
-        previousChapterHref={previousChapterHref}
-        nextChapterHref={nextChapterHref}
-        nextChapterId={nextChapterId}
-        isSubscriber={isSubscriber}
-        autoGenerateMissingTranslation={autoGenerateMissingTranslation}
-        targetLanguageLocked={sessionLanguageLocked}
-        onDisableBilingual={disableBilingual}
-      />
+      <>
+        <ReaderModeSelector
+          mode={mode}
+          translationEnabled
+          onChange={handleModeChange}
+        />
+        <PrivateLibraryBilingualPlayback
+          mode={mode}
+          workId={workId}
+          chapterId={chapterId}
+          chapterNumber={chapterNumber}
+          partNumber={partNumber}
+          partCount={partCount}
+          workTitle={workTitle}
+          chapterTitle={chapterTitle}
+          authorName={authorName}
+          sourceLanguage={sourceLanguage}
+          initialTargetLanguage={selectedTargetLanguage}
+          workIndexHref={workIndexHref}
+          previousChapterHref={previousChapterHref}
+          nextChapterHref={nextChapterHref}
+          nextChapterId={nextChapterId}
+          isSubscriber={isSubscriber}
+          autoGenerateMissingTranslation={autoGenerateMissingTranslation}
+          targetLanguageLocked={sessionLanguageLocked}
+          onDisableTranslated={disableTranslated}
+        />
+      </>
     );
   }
 
   return (
     <>
+      <ReaderModeSelector
+        mode={mode}
+        translationEnabled
+        onChange={handleModeChange}
+      />
+      <div className="mx-auto flex w-full max-w-4xl justify-end px-3 pt-2 sm:px-6">
+        <TranslationLanguageSelect
+          value={selectedTargetLanguage}
+          sourceLanguage={sourceLanguage}
+          onChange={setSelectedTargetLanguage}
+        />
+      </div>
       {children}
-      <BilingualActionBridge enabled onEnable={enableBilingual} />
       <BilingualResumeBridge
         segmentIndex={resumeSegmentIndex}
         restoreToken={restoreToken}
@@ -322,7 +456,7 @@ export default function PrivateLibraryBilingualShell({
           }}
           onRememberForTabChange={setRememberForTab}
           onCancel={() => setIsLanguagePickerOpen(false)}
-          onConfirm={confirmBilingualLanguage}
+          onConfirm={confirmTranslatedLanguage}
           onRetry={() =>
             void checkTranslationAvailability(selectedTargetLanguage)
           }

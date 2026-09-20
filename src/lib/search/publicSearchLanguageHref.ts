@@ -1,16 +1,12 @@
-import type {
-  PublicTranslationTargetLanguage,
-  SupportedLanguageTag,
-} from "@/lib/translation/languageRegistry";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 
 type PublicSearchLanguageState = {
-  sourceLanguage: SupportedLanguageTag | null;
-  readLanguage: PublicTranslationTargetLanguage | null;
+  sourceLanguages: readonly SupportedLanguageTag[];
 };
 
 export function preservePublicSearchLanguageFilters(
   href: string,
-  { sourceLanguage, readLanguage }: PublicSearchLanguageState
+  { sourceLanguages }: PublicSearchLanguageState
 ): string {
   const hashIndex = href.indexOf("#");
   const hash = hashIndex >= 0 ? href.slice(hashIndex) : "";
@@ -23,11 +19,12 @@ export function preservePublicSearchLanguageFilters(
   const queryString = queryIndex >= 0 ? withoutHash.slice(queryIndex + 1) : "";
   const params = new URLSearchParams(queryString);
 
-  if (sourceLanguage) params.set("source_language", sourceLanguage);
-  else params.delete("source_language");
-
-  if (readLanguage) params.set("read_language", readLanguage);
-  else params.delete("read_language");
+  params.delete("read_language");
+  if (sourceLanguages.length > 0) {
+    params.set("source_language", sourceLanguages.join(","));
+  } else {
+    params.delete("source_language");
+  }
 
   const nextQuery = params.toString();
   return `${pathname}${nextQuery ? `?${nextQuery}` : ""}${hash}`;

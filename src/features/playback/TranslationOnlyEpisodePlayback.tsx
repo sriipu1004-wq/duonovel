@@ -125,8 +125,6 @@ export default function TranslationOnlyEpisodePlayback({
       if (nextStatus === "ready" && Array.isArray(payload.segments)) {
         setTranslationStatus("ready");
         setSegments(payload.segments);
-        const firstId = payload.segments[0]?.id ?? null;
-        setSelectedSegmentId((current) => current ?? firstId);
         setStatusMessage("");
         return;
       }
@@ -250,7 +248,7 @@ export default function TranslationOnlyEpisodePlayback({
     const segment = segments[index];
     if (!segment) return;
     setCurrentPositionIndex(index);
-    setSelectedSegmentId(segment.id);
+    if (location) setSelectedSegmentId(segment.id);
     writeReadingHistory({
       seriesId,
       episodeNumber,
@@ -301,7 +299,6 @@ export default function TranslationOnlyEpisodePlayback({
       const index = segments.findIndex((segment) => segment.id === best?.id);
       if (index < 0) return;
       setCurrentPositionIndex(index);
-      setSelectedSegmentId(best.id);
       writeReadingHistory({
         seriesId,
         episodeNumber,
@@ -363,7 +360,12 @@ export default function TranslationOnlyEpisodePlayback({
   const safeEpisodeTitle = safeText(episodeTitle, dictionary.untitledEpisode);
   const safeAuthorName = safeText(workAuthorName, dictionary.authorUnknown);
   const safeEditorName = safeText(workEditorName, "");
-  const currentSegment = segments[currentPositionIndex];
+  const selectedPositionIndex = selectedSegmentId
+    ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+    : -1;
+  const bookmarkPositionIndex =
+    selectedPositionIndex >= 0 ? selectedPositionIndex : currentPositionIndex;
+  const bookmarkSegment = segments[bookmarkPositionIndex];
   const narrationUnits = useMemo(
     () => segments.map((segment) => segment.translatedText),
     [segments]
@@ -506,9 +508,9 @@ export default function TranslationOnlyEpisodePlayback({
           <TranslationOnlyFooter
             seriesId={seriesId}
             episodeNumber={episodeNumber}
-            positionIndex={currentPositionIndex}
-            paragraphIndex={currentSegment?.paragraphIndex}
-            sentenceIndex={currentSegment?.sentenceIndex}
+            positionIndex={bookmarkPositionIndex}
+            paragraphIndex={bookmarkSegment?.paragraphIndex}
+            sentenceIndex={bookmarkSegment?.sentenceIndex}
             narrationUnits={narrationUnits}
             sourceLanguage={sourceLanguage}
             targetLanguage={targetLanguage}
@@ -520,7 +522,6 @@ export default function TranslationOnlyEpisodePlayback({
               const segment = segments[index];
               if (!segment) return;
               handlePositionChange(segment.id);
-              setSelectedSegmentId(segment.id);
               if (shouldFollow) {
                 segmentRefs.current.get(segment.id)?.scrollIntoView({
                   block: "center",

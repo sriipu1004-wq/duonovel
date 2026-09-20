@@ -20,6 +20,11 @@ import { readerDictionaries } from "@/i18n/dictionaries/reader";
 import { generatedReaderDictionaries } from "@/i18n/dictionaries/generatedReader";
 import { generateDictionaries } from "@/i18n/dictionaries/generate";
 import { localizePath } from "@/i18n/navigation";
+import {
+  readEpisodeReadingPosition,
+  resolveReadingPositionIndex,
+  writeReadingHistory,
+} from "@/lib/playback/readingBookmark";
 
 type TimeMinutes = 5 | 10 | 15 | 20;
 
@@ -418,6 +423,7 @@ export default function GeneratedStoryReaderClient({
   const [loaded, setLoaded] = useState(false);
   const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
   const [activeUnitIndex, setActiveUnitIndex] = useState(0);
+  const [visibleMarkerIndex, setVisibleMarkerIndex] = useState<number | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [autoFollow, setAutoFollow] = useState(true);
   const [isBookmarkPanelExpanded, setIsBookmarkPanelExpanded] = useState(false);
@@ -447,6 +453,7 @@ export default function GeneratedStoryReaderClient({
   const speechPitchRef = useRef(speechPitch);
   const playbackRunIdRef = useRef(0);
   const bookmarkToastTimeoutRef = useRef<number | null>(null);
+  const positionRestoredRef = useRef<string | null>(null);
   const storySourceLanguage =
     payload?.story.sourceLanguage ?? payload?.request.outputLanguage ?? "ja";
   const storyLanguage = getSupportedLanguage(storySourceLanguage);
@@ -458,6 +465,8 @@ export default function GeneratedStoryReaderClient({
 
     setPayload(record.payload);
     setActiveUnitIndex(record.bookmarkUnitIndex);
+    setVisibleMarkerIndex(record.isSaved ? record.bookmarkUnitIndex : null);
+    positionRestoredRef.current = null;
     setIsCurrentStorySaved(record.isSaved);
     setSavedSeriesId(record.savedSeriesId);
     setSavedEpisodeId(record.savedEpisodeId);
@@ -585,9 +594,24 @@ export default function GeneratedStoryReaderClient({
     [bodyParagraphs]
   );
 
-  const speechUnits = useMemo(() => {
-    return bodySentenceGroups.flat().filter((unit) => unit.trim().length > 0);
-  }, [bodySentenceGroups]);
+  const readingUnits = useMemo(
+    () =>
+      bodySentenceGroups.flatMap((sentences, paragraphIndex) =>
+        sentences
+          .map((text, sentenceIndex) => ({
+            text,
+            paragraphIndex,
+            sentenceIndex,
+          }))
+          .filter((unit) => unit.text.trim().length > 0)
+      ),
+    [bodySentenceGroups]
+  );
+
+  const speechUnits = useMemo(
+    () => readingUnits.map((unit) => unit.text),
+    [readingUnits]
+  );
 
   const bodyUnitStartIndex = 0;
   const maxUnitIndex = Math.max(0, speechUnits.length - 1);
@@ -595,6 +619,12 @@ export default function GeneratedStoryReaderClient({
     speechUnits.length === 0
       ? 0
       : Math.min(maxUnitIndex, Math.max(0, activeUnitIndex));
+  const safeVisibleMarkerIndex =
+    visibleMarkerIndex === null || speechUnits.length === 0
+      ? null
+      : Math.min(maxUnitIndex, Math.max(0, visibleMarkerIndex));
+  const bookmarkPositionIndex =
+    safeVisibleMarkerIndex ?? safeActiveUnitIndex;
   const lineHeightValue =
     displayPreference.lineHeight === "compact"
       ? 1.75
@@ -634,6 +664,84 @@ export default function GeneratedStoryReaderClient({
     node.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [safeActiveUnitIndex, autoFollow]);
 
+  useEffect(() => {
+    if (!loaded || readingUnits.length === 0) return;
+    const restoreKey = `${storyId}:${readingUnits.length}`;
+    if (positionRestoredRef.current === restoreKey) return;
+    positionRestoredRef.current = restoreKey;
+
+    const location = readEpisodeReadingPosition(`generated:${storyId}`, 1);
+    if (!location) return;
+
+    const index = resolveReadingPositionIndex(readingUnits, location);
+    setActiveUnitIndex(index);
+    setVisibleMarkerIndex(index);
+    window.requestAnimationFrame(() => {
+      unitRefs.current[index]?.scrollIntoView({
+        behavior: "auto",
+        block: "center",
+      });
+    });
+  }, [loaded, readingUnits, storyId]);
+
+  useEffect(() => {
+    if (!loaded || readingUnits.length === 0) return;
+    const coordinate = readingUnits[safeActiveUnitIndex];
+    if (!coordinate) return;
+
+    writeReadingHistory({
+      seriesId: `generated:${storyId}`,
+      episodeNumber: 1,
+      positionIndex: safeActiveUnitIndex,
+      paragraphIndex: coordinate.paragraphIndex,
+      sentenceIndex: coordinate.sentenceIndex,
+      mode: "standard",
+    });
+  }, [loaded, readingUnits, safeActiveUnitIndex, storyId]);
+
+  useEffect(() => {
+    if (!loaded || readingUnits.length === 0 || isSettingsOpen) return;
+
+    let frame: number | null = null;
+    let lastIndex = safeActiveUnitIndex;
+
+    const updatePosition = () => {
+      frame = null;
+      const targetY = window.innerHeight * 0.42;
+      let bestIndex = -1;
+      let bestDistance = Number.POSITIVE_INFINITY;
+
+      for (let index = 0; index < readingUnits.length; index += 1) {
+        const node = unitRefs.current[index];
+        if (!node) continue;
+        const rect = node.getBoundingClientRect();
+        const distance = Math.abs(rect.top + rect.height / 2 - targetY);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = index;
+        }
+      }
+
+      if (bestIndex < 0 || bestIndex === lastIndex) return;
+      lastIndex = bestIndex;
+      setActiveUnitIndex(bestIndex);
+    };
+
+    const schedule = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(updatePosition);
+    };
+
+    schedule();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
+  }, [isSettingsOpen, loaded, readingUnits, safeActiveUnitIndex]);
+
   function buildSavePrivatePayload() {
     if (!payload) return null;
     return {
@@ -645,7 +753,7 @@ export default function GeneratedStoryReaderClient({
       estimatedReadingMinutes: payload.story.estimatedReadingMinutes,
       request: payload.request,
       tags: payload.story.tags,
-      bookmarkUnitIndex: safeActiveUnitIndex,
+      bookmarkUnitIndex: bookmarkPositionIndex,
       editorName: currentEditorName,
     };
   }
@@ -654,7 +762,7 @@ export default function GeneratedStoryReaderClient({
     if (!payload) return null;
 
     if (savedSeriesId) {
-      saveGeneratedStory(payload, safeActiveUnitIndex, {
+      saveGeneratedStory(payload, bookmarkPositionIndex, {
         savedSeriesId,
         savedEpisodeId,
         workspaceHref: savedWorkspaceHref,
@@ -714,7 +822,7 @@ export default function GeneratedStoryReaderClient({
       setSavedReadHref(nextReadHref);
       setIsCurrentStorySaved(true);
 
-      saveGeneratedStory(payload, safeActiveUnitIndex, {
+      saveGeneratedStory(payload, bookmarkPositionIndex, {
         savedSeriesId: nextSavedSeriesId,
         savedEpisodeId: nextSavedEpisodeId,
         workspaceHref: nextWorkspaceHref,
@@ -839,6 +947,7 @@ export default function GeneratedStoryReaderClient({
 
   function handleJumpToUnit(index: number) {
     setActiveUnitIndex(index);
+    setVisibleMarkerIndex(index);
     if (playbackState === "playing") startPlaybackFrom(index);
   }
 
@@ -1210,7 +1319,8 @@ export default function GeneratedStoryReaderClient({
                             bodyUnitStartIndex + previousSentenceCount + sentenceIndex;
                           const isActive =
                             displayPreference.showMarker &&
-                            unitIndex === safeActiveUnitIndex;
+                            safeVisibleMarkerIndex !== null &&
+                            unitIndex === safeVisibleMarkerIndex;
                           return (
                             <span
                               key={`${paragraphIndex}-${sentenceIndex}`}

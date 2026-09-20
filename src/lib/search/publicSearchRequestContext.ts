@@ -1,13 +1,9 @@
 import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
-import type {
-  PublicTranslationTargetLanguage,
-  SupportedLanguageTag,
-} from "@/lib/translation/languageRegistry";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 
 export type PublicSearchLanguageFilters = {
-  sourceLanguage: SupportedLanguageTag | null;
-  readLanguage: PublicTranslationTargetLanguage | null;
+  sourceLanguages: SupportedLanguageTag[];
 };
 
 const publicSearchLanguageStorage =

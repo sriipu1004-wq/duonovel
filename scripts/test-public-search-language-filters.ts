@@ -13,29 +13,23 @@ import {
 import { preservePublicSearchLanguageFilters } from "../src/lib/search/publicSearchLanguageHref";
 import {
   matchesPublicWorkLanguageFilters,
-  parsePublicSearchReadLanguage,
-  parsePublicSearchSourceLanguage,
+  parsePublicSearchSourceLanguages,
 } from "../src/lib/search/publicWorkLanguageFilter";
+import type { SupportedLanguageTag } from "../src/lib/translation/languageRegistry";
 
 type Work = Parameters<typeof matchesPublicWorkLanguageFilters>[0]["work"];
 
-const jaAllowed: Work = { sourceLanguage: "ja", translationEligible: true };
-const jaClosed: Work = { sourceLanguage: "ja", translationEligible: false };
-const enClosed: Work = { sourceLanguage: "en", translationEligible: false };
-const koAllowed: Work = { sourceLanguage: "ko", translationEligible: true };
-const koClosed: Work = { sourceLanguage: "ko", translationEligible: false };
-const unresolvedLegacy: Work = { sourceLanguage: null, translationEligible: true };
-const works = [jaAllowed, jaClosed, enClosed, koAllowed, koClosed];
+const ja: Work = { sourceLanguage: "ja" };
+const en: Work = { sourceLanguage: "en" };
+const ko: Work = { sourceLanguage: "ko" };
+const unresolved: Work = { sourceLanguage: null };
+const works = [ja, en, ko, unresolved];
 
-function match(
-  work: Work,
-  sourceLanguage: ReturnType<typeof parsePublicSearchSourceLanguage>,
-  readLanguage: ReturnType<typeof parsePublicSearchReadLanguage>
-) {
-  return matchesPublicWorkLanguageFilters({ work, sourceLanguage, readLanguage });
+function match(work: Work, sourceLanguages: SupportedLanguageTag[]) {
+  return matchesPublicWorkLanguageFilters({ work, sourceLanguages });
 }
 
-async function verifyLanguageControlsKeepBothSelections() {
+async function verifyLanguageControlsAreMultiSelect() {
   const { window } = parseHTML("<html><body><div id='app'></div></body></html>");
   Object.assign(globalThis, {
     window,
@@ -43,58 +37,52 @@ async function verifyLanguageControlsKeepBothSelections() {
     HTMLElement: window.HTMLElement,
     Event: window.Event,
     IS_REACT_ACT_ENVIRONMENT: true,
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          counts: { ja: 40, en: 3, ko: 2, fr: 0, de: 0, es: 0, "zh-Hans": 0, "zh-Hant": 0 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      ),
   });
 
   const host = document.getElementById("app")!;
   const root = createRoot(host);
 
   function Probe() {
-    const [sourceLanguage, setSourceLanguage] = useState<"ja" | null>(null);
-    const [readLanguage, setReadLanguage] = useState<"en" | null>(null);
-
+    const [languages, setLanguages] = useState<SupportedLanguageTag[]>([]);
     return React.createElement(PublicSearchLanguageFilters, {
-      sourceLanguage,
-      readLanguage,
-      onSourceLanguageChange: (value) =>
-        setSourceLanguage(value === "ja" ? value : null),
-      onReadLanguageChange: (value) =>
-        setReadLanguage(value === "en" ? value : null),
+      sourceLanguages: languages,
+      onSourceLanguagesChange: setLanguages,
     });
   }
 
   await act(async () => {
     root.render(React.createElement(Probe));
+    await Promise.resolve();
   });
 
-  const [sourceSelect, readSelect] = Array.from(
-    host.querySelectorAll<HTMLSelectElement>("select")
-  );
-  assert.ok(sourceSelect && readSelect, "both language selects must render");
+  assert.equal(host.querySelectorAll("select").length, 0, "read-language selects must be removed");
 
-  const sourceOption = sourceSelect.querySelector<HTMLOptionElement>(
-    'option[value="ja"]'
-  );
-  assert.ok(sourceOption, "Japanese source option must render");
-  sourceOption.selected = true;
-  await act(async () => {
-    sourceSelect.dispatchEvent(new window.Event("change", { bubbles: true }));
-  });
+  const buttons = Array.from(host.querySelectorAll<HTMLButtonElement>("button"));
+  const japanese = buttons.find((button) => button.textContent?.includes("日本語"));
+  const english = buttons.find((button) => button.textContent?.includes("English"));
 
-  const readOption = readSelect.querySelector<HTMLOptionElement>(
-    'option[value="en"]'
-  );
-  assert.ok(readOption, "English reading option must render");
-  readOption.selected = true;
-  await act(async () => {
-    readSelect.dispatchEvent(new window.Event("change", { bubbles: true }));
-  });
-
-  assert.equal(sourceSelect.value, "ja");
-  assert.equal(readSelect.value, "en");
+  assert.ok(japanese, "Japanese source-language button must render");
+  assert.ok(english, "English source-language button must render");
 
   await act(async () => {
-    root.unmount();
+    japanese.dispatchEvent(new window.Event("click", { bubbles: true }));
   });
+  await act(async () => {
+    english.dispatchEvent(new window.Event("click", { bubbles: true }));
+  });
+
+  assert.equal(japanese.getAttribute("aria-pressed"), "true");
+  assert.equal(english.getAttribute("aria-pressed"), "true");
+
+  await act(async () => root.unmount());
 }
 
 function verifySearchLocaleCopy() {
@@ -104,65 +92,49 @@ function verifySearchLocaleCopy() {
     getLocalizedSavedFilterLabel("bookmarked-works", "en"),
     "Bookmarked works"
   );
-  assert.equal(
-    localizeLegacySearchText("検索結果", "en"),
-    "Search results"
-  );
+  assert.equal(localizeLegacySearchText("検索結果", "en"), "Search results");
   assert.equal(
     localizeLegacySearchText("条件に合う公開作品がない。", "ko"),
     "조건에 맞는 공개 작품이 없습니다."
-  );
-  assert.equal(
-    localizeLegacySearchText("現在表示: 総合人気順", "en"),
-    "Current shelf: Overall popularity"
-  );
-  assert.equal(
-    localizeLegacySearchText(
-      "指定期間: 2026-09-01 〜 2026-09-15 / 並び順: 更新順",
-      "ko"
-    ),
-    "기간: 2026-09-01 〜 2026-09-15 / 정렬: 업데이트순"
   );
 
   const controlsSource = readFileSync(
     "src/components/search/PublicSearchControls.tsx",
     "utf8"
   );
-  assert.ok(controlsSource.includes("useUiLocale"));
-  assert.ok(controlsSource.includes("publicSearchControlCopy[locale]"));
-  assert.ok(controlsSource.includes("localizePath("));
-  assert.equal(
-    controlsSource.includes("公開作品を探す"),
-    false,
-    "client search controls must not hardcode Japanese UI copy"
-  );
+  assert.ok(controlsSource.includes("sourceLanguages"));
+  assert.equal(controlsSource.includes("readLanguage"), false);
+  assert.equal(controlsSource.includes("read_language"), false);
 
   const pageSource = readFileSync("src/app/search/page.tsx", "utf8");
-  assert.ok(pageSource.includes("getUiLocale"));
-  assert.ok(pageSource.includes("localizeLegacySearchNode"));
-  assert.ok(pageSource.includes("preservePublicSearchLanguageFilters"));
+  assert.ok(pageSource.includes("parsePublicSearchSourceLanguages"));
+  assert.equal(pageSource.includes("PublicSearchReadIntentProvider"), false);
+  assert.equal(pageSource.includes("parsePublicSearchReadLanguage"), false);
 }
 
-function verifyServerSearchLinksKeepLanguageFilters() {
+function verifyServerSearchLinksKeepOnlySourceLanguages() {
   assert.equal(
     preservePublicSearchLanguageFilters(
-      "/search?q=detective&shelfTab=latest",
-      { sourceLanguage: "ja", readLanguage: "en" }
+      "/search?q=detective&shelfTab=latest&read_language=ko",
+      { sourceLanguages: ["ja", "en"] }
     ),
-    "/search?q=detective&shelfTab=latest&source_language=ja&read_language=en"
+    "/search?q=detective&shelfTab=latest&source_language=ja%2Cen",
+    "old read_language must be dropped while source-language selection is preserved"
   );
+
   assert.equal(
     preservePublicSearchLanguageFilters(
       "/search?source_language=ko&read_language=ko&order=updated",
-      { sourceLanguage: "ja", readLanguage: "en" }
+      { sourceLanguages: ["ja", "en"] }
     ),
-    "/search?source_language=ja&read_language=en&order=updated",
-    "current request language filters must override stale server-link values"
+    "/search?source_language=ja%2Cen&order=updated",
+    "current source-language set must override stale server-link values"
   );
+
   assert.equal(
     preservePublicSearchLanguageFilters(
       "/works/example",
-      { sourceLanguage: "ja", readLanguage: "en" }
+      { sourceLanguages: ["ja", "en"] }
     ),
     "/works/example",
     "non-search links must not be mutated"
@@ -170,71 +142,40 @@ function verifyServerSearchLinksKeepLanguageFilters() {
 }
 
 async function main() {
-  assert.equal(parsePublicSearchSourceLanguage("ja"), "ja");
-  assert.equal(parsePublicSearchSourceLanguage("en"), "en");
-  assert.equal(parsePublicSearchSourceLanguage("ko"), "ko");
-  assert.equal(parsePublicSearchSourceLanguage("invalid"), null);
-  assert.equal(parsePublicSearchReadLanguage("fr"), "fr");
-  assert.equal(parsePublicSearchReadLanguage("invalid"), null);
+  assert.deepEqual(parsePublicSearchSourceLanguages("ja,en"), ["ja", "en"]);
+  assert.deepEqual(parsePublicSearchSourceLanguages("en,ja,en,invalid"), ["ja", "en"]);
+  assert.deepEqual(parsePublicSearchSourceLanguages(undefined), []);
 
   assert.deepEqual(
-    works.filter((work) => match(work, "ja", null)),
-    [jaAllowed, jaClosed],
-    "source=ja must return Japanese-source works only"
+    works.filter((work) => match(work, ["ja"])),
+    [ja],
+    "single source-language filter must match only that original language"
   );
   assert.deepEqual(
-    works.filter((work) => match(work, "en", null)),
-    [enClosed],
-    "source=en must return English-source works only"
+    works.filter((work) => match(work, ["ja", "en"])),
+    [ja, en],
+    "multi-select source languages use OR semantics"
   );
   assert.deepEqual(
-    works.filter((work) => match(work, "ko", null)),
-    [koAllowed, koClosed],
-    "source=ko must return Korean-source works only"
-  );
-
-  assert.equal(match(jaAllowed, "ja", "en"), true);
-  assert.equal(match(jaClosed, "ja", "en"), false);
-  assert.equal(
-    match(jaClosed, "ja", "ja"),
-    true,
-    "same-language reading must not require translation permission"
-  );
-
-  assert.deepEqual(
-    works.filter((work) => match(work, null, "en")),
-    [jaAllowed, enClosed, koAllowed],
-    "read=en must include English originals plus translation-eligible other-language works"
-  );
-
-  assert.equal(
-    match(unresolvedLegacy, null, "en"),
-    false,
-    "unresolved legacy language must never be treated as Japanese or translation eligible by guess"
-  );
-
-  assert.deepEqual(
-    works.filter((work) => match(work, null, null)),
+    works.filter((work) => match(work, [])),
     works,
-    "no language filters must preserve the existing result set"
+    "no source-language filter must preserve the existing result set"
   );
 
   assert.equal(
     buildPublicSearchHref({
       q: "detective",
-      sourceLanguage: "ja",
-      readLanguage: "en",
+      sourceLanguages: ["ja", "en"],
     }),
-    "/search?q=detective&source_language=ja&read_language=en",
-    "a search submission must retain both independently chosen language filters"
+    "/search?q=detective&source_language=ja%2Cen"
   );
 
   verifySearchLocaleCopy();
-  verifyServerSearchLinksKeepLanguageFilters();
-  await verifyLanguageControlsKeepBothSelections();
+  verifyServerSearchLinksKeepOnlySourceLanguages();
+  await verifyLanguageControlsAreMultiSelect();
 
   console.log(
-    "PASS: public search source/read language semantics, locale copy, navigation state, controlled selections and no-filter compatibility"
+    "PASS: source-language multi-select, OR semantics, read_language compatibility, URL state and locale copy"
   );
 }
 

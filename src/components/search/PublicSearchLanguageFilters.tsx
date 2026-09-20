@@ -1,41 +1,22 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import type { UiLocale } from "@/i18n/config";
 import {
   LANGUAGE_REGISTRY,
-  type PublicTranslationTargetLanguage,
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 import {
-  PUBLIC_SEARCH_READ_LANGUAGES,
   PUBLIC_SEARCH_SOURCE_LANGUAGES,
 } from "@/lib/search/publicWorkLanguageFilter";
 
 const copy: Record<UiLocale, {
-  source: string;
-  read: string;
-  all: string;
-  hint: string;
+  title: string;
 }> = {
-  ja: {
-    source: "原文言語",
-    read: "読む言語",
-    all: "すべて",
-    hint: "原文の言語と、読みたい言語は別々に選べます。",
-  },
-  en: {
-    source: "Original language",
-    read: "Read in",
-    all: "All",
-    hint: "Filter original language and reading language independently.",
-  },
-  ko: {
-    source: "원문 언어",
-    read: "읽을 언어",
-    all: "전체",
-    hint: "원문 언어와 읽을 언어를 각각 선택할 수 있습니다.",
-  },
+  ja: { title: "言語" },
+  en: { title: "Language" },
+  ko: { title: "언어" },
 };
 
 const koreanLanguageLabels: Partial<Record<SupportedLanguageTag, string>> = {
@@ -56,68 +37,88 @@ function getLanguageLabel(tag: SupportedLanguageTag, locale: UiLocale): string {
   return language.nativeLabel;
 }
 
+type Counts = Partial<Record<SupportedLanguageTag, number>>;
+
 type PublicSearchLanguageFiltersProps = {
-  sourceLanguage: SupportedLanguageTag | null;
-  readLanguage: PublicTranslationTargetLanguage | null;
-  onSourceLanguageChange: (language: SupportedLanguageTag | null) => void;
-  onReadLanguageChange: (
-    language: PublicTranslationTargetLanguage | null
-  ) => void;
+  sourceLanguages: SupportedLanguageTag[];
+  onSourceLanguagesChange: (languages: SupportedLanguageTag[]) => void;
 };
 
 export default function PublicSearchLanguageFilters({
-  sourceLanguage,
-  readLanguage,
-  onSourceLanguageChange,
-  onReadLanguageChange,
+  sourceLanguages,
+  onSourceLanguagesChange,
 }: PublicSearchLanguageFiltersProps) {
   const locale = useUiLocale();
-  const labels = copy[locale];
+  const [counts, setCounts] = useState<Counts>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/public/work-language-counts", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload: { counts?: Counts }) => {
+        if (!cancelled && payload.counts) setCounts(payload.counts);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const orderedLanguages = useMemo(() => {
+    const preferred = locale as SupportedLanguageTag;
+    return [...PUBLIC_SEARCH_SOURCE_LANGUAGES].sort((left, right) => {
+      if (left === preferred && right !== preferred) return -1;
+      if (right === preferred && left !== preferred) return 1;
+
+      const countDiff = Number(counts[right] ?? 0) - Number(counts[left] ?? 0);
+      if (countDiff !== 0) return countDiff;
+
+      return (
+        PUBLIC_SEARCH_SOURCE_LANGUAGES.indexOf(left) -
+        PUBLIC_SEARCH_SOURCE_LANGUAGES.indexOf(right)
+      );
+    });
+  }, [counts, locale]);
+
+  function toggle(language: SupportedLanguageTag) {
+    const next = sourceLanguages.includes(language)
+      ? sourceLanguages.filter((item) => item !== language)
+      : [...sourceLanguages, language];
+
+    onSourceLanguagesChange(
+      PUBLIC_SEARCH_SOURCE_LANGUAGES.filter((item) => next.includes(item))
+    );
+  }
 
   return (
-    <div className="mt-6 rounded-[20px] border border-black/10 bg-neutral-50 p-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="grid gap-2 text-sm font-medium text-black">
-          <span>{labels.source}</span>
-          <select
-            value={sourceLanguage ?? ""}
-            onChange={(event) =>
-              onSourceLanguageChange(
-                (event.target.value as SupportedLanguageTag) || null
-              )
-            }
-            className="h-11 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm text-black outline-none focus:border-sky-200"
-          >
-            <option value="">{labels.all}</option>
-            {PUBLIC_SEARCH_SOURCE_LANGUAGES.map((tag) => (
-              <option key={tag} value={tag}>
-                {getLanguageLabel(tag, locale)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="grid gap-2 text-sm font-medium text-black">
-          <span>{labels.read}</span>
-          <select
-            value={readLanguage ?? ""}
-            onChange={(event) =>
-              onReadLanguageChange(
-                (event.target.value as PublicTranslationTargetLanguage) || null
-              )
-            }
-            className="h-11 w-full rounded-2xl border border-black/10 bg-white px-3 text-sm text-black outline-none focus:border-sky-200"
-          >
-            <option value="">{labels.all}</option>
-            {PUBLIC_SEARCH_READ_LANGUAGES.map((tag) => (
-              <option key={tag} value={tag}>
-                {getLanguageLabel(tag, locale)}
-              </option>
-            ))}
-          </select>
-        </label>
+    <div className="mt-6">
+      <p className="text-[11px] tracking-[0.18em] text-neutral-500">
+        {copy[locale].title}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {orderedLanguages.map((tag) => {
+          const active = sourceLanguages.includes(tag);
+          return (
+            <button
+              key={tag}
+              type="button"
+              aria-pressed={active}
+              onClick={() => toggle(tag)}
+              className={[
+                "inline-flex items-center rounded-full border px-3 py-2 text-sm transition",
+                active
+                  ? "border-sky-300 bg-sky-50 text-black"
+                  : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50",
+              ].join(" ")}
+            >
+              <span>{getLanguageLabel(tag, locale)}</span>
+              <span className="ml-1.5 text-[10px] text-neutral-400">
+                {Number(counts[tag] ?? 0)}
+              </span>
+            </button>
+          );
+        })}
       </div>
-      <p className="mt-3 text-xs leading-6 text-neutral-500">{labels.hint}</p>
     </div>
   );
 }

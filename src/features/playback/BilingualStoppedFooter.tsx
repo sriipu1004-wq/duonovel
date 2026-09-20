@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   FooterActionButton,
   FooterPlaybackRateControl,
@@ -50,6 +51,8 @@ type BilingualStoppedFooterProps = {
   displaySettings: StoredWebSpeechDisplaySettings;
   onDisplaySettingsChange: (settings: StoredWebSpeechDisplaySettings) => void;
   onPositionIndexChange: (index: number, autoFollow: boolean) => void;
+  settingsPortalId?: string;
+  onSettingsOpenChange?: (open: boolean) => void;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -102,6 +105,8 @@ export default function BilingualStoppedFooter({
   displaySettings,
   onDisplaySettingsChange,
   onPositionIndexChange,
+  settingsPortalId,
+  onSettingsOpenChange,
 }: BilingualStoppedFooterProps) {
   const router = useRouter();
   const locale = useUiLocale();
@@ -109,9 +114,11 @@ export default function BilingualStoppedFooter({
   const bilingualDictionary = bilingualReaderDictionaries[locale];
   const toastTimerRef = useRef<number | null>(null);
   const speechRunIdRef = useRef(0);
+  const inlineSettingsHostRef = useRef<HTMLDivElement | null>(null);
   const [bookmarkSaved, setBookmarkSaved] = useState(false);
   const [bookmarkMessage, setBookmarkMessage] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsHost, setSettingsHost] = useState<HTMLElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [autoFollow, setAutoFollow] = useState(true);
   const [narrationStopped, setNarrationStopped] = useState(() =>
@@ -141,6 +148,22 @@ export default function BilingualStoppedFooter({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [episodeNumber, seriesId]);
+
+  useEffect(() => {
+    if (!settingsOpen) {
+      setSettingsHost(null);
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      setSettingsHost(
+        settingsPortalId
+          ? document.getElementById(settingsPortalId)
+          : inlineSettingsHostRef.current
+      );
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [settingsOpen, settingsPortalId]);
 
   useEffect(() => {
     if (!("speechSynthesis" in window)) return;
@@ -346,7 +369,8 @@ export default function BilingualStoppedFooter({
       aria-label={bilingualDictionary.footerAria}
       className="mt-5 border-t border-black/10 bg-white pt-3"
     >
-      {settingsOpen ? (
+      <div ref={inlineSettingsHostRef} />
+      {settingsOpen && settingsHost ? createPortal(
         <div className="border-b border-black/10 bg-white/98">
           <div className="mx-auto max-h-[52dvh] max-w-4xl overflow-y-auto px-4 py-4 sm:px-6">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -566,7 +590,8 @@ export default function BilingualStoppedFooter({
               </section>
             </div>
           </div>
-        </div>
+        </div>,
+        settingsHost
       ) : null}
 
       <div className="mx-auto max-w-4xl px-4 py-3 sm:px-6">
@@ -654,7 +679,13 @@ export default function BilingualStoppedFooter({
             label={dictionary.settings}
             iconSrc={PLAYER_ICON_PATHS.settings}
             active={settingsOpen}
-            onClick={() => setSettingsOpen((current) => !current)}
+            onClick={() =>
+              setSettingsOpen((current) => {
+                const next = !current;
+                onSettingsOpenChange?.(next);
+                return next;
+              })
+            }
           />
         </div>
       </div>
