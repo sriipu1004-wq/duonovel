@@ -118,7 +118,7 @@ function asGlossaryTermType(value: unknown): TranslationGlossaryTermType | null 
     : null;
 }
 
-function validateOutput(args: {
+export function validatePublicTranslationOutput(args: {
   text: string;
   segments: OpenAITranslationSourceSegment[];
   sourceLanguage: SupportedLanguageTag;
@@ -373,7 +373,7 @@ async function requestTranslation(args: {
   if (!outputText) {
     throw new OpenAITranslationError("対訳の生成結果が空でした。", 502, true);
   }
-  const validated = validateOutput({
+  const validated = validatePublicTranslationOutput({
     text: outputText,
     segments: args.segments,
     sourceLanguage: args.sourceLanguage,
