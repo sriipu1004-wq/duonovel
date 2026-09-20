@@ -195,6 +195,7 @@ export default function PrivateLibraryBilingualPlayback({
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
   const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [prefetchEligibleChapterId, setPrefetchEligibleChapterId] = useState<
     string | null
   >(null);
@@ -208,6 +209,7 @@ export default function PrivateLibraryBilingualPlayback({
   const targetSegmentRefs = useRef(new Map<string, HTMLSpanElement | null>());
   const generationInFlightRef = useRef(false);
   const readingSegmentIdRef = useRef<string | null>(null);
+  const settingsResumeSegmentIdRef = useRef<string | null>(null);
   const targetLanguageRef = useRef<SupportedLanguageTag>(preference.targetLanguage);
   const restoredBookmarkKeyRef = useRef<string | null>(null);
   const nextPrefetchAttemptRef = useRef<{
@@ -695,6 +697,26 @@ export default function PrivateLibraryBilingualPlayback({
     clearWordInsight();
   }
 
+  const settingsPortalId = `private-library-settings-${chapterId}`;
+
+  function handleSettingsOpenChange(open: boolean) {
+    if (open) {
+      settingsResumeSegmentIdRef.current =
+        readingSegmentIdRef.current ??
+        selectedSegmentId ??
+        segments[currentPositionIndex]?.id ??
+        null;
+      setSettingsOpen(true);
+      return;
+    }
+
+    setSettingsOpen(false);
+    const resumeId = settingsResumeSegmentIdRef.current;
+    window.requestAnimationFrame(() => {
+      if (resumeId) alignSegmentToTop(resumeId);
+    });
+  }
+
   function handleDisableTranslated() {
     const positionId =
       readingSegmentIdRef.current ?? selectedSegmentId ?? segments[0]?.id ?? null;
@@ -786,6 +808,11 @@ export default function PrivateLibraryBilingualPlayback({
                   displaySettings={displaySettings}
                 />
               </div>
+            ) : settingsOpen ? (
+              <div
+                id={settingsPortalId}
+                className="min-h-[30rem] bg-white px-4 py-4 sm:px-6"
+              />
             ) : (
             <>
               <BilingualStudyControls
@@ -1090,6 +1117,8 @@ export default function PrivateLibraryBilingualPlayback({
             handleReadingPositionChange(segment.id);
             if (shouldFollow) centerSegment(segment.id);
           }}
+          settingsPortalId={settingsPortalId}
+          onSettingsOpenChange={handleSettingsOpenChange}
         />
         )}
       </div>
