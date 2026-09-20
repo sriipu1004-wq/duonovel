@@ -135,8 +135,8 @@ export default function PublicSearchControls({
   const buildSearchHref = (params: Parameters<typeof buildPublicSearchHref>[0]) =>
     localizePath(
       buildPublicSearchHref({
-        ...params,
         sourceLanguages: selectedSourceLanguages,
+        ...params,
       }),
       locale
     );
@@ -193,7 +193,7 @@ export default function PublicSearchControls({
   );
 
   function navigate(href: string, scrollTargetId?: string) {
-    router.replace(href, { scroll: false });
+    router.push(href, { scroll: false });
     if (!scrollTargetId || typeof window === "undefined") return;
     let attempts = 0;
     const tryScroll = () => {
