@@ -114,6 +114,7 @@ export default function BilingualStoppedFooter({
   const bilingualDictionary = bilingualReaderDictionaries[locale];
   const toastTimerRef = useRef<number | null>(null);
   const speechRunIdRef = useRef(0);
+  const inlineSettingsHostRef = useRef<HTMLDivElement | null>(null);
   const [bookmarkSaved, setBookmarkSaved] = useState(false);
   const [bookmarkMessage, setBookmarkMessage] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -149,13 +150,17 @@ export default function BilingualStoppedFooter({
   }, [episodeNumber, seriesId]);
 
   useEffect(() => {
-    if (!settingsOpen || !settingsPortalId) {
+    if (!settingsOpen) {
       setSettingsHost(null);
       return;
     }
 
     const frame = window.requestAnimationFrame(() => {
-      setSettingsHost(document.getElementById(settingsPortalId));
+      setSettingsHost(
+        settingsPortalId
+          ? document.getElementById(settingsPortalId)
+          : inlineSettingsHostRef.current
+      );
     });
     return () => window.cancelAnimationFrame(frame);
   }, [settingsOpen, settingsPortalId]);
@@ -364,6 +369,7 @@ export default function BilingualStoppedFooter({
       aria-label={bilingualDictionary.footerAria}
       className="mt-5 border-t border-black/10 bg-white pt-3"
     >
+      <div ref={inlineSettingsHostRef} />
       {settingsOpen && settingsHost ? createPortal(
         <div className="border-b border-black/10 bg-white/98">
           <div className="mx-auto max-h-[52dvh] max-w-4xl overflow-y-auto px-4 py-4 sm:px-6">
