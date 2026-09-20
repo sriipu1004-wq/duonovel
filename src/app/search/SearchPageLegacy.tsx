@@ -710,7 +710,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     ? (await authSupabase.auth.getUser()).data.user
     : null;
 
-  const baseWorkCards = await getCachedPublicBaseWorkCards();
+  const baseWorkCards = await getCachedPublicBaseWorkCards({
+    ignoreContentLanguageFilter: true,
+  });
 
   const popularityDataset = await fetchSeriesPopularityDataset(
     baseWorkCards.map((work) => work.seriesId)
