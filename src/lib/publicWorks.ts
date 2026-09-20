@@ -367,15 +367,11 @@ export async function getCachedPublicBaseWorkCards(options?: {
   }
 
   const searchLanguageFilters = getPublicSearchLanguageFilters();
-  if (
-    searchLanguageFilters &&
-    (searchLanguageFilters.sourceLanguage || searchLanguageFilters.readLanguage)
-  ) {
+  if (searchLanguageFilters?.sourceLanguages.length) {
     visibleCards = visibleCards.filter((work) =>
       matchesPublicWorkLanguageFilters({
         work,
-        sourceLanguage: searchLanguageFilters.sourceLanguage,
-        readLanguage: searchLanguageFilters.readLanguage,
+        sourceLanguages: searchLanguageFilters.sourceLanguages,
       })
     );
   }
