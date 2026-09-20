@@ -19,6 +19,8 @@ import type {
 
 const REQUEST_TIMEOUT_MS = 60_000;
 export const MAX_AUTO_GLOSSARY_CANDIDATES = 12;
+export const PUBLIC_TRANSLATION_MAX_BATCH_SOURCE_CHARS = 6_000;
+export const PUBLIC_TRANSLATION_MAX_BATCH_SEGMENTS = 120;
 const AUTO_GLOSSARY_TERM_TYPES = [
   "character",
   "person",
@@ -62,6 +64,37 @@ function shouldPreserveVerbatim(
     /[A-Za-z]/u.test(value) &&
     !/[一-龯々〆ヵヶぁ-ゖァ-ヺー]/u.test(value)
   );
+}
+
+export function splitPublicTranslationBatches(
+  segments: OpenAITranslationSourceSegment[]
+): OpenAITranslationSourceSegment[][] {
+  const batches: OpenAITranslationSourceSegment[][] = [];
+  let current: OpenAITranslationSourceSegment[] = [];
+  let currentChars = 0;
+
+  const flush = () => {
+    if (current.length === 0) return;
+    batches.push(current);
+    current = [];
+    currentChars = 0;
+  };
+
+  for (const segment of segments) {
+    const segmentChars = segment.text.length;
+    const exceedsCurrentBatch =
+      current.length > 0 &&
+      (current.length >= PUBLIC_TRANSLATION_MAX_BATCH_SEGMENTS ||
+        currentChars + segmentChars > PUBLIC_TRANSLATION_MAX_BATCH_SOURCE_CHARS);
+
+    if (exceedsCurrentBatch) flush();
+
+    current.push(segment);
+    currentChars += segmentChars;
+  }
+
+  flush();
+  return batches;
 }
 
 function extractText(body: ResponseBody): string {
@@ -182,6 +215,8 @@ async function requestTranslation(args: {
   consistency: SeriesTranslationConsistencyContext;
   learningPreference?: TranslationLearningPreference | null;
   retryAttempt: number;
+  batchIndex: number;
+  batchCount: number;
 }) {
   const sourceLanguage = getSupportedLanguage(args.sourceLanguage);
   const targetLanguage = getSupportedLanguage(args.targetLanguage);
@@ -235,6 +270,9 @@ async function requestTranslation(args: {
                   learningInstruction,
                   args.sourceLanguage === "ja" && args.targetLanguage !== "ja"
                     ? "Translate or transliterate every Japanese word completely; do not leave hiragana or katakana in the result."
+                    : null,
+                  args.batchCount > 1
+                    ? `Current episode batch: ${args.batchIndex + 1}/${args.batchCount}. Translate only the supplied ids while preserving continuity with the provided glossary/profile/context.`
                     : null,
                   args.retryAttempt > 0
                     ? "The previous attempt failed validation. Translate every id completely and return no placeholders."
@@ -362,6 +400,7 @@ export async function translatePublicEpisodeWithConsistency(args: {
   const translatable = args.segments.filter(
     (segment) => !shouldPreserveVerbatim(segment, args.sourceLanguage)
   );
+
   if (translatable.length === 0) {
     return {
       segments: args.segments.map((segment) => segment.text.trim()),
@@ -372,51 +411,99 @@ export async function translatePublicEpisodeWithConsistency(args: {
       glossaryCandidates: [],
     };
   }
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const translated = await requestTranslation({
-        ...args,
-        segments: translatable,
-        retryAttempt: attempt,
-      });
-      const byId = new Map(
-        translatable.map((segment, index) => [
-          segment.id,
-          translated.segments[index] ?? "",
-        ])
-      );
-      const segments = args.segments.map((segment) =>
-        shouldPreserveVerbatim(segment, args.sourceLanguage)
-          ? segment.text.trim()
-          : byId.get(segment.id) ?? ""
-      );
-      if (segments.some((segment) => !segment.trim())) {
-        throw new OpenAITranslationError(
-          "対訳の結合結果が原文と一致しません。",
-          502,
-          true
-        );
+
+  const batches = splitPublicTranslationBatches(translatable);
+  const translatedById = new Map<string, string>();
+  const glossaryCandidates: AiTranslationGlossaryCandidate[] = [];
+  const seenGlossarySources = new Set<string>();
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let retryCount = 0;
+
+  const batchResults = await Promise.all(
+    batches.map(async (batch, batchIndex) => {
+      let lastError: unknown;
+
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const translated = await requestTranslation({
+            ...args,
+            segments: batch,
+            retryAttempt: attempt,
+            batchIndex,
+            batchCount: batches.length,
+          });
+          return {
+            batch,
+            translated,
+            retryCount: attempt,
+          };
+        } catch (error) {
+          lastError = error;
+          if (
+            !(error instanceof OpenAITranslationError) ||
+            !error.retryable ||
+            attempt === 1
+          ) {
+            if (error instanceof OpenAITranslationError) {
+              error.retryCount = attempt;
+            }
+            throw error;
+          }
+        }
       }
-      return {
-        segments,
-        inputTokens: translated.inputTokens || null,
-        outputTokens: translated.outputTokens || null,
-        batchCount: 1,
-        retryCount: attempt,
-        glossaryCandidates: translated.glossaryCandidates,
-      };
-    } catch (error) {
-      lastError = error;
+
+      throw lastError;
+    })
+  );
+
+  for (const result of batchResults) {
+    result.batch.forEach((segment, index) => {
+      const translated = result.translated.segments[index] ?? "";
+      if (translated) translatedById.set(segment.id, translated);
+    });
+
+    inputTokens += result.translated.inputTokens || 0;
+    outputTokens += result.translated.outputTokens || 0;
+    retryCount += result.retryCount;
+
+    for (const candidate of result.translated.glossaryCandidates) {
       if (
-        !(error instanceof OpenAITranslationError) ||
-        !error.retryable ||
-        attempt === 1
+        glossaryCandidates.length >= MAX_AUTO_GLOSSARY_CANDIDATES ||
+        seenGlossarySources.has(candidate.sourceTerm)
       ) {
-        if (error instanceof OpenAITranslationError) error.retryCount = attempt;
-        throw error;
+        continue;
       }
+      seenGlossarySources.add(candidate.sourceTerm);
+      glossaryCandidates.push(candidate);
     }
   }
-  throw lastError;
+
+  const segments = args.segments.map((segment) =>
+    shouldPreserveVerbatim(segment, args.sourceLanguage)
+      ? segment.text.trim()
+      : translatedById.get(segment.id) ?? ""
+  );
+
+  if (
+    segments.length !== args.segments.length ||
+    segments.some((segment) => !segment.trim())
+  ) {
+    const error = new OpenAITranslationError(
+      "対訳の結合結果が原文と一致しません。",
+      502,
+      true
+    );
+    error.retryCount = retryCount;
+    throw error;
+  }
+
+  return {
+    segments,
+    inputTokens: inputTokens || null,
+    outputTokens: outputTokens || null,
+    batchCount: batches.length,
+    retryCount,
+    glossaryCandidates,
+  };
 }
