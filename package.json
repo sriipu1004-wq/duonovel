@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test:library-import": "node --import tsx scripts/test-private-library-import.ts",
     "test:bilingual-reading": "node --import tsx scripts/test-bilingual-reading.tsx",
+    "test:reader-mode-unification": "node --import tsx scripts/test-reader-mode-unification.ts",
     "test:multilingual-work-reader": "node --import tsx scripts/test-multilingual-work-reader.ts",
     "test:en-ko-i18n": "node --import tsx scripts/test-en-ko-i18n-audit.ts",
     "test:translation-consistency": "node --import tsx scripts/test-series-translation-consistency.ts",
