@@ -282,7 +282,7 @@ export default function GeneratedStoryBilingualPlayback({
 
   useEffect(() => {
     if (status !== "ready" || segments.length === 0) return;
-    const restoreKey = `${storyId}:${sourceLanguage}:${targetLanguage}:${sourceHash ?? "ready"}`;
+    const restoreKey = `${storyId}:${mode}:${sourceLanguage}:${targetLanguage}:${sourceHash ?? "ready"}`;
     if (restoredBookmarkKeyRef.current === restoreKey) return;
     restoredBookmarkKeyRef.current = restoreKey;
     const seriesId = `generated:${storyId}`;
@@ -309,6 +309,7 @@ export default function GeneratedStoryBilingualPlayback({
     });
     window.requestAnimationFrame(() => alignSegmentToTop(id));
   }, [
+    mode,
     segments,
     sourceHash,
     sourceLanguage,
@@ -580,7 +581,9 @@ export default function GeneratedStoryBilingualPlayback({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs tracking-[0.18em] text-neutral-500">
-                  LIB READ BILINGUAL
+                  {mode === "translation"
+                    ? `LIB READ · ${readerDictionary.translationOnlyTitle}`
+                    : "LIB READ BILINGUAL"}
                 </p>
                 <p className="mt-2 text-sm text-neutral-600">
                   {generatedDictionary.timeFitStory}
