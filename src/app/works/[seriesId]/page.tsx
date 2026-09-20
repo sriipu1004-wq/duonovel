@@ -1132,7 +1132,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   )}
                   className="rounded-full border border-black/10 bg-neutral-200 px-4 py-2.5 text-sm font-medium text-black transition hover:bg-neutral-300"
                 >
-                  {publicEpisodes.length === 1 ? "作品を読む" : "第1話から読む"}
+                  {episodes.length === 1 ? "作品を読む" : "第1話から読む"}
                 </Link>
               ) : (
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2.5 text-sm text-neutral-500">
