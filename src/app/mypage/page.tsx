@@ -13,7 +13,6 @@ import AccountSettingsCard from "./AccountSettingsCard";
 import CreditBalanceCard from "./CreditBalanceCard";
 import SavedSearchLinksSection from "./SavedSearchLinksSection";
 import MySeriesSection from "./MySeriesSection";
-import UiLanguageSetting from "./UiLanguageSetting";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedCreditBalance } from "@/lib/translation/publicTranslationCredits.server";
 import {
@@ -163,9 +162,6 @@ export default async function MyPage() {
           </section>
           <MySeriesSection cards={seriesCards} />
           <SavedSearchLinksSection />
-          <div id="content-display" className="scroll-mt-6">
-            <UiLanguageSetting />
-          </div>
           <AccountSettingsCard />
         </div>
       </div>
