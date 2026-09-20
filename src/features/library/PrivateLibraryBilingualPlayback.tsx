@@ -12,6 +12,7 @@ import BilingualPane, {
 } from "@/features/playback/BilingualPane";
 import BilingualStudyControls from "@/features/playback/BilingualStudyControls";
 import BilingualStoppedFooter from "@/features/playback/BilingualStoppedFooter";
+import TranslationOnlyFooter from "@/features/playback/TranslationOnlyFooter";
 import { useReaderDisplaySettings } from "@/features/playback/useReaderDisplaySettings";
 import { useBilingualWordExplanation } from "@/features/playback/useBilingualWordExplanation";
 import { PRIVATE_LIBRARY_PROGRESS_EVENT } from "@/features/library/LibraryProgressTracker";
@@ -54,6 +55,7 @@ type TranslationStatusResponse = {
 };
 
 type PrivateLibraryBilingualPlaybackProps = {
+  mode: "bilingual" | "translation";
   workId: string;
   chapterId: string;
   chapterNumber: number;
@@ -71,7 +73,7 @@ type PrivateLibraryBilingualPlaybackProps = {
   isSubscriber: boolean;
   autoGenerateMissingTranslation: boolean;
   targetLanguageLocked: boolean;
-  onDisableBilingual: (segmentIndex: number) => void;
+  onDisableTranslated: (segmentIndex: number) => void;
 };
 
 type NextTranslationPrefetchState = {
@@ -145,6 +147,7 @@ function readPreference(
 }
 
 export default function PrivateLibraryBilingualPlayback({
+  mode,
   workId,
   chapterId,
   chapterNumber,
@@ -162,7 +165,7 @@ export default function PrivateLibraryBilingualPlayback({
   isSubscriber,
   autoGenerateMissingTranslation,
   targetLanguageLocked,
-  onDisableBilingual,
+  onDisableTranslated,
 }: PrivateLibraryBilingualPlaybackProps) {
   const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
   const { displaySettings, setDisplaySettings } =
@@ -259,14 +262,14 @@ export default function PrivateLibraryBilingualPlayback({
     const segment = segments[index];
     readingSegmentIdRef.current = id;
     setCurrentPositionIndex(index);
-    setSelectedSegmentId(id);
+    if (location) setSelectedSegmentId(id);
     writeReadingHistory({
       seriesId,
       episodeNumber: chapterNumber,
       positionIndex: index,
       paragraphIndex: segment?.paragraphIndex,
       sentenceIndex: segment?.sentenceIndex,
-      mode: "bilingual",
+      mode,
       sourceLanguage,
       targetLanguage,
     });
@@ -377,7 +380,6 @@ export default function PrivateLibraryBilingualPlayback({
         setTranslationStatus("ready");
         setSegments(payload.segments);
         const firstId = payload.segments[0]?.id ?? null;
-        setSelectedSegmentId((current) => current ?? firstId);
         readingSegmentIdRef.current = readingSegmentIdRef.current ?? firstId;
         setStatusMessage("");
         return;
@@ -693,13 +695,13 @@ export default function PrivateLibraryBilingualPlayback({
     clearWordInsight();
   }
 
-  function handleDisableBilingual() {
+  function handleDisableTranslated() {
     const positionId =
       readingSegmentIdRef.current ?? selectedSegmentId ?? segments[0]?.id ?? null;
     const segmentIndex = positionId
       ? Math.max(0, segments.findIndex((segment) => segment.id === positionId))
       : 0;
-    onDisableBilingual(segmentIndex);
+    onDisableTranslated(segmentIndex);
   }
 
   const sourceLanguageLabel = getSupportedLanguage(sourceLanguage).nativeLabel;
@@ -757,21 +759,34 @@ export default function PrivateLibraryBilingualPlayback({
                     このタブで言語固定
                   </span>
                 ) : null}
-                <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-black">
-                  対訳 ON
-                </span>
-                <button
-                  type="button"
-                  onClick={handleDisableBilingual}
-                  className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
-                >
-                  OFFに戻す
-                </button>
+
               </div>
             </div>
           </header>
 
           {translationStatus === "ready" && segments.length > 0 ? (
+            mode === "translation" ? (
+              <div className="h-[calc(100dvh-16rem)] min-h-[27rem] overflow-hidden bg-white">
+                <BilingualPane
+                  side="target"
+                  languageLabel={targetLanguageLabel}
+                  languageTag={targetLanguage}
+                  segments={segments}
+                  selectedSegmentId={selectedSegmentId}
+                  hoveredSegmentId={hoveredSegmentId}
+                  scrollRef={targetScrollRef}
+                  registerSegmentRef={(id, node) =>
+                    targetSegmentRefs.current.set(id, node)
+                  }
+                  onSelectSegment={handleSelectSegment}
+                  onHoverSegment={setHoveredSegmentId}
+                  onReadingPositionChange={handleReadingPositionChange}
+                  onSelectWord={handleSelectWord}
+                  wordInsight={wordInsight}
+                  displaySettings={displaySettings}
+                />
+              </div>
+            ) : (
             <>
               <BilingualStudyControls
                 segments={segments}
@@ -892,6 +907,7 @@ export default function PrivateLibraryBilingualPlayback({
                 onReaderHeightChange={setReaderHeight}
               />
             </>
+            )
           ) : (
             <div className="flex min-h-[30rem] items-center justify-center px-5 py-10">
               <div className="w-full max-w-xl rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-center">
@@ -994,12 +1010,65 @@ export default function PrivateLibraryBilingualPlayback({
             ) : null}
           </div>
         ) : null}
+        {mode === "translation" ? (
+          <TranslationOnlyFooter
+            seriesId={`private-library:${workId}`}
+            episodeNumber={chapterNumber}
+            positionIndex={(() => {
+              const selectedIndex = selectedSegmentId
+                ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+                : -1;
+              return selectedIndex >= 0 ? selectedIndex : currentPositionIndex;
+            })()}
+            paragraphIndex={(() => {
+              const selectedIndex = selectedSegmentId
+                ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+                : -1;
+              return segments[selectedIndex >= 0 ? selectedIndex : currentPositionIndex]?.paragraphIndex;
+            })()}
+            sentenceIndex={(() => {
+              const selectedIndex = selectedSegmentId
+                ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+                : -1;
+              return segments[selectedIndex >= 0 ? selectedIndex : currentPositionIndex]?.sentenceIndex;
+            })()}
+            narrationUnits={segments.map((segment) => segment.translatedText)}
+            sourceLanguage={sourceLanguage}
+            targetLanguage={targetLanguage}
+            prevHref={previousChapterHref}
+            nextHref={nextChapterHref}
+            displaySettings={displaySettings}
+            onDisplaySettingsChange={setDisplaySettings}
+            onPositionIndexChange={(index, shouldFollow) => {
+              const segment = segments[index];
+              if (!segment) return;
+              readingSegmentIdRef.current = segment.id;
+              handleReadingPositionChange(segment.id);
+              if (shouldFollow) centerSegment(segment.id);
+            }}
+          />
+        ) : (
         <BilingualStoppedFooter
           seriesId={`private-library:${workId}`}
           episodeNumber={chapterNumber}
-          positionIndex={currentPositionIndex}
-          paragraphIndex={segments[currentPositionIndex]?.paragraphIndex}
-          sentenceIndex={segments[currentPositionIndex]?.sentenceIndex}
+          positionIndex={(() => {
+            const selectedIndex = selectedSegmentId
+              ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+              : -1;
+            return selectedIndex >= 0 ? selectedIndex : currentPositionIndex;
+          })()}
+          paragraphIndex={(() => {
+            const selectedIndex = selectedSegmentId
+              ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+              : -1;
+            return segments[selectedIndex >= 0 ? selectedIndex : currentPositionIndex]?.paragraphIndex;
+          })()}
+          sentenceIndex={(() => {
+            const selectedIndex = selectedSegmentId
+              ? segments.findIndex((segment) => segment.id === selectedSegmentId)
+              : -1;
+            return segments[selectedIndex >= 0 ? selectedIndex : currentPositionIndex]?.sentenceIndex;
+          })()}
           sentenceCount={segments.length}
           prevHref={previousChapterHref}
           nextHref={nextChapterHref}
@@ -1019,10 +1088,10 @@ export default function PrivateLibraryBilingualPlayback({
             if (!segment) return;
             readingSegmentIdRef.current = segment.id;
             handleReadingPositionChange(segment.id);
-            setSelectedSegmentId(segment.id);
             if (shouldFollow) centerSegment(segment.id);
           }}
         />
+        )}
       </div>
     </main>
   );
