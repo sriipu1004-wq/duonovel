@@ -62,10 +62,10 @@ export type PublicBaseWorkCard = {
   translationEligible: boolean;
   isShortStory: boolean;
   publicEpisodeNumbers: number[];
-  publicDomainRightsChecked: boolean;
-  publicDomainSourceProvider: string | null;
-  publicDomainSourceUrl: string | null;
-  publicDomainFirstPublicationYear: number | null;
+  publicDomainRightsChecked?: boolean;
+  publicDomainSourceProvider?: string | null;
+  publicDomainSourceUrl?: string | null;
+  publicDomainFirstPublicationYear?: number | null;
 };
 
 export type PublicWorkVisibility = "viewer" | "general" | "all";
