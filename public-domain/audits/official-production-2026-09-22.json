@@ -1,0 +1,237 @@
+{
+  "audited_at": "2026-09-22T00:00:00+10:00",
+  "source": "Production Supabase read-only audit",
+  "official_account": "LIB read Official",
+  "summary": {
+    "series_count": 37,
+    "episode_count": 437,
+    "published_episode_count": 437,
+    "source_language_missing_count": 36,
+    "public_domain_manifest_metadata_missing_count": 37
+  },
+  "legal_review_note": "This inventory is not a rights approval. Existing rows do not contain source provenance or rights manifests, so exact source edition and U.S./KR distribution status require per-work backfill review.",
+  "series": [
+    {
+      "title": "芥川龍之介・短編",
+      "episode_count": 23,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "芋粥・芥川龍之介",
+      "episode_count": 3,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "地獄変・芥川龍之介",
+      "episode_count": 7,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "あの頃の自分の事・芥川龍之介",
+      "episode_count": 4,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "歯車・芥川龍之介",
+      "episode_count": 6,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "侏儒の言葉・芥川龍之介",
+      "episode_count": 8,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "河童・芥川龍之介",
+      "episode_count": 9,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "夏目漱石・短編",
+      "episode_count": 1,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "文鳥・夏目漱石",
+      "episode_count": 3,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "永日小品・夏目漱石",
+      "episode_count": 13,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "坊っちゃん・夏目漱石",
+      "episode_count": 11,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "こころ・夏目漱石",
+      "episode_count": 37,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "草枕・夏目漱石",
+      "episode_count": 13,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "三四郎・夏目漱石",
+      "episode_count": 13,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "それから・夏目漱石",
+      "episode_count": 17,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "吾輩は猫である・夏目漱石",
+      "episode_count": 11,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "夢十夜・夏目漱石",
+      "episode_count": 4,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "虜美人草・夏目漱石",
+      "episode_count": 19,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "行人・夏目漱石",
+      "episode_count": 37,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "明暗・夏目漱石",
+      "episode_count": 49,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "門・夏目漱石",
+      "episode_count": 23,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "私の個人主義・夏目漱石",
+      "episode_count": 3,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "硝子戸の中・夏目漱石",
+      "episode_count": 8,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "太宰治・短編",
+      "episode_count": 6,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "女生徒・太宰治",
+      "episode_count": 4,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "人間失格・太宰治",
+      "episode_count": 5,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "斜陽・太宰治",
+      "episode_count": 8,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "津軽・太宰治",
+      "episode_count": 6,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "右大臣実朝・太宰治",
+      "episode_count": 13,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "宮沢賢治・短編",
+      "episode_count": 7,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "銀河鉄道の夜・宮沢賢治",
+      "episode_count": 5,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "グスコーブドリの伝記",
+      "episode_count": 3,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "春と修羅・宮沢賢治",
+      "episode_count": 7,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "風の又三郎・宮沢賢治",
+      "episode_count": 6,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "江戸川乱歩・短編",
+      "episode_count": 6,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "孤島の鬼・江戸川乱歩",
+      "episode_count": 24,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "少年探偵団・江戸川乱歩",
+      "episode_count": 15,
+      "public": true,
+      "rights_manifest_attached": false
+    }
+  ]
+}
