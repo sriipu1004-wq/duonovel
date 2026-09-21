@@ -117,9 +117,6 @@ export default function SourceLanguageWorkspaceBridge({
       if (!CREATE_ACTION_LABELS.has(label)) return;
 
       if (!language) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
         setMessage(dictionary.required);
         return;
       }
@@ -141,6 +138,11 @@ export default function SourceLanguageWorkspaceBridge({
   async function persistLanguage(nextLanguage: SupportedLanguageTag) {
     setLanguage(nextLanguage);
     setMessage("");
+    window.dispatchEvent(
+      new CustomEvent("libread:source-language-selection-changed", {
+        detail: { language: nextLanguage },
+      })
+    );
     if (!seriesId || saving) return;
     if (nextLanguage === savedLanguage) return;
 
@@ -162,7 +164,7 @@ export default function SourceLanguageWorkspaceBridge({
       const saved = parseSupportedLanguageTag(payload.language);
       if (!response.ok || !payload.ok || !saved) {
         setLanguage(savedLanguage ?? nextLanguage);
-        setMessage(payload.message || dictionary.failed);
+        setMessage(dictionary.failed);
         return;
       }
       setLanguage(saved);
@@ -203,8 +205,14 @@ export default function SourceLanguageWorkspaceBridge({
         </p>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           <select
+            id="series-source-language"
+            data-source-language-select="true"
             value={language}
             disabled={saving}
+            aria-invalid={message === dictionary.required}
+            aria-describedby={
+              message === dictionary.required ? "series-source-language-error" : undefined
+            }
             onChange={(event) => {
               const next = parseSupportedLanguageTag(event.target.value);
               if (next) void persistLanguage(next);
@@ -243,6 +251,10 @@ export default function SourceLanguageWorkspaceBridge({
         ) : null}
         {message ? (
           <p
+            id={
+              message === dictionary.required ? "series-source-language-error" : undefined
+            }
+            role={message === dictionary.saved ? undefined : "alert"}
             className={`mt-3 text-xs ${
               message === dictionary.saved ? "text-emerald-700" : "text-red-700"
             }`}
