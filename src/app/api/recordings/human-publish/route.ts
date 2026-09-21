@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { analyzeAudioUploadServer } from "@/lib/recording/audioUploadServerValidation";
 import {
   decideRecordingEntryAccess,
@@ -98,12 +99,7 @@ function resolveCurrentReaderName(
     return fromMetadata;
   }
 
-  const email = typeof user.email === "string" ? user.email.trim() : "";
-  if (email.includes("@")) {
-    return email.split("@")[0] || "ユーザー朗読";
-  }
-
-  return "ユーザー朗読";
+  return "";
 }
 
 function resolveErrorResponse(error: unknown): {
@@ -352,6 +348,16 @@ export async function POST(request: Request) {
     );
   }
 
+  if (isOfficialAccountEmail(user.email)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "LIB read Official からのHuman narration公開は停止している。",
+      },
+      { status: 403 }
+    );
+  }
+
   let formData: FormData;
 
   try {
@@ -483,7 +489,7 @@ export async function POST(request: Request) {
 
   const { data: publicUserRow } = await supabase
     .from("users")
-    .select("display_name, username, pen_name, name")
+    .select("display_name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -491,6 +497,16 @@ export async function POST(request: Request) {
     user,
     (publicUserRow as Record<string, unknown> | null) ?? null
   );
+
+  if (!readerName) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "公開朗読者名を確認できない。アカウントの表示名を設定してから再試行して。",
+      },
+      { status: 400 }
+    );
+  }
 
   try {
     const result = await publishHumanRecording({
