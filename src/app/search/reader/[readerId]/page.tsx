@@ -19,8 +19,7 @@ export default async function ReaderSearchPage({ params, searchParams }: Props) 
   const [first, second, preference] = await Promise.all([db.from("recordings").select("*").eq("reader_id", readerId), db.from("recordings").select("*").eq("reader_user_id", readerId), getCurrentR18ViewerPreference()]);
   const recordings = new Map<string, Row>();
   for (const row of [...(first.data ?? []), ...(second.data ?? [])] as Row[]) {
-    const name = text(row.reader_name, row.narrator_name, row.display_name, row.speaker_name) ?? "";
-    if (row.id && row.is_public !== false && row.public !== false && !name.startsWith("Aivis ") && !name.startsWith("VOICEVOX Nemo")) recordings.set(row.id, row);
+    if (row.id && isPublishedHumanRecording(row)) recordings.set(row.id, row);
   }
   const ids = [...new Set([...recordings.values()].map((row) => text(row.series_id, row.seriesId) ?? "").filter(Boolean))];
   const episodeIds = [...new Set([...recordings.values()].map((row) => text(row.episode_id, row.episodeId) ?? "").filter(Boolean))];
