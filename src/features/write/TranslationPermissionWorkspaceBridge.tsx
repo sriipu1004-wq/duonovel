@@ -293,7 +293,7 @@ export default function TranslationPermissionWorkspaceBridge({
       };
 
       if (!response.ok || !payload.ok) {
-        setMessage(payload.message || "対訳許可を更新できませんでした。");
+        setMessage("対訳許可を更新できませんでした。");
         return;
       }
 
