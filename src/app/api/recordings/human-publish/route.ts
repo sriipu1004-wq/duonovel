@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import {
+  getSeriesPublicationStatus,
+  isEpisodePubliclyVisible,
+  type EpisodeRow,
+  type SeriesRow,
+} from "@/features/write/writeShared";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { analyzeAudioUploadServer } from "@/lib/recording/audioUploadServerValidation";
 import {
@@ -417,7 +423,7 @@ export async function POST(request: Request) {
   // posted works/episodes; recording_permission_mode must still be open.
   const { data: accessibleSeries, error: accessibleSeriesError } = await supabase
     .from("series")
-    .select("id, recording_permission_mode")
+    .select("*")
     .eq("id", seriesId)
     .maybeSingle();
 
@@ -444,7 +450,7 @@ export async function POST(request: Request) {
   const { data: accessibleEpisode, error: accessibleEpisodeError } =
     await supabase
       .from("episodes")
-      .select("id, series_id")
+      .select("*")
       .eq("id", episodeId)
       .maybeSingle();
 
@@ -456,6 +462,20 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, error: "対象話が見つからないか、この作品に属していない。" },
       { status: 404 }
+    );
+  }
+
+  if (
+    isPublic &&
+    (getSeriesPublicationStatus(accessibleSeries as SeriesRow) !== "public" ||
+      !isEpisodePubliclyVisible(accessibleEpisode as EpisodeRow))
+  ) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "非公開・未投稿・公開前の作品または話ではHuman narrationを公開できない。",
+      },
+      { status: 409 }
     );
   }
 
