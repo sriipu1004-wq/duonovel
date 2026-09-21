@@ -38,6 +38,7 @@ import { PUBLIC_WORK_RECORDING_SELECT } from "@/lib/recording/publicRecordingSel
 import { getUiLocale } from "@/i18n/server";
 import { localizePath } from "@/i18n/navigation";
 import { isUuid } from "@/lib/uuid";
+import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -376,7 +377,9 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
 
   if (!firstTry.error) {
     return {
-      recordings: ((firstTry.data ?? []) as RecordingRow[]).filter(isPublicRecording),
+      recordings: ((firstTry.data ?? []) as RecordingRow[]).filter(
+        isPublishedHumanRecording
+      ),
       fetchErrorMessage: null,
     };
   }
@@ -391,7 +394,7 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
   if (!fallback.error) {
     return {
       recordings: ((fallback.data ?? []) as RecordingRow[]).filter(
-        isPublicRecording
+        isPublishedHumanRecording
       ),
       fetchErrorMessage: null,
     };
