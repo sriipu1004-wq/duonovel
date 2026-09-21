@@ -13,6 +13,12 @@ type Props = {
 
 const PENDING_KEY = "duonovel:pending-content-rating-create";
 
+const PUBLICATION_LABELS = new Set([
+  "公開状態",
+  "Publication",
+  "공개 상태",
+]);
+
 const WARNING_OPTIONS: Array<{
   value: SeriesContentWarning;
   label: string;
@@ -43,7 +49,7 @@ function findStatusGrid(): HTMLElement | null {
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("main button"));
   const publicationButton = buttons.find((button) => {
     const first = button.querySelector<HTMLElement>(":scope > span:first-child");
-    return first?.textContent?.trim() === "公開状態";
+    return PUBLICATION_LABELS.has(first?.textContent?.trim() ?? "");
   });
   return publicationButton?.parentElement instanceof HTMLElement
     ? publicationButton.parentElement
