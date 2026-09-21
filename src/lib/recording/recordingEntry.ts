@@ -1,6 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { getUiLocale } from "@/i18n/server";
+import { localizePath } from "@/i18n/navigation";
+import type { UiLocale } from "@/i18n/config";
 
 export type RecordingPermissionMode = "open" | "closed";
 export type RecordingEntryDeniedReason = "login_required" | "closed";
@@ -15,6 +18,7 @@ export type RecordingEntryGuardResult = {
   seriesTitle: string;
   permissionMode: RecordingPermissionMode;
   userId: string;
+  locale: UiLocale;
 };
 
 type ServerSupabase = Awaited<ReturnType<typeof createClient>>;
@@ -102,20 +106,22 @@ async function fetchSeriesRecordingPermission(
 function redirectForDeniedEntry(
   seriesId: string,
   deniedReason: RecordingEntryDeniedReason,
-  nextPath: string
+  nextPath: string,
+  locale: UiLocale
 ): never {
   if (deniedReason === "login_required") {
     redirect(`/login?next=${encodeURIComponent(nextPath)}`);
   }
 
-  redirect(buildWorkPath(seriesId));
+  redirect(localizePath(buildWorkPath(seriesId), locale));
 }
 
 export async function requireRecordingEntryAccess(
   seriesId: string
 ): Promise<RecordingEntryGuardResult> {
   const supabase = await createClient();
-  const nextPath = buildRecordingEntryPath(seriesId);
+  const locale = await getUiLocale();
+  const nextPath = localizePath(buildRecordingEntryPath(seriesId), locale);
   const {
     data: { user },
     error: authError,
@@ -126,7 +132,7 @@ export async function requireRecordingEntryAccess(
   }
 
   if (user && isOfficialAccountEmail(user.email)) {
-    redirect(buildWorkPath(seriesId));
+    redirect(localizePath(buildWorkPath(seriesId), locale));
   }
 
   const series = await fetchSeriesRecordingPermission(supabase, seriesId);
@@ -140,7 +146,7 @@ export async function requireRecordingEntryAccess(
   });
 
   if (!decision.canEnter) {
-    return redirectForDeniedEntry(seriesId, decision.deniedReason!, nextPath);
+    return redirectForDeniedEntry(seriesId, decision.deniedReason!, nextPath, locale);
   }
 
   return {
@@ -148,5 +154,6 @@ export async function requireRecordingEntryAccess(
     seriesTitle: pickText(series.title) || "無題",
     permissionMode,
     userId: user!.id,
+    locale,
   };
 }
