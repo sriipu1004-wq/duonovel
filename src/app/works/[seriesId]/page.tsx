@@ -866,6 +866,12 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const canCreateHumanNarration =
     recordingPermissionMode === "open" &&
     !isOfficialAccountEmail(currentUser?.email);
+  const createHumanNarrationLabel =
+    locale === "en"
+      ? "Create human narration"
+      : locale === "ko"
+        ? "사람 낭독 만들기"
+        : "Human narrationを制作";
 
   const reviewsVisible = isSeriesReviewVisible(series);
 
@@ -959,7 +965,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   href={workHref(buildRecordingEntryPath(seriesId))}
                   className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-medium text-black transition hover:bg-sky-100"
                 >
-                  Human narrationを制作
+                  {createHumanNarrationLabel}
                 </Link>
               ) : null}
             </div>
