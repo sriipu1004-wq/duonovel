@@ -37,6 +37,9 @@ jobs:
       - name: Public Domain ingestion regression
         run: npm run test:public-domain-ingestion
 
+      - name: Aozora live catalog diagnostic
+        run: npm run public-domain:aozora-candidates -- --limit=3 --diagnose
+
       - name: Child65-70 regression
         run: |
           npm run test:security-authz
