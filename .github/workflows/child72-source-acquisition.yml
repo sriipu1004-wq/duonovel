@@ -5,8 +5,10 @@ on:
     paths:
       - ".github/workflows/child72-source-acquisition.yml"
       - "public-domain/manifests/gutenberg-*.json"
+      - "public-domain/manifests/gongu-*.json"
       - "scripts/public-domain/source-sync.ts"
       - "scripts/public-domain/gutenberg.ts"
+      - "scripts/public-domain/gongu.ts"
       - "scripts/public-domain/core.ts"
       - "scripts/public-domain/runtime.ts"
 
@@ -33,11 +35,14 @@ jobs:
       - name: Validate manifests before acquisition
         run: npm run public-domain:validate
 
-      - name: Fetch exact Project Gutenberg pilot bytes and prepare
+      - name: Fetch exact JA-independent EN and KO pilot bytes and prepare
         run: >
           npm run public-domain:source-sync --
           gutenberg-000011
           gutenberg-001952
+          gongu-9002094
+          gongu-9002100
+          gongu-9002092
           --prepare
           --delay-ms=750
 
@@ -45,9 +50,19 @@ jobs:
         run: |
           sha256sum public-domain/sources/raw/gutenberg-000011.txt
           sha256sum public-domain/sources/raw/gutenberg-001952.txt
+          sha256sum public-domain/sources/raw/gongu-9002094.txt
+          sha256sum public-domain/sources/raw/gongu-9002100.txt
+          sha256sum public-domain/sources/raw/gongu-9002092.txt
+          file -bi public-domain/sources/raw/gongu-*.txt
           node - <<'NODE'
           const fs = require("fs");
-          for (const id of ["gutenberg-000011", "gutenberg-001952"]) {
+          for (const id of [
+            "gutenberg-000011",
+            "gutenberg-001952",
+            "gongu-9002094",
+            "gongu-9002100",
+            "gongu-9002092",
+          ]) {
             const manifest = JSON.parse(fs.readFileSync(`public-domain/manifests/${id}.json`, "utf8"));
             const prepared = JSON.parse(fs.readFileSync(`.public-domain-work/${id}/prepared.json`, "utf8"));
             console.log(JSON.stringify({
@@ -96,6 +111,12 @@ jobs:
             public-domain/manifests/gutenberg-001952.json
             public-domain/sources/raw/gutenberg-000011.txt
             public-domain/sources/raw/gutenberg-001952.txt
+            public-domain/sources/raw/gongu-9002094.txt
+            public-domain/sources/raw/gongu-9002100.txt
+            public-domain/sources/raw/gongu-9002092.txt
             .public-domain-work/gutenberg-000011/**
             .public-domain-work/gutenberg-001952/**
+            .public-domain-work/gongu-9002094/**
+            .public-domain-work/gongu-9002100/**
+            .public-domain-work/gongu-9002092/**
             child72-gongu/*.html
