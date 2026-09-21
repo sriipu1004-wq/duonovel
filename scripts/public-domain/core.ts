@@ -65,6 +65,7 @@ export type ChapterSplitConfig =
   | {
       strategy: "heading_regex";
       heading_pattern: string;
+      drop_prefix_before_first_heading?: boolean;
     };
 
 export type PublicDomainManifest = {
@@ -444,7 +445,19 @@ export function validateManifest(value: unknown): ManifestValidationResult {
       } catch {
         errors.push("chapter_split.heading_pattern is not a valid regular expression");
       }
-      chapterSplit = { strategy: "heading_regex", heading_pattern: pattern };
+      const dropPrefixRaw = value.chapter_split.drop_prefix_before_first_heading;
+      if (dropPrefixRaw !== undefined && typeof dropPrefixRaw !== "boolean") {
+        errors.push(
+          "chapter_split.drop_prefix_before_first_heading must be a boolean when provided"
+        );
+      }
+      chapterSplit = {
+        strategy: "heading_regex",
+        heading_pattern: pattern,
+        ...(dropPrefixRaw === true
+          ? { drop_prefix_before_first_heading: true }
+          : {}),
+      };
     }
   } else {
     errors.push("chapter_split.strategy must be single or heading_regex");
@@ -746,13 +759,19 @@ export function splitChapters(
   if (headings.length === 0) return [];
 
   const prefix = lines.slice(0, headings[0]!.index).join("\n").trim();
+  const keepPrefix =
+    manifest.chapter_split.strategy === "heading_regex" &&
+    manifest.chapter_split.drop_prefix_before_first_heading !== true;
   return headings.map((heading, index) => {
     const next = headings[index + 1];
     const content = lines
       .slice(heading.index + 1, next ? next.index : lines.length)
       .join("\n")
       .trim();
-    const chapterBody = index === 0 && prefix ? `${prefix}\n\n${content}`.trim() : content;
+    const chapterBody =
+      index === 0 && prefix && keepPrefix
+        ? `${prefix}\n\n${content}`.trim()
+        : content;
     return {
       number: index + 1,
       title: heading.title,
