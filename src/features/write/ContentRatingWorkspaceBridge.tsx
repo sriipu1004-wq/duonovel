@@ -229,7 +229,7 @@ export default function ContentRatingWorkspaceBridge({
       };
 
       if (!response.ok || !payload.ok || !Array.isArray(payload.warnings)) {
-        setMessage(payload.message || "コンテンツ警告を更新できませんでした。");
+        setMessage("コンテンツ警告を更新できませんでした。");
         return;
       }
 
