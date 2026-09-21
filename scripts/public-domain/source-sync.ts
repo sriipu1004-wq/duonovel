@@ -68,8 +68,8 @@ for (const [index, id] of ids.entries()) {
 
   const manifestPath = manifestPathForId(id);
   const rawManifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
-  const downloadUrl = rawManifest.source_download_url;
-  if (typeof downloadUrl !== "string" || !isAllowedAozoraTextUrl(downloadUrl)) {
+  const downloadUrl = manifest.source_download_url;
+  if (!downloadUrl || !isAllowedAozoraTextUrl(downloadUrl)) {
     throw new Error(`${id}: source_download_url is missing or not allowlisted`);
   }
 
