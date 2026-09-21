@@ -124,6 +124,13 @@ export function isAllowedAozoraTextUrl(value: string): boolean {
   }
 }
 
+export function canonicalAozoraIdentityPart(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\\s・･·]/gu, "");
+}
+
 export function groupAozoraRows(rows: CsvRow[]): Map<string, CsvRow[]> {
   const grouped = new Map<string, CsvRow[]>();
   for (const row of rows) {
