@@ -13,7 +13,7 @@ on:
       - "scripts/public-domain/runtime.ts"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   acquire:
@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -76,6 +78,34 @@ jobs:
             }));
           }
           NODE
+
+      - name: Persist exact source provenance on the PR branch
+        run: |
+          node - <<'NODE'
+          const fs = require("fs");
+          for (const id of [
+            "gutenberg-000011",
+            "gutenberg-001952",
+            "gongu-9002094",
+            "gongu-9002100",
+            "gongu-9002092",
+          ]) {
+            const manifestPath = `public-domain/manifests/${id}.json`;
+            const preparedPath = `.public-domain-work/${id}/prepared.json`;
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+            const prepared = JSON.parse(fs.readFileSync(preparedPath, "utf8"));
+            manifest.chapter_count = prepared.chapters.length;
+            manifest.import_status = "prepared";
+            fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+          }
+          NODE
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add             public-domain/manifests/gutenberg-000011.json             public-domain/manifests/gutenberg-001952.json             public-domain/manifests/gongu-9002094.json             public-domain/manifests/gongu-9002100.json             public-domain/manifests/gongu-9002092.json             public-domain/sources/raw/gutenberg-000011.txt             public-domain/sources/raw/gutenberg-001952.txt             public-domain/sources/raw/gongu-9002094.txt             public-domain/sources/raw/gongu-9002100.txt             public-domain/sources/raw/gongu-9002092.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "Child72: pin exact EN KO pilot sources"
+            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          fi
 
       - name: Capture Gongu Madang landing HTML for endpoint inspection
         run: |
