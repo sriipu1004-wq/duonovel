@@ -30,6 +30,18 @@ const EN: Record<string, string> = {
   "ジャンル": "Genre",
   "タグ": "Tags",
   "朗読許可": "Narration permission",
+  "朗読不可": "Narration unavailable",
+  "朗読不許可": "Narration not allowed",
+  "朗読未設定": "Narration not set",
+  "許可": "Permissions",
+  "対訳許可": "Translation allowed",
+  "対訳不許可": "Translation not allowed",
+  "対訳未設定": "Translation not set",
+  "対訳を許可": "Allow translation",
+  "対訳を許可しない": "Do not allow translation",
+  "対訳許可（固定）": "Translation allowed (fixed)",
+  "AI生成作品は対訳生成の対象として固定されます。": "AI-generated works always allow translation generation.",
+  "対訳許可を更新できませんでした。": "Could not update translation permission.",
   "無条件許可（固定）": "Always allowed (fixed)",
   "変更": "Change",
   "閉じる": "Close",
@@ -136,6 +148,20 @@ const EN: Record<string, string> = {
   "AI生成作品は第1話だけの間は短編、続編生成に成功すると長編へ自動で切り替わる。この画面からは変更できない。": "AI-generated works remain short stories while they have only episode 1 and automatically switch to long-form after a sequel is generated. This cannot be changed here.",
   "作品ページ（目次）を作らず、読む画面へ直接公開する。あらすじは読む画面に表示する。": "Publish directly to the reader without a separate contents page. The synopsis appears in the reader.",
   "作品ページ（目次）を作り、各話・朗読者・レビューなどを作品単位で表示する。": "Create a work contents page and show episodes, narrators, reviews and other work-level information there.",
+  "コンテンツ警告": "Content warnings",
+  "性的コンテンツを含む（R18）": "Contains sexual content (R18)",
+  "18歳未満の閲覧を想定しない性的表現を含む作品。R18表示設定がOFFの閲覧者には公開一覧・本文を表示しません。": "This work contains sexual material intended for adults. It is hidden from public listings and reading pages when the viewer has R18 content disabled.",
+  "暴力描写あり": "Contains violence",
+  "戦闘、負傷、流血など、読者が事前に把握した方がよい暴力描写を含む作品。": "This work contains violence such as combat, injury or blood that readers may want to know about before reading.",
+  "読者が閲覧前に把握した方がよい内容を作品単位で設定します。": "Set work-level content warnings readers should know before opening the work.",
+  "固定": "Fixed",
+  "この作品はAI生成時点で性的コンテンツを含むと判定されたため、R18警告を解除できません。": "This work was classified as containing sexual content when it was generated, so the R18 warning cannot be removed.",
+  "選択した警告は作品作成直後に新しい作品へ保存されます。": "Selected warnings are saved to the new work immediately after creation.",
+  "コンテンツ警告を更新できませんでした。": "Could not update content warnings.",
+  "編集と読者プレビューを切り替えて確認できる。": "Switch between editing and reader preview.",
+  "本文を入力すると、ここに読者表示に近い形のプレビューが出る。": "Enter body text to preview an approximation of the reader view here.",
+  "演出を追加": "Add presentation effects",
+  "演出編集を閉じる": "Close presentation effects",
 };
 
 const KO: Record<string, string> = {
@@ -163,6 +189,18 @@ const KO: Record<string, string> = {
   "ジャンル": "장르",
   "タグ": "태그",
   "朗読許可": "낭독 허용",
+  "朗読不可": "낭독 불가",
+  "朗読不許可": "낭독 불허",
+  "朗読未設定": "낭독 미설정",
+  "許可": "권한",
+  "対訳許可": "번역 허용",
+  "対訳不許可": "번역 불허",
+  "対訳未設定": "번역 미설정",
+  "対訳を許可": "번역 허용",
+  "対訳を許可しない": "번역 허용 안 함",
+  "対訳許可（固定）": "번역 허용(고정)",
+  "AI生成作品は対訳生成の対象として固定されます。": "AI 생성 작품은 번역 생성 대상으로 고정됩니다.",
+  "対訳許可を更新できませんでした。": "번역 권한을 업데이트하지 못했습니다.",
   "無条件許可（固定）": "항상 허용(고정)",
   "変更": "변경",
   "閉じる": "닫기",
@@ -269,6 +307,20 @@ const KO: Record<string, string> = {
   "AI生成作品は第1話だけの間は短編、続編生成に成功すると長編へ自動で切り替わる。この画面からは変更できない。": "AI 생성 작품은 1화만 있을 때 단편이며 후속편 생성에 성공하면 장편으로 자동 전환됩니다. 이 화면에서는 변경할 수 없습니다.",
   "作品ページ（目次）を作らず、読む画面へ直接公開する。あらすじは読む画面に表示する。": "별도의 목차 페이지 없이 읽기 화면으로 바로 공개합니다. 줄거리는 읽기 화면에 표시됩니다.",
   "作品ページ（目次）を作り、各話・朗読者・レビューなどを作品単位で表示する。": "작품 목차 페이지를 만들고 각 화, 낭독자, 리뷰 등을 작품 단위로 표시합니다.",
+  "コンテンツ警告": "콘텐츠 경고",
+  "性的コンテンツを含む（R18）": "성적 콘텐츠 포함(R18)",
+  "18歳未満の閲覧を想定しない性的表現を含む作品。R18表示設定がOFFの閲覧者には公開一覧・本文を表示しません。": "성인 대상의 성적 표현을 포함한 작품입니다. R18 표시가 꺼진 이용자에게는 공개 목록과 본문을 표시하지 않습니다.",
+  "暴力描写あり": "폭력 묘사 포함",
+  "戦闘、負傷、流血など、読者が事前に把握した方がよい暴力描写を含む作品。": "전투, 부상, 유혈 등 독자가 미리 알 필요가 있는 폭력 묘사를 포함합니다.",
+  "読者が閲覧前に把握した方がよい内容を作品単位で設定します。": "독자가 열람 전에 알아야 할 콘텐츠 경고를 작품 단위로 설정합니다.",
+  "固定": "고정",
+  "この作品はAI生成時点で性的コンテンツを含むと判定されたため、R18警告を解除できません。": "이 작품은 AI 생성 시 성적 콘텐츠가 포함된 것으로 판정되어 R18 경고를 해제할 수 없습니다.",
+  "選択した警告は作品作成直後に新しい作品へ保存されます。": "선택한 경고는 작품 생성 직후 새 작품에 저장됩니다.",
+  "コンテンツ警告を更新できませんでした。": "콘텐츠 경고를 업데이트하지 못했습니다.",
+  "編集と読者プレビューを切り替えて確認できる。": "편집과 독자 미리보기를 전환해 확인할 수 있습니다.",
+  "本文を入力すると、ここに読者表示に近い形のプレビューが出る。": "본문을 입력하면 독자 화면에 가까운 미리보기가 여기에 표시됩니다.",
+  "演出を追加": "연출 추가",
+  "演出編集を閉じる": "연출 편집 닫기",
 };
 
 const PLACEHOLDERS: Record<"en" | "ko", Record<string, string>> = {
@@ -311,6 +363,31 @@ function translateDynamic(value: string, locale: "en" | "ko"): string | null {
     return locale === "en"
       ? `Set a time after the scheduled time for episode ${previousSchedule[1]}.`
       : `이전 ${previousSchedule[1]}화의 예약 시각 이후로 설정하세요.`;
+  }
+
+  const permissionPair = value.match(
+    /^(朗読許可|朗読不許可|朗読未設定)・(対訳許可|対訳不許可|対訳未設定)$/
+  );
+  if (permissionPair) {
+    const dictionary = locale === "en" ? EN : KO;
+    return `${dictionary[permissionPair[1]] ?? permissionPair[1]} · ${dictionary[permissionPair[2]] ?? permissionPair[2]}`;
+  }
+
+  const episodeLabel = value.match(/^第(\d+)話$/);
+  if (episodeLabel) {
+    return locale === "en" ? `Episode ${episodeLabel[1]}` : `${episodeLabel[1]}화`;
+  }
+
+  const characterCount = value.match(/^(\d+)文字$/);
+  if (characterCount) {
+    return locale === "en"
+      ? `${characterCount[1]} characters`
+      : `${characterCount[1]}자`;
+  }
+
+  const lineCount = value.match(/^(\d+)行$/);
+  if (lineCount) {
+    return locale === "en" ? `${lineCount[1]} lines` : `${lineCount[1]}줄`;
   }
 
   const count = value.match(/^(\d+)件$/);
