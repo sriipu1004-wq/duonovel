@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { unzipSync } from "fflate";
 import {
   AOZORA_CATALOG_URL,
+  canonicalAozoraIdentityPart,
   classifyAozoraWork,
   groupAozoraRows,
   makePendingAozoraManifest,
@@ -64,19 +65,19 @@ if (!includeExisting && existsSync(existingAuditPath)) {
   for (const row of audit.series ?? []) {
     const title = row.title?.trim();
     if (!title) continue;
-    existingTitles.add(title);
+    existingTitles.add(canonicalAozoraIdentityPart(title));
     const base = title.includes("・") ? title.split("・")[0]!.trim() : title;
-    if (base) existingTitles.add(base);
+    if (base) existingTitles.add(canonicalAozoraIdentityPart(base));
   }
   for (const title of [
     ...(audit.contained_titles ?? []),
     ...(audit.known_title_aliases ?? []),
   ]) {
-    if (title.trim()) existingTitles.add(title.trim());
+    if (title.trim()) existingTitles.add(canonicalAozoraIdentityPart(title.trim()));
   }
 }
 
-const candidates = Array.from(grouped.values())
+const classified = Array.from(grouped.values())
   .map((sourceRows) => classifyAozoraWork(sourceRows))
   .filter((item) => item.eligible)
   .filter((item) => !authorFilter || item.author.includes(authorFilter))
@@ -88,11 +89,28 @@ const candidates = Array.from(grouped.values())
   })
   .filter((item) => {
     if (includeExisting) return true;
-    return !existingTitles.has(item.title) && !existingTitles.has(`${item.title}・${item.author}`);
+    return !existingTitles.has(canonicalAozoraIdentityPart(item.title));
   })
   .sort((a, b) => {
-    const accessA = Number(a.sourceRows[0]?.["累計アクセス数"]?.replace(/,/gu, "") ?? "0");
-    const accessB = Number(b.sourceRows[0]?.["累計アクセス数"]?.replace(/,/gu, "") ?? "0");
+    const styleRank = (item: typeof a) => {
+      const style = item.sourceRows[0]?.["文字遣い種別"]?.trim();
+      if (style === "新字新仮名") return 0;
+      if (style === "新字旧仮名") return 1;
+      return 2;
+    };
+    return styleRank(a) - styleRank(b) || a.workId.localeCompare(b.workId);
+  });
+
+const uniqueByWork = new Map<string, (typeof classified)[number]>();
+for (const item of classified) {
+  const key = `${canonicalAozoraIdentityPart(item.title)}|${canonicalAozoraIdentityPart(item.author)}`;
+  if (!uniqueByWork.has(key)) uniqueByWork.set(key, item);
+}
+
+const candidates = Array.from(uniqueByWork.values())
+  .sort((a, b) => {
+    const accessA = Number(a.sourceRows[0]?.["累計アクセス数"]?.replace(/,/gu, "") || "0");
+    const accessB = Number(b.sourceRows[0]?.["累計アクセス数"]?.replace(/,/gu, "") || "0");
     return accessB - accessA || a.workId.localeCompare(b.workId);
   })
   .slice(0, limit);
