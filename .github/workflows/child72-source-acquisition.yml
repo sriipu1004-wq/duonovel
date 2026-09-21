@@ -64,12 +64,26 @@ jobs:
 
       - name: Capture Gongu Madang landing HTML for endpoint inspection
         run: |
-          mkdir -p .child72-gongu
-          curl -fsSL --max-time 30             'https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9002094'             -o .child72-gongu/9002094.html
-          curl -fsSL --max-time 30             'https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200150&wrtSn=9002100'             -o .child72-gongu/9002100.html
-          curl -fsSL --max-time 30             'https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200023&wrtSn=9002092'             -o .child72-gongu/9002092.html
-          wc -c .child72-gongu/*.html
-          grep -Eio '.{0,100}(download|file|atch|wrtSn|txt).{0,180}' .child72-gongu/*.html | head -n 120 || true
+          mkdir -p child72-gongu
+          curl -fsSL --max-time 30             'https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9002094'             -o child72-gongu/9002094.html
+          curl -fsSL --max-time 30             'https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200150&wrtSn=9002100'             -o child72-gongu/9002100.html
+          curl -fsSL --max-time 30             'https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200023&wrtSn=9002092'             -o child72-gongu/9002092.html
+          wc -c child72-gongu/*.html
+          grep -Eio '.{0,100}(download|file|atch|wrtSn|txt).{0,180}' child72-gongu/*.html | head -n 120 || true
+
+      - name: Capture Gongu download popups from discovered official endpoints
+        run: |
+          curl -fsSL --max-time 30 \
+            'https://gongu.copyright.or.kr/gongu/wrt/wrt/wrtDownPopup.do?viewType=BODY&wrtSn=9002094&menuNo=200030' \
+            -o child72-gongu/9002094-popup.html
+          curl -fsSL --max-time 30 \
+            'https://gongu.copyright.or.kr/gongu/wrt/wrt/wrtDownPopup.do?viewType=BODY&wrtSn=9002100&menuNo=200150' \
+            -o child72-gongu/9002100-popup.html
+          curl -fsSL --max-time 30 \
+            'https://gongu.copyright.or.kr/gongu/wrt/wrt/wrtDownPopup.do?viewType=BODY&wrtSn=9002092&menuNo=200023' \
+            -o child72-gongu/9002092-popup.html
+          wc -c child72-gongu/*-popup.html
+          grep -Eino '.{0,140}(txt|fileSn|down|download|href).{0,260}' child72-gongu/*-popup.html | head -n 240 || true
 
       - name: Upload acquisition evidence
         uses: actions/upload-artifact@v4
@@ -84,4 +98,4 @@ jobs:
             public-domain/sources/raw/gutenberg-001952.txt
             .public-domain-work/gutenberg-000011/**
             .public-domain-work/gutenberg-001952/**
-            .child72-gongu/*.html
+            child72-gongu/*.html
