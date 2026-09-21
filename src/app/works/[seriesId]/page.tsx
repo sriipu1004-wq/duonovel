@@ -39,6 +39,7 @@ import { getUiLocale } from "@/i18n/server";
 import { localizePath } from "@/i18n/navigation";
 import { isUuid } from "@/lib/uuid";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
+import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -377,9 +378,12 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
 
   if (!firstTry.error) {
     return {
-      recordings: ((firstTry.data ?? []) as RecordingRow[]).filter(
-        isPublishedHumanRecording
-      ),
+      recordings: ((firstTry.data ?? []) as RecordingRow[])
+        .filter(isPublishedHumanRecording)
+        .map((recording) => ({
+          ...recording,
+          audio_storage_path: buildHumanRecordingPlaybackHref(recording.id),
+        })),
       fetchErrorMessage: null,
     };
   }
@@ -393,9 +397,12 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
 
   if (!fallback.error) {
     return {
-      recordings: ((fallback.data ?? []) as RecordingRow[]).filter(
-        isPublishedHumanRecording
-      ),
+      recordings: ((fallback.data ?? []) as RecordingRow[])
+        .filter(isPublishedHumanRecording)
+        .map((recording) => ({
+          ...recording,
+          audio_storage_path: buildHumanRecordingPlaybackHref(recording.id),
+        })),
       fetchErrorMessage: null,
     };
   }
@@ -971,11 +978,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
         fetchErrorMessage: null,
       };
 
-  const recordings = fetchedRecordings.filter((recording) => {
-    const readerName = getRecordingReaderName(recording);
-
-    return !isNemoReaderName(readerName) && !isAivisReaderName(readerName);
-  });
+  const recordings = fetchedRecordings;
 
   const episodeNumberById = new Map(
     episodes.map((episode) => [episode.id, getEpisodeNumber(episode)])
