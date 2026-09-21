@@ -7,6 +7,7 @@ import {
 import { resolve } from "node:path";
 import { unzipSync } from "fflate";
 import { isAllowedAozoraTextUrl } from "./aozora";
+import { isAllowedGutenbergTextUrl } from "./gutenberg";
 import { sha256Bytes } from "./core";
 import {
   loadManifest,
@@ -44,7 +45,11 @@ if (allPending) {
     .filter((id) => {
       try {
         const manifest = loadManifest(id);
-        return manifest.source_provider === "Aozora Bunko" && !existsSync(resolve(process.cwd(), manifest.source_file));
+        return (
+          (manifest.source_provider === "Aozora Bunko" ||
+            manifest.source_provider === "Project Gutenberg") &&
+          !existsSync(resolve(process.cwd(), manifest.source_file))
+        );
       } catch {
         return false;
       }
@@ -55,21 +60,36 @@ if (ids.length === 0) {
   throw new Error("Provide manifest ids or --all-pending");
 }
 
-console.log(`Aozora source sync count: ${ids.length}`);
-console.log("Fetcher allowlist: https://www.aozora.gr.jp/cards/.../files/*.zip only");
+console.log(`Public Domain source sync count: ${ids.length}`);
+console.log(
+  "Fetcher allowlist: Aozora ZIPs and https://www.gutenberg.org/cache/epub/<id>/pg<id>.txt only"
+);
 console.log(`Rate delay: ${delayMs}ms; prepare=${prepare}; force=${force}`);
 
 let completed = 0;
 for (const [index, id] of ids.entries()) {
   const manifest = loadManifest(id);
-  if (manifest.source_provider !== "Aozora Bunko") {
-    throw new Error(`${id}: source_provider must be Aozora Bunko`);
-  }
 
   const manifestPath = manifestPathForId(id);
   const rawManifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
   const downloadUrl = manifest.source_download_url;
-  if (!downloadUrl || !isAllowedAozoraTextUrl(downloadUrl)) {
+  const sourceKind =
+    manifest.source_provider === "Aozora Bunko"
+      ? "aozora"
+      : manifest.source_provider === "Project Gutenberg"
+        ? "gutenberg"
+        : null;
+  if (!sourceKind) {
+    throw new Error(
+      `${id}: source_provider must be Aozora Bunko or Project Gutenberg for automated source sync`
+    );
+  }
+  const allowed =
+    Boolean(downloadUrl) &&
+    (sourceKind === "aozora"
+      ? isAllowedAozoraTextUrl(downloadUrl!)
+      : isAllowedGutenbergTextUrl(downloadUrl!));
+  if (!downloadUrl || !allowed) {
     throw new Error(`${id}: source_download_url is missing or not allowlisted`);
   }
 
@@ -91,20 +111,37 @@ for (const [index, id] of ids.entries()) {
   if (!response.ok) {
     throw new Error(`${id}: source fetch failed with HTTP ${response.status}`);
   }
-  const zipBytes = new Uint8Array(await response.arrayBuffer());
-  if (zipBytes.byteLength > 25_000_000) {
-    throw new Error(`${id}: source ZIP exceeds 25 MB safety limit`);
-  }
-  const archive = unzipSync(zipBytes);
-  const textEntries = Object.entries(archive).filter(([name]) =>
-    /(?:^|\/)\w[^/]*\.txt$/iu.test(name)
-  );
-  if (textEntries.length !== 1) {
-    throw new Error(
-      `${id}: expected exactly one TXT entry in Aozora ZIP, found ${textEntries.length}`
+
+  let sourceBytes: Uint8Array;
+  if (sourceKind === "aozora") {
+    const zipBytes = new Uint8Array(await response.arrayBuffer());
+    if (zipBytes.byteLength > 25_000_000) {
+      throw new Error(`${id}: source ZIP exceeds 25 MB safety limit`);
+    }
+    const archive = unzipSync(zipBytes);
+    const textEntries = Object.entries(archive).filter(([name]) =>
+      /(?:^|\/)\w[^/]*\.txt$/iu.test(name)
     );
+    if (textEntries.length !== 1) {
+      throw new Error(
+        `${id}: expected exactly one TXT entry in Aozora ZIP, found ${textEntries.length}`
+      );
+    }
+    sourceBytes = textEntries[0]![1];
+  } else {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (
+      contentType &&
+      !contentType.includes("text/plain") &&
+      !contentType.includes("application/octet-stream")
+    ) {
+      throw new Error(
+        `${id}: Project Gutenberg source returned unexpected content-type ${contentType}`
+      );
+    }
+    sourceBytes = new Uint8Array(await response.arrayBuffer());
   }
-  const sourceBytes = textEntries[0]![1];
+
   if (sourceBytes.byteLength === 0 || sourceBytes.byteLength > 20_000_000) {
     throw new Error(`${id}: extracted source size is invalid`);
   }
@@ -134,7 +171,7 @@ for (const [index, id] of ids.entries()) {
   }
   completed += 1;
 }
-console.log(`Aozora source sync complete: ${completed}/${ids.length}`);
+console.log(`Public Domain source sync complete: ${completed}/${ids.length}`);
 console.log("No rights approval, database write, publication, or translation was performed.");
 
 }
