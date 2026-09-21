@@ -18,6 +18,7 @@ function sleep(ms: number) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
+async function main() {
 const args = process.argv.slice(2);
 const force = args.includes("--force");
 const prepare = args.includes("--prepare");
@@ -135,3 +136,10 @@ for (const [index, id] of ids.entries()) {
 }
 console.log(`Aozora source sync complete: ${completed}/${ids.length}`);
 console.log("No rights approval, database write, publication, or translation was performed.");
+
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});
