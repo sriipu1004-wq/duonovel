@@ -1,0 +1,87 @@
+name: Child72 source acquisition
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/child72-source-acquisition.yml"
+      - "public-domain/manifests/gutenberg-*.json"
+      - "scripts/public-domain/source-sync.ts"
+      - "scripts/public-domain/gutenberg.ts"
+      - "scripts/public-domain/core.ts"
+      - "scripts/public-domain/runtime.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate manifests before acquisition
+        run: npm run public-domain:validate
+
+      - name: Fetch exact Project Gutenberg pilot bytes and prepare
+        run: >
+          npm run public-domain:source-sync --
+          gutenberg-000011
+          gutenberg-001952
+          --prepare
+          --delay-ms=750
+
+      - name: Record exact source checksums
+        run: |
+          sha256sum public-domain/sources/raw/gutenberg-000011.txt
+          sha256sum public-domain/sources/raw/gutenberg-001952.txt
+          node - <<'NODE'
+          const fs = require("fs");
+          for (const id of ["gutenberg-000011", "gutenberg-001952"]) {
+            const manifest = JSON.parse(fs.readFileSync(`public-domain/manifests/${id}.json`, "utf8"));
+            const prepared = JSON.parse(fs.readFileSync(`.public-domain-work/${id}/prepared.json`, "utf8"));
+            console.log(JSON.stringify({
+              id,
+              source_retrieved_at: manifest.source_retrieved_at,
+              source_hash: manifest.source_hash,
+              chapter_count: prepared.chapters.length,
+              characters: prepared.displayCharacterCount,
+              chapter_titles: prepared.chapters.map((chapter) => chapter.title),
+              warnings: prepared.warnings,
+            }));
+          }
+          NODE
+
+      - name: Capture Gongu Madang landing HTML for endpoint inspection
+        run: |
+          mkdir -p .child72-gongu
+          curl -fsSL --max-time 30             'https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9002094'             -o .child72-gongu/9002094.html
+          curl -fsSL --max-time 30             'https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200150&wrtSn=9002100'             -o .child72-gongu/9002100.html
+          curl -fsSL --max-time 30             'https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200023&wrtSn=9002092'             -o .child72-gongu/9002092.html
+          wc -c .child72-gongu/*.html
+          grep -Eio '.{0,100}(download|file|atch|wrtSn|txt).{0,180}' .child72-gongu/*.html | head -n 120 || true
+
+      - name: Upload acquisition evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: child72-source-acquisition
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            public-domain/manifests/gutenberg-000011.json
+            public-domain/manifests/gutenberg-001952.json
+            public-domain/sources/raw/gutenberg-000011.txt
+            public-domain/sources/raw/gutenberg-001952.txt
+            .public-domain-work/gutenberg-000011/**
+            .public-domain-work/gutenberg-001952/**
+            .child72-gongu/*.html
