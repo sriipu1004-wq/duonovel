@@ -118,7 +118,7 @@ function main() {
     "src/features/write/TranslationPermissionWorkspaceBridge.tsx";
   assertContains(translationPermission, [
     "NARRATION_PERMISSION_LABELS",
-    "translation_permission",
+    "/translation-permission",
     '"対訳許可を更新できませんでした。"',
   ]);
 
