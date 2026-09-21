@@ -164,11 +164,11 @@ const FILTER_META: Record<
 > = {
   all: {
     label: "すべて",
-    description: "公開中の朗読関連作品をまとめて見る。",
+    description: "公開中のHuman narrationがある作品だけを見る。",
   },
   submitted: {
     label: "投稿済",
-    description: "自分が朗読投稿済みの作品だけを見る。",
+    description: "自分がHuman narrationを投稿済みの作品だけを見る。",
   },
   ready: {
     label: "朗読可",
