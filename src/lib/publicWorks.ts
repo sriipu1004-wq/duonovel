@@ -62,6 +62,10 @@ export type PublicBaseWorkCard = {
   translationEligible: boolean;
   isShortStory: boolean;
   publicEpisodeNumbers: number[];
+  publicDomainRightsChecked: boolean;
+  publicDomainSourceProvider: string | null;
+  publicDomainSourceUrl: string | null;
+  publicDomainFirstPublicationYear: number | null;
 };
 
 export type PublicWorkVisibility = "viewer" | "general" | "all";
@@ -314,6 +318,10 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         publicEpisodeNumbers: publicEpisodes
           .map((episode) => getEpisodeNumber(episode))
           .filter((episodeNumber) => episodeNumber > 0),
+        publicDomainRightsChecked: publicDomain?.rightsChecked === true,
+        publicDomainSourceProvider: publicDomain?.sourceProvider ?? null,
+        publicDomainSourceUrl: publicDomain?.sourceUrl ?? null,
+        publicDomainFirstPublicationYear: publicDomain?.firstPublicationYear ?? null,
         tags: withSystemContentRatingTag(getSeriesTags(series), contentRating),
         genres: getSeriesGenres(series),
       } satisfies PublicBaseWorkCard;
