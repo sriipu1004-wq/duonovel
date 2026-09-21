@@ -1362,15 +1362,49 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
   const startAt = parseDateStart(selectedStartInput);
   const endAt = parseDateEnd(selectedEndInput);
 
-  const facetBaseItems = catalogItems.filter(
+  const tagFacetItems = catalogItems.filter(
     (item) =>
       matchesFilter(item, activeFilter) &&
-      matchesSourceLanguages(item, selectedSourceLanguages)
+      matchesSearch({
+        item,
+        query: normalizedQuery,
+        selectedTagTokens: [],
+        selectedGenreTokens,
+        sourceLanguages: selectedSourceLanguages,
+        startAt,
+        endAt,
+      })
   );
-  const availableTags = buildAvailableTags(facetBaseItems);
-  const availableGenres = buildAvailableGenres(facetBaseItems);
+  const genreFacetItems = catalogItems.filter(
+    (item) =>
+      matchesFilter(item, activeFilter) &&
+      matchesSearch({
+        item,
+        query: normalizedQuery,
+        selectedTagTokens,
+        selectedGenreTokens: [],
+        sourceLanguages: selectedSourceLanguages,
+        startAt,
+        endAt,
+      })
+  );
+  const sourceLanguageFacetItems = catalogItems.filter(
+    (item) =>
+      matchesFilter(item, activeFilter) &&
+      matchesSearch({
+        item,
+        query: normalizedQuery,
+        selectedTagTokens,
+        selectedGenreTokens,
+        sourceLanguages: [],
+        startAt,
+        endAt,
+      })
+  );
+  const availableTags = buildAvailableTags(tagFacetItems);
+  const availableGenres = buildAvailableGenres(genreFacetItems);
   const sourceLanguageCounts = buildSourceLanguageCounts(
-    catalogItems.filter((item) => matchesFilter(item, activeFilter))
+    sourceLanguageFacetItems
   );
 
   const filteredCatalogItems = sortCatalogItems(
