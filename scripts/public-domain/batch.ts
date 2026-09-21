@@ -7,6 +7,7 @@ import {
   prepareManifest,
 } from "./runtime";
 
+async function main() {
 const args = process.argv.slice(2);
 for (const forbidden of ["--publish", "--public", "--translate", "--author-id"]) {
   if (args.some((arg) => arg === forbidden || arg.startsWith(`${forbidden}=`))) {
@@ -123,3 +124,10 @@ if (!execute) {
   console.log("DRY RUN COMPLETE: no database write, publish, translation, credit, or allowance action occurred.");
 }
 if (failed > 0) process.exitCode = 1;
+
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});
