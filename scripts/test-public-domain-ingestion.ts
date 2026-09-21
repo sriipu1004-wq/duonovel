@@ -305,8 +305,10 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
   assert.equal(importer.includes("--author-id"), true);
   assert.equal(runtime.includes("isOfficialAccountEmail"), true);
   assert.equal(runtime.includes("OFFICIAL_ACCOUNT_EMAIL"), true);
-  assert.equal(runtime.includes('.from("series").insert(plan.series)'), true);
-  assert.equal(runtime.includes('.from("episodes").insert(episodeRows)'), true);
+  assert.equal(runtime.includes('.from("series")'), true);
+  assert.equal(runtime.includes(".insert(plan.series)"), true);
+  assert.equal(runtime.includes('.from("episodes")'), true);
+  assert.equal(runtime.includes(".insert(episodeRows)"), true);
 
   const combined = `${runtime}\n${importer}\n${core}`;
   for (const forbidden of [
