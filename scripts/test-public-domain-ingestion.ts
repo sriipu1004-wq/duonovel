@@ -295,6 +295,7 @@ function testPreparedArtifactAndDraftPlan() {
   });
   assert.equal(plan.series.author_id, "official-user-id");
   assert.equal(plan.series.publication_status, "private");
+  assert.equal(plan.series.is_public, false);
   assert.equal(plan.series.source_language, "ja");
   assert.equal(plan.series.translation_permission_mode, "closed");
   assert.equal(plan.series.recording_permission_mode, "closed");
