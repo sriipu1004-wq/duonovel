@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import {
@@ -29,6 +29,8 @@ import type { EffectSettings } from "@/lib/effects/effectSettings";
 type Mode = "create" | "edit";
 type SaveState = "idle" | "saving" | "success" | "error";
 type BodyViewMode = "edit" | "preview";
+type EpisodeValidationField = "title" | "scheduledFor" | "postingStatus";
+type EpisodeValidationErrors = Partial<Record<EpisodeValidationField, string>>;
 
 type WriteEpisodeFormProps = {
   mode: Mode;
@@ -346,6 +348,9 @@ export default function WriteEpisodeForm({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [validationErrors, setValidationErrors] =
+    useState<EpisodeValidationErrors>({});
+  const submittingRef = useRef(false);
   const [showEffectSettingsPanel, setShowEffectSettingsPanel] = useState(false);
   const [bodyViewMode, setBodyViewMode] = useState<BodyViewMode>("edit");
   const [episodePreviewEffectSettings, setEpisodePreviewEffectSettings] =
@@ -471,6 +476,29 @@ const scheduledBeforePreviousIsBlocked =
     setSuccessMessage("");
   }
 
+  function clearValidationError(field: EpisodeValidationField) {
+    setValidationErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function focusValidationField(targetId: string) {
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLSelectElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLButtonElement
+    ) {
+      target.focus({ preventScroll: true });
+    }
+  }
+
   async function ensureAiGeneratedSeriesPublicSurface(
     nextPostingStatus: EpisodePostingStatus
   ): Promise<string | null> {
@@ -485,7 +513,7 @@ const scheduledBeforePreviousIsBlocked =
       .maybeSingle();
 
     if (lookup.error || !lookup.data) {
-      return lookup.error?.message ?? "作品情報を取得できなかった。";
+      return "作品の公開状態を更新できませんでした。";
     }
 
     if (!isAiGeneratedSeriesRow(lookup.data)) {
@@ -501,58 +529,55 @@ const scheduledBeforePreviousIsBlocked =
       })
       .eq("id", seriesId);
 
-    return update.error?.message ?? null;
+    return update.error ? "作品の公開状態を更新できませんでした。" : null;
   }
 
   async function handleSubmit(
     destination: "workspace" | "next" = "workspace"
   ) {
+    if (submittingRef.current) return;
+
     const trimmedTitle = title.trim();
     const trimmedBody = body.trim();
 
     if (!safeEpisodeNumber) {
+      setValidationErrors({});
       setSaveState("error");
-      setErrorMessage("話数は1以上の数字で入れる。");
+      setErrorMessage("話数を確認してください。");
       setSuccessMessage("");
       return;
     }
 
+    const nextValidationErrors: EpisodeValidationErrors = {};
     if (!trimmedTitle) {
+      nextValidationErrors.title = "話タイトルを入力してください。";
+    }
+    if (
+      postingStatus === "scheduled" &&
+      !toIsoStringFromLocalInput(scheduledFor)
+    ) {
+      nextValidationErrors.scheduledFor = "予約日時を入力してください。";
+    }
+    if (previousEpisodeBlocksPublishing && postingStatus !== "draft") {
+      nextValidationErrors.postingStatus = previousEpisodeNumber
+        ? `前の第${previousEpisodeNumber}話が下書きのため、この話はまだ投稿または予約投稿にできません。`
+        : "前話が下書きのため、この話はまだ投稿または予約投稿にできません。";
+    }
+    if (scheduledBeforePreviousIsBlocked) {
+      nextValidationErrors.scheduledFor = previousEpisodeNumber
+        ? `前の第${previousEpisodeNumber}話の予約時刻より前には設定できません。`
+        : "前話の予約時刻より前には設定できません。";
+    }
+
+    setValidationErrors(nextValidationErrors);
+    if (Object.keys(nextValidationErrors).length > 0) {
       setSaveState("error");
-      setErrorMessage("話タイトルは必須。");
+      setErrorMessage("");
       setSuccessMessage("");
       return;
     }
 
-    if (postingStatus === "scheduled" && !toIsoStringFromLocalInput(scheduledFor)) {
-      setSaveState("error");
-      setErrorMessage("予約投稿を選ぶ時は日時を入れる。");
-      setSuccessMessage("");
-      return;
-    }
-
-if (previousEpisodeBlocksPublishing && postingStatus !== "draft") {
-  setSaveState("error");
-  setErrorMessage(
-    previousEpisodeNumber
-      ? `前の第${previousEpisodeNumber}話が下書きのため、この話はまだ投稿または予約投稿にできない。`
-      : "前話が下書きのため、この話はまだ投稿または予約投稿にできない。"
-  );
-  setSuccessMessage("");
-  return;
-}
-
-if (scheduledBeforePreviousIsBlocked) {
-  setSaveState("error");
-  setErrorMessage(
-    previousEpisodeNumber
-      ? `前の第${previousEpisodeNumber}話の予約時刻より前には設定できない。`
-      : "前話の予約時刻より前には設定できない。"
-  );
-  setSuccessMessage("");
-  return;
-}    
-
+    submittingRef.current = true;
     setSaveState("saving");
     setErrorMessage("");
     setSuccessMessage("");
@@ -590,9 +615,10 @@ if (scheduledBeforePreviousIsBlocked) {
 
         if (publicSurfaceError) {
           hideGlobalLoadingFeedback();
+          submittingRef.current = false;
           setSaveState("error");
           setErrorMessage(
-            `話は保存されたが、AI生成作品の公開状態更新に失敗した: ${publicSurfaceError}`
+            "話は保存されましたが、作品の公開状態を更新できませんでした。"
           );
           return;
         }
@@ -609,9 +635,12 @@ if (scheduledBeforePreviousIsBlocked) {
         return;
       }
 
+      submittingRef.current = false;
       hideGlobalLoadingFeedback();
       setSaveState("error");
-      setErrorMessage(result.error?.message ?? "話作成に失敗した。");
+      setErrorMessage(
+        "話を作成できませんでした。入力内容を確認して、もう一度お試しください。"
+      );
       return;
     }
 
@@ -626,13 +655,15 @@ if (scheduledBeforePreviousIsBlocked) {
 
       if (publicSurfaceError) {
         hideGlobalLoadingFeedback();
+        submittingRef.current = false;
         setSaveState("error");
         setErrorMessage(
-          `話は保存されたが、AI生成作品の公開状態更新に失敗した: ${publicSurfaceError}`
+          "話は保存されましたが、作品の公開状態を更新できませんでした。"
         );
         return;
       }
 
+      submittingRef.current = false;
       setSaveState("success");
       setSuccessMessage("話を保存した。");
 
@@ -647,9 +678,12 @@ if (scheduledBeforePreviousIsBlocked) {
       return;
     }
 
+    submittingRef.current = false;
     hideGlobalLoadingFeedback();
     setSaveState("error");
-    setErrorMessage(result.error.message);
+    setErrorMessage(
+      "話を保存できませんでした。入力内容を確認して、もう一度お試しください。"
+    );
   }
 
   const heading = mode === "create" ? "新しい話を追加" : "話本文を編集";
@@ -688,14 +722,29 @@ if (scheduledBeforePreviousIsBlocked) {
                     話タイトル
                   </span>
                   <input
+                    id="episode-title"
                     value={title}
+                    aria-invalid={Boolean(validationErrors.title)}
+                    aria-describedby={
+                      validationErrors.title ? "episode-title-error" : undefined
+                    }
                     onChange={(event) => {
                       setTitle(event.target.value);
+                      clearValidationError("title");
                       resetNotice();
                     }}
                     placeholder="第1話 など"
                     className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-400"
                   />
+                  {validationErrors.title ? (
+                    <span
+                      id="episode-title-error"
+                      role="alert"
+                      className="text-xs font-medium text-red-700"
+                    >
+                      {validationErrors.title}
+                    </span>
+                  ) : null}
                 </label>
 
                 <section className="grid gap-3">
@@ -837,7 +886,7 @@ if (scheduledBeforePreviousIsBlocked) {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div id="episode-posting-status" className="mt-4 grid gap-3 sm:grid-cols-3">
                 {(["posted", "scheduled", "draft"] as EpisodePostingStatus[]).map(
                   (status) => {
                     const active = postingStatus === status;
@@ -863,8 +912,10 @@ if (scheduledBeforePreviousIsBlocked) {
                           disabled={disabled}
                           onChange={() => {
                             setPostingStatus(status);
+                            clearValidationError("postingStatus");
                             if (status !== "scheduled") {
                               setScheduledFor("");
+                              clearValidationError("scheduledFor");
                             }
                             resetNotice();
                           }}
@@ -876,6 +927,16 @@ if (scheduledBeforePreviousIsBlocked) {
                   }
                 )}
               </div>
+
+              {validationErrors.postingStatus ? (
+                <p
+                  id="episode-posting-status-error"
+                  role="alert"
+                  className="mt-3 text-sm font-medium text-red-700"
+                >
+                  {validationErrors.postingStatus}
+                </p>
+              ) : null}
 
               {previousEpisodeBlocksPublishing ? (
                 <div className="mt-4 rounded-2xl border border-amber-300/40 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-900">
@@ -891,6 +952,7 @@ if (scheduledBeforePreviousIsBlocked) {
                     予約日時
                   </span>
                   <input
+                    id="episode-scheduled-for"
                     type="datetime-local"
                     value={scheduledFor}
                     min={
@@ -898,21 +960,91 @@ if (scheduledBeforePreviousIsBlocked) {
                         ? previousScheduledForLocalValue
                         : undefined
                     }
+                    aria-invalid={Boolean(validationErrors.scheduledFor)}
+                    aria-describedby={
+                      validationErrors.scheduledFor
+                        ? "episode-scheduled-for-error"
+                        : undefined
+                    }
                     onChange={(event) => {
                       setScheduledFor(event.target.value);
+                      clearValidationError("scheduledFor");
                       resetNotice();
                     }}
                     className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none"
                   />
+                  {validationErrors.scheduledFor ? (
+                    <span
+                      id="episode-scheduled-for-error"
+                      role="alert"
+                      className="text-xs font-medium text-red-700"
+                    >
+                      {validationErrors.scheduledFor}
+                    </span>
+                  ) : null}
                 </label>
               ) : null}
 
-              <div className="mt-5 flex flex-wrap gap-3">
+              {Object.keys(validationErrors).length > 0 ? (
+                <div
+                  role="alert"
+                  aria-labelledby="episode-validation-summary-heading"
+                  className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                >
+                  <p
+                    id="episode-validation-summary-heading"
+                    className="font-semibold"
+                  >
+                    以下を確認してください
+                  </p>
+                  <ul className="mt-2 grid gap-1">
+                    {validationErrors.title ? (
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => focusValidationField("episode-title")}
+                          className="text-left underline underline-offset-2"
+                        >
+                          {validationErrors.title}
+                        </button>
+                      </li>
+                    ) : null}
+                    {validationErrors.postingStatus ? (
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            focusValidationField("episode-posting-status")
+                          }
+                          className="text-left underline underline-offset-2"
+                        >
+                          {validationErrors.postingStatus}
+                        </button>
+                      </li>
+                    ) : null}
+                    {validationErrors.scheduledFor ? (
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            focusValidationField("episode-scheduled-for")
+                          }
+                          className="text-left underline underline-offset-2"
+                        >
+                          {validationErrors.scheduledFor}
+                        </button>
+                      </li>
+                    ) : null}
+                  </ul>
+                </div>
+              ) : null}
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <button
                   type="button"
                   onClick={() => handleSubmit("workspace")}
                   disabled={isSaving}
-                  className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="min-h-11 w-full rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {isSaving
                     ? "保存中..."
@@ -930,7 +1062,7 @@ if (scheduledBeforePreviousIsBlocked) {
                       await handleSubmit("workspace");
                     }}
                     disabled={isSaving || previousEpisodeBlocksPublishing}
-                    className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="min-h-11 w-full rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   >
                     この下書きを投稿する
                   </button>
@@ -938,7 +1070,7 @@ if (scheduledBeforePreviousIsBlocked) {
 
                 <Link
                   href={`/write/series/${seriesId}`}
-                  className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50 sm:w-auto"
                 >
                   ワークスペースへ戻る
                 </Link>
