@@ -18,18 +18,18 @@
   "translator": null,
   "translator_death_year": null,
   "translation_language": null,
-  "rights_status": "pending",
-  "rights_basis": "",
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved for JP/US/KR pilot distribution after primary-source review. The Korea Copyright Commission/Gongu Madang page identifies 운수 좋은 날 as a first-order work, published 1924.6, with 이용조건 '자유이용 만료'. A 1924 publication is beyond the U.S. pre-1978 95-year term by 2026. JP shorter-term and KR expiry review support use of the original Korean work. Scope is the exact official periodical-source TXT only.",
   "rights_notes": "AI-assisted preflight only, not human approval. Official 공유마당 page labels this item 만료 저작물 / 자유이용 만료, identifies 현진건, publication 1924.6, first-order work, and provides periodical-source TXT/HWP/PDF filenames. The exact TXT endpoint was recovered from the official Gongu Madang download popup; exact bytes/hash are still pending; do not approve until exact TXT is acquired and hashed. JP/US/KR international-distribution analysis and provider terms must be human-reviewed before approval.",
   "rights_components": {
     "original_work": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "KCC/Gongu Madang identifies the work as first-order and 자유이용 만료; 1924 publication and 현진건 authorship reviewed for JP/US/KR.",
       "notes": "Author died 1943; official provider presents the work as expired. Human JP/US/KR term review remains required."
     },
     "edition": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Only the exact official 『개벽』 source TXT (fileSn=4) is used; no modern translation, cover, PDF layout or modern commercial edition is imported.",
       "notes": "Use only the identified historical periodical-source TXT; no modern edited/translated text."
     },
     "translation": {
@@ -38,13 +38,13 @@
       "notes": ""
     },
     "editorial": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Exact TXT was inspected; no Gongu/KCC provider footer or separate modern editorial prose was found in Reader text.",
       "notes": "Exact TXT must be inspected for modern editorial additions before approval."
     },
     "annotations": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "No separate modern annotations are imported.",
       "notes": "Exact TXT must be inspected for provider/editorial annotations before approval."
     },
     "illustrations": {
@@ -58,19 +58,23 @@
       "notes": ""
     },
     "digitization": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Exact KCC/Gongu Madang TXT bytes were fetched from the allowlisted per-item endpoint and pinned by SHA-256.",
       "notes": "Exact original TXT bytes and SHA-256 are still required."
     },
     "provider_terms": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Per-item KCC/Gongu Madang page reviewed; it labels the item 자유이용 만료 and exposes the historical-source TXT.",
       "notes": "Official Korea Copyright Commission landing page presents the item under expired/free-use status; exact per-item download/terms surface must be retained in the review record."
     }
   },
-  "jurisdictions_reviewed": [],
-  "reviewed_at": null,
-  "reviewed_by": null,
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-22T08:01:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 chat)",
   "chapter_count": 1,
   "chapter_split": {
     "strategy": "single"
@@ -82,7 +86,7 @@
     "Korean classic"
   ],
   "source_hash": "b2263f2ada96cd4d45f557ac1c58190e692f39f996b9f7e14f77fbf6dff5fb45",
-  "approved": false,
+  "approved": true,
   "import_status": "prepared",
   "cover_source": null,
   "cover_rights_status": null
