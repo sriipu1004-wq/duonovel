@@ -326,7 +326,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         genres: getSeriesGenres(series),
       } satisfies PublicBaseWorkCard;
     })
-    .filter((card): card is PublicBaseWorkCard => !!card)
+    .filter((card): card is NonNullable<typeof card> => card !== null)
     .sort((a, b) => {
       if (b.latestPostedAtValue !== a.latestPostedAtValue) return b.latestPostedAtValue - a.latestPostedAtValue;
       return b.createdAtValue - a.createdAtValue;
