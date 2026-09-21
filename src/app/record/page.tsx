@@ -489,35 +489,18 @@ async function fetchMyRecordingGlobalConsent(
 async function fetchDiscoverableSeries(
   supabase: SupabaseClient
 ): Promise<SeriesRow[]> {
-  const firstTry = await supabase
-    .from("series")
-    .select("*")
-    .in("recording_permission_mode", ["open"])
-    .order("created_at", { ascending: false });
-
-  if (!firstTry.error) {
-    return ((firstTry.data ?? []) as SeriesRow[]).filter(
-      (series) => getSeriesPublicationStatus(series) === "public"
-    );
-  }
-
-  const secondTry = await supabase
+  const result = await supabase
     .from("series")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (secondTry.error) {
+  if (result.error) {
     return [];
   }
 
-  return ((secondTry.data ?? []) as SeriesRow[]).filter((series) => {
-    if (getSeriesPublicationStatus(series) !== "public") {
-      return false;
-    }
-
-    const mode = normalizeRecordingPermissionMode(series.recording_permission_mode);
-    return mode === "open";
-  });
+  return ((result.data ?? []) as SeriesRow[]).filter(
+    (series) => getSeriesPublicationStatus(series) === "public"
+  );
 }
 
 async function fetchMyRecordingRequests(
