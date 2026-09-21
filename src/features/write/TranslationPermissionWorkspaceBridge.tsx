@@ -15,6 +15,18 @@ type TranslationPermissionWorkspaceBridgeProps = {
 const PENDING_CREATE_PERMISSION_KEY =
   "duonovel:pending-translation-permission-create";
 
+const NARRATION_PERMISSION_LABELS = new Set([
+  "朗読許可",
+  "Narration permission",
+  "낭독 허용",
+]);
+
+const RESTORE_SAVED_LABELS = new Set([
+  "保存済みに戻す",
+  "Restore saved value",
+  "저장된 값으로 되돌리기",
+]);
+
 function findSeriesStatusButton(): HTMLButtonElement | null {
   const existing = document.querySelector<HTMLButtonElement>(
     "button[data-permission-status-integrated='true']"
@@ -26,7 +38,9 @@ function findSeriesStatusButton(): HTMLButtonElement | null {
   return (
     buttons.find((button) => {
       const directLabel = button.querySelector<HTMLElement>(":scope > span:first-child");
-      return directLabel?.textContent?.trim() === "朗読許可";
+      return NARRATION_PERMISSION_LABELS.has(
+        directLabel?.textContent?.trim() ?? ""
+      );
     }) ?? null
   );
 }
@@ -101,7 +115,9 @@ function findPermissionPanel(): HTMLElement | null {
   if (existing) return existing;
 
   const headings = Array.from(document.querySelectorAll<HTMLElement>("main p"));
-  const heading = headings.find((node) => node.textContent?.trim() === "朗読許可");
+  const heading = headings.find((node) =>
+    NARRATION_PERMISSION_LABELS.has(node.textContent?.trim() ?? "")
+  );
   const panel = heading?.parentElement;
   return panel instanceof HTMLElement ? panel : null;
 }
@@ -131,7 +147,9 @@ function integratePermissionPanel(panel: HTMLElement): HTMLElement {
 
   const restoreButton = Array.from(
     panel.querySelectorAll<HTMLButtonElement>(":scope > button")
-  ).find((button) => button.textContent?.includes("保存済みに戻す"));
+  ).find((button) =>
+    RESTORE_SAVED_LABELS.has(button.textContent?.trim() ?? "")
+  );
 
   if (restoreButton) {
     restoreButton.dataset.permissionRestoreSource = "true";
