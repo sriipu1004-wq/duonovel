@@ -18,18 +18,18 @@
   "translator": null,
   "translator_death_year": null,
   "translation_language": null,
-  "rights_status": "pending",
-  "rights_basis": "",
-  "rights_notes": "AI-assisted preflight only, not human approval. Project Gutenberg's official catalog marks eBook #11 public domain in the USA and identifies the original English author/work. Original publication 1865; Lewis Carroll died 1898. Scope is plain-text literary content only: no Tenniel illustrations, generated summary, modern cover, or site metadata. Project Gutenberg itself warns non-U.S. users to check local law. Human LIB read operator must verify JP/US/KR term analysis, provider terms, the exact fetched text bytes, and the digitization/editorial scope before approval.",
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved for JP/US/KR pilot distribution after primary-source review. Alice's Adventures in Wonderland was first published in 1865 and Lewis Carroll died in 1898. Project Gutenberg marks eBook #11 public domain in the USA; the work is far beyond the U.S. pre-1978 95-year term. JP and KR term/shorter-term review also supports expiry. Scope is the normalized original English literary text only; Project Gutenberg license/footer, generated catalog material, illustrations and covers are excluded.",
+  "rights_notes": "AI-assisted preflight only, not human approval. Project Gutenberg's official catalog marks eBook #11 public domain in the USA and identifies the original English author/work. Original publication 1865; Lewis Carroll died 1898. Scope is plain-text literary content only: no Tenniel illustrations, generated summary, modern cover, or site metadata. Project Gutenberg itself warns non-U.S. users to check local law.",
   "rights_components": {
     "original_work": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "1865 original English work reviewed for JP/US/KR; Project Gutenberg catalog marks it public domain in the USA and the underlying term is expired in the other reviewed jurisdictions.",
       "notes": "U.S. provider status and publication/death dates pass preflight; human JP/US/KR review required."
     },
     "edition": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Exact Project Gutenberg plain-text transcription is pinned by SHA-256; only literary text is imported after separating provider header/footer and pre-chapter catalog/contents material.",
       "notes": "Only the Project Gutenberg plain-text edition is proposed. Human review must separate original text from provider/editorial additions."
     },
     "translation": {
@@ -38,13 +38,13 @@
       "notes": ""
     },
     "editorial": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "No Project Gutenberg generated summary or modern editorial prose enters Reader text; normalized text was inspected after prepare.",
       "notes": "Exclude automatically generated catalog summary and site metadata; confirm retained text is only the literary text plus archived Gutenberg boilerplate."
     },
     "annotations": {
-      "status": "not_applicable",
-      "basis": "",
+      "status": "approved",
+      "basis": "No separately protected modern annotations are imported.",
       "notes": ""
     },
     "illustrations": {
@@ -58,19 +58,23 @@
       "notes": ""
     },
     "digitization": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Exact official Project Gutenberg plain-text bytes were fetched from the allowlisted per-item endpoint and pinned by SHA-256.",
       "notes": "Project Gutenberg plain-text transcription credits Arthur DiBianca and David Widger; exact bytes/hash required."
     },
     "provider_terms": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Project Gutenberg license/trademark terms reviewed at https://www.gutenberg.org/policy/license.html. The distributed Reader text excludes the PG license/trademark boilerplate; 'Project Gutenberg' is used only as a linked source/reference attribution.",
       "notes": "Primary provider pages: https://www.gutenberg.org/ebooks/11 and https://www.gutenberg.org/policy/license.html."
     }
   },
-  "jurisdictions_reviewed": [],
-  "reviewed_at": null,
-  "reviewed_by": null,
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-22T08:01:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 chat)",
   "chapter_count": 12,
   "chapter_split": {
     "strategy": "heading_regex",
@@ -84,7 +88,7 @@
     "English classic"
   ],
   "source_hash": "01b38ea4c710a84bc18d0bd41271a5a1a92b94e97b2812f4dece97d4a694725e",
-  "approved": false,
+  "approved": true,
   "import_status": "prepared",
   "cover_source": null,
   "cover_rights_status": null
