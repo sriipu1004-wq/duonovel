@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Public Domain ingestion operator workspace
+/.public-domain-work/
+/public-domain/sources/raw/*
+!/public-domain/sources/raw/.gitkeep
