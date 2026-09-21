@@ -16,6 +16,7 @@ import { alignHumanRecordingToBodyOrThrow } from "@/lib/recording/humanRecording
 import { transcribeHumanPlaybackAudio } from "@/lib/recording/humanRecordingTranscription";
 import { buildNemoTimingObjectPathFromAudioObjectPath } from "@/lib/recording/nemoTiming";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
 
 type AdminSupabase = ReturnType<typeof createAdminClient>;
 type RawRow = Record<string, unknown>;
@@ -424,7 +425,9 @@ async function findExistingRecordings(
     throw new Error(`recording_lookup_failed:${result.error.message}`);
   }
 
-  return mapRecordingRows((result.data ?? []) as RawRow[]);
+  return mapRecordingRows(
+    ((result.data ?? []) as RawRow[]).filter(isHumanRecordingRow)
+  );
 }
 
 async function deleteDuplicateRecordings(
@@ -480,6 +483,7 @@ async function writeRecording(
     reader_name: input.readerName,
     audio_storage_path: input.audioStoragePath,
     is_public: input.isPublic,
+    voice_model_id: null,
   };
 
   if (primary) {
