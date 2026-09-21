@@ -181,25 +181,31 @@ async function assertNotAlreadyImported(args: {
   manifest: PublicDomainManifest;
   artifact: PreparedArtifact;
 }): Promise<void> {
-  const result = await args.admin
-    .from("series")
-    .select("id,effect_settings")
-    .eq("author_id", args.officialUserId)
-    .limit(1000);
-  if (result.error) {
-    throw new Error(`Duplicate check failed: ${result.error.message}`);
-  }
-  const duplicate = (result.data ?? []).find((row) =>
-    isDuplicatePublicDomainSeries({
-      effectSettings: row.effect_settings,
-      manifestId: args.manifest.id,
-      sourceHash: args.artifact.sourceHash,
-    })
-  );
-  if (duplicate) {
-    throw new Error(
-      `ALREADY_IMPORTED: matching manifest id or source hash already exists as series ${duplicate.id}`
+  const pageSize = 500;
+  for (let from = 0; ; from += pageSize) {
+    const result = await args.admin
+      .from("series")
+      .select("id,effect_settings")
+      .eq("author_id", args.officialUserId)
+      .order("created_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (result.error) {
+      throw new Error(`Duplicate check failed: ${result.error.message}`);
+    }
+    const rows = result.data ?? [];
+    const duplicate = rows.find((row) =>
+      isDuplicatePublicDomainSeries({
+        effectSettings: row.effect_settings,
+        manifestId: args.manifest.id,
+        sourceHash: args.artifact.sourceHash,
+      })
     );
+    if (duplicate) {
+      throw new Error(
+        `ALREADY_IMPORTED: matching manifest id or source hash already exists as series ${duplicate.id}`
+      );
+    }
+    if (rows.length < pageSize) break;
   }
 }
 
@@ -247,6 +253,13 @@ export async function importManifest(args: {
   if (!args.target) {
     throw new Error("--execute requires --target=local, --target=preview, or --target=production");
   }
+
+  loadLocalEnvironment();
+  if (process.env.PUBLIC_DOMAIN_IMPORT_TARGET !== args.target) {
+    throw new Error(
+      `Configured environment does not match --target. Set PUBLIC_DOMAIN_IMPORT_TARGET=${args.target} in the selected environment before executing.`
+    );
+  }
   if (args.target === "production") {
     if (!args.productionConfirmed) {
       throw new Error("Production execution requires --production");
@@ -258,7 +271,6 @@ export async function importManifest(args: {
     }
   }
 
-  loadLocalEnvironment();
   const admin = createAdminClient();
   const officialUserId = await resolveOfficialUserId(admin);
   await assertNotAlreadyImported({ admin, officialUserId, manifest, artifact });
