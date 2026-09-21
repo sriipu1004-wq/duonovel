@@ -19,6 +19,7 @@ import {
   isAllowedAozoraTextUrl,
   makePendingAozoraManifest,
 } from "./public-domain/aozora";
+import { readPublicDomainMetadata } from "../src/lib/publicDomainMetadata";
 
 function component(
   status: "approved" | "not_applicable" | "needs_review" | "rejected" = "approved"
@@ -353,6 +354,54 @@ function testAozoraConservativeCandidatePolicy() {
   );
 }
 
+function testVerifiedPublicDomainDisplayMetadata() {
+  const verified = readPublicDomainMetadata({
+    version: 1,
+    publicDomain: {
+      manifestId: "fixture-ja",
+      originalTitle: "Fixture",
+      originalAuthor: "Fixture Author",
+      firstPublicationYear: 1927,
+      sourceProvider: "Fixture Provider",
+      sourceUrl: "https://example.com/work",
+      sourceHash:
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+      rightsChecked: true,
+      reviewedAt: "2026-09-22T00:00:00.000Z",
+      jurisdictionsReviewed: ["JP", "US", "KR"],
+    },
+  });
+  assert.equal(verified?.originalAuthor, "Fixture Author");
+  assert.equal(verified?.sourceUrl, "https://example.com/work");
+  assert.deepEqual(verified?.jurisdictionsReviewed, ["JP", "US", "KR"]);
+
+  assert.equal(
+    readPublicDomainMetadata({
+      publicDomain: {
+        manifestId: "fixture-ja",
+        originalAuthor: "Fixture Author",
+        sourceProvider: "Fixture Provider",
+        sourceHash:
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        rightsChecked: false,
+      },
+    }),
+    null
+  );
+  assert.equal(
+    readPublicDomainMetadata({
+      publicDomain: {
+        manifestId: "fixture-ja",
+        originalAuthor: "Fixture Author",
+        sourceProvider: "Fixture Provider",
+        sourceHash: "not-a-sha256",
+        rightsChecked: true,
+      },
+    }),
+    null
+  );
+}
+
 function testExistingOfficialAuditSnapshot() {
   const snapshot = JSON.parse(
     readFileSync(
@@ -369,6 +418,37 @@ function testExistingOfficialAuditSnapshot() {
   assert.equal(snapshot.contained_titles.includes("走れメロス"), true);
   assert.equal(snapshot.contained_titles.includes("蜘蛛の糸"), true);
   assert.equal(snapshot.known_title_aliases?.includes("虞美人草"), true);
+
+  const rightsAudit = JSON.parse(
+    readFileSync(
+      "public-domain/audits/official-rights-review-2026-09-22.json",
+      "utf8"
+    )
+  ) as {
+    summary: {
+      series_count: number;
+      GREEN: number;
+      AMBER: number;
+      RED: number;
+      UNKNOWN: number;
+      provenance_backfilled: number;
+    };
+    works: Array<{ title: string; classification: string }>;
+  };
+  assert.deepEqual(rightsAudit.summary, {
+    series_count: 37,
+    GREEN: 0,
+    AMBER: 29,
+    RED: 8,
+    UNKNOWN: 0,
+    provenance_backfilled: 0,
+  });
+  assert.equal(
+    rightsAudit.works.some(
+      (work) => work.title === "少年探偵団・江戸川乱歩" && work.classification === "RED"
+    ),
+    true
+  );
 }
 
 function testDryRunAndNoPaidGenerationSourceGuards() {
@@ -427,10 +507,11 @@ function main() {
   testPreparedArtifactAndDraftPlan();
   testKoreanSourceLanguage();
   testAozoraConservativeCandidatePolicy();
+  testVerifiedPublicDomainDisplayMetadata();
   testExistingOfficialAuditSnapshot();
   testDryRunAndNoPaidGenerationSourceGuards();
   console.log(
-    "PASS: Public Domain rights gate, Aozora conservative candidate policy, current Official audit snapshot, hash/idempotency, Draft-only batch plan, and non-paid ingestion"
+    "PASS: Public Domain rights gate, verified public metadata display gate, Aozora conservative candidate policy, Child72 Official audit, hash/idempotency, Draft-only batch plan, and non-paid ingestion"
   );
 }
 
