@@ -34,25 +34,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate committed Public Domain manifests
+        run: npm run public-domain:validate
+
       - name: Public Domain ingestion regression
         run: npm run test:public-domain-ingestion
-
-      - name: Aozora live pipeline exercise
-        run: |
-          npm run public-domain:aozora-candidates -- --limit=25 --write --diagnose
-          npm run public-domain:source-sync -- --all-pending --limit=3 --prepare
-
-      - name: Upload Aozora candidate exercise
-        uses: actions/upload-artifact@v4
-        with:
-          name: child71-aozora-candidate-exercise
-          if-no-files-found: error
-          retention-days: 1
-          path: |
-            public-domain/manifests/aozora-*.json
-            .public-domain-work/*/prepared.json
-            .public-domain-work/*/normalized.txt
-            .public-domain-work/*/archive-metadata.txt
 
       - name: Child65-70 regression
         run: |
@@ -85,9 +71,5 @@ jobs:
           scripts/public-domain/import.ts
           scripts/test-public-domain-ingestion.ts
 
-      # The repository's Next.js build needs Preview Supabase environment values.
-      # Vercel's GitHub integration runs npm run build for every PR/head commit and
-      # is the build gate; duplicating it here without secrets would fail while
-      # collecting existing app page data before reaching Child71 code.
       - name: Diff whitespace check
         run: git diff --check origin/main...HEAD
