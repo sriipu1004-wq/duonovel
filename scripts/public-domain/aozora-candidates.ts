@@ -55,13 +55,19 @@ if (!includeExisting && existsSync(existingAuditPath)) {
     await import("node:fs").then(({ readFileSync }) =>
       readFileSync(existingAuditPath, "utf8")
     )
-  ) as { series?: Array<{ title?: string }> };
+  ) as {
+    series?: Array<{ title?: string }>;
+    contained_titles?: string[];
+  };
   for (const row of audit.series ?? []) {
     const title = row.title?.trim();
     if (!title) continue;
     existingTitles.add(title);
     const base = title.includes("・") ? title.split("・")[0]!.trim() : title;
     if (base) existingTitles.add(base);
+  }
+  for (const title of audit.contained_titles ?? []) {
+    if (title.trim()) existingTitles.add(title.trim());
   }
 }
 
