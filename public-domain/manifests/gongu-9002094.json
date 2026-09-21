@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "approved",
   "rights_basis": "Human operator approved for JP/US/KR pilot distribution after primary-source review. The Korea Copyright Commission/Gongu Madang page identifies 운수 좋은 날 as a first-order work, published 1924.6, with 이용조건 '자유이용 만료'. A 1924 publication is beyond the U.S. pre-1978 95-year term by 2026. JP shorter-term and KR expiry review support use of the original Korean work. Scope is the exact official periodical-source TXT only.",
-  "rights_notes": "AI-assisted preflight only, not human approval. Official 공유마당 page labels this item 만료 저작물 / 자유이용 만료, identifies 현진건, publication 1924.6, first-order work, and provides periodical-source TXT/HWP/PDF filenames. The exact TXT endpoint was recovered from the official Gongu Madang download popup; exact bytes/hash are still pending; do not approve until exact TXT is acquired and hashed. JP/US/KR international-distribution analysis and provider terms must be human-reviewed before approval.",
+  "rights_notes": "Human rights approval recorded at 2026-09-22T08:01:00+10:00 by LIB read operator (explicit user approval in Child72 chat). Official 공유마당 page labels this item 만료 저작물 / 자유이용 만료, identifies 현진건, publication 1924.6, first-order work, and provides periodical-source TXT/HWP/PDF filenames. The exact TXT endpoint was recovered from the official Gongu Madang download popup;",
   "rights_components": {
     "original_work": {
       "status": "approved",
@@ -40,12 +40,12 @@
     "editorial": {
       "status": "approved",
       "basis": "Exact TXT was inspected; no Gongu/KCC provider footer or separate modern editorial prose was found in Reader text.",
-      "notes": "Exact TXT must be inspected for modern editorial additions before approval."
+      "notes": ""
     },
     "annotations": {
       "status": "approved",
       "basis": "No separate modern annotations are imported.",
-      "notes": "Exact TXT must be inspected for provider/editorial annotations before approval."
+      "notes": ""
     },
     "illustrations": {
       "status": "not_applicable",
@@ -60,7 +60,7 @@
     "digitization": {
       "status": "approved",
       "basis": "Exact KCC/Gongu Madang TXT bytes were fetched from the allowlisted per-item endpoint and pinned by SHA-256.",
-      "notes": "Exact original TXT bytes and SHA-256 are still required."
+      "notes": ""
     },
     "provider_terms": {
       "status": "approved",
