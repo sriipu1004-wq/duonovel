@@ -611,6 +611,9 @@ export async function generateMetadata({
       summary || seriesTitle + "の作品ページ。",
       genreLabel ? "ジャンル: " + genreLabel + "。" : "",
       "作者: " + authorLabel + "。",
+      pickText(series.source_language)
+        ? "原文言語: " + pickText(series.source_language) + "。"
+        : "",
     ]
       .filter(Boolean)
       .join(" ")
