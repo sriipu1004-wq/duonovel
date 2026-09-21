@@ -107,6 +107,8 @@ type PreparedAudioSource =
 
 type RecordingVisibility = "public" | "private";
 
+const LARGE_HUMAN_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024;
+
 type PreviewHistoryItem = {
   id: string;
   source: PreparedAudioSource;
@@ -482,13 +484,19 @@ export function RecordingStudioPage({
 
   const canPublish = useMemo(() => {
     return (
+      !!safeFixedReaderName &&
       !!selectedEpisode &&
       !!currentPreviewItem?.file &&
       currentPreviewItem.clientResult?.decision === "passed" &&
       currentPreviewItem.serverResult?.decision === "passed" &&
       publishStatus !== "publishing"
     );
-  }, [currentPreviewItem, publishStatus, selectedEpisode]);
+  }, [
+    currentPreviewItem,
+    publishStatus,
+    safeFixedReaderName,
+    selectedEpisode,
+  ]);
 
   const publishedReadHref = useMemo(() => {
     if (!selectedEpisode) return "";
@@ -647,10 +655,23 @@ export function RecordingStudioPage({
       statusMessage = clientResult.message;
 
       if (clientResult.decision === "passed") {
-        serverDecision = "checking";
-        serverResult = await runServerPrecheck(file);
-        serverDecision = serverResult.decision;
-        statusMessage = serverResult.message;
+        if (file.size >= LARGE_HUMAN_UPLOAD_THRESHOLD_BYTES) {
+          serverResult = {
+            ...clientResult,
+            decision: "passed",
+            issueCode: null,
+            message:
+              "大容量音源のserver最終検査は、private storageへの分割アップロード後に実行する。",
+            retryHints: [],
+          };
+          serverDecision = "passed";
+          statusMessage = serverResult.message;
+        } else {
+          serverDecision = "checking";
+          serverResult = await runServerPrecheck(file);
+          serverDecision = serverResult.decision;
+          statusMessage = serverResult.message;
+        }
       }
     } catch (error) {
       console.error("audio file prepare failed", error);
@@ -898,47 +919,68 @@ export function RecordingStudioPage({
     setPublishResult(null);
     setPublishMessage("audio 保存 → recordings 接続 → 既存 row 上書き確認を実行中。");
 
+    try {
+      const file = currentPreviewItem.file;
       const uploadSession = await createHumanUploadSession({
         seriesId,
         episodeId: selectedEpisode.id,
-        file: currentPreviewItem.file,
+        file,
       });
 
+      let response: Response;
+
       if (uploadSession.uploadMode === "multipart") {
+        if (!uploadSession.uploadSessionId || !uploadSession.parts?.length) {
+          throw new Error("multipart upload session 情報が足りない。");
+        }
+
         setPublishMessage(
-          "大きい音源なので、storage へ内部分割アップロード中。"
+          "大きい音源なので、private storageへ分割アップロード中。"
         );
 
         await uploadHumanFileMultipartDirect({
           bucketName: uploadSession.bucketName || "human-recording-audio",
-          file: currentPreviewItem.file,
-          parts: uploadSession.parts || [],
+          file,
+          parts: uploadSession.parts,
         });
 
-        setPublishStatus("error");
-        setPublishResult(null);
         setPublishMessage(
-          "multipart upload 基盤までは入った。次段の finalize 実装がまだなので、この音源の publish 完了までは今の返答では進めていない。ここで止める。"
+          "分割音源をserver側で再構成し、最終検査・本文照合・publishを実行中。"
         );
-        return;
+
+        response = await fetch("/api/recordings/human-upload-finalize", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            seriesId,
+            episodeId: selectedEpisode.id,
+            episodeNumber: selectedEpisode.episodeNumber,
+            isPublic: recordingVisibility === "public",
+            fileName: file.name,
+            mimeType: file.type,
+            totalSizeBytes: file.size,
+            uploadSessionId: uploadSession.uploadSessionId,
+          }),
+        });
+      } else {
+        const formData = new FormData();
+        formData.append("seriesId", seriesId);
+        formData.append("episodeId", selectedEpisode.id);
+        formData.append("episodeNumber", String(selectedEpisode.episodeNumber));
+        formData.append("recordingTitle", recordingTitle);
+        formData.append(
+          "isPublic",
+          recordingVisibility === "public" ? "true" : "false"
+        );
+        formData.append("audio", file);
+
+        response = await fetch("/api/recordings/human-publish", {
+          method: "POST",
+          body: formData,
+        });
       }
-
-    try {
-      const formData = new FormData();
-      formData.append("seriesId", seriesId);
-      formData.append("episodeId", selectedEpisode.id);
-      formData.append("episodeNumber", String(selectedEpisode.episodeNumber));
-      formData.append("recordingTitle", recordingTitle);
-      formData.append(
-        "isPublic",
-        recordingVisibility === "public" ? "true" : "false"
-      );
-      formData.append("audio", currentPreviewItem.file);
-
-      const response = await fetch("/api/recordings/human-publish", {
-        method: "POST",
-        body: formData,
-      });
 
       const payload = (await response.json().catch(() => null)) as
         | HumanPublishResponse
@@ -949,19 +991,18 @@ export function RecordingStudioPage({
         setPublishResult(payload);
         setPublishMessage(
           payload?.detail
-            ? `${payload?.error || "publish に失敗した。"}\n${payload.detail}`
+            ? `${payload.error || "publish に失敗した。"}\n${payload.detail}`
             : payload?.error || "publish に失敗した。"
         );
         return;
       }
 
-      const nextReaderName =
-        payload.readerName?.trim() || safeFixedReaderName;
+      const nextReaderName = payload.readerName?.trim() || safeFixedReaderName;
 
       setPublishStatus("success");
       setPublishResult(payload);
       setPublishMessage(
-        "保存完了。recordings に接続されたので、読む画面と作品導線から確認できる。"
+        "保存完了。Human narrationとしてrecordingsへ接続した。"
       );
 
       setExistingRecordingMap((current) => ({
@@ -978,7 +1019,11 @@ export function RecordingStudioPage({
       console.error("human publish failed", error);
       setPublishStatus("error");
       setPublishResult(null);
-      setPublishMessage("通信中に想定外エラーが出た。");
+      setPublishMessage(
+        error instanceof Error
+          ? error.message
+          : "通信中に想定外エラーが出た。"
+      );
     }
   }
 
