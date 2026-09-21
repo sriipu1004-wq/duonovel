@@ -718,15 +718,6 @@ export default function PrivateLibraryBilingualPlayback({
     });
   }
 
-  function handleDisableTranslated() {
-    const positionId =
-      readingSegmentIdRef.current ?? selectedSegmentId ?? segments[0]?.id ?? null;
-    const segmentIndex = positionId
-      ? Math.max(0, segments.findIndex((segment) => segment.id === positionId))
-      : 0;
-    onDisableTranslated(segmentIndex);
-  }
-
   const sourceLanguageLabel = getSupportedLanguage(sourceLanguage).nativeLabel;
   const targetLanguageLabel = getSupportedLanguage(targetLanguage).nativeLabel;
 
