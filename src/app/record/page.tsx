@@ -17,12 +17,28 @@ import {
   type SeriesPopularityMetrics,
 } from "@/lib/popularity";
 import {
+  getEpisodeNumber,
   getSeriesGenres,
   getSeriesPublicationStatus,
+  isEpisodePubliclyVisible,
   pickText,
+  type EpisodeRow,
   type SeriesRow,
 } from "@/features/write/writeShared";
 import { RecordingLegalFooter } from "@/components/recording/RecordingLegalFooter";
+import {
+  getCachedPublicBaseWorkCards,
+  type PublicBaseWorkCard,
+} from "@/lib/publicWorks";
+import {
+  isHumanRecordingRow,
+  isPublishedHumanRecording,
+} from "@/lib/recording/humanRecordingState";
+import {
+  parsePublicSearchSourceLanguages,
+  PUBLIC_SEARCH_SOURCE_LANGUAGES,
+} from "@/lib/search/publicWorkLanguageFilter";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import {
   buildRecordingConsentPath,
   RECORDING_GLOBAL_CONSENT_KEY,
@@ -43,6 +59,7 @@ type PageProps = {
     end?: string;
     showTags?: string;
     showGenres?: string;
+    source_language?: string;
   }>;
 };
 
@@ -77,12 +94,30 @@ type RecordingRow = Record<string, unknown> & {
   reader_id?: string | null;
   reader_user_id?: string | null;
   readerUserId?: string | null;
+  reader_name?: string | null;
+  episode_id?: string | null;
+  audio_storage_path?: string | null;
+  voice_model_id?: string | null;
+  is_public?: boolean | null;
+};
+
+type HumanNarrationSummary = {
+  recordingIds: string[];
+  narratorNames: string[];
+  episodeNumbers: number[];
+  playCount: number;
 };
 
 type CatalogItem = {
   series: SeriesRow;
   title: string;
   summary: string;
+  authorName: string;
+  sourceLanguage: SupportedLanguageTag | null;
+  humanNarrationCount: number;
+  humanNarratorNames: string[];
+  humanNarratedEpisodeNumbers: number[];
+  humanNarrationPlayCount: number;
   permissionMode: RecordingPermissionMode;
   latestRequest: RecordingRequestRow | null;
   latestStatus: RequestStatus | null;
