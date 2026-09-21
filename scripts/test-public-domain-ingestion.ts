@@ -20,6 +20,7 @@ import {
   makePendingAozoraManifest,
 } from "./public-domain/aozora";
 import { isAllowedGutenbergTextUrl } from "./public-domain/gutenberg";
+import { gonguWorkNumberFromLandingUrl, isAllowedGonguTextUrl } from "./public-domain/gongu";
 import { readPublicDomainMetadata } from "../src/lib/publicDomainMetadata";
 
 function component(
@@ -398,6 +399,31 @@ function testAozoraConservativeCandidatePolicy() {
   );
 }
 
+  const gonguLanding =
+    "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9002094";
+  assert.equal(gonguWorkNumberFromLandingUrl(gonguLanding), "9002094");
+  assert.equal(
+    isAllowedGonguTextUrl(
+      "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=4",
+      "9002094"
+    ),
+    true
+  );
+  assert.equal(
+    isAllowedGonguTextUrl(
+      "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=3",
+      "9002094"
+    ),
+    false
+  );
+  assert.equal(
+    isAllowedGonguTextUrl(
+      "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002100&fileSn=4",
+      "9002094"
+    ),
+    false
+  );
+
 function testVerifiedPublicDomainDisplayMetadata() {
   const verified = readPublicDomainMetadata({
     version: 1,
@@ -522,6 +548,7 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
   assert.equal(batch.includes("--author-id"), true);
   assert.equal(sourceSync.includes("isAllowedAozoraTextUrl"), true);
   assert.equal(sourceSync.includes("isAllowedGutenbergTextUrl"), true);
+  assert.equal(sourceSync.includes("isAllowedGonguTextUrl"), true);
   assert.equal(sourceSync.includes('redirect: "error"'), true);
 
   const combined = `${runtime}\n${importer}\n${core}\n${batch}\n${sourceSync}`;
