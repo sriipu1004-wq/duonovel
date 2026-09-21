@@ -173,8 +173,9 @@ A read-only Production audit found:
 - 37 LIB read Official series;
 - 437 episodes, all currently published;
 - all 37 series currently public;
-- 36/37 series have no `source_language`;
-- 37/37 series have no `effect_settings.publicDomain` manifest/source-hash metadata.
+- the initial audit found 36/37 series with no `source_language`;
+- Child71 backfilled those 36 rows to `ja`; postcheck is now 37/37 `source_language=ja`;
+- 37/37 series still have no `effect_settings.publicDomain` manifest/source-hash metadata because provenance was not fabricated.
 
 The Git snapshot is `public-domain/audits/official-production-2026-09-22.json`.
 The current Official shelf consists of:
@@ -193,13 +194,13 @@ Existing database rows do **not** preserve sufficient source URL, exact edition,
 
 This is a triage rule, not a final infringement conclusion.
 
-- Natsume and Akutagawa works are generally strong pre-1931 U.S. public-domain candidates because the listed works were published before 1931.
-- Dazai works in the current shelf are post-1930 publications and require U.S.-specific review before treating them as globally reusable.
-- Miyazawa is mixed: `春と修羅` is a pre-1931 candidate, while major posthumous works such as `銀河鉄道の夜`, `グスコーブドリの伝記`, and `風の又三郎` require U.S.-specific review.
-- Edogawa is mixed: `孤島の鬼` begins in the 1929–1930 period and is a pre-1931 candidate subject to exact publication review; `少年探偵団` was first published later and requires U.S.-specific review.
+- Natsume and Akutagawa works are generally strong pre-1931 U.S.-term candidates, but their exact source editions still require provenance review.
+- **All current Dazai works are an urgent U.S.-specific review group.** Dazai died in 1948, so his works were still protected in Japan on January 1, 1996. Current LIB read Dazai titles are post-1930 publications. If a work satisfies the U.S. URAA restoration conditions, its restored term generally receives the remainder of the term it otherwise would have had, commonly 95 years from first publication for these pre-1978 works.
+- Miyazawa died in 1933, so ordinary Japanese author-term protection had expired before the 1996 U.S. restoration date. That lowers URAA-restoration risk, but posthumous textual/editorial history and exact editions still require review.
+- Edogawa is mixed: `孤島の鬼` began in 1929–1930, while `少年探偵団` first appeared in 1937 and `赤いカブトムシ` in 1958–1959. The latter two require U.S.-specific URAA/restored-term review.
 - The short collections must be reviewed per contained work, not as one aggregate title.
 
-No existing Production work is modified by Child71 on the basis of these observations.
+Child71 made one Production metadata correction only: 36 existing Official series with null source language were set to `ja`. No rights metadata, publication status, episode publication state, or content was modified.
 
 ## 12. Jurisdiction baseline used for conservative bulk candidate selection
 
@@ -253,7 +254,9 @@ The generator uses the official catalog ZIP and only selects **pending** candida
 6. source card and ZIP URLs are on the expected Aozora host/path;
 7. obvious duplicates already present as an Official series or inside an Official short collection are excluded, including tracked legacy title aliases;
 8. duplicate Aozora editions with the same normalized title + author are collapsed to one candidate, preferring modernized orthography where available;
-9. candidate source has at least the configured minimum character count when the catalog provides that field.
+9. candidate source has at least the configured minimum character count when the catalog provides that field;
+10. already-created manifest IDs are skipped on subsequent runs;
+11. selection defaults to at most five works per author (`--per-author-limit`) so a batch cannot collapse into one author.
 
 Passing those filters produces `rights_status=pending` and `approved=false`. The generator has no code path that converts a candidate into an approved manifest.
 
@@ -261,7 +264,7 @@ The 1955 death cutoff is deliberately stricter than is necessary for many Japane
 
 ## 14. Allowlisted source sync and mass Draft import
 
-Aozora candidate manifests retain an internal `source_download_url`. Source acquisition can be performed with:
+Aozora candidate manifests retain a schema-validated `source_download_url`. Source acquisition can be performed with:
 
 ```bash
 npm run public-domain:source-sync -- aozora-<id> --prepare
@@ -332,3 +335,25 @@ Child71 is complete when the following are true:
 - CI protects the rights/Draft/non-paid gates.
 
 Actual new Production content should only be inserted once individual manifests have passed the human review gate. A large batch of **unreviewed** works is intentionally impossible.
+
+## 16. Live bulk-pipeline exercise completed 2026-09-22
+
+Child71 exercised the real Aozora catalog and source path without any database write:
+
+- official expanded catalog rows parsed: 19,502;
+- conservative pending candidates generated in one run: 25;
+- source ZIP fetch + SHA-256 + normalization + prepare completed for three candidates;
+- no candidate was auto-approved;
+- no translation, glossary, credit, allowance, publish, or database write occurred.
+
+The three source-verified pending manifests retained in Git are:
+
+- `aozora-000010` — 秋は淋しい / 素木しづ / first publication 1918;
+- `aozora-000013` — 十本の針 / 芥川竜之介 / first publication 1927;
+- `aozora-000018` — 闇中問答 / 芥川竜之介 / first publication 1927.
+
+Each has a fetched source hash and reviewed chapter count from the exercise, but remains `rights_status=pending` and `approved=false`. Production batch insertion remains blocked until a human operator performs the final rights review.
+
+## 17. Existing translation state
+
+The Production audit found only eight ready cached episode translations across the 37 Official classics (EN 3, FR 4, KO 1), zero series translation profiles, and one series with glossary entries. Bulk ingestion therefore does not assume pre-generated translation assets. New approved classics enter as original-language Drafts and use the existing Reader translation/glossary paths later.
