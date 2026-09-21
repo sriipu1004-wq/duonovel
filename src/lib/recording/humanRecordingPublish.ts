@@ -309,7 +309,10 @@ function buildReaderUserInsertAttempts(
   userId: string,
   readerName: string
 ): RawRow[] {
-  const safeReaderName = readerName.trim() || "ユーザー朗読";
+  const safeReaderName = readerName.trim();
+  if (!safeReaderName) {
+    throw new Error("reader_name_required");
+  }
   const fallbackUsername = `reader-${userId.replace(/-/g, "").slice(0, 12)}`;
 
   return [
