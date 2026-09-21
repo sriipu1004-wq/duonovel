@@ -13,6 +13,11 @@ import {
   type PreparedArtifact,
   type PublicDomainManifest,
 } from "./public-domain/core";
+import {
+  classifyAozoraWork,
+  isAllowedAozoraTextUrl,
+  makePendingAozoraManifest,
+} from "./public-domain/aozora";
 
 function component(
   status: "approved" | "not_applicable" | "needs_review" | "rejected" = "approved"
@@ -290,10 +295,81 @@ function testKoreanSourceLanguage() {
   assert.equal(plan.series.source_language, "ko");
 }
 
+function testAozoraConservativeCandidatePolicy() {
+  const baseRow = {
+    "作品ID": "12345",
+    "作品名": "Fixture Classic",
+    "作品著作権フラグ": "なし",
+    "図書カードURL": "https://www.aozora.gr.jp/cards/000001/card12345.html",
+    "姓名": "Fixture Author",
+    "没年月日": "1920-01-01",
+    "人物著作権フラグ": "なし",
+    "役割フラグ": "著者",
+    "初出": "1925（大正14）年",
+    "テキストファイルURL":
+      "https://www.aozora.gr.jp/cards/000001/files/12345_ruby_1.zip",
+    "テキストファイル符号化方式": "ShiftJIS",
+    "底本名1": "Fixture Edition",
+    "底本初版発行年1": "1925（大正14）年",
+  };
+  const eligible = classifyAozoraWork([baseRow]);
+  assert.equal(eligible.eligible, true);
+  assert.equal(eligible.authorDeathYear, 1920);
+  assert.equal(eligible.firstPublicationYear, 1925);
+
+  const pending = makePendingAozoraManifest(eligible);
+  assert.equal(pending.rights_status, "pending");
+  assert.equal(pending.approved, false);
+  assert.equal(pending.import_status, "not_imported");
+
+  assert.equal(
+    classifyAozoraWork([{ ...baseRow, "没年月日": "1960-01-01" }]).eligible,
+    false
+  );
+  assert.equal(
+    classifyAozoraWork([{ ...baseRow, "初出": "1931（昭和6）年" }]).eligible,
+    false
+  );
+  assert.equal(
+    classifyAozoraWork([{ ...baseRow, "役割フラグ": "翻訳者" }]).eligible,
+    false
+  );
+  assert.equal(
+    isAllowedAozoraTextUrl(
+      "https://www.aozora.gr.jp/cards/000001/files/12345_ruby_1.zip"
+    ),
+    true
+  );
+  assert.equal(
+    isAllowedAozoraTextUrl(
+      "https://evil.example/cards/000001/files/12345_ruby_1.zip"
+    ),
+    false
+  );
+}
+
+function testExistingOfficialAuditSnapshot() {
+  const snapshot = JSON.parse(
+    readFileSync(
+      "public-domain/audits/official-production-2026-09-22.json",
+      "utf8"
+    )
+  ) as {
+    summary: { series_count: number; episode_count: number };
+    contained_titles: string[];
+  };
+  assert.equal(snapshot.summary.series_count, 37);
+  assert.equal(snapshot.summary.episode_count, 437);
+  assert.equal(snapshot.contained_titles.includes("走れメロス"), true);
+  assert.equal(snapshot.contained_titles.includes("蜘蛛の糸"), true);
+}
+
 function testDryRunAndNoPaidGenerationSourceGuards() {
   const runtime = readFileSync("scripts/public-domain/runtime.ts", "utf8");
   const importer = readFileSync("scripts/public-domain/import.ts", "utf8");
   const core = readFileSync("scripts/public-domain/core.ts", "utf8");
+  const batch = readFileSync("scripts/public-domain/batch.ts", "utf8");
+  const sourceSync = readFileSync("scripts/public-domain/source-sync.ts", "utf8");
 
   const dryRunReturn = runtime.indexOf("if (!args.execute)");
   const adminCreation = runtime.lastIndexOf("const admin = createAdminClient()");
@@ -309,8 +385,12 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
   assert.equal(runtime.includes(".insert(plan.series)"), true);
   assert.equal(runtime.includes('.from("episodes")'), true);
   assert.equal(runtime.includes(".insert(episodeRows)"), true);
+  assert.equal(batch.includes("--all-approved"), true);
+  assert.equal(batch.includes("--author-id"), true);
+  assert.equal(sourceSync.includes("isAllowedAozoraTextUrl"), true);
+  assert.equal(sourceSync.includes('redirect: "error"'), true);
 
-  const combined = `${runtime}\n${importer}\n${core}`;
+  const combined = `${runtime}\n${importer}\n${core}\n${batch}\n${sourceSync}`;
   for (const forbidden of [
     "episode_translations",
     "generated-story-translations",
@@ -337,9 +417,11 @@ function main() {
   testAozoraAndGutenbergNormalization();
   testPreparedArtifactAndDraftPlan();
   testKoreanSourceLanguage();
+  testAozoraConservativeCandidatePolicy();
+  testExistingOfficialAuditSnapshot();
   testDryRunAndNoPaidGenerationSourceGuards();
   console.log(
-    "PASS: Public Domain rights gate, hash/idempotency, normalization, chapter split, Draft-only plan, Official identity guard, and non-paid ingestion"
+    "PASS: Public Domain rights gate, Aozora conservative candidate policy, current Official audit snapshot, hash/idempotency, Draft-only batch plan, and non-paid ingestion"
   );
 }
 
