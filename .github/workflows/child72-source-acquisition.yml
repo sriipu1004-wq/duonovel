@@ -28,7 +28,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
 
       - name: Install dependencies
@@ -101,7 +101,12 @@ jobs:
           NODE
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add             public-domain/manifests/gutenberg-000011.json             public-domain/manifests/gutenberg-001952.json             public-domain/manifests/gongu-9002094.json             public-domain/manifests/gongu-9002100.json             public-domain/manifests/gongu-9002092.json             public-domain/sources/raw/gutenberg-000011.txt             public-domain/sources/raw/gutenberg-001952.txt             public-domain/sources/raw/gongu-9002094.txt             public-domain/sources/raw/gongu-9002100.txt             public-domain/sources/raw/gongu-9002092.txt
+          git add \
+            public-domain/manifests/gutenberg-000011.json \
+            public-domain/manifests/gutenberg-001952.json \
+            public-domain/manifests/gongu-9002094.json \
+            public-domain/manifests/gongu-9002100.json \
+            public-domain/manifests/gongu-9002092.json
           if ! git diff --cached --quiet; then
             git commit -m "Child72: pin exact EN KO source provenance"
             git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
