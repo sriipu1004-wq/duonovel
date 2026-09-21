@@ -78,6 +78,7 @@ export type PublicDomainManifest = {
 
   source_provider: string;
   source_url: string;
+  source_download_url: string | null;
   source_file: string;
   source_retrieved_at: string | null;
   source_encoding: SourceEncoding;
@@ -313,6 +314,12 @@ export function validateManifest(value: unknown): ManifestValidationResult {
   const sourceProvider = readString(value, "source_provider", errors) ?? "";
   const sourceUrl = readString(value, "source_url", errors) ?? "";
   if (sourceUrl && !isHttpUrl(sourceUrl)) errors.push("source_url must be an HTTP(S) URL");
+  const sourceDownloadUrl = readString(value, "source_download_url", errors, {
+    nullable: true,
+  });
+  if (sourceDownloadUrl && !isHttpUrl(sourceDownloadUrl)) {
+    errors.push("source_download_url must be an HTTP(S) URL or null");
+  }
   const sourceFile = readString(value, "source_file", errors) ?? "";
   if (sourceFile && !isSafeRepoRelativePath(sourceFile)) {
     errors.push("source_file must be a safe repository-relative path");
@@ -532,6 +539,7 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     first_publication_year: firstPublicationYear,
     source_provider: sourceProvider,
     source_url: sourceUrl,
+    source_download_url: sourceDownloadUrl,
     source_file: sourceFile,
     source_retrieved_at: sourceRetrievedAt,
     source_encoding: SOURCE_ENCODINGS.includes(sourceEncoding as SourceEncoding)
