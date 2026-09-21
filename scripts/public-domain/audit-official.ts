@@ -7,6 +7,7 @@ import {
 } from "../../src/lib/auth/officialAccount";
 import { loadLocalEnvironment } from "./runtime";
 
+async function main() {
 const args = process.argv.slice(2);
 const writeSnapshot = args.includes("--write-snapshot");
 loadLocalEnvironment();
@@ -145,3 +146,10 @@ if (writeSnapshot) {
 }
 
 console.error("READ-ONLY AUDIT COMPLETE: no database rows were modified.");
+
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});
