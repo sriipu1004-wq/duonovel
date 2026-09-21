@@ -1,13 +1,21 @@
 {
-  "audited_at": "2026-09-22T00:00:00+10:00",
+  "audited_at": "2026-09-22",
   "source": "Production Supabase read-only audit",
   "official_account": "LIB read Official",
   "summary": {
     "series_count": 37,
     "episode_count": 437,
     "published_episode_count": 437,
-    "source_language_missing_count": 36,
-    "public_domain_manifest_metadata_missing_count": 37
+    "source_language_missing_count": 0,
+    "public_domain_manifest_metadata_missing_count": 37,
+    "source_language_ja_count": 37,
+    "ready_episode_translation_rows": {
+      "en": 3,
+      "fr": 4,
+      "ko": 1
+    },
+    "series_with_translation_profiles": 0,
+    "series_with_glossary_entries": 1
   },
   "legal_review_note": "This inventory is not a rights approval. Existing rows do not contain source provenance or rights manifests, so exact source edition and U.S./KR distribution status require per-work backfill review.",
   "series": [
@@ -281,5 +289,114 @@
   ],
   "known_title_aliases": [
     "虞美人草"
-  ]
+  ],
+  "production_remediation": {
+    "performed_on": "2026-09-22",
+    "action": "Backfilled series.source_language='ja' where null for LIB read Official only.",
+    "updated_series_count": 36,
+    "postcheck": {
+      "official_series_count": 37,
+      "ja_series_count": 37,
+      "source_language_null_count": 0,
+      "public_series_count": 37,
+      "episode_count": 437,
+      "published_episode_count": 437
+    },
+    "rights_metadata_modified": false,
+    "publication_state_modified": false
+  },
+  "legal_triage": {
+    "status": "Operational triage only; not a final legal conclusion.",
+    "reviewed_jurisdiction_focus": [
+      "JP",
+      "US",
+      "KR"
+    ],
+    "urgent_us_specific_review": [
+      {
+        "scope": "All current 太宰治 Official works",
+        "reason": "Dazai died in 1948, so the source-country term was still running on the 1996 U.S. URAA restoration date. Current LIB read Dazai works are post-1930 publications. If a work meets 17 U.S.C. 104A restoration conditions, a pre-1978 restored work generally receives the remainder of the U.S. term it otherwise would have had, commonly 95 years from first publication.",
+        "confirmed_examples": [
+          {
+            "title": "ア、秋",
+            "first_publication_year": 1939
+          },
+          {
+            "title": "女生徒",
+            "first_publication_year": 1939
+          },
+          {
+            "title": "富嶽百景",
+            "first_publication_year": 1939
+          },
+          {
+            "title": "駈込み訴え",
+            "first_publication_year": 1940
+          },
+          {
+            "title": "走れメロス",
+            "first_publication_year": 1940
+          },
+          {
+            "title": "右大臣実朝",
+            "first_publication_year": 1943
+          },
+          {
+            "title": "津軽",
+            "first_publication_year": 1944
+          },
+          {
+            "title": "ヴィヨンの妻",
+            "first_publication_year": 1947
+          },
+          {
+            "title": "斜陽",
+            "first_publication_year": 1947
+          },
+          {
+            "title": "人間失格",
+            "first_publication_year": 1948
+          },
+          {
+            "title": "グッド・バイ",
+            "first_publication_year": 1948
+          }
+        ],
+        "action": "Do not attach an approved worldwide/Public-Domain manifest until U.S. restoration/publication facts are reviewed."
+      },
+      {
+        "scope": "江戸川乱歩: 少年探偵団",
+        "confirmed_first_publication_year": 1937,
+        "reason": "Edogawa died in 1965 and the work was first published after 1930, so U.S. URAA/restored-term analysis is required.",
+        "action": "U.S.-specific review required."
+      },
+      {
+        "scope": "江戸川乱歩・短編: 赤いカブトムシ",
+        "confirmed_first_publication_year_range": "1958-1959",
+        "reason": "Edogawa died in 1965 and this is a late publication, so U.S. URAA/restored-term analysis is required.",
+        "action": "U.S.-specific review required."
+      }
+    ],
+    "lower_urAA_term_risk_but_still_requires_source_backfill": [
+      {
+        "scope": "夏目漱石 and 芥川龍之介 current shelf",
+        "reason": "The current listed works are pre-1931, putting them outside the general 95-year U.S. publication term by 2026; exact source edition, annotations and provenance still require review."
+      },
+      {
+        "scope": "江戸川乱歩: 孤島の鬼 and pre-1931 short works",
+        "reason": "孤島の鬼 began publication in 1929-1930 and the classic short works other than 赤いカブトムシ are pre-1931 candidates; exact publication/source review is still required."
+      },
+      {
+        "scope": "宮沢賢治 current shelf",
+        "reason": "Miyazawa died in 1933, so ordinary Japanese author-term protection had expired before the 1996 U.S. restoration date. This lowers URAA restoration risk, but posthumous text/editorial history and exact source editions remain unresolved."
+      }
+    ],
+    "primary_legal_sources": [
+      "https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html",
+      "https://www.copyright.gov/title17/92chap1.html",
+      "https://www.copyright.gov/circs/circ38b.pdf",
+      "https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1033063625",
+      "https://www.aozora.gr.jp/guide/kijyunn.html"
+    ]
+  }
 }
