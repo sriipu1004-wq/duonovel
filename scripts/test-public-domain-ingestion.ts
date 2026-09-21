@@ -381,6 +381,8 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
   assert.equal(importer.includes("--author-id"), true);
   assert.equal(runtime.includes("isOfficialAccountEmail"), true);
   assert.equal(runtime.includes("OFFICIAL_ACCOUNT_EMAIL"), true);
+  assert.equal(runtime.includes("PUBLIC_DOMAIN_IMPORT_TARGET"), true);
+  assert.equal(runtime.includes(".range(from, from + pageSize - 1)"), true);
   assert.equal(runtime.includes('.from("series")'), true);
   assert.equal(runtime.includes(".insert(plan.series)"), true);
   assert.equal(runtime.includes('.from("episodes")'), true);
