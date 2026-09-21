@@ -41,6 +41,7 @@ export type PublicReadPagePayload = {
   r18Blocked: boolean;
   viewerSignedIn: boolean;
   viewerUserId: string | null;
+  viewerEmail: string | null;
 };
 
 function pickText(...values: unknown[]): string {
@@ -122,5 +123,6 @@ export async function getCachedPublicReadPagePayload(
     r18Blocked,
     viewerSignedIn,
     viewerUserId: authData.user?.id ?? null,
+    viewerEmail: authData.user?.email ?? null,
   };
 }
