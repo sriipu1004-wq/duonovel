@@ -22,7 +22,8 @@ const REQUIRED_HEADERS = [
   "作品名",
   "作品著作権フラグ",
   "図書カードURL",
-  "姓名",
+  "姓",
+  "名",
   "没年月日",
   "人物著作権フラグ",
   "役割フラグ",
@@ -153,7 +154,9 @@ export function classifyAozoraWork(
   const authorRows = sourceRows.filter(
     (row) => row["役割フラグ"]?.trim() === "著者"
   );
-  const author = authorRows[0]?.["姓名"]?.trim() ?? "";
+  const author = authorRows[0]
+    ? `${authorRows[0]["姓"]?.trim() ?? ""}${authorRows[0]["名"]?.trim() ?? ""}`
+    : "";
   const deathYears = authorRows
     .map((row) => deathYearFromDate(row["没年月日"] ?? ""))
     .filter((value): value is number => value !== null);
