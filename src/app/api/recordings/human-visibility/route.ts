@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
+import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
 
 export const runtime = "nodejs";
 
@@ -152,6 +153,16 @@ export async function POST(request: Request) {
   }
 
   const row = recordingRow as RawRow;
+  if (!isHumanRecordingRow(row)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "対象はHuman narrationではない。",
+      },
+      { status: 404 }
+    );
+  }
+
   const rowSeriesId = pickText(row, ["series_id", "seriesId"]);
   const rowEpisodeId = pickText(row, ["episode_id", "episodeId"]);
   const readerId = pickText(row, ["reader_id", "reader_user_id", "readerUserId"]);
