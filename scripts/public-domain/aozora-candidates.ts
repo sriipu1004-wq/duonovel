@@ -117,6 +117,14 @@ const candidates = Array.from(uniqueByWork.values())
 
 console.log(`Aozora catalog rows: ${rows.length}`);
 console.log(`Eligible conservative candidates selected: ${candidates.length}`);
+if (candidates.length === 0 || args.includes("--diagnose")) {
+  console.log("Top rejection reasons:");
+  for (const [reason, count] of Array.from(rejectionCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)) {
+    console.log(`  ${count}: ${reason}`);
+  }
+}
 console.log(
   "Criteria: copyright flags=なし, author-only contributors, death<=1955, first publication<=1930, allowlisted Aozora ZIP"
 );
