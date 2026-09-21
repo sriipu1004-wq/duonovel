@@ -489,14 +489,7 @@ const scheduledBeforePreviousIsBlocked =
     const target = document.getElementById(targetId);
     if (!target) return;
     target.scrollIntoView({ behavior: "smooth", block: "center" });
-    if (
-      target instanceof HTMLInputElement ||
-      target instanceof HTMLSelectElement ||
-      target instanceof HTMLTextAreaElement ||
-      target instanceof HTMLButtonElement
-    ) {
-      target.focus({ preventScroll: true });
-    }
+    target.focus({ preventScroll: true });
   }
 
   async function ensureAiGeneratedSeriesPublicSurface(
@@ -886,7 +879,16 @@ const scheduledBeforePreviousIsBlocked =
                 </div>
               </div>
 
-              <div id="episode-posting-status" className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div
+                id="episode-posting-status"
+                tabIndex={-1}
+                aria-describedby={
+                  validationErrors.postingStatus
+                    ? "episode-posting-status-error"
+                    : undefined
+                }
+                className="mt-4 grid gap-3 sm:grid-cols-3"
+              >
                 {(["posted", "scheduled", "draft"] as EpisodePostingStatus[]).map(
                   (status) => {
                     const active = postingStatus === status;
@@ -1047,7 +1049,9 @@ const scheduledBeforePreviousIsBlocked =
                   className="min-h-11 w-full rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {isSaving
-                    ? "保存中..."
+                    ? mode === "create"
+                      ? "作成中..."
+                      : "保存中..."
                     : mode === "create"
                       ? "作成して保存"
                       : "保存して続ける"}
