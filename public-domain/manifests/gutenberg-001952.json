@@ -1,0 +1,89 @@
+{
+  "id": "gutenberg-001952",
+  "title": "The Yellow Wallpaper",
+  "original_title": "The Yellow Wallpaper",
+  "original_author": "Charlotte Perkins Gilman",
+  "author_death_year": 1935,
+  "original_language": "en",
+  "first_publication_year": 1892,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/1952",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/1952/pg1952.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-001952.txt",
+  "source_retrieved_at": null,
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #1952 plain text; credits An Anonymous Volunteer and David Widger; current catalog text updated 2026-09-16",
+  "edition_publication_year": 1999,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "AI-assisted preflight only, not human approval. Project Gutenberg's official catalog marks eBook #1952 public domain in the USA and identifies the original English work. First publication 1892; Charlotte Perkins Gilman died 1935. Scope is the original English plain text only; no generated summary, modern cover, or site metadata. Project Gutenberg warns non-U.S. users to check local law. Human LIB read operator must verify JP/US/KR term analysis, provider terms, exact fetched bytes, and digitization/editorial scope before approval.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "U.S. provider status and publication/death dates pass preflight; human JP/US/KR review required."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Only the Project Gutenberg plain-text edition is proposed; no modern cover or catalog summary."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Confirm Gutenberg boilerplate is separated to archive metadata and no provider-generated summary enters reader text."
+    },
+    "annotations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Project Gutenberg credits An Anonymous Volunteer and David Widger; exact bytes/hash required."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Primary provider pages: https://www.gutenberg.org/ebooks/1952 and https://www.gutenberg.org/policy/license.html."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": null,
+  "chapter_split": {
+    "strategy": "single"
+  },
+  "tags": [
+    "Public Domain",
+    "Project Gutenberg",
+    "Charlotte Perkins Gilman",
+    "English classic"
+  ],
+  "source_hash": null,
+  "approved": false,
+  "import_status": "not_imported",
+  "cover_source": null,
+  "cover_rights_status": null
+}
