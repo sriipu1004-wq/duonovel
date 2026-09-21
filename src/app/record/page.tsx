@@ -39,6 +39,8 @@ import {
   PUBLIC_SEARCH_SOURCE_LANGUAGES,
 } from "@/lib/search/publicWorkLanguageFilter";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
+import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import {
   buildRecordingConsentPath,
   RECORDING_GLOBAL_CONSENT_KEY,
@@ -400,6 +402,7 @@ function buildRecordSearchHref(args: {
   filter?: RecordFilter;
   selectedTags?: string[];
   selectedGenres?: string[];
+  sourceLanguages?: SupportedLanguageTag[];
   order?: RecordOrderKey;
   start?: string;
   end?: string;
@@ -423,6 +426,10 @@ function buildRecordSearchHref(args: {
 
   if (args.selectedGenres && args.selectedGenres.length > 0) {
     params.set("genres", args.selectedGenres.join(","));
+  }
+
+  if (args.sourceLanguages && args.sourceLanguages.length > 0) {
+    params.set("source_language", args.sourceLanguages.join(","));
   }
 
   if (args.order) {
@@ -654,16 +661,18 @@ async function fetchMySubmittedSeriesIds(
 
   const collected = new Set<string>();
 
+  const selection =
+    "id, series_id, episode_id, reader_id, reader_user_id, reader_name, audio_storage_path, voice_model_id, is_public";
   const tries = [
     () =>
       adminSupabase
         .from("recordings")
-        .select("series_id")
+        .select(selection)
         .eq("reader_id", userId),
     () =>
       adminSupabase
         .from("recordings")
-        .select("series_id")
+        .select(selection)
         .eq("reader_user_id", userId),
   ];
 
@@ -675,6 +684,7 @@ async function fetchMySubmittedSeriesIds(
     }
 
     for (const row of (data ?? []) as RecordingRow[]) {
+      if (!isHumanRecordingRow(row)) continue;
       const seriesId = pickText(row.series_id, row.seriesId);
       if (seriesId) {
         collected.add(seriesId);
@@ -713,16 +723,31 @@ function buildLatestRequestMap(
 
 function buildCatalogItem(args: {
   series: SeriesRow;
+  baseWork: PublicBaseWorkCard;
+  humanNarration: HumanNarrationSummary | null;
   latestRequestMap: Map<string, RecordingRequestRow>;
   bookmarkedSeriesIds: Set<string>;
   submittedSeriesIds: Set<string>;
   popularity: SeriesPopularityMetrics;
 }): CatalogItem {
-  const { series, latestRequestMap, bookmarkedSeriesIds, submittedSeriesIds, popularity } =
-    args;
+  const {
+    series,
+    baseWork,
+    humanNarration,
+    latestRequestMap,
+    bookmarkedSeriesIds,
+    submittedSeriesIds,
+    popularity,
+  } = args;
 
-  const title = pickText(series.title) || "無題";
-  const summary = getSeriesSummary(series);
+  const title = baseWork.title || pickText(series.title) || "無題";
+  const summary = baseWork.summary || getSeriesSummary(series);
+  const authorName = baseWork.authorName || "作者名未設定";
+  const sourceLanguage = baseWork.sourceLanguage;
+  const humanNarrationCount = humanNarration?.recordingIds.length ?? 0;
+  const humanNarratorNames = humanNarration?.narratorNames ?? [];
+  const humanNarratedEpisodeNumbers = humanNarration?.episodeNumbers ?? [];
+  const humanNarrationPlayCount = humanNarration?.playCount ?? 0;
   const permissionMode = normalizeRecordingPermissionMode(
     series.recording_permission_mode
   );
@@ -731,20 +756,25 @@ function buildCatalogItem(args: {
   const isReady = permissionMode === "open";
   const isSubmitted = submittedSeriesIds.has(series.id);
   const isBookmarked = bookmarkedSeriesIds.has(series.id);
-  const tags = getSeriesTags(series);
-  const genres = getSeriesGenres(series);
-  const latestTimestamp = getCreatedAtScore(
-    pickText(
-      series.updated_at,
-      series.created_at,
-      latestRequest?.created_at
-    )
-  );
+  const tags = baseWork.tags.length > 0 ? baseWork.tags : getSeriesTags(series);
+  const genres =
+    baseWork.genres.length > 0 ? baseWork.genres : getSeriesGenres(series);
+  const latestTimestamp =
+    baseWork.latestPostedAtValue ||
+    getCreatedAtScore(
+      pickText(series.updated_at, series.created_at, latestRequest?.created_at)
+    );
 
   return {
     series,
     title,
     summary,
+    authorName,
+    sourceLanguage,
+    humanNarrationCount,
+    humanNarratorNames,
+    humanNarratedEpisodeNumbers,
+    humanNarrationPlayCount,
     permissionMode,
     latestRequest,
     latestStatus,
@@ -758,7 +788,9 @@ function buildCatalogItem(args: {
     searchText: normalizeSearchText(
       [
         title,
+        authorName,
         summary,
+        humanNarratorNames.join(" "),
         getPermissionLabel(permissionMode),
         tags.join(" "),
         genres.join(" "),
@@ -768,11 +800,37 @@ function buildCatalogItem(args: {
 }
 
 function matchesFilter(item: CatalogItem, filter: RecordFilter): boolean {
-  if (filter === "all") return true;
+  if (filter === "all") return item.humanNarrationCount > 0;
   if (filter === "submitted") return item.isSubmitted;
   if (filter === "ready") return item.isReady;
-  if (filter === "bookmarked") return item.isBookmarked;
-  return true;
+  if (filter === "bookmarked") {
+    return item.isBookmarked && item.humanNarrationCount > 0;
+  }
+  return item.humanNarrationCount > 0;
+}
+
+function matchesSourceLanguages(
+  item: CatalogItem,
+  sourceLanguages: readonly SupportedLanguageTag[]
+): boolean {
+  if (sourceLanguages.length === 0) return true;
+  return (
+    item.sourceLanguage !== null && sourceLanguages.includes(item.sourceLanguage)
+  );
+}
+
+function buildSourceLanguageCounts(
+  items: CatalogItem[]
+): Partial<Record<SupportedLanguageTag, number>> {
+  const counts: Partial<Record<SupportedLanguageTag, number>> = {};
+  for (const language of PUBLIC_SEARCH_SOURCE_LANGUAGES) {
+    counts[language] = 0;
+  }
+  for (const item of items) {
+    if (!item.sourceLanguage) continue;
+    counts[item.sourceLanguage] = (counts[item.sourceLanguage] ?? 0) + 1;
+  }
+  return counts;
 }
 
 function matchesSearch(args: {
@@ -780,10 +838,19 @@ function matchesSearch(args: {
   query: string;
   selectedTagTokens: string[];
   selectedGenreTokens: string[];
+  sourceLanguages: readonly SupportedLanguageTag[];
   startAt: number | null;
   endAt: number | null;
 }): boolean {
-  const { item, query, selectedTagTokens, selectedGenreTokens, startAt, endAt } = args;
+  const {
+    item,
+    query,
+    selectedTagTokens,
+    selectedGenreTokens,
+    sourceLanguages,
+    startAt,
+    endAt,
+  } = args;
 
   const queryOk = !query || item.searchText.includes(query);
 
@@ -799,13 +866,15 @@ function matchesSearch(args: {
       item.genres.some((genre) => normalizeGenreToken(genre) === selectedToken)
     );
 
+  const languageOk = matchesSourceLanguages(item, sourceLanguages);
+
   const dateOk =
     startAt === null ||
     endAt === null ||
     (item.latestTimestamp >= Math.min(startAt, endAt) &&
       item.latestTimestamp <= Math.max(startAt, endAt));
 
-  return queryOk && tagOk && genreOk && dateOk;
+  return queryOk && tagOk && genreOk && languageOk && dateOk;
 }
 
 function sortCatalogItems(
@@ -819,12 +888,9 @@ function sortCatalogItems(
       }
     } else if (order === "narration") {
       if (
-        right.popularity.narrationPlayCount !== left.popularity.narrationPlayCount
+        right.humanNarrationPlayCount !== left.humanNarrationPlayCount
       ) {
-        return (
-          right.popularity.narrationPlayCount -
-          left.popularity.narrationPlayCount
-        );
+        return right.humanNarrationPlayCount - left.humanNarrationPlayCount;
       }
     } else {
       if (
@@ -920,20 +986,36 @@ function buildAvailableGenres(items: CatalogItem[]): GenreChip[] {
   });
 }
 
+function buildHumanNarrationListenPath(item: CatalogItem): string | null {
+  const episodeNumber = item.humanNarratedEpisodeNumbers[0];
+  const narratorName = item.humanNarratorNames[0];
+  if (!episodeNumber || !narratorName) return null;
+  const params = new URLSearchParams({ readerName: narratorName });
+  return `/read/${item.series.id}/${episodeNumber}?${params.toString()}`;
+}
+
 function getPrimaryAction(
   item: CatalogItem,
-  hasRecordingGlobalConsent: boolean
+  hasRecordingGlobalConsent: boolean,
+  canCreateHumanNarration: boolean
 ): {
   href: string;
   label: string;
   className: string;
 } {
-  if (item.isReady) {
+  const listenHref = buildHumanNarrationListenPath(item);
+  if (listenHref) {
     return {
-      href: buildRecordingStartHref(
-        item.series.id,
-        hasRecordingGlobalConsent
-      ),
+      href: listenHref,
+      label: "朗読を聞く",
+      className:
+        "rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black transition hover:bg-sky-100",
+    };
+  }
+
+  if (item.isReady && canCreateHumanNarration) {
+    return {
+      href: buildRecordingStartHref(item.series.id, hasRecordingGlobalConsent),
       label: "朗読制作へ",
       className:
         "rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black transition hover:bg-sky-100",
@@ -990,11 +1072,17 @@ function SectionFrame({
 function RecordCatalogCard({
   item,
   hasRecordingGlobalConsent,
+  canCreateHumanNarration,
 }: {
   item: CatalogItem;
   hasRecordingGlobalConsent: boolean;
+  canCreateHumanNarration: boolean;
 }) {
-  const primaryAction = getPrimaryAction(item, hasRecordingGlobalConsent);
+  const primaryAction = getPrimaryAction(
+    item,
+    hasRecordingGlobalConsent,
+    canCreateHumanNarration
+  );
 
   return (
     <article className="rounded-[24px] border border-black/10 bg-white p-5">
@@ -1025,6 +1113,18 @@ function RecordCatalogCard({
             ) : null}
           </div>
 
+          <p className="mt-2 text-sm text-neutral-500">作者: {item.authorName}</p>
+
+          {item.humanNarrationCount > 0 ? (
+            <div className="mt-2 text-sm leading-7 text-neutral-700">
+              <span className="font-medium text-black">Human narration</span>
+              {" · "}
+              朗読者: {item.humanNarratorNames.join(" / ")}
+              {" · "}
+              公開朗読 {item.humanNarrationCount}件
+            </div>
+          ) : null}
+
           <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-700">
             {item.summary}
           </p>
@@ -1050,7 +1150,7 @@ function RecordCatalogCard({
           </div>
 
           <div className="mt-4 text-sm leading-7 text-neutral-500">
-            朗読視聴 {item.popularity.narrationPlayCount} / 閲覧 {item.popularity.viewCount} / いいね{" "}
+            Human朗読視聴 {item.humanNarrationPlayCount} / 閲覧 {item.popularity.viewCount} / いいね{" "}
             {item.popularity.likeCount} / ブックマーク {item.popularity.bookmarkCount}
           </div>
         </div>
@@ -1066,6 +1166,20 @@ function RecordCatalogCard({
           <Link href={primaryAction.href} className={primaryAction.className}>
             {primaryAction.label}
           </Link>
+
+          {item.humanNarrationCount > 0 &&
+          item.isReady &&
+          canCreateHumanNarration ? (
+            <Link
+              href={buildRecordingStartHref(
+                item.series.id,
+                hasRecordingGlobalConsent
+              )}
+              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+            >
+              自分も朗読する
+            </Link>
+          ) : null}
         </div>
       </div>
     </article>
@@ -1161,12 +1275,33 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
 
   const selectedTagTokens = selectedTagLabels.map(normalizeTagToken);
   const selectedGenreTokens = selectedGenreLabels.map(normalizeGenreToken);
+  const selectedSourceLanguages = parsePublicSearchSourceLanguages(
+    resolvedSearchParams?.source_language
+  );
   const normalizedQuery = normalizeSearchText(query);
 
   const showAllTags = pickText(resolvedSearchParams?.showTags) === "1";
   const showAllGenres = pickText(resolvedSearchParams?.showGenres) === "1";
 
-  const discoverableSeries = await fetchDiscoverableSeries(supabase);
+  const allPublicBaseWorkCards = await getCachedPublicBaseWorkCards({
+    visibility: "all",
+    ignoreContentLanguageFilter: true,
+    prioritizeForUiLocale: false,
+  });
+  const r18Preference = await getCurrentR18ViewerPreference();
+  const visibleBaseWorkCards = r18Preference.showR18Content
+    ? allPublicBaseWorkCards
+    : allPublicBaseWorkCards.filter((work) => work.contentRating !== "r18");
+  const visibleBaseWorkBySeriesId = new Map(
+    visibleBaseWorkCards.map((work) => [work.seriesId, work] as const)
+  );
+
+  const discoverableSeries = (await fetchDiscoverableSeries(supabase)).filter(
+    (series) => visibleBaseWorkBySeriesId.has(series.id)
+  );
+  const humanNarrationSummaries = await fetchPublishedHumanNarrationSummaries(
+    discoverableSeries.map((series) => series.id)
+  );
   const myRequests = await fetchMyRecordingRequests(supabase, user?.id ?? null);
   const myBookmarks = await fetchMyBookmarks(supabase, user?.id ?? null);
   const mySubmittedSeriesIds = await fetchMySubmittedSeriesIds(user?.id ?? null);
@@ -1174,6 +1309,8 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
     supabase,
     user?.id ?? null
   );
+  const canCreateHumanNarration =
+    !!user && !isOfficialAccountEmail(user.email);
 
   const latestRequestMap = buildLatestRequestMap(myRequests);
   const bookmarkedSeriesIds = new Set(
@@ -1188,21 +1325,24 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
   const popularityMap = buildSeriesPopularityMap(popularityDataset);
 
   const catalogItems = sortCatalogItems(
-    discoverableSeries.map((series) =>
-      buildCatalogItem({
+    discoverableSeries.flatMap((series) => {
+      const baseWork = visibleBaseWorkBySeriesId.get(series.id);
+      if (!baseWork) return [];
+      return [
+        buildCatalogItem({
         series,
+        baseWork,
+        humanNarration: humanNarrationSummaries.get(series.id) ?? null,
         latestRequestMap,
         bookmarkedSeriesIds,
         submittedSeriesIds: mySubmittedSeriesIds,
         popularity:
           popularityMap.get(series.id) ?? createEmptyPopularityMetrics(series.id),
-      })
-    ),
+        }),
+      ];
+    }),
     order
   );
-
-  const availableTags = buildAvailableTags(catalogItems);
-  const availableGenres = buildAvailableGenres(catalogItems);
 
   const oldestTimestamp =
     catalogItems.reduce((min, item) => {
@@ -1222,6 +1362,17 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
   const startAt = parseDateStart(selectedStartInput);
   const endAt = parseDateEnd(selectedEndInput);
 
+  const facetBaseItems = catalogItems.filter(
+    (item) =>
+      matchesFilter(item, activeFilter) &&
+      matchesSourceLanguages(item, selectedSourceLanguages)
+  );
+  const availableTags = buildAvailableTags(facetBaseItems);
+  const availableGenres = buildAvailableGenres(facetBaseItems);
+  const sourceLanguageCounts = buildSourceLanguageCounts(
+    catalogItems.filter((item) => matchesFilter(item, activeFilter))
+  );
+
   const filteredCatalogItems = sortCatalogItems(
     catalogItems.filter(
       (item) =>
@@ -1231,6 +1382,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
           query: normalizedQuery,
           selectedTagTokens,
           selectedGenreTokens,
+          sourceLanguages: selectedSourceLanguages,
           startAt,
           endAt,
         })
@@ -1238,37 +1390,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
     order
   );
 
-  const submittedItems = sortCatalogItems(
-    catalogItems.filter((item) => item.isSubmitted),
-    order
-  ).slice(0, 5);
 
-  const bookmarkedItems = sortCatalogItems(
-    catalogItems.filter((item) => item.isBookmarked),
-    order
-  ).slice(0, 5);
-
-  const requestItems = Array.from(latestRequestMap.entries())
-    .map(([seriesId, request]) => {
-      const matched = catalogItems.find((item) => item.series.id === seriesId);
-      if (!matched) {
-        return null;
-      }
-
-      return {
-        seriesId,
-        request,
-        seriesTitle: matched.title,
-        permissionMode: matched.permissionMode,
-      } satisfies RequestListItem;
-    })
-    .filter((item): item is RequestListItem => item !== null)
-    .sort(
-      (left, right) =>
-        getCreatedAtScore(right.request.created_at) -
-        getCreatedAtScore(left.request.created_at)
-    )
-    .slice(0, 5);
 
   return (
     <main className="min-h-screen bg-[#f4f4f4] text-black">
@@ -1345,6 +1467,8 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
             hasHiddenGenres={availableGenres.length > 8}
             showAllTags={showAllTags}
             showAllGenres={showAllGenres}
+            sourceLanguages={selectedSourceLanguages}
+            sourceLanguageCounts={sourceLanguageCounts}
           />
         </div>
 
@@ -1362,6 +1486,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
                   filter: activeFilter,
                   selectedTags: selectedTagLabels,
                   selectedGenres: selectedGenreLabels,
+                  sourceLanguages: selectedSourceLanguages,
                   order,
                   start: selectedStartInput,
                   end: selectedEndInput,
@@ -1387,6 +1512,11 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
                 ? selectedGenreLabels.join(" / ")
                 : "未指定"}
               <br />
+              原文言語:{" "}
+              {selectedSourceLanguages.length > 0
+                ? selectedSourceLanguages.join(" / ")
+                : "未指定"}
+              <br />
               並び順:{" "}
               {order === "updated"
                 ? "更新順"
@@ -1397,7 +1527,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
 
             {filteredCatalogItems.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">
-                条件に合う朗読関連作品はない。
+                条件に合う公開Human narrationはない。
               </div>
             ) : (
               <div className="grid gap-4">
@@ -1406,6 +1536,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
                     key={item.series.id}
                     item={item}
                     hasRecordingGlobalConsent={hasRecordingGlobalConsent}
+                    canCreateHumanNarration={canCreateHumanNarration}
                   />
                 ))}
               </div>
