@@ -103,7 +103,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add             public-domain/manifests/gutenberg-000011.json             public-domain/manifests/gutenberg-001952.json             public-domain/manifests/gongu-9002094.json             public-domain/manifests/gongu-9002100.json             public-domain/manifests/gongu-9002092.json             public-domain/sources/raw/gutenberg-000011.txt             public-domain/sources/raw/gutenberg-001952.txt             public-domain/sources/raw/gongu-9002094.txt             public-domain/sources/raw/gongu-9002100.txt             public-domain/sources/raw/gongu-9002092.txt
           if ! git diff --cached --quiet; then
-            git commit -m "Child72: pin exact EN KO pilot sources"
+            git commit -m "Child72: pin exact EN KO source provenance"
             git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
           fi
 
