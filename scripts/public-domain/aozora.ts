@@ -128,7 +128,7 @@ export function canonicalAozoraIdentityPart(value: string): string {
   return value
     .normalize("NFKC")
     .toLowerCase()
-    .replace(/[\\s・･·]/gu, "");
+    .replace(/[\s・･·]/gu, "");
 }
 
 export function groupAozoraRows(rows: CsvRow[]): Map<string, CsvRow[]> {
