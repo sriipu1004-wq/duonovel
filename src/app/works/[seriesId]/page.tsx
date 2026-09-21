@@ -36,12 +36,14 @@ import { fetchReaderCardLikeSnapshotMap } from "@/lib/readerCardLike";
 import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 import { PUBLIC_WORK_RECORDING_SELECT } from "@/lib/recording/publicRecordingSelects";
 import { getUiLocale } from "@/i18n/server";
+import { workDictionaries } from "@/i18n/dictionaries/work";
 import { localizePath } from "@/i18n/navigation";
 import { isUuid } from "@/lib/uuid";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
 import { buildRecordingEntryPath } from "@/lib/recording/recordingEntry";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -175,9 +177,9 @@ function readRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function isShortStorySeries(series: SeriesRow): boolean {
-  const settings = readRecord(
-    series.effect_settings ?? series["effectSettings"]
-  );
+  const effectSettings = series.effect_settings ?? series["effectSettings"];
+  if (readPublicDomainMetadata(effectSettings)) return false;
+  const settings = readRecord(effectSettings);
   const tags = parseTags(series["tags"]);
   const isAiGenerated =
     tags.includes("#AI生成") ||
@@ -596,9 +598,14 @@ export async function generateMetadata({
     const seriesTitle = pickText(series.title) || "無題";
     const summary = getSeriesSummary(series).trim();
     const genreLabel = getSeriesGenres(series).slice(0, 2).join("・");
-    const authorLabel = isShortStorySeries(series)
-      ? "AI生成"
-      : pickText(series["author_name"]) || "LIB read投稿作品";
+    const publicDomain = readPublicDomainMetadata(
+      series.effect_settings ?? series["effectSettings"]
+    );
+    const authorLabel =
+      publicDomain?.originalAuthor ||
+      (isShortStorySeries(series)
+        ? "AI生成"
+        : pickText(series["author_name"]) || "LIB read投稿作品");
 
     const description = [
       summary || seriesTitle + "の作品ページ。",
@@ -617,6 +624,12 @@ export async function generateMetadata({
       description,
       alternates: {
         canonical: canonicalPath,
+        languages: {
+          ja: canonicalPath,
+          en: "/en" + canonicalPath,
+          ko: "/ko" + canonicalPath,
+          "x-default": canonicalPath,
+        },
       },
       robots: {
         index: true,
@@ -651,6 +664,7 @@ export async function generateMetadata({
 
 export default async function WorkPage({ params, searchParams }: PageProps) {
   const locale = await getUiLocale();
+  const dictionary = workDictionaries[locale];
   const { seriesId } = await params;
 
   if (!isUuid(seriesId)) notFound();
@@ -691,6 +705,9 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   if (getSeriesPublicationStatus(series) !== "public") {
     notFound();
   }
+  const publicDomain = readPublicDomainMetadata(
+    series.effect_settings ?? series["effectSettings"]
+  );
 
   const authorId = pickText(
     series.author_id,
@@ -846,6 +863,8 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       author?.name,
       series["author_name"]
     ) || "作者名未設定";
+  const displayedAuthorName = publicDomain?.originalAuthor || authorName;
+  const displayedAuthorLabel = publicDomain ? dictionary.originalAuthor : dictionary.author;
 
   const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
   const workHref = (href: string) => localizePath(href, locale);
@@ -874,9 +893,36 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
         : "Human narrationを制作";
 
   const reviewsVisible = isSeriesReviewVisible(series);
+  const publicDomainJsonLd = publicDomain
+    ? JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "CreativeWork",
+        name: seriesTitle,
+        author: {
+          "@type": "Person",
+          name: publicDomain.originalAuthor,
+        },
+        inLanguage: pickText(series.source_language) || undefined,
+        datePublished: publicDomain.firstPublicationYear
+          ? String(publicDomain.firstPublicationYear)
+          : undefined,
+        publisher: {
+          "@type": "Organization",
+          name: authorName,
+        },
+        isAccessibleForFree: true,
+        isBasedOn: publicDomain.sourceUrl || undefined,
+      }).replace(/</g, "\\u003c")
+    : null;
 
   return (
     <main className="min-h-screen bg-white text-black">
+      {publicDomainJsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: publicDomainJsonLd }}
+        />
+      ) : null}
       <ReaderSelectionBootstrap
         seriesId={seriesId}
         currentTab={currentTab}
@@ -902,19 +948,24 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
             </h1>
 
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-neutral-600">
-              <span>作者</span>
-              {authorId ? (
+              <span>{displayedAuthorLabel}</span>
+              {authorId && !publicDomain ? (
                 <Link
                   href={workHref(buildAuthorHref(authorId))}
                   className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-neutral-800 transition hover:border-sky-200 hover:bg-sky-50"
                 >
-                  {authorName}
+                  {displayedAuthorName}
                 </Link>
               ) : (
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-neutral-800">
-                  {authorName}
+                  {displayedAuthorName}
                 </span>
               )}
+              {publicDomain ? (
+                <span className="text-neutral-500">
+                  {dictionary.managedBy}: {authorName}
+                </span>
+              ) : null}
 
               <span
                 data-selected-reader-label
@@ -924,6 +975,37 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                 {selectedReaderLabel ? `選択中朗読者: ${selectedReaderLabel}` : ""}
               </span>
             </div>
+
+            {publicDomain ? (
+              <div className="mt-4 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-black/10 bg-white px-3 py-1 font-medium text-black">
+                    {dictionary.publicDomain}
+                  </span>
+                  <span className="rounded-full border border-black/10 bg-white px-3 py-1 font-medium text-black">
+                    {dictionary.rightsChecked}
+                  </span>
+                  <span className="text-neutral-500">
+                    {dictionary.source}:{" "}
+                    {publicDomain.sourceUrl ? (
+                      <a
+                        href={publicDomain.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="underline decoration-black/30 underline-offset-4 hover:decoration-black"
+                      >
+                        {publicDomain.sourceProvider}
+                      </a>
+                    ) : (
+                      publicDomain.sourceProvider
+                    )}
+                  </span>
+                </div>
+                <p className="mt-3 leading-7 text-neutral-600">
+                  {dictionary.publicDomainNotice}
+                </p>
+              </div>
+            ) : null}
 
             <p className="mt-5 whitespace-pre-wrap text-sm leading-8 text-neutral-700 sm:text-[15px]">
               {summary}
@@ -1318,9 +1400,48 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
           <div className="mt-4 grid gap-3 xl:grid-cols-2">
             <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3">
-              <p className="text-sm text-neutral-500">作者</p>
-              <p className="mt-2 text-sm font-medium text-black">{authorName}</p>
+              <p className="text-sm text-neutral-500">{displayedAuthorLabel}</p>
+              <p className="mt-2 text-sm font-medium text-black">{displayedAuthorName}</p>
+              {publicDomain ? (
+                <p className="mt-2 text-xs text-neutral-500">
+                  {dictionary.managedBy}: {authorName}
+                </p>
+              ) : null}
             </div>
+
+            {publicDomain ? (
+              <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3">
+                <p className="text-sm text-neutral-500">{dictionary.source}</p>
+                <p className="mt-2 text-sm font-medium text-black">
+                  {publicDomain.sourceUrl ? (
+                    <a
+                      href={publicDomain.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="underline decoration-black/30 underline-offset-4 hover:decoration-black"
+                    >
+                      {publicDomain.sourceProvider}
+                    </a>
+                  ) : (
+                    publicDomain.sourceProvider
+                  )}
+                </p>
+              </div>
+            ) : null}
+
+            {publicDomain ? (
+              <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3">
+                <p className="text-sm text-neutral-500">{dictionary.rights}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-medium text-black">
+                    {dictionary.publicDomain}
+                  </span>
+                  <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-medium text-black">
+                    {dictionary.rightsChecked}
+                  </span>
+                </div>
+              </div>
+            ) : null}
 
             <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3">
               <p className="text-sm text-neutral-500">朗読可否</p>
