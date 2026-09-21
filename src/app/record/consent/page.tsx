@@ -89,7 +89,7 @@ export default async function RecordConsentPage({ searchParams }: PageProps) {
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    redirect(buildLoginRedirectPath(nextPath));
+    redirect(buildLoginRedirectPath(nextPath, locale));
   }
 
   const { data: consentRow, error: consentError } = await supabase
