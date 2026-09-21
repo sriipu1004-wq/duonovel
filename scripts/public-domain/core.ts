@@ -158,6 +158,7 @@ export type DraftSeriesRow = {
   title: string;
   author_id: string;
   publication_status: "private";
+  is_public: false;
   source_language: PublicDomainSourceLanguage;
   translation_permission_mode: "closed";
   recording_permission_mode: "closed";
@@ -877,6 +878,7 @@ export function buildDraftImportPlan(args: {
       title: args.manifest.title,
       author_id: args.officialUserId,
       publication_status: "private",
+      is_public: false,
       source_language: args.manifest.original_language,
       translation_permission_mode: "closed",
       recording_permission_mode: "closed",
