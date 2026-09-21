@@ -7,7 +7,7 @@ type Props = {
   children: ReactNode;
 };
 
-const STATUS_HEADINGS = new Set(["作品状態", "Work status", "작품 상태"]);
+const STATUS_HEADINGS = new Set(["作品状態", "Work status", "Work settings", "작품 상태", "작품 설정"]);
 
 /**
  * WriteSeriesForm owns the series-state card while translation settings are
