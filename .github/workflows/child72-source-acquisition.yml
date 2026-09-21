@@ -89,17 +89,35 @@ jobs:
           NODE
 
       - name: Approved pilot batch dry-run
-        run: >
-          npm run public-domain:batch --
-          aozora-000010
-          aozora-000013
-          aozora-000018
-          gutenberg-000011
-          gutenberg-001952
-          gongu-9002094
-          gongu-9002100
-          gongu-9002092
-          --prepare
+        shell: bash
+        run: |
+          IDS="$(node <<'NODE'
+          const fs = require("fs");
+          const ids = [
+            "aozora-000010",
+            "aozora-000013",
+            "aozora-000018",
+            "gutenberg-000011",
+            "gutenberg-001952",
+            "gongu-9002094",
+            "gongu-9002100",
+            "gongu-9002092",
+          ];
+          const pending = ids.filter((id) => {
+            const manifest = JSON.parse(
+              fs.readFileSync(`public-domain/manifests/${id}.json`, "utf8")
+            );
+            return manifest.import_status !== "imported";
+          });
+          process.stdout.write(pending.join(" "));
+          NODE
+          )"
+          if [ -z "$IDS" ]; then
+            echo "All approved pilot manifests are already imported; source/hash prepare verification is sufficient."
+          else
+            # shellcheck disable=SC2086
+            npm run public-domain:batch -- $IDS --prepare
+          fi
 
       - name: Persist exact source provenance on the PR branch
         run: |
