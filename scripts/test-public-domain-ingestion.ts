@@ -14,6 +14,7 @@ import {
   type PublicDomainManifest,
 } from "./public-domain/core";
 import {
+  canonicalAozoraIdentityPart,
   classifyAozoraWork,
   isAllowedAozoraTextUrl,
   makePendingAozoraManifest,
@@ -296,6 +297,8 @@ function testKoreanSourceLanguage() {
 }
 
 function testAozoraConservativeCandidatePolicy() {
+  assert.equal(canonicalAozoraIdentityPart(" 虞 美人草・"), "虞美人草");
+
   const baseRow = {
     "作品ID": "12345",
     "作品名": "Fixture Classic",
@@ -358,11 +361,13 @@ function testExistingOfficialAuditSnapshot() {
   ) as {
     summary: { series_count: number; episode_count: number };
     contained_titles: string[];
+    known_title_aliases?: string[];
   };
   assert.equal(snapshot.summary.series_count, 37);
   assert.equal(snapshot.summary.episode_count, 437);
   assert.equal(snapshot.contained_titles.includes("走れメロス"), true);
   assert.equal(snapshot.contained_titles.includes("蜘蛛の糸"), true);
+  assert.equal(snapshot.known_title_aliases?.includes("虞美人草"), true);
 }
 
 function testDryRunAndNoPaidGenerationSourceGuards() {
