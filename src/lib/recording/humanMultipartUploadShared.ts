@@ -1,3 +1,5 @@
+import { getHumanRecordingAudioBucketName } from "@/lib/recording/humanRecordingStorage";
+
 export const HUMAN_MULTIPART_MIN_TRIGGER_BYTES = 4 * 1024 * 1024;
 export const HUMAN_MULTIPART_PART_SIZE_BYTES = 8 * 1024 * 1024;
 export const HUMAN_MULTIPART_MAX_TOTAL_BYTES = 1024 * 1024 * 1024;
@@ -32,10 +34,6 @@ function sanitizeStorageSegment(value: string): string {
   return normalized || "recording";
 }
 
-export function getRecordingAudioBucketName(): string {
-  return process.env.NEXT_PUBLIC_SUPABASE_RECORDING_BUCKET?.trim() || "recording-audio";
-}
-
 export function getHumanMultipartTempPrefix(args: {
   seriesId: string;
   episodeId: string;
@@ -62,7 +60,7 @@ export function buildHumanMultipartUploadSession(args: {
   const totalSizeBytes = Math.max(0, Math.trunc(args.totalSizeBytes));
   const uploadSessionId = args.uploadSessionId?.trim() || crypto.randomUUID();
   const sourceExtension = args.sourceExtension.trim().toLowerCase() || "bin";
-  const bucketName = getRecordingAudioBucketName();
+  const bucketName = getHumanRecordingAudioBucketName();
   const tempPrefix = getHumanMultipartTempPrefix({
     seriesId: args.seriesId,
     episodeId: args.episodeId,

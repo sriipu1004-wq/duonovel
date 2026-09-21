@@ -4,6 +4,11 @@
 export const PUBLIC_RECORDING_AGGREGATE_SELECT = `
   id,
   series_id,
+  reader_id,
+  reader_user_id,
+  reader_name,
+  audio_storage_path,
+  voice_model_id,
   like_count,
   play_count,
   is_public

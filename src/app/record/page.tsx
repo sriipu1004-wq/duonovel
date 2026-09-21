@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildRecordingEntryPath,
-  buildRecordingRequestPath,
   buildWorkPath,
   normalizeRecordingPermissionMode,
   type RecordingPermissionMode,
@@ -17,12 +16,33 @@ import {
   type SeriesPopularityMetrics,
 } from "@/lib/popularity";
 import {
+  getEpisodeNumber,
   getSeriesGenres,
   getSeriesPublicationStatus,
+  isEpisodePubliclyVisible,
   pickText,
+  type EpisodeRow,
   type SeriesRow,
 } from "@/features/write/writeShared";
 import { RecordingLegalFooter } from "@/components/recording/RecordingLegalFooter";
+import {
+  getCachedPublicBaseWorkCards,
+  type PublicBaseWorkCard,
+} from "@/lib/publicWorks";
+import {
+  isHumanRecordingRow,
+  isPublishedHumanRecording,
+} from "@/lib/recording/humanRecordingState";
+import {
+  parsePublicSearchSourceLanguages,
+  PUBLIC_SEARCH_SOURCE_LANGUAGES,
+} from "@/lib/search/publicWorkLanguageFilter";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
+import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { getUiLocale } from "@/i18n/server";
+import { localizePath } from "@/i18n/navigation";
+import type { UiLocale } from "@/i18n/config";
 import {
   buildRecordingConsentPath,
   RECORDING_GLOBAL_CONSENT_KEY,
@@ -43,6 +63,7 @@ type PageProps = {
     end?: string;
     showTags?: string;
     showGenres?: string;
+    source_language?: string;
   }>;
 };
 
@@ -77,12 +98,30 @@ type RecordingRow = Record<string, unknown> & {
   reader_id?: string | null;
   reader_user_id?: string | null;
   readerUserId?: string | null;
+  reader_name?: string | null;
+  episode_id?: string | null;
+  audio_storage_path?: string | null;
+  voice_model_id?: string | null;
+  is_public?: boolean | null;
+};
+
+type HumanNarrationSummary = {
+  recordingIds: string[];
+  narratorNames: string[];
+  episodeNumbers: number[];
+  playCount: number;
 };
 
 type CatalogItem = {
   series: SeriesRow;
   title: string;
   summary: string;
+  authorName: string;
+  sourceLanguage: SupportedLanguageTag | null;
+  humanNarrationCount: number;
+  humanNarratorNames: string[];
+  humanNarratedEpisodeNumbers: number[];
+  humanNarrationPlayCount: number;
   permissionMode: RecordingPermissionMode;
   latestRequest: RecordingRequestRow | null;
   latestStatus: RequestStatus | null;
@@ -94,13 +133,6 @@ type CatalogItem = {
   latestTimestamp: number;
   popularity: SeriesPopularityMetrics;
   searchText: string;
-};
-
-type RequestListItem = {
-  seriesId: string;
-  request: RecordingRequestRow;
-  seriesTitle: string;
-  permissionMode: RecordingPermissionMode;
 };
 
 type TagChip = {
@@ -115,6 +147,154 @@ type GenreChip = {
   count: number;
 };
 
+type RecordPageCopy = {
+  resultTitle: string;
+  backToSearch: string;
+  filterLabel: string;
+  queryLabel: string;
+  tagsLabel: string;
+  genresLabel: string;
+  sourceLanguageLabel: string;
+  orderLabel: string;
+  unspecified: string;
+  emptyQuery: string;
+  orderPopular: string;
+  orderUpdated: string;
+  orderNarration: string;
+  emptyResults: string;
+  permissionOpen: string;
+  permissionClosed: string;
+  submitted: string;
+  bookmarked: string;
+  author: string;
+  narrator: string;
+  publishedNarrationCount: (count: number) => string;
+  humanPlays: (count: number) => string;
+  views: (count: number) => string;
+  likes: (count: number) => string;
+  bookmarks: (count: number) => string;
+  workPage: string;
+  listen: string;
+  create: string;
+  alsoNarrate: string;
+  filterMeta: Record<RecordFilter, { label: string; description: string }>;
+};
+
+function getRecordPageCopy(locale: UiLocale): RecordPageCopy {
+  if (locale === "en") {
+    return {
+      resultTitle: "Search results",
+      backToSearch: "Back to search",
+      filterLabel: "Filter",
+      queryLabel: "Query",
+      tagsLabel: "Tags",
+      genresLabel: "Genres",
+      sourceLanguageLabel: "Source language",
+      orderLabel: "Order",
+      unspecified: "Not specified",
+      emptyQuery: "Not entered",
+      orderPopular: "Popular",
+      orderUpdated: "Updated",
+      orderNarration: "Human narration plays",
+      emptyResults: "No published Human narration matches these conditions.",
+      permissionOpen: "Narration allowed",
+      permissionClosed: "Narration unavailable",
+      submitted: "Submitted",
+      bookmarked: "Bookmarked",
+      author: "Author",
+      narrator: "Narrator",
+      publishedNarrationCount: (count) => `Published narration ${count}`,
+      humanPlays: (count) => `Human narration plays ${count}`,
+      views: (count) => `Views ${count}`,
+      likes: (count) => `Likes ${count}`,
+      bookmarks: (count) => `Bookmarks ${count}`,
+      workPage: "Work page",
+      listen: "Listen",
+      create: "Create narration",
+      alsoNarrate: "Create my narration",
+      filterMeta: {
+        all: { label: "Published narration", description: "Show works with published Human narration." },
+        submitted: { label: "Submitted", description: "Show works where you have submitted Human narration." },
+        ready: { label: "Available", description: "Show public works that allow new Human narration." },
+        bookmarked: { label: "Bookmarked", description: "Show bookmarked works with published Human narration." },
+      },
+    };
+  }
+
+  if (locale === "ko") {
+    return {
+      resultTitle: "검색 결과",
+      backToSearch: "위 검색으로",
+      filterLabel: "필터",
+      queryLabel: "검색어",
+      tagsLabel: "태그",
+      genresLabel: "장르",
+      sourceLanguageLabel: "원문 언어",
+      orderLabel: "정렬",
+      unspecified: "지정 안 함",
+      emptyQuery: "입력 없음",
+      orderPopular: "인기순",
+      orderUpdated: "업데이트순",
+      orderNarration: "Human narration 재생순",
+      emptyResults: "조건에 맞는 공개 Human narration이 없습니다.",
+      permissionOpen: "낭독 허용",
+      permissionClosed: "낭독 불가",
+      submitted: "제출 완료",
+      bookmarked: "북마크",
+      author: "작가",
+      narrator: "낭독자",
+      publishedNarrationCount: (count) => `공개 낭독 ${count}건`,
+      humanPlays: (count) => `Human narration 재생 ${count}`,
+      views: (count) => `조회 ${count}`,
+      likes: (count) => `좋아요 ${count}`,
+      bookmarks: (count) => `북마크 ${count}`,
+      workPage: "작품 페이지",
+      listen: "낭독 듣기",
+      create: "낭독 제작",
+      alsoNarrate: "나도 낭독하기",
+      filterMeta: {
+        all: { label: "공개 낭독", description: "공개된 Human narration이 있는 작품만 표시합니다." },
+        submitted: { label: "제출 완료", description: "내가 Human narration을 제출한 작품만 표시합니다." },
+        ready: { label: "낭독 가능", description: "새 Human narration을 제작할 수 있는 공개 작품만 표시합니다." },
+        bookmarked: { label: "북마크", description: "북마크한 공개 Human narration 작품만 표시합니다." },
+      },
+    };
+  }
+
+  return {
+    resultTitle: "検索結果",
+    backToSearch: "上の検索へ",
+    filterLabel: "フィルタ",
+    queryLabel: "検索語",
+    tagsLabel: "タグ",
+    genresLabel: "ジャンル",
+    sourceLanguageLabel: "原文言語",
+    orderLabel: "並び順",
+    unspecified: "未指定",
+    emptyQuery: "未入力",
+    orderPopular: "人気順",
+    orderUpdated: "更新順",
+    orderNarration: "Human narration視聴順",
+    emptyResults: "条件に合う公開Human narrationはない。",
+    permissionOpen: "朗読許可",
+    permissionClosed: "朗読不可",
+    submitted: "投稿済",
+    bookmarked: "ブックマーク",
+    author: "作者",
+    narrator: "朗読者",
+    publishedNarrationCount: (count) => `公開朗読 ${count}件`,
+    humanPlays: (count) => `Human朗読視聴 ${count}`,
+    views: (count) => `閲覧 ${count}`,
+    likes: (count) => `いいね ${count}`,
+    bookmarks: (count) => `ブックマーク ${count}`,
+    workPage: "作品ページ",
+    listen: "朗読を聞く",
+    create: "朗読制作へ",
+    alsoNarrate: "自分も朗読する",
+    filterMeta: FILTER_META,
+  };
+}
+
 const adminSupabase = createAdminClient();
 const TOKYO_TIMEZONE = "Asia/Tokyo";
 
@@ -127,11 +307,11 @@ const FILTER_META: Record<
 > = {
   all: {
     label: "すべて",
-    description: "公開中の朗読関連作品をまとめて見る。",
+    description: "公開中のHuman narrationがある作品だけを見る。",
   },
   submitted: {
     label: "投稿済",
-    description: "自分が朗読投稿済みの作品だけを見る。",
+    description: "自分がHuman narrationを投稿済みの作品だけを見る。",
   },
   ready: {
     label: "朗読可",
@@ -271,13 +451,6 @@ function getCreatedAtScore(value: string | null | undefined): number {
   return Number.isNaN(time) ? 0 : time;
 }
 
-function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "未記録";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ja-JP");
-}
-
 function formatInputDate(value: number): string {
   if (!Number.isFinite(value) || value <= 0) {
     return "";
@@ -319,9 +492,12 @@ function parseDateEnd(value: string | undefined): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-function getPermissionLabel(mode: RecordingPermissionMode): string {
-  if (mode === "open") return "朗読許可";
-  return "朗読不可";
+function getPermissionLabel(
+  mode: RecordingPermissionMode,
+  copy?: RecordPageCopy
+): string {
+  if (mode === "open") return copy?.permissionOpen ?? "朗読許可";
+  return copy?.permissionClosed ?? "朗読不可";
 }
 
 function getPermissionClass(mode: RecordingPermissionMode): string {
@@ -332,39 +508,12 @@ function getPermissionClass(mode: RecordingPermissionMode): string {
   return "border-black/10 bg-neutral-100 text-neutral-500";
 }
 
-function getRequestStatusLabel(status: RequestStatus | null): string {
-  if (status === "pending") return "未使用";
-  if (status === "approved") return "朗読許可";
-  if (status === "rejected") return "却下";
-  if (status === "cancelled") return "取消済み";
-  return "未申請";
-}
-
-function getRequestStatusClass(status: RequestStatus | null): string {
-  if (status === "pending") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  if (status === "approved") {
-    return "border-sky-200 bg-sky-50 text-black";
-  }
-
-  if (status === "rejected") {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-
-  if (status === "cancelled") {
-    return "border-black/10 bg-neutral-100 text-neutral-500";
-  }
-
-  return "border-black/10 bg-neutral-100 text-neutral-500";
-}
-
 function buildRecordSearchHref(args: {
   q?: string;
   filter?: RecordFilter;
   selectedTags?: string[];
   selectedGenres?: string[];
+  sourceLanguages?: SupportedLanguageTag[];
   order?: RecordOrderKey;
   start?: string;
   end?: string;
@@ -388,6 +537,10 @@ function buildRecordSearchHref(args: {
 
   if (args.selectedGenres && args.selectedGenres.length > 0) {
     params.set("genres", args.selectedGenres.join(","));
+  }
+
+  if (args.sourceLanguages && args.sourceLanguages.length > 0) {
+    params.set("source_language", args.sourceLanguages.join(","));
   }
 
   if (args.order) {
@@ -454,35 +607,118 @@ async function fetchMyRecordingGlobalConsent(
 async function fetchDiscoverableSeries(
   supabase: SupabaseClient
 ): Promise<SeriesRow[]> {
-  const firstTry = await supabase
-    .from("series")
-    .select("*")
-    .in("recording_permission_mode", ["open"])
-    .order("created_at", { ascending: false });
-
-  if (!firstTry.error) {
-    return ((firstTry.data ?? []) as SeriesRow[]).filter(
-      (series) => getSeriesPublicationStatus(series) === "public"
-    );
-  }
-
-  const secondTry = await supabase
+  const result = await supabase
     .from("series")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (secondTry.error) {
+  if (result.error) {
     return [];
   }
 
-  return ((secondTry.data ?? []) as SeriesRow[]).filter((series) => {
-    if (getSeriesPublicationStatus(series) !== "public") {
-      return false;
-    }
+  return ((result.data ?? []) as SeriesRow[]).filter(
+    (series) => getSeriesPublicationStatus(series) === "public"
+  );
+}
 
-    const mode = normalizeRecordingPermissionMode(series.recording_permission_mode);
-    return mode === "open";
-  });
+async function fetchPublishedHumanNarrationSummaries(
+  seriesIds: string[]
+): Promise<Map<string, HumanNarrationSummary>> {
+  const normalizedSeriesIds = Array.from(
+    new Set(seriesIds.map((value) => value.trim()).filter(Boolean))
+  );
+  if (normalizedSeriesIds.length === 0) return new Map();
+
+  const recordingsResult = await adminSupabase
+    .from("recordings")
+    .select(
+      "id, series_id, episode_id, reader_id, reader_user_id, reader_name, audio_storage_path, voice_model_id, is_public"
+    )
+    .in("series_id", normalizedSeriesIds)
+    .is("voice_model_id", null)
+    .eq("is_public", true);
+
+  if (recordingsResult.error) return new Map();
+
+  const candidateRecordings = ((recordingsResult.data ?? []) as RecordingRow[]).filter(
+    isPublishedHumanRecording
+  );
+  if (candidateRecordings.length === 0) return new Map();
+
+  const episodeIds = Array.from(
+    new Set(
+      candidateRecordings
+        .map((recording) => pickText(recording.episode_id))
+        .filter(Boolean)
+    )
+  );
+  const episodesResult = episodeIds.length
+    ? await adminSupabase.from("episodes").select("*").in("id", episodeIds)
+    : { data: [] as EpisodeRow[], error: null };
+
+  if (episodesResult.error) return new Map();
+
+  const visibleEpisodeNumberById = new Map<string, number>();
+  for (const episode of (episodesResult.data ?? []) as EpisodeRow[]) {
+    if (!isEpisodePubliclyVisible(episode, new Date())) continue;
+    const episodeNumber = getEpisodeNumber(episode);
+    if (episodeNumber > 0) {
+      visibleEpisodeNumberById.set(episode.id, episodeNumber);
+    }
+  }
+
+  const visibleRecordings = candidateRecordings.filter((recording) =>
+    visibleEpisodeNumberById.has(pickText(recording.episode_id))
+  );
+  if (visibleRecordings.length === 0) return new Map();
+
+  const recordingIds = visibleRecordings.map((recording) => recording.id);
+  const playsResult = await adminSupabase
+    .from("recording_play_events")
+    .select("recording_id")
+    .in("recording_id", recordingIds);
+  const playCountByRecordingId = new Map<string, number>();
+  if (!playsResult.error) {
+    for (const row of (playsResult.data ?? []) as Array<Record<string, unknown>>) {
+      const recordingId = pickText(row.recording_id);
+      if (!recordingId) continue;
+      playCountByRecordingId.set(
+        recordingId,
+        (playCountByRecordingId.get(recordingId) ?? 0) + 1
+      );
+    }
+  }
+
+  const summaries = new Map<string, HumanNarrationSummary>();
+  for (const recording of visibleRecordings) {
+    const seriesId = pickText(recording.series_id, recording.seriesId);
+    const episodeId = pickText(recording.episode_id);
+    const narratorName = pickText(recording.reader_name);
+    const episodeNumber = visibleEpisodeNumberById.get(episodeId);
+    if (!seriesId || !narratorName || !episodeNumber) continue;
+
+    const current = summaries.get(seriesId) ?? {
+      recordingIds: [],
+      narratorNames: [],
+      episodeNumbers: [],
+      playCount: 0,
+    };
+    current.recordingIds.push(recording.id);
+    if (!current.narratorNames.includes(narratorName)) {
+      current.narratorNames.push(narratorName);
+    }
+    if (!current.episodeNumbers.includes(episodeNumber)) {
+      current.episodeNumbers.push(episodeNumber);
+    }
+    current.playCount += playCountByRecordingId.get(recording.id) ?? 0;
+    summaries.set(seriesId, current);
+  }
+
+  for (const summary of summaries.values()) {
+    summary.episodeNumbers.sort((left, right) => left - right);
+  }
+
+  return summaries;
 }
 
 async function fetchMyRecordingRequests(
@@ -536,16 +772,18 @@ async function fetchMySubmittedSeriesIds(
 
   const collected = new Set<string>();
 
+  const selection =
+    "id, series_id, episode_id, reader_id, reader_user_id, reader_name, audio_storage_path, voice_model_id, is_public";
   const tries = [
     () =>
       adminSupabase
         .from("recordings")
-        .select("series_id")
+        .select(selection)
         .eq("reader_id", userId),
     () =>
       adminSupabase
         .from("recordings")
-        .select("series_id")
+        .select(selection)
         .eq("reader_user_id", userId),
   ];
 
@@ -557,6 +795,7 @@ async function fetchMySubmittedSeriesIds(
     }
 
     for (const row of (data ?? []) as RecordingRow[]) {
+      if (!isHumanRecordingRow(row)) continue;
       const seriesId = pickText(row.series_id, row.seriesId);
       if (seriesId) {
         collected.add(seriesId);
@@ -595,16 +834,31 @@ function buildLatestRequestMap(
 
 function buildCatalogItem(args: {
   series: SeriesRow;
+  baseWork: PublicBaseWorkCard;
+  humanNarration: HumanNarrationSummary | null;
   latestRequestMap: Map<string, RecordingRequestRow>;
   bookmarkedSeriesIds: Set<string>;
   submittedSeriesIds: Set<string>;
   popularity: SeriesPopularityMetrics;
 }): CatalogItem {
-  const { series, latestRequestMap, bookmarkedSeriesIds, submittedSeriesIds, popularity } =
-    args;
+  const {
+    series,
+    baseWork,
+    humanNarration,
+    latestRequestMap,
+    bookmarkedSeriesIds,
+    submittedSeriesIds,
+    popularity,
+  } = args;
 
-  const title = pickText(series.title) || "無題";
-  const summary = getSeriesSummary(series);
+  const title = baseWork.title || pickText(series.title) || "無題";
+  const summary = baseWork.summary || getSeriesSummary(series);
+  const authorName = baseWork.authorName || "作者名未設定";
+  const sourceLanguage = baseWork.sourceLanguage;
+  const humanNarrationCount = humanNarration?.recordingIds.length ?? 0;
+  const humanNarratorNames = humanNarration?.narratorNames ?? [];
+  const humanNarratedEpisodeNumbers = humanNarration?.episodeNumbers ?? [];
+  const humanNarrationPlayCount = humanNarration?.playCount ?? 0;
   const permissionMode = normalizeRecordingPermissionMode(
     series.recording_permission_mode
   );
@@ -613,20 +867,25 @@ function buildCatalogItem(args: {
   const isReady = permissionMode === "open";
   const isSubmitted = submittedSeriesIds.has(series.id);
   const isBookmarked = bookmarkedSeriesIds.has(series.id);
-  const tags = getSeriesTags(series);
-  const genres = getSeriesGenres(series);
-  const latestTimestamp = getCreatedAtScore(
-    pickText(
-      series.updated_at,
-      series.created_at,
-      latestRequest?.created_at
-    )
-  );
+  const tags = baseWork.tags.length > 0 ? baseWork.tags : getSeriesTags(series);
+  const genres =
+    baseWork.genres.length > 0 ? baseWork.genres : getSeriesGenres(series);
+  const latestTimestamp =
+    baseWork.latestPostedAtValue ||
+    getCreatedAtScore(
+      pickText(series.updated_at, series.created_at, latestRequest?.created_at)
+    );
 
   return {
     series,
     title,
     summary,
+    authorName,
+    sourceLanguage,
+    humanNarrationCount,
+    humanNarratorNames,
+    humanNarratedEpisodeNumbers,
+    humanNarrationPlayCount,
     permissionMode,
     latestRequest,
     latestStatus,
@@ -640,7 +899,9 @@ function buildCatalogItem(args: {
     searchText: normalizeSearchText(
       [
         title,
+        authorName,
         summary,
+        humanNarratorNames.join(" "),
         getPermissionLabel(permissionMode),
         tags.join(" "),
         genres.join(" "),
@@ -650,11 +911,37 @@ function buildCatalogItem(args: {
 }
 
 function matchesFilter(item: CatalogItem, filter: RecordFilter): boolean {
-  if (filter === "all") return true;
+  if (filter === "all") return item.humanNarrationCount > 0;
   if (filter === "submitted") return item.isSubmitted;
   if (filter === "ready") return item.isReady;
-  if (filter === "bookmarked") return item.isBookmarked;
-  return true;
+  if (filter === "bookmarked") {
+    return item.isBookmarked && item.humanNarrationCount > 0;
+  }
+  return item.humanNarrationCount > 0;
+}
+
+function matchesSourceLanguages(
+  item: CatalogItem,
+  sourceLanguages: readonly SupportedLanguageTag[]
+): boolean {
+  if (sourceLanguages.length === 0) return true;
+  return (
+    item.sourceLanguage !== null && sourceLanguages.includes(item.sourceLanguage)
+  );
+}
+
+function buildSourceLanguageCounts(
+  items: CatalogItem[]
+): Partial<Record<SupportedLanguageTag, number>> {
+  const counts: Partial<Record<SupportedLanguageTag, number>> = {};
+  for (const language of PUBLIC_SEARCH_SOURCE_LANGUAGES) {
+    counts[language] = 0;
+  }
+  for (const item of items) {
+    if (!item.sourceLanguage) continue;
+    counts[item.sourceLanguage] = (counts[item.sourceLanguage] ?? 0) + 1;
+  }
+  return counts;
 }
 
 function matchesSearch(args: {
@@ -662,10 +949,19 @@ function matchesSearch(args: {
   query: string;
   selectedTagTokens: string[];
   selectedGenreTokens: string[];
+  sourceLanguages: readonly SupportedLanguageTag[];
   startAt: number | null;
   endAt: number | null;
 }): boolean {
-  const { item, query, selectedTagTokens, selectedGenreTokens, startAt, endAt } = args;
+  const {
+    item,
+    query,
+    selectedTagTokens,
+    selectedGenreTokens,
+    sourceLanguages,
+    startAt,
+    endAt,
+  } = args;
 
   const queryOk = !query || item.searchText.includes(query);
 
@@ -681,13 +977,15 @@ function matchesSearch(args: {
       item.genres.some((genre) => normalizeGenreToken(genre) === selectedToken)
     );
 
+  const languageOk = matchesSourceLanguages(item, sourceLanguages);
+
   const dateOk =
     startAt === null ||
     endAt === null ||
     (item.latestTimestamp >= Math.min(startAt, endAt) &&
       item.latestTimestamp <= Math.max(startAt, endAt));
 
-  return queryOk && tagOk && genreOk && dateOk;
+  return queryOk && tagOk && genreOk && languageOk && dateOk;
 }
 
 function sortCatalogItems(
@@ -701,12 +999,9 @@ function sortCatalogItems(
       }
     } else if (order === "narration") {
       if (
-        right.popularity.narrationPlayCount !== left.popularity.narrationPlayCount
+        right.humanNarrationPlayCount !== left.humanNarrationPlayCount
       ) {
-        return (
-          right.popularity.narrationPlayCount -
-          left.popularity.narrationPlayCount
-        );
+        return right.humanNarrationPlayCount - left.humanNarrationPlayCount;
       }
     } else {
       if (
@@ -802,29 +1097,50 @@ function buildAvailableGenres(items: CatalogItem[]): GenreChip[] {
   });
 }
 
+function buildHumanNarrationListenPath(item: CatalogItem): string | null {
+  const episodeNumber = item.humanNarratedEpisodeNumbers[0];
+  const narratorName = item.humanNarratorNames[0];
+  if (!episodeNumber || !narratorName) return null;
+  const params = new URLSearchParams({ readerName: narratorName });
+  return `/read/${item.series.id}/${episodeNumber}?${params.toString()}`;
+}
+
 function getPrimaryAction(
   item: CatalogItem,
-  hasRecordingGlobalConsent: boolean
+  hasRecordingGlobalConsent: boolean,
+  canCreateHumanNarration: boolean,
+  copy: RecordPageCopy,
+  locale: UiLocale
 ): {
   href: string;
   label: string;
   className: string;
 } {
-  if (item.isReady) {
+  const listenHref = buildHumanNarrationListenPath(item);
+  if (listenHref) {
     return {
-      href: buildRecordingStartHref(
-        item.series.id,
-        hasRecordingGlobalConsent
+      href: localizePath(listenHref, locale),
+      label: copy.listen,
+      className:
+        "rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black transition hover:bg-sky-100",
+    };
+  }
+
+  if (item.isReady && canCreateHumanNarration) {
+    return {
+      href: localizePath(
+        buildRecordingStartHref(item.series.id, hasRecordingGlobalConsent),
+        locale
       ),
-      label: "朗読制作へ",
+      label: copy.create,
       className:
         "rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black transition hover:bg-sky-100",
     };
   }
 
   return {
-    href: buildWorkPath(item.series.id),
-    label: "作品ページへ",
+    href: localizePath(buildWorkPath(item.series.id), locale),
+    label: copy.workPage,
     className:
       "rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50",
   };
@@ -872,11 +1188,23 @@ function SectionFrame({
 function RecordCatalogCard({
   item,
   hasRecordingGlobalConsent,
+  canCreateHumanNarration,
+  copy,
+  locale,
 }: {
   item: CatalogItem;
   hasRecordingGlobalConsent: boolean;
+  canCreateHumanNarration: boolean;
+  copy: RecordPageCopy;
+  locale: UiLocale;
 }) {
-  const primaryAction = getPrimaryAction(item, hasRecordingGlobalConsent);
+  const primaryAction = getPrimaryAction(
+    item,
+    hasRecordingGlobalConsent,
+    canCreateHumanNarration,
+    copy,
+    locale
+  );
 
   return (
     <article className="rounded-[24px] border border-black/10 bg-white p-5">
@@ -891,21 +1219,33 @@ function RecordCatalogCard({
                 getPermissionClass(item.permissionMode),
               ].join(" ")}
             >
-              {getPermissionLabel(item.permissionMode)}
+              {getPermissionLabel(item.permissionMode, copy)}
             </span>
 
             {item.isSubmitted ? (
               <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs text-black">
-                投稿済
+                {copy.submitted}
               </span>
             ) : null}
 
             {item.isBookmarked ? (
               <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs text-neutral-700">
-                ブックマーク
+                {copy.bookmarked}
               </span>
             ) : null}
           </div>
+
+          <p className="mt-2 text-sm text-neutral-500">{copy.author}: {item.authorName}</p>
+
+          {item.humanNarrationCount > 0 ? (
+            <div className="mt-2 text-sm leading-7 text-neutral-700">
+              <span className="font-medium text-black">Human narration</span>
+              {" · "}
+              {copy.narrator}: {item.humanNarratorNames.join(" / ")}
+              {" · "}
+              {copy.publishedNarrationCount(item.humanNarrationCount)}
+            </div>
+          ) : null}
 
           <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-700">
             {item.summary}
@@ -932,83 +1272,39 @@ function RecordCatalogCard({
           </div>
 
           <div className="mt-4 text-sm leading-7 text-neutral-500">
-            朗読視聴 {item.popularity.narrationPlayCount} / 閲覧 {item.popularity.viewCount} / いいね{" "}
-            {item.popularity.likeCount} / ブックマーク {item.popularity.bookmarkCount}
+            {copy.humanPlays(item.humanNarrationPlayCount)} / {copy.views(item.popularity.viewCount)} /{" "}
+            {copy.likes(item.popularity.likeCount)} / {copy.bookmarks(item.popularity.bookmarkCount)}
           </div>
         </div>
 
         <div className="flex flex-wrap gap-3">
           <Link
-            href={buildWorkPath(item.series.id)}
+            href={localizePath(buildWorkPath(item.series.id), locale)}
             className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
           >
-            作品ページ
+            {copy.workPage}
           </Link>
 
           <Link href={primaryAction.href} className={primaryAction.className}>
             {primaryAction.label}
           </Link>
-        </div>
-      </div>
-    </article>
-  );
-}
 
-function RequestStatusCard({
-  item,
-  hasRecordingGlobalConsent,
-}: {
-  item: RequestListItem;
-  hasRecordingGlobalConsent: boolean;
-}) {
-  const latestStatus = normalizeRequestStatus(item.request.status);
-
-  return (
-    <article className="rounded-[24px] border border-black/10 bg-white p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-semibold text-black">{item.seriesTitle}</h3>
-            <span
-              className={[
-                "rounded-full border px-3 py-1 text-xs",
-                getRequestStatusClass(latestStatus),
-              ].join(" ")}
+          {item.humanNarrationCount > 0 &&
+          item.isReady &&
+          canCreateHumanNarration ? (
+            <Link
+              href={localizePath(
+                buildRecordingStartHref(
+                  item.series.id,
+                  hasRecordingGlobalConsent
+                ),
+                locale
+              )}
+              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
             >
-              {getRequestStatusLabel(latestStatus)}
-            </span>
-          </div>
-
-          <p className="mt-3 text-sm leading-7 text-neutral-500">
-            直近申請日時: {formatDateTime(item.request.created_at)}
-          </p>
-
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-neutral-700">
-            {pickText(item.request.request_message) || "申請メッセージは未入力。"}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href={buildWorkPath(item.seriesId)}
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-          >
-            作品ページ
-          </Link>
-
-          <Link
-            href={
-              latestStatus === "approved"
-                ? buildRecordingStartHref(
-                    item.seriesId,
-                    hasRecordingGlobalConsent
-                )  
-                : buildRecordingRequestPath(item.seriesId)
-            }
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-          >
-            {latestStatus === "approved" ? "制作開始" : "申請ページ"}
-          </Link>
+              {copy.alsoNarrate}
+            </Link>
+          ) : null}
         </div>
       </div>
     </article>
@@ -1016,6 +1312,8 @@ function RequestStatusCard({
 }
 
 export default async function RecordPortalPage({ searchParams }: PageProps) {
+  const locale = await getUiLocale();
+  const copy = getRecordPageCopy(locale);
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
   const supabase = await createClient();
@@ -1043,12 +1341,33 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
 
   const selectedTagTokens = selectedTagLabels.map(normalizeTagToken);
   const selectedGenreTokens = selectedGenreLabels.map(normalizeGenreToken);
+  const selectedSourceLanguages = parsePublicSearchSourceLanguages(
+    resolvedSearchParams?.source_language
+  );
   const normalizedQuery = normalizeSearchText(query);
 
   const showAllTags = pickText(resolvedSearchParams?.showTags) === "1";
   const showAllGenres = pickText(resolvedSearchParams?.showGenres) === "1";
 
-  const discoverableSeries = await fetchDiscoverableSeries(supabase);
+  const allPublicBaseWorkCards = await getCachedPublicBaseWorkCards({
+    visibility: "all",
+    ignoreContentLanguageFilter: true,
+    prioritizeForUiLocale: false,
+  });
+  const r18Preference = await getCurrentR18ViewerPreference();
+  const visibleBaseWorkCards = r18Preference.showR18Content
+    ? allPublicBaseWorkCards
+    : allPublicBaseWorkCards.filter((work) => work.contentRating !== "r18");
+  const visibleBaseWorkBySeriesId = new Map(
+    visibleBaseWorkCards.map((work) => [work.seriesId, work] as const)
+  );
+
+  const discoverableSeries = (await fetchDiscoverableSeries(supabase)).filter(
+    (series) => visibleBaseWorkBySeriesId.has(series.id)
+  );
+  const humanNarrationSummaries = await fetchPublishedHumanNarrationSummaries(
+    discoverableSeries.map((series) => series.id)
+  );
   const myRequests = await fetchMyRecordingRequests(supabase, user?.id ?? null);
   const myBookmarks = await fetchMyBookmarks(supabase, user?.id ?? null);
   const mySubmittedSeriesIds = await fetchMySubmittedSeriesIds(user?.id ?? null);
@@ -1056,6 +1375,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
     supabase,
     user?.id ?? null
   );
+  const canCreateHumanNarration = !isOfficialAccountEmail(user?.email);
 
   const latestRequestMap = buildLatestRequestMap(myRequests);
   const bookmarkedSeriesIds = new Set(
@@ -1070,21 +1390,24 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
   const popularityMap = buildSeriesPopularityMap(popularityDataset);
 
   const catalogItems = sortCatalogItems(
-    discoverableSeries.map((series) =>
-      buildCatalogItem({
+    discoverableSeries.flatMap((series) => {
+      const baseWork = visibleBaseWorkBySeriesId.get(series.id);
+      if (!baseWork) return [];
+      return [
+        buildCatalogItem({
         series,
+        baseWork,
+        humanNarration: humanNarrationSummaries.get(series.id) ?? null,
         latestRequestMap,
         bookmarkedSeriesIds,
         submittedSeriesIds: mySubmittedSeriesIds,
         popularity:
           popularityMap.get(series.id) ?? createEmptyPopularityMetrics(series.id),
-      })
-    ),
+        }),
+      ];
+    }),
     order
   );
-
-  const availableTags = buildAvailableTags(catalogItems);
-  const availableGenres = buildAvailableGenres(catalogItems);
 
   const oldestTimestamp =
     catalogItems.reduce((min, item) => {
@@ -1104,6 +1427,51 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
   const startAt = parseDateStart(selectedStartInput);
   const endAt = parseDateEnd(selectedEndInput);
 
+  const tagFacetItems = catalogItems.filter(
+    (item) =>
+      matchesFilter(item, activeFilter) &&
+      matchesSearch({
+        item,
+        query: normalizedQuery,
+        selectedTagTokens: [],
+        selectedGenreTokens,
+        sourceLanguages: selectedSourceLanguages,
+        startAt,
+        endAt,
+      })
+  );
+  const genreFacetItems = catalogItems.filter(
+    (item) =>
+      matchesFilter(item, activeFilter) &&
+      matchesSearch({
+        item,
+        query: normalizedQuery,
+        selectedTagTokens,
+        selectedGenreTokens: [],
+        sourceLanguages: selectedSourceLanguages,
+        startAt,
+        endAt,
+      })
+  );
+  const sourceLanguageFacetItems = catalogItems.filter(
+    (item) =>
+      matchesFilter(item, activeFilter) &&
+      matchesSearch({
+        item,
+        query: normalizedQuery,
+        selectedTagTokens,
+        selectedGenreTokens,
+        sourceLanguages: [],
+        startAt,
+        endAt,
+      })
+  );
+  const availableTags = buildAvailableTags(tagFacetItems);
+  const availableGenres = buildAvailableGenres(genreFacetItems);
+  const sourceLanguageCounts = buildSourceLanguageCounts(
+    sourceLanguageFacetItems
+  );
+
   const filteredCatalogItems = sortCatalogItems(
     catalogItems.filter(
       (item) =>
@@ -1113,6 +1481,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
           query: normalizedQuery,
           selectedTagTokens,
           selectedGenreTokens,
+          sourceLanguages: selectedSourceLanguages,
           startAt,
           endAt,
         })
@@ -1120,37 +1489,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
     order
   );
 
-  const submittedItems = sortCatalogItems(
-    catalogItems.filter((item) => item.isSubmitted),
-    order
-  ).slice(0, 5);
 
-  const bookmarkedItems = sortCatalogItems(
-    catalogItems.filter((item) => item.isBookmarked),
-    order
-  ).slice(0, 5);
-
-  const requestItems = Array.from(latestRequestMap.entries())
-    .map(([seriesId, request]) => {
-      const matched = catalogItems.find((item) => item.series.id === seriesId);
-      if (!matched) {
-        return null;
-      }
-
-      return {
-        seriesId,
-        request,
-        seriesTitle: matched.title,
-        permissionMode: matched.permissionMode,
-      } satisfies RequestListItem;
-    })
-    .filter((item): item is RequestListItem => item !== null)
-    .sort(
-      (left, right) =>
-        getCreatedAtScore(right.request.created_at) -
-        getCreatedAtScore(left.request.created_at)
-    )
-    .slice(0, 5);
 
   return (
     <main className="min-h-screen bg-[#f4f4f4] text-black">
@@ -1182,24 +1521,6 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
               検索
             </a>
             <a
-              href="#record-submitted"
-              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-            >
-              投稿朗読作品
-            </a>
-            <a
-              href="#record-bookmarked"
-              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-            >
-              ブックマーク作品
-            </a>
-            <a
-              href="#record-requests"
-              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-            >
-              朗読状況
-            </a>
-            <a
               href="#record-search-results"
               className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black transition hover:bg-sky-100"
             >
@@ -1227,6 +1548,8 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
             hasHiddenGenres={availableGenres.length > 8}
             showAllTags={showAllTags}
             showAllGenres={showAllGenres}
+            sourceLanguages={selectedSourceLanguages}
+            sourceLanguageCounts={sourceLanguageCounts}
           />
         </div>
 
@@ -1235,8 +1558,8 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
           <SectionFrame
             id="record-search-results"
             label="SEARCH RESULTS"
-            title="検索結果"
-            description={FILTER_META[activeFilter].description}
+            title={copy.resultTitle}
+            description={copy.filterMeta[activeFilter].description}
             action={
               <SearchNavButton
                 href={buildRecordSearchHref({
@@ -1244,6 +1567,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
                   filter: activeFilter,
                   selectedTags: selectedTagLabels,
                   selectedGenres: selectedGenreLabels,
+                  sourceLanguages: selectedSourceLanguages,
                   order,
                   start: selectedStartInput,
                   end: selectedEndInput,
@@ -1253,33 +1577,38 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
                 scrollTargetId="record-search"
                 className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black transition hover:bg-sky-100"
               >
-                上の検索へ
+                {copy.backToSearch}
               </SearchNavButton>
             }
           >
             <div className="mb-4 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">
-              フィルタ: {FILTER_META[activeFilter].label}
+              {copy.filterLabel}: {copy.filterMeta[activeFilter].label}
               <br />
-              検索語: {query ? `「${query}」` : "未入力"}
+              {copy.queryLabel}: {query ? `「${query}」` : copy.emptyQuery}
               <br />
-              タグ: {selectedTagLabels.length > 0 ? selectedTagLabels.join(" / ") : "未指定"}
+              {copy.tagsLabel}: {selectedTagLabels.length > 0 ? selectedTagLabels.join(" / ") : copy.unspecified}
               <br />
-              ジャンル:{" "}
+              {copy.genresLabel}:{" "}
               {selectedGenreLabels.length > 0
                 ? selectedGenreLabels.join(" / ")
-                : "未指定"}
+                : copy.unspecified}
               <br />
-              並び順:{" "}
+              {copy.sourceLanguageLabel}:{" "}
+              {selectedSourceLanguages.length > 0
+                ? selectedSourceLanguages.join(" / ")
+                : copy.unspecified}
+              <br />
+              {copy.orderLabel}:{" "}
               {order === "updated"
-                ? "更新順"
+                ? copy.orderUpdated
                 : order === "narration"
-                  ? "朗読視聴順"
-                  : "人気順"}
+                  ? copy.orderNarration
+                  : copy.orderPopular}
             </div>
 
             {filteredCatalogItems.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">
-                条件に合う朗読関連作品はない。
+                {copy.emptyResults}
               </div>
             ) : (
               <div className="grid gap-4">
@@ -1288,6 +1617,9 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
                     key={item.series.id}
                     item={item}
                     hasRecordingGlobalConsent={hasRecordingGlobalConsent}
+                    canCreateHumanNarration={canCreateHumanNarration}
+                    copy={copy}
+                    locale={locale}
                   />
                 ))}
               </div>

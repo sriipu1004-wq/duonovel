@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import WebSpeechEpisodePlayback from "@/features/playback/WebSpeechEpisodePlayback";
@@ -29,6 +30,9 @@ import { readPageDictionaries } from "@/i18n/dictionaries/readPage";
 import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 import { getSupportedLanguage } from "@/lib/translation/languageRegistry";
 import { isUuid } from "@/lib/uuid";
+import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
+import { buildRecordingEntryPath } from "@/lib/recording/recordingEntry";
+import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -152,10 +156,6 @@ function getRecordingReaderKey(recording: RecordingRow): string {
   );
 }
 
-function isLegacyGeneratedRecording(recording: RecordingRow): boolean {
-  const name = getRecordingReaderName(recording);
-  return name.startsWith("Aivis ") || name.startsWith("VOICEVOX Nemo");
-}
 
 function doesRecordingMatchRequestedReader(
   recording: RecordingRow,
@@ -379,10 +379,17 @@ export default async function ReadEpisodePage({
   // reader payload at all for a viewer whose R18 preference blocks this work.
   if (payload.r18Blocked) return null;
 
-  const { series, episode, publicEpisodes, isOwner, viewerUserId } = payload;
+  const {
+    series,
+    episode,
+    publicEpisodes,
+    isOwner,
+    viewerUserId,
+    viewerEmail,
+  } = payload;
   const subscriber = viewerUserId ? await isSubscriber(viewerUserId) : false;
   const availableHumanRecordings = payload.allEpisodeRecordings.filter(
-    (recording) => !isLegacyGeneratedRecording(recording)
+    isPublishedHumanRecording
   );
   const humanNarrationOptions = availableHumanRecordings
     .map((recording) => {
@@ -520,6 +527,17 @@ export default async function ReadEpisodePage({
           locale
         )
       : undefined;
+  const recordingCreateHref =
+    series.recording_permission_mode === "open" &&
+    !isOfficialAccountEmail(viewerEmail)
+      ? localizePath(buildRecordingEntryPath(seriesId), locale)
+      : null;
+  const recordingCreateLabel = ui.createHumanNarration;
+  const showContinueStoryAction =
+    isOwner &&
+    Boolean(aiGeneratedAttribution) &&
+    nextEpisodeNumber === null &&
+    episodeBody.trim().length > 0;
 
   const effectSettings = mergeEffectSettings(
     parseEffectSettingsFromRow(
@@ -564,11 +582,20 @@ export default async function ReadEpisodePage({
       effectSettings={effectSettings}
       speechLanguage={speechLanguage}
       ownerActions={
-        isOwner &&
-        aiGeneratedAttribution &&
-        nextEpisodeNumber === null &&
-        episodeBody.trim() ? (
-          <ContinueStoryAction seriesId={seriesId} isShortStory={isShortStory} />
+        recordingCreateHref || showContinueStoryAction ? (
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            {recordingCreateHref ? (
+              <Link
+                href={recordingCreateHref}
+                className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-medium text-black transition hover:bg-sky-100"
+              >
+                {recordingCreateLabel}
+              </Link>
+            ) : null}
+            {showContinueStoryAction ? (
+              <ContinueStoryAction seriesId={seriesId} isShortStory={isShortStory} />
+            ) : null}
+          </div>
         ) : null
       }
     />

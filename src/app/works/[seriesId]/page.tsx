@@ -38,6 +38,10 @@ import { PUBLIC_WORK_RECORDING_SELECT } from "@/lib/recording/publicRecordingSel
 import { getUiLocale } from "@/i18n/server";
 import { localizePath } from "@/i18n/navigation";
 import { isUuid } from "@/lib/uuid";
+import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
+import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
+import { buildRecordingEntryPath } from "@/lib/recording/recordingEntry";
+import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -55,12 +59,6 @@ type UserRow = Record<string, unknown> & {
   username?: string | null;
   pen_name?: string | null;
   name?: string | null;
-};
-
-type RecordingVoiceModelRow = {
-  display_name?: string | null;
-  name?: string | null;
-  tags?: string[] | null;
 };
 
 type RecordingRow = Record<string, unknown> & {
@@ -90,7 +88,6 @@ type RecordingRow = Record<string, unknown> & {
   audioStoragePath?: string | null;
   voice_model_id?: string | null;
   voiceModelId?: string | null;
-  voice_models?: RecordingVoiceModelRow | RecordingVoiceModelRow[] | null;
 };
 
 type ReaderCard = {
@@ -119,12 +116,6 @@ type RelatedWorkCard = {
 };
 
 const adminSupabase = createAdminClient();
-
-function isPublicRecording(recording: RecordingRow): boolean {
-  if (recording.is_public === false) return false;
-  if (recording.public === false) return false;
-  return true;
-}
 
 function getRecordingLikes(recording: RecordingRow): number {
   const raw = recording.like_count ?? recording.likes_count ?? 0;
@@ -199,64 +190,6 @@ function isShortStorySeries(series: SeriesRow): boolean {
   }
 
   return isAiGenerated;
-}
-
-function getSyntheticReaderTags(name: string): string[] {
-  if (name === "VOICEVOX Nemo / ノーマル") {
-    return ["#自動朗読", "#女性", "#落ち着き"];
-  }
-
-  if (name === "Aivis コハク") {
-    return ["#自動朗読", "#女の子", "#甘め"];
-  }
-
-  if (name === "Aivis まお") {
-    return ["#自動朗読", "#女の子", "#小悪魔"];
-  }
-
-  if (name === "Aivis にせ") {
-    return ["#自動朗読", "#男の子", "#優しめ"];
-  }
-
-  if (name === "Aivis 阿井田 茂") {
-    return ["#自動朗読", "#男性", "#バリトン"];
-  }  
-
-  if (name.startsWith("Aivis ") || name.startsWith("VOICEVOX Nemo")) {
-    return ["#自動朗読"];
-  }
-
-  return [];
-}
-
-function getRecordingVoiceModel(recording: RecordingRow): RecordingVoiceModelRow | null {
-  const raw = recording.voice_models;
-
-  if (Array.isArray(raw)) {
-    return raw[0] ?? null;
-  }
-
-  return raw ?? null;
-}
-
-function getVoiceModelTags(recording: RecordingRow): string[] {
-  const voiceModel = getRecordingVoiceModel(recording);
-  const tags = voiceModel?.tags;
-
-  if (!Array.isArray(tags)) {
-    return [];
-  }
-
-  return tags
-    .map((tag) => String(tag).trim())
-    .filter((tag) => tag.length > 0)
-    .map((tag) => (tag.startsWith("#") ? tag : `#${tag}`));
-}
-
-function getVoiceModelDisplayName(recording: RecordingRow): string {
-  const voiceModel = getRecordingVoiceModel(recording);
-
-  return pickText(voiceModel?.display_name, voiceModel?.name);
 }
 
 function getSeriesTags(series: SeriesRow): string[] {
@@ -376,7 +309,12 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
 
   if (!firstTry.error) {
     return {
-      recordings: ((firstTry.data ?? []) as RecordingRow[]).filter(isPublicRecording),
+      recordings: ((firstTry.data ?? []) as RecordingRow[])
+        .filter(isPublishedHumanRecording)
+        .map((recording) => ({
+          ...recording,
+          audio_storage_path: buildHumanRecordingPlaybackHref(recording.id),
+        })),
       fetchErrorMessage: null,
     };
   }
@@ -390,9 +328,12 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
 
   if (!fallback.error) {
     return {
-      recordings: ((fallback.data ?? []) as RecordingRow[]).filter(
-        isPublicRecording
-      ),
+      recordings: ((fallback.data ?? []) as RecordingRow[])
+        .filter(isPublishedHumanRecording)
+        .map((recording) => ({
+          ...recording,
+          audio_storage_path: buildHumanRecordingPlaybackHref(recording.id),
+        })),
       fetchErrorMessage: null,
     };
   }
@@ -403,53 +344,17 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
   };
 }
 
-function isNemoReaderName(name: string): boolean {
-  return name.startsWith("VOICEVOX Nemo");
-}
-
-function isAivisReaderName(name: string): boolean {
-  return name.startsWith("Aivis ");
-}
-
-function getCanonicalAivisReaderKey(name: string): string {
-  return `aivis:${name}`;
-}
-
 function getRecordingReaderName(recording: RecordingRow): string {
-  return (
-    pickText(
-      recording.reader_name,
-      recording.narrator_name,
-      recording.display_name,
-      recording.speaker_name
-    ) || "名称未設定"
-  );
-}
-
-function getCanonicalNemoReaderKey(name: string): string {
-  return `nemo:${name}`;
+  return pickText(recording.reader_name) || "名称未設定";
 }
 
 function getRecordingReaderKey(recording: RecordingRow): string {
-  const name = getRecordingReaderName(recording);
-
-  if (isNemoReaderName(name)) {
-    return getCanonicalNemoReaderKey(name);
-  }
-
-  if (isAivisReaderName(name)) {
-    return getCanonicalAivisReaderKey(name);
-  }
-
   return (
     pickText(
       recording.reader_id,
       recording.reader_user_id,
       recording.readerUserId,
       recording.reader_name,
-      recording.narrator_name,
-      recording.display_name,
-      recording.speaker_name,
       recording.id
     ) || recording.id
   );
@@ -459,99 +364,19 @@ function getRecordingAudioStoragePath(recording: RecordingRow): string {
   return pickText(recording.audio_storage_path, recording.audioStoragePath);
 }
 
-function getRecordingReaderId(recording: RecordingRow): string {
-  return pickText(
-    recording.reader_id,
-    recording.reader_user_id,
-    recording.readerUserId
-  );
-}
-
 function doesRecordingMatchRequestedReader(
   recording: RecordingRow,
   requestedReaderKey?: string,
   requestedReaderName?: string
 ): boolean {
-  const hasRequestedReader = Boolean(
-    pickText(requestedReaderKey, requestedReaderName)
-  );
-
-  if (!hasRequestedReader) {
-    return false;
-  }
-
+  if (!requestedReaderKey && !requestedReaderName) return false;
   const readerKey = getRecordingReaderKey(recording);
   const readerName = getRecordingReaderName(recording);
-
-  if (requestedReaderKey) {
-    if (readerKey === requestedReaderKey || readerName === requestedReaderKey) {
-      return true;
-    }
-  }
-
-  if (requestedReaderName) {
-    if (readerName === requestedReaderName) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function isNemoAutogenRecording(
-  recording: RecordingRow,
-  config: { userId: string; narratorName: string }
-): boolean {
-  return (
-    getRecordingReaderId(recording) === config.userId ||
-    getRecordingReaderName(recording) === config.narratorName
+  return Boolean(
+    (requestedReaderKey &&
+      (readerKey === requestedReaderKey || readerName === requestedReaderKey)) ||
+      (requestedReaderName && readerName === requestedReaderName)
   );
-}
-
-function resolveAutoNarrationBadge(args: {
-  permissionMode: RecordingPermissionMode;
-  totalEpisodeCount: number;
-  generatedEpisodeCount: number;
-  hasConfig: boolean;
-}): {
-  label: string;
-  className: string;
-} {
-  const { permissionMode, totalEpisodeCount, generatedEpisodeCount, hasConfig } =
-    args;
-
-  if (permissionMode !== "open") {
-    return {
-      label: "自動朗読停止",
-      className: "border-black/10 bg-neutral-100 text-neutral-700",
-    };
-  }
-
-  if (!hasConfig) {
-    return {
-      label: "自動朗読未設定",
-      className: "border-amber-200 bg-amber-50 text-amber-700",
-    };
-  }
-
-  if (generatedEpisodeCount <= 0) {
-    return {
-      label: `自動朗読生成待ち 0/${totalEpisodeCount}`,
-      className: "border-black/10 bg-neutral-100 text-neutral-700",
-    };
-  }
-
-  if (generatedEpisodeCount < totalEpisodeCount) {
-    return {
-      label: `自動朗読生成中 ${generatedEpisodeCount}/${totalEpisodeCount}`,
-      className: "border-sky-200 bg-sky-50 text-black",
-    };
-  }
-
-  return {
-    label: `自動朗読生成済み ${generatedEpisodeCount}/${totalEpisodeCount}`,
-    className: "border-sky-200 bg-sky-50 text-black",
-  };
 }
 
 function getRecordingEpisodeId(recording: RecordingRow): string {
@@ -560,21 +385,9 @@ function getRecordingEpisodeId(recording: RecordingRow): string {
 
 function normalizeRequestedReaderKey(
   readerKey?: string,
-  readerName?: string
+  _readerName?: string
 ): string {
-  const normalizedName = pickText(readerName);
-
-  if (normalizedName && isNemoReaderName(normalizedName)) {
-    return getCanonicalNemoReaderKey(normalizedName);
-  }
-
-  const normalizedKey = pickText(readerKey);
-
-  if (normalizedKey.startsWith("nemo:")) {
-    return normalizedKey;
-  }
-
-  return normalizedKey;
+  return pickText(readerKey);
 }
 
 function buildReaderCards(
@@ -598,13 +411,8 @@ function buildReaderCards(
   >();
 
   for (const recording of recordings) {
-    const name =
-      getVoiceModelDisplayName(recording) || getRecordingReaderName(recording);
-    const key =
-      isAivisReaderName(name) || name.startsWith("VOICEVOX Nemo")
-        ? getRecordingReaderKey(recording)
-        : pickText(recording.voice_model_id, recording.voiceModelId) ||
-          getRecordingReaderKey(recording);
+    const name = getRecordingReaderName(recording);
+    const key = getRecordingReaderKey(recording);
     const audioStoragePath = getRecordingAudioStoragePath(recording);
     const episodeId = getRecordingEpisodeId(recording);
     const episodeNumber =
@@ -628,11 +436,7 @@ function buildReaderCards(
     existing.recordingCount += 1;
     existing.allowDownload = existing.allowDownload || recording.allow_download === true;
 
-    const tags = uniqueTags([
-      ...getVoiceModelTags(recording),
-      ...parseTags(recording.tags),
-      ...getSyntheticReaderTags(name),
-    ]);
+    const tags = uniqueTags(parseTags(recording.tags));
     for (const tag of tags) {
       existing.tagMap.set(tag, (existing.tagMap.get(tag) ?? 0) + 1);
     }
@@ -968,11 +772,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
         fetchErrorMessage: null,
       };
 
-  const recordings = fetchedRecordings.filter((recording) => {
-    const readerName = getRecordingReaderName(recording);
-
-    return !isNemoReaderName(readerName) && !isAivisReaderName(readerName);
-  });
+  const recordings = fetchedRecordings;
 
   const episodeNumberById = new Map(
     episodes.map((episode) => [episode.id, getEpisodeNumber(episode)])
@@ -1063,6 +863,16 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     )}`
   );
 
+  const canCreateHumanNarration =
+    recordingPermissionMode === "open" &&
+    !isOfficialAccountEmail(currentUser?.email);
+  const createHumanNarrationLabel =
+    locale === "en"
+      ? "Create human narration"
+      : locale === "ko"
+        ? "사람 낭독 만들기"
+        : "Human narrationを制作";
+
   const reviewsVisible = isSeriesReviewVisible(series);
 
   return (
@@ -1149,6 +959,15 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
               <FavoriteBookmarkButton seriesId={seriesId} loginHref={loginHref} />
               <SeriesReactionButton seriesId={seriesId} loginHref={loginHref} />
+
+              {canCreateHumanNarration ? (
+                <Link
+                  href={workHref(buildRecordingEntryPath(seriesId))}
+                  className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-medium text-black transition hover:bg-sky-100"
+                >
+                  {createHumanNarrationLabel}
+                </Link>
+              ) : null}
             </div>
           </div>
 

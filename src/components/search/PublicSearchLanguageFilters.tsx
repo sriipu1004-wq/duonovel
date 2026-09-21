@@ -42,27 +42,33 @@ type Counts = Partial<Record<SupportedLanguageTag, number>>;
 type PublicSearchLanguageFiltersProps = {
   sourceLanguages: SupportedLanguageTag[];
   onSourceLanguagesChange: (languages: SupportedLanguageTag[]) => void;
+  countsOverride?: Counts;
 };
 
 export default function PublicSearchLanguageFilters({
   sourceLanguages,
   onSourceLanguagesChange,
+  countsOverride,
 }: PublicSearchLanguageFiltersProps) {
   const locale = useUiLocale();
-  const [counts, setCounts] = useState<Counts>({});
+  const [fetchedCounts, setFetchedCounts] = useState<Counts>({});
 
   useEffect(() => {
+    if (countsOverride) return;
+
     let cancelled = false;
     void fetch("/api/public/work-language-counts", { cache: "no-store" })
       .then((response) => response.json())
       .then((payload: { counts?: Counts }) => {
-        if (!cancelled && payload.counts) setCounts(payload.counts);
+        if (!cancelled && payload.counts) setFetchedCounts(payload.counts);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [countsOverride]);
+
+  const counts = countsOverride ?? fetchedCounts;
 
   const orderedLanguages = useMemo(() => {
     const preferred = locale as SupportedLanguageTag;

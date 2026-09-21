@@ -9,6 +9,9 @@ import {
   RECORDING_TERMS_HREF,
 } from "@/lib/recording/recordingConsent";
 import { createClient } from "@/lib/supabase/server";
+import { getUiLocale } from "@/i18n/server";
+import { localizePath } from "@/i18n/navigation";
+import type { UiLocale } from "@/i18n/config";
 
 export const metadata: Metadata = {
   title: "朗読投稿前の確認 | LIB read",
@@ -25,17 +28,21 @@ function readText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function buildLoginRedirectPath(nextPath: string): string {
-  const currentPath = `/record/consent?next=${encodeURIComponent(nextPath)}`;
+function buildLoginRedirectPath(nextPath: string, locale: UiLocale): string {
+  const currentPath = localizePath(
+    `/record/consent?next=${encodeURIComponent(nextPath)}`,
+    locale
+  );
   return `/login?next=${encodeURIComponent(currentPath)}`;
 }
 
 async function acceptRecordingGlobalConsent(formData: FormData) {
   "use server";
 
+  const locale = await getUiLocale();
   const nextPath = normalizeRecordingConsentNextPath(
     formData.get("next"),
-    "/record"
+    localizePath("/record", locale)
   );
 
   const supabase = await createClient();
@@ -45,7 +52,7 @@ async function acceptRecordingGlobalConsent(formData: FormData) {
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    redirect(buildLoginRedirectPath(nextPath));
+    redirect(buildLoginRedirectPath(nextPath, locale));
   }
 
   const { error } = await supabase.from("user_recording_consents").upsert(
@@ -68,10 +75,11 @@ async function acceptRecordingGlobalConsent(formData: FormData) {
 }
 
 export default async function RecordConsentPage({ searchParams }: PageProps) {
+  const locale = await getUiLocale();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const nextPath = normalizeRecordingConsentNextPath(
     resolvedSearchParams?.next,
-    "/record"
+    localizePath("/record", locale)
   );
 
   const supabase = await createClient();
@@ -81,7 +89,7 @@ export default async function RecordConsentPage({ searchParams }: PageProps) {
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    redirect(buildLoginRedirectPath(nextPath));
+    redirect(buildLoginRedirectPath(nextPath, locale));
   }
 
   const { data: consentRow, error: consentError } = await supabase
@@ -158,7 +166,7 @@ export default async function RecordConsentPage({ searchParams }: PageProps) {
               </button>
 
               <Link
-                href="/record"
+                href={localizePath("/record", locale)}
                 className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-700 transition hover:bg-neutral-50"
               >
                 戻る

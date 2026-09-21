@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import {
   decideRecordingEntryAccess,
   normalizeRecordingPermissionMode,
@@ -115,6 +116,16 @@ export async function POST(request: Request) {
 
     if (authError || !user) {
       throw new Error("unauthorized");
+    }
+
+    if (isOfficialAccountEmail(user.email)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "LIB read Official からのHuman narration公開は停止している。",
+        },
+        { status: 403 }
+      );
     }
 
     // Resolve authorization through the session-bound client rather than the

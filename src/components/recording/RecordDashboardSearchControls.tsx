@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import SearchNavButton from "@/components/search/SearchNavButton";
+import PublicSearchLanguageFilters from "@/components/search/PublicSearchLanguageFilters";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { localizePath } from "@/i18n/navigation";
 import type { UiLocale } from "@/i18n/config";
 
 type RecordFilter = "all" | "submitted" | "ready" | "bookmarked";
+type LanguageCounts = Partial<Record<SupportedLanguageTag, number>>;
 type RecordOrderKey = "popular" | "updated" | "narration";
 
 type TagChip = { value: string; label: string; count: number };
@@ -29,6 +32,8 @@ type RecordDashboardSearchControlsProps = {
   hasHiddenGenres: boolean;
   showAllTags: boolean;
   showAllGenres: boolean;
+  sourceLanguages: SupportedLanguageTag[];
+  sourceLanguageCounts: LanguageCounts;
 };
 
 type Copy = {
@@ -41,6 +46,7 @@ type Copy = {
   all: string;
   submitted: string;
   ready: string;
+  bookmarked: string;
   genre: string;
   tags: string;
   collapse: string;
@@ -56,14 +62,15 @@ const COPY: Record<UiLocale, Copy> = {
   ja: {
     title: "朗読作品を探す",
     description:
-      "公開中の朗読関連作品を、検索語、ジャンル、タグ、期間、並び順、朗読向けフィルタで絞り込む。",
+      "公開中のHuman narrationを検索する。朗読可では、人間朗読を新しく制作できる公開作品も探せる。",
     placeholder: "作品名、作者名、あらすじなどで検索",
     emptyFilters: "ジャンル / タグで絞る（左に表示されてるものほど強く参照される）",
     clear: "条件をクリア",
     narrationFilter: "朗読フィルタ",
-    all: "すべて",
+    all: "公開朗読",
     submitted: "投稿済",
     ready: "朗読可",
+    bookmarked: "ブックマーク",
     genre: "ジャンル",
     tags: "タグ",
     collapse: "閉じる",
@@ -77,14 +84,15 @@ const COPY: Record<UiLocale, Copy> = {
   en: {
     title: "Find narration-ready works",
     description:
-      "Filter public narration-related works by keyword, genre, tag, period, sort order, and narration status.",
+      "Search published human narration. Use Available to find public works that allow new human recordings.",
     placeholder: "Search by title, author, summary, and more",
     emptyFilters: "Filter by genre / tag (items further left are weighted more strongly)",
     clear: "Clear filters",
     narrationFilter: "Narration filter",
-    all: "All",
+    all: "Published narration",
     submitted: "Submitted",
     ready: "Available",
+    bookmarked: "Bookmarked",
     genre: "Genre",
     tags: "Tags",
     collapse: "Collapse",
@@ -98,14 +106,15 @@ const COPY: Record<UiLocale, Copy> = {
   ko: {
     title: "낭독 가능한 작품 찾기",
     description:
-      "공개 중인 낭독 관련 작품을 검색어, 장르, 태그, 기간, 정렬, 낭독 상태로 필터링합니다.",
+      "공개된 Human narration을 검색합니다. 낭독 가능에서는 새 사람 낭독을 제작할 수 있는 공개 작품도 찾을 수 있습니다.",
     placeholder: "작품명, 작가명, 줄거리 등으로 검색",
     emptyFilters: "장르 / 태그로 필터링 (왼쪽 항목일수록 더 강하게 반영)",
     clear: "조건 지우기",
     narrationFilter: "낭독 필터",
-    all: "전체",
+    all: "공개 낭독",
     submitted: "제출 완료",
     ready: "낭독 가능",
+    bookmarked: "북마크",
     genre: "장르",
     tags: "태그",
     collapse: "접기",
@@ -118,10 +127,11 @@ const COPY: Record<UiLocale, Copy> = {
   },
 };
 
-const FILTER_VALUES: Array<Exclude<RecordFilter, "bookmarked">> = [
+const FILTER_VALUES: RecordFilter[] = [
   "all",
   "submitted",
   "ready",
+  "bookmarked",
 ];
 
 function normalizeTagToken(value: string): string {
@@ -163,6 +173,7 @@ function buildRecordSearchHref(
     filter?: RecordFilter;
     selectedTags?: string[];
     selectedGenres?: string[];
+    sourceLanguages?: SupportedLanguageTag[];
     order?: RecordOrderKey;
     start?: string;
     end?: string;
@@ -180,6 +191,9 @@ function buildRecordSearchHref(
   if (params.end) query.set("end", params.end);
   if (params.showTags) query.set("showTags", "1");
   if (params.showGenres) query.set("showGenres", "1");
+  if (params.sourceLanguages?.length) {
+    query.set("source_language", params.sourceLanguages.join(","));
+  }
   const base = localizePath("/record", locale);
   const queryString = query.toString();
   return queryString ? `${base}?${queryString}` : base;
@@ -202,6 +216,8 @@ export default function RecordDashboardSearchControls(props: RecordDashboardSear
     hasHiddenGenres,
     showAllTags,
     showAllGenres,
+    sourceLanguages: initialSourceLanguages,
+    sourceLanguageCounts,
   } = props;
   const locale = useUiLocale();
   const copy = COPY[locale];
@@ -210,11 +226,14 @@ export default function RecordDashboardSearchControls(props: RecordDashboardSear
   const [startValue, setStartValue] = useState(selectedStartInput);
   const [endValue, setEndValue] = useState(selectedEndInput);
   const [genreLimitMessage, setGenreLimitMessage] = useState("");
+  const [sourceLanguages, setSourceLanguages] =
+    useState<SupportedLanguageTag[]>(initialSourceLanguages);
 
   useEffect(() => setQueryValue(query), [query]);
   useEffect(() => setStartValue(selectedStartInput), [selectedStartInput]);
   useEffect(() => setEndValue(selectedEndInput), [selectedEndInput]);
   useEffect(() => setGenreLimitMessage(""), [selectedGenreLabels]);
+  useEffect(() => setSourceLanguages(initialSourceLanguages), [initialSourceLanguages]);
 
   const selectedFilterChips = useMemo(
     () => [
@@ -235,6 +254,7 @@ export default function RecordDashboardSearchControls(props: RecordDashboardSear
       end: endValue,
       showTags: showAllTags,
       showGenres: showAllGenres,
+      sourceLanguages,
       ...overrides,
     });
 
@@ -269,6 +289,7 @@ export default function RecordDashboardSearchControls(props: RecordDashboardSear
     setStartValue(defaultStartInput);
     setEndValue(defaultEndInput);
     setGenreLimitMessage("");
+    setSourceLanguages([]);
     navigate(buildRecordSearchHref(locale, {}));
   }
 
@@ -282,10 +303,11 @@ export default function RecordDashboardSearchControls(props: RecordDashboardSear
     navigate(href({ selectedGenres: result.nextLabels }));
   }
 
-  const filterLabels: Record<Exclude<RecordFilter, "bookmarked">, string> = {
+  const filterLabels: Record<RecordFilter, string> = {
     all: copy.all,
     submitted: copy.submitted,
     ready: copy.ready,
+    bookmarked: copy.bookmarked,
   };
 
   return (
@@ -295,6 +317,18 @@ export default function RecordDashboardSearchControls(props: RecordDashboardSear
         <h2 className="mt-3 text-2xl font-bold leading-tight text-black sm:text-3xl">{copy.title}</h2>
         <p className="mt-3 max-w-3xl text-sm leading-8 text-neutral-600 sm:text-[15px]">{copy.description}</p>
       </div>
+
+      <PublicSearchLanguageFilters
+        sourceLanguages={sourceLanguages}
+        countsOverride={sourceLanguageCounts}
+        onSourceLanguagesChange={(nextLanguages) => {
+          setSourceLanguages(nextLanguages);
+          navigate(
+            href({ sourceLanguages: nextLanguages }),
+            "record-search-results"
+          );
+        }}
+      />
 
       <div className="mt-6 grid gap-3">
         <input
@@ -349,7 +383,8 @@ export default function RecordDashboardSearchControls(props: RecordDashboardSear
         selectedStartInput !== defaultStartInput ||
         selectedEndInput !== defaultEndInput ||
         filter !== "all" ||
-        order !== "popular" ? (
+        order !== "popular" ||
+        sourceLanguages.length > 0 ? (
           <div className="flex justify-end">
             <button type="button" onClick={handleClear} className="text-sm text-neutral-500 transition hover:text-black">
               {copy.clear}

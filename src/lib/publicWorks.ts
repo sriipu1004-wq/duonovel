@@ -39,6 +39,7 @@ import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { matchesPublicWorkLanguageFilters } from "@/lib/search/publicWorkLanguageFilter";
 import { getPublicSearchLanguageFilters } from "@/lib/search/publicSearchRequestContext";
 import { PUBLIC_RECORDING_AGGREGATE_SELECT } from "@/lib/recording/publicRecordingSelects";
+import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 
 export type PublicBaseWorkCard = {
   seriesId: string;
@@ -391,6 +392,11 @@ type RecordingAggregateRow = Record<string, unknown> & {
   plays_count?: number | null;
   is_public?: boolean | null;
   public?: boolean | null;
+  reader_id?: string | null;
+  reader_user_id?: string | null;
+  reader_name?: string | null;
+  audio_storage_path?: string | null;
+  voice_model_id?: string | null;
 };
 
 export type PublicRecordingAggregate = {
@@ -409,11 +415,6 @@ const PUBLIC_WORK_EPISODE_SELECT = `
   posted_at
 `;
 
-function isPublicRecording(recording: RecordingAggregateRow): boolean {
-  if (recording.is_public === false) return false;
-  if (recording.public === false) return false;
-  return true;
-}
 
 function isEmailLike(value: unknown): boolean {
   if (typeof value !== "string") return false;
@@ -494,7 +495,7 @@ async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<Pub
   >();
 
   for (const rawRecording of data) {
-    if (!isPublicRecording(rawRecording)) continue;
+    if (!isPublishedHumanRecording(rawRecording)) continue;
     const seriesId = getRecordingSeriesId(rawRecording);
     if (!seriesId) continue;
 
