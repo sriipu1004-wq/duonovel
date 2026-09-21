@@ -78,6 +78,7 @@ const candidates = Array.from(grouped.values())
   .filter((item) => !authorFilter || item.author.includes(authorFilter))
   .filter((item) => {
     const raw = item.sourceRows[0]?.["文字数"]?.replace(/,/gu, "").trim() ?? "";
+    if (!raw) return true;
     const charCount = Number(raw);
     return !Number.isFinite(charCount) || charCount >= minChars;
   })
