@@ -135,7 +135,9 @@ jobs:
             const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
             const prepared = JSON.parse(fs.readFileSync(preparedPath, "utf8"));
             manifest.chapter_count = prepared.chapters.length;
-            manifest.import_status = "prepared";
+            if (manifest.import_status !== "imported") {
+              manifest.import_status = "prepared";
+            }
             fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
           }
           NODE
