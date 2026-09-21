@@ -51,8 +51,10 @@ const episodeCounts = new Map<
   string,
   { total: number; published: number; draft: number }
 >();
+const episodeTitles = new Map<string, string[]>();
 for (const id of ids) {
   episodeCounts.set(id, { total: 0, published: 0, draft: 0 });
+  episodeTitles.set(id, []);
 }
 
 for (let offset = 0; offset < ids.length; offset += 50) {
@@ -60,7 +62,7 @@ for (let offset = 0; offset < ids.length; offset += 50) {
   if (batchIds.length === 0) continue;
   const episodes = await admin
     .from("episodes")
-    .select("series_id,is_published,posting_status")
+    .select("series_id,title,is_published,posting_status")
     .in("series_id", batchIds);
   if (episodes.error) throw new Error(episodes.error.message);
   for (const episode of episodes.data ?? []) {
@@ -70,6 +72,9 @@ for (let offset = 0; offset < ids.length; offset += 50) {
     count.total += 1;
     if (episode.is_published === true) count.published += 1;
     if (episode.posting_status === "draft") count.draft += 1;
+    if (typeof episode.title === "string" && episode.title.trim()) {
+      episodeTitles.get(id)?.push(episode.title.trim());
+    }
   }
 }
 
@@ -113,6 +118,15 @@ const snapshot = {
   generated_at: new Date().toISOString(),
   account: "LIB read Official",
   official_identity: OFFICIAL_ACCOUNT_EMAIL,
+  contained_titles: Array.from(
+    new Set(
+      seriesRows.flatMap((row) =>
+        typeof row.title === "string" && row.title.endsWith("・短編")
+          ? episodeTitles.get(String(row.id)) ?? []
+          : []
+      )
+    )
+  ),
   summary: {
     series_count: series.length,
     public_series_count: series.filter(
