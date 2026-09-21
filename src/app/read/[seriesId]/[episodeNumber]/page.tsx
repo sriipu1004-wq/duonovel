@@ -29,6 +29,7 @@ import { readPageDictionaries } from "@/i18n/dictionaries/readPage";
 import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 import { getSupportedLanguage } from "@/lib/translation/languageRegistry";
 import { isUuid } from "@/lib/uuid";
+import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -152,10 +153,6 @@ function getRecordingReaderKey(recording: RecordingRow): string {
   );
 }
 
-function isLegacyGeneratedRecording(recording: RecordingRow): boolean {
-  const name = getRecordingReaderName(recording);
-  return name.startsWith("Aivis ") || name.startsWith("VOICEVOX Nemo");
-}
 
 function doesRecordingMatchRequestedReader(
   recording: RecordingRow,
@@ -382,7 +379,7 @@ export default async function ReadEpisodePage({
   const { series, episode, publicEpisodes, isOwner, viewerUserId } = payload;
   const subscriber = viewerUserId ? await isSubscriber(viewerUserId) : false;
   const availableHumanRecordings = payload.allEpisodeRecordings.filter(
-    (recording) => !isLegacyGeneratedRecording(recording)
+    isPublishedHumanRecording
   );
   const humanNarrationOptions = availableHumanRecordings
     .map((recording) => {
