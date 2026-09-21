@@ -1,0 +1,90 @@
+{
+  "id": "gutenberg-000011",
+  "title": "Alice's Adventures in Wonderland",
+  "original_title": "Alice's Adventures in Wonderland",
+  "original_author": "Lewis Carroll",
+  "author_death_year": 1898,
+  "original_language": "en",
+  "first_publication_year": 1865,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/11",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/11/pg11.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-000011.txt",
+  "source_retrieved_at": null,
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #11 plain text; credits Arthur DiBianca and David Widger; current catalog text updated 2025-06-26",
+  "edition_publication_year": 2008,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "AI-assisted preflight only, not human approval. Project Gutenberg's official catalog marks eBook #11 public domain in the USA and identifies the original English author/work. Original publication 1865; Lewis Carroll died 1898. Scope is plain-text literary content only: no Tenniel illustrations, generated summary, modern cover, or site metadata. Project Gutenberg itself warns non-U.S. users to check local law. Human LIB read operator must verify JP/US/KR term analysis, provider terms, the exact fetched text bytes, and the digitization/editorial scope before approval.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "U.S. provider status and publication/death dates pass preflight; human JP/US/KR review required."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Only the Project Gutenberg plain-text edition is proposed. Human review must separate original text from provider/editorial additions."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Exclude automatically generated catalog summary and site metadata; confirm retained text is only the literary text plus archived Gutenberg boilerplate."
+    },
+    "annotations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": "Illustrations are excluded from the pilot even though the catalog mentions John Tenniel."
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Project Gutenberg plain-text transcription credits Arthur DiBianca and David Widger; exact bytes/hash required."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Primary provider pages: https://www.gutenberg.org/ebooks/11 and https://www.gutenberg.org/policy/license.html."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": null,
+  "chapter_split": {
+    "strategy": "heading_regex",
+    "heading_pattern": "^CHAPTER\\\\s+[IVXLC]+\\\\.$"
+  },
+  "tags": [
+    "Public Domain",
+    "Project Gutenberg",
+    "Lewis Carroll",
+    "English classic"
+  ],
+  "source_hash": null,
+  "approved": false,
+  "import_status": "not_imported",
+  "cover_source": null,
+  "cover_rights_status": null
+}
