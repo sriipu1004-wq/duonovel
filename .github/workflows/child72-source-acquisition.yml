@@ -37,9 +37,12 @@ jobs:
       - name: Validate manifests before acquisition
         run: npm run public-domain:validate
 
-      - name: Fetch exact JA-independent EN and KO pilot bytes and prepare
+      - name: Fetch exact approved pilot bytes and prepare
         run: >
           npm run public-domain:source-sync --
+          aozora-000010
+          aozora-000013
+          aozora-000018
           gutenberg-000011
           gutenberg-001952
           gongu-9002094
@@ -50,6 +53,9 @@ jobs:
 
       - name: Record exact source checksums
         run: |
+          sha256sum public-domain/sources/raw/aozora-000010.txt
+          sha256sum public-domain/sources/raw/aozora-000013.txt
+          sha256sum public-domain/sources/raw/aozora-000018.txt
           sha256sum public-domain/sources/raw/gutenberg-000011.txt
           sha256sum public-domain/sources/raw/gutenberg-001952.txt
           sha256sum public-domain/sources/raw/gongu-9002094.txt
@@ -59,6 +65,9 @@ jobs:
           node - <<'NODE'
           const fs = require("fs");
           for (const id of [
+            "aozora-000010",
+            "aozora-000013",
+            "aozora-000018",
             "gutenberg-000011",
             "gutenberg-001952",
             "gongu-9002094",
@@ -78,6 +87,19 @@ jobs:
             }));
           }
           NODE
+
+      - name: Approved pilot batch dry-run
+        run: >
+          npm run public-domain:batch --
+          aozora-000010
+          aozora-000013
+          aozora-000018
+          gutenberg-000011
+          gutenberg-001952
+          gongu-9002094
+          gongu-9002100
+          gongu-9002092
+          --prepare
 
       - name: Persist exact source provenance on the PR branch
         run: |
@@ -142,13 +164,22 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           path: |
+            public-domain/manifests/aozora-000010.json
+            public-domain/manifests/aozora-000013.json
+            public-domain/manifests/aozora-000018.json
             public-domain/manifests/gutenberg-000011.json
             public-domain/manifests/gutenberg-001952.json
+            public-domain/sources/raw/aozora-000010.txt
+            public-domain/sources/raw/aozora-000013.txt
+            public-domain/sources/raw/aozora-000018.txt
             public-domain/sources/raw/gutenberg-000011.txt
             public-domain/sources/raw/gutenberg-001952.txt
             public-domain/sources/raw/gongu-9002094.txt
             public-domain/sources/raw/gongu-9002100.txt
             public-domain/sources/raw/gongu-9002092.txt
+            .public-domain-work/aozora-000010/**
+            .public-domain-work/aozora-000013/**
+            .public-domain-work/aozora-000018/**
             .public-domain-work/gutenberg-000011/**
             .public-domain-work/gutenberg-001952/**
             .public-domain-work/gongu-9002094/**
