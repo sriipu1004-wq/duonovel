@@ -150,10 +150,7 @@ export default function BilingualStoppedFooter({
   }, [episodeNumber, seriesId]);
 
   useEffect(() => {
-    if (!settingsOpen) {
-      setSettingsHost(null);
-      return;
-    }
+    if (!settingsOpen) return;
 
     const frame = window.requestAnimationFrame(() => {
       setSettingsHost(
