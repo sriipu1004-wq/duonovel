@@ -17,6 +17,7 @@ const ja = {
   openDisplaySettings: "表示設定を開く",
   loginAndConfigure: "ログインして設定する",
   backTop: "TOPへ戻る",
+  createHumanNarration: "この作品を朗読する",
 } as const;
 
 type ReadPageDictionary = {
@@ -42,6 +43,7 @@ const en = {
   openDisplaySettings: "Open display settings",
   loginAndConfigure: "Sign in to configure",
   backTop: "Back to home",
+  createHumanNarration: "Record this work",
 } satisfies ReadPageDictionary;
 
 const ko = {
@@ -61,6 +63,7 @@ const ko = {
   openDisplaySettings: "표시 설정 열기",
   loginAndConfigure: "로그인하고 설정하기",
   backTop: "홈으로 돌아가기",
+  createHumanNarration: "이 작품 낭독하기",
 } satisfies ReadPageDictionary;
 
 export const readPageDictionaries: Record<UiLocale, ReadPageDictionary> = {
