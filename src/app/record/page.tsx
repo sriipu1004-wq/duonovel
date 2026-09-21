@@ -1375,8 +1375,7 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
     supabase,
     user?.id ?? null
   );
-  const canCreateHumanNarration =
-    !!user && !isOfficialAccountEmail(user.email);
+  const canCreateHumanNarration = !isOfficialAccountEmail(user?.email);
 
   const latestRequestMap = buildLatestRequestMap(myRequests);
   const bookmarkedSeriesIds = new Set(
