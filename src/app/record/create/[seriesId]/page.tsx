@@ -14,6 +14,8 @@ import {
   RECORDING_GLOBAL_CONSENT_VERSION,
 } from "@/lib/recording/recordingConsent";
 import { RecordingStudioPage } from "@/components/recording/RecordingStudioPage";
+import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
+import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -56,9 +58,6 @@ type ExistingRecordingSeed = {
 
 type PublicUserRow = Record<string, unknown> & {
   display_name?: string | null;
-  username?: string | null;
-  pen_name?: string | null;
-  name?: string | null;
 };
 
 const adminSupabase = createAdminClient();
@@ -102,14 +101,13 @@ function getPermissionLabel(mode: RecordingPermissionMode): string {
 
 function resolveCurrentUserReaderName(
   user: {
-    email?: string | null;
     user_metadata?: Record<string, unknown> | null;
   } | null,
   publicUserRow?: PublicUserRow | null
 ): string {
   const fromPublicUser = pickString(
     (publicUserRow ?? {}) as RawRow,
-    ["display_name", "username", "pen_name", "name"],
+    ["display_name"],
     ""
   );
 
@@ -118,23 +116,12 @@ function resolveCurrentUserReaderName(
   }
 
   const metadata = user?.user_metadata ?? {};
-
-  const fromMetadata =
+  return (
     (typeof metadata.display_name === "string" && metadata.display_name.trim()) ||
     (typeof metadata.name === "string" && metadata.name.trim()) ||
     (typeof metadata.full_name === "string" && metadata.full_name.trim()) ||
-    "";
-
-  if (fromMetadata) {
-    return fromMetadata;
-  }
-
-  const email = typeof user?.email === "string" ? user.email.trim() : "";
-  if (email.includes("@")) {
-    return email.split("@")[0] || "ユーザー朗読";
-  }
-
-  return "ユーザー朗読";
+    ""
+  );
 }
 
 async function fetchExistingRecordingsForSeriesUser(
@@ -174,6 +161,10 @@ async function fetchExistingRecordingsForSeriesUser(
     const results: ExistingRecordingSeed[] = [];
 
     for (const row of rows) {
+      if (!isHumanRecordingRow(row)) {
+        continue;
+      }
+
       const recordingId = pickString(row, ["id"]);
       const episodeId = pickString(row, ["episode_id", "episodeId"]);
       const audioStoragePath = pickString(row, [
@@ -195,7 +186,7 @@ async function fetchExistingRecordingsForSeriesUser(
       results.push({
         id: recordingId,
         episodeId,
-        audioStoragePath,
+        audioStoragePath: buildHumanRecordingPlaybackHref(recordingId),
         readerName,
         isPublic,
       });
@@ -242,7 +233,7 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
 
   const { data: publicUserRow } = await supabase
     .from("users")
-    .select("display_name, username, pen_name, name")
+    .select("display_name")
     .eq("id", user?.id ?? userId)
     .maybeSingle();  
 
