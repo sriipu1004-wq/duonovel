@@ -8,7 +8,7 @@
   "first_publication_year": 1924,
   "source_provider": "Gongu Madang / Korea Copyright Commission",
   "source_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9002094",
-  "source_download_url": null,
+  "source_download_url": "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=4",
   "source_file": "public-domain/sources/raw/gongu-9002094.txt",
   "source_retrieved_at": null,
   "source_encoding": "utf-8",
@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "AI-assisted preflight only, not human approval. Official 공유마당 page labels this item 만료 저작물 / 자유이용 만료, identifies 현진건, publication 1924.6, first-order work, and provides periodical-source TXT/HWP/PDF filenames. Exact download endpoint/bytes are not yet recorded; do not approve until exact TXT is acquired and hashed. JP/US/KR international-distribution analysis and provider terms must be human-reviewed before approval.",
+  "rights_notes": "AI-assisted preflight only, not human approval. Official 공유마당 page labels this item 만료 저작물 / 자유이용 만료, identifies 현진건, publication 1924.6, first-order work, and provides periodical-source TXT/HWP/PDF filenames. The exact TXT endpoint was recovered from the official Gongu Madang download popup; exact bytes/hash are still pending; do not approve until exact TXT is acquired and hashed. JP/US/KR international-distribution analysis and provider terms must be human-reviewed before approval.",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
