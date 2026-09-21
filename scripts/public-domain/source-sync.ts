@@ -158,18 +158,16 @@ for (const [index, id] of ids.entries()) {
     throw new Error(`${id}: extracted source size is invalid`);
   }
   const hash = sha256Bytes(sourceBytes);
-  if (
-    manifest.approved &&
-    manifest.source_hash &&
-    manifest.source_hash !== hash
-  ) {
+  if (manifest.source_hash && manifest.source_hash !== hash) {
     throw new Error(
-      `${id}: approved manifest source_hash differs from fetched source; manual re-review required`
+      `${id}: pinned source_hash differs from fetched source; manual re-review required`
     );
   }
 
   writeFileSync(outputPath, sourceBytes);
-  rawManifest.source_retrieved_at = new Date().toISOString();
+  if (!manifest.source_retrieved_at) {
+    rawManifest.source_retrieved_at = new Date().toISOString();
+  }
   rawManifest.source_hash = hash;
   writeFileSync(manifestPath, `${JSON.stringify(rawManifest, null, 2)}\n`, "utf8");
   console.log(
