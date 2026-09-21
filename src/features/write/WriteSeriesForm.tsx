@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import {
@@ -51,6 +51,8 @@ type WriteSeriesFormProps = {
 };
 
 type SaveState = "idle" | "saving" | "success" | "error";
+type SeriesValidationField = "title" | "sourceLanguage" | "scheduledFor";
+type SeriesValidationErrors = Partial<Record<SeriesValidationField, string>>;
 
 type SeriesStatusPanel =
   | "publication"
@@ -520,11 +522,35 @@ export default function WriteSeriesForm({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [validationErrors, setValidationErrors] =
+    useState<SeriesValidationErrors>({});
+  const submittingRef = useRef(false);
   const [activeSeriesStatusPanel, setActiveSeriesStatusPanel] =
     useState<SeriesStatusPanel>(null);
   const [openDisplaySetting, setOpenDisplaySetting] = useState<
     "background" | "font" | "fontSize" | "textColor" | null
   >(null);
+
+  useEffect(() => {
+    function handleSourceLanguageSelection() {
+      setValidationErrors((current) => {
+        if (!current.sourceLanguage) return current;
+        const next = { ...current };
+        delete next.sourceLanguage;
+        return next;
+      });
+    }
+
+    window.addEventListener(
+      "libread:source-language-selection-changed",
+      handleSourceLanguageSelection
+    );
+    return () =>
+      window.removeEventListener(
+        "libread:source-language-selection-changed",
+        handleSourceLanguageSelection
+      );
+  }, []);
 
   const sortedEpisodes = sortEpisodes(episodes);
   const postedCount = sortedEpisodes.filter(isEpisodePosted).length;
@@ -666,30 +692,72 @@ const publicVisibleCount = sortedEpisodes.filter(
     setSuccessMessage("");
   }
 
-  async function handleCreate(destination: "episode" | "workspace") {
-    const trimmedTitle = title.trim();
-    if (!trimmedTitle) {
-      hideGlobalLoadingFeedback();
-      setSaveState("error");
-      setErrorMessage("タイトルは必須。");
-      setSuccessMessage("");
-      return;
+  function clearValidationError(field: SeriesValidationField) {
+    setValidationErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function focusValidationField(targetId: string) {
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLSelectElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLButtonElement
+    ) {
+      target.focus({ preventScroll: true });
+    }
+  }
+
+  function collectCreateValidationErrors(): SeriesValidationErrors {
+    const next: SeriesValidationErrors = {};
+
+    if (!title.trim()) {
+      next.title = "作品タイトルを入力してください。";
+    }
+
+    const sourceLanguage = document.querySelector<HTMLSelectElement>(
+      "[data-source-language-select='true']"
+    );
+    if (!sourceLanguage?.value) {
+      next.sourceLanguage = "原文言語を選択してください。";
     }
 
     if (
       initialPostingStatus === "scheduled" &&
       !hasValidLocalDateTime(initialScheduledFor)
     ) {
+      next.scheduledFor = "1話目の予約日時を入力してください。";
+    }
+
+    return next;
+  }
+
+  async function handleCreate(destination: "episode" | "workspace") {
+    if (submittingRef.current) return;
+
+    const nextValidationErrors = collectCreateValidationErrors();
+    setValidationErrors(nextValidationErrors);
+    if (Object.keys(nextValidationErrors).length > 0) {
       hideGlobalLoadingFeedback();
       setSaveState("error");
-      setErrorMessage("予約投稿を選ぶ時は日時を入れる。");
+      setErrorMessage("");
       setSuccessMessage("");
       return;
     }
 
+    const trimmedTitle = title.trim();
+    submittingRef.current = true;
     setSaveState("saving");
     setErrorMessage("");
     setSuccessMessage("");
+    showGlobalLoadingFeedback("作成中...", 8000);
 
     const summaryVariants = buildSummaryValue(summary);
     const nextGenres = parseTags(genreEditorValue);
@@ -725,7 +793,8 @@ const publicVisibleCount = sortedEpisodes.filter(
       ...workspaceFields,
     });
 
-    let lastError = "作品作成に失敗した。";
+    const createFailureMessage =
+      "作品を作成できませんでした。入力内容を確認して、もう一度お試しください。";
 
     for (const payload of payloads) {
       const result = await supabase
@@ -752,22 +821,22 @@ const publicVisibleCount = sortedEpisodes.filter(
         return;
       }
 
-      if (result.error) {
-        lastError = result.error.message;
-      }
     }
 
+    submittingRef.current = false;
     hideGlobalLoadingFeedback();
 
     setSaveState("error");
-    setErrorMessage(lastError);
+    setErrorMessage(createFailureMessage);
   }
 
   async function handleUpdate() {
+    if (submittingRef.current) return;
+
     if (!series?.id) {
       hideGlobalLoadingFeedback();
       setSaveState("error");
-      setErrorMessage("作品IDが取れない。");
+      setErrorMessage("作品を保存できませんでした。もう一度お試しください。");
       setSuccessMessage("");
       return;
     }
@@ -775,12 +844,15 @@ const publicVisibleCount = sortedEpisodes.filter(
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       hideGlobalLoadingFeedback();
+      setValidationErrors({ title: "作品タイトルを入力してください。" });
       setSaveState("error");
-      setErrorMessage("タイトルは必須。");
+      setErrorMessage("");
       setSuccessMessage("");
       return;
     }
 
+    setValidationErrors({});
+    submittingRef.current = true;
     setSaveState("saving");
     setErrorMessage("");
     setSuccessMessage("");
@@ -818,7 +890,8 @@ const publicVisibleCount = sortedEpisodes.filter(
       ...workspaceFields,
     });
 
-    let lastError = "作品ワークスペースの保存に失敗した。";
+    const updateFailureMessage =
+      "作品を保存できませんでした。入力内容を確認して、もう一度お試しください。";
 
     for (const payload of payloads) {
       const result = await supabase.from("series").update(payload).eq("id", series.id);
@@ -838,19 +911,20 @@ const publicVisibleCount = sortedEpisodes.filter(
 
         hideGlobalLoadingFeedback();
 
+        submittingRef.current = false;
         setSaveState("success");
         setSuccessMessage("作品ワークスペースを保存した。");
         router.refresh();
         return;
       }
 
-      lastError = result.error.message;
     }
 
+    submittingRef.current = false;
     hideGlobalLoadingFeedback();
 
     setSaveState("error");
-    setErrorMessage(lastError);
+    setErrorMessage(updateFailureMessage);
   }
 
   async function handleSubmit(destination: "episode" | "workspace" = "workspace") {
@@ -937,14 +1011,29 @@ const publicVisibleCount = sortedEpisodes.filter(
                   <label className="grid gap-2">
                     <span className="text-sm text-neutral-700">作品タイトル</span>
                     <input
+                      id="series-title"
                       value={title}
+                      aria-invalid={Boolean(validationErrors.title)}
+                      aria-describedby={
+                        validationErrors.title ? "series-title-error" : undefined
+                      }
                       onChange={(event) => {
                         setTitle(event.target.value);
+                        clearValidationError("title");
                         resetSaveUi();
                       }}
                       placeholder="作品タイトル"
                       className="rounded-2xl border border-black/10 bg-white/5 px-3 py-2 text-sm text-black outline-none placeholder:text-neutral-500"
                     />
+                    {validationErrors.title ? (
+                      <span
+                        id="series-title-error"
+                        role="alert"
+                        className="text-xs font-medium text-red-700"
+                      >
+                        {validationErrors.title}
+                      </span>
+                    ) : null}
                   </label>
 
                   <label className="grid gap-2">
@@ -1587,11 +1676,6 @@ const publicVisibleCount = sortedEpisodes.filter(
                       <p className="text-sm font-semibold text-black">
                         1話目の投稿状態
                       </p>
-                      <p className="mt-2 text-sm leading-7 text-neutral-600">
-                        作品作成の時点で、1話目を 投稿 / 予約投稿 / 下書き保存 のどれで始めるかを先に決める。
-                        実際の本文は作品作成後に1話目ページで書く。
-                      </p>
-
                       <div className="mt-4 grid gap-3">
                         {(["posted", "scheduled", "draft"] as EpisodePostingStatus[]).map(
                           (status) => {
@@ -1615,6 +1699,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                                     setInitialPostingStatus(status);
                                     if (status !== "scheduled") {
                                       setInitialScheduledFor("");
+                                      clearValidationError("scheduledFor");
                                     }
                                     resetSaveUi();
                                   }}
@@ -1623,13 +1708,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                                 <p className="text-sm font-semibold text-black">
                                   {getEpisodePostingLabel(status)}
                                 </p>
-                                <p className="mt-2 text-sm leading-7 text-neutral-600">
-                                  {status === "posted"
-                                    ? "1話目を作成した時点で投稿済みとして扱う。"
-                                    : status === "scheduled"
-                                      ? "1話目は予約投稿として保存し、到達時刻で公開対象にする。"
-                                      : "1話目は下書きとして保存し、作品ワークスペースから続けて書く。"}
-                                </p>
+
                               </label>
                             );
                           }
@@ -1642,85 +1721,111 @@ const publicVisibleCount = sortedEpisodes.filter(
                             1話目の予約日時
                           </span>
                           <input
+                            id="series-initial-scheduled-for"
                             type="datetime-local"
                             value={initialScheduledFor}
+                            aria-invalid={Boolean(validationErrors.scheduledFor)}
+                            aria-describedby={
+                              validationErrors.scheduledFor
+                                ? "series-initial-scheduled-for-error"
+                                : "series-initial-scheduled-for-help"
+                            }
                             onChange={(event) => {
                               setInitialScheduledFor(event.target.value);
+                              clearValidationError("scheduledFor");
                               resetSaveUi();
                             }}
                             className="rounded-2xl border border-black/10 bg-white/5 px-3 py-2 text-sm text-black outline-none"
                           />
-                          <span className="text-xs leading-6 text-neutral-500">
+                          <span
+                            id="series-initial-scheduled-for-help"
+                            className="text-xs leading-6 text-neutral-500"
+                          >
                             ローカル時刻で入力。保存時に UTC へ変換して送る。
                           </span>
+                          {validationErrors.scheduledFor ? (
+                            <span
+                              id="series-initial-scheduled-for-error"
+                              role="alert"
+                              className="text-xs font-medium text-red-700"
+                            >
+                              {validationErrors.scheduledFor}
+                            </span>
+                          ) : null}
                         </label>
                       ) : null}
                     </div>
                   ) : null}
 
-                  <div
-                    className={
-                      mode === "edit"
-                        ? "hidden"
-                        : "rounded-2xl border border-black/10 bg-white p-3"
-                    }
-                  >
-                    <p className="text-sm font-semibold text-black">反応表示</p>
-                    <p className="mt-2 text-sm leading-7 text-neutral-600">
-                      作品ページのレビュー欄と、読む画面末尾のエピソードコメント欄を作品単位で出し分ける。
-                    </p>
-
-                    <div className="mt-4 grid gap-3">
-                      <label className="flex items-start gap-3 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-4">
-                        <input
-                          type="checkbox"
-                          checked={reviewsEnabled}
-                          onChange={(event) => {
-                            setReviewsEnabled(event.target.checked);
-                            resetSaveUi();
-                          }}
-                          className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5"
-                        />
-                        <div>
-                          <p className="text-sm font-semibold text-black">作品レビュー欄を表示</p>
-                          <p className="mt-2 text-sm leading-7 text-neutral-600">
-                            OFF の時は作品ページでレビュー欄を出さない。
-                          </p>
-                        </div>
-                      </label>
-
-                      <label className="flex items-start gap-3 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-4">
-                        <input
-                          type="checkbox"
-                          checked={episodeCommentsEnabled}
-                          onChange={(event) => {
-                            setEpisodeCommentsEnabled(event.target.checked);
-                            resetSaveUi();
-                          }}
-                          className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5"
-                        />
-                        <div>
-                          <p className="text-sm font-semibold text-black">
-                            エピソードコメント欄を表示
-                          </p>
-                          <p className="mt-2 text-sm leading-7 text-neutral-600">
-                            OFF の時は読む画面末尾でコメント欄を出さない。
-                          </p>
-                        </div>
-                      </label>
+                  {Object.keys(validationErrors).length > 0 ? (
+                    <div
+                      role="alert"
+                      aria-labelledby="series-validation-summary-heading"
+                      className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                    >
+                      <p
+                        id="series-validation-summary-heading"
+                        className="font-semibold"
+                      >
+                        以下を確認してください
+                      </p>
+                      <ul className="mt-2 grid gap-1">
+                        {validationErrors.title ? (
+                          <li>
+                            <button
+                              type="button"
+                              onClick={() => focusValidationField("series-title")}
+                              className="text-left underline underline-offset-2"
+                            >
+                              {validationErrors.title}
+                            </button>
+                          </li>
+                        ) : null}
+                        {validationErrors.sourceLanguage ? (
+                          <li>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                focusValidationField("series-source-language")
+                              }
+                              className="text-left underline underline-offset-2"
+                            >
+                              {validationErrors.sourceLanguage}
+                            </button>
+                          </li>
+                        ) : null}
+                        {validationErrors.scheduledFor ? (
+                          <li>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                focusValidationField(
+                                  "series-initial-scheduled-for"
+                                )
+                              }
+                              className="text-left underline underline-offset-2"
+                            >
+                              {validationErrors.scheduledFor}
+                            </button>
+                          </li>
+                        ) : null}
+                      </ul>
                     </div>
-                  </div>
+                  ) : null}
 
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                     <button
                       type="button"
                       onClick={() =>
                         handleSubmit(mode === "create" ? "episode" : "workspace")
                       }
-                      className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:opacity-90"
+                      disabled={saveState === "saving"}
+                      className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                     >
                       {saveState === "saving"
-                        ? "保存中..."
+                        ? mode === "create"
+                          ? "作成中..."
+                          : "保存中..."
                         : mode === "create"
                           ? "作品を作成して1話目へ"
                           : "作品ワークスペースを保存"}
@@ -1730,7 +1835,8 @@ const publicVisibleCount = sortedEpisodes.filter(
                       <button
                         type="button"
                         onClick={() => handleSubmit("workspace")}
-                        className="rounded-full border border-black/10 bg-white/5 px-4 py-2.5 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                        disabled={saveState === "saving"}
+                        className="min-h-11 w-full rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                       >
                         作品を作成してワークスペースへ
                       </button>
