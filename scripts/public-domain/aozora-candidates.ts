@@ -59,6 +59,7 @@ if (!includeExisting && existsSync(existingAuditPath)) {
   ) as {
     series?: Array<{ title?: string }>;
     contained_titles?: string[];
+    known_title_aliases?: string[];
   };
   for (const row of audit.series ?? []) {
     const title = row.title?.trim();
@@ -67,7 +68,10 @@ if (!includeExisting && existsSync(existingAuditPath)) {
     const base = title.includes("・") ? title.split("・")[0]!.trim() : title;
     if (base) existingTitles.add(base);
   }
-  for (const title of audit.contained_titles ?? []) {
+  for (const title of [
+    ...(audit.contained_titles ?? []),
+    ...(audit.known_title_aliases ?? []),
+  ]) {
     if (title.trim()) existingTitles.add(title.trim());
   }
 }
