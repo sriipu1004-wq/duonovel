@@ -9,6 +9,7 @@ import {
   parseCsv,
 } from "./aozora";
 
+async function main() {
 const args = process.argv.slice(2);
 const write = args.includes("--write");
 const includeExisting = args.includes("--include-existing");
@@ -126,3 +127,10 @@ for (const item of candidates) {
 }
 console.log(`Candidate manifest generation complete: created=${created}, skipped=${skipped}`);
 console.log("Next: rights review -> source sync -> prepare -> chapter review -> approve -> batch dry-run.");
+
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});
