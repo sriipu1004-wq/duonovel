@@ -503,6 +503,106 @@ async function fetchDiscoverableSeries(
   );
 }
 
+async function fetchPublishedHumanNarrationSummaries(
+  seriesIds: string[]
+): Promise<Map<string, HumanNarrationSummary>> {
+  const normalizedSeriesIds = Array.from(
+    new Set(seriesIds.map((value) => value.trim()).filter(Boolean))
+  );
+  if (normalizedSeriesIds.length === 0) return new Map();
+
+  const recordingsResult = await adminSupabase
+    .from("recordings")
+    .select(
+      "id, series_id, episode_id, reader_id, reader_user_id, reader_name, audio_storage_path, voice_model_id, is_public"
+    )
+    .in("series_id", normalizedSeriesIds)
+    .is("voice_model_id", null)
+    .eq("is_public", true);
+
+  if (recordingsResult.error) return new Map();
+
+  const candidateRecordings = ((recordingsResult.data ?? []) as RecordingRow[]).filter(
+    isPublishedHumanRecording
+  );
+  if (candidateRecordings.length === 0) return new Map();
+
+  const episodeIds = Array.from(
+    new Set(
+      candidateRecordings
+        .map((recording) => pickText(recording.episode_id))
+        .filter(Boolean)
+    )
+  );
+  const episodesResult = episodeIds.length
+    ? await adminSupabase.from("episodes").select("*").in("id", episodeIds)
+    : { data: [] as EpisodeRow[], error: null };
+
+  if (episodesResult.error) return new Map();
+
+  const visibleEpisodeNumberById = new Map<string, number>();
+  for (const episode of (episodesResult.data ?? []) as EpisodeRow[]) {
+    if (!isEpisodePubliclyVisible(episode, new Date())) continue;
+    const episodeNumber = getEpisodeNumber(episode);
+    if (episodeNumber > 0) {
+      visibleEpisodeNumberById.set(episode.id, episodeNumber);
+    }
+  }
+
+  const visibleRecordings = candidateRecordings.filter((recording) =>
+    visibleEpisodeNumberById.has(pickText(recording.episode_id))
+  );
+  if (visibleRecordings.length === 0) return new Map();
+
+  const recordingIds = visibleRecordings.map((recording) => recording.id);
+  const playsResult = await adminSupabase
+    .from("recording_play_events")
+    .select("recording_id")
+    .in("recording_id", recordingIds);
+  const playCountByRecordingId = new Map<string, number>();
+  if (!playsResult.error) {
+    for (const row of (playsResult.data ?? []) as Array<Record<string, unknown>>) {
+      const recordingId = pickText(row.recording_id);
+      if (!recordingId) continue;
+      playCountByRecordingId.set(
+        recordingId,
+        (playCountByRecordingId.get(recordingId) ?? 0) + 1
+      );
+    }
+  }
+
+  const summaries = new Map<string, HumanNarrationSummary>();
+  for (const recording of visibleRecordings) {
+    const seriesId = pickText(recording.series_id, recording.seriesId);
+    const episodeId = pickText(recording.episode_id);
+    const narratorName = pickText(recording.reader_name);
+    const episodeNumber = visibleEpisodeNumberById.get(episodeId);
+    if (!seriesId || !narratorName || !episodeNumber) continue;
+
+    const current = summaries.get(seriesId) ?? {
+      recordingIds: [],
+      narratorNames: [],
+      episodeNumbers: [],
+      playCount: 0,
+    };
+    current.recordingIds.push(recording.id);
+    if (!current.narratorNames.includes(narratorName)) {
+      current.narratorNames.push(narratorName);
+    }
+    if (!current.episodeNumbers.includes(episodeNumber)) {
+      current.episodeNumbers.push(episodeNumber);
+    }
+    current.playCount += playCountByRecordingId.get(recording.id) ?? 0;
+    summaries.set(seriesId, current);
+  }
+
+  for (const summary of summaries.values()) {
+    summary.episodeNumbers.sort((left, right) => left - right);
+  }
+
+  return summaries;
+}
+
 async function fetchMyRecordingRequests(
   supabase: SupabaseClient,
   userId: string | null
