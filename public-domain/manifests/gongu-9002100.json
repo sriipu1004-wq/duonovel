@@ -1,0 +1,89 @@
+{
+  "id": "gongu-9002100",
+  "title": "B사감과 러브레터",
+  "original_title": "B사감과 러브레터",
+  "original_author": "현진건",
+  "author_death_year": 1943,
+  "original_language": "ko",
+  "first_publication_year": 1925,
+  "source_provider": "Gongu Madang / Korea Copyright Commission",
+  "source_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200150&wrtSn=9002100",
+  "source_download_url": null,
+  "source_file": "public-domain/sources/raw/gongu-9002100.txt",
+  "source_retrieved_at": null,
+  "source_encoding": "utf-8",
+  "normalization_profile": "gongu_madang",
+  "edition": "『조선문단』 source text (1925.2); proposed TXT: 현진건-B사감과_러브레터-조선문단.txt",
+  "edition_publication_year": 1925,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "AI-assisted preflight only, not human approval. Official 공유마당 page presents 자유이용 만료, identifies 현진건, publication 1925.2, first-order work, and periodical-source TXT/HWP/PDF filenames. Exact download endpoint/bytes are not yet recorded; do not approve until exact TXT is acquired and hashed. JP/US/KR international-distribution analysis and provider terms must be human-reviewed before approval.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Author died 1943; official provider presents the work as expired. Human JP/US/KR term review remains required."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Use only the identified historical periodical-source TXT; no modern edited/translated text."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Exact TXT must be inspected for modern editorial additions before approval."
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Exact TXT must be inspected for provider/editorial annotations before approval."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Exact original TXT bytes and SHA-256 are still required."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Official Korea Copyright Commission landing page presents the item under expired/free-use status; exact per-item download/terms surface must be retained in the review record."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": null,
+  "chapter_split": {
+    "strategy": "single"
+  },
+  "tags": [
+    "Public Domain",
+    "공유마당",
+    "현진건",
+    "Korean classic"
+  ],
+  "source_hash": null,
+  "approved": false,
+  "import_status": "not_imported",
+  "cover_source": null,
+  "cover_rights_status": null
+}
