@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 
 export type RecordingPermissionMode = "open" | "closed";
 export type RecordingEntryDeniedReason = "login_required" | "closed";
@@ -122,6 +123,10 @@ export async function requireRecordingEntryAccess(
 
   if (authError) {
     redirect(`/login?next=${encodeURIComponent(nextPath)}`);
+  }
+
+  if (user && isOfficialAccountEmail(user.email)) {
+    redirect(buildWorkPath(seriesId));
   }
 
   const series = await fetchSeriesRecordingPermission(supabase, seriesId);
