@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildRecordingEntryPath,
-  buildRecordingRequestPath,
   buildWorkPath,
   normalizeRecordingPermissionMode,
   type RecordingPermissionMode,
@@ -41,6 +40,9 @@ import {
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { getUiLocale } from "@/i18n/server";
+import { localizePath } from "@/i18n/navigation";
+import type { UiLocale } from "@/i18n/config";
 import {
   buildRecordingConsentPath,
   RECORDING_GLOBAL_CONSENT_KEY,
@@ -133,13 +135,6 @@ type CatalogItem = {
   searchText: string;
 };
 
-type RequestListItem = {
-  seriesId: string;
-  request: RecordingRequestRow;
-  seriesTitle: string;
-  permissionMode: RecordingPermissionMode;
-};
-
 type TagChip = {
   value: string;
   label: string;
@@ -151,6 +146,154 @@ type GenreChip = {
   label: string;
   count: number;
 };
+
+type RecordPageCopy = {
+  resultTitle: string;
+  backToSearch: string;
+  filterLabel: string;
+  queryLabel: string;
+  tagsLabel: string;
+  genresLabel: string;
+  sourceLanguageLabel: string;
+  orderLabel: string;
+  unspecified: string;
+  emptyQuery: string;
+  orderPopular: string;
+  orderUpdated: string;
+  orderNarration: string;
+  emptyResults: string;
+  permissionOpen: string;
+  permissionClosed: string;
+  submitted: string;
+  bookmarked: string;
+  author: string;
+  narrator: string;
+  publishedNarrationCount: (count: number) => string;
+  humanPlays: (count: number) => string;
+  views: (count: number) => string;
+  likes: (count: number) => string;
+  bookmarks: (count: number) => string;
+  workPage: string;
+  listen: string;
+  create: string;
+  alsoNarrate: string;
+  filterMeta: Record<RecordFilter, { label: string; description: string }>;
+};
+
+function getRecordPageCopy(locale: UiLocale): RecordPageCopy {
+  if (locale === "en") {
+    return {
+      resultTitle: "Search results",
+      backToSearch: "Back to search",
+      filterLabel: "Filter",
+      queryLabel: "Query",
+      tagsLabel: "Tags",
+      genresLabel: "Genres",
+      sourceLanguageLabel: "Source language",
+      orderLabel: "Order",
+      unspecified: "Not specified",
+      emptyQuery: "Not entered",
+      orderPopular: "Popular",
+      orderUpdated: "Updated",
+      orderNarration: "Human narration plays",
+      emptyResults: "No published Human narration matches these conditions.",
+      permissionOpen: "Narration allowed",
+      permissionClosed: "Narration unavailable",
+      submitted: "Submitted",
+      bookmarked: "Bookmarked",
+      author: "Author",
+      narrator: "Narrator",
+      publishedNarrationCount: (count) => `Published narration ${count}`,
+      humanPlays: (count) => `Human narration plays ${count}`,
+      views: (count) => `Views ${count}`,
+      likes: (count) => `Likes ${count}`,
+      bookmarks: (count) => `Bookmarks ${count}`,
+      workPage: "Work page",
+      listen: "Listen",
+      create: "Create narration",
+      alsoNarrate: "Create my narration",
+      filterMeta: {
+        all: { label: "Published narration", description: "Show works with published Human narration." },
+        submitted: { label: "Submitted", description: "Show works where you have submitted Human narration." },
+        ready: { label: "Available", description: "Show public works that allow new Human narration." },
+        bookmarked: { label: "Bookmarked", description: "Show bookmarked works with published Human narration." },
+      },
+    };
+  }
+
+  if (locale === "ko") {
+    return {
+      resultTitle: "검색 결과",
+      backToSearch: "위 검색으로",
+      filterLabel: "필터",
+      queryLabel: "검색어",
+      tagsLabel: "태그",
+      genresLabel: "장르",
+      sourceLanguageLabel: "원문 언어",
+      orderLabel: "정렬",
+      unspecified: "지정 안 함",
+      emptyQuery: "입력 없음",
+      orderPopular: "인기순",
+      orderUpdated: "업데이트순",
+      orderNarration: "Human narration 재생순",
+      emptyResults: "조건에 맞는 공개 Human narration이 없습니다.",
+      permissionOpen: "낭독 허용",
+      permissionClosed: "낭독 불가",
+      submitted: "제출 완료",
+      bookmarked: "북마크",
+      author: "작가",
+      narrator: "낭독자",
+      publishedNarrationCount: (count) => `공개 낭독 ${count}건`,
+      humanPlays: (count) => `Human narration 재생 ${count}`,
+      views: (count) => `조회 ${count}`,
+      likes: (count) => `좋아요 ${count}`,
+      bookmarks: (count) => `북마크 ${count}`,
+      workPage: "작품 페이지",
+      listen: "낭독 듣기",
+      create: "낭독 제작",
+      alsoNarrate: "나도 낭독하기",
+      filterMeta: {
+        all: { label: "공개 낭독", description: "공개된 Human narration이 있는 작품만 표시합니다." },
+        submitted: { label: "제출 완료", description: "내가 Human narration을 제출한 작품만 표시합니다." },
+        ready: { label: "낭독 가능", description: "새 Human narration을 제작할 수 있는 공개 작품만 표시합니다." },
+        bookmarked: { label: "북마크", description: "북마크한 공개 Human narration 작품만 표시합니다." },
+      },
+    };
+  }
+
+  return {
+    resultTitle: "検索結果",
+    backToSearch: "上の検索へ",
+    filterLabel: "フィルタ",
+    queryLabel: "検索語",
+    tagsLabel: "タグ",
+    genresLabel: "ジャンル",
+    sourceLanguageLabel: "原文言語",
+    orderLabel: "並び順",
+    unspecified: "未指定",
+    emptyQuery: "未入力",
+    orderPopular: "人気順",
+    orderUpdated: "更新順",
+    orderNarration: "Human narration視聴順",
+    emptyResults: "条件に合う公開Human narrationはない。",
+    permissionOpen: "朗読許可",
+    permissionClosed: "朗読不可",
+    submitted: "投稿済",
+    bookmarked: "ブックマーク",
+    author: "作者",
+    narrator: "朗読者",
+    publishedNarrationCount: (count) => `公開朗読 ${count}件`,
+    humanPlays: (count) => `Human朗読視聴 ${count}`,
+    views: (count) => `閲覧 ${count}`,
+    likes: (count) => `いいね ${count}`,
+    bookmarks: (count) => `ブックマーク ${count}`,
+    workPage: "作品ページ",
+    listen: "朗読を聞く",
+    create: "朗読制作へ",
+    alsoNarrate: "自分も朗読する",
+    filterMeta: FILTER_META,
+  };
+}
 
 const adminSupabase = createAdminClient();
 const TOKYO_TIMEZONE = "Asia/Tokyo";
@@ -308,13 +451,6 @@ function getCreatedAtScore(value: string | null | undefined): number {
   return Number.isNaN(time) ? 0 : time;
 }
 
-function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "未記録";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ja-JP");
-}
-
 function formatInputDate(value: number): string {
   if (!Number.isFinite(value) || value <= 0) {
     return "";
@@ -356,42 +492,17 @@ function parseDateEnd(value: string | undefined): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-function getPermissionLabel(mode: RecordingPermissionMode): string {
-  if (mode === "open") return "朗読許可";
-  return "朗読不可";
+function getPermissionLabel(
+  mode: RecordingPermissionMode,
+  copy?: RecordPageCopy
+): string {
+  if (mode === "open") return copy?.permissionOpen ?? "朗読許可";
+  return copy?.permissionClosed ?? "朗読不可";
 }
 
 function getPermissionClass(mode: RecordingPermissionMode): string {
   if (mode === "open") {
     return "border-sky-200 bg-sky-50 text-black";
-  }
-
-  return "border-black/10 bg-neutral-100 text-neutral-500";
-}
-
-function getRequestStatusLabel(status: RequestStatus | null): string {
-  if (status === "pending") return "未使用";
-  if (status === "approved") return "朗読許可";
-  if (status === "rejected") return "却下";
-  if (status === "cancelled") return "取消済み";
-  return "未申請";
-}
-
-function getRequestStatusClass(status: RequestStatus | null): string {
-  if (status === "pending") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  if (status === "approved") {
-    return "border-sky-200 bg-sky-50 text-black";
-  }
-
-  if (status === "rejected") {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-
-  if (status === "cancelled") {
-    return "border-black/10 bg-neutral-100 text-neutral-500";
   }
 
   return "border-black/10 bg-neutral-100 text-neutral-500";
@@ -997,7 +1108,9 @@ function buildHumanNarrationListenPath(item: CatalogItem): string | null {
 function getPrimaryAction(
   item: CatalogItem,
   hasRecordingGlobalConsent: boolean,
-  canCreateHumanNarration: boolean
+  canCreateHumanNarration: boolean,
+  copy: RecordPageCopy,
+  locale: UiLocale
 ): {
   href: string;
   label: string;
@@ -1006,8 +1119,8 @@ function getPrimaryAction(
   const listenHref = buildHumanNarrationListenPath(item);
   if (listenHref) {
     return {
-      href: listenHref,
-      label: "朗読を聞く",
+      href: localizePath(listenHref, locale),
+      label: copy.listen,
       className:
         "rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black transition hover:bg-sky-100",
     };
@@ -1015,16 +1128,19 @@ function getPrimaryAction(
 
   if (item.isReady && canCreateHumanNarration) {
     return {
-      href: buildRecordingStartHref(item.series.id, hasRecordingGlobalConsent),
-      label: "朗読制作へ",
+      href: localizePath(
+        buildRecordingStartHref(item.series.id, hasRecordingGlobalConsent),
+        locale
+      ),
+      label: copy.create,
       className:
         "rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black transition hover:bg-sky-100",
     };
   }
 
   return {
-    href: buildWorkPath(item.series.id),
-    label: "作品ページへ",
+    href: localizePath(buildWorkPath(item.series.id), locale),
+    label: copy.workPage,
     className:
       "rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50",
   };
@@ -1073,15 +1189,21 @@ function RecordCatalogCard({
   item,
   hasRecordingGlobalConsent,
   canCreateHumanNarration,
+  copy,
+  locale,
 }: {
   item: CatalogItem;
   hasRecordingGlobalConsent: boolean;
   canCreateHumanNarration: boolean;
+  copy: RecordPageCopy;
+  locale: UiLocale;
 }) {
   const primaryAction = getPrimaryAction(
     item,
     hasRecordingGlobalConsent,
-    canCreateHumanNarration
+    canCreateHumanNarration,
+    copy,
+    locale
   );
 
   return (
@@ -1097,31 +1219,31 @@ function RecordCatalogCard({
                 getPermissionClass(item.permissionMode),
               ].join(" ")}
             >
-              {getPermissionLabel(item.permissionMode)}
+              {getPermissionLabel(item.permissionMode, copy)}
             </span>
 
             {item.isSubmitted ? (
               <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs text-black">
-                投稿済
+                {copy.submitted}
               </span>
             ) : null}
 
             {item.isBookmarked ? (
               <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs text-neutral-700">
-                ブックマーク
+                {copy.bookmarked}
               </span>
             ) : null}
           </div>
 
-          <p className="mt-2 text-sm text-neutral-500">作者: {item.authorName}</p>
+          <p className="mt-2 text-sm text-neutral-500">{copy.author}: {item.authorName}</p>
 
           {item.humanNarrationCount > 0 ? (
             <div className="mt-2 text-sm leading-7 text-neutral-700">
               <span className="font-medium text-black">Human narration</span>
               {" · "}
-              朗読者: {item.humanNarratorNames.join(" / ")}
+              {copy.narrator}: {item.humanNarratorNames.join(" / ")}
               {" · "}
-              公開朗読 {item.humanNarrationCount}件
+              {copy.publishedNarrationCount(item.humanNarrationCount)}
             </div>
           ) : null}
 
@@ -1150,17 +1272,17 @@ function RecordCatalogCard({
           </div>
 
           <div className="mt-4 text-sm leading-7 text-neutral-500">
-            Human朗読視聴 {item.humanNarrationPlayCount} / 閲覧 {item.popularity.viewCount} / いいね{" "}
-            {item.popularity.likeCount} / ブックマーク {item.popularity.bookmarkCount}
+            {copy.humanPlays(item.humanNarrationPlayCount)} / {copy.views(item.popularity.viewCount)} /{" "}
+            {copy.likes(item.popularity.likeCount)} / {copy.bookmarks(item.popularity.bookmarkCount)}
           </div>
         </div>
 
         <div className="flex flex-wrap gap-3">
           <Link
-            href={buildWorkPath(item.series.id)}
+            href={localizePath(buildWorkPath(item.series.id), locale)}
             className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
           >
-            作品ページ
+            {copy.workPage}
           </Link>
 
           <Link href={primaryAction.href} className={primaryAction.className}>
@@ -1171,13 +1293,16 @@ function RecordCatalogCard({
           item.isReady &&
           canCreateHumanNarration ? (
             <Link
-              href={buildRecordingStartHref(
-                item.series.id,
-                hasRecordingGlobalConsent
+              href={localizePath(
+                buildRecordingStartHref(
+                  item.series.id,
+                  hasRecordingGlobalConsent
+                ),
+                locale
               )}
               className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
             >
-              自分も朗読する
+              {copy.alsoNarrate}
             </Link>
           ) : null}
         </div>
@@ -1186,68 +1311,9 @@ function RecordCatalogCard({
   );
 }
 
-function RequestStatusCard({
-  item,
-  hasRecordingGlobalConsent,
-}: {
-  item: RequestListItem;
-  hasRecordingGlobalConsent: boolean;
-}) {
-  const latestStatus = normalizeRequestStatus(item.request.status);
-
-  return (
-    <article className="rounded-[24px] border border-black/10 bg-white p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-semibold text-black">{item.seriesTitle}</h3>
-            <span
-              className={[
-                "rounded-full border px-3 py-1 text-xs",
-                getRequestStatusClass(latestStatus),
-              ].join(" ")}
-            >
-              {getRequestStatusLabel(latestStatus)}
-            </span>
-          </div>
-
-          <p className="mt-3 text-sm leading-7 text-neutral-500">
-            直近申請日時: {formatDateTime(item.request.created_at)}
-          </p>
-
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-neutral-700">
-            {pickText(item.request.request_message) || "申請メッセージは未入力。"}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href={buildWorkPath(item.seriesId)}
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-          >
-            作品ページ
-          </Link>
-
-          <Link
-            href={
-              latestStatus === "approved"
-                ? buildRecordingStartHref(
-                    item.seriesId,
-                    hasRecordingGlobalConsent
-                )  
-                : buildRecordingRequestPath(item.seriesId)
-            }
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-          >
-            {latestStatus === "approved" ? "制作開始" : "申請ページ"}
-          </Link>
-        </div>
-      </div>
-    </article>
-  );
-}
-
 export default async function RecordPortalPage({ searchParams }: PageProps) {
+  const locale = await getUiLocale();
+  const copy = getRecordPageCopy(locale);
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
   const supabase = await createClient();
@@ -1456,24 +1522,6 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
               検索
             </a>
             <a
-              href="#record-submitted"
-              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-            >
-              投稿朗読作品
-            </a>
-            <a
-              href="#record-bookmarked"
-              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-            >
-              ブックマーク作品
-            </a>
-            <a
-              href="#record-requests"
-              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
-            >
-              朗読状況
-            </a>
-            <a
               href="#record-search-results"
               className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black transition hover:bg-sky-100"
             >
@@ -1511,8 +1559,8 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
           <SectionFrame
             id="record-search-results"
             label="SEARCH RESULTS"
-            title="検索結果"
-            description={FILTER_META[activeFilter].description}
+            title={copy.resultTitle}
+            description={copy.filterMeta[activeFilter].description}
             action={
               <SearchNavButton
                 href={buildRecordSearchHref({
@@ -1530,38 +1578,38 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
                 scrollTargetId="record-search"
                 className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-black transition hover:bg-sky-100"
               >
-                上の検索へ
+                {copy.backToSearch}
               </SearchNavButton>
             }
           >
             <div className="mb-4 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">
-              フィルタ: {FILTER_META[activeFilter].label}
+              {copy.filterLabel}: {copy.filterMeta[activeFilter].label}
               <br />
-              検索語: {query ? `「${query}」` : "未入力"}
+              {copy.queryLabel}: {query ? `「${query}」` : copy.emptyQuery}
               <br />
-              タグ: {selectedTagLabels.length > 0 ? selectedTagLabels.join(" / ") : "未指定"}
+              {copy.tagsLabel}: {selectedTagLabels.length > 0 ? selectedTagLabels.join(" / ") : copy.unspecified}
               <br />
-              ジャンル:{" "}
+              {copy.genresLabel}:{" "}
               {selectedGenreLabels.length > 0
                 ? selectedGenreLabels.join(" / ")
-                : "未指定"}
+                : copy.unspecified}
               <br />
-              原文言語:{" "}
+              {copy.sourceLanguageLabel}:{" "}
               {selectedSourceLanguages.length > 0
                 ? selectedSourceLanguages.join(" / ")
-                : "未指定"}
+                : copy.unspecified}
               <br />
-              並び順:{" "}
+              {copy.orderLabel}:{" "}
               {order === "updated"
-                ? "更新順"
+                ? copy.orderUpdated
                 : order === "narration"
-                  ? "朗読視聴順"
-                  : "人気順"}
+                  ? copy.orderNarration
+                  : copy.orderPopular}
             </div>
 
             {filteredCatalogItems.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-4 text-sm leading-7 text-neutral-600">
-                条件に合う公開Human narrationはない。
+                {copy.emptyResults}
               </div>
             ) : (
               <div className="grid gap-4">
@@ -1571,6 +1619,8 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
                     item={item}
                     hasRecordingGlobalConsent={hasRecordingGlobalConsent}
                     canCreateHumanNarration={canCreateHumanNarration}
+                    copy={copy}
+                    locale={locale}
                   />
                 ))}
               </div>
