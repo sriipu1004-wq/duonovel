@@ -30,7 +30,8 @@
     "test:security-authz": "node --import tsx scripts/test-security-authz.ts",
     "test:pricing-copy": "node --import tsx scripts/test-final-pricing-copy.ts",
     "test:human-recording-state": "node --import tsx scripts/test-human-recording-state.ts",
-    "test:human-recording-boundaries": "node --import tsx scripts/test-human-recording-boundaries.ts"
+    "test:human-recording-boundaries": "node --import tsx scripts/test-human-recording-boundaries.ts",
+    "test:author-workspace-ux": "node --import tsx scripts/test-author-workspace-ux.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
