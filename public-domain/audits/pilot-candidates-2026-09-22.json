@@ -1,6 +1,6 @@
 {
   "reviewed_at": "2026-09-22",
-  "review_stage": "OpenAI-assisted legal/source triage complete; human rights sign-off is still required before manifest approved=true or Production Draft import",
+  "review_stage": "Exact source acquisition, normalization and AI-assisted legal/source preflight complete for JA 3 / EN 2 / KO 3. Human LIB read rights sign-off remains required before approved=true or Production Draft import.",
   "jurisdictions_reviewed": [
     "JP",
     "US",
@@ -81,9 +81,9 @@
       "original_language": "en",
       "edition_scope": "Plain-text original English body only; do not import Tenniel illustrations, modern generated summary, cover, or Project Gutenberg site metadata",
       "provider_status": "Project Gutenberg catalog marks eBook #11 Public domain in the USA",
-      "source_hash": null,
-      "chapter_count": null,
-      "status": "SOURCE_BYTES_AND_HUMAN_SIGNOFF_PENDING"
+      "source_hash": "01b38ea4c710a84bc18d0bd41271a5a1a92b94e97b2812f4dece97d4a694725e",
+      "chapter_count": 12,
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
     },
     {
       "title": "The Strange Case of Dr. Jekyll and Mr. Hyde",
@@ -109,9 +109,9 @@
       "original_language": "en",
       "edition_scope": "Plain-text original English body only; no modern cover/summary",
       "provider_status": "Project Gutenberg catalog marks eBook #1952 Public domain in the USA",
-      "source_hash": null,
-      "chapter_count": null,
-      "status": "SOURCE_BYTES_AND_HUMAN_SIGNOFF_PENDING"
+      "source_hash": "20c7788eeae2fe3a0efd51a1f08b6723366a4be0778d65db219149a3522651d4",
+      "chapter_count": 1,
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
     }
   ],
   "KO": [
@@ -125,9 +125,9 @@
       "original_language": "ko",
       "edition_scope": "Original Korean first-order text; prefer 개벽 TXT source. No modern translation/cover.",
       "provider_status": "Item is explicitly presented as 만료 저작물; page records 1924.6 publication and TXT/HWP/PDF originals",
-      "source_hash": null,
-      "chapter_count": null,
-      "status": "SOURCE_BYTES_AND_HUMAN_SIGNOFF_PENDING"
+      "source_hash": "b2263f2ada96cd4d45f557ac1c58190e692f39f996b9f7e14f77fbf6dff5fb45",
+      "chapter_count": 1,
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
     },
     {
       "title": "B사감과 러브레터",
@@ -139,9 +139,9 @@
       "original_language": "ko",
       "edition_scope": "Original Korean first-order text; prefer 조선문단 TXT source. No modern translation/cover.",
       "provider_status": "The Korea Copyright Commission item is explicitly presented under 만료 저작물; page records 1925.2 publication, first-order work, and TXT/HWP/PDF originals",
-      "source_hash": null,
-      "chapter_count": null,
-      "status": "SOURCE_BYTES_AND_HUMAN_SIGNOFF_PENDING"
+      "source_hash": "6d41946337679ff8ff6eda4abd55afa6ba027e85d40c1fde0ff850a33bc2064c",
+      "chapter_count": 1,
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
     },
     {
       "title": "빈처(貧妻)",
@@ -153,9 +153,9 @@
       "original_language": "ko",
       "edition_scope": "Original Korean first-order text; prefer 개벽 TXT source. No modern translation/cover.",
       "provider_status": "The item appears in 공유마당's licenseCd=97 expired-works text collection; item page records 1921.1 publication, first-order work, and TXT/HWP/PDF originals",
-      "source_hash": null,
-      "chapter_count": null,
-      "status": "SOURCE_BYTES_AND_HUMAN_SIGNOFF_PENDING"
+      "source_hash": "25753abd84accff40b8015a45a2b82b0e88a405c6c0e546e68e9478f1e1c0dc5",
+      "chapter_count": 1,
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
     }
   ],
   "legal_sources": {
