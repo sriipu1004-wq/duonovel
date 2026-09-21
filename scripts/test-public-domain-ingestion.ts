@@ -43,6 +43,7 @@ function approvedManifest(
     first_publication_year: 1890,
     source_provider: "Synthetic fixture",
     source_url: "https://example.invalid/fixture",
+    source_download_url: null,
     source_file: "public-domain/sources/raw/fixture-ja.txt",
     source_retrieved_at: "2026-09-22T00:00:00.000Z",
     source_encoding: "utf-8",
