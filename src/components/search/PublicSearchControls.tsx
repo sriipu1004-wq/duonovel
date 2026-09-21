@@ -149,7 +149,6 @@ export default function PublicSearchControls({
   useEffect(() => setLocalSelectedGenreLabels(initialSelectedGenreLabels), [initialSelectedGenreLabels]);
   useEffect(() => setLocalShowAllTags(initialShowAllTags), [initialShowAllTags]);
   useEffect(() => setLocalShowAllGenres(initialShowAllGenres), [initialShowAllGenres]);
-  useEffect(() => setSelectedSourceLanguages(initialSourceLanguages), [initialSourceLanguages]);
 
   useEffect(() => {
     if (showAllTags) {
