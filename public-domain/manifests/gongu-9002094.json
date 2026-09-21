@@ -10,7 +10,7 @@
   "source_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9002094",
   "source_download_url": "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=4",
   "source_file": "public-domain/sources/raw/gongu-9002094.txt",
-  "source_retrieved_at": null,
+  "source_retrieved_at": "2026-09-21T21:09:48.885Z",
   "source_encoding": "utf-8",
   "normalization_profile": "gongu_madang",
   "edition": "『개벽』 48호 (1924.6) source text; proposed TXT: 현진건-운수_좋은_날+B3356-개벽.txt",
@@ -71,7 +71,7 @@
   "jurisdictions_reviewed": [],
   "reviewed_at": null,
   "reviewed_by": null,
-  "chapter_count": null,
+  "chapter_count": 1,
   "chapter_split": {
     "strategy": "single"
   },
@@ -81,9 +81,9 @@
     "현진건",
     "Korean classic"
   ],
-  "source_hash": null,
+  "source_hash": "b2263f2ada96cd4d45f557ac1c58190e692f39f996b9f7e14f77fbf6dff5fb45",
   "approved": false,
-  "import_status": "not_imported",
+  "import_status": "prepared",
   "cover_source": null,
   "cover_rights_status": null
 }

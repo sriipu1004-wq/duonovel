@@ -10,7 +10,7 @@
   "source_url": "https://www.gutenberg.org/ebooks/11",
   "source_download_url": "https://www.gutenberg.org/cache/epub/11/pg11.txt",
   "source_file": "public-domain/sources/raw/gutenberg-000011.txt",
-  "source_retrieved_at": null,
+  "source_retrieved_at": "2026-09-21T21:09:44.789Z",
   "source_encoding": "utf-8",
   "normalization_profile": "gutenberg",
   "edition": "Project Gutenberg eBook #11 plain text; credits Arthur DiBianca and David Widger; current catalog text updated 2025-06-26",
@@ -71,7 +71,7 @@
   "jurisdictions_reviewed": [],
   "reviewed_at": null,
   "reviewed_by": null,
-  "chapter_count": null,
+  "chapter_count": 12,
   "chapter_split": {
     "strategy": "heading_regex",
     "heading_pattern": "^CHAPTER\\s+[IVXLC]+\\.$",
@@ -83,9 +83,9 @@
     "Lewis Carroll",
     "English classic"
   ],
-  "source_hash": null,
+  "source_hash": "01b38ea4c710a84bc18d0bd41271a5a1a92b94e97b2812f4dece97d4a694725e",
   "approved": false,
-  "import_status": "not_imported",
+  "import_status": "prepared",
   "cover_source": null,
   "cover_rights_status": null
 }
