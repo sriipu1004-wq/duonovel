@@ -135,7 +135,8 @@ export default function GeneratedStoryReaderShell({
   }
 
   useEffect(() => {
-    const generated = readGeneratedStory(storyId);
+    const frame = window.requestAnimationFrame(() => {
+      const generated = readGeneratedStory(storyId);
     const body = generated?.story?.body ?? "";
     const detected =
       parseSupportedLanguageTag(generated?.story?.sourceLanguage) ??
@@ -170,10 +171,13 @@ export default function GeneratedStoryReaderShell({
               : preferred ?? undefined
           );
 
-    setSourceLanguage(detected);
-    setTargetLanguage(nextTarget);
-    setMode(requestedMode);
-    setReady(true);
+      setSourceLanguage(detected);
+      setTargetLanguage(nextTarget);
+      setMode(requestedMode);
+      setReady(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [storyId]);
 
   if (!ready) return <>{children}</>;
