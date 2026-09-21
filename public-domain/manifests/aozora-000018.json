@@ -1,0 +1,88 @@
+{
+  "id": "aozora-000018",
+  "title": "闇中問答・芥川竜之介",
+  "original_title": "闇中問答",
+  "original_author": "芥川竜之介",
+  "author_death_year": 1927,
+  "original_language": "ja",
+  "first_publication_year": 1927,
+  "source_provider": "Aozora Bunko",
+  "source_url": "https://www.aozora.gr.jp/cards/000879/card18.html",
+  "source_download_url": "https://www.aozora.gr.jp/cards/000879/files/18_ruby_268.zip",
+  "source_file": "public-domain/sources/raw/aozora-000018.txt",
+  "source_retrieved_at": "2026-09-21T19:42:25.453Z",
+  "source_encoding": "shift_jis",
+  "normalization_profile": "aozora",
+  "edition": "現代日本文學大系　43　芥川龍之介集",
+  "edition_publication_year": 1968,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "AI-assisted preflight only, not human approval. Aozora catalog classified the work and contributor copyright flags as なし with author-only attribution; the exact Aozora source was fetched and hashed. Japan: author term is long expired; U.S.: pre-1978 restored works receive only the remainder of the term they otherwise would have had, generally 95 years from first publication, which has expired for this work; South Korea: the author's life+70 term is also long expired. A human LIB read operator must verify the cited primary sources and flip the approval gate.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora metadata/copyright flags passed the conservative classifier; author death and first-publication dates pass JP/US/KR term preflight. Human operator approval is still required."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora identifies the base edition; human operator must confirm no separately reused protected editorial matter beyond the freely redistributable Aozora file."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora handling rules permit reuse/modification of expired-work files, but final human sign-off remains required."
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora provenance/annotation data is preserved by the normalizer and must remain auditable."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora handling rules state expired-work files may be copied, redistributed, shared, and reformatted without permission or payment; human sign-off remains required."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Primary source: https://www.aozora.gr.jp/guide/kijyunn.html (checked 2026-09-22)."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 1,
+  "chapter_split": {
+    "strategy": "single"
+  },
+  "tags": [
+    "Public Domain",
+    "Aozora Bunko",
+    "芥川竜之介"
+  ],
+  "source_hash": "dc66385e36c677feba0d55f42353753c3db48c0b1a5755b70de46d2c26fbdcbb",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

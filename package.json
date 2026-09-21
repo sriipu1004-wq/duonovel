@@ -31,7 +31,15 @@
     "test:pricing-copy": "node --import tsx scripts/test-final-pricing-copy.ts",
     "test:human-recording-state": "node --import tsx scripts/test-human-recording-state.ts",
     "test:human-recording-boundaries": "node --import tsx scripts/test-human-recording-boundaries.ts",
-    "test:author-workspace-ux": "node --import tsx scripts/test-author-workspace-ux.ts"
+    "test:author-workspace-ux": "node --import tsx scripts/test-author-workspace-ux.ts",
+    "public-domain:validate": "node --import tsx scripts/public-domain/validate.ts",
+    "public-domain:prepare": "node --import tsx scripts/public-domain/prepare.ts",
+    "public-domain:import": "node --import tsx scripts/public-domain/import.ts",
+    "test:public-domain-ingestion": "node --import tsx scripts/test-public-domain-ingestion.ts",
+    "public-domain:aozora-candidates": "node --import tsx scripts/public-domain/aozora-candidates.ts",
+    "public-domain:source-sync": "node --import tsx scripts/public-domain/source-sync.ts",
+    "public-domain:batch": "node --import tsx scripts/public-domain/batch.ts",
+    "public-domain:audit-official": "node --import tsx scripts/public-domain/audit-official.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

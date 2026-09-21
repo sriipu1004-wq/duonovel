@@ -1,0 +1,402 @@
+{
+  "audited_at": "2026-09-22",
+  "source": "Production Supabase read-only audit",
+  "official_account": "LIB read Official",
+  "summary": {
+    "series_count": 37,
+    "episode_count": 437,
+    "published_episode_count": 437,
+    "source_language_missing_count": 0,
+    "public_domain_manifest_metadata_missing_count": 37,
+    "source_language_ja_count": 37,
+    "ready_episode_translation_rows": {
+      "en": 3,
+      "fr": 4,
+      "ko": 1
+    },
+    "series_with_translation_profiles": 0,
+    "series_with_glossary_entries": 1
+  },
+  "legal_review_note": "This inventory is not a rights approval. Existing rows do not contain source provenance or rights manifests, so exact source edition and U.S./KR distribution status require per-work backfill review.",
+  "series": [
+    {
+      "title": "芥川龍之介・短編",
+      "episode_count": 23,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "芋粥・芥川龍之介",
+      "episode_count": 3,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "地獄変・芥川龍之介",
+      "episode_count": 7,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "あの頃の自分の事・芥川龍之介",
+      "episode_count": 4,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "歯車・芥川龍之介",
+      "episode_count": 6,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "侏儒の言葉・芥川龍之介",
+      "episode_count": 8,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "河童・芥川龍之介",
+      "episode_count": 9,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "夏目漱石・短編",
+      "episode_count": 1,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "文鳥・夏目漱石",
+      "episode_count": 3,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "永日小品・夏目漱石",
+      "episode_count": 13,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "坊っちゃん・夏目漱石",
+      "episode_count": 11,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "こころ・夏目漱石",
+      "episode_count": 37,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "草枕・夏目漱石",
+      "episode_count": 13,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "三四郎・夏目漱石",
+      "episode_count": 13,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "それから・夏目漱石",
+      "episode_count": 17,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "吾輩は猫である・夏目漱石",
+      "episode_count": 11,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "夢十夜・夏目漱石",
+      "episode_count": 4,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "虜美人草・夏目漱石",
+      "episode_count": 19,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "行人・夏目漱石",
+      "episode_count": 37,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "明暗・夏目漱石",
+      "episode_count": 49,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "門・夏目漱石",
+      "episode_count": 23,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "私の個人主義・夏目漱石",
+      "episode_count": 3,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "硝子戸の中・夏目漱石",
+      "episode_count": 8,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "太宰治・短編",
+      "episode_count": 6,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "女生徒・太宰治",
+      "episode_count": 4,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "人間失格・太宰治",
+      "episode_count": 5,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "斜陽・太宰治",
+      "episode_count": 8,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "津軽・太宰治",
+      "episode_count": 6,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "右大臣実朝・太宰治",
+      "episode_count": 13,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "宮沢賢治・短編",
+      "episode_count": 7,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "銀河鉄道の夜・宮沢賢治",
+      "episode_count": 5,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "グスコーブドリの伝記",
+      "episode_count": 3,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "春と修羅・宮沢賢治",
+      "episode_count": 7,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "風の又三郎・宮沢賢治",
+      "episode_count": 6,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "江戸川乱歩・短編",
+      "episode_count": 6,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "孤島の鬼・江戸川乱歩",
+      "episode_count": 24,
+      "public": true,
+      "rights_manifest_attached": false
+    },
+    {
+      "title": "少年探偵団・江戸川乱歩",
+      "episode_count": 15,
+      "public": true,
+      "rights_manifest_attached": false
+    }
+  ],
+  "contained_titles": [
+    "蜘蛛の糸",
+    "鼻",
+    "或阿呆の一生",
+    "或旧友へ送る手記",
+    "或社会主義者",
+    "或日の大石内蔵助",
+    "浅草公園",
+    "犬と笛",
+    "遺書",
+    "かちかち山",
+    "神神の微笑",
+    "魔術",
+    "猿蟹合戦",
+    "運",
+    "あばばばば",
+    "アグニの神",
+    "愛読書の印象",
+    "秋",
+    "悪魔",
+    "或恋愛小説",
+    "蜜柑",
+    "桃太郎",
+    "藪の中",
+    "イズムの功過",
+    "ア、秋",
+    "富嶽百景",
+    "ヴィヨンの妻",
+    "駈込み訴え",
+    "走れメロス",
+    "グッド・バイ",
+    "雨ニモマケズ",
+    "注文の多い料理店",
+    "どんぐりと山猫",
+    "オツベルと象",
+    "セロ弾きのゴーシュ",
+    "やまなし",
+    "よだかの星",
+    "赤い部屋",
+    "赤いカブトムシ",
+    "人間椅子",
+    "二銭銅貨",
+    "押絵と旅する男",
+    "心理試験"
+  ],
+  "known_title_aliases": [
+    "虞美人草"
+  ],
+  "production_remediation": {
+    "performed_on": "2026-09-22",
+    "action": "Backfilled series.source_language='ja' where null for LIB read Official only.",
+    "updated_series_count": 36,
+    "postcheck": {
+      "official_series_count": 37,
+      "ja_series_count": 37,
+      "source_language_null_count": 0,
+      "public_series_count": 37,
+      "episode_count": 437,
+      "published_episode_count": 437
+    },
+    "rights_metadata_modified": false,
+    "publication_state_modified": false
+  },
+  "legal_triage": {
+    "status": "Operational triage only; not a final legal conclusion.",
+    "reviewed_jurisdiction_focus": [
+      "JP",
+      "US",
+      "KR"
+    ],
+    "urgent_us_specific_review": [
+      {
+        "scope": "All current 太宰治 Official works",
+        "reason": "Dazai died in 1948, so the source-country term was still running on the 1996 U.S. URAA restoration date. Current LIB read Dazai works are post-1930 publications. If a work meets 17 U.S.C. 104A restoration conditions, a pre-1978 restored work generally receives the remainder of the U.S. term it otherwise would have had, commonly 95 years from first publication.",
+        "confirmed_examples": [
+          {
+            "title": "ア、秋",
+            "first_publication_year": 1939
+          },
+          {
+            "title": "女生徒",
+            "first_publication_year": 1939
+          },
+          {
+            "title": "富嶽百景",
+            "first_publication_year": 1939
+          },
+          {
+            "title": "駈込み訴え",
+            "first_publication_year": 1940
+          },
+          {
+            "title": "走れメロス",
+            "first_publication_year": 1940
+          },
+          {
+            "title": "右大臣実朝",
+            "first_publication_year": 1943
+          },
+          {
+            "title": "津軽",
+            "first_publication_year": 1944
+          },
+          {
+            "title": "ヴィヨンの妻",
+            "first_publication_year": 1947
+          },
+          {
+            "title": "斜陽",
+            "first_publication_year": 1947
+          },
+          {
+            "title": "人間失格",
+            "first_publication_year": 1948
+          },
+          {
+            "title": "グッド・バイ",
+            "first_publication_year": 1948
+          }
+        ],
+        "action": "Do not attach an approved worldwide/Public-Domain manifest until U.S. restoration/publication facts are reviewed."
+      },
+      {
+        "scope": "江戸川乱歩: 少年探偵団",
+        "confirmed_first_publication_year": 1937,
+        "reason": "Edogawa died in 1965 and the work was first published after 1930, so U.S. URAA/restored-term analysis is required.",
+        "action": "U.S.-specific review required."
+      },
+      {
+        "scope": "江戸川乱歩・短編: 赤いカブトムシ",
+        "confirmed_first_publication_year_range": "1958-1959",
+        "reason": "Edogawa died in 1965 and this is a late publication, so U.S. URAA/restored-term analysis is required.",
+        "action": "U.S.-specific review required."
+      }
+    ],
+    "lower_urAA_term_risk_but_still_requires_source_backfill": [
+      {
+        "scope": "夏目漱石 and 芥川龍之介 current shelf",
+        "reason": "The current listed works are pre-1931, putting them outside the general 95-year U.S. publication term by 2026; exact source edition, annotations and provenance still require review."
+      },
+      {
+        "scope": "江戸川乱歩: 孤島の鬼 and pre-1931 short works",
+        "reason": "孤島の鬼 began publication in 1929-1930 and the classic short works other than 赤いカブトムシ are pre-1931 candidates; exact publication/source review is still required."
+      },
+      {
+        "scope": "宮沢賢治 current shelf",
+        "reason": "Miyazawa died in 1933, so ordinary Japanese author-term protection had expired before the 1996 U.S. restoration date. This lowers URAA restoration risk, but posthumous text/editorial history and exact source editions remain unresolved."
+      }
+    ],
+    "primary_legal_sources": [
+      "https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html",
+      "https://www.copyright.gov/title17/92chap1.html",
+      "https://www.copyright.gov/circs/circ38b.pdf",
+      "https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1033063625",
+      "https://www.aozora.gr.jp/guide/kijyunn.html"
+    ]
+  }
+}

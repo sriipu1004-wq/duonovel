@@ -1,0 +1,88 @@
+{
+  "id": "aozora-000010",
+  "title": "秋は淋しい・素木しづ",
+  "original_title": "秋は淋しい",
+  "original_author": "素木しづ",
+  "author_death_year": 1918,
+  "original_language": "ja",
+  "first_publication_year": 1918,
+  "source_provider": "Aozora Bunko",
+  "source_url": "https://www.aozora.gr.jp/cards/000012/card10.html",
+  "source_download_url": "https://www.aozora.gr.jp/cards/000012/files/10_ruby_20387.zip",
+  "source_file": "public-domain/sources/raw/aozora-000010.txt",
+  "source_retrieved_at": "2026-09-21T19:42:23.679Z",
+  "source_encoding": "shift_jis",
+  "normalization_profile": "aozora",
+  "edition": "素木しづ作品集　山田昭夫編",
+  "edition_publication_year": 1970,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "AI-assisted preflight only, not human approval. Aozora catalog classified the work and contributor copyright flags as なし with author-only attribution; the exact Aozora source was fetched and hashed. Japan: author term is long expired; U.S.: pre-1978 restored works receive only the remainder of the term they otherwise would have had, generally 95 years from first publication, which has expired for this work; South Korea: the author's life+70 term is also long expired. A human LIB read operator must verify the cited primary sources and flip the approval gate.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora metadata/copyright flags passed the conservative classifier; author death and first-publication dates pass JP/US/KR term preflight. Human operator approval is still required."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora identifies the base edition; human operator must confirm no separately reused protected editorial matter beyond the freely redistributable Aozora file."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora handling rules permit reuse/modification of expired-work files, but final human sign-off remains required."
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora provenance/annotation data is preserved by the normalizer and must remain auditable."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora handling rules state expired-work files may be copied, redistributed, shared, and reformatted without permission or payment; human sign-off remains required."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Primary source: https://www.aozora.gr.jp/guide/kijyunn.html (checked 2026-09-22)."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 1,
+  "chapter_split": {
+    "strategy": "single"
+  },
+  "tags": [
+    "Public Domain",
+    "Aozora Bunko",
+    "素木しづ"
+  ],
+  "source_hash": "4e59f558dfc19a78578ddd07950065fccc32ee88aadc2f8cdfee307ce646f22a",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}
