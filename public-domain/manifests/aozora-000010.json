@@ -18,18 +18,18 @@
   "translator": null,
   "translator_death_year": null,
   "translation_language": null,
-  "rights_status": "pending",
-  "rights_basis": "",
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved for JP/US/KR pilot distribution after primary-source review. 素木しづ died in 1918 and the work was first published in 1918. Japanese protection expired before the 2018 extension and was not revived; a 1918 publication is beyond the U.S. pre-1978 95-year term; Korean/source-country term analysis supports expiry. Scope is the exact Aozora text file only.",
   "rights_notes": "AI-assisted preflight only, not human approval. Aozora catalog classified the work and contributor copyright flags as なし with author-only attribution; the exact Aozora source was fetched and hashed. Japan: author term is long expired; U.S.: pre-1978 restored works receive only the remainder of the term they otherwise would have had, generally 95 years from first publication, which has expired for this work; South Korea: the author's life+70 term is also long expired. A human LIB read operator must verify the cited primary sources and flip the approval gate.",
   "rights_components": {
     "original_work": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Author/work term reviewed for JP/US/KR; underlying work is out of term in all three reviewed jurisdictions.",
       "notes": "Aozora metadata/copyright flags passed the conservative classifier; author death and first-publication dates pass JP/US/KR term preflight. Human operator approval is still required."
     },
     "edition": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Only the exact Aozora text transcription identified by the pinned SHA-256 is reused; modern base-edition layout, cover and commentary are excluded.",
       "notes": "Aozora identifies the base edition; human operator must confirm no separately reused protected editorial matter beyond the freely redistributable Aozora file."
     },
     "translation": {
@@ -38,13 +38,13 @@
       "notes": ""
     },
     "editorial": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Aozora's expired-work handling rules permit reuse and format/annotation changes; no separately protected modern editorial content is intentionally imported.",
       "notes": "Aozora handling rules permit reuse/modification of expired-work files, but final human sign-off remains required."
     },
     "annotations": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Aozora ruby/annotation syntax is treated as transcription metadata and normalized without adding modern commentary; source provenance remains auditable.",
       "notes": "Aozora provenance/annotation data is preserved by the normalizer and must remain auditable."
     },
     "illustrations": {
@@ -58,19 +58,23 @@
       "notes": ""
     },
     "digitization": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Aozora expressly permits copying, redistribution, sharing and format conversion of expired-work files; exact source bytes are pinned by SHA-256.",
       "notes": "Aozora handling rules state expired-work files may be copied, redistributed, shared, and reformatted without permission or payment; human sign-off remains required."
     },
     "provider_terms": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Aozora handling rules reviewed at https://www.aozora.gr.jp/guide/kijyunn.html.",
       "notes": "Primary source: https://www.aozora.gr.jp/guide/kijyunn.html (checked 2026-09-22)."
     }
   },
-  "jurisdictions_reviewed": [],
-  "reviewed_at": null,
-  "reviewed_by": null,
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-22T08:01:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 chat)",
   "chapter_count": 1,
   "chapter_split": {
     "strategy": "single"
@@ -81,7 +85,7 @@
     "素木しづ"
   ],
   "source_hash": "4e59f558dfc19a78578ddd07950065fccc32ee88aadc2f8cdfee307ce646f22a",
-  "approved": false,
+  "approved": true,
   "import_status": "prepared",
   "cover_source": null,
   "cover_rights_status": null
