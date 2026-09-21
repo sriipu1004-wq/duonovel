@@ -163,8 +163,10 @@ export function classifyAozoraWork(
 
   if (!workId || !/^\d+$/u.test(workId)) reasons.push("missing/invalid work id");
   if (!title) reasons.push("missing title");
-  if (primary["作品著作権フラグ"]?.trim() !== "なし") {
-    reasons.push("Aozora work copyright flag is not なし");
+  if (
+    sourceRows.some((row) => row["作品著作権フラグ"]?.trim() !== "なし")
+  ) {
+    reasons.push("one or more Aozora work copyright flags are not なし");
   }
   if (
     sourceRows.some(
