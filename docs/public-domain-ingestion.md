@@ -251,8 +251,9 @@ The generator uses the official catalog ZIP and only selects **pending** candida
 4. latest author death year is 1955 or earlier;
 5. first publication year can be parsed and is 1930 or earlier;
 6. source card and ZIP URLs are on the expected Aozora host/path;
-7. obvious duplicates already present as an Official series or inside an Official short collection are excluded;
-8. candidate source has at least the configured minimum character count.
+7. obvious duplicates already present as an Official series or inside an Official short collection are excluded, including tracked legacy title aliases;
+8. duplicate Aozora editions with the same normalized title + author are collapsed to one candidate, preferring modernized orthography where available;
+9. candidate source has at least the configured minimum character count when the catalog provides that field.
 
 Passing those filters produces `rights_status=pending` and `approved=false`. The generator has no code path that converts a candidate into an approved manifest.
 
