@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 import { unzipSync } from "fflate";
 import { isAllowedAozoraTextUrl } from "./aozora";
 import { isAllowedGutenbergTextUrl } from "./gutenberg";
+import { gonguWorkNumberFromLandingUrl, isAllowedGonguTextUrl } from "./gongu";
 import { sha256Bytes } from "./core";
 import {
   loadManifest,
@@ -47,7 +48,8 @@ if (allPending) {
         const manifest = loadManifest(id);
         return (
           (manifest.source_provider === "Aozora Bunko" ||
-            manifest.source_provider === "Project Gutenberg") &&
+            manifest.source_provider === "Project Gutenberg" ||
+            manifest.source_provider === "Gongu Madang / Korea Copyright Commission") &&
           !existsSync(resolve(process.cwd(), manifest.source_file))
         );
       } catch {
@@ -62,7 +64,7 @@ if (ids.length === 0) {
 
 console.log(`Public Domain source sync count: ${ids.length}`);
 console.log(
-  "Fetcher allowlist: Aozora ZIPs and https://www.gutenberg.org/cache/epub/<id>/pg<id>.txt only"
+  "Fetcher allowlist: Aozora ZIPs, Project Gutenberg plain text, and Gongu Madang per-item TXT only"
 );
 console.log(`Rate delay: ${delayMs}ms; prepare=${prepare}; force=${force}`);
 
@@ -78,17 +80,26 @@ for (const [index, id] of ids.entries()) {
       ? "aozora"
       : manifest.source_provider === "Project Gutenberg"
         ? "gutenberg"
-        : null;
+        : manifest.source_provider === "Gongu Madang / Korea Copyright Commission"
+          ? "gongu"
+          : null;
   if (!sourceKind) {
     throw new Error(
-      `${id}: source_provider must be Aozora Bunko or Project Gutenberg for automated source sync`
+      `${id}: source_provider is not supported by automated source sync`
     );
   }
+  const gonguWrtSn =
+    sourceKind === "gongu"
+      ? gonguWorkNumberFromLandingUrl(manifest.source_url)
+      : null;
   const allowed =
     Boolean(downloadUrl) &&
     (sourceKind === "aozora"
       ? isAllowedAozoraTextUrl(downloadUrl!)
-      : isAllowedGutenbergTextUrl(downloadUrl!));
+      : sourceKind === "gutenberg"
+        ? isAllowedGutenbergTextUrl(downloadUrl!)
+        : Boolean(gonguWrtSn) &&
+          isAllowedGonguTextUrl(downloadUrl!, gonguWrtSn!));
   if (!downloadUrl || !allowed) {
     throw new Error(`${id}: source_download_url is missing or not allowlisted`);
   }
@@ -131,6 +142,7 @@ for (const [index, id] of ids.entries()) {
   } else {
     const contentType = response.headers.get("content-type") ?? "";
     if (
+      sourceKind === "gutenberg" &&
       contentType &&
       !contentType.includes("text/plain") &&
       !contentType.includes("application/octet-stream")
