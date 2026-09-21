@@ -17,13 +17,20 @@ const includeExisting = args.includes("--include-existing");
 const limitRaw = args.find((arg) => arg.startsWith("--limit="))?.slice("--limit=".length);
 const authorFilter = args.find((arg) => arg.startsWith("--author="))?.slice("--author=".length)?.trim();
 const minCharsRaw = args.find((arg) => arg.startsWith("--min-chars="))?.slice("--min-chars=".length);
+const perAuthorRaw = args
+  .find((arg) => arg.startsWith("--per-author-limit="))
+  ?.slice("--per-author-limit=".length);
 const limit = limitRaw ? Number(limitRaw) : 25;
 const minChars = minCharsRaw ? Number(minCharsRaw) : 1000;
+const perAuthorLimit = perAuthorRaw ? Number(perAuthorRaw) : 5;
 if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
   throw new Error("--limit must be an integer from 1 to 100");
 }
 if (!Number.isInteger(minChars) || minChars < 0) {
   throw new Error("--min-chars must be a non-negative integer");
+}
+if (!Number.isInteger(perAuthorLimit) || perAuthorLimit < 1 || perAuthorLimit > 100) {
+  throw new Error("--per-author-limit must be an integer from 1 to 100");
 }
 
 const response = await fetch(AOZORA_CATALOG_URL, {
@@ -47,6 +54,14 @@ if (!csvEntry) throw new Error("Aozora catalog CSV was not found in ZIP");
 const rows = parseCsv(new TextDecoder("utf-8", { fatal: true }).decode(csvEntry[1]));
 const grouped = groupAozoraRows(rows);
 
+const manifestDir = resolve(process.cwd(), "public-domain/manifests");
+const existingManifestIds = new Set(
+  existsSync(manifestDir)
+    ? (await import("node:fs")).readdirSync(manifestDir)
+        .filter((name) => name.endsWith(".json") && !name.startsWith("_"))
+        .map((name) => name.slice(0, -5))
+    : []
+);
 const existingAuditPath = resolve(
   process.cwd(),
   "public-domain/audits/official-production-2026-09-22.json"
@@ -116,13 +131,24 @@ for (const item of classified) {
   if (!uniqueByWork.has(key)) uniqueByWork.set(key, item);
 }
 
-const candidates = Array.from(uniqueByWork.values())
+const sortedCandidates = Array.from(uniqueByWork.values())
+  .filter((item) => includeExisting || !existingManifestIds.has(`aozora-${item.workId}`))
   .sort((a, b) => {
     const accessA = Number(a.sourceRows[0]?.["累計アクセス数"]?.replace(/,/gu, "") || "0");
     const accessB = Number(b.sourceRows[0]?.["累計アクセス数"]?.replace(/,/gu, "") || "0");
     return accessB - accessA || a.workId.localeCompare(b.workId);
-  })
-  .slice(0, limit);
+  });
+
+const candidates: typeof sortedCandidates = [];
+const authorCounts = new Map<string, number>();
+for (const item of sortedCandidates) {
+  const authorKey = canonicalAozoraIdentityPart(item.author);
+  const count = authorCounts.get(authorKey) ?? 0;
+  if (count >= perAuthorLimit) continue;
+  candidates.push(item);
+  authorCounts.set(authorKey, count + 1);
+  if (candidates.length >= limit) break;
+}
 
 console.log(`Aozora catalog rows: ${rows.length}`);
 console.log(`Eligible conservative candidates selected: ${candidates.length}`);
@@ -135,7 +161,7 @@ if (candidates.length === 0 || args.includes("--diagnose")) {
   }
 }
 console.log(
-  "Criteria: copyright flags=なし, author-only contributors, death<=1955, first publication<=1930, allowlisted Aozora ZIP"
+  `Criteria: copyright flags=なし, author-only contributors, death<=1955, first publication<=1930, allowlisted Aozora ZIP, per-author-limit=${perAuthorLimit}`
 );
 console.log("Rights state: pending only; this command never approves or imports.");
 
@@ -149,7 +175,7 @@ if (!write) {
   process.exit(0);
 }
 
-const outputDir = resolve(process.cwd(), "public-domain/manifests");
+const outputDir = manifestDir;
 mkdirSync(outputDir, { recursive: true });
 let created = 0;
 let skipped = 0;
