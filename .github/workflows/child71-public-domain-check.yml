@@ -37,6 +37,9 @@ jobs:
       - name: Public Domain ingestion regression
         run: npm run test:public-domain-ingestion
 
+      - name: Aozora live catalog smoke
+        run: npm run public-domain:aozora-candidates -- --limit=3
+
       - name: Child65-70 regression
         run: |
           npm run test:security-authz
@@ -57,6 +60,11 @@ jobs:
         run: >
           npx eslint
           scripts/public-domain/core.ts
+          scripts/public-domain/aozora.ts
+          scripts/public-domain/aozora-candidates.ts
+          scripts/public-domain/source-sync.ts
+          scripts/public-domain/batch.ts
+          scripts/public-domain/audit-official.ts
           scripts/public-domain/runtime.ts
           scripts/public-domain/validate.ts
           scripts/public-domain/prepare.ts
