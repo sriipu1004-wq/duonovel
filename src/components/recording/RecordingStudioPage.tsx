@@ -271,9 +271,7 @@ export function RecordingStudioPage({
     ? existingRecordings
     : [];
   const safeFixedReaderName =
-    typeof fixedReaderName === "string" && fixedReaderName.trim().length > 0
-      ? fixedReaderName.trim()
-      : "ユーザー朗読";
+    typeof fixedReaderName === "string" ? fixedReaderName.trim() : "";
 
   const [existingRecordingMap, setExistingRecordingMap] = useState<
     Record<string, ExistingRecordingSeed>
@@ -887,6 +885,15 @@ export function RecordingStudioPage({
       return;
     }
 
+    if (!safeFixedReaderName) {
+      setPublishStatus("error");
+      setPublishResult(null);
+      setPublishMessage(
+        "公開朗読者名を確認できない。マイページで表示名を設定してから再試行して。"
+      );
+      return;
+    }
+
     setPublishStatus("publishing");
     setPublishResult(null);
     setPublishMessage("audio 保存 → recordings 接続 → 既存 row 上書き確認を実行中。");
@@ -903,7 +910,7 @@ export function RecordingStudioPage({
         );
 
         await uploadHumanFileMultipartDirect({
-          bucketName: uploadSession.bucketName || "recording-audio",
+          bucketName: uploadSession.bucketName || "human-recording-audio",
           file: currentPreviewItem.file,
           parts: uploadSession.parts || [],
         });
