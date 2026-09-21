@@ -20,12 +20,12 @@
   "translation_language": null,
   "rights_status": "approved",
   "rights_basis": "Human operator approved for JP/US/KR pilot distribution after primary-source review. The Yellow Wallpaper was first published in 1892 and Charlotte Perkins Gilman died in 1935. Project Gutenberg marks eBook #1952 public domain in the USA; the work is far beyond the U.S. pre-1978 95-year term. JP and KR term/shorter-term review also supports expiry. Scope is the normalized original English literary text only; Project Gutenberg license/footer, generated catalog material and covers are excluded.",
-  "rights_notes": "AI-assisted preflight only, not human approval. Project Gutenberg's official catalog marks eBook #1952 public domain in the USA and identifies the original English work. First publication 1892; Charlotte Perkins Gilman died 1935. Scope is the original English plain text only; no generated summary, modern cover, or site metadata. Project Gutenberg warns non-U.S. users to check local law.",
+  "rights_notes": "Human rights approval recorded at 2026-09-22T08:01:00+10:00 by LIB read operator (explicit user approval in Child72 chat). Project Gutenberg's official catalog marks eBook #1952 public domain in the USA and identifies the original English work. First publication 1892; Charlotte Perkins Gilman died 1935. Scope is the original English plain text only; no generated summary, modern cover, or site metadata. Project Gutenberg warns non-U.S. users to check local law.",
   "rights_components": {
     "original_work": {
       "status": "approved",
       "basis": "1892 original English work reviewed for JP/US/KR; Project Gutenberg catalog marks it public domain in the USA and the underlying term is expired in the other reviewed jurisdictions.",
-      "notes": "U.S. provider status and publication/death dates pass preflight; human JP/US/KR review required."
+      "notes": "U.S. provider status and publication/death dates pass preflight;"
     },
     "edition": {
       "status": "approved",
@@ -60,7 +60,7 @@
     "digitization": {
       "status": "approved",
       "basis": "Exact official Project Gutenberg plain-text bytes were fetched from the allowlisted per-item endpoint and pinned by SHA-256.",
-      "notes": "Project Gutenberg credits An Anonymous Volunteer and David Widger; exact bytes/hash required."
+      "notes": "Project Gutenberg credits An Anonymous Volunteer and David Widger;"
     },
     "provider_terms": {
       "status": "approved",
