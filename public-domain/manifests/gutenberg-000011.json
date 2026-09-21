@@ -74,7 +74,8 @@
   "chapter_count": null,
   "chapter_split": {
     "strategy": "heading_regex",
-    "heading_pattern": "^CHAPTER\\s+[IVXLC]+\\.$"
+    "heading_pattern": "^CHAPTER\\s+[IVXLC]+\\.$",
+    "drop_prefix_before_first_heading": true
   },
   "tags": [
     "Public Domain",
