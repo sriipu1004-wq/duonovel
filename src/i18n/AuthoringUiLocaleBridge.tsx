@@ -16,7 +16,7 @@ const EN: Record<string, string> = {
   "作品タイトル": "Work title",
   "あらすじ": "Synopsis",
   "作品公開状態": "Publication status",
-  "作品状態": "Work settings",
+  "作品状態": "Work status",
   "公開状態": "Publication",
   "作品形式": "Work format",
   "短編": "Short story",
@@ -30,6 +30,18 @@ const EN: Record<string, string> = {
   "ジャンル": "Genre",
   "タグ": "Tags",
   "朗読許可": "Narration permission",
+  "朗読不可": "Narration unavailable",
+  "朗読不許可": "Narration not allowed",
+  "朗読未設定": "Narration not set",
+  "許可": "Permissions",
+  "対訳許可": "Translation allowed",
+  "対訳不許可": "Translation not allowed",
+  "対訳未設定": "Translation not set",
+  "対訳を許可": "Allow translation",
+  "対訳を許可しない": "Do not allow translation",
+  "対訳許可（固定）": "Translation allowed (fixed)",
+  "AI生成作品は対訳生成の対象として固定されます。": "AI-generated works always allow translation generation.",
+  "対訳許可を更新できませんでした。": "Could not update translation permission.",
   "無条件許可（固定）": "Always allowed (fixed)",
   "変更": "Change",
   "閉じる": "Close",
@@ -77,17 +89,10 @@ const EN: Record<string, string> = {
   "投稿": "Publish",
   "予約投稿": "Schedule",
   "下書き保存": "Save draft",
-  "作品作成の時点で、1話目を 投稿 / 予約投稿 / 下書き保存 のどれで始めるかを先に決める。実際の本文は作品作成後に1話目ページで書く。": "Choose whether episode 1 starts as published, scheduled or a draft. Write the actual episode after creating the work.",
-  "1話目を作成した時点で投稿済みとして扱う。": "Episode 1 is treated as published when it is created.",
-  "1話目は予約投稿として保存し、到達時刻で公開対象にする。": "Save episode 1 as scheduled and make it public when the scheduled time arrives.",
-  "1話目は下書きとして保存し、作品ワークスペースから続けて書く。": "Save episode 1 as a draft and continue writing from the workspace.",
   "1話目の予約日時": "Episode 1 scheduled time",
   "ローカル時刻で入力。保存時に UTC へ変換して送る。": "Enter local time. It is converted to UTC when saved.",
-  "作品ページのレビュー欄と、読む画面末尾のエピソードコメント欄を作品単位で出し分ける。": "Control reviews on the work page and episode comments at the end of the reader per work.",
   "作品レビュー欄を表示": "Show work reviews",
-  "OFF の時は作品ページでレビュー欄を出さない。": "When off, reviews are hidden on the work page.",
   "エピソードコメント欄を表示": "Show episode comments",
-  "OFF の時は読む画面末尾でコメント欄を出さない。": "When off, comments are hidden at the end of the reader.",
   "保存中...": "Saving...",
   "保存済み": "Saved",
   "保存失敗": "Save failed",
@@ -95,6 +100,35 @@ const EN: Record<string, string> = {
   "作品を作成して1話目へ": "Create work and continue to episode 1",
   "作品ワークスペースを保存": "Save work workspace",
   "作品を作成してワークスペースへ": "Create work and open workspace",
+  "作成中...": "Creating...",
+  "以下を確認してください": "Check the following",
+  "作品タイトルを入力してください。": "Enter a work title.",
+  "原文言語を選択してください。": "Choose the original language.",
+  "1話目の予約日時を入力してください。": "Enter the scheduled time for episode 1.",
+  "作品を作成できませんでした。入力内容を確認して、もう一度お試しください。": "Could not create the work. Check your entries and try again.",
+  "作品を保存できませんでした。もう一度お試しください。": "Could not save the work. Try again.",
+  "作品を保存できませんでした。入力内容を確認して、もう一度お試しください。": "Could not save the work. Check your entries and try again.",
+  "新しい話を追加": "Add episode",
+  "話本文を編集": "Edit episode",
+  "本文編集": "Episode editor",
+  "作品ワークスペースへ": "Back to work workspace",
+  "話タイトル": "Episode title",
+  "本文": "Body",
+  "編集": "Edit",
+  "読者プレビュー": "Reader preview",
+  "投稿状態": "Publication status",
+  "下書き": "Draft",
+  "予約日時": "Scheduled time",
+  "作成して保存": "Create and save",
+  "保存して続ける": "Save and continue",
+  "この下書きを投稿する": "Publish this draft",
+  "ワークスペースへ戻る": "Back to workspace",
+  "話数を確認してください。": "Check the episode number.",
+  "話タイトルを入力してください。": "Enter an episode title.",
+  "予約日時を入力してください。": "Enter a scheduled time.",
+  "話を作成できませんでした。入力内容を確認して、もう一度お試しください。": "Could not create the episode. Check your entries and try again.",
+  "話を保存できませんでした。入力内容を確認して、もう一度お試しください。": "Could not save the episode. Check your entries and try again.",
+  "話は保存されましたが、作品の公開状態を更新できませんでした。": "The episode was saved, but the work publication state could not be updated.",
   "作品公開": "Publication",
   "読者向け表示": "Reader visibility",
   "表示中": "Visible",
@@ -114,6 +148,20 @@ const EN: Record<string, string> = {
   "AI生成作品は第1話だけの間は短編、続編生成に成功すると長編へ自動で切り替わる。この画面からは変更できない。": "AI-generated works remain short stories while they have only episode 1 and automatically switch to long-form after a sequel is generated. This cannot be changed here.",
   "作品ページ（目次）を作らず、読む画面へ直接公開する。あらすじは読む画面に表示する。": "Publish directly to the reader without a separate contents page. The synopsis appears in the reader.",
   "作品ページ（目次）を作り、各話・朗読者・レビューなどを作品単位で表示する。": "Create a work contents page and show episodes, narrators, reviews and other work-level information there.",
+  "コンテンツ警告": "Content warnings",
+  "性的コンテンツを含む（R18）": "Contains sexual content (R18)",
+  "18歳未満の閲覧を想定しない性的表現を含む作品。R18表示設定がOFFの閲覧者には公開一覧・本文を表示しません。": "This work contains sexual material intended for adults. It is hidden from public listings and reading pages when the viewer has R18 content disabled.",
+  "暴力描写あり": "Contains violence",
+  "戦闘、負傷、流血など、読者が事前に把握した方がよい暴力描写を含む作品。": "This work contains violence such as combat, injury or blood that readers may want to know about before reading.",
+  "読者が閲覧前に把握した方がよい内容を作品単位で設定します。": "Set work-level content warnings readers should know before opening the work.",
+  "固定": "Fixed",
+  "この作品はAI生成時点で性的コンテンツを含むと判定されたため、R18警告を解除できません。": "This work was classified as containing sexual content when it was generated, so the R18 warning cannot be removed.",
+  "選択した警告は作品作成直後に新しい作品へ保存されます。": "Selected warnings are saved to the new work immediately after creation.",
+  "コンテンツ警告を更新できませんでした。": "Could not update content warnings.",
+  "編集と読者プレビューを切り替えて確認できる。": "Switch between editing and reader preview.",
+  "本文を入力すると、ここに読者表示に近い形のプレビューが出る。": "Enter body text to preview an approximation of the reader view here.",
+  "演出を追加": "Add presentation effects",
+  "演出編集を閉じる": "Close presentation effects",
 };
 
 const KO: Record<string, string> = {
@@ -127,7 +175,7 @@ const KO: Record<string, string> = {
   "作品タイトル": "작품 제목",
   "あらすじ": "줄거리",
   "作品公開状態": "공개 상태",
-  "作品状態": "작품 설정",
+  "作品状態": "작품 상태",
   "公開状態": "공개 상태",
   "作品形式": "작품 형식",
   "短編": "단편",
@@ -141,6 +189,18 @@ const KO: Record<string, string> = {
   "ジャンル": "장르",
   "タグ": "태그",
   "朗読許可": "낭독 허용",
+  "朗読不可": "낭독 불가",
+  "朗読不許可": "낭독 불허",
+  "朗読未設定": "낭독 미설정",
+  "許可": "권한",
+  "対訳許可": "번역 허용",
+  "対訳不許可": "번역 불허",
+  "対訳未設定": "번역 미설정",
+  "対訳を許可": "번역 허용",
+  "対訳を許可しない": "번역 허용 안 함",
+  "対訳許可（固定）": "번역 허용(고정)",
+  "AI生成作品は対訳生成の対象として固定されます。": "AI 생성 작품은 번역 생성 대상으로 고정됩니다.",
+  "対訳許可を更新できませんでした。": "번역 권한을 업데이트하지 못했습니다.",
   "無条件許可（固定）": "항상 허용(고정)",
   "変更": "변경",
   "閉じる": "닫기",
@@ -188,17 +248,10 @@ const KO: Record<string, string> = {
   "投稿": "게시",
   "予約投稿": "예약 게시",
   "下書き保存": "초안 저장",
-  "作品作成の時点で、1話目を 投稿 / 予約投稿 / 下書き保存 のどれで始めるかを先に決める。実際の本文は作品作成後に1話目ページで書く。": "작품을 만들 때 1화를 게시, 예약 게시, 초안 저장 중 어떤 상태로 시작할지 정합니다. 본문은 작품 생성 후 1화 페이지에서 작성합니다.",
-  "1話目を作成した時点で投稿済みとして扱う。": "1화를 만들면 게시된 것으로 처리합니다.",
-  "1話目は予約投稿として保存し、到達時刻で公開対象にする。": "1화를 예약 게시로 저장하고 예약 시각이 되면 공개합니다.",
-  "1話目は下書きとして保存し、作品ワークスペースから続けて書く。": "1화를 초안으로 저장하고 작품 워크스페이스에서 이어서 작성합니다.",
   "1話目の予約日時": "1화 예약 일시",
   "ローカル時刻で入力。保存時に UTC へ変換して送る。": "현지 시간으로 입력합니다. 저장 시 UTC로 변환됩니다.",
-  "作品ページのレビュー欄と、読む画面末尾のエピソードコメント欄を作品単位で出し分ける。": "작품 페이지의 리뷰와 읽기 화면 끝의 에피소드 댓글 표시 여부를 작품별로 설정합니다.",
   "作品レビュー欄を表示": "작품 리뷰 표시",
-  "OFF の時は作品ページでレビュー欄を出さない。": "끄면 작품 페이지에서 리뷰를 표시하지 않습니다.",
   "エピソードコメント欄を表示": "에피소드 댓글 표시",
-  "OFF の時は読む画面末尾でコメント欄を出さない。": "끄면 읽기 화면 끝에 댓글을 표시하지 않습니다.",
   "保存中...": "저장 중...",
   "保存済み": "저장됨",
   "保存失敗": "저장 실패",
@@ -206,6 +259,35 @@ const KO: Record<string, string> = {
   "作品を作成して1話目へ": "작품을 만들고 1화로",
   "作品ワークスペースを保存": "작품 워크스페이스 저장",
   "作品を作成してワークスペースへ": "작품을 만들고 워크스페이스로",
+  "作成中...": "생성 중...",
+  "以下を確認してください": "다음 항목을 확인하세요",
+  "作品タイトルを入力してください。": "작품 제목을 입력하세요.",
+  "原文言語を選択してください。": "원문 언어를 선택하세요.",
+  "1話目の予約日時を入力してください。": "1화 예약 일시를 입력하세요.",
+  "作品を作成できませんでした。入力内容を確認して、もう一度お試しください。": "작품을 만들 수 없습니다. 입력 내용을 확인한 뒤 다시 시도하세요.",
+  "作品を保存できませんでした。もう一度お試しください。": "작품을 저장할 수 없습니다. 다시 시도하세요.",
+  "作品を保存できませんでした。入力内容を確認して、もう一度お試しください。": "작품을 저장할 수 없습니다. 입력 내용을 확인한 뒤 다시 시도하세요.",
+  "新しい話を追加": "새 화 추가",
+  "話本文を編集": "화 본문 편집",
+  "本文編集": "본문 편집",
+  "作品ワークスペースへ": "작품 워크스페이스로",
+  "話タイトル": "화 제목",
+  "本文": "본문",
+  "編集": "편집",
+  "読者プレビュー": "독자 미리보기",
+  "投稿状態": "게시 상태",
+  "下書き": "초안",
+  "予約日時": "예약 일시",
+  "作成して保存": "생성 후 저장",
+  "保存して続ける": "저장하고 계속",
+  "この下書きを投稿する": "이 초안 게시",
+  "ワークスペースへ戻る": "워크스페이스로 돌아가기",
+  "話数を確認してください。": "화 번호를 확인하세요.",
+  "話タイトルを入力してください。": "화 제목을 입력하세요.",
+  "予約日時を入力してください。": "예약 일시를 입력하세요.",
+  "話を作成できませんでした。入力内容を確認して、もう一度お試しください。": "화를 만들 수 없습니다. 입력 내용을 확인한 뒤 다시 시도하세요.",
+  "話を保存できませんでした。入力内容を確認して、もう一度お試しください。": "화를 저장할 수 없습니다. 입력 내용을 확인한 뒤 다시 시도하세요.",
+  "話は保存されましたが、作品の公開状態を更新できませんでした。": "화는 저장되었지만 작품 공개 상태를 업데이트하지 못했습니다.",
   "作品公開": "작품 공개",
   "読者向け表示": "독자 표시",
   "表示中": "표시 중",
@@ -225,6 +307,20 @@ const KO: Record<string, string> = {
   "AI生成作品は第1話だけの間は短編、続編生成に成功すると長編へ自動で切り替わる。この画面からは変更できない。": "AI 생성 작품은 1화만 있을 때 단편이며 후속편 생성에 성공하면 장편으로 자동 전환됩니다. 이 화면에서는 변경할 수 없습니다.",
   "作品ページ（目次）を作らず、読む画面へ直接公開する。あらすじは読む画面に表示する。": "별도의 목차 페이지 없이 읽기 화면으로 바로 공개합니다. 줄거리는 읽기 화면에 표시됩니다.",
   "作品ページ（目次）を作り、各話・朗読者・レビューなどを作品単位で表示する。": "작품 목차 페이지를 만들고 각 화, 낭독자, 리뷰 등을 작품 단위로 표시합니다.",
+  "コンテンツ警告": "콘텐츠 경고",
+  "性的コンテンツを含む（R18）": "성적 콘텐츠 포함(R18)",
+  "18歳未満の閲覧を想定しない性的表現を含む作品。R18表示設定がOFFの閲覧者には公開一覧・本文を表示しません。": "성인 대상의 성적 표현을 포함한 작품입니다. R18 표시가 꺼진 이용자에게는 공개 목록과 본문을 표시하지 않습니다.",
+  "暴力描写あり": "폭력 묘사 포함",
+  "戦闘、負傷、流血など、読者が事前に把握した方がよい暴力描写を含む作品。": "전투, 부상, 유혈 등 독자가 미리 알 필요가 있는 폭력 묘사를 포함합니다.",
+  "読者が閲覧前に把握した方がよい内容を作品単位で設定します。": "독자가 열람 전에 알아야 할 콘텐츠 경고를 작품 단위로 설정합니다.",
+  "固定": "고정",
+  "この作品はAI生成時点で性的コンテンツを含むと判定されたため、R18警告を解除できません。": "이 작품은 AI 생성 시 성적 콘텐츠가 포함된 것으로 판정되어 R18 경고를 해제할 수 없습니다.",
+  "選択した警告は作品作成直後に新しい作品へ保存されます。": "선택한 경고는 작품 생성 직후 새 작품에 저장됩니다.",
+  "コンテンツ警告を更新できませんでした。": "콘텐츠 경고를 업데이트하지 못했습니다.",
+  "編集と読者プレビューを切り替えて確認できる。": "편집과 독자 미리보기를 전환해 확인할 수 있습니다.",
+  "本文を入力すると、ここに読者表示に近い形のプレビューが出る。": "본문을 입력하면 독자 화면에 가까운 미리보기가 여기에 표시됩니다.",
+  "演出を追加": "연출 추가",
+  "演出編集を閉じる": "연출 편집 닫기",
 };
 
 const PLACEHOLDERS: Record<"en" | "ko", Record<string, string>> = {
@@ -232,11 +328,15 @@ const PLACEHOLDERS: Record<"en" | "ko", Record<string, string>> = {
     "作品タイトル": "Work title",
     "作品の概要を書く": "Write a synopsis",
     "1行1タグ\n例: 異世界\nダークファンタジー": "One tag per line\nExample: Isekai\nDark fantasy",
+    "第1話 など": "Episode 1, etc.",
+    "本文を入力": "Enter body text",
   },
   ko: {
     "作品タイトル": "작품 제목",
     "作品の概要を書く": "작품 줄거리 작성",
     "1行1タグ\n例: 異世界\nダークファンタジー": "한 줄에 태그 하나\n예: 이세계\n다크 판타지",
+    "第1話 など": "1화 등",
+    "本文を入力": "본문 입력",
   },
 };
 
@@ -250,6 +350,45 @@ function translateDynamic(value: string, locale: "en" | "ko"): string | null {
 
   const addEpisode = value.match(/^第(\d+)話を追加する$/);
   if (addEpisode) return locale === "en" ? `Add episode ${addEpisode[1]}` : `${addEpisode[1]}화 추가`;
+
+  const previousDraft = value.match(/^前の第(\d+)話が下書きのため、この話はまだ投稿または予約投稿にできません。$/);
+  if (previousDraft) {
+    return locale === "en"
+      ? `Episode ${previousDraft[1]} is still a draft, so this episode cannot be published or scheduled yet.`
+      : `이전 ${previousDraft[1]}화가 아직 초안이므로 이 화는 게시하거나 예약 게시할 수 없습니다.`;
+  }
+
+  const previousSchedule = value.match(/^前の第(\d+)話の予約時刻より前には設定できません。$/);
+  if (previousSchedule) {
+    return locale === "en"
+      ? `Set a time after the scheduled time for episode ${previousSchedule[1]}.`
+      : `이전 ${previousSchedule[1]}화의 예약 시각 이후로 설정하세요.`;
+  }
+
+  const permissionPair = value.match(
+    /^(朗読許可|朗読不許可|朗読未設定)・(対訳許可|対訳不許可|対訳未設定)$/
+  );
+  if (permissionPair) {
+    const dictionary = locale === "en" ? EN : KO;
+    return `${dictionary[permissionPair[1]] ?? permissionPair[1]} · ${dictionary[permissionPair[2]] ?? permissionPair[2]}`;
+  }
+
+  const episodeLabel = value.match(/^第(\d+)話$/);
+  if (episodeLabel) {
+    return locale === "en" ? `Episode ${episodeLabel[1]}` : `${episodeLabel[1]}화`;
+  }
+
+  const characterCount = value.match(/^(\d+)文字$/);
+  if (characterCount) {
+    return locale === "en"
+      ? `${characterCount[1]} characters`
+      : `${characterCount[1]}자`;
+  }
+
+  const lineCount = value.match(/^(\d+)行$/);
+  if (lineCount) {
+    return locale === "en" ? `${lineCount[1]} lines` : `${lineCount[1]}줄`;
+  }
 
   const count = value.match(/^(\d+)件$/);
   if (count) return locale === "en" ? `${count[1]}` : `${count[1]}개`;
