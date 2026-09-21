@@ -19,6 +19,7 @@ import {
   isAllowedAozoraTextUrl,
   makePendingAozoraManifest,
 } from "./public-domain/aozora";
+import { isAllowedGutenbergTextUrl } from "./public-domain/gutenberg";
 import { readPublicDomainMetadata } from "../src/lib/publicDomainMetadata";
 
 function component(
@@ -352,6 +353,31 @@ function testAozoraConservativeCandidatePolicy() {
     ),
     false
   );
+
+  assert.equal(
+    isAllowedGutenbergTextUrl(
+      "https://www.gutenberg.org/cache/epub/11/pg11.txt"
+    ),
+    true
+  );
+  assert.equal(
+    isAllowedGutenbergTextUrl(
+      "https://www.gutenberg.org/cache/epub/11/pg12.txt"
+    ),
+    false
+  );
+  assert.equal(
+    isAllowedGutenbergTextUrl(
+      "https://gutenberg.org/cache/epub/11/pg11.txt"
+    ),
+    false
+  );
+  assert.equal(
+    isAllowedGutenbergTextUrl(
+      "https://www.gutenberg.org/cache/epub/11/pg11.txt?download=1"
+    ),
+    false
+  );
 }
 
 function testVerifiedPublicDomainDisplayMetadata() {
@@ -477,6 +503,7 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
   assert.equal(batch.includes("--all-approved"), true);
   assert.equal(batch.includes("--author-id"), true);
   assert.equal(sourceSync.includes("isAllowedAozoraTextUrl"), true);
+  assert.equal(sourceSync.includes("isAllowedGutenbergTextUrl"), true);
   assert.equal(sourceSync.includes('redirect: "error"'), true);
 
   const combined = `${runtime}\n${importer}\n${core}\n${batch}\n${sourceSync}`;
