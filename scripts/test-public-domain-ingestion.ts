@@ -19,6 +19,9 @@ import {
   isAllowedAozoraTextUrl,
   makePendingAozoraManifest,
 } from "./public-domain/aozora";
+import { isAllowedGutenbergTextUrl } from "./public-domain/gutenberg";
+import { gonguWorkNumberFromLandingUrl, isAllowedGonguTextUrl } from "./public-domain/gongu";
+import { readPublicDomainMetadata } from "../src/lib/publicDomainMetadata";
 
 function component(
   status: "approved" | "not_applicable" | "needs_review" | "rejected" = "approved"
@@ -227,6 +230,24 @@ function testHeadingSplitFixture() {
   assert.equal(chapters[1]?.body, "Beta");
 }
 
+function testHeadingSplitCanDropProviderFrontMatter() {
+  const chapters = splitChapters(
+    ["Provider title", "", "Contents", "CHAPTER I", "Alpha", "", "CHAPTER II", "Beta"].join("\n"),
+    {
+      title: "Book",
+      chapter_split: {
+        strategy: "heading_regex",
+        heading_pattern: "^CHAPTER\\s+[IVXLC]+$",
+        drop_prefix_before_first_heading: true,
+      },
+    }
+  );
+  assert.equal(chapters.length, 2);
+  assert.equal(chapters[0]?.body, "Alpha");
+  assert.equal(chapters[0]?.body.includes("Provider title"), false);
+  assert.equal(chapters[0]?.body.includes("Contents"), false);
+}
+
 function testAozoraAndGutenbergNormalization() {
   const aozora = normalizeSource(
     [
@@ -274,6 +295,7 @@ function testPreparedArtifactAndDraftPlan() {
   });
   assert.equal(plan.series.author_id, "official-user-id");
   assert.equal(plan.series.publication_status, "private");
+  assert.equal(plan.series.is_public, false);
   assert.equal(plan.series.source_language, "ja");
   assert.equal(plan.series.translation_permission_mode, "closed");
   assert.equal(plan.series.recording_permission_mode, "closed");
@@ -351,6 +373,104 @@ function testAozoraConservativeCandidatePolicy() {
     ),
     false
   );
+
+  assert.equal(
+    isAllowedGutenbergTextUrl(
+      "https://www.gutenberg.org/cache/epub/11/pg11.txt"
+    ),
+    true
+  );
+  assert.equal(
+    isAllowedGutenbergTextUrl(
+      "https://www.gutenberg.org/cache/epub/11/pg12.txt"
+    ),
+    false
+  );
+  assert.equal(
+    isAllowedGutenbergTextUrl(
+      "https://gutenberg.org/cache/epub/11/pg11.txt"
+    ),
+    false
+  );
+  assert.equal(
+    isAllowedGutenbergTextUrl(
+      "https://www.gutenberg.org/cache/epub/11/pg11.txt?download=1"
+    ),
+    false
+  );
+}
+
+  const gonguLanding =
+    "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9002094";
+  assert.equal(gonguWorkNumberFromLandingUrl(gonguLanding), "9002094");
+  assert.equal(
+    isAllowedGonguTextUrl(
+      "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=4",
+      "9002094"
+    ),
+    true
+  );
+  assert.equal(
+    isAllowedGonguTextUrl(
+      "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=3",
+      "9002094"
+    ),
+    false
+  );
+  assert.equal(
+    isAllowedGonguTextUrl(
+      "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002100&fileSn=4",
+      "9002094"
+    ),
+    false
+  );
+
+function testVerifiedPublicDomainDisplayMetadata() {
+  const verified = readPublicDomainMetadata({
+    version: 1,
+    publicDomain: {
+      manifestId: "fixture-ja",
+      originalTitle: "Fixture",
+      originalAuthor: "Fixture Author",
+      firstPublicationYear: 1927,
+      sourceProvider: "Fixture Provider",
+      sourceUrl: "https://example.com/work",
+      sourceHash:
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+      rightsChecked: true,
+      reviewedAt: "2026-09-22T00:00:00.000Z",
+      jurisdictionsReviewed: ["JP", "US", "KR"],
+    },
+  });
+  assert.equal(verified?.originalAuthor, "Fixture Author");
+  assert.equal(verified?.sourceUrl, "https://example.com/work");
+  assert.deepEqual(verified?.jurisdictionsReviewed, ["JP", "US", "KR"]);
+
+  assert.equal(
+    readPublicDomainMetadata({
+      publicDomain: {
+        manifestId: "fixture-ja",
+        originalAuthor: "Fixture Author",
+        sourceProvider: "Fixture Provider",
+        sourceHash:
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        rightsChecked: false,
+      },
+    }),
+    null
+  );
+  assert.equal(
+    readPublicDomainMetadata({
+      publicDomain: {
+        manifestId: "fixture-ja",
+        originalAuthor: "Fixture Author",
+        sourceProvider: "Fixture Provider",
+        sourceHash: "not-a-sha256",
+        rightsChecked: true,
+      },
+    }),
+    null
+  );
 }
 
 function testExistingOfficialAuditSnapshot() {
@@ -369,6 +489,37 @@ function testExistingOfficialAuditSnapshot() {
   assert.equal(snapshot.contained_titles.includes("走れメロス"), true);
   assert.equal(snapshot.contained_titles.includes("蜘蛛の糸"), true);
   assert.equal(snapshot.known_title_aliases?.includes("虞美人草"), true);
+
+  const rightsAudit = JSON.parse(
+    readFileSync(
+      "public-domain/audits/official-rights-review-2026-09-22.json",
+      "utf8"
+    )
+  ) as {
+    summary: {
+      series_count: number;
+      GREEN: number;
+      AMBER: number;
+      RED: number;
+      UNKNOWN: number;
+      provenance_backfilled: number;
+    };
+    works: Array<{ title: string; classification: string }>;
+  };
+  assert.deepEqual(rightsAudit.summary, {
+    series_count: 37,
+    GREEN: 0,
+    AMBER: 29,
+    RED: 8,
+    UNKNOWN: 0,
+    provenance_backfilled: 0,
+  });
+  assert.equal(
+    rightsAudit.works.some(
+      (work) => work.title === "少年探偵団・江戸川乱歩" && work.classification === "RED"
+    ),
+    true
+  );
 }
 
 function testDryRunAndNoPaidGenerationSourceGuards() {
@@ -397,6 +548,8 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
   assert.equal(batch.includes("--all-approved"), true);
   assert.equal(batch.includes("--author-id"), true);
   assert.equal(sourceSync.includes("isAllowedAozoraTextUrl"), true);
+  assert.equal(sourceSync.includes("isAllowedGutenbergTextUrl"), true);
+  assert.equal(sourceSync.includes("isAllowedGonguTextUrl"), true);
   assert.equal(sourceSync.includes('redirect: "error"'), true);
 
   const combined = `${runtime}\n${importer}\n${core}\n${batch}\n${sourceSync}`;
@@ -423,14 +576,16 @@ function main() {
   testDuplicateDetection();
   testChapterValidationAndSingleEpisode();
   testHeadingSplitFixture();
+  testHeadingSplitCanDropProviderFrontMatter();
   testAozoraAndGutenbergNormalization();
   testPreparedArtifactAndDraftPlan();
   testKoreanSourceLanguage();
   testAozoraConservativeCandidatePolicy();
+  testVerifiedPublicDomainDisplayMetadata();
   testExistingOfficialAuditSnapshot();
   testDryRunAndNoPaidGenerationSourceGuards();
   console.log(
-    "PASS: Public Domain rights gate, Aozora conservative candidate policy, current Official audit snapshot, hash/idempotency, Draft-only batch plan, and non-paid ingestion"
+    "PASS: Public Domain rights gate, verified public metadata display gate, Aozora conservative candidate policy, Child72 Official audit, hash/idempotency, Draft-only batch plan, and non-paid ingestion"
   );
 }
 

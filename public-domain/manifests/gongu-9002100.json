@@ -1,0 +1,93 @@
+{
+  "id": "gongu-9002100",
+  "title": "B사감과 러브레터",
+  "original_title": "B사감과 러브레터",
+  "original_author": "현진건",
+  "author_death_year": 1943,
+  "original_language": "ko",
+  "first_publication_year": 1925,
+  "source_provider": "Gongu Madang / Korea Copyright Commission",
+  "source_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200150&wrtSn=9002100",
+  "source_download_url": "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002100&fileSn=4",
+  "source_file": "public-domain/sources/raw/gongu-9002100.txt",
+  "source_retrieved_at": "2026-09-21T21:09:49.926Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gongu_madang",
+  "edition": "『조선문단』 source text (1925.2); proposed TXT: 현진건-B사감과_러브레터-조선문단.txt",
+  "edition_publication_year": 1925,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved for JP/US/KR pilot distribution after primary-source review. The Korea Copyright Commission/Gongu Madang page identifies B사감과 러브레터 as a first-order work, published 1925.2, with 이용조건 '자유이용 만료'. A 1925 publication is beyond the U.S. pre-1978 95-year term by 2026. JP shorter-term and KR expiry review support use of the original Korean work. Scope is the exact official historical-source TXT only.",
+  "rights_notes": "Human rights approval recorded at 2026-09-22T08:01:00+10:00 by LIB read operator (explicit user approval in Child72 chat). Official 공유마당 page presents 자유이용 만료, identifies 현진건, publication 1925.2, first-order work, and periodical-source TXT/HWP/PDF filenames. The exact TXT endpoint was recovered from the official Gongu Madang download popup;",
+  "rights_components": {
+    "original_work": {
+      "status": "approved",
+      "basis": "KCC/Gongu Madang identifies the work as first-order and 자유이용 만료; 1925 publication and 현진건 authorship reviewed for JP/US/KR.",
+      "notes": "Author died 1943; official provider presents the work as expired. Human JP/US/KR term review remains required."
+    },
+    "edition": {
+      "status": "approved",
+      "basis": "Only the exact official 『조선문단』 source TXT (fileSn=4) is used; no modern translation, cover, PDF layout or modern commercial edition is imported.",
+      "notes": "Use only the identified historical periodical-source TXT; no modern edited/translated text."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "approved",
+      "basis": "Exact TXT was inspected; no Gongu/KCC provider footer or separate modern editorial prose was found in Reader text. Historical date/source notation is retained as source text metadata.",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "approved",
+      "basis": "No separate modern annotations are imported.",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "approved",
+      "basis": "Exact KCC/Gongu Madang TXT bytes were fetched from the allowlisted per-item endpoint and pinned by SHA-256.",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "approved",
+      "basis": "Per-item KCC/Gongu Madang page reviewed; it labels the item 자유이용 만료 and exposes the historical-source TXT.",
+      "notes": "Official Korea Copyright Commission landing page presents the item under expired/free-use status; exact per-item download/terms surface must be retained in the review record."
+    }
+  },
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-22T08:01:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 chat)",
+  "chapter_count": 1,
+  "chapter_split": {
+    "strategy": "single"
+  },
+  "tags": [
+    "Public Domain",
+    "공유마당",
+    "현진건",
+    "Korean classic"
+  ],
+  "source_hash": "6d41946337679ff8ff6eda4abd55afa6ba027e85d40c1fde0ff850a33bc2064c",
+  "approved": true,
+  "import_status": "imported",
+  "cover_source": null,
+  "cover_rights_status": null
+}

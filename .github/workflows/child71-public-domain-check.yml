@@ -8,6 +8,11 @@ on:
       - "docs/public-domain-ingestion.md"
       - "scripts/public-domain/**"
       - "scripts/test-public-domain-ingestion.ts"
+      - "src/lib/publicDomainMetadata.ts"
+      - "src/lib/publicWorks.ts"
+      - "src/i18n/dictionaries/work.ts"
+      - "src/app/works/[seriesId]/page.tsx"
+      - "src/app/locale-work/[seriesId]/page.tsx"
       - "package.json"
       - "package-lock.json"
   workflow_dispatch:
@@ -70,6 +75,18 @@ jobs:
           scripts/public-domain/prepare.ts
           scripts/public-domain/import.ts
           scripts/test-public-domain-ingestion.ts
+          src/lib/publicDomainMetadata.ts
+          src/lib/publicWorks.ts
+          src/i18n/dictionaries/work.ts
+          src/app/works/[seriesId]/page.tsx
+          src/app/locale-work/[seriesId]/page.tsx
+
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
 
       - name: Diff whitespace check
         run: git diff --check origin/main...HEAD

@@ -1,0 +1,171 @@
+{
+  "reviewed_at": "2026-09-22",
+  "review_stage": "Exact source acquisition, normalization and AI-assisted legal/source preflight complete for JA 3 / EN 2 / KO 3. Human LIB read rights sign-off remains required before approved=true or Production Draft import.",
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "policy": [
+    "Original-language texts only",
+    "No modern translation",
+    "No modern commercial cover",
+    "No illustration assets for the pilot unless separately reviewed",
+    "Provider landing pages are the public source links",
+    "Exact fetched source bytes and SHA-256 are mandatory before approval/import"
+  ],
+  "JA": [
+    {
+      "manifest_id": "aozora-000010",
+      "title": "秋は淋しい",
+      "author": "素木しづ",
+      "author_death_year": 1918,
+      "first_publication_year": 1918,
+      "source_provider": "青空文庫",
+      "source_landing_url": "https://www.aozora.gr.jp/cards/000012/card10.html",
+      "edition": "素木しづ作品集　山田昭夫編 (1970 base edition recorded by Aozora manifest)",
+      "original_language": "ja",
+      "translator": null,
+      "illustrations": "excluded/not used",
+      "cover": "none",
+      "source_hash": "4e59f558dfc19a78578ddd07950065fccc32ee88aadc2f8cdfee307ce646f22a",
+      "chapter_count": 1,
+      "rights_basis_summary": "Author died 1918; first publication 1918. Aozora distributes the copyright-expired text file under its expired-work handling policy. U.S. pre-1931 term is expired; Japanese term expired long before the 2018 extension and was not revived; Korean foreign-work term is not recognized after expiry in the foreign country.",
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
+    },
+    {
+      "manifest_id": "aozora-000013",
+      "title": "十本の針",
+      "author": "芥川龍之介",
+      "author_death_year": 1927,
+      "first_publication_year": 1927,
+      "source_provider": "青空文庫",
+      "source_landing_url": "https://www.aozora.gr.jp/cards/000879/card13.html",
+      "edition": "或阿呆の一生・侏儒の言葉 (角川文庫; Aozora card records 1969 first edition, 1984改版22刷 used for input)",
+      "original_language": "ja",
+      "translator": null,
+      "illustrations": "excluded/not used",
+      "cover": "none",
+      "source_hash": "2a8816e3c2453e5c4ec64b468aca81ff46bcb31a07bce6354dbed5e17f1337351",
+      "chapter_count": 1,
+      "rights_basis_summary": "Original work published 1927; author died 1927. Scope is the Aozora text transcription only, not modern book layout/commentary/cover. U.S. pre-1931 term is expired; Japan and Korea term analysis supports expiry.",
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
+    },
+    {
+      "manifest_id": "aozora-000018",
+      "title": "闇中問答",
+      "author": "芥川龍之介",
+      "author_death_year": 1927,
+      "first_publication_year": 1927,
+      "source_provider": "青空文庫",
+      "source_landing_url": "https://www.aozora.gr.jp/cards/000879/card18.html",
+      "edition": "現代日本文學大系 43 芥川龍之介集 (筑摩書房, 1968; Aozora card)",
+      "original_language": "ja",
+      "translator": null,
+      "illustrations": "excluded/not used",
+      "cover": "none",
+      "source_hash": "dc66385e36c677feba0d55f42353753c3db48c0b1a5755b70de46d2c26fbdcbb",
+      "chapter_count": 1,
+      "rights_basis_summary": "Original work published 1927; author died 1927. Scope is the Aozora text transcription only, not modern book layout/commentary/cover. U.S. pre-1931 term is expired; Japan and Korea term analysis supports expiry.",
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
+    }
+  ],
+  "EN": [
+    {
+      "title": "Alice's Adventures in Wonderland",
+      "author": "Lewis Carroll",
+      "author_death_year": 1898,
+      "first_publication_year": 1865,
+      "source_provider": "Project Gutenberg",
+      "source_landing_url": "https://www.gutenberg.org/ebooks/11",
+      "original_language": "en",
+      "edition_scope": "Plain-text original English body only; do not import Tenniel illustrations, modern generated summary, cover, or Project Gutenberg site metadata",
+      "provider_status": "Project Gutenberg catalog marks eBook #11 Public domain in the USA",
+      "source_hash": "01b38ea4c710a84bc18d0bd41271a5a1a92b94e97b2812f4dece97d4a694725e",
+      "chapter_count": 12,
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
+    },
+    {
+      "title": "The Strange Case of Dr. Jekyll and Mr. Hyde",
+      "author": "Robert Louis Stevenson",
+      "author_death_year": 1894,
+      "first_publication_year": 1886,
+      "source_provider": "Project Gutenberg",
+      "source_landing_url": "https://www.gutenberg.org/ebooks/43",
+      "original_language": "en",
+      "edition_scope": "Plain-text original English body only; no modern cover/illustrations/summary",
+      "provider_status": "Project Gutenberg catalog marks eBook #43 Public domain in the USA",
+      "source_hash": null,
+      "chapter_count": null,
+      "status": "SOURCE_BYTES_AND_HUMAN_SIGNOFF_PENDING"
+    },
+    {
+      "title": "The Yellow Wallpaper",
+      "author": "Charlotte Perkins Gilman",
+      "author_death_year": 1935,
+      "first_publication_year": 1892,
+      "source_provider": "Project Gutenberg",
+      "source_landing_url": "https://www.gutenberg.org/ebooks/1952",
+      "original_language": "en",
+      "edition_scope": "Plain-text original English body only; no modern cover/summary",
+      "provider_status": "Project Gutenberg catalog marks eBook #1952 Public domain in the USA",
+      "source_hash": "20c7788eeae2fe3a0efd51a1f08b6723366a4be0778d65db219149a3522651d4",
+      "chapter_count": 1,
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
+    }
+  ],
+  "KO": [
+    {
+      "title": "운수 좋은 날",
+      "author": "현진건",
+      "author_death_year": 1943,
+      "first_publication_year": 1924,
+      "source_provider": "공유마당 / 한국저작권위원회",
+      "source_landing_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9002094",
+      "original_language": "ko",
+      "edition_scope": "Original Korean first-order text; prefer 개벽 TXT source. No modern translation/cover.",
+      "provider_status": "Item is explicitly presented as 만료 저작물; page records 1924.6 publication and TXT/HWP/PDF originals",
+      "source_hash": "b2263f2ada96cd4d45f557ac1c58190e692f39f996b9f7e14f77fbf6dff5fb45",
+      "chapter_count": 1,
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
+    },
+    {
+      "title": "B사감과 러브레터",
+      "author": "현진건",
+      "author_death_year": 1943,
+      "first_publication_year": 1925,
+      "source_provider": "공유마당 / 한국저작권위원회",
+      "source_landing_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9002100",
+      "original_language": "ko",
+      "edition_scope": "Original Korean first-order text; prefer 조선문단 TXT source. No modern translation/cover.",
+      "provider_status": "The Korea Copyright Commission item is explicitly presented under 만료 저작물; page records 1925.2 publication, first-order work, and TXT/HWP/PDF originals",
+      "source_hash": "6d41946337679ff8ff6eda4abd55afa6ba027e85d40c1fde0ff850a33bc2064c",
+      "chapter_count": 1,
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
+    },
+    {
+      "title": "빈처(貧妻)",
+      "author": "현진건",
+      "author_death_year": 1943,
+      "first_publication_year": 1921,
+      "source_provider": "공유마당 / 한국저작권위원회",
+      "source_landing_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200150&wrtSn=9002092",
+      "original_language": "ko",
+      "edition_scope": "Original Korean first-order text; prefer 개벽 TXT source. No modern translation/cover.",
+      "provider_status": "The item appears in 공유마당's licenseCd=97 expired-works text collection; item page records 1921.1 publication, first-order work, and TXT/HWP/PDF originals",
+      "source_hash": "25753abd84accff40b8015a45a2b82b0e88a405c6c0e546e68e9478f1e1c0dc5",
+      "chapter_count": 1,
+      "status": "READY_FOR_HUMAN_RIGHTS_SIGNOFF"
+    }
+  ],
+  "legal_sources": {
+    "JP_term_and_nonrevival": "https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html",
+    "US_duration": "https://www.copyright.gov/what-is-copyright/",
+    "US_URAA": "https://www.copyright.gov/title37/201/37cfr201-33.html",
+    "KR_foreign_works": "https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1033063625",
+    "KR_expired_works": "https://gongu.copyright.or.kr/gongu/main/contents.do?menuNo=200091",
+    "Aozora_policy": "https://www.aozora.gr.jp/guide/kijyunn.html",
+    "Gutenberg_license": "https://www.gutenberg.org/policy/license.html",
+    "Gutenberg_permission": "https://www.gutenberg.org/policy/permission.html"
+  }
+}

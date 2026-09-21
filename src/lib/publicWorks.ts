@@ -40,6 +40,7 @@ import { matchesPublicWorkLanguageFilters } from "@/lib/search/publicWorkLanguag
 import { getPublicSearchLanguageFilters } from "@/lib/search/publicSearchRequestContext";
 import { PUBLIC_RECORDING_AGGREGATE_SELECT } from "@/lib/recording/publicRecordingSelects";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
+import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 
 export type PublicBaseWorkCard = {
   seriesId: string;
@@ -61,6 +62,10 @@ export type PublicBaseWorkCard = {
   translationEligible: boolean;
   isShortStory: boolean;
   publicEpisodeNumbers: number[];
+  publicDomainRightsChecked?: boolean;
+  publicDomainSourceProvider?: string | null;
+  publicDomainSourceUrl?: string | null;
+  publicDomainFirstPublicationYear?: number | null;
 };
 
 export type PublicWorkVisibility = "viewer" | "general" | "all";
@@ -132,8 +137,10 @@ function readEffectSettings(value: unknown): Record<string, unknown> | null {
 }
 
 function isShortStorySeriesForSitemap(series: SeriesRow): boolean {
+  const effectSettings = series["effect_settings"] ?? series["effectSettings"];
+  if (readPublicDomainMetadata(effectSettings)) return false;
   const tags = getSeriesTags(series);
-  const settings = readEffectSettings(series["effect_settings"] ?? series["effectSettings"]);
+  const settings = readEffectSettings(effectSettings);
   return (
     tags.includes("#AI生成") ||
     settings?.source === "time_fit_ai_story" ||
@@ -271,6 +278,9 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
       const latestEpisode = publicEpisodes[publicEpisodes.length - 1] ?? null;
       const authorId = pickText(series.author_id, series["user_id"], series["userId"]) || null;
       const authorAccount = authorId ? authorAccountMap.get(authorId) : undefined;
+      const publicDomain = readPublicDomainMetadata(
+        series["effect_settings"] ?? series["effectSettings"]
+      );
       const latestPostedRaw = latestEpisode ? getEpisodePostedAtValue(latestEpisode) : null;
       const firstPostedRaw = firstEpisode ? getEpisodePostedAtValue(firstEpisode) : null;
       const latestPostedAtValue = latestPostedRaw ? new Date(latestPostedRaw).getTime() : 0;
@@ -289,8 +299,8 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         seriesId: series.id,
         title,
         summary,
-        authorName: authorAccount?.displayName || "作者名未設定",
-        authorId,
+        authorName: publicDomain?.originalAuthor || authorAccount?.displayName || "作者名未設定",
+        authorId: publicDomain ? null : authorId,
         episodeCount: publicEpisodes.length,
         firstEpisodeNumber: firstEpisode ? getEpisodeNumber(firstEpisode) : null,
         latestPostedLabel: formatDate(latestPostedRaw),
@@ -308,11 +318,15 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         publicEpisodeNumbers: publicEpisodes
           .map((episode) => getEpisodeNumber(episode))
           .filter((episodeNumber) => episodeNumber > 0),
+        publicDomainRightsChecked: publicDomain?.rightsChecked === true,
+        publicDomainSourceProvider: publicDomain?.sourceProvider ?? null,
+        publicDomainSourceUrl: publicDomain?.sourceUrl ?? null,
+        publicDomainFirstPublicationYear: publicDomain?.firstPublicationYear ?? null,
         tags: withSystemContentRatingTag(getSeriesTags(series), contentRating),
         genres: getSeriesGenres(series),
       } satisfies PublicBaseWorkCard;
     })
-    .filter((card): card is PublicBaseWorkCard => !!card)
+    .filter((card): card is NonNullable<typeof card> => card !== null)
     .sort((a, b) => {
       if (b.latestPostedAtValue !== a.latestPostedAtValue) return b.latestPostedAtValue - a.latestPostedAtValue;
       return b.createdAtValue - a.createdAtValue;
@@ -321,7 +335,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
   buildPublicBaseWorkCards,
-  ["public-base-work-cards-v7-search-language-metadata"],
+  ["public-base-work-cards-v8-public-domain-author"],
   { revalidate: 60 }
 );
 

@@ -7,6 +7,8 @@ import {
 import { resolve } from "node:path";
 import { unzipSync } from "fflate";
 import { isAllowedAozoraTextUrl } from "./aozora";
+import { isAllowedGutenbergTextUrl } from "./gutenberg";
+import { gonguWorkNumberFromLandingUrl, isAllowedGonguTextUrl } from "./gongu";
 import { sha256Bytes } from "./core";
 import {
   loadManifest,
@@ -44,7 +46,12 @@ if (allPending) {
     .filter((id) => {
       try {
         const manifest = loadManifest(id);
-        return manifest.source_provider === "Aozora Bunko" && !existsSync(resolve(process.cwd(), manifest.source_file));
+        return (
+          (manifest.source_provider === "Aozora Bunko" ||
+            manifest.source_provider === "Project Gutenberg" ||
+            manifest.source_provider === "Gongu Madang / Korea Copyright Commission") &&
+          !existsSync(resolve(process.cwd(), manifest.source_file))
+        );
       } catch {
         return false;
       }
@@ -55,21 +62,45 @@ if (ids.length === 0) {
   throw new Error("Provide manifest ids or --all-pending");
 }
 
-console.log(`Aozora source sync count: ${ids.length}`);
-console.log("Fetcher allowlist: https://www.aozora.gr.jp/cards/.../files/*.zip only");
+console.log(`Public Domain source sync count: ${ids.length}`);
+console.log(
+  "Fetcher allowlist: Aozora ZIPs, Project Gutenberg plain text, and Gongu Madang per-item TXT only"
+);
 console.log(`Rate delay: ${delayMs}ms; prepare=${prepare}; force=${force}`);
 
 let completed = 0;
 for (const [index, id] of ids.entries()) {
   const manifest = loadManifest(id);
-  if (manifest.source_provider !== "Aozora Bunko") {
-    throw new Error(`${id}: source_provider must be Aozora Bunko`);
-  }
 
   const manifestPath = manifestPathForId(id);
   const rawManifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
   const downloadUrl = manifest.source_download_url;
-  if (!downloadUrl || !isAllowedAozoraTextUrl(downloadUrl)) {
+  const sourceKind =
+    manifest.source_provider === "Aozora Bunko"
+      ? "aozora"
+      : manifest.source_provider === "Project Gutenberg"
+        ? "gutenberg"
+        : manifest.source_provider === "Gongu Madang / Korea Copyright Commission"
+          ? "gongu"
+          : null;
+  if (!sourceKind) {
+    throw new Error(
+      `${id}: source_provider is not supported by automated source sync`
+    );
+  }
+  const gonguWrtSn =
+    sourceKind === "gongu"
+      ? gonguWorkNumberFromLandingUrl(manifest.source_url)
+      : null;
+  const allowed =
+    Boolean(downloadUrl) &&
+    (sourceKind === "aozora"
+      ? isAllowedAozoraTextUrl(downloadUrl!)
+      : sourceKind === "gutenberg"
+        ? isAllowedGutenbergTextUrl(downloadUrl!)
+        : Boolean(gonguWrtSn) &&
+          isAllowedGonguTextUrl(downloadUrl!, gonguWrtSn!));
+  if (!downloadUrl || !allowed) {
     throw new Error(`${id}: source_download_url is missing or not allowlisted`);
   }
 
@@ -91,36 +122,52 @@ for (const [index, id] of ids.entries()) {
   if (!response.ok) {
     throw new Error(`${id}: source fetch failed with HTTP ${response.status}`);
   }
-  const zipBytes = new Uint8Array(await response.arrayBuffer());
-  if (zipBytes.byteLength > 25_000_000) {
-    throw new Error(`${id}: source ZIP exceeds 25 MB safety limit`);
-  }
-  const archive = unzipSync(zipBytes);
-  const textEntries = Object.entries(archive).filter(([name]) =>
-    /(?:^|\/)\w[^/]*\.txt$/iu.test(name)
-  );
-  if (textEntries.length !== 1) {
-    throw new Error(
-      `${id}: expected exactly one TXT entry in Aozora ZIP, found ${textEntries.length}`
+
+  let sourceBytes: Uint8Array;
+  if (sourceKind === "aozora") {
+    const zipBytes = new Uint8Array(await response.arrayBuffer());
+    if (zipBytes.byteLength > 25_000_000) {
+      throw new Error(`${id}: source ZIP exceeds 25 MB safety limit`);
+    }
+    const archive = unzipSync(zipBytes);
+    const textEntries = Object.entries(archive).filter(([name]) =>
+      /(?:^|\/)\w[^/]*\.txt$/iu.test(name)
     );
+    if (textEntries.length !== 1) {
+      throw new Error(
+        `${id}: expected exactly one TXT entry in Aozora ZIP, found ${textEntries.length}`
+      );
+    }
+    sourceBytes = textEntries[0]![1];
+  } else {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (
+      sourceKind === "gutenberg" &&
+      contentType &&
+      !contentType.includes("text/plain") &&
+      !contentType.includes("application/octet-stream")
+    ) {
+      throw new Error(
+        `${id}: Project Gutenberg source returned unexpected content-type ${contentType}`
+      );
+    }
+    sourceBytes = new Uint8Array(await response.arrayBuffer());
   }
-  const sourceBytes = textEntries[0]![1];
+
   if (sourceBytes.byteLength === 0 || sourceBytes.byteLength > 20_000_000) {
     throw new Error(`${id}: extracted source size is invalid`);
   }
   const hash = sha256Bytes(sourceBytes);
-  if (
-    manifest.approved &&
-    manifest.source_hash &&
-    manifest.source_hash !== hash
-  ) {
+  if (manifest.source_hash && manifest.source_hash !== hash) {
     throw new Error(
-      `${id}: approved manifest source_hash differs from fetched source; manual re-review required`
+      `${id}: pinned source_hash differs from fetched source; manual re-review required`
     );
   }
 
   writeFileSync(outputPath, sourceBytes);
-  rawManifest.source_retrieved_at = new Date().toISOString();
+  if (!manifest.source_retrieved_at) {
+    rawManifest.source_retrieved_at = new Date().toISOString();
+  }
   rawManifest.source_hash = hash;
   writeFileSync(manifestPath, `${JSON.stringify(rawManifest, null, 2)}\n`, "utf8");
   console.log(
@@ -134,7 +181,7 @@ for (const [index, id] of ids.entries()) {
   }
   completed += 1;
 }
-console.log(`Aozora source sync complete: ${completed}/${ids.length}`);
+console.log(`Public Domain source sync complete: ${completed}/${ids.length}`);
 console.log("No rights approval, database write, publication, or translation was performed.");
 
 }

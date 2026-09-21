@@ -32,12 +32,28 @@ export async function generateMetadata({
 
   const title = work.title || dictionary.untitled;
   const summary = work.summary.trim() || dictionary.noSummary;
+  const authorLabel = work.publicDomainRightsChecked
+    ? dictionary.originalAuthor
+    : dictionary.author;
+  const metadataDescription = [
+    summary,
+    `${authorLabel}: ${work.authorName}.`,
+    work.sourceLanguage
+      ? `${dictionary.originalLanguage}: ${work.sourceLanguage}.`
+      : "",
+    work.publicDomainRightsChecked && work.publicDomainSourceProvider
+      ? `${dictionary.source}: ${work.publicDomainSourceProvider}.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, 160);
   const encodedSeriesId = encodeURIComponent(seriesId);
   const canonical = localizePath(`/works/${encodedSeriesId}`, locale);
 
   return {
     title: `${title} | LIB read`,
-    description: summary.slice(0, 160),
+    description: metadataDescription,
     alternates: {
       canonical,
       languages: {
@@ -54,13 +70,13 @@ export async function generateMetadata({
       siteName: "LIB read",
       url: canonical,
       title: `${title} | LIB read`,
-      description: summary.slice(0, 160),
+      description: metadataDescription,
       images: ["/opengraph-image"],
     },
     twitter: {
       card: "summary_large_image",
       title: `${title} | LIB read`,
-      description: summary.slice(0, 160),
+      description: metadataDescription,
       images: ["/opengraph-image"],
     },
   };

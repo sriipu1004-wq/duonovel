@@ -1,0 +1,208 @@
+name: Child72 source acquisition
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/child72-source-acquisition.yml"
+      - "public-domain/manifests/gutenberg-*.json"
+      - "public-domain/manifests/gongu-*.json"
+      - "scripts/public-domain/source-sync.ts"
+      - "scripts/public-domain/gutenberg.ts"
+      - "scripts/public-domain/gongu.ts"
+      - "scripts/public-domain/core.ts"
+      - "scripts/public-domain/runtime.ts"
+
+permissions:
+  contents: write
+
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate manifests before acquisition
+        run: npm run public-domain:validate
+
+      - name: Fetch exact approved pilot bytes and prepare
+        run: >
+          npm run public-domain:source-sync --
+          aozora-000010
+          aozora-000013
+          aozora-000018
+          gutenberg-000011
+          gutenberg-001952
+          gongu-9002094
+          gongu-9002100
+          gongu-9002092
+          --prepare
+          --delay-ms=750
+
+      - name: Record exact source checksums
+        run: |
+          sha256sum public-domain/sources/raw/aozora-000010.txt
+          sha256sum public-domain/sources/raw/aozora-000013.txt
+          sha256sum public-domain/sources/raw/aozora-000018.txt
+          sha256sum public-domain/sources/raw/gutenberg-000011.txt
+          sha256sum public-domain/sources/raw/gutenberg-001952.txt
+          sha256sum public-domain/sources/raw/gongu-9002094.txt
+          sha256sum public-domain/sources/raw/gongu-9002100.txt
+          sha256sum public-domain/sources/raw/gongu-9002092.txt
+          file -bi public-domain/sources/raw/gongu-*.txt
+          node - <<'NODE'
+          const fs = require("fs");
+          for (const id of [
+            "aozora-000010",
+            "aozora-000013",
+            "aozora-000018",
+            "gutenberg-000011",
+            "gutenberg-001952",
+            "gongu-9002094",
+            "gongu-9002100",
+            "gongu-9002092",
+          ]) {
+            const manifest = JSON.parse(fs.readFileSync(`public-domain/manifests/${id}.json`, "utf8"));
+            const prepared = JSON.parse(fs.readFileSync(`.public-domain-work/${id}/prepared.json`, "utf8"));
+            console.log(JSON.stringify({
+              id,
+              source_retrieved_at: manifest.source_retrieved_at,
+              source_hash: manifest.source_hash,
+              chapter_count: prepared.chapters.length,
+              characters: prepared.displayCharacterCount,
+              chapter_titles: prepared.chapters.map((chapter) => chapter.title),
+              warnings: prepared.warnings,
+            }));
+          }
+          NODE
+
+      - name: Approved pilot batch dry-run
+        shell: bash
+        run: |
+          IDS="$(node <<'NODE'
+          const fs = require("fs");
+          const ids = [
+            "aozora-000010",
+            "aozora-000013",
+            "aozora-000018",
+            "gutenberg-000011",
+            "gutenberg-001952",
+            "gongu-9002094",
+            "gongu-9002100",
+            "gongu-9002092",
+          ];
+          const pending = ids.filter((id) => {
+            const manifest = JSON.parse(
+              fs.readFileSync(`public-domain/manifests/${id}.json`, "utf8")
+            );
+            return manifest.import_status !== "imported";
+          });
+          process.stdout.write(pending.join(" "));
+          NODE
+          )"
+          if [ -z "$IDS" ]; then
+            echo "All approved pilot manifests are already imported; source/hash prepare verification is sufficient."
+          else
+            # shellcheck disable=SC2086
+            npm run public-domain:batch -- $IDS --prepare
+          fi
+
+      - name: Persist exact source provenance on the PR branch
+        run: |
+          node - <<'NODE'
+          const fs = require("fs");
+          for (const id of [
+            "gutenberg-000011",
+            "gutenberg-001952",
+            "gongu-9002094",
+            "gongu-9002100",
+            "gongu-9002092",
+          ]) {
+            const manifestPath = `public-domain/manifests/${id}.json`;
+            const preparedPath = `.public-domain-work/${id}/prepared.json`;
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+            const prepared = JSON.parse(fs.readFileSync(preparedPath, "utf8"));
+            manifest.chapter_count = prepared.chapters.length;
+            if (manifest.import_status !== "imported") {
+              manifest.import_status = "prepared";
+            }
+            fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+          }
+          NODE
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            public-domain/manifests/gutenberg-000011.json \
+            public-domain/manifests/gutenberg-001952.json \
+            public-domain/manifests/gongu-9002094.json \
+            public-domain/manifests/gongu-9002100.json \
+            public-domain/manifests/gongu-9002092.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Child72: pin exact EN KO source provenance"
+            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          fi
+
+      - name: Capture Gongu Madang landing HTML for endpoint inspection
+        run: |
+          mkdir -p child72-gongu
+          curl -fsSL --max-time 30             'https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9002094'             -o child72-gongu/9002094.html
+          curl -fsSL --max-time 30             'https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200150&wrtSn=9002100'             -o child72-gongu/9002100.html
+          curl -fsSL --max-time 30             'https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200023&wrtSn=9002092'             -o child72-gongu/9002092.html
+          wc -c child72-gongu/*.html
+          grep -Eio '.{0,100}(download|file|atch|wrtSn|txt).{0,180}' child72-gongu/*.html | head -n 120 || true
+
+      - name: Capture Gongu download popups from discovered official endpoints
+        run: |
+          curl -fsSL --max-time 30 \
+            'https://gongu.copyright.or.kr/gongu/wrt/wrt/wrtDownPopup.do?viewType=BODY&wrtSn=9002094&menuNo=200030' \
+            -o child72-gongu/9002094-popup.html
+          curl -fsSL --max-time 30 \
+            'https://gongu.copyright.or.kr/gongu/wrt/wrt/wrtDownPopup.do?viewType=BODY&wrtSn=9002100&menuNo=200150' \
+            -o child72-gongu/9002100-popup.html
+          curl -fsSL --max-time 30 \
+            'https://gongu.copyright.or.kr/gongu/wrt/wrt/wrtDownPopup.do?viewType=BODY&wrtSn=9002092&menuNo=200023' \
+            -o child72-gongu/9002092-popup.html
+          wc -c child72-gongu/*-popup.html
+          grep -Eino '.{0,140}(txt|fileSn|down|download|href).{0,260}' child72-gongu/*-popup.html | head -n 240 || true
+
+      - name: Upload acquisition evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: child72-source-acquisition
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            public-domain/manifests/aozora-000010.json
+            public-domain/manifests/aozora-000013.json
+            public-domain/manifests/aozora-000018.json
+            public-domain/manifests/gutenberg-000011.json
+            public-domain/manifests/gutenberg-001952.json
+            public-domain/sources/raw/aozora-000010.txt
+            public-domain/sources/raw/aozora-000013.txt
+            public-domain/sources/raw/aozora-000018.txt
+            public-domain/sources/raw/gutenberg-000011.txt
+            public-domain/sources/raw/gutenberg-001952.txt
+            public-domain/sources/raw/gongu-9002094.txt
+            public-domain/sources/raw/gongu-9002100.txt
+            public-domain/sources/raw/gongu-9002092.txt
+            .public-domain-work/aozora-000010/**
+            .public-domain-work/aozora-000013/**
+            .public-domain-work/aozora-000018/**
+            .public-domain-work/gutenberg-000011/**
+            .public-domain-work/gutenberg-001952/**
+            .public-domain-work/gongu-9002094/**
+            .public-domain-work/gongu-9002100/**
+            .public-domain-work/gongu-9002092/**
+            child72-gongu/*.html

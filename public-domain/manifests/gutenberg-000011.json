@@ -1,0 +1,95 @@
+{
+  "id": "gutenberg-000011",
+  "title": "Alice's Adventures in Wonderland",
+  "original_title": "Alice's Adventures in Wonderland",
+  "original_author": "Lewis Carroll",
+  "author_death_year": 1898,
+  "original_language": "en",
+  "first_publication_year": 1865,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/11",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/11/pg11.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-000011.txt",
+  "source_retrieved_at": "2026-09-21T21:09:44.789Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #11 plain text; credits Arthur DiBianca and David Widger; current catalog text updated 2025-06-26",
+  "edition_publication_year": 2008,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved for JP/US/KR pilot distribution after primary-source review. Alice's Adventures in Wonderland was first published in 1865 and Lewis Carroll died in 1898. Project Gutenberg marks eBook #11 public domain in the USA; the work is far beyond the U.S. pre-1978 95-year term. JP and KR term/shorter-term review also supports expiry. Scope is the normalized original English literary text only; Project Gutenberg license/footer, generated catalog material, illustrations and covers are excluded.",
+  "rights_notes": "Human rights approval recorded at 2026-09-22T08:01:00+10:00 by LIB read operator (explicit user approval in Child72 chat). Project Gutenberg's official catalog marks eBook #11 public domain in the USA and identifies the original English author/work. Original publication 1865; Lewis Carroll died 1898. Scope is plain-text literary content only: no Tenniel illustrations, generated summary, modern cover, or site metadata. Project Gutenberg itself warns non-U.S. users to check local law.",
+  "rights_components": {
+    "original_work": {
+      "status": "approved",
+      "basis": "1865 original English work reviewed for JP/US/KR; Project Gutenberg catalog marks it public domain in the USA and the underlying term is expired in the other reviewed jurisdictions.",
+      "notes": "U.S. provider status and publication/death dates pass preflight;"
+    },
+    "edition": {
+      "status": "approved",
+      "basis": "Exact Project Gutenberg plain-text transcription is pinned by SHA-256; only literary text is imported after separating provider header/footer and pre-chapter catalog/contents material.",
+      "notes": "Only the Project Gutenberg plain-text edition is proposed."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "approved",
+      "basis": "No Project Gutenberg generated summary or modern editorial prose enters Reader text; normalized text was inspected after prepare.",
+      "notes": "Exclude automatically generated catalog summary and site metadata; confirm retained text is only the literary text plus archived Gutenberg boilerplate."
+    },
+    "annotations": {
+      "status": "approved",
+      "basis": "No separately protected modern annotations are imported.",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": "Illustrations are excluded from the pilot even though the catalog mentions John Tenniel."
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "approved",
+      "basis": "Exact official Project Gutenberg plain-text bytes were fetched from the allowlisted per-item endpoint and pinned by SHA-256.",
+      "notes": "Project Gutenberg plain-text transcription credits Arthur DiBianca and David Widger;"
+    },
+    "provider_terms": {
+      "status": "approved",
+      "basis": "Project Gutenberg license/trademark terms reviewed at https://www.gutenberg.org/policy/license.html. The distributed Reader text excludes the PG license/trademark boilerplate; 'Project Gutenberg' is used only as a linked source/reference attribution.",
+      "notes": "Primary provider pages: https://www.gutenberg.org/ebooks/11 and https://www.gutenberg.org/policy/license.html."
+    }
+  },
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-22T08:01:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 chat)",
+  "chapter_count": 12,
+  "chapter_split": {
+    "strategy": "heading_regex",
+    "heading_pattern": "^CHAPTER\\s+[IVXLC]+\\.$",
+    "drop_prefix_before_first_heading": true
+  },
+  "tags": [
+    "Public Domain",
+    "Project Gutenberg",
+    "Lewis Carroll",
+    "English classic"
+  ],
+  "source_hash": "01b38ea4c710a84bc18d0bd41271a5a1a92b94e97b2812f4dece97d4a694725e",
+  "approved": true,
+  "import_status": "imported",
+  "cover_source": null,
+  "cover_rights_status": null
+}
