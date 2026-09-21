@@ -150,7 +150,7 @@ function main() {
   ]);
   assertSourceContains("src/features/playback/GeneratedStoryBilingualPlayback.tsx", [
     "bilingualReaderDictionaries[locale]",
-    "localizePath(`/read/generated/${encodeURIComponent(storyId)}`, locale)",
+    'localizePath("/subscription", locale)',
     "readerDictionary.studyWordHelp",
   ]);
   assertSourceContains("src/features/playback/GeneratedStoryBilingualBridge.tsx", [
