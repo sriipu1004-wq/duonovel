@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { localizePath } from "@/i18n/navigation";
 import { RecordingLegalFooter } from "@/components/recording/RecordingLegalFooter";
 import {
   buildRecordingEntryPath,
@@ -204,6 +205,7 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
     seriesTitle,
     permissionMode,
     userId,
+    locale,
   } = await requireRecordingEntryAccess(seriesId);
 
   const supabase = await createClient();
@@ -228,7 +230,8 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
   );
 
   if (acceptedConsentVersion !== RECORDING_GLOBAL_CONSENT_VERSION) {
-    redirect(buildRecordingConsentPath(buildRecordingEntryPath(seriesId)));
+    const localizedEntryPath = localizePath(buildRecordingEntryPath(seriesId), locale);
+    redirect(localizePath(buildRecordingConsentPath(localizedEntryPath), locale));
   }
 
   const { data: publicUserRow } = await supabase
@@ -283,7 +286,7 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
         title,
         body,
         preview,
-        readHref: `/read/${seriesId}/${episodeNumber}`,
+        readHref: localizePath(`/read/${seriesId}/${episodeNumber}`, locale),
       };
     })
     .sort((a, b) => a.episodeNumber - b.episodeNumber);
@@ -334,7 +337,7 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
 
               <div className="flex flex-wrap gap-3">
                 <a
-                  href={buildWorkPath(seriesId)}
+                  href={localizePath(buildWorkPath(seriesId), locale)}
                   className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
                 >
                   作品ページへ
@@ -348,7 +351,7 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
           seriesId={seriesId}
           seriesTitle={seriesTitle}
           permissionMode={permissionMode}
-          worksHref={buildWorkPath(seriesId)}
+          worksHref={localizePath(buildWorkPath(seriesId), locale)}
           episodes={episodes}
           existingRecordings={existingRecordings}
           fixedReaderName={fixedReaderName}
