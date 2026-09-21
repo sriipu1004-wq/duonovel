@@ -42,6 +42,8 @@ import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
 import { buildRecordingEntryPath } from "@/lib/recording/recordingEntry";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { buildRecordingEntryPath } from "@/lib/recording/recordingEntry";
+import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -669,6 +671,8 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     data: { user: currentUser },
   } = await authSupabase.auth.getUser();
   const subscriber = currentUser ? await isSubscriber(currentUser.id) : false;
+  const canCreateHumanNarration =
+    !currentUser || !isOfficialAccountEmail(currentUser.email);
 
   const { data: seriesData, error: seriesError } = await supabase
     .from("series")
@@ -1337,6 +1341,14 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
               <p className="mt-3 text-sm leading-7 text-neutral-600">
                 {getRecordingPermissionDescription(recordingPermissionMode)}
               </p>
+              {recordingPermissionMode === "open" && canCreateHumanNarration ? (
+                <Link
+                  href={workHref(buildRecordingEntryPath(seriesId))}
+                  className="mt-3 inline-flex rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-black transition hover:bg-sky-100"
+                >
+                  Human narrationを制作
+                </Link>
+              ) : null}
             </div>
 
             <InfoActionRow label="朗読出力" value="準備中" disabled />
