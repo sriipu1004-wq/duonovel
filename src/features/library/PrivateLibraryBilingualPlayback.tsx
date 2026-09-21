@@ -73,7 +73,6 @@ type PrivateLibraryBilingualPlaybackProps = {
   isSubscriber: boolean;
   autoGenerateMissingTranslation: boolean;
   targetLanguageLocked: boolean;
-  onDisableTranslated: (segmentIndex: number) => void;
 };
 
 type NextTranslationPrefetchState = {
@@ -165,7 +164,6 @@ export default function PrivateLibraryBilingualPlayback({
   isSubscriber,
   autoGenerateMissingTranslation,
   targetLanguageLocked,
-  onDisableTranslated,
 }: PrivateLibraryBilingualPlaybackProps) {
   const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
   const { displaySettings, setDisplaySettings } =
