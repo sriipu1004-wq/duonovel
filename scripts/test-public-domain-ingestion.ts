@@ -229,6 +229,24 @@ function testHeadingSplitFixture() {
   assert.equal(chapters[1]?.body, "Beta");
 }
 
+function testHeadingSplitCanDropProviderFrontMatter() {
+  const chapters = splitChapters(
+    ["Provider title", "", "Contents", "CHAPTER I", "Alpha", "", "CHAPTER II", "Beta"].join("\n"),
+    {
+      title: "Book",
+      chapter_split: {
+        strategy: "heading_regex",
+        heading_pattern: "^CHAPTER\\s+[IVXLC]+$",
+        drop_prefix_before_first_heading: true,
+      },
+    }
+  );
+  assert.equal(chapters.length, 2);
+  assert.equal(chapters[0]?.body, "Alpha");
+  assert.equal(chapters[0]?.body.includes("Provider title"), false);
+  assert.equal(chapters[0]?.body.includes("Contents"), false);
+}
+
 function testAozoraAndGutenbergNormalization() {
   const aozora = normalizeSource(
     [
@@ -530,6 +548,7 @@ function main() {
   testDuplicateDetection();
   testChapterValidationAndSingleEpisode();
   testHeadingSplitFixture();
+  testHeadingSplitCanDropProviderFrontMatter();
   testAozoraAndGutenbergNormalization();
   testPreparedArtifactAndDraftPlan();
   testKoreanSourceLanguage();
