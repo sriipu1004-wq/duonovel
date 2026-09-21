@@ -62,7 +62,7 @@ const COPY: Record<UiLocale, Copy> = {
   ja: {
     title: "朗読作品を探す",
     description:
-      "公開中の朗読関連作品を、検索語、ジャンル、タグ、期間、並び順、朗読向けフィルタで絞り込む。",
+      "公開中のHuman narrationを検索する。朗読可では、人間朗読を新しく制作できる公開作品も探せる。",
     placeholder: "作品名、作者名、あらすじなどで検索",
     emptyFilters: "ジャンル / タグで絞る（左に表示されてるものほど強く参照される）",
     clear: "条件をクリア",
@@ -84,7 +84,7 @@ const COPY: Record<UiLocale, Copy> = {
   en: {
     title: "Find narration-ready works",
     description:
-      "Filter public narration-related works by keyword, genre, tag, period, sort order, and narration status.",
+      "Search published human narration. Use Available to find public works that allow new human recordings.",
     placeholder: "Search by title, author, summary, and more",
     emptyFilters: "Filter by genre / tag (items further left are weighted more strongly)",
     clear: "Clear filters",
@@ -106,7 +106,7 @@ const COPY: Record<UiLocale, Copy> = {
   ko: {
     title: "낭독 가능한 작품 찾기",
     description:
-      "공개 중인 낭독 관련 작품을 검색어, 장르, 태그, 기간, 정렬, 낭독 상태로 필터링합니다.",
+      "공개된 Human narration을 검색합니다. 낭독 가능에서는 새 사람 낭독을 제작할 수 있는 공개 작품도 찾을 수 있습니다.",
     placeholder: "작품명, 작가명, 줄거리 등으로 검색",
     emptyFilters: "장르 / 태그로 필터링 (왼쪽 항목일수록 더 강하게 반영)",
     clear: "조건 지우기",
@@ -173,6 +173,7 @@ function buildRecordSearchHref(
     filter?: RecordFilter;
     selectedTags?: string[];
     selectedGenres?: string[];
+    sourceLanguages?: SupportedLanguageTag[];
     order?: RecordOrderKey;
     start?: string;
     end?: string;
@@ -382,7 +383,8 @@ export default function RecordDashboardSearchControls(props: RecordDashboardSear
         selectedStartInput !== defaultStartInput ||
         selectedEndInput !== defaultEndInput ||
         filter !== "all" ||
-        order !== "popular" ? (
+        order !== "popular" ||
+        sourceLanguages.length > 0 ? (
           <div className="flex justify-end">
             <button type="button" onClick={handleClear} className="text-sm text-neutral-500 transition hover:text-black">
               {copy.clear}
