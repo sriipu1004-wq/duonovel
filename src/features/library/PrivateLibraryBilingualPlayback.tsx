@@ -73,7 +73,6 @@ type PrivateLibraryBilingualPlaybackProps = {
   isSubscriber: boolean;
   autoGenerateMissingTranslation: boolean;
   targetLanguageLocked: boolean;
-  onDisableTranslated: (segmentIndex: number) => void;
 };
 
 type NextTranslationPrefetchState = {
@@ -165,7 +164,6 @@ export default function PrivateLibraryBilingualPlayback({
   isSubscriber,
   autoGenerateMissingTranslation,
   targetLanguageLocked,
-  onDisableTranslated,
 }: PrivateLibraryBilingualPlaybackProps) {
   const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
   const { displaySettings, setDisplaySettings } =
@@ -716,15 +714,6 @@ export default function PrivateLibraryBilingualPlayback({
     window.requestAnimationFrame(() => {
       if (resumeId) alignSegmentToTop(resumeId);
     });
-  }
-
-  function handleDisableTranslated() {
-    const positionId =
-      readingSegmentIdRef.current ?? selectedSegmentId ?? segments[0]?.id ?? null;
-    const segmentIndex = positionId
-      ? Math.max(0, segments.findIndex((segment) => segment.id === positionId))
-      : 0;
-    onDisableTranslated(segmentIndex);
   }
 
   const sourceLanguageLabel = getSupportedLanguage(sourceLanguage).nativeLabel;

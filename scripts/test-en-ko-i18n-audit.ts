@@ -148,9 +148,10 @@ function main() {
     "WEB_SPEECH_LOCALE_COPY[locale].seconds",
     "WEB_SPEECH_LOCALE_COPY[locale].publicNarrationLoadFailed",
   ]);
+  // Generated-story mode switches now stay inside the locale-aware reader shell.
   assertSourceContains("src/features/playback/GeneratedStoryBilingualPlayback.tsx", [
     "bilingualReaderDictionaries[locale]",
-    "localizePath(`/read/generated/${encodeURIComponent(storyId)}`, locale)",
+    'localizePath("/subscription", locale)',
     "readerDictionary.studyWordHelp",
   ]);
   assertSourceContains("src/features/playback/GeneratedStoryBilingualBridge.tsx", [
