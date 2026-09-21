@@ -17,6 +17,11 @@ import { transcribeHumanPlaybackAudio } from "@/lib/recording/humanRecordingTran
 import { buildNemoTimingObjectPathFromAudioObjectPath } from "@/lib/recording/nemoTiming";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
+import {
+  buildHumanRecordingPlaybackHref,
+  getHumanRecordingAudioBucketName,
+  getHumanRecordingStorageObjectPath,
+} from "@/lib/recording/humanRecordingStorage";
 
 type AdminSupabase = ReturnType<typeof createAdminClient>;
 type RawRow = Record<string, unknown>;
@@ -75,10 +80,6 @@ function sanitizeStorageSegment(value: string): string {
     .slice(0, 60);
 
   return normalized || "recording";
-}
-
-function getRecordingAudioBucketName(): string {
-  return process.env.NEXT_PUBLIC_SUPABASE_RECORDING_BUCKET?.trim() || "recording-audio";
 }
 
 function guessExtension(file: File): string {
@@ -165,26 +166,10 @@ function buildHumanRecordingObjectPaths({
   };
 }
 
-function extractBucketObjectPathFromPublicUrl(
-  publicUrl: string,
-  bucketName: string
-): string | null {
-  const marker = `/storage/v1/object/public/${bucketName}/`;
-  const markerIndex = publicUrl.indexOf(marker);
-
-  if (markerIndex === -1) {
-    return null;
-  }
-
-  const objectPath = publicUrl.slice(markerIndex + marker.length).trim();
-  return objectPath.length > 0 ? decodeURIComponent(objectPath) : null;
-}
-
-function buildRecordingArtifactObjectPathsFromPublicUrl(
-  publicUrl: string,
-  bucketName: string
+function buildRecordingArtifactObjectPaths(
+  storedAudioPath: string
 ): string[] {
-  const objectPath = extractBucketObjectPathFromPublicUrl(publicUrl, bucketName);
+  const objectPath = getHumanRecordingStorageObjectPath(storedAudioPath);
 
   if (!objectPath) {
     return [];
@@ -541,14 +526,11 @@ async function removeObsoleteRecordingArtifacts(
   currentObjectPaths: string[]
 ): Promise<void> {
   const obsoleteFromPrimary = previousAudioStoragePath
-    ? buildRecordingArtifactObjectPathsFromPublicUrl(
-        previousAudioStoragePath,
-        bucketName
-      )
+    ? buildRecordingArtifactObjectPaths(previousAudioStoragePath)
     : [];
 
-  const obsoleteFromDuplicates = duplicateAudioStoragePaths.flatMap((publicUrl) =>
-    buildRecordingArtifactObjectPathsFromPublicUrl(publicUrl, bucketName)
+  const obsoleteFromDuplicates = duplicateAudioStoragePaths.flatMap(
+    (storedAudioPath) => buildRecordingArtifactObjectPaths(storedAudioPath)
   );
 
   const obsoleteObjectPaths = [...new Set([...obsoleteFromPrimary, ...obsoleteFromDuplicates])]
@@ -592,7 +574,7 @@ export async function publishHumanRecording({
     throw new Error("empty_file");
   }
 
-  const bucketName = getRecordingAudioBucketName();
+  const bucketName = getHumanRecordingAudioBucketName();
   const sourceExtension = guessExtension(sourceFile);
   const originalContentType = sourceFile.type || getAudioContentType(sourceExtension);
 
@@ -666,14 +648,6 @@ export async function publishHumanRecording({
       throw new Error(`human_timing_upload_failed:${timingUploadError.message}`);
     }
 
-    const {
-      data: { publicUrl },
-    } = adminSupabase.storage.from(bucketName).getPublicUrl(playbackObjectPath);
-
-    if (!publicUrl) {
-      throw new Error("storage_public_url_unavailable");
-    }
-
     await ensureReaderUserRow(adminSupabase, userId, readerName);
 
     const {
@@ -685,7 +659,7 @@ export async function publishHumanRecording({
       episodeId: canonicalEpisodeId,
       readerId: userId,
       readerName,
-      audioStoragePath: publicUrl,
+      audioStoragePath: playbackObjectPath,
       isPublic,
     });
 
@@ -703,7 +677,7 @@ export async function publishHumanRecording({
 
     return {
       recordingId,
-      audioStoragePath: publicUrl,
+      audioStoragePath: buildHumanRecordingPlaybackHref(recordingId),
       originalStorageObjectPath: originalObjectPath,
       playbackStorageObjectPath: playbackObjectPath,
       readerName,
