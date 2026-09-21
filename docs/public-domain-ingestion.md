@@ -132,10 +132,12 @@ npm run public-domain:import -- <manifest-id>
 
 Dry-run performs no database write and requires no service-role key.
 
-An actual write requires `--execute` and an explicit target. Production additionally requires both `--production` and `PUBLIC_DOMAIN_IMPORT_CONFIRM=PRODUCTION_DRAFT_ONLY`.
+An actual write requires `--execute`, an explicit target, and `PUBLIC_DOMAIN_IMPORT_TARGET` in the loaded environment matching that target. Production additionally requires both `--production` and `PUBLIC_DOMAIN_IMPORT_CONFIRM=PRODUCTION_DRAFT_ONLY`.
 
 ```bash
-npm run public-domain:import -- <manifest-id> --execute --target=preview
+PUBLIC_DOMAIN_IMPORT_TARGET=preview \
+  npm run public-domain:import -- <manifest-id> --execute --target=preview
+PUBLIC_DOMAIN_IMPORT_TARGET=production \
 PUBLIC_DOMAIN_IMPORT_CONFIRM=PRODUCTION_DRAFT_ONLY \
   npm run public-domain:import -- <manifest-id> --execute --target=production --production
 ```
@@ -284,7 +286,9 @@ After human rights review and chapter review, approved manifests can be batch-ch
 
 ```bash
 npm run public-domain:batch -- --all-approved --prepare
-npm run public-domain:batch -- --all-approved --prepare --execute --target=preview
+PUBLIC_DOMAIN_IMPORT_TARGET=preview \
+  npm run public-domain:batch -- --all-approved --prepare --execute --target=preview
+PUBLIC_DOMAIN_IMPORT_TARGET=production \
 PUBLIC_DOMAIN_IMPORT_CONFIRM=PRODUCTION_DRAFT_ONLY \
   npm run public-domain:batch -- --all-approved --prepare \
   --execute --target=production --production
