@@ -6,6 +6,7 @@ import {
   loadPreparedArtifact,
 } from "./runtime";
 
+async function main() {
 const args = process.argv.slice(2);
 const id = args.find((value) => !value.startsWith("--"));
 if (!id) {
@@ -59,3 +60,10 @@ if (result.dryRun) {
   console.log(`Source hash: ${result.sourceHash}`);
   console.log("IMPORT COMPLETE: Draft only. Preview and manual publish are still required.");
 }
+
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});
