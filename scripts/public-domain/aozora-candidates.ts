@@ -77,8 +77,17 @@ if (!includeExisting && existsSync(existingAuditPath)) {
   }
 }
 
-const classified = Array.from(grouped.values())
-  .map((sourceRows) => classifyAozoraWork(sourceRows))
+const classifications = Array.from(grouped.values()).map((sourceRows) =>
+  classifyAozoraWork(sourceRows)
+);
+const rejectionCounts = new Map<string, number>();
+for (const item of classifications) {
+  for (const reason of item.reasons) {
+    rejectionCounts.set(reason, (rejectionCounts.get(reason) ?? 0) + 1);
+  }
+}
+
+const classified = classifications
   .filter((item) => item.eligible)
   .filter((item) => !authorFilter || item.author.includes(authorFilter))
   .filter((item) => {
