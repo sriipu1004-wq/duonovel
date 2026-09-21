@@ -416,7 +416,6 @@ export default function PrivateLibraryBilingualShell({
           isSubscriber={isSubscriber}
           autoGenerateMissingTranslation={autoGenerateMissingTranslation}
           targetLanguageLocked={sessionLanguageLocked}
-          onDisableTranslated={disableTranslated}
         />
       </>
     );
