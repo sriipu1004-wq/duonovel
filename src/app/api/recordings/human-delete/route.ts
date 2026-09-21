@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { buildNemoTimingObjectPathFromAudioObjectPath } from "@/lib/recording/nemoTiming";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
+import {
+  getHumanRecordingAudioBucketName,
+  getHumanRecordingStorageObjectPath,
+} from "@/lib/recording/humanRecordingStorage";
 
 export const runtime = "nodejs";
 
@@ -29,33 +34,10 @@ function pickText(row: RawRow, keys: string[]): string {
   return "";
 }
 
-function getRecordingAudioBucketName(): string {
-  return (
-    process.env.NEXT_PUBLIC_SUPABASE_RECORDING_BUCKET?.trim() ||
-    "recording-audio"
-  );
-}
-
-function extractBucketObjectPathFromPublicUrl(
-  publicUrl: string,
-  bucketName: string
-): string | null {
-  const marker = `/storage/v1/object/public/${bucketName}/`;
-  const markerIndex = publicUrl.indexOf(marker);
-
-  if (markerIndex === -1) {
-    return null;
-  }
-
-  const objectPath = publicUrl.slice(markerIndex + marker.length).trim();
-  return objectPath.length > 0 ? decodeURIComponent(objectPath) : null;
-}
-
-function buildRecordingArtifactObjectPathsFromPublicUrl(
-  publicUrl: string,
-  bucketName: string
+function buildRecordingArtifactObjectPaths(
+  storedAudioPath: string
 ): string[] {
-  const objectPath = extractBucketObjectPathFromPublicUrl(publicUrl, bucketName);
+  const objectPath = getHumanRecordingStorageObjectPath(storedAudioPath);
 
   if (!objectPath) {
     return [];
@@ -147,7 +129,9 @@ async function findExistingRecordingsForSeriesUserEpisode(args: {
         continue;
       }
 
-      deduped.set(String(row.id), row);
+      if (isHumanRecordingRow(row)) {
+        deduped.set(String(row.id), row);
+      }
     }
   }
 
@@ -239,9 +223,9 @@ export async function POST(request: Request) {
     }
 
     try {
-      const bucketName = getRecordingAudioBucketName();
-      const objectPaths = audioStoragePaths.flatMap((publicUrl) =>
-        buildRecordingArtifactObjectPathsFromPublicUrl(publicUrl, bucketName)
+      const bucketName = getHumanRecordingAudioBucketName();
+      const objectPaths = audioStoragePaths.flatMap((storedAudioPath) =>
+        buildRecordingArtifactObjectPaths(storedAudioPath)
       );
 
       await removeStorageObjectPaths(adminSupabase, bucketName, objectPaths);
