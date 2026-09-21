@@ -52,10 +52,22 @@ function normalizeRecordingStatus(
   if (isAiGenerated) return "朗読許可";
 
   const text = value?.trim() ?? "";
-  if (text.includes("朗読不可") || text.includes("朗読不許可")) {
+  if (
+    text.includes("朗読不可") ||
+    text.includes("朗読不許可") ||
+    text.includes("Narration unavailable") ||
+    text.includes("Narration not allowed") ||
+    text.includes("낭독 불가") ||
+    text.includes("낭독 불허")
+  ) {
     return "朗読不許可";
   }
-  if (text.includes("朗読許可")) {
+  if (
+    text.includes("朗読許可") ||
+    text.includes("Narration permission") ||
+    text.includes("Narration allowed") ||
+    text.includes("낭독 허용")
+  ) {
     return "朗読許可";
   }
   return "朗読未設定";
