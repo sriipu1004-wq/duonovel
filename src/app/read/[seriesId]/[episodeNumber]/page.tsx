@@ -532,12 +532,7 @@ export default async function ReadEpisodePage({
     !isOfficialAccountEmail(viewerEmail)
       ? localizePath(buildRecordingEntryPath(seriesId), locale)
       : null;
-  const recordingCreateLabel =
-    locale === "en"
-      ? "Create human narration"
-      : locale === "ko"
-        ? "Human narration 제작"
-        : "Human narrationを制作";
+  const recordingCreateLabel = ui.createHumanNarration;
   const showContinueStoryAction =
     isOwner &&
     Boolean(aiGeneratedAttribution) &&
