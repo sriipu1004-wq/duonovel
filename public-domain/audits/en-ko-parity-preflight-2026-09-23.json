@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-22T22:17:55.949Z",
+  "generated_at": "2026-09-22T22:58:46.213Z",
   "batch_id": "en-ko-parity-2026-09-23",
   "production_target": {
     "ja": 40,
@@ -15,7 +15,7 @@
     "en": 38,
     "ko": 37
   },
-  "stage": "SOURCE_PREPARED_PENDING_HUMAN_RIGHTS_APPROVAL",
+  "stage": "SOURCE_PREPARED_HUMAN_RIGHTS_APPROVED",
   "safety": {
     "source_hashes_pinned": true,
     "provider_landing_status_checked_by_source_sync": true,
@@ -53,8 +53,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -76,8 +76,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -99,8 +99,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -122,8 +122,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -145,8 +145,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -168,8 +168,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -191,8 +191,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -214,8 +214,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -237,8 +237,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -260,8 +260,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -283,8 +283,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -306,8 +306,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -329,8 +329,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -352,8 +352,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -375,8 +375,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -398,8 +398,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -421,8 +421,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -444,8 +444,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -467,8 +467,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -490,8 +490,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -513,8 +513,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -536,8 +536,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -559,8 +559,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -582,8 +582,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -605,8 +605,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -628,8 +628,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -651,8 +651,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -674,8 +674,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -697,8 +697,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -720,8 +720,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -743,8 +743,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -766,8 +766,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -789,8 +789,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -812,8 +812,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -835,8 +835,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -858,8 +858,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -881,8 +881,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -904,8 +904,8 @@
       "normalization_warnings": [
         "GUTENBERG_RIGHTS_REVIEW_REQUIRED: per-item copyright header and non-US jurisdiction status must still be human-reviewed"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -927,8 +927,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -950,8 +950,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -973,8 +973,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -996,8 +996,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1019,8 +1019,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1042,8 +1042,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1065,8 +1065,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1088,8 +1088,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1111,8 +1111,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1134,8 +1134,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1157,8 +1157,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1180,8 +1180,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1203,8 +1203,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1226,8 +1226,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1249,8 +1249,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1272,8 +1272,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1295,8 +1295,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1318,8 +1318,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1341,8 +1341,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1364,8 +1364,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1387,8 +1387,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1410,8 +1410,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1433,8 +1433,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1456,8 +1456,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1479,8 +1479,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1502,8 +1502,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1525,8 +1525,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1548,8 +1548,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1571,8 +1571,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1594,8 +1594,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1617,8 +1617,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1640,8 +1640,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1663,8 +1663,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1686,8 +1686,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1709,8 +1709,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1732,8 +1732,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     },
     {
@@ -1755,8 +1755,8 @@
       "normalization_warnings": [
         "GONGU_LICENSE_LABEL_REVIEW: verify the per-item expiration/license label and source metadata before approval"
       ],
-      "rights_status": "pending",
-      "approved": false,
+      "rights_status": "approved",
+      "approved": true,
       "import_status": "prepared"
     }
   ]

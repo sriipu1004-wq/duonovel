@@ -1,4 +1,5 @@
 name: Child73 EN-KO parity source acquisition
+# Diagnostic retrigger after Production Draft import run #1 failed
 
 on:
   pull_request:
