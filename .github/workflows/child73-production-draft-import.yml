@@ -24,7 +24,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       PUBLIC_DOMAIN_IMPORT_TARGET: production
-      PRODUCTION_DRAFT_ONLY: "true"
+      PUBLIC_DOMAIN_IMPORT_CONFIRM: PRODUCTION_DRAFT_ONLY
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
@@ -46,23 +46,38 @@ jobs:
       - name: Resolve parity IDs
         shell: bash
         run: |
-          node - <<'NODE' > /tmp/child73-ids.txt
+          node - <<'NODE'
+          const fs = require("node:fs");
           const batch = require("./public-domain/batches/en-ko-parity-2026-09-23.json");
-          for (const entry of batch.works) {
+          const format = (entry) => {
             const prefix = entry.provider === "gutenberg" ? "gutenberg" : "gongu";
             const id = entry.provider === "gutenberg"
               ? String(entry.provider_id).padStart(6, "0")
               : String(entry.provider_id);
-            console.log(prefix + "-" + id);
+            return prefix + "-" + id;
+          };
+          const en = batch.works.filter((entry) => entry.provider === "gutenberg").map(format);
+          const ko = batch.works.filter((entry) => entry.provider === "gongu").map(format);
+          if (en.length !== 38 || ko.length !== 37 || en.length + ko.length !== 75) {
+            throw new Error(`Parity ID count mismatch: en=${en.length} ko=${ko.length}`);
           }
+          fs.writeFileSync("/tmp/child73-en-ids.txt", en.join("\n") + "\n");
+          fs.writeFileSync("/tmp/child73-ko-ids.txt", ko.join("\n") + "\n");
+          fs.writeFileSync("/tmp/child73-ids.txt", [...en, ...ko].join("\n") + "\n");
           NODE
           test "$(wc -l < /tmp/child73-ids.txt | tr -d ' ')" = "75"
 
-      - name: Acquire and prepare exact approved sources
+      - name: Acquire and prepare exact approved English sources
         shell: bash
         run: |
-          mapfile -t IDS < /tmp/child73-ids.txt
-          npm run public-domain:source-sync -- "${IDS[@]}" --prepare --limit=100 --delay-ms=750
+          mapfile -t IDS < /tmp/child73-en-ids.txt
+          npm run public-domain:source-sync -- "${IDS[@]}" --prepare --limit=50 --delay-ms=750
+
+      - name: Acquire and prepare exact approved Korean sources
+        shell: bash
+        run: |
+          mapfile -t IDS < /tmp/child73-ko-ids.txt
+          npm run public-domain:source-sync -- "${IDS[@]}" --prepare --limit=50 --delay-ms=750
 
       - name: Revalidate after source acquisition
         run: npm run public-domain:validate
