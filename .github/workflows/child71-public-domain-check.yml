@@ -8,6 +8,9 @@ on:
       - "docs/public-domain-ingestion.md"
       - "scripts/public-domain/**"
       - "scripts/test-public-domain-ingestion.ts"
+      - "scripts/test-public-classic-translation.ts"
+      - "src/lib/translation/episodeTranslationGenerateLimits.ts"
+      - "src/lib/translation/prepareEpisodeTranslationGeneration.ts"
       - "src/lib/publicDomainMetadata.ts"
       - "src/lib/publicWorks.ts"
       - "src/i18n/dictionaries/work.ts"
@@ -75,6 +78,9 @@ jobs:
           scripts/public-domain/prepare.ts
           scripts/public-domain/import.ts
           scripts/test-public-domain-ingestion.ts
+          scripts/test-public-classic-translation.ts
+          src/lib/translation/episodeTranslationGenerateLimits.ts
+          src/lib/translation/prepareEpisodeTranslationGeneration.ts
           src/lib/publicDomainMetadata.ts
           src/lib/publicWorks.ts
           src/i18n/dictionaries/work.ts
