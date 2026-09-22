@@ -164,6 +164,21 @@ function testReaderDisplayClauseSegmentation() {
     1,
     "Reader must not fragment short sentences"
   );
+
+  const periodRich = [
+    "첫 문장은 충분히 길어서 화면에서 한 덩어리로 보이면 읽기 어렵지만 문장 끝에는 마침표가 있다.",
+    "둘째 문장 역시 길이를 충분히 확보해서 기존 추적 좌표를 바꾸지 않고 표시 블록만 안전하게 나누어야 한다.",
+    "셋째 문장도 같은 방식으로 이어지며 약어 A.B처럼 글자 바로 뒤에 붙은 점은 경계로 오인하지 않아야 한다.",
+  ].join(" ");
+  const periodClauses = splitSentenceIntoDisplayClauses(periodRich);
+  assert.ok(
+    periodClauses.length >= 2,
+    "Reader must recognize safe ASCII period boundaries"
+  );
+  assert.ok(
+    periodClauses.every((part) => part.trim() !== "A."),
+    "Reader must not split a period that is immediately followed by a letter"
+  );
 }
 
 function testClassicBatching() {
