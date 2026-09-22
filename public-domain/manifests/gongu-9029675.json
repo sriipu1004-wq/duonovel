@@ -1,19 +1,19 @@
 {
-  "id": "gongu-9000086",
-  "title": "딸의 업을 이으려",
-  "original_title": "딸의 업을 이으려",
-  "original_author": "김동인",
-  "author_death_year": 1951,
+  "id": "gongu-9029675",
+  "title": "두 가지 마음 성(性)",
+  "original_title": "두 가지 마음 성(性)",
+  "original_author": "방정환",
+  "author_death_year": 1931,
   "original_language": "ko",
   "first_publication_year": 1927,
   "source_provider": "Gongu Madang / Korea Copyright Commission",
-  "source_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9000086",
-  "source_download_url": "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9000086&fileSn=4",
-  "source_file": "public-domain/sources/raw/gongu-9000086.txt",
-  "source_retrieved_at": "2026-09-22T22:17:08.007Z",
+  "source_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9029675",
+  "source_download_url": "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9029675&fileSn=3",
+  "source_file": "public-domain/sources/raw/gongu-9029675.txt",
+  "source_retrieved_at": "2026-09-22T22:16:29.715Z",
   "source_encoding": "utf-8",
   "normalization_profile": "gongu_madang",
-  "edition": "Korea Copyright Commission/Gongu Madang expired-work TXT: 김동인-딸의_업을_이으려-조선문단.txt",
+  "edition": "Korea Copyright Commission/Gongu Madang expired-work TXT: 방정환-두가지마음성.txt",
   "edition_publication_year": null,
   "translator": null,
   "translator_death_year": null,
@@ -77,14 +77,14 @@
     "max_characters": 30000
   },
   "genres": [
-    "文芸"
+    "児童文学"
   ],
   "tags": [
-    "家族",
-    "社会批評",
-    "貧困"
+    "童話",
+    "心理",
+    "人間関係"
   ],
-  "source_hash": "a8dce17253eece0a0509307acb9a8968b03111a8fd90c91de4e543164cec08dd",
+  "source_hash": "90aab82f32818ede6c86f2273371999f7efb63931fdf80a6aa83e4e221534694",
   "approved": false,
   "import_status": "prepared",
   "cover_source": null,

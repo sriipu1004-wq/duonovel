@@ -8,12 +8,12 @@
   "first_publication_year": 1922,
   "source_provider": "Gongu Madang / Korea Copyright Commission",
   "source_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9002093",
-  "source_download_url": "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002093&fileSn=4",
+  "source_download_url": "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002093&fileSn=3",
   "source_file": "public-domain/sources/raw/gongu-9002093.txt",
-  "source_retrieved_at": "2026-09-22T21:26:49.912Z",
+  "source_retrieved_at": "2026-09-22T22:16:54.016Z",
   "source_encoding": "utf-8",
   "normalization_profile": "gongu_madang",
-  "edition": "Korea Copyright Commission/Gongu Madang expired-work TXT #9002093",
+  "edition": "Korea Copyright Commission/Gongu Madang expired-work TXT: 현진건-타락자.txt",
   "edition_publication_year": null,
   "translator": null,
   "translator_death_year": null,
@@ -71,7 +71,7 @@
   "jurisdictions_reviewed": [],
   "reviewed_at": null,
   "reviewed_by": null,
-  "chapter_count": 1,
+  "chapter_count": 2,
   "chapter_split": {
     "strategy": "paragraph_chunks",
     "max_characters": 30000
@@ -84,7 +84,7 @@
     "社会批評",
     "暗め"
   ],
-  "source_hash": "eec77f1326e640365ac30d811b9484928437e2e5fbce4201dd08bbb6b8f6e108",
+  "source_hash": "563a9a6de526f5cc869027659a3fe04c0a72a29dfc3646f4eb43f3b26130bd37",
   "approved": false,
   "import_status": "prepared",
   "cover_source": null,
