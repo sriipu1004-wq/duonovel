@@ -74,6 +74,24 @@ const READER_DISPLAY_CLAUSE_BOUNDARIES = new Set([
   "：",
 ]);
 
+function isReaderDisplayClauseBoundary(text: string, index: number): boolean {
+  const current = text[index] ?? "";
+  if (READER_DISPLAY_CLAUSE_BOUNDARIES.has(current)) {
+    return true;
+  }
+
+  if (current !== "." && current !== "．") {
+    return false;
+  }
+
+  const next = text[index + 1] ?? "";
+  return (
+    next === "" ||
+    /\s/u.test(next) ||
+    /["'”’」』）】］»]/u.test(next)
+  );
+}
+
 export function splitSentenceIntoDisplayClauses(sentence: string): string[] {
   const normalized = sentence.trim();
 
@@ -87,7 +105,7 @@ export function splitSentenceIntoDisplayClauses(sentence: string): string[] {
 
   const candidates: number[] = [];
   for (let cursor = 0; cursor < normalized.length; cursor += 1) {
-    if (READER_DISPLAY_CLAUSE_BOUNDARIES.has(normalized[cursor] ?? "")) {
+    if (isReaderDisplayClauseBoundary(normalized, cursor)) {
       candidates.push(cursor + 1);
     }
   }
