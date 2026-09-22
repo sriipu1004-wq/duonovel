@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   acquire:
+    if: github.event.pull_request.head.ref == 'child72-rights-audit-pd-pilot'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
