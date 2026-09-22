@@ -66,6 +66,10 @@ export type ChapterSplitConfig =
       strategy: "heading_regex";
       heading_pattern: string;
       drop_prefix_before_first_heading?: boolean;
+    }
+  | {
+      strategy: "paragraph_chunks";
+      max_characters: number;
     };
 
 export type PublicDomainManifest = {
@@ -460,8 +464,26 @@ export function validateManifest(value: unknown): ManifestValidationResult {
           : {}),
       };
     }
+  } else if (value.chapter_split.strategy === "paragraph_chunks") {
+    const maxCharacters = value.chapter_split.max_characters;
+    if (
+      !Number.isInteger(maxCharacters) ||
+      Number(maxCharacters) < 5_000 ||
+      Number(maxCharacters) > 40_000
+    ) {
+      errors.push(
+        "chapter_split.max_characters must be an integer from 5000 to 40000"
+      );
+    } else {
+      chapterSplit = {
+        strategy: "paragraph_chunks",
+        max_characters: Number(maxCharacters),
+      };
+    }
   } else {
-    errors.push("chapter_split.strategy must be single or heading_regex");
+    errors.push(
+      "chapter_split.strategy must be single, heading_regex, or paragraph_chunks"
+    );
   }
 
   const tagsRaw = value.tags;
@@ -747,6 +769,69 @@ export function splitChapters(
         characterCount: body.length,
       },
     ];
+  }
+
+  if (manifest.chapter_split.strategy === "paragraph_chunks") {
+    const maxCharacters = manifest.chapter_split.max_characters;
+    const paragraphs = body
+      .split(/\n\s*\n+/u)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean);
+    const chunks: string[] = [];
+    let current = "";
+
+    function flush() {
+      const trimmed = current.trim();
+      if (trimmed) chunks.push(trimmed);
+      current = "";
+    }
+
+    for (const paragraph of paragraphs) {
+      if (paragraph.length > maxCharacters) {
+        flush();
+        let offset = 0;
+        while (offset < paragraph.length) {
+          let end = Math.min(paragraph.length, offset + maxCharacters);
+          if (end < paragraph.length) {
+            const windowStart = Math.max(offset + Math.floor(maxCharacters * 0.65), offset + 1);
+            const slice = paragraph.slice(windowStart, end);
+            const boundaryMatches = Array.from(
+              slice.matchAll(/[.!?。！？]\s+|[.!?。！？][\"'”’」』）】］»]?/gu)
+            );
+            const lastBoundary = boundaryMatches[boundaryMatches.length - 1];
+            if (lastBoundary?.index !== undefined) {
+              end = windowStart + lastBoundary.index + lastBoundary[0].length;
+            }
+          }
+          const piece = paragraph.slice(offset, end).trim();
+          if (!piece) {
+            throw new Error("CHAPTER_CHUNK_EMPTY: failed to split oversized paragraph");
+          }
+          chunks.push(piece);
+          offset = end;
+        }
+        continue;
+      }
+
+      const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
+      if (candidate.length > maxCharacters && current) {
+        flush();
+        current = paragraph;
+      } else {
+        current = candidate;
+      }
+    }
+    flush();
+
+    return chunks.map((chapterBody, index) => ({
+      number: index + 1,
+      title:
+        chunks.length === 1
+          ? manifest.title
+          : `${manifest.title} — Part ${index + 1}`,
+      body: chapterBody,
+      characterCount: chapterBody.length,
+    }));
   }
 
   const pattern = new RegExp(manifest.chapter_split.heading_pattern, "iu");
