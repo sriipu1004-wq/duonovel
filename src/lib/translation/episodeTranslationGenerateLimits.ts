@@ -26,6 +26,10 @@ export const EPISODE_TRANSLATION_LIMITS = {
     100
   ),
   maxSourceChars: readPositiveIntEnv("EPISODE_TRANSLATION_MAX_SOURCE_CHARS", 8000),
+  publicDomainMaxSourceChars: readPositiveIntEnv(
+    "PUBLIC_DOMAIN_TRANSLATION_MAX_SOURCE_CHARS",
+    40000
+  ),
   estimatedInputJpyPer1kTokens: readNonNegativeNumberEnv(
     "EPISODE_TRANSLATION_ESTIMATED_INPUT_JPY_PER_1K_TOKENS",
     0.2
@@ -89,4 +93,16 @@ export function estimateEpisodeTranslationActualCostJpy(
   return (
     Math.ceil(valueUsd * EPISODE_TRANSLATION_LIMITS.actualUsdJpyRate * 1000) / 1000
   );
+}
+
+
+export function resolveEpisodeTranslationMaxSourceChars(args: {
+  verifiedPublicDomain: boolean;
+}): number {
+  return args.verifiedPublicDomain
+    ? Math.max(
+        EPISODE_TRANSLATION_LIMITS.maxSourceChars,
+        EPISODE_TRANSLATION_LIMITS.publicDomainMaxSourceChars
+      )
+    : EPISODE_TRANSLATION_LIMITS.maxSourceChars;
 }

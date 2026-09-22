@@ -11,6 +11,10 @@ import {
   validatePublicTranslationOutput,
 } from "../src/lib/translation/publicEpisodeTranslation";
 import {
+  EPISODE_TRANSLATION_LIMITS,
+  resolveEpisodeTranslationMaxSourceChars,
+} from "../src/lib/translation/episodeTranslationGenerateLimits";
+import {
   segmentSourceDocument,
 } from "../src/lib/translation/segmentSourceDocument";
 
@@ -135,6 +139,29 @@ function testClassicBatching() {
   );
 }
 
+function testVerifiedPublicDomainLongSourceLimit() {
+  const ordinaryLimit = resolveEpisodeTranslationMaxSourceChars({
+    verifiedPublicDomain: false,
+  });
+  const publicDomainLimit = resolveEpisodeTranslationMaxSourceChars({
+    verifiedPublicDomain: true,
+  });
+
+  assert.equal(
+    ordinaryLimit,
+    EPISODE_TRANSLATION_LIMITS.maxSourceChars,
+    "ordinary works must retain the global source-char guard"
+  );
+  assert.ok(
+    publicDomainLimit >= 40_000,
+    "rights-checked Public Domain works must support the 31.5k-character pilot"
+  );
+  assert.ok(
+    publicDomainLimit > ordinaryLimit,
+    "the Public Domain allowance must not silently expand the ordinary-work limit"
+  );
+}
+
 function testFailureDoesNotConsumeReservation() {
   const source = readFileSync(
     "src/lib/translation/executeEpisodeTranslationGeneration.ts",
@@ -157,9 +184,10 @@ function main() {
   testClassicNormalization();
   testClassicResponseParsing();
   testClassicBatching();
+  testVerifiedPublicDomainLongSourceLimit();
   testFailureDoesNotConsumeReservation();
   console.log(
-    "PASS: public classic normalization, structured response parsing, bounded batching, and failure reservation release"
+    "PASS: public classic normalization, structured response parsing, bounded batching, verified Public Domain long-source limit, and failure reservation release"
   );
 }
 
