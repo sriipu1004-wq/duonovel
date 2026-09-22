@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import batch from "../../public-domain/batches/en-ko-parity-2026-09-23.json";
 
@@ -112,9 +112,20 @@ function makeManifest(entry: Entry) {
 }
 
 const manifests = batch.works.map(makeManifest);
+let preservedApproved = 0;
 for (const manifest of manifests) {
   const path = resolve(process.cwd(), "public-domain/manifests", `${manifest.id}.json`);
   mkdirSync(resolve(process.cwd(), "public-domain/manifests"), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  if (existsSync(path)) {
+    const existing = JSON.parse(readFileSync(path, "utf8")) as typeof manifest;
+    if (existing.approved === true && existing.rights_status === "approved") {
+      if (!existing.source_hash || !existing.reviewed_at || !existing.reviewed_by) {
+        throw new Error(`${manifest.id}: approved manifest is missing pinned provenance/reviewer fields`);
+      }
+      preservedApproved += 1;
+      continue;
+    }
+  }
+  writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\\n`, "utf8");
 }
-console.log(`Generated ${manifests.length} parity manifests`);
+console.log(`Generated/reconciled ${manifests.length} parity manifests; preserved ${preservedApproved} human-approved manifests`);
