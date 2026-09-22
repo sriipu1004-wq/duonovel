@@ -20,7 +20,12 @@ import {
   makePendingAozoraManifest,
 } from "./public-domain/aozora";
 import { isAllowedGutenbergTextUrl } from "./public-domain/gutenberg";
-import { gonguWorkNumberFromLandingUrl, isAllowedGonguTextUrl } from "./public-domain/gongu";
+import {
+  chooseGonguTxtSourceFromPopupHtml,
+  gonguDownloadPopupUrlFromLandingUrl,
+  gonguWorkNumberFromLandingUrl,
+  isAllowedGonguTextUrl,
+} from "./public-domain/gongu";
 import { readPublicDomainMetadata } from "../src/lib/publicDomainMetadata";
 
 function component(
@@ -464,7 +469,26 @@ function testAozoraConservativeCandidatePolicy() {
       "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=3",
       "9002094"
     ),
-    false
+    true
+  );
+  assert.equal(
+    gonguDownloadPopupUrlFromLandingUrl(gonguLanding),
+    "https://gongu.copyright.or.kr/gongu/wrt/wrt/wrtDownPopup.do?viewType=BODY&wrtSn=9002094&menuNo=200030"
+  );
+  const gonguPopup = [
+    '//DEXT5UPLOAD.AddUploadedFile("2", "work.pdf", \'/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=2\', \'120000\', \'\', G_UploadID) ;',
+    '//DEXT5UPLOAD.AddUploadedFile("7", "work.txt", \'/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=7\', \'25250\', \'\', G_UploadID) ;',
+    'DEXT5UPLOAD.AddUploadedFile(n, "share.txt", \'\', \'907\', \'opaque\', G_UploadID) ;',
+  ].join("\n");
+  assert.deepEqual(
+    chooseGonguTxtSourceFromPopupHtml(gonguPopup, "9002094"),
+    {
+      fileSn: "7",
+      fileName: "work.txt",
+      byteLength: 25250,
+      downloadUrl:
+        "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=7",
+    }
   );
   assert.equal(
     isAllowedGonguTextUrl(
