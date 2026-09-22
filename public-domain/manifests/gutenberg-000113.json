@@ -1,0 +1,96 @@
+{
+  "id": "gutenberg-000113",
+  "title": "The Secret Garden",
+  "original_title": "The Secret Garden",
+  "original_author": "Frances Hodgson Burnett",
+  "author_death_year": 1924,
+  "original_language": "en",
+  "first_publication_year": 1911,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/113",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/113/pg113.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-000113.txt",
+  "source_retrieved_at": "2026-09-22T22:15:19.238Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #113 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved this Child73 parity cohort after source preflight and primary-law framework review. The Secret Garden was first published in 1911; Frances Hodgson Burnett died in 1924. Exact Project Gutenberg source provenance and SHA-256 are pinned. Scope is original-language literary text only; modern translations, covers, illustrations and provider boilerplate are excluded.",
+  "rights_notes": "Human rights approval recorded 2026-09-23 by LIB read operator (explicit user approval in Child72 continuation). Reviewed jurisdictions: JP, US, KR.",
+  "rights_components": {
+    "original_work": {
+      "status": "approved",
+      "basis": "Original work screened by publication year 1911 and author death year 1924 under the JP/US/KR cohort framework.",
+      "notes": ""
+    },
+    "edition": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "approved",
+      "basis": "Project Gutenberg item status/provider terms reviewed; PG boilerplate excluded from Reader text.",
+      "notes": "Source landing: https://www.gutenberg.org/ebooks/113"
+    }
+  },
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-23T08:19:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 continuation)",
+  "chapter_count": 15,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "児童文学"
+  ],
+  "tags": [
+    "自然",
+    "友情",
+    "家族"
+  ],
+  "source_hash": "6b0bb5fbd0c4e873d2d22028da9d753cf3977d5f70ac58221556b28060badbf5",
+  "approved": true,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

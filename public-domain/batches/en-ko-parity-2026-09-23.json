@@ -1,0 +1,1262 @@
+{
+  "id": "en-ko-parity-2026-09-23",
+  "target": {
+    "ja": 40,
+    "en": 40,
+    "ko": 40
+  },
+  "baseline": {
+    "ja": 40,
+    "en": 2,
+    "ko": 3
+  },
+  "additions": {
+    "en": 38,
+    "ko": 37
+  },
+  "selection_policy": {
+    "original_language_only": true,
+    "first_publication_year_max": 1930,
+    "author_death_year_max": 1955,
+    "reviewed_jurisdictions": [
+      "JP",
+      "US",
+      "KR"
+    ],
+    "providers": [
+      "Project Gutenberg",
+      "Gongu Madang / Korea Copyright Commission"
+    ],
+    "no_modern_translations": true,
+    "no_covers_or_illustrations": true,
+    "english_author_death_year_max": 1944,
+    "korean_author_death_year_max": 1955,
+    "japan_wartime_addition_screened": true
+  },
+  "works": [
+    {
+      "provider": "gutenberg",
+      "provider_id": 1342,
+      "title": "Pride and Prejudice",
+      "author": "Jane Austen",
+      "author_death_year": 1817,
+      "first_publication_year": 1813,
+      "genres": [
+        "恋愛",
+        "文芸"
+      ],
+      "tags": [
+        "恋愛",
+        "家族",
+        "社会批評"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 84,
+      "title": "Frankenstein; or, the Modern Prometheus",
+      "author": "Mary Wollstonecraft Shelley",
+      "author_death_year": 1851,
+      "first_publication_year": 1818,
+      "genres": [
+        "ホラー",
+        "SF"
+      ],
+      "tags": [
+        "怪奇",
+        "心理",
+        "悲劇"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 345,
+      "title": "Dracula",
+      "author": "Bram Stoker",
+      "author_death_year": 1912,
+      "first_publication_year": 1897,
+      "genres": [
+        "ホラー"
+      ],
+      "tags": [
+        "怪奇",
+        "サスペンス",
+        "戦闘"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 174,
+      "title": "The Picture of Dorian Gray",
+      "author": "Oscar Wilde",
+      "author_death_year": 1900,
+      "first_publication_year": 1890,
+      "genres": [
+        "ホラー",
+        "文芸"
+      ],
+      "tags": [
+        "心理",
+        "欲望",
+        "怪奇"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 1661,
+      "title": "The Adventures of Sherlock Holmes",
+      "author": "Arthur Conan Doyle",
+      "author_death_year": 1930,
+      "first_publication_year": 1892,
+      "genres": [
+        "ミステリー"
+      ],
+      "tags": [
+        "探偵",
+        "ミステリー",
+        "サスペンス"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 244,
+      "title": "A Study in Scarlet",
+      "author": "Arthur Conan Doyle",
+      "author_death_year": 1930,
+      "first_publication_year": 1887,
+      "genres": [
+        "ミステリー"
+      ],
+      "tags": [
+        "探偵",
+        "ミステリー",
+        "サスペンス"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 2852,
+      "title": "The Hound of the Baskervilles",
+      "author": "Arthur Conan Doyle",
+      "author_death_year": 1930,
+      "first_publication_year": 1902,
+      "genres": [
+        "ミステリー",
+        "ホラー"
+      ],
+      "tags": [
+        "探偵",
+        "ミステリー",
+        "怪奇"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 2701,
+      "title": "Moby Dick; Or, The Whale",
+      "author": "Herman Melville",
+      "author_death_year": 1891,
+      "first_publication_year": 1851,
+      "genres": [
+        "冒険",
+        "文芸"
+      ],
+      "tags": [
+        "冒険",
+        "動物",
+        "心理"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 541,
+      "title": "The Age of Innocence",
+      "author": "Edith Wharton",
+      "author_death_year": 1937,
+      "first_publication_year": 1920,
+      "genres": [
+        "文芸",
+        "恋愛"
+      ],
+      "tags": [
+        "恋愛",
+        "社会批評",
+        "人間関係"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 73,
+      "title": "The Red Badge of Courage: An Episode of the American Civil War",
+      "author": "Stephen Crane",
+      "author_death_year": 1900,
+      "first_publication_year": 1895,
+      "genres": [
+        "歴史",
+        "文芸"
+      ],
+      "tags": [
+        "戦闘",
+        "心理",
+        "青春"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 77,
+      "title": "The House of the Seven Gables",
+      "author": "Nathaniel Hawthorne",
+      "author_death_year": 1864,
+      "first_publication_year": 1851,
+      "genres": [
+        "ホラー",
+        "文芸"
+      ],
+      "tags": [
+        "怪奇",
+        "家族",
+        "罪悪感"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 55,
+      "title": "The Wonderful Wizard of Oz",
+      "author": "L. Frank Baum",
+      "author_death_year": 1919,
+      "first_publication_year": 1900,
+      "genres": [
+        "児童文学",
+        "ファンタジー"
+      ],
+      "tags": [
+        "冒険",
+        "友情",
+        "不思議"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 113,
+      "title": "The Secret Garden",
+      "author": "Frances Hodgson Burnett",
+      "author_death_year": 1924,
+      "first_publication_year": 1911,
+      "genres": [
+        "児童文学"
+      ],
+      "tags": [
+        "自然",
+        "友情",
+        "家族"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 120,
+      "title": "Treasure Island",
+      "author": "Robert Louis Stevenson",
+      "author_death_year": 1894,
+      "first_publication_year": 1883,
+      "genres": [
+        "冒険",
+        "児童文学"
+      ],
+      "tags": [
+        "冒険",
+        "少年",
+        "戦闘"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 16,
+      "title": "Peter Pan",
+      "author": "J. M. Barrie",
+      "author_death_year": 1937,
+      "first_publication_year": 1911,
+      "genres": [
+        "児童文学",
+        "ファンタジー"
+      ],
+      "tags": [
+        "冒険",
+        "少年",
+        "少女"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 514,
+      "title": "Little Women",
+      "author": "Louisa May Alcott",
+      "author_death_year": 1888,
+      "first_publication_year": 1868,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "家族",
+        "青春",
+        "人間関係"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 45,
+      "title": "Anne of Green Gables",
+      "author": "L. M. Montgomery",
+      "author_death_year": 1942,
+      "first_publication_year": 1908,
+      "genres": [
+        "児童文学",
+        "青春"
+      ],
+      "tags": [
+        "少女",
+        "家族",
+        "友情"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 74,
+      "title": "The Adventures of Tom Sawyer",
+      "author": "Mark Twain",
+      "author_death_year": 1910,
+      "first_publication_year": 1876,
+      "genres": [
+        "児童文学",
+        "冒険"
+      ],
+      "tags": [
+        "少年",
+        "冒険",
+        "友情"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 76,
+      "title": "Adventures of Huckleberry Finn",
+      "author": "Mark Twain",
+      "author_death_year": 1910,
+      "first_publication_year": 1884,
+      "genres": [
+        "冒険",
+        "児童文学"
+      ],
+      "tags": [
+        "少年",
+        "冒険",
+        "社会批評"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 215,
+      "title": "The Call of the Wild",
+      "author": "Jack London",
+      "author_death_year": 1916,
+      "first_publication_year": 1903,
+      "genres": [
+        "冒険"
+      ],
+      "tags": [
+        "動物",
+        "自然",
+        "冒険"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 910,
+      "title": "White Fang",
+      "author": "Jack London",
+      "author_death_year": 1916,
+      "first_publication_year": 1906,
+      "genres": [
+        "冒険"
+      ],
+      "tags": [
+        "動物",
+        "自然",
+        "冒険"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 236,
+      "title": "The Jungle Book",
+      "author": "Rudyard Kipling",
+      "author_death_year": 1936,
+      "first_publication_year": 1894,
+      "genres": [
+        "児童文学",
+        "冒険"
+      ],
+      "tags": [
+        "動物",
+        "自然",
+        "冒険"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 27805,
+      "title": "The Wind in the Willows",
+      "author": "Kenneth Grahame",
+      "author_death_year": 1932,
+      "first_publication_year": 1908,
+      "genres": [
+        "児童文学",
+        "ファンタジー"
+      ],
+      "tags": [
+        "動物",
+        "友情",
+        "自然"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 43,
+      "title": "The Strange Case of Dr. Jekyll and Mr. Hyde",
+      "author": "Robert Louis Stevenson",
+      "author_death_year": 1894,
+      "first_publication_year": 1886,
+      "genres": [
+        "ホラー"
+      ],
+      "tags": [
+        "心理",
+        "怪奇",
+        "欲望"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 209,
+      "title": "The Turn of the Screw",
+      "author": "Henry James",
+      "author_death_year": 1916,
+      "first_publication_year": 1898,
+      "genres": [
+        "ホラー"
+      ],
+      "tags": [
+        "怪奇",
+        "心理",
+        "不穏"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 41,
+      "title": "The Legend of Sleepy Hollow",
+      "author": "Washington Irving",
+      "author_death_year": 1859,
+      "first_publication_year": 1820,
+      "genres": [
+        "ホラー",
+        "ファンタジー"
+      ],
+      "tags": [
+        "怪奇",
+        "不穏",
+        "短編"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 932,
+      "title": "The Fall of the House of Usher",
+      "author": "Edgar Allan Poe",
+      "author_death_year": 1849,
+      "first_publication_year": 1839,
+      "genres": [
+        "ホラー"
+      ],
+      "tags": [
+        "怪奇",
+        "狂気",
+        "暗め"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 844,
+      "title": "The Importance of Being Earnest",
+      "author": "Oscar Wilde",
+      "author_death_year": 1900,
+      "first_publication_year": 1895,
+      "genres": [
+        "コメディ"
+      ],
+      "tags": [
+        "恋愛",
+        "風刺",
+        "社会批評"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 46,
+      "title": "A Christmas Carol",
+      "author": "Charles Dickens",
+      "author_death_year": 1870,
+      "first_publication_year": 1843,
+      "genres": [
+        "ファンタジー"
+      ],
+      "tags": [
+        "家族",
+        "社会批評",
+        "不思議"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 1400,
+      "title": "Great Expectations",
+      "author": "Charles Dickens",
+      "author_death_year": 1870,
+      "first_publication_year": 1861,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "青春",
+        "社会批評",
+        "恋愛"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 730,
+      "title": "Oliver Twist",
+      "author": "Charles Dickens",
+      "author_death_year": 1870,
+      "first_publication_year": 1838,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "貧困",
+        "少年",
+        "社会批評"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 98,
+      "title": "A Tale of Two Cities",
+      "author": "Charles Dickens",
+      "author_death_year": 1870,
+      "first_publication_year": 1859,
+      "genres": [
+        "歴史",
+        "文芸"
+      ],
+      "tags": [
+        "歴史",
+        "恋愛",
+        "自己犠牲"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 766,
+      "title": "David Copperfield",
+      "author": "Charles Dickens",
+      "author_death_year": 1870,
+      "first_publication_year": 1850,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "青春",
+        "家族",
+        "社会批評"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 768,
+      "title": "Wuthering Heights",
+      "author": "Emily Brontë",
+      "author_death_year": 1848,
+      "first_publication_year": 1847,
+      "genres": [
+        "文芸",
+        "恋愛"
+      ],
+      "tags": [
+        "恋愛",
+        "家族",
+        "暗め"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 1260,
+      "title": "Jane Eyre",
+      "author": "Charlotte Brontë",
+      "author_death_year": 1855,
+      "first_publication_year": 1847,
+      "genres": [
+        "文芸",
+        "恋愛"
+      ],
+      "tags": [
+        "恋愛",
+        "青春",
+        "社会批評"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 158,
+      "title": "Emma",
+      "author": "Jane Austen",
+      "author_death_year": 1817,
+      "first_publication_year": 1815,
+      "genres": [
+        "文芸",
+        "恋愛"
+      ],
+      "tags": [
+        "恋愛",
+        "人間関係",
+        "風刺"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 161,
+      "title": "Sense and Sensibility",
+      "author": "Jane Austen",
+      "author_death_year": 1817,
+      "first_publication_year": 1811,
+      "genres": [
+        "文芸",
+        "恋愛"
+      ],
+      "tags": [
+        "恋愛",
+        "家族",
+        "社会批評"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 105,
+      "title": "Persuasion",
+      "author": "Jane Austen",
+      "author_death_year": 1817,
+      "first_publication_year": 1817,
+      "genres": [
+        "文芸",
+        "恋愛"
+      ],
+      "tags": [
+        "恋愛",
+        "家族",
+        "人間関係"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000559,
+      "title": "나비의 꿈",
+      "author": "방정환",
+      "author_death_year": 1931,
+      "first_publication_year": 1923,
+      "genres": [
+        "児童文学"
+      ],
+      "tags": [
+        "童話",
+        "夢",
+        "不思議"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9002117,
+      "title": "고향",
+      "author": "현진건",
+      "author_death_year": 1943,
+      "first_publication_year": 1926,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "貧困",
+        "社会批評",
+        "郷土"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9029774,
+      "title": "향수(鄕愁)",
+      "author": "정지용",
+      "author_death_year": 1950,
+      "first_publication_year": 1927,
+      "genres": [
+        "詩歌"
+      ],
+      "tags": [
+        "詩",
+        "郷土",
+        "自然"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000094,
+      "title": "배따라기",
+      "author": "김동인",
+      "author_death_year": 1951,
+      "first_publication_year": 1921,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "家族",
+        "悲劇",
+        "人間関係"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9002097,
+      "title": "할머니의 죽음",
+      "author": "현진건",
+      "author_death_year": 1943,
+      "first_publication_year": 1923,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "家族",
+        "死",
+        "人間関係"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9001769,
+      "title": "그를 보내며",
+      "author": "한용운",
+      "author_death_year": 1944,
+      "first_publication_year": 1926,
+      "genres": [
+        "詩歌"
+      ],
+      "tags": [
+        "詩",
+        "喪失",
+        "恋愛"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000320,
+      "title": "진달래꽃",
+      "author": "김소월",
+      "author_death_year": 1934,
+      "first_publication_year": 1922,
+      "genres": [
+        "詩歌"
+      ],
+      "tags": [
+        "詩",
+        "恋愛",
+        "喪失"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9033630,
+      "title": "조선혁명선언(朝鮮革命宣言)",
+      "author": "신채호",
+      "author_death_year": 1936,
+      "first_publication_year": 1923,
+      "genres": [
+        "随筆・評論"
+      ],
+      "tags": [
+        "歴史",
+        "社会批評",
+        "思索"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9031938,
+      "title": "윤광호(尹光浩)",
+      "author": "이광수",
+      "author_death_year": 1950,
+      "first_publication_year": 1918,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "青春",
+        "恋愛",
+        "心理"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000385,
+      "title": "난파(難破)",
+      "author": "김우진",
+      "author_death_year": 1926,
+      "first_publication_year": 1926,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "家族",
+        "心理",
+        "悲劇"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000350,
+      "title": "모란이 피기까지는",
+      "author": "김영랑",
+      "author_death_year": 1950,
+      "first_publication_year": 1930,
+      "genres": [
+        "詩歌"
+      ],
+      "tags": [
+        "詩",
+        "自然",
+        "喪失"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000456,
+      "title": "벙어리 삼룡이",
+      "author": "나도향",
+      "author_death_year": 1926,
+      "first_publication_year": 1925,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "恋愛",
+        "悲劇",
+        "社会批評"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9029675,
+      "title": "두 가지 마음 성(性)",
+      "author": "방정환",
+      "author_death_year": 1931,
+      "first_publication_year": 1927,
+      "genres": [
+        "児童文学"
+      ],
+      "tags": [
+        "童話",
+        "心理",
+        "人間関係"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9001754,
+      "title": "님의 손길",
+      "author": "한용운",
+      "author_death_year": 1944,
+      "first_publication_year": 1926,
+      "genres": [
+        "詩歌"
+      ],
+      "tags": [
+        "詩",
+        "恋愛",
+        "思索"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000387,
+      "title": "산돼지",
+      "author": "김우진",
+      "author_death_year": 1926,
+      "first_publication_year": 1926,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "心理",
+        "社会批評",
+        "悲劇"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000558,
+      "title": "꼬부랑할머니",
+      "author": "방정환",
+      "author_death_year": 1931,
+      "first_publication_year": 1928,
+      "genres": [
+        "児童文学"
+      ],
+      "tags": [
+        "童話",
+        "家族",
+        "不思議"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000127,
+      "title": "태형",
+      "author": "김동인",
+      "author_death_year": 1951,
+      "first_publication_year": 1922,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "社会批評",
+        "心理",
+        "暗め"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000078,
+      "title": "광염 소나타",
+      "author": "김동인",
+      "author_death_year": 1951,
+      "first_publication_year": 1930,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "芸術",
+        "狂気",
+        "心理"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000075,
+      "title": "감자",
+      "author": "김동인",
+      "author_death_year": 1951,
+      "first_publication_year": 1925,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "貧困",
+        "社会批評",
+        "悲劇"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9002093,
+      "title": "타락자(墮落者)",
+      "author": "현진건",
+      "author_death_year": 1943,
+      "first_publication_year": 1922,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "心理",
+        "社会批評",
+        "暗め"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000113,
+      "title": "약한 자의 슬픔",
+      "author": "김동인",
+      "author_death_year": 1951,
+      "first_publication_year": 1919,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "恋愛",
+        "社会批評",
+        "心理"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000088,
+      "title": "명문",
+      "author": "김동인",
+      "author_death_year": 1951,
+      "first_publication_year": 1925,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "社会批評",
+        "家族",
+        "人間関係"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9002101,
+      "title": "사립 정신병원장",
+      "author": "현진건",
+      "author_death_year": 1943,
+      "first_publication_year": 1926,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "心理",
+        "社会批評",
+        "暗め"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000086,
+      "title": "딸의 업을 이으려",
+      "author": "김동인",
+      "author_death_year": 1951,
+      "first_publication_year": 1927,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "家族",
+        "社会批評",
+        "貧困"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000117,
+      "title": "유서",
+      "author": "김동인",
+      "author_death_year": 1951,
+      "first_publication_year": 1924,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "心理",
+        "暗め",
+        "人間関係"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000090,
+      "title": "목숨",
+      "author": "김동인",
+      "author_death_year": 1951,
+      "first_publication_year": 1921,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "死",
+        "心理",
+        "暗め"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9001666,
+      "title": "그리운어린 때",
+      "author": "최서해",
+      "author_death_year": 1932,
+      "first_publication_year": 1925,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "回想",
+        "家族",
+        "青春"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000455,
+      "title": "물레방아",
+      "author": "나도향",
+      "author_death_year": 1926,
+      "first_publication_year": 1925,
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "恋愛",
+        "悲劇",
+        "社会批評"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000294,
+      "title": "엄마야 누나야",
+      "author": "김소월",
+      "author_death_year": 1934,
+      "first_publication_year": 1922,
+      "genres": [
+        "詩歌"
+      ],
+      "tags": [
+        "詩",
+        "家族",
+        "自然"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9029202,
+      "title": "산유화(山有花)",
+      "author": "김소월",
+      "author_death_year": 1934,
+      "first_publication_year": 1924,
+      "genres": [
+        "詩歌"
+      ],
+      "tags": [
+        "詩",
+        "自然",
+        "孤独"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000318,
+      "title": "접동새",
+      "author": "김소월",
+      "author_death_year": 1934,
+      "first_publication_year": 1923,
+      "genres": [
+        "詩歌"
+      ],
+      "tags": [
+        "詩",
+        "家族",
+        "悲劇"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000583,
+      "title": "칠칠단의 비밀",
+      "author": "방정환",
+      "author_death_year": 1931,
+      "first_publication_year": 1926,
+      "genres": [
+        "児童文学",
+        "冒険"
+      ],
+      "tags": [
+        "少年",
+        "冒険",
+        "サスペンス"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9000251,
+      "title": "먼 후일",
+      "author": "김소월",
+      "author_death_year": 1934,
+      "first_publication_year": 1920,
+      "genres": [
+        "詩歌"
+      ],
+      "tags": [
+        "詩",
+        "恋愛",
+        "喪失"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9029192,
+      "title": "초혼(招魂)",
+      "author": "김소월",
+      "author_death_year": 1934,
+      "first_publication_year": 1925,
+      "genres": [
+        "詩歌"
+      ],
+      "tags": [
+        "詩",
+        "死",
+        "喪失"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9001758,
+      "title": "복종(服從)",
+      "author": "한용운",
+      "author_death_year": 1944,
+      "first_publication_year": 1926,
+      "genres": [
+        "詩歌"
+      ],
+      "tags": [
+        "詩",
+        "恋愛",
+        "思索"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9001836,
+      "title": "나룻배와 행인(行人)",
+      "author": "한용운",
+      "author_death_year": 1944,
+      "first_publication_year": 1926,
+      "genres": [
+        "詩歌"
+      ],
+      "tags": [
+        "詩",
+        "恋愛",
+        "思索"
+      ]
+    },
+    {
+      "provider": "gongu",
+      "provider_id": 9029657,
+      "title": "만년 셔츠",
+      "author": "방정환",
+      "author_death_year": 1931,
+      "first_publication_year": 1927,
+      "genres": [
+        "児童文学"
+      ],
+      "tags": [
+        "少年",
+        "家族",
+        "貧困"
+      ]
+    }
+  ]
+}

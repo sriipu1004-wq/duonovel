@@ -1,0 +1,97 @@
+{
+  "id": "gutenberg-000055",
+  "title": "The Wonderful Wizard of Oz",
+  "original_title": "The Wonderful Wizard of Oz",
+  "original_author": "L. Frank Baum",
+  "author_death_year": 1919,
+  "original_language": "en",
+  "first_publication_year": 1900,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/55",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/55/pg55.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-000055.txt",
+  "source_retrieved_at": "2026-09-22T22:15:18.305Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #55 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved this Child73 parity cohort after source preflight and primary-law framework review. The Wonderful Wizard of Oz was first published in 1900; L. Frank Baum died in 1919. Exact Project Gutenberg source provenance and SHA-256 are pinned. Scope is original-language literary text only; modern translations, covers, illustrations and provider boilerplate are excluded.",
+  "rights_notes": "Human rights approval recorded 2026-09-23 by LIB read operator (explicit user approval in Child72 continuation). Reviewed jurisdictions: JP, US, KR.",
+  "rights_components": {
+    "original_work": {
+      "status": "approved",
+      "basis": "Original work screened by publication year 1900 and author death year 1919 under the JP/US/KR cohort framework.",
+      "notes": ""
+    },
+    "edition": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "approved",
+      "basis": "Project Gutenberg item status/provider terms reviewed; PG boilerplate excluded from Reader text.",
+      "notes": "Source landing: https://www.gutenberg.org/ebooks/55"
+    }
+  },
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-23T08:19:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 continuation)",
+  "chapter_count": 7,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "児童文学",
+    "ファンタジー"
+  ],
+  "tags": [
+    "冒険",
+    "友情",
+    "不思議"
+  ],
+  "source_hash": "969bffab7740d4d8a0bac332d78bd0152ad4a40a2efc52f06c74a9bb6120be75",
+  "approved": true,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

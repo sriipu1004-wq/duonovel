@@ -1,0 +1,96 @@
+{
+  "id": "gutenberg-000766",
+  "title": "David Copperfield",
+  "original_title": "David Copperfield",
+  "original_author": "Charles Dickens",
+  "author_death_year": 1870,
+  "original_language": "en",
+  "first_publication_year": 1850,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/766",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/766/pg766.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-000766.txt",
+  "source_retrieved_at": "2026-09-22T22:15:38.526Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #766 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved this Child73 parity cohort after source preflight and primary-law framework review. David Copperfield was first published in 1850; Charles Dickens died in 1870. Exact Project Gutenberg source provenance and SHA-256 are pinned. Scope is original-language literary text only; modern translations, covers, illustrations and provider boilerplate are excluded.",
+  "rights_notes": "Human rights approval recorded 2026-09-23 by LIB read operator (explicit user approval in Child72 continuation). Reviewed jurisdictions: JP, US, KR.",
+  "rights_components": {
+    "original_work": {
+      "status": "approved",
+      "basis": "Original work screened by publication year 1850 and author death year 1870 under the JP/US/KR cohort framework.",
+      "notes": ""
+    },
+    "edition": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "approved",
+      "basis": "Project Gutenberg item status/provider terms reviewed; PG boilerplate excluded from Reader text.",
+      "notes": "Source landing: https://www.gutenberg.org/ebooks/766"
+    }
+  },
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-23T08:19:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 continuation)",
+  "chapter_count": 66,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "文芸"
+  ],
+  "tags": [
+    "青春",
+    "家族",
+    "社会批評"
+  ],
+  "source_hash": "51650d348820a64ca4d4233da035f804819d2231801b59373db4e1279a1985e0",
+  "approved": true,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

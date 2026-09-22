@@ -1,0 +1,96 @@
+{
+  "id": "gongu-9000456",
+  "title": "벙어리 삼룡이",
+  "original_title": "벙어리 삼룡이",
+  "original_author": "나도향",
+  "author_death_year": 1926,
+  "original_language": "ko",
+  "first_publication_year": 1925,
+  "source_provider": "Gongu Madang / Korea Copyright Commission",
+  "source_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9000456",
+  "source_download_url": "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9000456&fileSn=3",
+  "source_file": "public-domain/sources/raw/gongu-9000456.txt",
+  "source_retrieved_at": "2026-09-22T22:16:26.543Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gongu_madang",
+  "edition": "Korea Copyright Commission/Gongu Madang expired-work TXT: 나경손-벙어리_삼룡이-여명.txt",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved this Child73 parity cohort after source preflight and primary-law framework review. 벙어리 삼룡이 was first published in 1925; 나도향 died in 1926. Exact Gongu Madang / Korea Copyright Commission source provenance and SHA-256 are pinned. Scope is original-language literary text only; modern translations, covers, illustrations and provider boilerplate are excluded.",
+  "rights_notes": "Human rights approval recorded 2026-09-23 by LIB read operator (explicit user approval in Child72 continuation). Reviewed jurisdictions: JP, US, KR.",
+  "rights_components": {
+    "original_work": {
+      "status": "approved",
+      "basis": "Original work screened by publication year 1925 and author death year 1926 under the JP/US/KR cohort framework.",
+      "notes": ""
+    },
+    "edition": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "approved",
+      "basis": "Gongu Madang/Korea Copyright Commission rights label/provider source reviewed; only literary text imported.",
+      "notes": "Source landing: https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9000456"
+    }
+  },
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-23T08:19:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 continuation)",
+  "chapter_count": 1,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "文芸"
+  ],
+  "tags": [
+    "恋愛",
+    "悲劇",
+    "社会批評"
+  ],
+  "source_hash": "268c57ff5ce728f093dbf7db3c75a282cd3c9dd88eb739c9e831b3492914904c",
+  "approved": true,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

@@ -1,0 +1,97 @@
+{
+  "id": "gutenberg-000098",
+  "title": "A Tale of Two Cities",
+  "original_title": "A Tale of Two Cities",
+  "original_author": "Charles Dickens",
+  "author_death_year": 1870,
+  "original_language": "en",
+  "first_publication_year": 1859,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/98",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/98/pg98.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-000098.txt",
+  "source_retrieved_at": "2026-09-22T22:15:37.475Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #98 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved this Child73 parity cohort after source preflight and primary-law framework review. A Tale of Two Cities was first published in 1859; Charles Dickens died in 1870. Exact Project Gutenberg source provenance and SHA-256 are pinned. Scope is original-language literary text only; modern translations, covers, illustrations and provider boilerplate are excluded.",
+  "rights_notes": "Human rights approval recorded 2026-09-23 by LIB read operator (explicit user approval in Child72 continuation). Reviewed jurisdictions: JP, US, KR.",
+  "rights_components": {
+    "original_work": {
+      "status": "approved",
+      "basis": "Original work screened by publication year 1859 and author death year 1870 under the JP/US/KR cohort framework.",
+      "notes": ""
+    },
+    "edition": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "approved",
+      "basis": "Project Gutenberg item status/provider terms reviewed; PG boilerplate excluded from Reader text.",
+      "notes": "Source landing: https://www.gutenberg.org/ebooks/98"
+    }
+  },
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-23T08:19:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 continuation)",
+  "chapter_count": 26,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "歴史",
+    "文芸"
+  ],
+  "tags": [
+    "歴史",
+    "恋愛",
+    "自己犠牲"
+  ],
+  "source_hash": "d54c2b80d40a40b982cd88852c6180bb944d95acdb028af3d0e01a1750681784",
+  "approved": true,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

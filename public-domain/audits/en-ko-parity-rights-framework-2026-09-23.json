@@ -1,0 +1,63 @@
+{
+  "generated_at": "2026-09-23",
+  "batch_id": "en-ko-parity-2026-09-23",
+  "review_stage": "HUMAN_APPROVED",
+  "target": {
+    "ja": 40,
+    "en": 40,
+    "ko": 40
+  },
+  "principles": [
+    "Original-language source text only; no modern translations.",
+    "No cover or illustration assets are imported.",
+    "Every selected work must retain an exact provider landing URL, allowlisted TXT source, pinned SHA-256, and prepared chapter count.",
+    "Project Gutenberg items must continue to state Public domain in the USA on the exact item landing page.",
+    "Gongu items must continue to expose an expired/free-use label and an allowlisted per-item TXT source.",
+    "No candidate may be approved or imported merely from this AI-assisted precheck."
+  ],
+  "legal_framework": {
+    "us": {
+      "basis": "For pre-1978/restored foreign works, the U.S. Copyright Office states that restored copyright receives the remainder of the term the work would have had, generally 95 years from first publication for pre-1978 published works. The batch requires first publication no later than 1930, so even a restored 1930 work reaches the end of a 95-year term by the end of 2025.",
+      "sources": [
+        "https://www.copyright.gov/circs/circ38b.pdf",
+        "https://www.copyright.gov/title17/92chap1.html"
+      ]
+    },
+    "japan": {
+      "basis": "Japan generally uses life plus 70, applies shorter-term reciprocity where the foreign source-country term is shorter, and retains wartime additions for certain Allied works. To avoid relying on a simplistic life+70 calculation, the English cohort is screened to author death year 1944 or earlier; the actual selected cohort currently tops out at 1942.",
+      "sources": [
+        "https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html"
+      ]
+    },
+    "korea": {
+      "basis": "Korean Copyright Act Article 39 states life plus 70. Article 3(4) provides that a foreign work whose term has expired in its source country does not receive a Korean term. Korean-source candidates are additionally required to be labelled expired/free-use by the Korea Copyright Commission provider.",
+      "sources": [
+        "https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1029475235",
+        "https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1033063625"
+      ]
+    }
+  },
+  "cohort_rules": {
+    "en": {
+      "additions": 38,
+      "first_publication_year_max": 1930,
+      "author_death_year_max": 1944,
+      "actual_author_death_year_max": 1942,
+      "provider": "Project Gutenberg"
+    },
+    "ko": {
+      "additions": 37,
+      "first_publication_year_max": 1930,
+      "author_death_year_max": 1955,
+      "actual_author_death_year_max": 1951,
+      "provider": "Gongu Madang / Korea Copyright Commission"
+    }
+  },
+  "approval_state": "HUMAN_APPROVED",
+  "human_approval": {
+    "approved": true,
+    "approved_at": "2026-09-23T08:19:00+10:00",
+    "approved_by": "LIB read operator (explicit user approval in Child72 continuation)",
+    "scope": "All 75 preflighted EN/KO parity candidates under this batch; approval covers original-language literary text only and excludes modern translations, covers and illustrations."
+  }
+}

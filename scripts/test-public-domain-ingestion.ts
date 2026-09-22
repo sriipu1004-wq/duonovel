@@ -20,7 +20,13 @@ import {
   makePendingAozoraManifest,
 } from "./public-domain/aozora";
 import { isAllowedGutenbergTextUrl } from "./public-domain/gutenberg";
-import { gonguWorkNumberFromLandingUrl, isAllowedGonguTextUrl } from "./public-domain/gongu";
+import {
+  chooseGonguTxtSourceFromPopupHtml,
+  detectGonguTextEncoding,
+  gonguDownloadPopupUrlFromLandingUrl,
+  gonguWorkNumberFromLandingUrl,
+  isAllowedGonguTextUrl,
+} from "./public-domain/gongu";
 import { readPublicDomainMetadata } from "../src/lib/publicDomainMetadata";
 
 function component(
@@ -75,7 +81,8 @@ function approvedManifest(
     reviewed_by: "LIB read operator",
     chapter_count: 1,
     chapter_split: { strategy: "single" },
-    tags: ["fixture"],
+    genres: ["文芸"],
+    tags: ["心理"],
     source_hash:
       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     approved: true,
@@ -213,6 +220,51 @@ function testChapterValidationAndSingleEpisode() {
   assert.equal(chapters[0]?.body, "short story body");
 }
 
+function testParagraphChunkSplitFixture() {
+  const paragraphA = "A".repeat(4_000);
+  const paragraphB = "B".repeat(4_000);
+  const paragraphC = "C".repeat(4_000);
+  const source = [paragraphA, paragraphB, paragraphC].join("\n\n");
+  const chapters = splitChapters(source, {
+    title: "Chunked Book",
+    chapter_split: {
+      strategy: "paragraph_chunks",
+      max_characters: 5_000,
+    },
+  });
+
+  assert.equal(chapters.length, 3);
+  assert.deepEqual(
+    chapters.map((chapter) => chapter.body),
+    [paragraphA, paragraphB, paragraphC]
+  );
+  assert.ok(
+    chapters.every((chapter) => chapter.characterCount <= 5_000),
+    "paragraph chunking must honor the configured maximum when natural paragraph boundaries exist"
+  );
+  assert.deepEqual(
+    chapters.map((chapter) => chapter.title),
+    [
+      "Chunked Book — Part 1",
+      "Chunked Book — Part 2",
+      "Chunked Book — Part 3",
+    ]
+  );
+
+  const invalid = validateManifest({
+    ...approvedManifest(),
+    chapter_split: {
+      strategy: "paragraph_chunks",
+      max_characters: 4_999,
+    },
+  });
+  assert.equal(invalid.ok, false);
+  assert.equal(
+    invalid.errors.some((error) => error.includes("max_characters")),
+    true
+  );
+}
+
 function testHeadingSplitFixture() {
   const chapters = splitChapters(
     ["Preface", "", "CHAPTER I", "Alpha", "", "CHAPTER II", "Beta"].join("\n"),
@@ -298,12 +350,30 @@ function testPreparedArtifactAndDraftPlan() {
   assert.equal(plan.series.is_public, false);
   assert.equal(plan.series.source_language, "ja");
   assert.equal(plan.series.translation_permission_mode, "closed");
-  assert.equal(plan.series.recording_permission_mode, "closed");
+  assert.equal(plan.series.recording_permission_mode, "open");
+  assert.deepEqual(plan.series.genres, ["文芸"]);
+  assert.deepEqual(plan.series.tags, ["心理"]);
+  assert.equal(plan.series.title, "Fixture・Public Domain Author");
   assert.equal(plan.episodes.length, 1);
   assert.equal(plan.episodes[0]?.posting_status, "draft");
   assert.equal(plan.episodes[0]?.is_published, false);
   assert.equal(plan.episodes[0]?.posted_at, null);
   assert.equal(plan.episodes[0]?.scheduled_for, null);
+}
+
+function testGonguEncodingDetection() {
+  assert.equal(
+    detectGonguTextEncoding(new TextEncoder().encode("한글 UTF-8")),
+    "utf-8"
+  );
+  assert.equal(
+    detectGonguTextEncoding(new Uint8Array([0xb0, 0xa1])),
+    "euc-kr"
+  );
+  assert.equal(
+    detectGonguTextEncoding(new Uint8Array([0x81])),
+    null
+  );
 }
 
 function testKoreanSourceLanguage() {
@@ -415,7 +485,26 @@ function testAozoraConservativeCandidatePolicy() {
       "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=3",
       "9002094"
     ),
-    false
+    true
+  );
+  assert.equal(
+    gonguDownloadPopupUrlFromLandingUrl(gonguLanding),
+    "https://gongu.copyright.or.kr/gongu/wrt/wrt/wrtDownPopup.do?viewType=BODY&wrtSn=9002094&menuNo=200030"
+  );
+  const gonguPopup = [
+    '//DEXT5UPLOAD.AddUploadedFile("2", "work.pdf", \'/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=2\', \'120000\', \'\', G_UploadID) ;',
+    '//DEXT5UPLOAD.AddUploadedFile("7", "work.txt", \'/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=7\', \'25250\', \'\', G_UploadID) ;',
+    'DEXT5UPLOAD.AddUploadedFile(n, "share.txt", \'\', \'907\', \'opaque\', G_UploadID) ;',
+  ].join("\n");
+  assert.deepEqual(
+    chooseGonguTxtSourceFromPopupHtml(gonguPopup, "9002094"),
+    {
+      fileSn: "7",
+      fileName: "work.txt",
+      byteLength: 25250,
+      downloadUrl:
+        "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002094&fileSn=7",
+    }
   );
   assert.equal(
     isAllowedGonguTextUrl(
@@ -575,17 +664,19 @@ function main() {
   testSourceHash();
   testDuplicateDetection();
   testChapterValidationAndSingleEpisode();
+  testParagraphChunkSplitFixture();
   testHeadingSplitFixture();
   testHeadingSplitCanDropProviderFrontMatter();
   testAozoraAndGutenbergNormalization();
   testPreparedArtifactAndDraftPlan();
+  testGonguEncodingDetection();
   testKoreanSourceLanguage();
   testAozoraConservativeCandidatePolicy();
   testVerifiedPublicDomainDisplayMetadata();
   testExistingOfficialAuditSnapshot();
   testDryRunAndNoPaidGenerationSourceGuards();
   console.log(
-    "PASS: Public Domain rights gate, verified public metadata display gate, Aozora conservative candidate policy, Child72 Official audit, hash/idempotency, Draft-only batch plan, and non-paid ingestion"
+    "PASS: Public Domain rights gate, verified public metadata display gate, conservative source policy, safe paragraph chunking, content taxonomy/narration Draft plan, hash/idempotency, and non-paid ingestion"
   );
 }
 

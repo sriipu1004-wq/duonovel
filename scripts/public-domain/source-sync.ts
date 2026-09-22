@@ -8,7 +8,13 @@ import { resolve } from "node:path";
 import { unzipSync } from "fflate";
 import { isAllowedAozoraTextUrl } from "./aozora";
 import { isAllowedGutenbergTextUrl } from "./gutenberg";
-import { gonguWorkNumberFromLandingUrl, isAllowedGonguTextUrl } from "./gongu";
+import {
+  chooseGonguTxtSourceFromPopupHtml,
+  detectGonguTextEncoding,
+  gonguDownloadPopupUrlFromLandingUrl,
+  gonguWorkNumberFromLandingUrl,
+  isAllowedGonguTextUrl,
+} from "./gongu";
 import { sha256Bytes } from "./core";
 import {
   loadManifest,
@@ -18,6 +24,41 @@ import {
 
 function sleep(ms: number) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
+}
+
+async function fetchWithTransientRetry(
+  url: string,
+  init: RequestInit,
+  label: string
+): Promise<Response> {
+  const maxAttempts = 3;
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(url, init);
+      const transient =
+        response.status === 429 ||
+        (response.status >= 500 && response.status <= 599);
+      if (!transient || attempt === maxAttempts) {
+        return response;
+      }
+      console.warn(
+        `RETRY ${label}: HTTP ${response.status} attempt ${attempt}/${maxAttempts}`
+      );
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxAttempts) throw error;
+      console.warn(
+        `RETRY ${label}: network error attempt ${attempt}/${maxAttempts}`
+      );
+    }
+    await sleep(750 * attempt);
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`${label}: fetch failed after retries`);
 }
 
 async function main() {
@@ -74,7 +115,8 @@ for (const [index, id] of ids.entries()) {
 
   const manifestPath = manifestPathForId(id);
   const rawManifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
-  const downloadUrl = manifest.source_download_url;
+  let downloadUrl = manifest.source_download_url;
+  let expectedGonguByteLength: number | null = null;
   const sourceKind =
     manifest.source_provider === "Aozora Bunko"
       ? "aozora"
@@ -104,21 +146,120 @@ for (const [index, id] of ids.entries()) {
     throw new Error(`${id}: source_download_url is missing or not allowlisted`);
   }
 
+  if (sourceKind === "gutenberg" || sourceKind === "gongu") {
+    const landingResponse = await fetchWithTransientRetry(
+      manifest.source_url,
+      {
+        redirect: "error",
+        headers: {
+          "user-agent": "LIB-read-Public-Domain-Operator/1.0 (+https://www.syosetu-libread.com)",
+        },
+      },
+      `${id} provider landing`
+    );
+    if (!landingResponse.ok) {
+      throw new Error(
+        `${id}: provider landing fetch failed with HTTP ${landingResponse.status}`
+      );
+    }
+    const landingText = await landingResponse.text();
+    if (
+      sourceKind === "gutenberg" &&
+      !/Public domain in the USA\./iu.test(landingText)
+    ) {
+      throw new Error(
+        `${id}: Project Gutenberg landing no longer declares Public domain in the USA`
+      );
+    }
+    if (
+      sourceKind === "gongu" &&
+      !/(자유이용\s*만료|만료\s*저작물)/u.test(landingText)
+    ) {
+      throw new Error(
+        `${id}: Gongu landing no longer exposes an expired/free-use label`
+      );
+    }
+
+    if (sourceKind === "gongu") {
+      if (!gonguWrtSn) {
+        throw new Error(`${id}: Gongu work number could not be resolved`);
+      }
+      const popupUrl = gonguDownloadPopupUrlFromLandingUrl(manifest.source_url);
+      if (!popupUrl) {
+        throw new Error(`${id}: Gongu download popup URL could not be resolved`);
+      }
+      const popupResponse = await fetchWithTransientRetry(
+        popupUrl,
+        {
+          redirect: "error",
+          headers: {
+            "user-agent": "LIB-read-Public-Domain-Operator/1.0 (+https://www.syosetu-libread.com)",
+          },
+        },
+        `${id} Gongu download popup`
+      );
+      if (!popupResponse.ok) {
+        throw new Error(
+          `${id}: Gongu download popup failed with HTTP ${popupResponse.status}`
+        );
+      }
+      const popupHtml = await popupResponse.text();
+      const txtSource = chooseGonguTxtSourceFromPopupHtml(
+        popupHtml,
+        gonguWrtSn
+      );
+      if (!txtSource) {
+        throw new Error(
+          `${id}: Gongu popup does not expose an allowlisted TXT source`
+        );
+      }
+      if (!isAllowedGonguTextUrl(txtSource.downloadUrl, gonguWrtSn)) {
+        throw new Error(
+          `${id}: discovered Gongu TXT URL is not allowlisted`
+        );
+      }
+      downloadUrl = txtSource.downloadUrl;
+      expectedGonguByteLength = txtSource.byteLength;
+      rawManifest.source_download_url = txtSource.downloadUrl;
+      rawManifest.edition =
+        `Korea Copyright Commission/Gongu Madang expired-work TXT: ${txtSource.fileName}`;
+    }
+  }
+
+  if (!downloadUrl) {
+    throw new Error(`${id}: source_download_url is missing after provider resolution`);
+  }
+
   const outputPath = resolve(process.cwd(), manifest.source_file);
   if (existsSync(outputPath) && !force) {
     console.log(`SKIP ${id}: raw source already exists`);
-    if (prepare) prepareManifest(id);
+    if (prepare) {
+      const artifact = prepareManifest(id);
+      rawManifest.chapter_count = artifact.chapters.length;
+      if (rawManifest.import_status !== "imported") {
+        rawManifest.import_status = "prepared";
+      }
+      writeFileSync(
+        manifestPath,
+        `${JSON.stringify(rawManifest, null, 2)}\n`,
+        "utf8"
+      );
+    }
     completed += 1;
     continue;
   }
 
   if (index > 0) await sleep(delayMs);
-  const response = await fetch(downloadUrl, {
-    redirect: "error",
-    headers: {
-      "user-agent": "LIB-read-Public-Domain-Operator/1.0 (+https://www.syosetu-libread.com)",
+  const response = await fetchWithTransientRetry(
+    downloadUrl,
+    {
+      redirect: "error",
+      headers: {
+        "user-agent": "LIB-read-Public-Domain-Operator/1.0 (+https://www.syosetu-libread.com)",
+      },
     },
-  });
+    `${id} source download`
+  );
   if (!response.ok) {
     throw new Error(`${id}: source fetch failed with HTTP ${response.status}`);
   }
@@ -157,6 +298,35 @@ for (const [index, id] of ids.entries()) {
   if (sourceBytes.byteLength === 0 || sourceBytes.byteLength > 20_000_000) {
     throw new Error(`${id}: extracted source size is invalid`);
   }
+  if (
+    sourceKind === "gongu" &&
+    expectedGonguByteLength !== null &&
+    sourceBytes.byteLength !== expectedGonguByteLength
+  ) {
+    throw new Error(
+      `${id}: Gongu TXT byte length mismatch; popup declared ${expectedGonguByteLength}, downloaded ${sourceBytes.byteLength}`
+    );
+  }
+  if (sourceKind === "gongu") {
+    const detectedEncoding = detectGonguTextEncoding(sourceBytes);
+    if (!detectedEncoding) {
+      throw new Error(
+        `${id}: Gongu TXT is neither valid UTF-8 nor supported EUC-KR`
+      );
+    }
+    if (detectedEncoding !== manifest.source_encoding) {
+      if (manifest.approved || manifest.import_status === "imported") {
+        throw new Error(
+          `${id}: detected source encoding changed from pinned ${manifest.source_encoding} to ${detectedEncoding}; manual re-review required`
+        );
+      }
+      rawManifest.source_encoding = detectedEncoding;
+      console.log(
+        `ENCODING ${id}: ${manifest.source_encoding} -> ${detectedEncoding}`
+      );
+    }
+  }
+
   const hash = sha256Bytes(sourceBytes);
   if (manifest.source_hash && manifest.source_hash !== hash) {
     throw new Error(
@@ -175,6 +345,15 @@ for (const [index, id] of ids.entries()) {
   );
   if (prepare) {
     const artifact = prepareManifest(id);
+    rawManifest.chapter_count = artifact.chapters.length;
+    if (rawManifest.import_status !== "imported") {
+      rawManifest.import_status = "prepared";
+    }
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify(rawManifest, null, 2)}\n`,
+      "utf8"
+    );
     console.log(
       `PREPARED ${id}: chapters=${artifact.chapters.length} chars=${artifact.displayCharacterCount}`
     );

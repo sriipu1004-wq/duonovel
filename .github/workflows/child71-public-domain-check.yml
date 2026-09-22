@@ -83,6 +83,9 @@ jobs:
           scripts/public-domain/aozora.ts
           scripts/public-domain/aozora-candidates.ts
           scripts/public-domain/source-sync.ts
+          scripts/public-domain/gongu.ts
+          scripts/public-domain/generate-parity-manifests.ts
+          scripts/public-domain/report-parity-preflight.ts
           scripts/public-domain/batch.ts
           scripts/public-domain/audit-official.ts
           scripts/public-domain/runtime.ts

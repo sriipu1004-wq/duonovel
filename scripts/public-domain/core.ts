@@ -66,6 +66,10 @@ export type ChapterSplitConfig =
       strategy: "heading_regex";
       heading_pattern: string;
       drop_prefix_before_first_heading?: boolean;
+    }
+  | {
+      strategy: "paragraph_chunks";
+      max_characters: number;
     };
 
 export type PublicDomainManifest = {
@@ -103,6 +107,7 @@ export type PublicDomainManifest = {
 
   chapter_count: number | null;
   chapter_split: ChapterSplitConfig;
+  genres?: string[];
   tags: string[];
 
   source_hash: string | null;
@@ -161,7 +166,8 @@ export type DraftSeriesRow = {
   is_public: false;
   source_language: PublicDomainSourceLanguage;
   translation_permission_mode: "closed";
-  recording_permission_mode: "closed";
+  recording_permission_mode: "open";
+  genres: string[];
   tags: string[];
   effect_settings: Record<string, unknown>;
 };
@@ -460,8 +466,40 @@ export function validateManifest(value: unknown): ManifestValidationResult {
           : {}),
       };
     }
+  } else if (value.chapter_split.strategy === "paragraph_chunks") {
+    const maxCharacters = value.chapter_split.max_characters;
+    if (
+      !Number.isInteger(maxCharacters) ||
+      Number(maxCharacters) < 5_000 ||
+      Number(maxCharacters) > 40_000
+    ) {
+      errors.push(
+        "chapter_split.max_characters must be an integer from 5000 to 40000"
+      );
+    } else {
+      chapterSplit = {
+        strategy: "paragraph_chunks",
+        max_characters: Number(maxCharacters),
+      };
+    }
   } else {
-    errors.push("chapter_split.strategy must be single or heading_regex");
+    errors.push(
+      "chapter_split.strategy must be single, heading_regex, or paragraph_chunks"
+    );
+  }
+
+  const genresRaw = value.genres;
+  const genres =
+    genresRaw === undefined
+      ? []
+      : Array.isArray(genresRaw)
+        ? genresRaw.filter((item): item is string => typeof item === "string")
+        : [];
+  if (
+    genresRaw !== undefined &&
+    (!Array.isArray(genresRaw) || genres.length !== genresRaw.length)
+  ) {
+    errors.push("genres must be an array of strings when provided");
   }
 
   const tagsRaw = value.tags;
@@ -584,6 +622,7 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     reviewed_by: reviewedBy,
     chapter_count: chapterCount,
     chapter_split: chapterSplit,
+    genres,
     tags,
     source_hash: sourceHash,
     approved,
@@ -749,6 +788,69 @@ export function splitChapters(
     ];
   }
 
+  if (manifest.chapter_split.strategy === "paragraph_chunks") {
+    const maxCharacters = manifest.chapter_split.max_characters;
+    const paragraphs = body
+      .split(/\n\s*\n+/u)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean);
+    const chunks: string[] = [];
+    let current = "";
+
+    function flush() {
+      const trimmed = current.trim();
+      if (trimmed) chunks.push(trimmed);
+      current = "";
+    }
+
+    for (const paragraph of paragraphs) {
+      if (paragraph.length > maxCharacters) {
+        flush();
+        let offset = 0;
+        while (offset < paragraph.length) {
+          let end = Math.min(paragraph.length, offset + maxCharacters);
+          if (end < paragraph.length) {
+            const windowStart = Math.max(offset + Math.floor(maxCharacters * 0.65), offset + 1);
+            const slice = paragraph.slice(windowStart, end);
+            const boundaryMatches = Array.from(
+              slice.matchAll(/[.!?。！？]\s+|[.!?。！？]["'”’」』）】］»]?/gu)
+            );
+            const lastBoundary = boundaryMatches[boundaryMatches.length - 1];
+            if (lastBoundary?.index !== undefined) {
+              end = windowStart + lastBoundary.index + lastBoundary[0].length;
+            }
+          }
+          const piece = paragraph.slice(offset, end).trim();
+          if (!piece) {
+            throw new Error("CHAPTER_CHUNK_EMPTY: failed to split oversized paragraph");
+          }
+          chunks.push(piece);
+          offset = end;
+        }
+        continue;
+      }
+
+      const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
+      if (candidate.length > maxCharacters && current) {
+        flush();
+        current = paragraph;
+      } else {
+        current = candidate;
+      }
+    }
+    flush();
+
+    return chunks.map((chapterBody, index) => ({
+      number: index + 1,
+      title:
+        chunks.length === 1
+          ? manifest.title
+          : `${manifest.title} — Part ${index + 1}`,
+      body: chapterBody,
+      characterCount: chapterBody.length,
+    }));
+  }
+
   const pattern = new RegExp(manifest.chapter_split.heading_pattern, "iu");
   const lines = body.split("\n");
   const headings: Array<{ index: number; title: string }> = [];
@@ -872,16 +974,22 @@ export function buildDraftImportPlan(args: {
 }): DraftImportPlan {
   assertImportable(args.manifest, args.artifact);
   const storyFormat = args.artifact.chapters.length === 1 ? "short" : "long";
-  const tags = Array.from(new Set(["Public Domain", ...args.manifest.tags]));
+  const tags = Array.from(new Set(args.manifest.tags));
+  const genres = Array.from(new Set(args.manifest.genres ?? []));
+  const authorSuffix = `・${args.manifest.original_author.trim()}`;
+  const seriesTitle = args.manifest.title.trim().endsWith(authorSuffix)
+    ? args.manifest.title.trim()
+    : `${args.manifest.title.trim()}${authorSuffix}`;
   return {
     series: {
-      title: args.manifest.title,
+      title: seriesTitle,
       author_id: args.officialUserId,
       publication_status: "private",
       is_public: false,
       source_language: args.manifest.original_language,
       translation_permission_mode: "closed",
-      recording_permission_mode: "closed",
+      recording_permission_mode: "open",
+      genres,
       tags,
       effect_settings: {
         version: 1,

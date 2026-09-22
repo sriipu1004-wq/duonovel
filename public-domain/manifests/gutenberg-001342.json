@@ -1,0 +1,97 @@
+{
+  "id": "gutenberg-001342",
+  "title": "Pride and Prejudice",
+  "original_title": "Pride and Prejudice",
+  "original_author": "Jane Austen",
+  "author_death_year": 1817,
+  "original_language": "en",
+  "first_publication_year": 1813,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/1342",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/1342/pg1342.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-001342.txt",
+  "source_retrieved_at": "2026-09-22T22:15:07.703Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #1342 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved this Child73 parity cohort after source preflight and primary-law framework review. Pride and Prejudice was first published in 1813; Jane Austen died in 1817. The exact Project Gutenberg item landing/source was preflighted and SHA-256 pinned. The selected cohort is limited to original-language works first published no later than 1930 and English authors who died no later than 1942 in the actual cohort. Scope is normalized original literary text only; provider boilerplate, modern translations, covers and illustrations are excluded.",
+  "rights_notes": "Human rights approval recorded 2026-09-23 by LIB read operator (explicit user approval in Child72 continuation). Exact source provenance and SHA-256 were established by the Child73 preflight. Reviewed jurisdictions: JP, US, KR. No modern translation, modern cover, or illustration asset is included.",
+  "rights_components": {
+    "original_work": {
+      "status": "approved",
+      "basis": "Original EN work screened by first-publication year (1813) and author death year (1817) under the reviewed JP/US/KR framework.",
+      "notes": "Human operator approved the conservative cohort after preflight."
+    },
+    "edition": {
+      "status": "approved",
+      "basis": "Exact provider plain-text source is pinned by SHA-256; import scope is the normalized literary text, excluding provider/site boilerplate.",
+      "notes": "No modern translation or commercial edition is used."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "approved",
+      "basis": "No separately protected modern editorial prose is intentionally imported into Reader text.",
+      "notes": "Provider headers/footers and site metadata are excluded by normalization."
+    },
+    "annotations": {
+      "status": "approved",
+      "basis": "No separately protected modern annotations are intentionally imported.",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "approved",
+      "basis": "Exact official Project Gutenberg source bytes were fetched through the allowlisted source path and pinned by SHA-256.",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "approved",
+      "basis": "Project Gutenberg item status and provider terms were included in the Child73 human review; Reader distribution excludes Project Gutenberg license/trademark boilerplate.",
+      "notes": "Source landing: https://www.gutenberg.org/ebooks/1342"
+    }
+  },
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-23T08:19:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 continuation)",
+  "chapter_count": 25,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "恋愛",
+    "文芸"
+  ],
+  "tags": [
+    "恋愛",
+    "家族",
+    "社会批評"
+  ],
+  "source_hash": "3f6bb9d6f78e0293b56acd4714dd68cb7d6d1d293402031ce9d5a216bcaf9d75",
+  "approved": true,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}
