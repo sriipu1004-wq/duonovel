@@ -23,9 +23,10 @@ for (const entry of batch.works) {
       `${entry.title}: first publication year exceeds conservative 1930 cutoff`
     );
   }
-  if (entry.author_death_year > 1955) {
+  const authorDeathYearMax = entry.provider === "gutenberg" ? 1944 : 1955;
+  if (entry.author_death_year > authorDeathYearMax) {
     throw new Error(
-      `${entry.title}: author death year exceeds conservative 1955 cutoff`
+      `${entry.title}: author death year exceeds conservative ${authorDeathYearMax} cutoff for ${entry.provider}`
     );
   }
 }
