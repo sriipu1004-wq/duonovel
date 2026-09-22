@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { localizeTagList } from "@/i18n/tagLabels";
+import { localizeGenreList } from "@/i18n/genreLabels";
 import { supabase } from "@/lib/supabaseClient";
 import {
   hideGlobalLoadingFeedback,
@@ -455,6 +458,7 @@ export default function WriteSeriesForm({
   episodes = [],
 }: WriteSeriesFormProps) {
   const router = useRouter();
+  const locale = useUiLocale();
 
   const isAiGenerated = isAiGeneratedSeries(series);
   const initialGenres = getSeriesGenres(series);
@@ -650,12 +654,18 @@ const publicVisibleCount = sortedEpisodes.filter(
     {
       id: "genres",
       label: "ジャンル",
-      value: genres.length > 0 ? genres.join(" / ") : "未設定",
+      value:
+        genres.length > 0
+          ? localizeGenreList(genres, locale).join(" / ")
+          : "未設定",
     },
     {
       id: "tags",
       label: "タグ",
-      value: tags.length > 0 ? tags.join(" / ") : "未設定",
+      value:
+        tags.length > 0
+          ? localizeTagList(tags, locale).join(" / ")
+          : "未設定",
     },
     {
       id: "recording",
