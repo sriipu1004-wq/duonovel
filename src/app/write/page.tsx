@@ -8,6 +8,7 @@ import {
   type EpisodeRow,
   type SeriesRow,
 } from "@/features/write/writeShared";
+import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 
 async function fetchOwnedSeries(
   userId: string,
@@ -73,7 +74,21 @@ function getTimeValue(value: unknown): number {
 }
 
 function getSeriesTitle(series: SeriesRow): string {
-  return pickText(series.title) || "無題";
+  const title = pickText(series.title) || "無題";
+  const publicDomain = readPublicDomainMetadata(
+    series.effect_settings ?? series.effectSettings
+  );
+  const originalAuthor = publicDomain?.originalAuthor?.trim() ?? "";
+  if (!originalAuthor) return title;
+  const normalizedTitle = title.replace(/\s+/gu, " ").trim();
+  const normalizedAuthor = originalAuthor.replace(/\s+/gu, " ").trim();
+  if (
+    normalizedTitle.endsWith(`・${normalizedAuthor}`) ||
+    normalizedTitle.endsWith(`·${normalizedAuthor}`)
+  ) {
+    return title;
+  }
+  return `${title}・${originalAuthor}`;
 }
 
 function getSeriesSummaryText(series: SeriesRow): string {
