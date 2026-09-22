@@ -28,7 +28,10 @@
       "Gongu Madang / Korea Copyright Commission"
     ],
     "no_modern_translations": true,
-    "no_covers_or_illustrations": true
+    "no_covers_or_illustrations": true,
+    "english_author_death_year_max": 1944,
+    "korean_author_death_year_max": 1955,
+    "japan_wartime_addition_screened": true
   },
   "works": [
     {
@@ -149,67 +152,70 @@
     },
     {
       "provider": "gutenberg",
-      "provider_id": 35,
-      "title": "The Time Machine",
-      "author": "H. G. Wells",
-      "author_death_year": 1946,
-      "first_publication_year": 1895,
+      "provider_id": 2701,
+      "title": "Moby Dick; Or, The Whale",
+      "author": "Herman Melville",
+      "author_death_year": 1891,
+      "first_publication_year": 1851,
       "genres": [
-        "SF"
+        "冒険",
+        "文芸"
       ],
       "tags": [
         "冒険",
-        "社会批評",
-        "不穏"
+        "動物",
+        "心理"
       ]
     },
     {
       "provider": "gutenberg",
-      "provider_id": 36,
-      "title": "The War of the Worlds",
-      "author": "H. G. Wells",
-      "author_death_year": 1946,
-      "first_publication_year": 1898,
+      "provider_id": 541,
+      "title": "The Age of Innocence",
+      "author": "Edith Wharton",
+      "author_death_year": 1937,
+      "first_publication_year": 1920,
       "genres": [
-        "SF"
+        "文芸",
+        "恋愛"
+      ],
+      "tags": [
+        "恋愛",
+        "社会批評",
+        "人間関係"
+      ]
+    },
+    {
+      "provider": "gutenberg",
+      "provider_id": 73,
+      "title": "The Red Badge of Courage: An Episode of the American Civil War",
+      "author": "Stephen Crane",
+      "author_death_year": 1900,
+      "first_publication_year": 1895,
+      "genres": [
+        "歴史",
+        "文芸"
       ],
       "tags": [
         "戦闘",
-        "サスペンス",
-        "社会批評"
-      ]
-    },
-    {
-      "provider": "gutenberg",
-      "provider_id": 5230,
-      "title": "The Invisible Man",
-      "author": "H. G. Wells",
-      "author_death_year": 1946,
-      "first_publication_year": 1897,
-      "genres": [
-        "SF"
-      ],
-      "tags": [
         "心理",
-        "社会批評",
-        "孤独"
+        "青春"
       ]
     },
     {
       "provider": "gutenberg",
-      "provider_id": 159,
-      "title": "The Island of Doctor Moreau",
-      "author": "H. G. Wells",
-      "author_death_year": 1946,
-      "first_publication_year": 1896,
+      "provider_id": 77,
+      "title": "The House of the Seven Gables",
+      "author": "Nathaniel Hawthorne",
+      "author_death_year": 1864,
+      "first_publication_year": 1851,
       "genres": [
-        "SF",
-        "ホラー"
+        "ホラー",
+        "文芸"
       ],
       "tags": [
-        "動物",
-        "科学",
-        "怪奇"
+        "怪奇",
+        "家族",
+        "罪悪感"
       ]
     },
     {
