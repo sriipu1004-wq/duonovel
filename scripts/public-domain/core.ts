@@ -107,6 +107,7 @@ export type PublicDomainManifest = {
 
   chapter_count: number | null;
   chapter_split: ChapterSplitConfig;
+  genres?: string[];
   tags: string[];
 
   source_hash: string | null;
@@ -165,7 +166,8 @@ export type DraftSeriesRow = {
   is_public: false;
   source_language: PublicDomainSourceLanguage;
   translation_permission_mode: "closed";
-  recording_permission_mode: "closed";
+  recording_permission_mode: "open";
+  genres: string[];
   tags: string[];
   effect_settings: Record<string, unknown>;
 };
@@ -486,6 +488,20 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     );
   }
 
+  const genresRaw = value.genres;
+  const genres =
+    genresRaw === undefined
+      ? []
+      : Array.isArray(genresRaw)
+        ? genresRaw.filter((item): item is string => typeof item === "string")
+        : [];
+  if (
+    genresRaw !== undefined &&
+    (!Array.isArray(genresRaw) || genres.length !== genresRaw.length)
+  ) {
+    errors.push("genres must be an array of strings when provided");
+  }
+
   const tagsRaw = value.tags;
   const tags = Array.isArray(tagsRaw)
     ? tagsRaw.filter((item): item is string => typeof item === "string")
@@ -606,6 +622,7 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     reviewed_by: reviewedBy,
     chapter_count: chapterCount,
     chapter_split: chapterSplit,
+    genres,
     tags,
     source_hash: sourceHash,
     approved,
@@ -957,16 +974,22 @@ export function buildDraftImportPlan(args: {
 }): DraftImportPlan {
   assertImportable(args.manifest, args.artifact);
   const storyFormat = args.artifact.chapters.length === 1 ? "short" : "long";
-  const tags = Array.from(new Set(["Public Domain", ...args.manifest.tags]));
+  const tags = Array.from(new Set(args.manifest.tags));
+  const genres = Array.from(new Set(args.manifest.genres ?? []));
+  const authorSuffix = `・${args.manifest.original_author.trim()}`;
+  const seriesTitle = args.manifest.title.trim().endsWith(authorSuffix)
+    ? args.manifest.title.trim()
+    : `${args.manifest.title.trim()}${authorSuffix}`;
   return {
     series: {
-      title: args.manifest.title,
+      title: seriesTitle,
       author_id: args.officialUserId,
       publication_status: "private",
       is_public: false,
       source_language: args.manifest.original_language,
       translation_permission_mode: "closed",
-      recording_permission_mode: "closed",
+      recording_permission_mode: "open",
+      genres,
       tags,
       effect_settings: {
         version: 1,
