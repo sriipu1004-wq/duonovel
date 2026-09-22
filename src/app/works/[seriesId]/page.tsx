@@ -45,6 +45,7 @@ import { buildRecordingEntryPath } from "@/lib/recording/recordingEntry";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 import { getSupportedLanguage, parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import { localizeGenreList } from "@/i18n/genreLabels";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
