@@ -876,6 +876,8 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const sourceLanguageLabel = sourceLanguageTag
     ? getSupportedLanguage(sourceLanguageTag).nativeLabel
     : pickText(series.source_language, series["sourceLanguage"]);
+  const sourceLanguageChipLabel =
+    locale === "en" ? "Original" : locale === "ko" ? "원문" : "原文";
 
   const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
   const workHref = (href: string) => localizePath(href, locale);
@@ -990,7 +992,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
             {sourceLanguageLabel ? (
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-black">
-                  {dictionary.originalLanguage}: {sourceLanguageLabel}
+                  {sourceLanguageChipLabel}: {sourceLanguageLabel}
                 </span>
               </div>
             ) : null}
