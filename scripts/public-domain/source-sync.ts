@@ -104,10 +104,52 @@ for (const [index, id] of ids.entries()) {
     throw new Error(`${id}: source_download_url is missing or not allowlisted`);
   }
 
+  if (sourceKind === "gutenberg" || sourceKind === "gongu") {
+    const landingResponse = await fetch(manifest.source_url, {
+      redirect: "error",
+      headers: {
+        "user-agent": "LIB-read-Public-Domain-Operator/1.0 (+https://www.syosetu-libread.com)",
+      },
+    });
+    if (!landingResponse.ok) {
+      throw new Error(
+        `${id}: provider landing fetch failed with HTTP ${landingResponse.status}`
+      );
+    }
+    const landingText = await landingResponse.text();
+    if (
+      sourceKind === "gutenberg" &&
+      !/Public domain in the USA\./iu.test(landingText)
+    ) {
+      throw new Error(
+        `${id}: Project Gutenberg landing no longer declares Public domain in the USA`
+      );
+    }
+    if (
+      sourceKind === "gongu" &&
+      !/(자유이용\s*만료|만료\s*저작물)/u.test(landingText)
+    ) {
+      throw new Error(
+        `${id}: Gongu landing no longer exposes an expired/free-use label`
+      );
+    }
+  }
+
   const outputPath = resolve(process.cwd(), manifest.source_file);
   if (existsSync(outputPath) && !force) {
     console.log(`SKIP ${id}: raw source already exists`);
-    if (prepare) prepareManifest(id);
+    if (prepare) {
+      const artifact = prepareManifest(id);
+      rawManifest.chapter_count = artifact.chapters.length;
+      if (rawManifest.import_status !== "imported") {
+        rawManifest.import_status = "prepared";
+      }
+      writeFileSync(
+        manifestPath,
+        `${JSON.stringify(rawManifest, null, 2)}\n`,
+        "utf8"
+      );
+    }
     completed += 1;
     continue;
   }
@@ -175,6 +217,15 @@ for (const [index, id] of ids.entries()) {
   );
   if (prepare) {
     const artifact = prepareManifest(id);
+    rawManifest.chapter_count = artifact.chapters.length;
+    if (rawManifest.import_status !== "imported") {
+      rawManifest.import_status = "prepared";
+    }
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify(rawManifest, null, 2)}\n`,
+      "utf8"
+    );
     console.log(
       `PREPARED ${id}: chapters=${artifact.chapters.length} chars=${artifact.displayCharacterCount}`
     );
