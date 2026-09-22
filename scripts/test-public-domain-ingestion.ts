@@ -230,6 +230,74 @@ function testHeadingSplitFixture() {
   assert.equal(chapters[1]?.body, "Beta");
 }
 
+function testBoundedChunkSplitFixture() {
+  const paragraph = (label: string, size: number) =>
+    `${label} ${"word ".repeat(size).trim()}.`;
+  const source = [
+    paragraph("Alpha", 2600),
+    paragraph("Beta", 2600),
+    paragraph("Gamma", 2600),
+    paragraph("Delta", 2600),
+  ].join("\n\n");
+
+  const chapters = splitChapters(source, {
+    title: "Long Public Domain Work",
+    chapter_split: {
+      strategy: "bounded_chunks",
+      max_chars: 10_000,
+      title_prefix: "Part",
+    },
+  });
+
+  assert.ok(chapters.length >= 2, "bounded_chunks must split long works");
+  assert.ok(
+    chapters.every((chapter) => chapter.characterCount <= 14_000),
+    "bounded chunks must stay inside max_chars plus the 4k safe-lookahead ceiling"
+  );
+  assert.deepEqual(
+    chapters.map((chapter) => chapter.title),
+    chapters.map((_, index) => `Part ${index + 1}`)
+  );
+
+  const short = splitChapters("short original text", {
+    title: "Short Work",
+    chapter_split: {
+      strategy: "bounded_chunks",
+      max_chars: 30_000,
+      title_prefix: "Part",
+    },
+  });
+  assert.equal(short.length, 1);
+  assert.equal(short[0]?.title, "Short Work");
+  assert.equal(short[0]?.body, "short original text");
+}
+
+function testBoundedChunkManifestValidation() {
+  const valid = validateManifest(
+    approvedManifest({
+      chapter_split: {
+        strategy: "bounded_chunks",
+        max_chars: 30_000,
+        title_prefix: "Part",
+      },
+    })
+  );
+  assert.equal(valid.ok, true, valid.errors.join("\n"));
+
+  const invalid = validateManifest({
+    ...approvedManifest(),
+    chapter_split: {
+      strategy: "bounded_chunks",
+      max_chars: 40_000,
+    },
+  });
+  assert.equal(invalid.ok, false);
+  assert.equal(
+    invalid.errors.some((error) => error.includes("chapter_split.max_chars")),
+    true
+  );
+}
+
 function testHeadingSplitCanDropProviderFrontMatter() {
   const chapters = splitChapters(
     ["Provider title", "", "Contents", "CHAPTER I", "Alpha", "", "CHAPTER II", "Beta"].join("\n"),
@@ -576,6 +644,8 @@ function main() {
   testDuplicateDetection();
   testChapterValidationAndSingleEpisode();
   testHeadingSplitFixture();
+  testBoundedChunkSplitFixture();
+  testBoundedChunkManifestValidation();
   testHeadingSplitCanDropProviderFrontMatter();
   testAozoraAndGutenbergNormalization();
   testPreparedArtifactAndDraftPlan();
@@ -585,7 +655,7 @@ function main() {
   testExistingOfficialAuditSnapshot();
   testDryRunAndNoPaidGenerationSourceGuards();
   console.log(
-    "PASS: Public Domain rights gate, verified public metadata display gate, Aozora conservative candidate policy, Child72 Official audit, hash/idempotency, Draft-only batch plan, and non-paid ingestion"
+    "PASS: Public Domain rights gate, bounded chunking, verified public metadata display gate, Aozora conservative candidate policy, Child72 Official audit, hash/idempotency, Draft-only batch plan, and non-paid ingestion"
   );
 }
 
