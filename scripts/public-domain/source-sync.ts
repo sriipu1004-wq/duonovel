@@ -20,6 +20,41 @@ function sleep(ms: number) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
+async function fetchWithTransientRetry(
+  url: string,
+  init: RequestInit,
+  label: string
+): Promise<Response> {
+  const maxAttempts = 3;
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(url, init);
+      const transient =
+        response.status === 429 ||
+        (response.status >= 500 && response.status <= 599);
+      if (!transient || attempt === maxAttempts) {
+        return response;
+      }
+      console.warn(
+        `RETRY ${label}: HTTP ${response.status} attempt ${attempt}/${maxAttempts}`
+      );
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxAttempts) throw error;
+      console.warn(
+        `RETRY ${label}: network error attempt ${attempt}/${maxAttempts}`
+      );
+    }
+    await sleep(750 * attempt);
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`${label}: fetch failed after retries`);
+}
+
 async function main() {
 const args = process.argv.slice(2);
 const force = args.includes("--force");
@@ -105,12 +140,16 @@ for (const [index, id] of ids.entries()) {
   }
 
   if (sourceKind === "gutenberg" || sourceKind === "gongu") {
-    const landingResponse = await fetch(manifest.source_url, {
-      redirect: "error",
-      headers: {
-        "user-agent": "LIB-read-Public-Domain-Operator/1.0 (+https://www.syosetu-libread.com)",
+    const landingResponse = await fetchWithTransientRetry(
+      manifest.source_url,
+      {
+        redirect: "error",
+        headers: {
+          "user-agent": "LIB-read-Public-Domain-Operator/1.0 (+https://www.syosetu-libread.com)",
+        },
       },
-    });
+      `${id} provider landing`
+    );
     if (!landingResponse.ok) {
       throw new Error(
         `${id}: provider landing fetch failed with HTTP ${landingResponse.status}`
@@ -155,12 +194,16 @@ for (const [index, id] of ids.entries()) {
   }
 
   if (index > 0) await sleep(delayMs);
-  const response = await fetch(downloadUrl, {
-    redirect: "error",
-    headers: {
-      "user-agent": "LIB-read-Public-Domain-Operator/1.0 (+https://www.syosetu-libread.com)",
+  const response = await fetchWithTransientRetry(
+    downloadUrl,
+    {
+      redirect: "error",
+      headers: {
+        "user-agent": "LIB-read-Public-Domain-Operator/1.0 (+https://www.syosetu-libread.com)",
+      },
     },
-  });
+    `${id} source download`
+  );
   if (!response.ok) {
     throw new Error(`${id}: source fetch failed with HTTP ${response.status}`);
   }
