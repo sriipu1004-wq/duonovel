@@ -22,6 +22,7 @@ import {
 import { isAllowedGutenbergTextUrl } from "./public-domain/gutenberg";
 import {
   chooseGonguTxtSourceFromPopupHtml,
+  detectGonguTextEncoding,
   gonguDownloadPopupUrlFromLandingUrl,
   gonguWorkNumberFromLandingUrl,
   isAllowedGonguTextUrl,
@@ -360,6 +361,21 @@ function testPreparedArtifactAndDraftPlan() {
   assert.equal(plan.episodes[0]?.scheduled_for, null);
 }
 
+function testGonguEncodingDetection() {
+  assert.equal(
+    detectGonguTextEncoding(new TextEncoder().encode("한글 UTF-8")),
+    "utf-8"
+  );
+  assert.equal(
+    detectGonguTextEncoding(new Uint8Array([0xb0, 0xa1])),
+    "euc-kr"
+  );
+  assert.equal(
+    detectGonguTextEncoding(new Uint8Array([0x81])),
+    null
+  );
+}
+
 function testKoreanSourceLanguage() {
   const plan = buildDraftImportPlan({
     manifest: approvedManifest({
@@ -653,6 +669,7 @@ function main() {
   testHeadingSplitCanDropProviderFrontMatter();
   testAozoraAndGutenbergNormalization();
   testPreparedArtifactAndDraftPlan();
+  testGonguEncodingDetection();
   testKoreanSourceLanguage();
   testAozoraConservativeCandidatePolicy();
   testVerifiedPublicDomainDisplayMetadata();
