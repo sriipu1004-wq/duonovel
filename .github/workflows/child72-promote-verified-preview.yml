@@ -1,0 +1,32 @@
+name: Child72 promote verified preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/child72-promote-verified-preview.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Require Vercel token
+        shell: bash
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN repository secret is not configured"
+            exit 1
+          fi
+
+      - name: Promote verified Child72 preview
+        shell: bash
+        run: |
+          npx --yes vercel@latest promote \
+            https://nextjs-39itdssvd-sriipu1004-wqs-projects.vercel.app \
+            --token="$VERCEL_TOKEN" \
+            --scope=sriipu1004-wqs-projects
