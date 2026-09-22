@@ -121,3 +121,18 @@ export function isAllowedGonguTextUrl(
     Boolean(fileSn && /^\d{1,4}$/u.test(fileSn))
   );
 }
+
+
+export function detectGonguTextEncoding(
+  source: Uint8Array
+): "utf-8" | "euc-kr" | null {
+  for (const encoding of ["utf-8", "euc-kr"] as const) {
+    try {
+      new TextDecoder(encoding, { fatal: true }).decode(source);
+      return encoding;
+    } catch {
+      // Try the next explicitly supported legacy encoding.
+    }
+  }
+  return null;
+}
