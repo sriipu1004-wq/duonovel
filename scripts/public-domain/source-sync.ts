@@ -10,6 +10,7 @@ import { isAllowedAozoraTextUrl } from "./aozora";
 import { isAllowedGutenbergTextUrl } from "./gutenberg";
 import {
   chooseGonguTxtSourceFromPopupHtml,
+  detectGonguTextEncoding,
   gonguDownloadPopupUrlFromLandingUrl,
   gonguWorkNumberFromLandingUrl,
   isAllowedGonguTextUrl,
@@ -306,6 +307,26 @@ for (const [index, id] of ids.entries()) {
       `${id}: Gongu TXT byte length mismatch; popup declared ${expectedGonguByteLength}, downloaded ${sourceBytes.byteLength}`
     );
   }
+  if (sourceKind === "gongu") {
+    const detectedEncoding = detectGonguTextEncoding(sourceBytes);
+    if (!detectedEncoding) {
+      throw new Error(
+        `${id}: Gongu TXT is neither valid UTF-8 nor supported EUC-KR`
+      );
+    }
+    if (detectedEncoding !== manifest.source_encoding) {
+      if (manifest.approved || manifest.import_status === "imported") {
+        throw new Error(
+          `${id}: detected source encoding changed from pinned ${manifest.source_encoding} to ${detectedEncoding}; manual re-review required`
+        );
+      }
+      rawManifest.source_encoding = detectedEncoding;
+      console.log(
+        `ENCODING ${id}: ${manifest.source_encoding} -> ${detectedEncoding}`
+      );
+    }
+  }
+
   const hash = sha256Bytes(sourceBytes);
   if (manifest.source_hash && manifest.source_hash !== hash) {
     throw new Error(
