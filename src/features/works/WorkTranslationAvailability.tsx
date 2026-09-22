@@ -55,50 +55,38 @@ export default async function WorkTranslationAvailability({ seriesId }: Props) {
   const dictionary = text[locale];
   const totalEpisodes = overview.episodes.length;
 
-  return (
-    <section className="mx-auto w-full max-w-6xl px-4 pt-4 sm:px-6 lg:px-8">
-      <div className="rounded-[24px] border border-black/10 bg-white p-4 shadow-sm">
-        <p className="text-xs tracking-[0.18em] text-neutral-500">{dictionary.title}</p>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-          <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5">
-            {dictionary.original}: {getSupportedLanguage(overview.sourceLanguage).nativeLabel}
-          </span>
-        </div>
+  if (!overview.translationEligible || overview.availableLanguages.length === 0) {
+    return null;
+  }
 
-        <p className="mt-4 text-xs font-medium text-neutral-600">{dictionary.available}</p>
-        {!overview.translationEligible ? (
-          <p className="mt-2 text-sm leading-7 text-neutral-500">
-            {dictionary.unavailable}
-          </p>
-        ) : overview.availableLanguages.length === 0 ? (
-          <p className="mt-2 text-sm leading-7 text-neutral-500">{dictionary.none}</p>
-        ) : (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {overview.availableLanguages.map((language) => {
-              const readyCount = overview.episodes.filter((episode) =>
-                episode.availableLanguages.includes(language)
-              ).length;
-              return (
-                <Link
-                  key={language}
-                  href={localizePath(
-                    `/works/${encodeURIComponent(seriesId)}/translations/${encodeURIComponent(language)}`,
-                    locale
-                  )}
-                  className="rounded-2xl border border-sky-100 bg-sky-50 px-3 py-2 text-sm text-black transition hover:bg-sky-100"
-                >
-                  <span className="font-medium">
-                    {getSupportedLanguage(language).nativeLabel}
-                  </span>
-                  <span className="ml-2 text-xs text-neutral-500">
-                    {readyCount === totalEpisodes ? dictionary.complete : dictionary.partial}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+  return (
+    <section className="mx-auto w-full max-w-6xl px-4 pt-2 sm:px-6 lg:px-8">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-600">
+        <span className="font-medium">{dictionary.available}</span>
+        {overview.availableLanguages.map((language) => {
+          const readyCount = overview.episodes.filter((episode) =>
+            episode.availableLanguages.includes(language)
+          ).length;
+          return (
+            <Link
+              key={language}
+              href={localizePath(
+                `/works/${encodeURIComponent(seriesId)}/translations/${encodeURIComponent(language)}`,
+                locale
+              )}
+              className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1.5 text-black transition hover:bg-sky-100"
+            >
+              <span className="font-medium">
+                {getSupportedLanguage(language).nativeLabel}
+              </span>
+              <span className="ml-1.5 text-[11px] text-neutral-500">
+                {readyCount === totalEpisodes ? dictionary.complete : dictionary.partial}
+              </span>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );
+
 }
