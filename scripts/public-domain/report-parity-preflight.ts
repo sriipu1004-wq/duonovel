@@ -87,6 +87,17 @@ const rows = batch.works.map((entry) => {
   };
 });
 
+const hashOwners = new Map<string, string>();
+for (const row of rows) {
+  const previous = hashOwners.get(row.source_hash);
+  if (previous) {
+    throw new Error(
+      `Duplicate source bytes detected across distinct works: ${previous} and ${row.id}`
+    );
+  }
+  hashOwners.set(row.source_hash, row.id);
+}
+
 const en = rows.filter((row) => row.original_language === "en");
 const ko = rows.filter((row) => row.original_language === "ko");
 if (rows.length !== 75 || en.length !== 38 || ko.length !== 37) {
