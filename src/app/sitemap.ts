@@ -5,6 +5,8 @@ import {
 } from "@/lib/publicWorks";
 import { loadSitemapWorkFallback } from "@/lib/sitemap/loadSitemapWorkFallback";
 
+export const revalidate = 60;
+
 const SITE_URL = "https://www.syosetu-libread.com";
 
 function localeUrl(path: string, locale: "ja" | "en" | "ko") {
