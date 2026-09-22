@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-09-23",
   "batch_id": "en-ko-parity-2026-09-23",
-  "review_stage": "AI_ASSISTED_PRECHECK_PENDING_HUMAN_SIGNOFF",
+  "review_stage": "HUMAN_APPROVED",
   "target": {
     "ja": 40,
     "en": 40,
@@ -53,5 +53,11 @@
       "provider": "Gongu Madang / Korea Copyright Commission"
     }
   },
-  "approval_state": "NOT_HUMAN_APPROVED"
+  "approval_state": "HUMAN_APPROVED",
+  "human_approval": {
+    "approved": true,
+    "approved_at": "2026-09-23T08:19:00+10:00",
+    "approved_by": "LIB read operator (explicit user approval in Child72 continuation)",
+    "scope": "All 75 preflighted EN/KO parity candidates under this batch; approval covers original-language literary text only and excludes modern translations, covers and illustrations."
+  }
 }
