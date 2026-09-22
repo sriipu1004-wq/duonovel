@@ -8,7 +8,12 @@ import { resolve } from "node:path";
 import { unzipSync } from "fflate";
 import { isAllowedAozoraTextUrl } from "./aozora";
 import { isAllowedGutenbergTextUrl } from "./gutenberg";
-import { gonguWorkNumberFromLandingUrl, isAllowedGonguTextUrl } from "./gongu";
+import {
+  chooseGonguTxtSourceFromPopupHtml,
+  gonguDownloadPopupUrlFromLandingUrl,
+  gonguWorkNumberFromLandingUrl,
+  isAllowedGonguTextUrl,
+} from "./gongu";
 import { sha256Bytes } from "./core";
 import {
   loadManifest,
@@ -109,7 +114,8 @@ for (const [index, id] of ids.entries()) {
 
   const manifestPath = manifestPathForId(id);
   const rawManifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
-  const downloadUrl = manifest.source_download_url;
+  let downloadUrl = manifest.source_download_url;
+  let expectedGonguByteLength: number | null = null;
   const sourceKind =
     manifest.source_provider === "Aozora Bunko"
       ? "aozora"
@@ -172,6 +178,55 @@ for (const [index, id] of ids.entries()) {
         `${id}: Gongu landing no longer exposes an expired/free-use label`
       );
     }
+
+    if (sourceKind === "gongu") {
+      if (!gonguWrtSn) {
+        throw new Error(`${id}: Gongu work number could not be resolved`);
+      }
+      const popupUrl = gonguDownloadPopupUrlFromLandingUrl(manifest.source_url);
+      if (!popupUrl) {
+        throw new Error(`${id}: Gongu download popup URL could not be resolved`);
+      }
+      const popupResponse = await fetchWithTransientRetry(
+        popupUrl,
+        {
+          redirect: "error",
+          headers: {
+            "user-agent": "LIB-read-Public-Domain-Operator/1.0 (+https://www.syosetu-libread.com)",
+          },
+        },
+        `${id} Gongu download popup`
+      );
+      if (!popupResponse.ok) {
+        throw new Error(
+          `${id}: Gongu download popup failed with HTTP ${popupResponse.status}`
+        );
+      }
+      const popupHtml = await popupResponse.text();
+      const txtSource = chooseGonguTxtSourceFromPopupHtml(
+        popupHtml,
+        gonguWrtSn
+      );
+      if (!txtSource) {
+        throw new Error(
+          `${id}: Gongu popup does not expose an allowlisted TXT source`
+        );
+      }
+      if (!isAllowedGonguTextUrl(txtSource.downloadUrl, gonguWrtSn)) {
+        throw new Error(
+          `${id}: discovered Gongu TXT URL is not allowlisted`
+        );
+      }
+      downloadUrl = txtSource.downloadUrl;
+      expectedGonguByteLength = txtSource.byteLength;
+      rawManifest.source_download_url = txtSource.downloadUrl;
+      rawManifest.edition =
+        `Korea Copyright Commission/Gongu Madang expired-work TXT: ${txtSource.fileName}`;
+    }
+  }
+
+  if (!downloadUrl) {
+    throw new Error(`${id}: source_download_url is missing after provider resolution`);
   }
 
   const outputPath = resolve(process.cwd(), manifest.source_file);
@@ -241,6 +296,15 @@ for (const [index, id] of ids.entries()) {
 
   if (sourceBytes.byteLength === 0 || sourceBytes.byteLength > 20_000_000) {
     throw new Error(`${id}: extracted source size is invalid`);
+  }
+  if (
+    sourceKind === "gongu" &&
+    expectedGonguByteLength !== null &&
+    sourceBytes.byteLength !== expectedGonguByteLength
+  ) {
+    throw new Error(
+      `${id}: Gongu TXT byte length mismatch; popup declared ${expectedGonguByteLength}, downloaded ${sourceBytes.byteLength}`
+    );
   }
   const hash = sha256Bytes(sourceBytes);
   if (manifest.source_hash && manifest.source_hash !== hash) {
