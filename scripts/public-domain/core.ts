@@ -813,7 +813,7 @@ export function splitChapters(
             const windowStart = Math.max(offset + Math.floor(maxCharacters * 0.65), offset + 1);
             const slice = paragraph.slice(windowStart, end);
             const boundaryMatches = Array.from(
-              slice.matchAll(/[.!?。！？]\s+|[.!?。！？][\"'”’」』）】］»]?/gu)
+              slice.matchAll(/[.!?。！？]\s+|[.!?。！？]["'”’」』）】］»]?/gu)
             );
             const lastBoundary = boundaryMatches[boundaryMatches.length - 1];
             if (lastBoundary?.index !== undefined) {
