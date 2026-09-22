@@ -371,7 +371,7 @@ function testGonguEncodingDetection() {
     "euc-kr"
   );
   assert.equal(
-    detectGonguTextEncoding(new Uint8Array([0x81])),
+    detectGonguTextEncoding(new Uint8Array([0xff])),
     null
   );
 }
