@@ -22,6 +22,7 @@ import {
   splitSentenceIntoDisplayClauses,
   READER_DISPLAY_CLAUSE_MAX_LOOKAHEAD_CHARS,
 } from "../src/lib/recording/humanTimingShared";
+import { preprocessNemoBodyToParagraphs } from "../src/lib/recording/nemoTextPreprocess";
 
 // Public-domain fixture from Natsume Soseki's Meian, the production classic
 // that retained a failed EN translation row from 2026-08-21.
@@ -138,6 +139,39 @@ function testLongClauseSegmentation() {
     segmentSourceDocument(shortSentence, "ko").segments.length,
     1,
     "short comma sentences must remain intact"
+  );
+}
+
+function testNonJapaneseHardWrapNormalization() {
+  const korean = [
+    "C 여학교에서 교원 겸 기숙사 사감 노릇을 하는 B 여사라면 딱장대요 독신",
+    "주의자요, 찰진 야소꾼으로 유명하다. 사십에 가까운 노처녀인 그는 주근깨",
+    "투성이 얼굴이, 처녀다운 맛이란 약에 쓰려도 찾을 수 없을 뿐인가, 시들고",
+    "거칠고 마르고 누렇게 뜬 품이 곰팡 슬은 굴비를 생각나게 한다.",
+  ].join("\n");
+
+  const koreanParagraph = preprocessNemoBodyToParagraphs(korean)[0];
+  assert.ok(koreanParagraph, "Korean hard-wrapped paragraph must preprocess");
+  assert.equal(
+    koreanParagraph.originalParagraph.includes("、"),
+    false,
+    "Korean hard wraps must not invent Japanese commas"
+  );
+  assert.ok(
+    koreanParagraph.originalParagraph.includes("독신 주의자요"),
+    "Korean fixed-width wraps should become neutral whitespace instead of punctuation"
+  );
+
+  const english = [
+    "This English paragraph is hard wrapped at the source and should",
+    "continue with neutral whitespace rather than Japanese punctuation.",
+  ].join("\n");
+  const englishParagraph = preprocessNemoBodyToParagraphs(english)[0];
+  assert.ok(englishParagraph, "English hard-wrapped paragraph must preprocess");
+  assert.equal(
+    englishParagraph.originalParagraph.includes("、"),
+    false,
+    "English hard wraps must not invent Japanese commas"
   );
 }
 
@@ -264,6 +298,7 @@ function main() {
   testClassicResponseParsing();
   testClassicBatching();
   testLongClauseSegmentation();
+  testNonJapaneseHardWrapNormalization();
   testReaderDisplayClauseSegmentation();
   testVerifiedPublicDomainLongSourceLimit();
   testFailureDoesNotConsumeReservation();
