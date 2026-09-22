@@ -1,0 +1,78 @@
+name: Child73 Sync Production Draft import state
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/child73-sync-import-status.yml"
+      - "public-domain/audits/en-ko-parity-production-draft-import-2026-09-23.json"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: child73-sync-import-status-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Mark exact imported cohort
+        run: |
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const batch = require("./public-domain/batches/en-ko-parity-2026-09-23.json");
+          const ids = batch.works.map((entry) =>
+            entry.provider === "gutenberg"
+              ? "gutenberg-" + String(entry.provider_id).padStart(6, "0")
+              : "gongu-" + String(entry.provider_id)
+          );
+          if (ids.length !== 75 || new Set(ids).size !== 75) {
+            throw new Error("Expected exactly 75 unique parity manifest IDs");
+          }
+          const reviewer = "LIB read operator (explicit user approval in Child72 continuation)";
+          for (const id of ids) {
+            const file = path.join("public-domain", "manifests", id + ".json");
+            const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
+            if (manifest.id !== id || manifest.approved !== true || manifest.rights_status !== "approved") {
+              throw new Error(id + ": manifest is not approved");
+            }
+            if (!manifest.source_hash || manifest.reviewed_by !== reviewer) {
+              throw new Error(id + ": provenance/reviewer mismatch");
+            }
+            manifest.import_status = "imported";
+            fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
+          }
+          console.log("Marked 75 exact parity manifests imported");
+          NODE
+
+      - name: Validate manifests
+        run: npm run public-domain:validate
+
+      - name: Persist import status
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public-domain/manifests/*.json
+          git commit -m "Child73: mark EN-KO parity manifests imported"
+          git pull --rebase origin "${GITHUB_HEAD_REF}"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
