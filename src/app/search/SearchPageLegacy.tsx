@@ -514,10 +514,6 @@ function sortByUpdated(works: WorkCard[]) {
   });
 }
 
-function formatPopularityScore(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
 function sortByPopular(
   works: WorkCard[],
   popularityMap?: Map<string, SeriesPopularityMetrics>
@@ -1336,20 +1332,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                     <div className="mt-4 grid gap-3">
                       {shelf.works.map((entry) => {
                         const work = entry.work;
-                        const metrics = entry.metrics;
 
                         return (
                           <div
                             key={work.seriesId}
                             className="rounded-[20px] border border-black/10 bg-white p-0"
                           >
-                            <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
-                              期間閲覧 {metrics.viewCount} / 期間いいね {metrics.likeCount} /
-                              期間ブックマーク {metrics.bookmarkCount} / 人気値{" "}
-                              {formatPopularityScore(metrics.popularityScore)}
-                            </div>
-
-                            <div className="p-4">
+                                                        <div className="p-4">
                               <PublicWorkBoardCard
                                 title={work.title}
                                 workHref={buildWorkHref(work.seriesId)}
@@ -1365,10 +1354,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                     : undefined
                                 }
                                 tags={work.tags}
-                                viewCount={work.viewCount}
-                                likeCount={work.likeCount}
-                                bookmarkCount={work.bookmarkCount}
-                                narrationPlayCount={work.narrationPlayCount}
                               />
                             </div>
                           </div>
@@ -1425,12 +1410,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                             key={work.seriesId}
                             className="rounded-[20px] border border-black/10 bg-white p-0"
                           >
-                            <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
-                              更新 {work.latestPostedLabel} / いいね {work.likeCount} /
-                              ブックマーク {work.bookmarkCount}
-                            </div>
-
-                            <div className="p-4">
+                                                        <div className="p-4">
                               <PublicWorkBoardCard
                                 title={work.title}
                                 workHref={buildWorkHref(work.seriesId)}
@@ -1451,10 +1431,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                     : undefined
                                 }
                                 tags={work.tags}
-                                viewCount={work.viewCount}
-                                likeCount={work.likeCount}
-                                bookmarkCount={work.bookmarkCount}
-                                narrationPlayCount={work.narrationPlayCount}
                               />
                             </div>
                           </div>
@@ -1515,13 +1491,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                             key={work.seriesId}
                             className="rounded-[20px] border border-black/10 bg-white p-0"
                           >
-                            <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
-                              閲覧 {work.viewCount} / いいね {work.likeCount} /
-                              ブックマーク {work.bookmarkCount} / 人気値{" "}
-                              {formatPopularityScore(work.provisionalPopularityScore)}
-                            </div>
-
-                            <div className="p-4">
+                                                        <div className="p-4">
                               <PublicWorkBoardCard
                                 title={work.title}
                                 workHref={buildWorkHref(work.seriesId)}
@@ -1542,10 +1512,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                     : undefined
                                 }
                                 tags={work.tags}
-                                viewCount={work.viewCount}
-                                likeCount={work.likeCount}
-                                bookmarkCount={work.bookmarkCount}
-                                narrationPlayCount={work.narrationPlayCount}
                               />
                             </div>
                           </div>
@@ -1594,20 +1560,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                     <div className="mt-4 grid gap-3">
                       {shelf.works.map((entry) => {
                         const work = entry.work;
-                        const metrics = entry.metrics;
 
                         return (
                           <div
                             key={work.seriesId}
                             className="rounded-[20px] border border-black/10 bg-white p-0"
                           >
-                            <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
-                              期間再生 {metrics.narrationPlayCount} / 期間閲覧 {metrics.viewCount} /
-                              累計再生 {work.narrationPlayCount} / いいね {work.likeCount} /
-                              ブックマーク {work.bookmarkCount}
-                            </div>
-
-                            <div className="p-4">
+                                                        <div className="p-4">
                               <PublicWorkBoardCard
                                 title={work.title}
                                 workHref={buildWorkHref(work.seriesId)}
@@ -1623,10 +1582,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                     : undefined
                                 }
                                 tags={work.tags}
-                                viewCount={work.viewCount}
-                                likeCount={work.likeCount}
-                                bookmarkCount={work.bookmarkCount}
-                                narrationPlayCount={work.narrationPlayCount}
                               />
                             </div>
                           </div>
@@ -1712,42 +1667,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           ) : (
             <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
               {sortedWorks.map((work) => {
-                const metrics =
-                  order === "popular"
-                    ? selectedPopularityMap?.get(work.seriesId) ??
-                      createEmptyPopularityMetrics(work.seriesId)
-                    : currentPopularityMap.get(work.seriesId) ??
-                      createEmptyPopularityMetrics(work.seriesId);
-
-                const scoreLabel =
-                  order === "popular" ? "指定期間人気値" : "人気値";
 
                 return (
                   <div
                     key={work.seriesId}
                     className="rounded-[24px] border border-black/10 bg-white p-0"
                   >
-                    <div className="border-b border-black/10 px-4 py-3 text-xs text-neutral-500">
-                      {shelfTab === "narration-popular" ? (
-                        <>
-                          {order === "popular" ? (
-                            <>
-                              指定期間再生 {metrics.narrationPlayCount} /{" "}
-                            </>
-                          ) : null}
-                          累計再生 {work.narrationPlayCount} / 閲覧 {work.viewCount} /
-                          いいね {work.likeCount} / ブックマーク {work.bookmarkCount}
-                        </>
-                      ) : (
-                        <>
-                          閲覧 {work.viewCount} / いいね {work.likeCount} /
-                          ブックマーク {work.bookmarkCount} / {scoreLabel}{" "}
-                          {formatPopularityScore(metrics.popularityScore)}
-                        </>
-                      )}
-                    </div>
-
-                    <div className="p-4">
+                                        <div className="p-4">
                       <PublicWorkBoardCard
                         title={work.title}
                         workHref={buildWorkHref(work.seriesId)}
@@ -1761,10 +1687,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                             : undefined
                         }
                         tags={work.tags}
-                        viewCount={work.viewCount}
-                        likeCount={work.likeCount}
-                        bookmarkCount={work.bookmarkCount}
-                        narrationPlayCount={work.narrationPlayCount}
                       />
                     </div>
                   </div>

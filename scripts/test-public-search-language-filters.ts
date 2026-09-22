@@ -105,6 +105,32 @@ function verifySearchLocaleCopy() {
   assert.ok(controlsSource.includes("sourceLanguages"));
   assert.equal(controlsSource.includes("readLanguage"), false);
   assert.equal(controlsSource.includes("read_language"), false);
+  const tagIndex = controlsSource.indexOf('{copy.tag}');
+  const languageIndex = controlsSource.indexOf('<PublicSearchLanguageFilters');
+  assert.ok(tagIndex >= 0 && languageIndex > tagIndex, "source-language filters must render below tags");
+
+  const languageSource = readFileSync(
+    "src/components/search/PublicSearchLanguageFilters.tsx",
+    "utf8"
+  );
+  assert.ok(languageSource.includes('max-h-[64px]'), "language chips must collapse to two rows");
+  assert.ok(languageSource.includes('showMore: "続きを表示"'));
+  assert.ok(languageSource.includes('px-2.5 py-1.5 text-xs'), "language chips must match tag/genre sizing");
+
+  const cardSource = readFileSync(
+    "src/components/public/PublicWorkBoardCard.tsx",
+    "utf8"
+  );
+  assert.ok(cardSource.includes("basis-full whitespace-normal break-words"));
+  assert.equal(cardSource.includes("max-w-full truncate text-base font-semibold"), false);
+
+  const legacySearchSource = readFileSync(
+    "src/app/search/SearchPageLegacy.tsx",
+    "utf8"
+  );
+  assert.equal(legacySearchSource.includes("期間閲覧 {metrics.viewCount}"), false);
+  assert.equal(legacySearchSource.includes("viewCount={work.viewCount}"), false);
+  assert.equal(legacySearchSource.includes("likeCount={work.likeCount}"), false);
 
   const pageSource = readFileSync("src/app/search/page.tsx", "utf8");
   assert.ok(pageSource.includes("parsePublicSearchSourceLanguages"));

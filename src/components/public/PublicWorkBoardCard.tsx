@@ -101,10 +101,6 @@ export default function PublicWorkBoardCard({
   summary,
   firstReadHref,
   tags,
-  viewCount,
-  likeCount,
-  bookmarkCount,
-  narrationPlayCount,
 }: PublicWorkBoardCardProps) {
   const locale = useUiLocale();
   const copy = labels[locale];
@@ -153,7 +149,7 @@ export default function PublicWorkBoardCard({
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href={localizePath(resolvedWorkHref, locale)}
-              className="min-w-0 max-w-full truncate text-base font-semibold leading-tight text-black transition hover:opacity-70"
+              className="min-w-0 basis-full whitespace-normal break-words text-base font-semibold leading-6 text-black transition hover:opacity-70"
             >
               {title}
             </Link>
@@ -197,32 +193,6 @@ export default function PublicWorkBoardCard({
             ) : (
               <span className="text-sm text-neutral-600">{authorName}</span>
             )}
-          </div>
-
-          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-neutral-500">
-            {typeof viewCount === "number" ? (
-              <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-                {copy.views} {viewCount}
-              </span>
-            ) : null}
-
-            {typeof likeCount === "number" ? (
-              <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-                {copy.likes} {likeCount}
-              </span>
-            ) : null}
-
-            {typeof bookmarkCount === "number" ? (
-              <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-                {copy.bookmarks} {bookmarkCount}
-              </span>
-            ) : null}
-
-            {typeof narrationPlayCount === "number" ? (
-              <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1">
-                {copy.narrationPlays} {narrationPlayCount}
-              </span>
-            ) : null}
           </div>
 
           {!expanded ? (
