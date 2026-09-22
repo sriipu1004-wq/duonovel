@@ -57,8 +57,25 @@ const rows = batch.works.map((entry) => {
       `${id}: prepared chapter exceeds 30,000 characters (${maxChapterCharacters})`
     );
   }
-  if (manifest.rights_status !== "pending" || manifest.approved !== false) {
-    throw new Error(`${id}: preflight must remain pending/unapproved`);
+  const pendingReview =
+    manifest.rights_status === "pending" && manifest.approved === false;
+  const humanApproved =
+    manifest.rights_status === "approved" && manifest.approved === true;
+  if (!pendingReview && !humanApproved) {
+    throw new Error(
+      `${id}: rights state must be consistently pending/unapproved or approved/human-reviewed`
+    );
+  }
+  if (humanApproved) {
+    const jurisdictions = new Set(manifest.jurisdictions_reviewed ?? []);
+    for (const jurisdiction of ["JP", "US", "KR"]) {
+      if (!jurisdictions.has(jurisdiction)) {
+        throw new Error(`${id}: approved manifest is missing ${jurisdiction} review`);
+      }
+    }
+    if (!manifest.reviewed_at || !manifest.reviewed_by) {
+      throw new Error(`${id}: approved manifest is missing reviewer metadata`);
+    }
   }
   if (manifest.import_status !== "prepared") {
     throw new Error(`${id}: source-prepared manifest must be marked prepared`);
@@ -100,6 +117,14 @@ for (const row of rows) {
 
 const en = rows.filter((row) => row.original_language === "en");
 const ko = rows.filter((row) => row.original_language === "ko");
+const approvedCount = rows.filter(
+  (row) => row.rights_status === "approved" && row.approved === true
+).length;
+if (approvedCount !== 0 && approvedCount !== rows.length) {
+  throw new Error(
+    `Mixed rights approval state in parity cohort: approved=${approvedCount}/${rows.length}`
+  );
+}
 if (rows.length !== 75 || en.length !== 38 || ko.length !== 37) {
   throw new Error(
     `Prepared parity count mismatch: total=${rows.length} en=${en.length} ko=${ko.length}`
@@ -112,7 +137,10 @@ const output = {
   production_target: batch.target,
   baseline: batch.baseline,
   additions: batch.additions,
-  stage: "SOURCE_PREPARED_PENDING_HUMAN_RIGHTS_APPROVAL",
+  stage:
+    approvedCount === rows.length
+      ? "SOURCE_PREPARED_HUMAN_RIGHTS_APPROVED"
+      : "SOURCE_PREPARED_PENDING_HUMAN_RIGHTS_APPROVAL",
   safety: {
     source_hashes_pinned: true,
     provider_landing_status_checked_by_source_sync: true,
