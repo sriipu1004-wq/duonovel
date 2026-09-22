@@ -1,0 +1,93 @@
+{
+  "id": "gutenberg-000055",
+  "title": "The Wonderful Wizard of Oz",
+  "original_title": "The Wonderful Wizard of Oz",
+  "original_author": "L. Frank Baum",
+  "author_death_year": 1919,
+  "original_language": "en",
+  "first_publication_year": 1900,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/55",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/55/pg55.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-000055.txt",
+  "source_retrieved_at": "2026-09-22T21:25:27.360Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #55 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Selected under Child73 parity preflight. Exact provider landing status, source bytes, source hash, normalized Reader text, and JP/US/KR term analysis must pass before approval/import.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 7,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "児童文学",
+    "ファンタジー"
+  ],
+  "tags": [
+    "冒険",
+    "友情",
+    "不思議"
+  ],
+  "source_hash": "969bffab7740d4d8a0bac332d78bd0152ad4a40a2efc52f06c74a9bb6120be75",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

@@ -1,0 +1,92 @@
+{
+  "id": "gongu-9000090",
+  "title": "목숨",
+  "original_title": "목숨",
+  "original_author": "김동인",
+  "author_death_year": 1951,
+  "original_language": "ko",
+  "first_publication_year": 1921,
+  "source_provider": "Gongu Madang / Korea Copyright Commission",
+  "source_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9000090",
+  "source_download_url": "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9000090&fileSn=4",
+  "source_file": "public-domain/sources/raw/gongu-9000090.txt",
+  "source_retrieved_at": "2026-09-22T21:27:05.342Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gongu_madang",
+  "edition": "Korea Copyright Commission/Gongu Madang expired-work TXT #9000090",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Selected under Child73 parity preflight. Exact provider landing status, source bytes, source hash, normalized Reader text, and JP/US/KR term analysis must pass before approval/import.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 1,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "文芸"
+  ],
+  "tags": [
+    "死",
+    "心理",
+    "暗め"
+  ],
+  "source_hash": "9225dbdb00ef4a6283e7f80b1e89c5d4091de5b6f86e6d08ab99ff9a1ff18a24",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

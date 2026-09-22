@@ -1,0 +1,92 @@
+{
+  "id": "gutenberg-005230",
+  "title": "The Invisible Man",
+  "original_title": "The Invisible Man",
+  "original_author": "H. G. Wells",
+  "author_death_year": 1946,
+  "original_language": "en",
+  "first_publication_year": 1897,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/5230",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/5230/pg5230.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-005230.txt",
+  "source_retrieved_at": "2026-09-22T21:25:24.914Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #5230 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Selected under Child73 parity preflight. Exact provider landing status, source bytes, source hash, normalized Reader text, and JP/US/KR term analysis must pass before approval/import.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 10,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "SF"
+  ],
+  "tags": [
+    "心理",
+    "社会批評",
+    "孤独"
+  ],
+  "source_hash": "28c70e3809ce945efbe5f8681532916a2c4253fee5cca6e1a191707af22280d3",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

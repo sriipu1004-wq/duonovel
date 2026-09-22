@@ -1,0 +1,92 @@
+{
+  "id": "gongu-9002097",
+  "title": "할머니의 죽음",
+  "original_title": "할머니의 죽음",
+  "original_author": "현진건",
+  "author_death_year": 1943,
+  "original_language": "ko",
+  "first_publication_year": 1923,
+  "source_provider": "Gongu Madang / Korea Copyright Commission",
+  "source_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9002097",
+  "source_download_url": "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9002097&fileSn=4",
+  "source_file": "public-domain/sources/raw/gongu-9002097.txt",
+  "source_retrieved_at": "2026-09-22T21:26:09.978Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gongu_madang",
+  "edition": "Korea Copyright Commission/Gongu Madang expired-work TXT #9002097",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Selected under Child73 parity preflight. Exact provider landing status, source bytes, source hash, normalized Reader text, and JP/US/KR term analysis must pass before approval/import.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 1,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "文芸"
+  ],
+  "tags": [
+    "家族",
+    "死",
+    "人間関係"
+  ],
+  "source_hash": "3634d8c3cc5d888ed502d5681f3856834f5c880d9955ecad8483e34bf4d6c327",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

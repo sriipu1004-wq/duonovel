@@ -1,0 +1,93 @@
+{
+  "id": "gutenberg-000084",
+  "title": "Frankenstein; or, the Modern Prometheus",
+  "original_title": "Frankenstein; or, the Modern Prometheus",
+  "original_author": "Mary Wollstonecraft Shelley",
+  "author_death_year": 1851,
+  "original_language": "en",
+  "first_publication_year": 1818,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/84",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/84/pg84.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-000084.txt",
+  "source_retrieved_at": "2026-09-22T21:25:16.026Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #84 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Selected under Child73 parity preflight. Exact provider landing status, source bytes, source hash, normalized Reader text, and JP/US/KR term analysis must pass before approval/import.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 15,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "ホラー",
+    "SF"
+  ],
+  "tags": [
+    "怪奇",
+    "心理",
+    "悲劇"
+  ],
+  "source_hash": "7810cd483cffcf2cc8a1d8f0d5807931e69d4f48cd14149b8c76f88af82fead3",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

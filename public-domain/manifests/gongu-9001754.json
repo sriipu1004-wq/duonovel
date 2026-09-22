@@ -1,0 +1,92 @@
+{
+  "id": "gongu-9001754",
+  "title": "님의 손길",
+  "original_title": "님의 손길",
+  "original_author": "한용운",
+  "author_death_year": 1944,
+  "original_language": "ko",
+  "first_publication_year": 1926,
+  "source_provider": "Gongu Madang / Korea Copyright Commission",
+  "source_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9001754",
+  "source_download_url": "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9001754&fileSn=4",
+  "source_file": "public-domain/sources/raw/gongu-9001754.txt",
+  "source_retrieved_at": "2026-09-22T21:26:34.488Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gongu_madang",
+  "edition": "Korea Copyright Commission/Gongu Madang expired-work TXT #9001754",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Selected under Child73 parity preflight. Exact provider landing status, source bytes, source hash, normalized Reader text, and JP/US/KR term analysis must pass before approval/import.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 1,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "詩歌"
+  ],
+  "tags": [
+    "詩",
+    "恋愛",
+    "思索"
+  ],
+  "source_hash": "eec77f1326e640365ac30d811b9484928437e2e5fbce4201dd08bbb6b8f6e108",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

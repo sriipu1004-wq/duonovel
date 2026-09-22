@@ -1,0 +1,93 @@
+{
+  "id": "gutenberg-000158",
+  "title": "Emma",
+  "original_title": "Emma",
+  "original_author": "Jane Austen",
+  "author_death_year": 1817,
+  "original_language": "en",
+  "first_publication_year": 1815,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/158",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/158/pg158.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-000158.txt",
+  "source_retrieved_at": "2026-09-22T21:25:52.949Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #158 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Selected under Child73 parity preflight. Exact provider landing status, source bytes, source hash, normalized Reader text, and JP/US/KR term analysis must pass before approval/import.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 31,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "文芸",
+    "恋愛"
+  ],
+  "tags": [
+    "恋愛",
+    "人間関係",
+    "風刺"
+  ],
+  "source_hash": "532b122b4e6a76cc556d6fdcd729b5892f5c4ce4a1b7060b9f832adfad8680dc",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

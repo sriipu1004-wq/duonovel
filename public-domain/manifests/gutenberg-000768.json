@@ -1,0 +1,93 @@
+{
+  "id": "gutenberg-000768",
+  "title": "Wuthering Heights",
+  "original_title": "Wuthering Heights",
+  "original_author": "Emily Brontë",
+  "author_death_year": 1848,
+  "original_language": "en",
+  "first_publication_year": 1847,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/768",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/768/pg768.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-000768.txt",
+  "source_retrieved_at": "2026-09-22T21:25:50.861Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg",
+  "edition": "Project Gutenberg eBook #768 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Selected under Child73 parity preflight. Exact provider landing status, source bytes, source hash, normalized Reader text, and JP/US/KR term analysis must pass before approval/import.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 22,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "文芸",
+    "恋愛"
+  ],
+  "tags": [
+    "恋愛",
+    "家族",
+    "暗め"
+  ],
+  "source_hash": "e533fe750589f0421d5d744576315f5c2b9b0d69e981179ea0551bbf134c5e02",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}

@@ -1,0 +1,92 @@
+{
+  "id": "gongu-9000117",
+  "title": "유서",
+  "original_title": "유서",
+  "original_author": "김동인",
+  "author_death_year": 1951,
+  "original_language": "ko",
+  "first_publication_year": 1924,
+  "source_provider": "Gongu Madang / Korea Copyright Commission",
+  "source_url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200030&wrtSn=9000117",
+  "source_download_url": "https://gongu.copyright.or.kr/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn=9000117&fileSn=4",
+  "source_file": "public-domain/sources/raw/gongu-9000117.txt",
+  "source_retrieved_at": "2026-09-22T21:27:02.923Z",
+  "source_encoding": "utf-8",
+  "normalization_profile": "gongu_madang",
+  "edition": "Korea Copyright Commission/Gongu Madang expired-work TXT #9000117",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Selected under Child73 parity preflight. Exact provider landing status, source bytes, source hash, normalized Reader text, and JP/US/KR term analysis must pass before approval/import.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 2,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 30000
+  },
+  "genres": [
+    "文芸"
+  ],
+  "tags": [
+    "心理",
+    "暗め",
+    "人間関係"
+  ],
+  "source_hash": "a0d872fd5b7ac3c7a00144b695bd5a5076dcd75d0b15605d8214ad205efe8876",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}
