@@ -18,19 +18,19 @@
   "translator": null,
   "translator_death_year": null,
   "translation_language": null,
-  "rights_status": "pending",
-  "rights_basis": "",
-  "rights_notes": "Selected under Child73 parity preflight. Exact provider landing status, source bytes, source hash, normalized Reader text, and JP/US/KR term analysis must pass before approval/import.",
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved this Child73 parity cohort after source preflight and primary-law framework review. The Hound of the Baskervilles was first published in 1902; Arthur Conan Doyle died in 1930. The exact Project Gutenberg item landing/source was preflighted and SHA-256 pinned. The selected cohort is limited to original-language works first published no later than 1930 and English authors who died no later than 1942 in the actual cohort. Scope is normalized original literary text only; provider boilerplate, modern translations, covers and illustrations are excluded.",
+  "rights_notes": "Human rights approval recorded 2026-09-23 by LIB read operator (explicit user approval in Child72 continuation). Exact source provenance and SHA-256 were established by the Child73 preflight. Reviewed jurisdictions: JP, US, KR. No modern translation, modern cover, or illustration asset is included.",
   "rights_components": {
     "original_work": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": ""
+      "status": "approved",
+      "basis": "Original EN work screened by first-publication year (1902) and author death year (1930) under the reviewed JP/US/KR framework.",
+      "notes": "Human operator approved the conservative cohort after preflight."
     },
     "edition": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": ""
+      "status": "approved",
+      "basis": "Exact provider plain-text source is pinned by SHA-256; import scope is the normalized literary text, excluding provider/site boilerplate.",
+      "notes": "No modern translation or commercial edition is used."
     },
     "translation": {
       "status": "not_applicable",
@@ -38,13 +38,13 @@
       "notes": ""
     },
     "editorial": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": ""
+      "status": "approved",
+      "basis": "No separately protected modern editorial prose is intentionally imported into Reader text.",
+      "notes": "Provider headers/footers and site metadata are excluded by normalization."
     },
     "annotations": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "No separately protected modern annotations are intentionally imported.",
       "notes": ""
     },
     "illustrations": {
@@ -58,19 +58,23 @@
       "notes": ""
     },
     "digitization": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Exact official Project Gutenberg source bytes were fetched through the allowlisted source path and pinned by SHA-256.",
       "notes": ""
     },
     "provider_terms": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": ""
+      "status": "approved",
+      "basis": "Project Gutenberg item status and provider terms were included in the Child73 human review; Reader distribution excludes Project Gutenberg license/trademark boilerplate.",
+      "notes": "Source landing: https://www.gutenberg.org/ebooks/2852"
     }
   },
-  "jurisdictions_reviewed": [],
-  "reviewed_at": null,
-  "reviewed_by": null,
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-23T08:19:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 continuation)",
   "chapter_count": 12,
   "chapter_split": {
     "strategy": "paragraph_chunks",
@@ -86,7 +90,7 @@
     "怪奇"
   ],
   "source_hash": "f7c8c68729d32a5f6a04a5a9ad73d184176e66a6c76b3992c41c1ab47b427d98",
-  "approved": false,
+  "approved": true,
   "import_status": "prepared",
   "cover_source": null,
   "cover_rights_status": null
