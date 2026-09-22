@@ -45,5 +45,9 @@
     "no_automatic_translation": true,
     "no_automatic_glossary_generation": true,
     "no_automatic_narration_generation": true
+  },
+  "production_ui_deployment_retrigger": {
+    "requested_at": "2026-09-23T09:46:00+10:00",
+    "reason": "Main contains the approved search-card/mobile filter fixes, but Vercel Production is still serving the pre-Child73 UI deployment. Code-neutral commit to retrigger the Git integration."
   }
 }
