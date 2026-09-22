@@ -18,18 +18,18 @@
   "translator": null,
   "translator_death_year": null,
   "translation_language": null,
-  "rights_status": "pending",
-  "rights_basis": "",
-  "rights_notes": "Selected under Child73 parity preflight. Exact provider landing status, source bytes, source hash, normalized Reader text, and JP/US/KR term analysis must pass before approval/import.",
+  "rights_status": "approved",
+  "rights_basis": "Human operator approved this Child73 parity cohort after source preflight and primary-law framework review. The Legend of Sleepy Hollow was first published in 1820; Washington Irving died in 1859. Exact Project Gutenberg source provenance and SHA-256 are pinned. Scope is original-language literary text only; modern translations, covers, illustrations and provider boilerplate are excluded.",
+  "rights_notes": "Human rights approval recorded 2026-09-23 by LIB read operator (explicit user approval in Child72 continuation). Reviewed jurisdictions: JP, US, KR.",
   "rights_components": {
     "original_work": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Original work screened by publication year 1820 and author death year 1859 under the JP/US/KR cohort framework.",
       "notes": ""
     },
     "edition": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
       "notes": ""
     },
     "translation": {
@@ -38,13 +38,13 @@
       "notes": ""
     },
     "editorial": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
       "notes": ""
     },
     "annotations": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
       "notes": ""
     },
     "illustrations": {
@@ -58,19 +58,23 @@
       "notes": ""
     },
     "digitization": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned and no separately protected modern translation, cover, illustration, annotation, or editorial layer is intentionally imported.",
       "notes": ""
     },
     "provider_terms": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": ""
+      "status": "approved",
+      "basis": "Project Gutenberg item status/provider terms reviewed; PG boilerplate excluded from Reader text.",
+      "notes": "Source landing: https://www.gutenberg.org/ebooks/41"
     }
   },
-  "jurisdictions_reviewed": [],
-  "reviewed_at": null,
-  "reviewed_by": null,
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-23T08:19:00+10:00",
+  "reviewed_by": "LIB read operator (explicit user approval in Child72 continuation)",
   "chapter_count": 3,
   "chapter_split": {
     "strategy": "paragraph_chunks",
@@ -86,7 +90,7 @@
     "短編"
   ],
   "source_hash": "6847c02f49c9ff8a5e2a0e8f49842bf3bffc7f5a87216c895a6b64f26ecf9353",
-  "approved": false,
+  "approved": true,
   "import_status": "prepared",
   "cover_source": null,
   "cover_rights_status": null
