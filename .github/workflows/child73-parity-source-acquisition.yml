@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   acquire:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -85,6 +86,7 @@ jobs:
             echo "No provenance changes to persist"
           else
             git commit -m "Child73: persist EN-KO source provenance"
+            git pull --rebase origin "${GITHUB_HEAD_REF}"
             git push origin "HEAD:${GITHUB_HEAD_REF}"
           fi
 
