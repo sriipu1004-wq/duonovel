@@ -1,0 +1,100 @@
+name: Child73 EN-KO parity source acquisition
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/child73-parity-source-acquisition.yml"
+      - "public-domain/batches/en-ko-parity-2026-09-23.json"
+      - "public-domain/manifests/**"
+      - "scripts/public-domain/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: child73-parity-source-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate 75 pending manifests
+        run: npx tsx scripts/public-domain/generate-parity-manifests.ts
+
+      - name: Validate generated pending manifests
+        run: npm run public-domain:validate
+
+      - name: Acquire and prepare English sources
+        shell: bash
+        run: |
+          mapfile -t IDS < <(
+            node - <<'NODE'
+          const batch = require("./public-domain/batches/en-ko-parity-2026-09-23.json");
+          for (const entry of batch.works.filter((item) => item.provider === "gutenberg")) {
+            console.log("gutenberg-" + String(entry.provider_id).padStart(6, "0"));
+          }
+          NODE
+          )
+          npm run public-domain:source-sync -- "${IDS[@]}" --prepare --limit=50 --delay-ms=750
+
+      - name: Acquire and prepare Korean sources
+        shell: bash
+        run: |
+          mapfile -t IDS < <(
+            node - <<'NODE'
+          const batch = require("./public-domain/batches/en-ko-parity-2026-09-23.json");
+          for (const entry of batch.works.filter((item) => item.provider === "gongu")) {
+            console.log("gongu-" + entry.provider_id);
+          }
+          NODE
+          )
+          npm run public-domain:source-sync -- "${IDS[@]}" --prepare --limit=50 --delay-ms=750
+
+      - name: Verify prepared cohort
+        run: npx tsx scripts/public-domain/report-parity-preflight.ts
+
+      - name: Validate prepared manifests
+        run: npm run public-domain:validate
+
+      - name: Persist source provenance and preflight report
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public-domain/manifests/*.json public-domain/audits/en-ko-parity-preflight-2026-09-23.json
+          if git diff --cached --quiet; then
+            echo "No provenance changes to persist"
+          else
+            git commit -m "Child73: persist EN-KO source provenance"
+            git push origin "HEAD:${GITHUB_HEAD_REF}"
+          fi
+
+      - name: Upload prepared evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: child73-en-ko-parity-prepared
+          path: |
+            .public-domain-work/
+            public-domain/audits/en-ko-parity-preflight-2026-09-23.json
+            public-domain/manifests/
+          if-no-files-found: error
+          retention-days: 14
