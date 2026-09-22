@@ -853,19 +853,18 @@
     },
     {
       "provider": "gongu",
-      "provider_id": 9079891,
-      "title": "무정",
-      "author": "이광수",
-      "author_death_year": 1950,
-      "first_publication_year": 1917,
+      "provider_id": 9029675,
+      "title": "두 가지 마음 성(性)",
+      "author": "방정환",
+      "author_death_year": 1931,
+      "first_publication_year": 1927,
       "genres": [
-        "文芸",
-        "恋愛"
+        "児童文学"
       ],
       "tags": [
-        "恋愛",
-        "青春",
-        "社会批評"
+        "童話",
+        "心理",
+        "人間関係"
       ]
     },
     {
