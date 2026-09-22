@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
-import { localizeTagList } from "@/i18n/tagLabels";
-import { localizeGenreList } from "@/i18n/genreLabels";
+import { canonicalizeTagList, localizeTagList } from "@/i18n/tagLabels";
+import { canonicalizeGenreList, localizeGenreList } from "@/i18n/genreLabels";
 import { supabase } from "@/lib/supabaseClient";
 import {
   hideGlobalLoadingFeedback,
@@ -598,8 +598,8 @@ const publicVisibleCount = sortedEpisodes.filter(
   ? "まだ下書きの話がある。本文編集を開いて、投稿または予約投稿へ切り替える。"
           : "予約投稿や投稿済みの流れを保ったまま次の話へ進む。";
 
-  const tags = buildWorkspaceTags(tagEditorValue, isAiGenerated);
-  const genres = parseTags(genreEditorValue);
+  const tags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue, isAiGenerated));
+  const genres = canonicalizeGenreList(parseTags(genreEditorValue));
   const recordingPermissionLabel = getRecordingPermissionLabel(
     recordingPermissionMode
   );
@@ -770,8 +770,8 @@ const publicVisibleCount = sortedEpisodes.filter(
     showGlobalLoadingFeedback("作成中...", 8000);
 
     const summaryVariants = buildSummaryValue(summary);
-    const nextGenres = parseTags(genreEditorValue);
-    const nextTags = buildWorkspaceTags(tagEditorValue, isAiGenerated);
+    const nextGenres = canonicalizeGenreList(parseTags(genreEditorValue));
+    const nextTags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue, isAiGenerated));
     const workspaceFields = buildWorkspaceFields({
       publicationStatus,
       reviewsEnabled,
@@ -868,8 +868,8 @@ const publicVisibleCount = sortedEpisodes.filter(
     setSuccessMessage("");
 
     const summaryVariants = buildSummaryValue(summary);
-    const nextGenres = parseTags(genreEditorValue);
-    const nextTags = buildWorkspaceTags(tagEditorValue, isAiGenerated);
+    const nextGenres = canonicalizeGenreList(parseTags(genreEditorValue));
+    const nextTags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue, isAiGenerated));
     const workspaceFields = buildWorkspaceFields({
       publicationStatus,
       reviewsEnabled,
