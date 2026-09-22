@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import type { UiLocale } from "@/i18n/config";
 import {
@@ -13,10 +13,12 @@ import {
 
 const copy: Record<UiLocale, {
   title: string;
+  showMore: string;
+  close: string;
 }> = {
-  ja: { title: "言語" },
-  en: { title: "Language" },
-  ko: { title: "언어" },
+  ja: { title: "言語", showMore: "続きを表示", close: "閉じる" },
+  en: { title: "Language", showMore: "Show more", close: "Close" },
+  ko: { title: "언어", showMore: "더 보기", close: "닫기" },
 };
 
 const koreanLanguageLabels: Partial<Record<SupportedLanguageTag, string>> = {
@@ -51,7 +53,10 @@ export default function PublicSearchLanguageFilters({
   countsOverride,
 }: PublicSearchLanguageFiltersProps) {
   const locale = useUiLocale();
+  const languageChipListRef = useRef<HTMLDivElement | null>(null);
   const [fetchedCounts, setFetchedCounts] = useState<Counts>({});
+  const [showAllLanguages, setShowAllLanguages] = useState(false);
+  const [hasHiddenLanguages, setHasHiddenLanguages] = useState(false);
 
   useEffect(() => {
     if (countsOverride) return;
@@ -86,6 +91,27 @@ export default function PublicSearchLanguageFilters({
     });
   }, [counts, locale]);
 
+  useEffect(() => {
+    if (showAllLanguages) {
+      setHasHiddenLanguages(false);
+      return;
+    }
+
+    const container = languageChipListRef.current;
+    if (!container) return;
+
+    const updateOverflow = () => {
+      setHasHiddenLanguages(container.scrollHeight > container.clientHeight + 1);
+    };
+
+    updateOverflow();
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(updateOverflow);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [orderedLanguages, showAllLanguages]);
+
   function toggle(language: SupportedLanguageTag) {
     const next = sourceLanguages.includes(language)
       ? sourceLanguages.filter((item) => item !== language)
@@ -97,33 +123,63 @@ export default function PublicSearchLanguageFilters({
   }
 
   return (
-    <div className="mt-6">
+    <div>
       <p className="text-[11px] tracking-[0.18em] text-neutral-500">
         {copy[locale].title}
       </p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {orderedLanguages.map((tag) => {
-          const active = sourceLanguages.includes(tag);
-          return (
+      <div className="relative mt-2 max-w-full">
+        <div
+          ref={languageChipListRef}
+          className={
+            showAllLanguages
+              ? "flex flex-wrap gap-2"
+              : "flex max-h-[64px] flex-wrap gap-2 overflow-hidden pr-[88px]"
+          }
+        >
+          {orderedLanguages.map((tag) => {
+            const active = sourceLanguages.includes(tag);
+            return (
+              <button
+                key={tag}
+                type="button"
+                aria-pressed={active}
+                title={getLanguageLabel(tag, locale)}
+                onClick={() => toggle(tag)}
+                className={[
+                  "inline-flex max-w-full items-center overflow-hidden rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
+                  active
+                    ? "border-sky-200 bg-sky-50 text-black"
+                    : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
+                ].join(" ")}
+              >
+                <span className="truncate">{getLanguageLabel(tag, locale)}</span>
+                <span className="ml-1.5 shrink-0 text-[10px] text-neutral-400">
+                  {Number(counts[tag] ?? 0)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {showAllLanguages ? (
+          <div className="mt-2">
             <button
-              key={tag}
               type="button"
-              aria-pressed={active}
-              onClick={() => toggle(tag)}
-              className={[
-                "inline-flex items-center rounded-full border px-3 py-2 text-sm transition",
-                active
-                  ? "border-sky-300 bg-sky-50 text-black"
-                  : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50",
-              ].join(" ")}
+              onClick={() => setShowAllLanguages(false)}
+              className="rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-50"
             >
-              <span>{getLanguageLabel(tag, locale)}</span>
-              <span className="ml-1.5 text-[10px] text-neutral-400">
-                {Number(counts[tag] ?? 0)}
-              </span>
+              {copy[locale].close}
             </button>
-          );
-        })}
+          </div>
+        ) : hasHiddenLanguages ? (
+          <button
+            type="button"
+            onClick={() => setShowAllLanguages(true)}
+            className="absolute bottom-0 right-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs text-neutral-600 shadow-[0_0_0_4px_white] transition hover:bg-neutral-50"
+          >
+            {copy[locale].showMore}
+          </button>
+        ) : null}
       </div>
     </div>
   );
