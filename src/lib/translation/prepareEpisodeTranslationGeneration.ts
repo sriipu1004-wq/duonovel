@@ -20,7 +20,9 @@ import {
   EPISODE_TRANSLATION_LIMITS,
   estimateEpisodeTranslationGuardrailCostJpy,
   estimateEpisodeTranslationTokens,
+  resolveEpisodeTranslationMaxSourceChars,
 } from "@/lib/translation/episodeTranslationGenerateLimits";
+import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 import type { SeriesTranslationConsistencyContext } from "@/lib/translation/seriesTranslationConsistency";
 
 type EpisodeTranslationSource = ReturnType<typeof buildEpisodeTranslationSource>;
@@ -71,8 +73,16 @@ export async function prepareEpisodeTranslationGeneration(request: Request): Pro
   const learningPreference = parsedLearningPreference?.language === targetLanguage ? parsedLearningPreference : null;
   const source = buildEpisodeTranslationSource(access.body, sourceLanguage);
   const sourceChars = source.normalizedSource.length;
-  if (sourceChars > EPISODE_TRANSLATION_LIMITS.maxSourceChars) {
-    return { response: NextResponse.json({ ok: false, error: "translation_source_too_long", maxSourceChars: EPISODE_TRANSLATION_LIMITS.maxSourceChars }, { status: 413 }) };
+  const verifiedPublicDomain = Boolean(
+    readPublicDomainMetadata(
+      access.series.effect_settings ?? access.series.effectSettings
+    )
+  );
+  const maxSourceChars = resolveEpisodeTranslationMaxSourceChars({
+    verifiedPublicDomain,
+  });
+  if (sourceChars > maxSourceChars) {
+    return { response: NextResponse.json({ ok: false, error: "translation_source_too_long", maxSourceChars }, { status: 413 }) };
   }
   if (source.segments.length === 0) return { response: NextResponse.json({ ok: false, error: "translation_source_empty" }, { status: 400 }) };
 
