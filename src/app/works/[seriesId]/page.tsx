@@ -44,6 +44,7 @@ import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingS
 import { buildRecordingEntryPath } from "@/lib/recording/recordingEntry";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
+import { getSupportedLanguage, parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -868,6 +869,12 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     ) || "作者名未設定";
   const displayedAuthorName = publicDomain?.originalAuthor || authorName;
   const displayedAuthorLabel = publicDomain ? dictionary.originalAuthor : dictionary.author;
+  const sourceLanguageTag = parseSupportedLanguageTag(
+    pickText(series.source_language, series["sourceLanguage"])
+  );
+  const sourceLanguageLabel = sourceLanguageTag
+    ? getSupportedLanguage(sourceLanguageTag).nativeLabel
+    : pickText(series.source_language, series["sourceLanguage"]);
 
   const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
   const workHref = (href: string) => localizePath(href, locale);
@@ -979,34 +986,11 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
               </span>
             </div>
 
-            {publicDomain ? (
-              <div className="mt-4 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-black/10 bg-white px-3 py-1 font-medium text-black">
-                    {dictionary.publicDomain}
-                  </span>
-                  <span className="rounded-full border border-black/10 bg-white px-3 py-1 font-medium text-black">
-                    {dictionary.rightsChecked}
-                  </span>
-                  <span className="text-neutral-500">
-                    {dictionary.source}:{" "}
-                    {publicDomain.sourceUrl ? (
-                      <a
-                        href={publicDomain.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="underline decoration-black/30 underline-offset-4 hover:decoration-black"
-                      >
-                        {publicDomain.sourceProvider}
-                      </a>
-                    ) : (
-                      publicDomain.sourceProvider
-                    )}
-                  </span>
-                </div>
-                <p className="mt-3 leading-7 text-neutral-600">
-                  {dictionary.publicDomainNotice}
-                </p>
+            {sourceLanguageLabel ? (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-black">
+                  {dictionary.originalLanguage}: {sourceLanguageLabel}
+                </span>
               </div>
             ) : null}
 
