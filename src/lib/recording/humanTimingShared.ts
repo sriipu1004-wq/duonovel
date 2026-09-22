@@ -60,9 +60,9 @@ export function splitIntoTrackingSentenceUnits(paragraph: string): string[] {
     .filter(Boolean);
 }
 
-export const READER_DISPLAY_CLAUSE_TARGET_CHARS = 160;
-export const READER_DISPLAY_CLAUSE_MIN_CHARS = 56;
-export const READER_DISPLAY_CLAUSE_MAX_LOOKAHEAD_CHARS = 240;
+export const READER_DISPLAY_CLAUSE_TARGET_CHARS = 100;
+export const READER_DISPLAY_CLAUSE_MIN_CHARS = 40;
+export const READER_DISPLAY_CLAUSE_MAX_LOOKAHEAD_CHARS = 160;
 
 const READER_DISPLAY_CLAUSE_BOUNDARIES = new Set([
   "、",
