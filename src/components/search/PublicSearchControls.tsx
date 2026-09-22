@@ -9,6 +9,8 @@ import { localizePath } from "@/i18n/navigation";
 import type { SavedFilterKey } from "@/lib/searchSavedFilters";
 import { getLocalizedSavedFilterLabel, publicSearchControlCopy } from "@/lib/search/searchLocaleCopy";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import { localizeTagLabel } from "@/i18n/tagLabels";
+import { localizeGenreLabel } from "@/i18n/genreLabels";
 
 type OrderKey = "popular" | "updated";
 type ShelfTabKey = "overall-popular" | "latest" | "weekly-new" | "narration-popular";
@@ -183,10 +185,22 @@ export default function PublicSearchControls({
   const selectedFilterChips = useMemo(
     () => [
       ...(savedFilterKey
-        ? [{ type: "saved" as const, label: getLocalizedSavedFilterLabel(savedFilterKey, locale) }]
+        ? [{
+            type: "saved" as const,
+            value: savedFilterKey,
+            label: getLocalizedSavedFilterLabel(savedFilterKey, locale),
+          }]
         : []),
-      ...selectedGenreLabels.map((label) => ({ type: "genre" as const, label })),
-      ...selectedTagLabels.map((label) => ({ type: "tag" as const, label })),
+      ...selectedGenreLabels.map((value) => ({
+        type: "genre" as const,
+        value,
+        label: localizeGenreLabel(value, locale),
+      })),
+      ...selectedTagLabels.map((value) => ({
+        type: "tag" as const,
+        value,
+        label: localizeTagLabel(value, locale),
+      })),
     ],
     [locale, savedFilterKey, selectedGenreLabels, selectedTagLabels]
   );
@@ -329,10 +343,10 @@ export default function PublicSearchControls({
                   chip.type === "saved"
                     ? commonHref({ saved: "" })
                     : chip.type === "genre"
-                      ? commonHref({ selectedGenres: selectedGenreLabels.filter((item) => item !== chip.label) })
+                      ? commonHref({ selectedGenres: selectedGenreLabels.filter((item) => item !== chip.value) })
                       : commonHref({
                           selectedTags: selectedTagLabels.filter(
-                            (item) => normalizeTagToken(item) !== normalizeTagToken(chip.label)
+                            (item) => normalizeTagToken(item) !== normalizeTagToken(chip.value)
                           ),
                         });
                 const className =
@@ -371,7 +385,7 @@ export default function PublicSearchControls({
                   <button
                     key={genre.key}
                     type="button"
-                    title={genre.label}
+                    title={localizeGenreLabel(genre.label, locale)}
                     onClick={() => handleGenreToggle(genre.label)}
                     className={[
                       "inline-flex max-w-full items-center overflow-hidden rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
@@ -380,7 +394,7 @@ export default function PublicSearchControls({
                         : "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
                     ].join(" ")}
                   >
-                    <span className="truncate">{genre.label}</span>
+                    <span className="truncate">{localizeGenreLabel(genre.label, locale)}</span>
                     <span className="ml-1.5 shrink-0 text-[10px] text-violet-400">{genre.count}</span>
                   </button>
                 );
@@ -411,7 +425,7 @@ export default function PublicSearchControls({
                   <button
                     key={tag.value}
                     type="button"
-                    title={tag.label}
+                    title={localizeTagLabel(tag.label, locale)}
                     onClick={() => handleTagToggle(tag.label)}
                     className={[
                       "inline-flex max-w-full items-center overflow-hidden rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
@@ -420,7 +434,7 @@ export default function PublicSearchControls({
                         : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
                     ].join(" ")}
                   >
-                    <span className="truncate">{tag.label}</span>
+                    <span className="truncate">{localizeTagLabel(tag.label, locale)}</span>
                     <span className="ml-2 shrink-0 text-neutral-400">{tag.count}</span>
                   </button>
                 );

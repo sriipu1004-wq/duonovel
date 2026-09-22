@@ -30,6 +30,74 @@ const JAPANESE_CLOSING_CHARS = new Set([
   "’",
 ]);
 
+export const TRANSLATION_CLAUSE_SPLIT_TARGET_CHARS = 100;
+export const TRANSLATION_CLAUSE_SPLIT_MIN_CHARS = 40;
+export const TRANSLATION_CLAUSE_SPLIT_MAX_LOOKAHEAD_CHARS = 160;
+
+const CLAUSE_BOUNDARY_CHARS = new Set(["、", ",", "，", ";", "；", ":", "："]);
+
+function splitLongClauseBounds(
+  source: string,
+  start: number,
+  end: number
+): Array<[number, number]> {
+  if (end - start <= TRANSLATION_CLAUSE_SPLIT_TARGET_CHARS) {
+    return [[start, end]];
+  }
+
+  const candidates: number[] = [];
+  for (let cursor = start; cursor < end; cursor += 1) {
+    if (CLAUSE_BOUNDARY_CHARS.has(source[cursor] ?? "")) {
+      candidates.push(cursor + 1);
+    }
+  }
+  if (candidates.length === 0) return [[start, end]];
+
+  const result: Array<[number, number]> = [];
+  let segmentStart = start;
+
+  while (end - segmentStart > TRANSLATION_CLAUSE_SPLIT_TARGET_CHARS) {
+    const min = segmentStart + TRANSLATION_CLAUSE_SPLIT_MIN_CHARS;
+    const target = segmentStart + TRANSLATION_CLAUSE_SPLIT_TARGET_CHARS;
+    const max = Math.min(
+      end,
+      segmentStart + TRANSLATION_CLAUSE_SPLIT_MAX_LOOKAHEAD_CHARS
+    );
+
+    const beforeTarget = candidates.filter(
+      (candidate) => candidate >= min && candidate <= target
+    );
+    const afterTarget = candidates.filter(
+      (candidate) => candidate > target && candidate <= max
+    );
+    const splitAt =
+      beforeTarget[beforeTarget.length - 1] ??
+      afterTarget[0] ??
+      null;
+
+    if (splitAt === null || splitAt <= segmentStart || splitAt >= end) {
+      break;
+    }
+
+    result.push([segmentStart, splitAt]);
+    segmentStart = splitAt;
+  }
+
+  if (segmentStart < end) {
+    result.push([segmentStart, end]);
+  }
+
+  if (result.length >= 2) {
+    const last = result[result.length - 1]!;
+    if (last[1] - last[0] < TRANSLATION_CLAUSE_SPLIT_MIN_CHARS) {
+      const previous = result[result.length - 2]!;
+      result.splice(result.length - 2, 2, [previous[0], last[1]]);
+    }
+  }
+
+  return result.length > 0 ? result : [[start, end]];
+}
+
 export function normalizeTranslationSourceText(body: string): string {
   return body.replace(/\r\n?/g, "\n");
 }
@@ -97,7 +165,7 @@ function createSegmentCollector(args: {
   const normalize = getTranslationNormalizer(args.sourceLanguage);
   let sentenceIndex = 0;
 
-  function push(start: number, end: number) {
+  function pushExact(start: number, end: number) {
     const [startOffset, endOffset] = trimSegmentBounds(args.source, start, end);
     if (endOffset <= startOffset) return;
 
@@ -115,6 +183,15 @@ function createSegmentCollector(args: {
       endOffset,
     });
     sentenceIndex += 1;
+  }
+
+  function push(start: number, end: number) {
+    const [trimmedStart, trimmedEnd] = trimSegmentBounds(args.source, start, end);
+    if (trimmedEnd <= trimmedStart) return;
+    const bounds = splitLongClauseBounds(args.source, trimmedStart, trimmedEnd);
+    for (const [clauseStart, clauseEnd] of bounds) {
+      pushExact(clauseStart, clauseEnd);
+    }
   }
 
   return { segments, push };

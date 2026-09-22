@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { canonicalizeTagList, localizeTagList } from "@/i18n/tagLabels";
+import { canonicalizeGenreList, localizeGenreList } from "@/i18n/genreLabels";
 import { supabase } from "@/lib/supabaseClient";
 import {
   hideGlobalLoadingFeedback,
@@ -455,6 +458,7 @@ export default function WriteSeriesForm({
   episodes = [],
 }: WriteSeriesFormProps) {
   const router = useRouter();
+  const locale = useUiLocale();
 
   const isAiGenerated = isAiGeneratedSeries(series);
   const initialGenres = getSeriesGenres(series);
@@ -594,8 +598,8 @@ const publicVisibleCount = sortedEpisodes.filter(
   ? "まだ下書きの話がある。本文編集を開いて、投稿または予約投稿へ切り替える。"
           : "予約投稿や投稿済みの流れを保ったまま次の話へ進む。";
 
-  const tags = buildWorkspaceTags(tagEditorValue, isAiGenerated);
-  const genres = parseTags(genreEditorValue);
+  const tags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue, isAiGenerated));
+  const genres = canonicalizeGenreList(parseTags(genreEditorValue));
   const recordingPermissionLabel = getRecordingPermissionLabel(
     recordingPermissionMode
   );
@@ -650,12 +654,18 @@ const publicVisibleCount = sortedEpisodes.filter(
     {
       id: "genres",
       label: "ジャンル",
-      value: genres.length > 0 ? genres.join(" / ") : "未設定",
+      value:
+        genres.length > 0
+          ? localizeGenreList(genres, locale).join(" / ")
+          : "未設定",
     },
     {
       id: "tags",
       label: "タグ",
-      value: tags.length > 0 ? tags.join(" / ") : "未設定",
+      value:
+        tags.length > 0
+          ? localizeTagList(tags, locale).join(" / ")
+          : "未設定",
     },
     {
       id: "recording",
@@ -760,8 +770,8 @@ const publicVisibleCount = sortedEpisodes.filter(
     showGlobalLoadingFeedback("作成中...", 8000);
 
     const summaryVariants = buildSummaryValue(summary);
-    const nextGenres = parseTags(genreEditorValue);
-    const nextTags = buildWorkspaceTags(tagEditorValue, isAiGenerated);
+    const nextGenres = canonicalizeGenreList(parseTags(genreEditorValue));
+    const nextTags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue, isAiGenerated));
     const workspaceFields = buildWorkspaceFields({
       publicationStatus,
       reviewsEnabled,
@@ -858,8 +868,8 @@ const publicVisibleCount = sortedEpisodes.filter(
     setSuccessMessage("");
 
     const summaryVariants = buildSummaryValue(summary);
-    const nextGenres = parseTags(genreEditorValue);
-    const nextTags = buildWorkspaceTags(tagEditorValue, isAiGenerated);
+    const nextGenres = canonicalizeGenreList(parseTags(genreEditorValue));
+    const nextTags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue, isAiGenerated));
     const workspaceFields = buildWorkspaceFields({
       publicationStatus,
       reviewsEnabled,

@@ -17,6 +17,10 @@ import {
   resolveSavedFilter,
 } from "@/lib/searchSavedFilters";
 import { parsePublicSearchSourceLanguages } from "@/lib/search/publicWorkLanguageFilter";
+import { getUiLocale } from "@/i18n/server";
+import { canonicalizeTagLabel } from "@/i18n/tagLabels";
+import { canonicalizeGenreLabel, localizeGenreLabel } from "@/i18n/genreLabels";
+import type { UiLocale } from "@/i18n/config";
 
 type SearchPageProps = {
   searchParams?: Promise<{
@@ -184,7 +188,7 @@ function parseSelectedGenreLabels(rawGenres?: string): string[] {
 
   return rawGenres
     .split(/[,\n、]/)
-    .map((item) => item.trim())
+    .map((item) => canonicalizeGenreLabel(item))
     .filter((item) => item.length > 0)
     .slice(0, 3);
 }
@@ -224,7 +228,7 @@ function parseSelectedTagLabels(rawTags?: string, rawTag?: string): string[] {
   const unique = new Map<string, string>();
 
   for (const value of values) {
-    const formatted = formatTagLabel(value);
+    const formatted = formatTagLabel(canonicalizeTagLabel(value));
     if (!formatted) continue;
 
     const normalized = normalizeTagToken(formatted);
@@ -656,26 +660,34 @@ function buildGenreShelfSections(params: {
   genres: GenreChip[];
   works: WorkCard[];
   order: OrderKey;
+  locale: UiLocale;
   descriptionBuilder: (genre: GenreChip) => string;
   badgeLabel: string;
   hrefBuilder: (genre: GenreChip) => string;
   emptyMessageBuilder: (genre: GenreChip) => string;
 }): GenreShelfSection[] {
-  return params.genres.slice(0, 5).map((genre) => ({
-    key: genre.key,
-    title: genre.label,
-    description: params.descriptionBuilder(genre),
-    badgeLabel: params.badgeLabel,
-    href: params.hrefBuilder(genre),
-    works: sortWorks(filterWorksByGenre(params.works, genre.key), params.order).slice(
-      0,
-      5
-    ),
-    emptyMessage: params.emptyMessageBuilder(genre),
-  }));
+  return params.genres.slice(0, 5).map((genre) => {
+    const localizedGenre = {
+      ...genre,
+      label: localizeGenreLabel(genre.label, params.locale),
+    };
+    return {
+      key: genre.key,
+      title: localizedGenre.label,
+      description: params.descriptionBuilder(localizedGenre),
+      badgeLabel: params.badgeLabel,
+      href: params.hrefBuilder(genre),
+      works: sortWorks(filterWorksByGenre(params.works, genre.key), params.order).slice(
+        0,
+        5
+      ),
+      emptyMessage: params.emptyMessageBuilder(localizedGenre),
+    };
+  });
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
+  const uiLocale = await getUiLocale();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
   const savedFilter = resolveSavedFilter(pickText(resolvedSearchParams?.saved));
@@ -1036,6 +1048,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           genres: availableGenres,
           works: workCards,
           order: "updated",
+          locale: uiLocale,
           descriptionBuilder: (genre) =>
             `公開中の ${genre.label} 作品を更新順で表示。`,
           badgeLabel: "更新順",
@@ -1084,6 +1097,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           genres: weeklyNewGenres,
           works: weeklyNewWorks,
           order: "popular",
+          locale: uiLocale,
           descriptionBuilder: (genre) =>
             `直近7日で初公開された ${genre.label} 作品を暫定人気順で表示。`,
           badgeLabel: "暫定人気順",

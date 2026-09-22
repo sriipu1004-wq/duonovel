@@ -16,6 +16,18 @@ on:
       - "src/i18n/dictionaries/work.ts"
       - "src/app/works/[seriesId]/page.tsx"
       - "src/app/locale-work/[seriesId]/page.tsx"
+      - "src/app/write/page.tsx"
+      - "src/features/write/WriteSeriesForm.tsx"
+      - "src/features/works/WorkTranslationAvailability.tsx"
+      - "src/components/search/PublicSearchControls.tsx"
+      - "src/app/search/SearchPageLegacy.tsx"
+      - "src/features/playback/WebSpeechEpisodePlayback.tsx"
+      - "src/lib/recording/humanTimingShared.ts"
+      - "src/lib/translation/segmentSourceDocument.ts"
+      - "src/i18n/tagLabels.ts"
+      - "src/i18n/genreLabels.ts"
+      - "src/i18n/AuthoringGenreLocalePortal.tsx"
+      - "src/i18n/UiLocaleProvider.tsx"
       - "package.json"
       - "package-lock.json"
   workflow_dispatch:
@@ -86,6 +98,15 @@ jobs:
           src/i18n/dictionaries/work.ts
           src/app/works/[seriesId]/page.tsx
           src/app/locale-work/[seriesId]/page.tsx
+          src/app/write/page.tsx
+          src/features/works/WorkTranslationAvailability.tsx
+          src/features/playback/WebSpeechEpisodePlayback.tsx
+          src/lib/recording/humanTimingShared.ts
+          src/lib/translation/segmentSourceDocument.ts
+          src/i18n/tagLabels.ts
+          src/i18n/genreLabels.ts
+          src/i18n/AuthoringGenreLocalePortal.tsx
+          src/i18n/UiLocaleProvider.tsx
 
       - name: Production build
         env:

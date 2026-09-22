@@ -30,7 +30,7 @@ import {
 } from "@/lib/effects/effectSettings";
 import EpisodeCommentSection from "@/features/comment/EpisodeCommentSection";
 import { trackSeriesViewOnce } from "@/lib/popularityEvents";
-import { buildNemoAlignedParagraphBlocks } from "@/lib/recording/humanTimingShared";
+import { buildNemoAlignedParagraphBlocks, splitSentenceIntoDisplayClauses } from "@/lib/recording/humanTimingShared";
 import {
   readReadingBookmark,
   readEpisodeReadingPosition,
@@ -433,32 +433,61 @@ export default function WebSpeechEpisodePlayback({
     () => buildNemoAlignedParagraphBlocks(layoutBody),
     [layoutBody]
   );
-  const sceneBreaks = useMemo(
-    () =>
-      buildSceneBreakRuntimeList(
-        paragraphBlocks,
-        appliedEffectSettings.illustrations
+  const displayParagraphBlocks = useMemo(() => {
+    let nextDisplayIndex = 0;
+    return paragraphBlocks.map((block) => ({
+      paragraphIndex: block.paragraphIndex,
+      segments: block.segments.flatMap((segment, sentenceIndex) =>
+        splitSentenceIntoDisplayClauses(segment.text).map((text) => ({
+          index: nextDisplayIndex++,
+          text,
+          trackingSegmentIndex: segment.index,
+          trackingSentenceIndex: sentenceIndex,
+        }))
       ),
-    [paragraphBlocks, appliedEffectSettings.illustrations]
-  );
+    }));
+  }, [paragraphBlocks]);
+  const sceneBreaks = useMemo(() => {
+    const canonical = buildSceneBreakRuntimeList(
+      paragraphBlocks,
+      appliedEffectSettings.illustrations
+    );
+    return canonical.map((sceneBreak) => {
+      const matchingDisplaySegments = displayParagraphBlocks
+        .flatMap((block) => block.segments)
+        .filter(
+          (segment) => segment.trackingSegmentIndex === sceneBreak.sentenceIndex
+        );
+      const lastDisplaySegment =
+        matchingDisplaySegments[matchingDisplaySegments.length - 1];
+      return {
+        ...sceneBreak,
+        sentenceIndex: lastDisplaySegment?.index ?? sceneBreak.sentenceIndex,
+      };
+    });
+  }, [
+    paragraphBlocks,
+    displayParagraphBlocks,
+    appliedEffectSettings.illustrations,
+  ]);
   const contentBlocks = useMemo(
-    () => buildContentBlocks(paragraphBlocks, sceneBreaks),
-    [paragraphBlocks, sceneBreaks]
+    () => buildContentBlocks(displayParagraphBlocks, sceneBreaks),
+    [displayParagraphBlocks, sceneBreaks]
   );
 
   const speechUnits = useMemo(
     () =>
-      paragraphBlocks.flatMap((block, paragraphIndex) =>
-        block.segments.flatMap((segment, sentenceIndex) =>
+      displayParagraphBlocks.flatMap((block) =>
+        block.segments.flatMap((segment) =>
           splitForSpeech(segment.text, safeSpeechLanguage).map((text) => ({
             segmentIndex: segment.index,
-            paragraphIndex,
-            sentenceIndex,
+            paragraphIndex: block.paragraphIndex,
+            sentenceIndex: segment.trackingSentenceIndex,
             text: replaceRubyWithReadingText(text),
           }))
         )
       ),
-    [paragraphBlocks, safeSpeechLanguage]
+    [displayParagraphBlocks, safeSpeechLanguage]
   );
   const firstSpeechUnitIndexBySegment = useMemo(() => {
     const map = new Map<number, number>();

@@ -10,6 +10,7 @@ import SiteUiLocaleBridgeGate from "./SiteUiLocaleBridgeGate";
 import AuthoringUiLocaleBridge from "./AuthoringUiLocaleBridge";
 import SearchTagUiLocaleBridge from "./SearchTagUiLocaleBridge";
 import AuthoringTagLocalePortal from "./AuthoringTagLocalePortal";
+import AuthoringGenreLocalePortal from "./AuthoringGenreLocalePortal";
 import RecordUiLocaleBridge from "./RecordUiLocaleBridge";
 
 const UiLocaleContext = createContext<UiLocale>("ja");
@@ -25,6 +26,7 @@ export function UiLocaleProvider({ locale, children }: { locale: UiLocale; child
       <ReaderUiLocaleBridge locale={locale} />
       <SearchTagUiLocaleBridge locale={locale} />
       <AuthoringTagLocalePortal locale={locale} />
+      <AuthoringGenreLocalePortal locale={locale} />
       <RecordUiLocaleBridge locale={locale} />
     </UiLocaleContext.Provider>
   );
