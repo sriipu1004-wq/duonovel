@@ -66,6 +66,11 @@ export type ChapterSplitConfig =
       strategy: "heading_regex";
       heading_pattern: string;
       drop_prefix_before_first_heading?: boolean;
+    }
+  | {
+      strategy: "bounded_chunks";
+      max_chars: number;
+      title_prefix?: string;
     };
 
 export type PublicDomainManifest = {
@@ -460,8 +465,44 @@ export function validateManifest(value: unknown): ManifestValidationResult {
           : {}),
       };
     }
+  } else if (value.chapter_split.strategy === "bounded_chunks") {
+    const maxCharsRaw = value.chapter_split.max_chars;
+    if (
+      !Number.isInteger(maxCharsRaw) ||
+      Number(maxCharsRaw) < 5_000 ||
+      Number(maxCharsRaw) > 35_000
+    ) {
+      errors.push(
+        "chapter_split.max_chars must be an integer from 5000 to 35000 for bounded_chunks"
+      );
+    }
+    const titlePrefixRaw = value.chapter_split.title_prefix;
+    if (
+      titlePrefixRaw !== undefined &&
+      (typeof titlePrefixRaw !== "string" ||
+        titlePrefixRaw.trim().length === 0 ||
+        titlePrefixRaw.length > 80)
+    ) {
+      errors.push(
+        "chapter_split.title_prefix must be a non-empty string up to 80 characters when provided"
+      );
+    }
+    chapterSplit = {
+      strategy: "bounded_chunks",
+      max_chars:
+        Number.isInteger(maxCharsRaw) &&
+        Number(maxCharsRaw) >= 5_000 &&
+        Number(maxCharsRaw) <= 35_000
+          ? Number(maxCharsRaw)
+          : 30_000,
+      ...(typeof titlePrefixRaw === "string" && titlePrefixRaw.trim()
+        ? { title_prefix: titlePrefixRaw.trim() }
+        : {}),
+    };
   } else {
-    errors.push("chapter_split.strategy must be single or heading_regex");
+    errors.push(
+      "chapter_split.strategy must be single, heading_regex, or bounded_chunks"
+    );
   }
 
   const tagsRaw = value.tags;
@@ -731,6 +772,118 @@ export function normalizeSource(
   };
 }
 
+function findBoundedChunkBreak(
+  text: string,
+  start: number,
+  desiredEnd: number,
+  hardEnd: number
+): number {
+  const minBreak = start + Math.floor((desiredEnd - start) * 0.6);
+  const sentencePattern = /[.!?。！？](?:["'”’」』）】］»]*)\s+/gu;
+  let sentenceBreak = -1;
+  sentencePattern.lastIndex = minBreak;
+  for (;;) {
+    const match = sentencePattern.exec(text);
+    if (!match || match.index >= hardEnd) break;
+    const candidate = match.index + match[0].length;
+    if (candidate <= desiredEnd) {
+      sentenceBreak = candidate;
+      continue;
+    }
+    if (sentenceBreak < 0 && candidate <= hardEnd) {
+      sentenceBreak = candidate;
+    }
+    break;
+  }
+  if (sentenceBreak > start) return sentenceBreak;
+
+  const blankLinePattern = /\n[ \t]*\n+/gu;
+  let paragraphBreak = -1;
+  blankLinePattern.lastIndex = minBreak;
+  for (;;) {
+    const match = blankLinePattern.exec(text);
+    if (!match || match.index >= hardEnd) break;
+    const candidate = match.index + match[0].length;
+    if (candidate <= desiredEnd) {
+      paragraphBreak = candidate;
+      continue;
+    }
+    if (paragraphBreak < 0 && candidate <= hardEnd) {
+      paragraphBreak = candidate;
+    }
+    break;
+  }
+  if (paragraphBreak > start) return paragraphBreak;
+
+  const newlineBefore = text.lastIndexOf("\n", desiredEnd);
+  if (newlineBefore >= minBreak) return newlineBefore + 1;
+
+  const whitespaceBefore = Math.max(
+    text.lastIndexOf(" ", desiredEnd),
+    text.lastIndexOf("\t", desiredEnd)
+  );
+  if (whitespaceBefore >= minBreak) return whitespaceBefore + 1;
+
+  const newlineAfter = text.indexOf("\n", desiredEnd);
+  if (newlineAfter >= 0 && newlineAfter + 1 <= hardEnd) return newlineAfter + 1;
+
+  for (let cursor = desiredEnd; cursor < hardEnd; cursor += 1) {
+    if (/\s/u.test(text[cursor] ?? "")) return cursor + 1;
+  }
+
+  return desiredEnd;
+}
+
+function splitBoundedChunks(args: {
+  body: string;
+  title: string;
+  maxChars: number;
+  titlePrefix?: string;
+}): PreparedChapter[] {
+  const chunks: PreparedChapter[] = [];
+  let start = 0;
+
+  while (start < args.body.length) {
+    while (start < args.body.length && /\s/u.test(args.body[start] ?? "")) {
+      start += 1;
+    }
+    if (start >= args.body.length) break;
+
+    const remaining = args.body.length - start;
+    let end = args.body.length;
+    if (remaining > args.maxChars) {
+      const desiredEnd = start + args.maxChars;
+      const hardEnd = Math.min(
+        args.body.length,
+        start + Math.min(35_000, args.maxChars + 4_000)
+      );
+      end = findBoundedChunkBreak(args.body, start, desiredEnd, hardEnd);
+      if (end <= start) end = desiredEnd;
+    }
+
+    const chunkBody = args.body.slice(start, end).trim();
+    if (chunkBody) {
+      const number = chunks.length + 1;
+      const prefix = args.titlePrefix?.trim() || "Part";
+      chunks.push({
+        number,
+        title: `${prefix} ${number}`,
+        body: chunkBody,
+        characterCount: chunkBody.length,
+      });
+    }
+    start = end;
+  }
+
+  if (chunks.length === 1) {
+    chunks[0] = {
+      ...chunks[0]!,
+      title: args.title,
+    };
+  }
+  return chunks;
+}
+
 export function splitChapters(
   text: string,
   manifest: Pick<PublicDomainManifest, "title" | "chapter_split">
@@ -747,6 +900,15 @@ export function splitChapters(
         characterCount: body.length,
       },
     ];
+  }
+
+  if (manifest.chapter_split.strategy === "bounded_chunks") {
+    return splitBoundedChunks({
+      body,
+      title: manifest.title,
+      maxChars: manifest.chapter_split.max_chars,
+      titlePrefix: manifest.chapter_split.title_prefix,
+    });
   }
 
   const pattern = new RegExp(manifest.chapter_split.heading_pattern, "iu");
@@ -807,6 +969,11 @@ export function validateChapters(chapters: PreparedChapter[]): ChapterValidation
         "CHAPTER_MANY_SHORT: at least half of chapters are under 200 characters"
       );
     }
+  }
+  if (chapters.some((chapter) => chapter.characterCount > 40_000)) {
+    warnings.push(
+      "CHAPTER_TRANSLATION_LIMIT_RISK: a chapter exceeds the verified Public Domain translation ceiling"
+    );
   }
   if (chapters.some((chapter) => chapter.characterCount > 120_000)) {
     warnings.push("CHAPTER_VERY_LONG: a chapter exceeds 120,000 characters");
