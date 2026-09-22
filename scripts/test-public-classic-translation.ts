@@ -16,6 +16,7 @@ import {
 } from "../src/lib/translation/episodeTranslationGenerateLimits";
 import {
   segmentSourceDocument,
+  TRANSLATION_CLAUSE_SPLIT_MAX_LOOKAHEAD_CHARS,
 } from "../src/lib/translation/segmentSourceDocument";
 
 // Public-domain fixture from Natsume Soseki's Meian, the production classic
@@ -102,6 +103,40 @@ function testClassicResponseParsing() {
   );
 }
 
+function testLongClauseSegmentation() {
+  const koreanLongSentence = [
+    "C 여학교에서 교원 겸 기숙사 사감 노릇을 하는 B 여사라면 딱장대요 독신주의자요,",
+    "찰진 야소꾼으로 유명하다 못해 학생들이 눈치를 살필 만큼 엄격하고 매서우며,",
+    "여러 겹 주름이 잡힌 이마와 엉성하게 빗겨 넘긴 머리까지 한눈에 들어오고,",
+    "그가 편지를 검사하는 순간에는 기숙생들이 숨을 죽일 만큼 긴장이 이어진다.",
+  ].join(" ");
+
+  const document = segmentSourceDocument(koreanLongSentence, "ko");
+  assert.ok(
+    document.segments.length >= 2,
+    "a long comma-rich sentence must be split into readable clause blocks"
+  );
+  assert.ok(
+    document.segments.every(
+      (segment) =>
+        segment.sourceText.length <= TRANSLATION_CLAUSE_SPLIT_MAX_LOOKAHEAD_CHARS ||
+        !/[、,，;；:：]/u.test(segment.sourceText)
+    ),
+    "clause-rich blocks should stay bounded unless no safe punctuation exists"
+  );
+  assert.ok(
+    document.segments.slice(0, -1).every((segment) => /[、,，;；:：]$/u.test(segment.sourceText)),
+    "new boundaries must occur only after safe clause punctuation"
+  );
+
+  const shortSentence = "그는 웃고, 다시 걸었다.";
+  assert.equal(
+    segmentSourceDocument(shortSentence, "ko").segments.length,
+    1,
+    "short comma sentences must remain intact"
+  );
+}
+
 function testClassicBatching() {
   const source = segmentSourceDocument(MEIAN_FIXTURE, "ja");
   const seed = source.segments[0]!;
@@ -184,6 +219,7 @@ function main() {
   testClassicNormalization();
   testClassicResponseParsing();
   testClassicBatching();
+  testLongClauseSegmentation();
   testVerifiedPublicDomainLongSourceLimit();
   testFailureDoesNotConsumeReservation();
   console.log(
