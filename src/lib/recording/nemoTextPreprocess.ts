@@ -111,8 +111,34 @@ function shouldInsertClausePause(lastChar: string): boolean {
   return !/[、。！？!?…」』）】―—─]/u.test(lastChar);
 }
 
+function countScriptMatches(text: string, pattern: RegExp): number {
+  return Array.from(text.matchAll(pattern)).length;
+}
+
+function shouldUseSpaceForWrappedLines(lines: string[]): boolean {
+  const sample = lines.join("");
+  const hangulCount = countScriptMatches(sample, /\p{Script=Hangul}/gu);
+  if (hangulCount > 0) return true;
+
+  const latinCount = countScriptMatches(sample, /\p{Script=Latin}/gu);
+  const japaneseCount =
+    countScriptMatches(sample, /\p{Script=Hiragana}/gu) +
+    countScriptMatches(sample, /\p{Script=Katakana}/gu) +
+    countScriptMatches(sample, /\p{Script=Han}/gu);
+
+  return latinCount > japaneseCount;
+}
+
+function shouldSuppressSoftWrapSpace(tail: string, head: string): boolean {
+  if (!tail || !head) return true;
+  if (/[-‐‑‒–—―]$/u.test(tail)) return true;
+  if (/^[,.;:!?，。！？；："'”’」』）】］»]/u.test(head)) return true;
+  return false;
+}
+
 function joinLinesWithinParagraph(lines: string[]): string {
   let result = "";
+  const useSpaceForWrappedLines = shouldUseSpaceForWrappedLines(lines);
 
   for (const rawLine of lines) {
     const line = normalizeInlineWhitespace(rawLine).trim();
@@ -125,6 +151,14 @@ function joinLinesWithinParagraph(lines: string[]): string {
     }
 
     const tail = result.charAt(result.length - 1);
+
+    if (useSpaceForWrappedLines) {
+      const head = line.charAt(0);
+      const separator = shouldSuppressSoftWrapSpace(tail, head) ? "" : " ";
+      result += `${separator}${line}`;
+      continue;
+    }
+
     result += shouldInsertClausePause(tail) ? `、${line}` : line;
   }
 
