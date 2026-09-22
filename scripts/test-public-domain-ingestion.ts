@@ -75,7 +75,8 @@ function approvedManifest(
     reviewed_by: "LIB read operator",
     chapter_count: 1,
     chapter_split: { strategy: "single" },
-    tags: ["fixture"],
+    genres: ["文芸"],
+    tags: ["心理"],
     source_hash:
       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     approved: true,
@@ -213,6 +214,51 @@ function testChapterValidationAndSingleEpisode() {
   assert.equal(chapters[0]?.body, "short story body");
 }
 
+function testParagraphChunkSplitFixture() {
+  const paragraphA = "A".repeat(4_000);
+  const paragraphB = "B".repeat(4_000);
+  const paragraphC = "C".repeat(4_000);
+  const source = [paragraphA, paragraphB, paragraphC].join("\n\n");
+  const chapters = splitChapters(source, {
+    title: "Chunked Book",
+    chapter_split: {
+      strategy: "paragraph_chunks",
+      max_characters: 5_000,
+    },
+  });
+
+  assert.equal(chapters.length, 3);
+  assert.deepEqual(
+    chapters.map((chapter) => chapter.body),
+    [paragraphA, paragraphB, paragraphC]
+  );
+  assert.ok(
+    chapters.every((chapter) => chapter.characterCount <= 5_000),
+    "paragraph chunking must honor the configured maximum when natural paragraph boundaries exist"
+  );
+  assert.deepEqual(
+    chapters.map((chapter) => chapter.title),
+    [
+      "Chunked Book — Part 1",
+      "Chunked Book — Part 2",
+      "Chunked Book — Part 3",
+    ]
+  );
+
+  const invalid = validateManifest({
+    ...approvedManifest(),
+    chapter_split: {
+      strategy: "paragraph_chunks",
+      max_characters: 4_999,
+    },
+  });
+  assert.equal(invalid.ok, false);
+  assert.equal(
+    invalid.errors.some((error) => error.includes("max_characters")),
+    true
+  );
+}
+
 function testHeadingSplitFixture() {
   const chapters = splitChapters(
     ["Preface", "", "CHAPTER I", "Alpha", "", "CHAPTER II", "Beta"].join("\n"),
@@ -298,7 +344,10 @@ function testPreparedArtifactAndDraftPlan() {
   assert.equal(plan.series.is_public, false);
   assert.equal(plan.series.source_language, "ja");
   assert.equal(plan.series.translation_permission_mode, "closed");
-  assert.equal(plan.series.recording_permission_mode, "closed");
+  assert.equal(plan.series.recording_permission_mode, "open");
+  assert.deepEqual(plan.series.genres, ["文芸"]);
+  assert.deepEqual(plan.series.tags, ["心理"]);
+  assert.equal(plan.series.title, "Fixture・Public Domain Author");
   assert.equal(plan.episodes.length, 1);
   assert.equal(plan.episodes[0]?.posting_status, "draft");
   assert.equal(plan.episodes[0]?.is_published, false);
@@ -575,6 +624,7 @@ function main() {
   testSourceHash();
   testDuplicateDetection();
   testChapterValidationAndSingleEpisode();
+  testParagraphChunkSplitFixture();
   testHeadingSplitFixture();
   testHeadingSplitCanDropProviderFrontMatter();
   testAozoraAndGutenbergNormalization();
@@ -585,7 +635,7 @@ function main() {
   testExistingOfficialAuditSnapshot();
   testDryRunAndNoPaidGenerationSourceGuards();
   console.log(
-    "PASS: Public Domain rights gate, verified public metadata display gate, Aozora conservative candidate policy, Child72 Official audit, hash/idempotency, Draft-only batch plan, and non-paid ingestion"
+    "PASS: Public Domain rights gate, verified public metadata display gate, conservative source policy, safe paragraph chunking, content taxonomy/narration Draft plan, hash/idempotency, and non-paid ingestion"
   );
 }
 
