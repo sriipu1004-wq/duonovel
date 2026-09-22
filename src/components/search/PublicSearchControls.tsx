@@ -321,17 +321,6 @@ export default function PublicSearchControls({
         />
       </div>
 
-      <PublicSearchLanguageFilters
-        sourceLanguages={selectedSourceLanguages}
-        onSourceLanguagesChange={(nextLanguages) => {
-          setSelectedSourceLanguages(nextLanguages);
-          navigate(
-            commonHref({ sourceLanguages: nextLanguages }),
-            "results"
-          );
-        }}
-      />
-
       <div className="mt-6 grid gap-3">
         <div className="min-h-12 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm">
           {selectedFilterChips.length === 0 ? (
@@ -453,6 +442,17 @@ export default function PublicSearchControls({
             ) : null}
           </div>
         </div>
+
+        <PublicSearchLanguageFilters
+          sourceLanguages={selectedSourceLanguages}
+          onSourceLanguagesChange={(nextLanguages) => {
+            setSelectedSourceLanguages(nextLanguages);
+            navigate(
+              commonHref({ sourceLanguages: nextLanguages }),
+              "results"
+            );
+          }}
+        />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
