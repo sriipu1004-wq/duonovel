@@ -40,6 +40,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate Production Supabase credentials
+        shell: bash
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+            echo "::error::GitHub Actions secret NEXT_PUBLIC_SUPABASE_URL is not configured"
+            exit 1
+          fi
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::GitHub Actions secret SUPABASE_SERVICE_ROLE_KEY is not configured"
+            exit 1
+          fi
+
       - name: Validate approved manifests
         run: npm run public-domain:validate
 
