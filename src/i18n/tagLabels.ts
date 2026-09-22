@@ -124,6 +124,7 @@ const TAG_CATALOG: TagEntry[] = [
   { canonical: "不思議", labels: { ja: "不思議", en: "Wonder", ko: "신비" } },
   { canonical: "探偵", labels: { ja: "探偵", en: "Detective", ko: "탐정" } },
   { canonical: "冒険", labels: { ja: "冒険", en: "Adventure", ko: "모험" } },
+  { canonical: "戦闘", labels: { ja: "戦闘", en: "Battle", ko: "전투" } },
   { canonical: "サスペンス", labels: { ja: "サスペンス", en: "Suspense", ko: "서스펜스" } },
   { canonical: "怪奇", labels: { ja: "怪奇", en: "Macabre", ko: "괴기" } },
   { canonical: "孤独", labels: { ja: "孤独", en: "Isolation", ko: "고독" } },
