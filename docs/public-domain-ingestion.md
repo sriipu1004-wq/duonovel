@@ -357,3 +357,8 @@ Each has a fetched source hash and reviewed chapter count from the exercise, but
 ## 17. Existing translation state
 
 The Production audit found only eight ready cached episode translations across the 37 Official classics (EN 3, FR 4, KO 1), zero series translation profiles, and one series with glossary entries. Bulk ingestion therefore does not assume pre-generated translation assets. New approved classics enter as original-language Drafts and use the existing Reader translation/glossary paths later.
+
+
+## Child72 deployment note
+
+After rights-approved Public Domain pilots are imported as private Drafts, deploy the verified runtime before publication. If Production runtime verification fails, keep the pilot series private and roll back any attempted publication before retrying the deployment.
