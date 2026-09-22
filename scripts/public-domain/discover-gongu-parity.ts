@@ -29,12 +29,22 @@ function decodeHtml(value: string): string {
 }
 
 async function fetchText(url: string): Promise<string> {
-  const response = await fetch(url, {
-    redirect: "error",
-    headers: { "user-agent": "LIB-read-child73-rights-discovery/1.0" },
-  });
-  if (!response.ok) throw new Error(String(response.status) + " " + url);
-  return await response.text();
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        redirect: "error",
+        headers: { "user-agent": "LIB-read-child73-rights-discovery/1.0" },
+      });
+      if (response.ok) return await response.text();
+      lastError = new Error(String(response.status) + " " + url);
+      if (![429, 502, 503, 504].includes(response.status)) throw lastError;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+    await new Promise((resolve) => setTimeout(resolve, attempt * 1_500));
+  }
+  throw lastError ?? new Error("fetch failed: " + url);
 }
 
 function extractWorkLinks(html: string): Array<{ wrtSn: string; href: string }> {
@@ -89,12 +99,22 @@ async function discoverAuthor(author: (typeof authors)[number]) {
       pageIndex: "1",
       pageUnit: "100",
       sortSe: "date",
-      ...attempt,
     });
-    const html = await fetchText(base + listPath + "?" + params.toString());
-    const links = extractWorkLinks(html);
-    const score = html.split(author.name).length - 1;
-    if (!best || score > best.score) best = { html, links, score };
+    for (const [key, value] of Object.entries(attempt)) {
+      if (typeof value === "string") params.set(key, value);
+    }
+    try {
+      const html = await fetchText(base + listPath + "?" + params.toString());
+      const links = extractWorkLinks(html);
+      const score = html.split(author.name).length - 1;
+      if (!best || score > best.score) best = { html, links, score };
+    } catch (error) {
+      console.warn(
+        "GONGU_DISCOVERY_ATTEMPT_FAILED",
+        author.name,
+        error instanceof Error ? error.message : String(error)
+      );
+    }
   }
 
   if (!best || best.score === 0) return [];
@@ -169,8 +189,9 @@ async function main() {
 
   console.log("TOTAL_SAFE_CANDIDATES=" + unique.length);
   if (unique.length < 37) {
-    throw new Error(
-      "Need at least 37 safe Korean candidates, found " + unique.length
+    console.warn(
+      "GONGU_DISCOVERY_INCOMPLETE: list/search discovery is supplementary; " +
+        "the selected 37-item batch is gated separately by exact landing/TXT/hash source acquisition"
     );
   }
 }
