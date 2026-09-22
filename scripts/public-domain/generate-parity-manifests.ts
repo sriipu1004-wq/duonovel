@@ -4,6 +4,33 @@ import batch from "../../public-domain/batches/en-ko-parity-2026-09-23.json";
 
 type Entry = (typeof batch.works)[number];
 
+const englishCount = batch.works.filter((entry) => entry.provider === "gutenberg").length;
+const koreanCount = batch.works.filter((entry) => entry.provider === "gongu").length;
+if (englishCount !== 38 || koreanCount !== 37 || batch.works.length !== 75) {
+  throw new Error(
+    `Parity batch count mismatch: total=${batch.works.length} en=${englishCount} ko=${koreanCount}`
+  );
+}
+const providerKeys = batch.works.map(
+  (entry) => `${entry.provider}:${entry.provider_id}`
+);
+if (new Set(providerKeys).size !== providerKeys.length) {
+  throw new Error("Parity batch contains duplicate provider ids");
+}
+for (const entry of batch.works) {
+  if (entry.first_publication_year > 1930) {
+    throw new Error(
+      `${entry.title}: first publication year exceeds conservative 1930 cutoff`
+    );
+  }
+  if (entry.author_death_year > 1955) {
+    throw new Error(
+      `${entry.title}: author death year exceeds conservative 1955 cutoff`
+    );
+  }
+}
+
+
 const component = (status: "needs_review" | "not_applicable" = "needs_review") => ({
   status,
   basis: "",
