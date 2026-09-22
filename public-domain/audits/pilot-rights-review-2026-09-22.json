@@ -1,7 +1,7 @@
 {
   "reviewed_at": "2026-09-22",
-  "review_type": "AI-assisted preflight for human LIB read rights sign-off",
-  "approval_state": "NOT_HUMAN_APPROVED",
+  "review_type": "AI-assisted rights research with explicit human LIB read operator sign-off",
+  "approval_state": "HUMAN_APPROVED_IMPORTED_PUBLISHED",
   "jurisdictions_researched": [
     "JP",
     "US",
@@ -18,10 +18,10 @@
     "gutenberg_license": "https://www.gutenberg.org/policy/license.html"
   },
   "signoff_rules": [
-    "This file is research evidence, not the human approval itself.",
-    "Do not set rights_status=approved, approved=true, reviewed_at, or reviewed_by until a human LIB read operator explicitly signs off.",
-    "Exact source_hash must remain pinned; any future fetch mismatch blocks approval/import.",
-    "Only original-language text is in scope; no modern translation, modern cover, or illustration asset is approved here."
+    "Human rights approval was explicitly recorded for all eight candidates before Draft import.",
+    "Exact source_hash remains pinned; any future fetch mismatch blocks replacement/re-import until re-reviewed.",
+    "Only original-language text is approved; no modern translation, modern cover, or illustration asset is included in this pilot.",
+    "Production publication followed exact prepared-body hash verification and runtime E2E checks."
   ],
   "candidates": [
     {
@@ -41,7 +41,9 @@
       "us": "1918 publication is beyond any 95-year pre-1978 publication term by 2026.",
       "kr": "Author/source-country term long expired; Korean law also denies a longer Korean term once foreign source-country term has expired.",
       "exact_text_review": "Prepared as one episode; Aozora provenance block separated; source hash pinned.",
-      "status": "READY_FOR_HUMAN_SIGNOFF"
+      "status": "APPROVED_IMPORTED_PUBLISHED",
+      "production_series_id": "24300a15-65ce-4181-a742-229a77b310bf",
+      "production_publication_status": "public"
     },
     {
       "id": "aozora-000013",
@@ -60,7 +62,9 @@
       "us": "1927 publication is beyond the 95-year pre-1978 term by 2026.",
       "kr": "Source-country term expired; Korean foreign-work rule does not extend beyond expired source-country protection.",
       "exact_text_review": "Prepared as one episode; source hash pinned.",
-      "status": "READY_FOR_HUMAN_SIGNOFF"
+      "status": "APPROVED_IMPORTED_PUBLISHED",
+      "production_series_id": "e5521309-8a9c-49cc-9a1c-1b93db2ca630",
+      "production_publication_status": "public"
     },
     {
       "id": "aozora-000018",
@@ -79,7 +83,9 @@
       "us": "1927 publication is beyond the 95-year pre-1978 term by 2026.",
       "kr": "Source-country term expired; Korean foreign-work rule does not extend beyond expired source-country protection.",
       "exact_text_review": "Prepared as one episode; source hash pinned.",
-      "status": "READY_FOR_HUMAN_SIGNOFF"
+      "status": "APPROVED_IMPORTED_PUBLISHED",
+      "production_series_id": "cc7f1eaf-bf7f-4cd3-9116-91e2055b4902",
+      "production_publication_status": "public"
     },
     {
       "id": "gutenberg-000011",
@@ -100,7 +106,9 @@
       "us": "Project Gutenberg marks the item public domain in the USA; 1865 publication is far beyond the 95-year term.",
       "kr": "UK source-country protection has expired; Korean Article 3(4) does not recognize a Korean term after expiry in the foreign country.",
       "exact_text_review": "12 non-empty chapters. No TOC entries in episode bodies. No Gutenberg/license text found in normalized Reader text.",
-      "status": "READY_FOR_HUMAN_SIGNOFF"
+      "status": "APPROVED_IMPORTED_PUBLISHED",
+      "production_series_id": "9103f394-e8d7-42ff-af46-6e83739ec6db",
+      "production_publication_status": "public"
     },
     {
       "id": "gutenberg-001952",
@@ -121,7 +129,9 @@
       "us": "Project Gutenberg marks the item public domain in the USA; 1892 publication is far beyond the 95-year term.",
       "kr": "U.S. source-country protection has expired; Korean Article 3(4) prevents a longer Korean term after foreign expiry.",
       "exact_text_review": "Single non-empty episode; normalized Reader text begins with work title/byline and ends with story; no Gutenberg/license footer remains.",
-      "status": "READY_FOR_HUMAN_SIGNOFF"
+      "status": "APPROVED_IMPORTED_PUBLISHED",
+      "production_series_id": "da4f8c61-3187-497d-a041-0ab901a8ba77",
+      "production_publication_status": "public"
     },
     {
       "id": "gongu-9002094",
@@ -142,7 +152,9 @@
       "us": "1924 publication is beyond a 95-year pre-1978 term by 2026, including the maximum remainder a restored URAA copyright would otherwise receive.",
       "jp": "Japan's shorter-term reciprocity rule caps foreign protection at the foreign/source-country term when shorter; Korean/source-country protection is expired. Korea is not an Allied wartime-addition country under Japan's postwar special-law list.",
       "exact_text_review": "Single non-empty episode; exact official TXT fetched and hashed; no 공유마당/한국저작권위원회/저작권/provider footer found in Reader text.",
-      "status": "READY_FOR_HUMAN_SIGNOFF"
+      "status": "APPROVED_IMPORTED_PUBLISHED",
+      "production_series_id": "848035f0-fa56-417f-b48c-443a47e1988c",
+      "production_publication_status": "public"
     },
     {
       "id": "gongu-9002100",
@@ -163,7 +175,9 @@
       "us": "1925 publication is beyond a 95-year pre-1978 term by 2026.",
       "jp": "Shorter-term reciprocity + expired Korean/source-country term supports expiry in Japan; no Allied wartime addition for Korea.",
       "exact_text_review": "Single non-empty episode; exact official TXT fetched and hashed; no provider/copyright footer. The ending includes historical date/source notation '(1925년 1월 4일)' and '(『조선문단』,1925. 2.)', retained as source text metadata.",
-      "status": "READY_FOR_HUMAN_SIGNOFF"
+      "status": "APPROVED_IMPORTED_PUBLISHED",
+      "production_series_id": "5c8e8d7d-e69f-4a06-b69b-e45c1a76938d",
+      "production_publication_status": "public"
     },
     {
       "id": "gongu-9002092",
@@ -184,7 +198,29 @@
       "us": "1921 publication is beyond a 95-year pre-1978 term by 2026.",
       "jp": "Shorter-term reciprocity + expired Korean/source-country term supports expiry in Japan; no Allied wartime addition for Korea.",
       "exact_text_review": "Single non-empty episode; exact official TXT fetched and hashed; no provider/copyright footer found.",
-      "status": "READY_FOR_HUMAN_SIGNOFF"
+      "status": "APPROVED_IMPORTED_PUBLISHED",
+      "production_series_id": "a6d22ea2-3124-47fe-8901-4ea7b8086302",
+      "production_publication_status": "public"
     }
-  ]
+  ],
+  "human_review": {
+    "reviewed_at": "2026-09-22T08:01:00+10:00",
+    "reviewed_by": "LIB read operator (explicit user approval in Child72 chat)",
+    "jurisdictions_reviewed": [
+      "JP",
+      "US",
+      "KR"
+    ]
+  },
+  "production_verification": {
+    "verified_at": "2026-09-22",
+    "series_count": 8,
+    "episode_count": 19,
+    "prepared_body_hash_matches": "19/19",
+    "work_pages": "8/8 HTTP 200 with Public Domain / Rights checked / Source attribution",
+    "search": "JA/EN/KO smoke passed",
+    "sitemap": "8/8 series present after sitemap revalidation fix",
+    "reader": "JA/EN/KO Reader smoke passed; Alice chapters 1 and 12 verified",
+    "translation_modes": "Original / Bilingual / Translation-only controls visible for JA/EN/KO Reader smoke"
+  }
 }
