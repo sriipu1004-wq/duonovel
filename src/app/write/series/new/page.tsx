@@ -4,7 +4,6 @@ import WriteSeriesForm from "@/features/write/WriteSeriesForm";
 import ContentRatingWorkspaceBridge from "@/features/write/ContentRatingWorkspaceBridge";
 import TranslationPermissionWorkspaceBridge from "@/features/write/TranslationPermissionWorkspaceBridge";
 import SourceLanguageWorkspaceBridge from "@/features/write/SourceLanguageWorkspaceBridge";
-import SeriesStatusPortal from "@/features/write/SeriesStatusPortal";
 
 export default async function WriteSeriesNewPage() {
   const { user } = await requireLoggedInUser("/write/series/new");
@@ -12,11 +11,9 @@ export default async function WriteSeriesNewPage() {
   return (
     <>
       <WriteSeriesForm mode="create" currentUserId={user.id} />
-      <SeriesStatusPortal>
-        <SourceLanguageWorkspaceBridge embedded />
-      </SeriesStatusPortal>
+      <SourceLanguageWorkspaceBridge />
       <TranslationPermissionWorkspaceBridge
-        initialMode={null}
+        initialMode="open"
         isOfficialAuthor={isOfficialAccountEmail(user.email)}
       />
       <ContentRatingWorkspaceBridge initialWarnings={[]} />

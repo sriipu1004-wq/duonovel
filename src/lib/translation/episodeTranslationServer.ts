@@ -108,10 +108,6 @@ export function isSeriesAiGenerated(series: SeriesRow): boolean {
 }
 
 export function isSeriesTranslationEligible(series: SeriesRow): boolean {
-  if (isSeriesAiGenerated(series)) {
-    return true;
-  }
-
   return series.translation_permission_mode === "open";
 }
 
@@ -249,7 +245,6 @@ export async function resolveEpisodeTranslationAccess(
     isOfficialUser: isOfficialAccountEmail(currentUserEmail),
     canRead: (isPublic || isOwner) && r18Allowed,
     isAllowlisted:
-      isOwner ||
       explicitlyAllowlisted ||
       isSeriesTranslationEligible(series) ||
       isOfficialAuthored,

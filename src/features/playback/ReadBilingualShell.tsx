@@ -30,6 +30,7 @@ import {
 } from "@/lib/translation/languageRegistry";
 import { writeBilingualSessionPreference } from "@/lib/translation/bilingualSessionPreference";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { localizePath } from "@/i18n/navigation";
 import { readerDictionaries } from "@/i18n/dictionaries/reader";
 import {
   TRANSLATION_READER_VISIBILITY_EVENT,
@@ -469,6 +470,12 @@ export default function ReadBilingualShell({
                 errorMessage={entitlementError}
                 onConfirmIncluded={() => completeEntitlement("included")}
                 onConfirmCredit={() => completeEntitlement("credit")}
+                manualTranslationHref={localizePath(
+                  `/translate/${seriesId}/${episodeNumber}?targetLanguage=${encodeURIComponent(
+                    targetLanguage
+                  )}`,
+                  uiLocale
+                )}
               />
             </div>
           </div>
