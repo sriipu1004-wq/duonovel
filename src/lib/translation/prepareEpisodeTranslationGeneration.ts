@@ -7,6 +7,7 @@ import {
   TRANSLATION_SOURCE_LANGUAGE,
   TRANSLATION_TARGET_LANGUAGE,
   type EpisodeTranslationAccess,
+  isSeriesTranslationEligible,
 } from "@/lib/translation/episodeTranslationServer";
 import { DEFAULT_TRANSLATION_MODEL } from "@/lib/translation/openAITranslationModel";
 import {
@@ -67,6 +68,7 @@ export async function prepareEpisodeTranslationGeneration(request: Request): Pro
   const access = await resolveEpisodeTranslationAccess(episodeId);
   if (!access || !access.canRead || !access.body.trim()) return { response: NextResponse.json({ ok: false, error: "episode_not_found" }, { status: 404 }) };
   if (!access.sourceLanguage || access.sourceLanguage !== sourceLanguage) return { response: NextResponse.json({ ok: false, error: "invalid_source_language" }, { status: 400 }) };
+  if (!isSeriesTranslationEligible(access.series)) return { response: NextResponse.json({ ok: false, error: "translation_permission_closed", message: "この作品では翻訳が許可されていません。" }, { status: 403 }) };
   if (!access.isAllowlisted) return { response: NextResponse.json({ ok: false, error: "translation_episode_not_eligible", message: "この話では対訳を生成できません。" }, { status: 403 }) };
 
   const parsedLearningPreference = readSeriesTranslationLearningPreference(access.series.effect_settings ?? access.series.effectSettings);

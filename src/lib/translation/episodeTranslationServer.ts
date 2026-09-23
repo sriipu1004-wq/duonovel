@@ -108,10 +108,6 @@ export function isSeriesAiGenerated(series: SeriesRow): boolean {
 }
 
 export function isSeriesTranslationEligible(series: SeriesRow): boolean {
-  if (isSeriesAiGenerated(series)) {
-    return true;
-  }
-
   return series.translation_permission_mode === "open";
 }
 
@@ -231,7 +227,6 @@ export async function resolveEpisodeTranslationAccess(
     seriesId,
     episodeNumber,
   });
-  const isOfficialAuthored = await isSeriesOfficialAuthoredWithAdmin(series, admin);
   const r18Allowed =
     !isR18Series(series) ||
     (await getCurrentR18ViewerPreference()).showR18Content;
@@ -248,10 +243,10 @@ export async function resolveEpisodeTranslationAccess(
     isOwner,
     isOfficialUser: isOfficialAccountEmail(currentUserEmail),
     canRead: (isPublic || isOwner) && r18Allowed,
+    // Translation permission is authoritative. Ownership, preview allowlists,
+    // AI-generated attribution, and Official authorship must never bypass a closed work.
     isAllowlisted:
-      isOwner ||
-      explicitlyAllowlisted ||
-      isSeriesTranslationEligible(series) ||
-      isOfficialAuthored,
+      isSeriesTranslationEligible(series) &&
+      (isOwner || explicitlyAllowlisted || isSeriesTranslationEligible(series)),
   };
 }

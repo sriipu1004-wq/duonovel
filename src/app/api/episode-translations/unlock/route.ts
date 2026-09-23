@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildEpisodeTranslationSourceHash,
   resolveEpisodeTranslationAccess,
+  isSeriesTranslationEligible,
 } from "@/lib/translation/episodeTranslationServer";
 import {
   isPublicTranslationLanguagePair,
@@ -63,6 +64,14 @@ export async function POST(request: Request) {
   }
   if (access.sourceLanguage !== sourceLanguage) {
     return NextResponse.json({ ok: false, error: "invalid_source_language" }, { status: 400 });
+  }
+  // Reject before entitlement lookup/finalization so a closed work cannot
+  // consume included allowance or purchased credit, even when a cache row exists.
+  if (!isSeriesTranslationEligible(access.series)) {
+    return NextResponse.json(
+      { ok: false, error: "translation_permission_closed", message: "この作品では翻訳が許可されていません。" },
+      { status: 403 }
+    );
   }
   if (!access.isAllowlisted) {
     return NextResponse.json({ ok: false, error: "translation_episode_not_eligible" }, { status: 403 });
