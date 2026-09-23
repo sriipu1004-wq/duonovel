@@ -24,6 +24,19 @@ set
   recording_permission_mode = 'open'
 where coalesce(effect_settings->'publicDomain'->>'rightsChecked', 'false') = 'true';
 
+-- Legacy official classics predate the rights-manifest pipeline. They were
+-- audited separately and are already public under the canonical Official
+-- account. Align their stored permission state with the existing Official
+-- Reader exception so the author workspace and Reader no longer disagree.
+update public.series as series
+set
+  translation_permission_mode = 'open',
+  recording_permission_mode = 'open'
+from auth.users as account
+where series.author_id = account.id
+  and lower(coalesce(account.email, '')) = lower('libread08@gmail.com')
+  and series.publication_status = 'public';
+
 create table if not exists public.user_episode_translations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
