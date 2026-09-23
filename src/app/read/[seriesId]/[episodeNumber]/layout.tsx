@@ -198,7 +198,6 @@ export default async function ReadEpisodeLayout({
 
   try {
     translationEligible =
-      payload.isOwner ||
       (await isSeriesTranslationEligibleIncludingOfficial(payload.series)) ||
       isEpisodeTranslationAllowlisted({
         episodeId: payload.episode.id,
