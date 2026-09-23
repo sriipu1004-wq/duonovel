@@ -140,13 +140,12 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
   return (
     <div className={className}>
       <WriteSeriesForm mode="edit" currentUserId={user.id} series={series} episodes={episodes} />
+      <SourceLanguageWorkspaceBridge
+        seriesId={series.id}
+        initialLanguage={sourceLanguage}
+        confirmed={Boolean(canonicalSourceLanguage)}
+      />
       <SeriesStatusPortal>
-        <SourceLanguageWorkspaceBridge
-          seriesId={series.id}
-          initialLanguage={sourceLanguage}
-          confirmed={Boolean(canonicalSourceLanguage)}
-          embedded
-        />
         {canonicalSourceLanguage && glossaryData ? (
           <SeriesTranslationGlossaryWorkspace
             seriesId={series.id}
