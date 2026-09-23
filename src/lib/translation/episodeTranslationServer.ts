@@ -130,11 +130,9 @@ async function isSeriesOfficialAuthoredWithAdmin(
 export async function isSeriesTranslationEligibleIncludingOfficial(
   series: SeriesRow
 ): Promise<boolean> {
-  if (isSeriesTranslationEligible(series)) {
-    return true;
-  }
-
-  return isSeriesOfficialAuthoredWithAdmin(series, createAdminClient());
+  // Kept as an async compatibility boundary for existing callers. Official
+  // authorship is not a permission override: closed always means closed.
+  return isSeriesTranslationEligible(series);
 }
 
 export function isEpisodeTranslationAllowlisted(args: {
@@ -245,8 +243,6 @@ export async function resolveEpisodeTranslationAccess(
     canRead: (isPublic || isOwner) && r18Allowed,
     // Translation permission is authoritative. Ownership, preview allowlists,
     // AI-generated attribution, and Official authorship must never bypass a closed work.
-    isAllowlisted:
-      isSeriesTranslationEligible(series) &&
-      (isOwner || explicitlyAllowlisted || isSeriesTranslationEligible(series)),
+    isAllowlisted: isSeriesTranslationEligible(series),
   };
 }
