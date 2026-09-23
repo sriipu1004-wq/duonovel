@@ -129,6 +129,23 @@ function main() {
     '"コンテンツ警告を更新できませんでした。"',
   ]);
 
+  const authorProfileShared =
+    "src/features/authorProfile/authorProfileShared.tsx";
+  assertContains(authorProfileShared, [
+    "const PAGE_SIZE = 1000;",
+    '.order("series_id", { ascending: true })',
+    '.order("episode_number", { ascending: true })',
+    ".range(start, start + PAGE_SIZE - 1)",
+  ]);
+
+  const mySeries = "src/app/mypage/MySeriesSection.tsx";
+  assertContains(mySeries, [
+    'const isPublic = getSeriesPublicationStatus(card.series) === "public";',
+  ]);
+  assertOmits(mySeries, [
+    'getSeriesPublicationStatus(card.series) === "public" && card.publishedCount > 0',
+  ]);
+
   console.log(
     "PASS: author workspace UX grouping, validation, locale copy, and preserved workspace controls"
   );

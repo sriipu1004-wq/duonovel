@@ -356,16 +356,32 @@ export async function fetchEpisodesBySeriesIds(
     return [];
   }
 
-  const result = await supabase
-    .from("episodes")
-    .select("*")
-    .in("series_id", seriesIds);
+  const PAGE_SIZE = 1000;
+  const episodes: EpisodeRow[] = [];
 
-  if (result.error) {
-    throw new Error(`episodes の取得に失敗: ${result.error.message}`);
+  for (let start = 0; ; start += PAGE_SIZE) {
+    const result = await supabase
+      .from("episodes")
+      .select("*")
+      .in("series_id", seriesIds)
+      .order("series_id", { ascending: true })
+      .order("episode_number", { ascending: true })
+      .order("id", { ascending: true })
+      .range(start, start + PAGE_SIZE - 1);
+
+    if (result.error) {
+      throw new Error(`episodes の取得に失敗: ${result.error.message}`);
+    }
+
+    const rows = (result.data ?? []) as EpisodeRow[];
+    episodes.push(...rows);
+
+    if (rows.length < PAGE_SIZE) {
+      break;
+    }
   }
 
-  return (result.data ?? []) as EpisodeRow[];
+  return episodes;
 }
 
 export async function buildAuthorSeriesCards(
