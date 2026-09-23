@@ -419,6 +419,7 @@ export async function POST(request: Request) {
     genres,
     tags,
     recording_permission_mode: "open",
+    translation_permission_mode: "open",
     content_rating: contentRating,
     content_warnings: contentClassification.warnings,
     content_warning_locks: contentClassification.lockedWarnings,
