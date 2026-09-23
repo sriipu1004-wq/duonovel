@@ -97,6 +97,47 @@ export async function GET(request: Request, context: RouteContext) {
     learningPreference ? { learningPreference } : undefined
   );
   const admin = createAdminClient();
+
+  // A reader's own human translation is private, costs no allowance/credit,
+  // and takes precedence over the shared AI cache for that reader only.
+  if (access.currentUserId) {
+    const humanSourceHash = buildEpisodeTranslationSourceHash(access.body);
+    const humanResult = await admin
+      .from("user_episode_translations")
+      .select("id, segments, updated_at")
+      .eq("user_id", access.currentUserId)
+      .eq("episode_id", access.episode.id)
+      .eq("source_language", sourceLanguage)
+      .eq("target_language", targetLanguage)
+      .eq("source_hash", humanSourceHash)
+      .maybeSingle();
+
+    if (!humanResult.error && humanResult.data) {
+      const humanTranslation = parseStoredTranslationPayload(
+        humanResult.data.segments,
+        { sourceLanguage, targetLanguage }
+      );
+      if (humanTranslation) {
+        return NextResponse.json({
+          ok: true,
+          status: "ready",
+          canGenerate: false,
+          canAutoGenerate: false,
+          isAllowlisted: access.isAllowlisted,
+          sourceHash: humanSourceHash,
+          translationId: humanResult.data.id,
+          translationModel: "human-self",
+          sourceLanguage,
+          targetLanguage,
+          segments: humanTranslation.segments,
+          personalHumanTranslation: true,
+        });
+      }
+    } else if (humanResult.error && humanResult.error.code !== "42P01") {
+      console.error("[episode-translation-status-human]", humanResult.error);
+    }
+  }
+
   const entitlement = await getPublicTranslationEntitlementState({
     request,
     episodeId: access.episode.id,
