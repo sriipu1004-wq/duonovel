@@ -314,7 +314,15 @@ export default function TranslationPermissionWorkspaceBridge({
 
   if (!host) return null;
 
-  return createPortal(
+  return (
+    <>
+      <input
+        type="hidden"
+        data-translation-permission-select="true"
+        value={mode ?? "open"}
+        readOnly
+      />
+      {createPortal(
     <div className="mt-4 border-t border-black/10 pt-4">
       <p className="text-xs tracking-[0.16em] text-neutral-500">翻訳・対訳許可</p>
 
@@ -376,5 +384,7 @@ export default function TranslationPermissionWorkspaceBridge({
       </button>
     </div>,
     host
+      )}
+    </>
   );
 }
