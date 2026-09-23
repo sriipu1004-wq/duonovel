@@ -304,7 +304,6 @@ export default function SourceLanguageWorkspaceBridge({
             <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
               <select
                 id="series-source-language"
-                data-source-language-select="true"
                 value={language}
                 disabled={saving}
                 aria-invalid={message === dictionary.required}
@@ -375,6 +374,12 @@ export default function SourceLanguageWorkspaceBridge({
 
   return (
     <>
+      <input
+        type="hidden"
+        data-source-language-select="true"
+        value={language}
+        readOnly
+      />
       {status}
       {panel}
     </>
