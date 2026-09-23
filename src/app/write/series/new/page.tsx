@@ -13,7 +13,7 @@ export default async function WriteSeriesNewPage() {
     <>
       <WriteSeriesForm mode="create" currentUserId={user.id} />
       <SeriesStatusPortal>
-        <SourceLanguageWorkspaceBridge />
+        <SourceLanguageWorkspaceBridge embedded />
       </SeriesStatusPortal>
       <TranslationPermissionWorkspaceBridge
         initialMode="open"
