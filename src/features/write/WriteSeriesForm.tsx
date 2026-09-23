@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { localizePath } from "@/i18n/navigation";
 import { canonicalizeTagList, localizeTagList } from "@/i18n/tagLabels";
 import { canonicalizeGenreList, localizeGenreList } from "@/i18n/genreLabels";
 import { supabase } from "@/lib/supabaseClient";
@@ -794,6 +795,7 @@ const publicVisibleCount = sortedEpisodes.filter(
         author_id: currentUserId,
         ...summaryFields,
         ...workspaceFields,
+        translation_permission_mode: "open",
       })
     );
 
@@ -801,6 +803,7 @@ const publicVisibleCount = sortedEpisodes.filter(
       title: trimmedTitle,
       author_id: currentUserId,
       ...workspaceFields,
+      translation_permission_mode: "open",
     });
 
     const createFailureMessage =
@@ -1842,16 +1845,24 @@ const publicVisibleCount = sortedEpisodes.filter(
                     </button>
 
                     {mode === "create" ? (
-                      <button
-                        type="button"
-                        onClick={() => handleSubmit("workspace")}
-                        disabled={saveState === "saving"}
-                        className="min-h-11 w-full rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                      >
-                        作品を作成してワークスペースへ
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleSubmit("workspace")}
+                          disabled={saveState === "saving"}
+                          className="min-h-11 w-full rounded-full border border-black/10 bg-white px-5 py-3 text-sm text-neutral-800 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        >
+                          作品を作成してワークスペースへ
+                        </button>
+                        <Link
+                          href={localizePath("/write", locale)}
+                          className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-black/10 bg-neutral-50 px-5 py-3 text-sm text-neutral-700 transition hover:bg-neutral-100 sm:w-auto"
+                        >
+                          保存せず投稿管理へ戻る
+                        </Link>
+                      </>
                     ) : null}
-</div>
+                  </div>
 
                   {errorMessage ? (
                     <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
