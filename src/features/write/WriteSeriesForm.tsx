@@ -54,6 +54,7 @@ type WriteSeriesFormProps = {
 };
 
 type SaveState = "idle" | "saving" | "success" | "error";
+type TranslationPermissionMode = "open" | "closed";
 type SeriesValidationField = "title" | "sourceLanguage" | "scheduledFor";
 type SeriesValidationErrors = Partial<Record<SeriesValidationField, string>>;
 
@@ -341,6 +342,7 @@ function buildWorkspaceFields(args: {
   genres: string[];
   tags: string[];
   recordingPermissionMode: RecordingPermissionMode;
+  translationPermissionMode: TranslationPermissionMode;
   effectSettings: EffectSettings | null;
 }) {
   return {
@@ -350,6 +352,7 @@ function buildWorkspaceFields(args: {
     genres: args.genres,
     tags: args.tags,
     recording_permission_mode: args.recordingPermissionMode,
+    translation_permission_mode: args.translationPermissionMode,
     effect_settings: args.effectSettings,
   };
 }
@@ -496,6 +499,14 @@ export default function WriteSeriesForm({
   const [savedTags, setSavedTags] = useState(initialTags);
   const [recordingPermissionMode, setRecordingPermissionMode] =
     useState<RecordingPermissionMode>(initialRecordingPermissionMode);
+  const [translationPermissionMode, setTranslationPermissionMode] =
+    useState<TranslationPermissionMode>(
+      mode === "create"
+        ? "open"
+        : series?.translation_permission_mode === "open"
+          ? "open"
+          : "closed"
+    );
   const [storyFormat, setStoryFormat] = useState<StoryFormat>(
     initialStoryFormat
   );
@@ -534,6 +545,26 @@ export default function WriteSeriesForm({
   const [openDisplaySetting, setOpenDisplaySetting] = useState<
     "background" | "font" | "fontSize" | "textColor" | null
   >(null);
+
+  useEffect(() => {
+    function handleTranslationPermissionSelection(event: Event) {
+      const detail = (event as CustomEvent<{ mode?: unknown }>).detail;
+      if (detail?.mode === "open" || detail?.mode === "closed") {
+        setTranslationPermissionMode(detail.mode);
+        resetSaveUi();
+      }
+    }
+
+    window.addEventListener(
+      "libread:translation-permission-selection-changed",
+      handleTranslationPermissionSelection
+    );
+    return () =>
+      window.removeEventListener(
+        "libread:translation-permission-selection-changed",
+        handleTranslationPermissionSelection
+      );
+  }, []);
 
   useEffect(() => {
     function handleSourceLanguageSelection() {
@@ -781,6 +812,7 @@ const publicVisibleCount = sortedEpisodes.filter(
       recordingPermissionMode: isAiGenerated
         ? "open"
         : recordingPermissionMode,
+      translationPermissionMode,
       effectSettings: preserveWorkspaceEffectSettings(
         buildSeriesDisplayEffectSettings(),
         series,
@@ -879,6 +911,7 @@ const publicVisibleCount = sortedEpisodes.filter(
       recordingPermissionMode: isAiGenerated
         ? "open"
         : recordingPermissionMode,
+      translationPermissionMode,
       effectSettings: preserveWorkspaceEffectSettings(
         buildSeriesDisplayEffectSettings(),
         series,

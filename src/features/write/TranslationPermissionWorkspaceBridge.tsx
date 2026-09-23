@@ -301,6 +301,11 @@ export default function TranslationPermissionWorkspaceBridge({
     if (!seriesId) {
       setMode(nextMode);
       setMessage("");
+      window.dispatchEvent(
+        new CustomEvent("libread:translation-permission-selection-changed", {
+          detail: { mode: nextMode },
+        })
+      );
       return;
     }
 

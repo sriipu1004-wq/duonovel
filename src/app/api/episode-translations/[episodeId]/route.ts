@@ -5,6 +5,7 @@ import {
   resolveEpisodeTranslationAccess,
   TRANSLATION_SOURCE_LANGUAGE,
   TRANSLATION_TARGET_LANGUAGE,
+  isSeriesTranslationEligible,
 } from "@/lib/translation/episodeTranslationServer";
 import {
   isPublicTranslationLanguagePair,
@@ -74,17 +75,6 @@ export async function GET(request: Request, context: RouteContext) {
     );
   }
 
-  if (!access.isAllowlisted) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "translation_episode_not_eligible",
-        message: "この話では翻訳を利用できません。",
-      },
-      { status: 403 }
-    );
-  }
-
   const parsedLearningPreference = readSeriesTranslationLearningPreference(
     access.series.effect_settings ?? access.series.effectSettings
   );
@@ -102,9 +92,10 @@ export async function GET(request: Request, context: RouteContext) {
     episodeId: access.episode.id,
     targetLanguage,
   });
-  const canGenerate = access.isAllowlisted;
+  const translationPermissionOpen = isSeriesTranslationEligible(access.series);
+  const canGenerate = translationPermissionOpen;
   const canAutoGenerate =
-    access.isAllowlisted && publicTranslationCanAutoGenerate(entitlement);
+    translationPermissionOpen && publicTranslationCanAutoGenerate(entitlement);
 
   const currentResult = await admin
     .from("episode_translations")
@@ -132,13 +123,28 @@ export async function GET(request: Request, context: RouteContext) {
   const current = currentResult.data as Record<string, unknown> | null;
 
   if (current?.status === "ready") {
+    if (
+      !translationPermissionOpen &&
+      entitlement &&
+      entitlement.status !== "unlocked"
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "translation_permission_closed",
+          message: "この作品では翻訳が許可されていません。",
+        },
+        { status: 403 }
+      );
+    }
+
     if (entitlement && entitlement.status !== "unlocked") {
       return NextResponse.json({
         ok: true,
         status: "ready",
         canGenerate,
         canAutoGenerate,
-        isAllowlisted: access.isAllowlisted,
+        isAllowlisted: translationPermissionOpen,
         sourceHash,
         translationId: current.id,
         translationModel: current.translation_model ?? null,
@@ -165,7 +171,7 @@ export async function GET(request: Request, context: RouteContext) {
       status: "ready",
       canGenerate,
       canAutoGenerate,
-      isAllowlisted: access.isAllowlisted,
+      isAllowlisted: translationPermissionOpen,
       sourceHash,
       translationId: current.id,
       translationModel: current.translation_model ?? null,
@@ -174,6 +180,17 @@ export async function GET(request: Request, context: RouteContext) {
       segments: translation.segments,
       ...(entitlement ? { entitlement } : {}),
     });
+  }
+
+  if (!translationPermissionOpen) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "translation_permission_closed",
+        message: "この作品では翻訳が許可されていません。",
+      },
+      { status: 403 }
+    );
   }
 
   if (current?.status === "translating") {
@@ -218,7 +235,7 @@ export async function GET(request: Request, context: RouteContext) {
         status: "failed",
         canGenerate,
         canAutoGenerate: false,
-        isAllowlisted: access.isAllowlisted,
+        isAllowlisted: translationPermissionOpen,
         sourceHash,
         translationId: current.id,
         errorCode: "translation_timeout",
@@ -232,7 +249,7 @@ export async function GET(request: Request, context: RouteContext) {
       status: "translating",
       canGenerate,
       canAutoGenerate,
-      isAllowlisted: access.isAllowlisted,
+      isAllowlisted: translationPermissionOpen,
       sourceHash,
       translationId: current.id,
       startedAt: current.started_at ?? null,
@@ -246,7 +263,7 @@ export async function GET(request: Request, context: RouteContext) {
       status: "failed",
       canGenerate,
       canAutoGenerate: false,
-      isAllowlisted: access.isAllowlisted,
+      isAllowlisted: translationPermissionOpen,
       sourceHash,
       translationId: current.id,
       errorCode: current.error_code ?? null,
@@ -283,7 +300,7 @@ export async function GET(request: Request, context: RouteContext) {
       status: "stale",
       canGenerate,
       canAutoGenerate,
-      isAllowlisted: access.isAllowlisted,
+      isAllowlisted: translationPermissionOpen,
       sourceHash,
       message: "原文が更新されたため、対訳を再生成します。",
       ...(entitlement ? { entitlement } : {}),
@@ -295,7 +312,7 @@ export async function GET(request: Request, context: RouteContext) {
     status: "missing",
     canGenerate,
     canAutoGenerate,
-    isAllowlisted: access.isAllowlisted,
+    isAllowlisted: translationPermissionOpen,
     sourceHash,
     ...(entitlement ? { entitlement } : {}),
   });

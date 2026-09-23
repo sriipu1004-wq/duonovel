@@ -16,7 +16,7 @@ export default async function WriteSeriesNewPage() {
         <SourceLanguageWorkspaceBridge embedded />
       </SeriesStatusPortal>
       <TranslationPermissionWorkspaceBridge
-        initialMode={null}
+        initialMode="open"
         isOfficialAuthor={isOfficialAccountEmail(user.email)}
       />
       <ContentRatingWorkspaceBridge initialWarnings={[]} />

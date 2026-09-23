@@ -35,8 +35,6 @@ const DEFAULT_PREVIEW_SERIES_EPISODE_ALLOWLIST = new Set([
   "af9f56ea-93b4-4e34-8779-89aa8758f3aa:1",
 ]);
 
-type AdminSupabase = ReturnType<typeof createAdminClient>;
-
 export type EpisodeTranslationAccess = {
   episode: EpisodeRow;
   series: SeriesRow;
@@ -108,37 +106,15 @@ export function isSeriesAiGenerated(series: SeriesRow): boolean {
 }
 
 export function isSeriesTranslationEligible(series: SeriesRow): boolean {
-  if (isSeriesAiGenerated(series)) {
-    return true;
-  }
-
   return series.translation_permission_mode === "open";
-}
-
-async function isSeriesOfficialAuthoredWithAdmin(
-  series: SeriesRow,
-  admin: AdminSupabase
-): Promise<boolean> {
-  const ownerId = pickText(series.author_id, series["user_id"], series["userId"]);
-  if (!ownerId) return false;
-
-  try {
-    const { data, error } = await admin.auth.admin.getUserById(ownerId);
-    if (error || !data.user) return false;
-    return isOfficialAccountEmail(data.user.email);
-  } catch {
-    return false;
-  }
 }
 
 export async function isSeriesTranslationEligibleIncludingOfficial(
   series: SeriesRow
 ): Promise<boolean> {
-  if (isSeriesTranslationEligible(series)) {
-    return true;
-  }
-
-  return isSeriesOfficialAuthoredWithAdmin(series, createAdminClient());
+  // Kept as an async compatibility boundary for existing callers. Official
+  // authorship is not a permission override: closed always means closed.
+  return isSeriesTranslationEligible(series);
 }
 
 export function isEpisodeTranslationAllowlisted(args: {
@@ -226,12 +202,6 @@ export async function resolveEpisodeTranslationAccess(
   const body = getEpisodeBody(episode);
   const sourceLanguage = inferSeriesSourceLanguage(series, body);
   const episodeNumber = getEpisodeNumber(episode);
-  const explicitlyAllowlisted = isEpisodeTranslationAllowlisted({
-    episodeId: episode.id,
-    seriesId,
-    episodeNumber,
-  });
-  const isOfficialAuthored = await isSeriesOfficialAuthoredWithAdmin(series, admin);
   const r18Allowed =
     !isR18Series(series) ||
     (await getCurrentR18ViewerPreference()).showR18Content;
@@ -248,10 +218,8 @@ export async function resolveEpisodeTranslationAccess(
     isOwner,
     isOfficialUser: isOfficialAccountEmail(currentUserEmail),
     canRead: (isPublic || isOwner) && r18Allowed,
-    isAllowlisted:
-      isOwner ||
-      explicitlyAllowlisted ||
-      isSeriesTranslationEligible(series) ||
-      isOfficialAuthored,
+    // Translation permission is authoritative. Ownership, preview allowlists,
+    // AI-generated attribution, and Official authorship must never bypass a closed work.
+    isAllowlisted: isSeriesTranslationEligible(series),
   };
 }
