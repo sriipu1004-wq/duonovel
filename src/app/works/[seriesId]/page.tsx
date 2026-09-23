@@ -684,16 +684,14 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   );
 
   const authSupabase = await createServerClient();
-  const {
-    data: { user: currentUser },
-  } = await authSupabase.auth.getUser();
-  const subscriber = currentUser ? await isSubscriber(currentUser.id) : false;
-
-  const { data: seriesData, error: seriesError } = await supabase
-    .from("series")
-    .select("*")
-    .eq("id", seriesId)
-    .single();
+  // Auth and the primary work row are independent. Start both immediately so
+  // the above-the-fold work shell is not blocked by an avoidable waterfall.
+  const [authResult, seriesResult] = await Promise.all([
+    authSupabase.auth.getUser(),
+    supabase.from("series").select("*").eq("id", seriesId).single(),
+  ]);
+  const currentUser = authResult.data.user;
+  const { data: seriesData, error: seriesError } = seriesResult;
 
   if (seriesError) {
     if (seriesError.code === "PGRST116") {
@@ -720,21 +718,16 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     series["userId"]
   ) || null;
 
-  let author: UserRow | null = null;
-
-  if (authorId) {
-    const { data: userData } = await adminSupabase
-      .from("users")
-      .select("*")
-      .eq("id", authorId)
-      .maybeSingle();
-
-    if (userData) {
-      author = userData as UserRow;
-    }
-  }
-
-  const rawEpisodes = await fetchEpisodesBySeriesId(seriesId);
+  const [authorResult, rawEpisodes, subscriber, allPublicBaseWorks] =
+    await Promise.all([
+      authorId
+        ? adminSupabase.from("users").select("*").eq("id", authorId).maybeSingle()
+        : Promise.resolve({ data: null }),
+      fetchEpisodesBySeriesId(seriesId),
+      currentUser ? isSubscriber(currentUser.id) : Promise.resolve(false),
+      getCachedPublicBaseWorkCards(),
+    ]);
+  const author = authorResult.data ? (authorResult.data as UserRow) : null;
   const episodes = sortEpisodes(
     rawEpisodes.filter((episode) => isEpisodePubliclyVisible(episode))
   );
@@ -830,8 +823,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     readerKeys: displayedReaderCards.map((reader) => reader.readerKey),
     currentUserId: currentUser?.id ?? null,
   });  
-
-  const allPublicBaseWorks = await getCachedPublicBaseWorkCards();
 
   const relatedBase: Array<RelatedWorkCard & { sameAuthor: boolean }> =
     allPublicBaseWorks
