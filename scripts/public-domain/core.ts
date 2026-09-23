@@ -165,7 +165,7 @@ export type DraftSeriesRow = {
   publication_status: "private";
   is_public: false;
   source_language: PublicDomainSourceLanguage;
-  translation_permission_mode: "closed";
+  translation_permission_mode: "open";
   recording_permission_mode: "open";
   genres: string[];
   tags: string[];
