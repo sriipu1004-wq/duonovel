@@ -215,6 +215,19 @@ function testReaderDisplayClauseSegmentation() {
   );
 }
 
+function testPunctuationOnlyTranslationSegment() {
+  const valid = validatePublicTranslationOutput({
+    text: JSON.stringify({
+      translations: { "segment-1": "……" },
+      glossary_candidates: [],
+    }),
+    segments: [{ id: "segment-1", text: "..." }],
+    sourceLanguage: "en",
+    targetLanguage: "ja",
+  });
+  assert.deepEqual(valid.segments, ["……"]);
+}
+
 function testClassicBatching() {
   const source = segmentSourceDocument(MEIAN_FIXTURE, "ja");
   const seed = source.segments[0]!;
@@ -297,6 +310,7 @@ function main() {
   testClassicNormalization();
   testClassicResponseParsing();
   testClassicBatching();
+  testPunctuationOnlyTranslationSegment();
   testLongClauseSegmentation();
   testNonJapaneseHardWrapNormalization();
   testReaderDisplayClauseSegmentation();
