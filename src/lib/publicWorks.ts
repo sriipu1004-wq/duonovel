@@ -206,7 +206,7 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
         return { rows: [] as EpisodeRow[], error: result.error };
       }
 
-      const pageRows = (result.data ?? []) as EpisodeRow[];
+      const pageRows = (result.data ?? []) as unknown as EpisodeRow[];
       rows.push(...pageRows);
 
       if (pageRows.length < PAGE_SIZE) {
