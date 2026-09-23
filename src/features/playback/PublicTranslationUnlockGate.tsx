@@ -28,6 +28,7 @@ type Props = {
   errorMessage?: string | null;
   onConfirmIncluded: () => Promise<void> | void;
   onConfirmCredit: () => Promise<void> | void;
+  manualTranslationHref?: string | null;
 };
 
 type ConfirmKind = "included" | "credit" | null;
@@ -76,6 +77,8 @@ const COPY = {
     cancel: "キャンセル",
     confirm: "1クレジットで翻訳を解放",
     processing: "処理中…",
+    manual: "自分で翻訳を作る",
+    manualHelp: "AI翻訳を使わず、自分のアカウント用の翻訳を作成できます。",
   },
   en: {
     login: "Sign in to unlock translations for your account.",
@@ -100,6 +103,8 @@ const COPY = {
     cancel: "Cancel",
     confirm: "Unlock translation for 1 credit",
     processing: "Processing…",
+    manual: "Create your own translation",
+    manualHelp: "Create a private translation for your account without using AI translation.",
   },
   ko: {
     login: "번역 잠금 해제에는 로그인이 필요합니다.",
@@ -124,6 +129,8 @@ const COPY = {
     cancel: "취소",
     confirm: "1크레딧으로 번역 잠금 해제",
     processing: "처리 중…",
+    manual: "직접 번역 만들기",
+    manualHelp: "AI 번역을 사용하지 않고 내 계정용 번역을 직접 만들 수 있습니다.",
   },
 } as const;
 
@@ -134,6 +141,7 @@ export default function PublicTranslationUnlockGate({
   errorMessage,
   onConfirmIncluded,
   onConfirmCredit,
+  manualTranslationHref,
 }: Props) {
   const locale = useUiLocale();
   const copy = COPY[locale];
@@ -225,6 +233,18 @@ export default function PublicTranslationUnlockGate({
           </div>
         </>
       )}
+
+      {manualTranslationHref ? (
+        <div className="mt-4 border-t border-black/10 pt-4">
+          <p className="text-xs leading-6 text-neutral-500">{copy.manualHelp}</p>
+          <Link
+            href={manualTranslationHref}
+            className="mt-2 inline-flex rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50"
+          >
+            {copy.manual}
+          </Link>
+        </div>
+      ) : null}
 
       {confirmKind ? (
         <div
