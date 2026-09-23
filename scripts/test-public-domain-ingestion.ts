@@ -349,7 +349,7 @@ function testPreparedArtifactAndDraftPlan() {
   assert.equal(plan.series.publication_status, "private");
   assert.equal(plan.series.is_public, false);
   assert.equal(plan.series.source_language, "ja");
-  assert.equal(plan.series.translation_permission_mode, "closed");
+  assert.equal(plan.series.translation_permission_mode, "open");
   assert.equal(plan.series.recording_permission_mode, "open");
   assert.deepEqual(plan.series.genres, ["文芸"]);
   assert.deepEqual(plan.series.tags, ["心理"]);
