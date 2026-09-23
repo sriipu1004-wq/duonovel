@@ -771,6 +771,16 @@ const publicVisibleCount = sortedEpisodes.filter(
     showGlobalLoadingFeedback("作成中...", 8000);
 
     const summaryVariants = buildSummaryValue(summary);
+    const sourceLanguageValue =
+      document.querySelector<HTMLInputElement>(
+        "[data-source-language-select='true']"
+      )?.value ?? "";
+    const translationPermissionValue =
+      document.querySelector<HTMLInputElement>(
+        "[data-translation-permission-select='true']"
+      )?.value === "closed"
+        ? "closed"
+        : "open";
     const nextGenres = canonicalizeGenreList(parseTags(genreEditorValue));
     const nextTags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue, isAiGenerated));
     const workspaceFields = buildWorkspaceFields({
@@ -795,7 +805,8 @@ const publicVisibleCount = sortedEpisodes.filter(
         author_id: currentUserId,
         ...summaryFields,
         ...workspaceFields,
-        translation_permission_mode: "open",
+        source_language: sourceLanguageValue,
+        translation_permission_mode: translationPermissionValue,
       })
     );
 
@@ -803,7 +814,8 @@ const publicVisibleCount = sortedEpisodes.filter(
       title: trimmedTitle,
       author_id: currentUserId,
       ...workspaceFields,
-      translation_permission_mode: "open",
+      source_language: sourceLanguageValue,
+      translation_permission_mode: translationPermissionValue,
     });
 
     const createFailureMessage =
