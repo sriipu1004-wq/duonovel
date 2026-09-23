@@ -34,23 +34,15 @@ function findSeriesStatusButton(): HTMLButtonElement | null {
   if (existing) return existing;
 
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("button"));
-
   return (
     buttons.find((button) => {
       const directLabel = button.querySelector<HTMLElement>(":scope > span:first-child");
-      return NARRATION_PERMISSION_LABELS.has(
-        directLabel?.textContent?.trim() ?? ""
-      );
+      return NARRATION_PERMISSION_LABELS.has(directLabel?.textContent?.trim() ?? "");
     }) ?? null
   );
 }
 
-function normalizeRecordingStatus(
-  value: string | null | undefined,
-  isAiGenerated: boolean
-): string {
-  if (isAiGenerated) return "朗読許可";
-
+function normalizeRecordingStatus(value: string | null | undefined): string {
   const text = value?.trim() ?? "";
   if (
     text.includes("朗読不可") ||
@@ -73,19 +65,15 @@ function normalizeRecordingStatus(
   return "朗読未設定";
 }
 
-function translationStatusLabel(
-  mode: TranslationPermissionMode | null,
-  isAiGenerated: boolean
-): string {
-  if (isAiGenerated || mode === "open") return "対訳許可";
-  if (mode === "closed") return "対訳不許可";
-  return "対訳未設定";
+function translationStatusLabel(mode: TranslationPermissionMode | null): string {
+  if (mode === "open") return "翻訳許可";
+  if (mode === "closed") return "翻訳不許可";
+  return "翻訳未設定";
 }
 
 function integrateStatusButton(
   button: HTMLButtonElement,
-  mode: TranslationPermissionMode | null,
-  isAiGenerated: boolean
+  mode: TranslationPermissionMode | null
 ): void {
   button.dataset.permissionStatusIntegrated = "true";
 
@@ -100,20 +88,13 @@ function integrateStatusButton(
   if (!value) return;
 
   const currentText = value.textContent?.trim() ?? "";
-  const looksLikeCombinedValue = currentText.includes("対訳");
-
-  if (!looksLikeCombinedValue) {
-    button.dataset.recordingPermissionStatus = normalizeRecordingStatus(
-      currentText,
-      isAiGenerated
-    );
+  if (!currentText.includes("翻訳") && !currentText.includes("対訳")) {
+    button.dataset.recordingPermissionStatus = normalizeRecordingStatus(currentText);
   }
 
   const recordingStatus =
-    button.dataset.recordingPermissionStatus ||
-    normalizeRecordingStatus(currentText, isAiGenerated);
-  const translationStatus = translationStatusLabel(mode, isAiGenerated);
-  const combinedValue = `${recordingStatus}・${translationStatus}`;
+    button.dataset.recordingPermissionStatus || normalizeRecordingStatus(currentText);
+  const combinedValue = `${recordingStatus}・${translationStatusLabel(mode)}`;
 
   if (value.textContent !== combinedValue) {
     value.textContent = combinedValue;
@@ -159,9 +140,7 @@ function integratePermissionPanel(panel: HTMLElement): HTMLElement {
 
   const restoreButton = Array.from(
     panel.querySelectorAll<HTMLButtonElement>(":scope > button")
-  ).find((button) =>
-    RESTORE_SAVED_LABELS.has(button.textContent?.trim() ?? "")
-  );
+  ).find((button) => RESTORE_SAVED_LABELS.has(button.textContent?.trim() ?? ""));
 
   if (restoreButton) {
     restoreButton.dataset.permissionRestoreSource = "true";
@@ -190,7 +169,6 @@ function triggerOriginalRestoreButton() {
 export default function TranslationPermissionWorkspaceBridge({
   seriesId,
   initialMode,
-  isAiGenerated = false,
 }: TranslationPermissionWorkspaceBridgeProps) {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [mode, setMode] = useState<TranslationPermissionMode | null>(initialMode);
@@ -218,28 +196,22 @@ export default function TranslationPermissionWorkspaceBridge({
       "libread:translation-permission-applied",
       handleAppliedPermission
     );
-
-    return () => {
+    return () =>
       window.removeEventListener(
         "libread:translation-permission-applied",
         handleAppliedPermission
       );
-    };
   }, []);
 
   useEffect(() => {
-    if (seriesId || isAiGenerated) return;
+    if (seriesId) return;
 
     function rememberCreateSelection(event: MouseEvent) {
       const target = event.target;
       if (!(target instanceof Element)) return;
-
       const button = target.closest<HTMLButtonElement>("button");
       if (!button || !button.textContent?.includes("作品を作成して")) return;
-      if (mode !== "open" && mode !== "closed") {
-        window.sessionStorage.removeItem(PENDING_CREATE_PERMISSION_KEY);
-        return;
-      }
+      if (mode !== "open" && mode !== "closed") return;
 
       window.sessionStorage.setItem(
         PENDING_CREATE_PERMISSION_KEY,
@@ -253,16 +225,14 @@ export default function TranslationPermissionWorkspaceBridge({
 
     document.addEventListener("click", rememberCreateSelection, true);
     return () => document.removeEventListener("click", rememberCreateSelection, true);
-  }, [isAiGenerated, mode, seriesId]);
+  }, [mode, seriesId]);
 
   useEffect(() => {
     let currentHost: HTMLElement | null = null;
 
     function ensureIntegratedUi() {
       const statusButton = findSeriesStatusButton();
-      if (statusButton) {
-        integrateStatusButton(statusButton, mode, isAiGenerated);
-      }
+      if (statusButton) integrateStatusButton(statusButton, mode);
 
       const panel = findPermissionPanel();
       if (!panel) {
@@ -281,7 +251,6 @@ export default function TranslationPermissionWorkspaceBridge({
     }
 
     ensureIntegratedUi();
-
     const observer = new MutationObserver(ensureIntegratedUi);
     observer.observe(document.body, {
       childList: true,
@@ -293,10 +262,10 @@ export default function TranslationPermissionWorkspaceBridge({
       observer.disconnect();
       currentHost = null;
     };
-  }, [isAiGenerated, mode]);
+  }, [mode]);
 
   async function updateMode(nextMode: TranslationPermissionMode) {
-    if (saving || nextMode === mode || isAiGenerated) return;
+    if (saving || nextMode === mode) return;
 
     if (!seriesId) {
       setMode(nextMode);
@@ -319,11 +288,10 @@ export default function TranslationPermissionWorkspaceBridge({
       const payload = (await response.json()) as {
         ok?: boolean;
         mode?: TranslationPermissionMode;
-        message?: string;
       };
 
       if (!response.ok || !payload.ok) {
-        setMessage("対訳許可を更新できませんでした。");
+        setMessage("翻訳許可を更新できませんでした。");
         return;
       }
 
@@ -332,7 +300,7 @@ export default function TranslationPermissionWorkspaceBridge({
       setSavedMode(saved);
       setMessage("保存済み");
     } catch {
-      setMessage("対訳許可を更新できませんでした。");
+      setMessage("翻訳許可を更新できませんでした。");
     } finally {
       setSaving(false);
     }
@@ -348,42 +316,45 @@ export default function TranslationPermissionWorkspaceBridge({
 
   return createPortal(
     <div className="mt-4 border-t border-black/10 pt-4">
-      <p className="text-xs tracking-[0.16em] text-neutral-500">対訳許可</p>
+      <p className="text-xs tracking-[0.16em] text-neutral-500">翻訳・対訳許可</p>
 
-      {isAiGenerated ? (
-        <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-3">
-          <p className="text-sm font-semibold text-black">対訳許可（固定）</p>
-          <p className="mt-1 text-xs leading-6 text-neutral-600">
-            AI生成作品は対訳生成の対象として固定されます。
-          </p>
-        </div>
-      ) : (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {([
-            ["open", "対訳を許可"],
-            ["closed", "対訳を許可しない"],
-          ] as const).map(([value, label]) => {
-            const active = mode === value;
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {([
+          ["open", "翻訳・対訳を許可"],
+          ["closed", "翻訳・対訳を許可しない"],
+        ] as const).map(([value, label]) => {
+          const active = mode === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              disabled={saving}
+              onClick={() => void updateMode(value)}
+              className={[
+                "rounded-2xl border px-3 py-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50",
+                active
+                  ? "border-sky-200 bg-sky-50 text-black"
+                  : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+              ].join(" ")}
+            >
+              <span className="block font-semibold">{label}</span>
+            </button>
+          );
+        })}
+      </div>
 
-            return (
-              <button
-                key={value}
-                type="button"
-                disabled={saving}
-                onClick={() => void updateMode(value)}
-                className={[
-                  "rounded-2xl border px-3 py-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50",
-                  active
-                    ? "border-sky-200 bg-sky-50 text-black"
-                    : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                ].join(" ")}
-              >
-                <span className="block font-semibold">{label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <div className="mt-3 rounded-2xl border border-black/10 bg-neutral-50 px-3 py-3 text-xs leading-6 text-neutral-600">
+        <p className="font-semibold text-neutral-800">
+          翻訳許可は、作品をAIの学習用データとして提供する同意ではありません。
+        </p>
+        <p className="mt-1">
+          許可した場合、読者がAI翻訳を利用するときに本文が翻訳生成の入力として処理されます。
+          また、読者は自分用の人力翻訳を作成できます。
+        </p>
+        <p className="mt-1">
+          不許可にすると、Readerの対訳・翻訳のみ機能、新規AI翻訳、人力翻訳作成を利用できません。
+        </p>
+      </div>
 
       {message ? (
         <p
@@ -396,15 +367,13 @@ export default function TranslationPermissionWorkspaceBridge({
         </p>
       ) : null}
 
-      {!isAiGenerated ? (
-        <button
-          type="button"
-          onClick={restoreSavedPermissions}
-          className="mt-4 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
-        >
-          保存済みに戻す
-        </button>
-      ) : null}
+      <button
+        type="button"
+        onClick={restoreSavedPermissions}
+        className="mt-4 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
+      >
+        保存済みに戻す
+      </button>
     </div>,
     host
   );
