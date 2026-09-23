@@ -32,6 +32,7 @@
     "test:human-recording-state": "node --import tsx scripts/test-human-recording-state.ts",
     "test:human-recording-boundaries": "node --import tsx scripts/test-human-recording-boundaries.ts",
     "test:author-workspace-ux": "node --import tsx scripts/test-author-workspace-ux.ts",
+    "test:translation-consent-human": "node --import tsx scripts/test-translation-consent-human-translation.ts",
     "public-domain:validate": "node --import tsx scripts/public-domain/validate.ts",
     "public-domain:prepare": "node --import tsx scripts/public-domain/prepare.ts",
     "public-domain:import": "node --import tsx scripts/public-domain/import.ts",
