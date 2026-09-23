@@ -152,17 +152,33 @@ function isShortStorySeriesForSitemap(series: SeriesRow): boolean {
 
 async function fetchPublicSeriesRows(): Promise<SeriesRow[]> {
   const supabase = createPublicServerClient();
-  const result = await supabase
-    .from("series")
-    // The production schema has evolved several times. Selecting the full row
-    // keeps public discovery compatible while the card builder intentionally
-    // reads only the fields it needs below.
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(120);
+  const PAGE_SIZE = 1000;
+  const rows: SeriesRow[] = [];
 
-  if (result.error) throw new Error(`series の取得に失敗: ${result.error.message}`);
-  return ((result.data ?? []) as SeriesRow[]).filter(
+  for (let start = 0; ; start += PAGE_SIZE) {
+    const result = await supabase
+      .from("series")
+      // The production schema has evolved several times. Selecting the full row
+      // keeps public discovery compatible while the card builder intentionally
+      // reads only the fields it needs below.
+      .select("*")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(start, start + PAGE_SIZE - 1);
+
+    if (result.error) {
+      throw new Error(`series の取得に失敗: ${result.error.message}`);
+    }
+
+    const pageRows = (result.data ?? []) as SeriesRow[];
+    rows.push(...pageRows);
+
+    if (pageRows.length < PAGE_SIZE) {
+      break;
+    }
+  }
+
+  return rows.filter(
     (series) => getSeriesPublicationStatus(series) === "public"
   );
 }
@@ -171,21 +187,45 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
   const supabase = createPublicServerClient();
   if (seriesIds.length === 0) return new Map();
 
-  let episodes: EpisodeRow[] = [];
-  const firstTry = await supabase.from("episodes").select(PUBLIC_WORK_EPISODE_SELECT).in("series_id", seriesIds);
-  if (!firstTry.error) {
-    episodes = (firstTry.data ?? []) as EpisodeRow[];
-  } else {
-    const fallback = await supabase
-      .from("episodes")
-      .select("*")
-      .in("series_id", seriesIds);
-    if (fallback.error) {
-      throw new Error(`episodes の取得に失敗: ${fallback.error.message}`);
+  const PAGE_SIZE = 1000;
+
+  async function fetchPaged(selectClause: string) {
+    const rows: EpisodeRow[] = [];
+
+    for (let start = 0; ; start += PAGE_SIZE) {
+      const result = await supabase
+        .from("episodes")
+        .select(selectClause)
+        .in("series_id", seriesIds)
+        .order("series_id", { ascending: true })
+        .order("episode_number", { ascending: true })
+        .order("id", { ascending: true })
+        .range(start, start + PAGE_SIZE - 1);
+
+      if (result.error) {
+        return { rows: [] as EpisodeRow[], error: result.error };
+      }
+
+      const pageRows = (result.data ?? []) as unknown as EpisodeRow[];
+      rows.push(...pageRows);
+
+      if (pageRows.length < PAGE_SIZE) {
+        break;
+      }
     }
-    episodes = (fallback.data ?? []) as EpisodeRow[];
+
+    return { rows, error: null };
   }
 
+  let fetched = await fetchPaged(PUBLIC_WORK_EPISODE_SELECT);
+  if (fetched.error) {
+    fetched = await fetchPaged("*");
+  }
+  if (fetched.error) {
+    throw new Error(`episodes の取得に失敗: ${fetched.error.message}`);
+  }
+
+  const episodes = fetched.rows;
   const grouped = new Map<string, EpisodeRow[]>();
   for (const episode of episodes) {
     const seriesId = getEpisodeSeriesId(episode);
@@ -335,7 +375,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
   buildPublicBaseWorkCards,
-  ["public-base-work-cards-v8-public-domain-author"],
+  ["public-base-work-cards-v9-paginated"],
   { revalidate: 60 }
 );
 
