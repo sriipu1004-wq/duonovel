@@ -11,7 +11,7 @@ export type TranslationSourceSegment = {
 };
 
 export type TranslationSourceDocument = {
-  version: 2;
+  version: 3;
   sourceLanguage: SupportedLanguageTag;
   normalizedSource: string;
   segments: TranslationSourceSegment[];
@@ -30,9 +30,9 @@ const JAPANESE_CLOSING_CHARS = new Set([
   "’",
 ]);
 
-export const TRANSLATION_CLAUSE_SPLIT_TARGET_CHARS = 100;
-export const TRANSLATION_CLAUSE_SPLIT_MIN_CHARS = 40;
-export const TRANSLATION_CLAUSE_SPLIT_MAX_LOOKAHEAD_CHARS = 160;
+export const TRANSLATION_CLAUSE_SPLIT_TARGET_CHARS = 56;
+export const TRANSLATION_CLAUSE_SPLIT_MIN_CHARS = 20;
+export const TRANSLATION_CLAUSE_SPLIT_MAX_LOOKAHEAD_CHARS = 80;
 
 const CLAUSE_BOUNDARY_CHARS = new Set(["、", ",", "，", ";", "；", ":", "："]);
 
@@ -45,13 +45,18 @@ function splitLongClauseBounds(
     return [[start, end]];
   }
 
-  const candidates: number[] = [];
+  const clauseCandidates: number[] = [];
+  const wordCandidates: number[] = [];
   for (let cursor = start; cursor < end; cursor += 1) {
-    if (CLAUSE_BOUNDARY_CHARS.has(source[cursor] ?? "")) {
-      candidates.push(cursor + 1);
+    const current = source[cursor] ?? "";
+    if (CLAUSE_BOUNDARY_CHARS.has(current)) {
+      clauseCandidates.push(cursor + 1);
+      continue;
+    }
+    if (/\s/u.test(current)) {
+      wordCandidates.push(cursor + 1);
     }
   }
-  if (candidates.length === 0) return [[start, end]];
 
   const result: Array<[number, number]> = [];
   let segmentStart = start;
@@ -64,18 +69,22 @@ function splitLongClauseBounds(
       segmentStart + TRANSLATION_CLAUSE_SPLIT_MAX_LOOKAHEAD_CHARS
     );
 
-    const beforeTarget = candidates.filter(
-      (candidate) => candidate >= min && candidate <= target
-    );
-    const afterTarget = candidates.filter(
-      (candidate) => candidate > target && candidate <= max
-    );
-    const splitAt =
-      beforeTarget[beforeTarget.length - 1] ??
-      afterTarget[0] ??
-      null;
+    const pickBoundary = (candidates: number[]) => {
+      const beforeTarget = candidates.filter(
+        (candidate) => candidate >= min && candidate <= target
+      );
+      const afterTarget = candidates.filter(
+        (candidate) => candidate > target && candidate <= max
+      );
+      return beforeTarget[beforeTarget.length - 1] ?? afterTarget[0] ?? null;
+    };
 
-    if (splitAt === null || splitAt <= segmentStart || splitAt >= end) {
+    const splitAt =
+      pickBoundary(clauseCandidates) ??
+      pickBoundary(wordCandidates) ??
+      Math.min(target, end);
+
+    if (splitAt <= segmentStart || splitAt >= end) {
       break;
     }
 
@@ -322,7 +331,7 @@ export function segmentSourceDocument(
   }
 
   return {
-    version: 2,
+    version: 3,
     sourceLanguage,
     normalizedSource,
     segments,
