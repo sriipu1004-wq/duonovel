@@ -918,18 +918,79 @@ export function canonicalizePublicDomainText(text: string): string {
 
 export function publicDomainTextDigest(text: string): string {
   return createHash("sha256")
-    .update(canonicalizePublicDomainText(text), "utf8")
+    .update(text, "utf8")
     .digest("hex");
+}
+
+function findLosslessEpisodeCut(
+  body: string,
+  start: number,
+  targetCharacters = PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS,
+  maxCharacters = PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS
+): number {
+  const remaining = body.length - start;
+  if (remaining <= maxCharacters) return body.length;
+
+  const target = Math.min(start + targetCharacters, body.length);
+  const hardMax = Math.min(start + maxCharacters, body.length);
+  const minimumNaturalCut = Math.min(
+    target,
+    start + Math.floor(targetCharacters * 0.65)
+  );
+
+  const paragraphBefore = body.lastIndexOf("\n\n", target);
+  if (paragraphBefore >= minimumNaturalCut) return paragraphBefore + 2;
+
+  const paragraphAfter = body.indexOf("\n\n", target);
+  if (paragraphAfter >= target && paragraphAfter + 2 <= hardMax) {
+    return paragraphAfter + 2;
+  }
+
+  const beforeWindow = body.slice(minimumNaturalCut, target);
+  const beforeMatches = Array.from(
+    beforeWindow.matchAll(/[.!?。！？]["'”’」』）】］»]?\s*/gu)
+  );
+  const lastBefore = beforeMatches[beforeMatches.length - 1];
+  if (lastBefore?.index !== undefined) {
+    return minimumNaturalCut + lastBefore.index + lastBefore[0].length;
+  }
+
+  const afterWindow = body.slice(target, hardMax);
+  const afterMatch = afterWindow.match(/[.!?。！？]["'”’」』）】］»]?\s*/u);
+  if (afterMatch?.index !== undefined) {
+    return target + afterMatch.index + afterMatch[0].length;
+  }
+
+  return target;
+}
+
+export function splitPublicDomainEpisodeLosslessly(
+  body: string
+): string[] {
+  if (body.length <= PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS) return [body];
+
+  const pieces: string[] = [];
+  let offset = 0;
+  while (offset < body.length) {
+    const end = findLosslessEpisodeCut(body, offset);
+    if (end <= offset || end - offset > PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS) {
+      throw new Error("CHAPTER_REPARTITION_LIMIT: could not find a safe bounded cut");
+    }
+    pieces.push(body.slice(offset, end));
+    offset = end;
+  }
+  if (pieces.join("") !== body) {
+    throw new Error("CHAPTER_REPARTITION_TEXT_MISMATCH: repartition changed source text");
+  }
+  return pieces;
 }
 
 export function validateChapterRepartition(args: {
   before: string[];
   after: PreparedChapter[];
 }): void {
-  const beforeText = canonicalizePublicDomainText(args.before.join("\n\n"));
-  const afterText = canonicalizePublicDomainText(
-    args.after.map((chapter) => chapter.body).join("\n\n")
-  );
+  const beforeText = args.before.join("");
+  const afterText = args.after.map((chapter) => chapter.body).join("");
   if (publicDomainTextDigest(beforeText) !== publicDomainTextDigest(afterText)) {
     throw new Error("CHAPTER_REPARTITION_TEXT_MISMATCH: repartition changed source text");
   }
@@ -947,16 +1008,7 @@ export function repartitionPreparedChapters(
 ): PreparedChapter[] {
   const repartitioned: PreparedChapter[] = [];
   for (const chapter of chapters) {
-    const pieces =
-      chapter.characterCount <= PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS
-        ? [chapter.body]
-        : splitChapters(chapter.body, {
-            title: chapter.title,
-            chapter_split: {
-              strategy: "paragraph_chunks",
-              max_characters: PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS,
-            },
-          }).map((piece) => piece.body);
+    const pieces = splitPublicDomainEpisodeLosslessly(chapter.body);
     for (const [pieceIndex, body] of pieces.entries()) {
       repartitioned.push({
         number: repartitioned.length + 1,
