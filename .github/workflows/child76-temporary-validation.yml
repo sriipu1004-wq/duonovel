@@ -38,6 +38,7 @@ jobs:
           src/features/comment/DeferredEpisodeCommentSection.tsx
           src/features/playback/WebSpeechEpisodePlayback.tsx
           src/lib/publicRead.ts
+          src/lib/publicWorks.ts
           src/lib/translation/executeEpisodeTranslationGeneration.ts
           src/lib/translation/prepareEpisodeTranslationGeneration.ts
           scripts/test-public-recording-selects.ts
