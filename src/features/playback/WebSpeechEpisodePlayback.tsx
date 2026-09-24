@@ -28,7 +28,7 @@ import {
   emptyEffectSettings,
   type EffectSettings,
 } from "@/lib/effects/effectSettings";
-import EpisodeCommentSection from "@/features/comment/EpisodeCommentSection";
+import DeferredEpisodeCommentSection from "@/features/comment/DeferredEpisodeCommentSection";
 import { trackSeriesViewOnce } from "@/lib/popularityEvents";
 import { buildNemoAlignedParagraphBlocks, splitSentenceIntoDisplayClauses } from "@/lib/recording/humanTimingShared";
 import {
@@ -1759,7 +1759,7 @@ export default function WebSpeechEpisodePlayback({
             {!isSettingsOpen ? ownerActions : null}
 
             {!isSettingsOpen && showComments && episodeId ? (
-              <EpisodeCommentSection
+              <DeferredEpisodeCommentSection
                 episodeId={episodeId}
                 episodeNumber={episodeNumber}
                 loginHref={loginHref}
