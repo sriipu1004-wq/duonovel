@@ -302,7 +302,20 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
     authSupabase.auth.getUser(),
   ]);
   const currentUser = authResult.data.user;
-  const subscriber = currentUser ? await isSubscriber(currentUser.id) : false;
+  const [subscriber, bookmarkResult] = await Promise.all([
+    currentUser ? isSubscriber(currentUser.id) : Promise.resolve(false),
+    currentUser
+      ? authSupabase
+          .from("user_series_bookmarks")
+          .select("series_id")
+          .eq("user_id", currentUser.id)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const bookmarkedSeriesIds = new Set(
+    (bookmarkResult.data ?? [])
+      .map((row) => (typeof row.series_id === "string" ? row.series_id : ""))
+      .filter((value) => value.length > 0)
+  );
 
   const recordingAggregateMap = new Map(
     recordingAggregates.map((aggregate) => [aggregate.seriesId, aggregate])
@@ -347,19 +360,6 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
         work.episodeCount,
     };
   });
-
-  let bookmarkedSeriesIds = new Set<string>();
-  if (currentUser) {
-    const { data } = await authSupabase
-      .from("user_series_bookmarks")
-      .select("series_id")
-      .eq("user_id", currentUser.id);
-    bookmarkedSeriesIds = new Set(
-      (data ?? [])
-        .map((row) => (typeof row.series_id === "string" ? row.series_id : ""))
-        .filter((value) => value.length > 0)
-    );
-  }
 
   const latestWorks = sortLatest(workCards).slice(0, 4);
   const weeklyNewWorks = sortWeeklyNew(workCards).slice(0, 4);
