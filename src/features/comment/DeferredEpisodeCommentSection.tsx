@@ -35,12 +35,13 @@ export default function DeferredEpisodeCommentSection({
     const node = hostRef.current;
     if (!node) return;
 
-    if (!("IntersectionObserver" in window)) {
-      const frameId = window.requestAnimationFrame(() => setEnabled(true));
-      return () => window.cancelAnimationFrame(frameId);
+    const Observer = window.IntersectionObserver;
+    if (typeof Observer !== "function") {
+      const timeoutId = window.setTimeout(() => setEnabled(true), 0);
+      return () => window.clearTimeout(timeoutId);
     }
 
-    const observer = new IntersectionObserver(
+    const observer = new Observer(
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return;
         setEnabled(true);
