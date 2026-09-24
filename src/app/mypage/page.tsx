@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Suspense } from "react";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import {
   buildAuthorPageHref,
@@ -41,35 +40,7 @@ function readAuthMetadataDisplayName(metadata: unknown): string {
     const text = candidate.trim();
     if (text && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) return text;
   }
-
   return "";
-}
-
-type MySeriesCards = Awaited<ReturnType<typeof buildAuthorSeriesCards>>;
-
-async function DeferredMySeriesSection({
-  seriesCardsPromise,
-}: {
-  seriesCardsPromise: Promise<MySeriesCards>;
-}) {
-  return <MySeriesSection cards={await seriesCardsPromise} />;
-}
-
-async function DeferredCreditBalance({
-  balancePromise,
-}: {
-  balancePromise: Promise<number | null>;
-}) {
-  const creditBalance = await balancePromise;
-  if (creditBalance === null) return null;
-
-  return (
-    <CreditBalanceCard
-      balance={creditBalance}
-      packs={publicPacks}
-      purchaseEnabled={purchaseEnabled}
-    />
-  );
 }
 
 export default async function MyPage() {
@@ -80,7 +51,11 @@ export default async function MyPage() {
     (ownedSeries) => buildAuthorSeriesCards(ownedSeries, supabase)
   );
   const creditBalancePromise = getAuthenticatedCreditBalance();
-  const author = await authorPromise;
+  const [author, seriesCards, creditBalance] = await Promise.all([
+    authorPromise,
+    seriesCardsPromise,
+    creditBalancePromise,
+  ]);
   const metadataDisplayName = readAuthMetadataDisplayName(user.user_metadata);
   const authorName = resolveAuthorName(author, metadataDisplayName);
   const metadataBio = readAuthMetadataText(user.user_metadata, "profile_bio");
@@ -164,11 +139,13 @@ export default async function MyPage() {
           ]}
         />
         <div className="mt-6 grid gap-6">
-          <Suspense
-            fallback={<div className="h-32 rounded-[28px] border border-black/10 bg-neutral-50" />}
-          >
-            <DeferredCreditBalance balancePromise={creditBalancePromise} />
-          </Suspense>
+          {creditBalance !== null ? (
+            <CreditBalanceCard
+              balance={creditBalance}
+              packs={publicPacks}
+              purchaseEnabled={purchaseEnabled}
+            />
+          ) : null}
           <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -185,17 +162,9 @@ export default async function MyPage() {
                 一覧を見る
               </Link>
             </div>
-            <Suspense
-              fallback={<div className="mt-4 h-28 rounded-2xl bg-neutral-50" />}
-            >
-              <BookmarkedSeriesList userId={user.id} surface="light" limit={5} showOrderControls />
-            </Suspense>
+            <BookmarkedSeriesList userId={user.id} surface="light" limit={5} showOrderControls />
           </section>
-          <Suspense
-            fallback={<div className="h-44 rounded-[28px] border border-black/10 bg-neutral-50" />}
-          >
-            <DeferredMySeriesSection seriesCardsPromise={seriesCardsPromise} />
-          </Suspense>
+          <MySeriesSection cards={seriesCards} />
           <SavedSearchLinksSection />
           <AccountSettingsCard />
         </div>
