@@ -713,35 +713,19 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const showAllGenres = pickText(resolvedSearchParams?.showGenres) === "1";
   const shelfTab = resolveShelfTab(pickText(resolvedSearchParams?.shelfTab));
 
-  const authSupabase = savedFilter ? await createServerClient() : null;
-  const currentUser = authSupabase
-    ? (await authSupabase.auth.getUser()).data.user
-    : null;
-
-  const baseWorkCards = await getCachedPublicBaseWorkCards({
+  const baseWorkCardsPromise = getCachedPublicBaseWorkCards({
     ignoreContentLanguageFilter: true,
   });
+  const authSupabase = savedFilter ? await createServerClient() : null;
+  const [baseWorkCards, authResult] = await Promise.all([
+    baseWorkCardsPromise,
+    authSupabase ? authSupabase.auth.getUser() : Promise.resolve(null),
+  ]);
+  const currentUser = authResult?.data.user ?? null;
 
-  const popularityDataset = await fetchSeriesPopularityDataset(
+  const popularityDatasetPromise = fetchSeriesPopularityDataset(
     baseWorkCards.map((work) => work.seriesId)
   );
-
-  const currentPopularityMap = buildSeriesPopularityMap(popularityDataset);
-
-  const workCards: WorkCard[] = baseWorkCards.map((work) => {
-    const currentPopularity =
-      currentPopularityMap.get(work.seriesId) ??
-      createEmptyPopularityMetrics(work.seriesId);
-
-    return {
-      ...work,
-      likeCount: currentPopularity.likeCount,
-      bookmarkCount: currentPopularity.bookmarkCount,
-      viewCount: currentPopularity.viewCount,
-      narrationPlayCount: currentPopularity.narrationPlayCount,
-      provisionalPopularityScore: currentPopularity.popularityScore,
-    };
-  });
 
   let savedAuthorIds = new Set<string>();
   let savedSeriesIds = new Set<string>();
@@ -775,6 +759,25 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       });
     }
   }
+
+  const popularityDataset = await popularityDatasetPromise;
+  const currentPopularityMap = buildSeriesPopularityMap(popularityDataset);
+
+  const workCards: WorkCard[] = baseWorkCards.map((work) => {
+    const currentPopularity =
+      currentPopularityMap.get(work.seriesId) ??
+      createEmptyPopularityMetrics(work.seriesId);
+
+    return {
+      ...work,
+      likeCount: currentPopularity.likeCount,
+      bookmarkCount: currentPopularity.bookmarkCount,
+      viewCount: currentPopularity.viewCount,
+      narrationPlayCount: currentPopularity.narrationPlayCount,
+      provisionalPopularityScore: currentPopularity.popularityScore,
+    };
+  });
+
 
   const savedFilterRequiresLogin = Boolean(savedFilter && !currentUser);  
 
