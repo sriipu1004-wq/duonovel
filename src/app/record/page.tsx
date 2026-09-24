@@ -1349,12 +1349,27 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
   const showAllTags = pickText(resolvedSearchParams?.showTags) === "1";
   const showAllGenres = pickText(resolvedSearchParams?.showGenres) === "1";
 
-  const allPublicBaseWorkCards = await getCachedPublicBaseWorkCards({
-    visibility: "all",
-    ignoreContentLanguageFilter: true,
-    prioritizeForUiLocale: false,
-  });
-  const r18Preference = await getCurrentR18ViewerPreference();
+  const [
+    allPublicBaseWorkCards,
+    r18Preference,
+    rawDiscoverableSeries,
+    myRequests,
+    myBookmarks,
+    mySubmittedSeriesIds,
+    hasRecordingGlobalConsent,
+  ] = await Promise.all([
+    getCachedPublicBaseWorkCards({
+      visibility: "all",
+      ignoreContentLanguageFilter: true,
+      prioritizeForUiLocale: false,
+    }),
+    getCurrentR18ViewerPreference(),
+    fetchDiscoverableSeries(supabase),
+    fetchMyRecordingRequests(supabase, user?.id ?? null),
+    fetchMyBookmarks(supabase, user?.id ?? null),
+    fetchMySubmittedSeriesIds(user?.id ?? null),
+    fetchMyRecordingGlobalConsent(supabase, user?.id ?? null),
+  ]);
   const visibleBaseWorkCards = r18Preference.showR18Content
     ? allPublicBaseWorkCards
     : allPublicBaseWorkCards.filter((work) => work.contentRating !== "r18");
@@ -1362,19 +1377,14 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
     visibleBaseWorkCards.map((work) => [work.seriesId, work] as const)
   );
 
-  const discoverableSeries = (await fetchDiscoverableSeries(supabase)).filter(
-    (series) => visibleBaseWorkBySeriesId.has(series.id)
+  const discoverableSeries = rawDiscoverableSeries.filter((series) =>
+    visibleBaseWorkBySeriesId.has(series.id)
   );
-  const humanNarrationSummaries = await fetchPublishedHumanNarrationSummaries(
-    discoverableSeries.map((series) => series.id)
-  );
-  const myRequests = await fetchMyRecordingRequests(supabase, user?.id ?? null);
-  const myBookmarks = await fetchMyBookmarks(supabase, user?.id ?? null);
-  const mySubmittedSeriesIds = await fetchMySubmittedSeriesIds(user?.id ?? null);
-  const hasRecordingGlobalConsent = await fetchMyRecordingGlobalConsent(
-    supabase,
-    user?.id ?? null
-  );
+  const discoverableSeriesIds = discoverableSeries.map((series) => series.id);
+  const [humanNarrationSummaries, popularityDataset] = await Promise.all([
+    fetchPublishedHumanNarrationSummaries(discoverableSeriesIds),
+    fetchSeriesPopularityDataset(discoverableSeriesIds),
+  ]);
   const canCreateHumanNarration = !isOfficialAccountEmail(user?.email);
 
   const latestRequestMap = buildLatestRequestMap(myRequests);
@@ -1384,9 +1394,6 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
       .filter((value) => value.length > 0)
   );
 
-  const popularityDataset = await fetchSeriesPopularityDataset(
-    discoverableSeries.map((series) => series.id)
-  );
   const popularityMap = buildSeriesPopularityMap(popularityDataset);
 
   const catalogItems = sortCatalogItems(
