@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import {
   buildAuthorPageHref,
@@ -43,15 +44,61 @@ function readAuthMetadataDisplayName(metadata: unknown): string {
   return "";
 }
 
+type MySeriesCards = Awaited<ReturnType<typeof buildAuthorSeriesCards>>;
+
+async function DeferredMySeriesSection({
+  seriesCardsPromise,
+}: {
+  seriesCardsPromise: Promise<MySeriesCards>;
+}) {
+  return <MySeriesSection cards={await seriesCardsPromise} />;
+}
+
+async function DeferredCreditBalance({
+  creditBalancePromise,
+}: {
+  creditBalancePromise: Promise<number | null>;
+}) {
+  const creditBalance = await creditBalancePromise;
+  if (creditBalance === null) return null;
+
+  let purchaseEnabled = false;
+  let publicPacks: Array<{
+    id: string;
+    credits: number;
+    displayPriceJpy: number;
+    expiresInDays: number;
+  }> = [];
+  try {
+    purchaseEnabled = isCreditPurchaseEnabled();
+    publicPacks = getCreditPackCatalog().map((pack) => ({
+      id: pack.id,
+      credits: pack.credits,
+      displayPriceJpy: pack.displayPriceJpy,
+      expiresInDays: pack.expiresInDays,
+    }));
+  } catch (error) {
+    console.error("[mypage-credit-catalog]", error);
+  }
+
+  return (
+    <CreditBalanceCard
+      balance={creditBalance}
+      packs={publicPacks}
+      purchaseEnabled={purchaseEnabled}
+    />
+  );
+}
+
 export default async function MyPage() {
   const { supabase, user } = await requireLoggedInUser("/mypage");
   const adminSupabase = createAdminClient();
-  const [author, ownedSeries, creditBalance] = await Promise.all([
-    fetchAuthorById(user.id, adminSupabase),
-    fetchSeriesByAuthorId(user.id, supabase),
-    getAuthenticatedCreditBalance(),
-  ]);
-  const seriesCards = await buildAuthorSeriesCards(ownedSeries, supabase);
+  const authorPromise = fetchAuthorById(user.id, adminSupabase);
+  const seriesCardsPromise = fetchSeriesByAuthorId(user.id, supabase).then(
+    (ownedSeries) => buildAuthorSeriesCards(ownedSeries, supabase)
+  );
+  const creditBalancePromise = getAuthenticatedCreditBalance();
+  const author = await authorPromise;
   const metadataDisplayName = readAuthMetadataDisplayName(user.user_metadata);
   const authorName = resolveAuthorName(author, metadataDisplayName);
   const metadataBio = readAuthMetadataText(user.user_metadata, "profile_bio");
@@ -90,27 +137,6 @@ export default async function MyPage() {
         ? authorName
         : "";
 
-  let purchaseEnabled = false;
-  let publicPacks: Array<{
-    id: string;
-    credits: number;
-    displayPriceJpy: number;
-    expiresInDays: number;
-  }> = [];
-  if (creditBalance !== null) {
-    try {
-      purchaseEnabled = isCreditPurchaseEnabled();
-      publicPacks = getCreditPackCatalog().map((pack) => ({
-        id: pack.id,
-        credits: pack.credits,
-        displayPriceJpy: pack.displayPriceJpy,
-        expiresInDays: pack.expiresInDays,
-      }));
-    } catch (error) {
-      console.error("[mypage-credit-catalog]", error);
-    }
-  }
-
   return (
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -135,13 +161,11 @@ export default async function MyPage() {
           ]}
         />
         <div className="mt-6 grid gap-6">
-          {creditBalance !== null ? (
-            <CreditBalanceCard
-              balance={creditBalance}
-              packs={publicPacks}
-              purchaseEnabled={purchaseEnabled}
-            />
-          ) : null}
+          <Suspense
+            fallback={<div className="h-32 rounded-[28px] border border-black/10 bg-neutral-50" aria-busy="true" />}
+          >
+            <DeferredCreditBalance creditBalancePromise={creditBalancePromise} />
+          </Suspense>
           <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -158,9 +182,17 @@ export default async function MyPage() {
                 一覧を見る
               </Link>
             </div>
-            <BookmarkedSeriesList userId={user.id} surface="light" limit={5} showOrderControls />
+            <Suspense
+              fallback={<div className="mt-4 h-32 rounded-2xl bg-neutral-50" aria-busy="true" />}
+            >
+              <BookmarkedSeriesList userId={user.id} surface="light" limit={5} showOrderControls />
+            </Suspense>
           </section>
-          <MySeriesSection cards={seriesCards} />
+          <Suspense
+            fallback={<div className="h-44 rounded-[28px] border border-black/10 bg-neutral-50" aria-busy="true" />}
+          >
+            <DeferredMySeriesSection seriesCardsPromise={seriesCardsPromise} />
+          </Suspense>
           <SavedSearchLinksSection />
           <AccountSettingsCard />
         </div>

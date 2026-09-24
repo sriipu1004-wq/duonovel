@@ -133,7 +133,7 @@ function verifySearchLocaleCopy() {
   assert.equal(legacySearchSource.includes("likeCount={work.likeCount}"), false);
 
   const publicWorksSource = readFileSync("src/lib/publicWorks.ts", "utf8");
-  assert.ok(publicWorksSource.includes('["public-base-work-cards-v9-paginated"]'));
+  assert.ok(publicWorksSource.includes('["public-base-work-cards-v10-narrow-series"]'));
   assert.equal(publicWorksSource.includes(".limit(120)"), false);
   assert.ok(publicWorksSource.includes(".range(start, start + PAGE_SIZE - 1)"));
   assert.ok(publicWorksSource.includes('.order("series_id", { ascending: true })'));

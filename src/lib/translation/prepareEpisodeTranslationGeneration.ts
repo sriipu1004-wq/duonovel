@@ -48,6 +48,10 @@ export type PrepareEpisodeTranslationGenerationResult =
   | { response: Response; prepared?: never };
 
 export async function prepareEpisodeTranslationGeneration(request: Request): Promise<PrepareEpisodeTranslationGenerationResult> {
+  const prepareStartedAt = performance.now();
+  let accessMs = 0;
+  let cacheLookupMs = 0;
+  let consistencyMs = 0;
   let payload: Record<string, unknown>;
   try {
     payload = (await request.json()) as Record<string, unknown>;
@@ -65,7 +69,9 @@ export async function prepareEpisodeTranslationGeneration(request: Request): Pro
     return { response: NextResponse.json({ ok: false, error: "translation_temporarily_disabled", message: "現在、対訳の生成は一時停止しています。" }, { status: 503 }) };
   }
 
+  const accessStartedAt = performance.now();
   const access = await resolveEpisodeTranslationAccess(episodeId);
+  accessMs = performance.now() - accessStartedAt;
   if (!access || !access.canRead || !access.body.trim()) return { response: NextResponse.json({ ok: false, error: "episode_not_found" }, { status: 404 }) };
   if (!access.sourceLanguage || access.sourceLanguage !== sourceLanguage) return { response: NextResponse.json({ ok: false, error: "invalid_source_language" }, { status: 400 }) };
   if (!isSeriesTranslationEligible(access.series)) return { response: NextResponse.json({ ok: false, error: "translation_permission_closed", message: "この作品では翻訳が許可されていません。" }, { status: 403 }) };
@@ -91,6 +97,7 @@ export async function prepareEpisodeTranslationGeneration(request: Request): Pro
   const sourceHash = buildEpisodeTranslationSourceHash(access.body, learningPreference ? { learningPreference } : undefined);
   const model = process.env.EPISODE_TRANSLATION_MODEL ?? DEFAULT_TRANSLATION_MODEL;
   const admin = createAdminClient();
+  const cacheLookupStartedAt = performance.now();
   const currentTranslationResult = await admin
     .from("episode_translations")
     .select("id, status")
@@ -99,13 +106,39 @@ export async function prepareEpisodeTranslationGeneration(request: Request): Pro
     .eq("target_language", targetLanguage)
     .eq("source_hash", sourceHash)
     .maybeSingle();
+  cacheLookupMs = performance.now() - cacheLookupStartedAt;
   if (currentTranslationResult.error) return { response: NextResponse.json({ ok: false, error: "translation_storage_unavailable", message: currentTranslationResult.error.message }, { status: 503 }) };
-  if (currentTranslationResult.data?.status === "ready") return { response: NextResponse.json({ ok: true, status: "ready" }) };
-  if (currentTranslationResult.data?.status === "translating") return { response: NextResponse.json({ ok: true, status: "translating" }, { status: 202 }) };
+  if (currentTranslationResult.data?.status === "ready") {
+    console.info("[translation-prepare-performance]", {
+      status: "cache_ready",
+      accessMs: Math.round(accessMs),
+      cacheLookupMs: Math.round(cacheLookupMs),
+      totalMs: Math.round(performance.now() - prepareStartedAt),
+    });
+    return { response: NextResponse.json({ ok: true, status: "ready" }) };
+  }
+  if (currentTranslationResult.data?.status === "translating") {
+    console.info("[translation-prepare-performance]", {
+      status: "cache_translating",
+      accessMs: Math.round(accessMs),
+      cacheLookupMs: Math.round(cacheLookupMs),
+      totalMs: Math.round(performance.now() - prepareStartedAt),
+    });
+    return { response: NextResponse.json({ ok: true, status: "translating" }, { status: 202 }) };
+  }
 
+  const consistencyStartedAt = performance.now();
   const consistency = await resolveSeriesTranslationConsistency({ access, sourceLanguage, targetLanguage, currentSource: source.normalizedSource });
+  consistencyMs = performance.now() - consistencyStartedAt;
   const estimatedTokens = estimateEpisodeTranslationTokens({ sourceChars, consistencyReferenceChars: consistency.referenceChars, model });
   const estimatedCostJpy = estimateEpisodeTranslationGuardrailCostJpy(estimatedTokens.inputTokens, estimatedTokens.outputTokens);
+  console.info("[translation-prepare-performance]", {
+    status: "prepared",
+    accessMs: Math.round(accessMs),
+    cacheLookupMs: Math.round(cacheLookupMs),
+    consistencyMs: Math.round(consistencyMs),
+    totalMs: Math.round(performance.now() - prepareStartedAt),
+  });
   return {
     prepared: {
       access,

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
@@ -25,6 +26,7 @@ import {
   inferSeriesSourceLanguage,
   readCanonicalSeriesSourceLanguage,
 } from "@/lib/translation/seriesSourceLanguage";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import styles from "./page.module.css";
 
 type PageProps = { params: Promise<{ seriesId: string }> };
@@ -87,27 +89,31 @@ async function fetchTranslationGlossaryData(
   sourceLanguage: string,
   supabase: Awaited<ReturnType<typeof requireOwnedSeries>>["supabase"]
 ) {
-  const entriesResult = await supabase
+  const entriesPromise = supabase
     .from("series_translation_glossary_entries")
     .select("*")
     .eq("series_id", seriesId)
     .eq("source_language", sourceLanguage)
     .order("updated_at", { ascending: false })
     .limit(500);
-  const entries = (entriesResult.data ?? []) as SeriesTranslationGlossaryEntryRow[];
-  const entryIds = entries.map((entry) => entry.id);
-  const targetsResult = entryIds.length
-    ? await supabase
-        .from("series_translation_glossary_targets")
-        .select("*")
-        .in("glossary_entry_id", entryIds)
-        .order("updated_at", { ascending: false })
-        .limit(500)
-    : { data: [] };
-  const profilesResult = await supabase
+  const profilesPromise = supabase
     .from("series_translation_profiles")
     .select("*")
     .eq("series_id", seriesId);
+  const entriesResult = await entriesPromise;
+  const entries = (entriesResult.data ?? []) as SeriesTranslationGlossaryEntryRow[];
+  const entryIds = entries.map((entry) => entry.id);
+  const [targetsResult, profilesResult] = await Promise.all([
+    entryIds.length
+      ? supabase
+          .from("series_translation_glossary_targets")
+          .select("*")
+          .in("glossary_entry_id", entryIds)
+          .order("updated_at", { ascending: false })
+          .limit(500)
+      : Promise.resolve({ data: [] }),
+    profilesPromise,
+  ]);
   return {
     entries,
     targets: (targetsResult.data ?? []) as SeriesTranslationGlossaryTargetRow[],
@@ -115,13 +121,39 @@ async function fetchTranslationGlossaryData(
   };
 }
 
+async function DeferredTranslationGlossary({
+  glossaryDataPromise,
+  seriesId,
+  currentUserId,
+  sourceLanguage,
+}: {
+  glossaryDataPromise: ReturnType<typeof fetchTranslationGlossaryData>;
+  seriesId: string;
+  currentUserId: string;
+  sourceLanguage: SupportedLanguageTag;
+}) {
+  const glossaryData = await glossaryDataPromise;
+  return (
+    <SeriesTranslationGlossaryWorkspace
+      seriesId={seriesId}
+      currentUserId={currentUserId}
+      sourceLanguage={sourceLanguage}
+      initialEntries={glossaryData.entries}
+      initialTargets={glossaryData.targets}
+      initialProfiles={glossaryData.profiles}
+      embedded
+    />
+  );
+}
+
 export default async function WriteSeriesEditPage({ params }: PageProps) {
   const { seriesId } = await params;
   const { supabase, user } = await requireOwnedSeries(seriesId, `/write/series/${seriesId}`);
-  const series = await fetchSeries(seriesId, supabase);
+  const [series, episodes] = await Promise.all([
+    fetchSeries(seriesId, supabase),
+    fetchEpisodes(seriesId, supabase),
+  ]);
   if (!series) notFound();
-
-  const episodes = await fetchEpisodes(seriesId, supabase);
   const shortStoryComplete = isShortStory(series, episodes.length) && episodes.length > 0;
   const className = [styles.workspace, shortStoryComplete ? styles.shortStoryComplete : ""].filter(Boolean).join(" ");
   const isAiGenerated = isAiGeneratedSeries(series);
@@ -133,8 +165,8 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
         : null;
   const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
   const sourceLanguage = canonicalSourceLanguage ?? inferSeriesSourceLanguage(series, episodes[0] ? getEpisodeBody(episodes[0]) : null);
-  const glossaryData = canonicalSourceLanguage
-    ? await fetchTranslationGlossaryData(series.id, canonicalSourceLanguage, supabase)
+  const glossaryDataPromise = canonicalSourceLanguage
+    ? fetchTranslationGlossaryData(series.id, canonicalSourceLanguage, supabase)
     : null;
 
   return (
@@ -147,16 +179,17 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
           confirmed={Boolean(canonicalSourceLanguage)}
           embedded
         />
-        {canonicalSourceLanguage && glossaryData ? (
-          <SeriesTranslationGlossaryWorkspace
-            seriesId={series.id}
-            currentUserId={user.id}
-            sourceLanguage={canonicalSourceLanguage}
-            initialEntries={glossaryData.entries}
-            initialTargets={glossaryData.targets}
-            initialProfiles={glossaryData.profiles}
-            embedded
-          />
+        {canonicalSourceLanguage && glossaryDataPromise ? (
+          <Suspense
+            fallback={<div className="mt-4 h-40 rounded-2xl border border-black/10 bg-neutral-50" aria-busy="true" />}
+          >
+            <DeferredTranslationGlossary
+              glossaryDataPromise={glossaryDataPromise}
+              seriesId={series.id}
+              currentUserId={user.id}
+              sourceLanguage={canonicalSourceLanguage}
+            />
+          </Suspense>
         ) : null}
       </SeriesStatusPortal>
       {isAiGenerated && episodes.length > 0 ? (

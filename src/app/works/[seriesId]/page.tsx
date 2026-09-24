@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
@@ -281,16 +282,35 @@ function resolveRecordingPermissionMode(value: unknown): RecordingPermissionMode
   return "closed";
 }
 
+const WORK_PAGE_EPISODE_SELECT = `
+  id,
+  series_id,
+  episode_number,
+  title,
+  posting_status,
+  scheduled_for,
+  posted_at,
+  last_edited_at
+`;
+
 async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
-  const firstTry = await supabase
+  const narrow = await supabase
+    .from("episodes")
+    .select(WORK_PAGE_EPISODE_SELECT)
+    .eq("series_id", seriesId);
+
+  if (!narrow.error) {
+    return (narrow.data ?? []) as unknown as EpisodeRow[];
+  }
+
+  const fallback = await supabase
     .from("episodes")
     .select("*")
     .eq("series_id", seriesId);
-
-  if (!firstTry.error) {
-    return (firstTry.data ?? []) as EpisodeRow[];
+  if (!fallback.error) {
+    return (fallback.data ?? []) as EpisodeRow[];
   }
-  throw new Error(`episodes の取得に失敗: ${firstTry.error.message}`);
+  throw new Error(`episodes の取得に失敗: ${fallback.error.message}`);
 }
 
 async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
@@ -667,6 +687,367 @@ export async function generateMetadata({
   }
 }
 
+
+function TocEpisodeListFallback() {
+  return (
+    <div className="grid gap-3" aria-busy="true">
+      <div className="h-20 rounded-[20px] border border-black/10 bg-neutral-50" />
+      <div className="h-20 rounded-[20px] border border-black/10 bg-neutral-50" />
+      <div className="h-20 rounded-[20px] border border-black/10 bg-neutral-50" />
+    </div>
+  );
+}
+
+async function TocEpisodeListContent({
+  seriesId,
+  episodes,
+  visibleEpisodes,
+  currentRangeStart,
+  selectedReaderKey,
+  selectedReaderName,
+  locale,
+  recordingResultPromise,
+}: {
+  seriesId: string;
+  episodes: EpisodeRow[];
+  visibleEpisodes: EpisodeRow[];
+  currentRangeStart: number;
+  selectedReaderKey: string;
+  selectedReaderName: string;
+  locale: Awaited<ReturnType<typeof getUiLocale>>;
+  recordingResultPromise?: ReturnType<typeof fetchRecordingsByEpisodeIds> | null;
+}) {
+  const requestedReaderSpecified = Boolean(
+    pickText(selectedReaderKey, selectedReaderName)
+  );
+  const selectedReaderRecordings =
+    requestedReaderSpecified && recordingResultPromise
+      ? (await recordingResultPromise).recordings
+      : [];
+  const selectedReaderEpisodeIdSet = new Set(
+    requestedReaderSpecified
+      ? selectedReaderRecordings
+          .filter((recording) =>
+            doesRecordingMatchRequestedReader(
+              recording,
+              selectedReaderKey,
+              selectedReaderName
+            )
+          )
+          .map((recording) => getRecordingEpisodeId(recording))
+          .filter((value) => value.length > 0)
+      : []
+  );
+  const workHref = (href: string) => localizePath(href, locale);
+
+  return (
+    <ContinueReadingEpisodeList
+      seriesId={seriesId}
+      currentRangeStart={currentRangeStart}
+      rangeSize={50}
+      episodeNumbers={episodes.map(getEpisodeNumber)}
+      episodes={visibleEpisodes.map((episode) => {
+        const episodeNumber = getEpisodeNumber(episode);
+        const episodeTitle =
+          pickText(episode.title, episode["episode_title"]) ||
+          `第${episodeNumber}話`;
+        const postedDate = formatEpisodeDate(getEpisodePostedAtValue(episode));
+        const editedDate = formatEpisodeDate(
+          getEpisodeLastEditedAtValue(episode)
+        );
+
+        return {
+          id: episode.id,
+          episodeNumber,
+          episodeTitle,
+          postedDate,
+          editedDate,
+          href: workHref(
+            buildReadHref(
+              seriesId,
+              episodeNumber,
+              selectedReaderKey,
+              selectedReaderName
+            )
+          ),
+          readerAvailability: requestedReaderSpecified
+            ? selectedReaderEpisodeIdSet.has(episode.id)
+              ? "has_recording"
+              : "no_recording"
+            : null,
+        };
+      })}
+    />
+  );
+}
+
+function ReaderTabFallback() {
+  return (
+    <div className="grid gap-3" aria-busy="true">
+      <div className="h-32 rounded-[20px] border border-black/10 bg-neutral-50" />
+      <div className="h-32 rounded-[20px] border border-black/10 bg-neutral-50" />
+    </div>
+  );
+}
+
+async function ReaderTabContent({
+  seriesId,
+  episodes,
+  selectedReaderKey,
+  selectedReaderName,
+  currentRangeStart,
+  currentUserId,
+  locale,
+  loginHref,
+  recordingResultPromise,
+}: {
+  seriesId: string;
+  episodes: EpisodeRow[];
+  selectedReaderKey: string;
+  selectedReaderName: string;
+  currentRangeStart: number;
+  currentUserId: string | null;
+  locale: Awaited<ReturnType<typeof getUiLocale>>;
+  loginHref: string;
+  recordingResultPromise?: ReturnType<typeof fetchRecordingsByEpisodeIds> | null;
+}) {
+  const episodeIds = episodes.map((episode) => episode.id);
+  const { recordings, fetchErrorMessage } =
+    await (recordingResultPromise ?? fetchRecordingsByEpisodeIds(episodeIds));
+  const episodeNumberById = new Map(
+    episodes.map((episode) => [episode.id, getEpisodeNumber(episode)])
+  );
+  const displayedReaderCards = buildReaderCards(recordings, episodeNumberById).map(
+    (reader, index) => ({
+      ...reader,
+      rank: index + 1,
+    })
+  );
+  const readerCardLikeSnapshotMap = await fetchReaderCardLikeSnapshotMap({
+    supabase: adminSupabase,
+    seriesId,
+    readerKeys: displayedReaderCards.map((reader) => reader.readerKey),
+    currentUserId,
+  });
+  const workHref = (href: string) => localizePath(href, locale);
+
+  return (
+    <>
+      {fetchErrorMessage ? (
+        <div className="rounded-[20px] border border-black/10 bg-neutral-100 p-4 text-sm leading-7 text-neutral-700">
+          {fetchErrorMessage}
+        </div>
+      ) : null}
+
+      {displayedReaderCards.length === 0 ? (
+        <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-5 text-sm leading-7 text-neutral-600">
+          まだ公開中の朗読がない。
+        </div>
+      ) : (
+        displayedReaderCards.map((reader) => {
+          const isSelected =
+            selectedReaderKey === reader.readerKey ||
+            selectedReaderName === reader.name;
+
+          return (
+            <div
+              key={reader.readerKey}
+              data-reader-card
+              data-reader-key={reader.readerKey}
+              data-reader-name={reader.name}
+              className={[
+                "rounded-[20px] border p-4",
+                isSelected
+                  ? "border-sky-200 bg-sky-50/60"
+                  : "border-black/10 bg-neutral-50",
+              ].join(" ")}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-semibold text-black">
+                      #{reader.rank}
+                    </span>
+
+                    <Link
+                      href={workHref(
+                        buildReaderAuthorHref(reader.readerKey, reader.name)
+                      )}
+                      className="text-base font-semibold text-black transition hover:text-neutral-700"
+                    >
+                      {reader.name}
+                    </Link>
+
+                    <ReaderCardLikeButton
+                      seriesId={seriesId}
+                      readerKey={reader.readerKey}
+                      initialLikeCount={
+                        readerCardLikeSnapshotMap.get(reader.readerKey)?.likeCount ?? 0
+                      }
+                      initialIsLiked={
+                        readerCardLikeSnapshotMap.get(reader.readerKey)?.isLiked ?? false
+                      }
+                      loginHref={loginHref}
+                    />
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {reader.tags.length > 0 ? (
+                      reader.tags.map((tag) => (
+                        <span key={tag} className="text-sm text-neutral-600">
+                          {tag}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-sm text-neutral-500">タグ未設定</span>
+                    )}
+                  </div>
+                </div>
+
+                <ReaderCardControls
+                  seriesId={seriesId}
+                  readerKey={reader.readerKey}
+                  readerName={reader.name}
+                  isSelected={isSelected}
+                  demoAudioUrl={reader.demoAudioUrl}
+                  currentTab="readers"
+                  currentRangeStart={currentRangeStart}
+                />
+              </div>
+
+              <p className="mt-4 text-sm leading-7 text-neutral-600">
+                {reader.description}
+              </p>
+            </div>
+          );
+        })
+      )}
+    </>
+  );
+}
+
+function RelatedWorksFallback() {
+  return (
+    <section className="mt-8 grid gap-4 xl:grid-cols-2" aria-busy="true">
+      {[0, 1].map((index) => (
+        <div
+          key={index}
+          className="min-h-52 rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
+        >
+          <div className="h-3 w-28 rounded-full bg-neutral-100" />
+          <div className="mt-3 h-6 w-40 rounded-full bg-neutral-100" />
+          <div className="mt-5 h-24 rounded-[20px] bg-neutral-50" />
+        </div>
+      ))}
+    </section>
+  );
+}
+
+async function RelatedWorksSection({
+  seriesId,
+  authorId,
+  locale,
+}: {
+  seriesId: string;
+  authorId: string | null;
+  locale: Awaited<ReturnType<typeof getUiLocale>>;
+}) {
+  const allPublicBaseWorks = await getCachedPublicBaseWorkCards();
+  const relatedBase: Array<RelatedWorkCard & { sameAuthor: boolean }> =
+    allPublicBaseWorks
+      .filter((item) => item.seriesId !== seriesId)
+      .map((item) => ({
+        seriesId: item.seriesId,
+        title: item.title,
+        summary: item.summary,
+        authorName: item.authorName,
+        authorId: item.authorId,
+        firstEpisodeNumber: item.firstEpisodeNumber,
+        latestPostedLabel: item.latestPostedLabel,
+        tags: item.tags,
+        latestPostedAtValue: item.latestPostedAtValue,
+        sameAuthor: item.authorId !== null && item.authorId === authorId,
+      }));
+
+  const authorOtherWorks = relatedBase
+    .filter((item) => item.sameAuthor)
+    .sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue)
+    .slice(0, 4);
+  const similarWorks = relatedBase
+    .filter((item) => !item.sameAuthor)
+    .sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue)
+    .slice(0, 4);
+  const workHref = (href: string) => localizePath(href, locale);
+
+  const renderWorkCard = (work: RelatedWorkCard) => (
+    <PublicWorkBoardCard
+      key={work.seriesId}
+      title={work.title}
+      workHref={workHref(`/works/${work.seriesId}`)}
+      authorName={work.authorName}
+      authorHref={work.authorId ? workHref(buildAuthorHref(work.authorId)) : undefined}
+      latestPostedLabel={work.latestPostedLabel}
+      summary={work.summary}
+      firstReadHref={
+        work.firstEpisodeNumber
+          ? workHref(`/read/${work.seriesId}/${work.firstEpisodeNumber}`)
+          : undefined
+      }
+      tags={work.tags}
+    />
+  );
+
+  return (
+    <section className="mt-8 grid gap-4 xl:grid-cols-2">
+      <div className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] tracking-[0.18em] text-neutral-500">
+              AUTHOR OTHER WORKS
+            </p>
+            <h2 className="mt-2 text-lg font-semibold text-black">作者の他作品</h2>
+          </div>
+          <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600">
+            {authorOtherWorks.length}件
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {authorOtherWorks.length === 0 ? (
+            <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
+              まだ他の公開作品はない。
+            </div>
+          ) : (
+            authorOtherWorks.map(renderWorkCard)
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] tracking-[0.18em] text-neutral-500">
+              SIMILAR WORKS
+            </p>
+            <h2 className="mt-2 text-lg font-semibold text-black">類似作品おすすめ</h2>
+          </div>
+          <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600">
+            {similarWorks.length}件
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {similarWorks.length === 0 ? (
+            <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
+              まだ候補に出せる公開作品がない。
+            </div>
+          ) : (
+            similarWorks.map(renderWorkCard)
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default async function WorkPage({ params, searchParams }: PageProps) {
   const locale = await getUiLocale();
   const dictionary = workDictionaries[locale];
@@ -718,15 +1099,13 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     series["userId"]
   ) || null;
 
-  const [authorResult, rawEpisodes, subscriber, allPublicBaseWorks] =
-    await Promise.all([
-      authorId
-        ? adminSupabase.from("users").select("*").eq("id", authorId).maybeSingle()
-        : Promise.resolve({ data: null }),
-      fetchEpisodesBySeriesId(seriesId),
-      currentUser ? isSubscriber(currentUser.id) : Promise.resolve(false),
-      getCachedPublicBaseWorkCards(),
-    ]);
+  const [authorResult, rawEpisodes, subscriber] = await Promise.all([
+    authorId
+      ? adminSupabase.from("users").select("*").eq("id", authorId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    fetchEpisodesBySeriesId(seriesId),
+    currentUser ? isSubscriber(currentUser.id) : Promise.resolve(false),
+  ]);
   const author = authorResult.data ? (authorResult.data as UserRow) : null;
   const episodes = sortEpisodes(
     rawEpisodes.filter((episode) => isEpisodePubliclyVisible(episode))
@@ -773,82 +1152,12 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     pickText(selectedReaderKey, selectedReaderName)
   );
 
-  const shouldFetchRecordings =
-    currentTab === "readers" ||
-    requestedReaderSpecified ||
-    recordingPermissionMode === "open";
-
   const episodeIds = episodes.map((episode) => episode.id);
-
-  const { recordings: fetchedRecordings, fetchErrorMessage } = shouldFetchRecordings
-    ? await fetchRecordingsByEpisodeIds(episodeIds)
-    : {
-        recordings: [],
-        fetchErrorMessage: null,
-      };
-
-  const recordings = fetchedRecordings;
-
-  const episodeNumberById = new Map(
-    episodes.map((episode) => [episode.id, getEpisodeNumber(episode)])
-  );
-  const readerCards = buildReaderCards(recordings, episodeNumberById);
-
-  const selectedReaderEpisodeIdSet = new Set(
-    requestedReaderSpecified
-      ? recordings
-          .filter((recording) =>
-            doesRecordingMatchRequestedReader(
-              recording,
-              selectedReaderKey,
-              selectedReaderName
-            )
-          )
-          .map((recording) => getRecordingEpisodeId(recording))
-          .filter((value) => value.length > 0)
-      : []
-  );
-
+  const selectedReaderRecordingPromise = requestedReaderSpecified
+    ? fetchRecordingsByEpisodeIds(episodeIds)
+    : null;
   const selectedReaderLabel =
     pickText(selectedReaderName, selectedReaderKey) || "";  
-
-  const displayedReaderCards = readerCards.map((reader, index) => ({
-    ...reader,
-    rank: index + 1,
-  }));
-
-  const readerCardLikeSnapshotMap = await fetchReaderCardLikeSnapshotMap({
-    supabase: adminSupabase,
-    seriesId,
-    readerKeys: displayedReaderCards.map((reader) => reader.readerKey),
-    currentUserId: currentUser?.id ?? null,
-  });  
-
-  const relatedBase: Array<RelatedWorkCard & { sameAuthor: boolean }> =
-    allPublicBaseWorks
-      .filter((item) => item.seriesId !== seriesId)
-      .map((item) => ({
-        seriesId: item.seriesId,
-        title: item.title,
-        summary: item.summary,
-        authorName: item.authorName,
-        authorId: item.authorId,
-        firstEpisodeNumber: item.firstEpisodeNumber,
-        latestPostedLabel: item.latestPostedLabel,
-        tags: item.tags,
-        latestPostedAtValue: item.latestPostedAtValue,
-        sameAuthor: item.authorId !== null && item.authorId === authorId,
-      }));
-
-  const authorOtherWorks = relatedBase
-    .filter((item) => item.sameAuthor)
-    .sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue)
-    .slice(0, 4);
-
-  const similarWorks = relatedBase
-    .filter((item) => !item.sameAuthor)
-    .sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue)
-    .slice(0, 4);
 
   const seriesTitle = pickText(series.title) || "無題";
   const authorName =
@@ -1124,46 +1433,18 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                       <Link href={workHref("/subscription")} className="shrink-0 font-semibold text-sky-800 underline underline-offset-4">サブスクを見る</Link>
                     </div>
                   ) : null}
-                  <ContinueReadingEpisodeList
-                    seriesId={seriesId}
-                    currentRangeStart={currentRangeStart}
-                    rangeSize={50}
-                    episodeNumbers={episodes.map(getEpisodeNumber)}
-                    episodes={visibleEpisodes.map((episode) => {
-                      const episodeNumber = getEpisodeNumber(episode);
-                      const episodeTitle =
-                        pickText(episode.title, episode["episode_title"]) ||
-                        `第${episodeNumber}話`;
-
-                      const postedDate = formatEpisodeDate(
-                        getEpisodePostedAtValue(episode)
-                      );
-                      const editedDate = formatEpisodeDate(
-                        getEpisodeLastEditedAtValue(episode)
-                      );
-
-                      return {
-                        id: episode.id,
-                        episodeNumber,
-                        episodeTitle,
-                        postedDate,
-                        editedDate,
-                        href: workHref(
-                          buildReadHref(
-                            seriesId,
-                            episodeNumber,
-                            selectedReaderKey,
-                            selectedReaderName
-                          )
-                        ),
-                        readerAvailability: requestedReaderSpecified
-                          ? selectedReaderEpisodeIdSet.has(episode.id)
-                            ? "has_recording"
-                            : "no_recording"
-                          : null,
-                      };
-                    })}
-                  />
+                  <Suspense fallback={<TocEpisodeListFallback />}>
+                    <TocEpisodeListContent
+                      seriesId={seriesId}
+                      episodes={episodes}
+                      visibleEpisodes={visibleEpisodes}
+                      currentRangeStart={currentRangeStart}
+                      selectedReaderKey={selectedReaderKey}
+                      selectedReaderName={selectedReaderName}
+                      locale={locale}
+                      recordingResultPromise={selectedReaderRecordingPromise}
+                    />
+                  </Suspense>
                 </div>
 
                 <div
@@ -1171,100 +1452,19 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   hidden={currentTab !== "readers"}
                   className="mt-5 grid gap-3"
                 >
-                  {fetchErrorMessage ? (
-                    <div className="rounded-[20px] border border-black/10 bg-neutral-100 p-4 text-sm leading-7 text-neutral-700">
-                      {fetchErrorMessage}
-                    </div>
-                  ) : null}
-
-                  {displayedReaderCards.length === 0 ? (
-                    <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-5 text-sm leading-7 text-neutral-600">
-                      まだ公開中の朗読がない。
-                    </div>
-                  ) : (
-                    displayedReaderCards.map((reader) => {
-                      const isSelected =
-                        selectedReaderKey === reader.readerKey ||
-                        selectedReaderName === reader.name;
-
-                      return (
-                        <div
-                          key={reader.readerKey}
-                          data-reader-card
-                          data-reader-key={reader.readerKey}
-                          data-reader-name={reader.name}
-                          className={[
-                            "rounded-[20px] border p-4",
-                            isSelected
-                              ? "border-sky-200 bg-sky-50/60"
-                              : "border-black/10 bg-neutral-50",
-                          ].join(" ")}
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-semibold text-black">
-                                  #{reader.rank}
-                                </span>
-
-                                <Link
-                                  href={workHref(buildReaderAuthorHref(reader.readerKey, reader.name))}
-                                  className="text-base font-semibold text-black transition hover:text-neutral-700"
-                                >
-                                  {reader.name}
-                                </Link>
-
-                                <ReaderCardLikeButton
-                                  seriesId={seriesId}
-                                  readerKey={reader.readerKey}
-                                  initialLikeCount={
-                                    readerCardLikeSnapshotMap.get(reader.readerKey)
-                                      ?.likeCount ?? 0
-                                  }
-                                  initialIsLiked={
-                                    readerCardLikeSnapshotMap.get(reader.readerKey)
-                                      ?.isLiked ?? false
-                                  }
-                                  loginHref={loginHref}
-                                />
-                              </div>
-
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {reader.tags.length > 0 ? (
-                                  reader.tags.map((tag) => (
-                                    <span
-                                      key={tag}
-                                      className="text-sm text-neutral-600"
-                                    >
-                                      {tag}
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span className="text-sm text-neutral-500">
-                                    タグ未設定
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <ReaderCardControls
-                              seriesId={seriesId}
-                              readerKey={reader.readerKey}
-                              readerName={reader.name}
-                              isSelected={isSelected}
-                              demoAudioUrl={reader.demoAudioUrl}
-                              currentTab="readers"
-                              currentRangeStart={currentRangeStart}
-                            />
-                          </div>
-
-                          <p className="mt-4 text-sm leading-7 text-neutral-600">
-                            {reader.description}
-                          </p>
-                        </div>
-                      );
-                    })
-                  )}
+                  <Suspense fallback={<ReaderTabFallback />}>
+                    <ReaderTabContent
+                      seriesId={seriesId}
+                      episodes={episodes}
+                      selectedReaderKey={selectedReaderKey}
+                      selectedReaderName={selectedReaderName}
+                      currentRangeStart={currentRangeStart}
+                      currentUserId={currentUser?.id ?? null}
+                      locale={locale}
+                      loginHref={loginHref}
+                      recordingResultPromise={selectedReaderRecordingPromise}
+                    />
+                  </Suspense>
                 </div>
               </WorkInstantTabs>
             </section>
@@ -1277,91 +1477,13 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
           </div>
         ) : null}
 
-        <section className="mt-8 grid gap-4 xl:grid-cols-2">
-          <div className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-                  AUTHOR OTHER WORKS
-                </p>
-                <h2 className="mt-2 text-lg font-semibold text-black">
-                  作者の他作品
-                </h2>
-              </div>
-              <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600">
-                {authorOtherWorks.length}件
-              </span>
-            </div>
-
-            <div className="mt-4 grid gap-3">
-              {authorOtherWorks.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
-                  まだ他の公開作品はない。
-                </div>
-              ) : (
-                authorOtherWorks.map((work) => (
-                  <PublicWorkBoardCard
-                    key={work.seriesId}
-                    title={work.title}
-                    workHref={workHref(`/works/${work.seriesId}`)}
-                    authorName={work.authorName}
-                    authorHref={work.authorId ? workHref(buildAuthorHref(work.authorId)) : undefined}
-                    latestPostedLabel={work.latestPostedLabel}
-                    summary={work.summary}
-                    firstReadHref={
-                      work.firstEpisodeNumber
-                        ? workHref(`/read/${work.seriesId}/${work.firstEpisodeNumber}`)
-                        : undefined
-                    }
-                    tags={work.tags}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] tracking-[0.18em] text-neutral-500">
-                  SIMILAR WORKS
-                </p>
-                <h2 className="mt-2 text-lg font-semibold text-black">
-                  類似作品おすすめ
-                </h2>
-              </div>
-              <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600">
-                {similarWorks.length}件
-              </span>
-            </div>
-
-            <div className="mt-4 grid gap-3">
-              {similarWorks.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
-                  まだ候補に出せる公開作品がない。
-                </div>
-              ) : (
-                similarWorks.map((work) => (
-                  <PublicWorkBoardCard
-                    key={work.seriesId}
-                    title={work.title}
-                    workHref={workHref(`/works/${work.seriesId}`)}
-                    authorName={work.authorName}
-                    authorHref={work.authorId ? workHref(buildAuthorHref(work.authorId)) : undefined}
-                    latestPostedLabel={work.latestPostedLabel}
-                    summary={work.summary}
-                    firstReadHref={
-                      work.firstEpisodeNumber
-                        ? workHref(`/read/${work.seriesId}/${work.firstEpisodeNumber}`)
-                        : undefined
-                    }
-                    tags={work.tags}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-        </section>
+        <Suspense fallback={<RelatedWorksFallback />}>
+          <RelatedWorksSection
+            seriesId={seriesId}
+            authorId={authorId}
+            locale={locale}
+          />
+        </Suspense>
 
         <section className="mt-8 rounded-[24px] border border-black/10 bg-white p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">

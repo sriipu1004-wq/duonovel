@@ -1,7 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
-  getEpisodeNumber,
   getSeriesPublicationStatus,
   isEpisodePubliclyVisible,
   sortEpisodes,
@@ -52,19 +51,71 @@ function pickText(...values: unknown[]): string {
 }
 
 
-async function fetchEpisodes(seriesId: string): Promise<EpisodeRow[]> {
+const PUBLIC_READ_EPISODE_NAV_SELECT = `
+  id,
+  series_id,
+  episode_number,
+  posting_status,
+  scheduled_for,
+  posted_at
+`;
+
+const PUBLIC_READ_RECORDING_SELECT = `
+  id,
+  episode_id,
+  reader_id,
+  reader_user_id,
+  reader_name,
+  audio_storage_path,
+  voice_model_id,
+  is_public
+`;
+
+async function fetchEpisodeNavigation(seriesId: string): Promise<EpisodeRow[]> {
   const admin = createAdminClient();
-  const firstTry = await admin.from("episodes").select("*").eq("series_id", seriesId);
-  if (!firstTry.error) return (firstTry.data ?? []) as EpisodeRow[];
+  const narrow = await admin
+    .from("episodes")
+    .select(PUBLIC_READ_EPISODE_NAV_SELECT)
+    .eq("series_id", seriesId);
+  if (!narrow.error) return (narrow.data ?? []) as unknown as EpisodeRow[];
+
+  const fallback = await admin.from("episodes").select("*").eq("series_id", seriesId);
+  if (!fallback.error) return (fallback.data ?? []) as EpisodeRow[];
   return [];
+}
+
+async function fetchCurrentEpisode(
+  seriesId: string,
+  episodeNumber: number
+): Promise<EpisodeRow | null> {
+  const admin = createAdminClient();
+  const result = await admin
+    .from("episodes")
+    .select("*")
+    .eq("series_id", seriesId)
+    .eq("episode_number", episodeNumber)
+    .maybeSingle();
+  if (result.error || !result.data) return null;
+  return result.data as EpisodeRow;
 }
 
 async function fetchPublicRecordings(episodeId: string): Promise<PublicReadRecordingRow[]> {
   if (!episodeId) return [];
   const admin = createAdminClient();
-  const firstTry = await admin.from("recordings").select("*").eq("episode_id", episodeId).order("created_at", { ascending: false });
+  const narrow = await admin
+    .from("recordings")
+    .select(PUBLIC_READ_RECORDING_SELECT)
+    .eq("episode_id", episodeId)
+    .order("created_at", { ascending: false });
+  const firstTry = narrow.error
+    ? await admin
+        .from("recordings")
+        .select("*")
+        .eq("episode_id", episodeId)
+        .order("created_at", { ascending: false })
+    : narrow;
   if (!firstTry.error) {
-    return ((firstTry.data ?? []) as PublicReadRecordingRow[])
+    return ((firstTry.data ?? []) as unknown as PublicReadRecordingRow[])
       .filter(isPublishedHumanRecording)
       .map((recording) => ({
         ...recording,
@@ -94,23 +145,25 @@ export async function getCachedPublicReadPagePayload(
 
   if (!isPublicSeries && !isOwner) return null;
 
-  const allEpisodes = sortEpisodes(await fetchEpisodes(seriesId));
-  const episode = allEpisodes.find((item) => getEpisodeNumber(item) === episodeNumber) ?? null;
+  const r18PreferencePromise = isR18Series(series)
+    ? getCurrentR18ViewerPreference()
+    : Promise.resolve(null);
+  const [episode, episodeNavigation, r18Preference] = await Promise.all([
+    fetchCurrentEpisode(seriesId, episodeNumber),
+    fetchEpisodeNavigation(seriesId),
+    r18PreferencePromise,
+  ]);
+
   if (!episode) return null;
   if (!isOwner && !isEpisodePubliclyVisible(episode)) return null;
 
+  const allEpisodes = sortEpisodes(episodeNavigation);
   const visibleEpisodes = isOwner
     ? allEpisodes
     : allEpisodes.filter((item) => isEpisodePubliclyVisible(item));
 
-  let r18Blocked = false;
-  let viewerSignedIn = Boolean(authData.user);
-
-  if (isR18Series(series)) {
-    const preference = await getCurrentR18ViewerPreference();
-    viewerSignedIn = preference.signedIn;
-    r18Blocked = !preference.showR18Content;
-  }
+  const viewerSignedIn = r18Preference?.signedIn ?? Boolean(authData.user);
+  const r18Blocked = r18Preference ? !r18Preference.showR18Content : false;
 
   return {
     series,

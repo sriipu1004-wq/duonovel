@@ -150,27 +150,46 @@ function isShortStorySeriesForSitemap(series: SeriesRow): boolean {
   );
 }
 
+const PUBLIC_WORK_SERIES_SELECT = `
+  id,
+  author_id,
+  title,
+  description,
+  created_at,
+  tags,
+  effect_settings,
+  publication_status,
+  genres,
+  content_rating,
+  content_warnings,
+  source_language,
+  translation_permission_mode
+`;
+
 async function fetchPublicSeriesRows(): Promise<SeriesRow[]> {
   const supabase = createPublicServerClient();
   const PAGE_SIZE = 1000;
   const rows: SeriesRow[] = [];
 
-  for (let start = 0; ; start += PAGE_SIZE) {
-    const result = await supabase
+  async function fetchPage(start: number, selectClause: string) {
+    return supabase
       .from("series")
-      // The production schema has evolved several times. Selecting the full row
-      // keeps public discovery compatible while the card builder intentionally
-      // reads only the fields it needs below.
-      .select("*")
+      .select(selectClause)
       .order("created_at", { ascending: false })
       .order("id", { ascending: true })
       .range(start, start + PAGE_SIZE - 1);
+  }
 
+  for (let start = 0; ; start += PAGE_SIZE) {
+    let result = await fetchPage(start, PUBLIC_WORK_SERIES_SELECT);
+    if (result.error) {
+      result = await fetchPage(start, "*");
+    }
     if (result.error) {
       throw new Error(`series の取得に失敗: ${result.error.message}`);
     }
 
-    const pageRows = (result.data ?? []) as SeriesRow[];
+    const pageRows = (result.data ?? []) as unknown as SeriesRow[];
     rows.push(...pageRows);
 
     if (pageRows.length < PAGE_SIZE) {
@@ -375,7 +394,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
   buildPublicBaseWorkCards,
-  ["public-base-work-cards-v9-paginated"],
+  ["public-base-work-cards-v10-narrow-series"],
   { revalidate: 60 }
 );
 

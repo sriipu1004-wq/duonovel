@@ -682,9 +682,14 @@ function buildGenreShelfSections(params: {
   });
 }
 
+function readRequestTimeMs(): number {
+  return Date.now();
+}
+
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const uiLocale = await getUiLocale();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const requestTimeMs = readRequestTimeMs();
 
   const savedFilter = resolveSavedFilter(pickText(resolvedSearchParams?.saved));
   const savedFilterLabel = savedFilter ? getSavedFilterLabel(savedFilter) : "";
@@ -713,35 +718,19 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const showAllGenres = pickText(resolvedSearchParams?.showGenres) === "1";
   const shelfTab = resolveShelfTab(pickText(resolvedSearchParams?.shelfTab));
 
-  const authSupabase = savedFilter ? await createServerClient() : null;
-  const currentUser = authSupabase
-    ? (await authSupabase.auth.getUser()).data.user
-    : null;
-
-  const baseWorkCards = await getCachedPublicBaseWorkCards({
+  const baseWorkCardsPromise = getCachedPublicBaseWorkCards({
     ignoreContentLanguageFilter: true,
   });
+  const authSupabase = savedFilter ? await createServerClient() : null;
+  const [baseWorkCards, authResult] = await Promise.all([
+    baseWorkCardsPromise,
+    authSupabase ? authSupabase.auth.getUser() : Promise.resolve(null),
+  ]);
+  const currentUser = authResult?.data.user ?? null;
 
-  const popularityDataset = await fetchSeriesPopularityDataset(
+  const popularityDatasetPromise = fetchSeriesPopularityDataset(
     baseWorkCards.map((work) => work.seriesId)
   );
-
-  const currentPopularityMap = buildSeriesPopularityMap(popularityDataset);
-
-  const workCards: WorkCard[] = baseWorkCards.map((work) => {
-    const currentPopularity =
-      currentPopularityMap.get(work.seriesId) ??
-      createEmptyPopularityMetrics(work.seriesId);
-
-    return {
-      ...work,
-      likeCount: currentPopularity.likeCount,
-      bookmarkCount: currentPopularity.bookmarkCount,
-      viewCount: currentPopularity.viewCount,
-      narrationPlayCount: currentPopularity.narrationPlayCount,
-      provisionalPopularityScore: currentPopularity.popularityScore,
-    };
-  });
 
   let savedAuthorIds = new Set<string>();
   let savedSeriesIds = new Set<string>();
@@ -776,6 +765,25 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     }
   }
 
+  const popularityDataset = await popularityDatasetPromise;
+  const currentPopularityMap = buildSeriesPopularityMap(popularityDataset);
+
+  const workCards: WorkCard[] = baseWorkCards.map((work) => {
+    const currentPopularity =
+      currentPopularityMap.get(work.seriesId) ??
+      createEmptyPopularityMetrics(work.seriesId);
+
+    return {
+      ...work,
+      likeCount: currentPopularity.likeCount,
+      bookmarkCount: currentPopularity.bookmarkCount,
+      viewCount: currentPopularity.viewCount,
+      narrationPlayCount: currentPopularity.narrationPlayCount,
+      provisionalPopularityScore: currentPopularity.popularityScore,
+    };
+  });
+
+
   const savedFilterRequiresLogin = Boolean(savedFilter && !currentUser);  
 
   const oldestPublicAtValue =
@@ -784,15 +792,15 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         work.earliestPublicAtValue > 0 ? work.earliestPublicAtValue : work.createdAtValue;
       if (candidate <= 0) return min;
       return min === 0 ? candidate : Math.min(min, candidate);
-    }, 0) || Date.now();
+    }, 0) || requestTimeMs;
 
   const defaultStartInput = formatInputDate(oldestPublicAtValue);
-  const defaultEndInput = formatInputDate(Date.now());
+  const defaultEndInput = formatInputDate(requestTimeMs);
 
   const selectedStartAtValue =
     parseTokyoDateStart(pickText(resolvedSearchParams?.start)) ?? oldestPublicAtValue;
   const selectedEndAtValue =
-    parseTokyoDateEnd(pickText(resolvedSearchParams?.end)) ?? Date.now();
+    parseTokyoDateEnd(pickText(resolvedSearchParams?.end)) ?? requestTimeMs;
 
   const safeStartAtValue = Math.min(selectedStartAtValue, selectedEndAtValue);
   const safeEndAtValue = Math.max(selectedStartAtValue, selectedEndAtValue);
@@ -944,7 +952,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近1日で獲得した人気値順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 1, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 1, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -954,7 +962,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近7日で獲得した人気値順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 7, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -964,7 +972,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近30日で獲得した人気値順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 30, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 30, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -974,7 +982,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近90日で獲得した人気値順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 90, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 90, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -984,7 +992,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近365日で獲得した人気値順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 365, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 365, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -1002,7 +1010,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const overallShelves = isOverallShelfTab
     ? overallShelfConfigs.map((config) => {
         const startAt = parseTokyoDateStart(config.start) ?? oldestPublicAtValue;
-        const endAt = parseTokyoDateEnd(config.end) ?? Date.now();
+        const endAt = parseTokyoDateEnd(config.end) ?? requestTimeMs;
 
         const shelfPopularityMap = buildSeriesPopularityMap(popularityDataset, {
           startAtValue: startAt,
@@ -1065,7 +1073,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       : [];
 
   const weeklyNewStartAtValue = isWeeklyNewShelfTab
-    ? subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)
+    ? subtractDaysClamped(requestTimeMs, 7, oldestPublicAtValue)
     : 0;
 
   const weeklyNewStartInput = isWeeklyNewShelfTab
@@ -1078,7 +1086,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
         return (
           firstPublicAtValue >= weeklyNewStartAtValue &&
-          firstPublicAtValue <= Date.now()
+          firstPublicAtValue <= requestTimeMs
         );
       })
     : [];
@@ -1121,7 +1129,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近1日で再生された朗読視聴数順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 1, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 1, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -1131,7 +1139,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近7日で再生された朗読視聴数順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 7, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -1141,7 +1149,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近30日で再生された朗読視聴数順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 30, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 30, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -1151,7 +1159,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近90日で再生された朗読視聴数順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 90, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 90, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -1161,7 +1169,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近365日で再生された朗読視聴数順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 365, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 365, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -1179,7 +1187,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const narrationShelves = isNarrationShelfTab
     ? narrationShelfConfigs.map((config) => {
         const startAt = parseTokyoDateStart(config.start) ?? oldestPublicAtValue;
-        const endAt = parseTokyoDateEnd(config.end) ?? Date.now();
+        const endAt = parseTokyoDateEnd(config.end) ?? requestTimeMs;
 
         const shelfPopularityMap = buildSeriesPopularityMap(popularityDataset, {
           startAtValue: startAt,
