@@ -100,7 +100,12 @@ function splitLongClauseBounds(
     const last = result[result.length - 1]!;
     if (last[1] - last[0] < TRANSLATION_CLAUSE_SPLIT_MIN_CHARS) {
       const previous = result[result.length - 2]!;
-      result.splice(result.length - 2, 2, [previous[0], last[1]]);
+      if (
+        last[1] - previous[0] <=
+        TRANSLATION_CLAUSE_SPLIT_MAX_LOOKAHEAD_CHARS
+      ) {
+        result.splice(result.length - 2, 2, [previous[0], last[1]]);
+      }
     }
   }
 
