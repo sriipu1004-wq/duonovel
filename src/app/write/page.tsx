@@ -14,17 +14,18 @@ async function fetchOwnedSeries(
   userId: string,
   supabase: Awaited<ReturnType<typeof requireLoggedInUser>>["supabase"]
 ) {
-  const byAuthorId = await supabase
-    .from("series")
-    .select("*")
-    .eq("author_id", userId)
-    .order("created_at", { ascending: false });
-
-  const byUserId = await supabase
-    .from("series")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+  const [byAuthorId, byUserId] = await Promise.all([
+    supabase
+      .from("series")
+      .select("*")
+      .eq("author_id", userId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("series")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false }),
+  ]);
 
   if (byAuthorId.error && byUserId.error) {
     throw new Error(`series の取得に失敗: ${byAuthorId.error.message}`);
@@ -51,16 +52,57 @@ async function fetchOwnedSeries(
   });
 }
 
-async function fetchEpisodesBySeriesId(
-  seriesId: string,
-  supabase: Awaited<ReturnType<typeof requireLoggedInUser>>["supabase"]
-): Promise<EpisodeRow[]> {
-  const result = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("series_id", seriesId);
+const WRITE_TOP_EPISODE_SELECT = `
+  id,
+  series_id,
+  episode_number,
+  posting_status,
+  scheduled_for,
+  posted_at
+`;
 
-  return result.error ? [] : ((result.data ?? []) as EpisodeRow[]);
+async function fetchEpisodesBySeriesIds(
+  seriesIds: string[],
+  supabase: Awaited<ReturnType<typeof requireLoggedInUser>>["supabase"]
+): Promise<Map<string, EpisodeRow[]>> {
+  const grouped = new Map<string, EpisodeRow[]>();
+  if (seriesIds.length === 0) return grouped;
+
+  const PAGE_SIZE = 1000;
+  const rows: EpisodeRow[] = [];
+  for (let start = 0; ; start += PAGE_SIZE) {
+    let result = await supabase
+      .from("episodes")
+      .select(WRITE_TOP_EPISODE_SELECT)
+      .in("series_id", seriesIds)
+      .order("series_id", { ascending: true })
+      .order("episode_number", { ascending: true })
+      .range(start, start + PAGE_SIZE - 1);
+
+    if (result.error) {
+      result = await supabase
+        .from("episodes")
+        .select("*")
+        .in("series_id", seriesIds)
+        .order("series_id", { ascending: true })
+        .order("episode_number", { ascending: true })
+        .range(start, start + PAGE_SIZE - 1);
+    }
+    if (result.error) break;
+
+    const pageRows = (result.data ?? []) as unknown as EpisodeRow[];
+    rows.push(...pageRows);
+    if (pageRows.length < PAGE_SIZE) break;
+  }
+
+  for (const episode of rows) {
+    const seriesId = pickText(episode.series_id, episode.seriesId);
+    if (!seriesId) continue;
+    const current = grouped.get(seriesId) ?? [];
+    current.push(episode);
+    grouped.set(seriesId, current);
+  }
+  return grouped;
 }
 
 function getTimeValue(value: unknown): number {
@@ -177,25 +219,25 @@ function formatUpdatedLabel(series: SeriesRow): string {
 export default async function WriteTopPage() {
   const { supabase, user } = await requireLoggedInUser("/write");
   const seriesList = await fetchOwnedSeries(user.id, supabase);
-
-  const seriesCards = await Promise.all(
-    seriesList.map(async (series) => {
-      const episodes = sortEpisodes(
-        await fetchEpisodesBySeriesId(series.id, supabase)
-      );
-
-      return {
-        series,
-        episodes,
-        episodeCount: episodes.length,
-        publicationLabel: getPublicationLabel(series, episodes),
-        publicationClass: getPublicationClass(series, episodes),
-        recordingPermissionLabel: getRecordingPermissionLabel(series),
-        recordingPermissionClass: getRecordingPermissionClass(series),
-        updatedLabel: formatUpdatedLabel(series),
-      };
-    })
+  const episodesBySeriesId = await fetchEpisodesBySeriesIds(
+    seriesList.map((series) => series.id),
+    supabase
   );
+
+  const seriesCards = seriesList.map((series) => {
+    const episodes = sortEpisodes(episodesBySeriesId.get(series.id) ?? []);
+
+    return {
+      series,
+      episodes,
+      episodeCount: episodes.length,
+      publicationLabel: getPublicationLabel(series, episodes),
+      publicationClass: getPublicationClass(series, episodes),
+      recordingPermissionLabel: getRecordingPermissionLabel(series),
+      recordingPermissionClass: getRecordingPermissionClass(series),
+      updatedLabel: formatUpdatedLabel(series),
+    };
+  });
 
   return (
     <main className="min-h-screen bg-white text-black">
