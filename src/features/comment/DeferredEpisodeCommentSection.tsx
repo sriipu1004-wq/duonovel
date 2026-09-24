@@ -36,8 +36,8 @@ export default function DeferredEpisodeCommentSection({
     if (!node) return;
 
     if (!("IntersectionObserver" in window)) {
-      setEnabled(true);
-      return;
+      const frameId = window.requestAnimationFrame(() => setEnabled(true));
+      return () => window.cancelAnimationFrame(frameId);
     }
 
     const observer = new IntersectionObserver(
