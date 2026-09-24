@@ -77,6 +77,14 @@ export async function executeEpisodeTranslationGeneration(
   const admin = createAdminClient();
   const requestId = randomUUID();
   const entitlementRuntime = options?.entitlementRuntime === true;
+  const executionStartedAt = performance.now();
+  let actionReservationMs = 0;
+  let translationReservationMs = 0;
+  let providerMs = 0;
+  let dbWriteMs = 0;
+  let glossaryMs = 0;
+
+  const actionReservationStartedAt = performance.now();
   const actionReservation = entitlementRuntime
     ? await reserveSubscriberAiCostOnly({
         requestId,
@@ -89,6 +97,7 @@ export async function executeEpisodeTranslationGeneration(
         actionType: "translation_generation",
         userId: access.currentUserId,
       });
+  actionReservationMs = performance.now() - actionReservationStartedAt;
   const releaseActionReservation = () =>
     entitlementRuntime
       ? releaseSubscriberAiCostOnly(requestId)
@@ -113,6 +122,7 @@ export async function executeEpisodeTranslationGeneration(
     );
   }
 
+  const translationReservationStartedAt = performance.now();
   const reservationResult = await reserveEpisodeTranslation({
     admin,
     requestId,
@@ -129,6 +139,7 @@ export async function executeEpisodeTranslationGeneration(
     dailyMaxRequests: EPISODE_TRANSLATION_LIMITS.dailyMaxRequests,
     dailyMaxEstimatedCostJpy: EPISODE_TRANSLATION_LIMITS.dailyMaxEstimatedCostJpy,
   });
+  translationReservationMs = performance.now() - translationReservationStartedAt;
   if (reservationResult.error) {
     await releaseActionReservation();
     return NextResponse.json(
@@ -213,6 +224,7 @@ export async function executeEpisodeTranslationGeneration(
     pickText(access.episode.title, access.episode["episode_title"]) ||
     "第" + String(access.episodeNumber) + "話";
   try {
+    const providerStartedAt = performance.now();
     const translated = await translatePublicEpisodeWithConsistency({
       apiKey,
       model,
@@ -227,6 +239,7 @@ export async function executeEpisodeTranslationGeneration(
         text: segment.translationInput,
       })),
     });
+    providerMs = performance.now() - providerStartedAt;
     const storedSegments = source.segments.map((segment, index) => ({
       id: segment.id,
       sourceText: segment.sourceText,
@@ -256,38 +269,43 @@ export async function executeEpisodeTranslationGeneration(
             model
           )
         : null;
-    const translationUpdate = await admin
-      .from("episode_translations")
-      .update({
-        source_language: sourceLanguage,
-        target_language: targetLanguage,
-        segment_version: TRANSLATION_SEGMENT_VERSION,
-        status: "ready",
-        segments: translationPayload,
-        translation_model: model,
-        error_code: null,
-        completed_at: now,
-        updated_at: now,
-      })
-      .eq("id", translationId);
+    const dbWriteStartedAt = performance.now();
+    const [translationUpdate] = await Promise.all([
+      admin
+        .from("episode_translations")
+        .update({
+          source_language: sourceLanguage,
+          target_language: targetLanguage,
+          segment_version: TRANSLATION_SEGMENT_VERSION,
+          status: "ready",
+          segments: translationPayload,
+          translation_model: model,
+          error_code: null,
+          completed_at: now,
+          updated_at: now,
+        })
+        .eq("id", translationId),
+      admin
+        .from("episode_translation_logs")
+        .update({
+          status: "success",
+          success: true,
+          actual_input_tokens: actualInputTokens,
+          actual_output_tokens: actualOutputTokens,
+          actual_cost_jpy: actualCostJpy,
+          retry_count: translated.retryCount,
+          updated_at: now,
+        })
+        .eq("id", logId),
+    ]);
+    dbWriteMs = performance.now() - dbWriteStartedAt;
     if (translationUpdate.error) {
       throw new Error(
         "翻訳結果の保存に失敗しました: " + translationUpdate.error.message
       );
     }
-    await admin
-      .from("episode_translation_logs")
-      .update({
-        status: "success",
-        success: true,
-        actual_input_tokens: actualInputTokens,
-        actual_output_tokens: actualOutputTokens,
-        actual_cost_jpy: actualCostJpy,
-        retry_count: translated.retryCount,
-        updated_at: now,
-      })
-      .eq("id", logId);
 
+    const glossaryStartedAt = performance.now();
     try {
       await persistAiSeriesTranslationGlossaryCandidates({
         seriesId: access.seriesId,
@@ -301,6 +319,19 @@ export async function executeEpisodeTranslationGeneration(
     } catch (error) {
       console.warn("[series-translation-glossary] automatic candidate persistence failed", error);
     }
+    glossaryMs = performance.now() - glossaryStartedAt;
+
+    console.info("[translation-performance]", {
+      status: "ready",
+      actionReservationMs: Math.round(actionReservationMs),
+      translationReservationMs: Math.round(translationReservationMs),
+      providerMs: Math.round(providerMs),
+      dbWriteMs: Math.round(dbWriteMs),
+      glossaryMs: Math.round(glossaryMs),
+      totalMs: Math.round(performance.now() - executionStartedAt),
+      batchCount: translated.batchCount,
+      retryCount: translated.retryCount,
+    });
 
     return NextResponse.json({
       ok: true,
@@ -310,6 +341,15 @@ export async function executeEpisodeTranslationGeneration(
       estimatedCostJpy,
     });
   } catch (error) {
+    console.info("[translation-performance]", {
+      status: "failed",
+      actionReservationMs: Math.round(actionReservationMs),
+      translationReservationMs: Math.round(translationReservationMs),
+      providerMs: Math.round(providerMs),
+      dbWriteMs: Math.round(dbWriteMs),
+      glossaryMs: Math.round(glossaryMs),
+      totalMs: Math.round(performance.now() - executionStartedAt),
+    });
     const isTimeout =
       (error instanceof Error &&
         (error.name === "TimeoutError" || error.name === "AbortError")) ||
