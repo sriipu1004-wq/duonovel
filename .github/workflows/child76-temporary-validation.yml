@@ -1,0 +1,80 @@
+name: Child76 temporary validation
+
+on:
+  push:
+    branches:
+      - perf/progressive-loading-core-routes
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Changed-scope ESLint
+        run: >-
+          npx eslint
+          src/app/PublicTopPageLegacy.tsx
+          src/app/mypage/page.tsx
+          src/app/read/[seriesId]/[episodeNumber]/page.tsx
+          src/app/record/page.tsx
+          src/app/search/SearchPageLegacy.tsx
+          src/app/works/[seriesId]/page.tsx
+          src/app/write/page.tsx
+          src/app/write/series/[seriesId]/page.tsx
+          src/features/comment/DeferredEpisodeCommentSection.tsx
+          src/features/playback/WebSpeechEpisodePlayback.tsx
+          src/lib/publicRead.ts
+          src/lib/publicWorks.ts
+          src/lib/translation/executeEpisodeTranslationGeneration.ts
+          src/lib/translation/prepareEpisodeTranslationGeneration.ts
+          scripts/test-public-recording-selects.ts
+          scripts/test-public-search-language-filters.ts
+      - name: Reader and locale regression
+        run: |
+          npm run test:reader-mode-unification
+          npm run test:multilingual-work-reader
+          npm run test:en-ko-i18n
+          npm run test:locale-work-state
+      - name: Translation regression
+        run: |
+          npm run test:translation-consistency
+          npm run test:public-classic-translation
+          npm run test:translation-credit-runtime
+          npm run test:series-translation-permission-schema
+      - name: Discovery and narration regression
+        run: |
+          npm run test:public-search-language-filters
+          npm run test:public-recording-selects
+          npm run test:human-recording-state
+          npm run test:human-recording-boundaries
+      - name: Security workspace pricing regression
+        run: |
+          npm run test:security-authz
+          npm run test:public-schema-queries
+          npm run test:workspace-schema-queries
+          npm run test:pricing-copy
+          npm run test:author-workspace-ux
+      - name: Public Domain validation
+        run: npm run public-domain:validate
+      - name: Diff check
+        run: git diff --check cc3d99dc7e5047394e07ab7a1f36940012e03cdb...HEAD
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
