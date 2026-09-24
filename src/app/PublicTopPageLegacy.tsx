@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
 import {
@@ -286,44 +287,55 @@ function getDiscoveryLinks(locale: UiLocale, dictionary: HomeDictionary) {
   ];
 }
 
-export default async function PublicTopPage({ searchParams }: PageProps) {
-  const locale = await getUiLocale();
-  const dictionary = homeDictionaries[locale];
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const mode = pickText(resolvedSearchParams?.mode);
-  const tag = pickText(resolvedSearchParams?.tag);
+type HomeViewerState = {
+  signedIn: boolean;
+  subscriber: boolean;
+  bookmarkedSeriesIds: Set<string>;
+};
 
-  const [baseWorkCards, authSupabase] = await Promise.all([
-    getCachedPublicBaseWorkCards(),
-    createServerClient(),
-  ]);
-  const [recordingAggregates, authResult] = await Promise.all([
-    getCachedPublicRecordingAggregates(baseWorkCards.map((work) => work.seriesId)),
-    authSupabase.auth.getUser(),
-  ]);
-  const currentUser = authResult.data.user;
+async function loadHomeViewerState(): Promise<HomeViewerState> {
+  const authSupabase = await createServerClient();
+  const {
+    data: { user },
+  } = await authSupabase.auth.getUser();
+
   const [subscriber, bookmarkResult] = await Promise.all([
-    currentUser ? isSubscriber(currentUser.id) : Promise.resolve(false),
-    currentUser
+    user ? isSubscriber(user.id) : Promise.resolve(false),
+    user
       ? authSupabase
           .from("user_series_bookmarks")
           .select("series_id")
-          .eq("user_id", currentUser.id)
+          .eq("user_id", user.id)
       : Promise.resolve({ data: [] }),
   ]);
   const bookmarkRows = (bookmarkResult.data ?? []) as Array<{
     series_id?: string | null;
   }>;
-  const bookmarkedSeriesIds = new Set(
-    bookmarkRows
-      .map((row) => (typeof row.series_id === "string" ? row.series_id : ""))
-      .filter((value) => value.length > 0)
-  );
 
+  return {
+    signedIn: Boolean(user),
+    subscriber,
+    bookmarkedSeriesIds: new Set(
+      bookmarkRows
+        .map((row) => (typeof row.series_id === "string" ? row.series_id : ""))
+        .filter((value) => value.length > 0)
+    ),
+  };
+}
+
+async function loadHomeWorkCards(
+  locale: UiLocale,
+  dictionary: HomeDictionary
+): Promise<WorkCard[]> {
+  const baseWorkCards = await getCachedPublicBaseWorkCards();
+  const recordingAggregates = await getCachedPublicRecordingAggregates(
+    baseWorkCards.map((work) => work.seriesId)
+  );
   const recordingAggregateMap = new Map(
     recordingAggregates.map((aggregate) => [aggregate.seriesId, aggregate])
   );
-  const workCards: WorkCard[] = baseWorkCards.map((work) => {
+
+  return baseWorkCards.map((work) => {
     const aggregate = recordingAggregateMap.get(work.seriesId) ?? {
       totalRecordingLikes: 0,
       totalRecordingPlays: 0,
@@ -363,13 +375,63 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
         work.episodeCount,
     };
   });
+}
 
+function HomeWorkSectionsFallback({ mode }: { mode: string }) {
+  const sectionIds = [
+    "bookmark-updates",
+    "latest",
+    "weekly-new",
+    "overall-popular",
+    "narration-popular",
+    ...(mode ? ["results"] : []),
+  ];
+
+  return (
+    <>
+      {sectionIds.map((id) => (
+        <section key={id} id={id} className="pt-10" aria-busy="true">
+          <div className="border-b border-black/10 pb-3">
+            <div className="h-3 w-32 rounded-full bg-neutral-100" />
+            <div className="mt-3 h-7 w-56 rounded-full bg-neutral-100" />
+            <div className="mt-3 h-4 w-full max-w-xl rounded-full bg-neutral-100" />
+          </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-2">
+            {[0, 1, 2, 3].map((index) => (
+              <div
+                key={index}
+                className="h-36 rounded-[20px] border border-black/10 bg-neutral-50"
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </>
+  );
+}
+
+async function HomeWorkSections({
+  workCardsPromise,
+  viewerState,
+  mode,
+  tag,
+  locale,
+  dictionary,
+}: {
+  workCardsPromise: Promise<WorkCard[]>;
+  viewerState: HomeViewerState;
+  mode: string;
+  tag: string;
+  locale: UiLocale;
+  dictionary: HomeDictionary;
+}) {
+  const workCards = await workCardsPromise;
   const latestWorks = sortLatest(workCards).slice(0, 4);
   const weeklyNewWorks = sortWeeklyNew(workCards).slice(0, 4);
   const overallPopularWorks = sortOverallPopular(workCards).slice(0, 4);
   const narrationPopularWorks = sortNarrationPopular(workCards).slice(0, 4);
   const bookmarkedWorks = sortLatest(
-    workCards.filter((work) => bookmarkedSeriesIds.has(work.seriesId))
+    workCards.filter((work) => viewerState.bookmarkedSeriesIds.has(work.seriesId))
   ).slice(0, 4);
 
   const filteredForResults =
@@ -390,6 +452,69 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
   const loginHref = `${localizePath("/login", locale)}?next=${encodeURIComponent(
     localizePath("/", locale)
   )}`;
+
+  return (
+    <>
+      <section id="bookmark-updates" className="pt-10">
+        <SectionHeading
+          eyebrow="BOOKMARK UPDATES"
+          title={dictionary.bookmarkTitle}
+          description={viewerState.signedIn ? dictionary.bookmarkSignedIn : dictionary.bookmarkSignedOut}
+          moreHref={viewerState.signedIn ? localizePath("/search?saved=bookmarked-works&order=updated", locale) : loginHref}
+          showMore={dictionary.showMore}
+        />
+        {viewerState.signedIn ? (
+          <WorkGrid works={bookmarkedWorks} emptyLabel={dictionary.noWorks} />
+        ) : (
+          <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
+            {dictionary.bookmarkLoginPrompt}{" "}
+            <Link href={loginHref} className="font-medium text-black underline underline-offset-4">{dictionary.login}</Link>
+          </div>
+        )}
+      </section>
+
+      <section id="latest" className="pt-10">
+        <SectionHeading eyebrow="LATEST UPDATES" title={dictionary.latestTitle} description={dictionary.latestDescription} moreHref={localizePath(buildMoreHref("latest"), locale)} showMore={dictionary.showMore} />
+        <WorkGrid works={latestWorks} emptyLabel={dictionary.noWorks} />
+      </section>
+      <section id="weekly-new" className="pt-12">
+        <SectionHeading eyebrow="WEEKLY NEW RECOMMEND" title={dictionary.weeklyTitle} description={dictionary.weeklyDescription} moreHref={localizePath(buildMoreHref("weekly-new"), locale)} showMore={dictionary.showMore} />
+        <WorkGrid works={weeklyNewWorks} emptyLabel={dictionary.noWorks} />
+      </section>
+      <section id="overall-popular" className="pt-12">
+        <SectionHeading eyebrow="OVERALL POPULAR" title={dictionary.overallTitle} description={dictionary.overallDescription} moreHref={localizePath(buildMoreHref("overall-popular"), locale)} showMore={dictionary.showMore} />
+        <WorkGrid works={overallPopularWorks} emptyLabel={dictionary.noWorks} />
+      </section>
+      <section id="narration-popular" className="pt-12">
+        <SectionHeading eyebrow="NARRATION POPULAR" title={dictionary.narrationTitle} description={dictionary.narrationDescription} moreHref={localizePath(buildMoreHref("narration-popular"), locale)} showMore={dictionary.showMore} />
+        <WorkGrid works={narrationPopularWorks} emptyLabel={dictionary.noWorks} />
+      </section>
+
+      {mode ? (
+        <section id="results" className="pt-12">
+          <div className="border-b border-black/10 pb-3">
+            <p className="text-[11px] tracking-[0.22em] text-neutral-500">{dictionary.resultsEyebrow}</p>
+            <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">{resultHeading.title}</h2>
+            <p className="mt-2 text-sm leading-7 text-neutral-600">{resultHeading.description}</p>
+          </div>
+          <WorkGrid works={resultWorks} emptyLabel={dictionary.noWorks} />
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+export default async function PublicTopPage({ searchParams }: PageProps) {
+  const locale = await getUiLocale();
+  const dictionary = homeDictionaries[locale];
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const mode = pickText(resolvedSearchParams?.mode);
+  const tag = pickText(resolvedSearchParams?.tag);
+
+  const viewerStatePromise = loadHomeViewerState();
+  const workCardsPromise = loadHomeWorkCards(locale, dictionary);
+  const viewerState = await viewerStatePromise;
+  const subscriber = viewerState.subscriber;
   const discoveryLinks = getDiscoveryLinks(locale, dictionary);
 
   return (
@@ -487,51 +612,16 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
           </div>
         </section>
 
-        <section id="bookmark-updates" className="pt-10">
-          <SectionHeading
-            eyebrow="BOOKMARK UPDATES"
-            title={dictionary.bookmarkTitle}
-            description={currentUser ? dictionary.bookmarkSignedIn : dictionary.bookmarkSignedOut}
-            moreHref={currentUser ? localizePath("/search?saved=bookmarked-works&order=updated", locale) : loginHref}
-            showMore={dictionary.showMore}
+        <Suspense fallback={<HomeWorkSectionsFallback mode={mode} />}>
+          <HomeWorkSections
+            workCardsPromise={workCardsPromise}
+            viewerState={viewerState}
+            mode={mode}
+            tag={tag}
+            locale={locale}
+            dictionary={dictionary}
           />
-          {currentUser ? (
-            <WorkGrid works={bookmarkedWorks} emptyLabel={dictionary.noWorks} />
-          ) : (
-            <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
-              {dictionary.bookmarkLoginPrompt}{" "}
-              <Link href={loginHref} className="font-medium text-black underline underline-offset-4">{dictionary.login}</Link>
-            </div>
-          )}
-        </section>
-
-        <section id="latest" className="pt-10">
-          <SectionHeading eyebrow="LATEST UPDATES" title={dictionary.latestTitle} description={dictionary.latestDescription} moreHref={localizePath(buildMoreHref("latest"), locale)} showMore={dictionary.showMore} />
-          <WorkGrid works={latestWorks} emptyLabel={dictionary.noWorks} />
-        </section>
-        <section id="weekly-new" className="pt-12">
-          <SectionHeading eyebrow="WEEKLY NEW RECOMMEND" title={dictionary.weeklyTitle} description={dictionary.weeklyDescription} moreHref={localizePath(buildMoreHref("weekly-new"), locale)} showMore={dictionary.showMore} />
-          <WorkGrid works={weeklyNewWorks} emptyLabel={dictionary.noWorks} />
-        </section>
-        <section id="overall-popular" className="pt-12">
-          <SectionHeading eyebrow="OVERALL POPULAR" title={dictionary.overallTitle} description={dictionary.overallDescription} moreHref={localizePath(buildMoreHref("overall-popular"), locale)} showMore={dictionary.showMore} />
-          <WorkGrid works={overallPopularWorks} emptyLabel={dictionary.noWorks} />
-        </section>
-        <section id="narration-popular" className="pt-12">
-          <SectionHeading eyebrow="NARRATION POPULAR" title={dictionary.narrationTitle} description={dictionary.narrationDescription} moreHref={localizePath(buildMoreHref("narration-popular"), locale)} showMore={dictionary.showMore} />
-          <WorkGrid works={narrationPopularWorks} emptyLabel={dictionary.noWorks} />
-        </section>
-
-        {mode ? (
-          <section id="results" className="pt-12">
-            <div className="border-b border-black/10 pb-3">
-              <p className="text-[11px] tracking-[0.22em] text-neutral-500">{dictionary.resultsEyebrow}</p>
-              <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">{resultHeading.title}</h2>
-              <p className="mt-2 text-sm leading-7 text-neutral-600">{resultHeading.description}</p>
-            </div>
-            <WorkGrid works={resultWorks} emptyLabel={dictionary.noWorks} />
-          </section>
-        ) : null}
+        </Suspense>
 
         <section id="home-ad-slot" className="pt-12"><PublicAdSlot slotId="home-bottom" minHeightClassName="min-h-[88px]" /></section>
         <section id="home-links" className="pt-6">
