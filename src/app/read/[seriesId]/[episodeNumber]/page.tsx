@@ -387,7 +387,17 @@ export default async function ReadEpisodePage({
     viewerUserId,
     viewerEmail,
   } = payload;
-  const subscriber = viewerUserId ? await isSubscriber(viewerUserId) : false;
+  const aiGeneratedAttribution = getAiGeneratedReadAttribution(
+    series,
+    ui.aiGenerated,
+    ui.editorUnset
+  );
+  const [subscriber, normalAuthorName] = await Promise.all([
+    viewerUserId ? isSubscriber(viewerUserId) : Promise.resolve(false),
+    aiGeneratedAttribution
+      ? Promise.resolve(null)
+      : getNormalAuthorName(series, ui.authorUnset),
+  ]);
   const availableHumanRecordings = payload.allEpisodeRecordings.filter(
     isPublishedHumanRecording
   );
@@ -467,14 +477,9 @@ export default async function ReadEpisodePage({
     ? getSupportedLanguage(sourceLanguage).speechLanguage
     : "ja-JP";
 
-  const aiGeneratedAttribution = getAiGeneratedReadAttribution(
-    series,
-    ui.aiGenerated,
-    ui.editorUnset
-  );
   const workAuthorName = aiGeneratedAttribution
     ? aiGeneratedAttribution.authorName
-    : await getNormalAuthorName(series, ui.authorUnset);
+    : normalAuthorName ?? ui.authorUnset;
   const workEditorName = aiGeneratedAttribution?.editorName ?? "";
 
   const prevEpisodeHref =
