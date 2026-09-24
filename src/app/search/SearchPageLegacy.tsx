@@ -682,9 +682,14 @@ function buildGenreShelfSections(params: {
   });
 }
 
+function readRequestTimeMs(): number {
+  return Date.now();
+}
+
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const uiLocale = await getUiLocale();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const requestTimeMs = readRequestTimeMs();
 
   const savedFilter = resolveSavedFilter(pickText(resolvedSearchParams?.saved));
   const savedFilterLabel = savedFilter ? getSavedFilterLabel(savedFilter) : "";
@@ -787,15 +792,15 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         work.earliestPublicAtValue > 0 ? work.earliestPublicAtValue : work.createdAtValue;
       if (candidate <= 0) return min;
       return min === 0 ? candidate : Math.min(min, candidate);
-    }, 0) || Date.now();
+    }, 0) || requestTimeMs;
 
   const defaultStartInput = formatInputDate(oldestPublicAtValue);
-  const defaultEndInput = formatInputDate(Date.now());
+  const defaultEndInput = formatInputDate(requestTimeMs);
 
   const selectedStartAtValue =
     parseTokyoDateStart(pickText(resolvedSearchParams?.start)) ?? oldestPublicAtValue;
   const selectedEndAtValue =
-    parseTokyoDateEnd(pickText(resolvedSearchParams?.end)) ?? Date.now();
+    parseTokyoDateEnd(pickText(resolvedSearchParams?.end)) ?? requestTimeMs;
 
   const safeStartAtValue = Math.min(selectedStartAtValue, selectedEndAtValue);
   const safeEndAtValue = Math.max(selectedStartAtValue, selectedEndAtValue);
@@ -947,7 +952,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近1日で獲得した人気値順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 1, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 1, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -957,7 +962,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近7日で獲得した人気値順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 7, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -967,7 +972,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近30日で獲得した人気値順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 30, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 30, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -977,7 +982,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近90日で獲得した人気値順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 90, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 90, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -987,7 +992,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近365日で獲得した人気値順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 365, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 365, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -1005,7 +1010,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const overallShelves = isOverallShelfTab
     ? overallShelfConfigs.map((config) => {
         const startAt = parseTokyoDateStart(config.start) ?? oldestPublicAtValue;
-        const endAt = parseTokyoDateEnd(config.end) ?? Date.now();
+        const endAt = parseTokyoDateEnd(config.end) ?? requestTimeMs;
 
         const shelfPopularityMap = buildSeriesPopularityMap(popularityDataset, {
           startAtValue: startAt,
@@ -1068,7 +1073,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       : [];
 
   const weeklyNewStartAtValue = isWeeklyNewShelfTab
-    ? subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)
+    ? subtractDaysClamped(requestTimeMs, 7, oldestPublicAtValue)
     : 0;
 
   const weeklyNewStartInput = isWeeklyNewShelfTab
@@ -1081,7 +1086,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
         return (
           firstPublicAtValue >= weeklyNewStartAtValue &&
-          firstPublicAtValue <= Date.now()
+          firstPublicAtValue <= requestTimeMs
         );
       })
     : [];
@@ -1124,7 +1129,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近1日で再生された朗読視聴数順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 1, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 1, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -1134,7 +1139,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近7日で再生された朗読視聴数順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 7, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 7, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -1144,7 +1149,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近30日で再生された朗読視聴数順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 30, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 30, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -1154,7 +1159,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近90日で再生された朗読視聴数順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 90, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 90, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -1164,7 +1169,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           description: "直近365日で再生された朗読視聴数順で表示。",
           order: "popular",
           start: formatInputDate(
-            subtractDaysClamped(Date.now(), 365, oldestPublicAtValue)
+            subtractDaysClamped(requestTimeMs, 365, oldestPublicAtValue)
           ),
           end: defaultEndInput,
         },
@@ -1182,7 +1187,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const narrationShelves = isNarrationShelfTab
     ? narrationShelfConfigs.map((config) => {
         const startAt = parseTokyoDateStart(config.start) ?? oldestPublicAtValue;
-        const endAt = parseTokyoDateEnd(config.end) ?? Date.now();
+        const endAt = parseTokyoDateEnd(config.end) ?? requestTimeMs;
 
         const shelfPopularityMap = buildSeriesPopularityMap(popularityDataset, {
           startAtValue: startAt,
