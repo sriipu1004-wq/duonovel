@@ -34,8 +34,7 @@ async function main() {
 
   const seriesResult = await admin
     .from("series")
-    .select("id,title,source_language,effect_settings")
-    .not("effect_settings", "is", null);
+    .select("id,title,source_language,effect_settings");
   if (seriesResult.error) throw seriesResult.error;
 
   let works = 0;
