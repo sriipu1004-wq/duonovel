@@ -144,6 +144,30 @@ function testLongClauseSegmentation() {
     1,
     "short comma sentences must remain intact"
   );
+
+  const aliceSentence =
+    "Alice had peeped into the book her sister was reading, but it had no pictures or conversations in it, “and what is the use of a book,” thought Alice “without pictures or conversations?”";
+  const aliceSegments = segmentSourceDocument(aliceSentence, "en").segments;
+  assert.ok(
+    aliceSegments.length >= 3,
+    "Alice-style long literary sentences must be split into multiple marker-sized clauses"
+  );
+  assert.ok(
+    aliceSegments.every(
+      (segment) =>
+        segment.sourceText.length <= TRANSLATION_CLAUSE_SPLIT_MAX_LOOKAHEAD_CHARS
+    ),
+    "long bilingual source markers must stay within the display lookahead ceiling"
+  );
+  assert.equal(
+    aliceSegments.some(
+      (segment) =>
+        segment.sourceText.includes("conversations in it") &&
+        segment.sourceText.includes("use of a book")
+    ),
+    false,
+    "separate Alice clauses must not be merged into one oversized bilingual marker"
+  );
 }
 
 function testNonJapaneseHardWrapNormalization() {
