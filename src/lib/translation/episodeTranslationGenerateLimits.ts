@@ -25,7 +25,7 @@ export const EPISODE_TRANSLATION_LIMITS = {
     "EPISODE_TRANSLATION_DAILY_MAX_ESTIMATED_COST_JPY",
     100
   ),
-  maxSourceChars: readPositiveIntEnv("EPISODE_TRANSLATION_MAX_SOURCE_CHARS", 8000),
+  maxSourceChars: readPositiveIntEnv("EPISODE_TRANSLATION_MAX_SOURCE_CHARS", 15000),
   publicDomainMaxSourceChars: readPositiveIntEnv(
     "PUBLIC_DOMAIN_TRANSLATION_MAX_SOURCE_CHARS",
     40000
