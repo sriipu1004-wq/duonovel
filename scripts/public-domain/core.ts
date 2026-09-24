@@ -870,7 +870,7 @@ export function splitChapters(
   const keepPrefix =
     manifest.chapter_split.strategy === "heading_regex" &&
     manifest.chapter_split.drop_prefix_before_first_heading !== true;
-  return headings.map((heading, index) => {
+  const semanticChapters = headings.map((heading, index) => {
     const next = headings[index + 1];
     const content = lines
       .slice(heading.index + 1, next ? next.index : lines.length)
@@ -880,13 +880,36 @@ export function splitChapters(
       index === 0 && prefix && keepPrefix
         ? `${prefix}\n\n${content}`.trim()
         : content;
-    return {
-      number: index + 1,
-      title: heading.title,
-      body: chapterBody,
-      characterCount: chapterBody.length,
-    };
+    return { title: heading.title, body: chapterBody };
   });
+
+  // Preserve semantic headings where possible, but never let a naturally long
+  // chapter bypass the translation-sized episode envelope.
+  const chapters: PreparedChapter[] = [];
+  for (const semantic of semanticChapters) {
+    const pieces =
+      semantic.body.length <= PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS
+        ? [semantic.body]
+        : splitChapters(semantic.body, {
+            title: semantic.title,
+            chapter_split: {
+              strategy: "paragraph_chunks",
+              max_characters: PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS,
+            },
+          }).map((chapter) => chapter.body);
+    for (const [pieceIndex, piece] of pieces.entries()) {
+      chapters.push({
+        number: chapters.length + 1,
+        title:
+          pieces.length === 1
+            ? semantic.title
+            : `${semantic.title} — Part ${pieceIndex + 1}`,
+        body: piece,
+        characterCount: piece.length,
+      });
+    }
+  }
+  return chapters;
 }
 
 export function validateChapters(chapters: PreparedChapter[]): ChapterValidation {
