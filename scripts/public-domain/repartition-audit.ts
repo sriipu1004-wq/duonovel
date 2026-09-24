@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import {
   PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS,
-  repartitionStoredEpisodes,
+  canonicalizePublicDomainText,
+  repartitionPreparedChapters,
 } from "./core";
 import { loadLocalEnvironment } from "./runtime";
 
@@ -58,8 +59,16 @@ async function main() {
 
     works += 1;
     oldEpisodes += episodes.length;
-    const repartitioned = repartitionStoredEpisodes(
-      episodes.map((episode) => ({ title: episode.title, body: episode.body }))
+    const repartitioned = repartitionPreparedChapters(
+      episodes.map((episode, index) => {
+        const body = canonicalizePublicDomainText(episode.body);
+        return {
+          number: index + 1,
+          title: episode.title,
+          body,
+          characterCount: body.length,
+        };
+      })
     );
     newEpisodes += repartitioned.length;
     const before = episodes.map((episode) => episode.body.replace(/\r\n?/g, "\n").trim()).join("\n\n");
