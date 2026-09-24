@@ -476,15 +476,19 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     if (
       !Number.isInteger(maxCharacters) ||
       Number(maxCharacters) < 5_000 ||
-      Number(maxCharacters) > PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS
+      Number(maxCharacters) > 40_000
     ) {
-      errors.push(
-        `chapter_split.max_characters must be an integer from 5000 to ${PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS}`
-      );
+      errors.push("chapter_split.max_characters must be an integer from 5000 to 40000");
     } else {
+      const configuredMax = Number(maxCharacters);
+      if (configuredMax > PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS) {
+        warnings.push(
+          `chapter_split.max_characters=${configuredMax} is legacy-sized and will be clamped to ${PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS} during import`
+        );
+      }
       chapterSplit = {
         strategy: "paragraph_chunks",
-        max_characters: Number(maxCharacters),
+        max_characters: configuredMax,
       };
     }
   } else {
@@ -794,7 +798,10 @@ export function splitChapters(
   }
 
   if (manifest.chapter_split.strategy === "paragraph_chunks") {
-    const maxCharacters = manifest.chapter_split.max_characters;
+    const maxCharacters = Math.min(
+      manifest.chapter_split.max_characters,
+      PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS
+    );
     const paragraphs = body
       .split(/\n\s*\n+/u)
       .map((paragraph) => paragraph.trim())
