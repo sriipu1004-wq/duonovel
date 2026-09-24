@@ -7,6 +7,7 @@ import {
 } from "./core";
 import { loadLocalEnvironment } from "./runtime";
 
+
 type EpisodeRow = {
   id: string;
   series_id: string;
@@ -45,7 +46,7 @@ async function main() {
   let oversizedAfter = 0;
 
   for (const series of seriesResult.data ?? []) {
-    const effectSettings = series.effect_settings as PublicDomainEffectSettings | null;
+    const effectSettings = series.effect_settings as unknown as PublicDomainEffectSettings | null;
     const pd = effectSettings?.publicDomain;
     if (pd?.rightsChecked !== true) continue;
     const episodesResult = await admin
