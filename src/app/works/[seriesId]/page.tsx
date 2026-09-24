@@ -688,6 +688,151 @@ export async function generateMetadata({
 }
 
 
+function ReaderTabFallback() {
+  return (
+    <div className="grid gap-3" aria-busy="true">
+      <div className="h-32 rounded-[20px] border border-black/10 bg-neutral-50" />
+      <div className="h-32 rounded-[20px] border border-black/10 bg-neutral-50" />
+    </div>
+  );
+}
+
+async function ReaderTabContent({
+  seriesId,
+  episodes,
+  selectedReaderKey,
+  selectedReaderName,
+  currentRangeStart,
+  currentUserId,
+  locale,
+  loginHref,
+  recordingResultPromise,
+}: {
+  seriesId: string;
+  episodes: EpisodeRow[];
+  selectedReaderKey: string;
+  selectedReaderName: string;
+  currentRangeStart: number;
+  currentUserId: string | null;
+  locale: Awaited<ReturnType<typeof getUiLocale>>;
+  loginHref: string;
+  recordingResultPromise?: ReturnType<typeof fetchRecordingsByEpisodeIds> | null;
+}) {
+  const episodeIds = episodes.map((episode) => episode.id);
+  const { recordings, fetchErrorMessage } =
+    await (recordingResultPromise ?? fetchRecordingsByEpisodeIds(episodeIds));
+  const episodeNumberById = new Map(
+    episodes.map((episode) => [episode.id, getEpisodeNumber(episode)])
+  );
+  const displayedReaderCards = buildReaderCards(recordings, episodeNumberById).map(
+    (reader, index) => ({
+      ...reader,
+      rank: index + 1,
+    })
+  );
+  const readerCardLikeSnapshotMap = await fetchReaderCardLikeSnapshotMap({
+    supabase: adminSupabase,
+    seriesId,
+    readerKeys: displayedReaderCards.map((reader) => reader.readerKey),
+    currentUserId,
+  });
+  const workHref = (href: string) => localizePath(href, locale);
+
+  return (
+    <>
+      {fetchErrorMessage ? (
+        <div className="rounded-[20px] border border-black/10 bg-neutral-100 p-4 text-sm leading-7 text-neutral-700">
+          {fetchErrorMessage}
+        </div>
+      ) : null}
+
+      {displayedReaderCards.length === 0 ? (
+        <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-5 text-sm leading-7 text-neutral-600">
+          まだ公開中の朗読がない。
+        </div>
+      ) : (
+        displayedReaderCards.map((reader) => {
+          const isSelected =
+            selectedReaderKey === reader.readerKey ||
+            selectedReaderName === reader.name;
+
+          return (
+            <div
+              key={reader.readerKey}
+              data-reader-card
+              data-reader-key={reader.readerKey}
+              data-reader-name={reader.name}
+              className={[
+                "rounded-[20px] border p-4",
+                isSelected
+                  ? "border-sky-200 bg-sky-50/60"
+                  : "border-black/10 bg-neutral-50",
+              ].join(" ")}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-semibold text-black">
+                      #{reader.rank}
+                    </span>
+
+                    <Link
+                      href={workHref(
+                        buildReaderAuthorHref(reader.readerKey, reader.name)
+                      )}
+                      className="text-base font-semibold text-black transition hover:text-neutral-700"
+                    >
+                      {reader.name}
+                    </Link>
+
+                    <ReaderCardLikeButton
+                      seriesId={seriesId}
+                      readerKey={reader.readerKey}
+                      initialLikeCount={
+                        readerCardLikeSnapshotMap.get(reader.readerKey)?.likeCount ?? 0
+                      }
+                      initialIsLiked={
+                        readerCardLikeSnapshotMap.get(reader.readerKey)?.isLiked ?? false
+                      }
+                      loginHref={loginHref}
+                    />
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {reader.tags.length > 0 ? (
+                      reader.tags.map((tag) => (
+                        <span key={tag} className="text-sm text-neutral-600">
+                          {tag}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-sm text-neutral-500">タグ未設定</span>
+                    )}
+                  </div>
+                </div>
+
+                <ReaderCardControls
+                  seriesId={seriesId}
+                  readerKey={reader.readerKey}
+                  readerName={reader.name}
+                  isSelected={isSelected}
+                  demoAudioUrl={reader.demoAudioUrl}
+                  currentTab="readers"
+                  currentRangeStart={currentRangeStart}
+                />
+              </div>
+
+              <p className="mt-4 text-sm leading-7 text-neutral-600">
+                {reader.description}
+              </p>
+            </div>
+          );
+        })
+      )}
+    </>
+  );
+}
+
 function RelatedWorksFallback() {
   return (
     <section className="mt-8 grid gap-4 xl:grid-cols-2" aria-busy="true">
@@ -914,30 +1059,17 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     pickText(selectedReaderKey, selectedReaderName)
   );
 
-  const shouldFetchRecordings =
-    currentTab === "readers" ||
-    requestedReaderSpecified ||
-    recordingPermissionMode === "open";
-
   const episodeIds = episodes.map((episode) => episode.id);
-
-  const { recordings: fetchedRecordings, fetchErrorMessage } = shouldFetchRecordings
-    ? await fetchRecordingsByEpisodeIds(episodeIds)
-    : {
-        recordings: [],
-        fetchErrorMessage: null,
-      };
-
-  const recordings = fetchedRecordings;
-
-  const episodeNumberById = new Map(
-    episodes.map((episode) => [episode.id, getEpisodeNumber(episode)])
-  );
-  const readerCards = buildReaderCards(recordings, episodeNumberById);
+  const selectedReaderRecordingPromise = requestedReaderSpecified
+    ? fetchRecordingsByEpisodeIds(episodeIds)
+    : null;
+  const selectedReaderRecordings = selectedReaderRecordingPromise
+    ? (await selectedReaderRecordingPromise).recordings
+    : [];
 
   const selectedReaderEpisodeIdSet = new Set(
     requestedReaderSpecified
-      ? recordings
+      ? selectedReaderRecordings
           .filter((recording) =>
             doesRecordingMatchRequestedReader(
               recording,
@@ -952,18 +1084,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
   const selectedReaderLabel =
     pickText(selectedReaderName, selectedReaderKey) || "";  
-
-  const displayedReaderCards = readerCards.map((reader, index) => ({
-    ...reader,
-    rank: index + 1,
-  }));
-
-  const readerCardLikeSnapshotMap = await fetchReaderCardLikeSnapshotMap({
-    supabase: adminSupabase,
-    seriesId,
-    readerKeys: displayedReaderCards.map((reader) => reader.readerKey),
-    currentUserId: currentUser?.id ?? null,
-  });  
 
   const seriesTitle = pickText(series.title) || "無題";
   const authorName =
@@ -1286,100 +1406,19 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   hidden={currentTab !== "readers"}
                   className="mt-5 grid gap-3"
                 >
-                  {fetchErrorMessage ? (
-                    <div className="rounded-[20px] border border-black/10 bg-neutral-100 p-4 text-sm leading-7 text-neutral-700">
-                      {fetchErrorMessage}
-                    </div>
-                  ) : null}
-
-                  {displayedReaderCards.length === 0 ? (
-                    <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-5 text-sm leading-7 text-neutral-600">
-                      まだ公開中の朗読がない。
-                    </div>
-                  ) : (
-                    displayedReaderCards.map((reader) => {
-                      const isSelected =
-                        selectedReaderKey === reader.readerKey ||
-                        selectedReaderName === reader.name;
-
-                      return (
-                        <div
-                          key={reader.readerKey}
-                          data-reader-card
-                          data-reader-key={reader.readerKey}
-                          data-reader-name={reader.name}
-                          className={[
-                            "rounded-[20px] border p-4",
-                            isSelected
-                              ? "border-sky-200 bg-sky-50/60"
-                              : "border-black/10 bg-neutral-50",
-                          ].join(" ")}
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-semibold text-black">
-                                  #{reader.rank}
-                                </span>
-
-                                <Link
-                                  href={workHref(buildReaderAuthorHref(reader.readerKey, reader.name))}
-                                  className="text-base font-semibold text-black transition hover:text-neutral-700"
-                                >
-                                  {reader.name}
-                                </Link>
-
-                                <ReaderCardLikeButton
-                                  seriesId={seriesId}
-                                  readerKey={reader.readerKey}
-                                  initialLikeCount={
-                                    readerCardLikeSnapshotMap.get(reader.readerKey)
-                                      ?.likeCount ?? 0
-                                  }
-                                  initialIsLiked={
-                                    readerCardLikeSnapshotMap.get(reader.readerKey)
-                                      ?.isLiked ?? false
-                                  }
-                                  loginHref={loginHref}
-                                />
-                              </div>
-
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {reader.tags.length > 0 ? (
-                                  reader.tags.map((tag) => (
-                                    <span
-                                      key={tag}
-                                      className="text-sm text-neutral-600"
-                                    >
-                                      {tag}
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span className="text-sm text-neutral-500">
-                                    タグ未設定
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <ReaderCardControls
-                              seriesId={seriesId}
-                              readerKey={reader.readerKey}
-                              readerName={reader.name}
-                              isSelected={isSelected}
-                              demoAudioUrl={reader.demoAudioUrl}
-                              currentTab="readers"
-                              currentRangeStart={currentRangeStart}
-                            />
-                          </div>
-
-                          <p className="mt-4 text-sm leading-7 text-neutral-600">
-                            {reader.description}
-                          </p>
-                        </div>
-                      );
-                    })
-                  )}
+                  <Suspense fallback={<ReaderTabFallback />}>
+                    <ReaderTabContent
+                      seriesId={seriesId}
+                      episodes={episodes}
+                      selectedReaderKey={selectedReaderKey}
+                      selectedReaderName={selectedReaderName}
+                      currentRangeStart={currentRangeStart}
+                      currentUserId={currentUser?.id ?? null}
+                      locale={locale}
+                      loginHref={loginHref}
+                      recordingResultPromise={selectedReaderRecordingPromise}
+                    />
+                  </Suspense>
                 </div>
               </WorkInstantTabs>
             </section>
