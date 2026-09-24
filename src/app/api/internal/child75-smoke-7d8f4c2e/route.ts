@@ -60,67 +60,77 @@ export async function GET() {
       }
     : { status: 200, body: { error: "unexpectedly_prepared" } };
 
-  const results = [];
-  for (const item of cases) {
-    const request = new Request("https://preview.invalid/api/episode-translations/generate", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        episodeId: item.episodeId,
-        sourceLanguage: item.sourceLanguage,
-        targetLanguage: item.targetLanguage,
-      }),
-    });
-    const preparedResult = await prepareEpisodeTranslationGeneration(request);
-    if (preparedResult.response) {
-      results.push({
-        label: item.label,
-        ok: false,
-        stage: "prepare",
-        status: preparedResult.response.status,
-        body: await preparedResult.response.clone().json().catch(() => null),
-      });
-      continue;
-    }
+  const results = await Promise.all(
+    cases.map(async (item) => {
+      const request = new Request(
+        "https://preview.invalid/api/episode-translations/generate",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            episodeId: item.episodeId,
+            sourceLanguage: item.sourceLanguage,
+            targetLanguage: item.targetLanguage,
+          }),
+        }
+      );
+      const preparedResult = await prepareEpisodeTranslationGeneration(request);
+      if (preparedResult.response) {
+        return {
+          label: item.label,
+          ok: false,
+          stage: "prepare",
+          status: preparedResult.response.status,
+          body: await preparedResult.response.clone().json().catch(() => null),
+        };
+      }
 
-    const prepared = preparedResult.prepared;
-    try {
-      const translated = await translatePublicEpisodeWithConsistency({
-        apiKey,
-        model: prepared.model,
-        workTitle: pickText(prepared.access.series.title) || "Untitled",
-        episodeTitle:
-          pickText(prepared.access.episode.title, prepared.access.episode["episode_title"]) ||
-          `Episode ${prepared.access.episodeNumber}`,
-        sourceLanguage: prepared.sourceLanguage,
-        targetLanguage: prepared.targetLanguage,
-        segments: prepared.source.segments.map((segment) => ({
-          id: segment.id,
-          text: segment.translationInput,
-        })),
-        consistency: prepared.consistency,
-        learningPreference: prepared.learningPreference,
-      });
-      results.push({
-        label: item.label,
-        ok: true,
-        sourceChars: prepared.sourceChars,
-        segmentCount: prepared.source.segments.length,
-        translatedSegments: translated.segments.length,
-        batchCount: translated.batchCount,
-        retryCount: translated.retryCount,
-        inputTokens: translated.inputTokens,
-        outputTokens: translated.outputTokens,
-      });
-    } catch (error) {
-      results.push({
-        label: item.label,
-        ok: false,
-        stage: "translate",
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
+      const prepared = preparedResult.prepared;
+      try {
+        const translated = await translatePublicEpisodeWithConsistency({
+          apiKey,
+          model: prepared.model,
+          workTitle: pickText(prepared.access.series.title) || "Untitled",
+          episodeTitle:
+            pickText(
+              prepared.access.episode.title,
+              prepared.access.episode["episode_title"]
+            ) || `Episode ${prepared.access.episodeNumber}`,
+          sourceLanguage: prepared.sourceLanguage,
+          targetLanguage: prepared.targetLanguage,
+          segments: prepared.source.segments.map((segment) => ({
+            id: segment.id,
+            text: segment.translationInput,
+          })),
+          consistency: prepared.consistency,
+          learningPreference: prepared.learningPreference,
+        });
+        return {
+          label: item.label,
+          ok: true,
+          sourceChars: prepared.sourceChars,
+          segmentCount: prepared.source.segments.length,
+          translatedSegments: translated.segments.length,
+          batchCount: translated.batchCount,
+          retryCount: translated.retryCount,
+          inputTokens: translated.inputTokens,
+          outputTokens: translated.outputTokens,
+        };
+      } catch (error) {
+        return {
+          label: item.label,
+          ok: false,
+          stage: "translate",
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    })
+  );
+
+  console.log(
+    "CHILD75_TRANSLATION_SMOKE",
+    JSON.stringify({ closedPermissionCheck, results })
+  );
 
   return NextResponse.json({
     ok:
