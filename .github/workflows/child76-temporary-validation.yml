@@ -35,6 +35,8 @@ jobs:
           src/app/works/[seriesId]/page.tsx
           src/app/write/page.tsx
           src/app/write/series/[seriesId]/page.tsx
+          src/features/comment/DeferredEpisodeCommentSection.tsx
+          src/features/playback/WebSpeechEpisodePlayback.tsx
           src/lib/publicRead.ts
           src/lib/translation/executeEpisodeTranslationGeneration.ts
           src/lib/translation/prepareEpisodeTranslationGeneration.ts
