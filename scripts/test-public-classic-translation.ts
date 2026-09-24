@@ -322,9 +322,9 @@ function testPublicDomainRepartition() {
     "repartitioned chapters must stay under the Public Domain hard limit"
   );
   assert.equal(
-    result.map((chapter) => chapter.body).join("\n\n"),
+    result.map((chapter) => chapter.body).join(""),
     body,
-    "repartition must preserve source text exactly for paragraph-safe input"
+    "repartition must preserve source text byte-for-byte"
   );
 }
 
