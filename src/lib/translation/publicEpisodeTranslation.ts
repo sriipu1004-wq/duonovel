@@ -19,8 +19,8 @@ import type {
 
 const REQUEST_TIMEOUT_MS = 60_000;
 export const MAX_AUTO_GLOSSARY_CANDIDATES = 12;
-export const PUBLIC_TRANSLATION_MAX_BATCH_SOURCE_CHARS = 6_000;
-export const PUBLIC_TRANSLATION_MAX_BATCH_SEGMENTS = 120;
+export const PUBLIC_TRANSLATION_MAX_BATCH_SOURCE_CHARS = 3_000;
+export const PUBLIC_TRANSLATION_MAX_BATCH_SEGMENTS = 60;
 const AUTO_GLOSSARY_TERM_TYPES = [
   "character",
   "person",
@@ -146,7 +146,7 @@ export function validatePublicTranslationOutput(args: {
     throw new OpenAITranslationError("対訳の文数が原文と一致しません。", 502, true);
   }
   const result = expectedIds.map((id) => String(record[id] ?? "").trim());
-  if (result.some((value) => !value || !/[\p{L}\p{N}]/u.test(value))) {
+  if (result.some((value) => !value || !/\S/u.test(value))) {
     throw new OpenAITranslationError("対訳に内容のない文が含まれました。", 502, true);
   }
   if (

@@ -23,6 +23,10 @@ import {
   READER_DISPLAY_CLAUSE_MAX_LOOKAHEAD_CHARS,
 } from "../src/lib/recording/humanTimingShared";
 import { preprocessNemoBodyToParagraphs } from "../src/lib/recording/nemoTextPreprocess";
+import {
+  PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS,
+  repartitionPreparedChapters,
+} from "./public-domain/core";
 
 // Public-domain fixture from Natsume Soseki's Meian, the production classic
 // that retained a failed EN translation row from 2026-08-21.
@@ -140,6 +144,30 @@ function testLongClauseSegmentation() {
     1,
     "short comma sentences must remain intact"
   );
+
+  const aliceSentence =
+    "Alice had peeped into the book her sister was reading, but it had no pictures or conversations in it, “and what is the use of a book,” thought Alice “without pictures or conversations?”";
+  const aliceSegments = segmentSourceDocument(aliceSentence, "en").segments;
+  assert.ok(
+    aliceSegments.length >= 3,
+    "Alice-style long literary sentences must be split into multiple marker-sized clauses"
+  );
+  assert.ok(
+    aliceSegments.every(
+      (segment) =>
+        segment.sourceText.length <= TRANSLATION_CLAUSE_SPLIT_MAX_LOOKAHEAD_CHARS
+    ),
+    "long bilingual source markers must stay within the display lookahead ceiling"
+  );
+  assert.equal(
+    aliceSegments.some(
+      (segment) =>
+        segment.sourceText.includes("conversations in it") &&
+        segment.sourceText.includes("use of a book")
+    ),
+    false,
+    "separate Alice clauses must not be merged into one oversized bilingual marker"
+  );
 }
 
 function testNonJapaneseHardWrapNormalization() {
@@ -213,6 +241,19 @@ function testReaderDisplayClauseSegmentation() {
     periodClauses.every((part) => part.trim() !== "A."),
     "Reader must not split a period that is immediately followed by a letter"
   );
+}
+
+function testPunctuationOnlyTranslationSegment() {
+  const valid = validatePublicTranslationOutput({
+    text: JSON.stringify({
+      translations: { "segment-1": "……" },
+      glossary_candidates: [],
+    }),
+    segments: [{ id: "segment-1", text: "..." }],
+    sourceLanguage: "en",
+    targetLanguage: "ja",
+  });
+  assert.deepEqual(valid.segments, ["……"]);
 }
 
 function testClassicBatching() {
@@ -293,15 +334,35 @@ function testFailureDoesNotConsumeReservation() {
   );
 }
 
+function testPublicDomainRepartition() {
+  const paragraph = "A".repeat(3900);
+  const body = [paragraph, paragraph, paragraph].join("\n\n");
+  const result = repartitionPreparedChapters([
+    { number: 1, title: "Chapter I", body, characterCount: body.length },
+  ]);
+  assert.ok(result.length >= 2, "oversized chapters must be repartitioned");
+  assert.ok(
+    result.every((chapter) => chapter.characterCount <= PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS),
+    "repartitioned chapters must stay under the Public Domain hard limit"
+  );
+  assert.equal(
+    result.map((chapter) => chapter.body).join(""),
+    body,
+    "repartition must preserve source text byte-for-byte"
+  );
+}
+
 function main() {
   testClassicNormalization();
   testClassicResponseParsing();
   testClassicBatching();
+  testPunctuationOnlyTranslationSegment();
   testLongClauseSegmentation();
   testNonJapaneseHardWrapNormalization();
   testReaderDisplayClauseSegmentation();
   testVerifiedPublicDomainLongSourceLimit();
   testFailureDoesNotConsumeReservation();
+  testPublicDomainRepartition();
   console.log(
     "PASS: public classic normalization, structured response parsing, bounded batching, verified Public Domain long-source limit, and failure reservation release"
   );

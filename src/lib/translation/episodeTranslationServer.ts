@@ -145,7 +145,14 @@ export function buildEpisodeTranslationSourceHash(
       ? ""
       : "\0variant-v1\0" + JSON.stringify(cacheVariant);
   return createHash("sha256")
-    .update("episode-translation-source-v1\0" + normalized + variant, "utf8")
+    .update(
+      "episode-translation-source-v2\0segment-v" +
+        String(TRANSLATION_SEGMENT_VERSION) +
+        "\0" +
+        normalized +
+        variant,
+      "utf8"
+    )
     .digest("hex");
 }
 

@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 
 export const PUBLIC_DOMAIN_SOURCE_LANGUAGES = ["ja", "en", "ko"] as const;
+
+// Keep imported Public Domain episodes within the same cost/reliability envelope as
+// on-demand translation. Longer source chapters must be split before import.
+export const PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS = 8_000;
+export const PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS = 10_000;
 export type PublicDomainSourceLanguage =
   (typeof PUBLIC_DOMAIN_SOURCE_LANGUAGES)[number];
 
@@ -473,13 +478,17 @@ export function validateManifest(value: unknown): ManifestValidationResult {
       Number(maxCharacters) < 5_000 ||
       Number(maxCharacters) > 40_000
     ) {
-      errors.push(
-        "chapter_split.max_characters must be an integer from 5000 to 40000"
-      );
+      errors.push("chapter_split.max_characters must be an integer from 5000 to 40000");
     } else {
+      const configuredMax = Number(maxCharacters);
+      if (configuredMax > PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS) {
+        warnings.push(
+          `chapter_split.max_characters=${configuredMax} is legacy-sized and will be clamped to ${PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS} during import`
+        );
+      }
       chapterSplit = {
         strategy: "paragraph_chunks",
-        max_characters: Number(maxCharacters),
+        max_characters: configuredMax,
       };
     }
   } else {
@@ -789,7 +798,10 @@ export function splitChapters(
   }
 
   if (manifest.chapter_split.strategy === "paragraph_chunks") {
-    const maxCharacters = manifest.chapter_split.max_characters;
+    const maxCharacters = Math.min(
+      manifest.chapter_split.max_characters,
+      PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS
+    );
     const paragraphs = body
       .split(/\n\s*\n+/u)
       .map((paragraph) => paragraph.trim())
@@ -865,7 +877,7 @@ export function splitChapters(
   const keepPrefix =
     manifest.chapter_split.strategy === "heading_regex" &&
     manifest.chapter_split.drop_prefix_before_first_heading !== true;
-  return headings.map((heading, index) => {
+  const semanticChapters = headings.map((heading, index) => {
     const next = headings[index + 1];
     const content = lines
       .slice(heading.index + 1, next ? next.index : lines.length)
@@ -875,13 +887,152 @@ export function splitChapters(
       index === 0 && prefix && keepPrefix
         ? `${prefix}\n\n${content}`.trim()
         : content;
-    return {
-      number: index + 1,
-      title: heading.title,
-      body: chapterBody,
-      characterCount: chapterBody.length,
-    };
+    return { title: heading.title, body: chapterBody };
   });
+
+  // Preserve semantic headings where possible, but never let a naturally long
+  // chapter bypass the translation-sized episode envelope.
+  const chapters: PreparedChapter[] = [];
+  for (const semantic of semanticChapters) {
+    const pieces =
+      semantic.body.length <= PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS
+        ? [semantic.body]
+        : splitChapters(semantic.body, {
+            title: semantic.title,
+            chapter_split: {
+              strategy: "paragraph_chunks",
+              max_characters: PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS,
+            },
+          }).map((chapter) => chapter.body);
+    for (const [pieceIndex, piece] of pieces.entries()) {
+      chapters.push({
+        number: chapters.length + 1,
+        title:
+          pieces.length === 1
+            ? semantic.title
+            : `${semantic.title} — Part ${pieceIndex + 1}`,
+        body: piece,
+        characterCount: piece.length,
+      });
+    }
+  }
+  return chapters;
+}
+
+export function canonicalizePublicDomainText(text: string): string {
+  return text.replace(/\r\n?/g, "\n").trim();
+}
+
+export function publicDomainTextDigest(text: string): string {
+  return createHash("sha256")
+    .update(text, "utf8")
+    .digest("hex");
+}
+
+function findLosslessEpisodeCut(
+  body: string,
+  start: number,
+  targetCharacters = PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS,
+  maxCharacters = PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS
+): number {
+  const remaining = body.length - start;
+  if (remaining <= maxCharacters) return body.length;
+
+  const target = Math.min(start + targetCharacters, body.length);
+  const hardMax = Math.min(start + maxCharacters, body.length);
+  const minimumNaturalCut = Math.min(
+    target,
+    start + Math.floor(targetCharacters * 0.65)
+  );
+
+  const paragraphBefore = body.lastIndexOf("\n\n", target);
+  if (paragraphBefore >= minimumNaturalCut) return paragraphBefore + 2;
+
+  const paragraphAfter = body.indexOf("\n\n", target);
+  if (paragraphAfter >= target && paragraphAfter + 2 <= hardMax) {
+    return paragraphAfter + 2;
+  }
+
+  const beforeWindow = body.slice(minimumNaturalCut, target);
+  const beforeMatches = Array.from(
+    beforeWindow.matchAll(/[.!?。！？]["'”’」』）】］»]?\s*/gu)
+  );
+  const lastBefore = beforeMatches[beforeMatches.length - 1];
+  if (lastBefore?.index !== undefined) {
+    return minimumNaturalCut + lastBefore.index + lastBefore[0].length;
+  }
+
+  const afterWindow = body.slice(target, hardMax);
+  const afterMatch = afterWindow.match(/[.!?。！？]["'”’」』）】］»]?\s*/u);
+  if (afterMatch?.index !== undefined) {
+    return target + afterMatch.index + afterMatch[0].length;
+  }
+
+  return target;
+}
+
+export function splitPublicDomainEpisodeLosslessly(
+  body: string
+): string[] {
+  if (body.length <= PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS) return [body];
+
+  const pieces: string[] = [];
+  let offset = 0;
+  while (offset < body.length) {
+    const end = findLosslessEpisodeCut(body, offset);
+    if (end <= offset || end - offset > PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS) {
+      throw new Error("CHAPTER_REPARTITION_LIMIT: could not find a safe bounded cut");
+    }
+    pieces.push(body.slice(offset, end));
+    offset = end;
+  }
+  if (pieces.join("") !== body) {
+    throw new Error("CHAPTER_REPARTITION_TEXT_MISMATCH: repartition changed source text");
+  }
+  return pieces;
+}
+
+export function validateChapterRepartition(args: {
+  before: string[];
+  after: PreparedChapter[];
+}): void {
+  const beforeText = args.before.join("");
+  const afterText = args.after.map((chapter) => chapter.body).join("");
+  if (publicDomainTextDigest(beforeText) !== publicDomainTextDigest(afterText)) {
+    throw new Error("CHAPTER_REPARTITION_TEXT_MISMATCH: repartition changed source text");
+  }
+  if (
+    args.after.some(
+      (chapter) => chapter.characterCount > PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS
+    )
+  ) {
+    throw new Error("CHAPTER_REPARTITION_LIMIT: repartition produced an oversized episode");
+  }
+}
+
+export function repartitionPreparedChapters(
+  chapters: PreparedChapter[]
+): PreparedChapter[] {
+  const repartitioned: PreparedChapter[] = [];
+  for (const chapter of chapters) {
+    const pieces = splitPublicDomainEpisodeLosslessly(chapter.body);
+    for (const [pieceIndex, body] of pieces.entries()) {
+      repartitioned.push({
+        number: repartitioned.length + 1,
+        title:
+          pieces.length === 1
+            ? chapter.title
+            : `${chapter.title} — Part ${pieceIndex + 1}`,
+        body,
+        characterCount: body.length,
+      });
+    }
+  }
+  validateChapterRepartition({
+    before: chapters.map((chapter) => chapter.body),
+    after: repartitioned,
+  });
+  return repartitioned;
 }
 
 export function validateChapters(chapters: PreparedChapter[]): ChapterValidation {
@@ -910,8 +1061,21 @@ export function validateChapters(chapters: PreparedChapter[]): ChapterValidation
       );
     }
   }
-  if (chapters.some((chapter) => chapter.characterCount > 120_000)) {
-    warnings.push("CHAPTER_VERY_LONG: a chapter exceeds 120,000 characters");
+  const oversized = chapters.filter(
+    (chapter) => chapter.characterCount > PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS
+  );
+  if (oversized.length > 0) {
+    fatals.push(
+      `CHAPTER_TRANSLATION_LIMIT: ${oversized.length} chapter(s) exceed ${PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS} characters; split them before import`
+    );
+  } else if (
+    chapters.some(
+      (chapter) => chapter.characterCount > PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS
+    )
+  ) {
+    warnings.push(
+      `CHAPTER_TRANSLATION_TARGET: one or more chapters exceed the ${PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS}-character target`
+    );
   }
   return { fatals, warnings };
 }
