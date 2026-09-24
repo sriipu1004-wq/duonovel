@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import {
   PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS,
-  canonicalizePublicDomainText,
   repartitionPreparedChapters,
 } from "./core";
 import { loadLocalEnvironment } from "./runtime";
@@ -24,7 +23,7 @@ type PublicDomainEffectSettings = {
 };
 
 function digest(text: string): string {
-  return createHash("sha256").update(text.replace(/\r\n?/g, "\n").trim()).digest("hex");
+  return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
 async function main() {
@@ -61,19 +60,16 @@ async function main() {
     works += 1;
     oldEpisodes += episodes.length;
     const repartitioned = repartitionPreparedChapters(
-      episodes.map((episode, index) => {
-        const body = canonicalizePublicDomainText(episode.body);
-        return {
-          number: index + 1,
-          title: episode.title,
-          body,
-          characterCount: body.length,
-        };
-      })
+      episodes.map((episode, index) => ({
+        number: index + 1,
+        title: episode.title,
+        body: episode.body,
+        characterCount: episode.body.length,
+      }))
     );
     newEpisodes += repartitioned.length;
-    const before = episodes.map((episode) => episode.body.replace(/\r\n?/g, "\n").trim()).join("\n\n");
-    const after = repartitioned.map((episode) => episode.body).join("\n\n");
+    const before = episodes.map((episode) => episode.body).join("");
+    const after = repartitioned.map((episode) => episode.body).join("");
     const hashMatch = digest(before) === digest(after);
     if (!hashMatch) mismatches += 1;
     const maxAfter = Math.max(...repartitioned.map((episode) => episode.characterCount));
