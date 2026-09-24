@@ -917,7 +917,9 @@ export function canonicalizePublicDomainText(text: string): string {
 }
 
 export function publicDomainTextDigest(text: string): string {
-  return sha256Text(canonicalizePublicDomainText(text));
+  return createHash("sha256")
+    .update(canonicalizePublicDomainText(text), "utf8")
+    .digest("hex");
 }
 
 export function validateChapterRepartition(args: {
