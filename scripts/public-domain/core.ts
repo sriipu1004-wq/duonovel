@@ -940,6 +940,18 @@ export function validateChapterRepartition(args: {
   }
 }
 
+export function repartitionStoredEpisodes(
+  episodes: Array<{ title: string; body: string }>
+): PreparedChapter[] {
+  const chapters = episodes.map((episode, index) => ({
+    number: index + 1,
+    title: episode.title,
+    body: canonicalizePublicDomainText(episode.body),
+    characterCount: canonicalizePublicDomainText(episode.body).length,
+  }));
+  return repartitionPreparedChapters(chapters);
+}
+
 export function repartitionPreparedChapters(
   chapters: PreparedChapter[]
 ): PreparedChapter[] {
