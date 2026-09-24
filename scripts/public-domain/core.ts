@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 
 export const PUBLIC_DOMAIN_SOURCE_LANGUAGES = ["ja", "en", "ko"] as const;
+
+// Keep imported Public Domain episodes within the same cost/reliability envelope as
+// on-demand translation. Longer source chapters must be split before import.
+export const PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS = 8_000;
+export const PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS = 10_000;
 export type PublicDomainSourceLanguage =
   (typeof PUBLIC_DOMAIN_SOURCE_LANGUAGES)[number];
 
@@ -471,10 +476,10 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     if (
       !Number.isInteger(maxCharacters) ||
       Number(maxCharacters) < 5_000 ||
-      Number(maxCharacters) > 40_000
+      Number(maxCharacters) > PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS
     ) {
       errors.push(
-        "chapter_split.max_characters must be an integer from 5000 to 40000"
+        `chapter_split.max_characters must be an integer from 5000 to ${PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS}`
       );
     } else {
       chapterSplit = {
@@ -910,8 +915,21 @@ export function validateChapters(chapters: PreparedChapter[]): ChapterValidation
       );
     }
   }
-  if (chapters.some((chapter) => chapter.characterCount > 120_000)) {
-    warnings.push("CHAPTER_VERY_LONG: a chapter exceeds 120,000 characters");
+  const oversized = chapters.filter(
+    (chapter) => chapter.characterCount > PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS
+  );
+  if (oversized.length > 0) {
+    fatals.push(
+      `CHAPTER_TRANSLATION_LIMIT: ${oversized.length} chapter(s) exceed ${PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS} characters; split them before import`
+    );
+  } else if (
+    chapters.some(
+      (chapter) => chapter.characterCount > PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS
+    )
+  ) {
+    warnings.push(
+      `CHAPTER_TRANSLATION_TARGET: one or more chapters exceed the ${PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS}-character target`
+    );
   }
   return { fatals, warnings };
 }
