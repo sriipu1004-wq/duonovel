@@ -5,6 +5,7 @@ console.log(`Public Domain manifests checked: ${result.checked}`);
 console.log(
   `Approved: ${result.approvedIds.length}, imported: ${result.importedIds.length}, pending: ${result.pendingIds.length}`
 );
+console.log(`Imported manifest IDs: ${result.importedIds.join(",")}`);
 const approvedNotImported = result.approvedIds.filter(
   (id) => !result.importedIds.includes(id)
 );
