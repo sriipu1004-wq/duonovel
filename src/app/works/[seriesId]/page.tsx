@@ -252,35 +252,372 @@ function buildAuthorHref(authorId: string): string {
   return `/authors/${encodeURIComponent(authorId)}`;
 }
 
+function getRecordingPermissionLabel(
+  mode: RecordingPermissionMode | null | undefined
+): string {
+  if (mode === "open") return "朗読許可";
+  return "朗読不可";
+}
 
-function RelatedWorksFallback() {
+function getRecordingPermissionDescription(
+  mode: RecordingPermissionMode | null | undefined
+): string {
+  if (mode === "open") {
+    return "朗読制作を許可している。";
+  }
+  return "第三者朗読の募集は行っていない。";
+}
+
+function getRecordingPermissionBadgeClass(
+  mode: RecordingPermissionMode | null | undefined
+): string {
+  if (mode === "open") {
+    return "border-sky-200 bg-sky-50 text-black";
+  }
+  return "border-black/10 bg-white text-neutral-600";
+}
+
+function resolveRecordingPermissionMode(value: unknown): RecordingPermissionMode {
+  if (value === "open") return "open";
+  return "closed";
+}
+
+const WORK_PAGE_EPISODE_SELECT = `
+  id,
+  series_id,
+  episode_number,
+  title,
+  posting_status,
+  scheduled_for,
+  posted_at,
+  last_edited_at
+`;
+
+async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
+  const narrow = await supabase
+    .from("episodes")
+    .select(WORK_PAGE_EPISODE_SELECT)
+    .eq("series_id", seriesId);
+
+  if (!narrow.error) {
+    return (narrow.data ?? []) as unknown as EpisodeRow[];
+  }
+
+  const fallback = await supabase
+    .from("episodes")
+    .select("*")
+    .eq("series_id", seriesId);
+  if (!fallback.error) {
+    return (fallback.data ?? []) as EpisodeRow[];
+  }
+  throw new Error(`episodes の取得に失敗: ${fallback.error.message}`);
+}
+
+async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
+  recordings: RecordingRow[];
+  fetchErrorMessage: string | null;
+}> {
+  if (episodeIds.length === 0) {
+    return {
+      recordings: [],
+      fetchErrorMessage: null,
+    };
+  }
+
+  const firstTry = await adminSupabase
+    .from("recordings")
+    .select(PUBLIC_WORK_RECORDING_SELECT)
+    .in("episode_id", episodeIds)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
+
+  if (!firstTry.error) {
+    return {
+      recordings: ((firstTry.data ?? []) as RecordingRow[])
+        .filter(isPublishedHumanRecording)
+        .map((recording) => ({
+          ...recording,
+          audio_storage_path: buildHumanRecordingPlaybackHref(recording.id),
+        })),
+      fetchErrorMessage: null,
+    };
+  }
+
+  const fallback = await adminSupabase
+    .from("recordings")
+    .select("*")
+    .in("episode_id", episodeIds)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
+
+  if (!fallback.error) {
+    return {
+      recordings: ((fallback.data ?? []) as RecordingRow[])
+        .filter(isPublishedHumanRecording)
+        .map((recording) => ({
+          ...recording,
+          audio_storage_path: buildHumanRecordingPlaybackHref(recording.id),
+        })),
+      fetchErrorMessage: null,
+    };
+  }
+
+  return {
+    recordings: [],
+    fetchErrorMessage: `recordings の取得に失敗: ${fallback.error.message}`,
+  };
+}
+
+function getRecordingReaderName(recording: RecordingRow): string {
+  return pickText(recording.reader_name) || "名称未設定";
+}
+
+function getRecordingReaderKey(recording: RecordingRow): string {
   return (
-    <section className="mt-8 grid gap-4 xl:grid-cols-2" aria-busy="true">
-      {[0, 1].map((index) => (
-        <div
-          key={index}
-          className="min-h-52 rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
-        >
-          <div className="h-3 w-28 rounded-full bg-neutral-100" />
-          <div className="mt-3 h-6 w-40 rounded-full bg-neutral-100" />
-          <div className="mt-5 h-24 rounded-[20px] bg-neutral-50" />
-        </div>
-      ))}
-    </section>
+    pickText(
+      recording.reader_id,
+      recording.reader_user_id,
+      recording.readerUserId,
+      recording.reader_name,
+      recording.id
+    ) || recording.id
   );
 }
 
-async function RelatedWorksSection({
-  seriesId,
-  authorId,
-  locale,
+function getRecordingAudioStoragePath(recording: RecordingRow): string {
+  return pickText(recording.audio_storage_path, recording.audioStoragePath);
+}
+
+function doesRecordingMatchRequestedReader(
+  recording: RecordingRow,
+  requestedReaderKey?: string,
+  requestedReaderName?: string
+): boolean {
+  if (!requestedReaderKey && !requestedReaderName) return false;
+  const readerKey = getRecordingReaderKey(recording);
+  const readerName = getRecordingReaderName(recording);
+  return Boolean(
+    (requestedReaderKey &&
+      (readerKey === requestedReaderKey || readerName === requestedReaderKey)) ||
+      (requestedReaderName && readerName === requestedReaderName)
+  );
+}
+
+function getRecordingEpisodeId(recording: RecordingRow): string {
+  return pickText(recording.episode_id, recording.episodeId);
+}
+
+function normalizeRequestedReaderKey(
+  readerKey?: string,
+  _readerName?: string
+): string {
+  return pickText(readerKey);
+}
+
+function buildReaderCards(
+  recordings: RecordingRow[],
+  episodeNumberById: Map<string, number>
+): ReaderCard[] {
+  const grouped = new Map<
+    string,
+    {
+      key: string;
+      name: string;
+      description: string;
+      totalLikes: number;
+      totalPlays: number;
+      recordingCount: number;
+      allowDownload: boolean;
+      tagMap: Map<string, number>;
+      demoAudioUrl: string;
+      demoEpisodeNumber: number;
+    }
+  >();
+
+  for (const recording of recordings) {
+    const name = getRecordingReaderName(recording);
+    const key = getRecordingReaderKey(recording);
+    const audioStoragePath = getRecordingAudioStoragePath(recording);
+    const episodeId = getRecordingEpisodeId(recording);
+    const episodeNumber =
+      episodeNumberById.get(episodeId) ?? Number.MAX_SAFE_INTEGER;
+
+    const existing = grouped.get(key) ?? {
+      key,
+      name,
+      description: pickText(recording.description, recording.reader_comment) || "",
+      totalLikes: 0,
+      totalPlays: 0,
+      recordingCount: 0,
+      allowDownload: false,
+      tagMap: new Map<string, number>(),
+      demoAudioUrl: "",
+      demoEpisodeNumber: Number.MAX_SAFE_INTEGER,
+    };
+
+    existing.totalLikes += getRecordingLikes(recording);
+    existing.totalPlays += getRecordingPlays(recording);
+    existing.recordingCount += 1;
+    existing.allowDownload = existing.allowDownload || recording.allow_download === true;
+
+    const tags = uniqueTags(parseTags(recording.tags));
+    for (const tag of tags) {
+      existing.tagMap.set(tag, (existing.tagMap.get(tag) ?? 0) + 1);
+    }
+
+    if (!existing.description) {
+      existing.description = pickText(recording.description, recording.reader_comment) || "";
+    }
+
+    if (
+      audioStoragePath &&
+      episodeNumber < existing.demoEpisodeNumber
+    ) {
+      existing.demoAudioUrl = audioStoragePath;
+      existing.demoEpisodeNumber = episodeNumber;
+    }
+
+    grouped.set(key, existing);
+  }
+
+  return Array.from(grouped.values())
+    .sort((a, b) => {
+      if (b.totalLikes !== a.totalLikes) return b.totalLikes - a.totalLikes;
+      if (b.totalPlays !== a.totalPlays) return b.totalPlays - a.totalPlays;
+      return a.name.localeCompare(b.name, "ja");
+    })
+    .map((reader, index) => ({
+      readerKey: reader.key,
+      name: reader.name,
+      rank: index + 1,
+      tags: Array.from(reader.tagMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([tag]) => tag),
+      description:
+        reader.description ||
+        `公開朗読 ${reader.recordingCount}件 / いいね ${reader.totalLikes} / 再生 ${reader.totalPlays}`,
+      totalLikes: reader.totalLikes,
+      totalPlays: reader.totalPlays,
+      recordingCount: reader.recordingCount,
+      allowDownload: reader.allowDownload,
+      demoAudioUrl: reader.demoAudioUrl,
+    }));
+}
+
+function formatEpisodeDate(value: string): string {
+  if (!value) return "";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(parsed);
+}
+
+function InfoActionRow({
+  label,
+  value,
+  disabled,
 }: {
-  seriesId: string;
-  authorId: string | null;
-  locale: Awaited<ReturnType<typeof getUiLocale>>;
+  label: string;
+  value: string;
+  disabled?: boolean;
 }) {
-  const allPublicBaseWorks = await getCachedPublicBaseWorkCards();
-  const seriesTitle = pickText(series.title) || "無題";
+  return (
+    <div
+      className={[
+        "flex items-center justify-between rounded-2xl border px-4 py-3 text-sm",
+        disabled
+          ? "border-black/10 bg-neutral-50 text-neutral-500"
+          : "border-black/10 bg-white text-neutral-800",
+      ].join(" ")}
+    >
+      <span className="text-neutral-600">{label}</span>
+      <span className="font-medium text-black">{value}</span>
+    </div>
+  );
+}
+
+function buildRangeOptions(total: number) {
+  const options: Array<{ start: number; end: number; label: string }> = [];
+
+  for (let start = 1; start <= total; start += 50) {
+    const end = Math.min(start + 49, total);
+    options.push({
+      start,
+      end,
+      label: `${start}話-${end}話`,
+    });
+  }
+
+  return options;
+}
+
+export async function generateMetadata({
+  params,
+}: Pick<PageProps, "params">): Promise<Metadata> {
+  const { seriesId } = await params;
+
+  if (!isUuid(seriesId)) {
+    return {
+      title: "作品が見つかりません | LIB read",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("series")
+      .select("*")
+      .eq("id", seriesId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return {
+        title: "作品が見つかりません | LIB read",
+        robots: {
+          index: false,
+          follow: false,
+        },
+      };
+    }
+
+    const series = data as SeriesRow;
+
+    if (getSeriesPublicationStatus(series) !== "public") {
+      return {
+        title: "非公開作品 | LIB read",
+        robots: {
+          index: false,
+          follow: false,
+        },
+      };
+    }
+
+    const publicEpisodes = sortEpisodes(
+      (await fetchEpisodesBySeriesId(seriesId)).filter((episode) =>
+        isEpisodePubliclyVisible(episode)
+      )
+    );
+
+    if (publicEpisodes.length === 0) {
+      return {
+        title: "公開話なし | LIB read",
+        robots: {
+          index: false,
+          follow: false,
+        },
+      };
+    }
+
+    const seriesTitle = pickText(series.title) || "無題";
     const summary = getSeriesSummary(series).trim();
     const genreLabel = getSeriesGenres(series).slice(0, 2).join("・");
     const publicDomain = readPublicDomainMetadata(
@@ -348,6 +685,129 @@ async function RelatedWorksSection({
       },
     };
   }
+}
+
+
+function RelatedWorksFallback() {
+  return (
+    <section className="mt-8 grid gap-4 xl:grid-cols-2" aria-busy="true">
+      {[0, 1].map((index) => (
+        <div
+          key={index}
+          className="min-h-52 rounded-[24px] border border-black/10 bg-white p-4 sm:p-5"
+        >
+          <div className="h-3 w-28 rounded-full bg-neutral-100" />
+          <div className="mt-3 h-6 w-40 rounded-full bg-neutral-100" />
+          <div className="mt-5 h-24 rounded-[20px] bg-neutral-50" />
+        </div>
+      ))}
+    </section>
+  );
+}
+
+async function RelatedWorksSection({
+  seriesId,
+  authorId,
+  locale,
+}: {
+  seriesId: string;
+  authorId: string | null;
+  locale: Awaited<ReturnType<typeof getUiLocale>>;
+}) {
+  const allPublicBaseWorks = await getCachedPublicBaseWorkCards();
+  const relatedBase: Array<RelatedWorkCard & { sameAuthor: boolean }> =
+    allPublicBaseWorks
+      .filter((item) => item.seriesId !== seriesId)
+      .map((item) => ({
+        seriesId: item.seriesId,
+        title: item.title,
+        summary: item.summary,
+        authorName: item.authorName,
+        authorId: item.authorId,
+        firstEpisodeNumber: item.firstEpisodeNumber,
+        latestPostedLabel: item.latestPostedLabel,
+        tags: item.tags,
+        latestPostedAtValue: item.latestPostedAtValue,
+        sameAuthor: item.authorId !== null && item.authorId === authorId,
+      }));
+
+  const authorOtherWorks = relatedBase
+    .filter((item) => item.sameAuthor)
+    .sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue)
+    .slice(0, 4);
+  const similarWorks = relatedBase
+    .filter((item) => !item.sameAuthor)
+    .sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue)
+    .slice(0, 4);
+  const workHref = (href: string) => localizePath(href, locale);
+
+  const renderWorkCard = (work: RelatedWorkCard) => (
+    <PublicWorkBoardCard
+      key={work.seriesId}
+      title={work.title}
+      workHref={workHref(`/works/${work.seriesId}`)}
+      authorName={work.authorName}
+      authorHref={work.authorId ? workHref(buildAuthorHref(work.authorId)) : undefined}
+      latestPostedLabel={work.latestPostedLabel}
+      summary={work.summary}
+      firstReadHref={
+        work.firstEpisodeNumber
+          ? workHref(`/read/${work.seriesId}/${work.firstEpisodeNumber}`)
+          : undefined
+      }
+      tags={work.tags}
+    />
+  );
+
+  return (
+    <section className="mt-8 grid gap-4 xl:grid-cols-2">
+      <div className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] tracking-[0.18em] text-neutral-500">
+              AUTHOR OTHER WORKS
+            </p>
+            <h2 className="mt-2 text-lg font-semibold text-black">作者の他作品</h2>
+          </div>
+          <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600">
+            {authorOtherWorks.length}件
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {authorOtherWorks.length === 0 ? (
+            <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
+              まだ他の公開作品はない。
+            </div>
+          ) : (
+            authorOtherWorks.map(renderWorkCard)
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-[24px] border border-black/10 bg-white p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] tracking-[0.18em] text-neutral-500">
+              SIMILAR WORKS
+            </p>
+            <h2 className="mt-2 text-lg font-semibold text-black">類似作品おすすめ</h2>
+          </div>
+          <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600">
+            {similarWorks.length}件
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {similarWorks.length === 0 ? (
+            <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-4 text-sm leading-7 text-neutral-600">
+              まだ候補に出せる公開作品がない。
+            </div>
+          ) : (
+            similarWorks.map(renderWorkCard)
+          )}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 export default async function WorkPage({ params, searchParams }: PageProps) {
@@ -504,32 +964,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     readerKeys: displayedReaderCards.map((reader) => reader.readerKey),
     currentUserId: currentUser?.id ?? null,
   });  
-
-  const relatedBase: Array<RelatedWorkCard & { sameAuthor: boolean }> =
-    allPublicBaseWorks
-      .filter((item) => item.seriesId !== seriesId)
-      .map((item) => ({
-        seriesId: item.seriesId,
-        title: item.title,
-        summary: item.summary,
-        authorName: item.authorName,
-        authorId: item.authorId,
-        firstEpisodeNumber: item.firstEpisodeNumber,
-        latestPostedLabel: item.latestPostedLabel,
-        tags: item.tags,
-        latestPostedAtValue: item.latestPostedAtValue,
-        sameAuthor: item.authorId !== null && item.authorId === authorId,
-      }));
-
-  const authorOtherWorks = relatedBase
-    .filter((item) => item.sameAuthor)
-    .sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue)
-    .slice(0, 4);
-
-  const similarWorks = relatedBase
-    .filter((item) => !item.sameAuthor)
-    .sort((a, b) => b.latestPostedAtValue - a.latestPostedAtValue)
-    .slice(0, 4);
 
   const seriesTitle = pickText(series.title) || "無題";
   const authorName =
