@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
@@ -119,6 +120,31 @@ async function fetchTranslationGlossaryData(
   };
 }
 
+async function DeferredTranslationGlossary({
+  glossaryDataPromise,
+  seriesId,
+  currentUserId,
+  sourceLanguage,
+}: {
+  glossaryDataPromise: ReturnType<typeof fetchTranslationGlossaryData>;
+  seriesId: string;
+  currentUserId: string;
+  sourceLanguage: string;
+}) {
+  const glossaryData = await glossaryDataPromise;
+  return (
+    <SeriesTranslationGlossaryWorkspace
+      seriesId={seriesId}
+      currentUserId={currentUserId}
+      sourceLanguage={sourceLanguage}
+      initialEntries={glossaryData.entries}
+      initialTargets={glossaryData.targets}
+      initialProfiles={glossaryData.profiles}
+      embedded
+    />
+  );
+}
+
 export default async function WriteSeriesEditPage({ params }: PageProps) {
   const { seriesId } = await params;
   const { supabase, user } = await requireOwnedSeries(seriesId, `/write/series/${seriesId}`);
@@ -138,8 +164,8 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
         : null;
   const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
   const sourceLanguage = canonicalSourceLanguage ?? inferSeriesSourceLanguage(series, episodes[0] ? getEpisodeBody(episodes[0]) : null);
-  const glossaryData = canonicalSourceLanguage
-    ? await fetchTranslationGlossaryData(series.id, canonicalSourceLanguage, supabase)
+  const glossaryDataPromise = canonicalSourceLanguage
+    ? fetchTranslationGlossaryData(series.id, canonicalSourceLanguage, supabase)
     : null;
 
   return (
@@ -152,16 +178,17 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
           confirmed={Boolean(canonicalSourceLanguage)}
           embedded
         />
-        {canonicalSourceLanguage && glossaryData ? (
-          <SeriesTranslationGlossaryWorkspace
-            seriesId={series.id}
-            currentUserId={user.id}
-            sourceLanguage={canonicalSourceLanguage}
-            initialEntries={glossaryData.entries}
-            initialTargets={glossaryData.targets}
-            initialProfiles={glossaryData.profiles}
-            embedded
-          />
+        {canonicalSourceLanguage && glossaryDataPromise ? (
+          <Suspense
+            fallback={<div className="mt-4 h-40 rounded-2xl border border-black/10 bg-neutral-50" aria-busy="true" />}
+          >
+            <DeferredTranslationGlossary
+              glossaryDataPromise={glossaryDataPromise}
+              seriesId={series.id}
+              currentUserId={user.id}
+              sourceLanguage={canonicalSourceLanguage}
+            />
+          </Suspense>
         ) : null}
       </SeriesStatusPortal>
       {isAiGenerated && episodes.length > 0 ? (
