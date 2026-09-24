@@ -53,6 +53,9 @@ export function validateAllManifests(): {
   checked: number;
   errors: string[];
   warnings: string[];
+  approvedIds: string[];
+  importedIds: string[];
+  pendingIds: string[];
 } {
   const directory = repoPath(MANIFEST_DIR);
   const files = existsSync(directory)
@@ -62,17 +65,34 @@ export function validateAllManifests(): {
     : [];
   const errors: string[] = [];
   const warnings: string[] = [];
+  const approvedIds: string[] = [];
+  const importedIds: string[] = [];
+  const pendingIds: string[] = [];
   for (const file of files) {
     try {
       const value = JSON.parse(readFileSync(join(directory, file), "utf8")) as unknown;
       const result = validateManifest(value);
       errors.push(...result.errors.map((item) => `${file}: ${item}`));
       warnings.push(...result.warnings.map((item) => `${file}: ${item}`));
+      if (result.manifest) {
+        if (result.manifest.rights_status === "pending") pendingIds.push(result.manifest.id);
+        if (result.manifest.approved && result.manifest.rights_status === "approved") {
+          approvedIds.push(result.manifest.id);
+          if (result.manifest.import_status === "imported") importedIds.push(result.manifest.id);
+        }
+      }
     } catch (error) {
       errors.push(`${file}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  return { checked: files.length, errors, warnings };
+  return {
+    checked: files.length,
+    errors,
+    warnings,
+    approvedIds,
+    importedIds,
+    pendingIds,
+  };
 }
 
 export function preparedArtifactPath(id: string): string {
