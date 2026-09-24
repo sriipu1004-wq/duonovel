@@ -688,6 +688,99 @@ export async function generateMetadata({
 }
 
 
+function TocEpisodeListFallback() {
+  return (
+    <div className="grid gap-3" aria-busy="true">
+      <div className="h-20 rounded-[20px] border border-black/10 bg-neutral-50" />
+      <div className="h-20 rounded-[20px] border border-black/10 bg-neutral-50" />
+      <div className="h-20 rounded-[20px] border border-black/10 bg-neutral-50" />
+    </div>
+  );
+}
+
+async function TocEpisodeListContent({
+  seriesId,
+  episodes,
+  visibleEpisodes,
+  currentRangeStart,
+  selectedReaderKey,
+  selectedReaderName,
+  locale,
+  recordingResultPromise,
+}: {
+  seriesId: string;
+  episodes: EpisodeRow[];
+  visibleEpisodes: EpisodeRow[];
+  currentRangeStart: number;
+  selectedReaderKey: string;
+  selectedReaderName: string;
+  locale: Awaited<ReturnType<typeof getUiLocale>>;
+  recordingResultPromise?: ReturnType<typeof fetchRecordingsByEpisodeIds> | null;
+}) {
+  const requestedReaderSpecified = Boolean(
+    pickText(selectedReaderKey, selectedReaderName)
+  );
+  const selectedReaderRecordings =
+    requestedReaderSpecified && recordingResultPromise
+      ? (await recordingResultPromise).recordings
+      : [];
+  const selectedReaderEpisodeIdSet = new Set(
+    requestedReaderSpecified
+      ? selectedReaderRecordings
+          .filter((recording) =>
+            doesRecordingMatchRequestedReader(
+              recording,
+              selectedReaderKey,
+              selectedReaderName
+            )
+          )
+          .map((recording) => getRecordingEpisodeId(recording))
+          .filter((value) => value.length > 0)
+      : []
+  );
+  const workHref = (href: string) => localizePath(href, locale);
+
+  return (
+    <ContinueReadingEpisodeList
+      seriesId={seriesId}
+      currentRangeStart={currentRangeStart}
+      rangeSize={50}
+      episodeNumbers={episodes.map(getEpisodeNumber)}
+      episodes={visibleEpisodes.map((episode) => {
+        const episodeNumber = getEpisodeNumber(episode);
+        const episodeTitle =
+          pickText(episode.title, episode["episode_title"]) ||
+          `第${episodeNumber}話`;
+        const postedDate = formatEpisodeDate(getEpisodePostedAtValue(episode));
+        const editedDate = formatEpisodeDate(
+          getEpisodeLastEditedAtValue(episode)
+        );
+
+        return {
+          id: episode.id,
+          episodeNumber,
+          episodeTitle,
+          postedDate,
+          editedDate,
+          href: workHref(
+            buildReadHref(
+              seriesId,
+              episodeNumber,
+              selectedReaderKey,
+              selectedReaderName
+            )
+          ),
+          readerAvailability: requestedReaderSpecified
+            ? selectedReaderEpisodeIdSet.has(episode.id)
+              ? "has_recording"
+              : "no_recording"
+            : null,
+        };
+      })}
+    />
+  );
+}
+
 function ReaderTabFallback() {
   return (
     <div className="grid gap-3" aria-busy="true">
@@ -1063,25 +1156,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const selectedReaderRecordingPromise = requestedReaderSpecified
     ? fetchRecordingsByEpisodeIds(episodeIds)
     : null;
-  const selectedReaderRecordings = selectedReaderRecordingPromise
-    ? (await selectedReaderRecordingPromise).recordings
-    : [];
-
-  const selectedReaderEpisodeIdSet = new Set(
-    requestedReaderSpecified
-      ? selectedReaderRecordings
-          .filter((recording) =>
-            doesRecordingMatchRequestedReader(
-              recording,
-              selectedReaderKey,
-              selectedReaderName
-            )
-          )
-          .map((recording) => getRecordingEpisodeId(recording))
-          .filter((value) => value.length > 0)
-      : []
-  );
-
   const selectedReaderLabel =
     pickText(selectedReaderName, selectedReaderKey) || "";  
 
@@ -1359,46 +1433,18 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                       <Link href={workHref("/subscription")} className="shrink-0 font-semibold text-sky-800 underline underline-offset-4">サブスクを見る</Link>
                     </div>
                   ) : null}
-                  <ContinueReadingEpisodeList
-                    seriesId={seriesId}
-                    currentRangeStart={currentRangeStart}
-                    rangeSize={50}
-                    episodeNumbers={episodes.map(getEpisodeNumber)}
-                    episodes={visibleEpisodes.map((episode) => {
-                      const episodeNumber = getEpisodeNumber(episode);
-                      const episodeTitle =
-                        pickText(episode.title, episode["episode_title"]) ||
-                        `第${episodeNumber}話`;
-
-                      const postedDate = formatEpisodeDate(
-                        getEpisodePostedAtValue(episode)
-                      );
-                      const editedDate = formatEpisodeDate(
-                        getEpisodeLastEditedAtValue(episode)
-                      );
-
-                      return {
-                        id: episode.id,
-                        episodeNumber,
-                        episodeTitle,
-                        postedDate,
-                        editedDate,
-                        href: workHref(
-                          buildReadHref(
-                            seriesId,
-                            episodeNumber,
-                            selectedReaderKey,
-                            selectedReaderName
-                          )
-                        ),
-                        readerAvailability: requestedReaderSpecified
-                          ? selectedReaderEpisodeIdSet.has(episode.id)
-                            ? "has_recording"
-                            : "no_recording"
-                          : null,
-                      };
-                    })}
-                  />
+                  <Suspense fallback={<TocEpisodeListFallback />}>
+                    <TocEpisodeListContent
+                      seriesId={seriesId}
+                      episodes={episodes}
+                      visibleEpisodes={visibleEpisodes}
+                      currentRangeStart={currentRangeStart}
+                      selectedReaderKey={selectedReaderKey}
+                      selectedReaderName={selectedReaderName}
+                      locale={locale}
+                      recordingResultPromise={selectedReaderRecordingPromise}
+                    />
+                  </Suspense>
                 </div>
 
                 <div
