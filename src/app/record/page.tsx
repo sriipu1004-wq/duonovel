@@ -1311,10 +1311,15 @@ function RecordCatalogCard({
   );
 }
 
+function readRequestTimeMs(): number {
+  return Date.now();
+}
+
 export default async function RecordPortalPage({ searchParams }: PageProps) {
   const locale = await getUiLocale();
   const copy = getRecordPageCopy(locale);
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const requestTimeMs = readRequestTimeMs();
 
   const supabase = await createClient();
   const {
@@ -1421,10 +1426,10 @@ export default async function RecordPortalPage({ searchParams }: PageProps) {
       const candidate = item.latestTimestamp;
       if (candidate <= 0) return min;
       return min === 0 ? candidate : Math.min(min, candidate);
-    }, 0) || Date.now();
+    }, 0) || requestTimeMs;
 
   const defaultStartInput = formatInputDate(oldestTimestamp);
-  const defaultEndInput = formatInputDate(Date.now());
+  const defaultEndInput = formatInputDate(requestTimeMs);
 
   const selectedStartInput =
     pickText(resolvedSearchParams?.start) || defaultStartInput;
