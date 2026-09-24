@@ -40,6 +40,7 @@ jobs:
           src/lib/publicRead.ts
           src/lib/translation/executeEpisodeTranslationGeneration.ts
           src/lib/translation/prepareEpisodeTranslationGeneration.ts
+          scripts/test-public-recording-selects.ts
       - name: Reader and locale regression
         run: |
           npm run test:reader-mode-unification
