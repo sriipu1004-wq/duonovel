@@ -40,6 +40,26 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "missing_openai_api_key" }, { status: 500 });
   }
 
+  const closedRequest = new Request(
+    "https://preview.invalid/api/episode-translations/generate",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        episodeId: "c42a1401-ca82-44dd-bcd2-bc92429b064a",
+        sourceLanguage: "ja",
+        targetLanguage: "en",
+      }),
+    }
+  );
+  const closedPrepared = await prepareEpisodeTranslationGeneration(closedRequest);
+  const closedPermissionCheck = closedPrepared.response
+    ? {
+        status: closedPrepared.response.status,
+        body: await closedPrepared.response.clone().json().catch(() => null),
+      }
+    : { status: 200, body: { error: "unexpectedly_prepared" } };
+
   const results = [];
   for (const item of cases) {
     const request = new Request("https://preview.invalid/api/episode-translations/generate", {
@@ -103,7 +123,10 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    ok: results.every((result) => result.ok),
+    ok:
+      results.every((result) => result.ok) &&
+      closedPermissionCheck.status === 403,
+    closedPermissionCheck,
     results,
   });
 }
