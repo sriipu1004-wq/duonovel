@@ -912,6 +912,34 @@ export function splitChapters(
   return chapters;
 }
 
+export function canonicalizePublicDomainText(text: string): string {
+  return text.replace(/\r\n?/g, "\n").trim();
+}
+
+export function publicDomainTextDigest(text: string): string {
+  return sha256Text(canonicalizePublicDomainText(text));
+}
+
+export function validateChapterRepartition(args: {
+  before: string[];
+  after: PreparedChapter[];
+}): void {
+  const beforeText = canonicalizePublicDomainText(args.before.join("\n\n"));
+  const afterText = canonicalizePublicDomainText(
+    args.after.map((chapter) => chapter.body).join("\n\n")
+  );
+  if (publicDomainTextDigest(beforeText) !== publicDomainTextDigest(afterText)) {
+    throw new Error("CHAPTER_REPARTITION_TEXT_MISMATCH: repartition changed source text");
+  }
+  if (
+    args.after.some(
+      (chapter) => chapter.characterCount > PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS
+    )
+  ) {
+    throw new Error("CHAPTER_REPARTITION_LIMIT: repartition produced an oversized episode");
+  }
+}
+
 export function validateChapters(chapters: PreparedChapter[]): ChapterValidation {
   const fatals: string[] = [];
   const warnings: string[] = [];
