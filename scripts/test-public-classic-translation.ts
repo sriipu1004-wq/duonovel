@@ -23,6 +23,10 @@ import {
   READER_DISPLAY_CLAUSE_MAX_LOOKAHEAD_CHARS,
 } from "../src/lib/recording/humanTimingShared";
 import { preprocessNemoBodyToParagraphs } from "../src/lib/recording/nemoTextPreprocess";
+import {
+  PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS,
+  repartitionPreparedChapters,
+} from "./public-domain/core";
 
 // Public-domain fixture from Natsume Soseki's Meian, the production classic
 // that retained a failed EN translation row from 2026-08-21.
@@ -306,6 +310,24 @@ function testFailureDoesNotConsumeReservation() {
   );
 }
 
+function testPublicDomainRepartition() {
+  const paragraph = "A".repeat(3900);
+  const body = [paragraph, paragraph, paragraph].join("\n\n");
+  const result = repartitionPreparedChapters([
+    { number: 1, title: "Chapter I", body, characterCount: body.length },
+  ]);
+  assert.ok(result.length >= 2, "oversized chapters must be repartitioned");
+  assert.ok(
+    result.every((chapter) => chapter.characterCount <= PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS),
+    "repartitioned chapters must stay under the Public Domain hard limit"
+  );
+  assert.equal(
+    result.map((chapter) => chapter.body).join("\n\n"),
+    body,
+    "repartition must preserve source text exactly for paragraph-safe input"
+  );
+}
+
 function main() {
   testClassicNormalization();
   testClassicResponseParsing();
@@ -316,6 +338,7 @@ function main() {
   testReaderDisplayClauseSegmentation();
   testVerifiedPublicDomainLongSourceLimit();
   testFailureDoesNotConsumeReservation();
+  testPublicDomainRepartition();
   console.log(
     "PASS: public classic normalization, structured response parsing, bounded batching, verified Public Domain long-source limit, and failure reservation release"
   );
