@@ -940,6 +940,40 @@ export function validateChapterRepartition(args: {
   }
 }
 
+export function repartitionPreparedChapters(
+  chapters: PreparedChapter[]
+): PreparedChapter[] {
+  const repartitioned: PreparedChapter[] = [];
+  for (const chapter of chapters) {
+    const pieces =
+      chapter.characterCount <= PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS
+        ? [chapter.body]
+        : splitChapters(chapter.body, {
+            title: chapter.title,
+            chapter_split: {
+              strategy: "paragraph_chunks",
+              max_characters: PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS,
+            },
+          }).map((piece) => piece.body);
+    for (const [pieceIndex, body] of pieces.entries()) {
+      repartitioned.push({
+        number: repartitioned.length + 1,
+        title:
+          pieces.length === 1
+            ? chapter.title
+            : `${chapter.title} — Part ${pieceIndex + 1}`,
+        body,
+        characterCount: body.length,
+      });
+    }
+  }
+  validateChapterRepartition({
+    before: chapters.map((chapter) => chapter.body),
+    after: repartitioned,
+  });
+  return repartitioned;
+}
+
 export function validateChapters(chapters: PreparedChapter[]): ChapterValidation {
   const fatals: string[] = [];
   const warnings: string[] = [];
