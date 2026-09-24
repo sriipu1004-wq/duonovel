@@ -26,6 +26,7 @@ import {
   inferSeriesSourceLanguage,
   readCanonicalSeriesSourceLanguage,
 } from "@/lib/translation/seriesSourceLanguage";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import styles from "./page.module.css";
 
 type PageProps = { params: Promise<{ seriesId: string }> };
@@ -129,7 +130,7 @@ async function DeferredTranslationGlossary({
   glossaryDataPromise: ReturnType<typeof fetchTranslationGlossaryData>;
   seriesId: string;
   currentUserId: string;
-  sourceLanguage: string;
+  sourceLanguage: SupportedLanguageTag;
 }) {
   const glossaryData = await glossaryDataPromise;
   return (
