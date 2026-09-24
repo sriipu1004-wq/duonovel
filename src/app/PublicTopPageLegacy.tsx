@@ -311,8 +311,11 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
           .eq("user_id", currentUser.id)
       : Promise.resolve({ data: [] }),
   ]);
+  const bookmarkRows = (bookmarkResult.data ?? []) as Array<{
+    series_id?: string | null;
+  }>;
   const bookmarkedSeriesIds = new Set(
-    (bookmarkResult.data ?? [])
+    bookmarkRows
       .map((row) => (typeof row.series_id === "string" ? row.series_id : ""))
       .filter((value) => value.length > 0)
   );
