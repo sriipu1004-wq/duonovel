@@ -3,7 +3,7 @@ import {
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 
-export const TRANSLATION_SEGMENT_VERSION = 2;
+export const TRANSLATION_SEGMENT_VERSION = 3;
 
 export type TranslationSegment = {
   id: string;
