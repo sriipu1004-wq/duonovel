@@ -14,6 +14,13 @@ type EpisodeRow = {
   body: string;
 };
 
+type PublicDomainEffectSettings = {
+  publicDomain?: {
+    rightsChecked?: boolean;
+    manifestId?: string;
+  };
+};
+
 function digest(text: string): string {
   return createHash("sha256").update(text.replace(/\r\n?/g, "\n").trim()).digest("hex");
 }
@@ -38,7 +45,8 @@ async function main() {
   let oversizedAfter = 0;
 
   for (const series of seriesResult.data ?? []) {
-    const pd = series.effect_settings?.publicDomain;
+    const effectSettings = series.effect_settings as PublicDomainEffectSettings | null;
+    const pd = effectSettings?.publicDomain;
     if (pd?.rightsChecked !== true) continue;
     const episodesResult = await admin
       .from("episodes")
