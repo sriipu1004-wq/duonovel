@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
@@ -120,36 +119,6 @@ async function fetchTranslationGlossaryData(
   };
 }
 
-type TranslationGlossaryData = Awaited<
-  ReturnType<typeof fetchTranslationGlossaryData>
->;
-
-async function DeferredTranslationGlossary({
-  glossaryDataPromise,
-  seriesId,
-  currentUserId,
-  sourceLanguage,
-}: {
-  glossaryDataPromise: Promise<TranslationGlossaryData | null>;
-  seriesId: string;
-  currentUserId: string;
-  sourceLanguage: string;
-}) {
-  const glossaryData = await glossaryDataPromise;
-  if (!glossaryData) return null;
-  return (
-    <SeriesTranslationGlossaryWorkspace
-      seriesId={seriesId}
-      currentUserId={currentUserId}
-      sourceLanguage={sourceLanguage}
-      initialEntries={glossaryData.entries}
-      initialTargets={glossaryData.targets}
-      initialProfiles={glossaryData.profiles}
-      embedded
-    />
-  );
-}
-
 export default async function WriteSeriesEditPage({ params }: PageProps) {
   const { seriesId } = await params;
   const { supabase, user } = await requireOwnedSeries(seriesId, `/write/series/${seriesId}`);
@@ -169,9 +138,9 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
         : null;
   const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
   const sourceLanguage = canonicalSourceLanguage ?? inferSeriesSourceLanguage(series, episodes[0] ? getEpisodeBody(episodes[0]) : null);
-  const glossaryDataPromise = canonicalSourceLanguage
-    ? fetchTranslationGlossaryData(series.id, canonicalSourceLanguage, supabase)
-    : Promise.resolve(null);
+  const glossaryData = canonicalSourceLanguage
+    ? await fetchTranslationGlossaryData(series.id, canonicalSourceLanguage, supabase)
+    : null;
 
   return (
     <div className={className}>
@@ -183,17 +152,16 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
           confirmed={Boolean(canonicalSourceLanguage)}
           embedded
         />
-        {canonicalSourceLanguage ? (
-          <Suspense
-            fallback={<div className="mt-4 h-40 rounded-2xl border border-black/10 bg-neutral-50" />}
-          >
-            <DeferredTranslationGlossary
-              glossaryDataPromise={glossaryDataPromise}
-              seriesId={series.id}
-              currentUserId={user.id}
-              sourceLanguage={canonicalSourceLanguage}
-            />
-          </Suspense>
+        {canonicalSourceLanguage && glossaryData ? (
+          <SeriesTranslationGlossaryWorkspace
+            seriesId={series.id}
+            currentUserId={user.id}
+            sourceLanguage={canonicalSourceLanguage}
+            initialEntries={glossaryData.entries}
+            initialTargets={glossaryData.targets}
+            initialProfiles={glossaryData.profiles}
+            embedded
+          />
         ) : null}
       </SeriesStatusPortal>
       {isAiGenerated && episodes.length > 0 ? (
