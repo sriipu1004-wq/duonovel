@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { billingPromptDictionaries } from "../src/i18n/dictionaries/billingPrompt";
 import { bilingualReaderDictionaries } from "../src/i18n/dictionaries/bilingualReader";
-import { continuationDictionaries } from "../src/i18n/dictionaries/continuation";
 import { episodeCommentsDictionaries } from "../src/i18n/dictionaries/episodeComments";
-import { generatedReaderDictionaries } from "../src/i18n/dictionaries/generatedReader";
 import { readPageDictionaries } from "../src/i18n/dictionaries/readPage";
 
 const JAPANESE_SCRIPT = /[ぁ-んァ-ヶ一-龯々〆ヵヶ]/u;
@@ -54,49 +52,22 @@ function main() {
   for (const locale of ["en", "ko"] as const) {
     assertDictionaryHasNoJapanese(`billingPrompt.${locale}`, billingPromptDictionaries[locale]);
     assertDictionaryHasNoJapanese(`bilingualReader.${locale}`, bilingualReaderDictionaries[locale]);
-    assertDictionaryHasNoJapanese(`continuation.${locale}`, continuationDictionaries[locale]);
     assertDictionaryHasNoJapanese(`episodeComments.${locale}`, episodeCommentsDictionaries[locale]);
-    assertDictionaryHasNoJapanese(`generatedReader.${locale}`, generatedReaderDictionaries[locale]);
     assertDictionaryHasNoJapanese(`readPage.${locale}`, readPageDictionaries[locale]);
 
     assert.equal(JAPANESE_SCRIPT.test(bilingualReaderDictionaries[locale].responseInvalid(500)), false);
     assert.equal(JAPANESE_SCRIPT.test(bilingualReaderDictionaries[locale].episodeFallback(3)), false);
-    assert.equal(JAPANESE_SCRIPT.test(continuationDictionaries[locale].minutes(10)), false);
     assert.equal(JAPANESE_SCRIPT.test(episodeCommentsDictionaries[locale].count(2)), false);
     assert.equal(JAPANESE_SCRIPT.test(episodeCommentsDictionaries[locale].listTitle(3)), false);
     assert.equal(JAPANESE_SCRIPT.test(episodeCommentsDictionaries[locale].commentTooLong(300)), false);
-    assert.equal(JAPANESE_SCRIPT.test(generatedReaderDictionaries[locale].metadataTitle), false);
-    assert.equal(JAPANESE_SCRIPT.test(generatedReaderDictionaries[locale].approxMinutes(10)), false);
     assert.equal(JAPANESE_SCRIPT.test(readPageDictionaries[locale].episode(3)), false);
   }
 
-  assertNoKnownUiLiteral("src/features/generation/ContinueStoryAction.tsx", [
-    "この物語の続きを作る",
-    "続きを作る",
-    "続きへの希望（任意）",
-    "生成中…",
-  ]);
   assertNoKnownUiLiteral("src/features/playback/BilingualEpisodePlayback.tsx", [
     "対訳 ON",
     "OFFに戻す",
     "単語解説",
     "対訳を生成できませんでした。",
-  ]);
-  assertNoKnownUiLiteral("src/features/playback/GeneratedStoryBilingualPlayback.tsx", [
-    "AI生成短編",
-    "生成した物語",
-    "作者 AI生成",
-    "このタブで言語固定",
-    "対訳 ON",
-    "OFFに戻す",
-    "この言語の対訳は未生成です",
-    "保存済み対訳を確認中",
-    "原文表示に戻る",
-  ]);
-  assertNoKnownUiLiteral("src/features/playback/GeneratedStoryBilingualBridge.tsx", [
-    "生成した物語の一時データを読み込めませんでした。",
-    "ブラウザ朗読",
-    "対訳をオン",
   ]);
   assertNoKnownUiLiteral("src/features/playback/useBilingualWordExplanation.ts", [
     "対訳を確認できませんでした。",
@@ -128,13 +99,6 @@ function main() {
     "`${Math.floor(humanCurrentTime)}秒 / ${Math.floor(humanDuration)}秒`",
     "setAudioError(\"公開朗読音声の読み込みに失敗した。\")",
   ]);
-  assertNoKnownUiLiteral(
-    "src/app/read/generated/[storyId]/GeneratedStoryReaderClient.tsx",
-    ["{sceneLabel} / {genreLabel} / {request.mood}"]
-  );
-  assertNoKnownUiLiteral("src/app/read/generated/[storyId]/page.tsx", [
-    "title: \"一時生成の物語 | LIB read\"",
-  ]);
   assertSourceContains("src/features/playback/ReaderFooterControls.tsx", [
     "aria-label={dictionary.slower}",
     "aria-label={dictionary.faster}",
@@ -148,28 +112,21 @@ function main() {
     "WEB_SPEECH_LOCALE_COPY[locale].seconds",
     "WEB_SPEECH_LOCALE_COPY[locale].publicNarrationLoadFailed",
   ]);
-  // Generated-story mode switches now stay inside the locale-aware reader shell.
-  assertSourceContains("src/features/playback/GeneratedStoryBilingualPlayback.tsx", [
-    "bilingualReaderDictionaries[locale]",
-    'localizePath("/subscription", locale)',
-    "readerDictionary.studyWordHelp",
-  ]);
-  assertSourceContains("src/features/playback/GeneratedStoryBilingualBridge.tsx", [
-    "readerDictionaries[locale]",
-    "localizePath(generated.readHref, locale)",
-  ]);
   assertSourceContains("src/features/playback/useBilingualWordExplanation.ts", [
     "readerDictionaries[locale]",
     "locale === \"ja\" && payload.message?.trim()",
   ]);
-  assertSourceContains(
-    "src/app/read/generated/[storyId]/GeneratedStoryReaderClient.tsx",
-    ["request.mood === \"指定なし\" ? generateDictionary.none : request.mood", "{moodLabel}"]
-  );
-  assertSourceContains("src/app/read/generated/[storyId]/page.tsx", [
-    "generatedReaderDictionaries[locale]",
-    "dictionary.metadataTitle",
-  ]);
+  for (const removedPath of [
+    "src/i18n/dictionaries/continuation.ts",
+    "src/i18n/dictionaries/generatedReader.ts",
+    "src/features/generation/ContinueStoryAction.tsx",
+    "src/features/playback/GeneratedStoryBilingualPlayback.tsx",
+    "src/features/playback/GeneratedStoryBilingualBridge.tsx",
+    "src/app/read/generated/[storyId]/page.tsx",
+  ]) {
+    assert.equal(existsSync(removedPath), false, removedPath + " must stay removed");
+  }
+
   assertSourceContains("src/app/library/layout.tsx", [
     "getUiLocale",
     "generateMetadata",
