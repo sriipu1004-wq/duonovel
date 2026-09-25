@@ -176,29 +176,6 @@ function readObjectRecord(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
-function isAiGeneratedSeries(series?: SeriesRow | null): boolean {
-  if (!series) {
-    return false;
-  }
-
-  if (parseTags(series.tags).includes("AI生成")) {
-    return true;
-  }
-
-  const settings = readObjectRecord(
-    series.effect_settings ?? series["effectSettings"]
-  );
-
-  if (!settings) {
-    return false;
-  }
-
-  return (
-    settings.source === "time_fit_ai_story" ||
-    settings.aiGenerated === true ||
-    settings.authorName === "AI生成"
-  );
-}
 
 function getStoryFormatFromSeries(series?: SeriesRow | null): StoryFormat {
   const settings = readObjectRecord(
@@ -209,62 +186,19 @@ function getStoryFormatFromSeries(series?: SeriesRow | null): StoryFormat {
     return settings.storyFormat;
   }
 
-  return isAiGeneratedSeries(series) ? "short" : "long";
+  return "long";
 }
 
-function buildWorkspaceTags(
-  raw: unknown,
-  isAiGenerated: boolean
-): string[] {
-  const tags = parseTags(raw);
-
-  if (!isAiGenerated) {
-    return tags;
-  }
-
-  return ["AI生成", ...tags.filter((tag) => tag !== "AI生成")];
-}
-
-function preserveAiGeneratedAttribution(
-  base: EffectSettings | null,
-  series?: SeriesRow | null
-): EffectSettings | null {
-  if (!isAiGeneratedSeries(series)) {
-    return base;
-  }
-
-  const original = readObjectRecord(
-    series?.effect_settings ?? series?.["effectSettings"]
-  );
-
-  const rawEditorName =
-    original?.editorName ?? original?.editor_name;
-
-  const editorName =
-    typeof rawEditorName === "string"
-      ? rawEditorName.trim()
-      : "";
-
-  return {
-    ...(original ?? {}),
-    ...(base ?? {}),
-    version: 1,
-    source: "time_fit_ai_story",
-    aiGenerated: true,
-    authorName: "AI生成",
-    ...(editorName ? { editorName } : {}),
-  } as EffectSettings;
+function buildWorkspaceTags(raw: unknown): string[] {
+  return parseTags(raw);
 }
 
 function preserveWorkspaceEffectSettings(
   base: EffectSettings | null,
-  series: SeriesRow | null | undefined,
   storyFormat: StoryFormat
 ): EffectSettings | null {
-  const preserved = preserveAiGeneratedAttribution(base, series);
-
   return {
-    ...(preserved ?? {}),
+    ...(base ?? {}),
     storyFormat,
   } as EffectSettings;
 }
@@ -463,14 +397,10 @@ export default function WriteSeriesForm({
   const router = useRouter();
   const locale = useUiLocale();
 
-  const isAiGenerated = isAiGeneratedSeries(series);
   const initialGenres = getSeriesGenres(series);
-  const initialTags = isAiGenerated
-    ? parseTags(series?.tags).filter((tag) => tag !== "AI生成")
-    : parseTags(series?.tags);
-  const initialRecordingPermissionMode = isAiGenerated
-    ? "open"
-    : mode === "create"
+  const initialTags = parseTags(series?.tags);
+  const initialRecordingPermissionMode =
+    mode === "create"
       ? "open"
       : normalizeRecordingPermissionMode(series?.recording_permission_mode);
   const initialEffectSettings = parseEffectSettingsFromRow(
@@ -629,7 +559,7 @@ const publicVisibleCount = sortedEpisodes.filter(
   ? "まだ下書きの話がある。本文編集を開いて、投稿または予約投稿へ切り替える。"
           : "予約投稿や投稿済みの流れを保ったまま次の話へ進む。";
 
-  const tags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue, isAiGenerated));
+  const tags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue));
   const genres = canonicalizeGenreList(parseTags(genreEditorValue));
   const recordingPermissionLabel = getRecordingPermissionLabel(
     recordingPermissionMode
@@ -701,9 +631,7 @@ const publicVisibleCount = sortedEpisodes.filter(
     {
       id: "recording",
       label: "朗読許可",
-      value: isAiGenerated
-        ? "無条件許可（固定）"
-        : recordingPermissionLabel,
+      value: recordingPermissionLabel,
     },
   ];
 
@@ -802,20 +730,17 @@ const publicVisibleCount = sortedEpisodes.filter(
 
     const summaryVariants = buildSummaryValue(summary);
     const nextGenres = canonicalizeGenreList(parseTags(genreEditorValue));
-    const nextTags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue, isAiGenerated));
+    const nextTags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue));
     const workspaceFields = buildWorkspaceFields({
       publicationStatus,
       reviewsEnabled,
       episodeCommentsEnabled,
       genres: nextGenres,
       tags: nextTags,
-      recordingPermissionMode: isAiGenerated
-        ? "open"
-        : recordingPermissionMode,
+      recordingPermissionMode,
       translationPermissionMode,
       effectSettings: preserveWorkspaceEffectSettings(
         buildSeriesDisplayEffectSettings(),
-        series,
         effectiveStoryFormat
       ),
     });
@@ -901,20 +826,17 @@ const publicVisibleCount = sortedEpisodes.filter(
 
     const summaryVariants = buildSummaryValue(summary);
     const nextGenres = canonicalizeGenreList(parseTags(genreEditorValue));
-    const nextTags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue, isAiGenerated));
+    const nextTags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue));
     const workspaceFields = buildWorkspaceFields({
       publicationStatus,
       reviewsEnabled,
       episodeCommentsEnabled,
       genres: nextGenres,
       tags: nextTags,
-      recordingPermissionMode: isAiGenerated
-        ? "open"
-        : recordingPermissionMode,
+      recordingPermissionMode,
       translationPermissionMode,
       effectSettings: preserveWorkspaceEffectSettings(
         buildSeriesDisplayEffectSettings(),
-        series,
         effectiveStoryFormat
       ),
     });
@@ -942,15 +864,9 @@ const publicVisibleCount = sortedEpisodes.filter(
       if (!result.error) {
         setSavedGenres(nextGenres);
         setGenreEditorValue(toEditorValue(nextGenres));
-        const nextEditableTags = isAiGenerated
-          ? nextTags.filter((tag) => tag !== "AI生成")
-          : nextTags;
-
-        setSavedTags(nextEditableTags);
-        setTagEditorValue(toEditorValue(nextEditableTags));
-        setSavedRecordingPermissionMode(
-          isAiGenerated ? "open" : recordingPermissionMode
-        );
+        setSavedTags(nextTags);
+        setTagEditorValue(toEditorValue(nextTags));
+        setSavedRecordingPermissionMode(recordingPermissionMode);
 
         hideGlobalLoadingFeedback();
 
@@ -1178,17 +1094,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                             作品形式
                           </p>
 
-                          {isAiGenerated ? (
-                            <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-3">
-                              <p className="text-sm font-semibold text-black">
-                                {effectiveStoryFormat === "short" ? "短編" : "長編"}（自動管理）
-                              </p>
-                              <p className="mt-1 text-xs leading-6 text-neutral-600">
-                                AI生成作品は第1話だけの間は短編、続編生成に成功すると長編へ自動で切り替わる。この画面からは変更できない。
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
                               {([
                                 ["short", "短編", "作品ページ（目次）を作らず、読む画面へ直接公開する。あらすじは読む画面に表示する。"],
                                 ["long", "長編", "作品ページ（目次）を作り、各話・朗読者・レビューなどを作品単位で表示する。"],
@@ -1224,7 +1130,6 @@ const publicVisibleCount = sortedEpisodes.filter(
                                 );
                               })}
                             </div>
-                          )}
                         </div>
 
                         <div className={activeSeriesStatusPanel === "publication" ? "rounded-2xl border border-black/10 bg-white p-3" : "hidden"}>
@@ -1590,16 +1495,6 @@ const publicVisibleCount = sortedEpisodes.filter(
                             タグ
                           </p>
 
-                          {isAiGenerated ? (
-                            <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-3">
-                              <p className="text-sm font-semibold text-black">
-                                固定タグ: AI生成
-                              </p>
-                              <p className="mt-1 text-xs leading-6 text-neutral-600">
-                                AI生成作品であることを示すタグのため、削除・変更できない。
-                              </p>
-                            </div>
-                          ) : null}
 
                           <textarea
                             value={tagEditorValue}
@@ -1642,17 +1537,6 @@ const publicVisibleCount = sortedEpisodes.filter(
                             朗読許可
                           </p>
 
-                          {isAiGenerated ? (
-                            <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-3">
-                              <p className="text-sm font-semibold text-black">
-                                無条件許可（固定）
-                              </p>
-                              <p className="mt-1 text-xs leading-6 text-neutral-600">
-                                AI生成作品は朗読許可を無条件許可として扱うため、この画面では変更できない。
-                              </p>
-                            </div>
-                          ) : (
-                            <>
                               <div className="mt-3 grid gap-2 sm:grid-cols-3">
                                 {(
                                   [
@@ -1702,8 +1586,6 @@ const publicVisibleCount = sortedEpisodes.filter(
                               >
                                 保存済みに戻す
                               </button>
-                            </>
-                          )}
                         </div>
 
                         <p className="text-xs leading-6 text-neutral-500">
