@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
 
 type TranslationPermissionMode = "open" | "closed";
 
@@ -26,6 +27,45 @@ const RESTORE_SAVED_LABELS = new Set([
   "Restore saved value",
   "저장된 값으로 되돌리기",
 ]);
+
+const AI_TRANSLATION_PERMISSION_COPY = {
+  ja: {
+    heading: "AI翻訳（対訳生成）",
+    fixed: "AI翻訳を許可（固定）",
+    fixedDescription: "AI生成作品はAI対訳生成の対象として固定されます。",
+    allow: "AI翻訳を許可",
+    deny: "AI翻訳を許可しない",
+    description:
+      "許可すると、読者が未生成の対訳を利用するとき、対象話の本文と、用語・翻訳方針・直前の公開話など翻訳の一貫性に必要な限定情報をOpenAI APIへ送信することがあります。許可しない場合、新規AI翻訳と新規AI単語解説は実行しません。生成済み翻訳はLIB read内で保存・再利用されます。",
+    saved: "保存済み",
+    updateFailed: "AI翻訳の許可設定を更新できませんでした。",
+    restore: "保存済みに戻す",
+  },
+  en: {
+    heading: "AI translation (bilingual generation)",
+    fixed: "AI translation allowed (fixed)",
+    fixedDescription: "AI-generated works remain eligible for AI translation generation.",
+    allow: "Allow AI translation",
+    deny: "Do not allow AI translation",
+    description:
+      "If allowed, when a reader requests a translation that has not been generated yet, LIB read may send the relevant episode text and limited consistency context—such as glossary terms, translation guidance, and the immediately preceding published episode—to the OpenAI API. If not allowed, no new AI translation or AI word explanation is generated. Existing translations may be stored and reused within LIB read.",
+    saved: "Saved",
+    updateFailed: "Could not update the AI translation permission.",
+    restore: "Restore saved value",
+  },
+  ko: {
+    heading: "AI 번역(대역 생성)",
+    fixed: "AI 번역 허용(고정)",
+    fixedDescription: "AI 생성 작품은 AI 대역 생성 대상으로 고정됩니다.",
+    allow: "AI 번역 허용",
+    deny: "AI 번역 허용 안 함",
+    description:
+      "허용하면 독자가 아직 생성되지 않은 번역을 요청할 때 해당 회차의 본문과 용어집, 번역 지침, 바로 앞의 공개 회차 등 번역 일관성에 필요한 제한된 문맥이 OpenAI API로 전송될 수 있습니다. 허용하지 않으면 새로운 AI 번역과 새로운 AI 단어 설명을 생성하지 않습니다. 이미 생성된 번역은 LIB read 안에서 저장·재사용될 수 있습니다.",
+    saved: "저장됨",
+    updateFailed: "AI 번역 허용 설정을 업데이트하지 못했습니다.",
+    restore: "저장된 값으로 되돌리기",
+  },
+} as const;
 
 function findSeriesStatusButton(): HTMLButtonElement | null {
   const existing = document.querySelector<HTMLButtonElement>(
@@ -192,6 +232,8 @@ export default function TranslationPermissionWorkspaceBridge({
   initialMode,
   isAiGenerated = false,
 }: TranslationPermissionWorkspaceBridgeProps) {
+  const locale = useUiLocale();
+  const copy = AI_TRANSLATION_PERMISSION_COPY[locale];
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [mode, setMode] = useState<TranslationPermissionMode | null>(initialMode);
   const [savedMode, setSavedMode] =
@@ -210,7 +252,7 @@ export default function TranslationPermissionWorkspaceBridge({
       if (detail?.mode === "open" || detail?.mode === "closed") {
         setMode(detail.mode);
         setSavedMode(detail.mode);
-        setMessage("保存済み");
+        setMessage(copy.saved);
       }
     }
 
@@ -225,7 +267,7 @@ export default function TranslationPermissionWorkspaceBridge({
         handleAppliedPermission
       );
     };
-  }, []);
+  }, [copy.saved]);
 
   useEffect(() => {
     if (seriesId || isAiGenerated) return;
@@ -328,16 +370,16 @@ export default function TranslationPermissionWorkspaceBridge({
       };
 
       if (!response.ok || !payload.ok) {
-        setMessage("対訳許可を更新できませんでした。");
+        setMessage(copy.updateFailed);
         return;
       }
 
       const saved = payload.mode === "open" ? "open" : "closed";
       setMode(saved);
       setSavedMode(saved);
-      setMessage("保存済み");
+      setMessage(copy.saved);
     } catch {
-      setMessage("対訳許可を更新できませんでした。");
+      setMessage(copy.updateFailed);
     } finally {
       setSaving(false);
     }
@@ -353,48 +395,53 @@ export default function TranslationPermissionWorkspaceBridge({
 
   return createPortal(
     <div className="mt-4 border-t border-black/10 pt-4">
-      <p className="text-xs tracking-[0.16em] text-neutral-500">対訳許可</p>
+      <p className="text-xs tracking-[0.16em] text-neutral-500">{copy.heading}</p>
 
       {isAiGenerated ? (
         <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-3">
-          <p className="text-sm font-semibold text-black">対訳許可（固定）</p>
+          <p className="text-sm font-semibold text-black">{copy.fixed}</p>
           <p className="mt-1 text-xs leading-6 text-neutral-600">
-            AI生成作品は対訳生成の対象として固定されます。
+            {copy.fixedDescription}
           </p>
         </div>
       ) : (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {([
-            ["open", "対訳を許可"],
-            ["closed", "対訳を許可しない"],
-          ] as const).map(([value, label]) => {
-            const active = mode === value;
+        <>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {([
+              ["open", copy.allow],
+              ["closed", copy.deny],
+            ] as const).map(([value, label]) => {
+              const active = mode === value;
 
-            return (
-              <button
-                key={value}
-                type="button"
-                disabled={saving}
-                onClick={() => void updateMode(value)}
-                className={[
-                  "rounded-2xl border px-3 py-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50",
-                  active
-                    ? "border-sky-200 bg-sky-50 text-black"
-                    : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                ].join(" ")}
-              >
-                <span className="block font-semibold">{label}</span>
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void updateMode(value)}
+                  className={[
+                    "rounded-2xl border px-3 py-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50",
+                    active
+                      ? "border-sky-200 bg-sky-50 text-black"
+                      : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                  ].join(" ")}
+                >
+                  <span className="block font-semibold">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-xs leading-6 text-neutral-600">
+            {copy.description}
+          </p>
+        </>
       )}
 
       {message ? (
         <p
           className={[
             "mt-3 text-xs",
-            message === "保存済み" ? "text-emerald-700" : "text-red-700",
+            message === copy.saved ? "text-emerald-700" : "text-red-700",
           ].join(" ")}
         >
           {message}
@@ -407,7 +454,7 @@ export default function TranslationPermissionWorkspaceBridge({
           onClick={restoreSavedPermissions}
           className="mt-4 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-neutral-50"
         >
-          保存済みに戻す
+          {copy.restore}
         </button>
       ) : null}
     </div>,

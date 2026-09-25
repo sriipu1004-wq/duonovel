@@ -235,6 +235,7 @@ async function requestTranslation(args: {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       body: JSON.stringify({
         model: args.model,
+        store: false,
         temperature: args.model.startsWith("gpt-4") ? 0 : undefined,
         reasoning: getTranslationReasoning(args.model),
         input: [
@@ -354,7 +355,7 @@ async function requestTranslation(args: {
   }
   if (!response.ok) {
     throw new OpenAITranslationError(
-      body.error?.message ?? "対訳の生成に失敗しました。",
+      "対訳の生成に失敗しました。",
       response.status,
       response.status === 408 ||
         response.status === 409 ||

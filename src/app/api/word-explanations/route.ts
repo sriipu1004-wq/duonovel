@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   buildEpisodeTranslationSourceHash,
+  isSeriesTranslationEligible,
   resolveEpisodeTranslationAccess,
 } from "@/lib/translation/episodeTranslationServer";
 import { parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
@@ -50,6 +51,7 @@ type StoredExplanationNote = {
 type ResolvedContent = {
   ownerUserId: string | null;
   segment: BilingualSegment;
+  aiGenerationAllowed: boolean;
 };
 
 function normalizeSelectedText(value: string): string {
@@ -171,6 +173,7 @@ async function resolveContent(args: {
   const admin = createAdminClient();
   let segmentsValue: unknown = null;
   let ownerUserId: string | null = null;
+  let aiGenerationAllowed = true;
 
   if (args.contentType === "private_library") {
     const access = await resolvePrivateLibraryTranslationAccess(args.contentId);
@@ -224,6 +227,7 @@ async function resolveContent(args: {
     }
 
     ownerUserId = access.currentUserId;
+    aiGenerationAllowed = isSeriesTranslationEligible(access.series);
     const result = await admin
       .from("episode_translations")
       .select("segments")
@@ -257,7 +261,7 @@ async function resolveContent(args: {
   });
   const segment =
     translation?.segments.find((item) => item.id === args.segmentId) ?? null;
-  return segment ? { ownerUserId, segment } : null;
+  return segment ? { ownerUserId, segment, aiGenerationAllowed } : null;
 }
 
 export async function POST(request: Request) {
@@ -352,6 +356,17 @@ export async function POST(request: Request) {
         note: storedNote.note,
       });
     }
+  }
+
+  if (!resolved.aiGenerationAllowed) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "translation_permission_closed",
+        message: "作者がAI翻訳を許可していないため、新しいAI単語解説は生成できません。",
+      },
+      { status: 403 }
+    );
   }
 
   const requestId = randomUUID();
@@ -511,7 +526,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error: "word_explanation_failed",
-        message: error instanceof Error ? error.message : "単語の対応を確認できませんでした。",
+        message: "単語の対応を確認できませんでした。",
       },
       { status: 500 }
     );

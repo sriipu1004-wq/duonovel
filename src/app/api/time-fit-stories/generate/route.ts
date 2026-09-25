@@ -810,6 +810,7 @@ export async function POST(request: Request) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model,
+        store: false,
         input: [
           {
             role: "developer",
@@ -851,7 +852,7 @@ export async function POST(request: Request) {
 
     const responseBody = (await openAIResponse.json()) as OpenAIResponseBody;
     if (!openAIResponse.ok) {
-      const errorMessage = responseBody.error?.message ?? "AI短編の生成に失敗しました。";
+      const errorMessage = "AI短編の生成に失敗しました。";
       await updateGenerationLog({
         supabase: adminSupabase,
         logId: generationLogId,
@@ -880,7 +881,9 @@ export async function POST(request: Request) {
     await recordPromptTagUsage(generationRequest.promptTags);
     return NextResponse.json({ ok: true, story, request: buildPublicRequest(generationRequest) });
   } catch (error) {
-    console.error("[time-fit-story-generate]", error);
+    console.error("[time-fit-story-generate]", {
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
     await updateGenerationLog({
       supabase: adminSupabase,
       logId: generationLogId,
@@ -888,11 +891,11 @@ export async function POST(request: Request) {
         status: "failed",
         success: false,
         error_code: "generation_exception",
-        error_message: error instanceof Error ? error.message : "AI短編の生成中にエラーが発生しました。",
+        error_message: "AI短編の生成中にエラーが発生しました。",
       },
     });
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "AI短編の生成中にエラーが発生しました。" },
+      { ok: false, error: "AI短編の生成中にエラーが発生しました。" },
       { status: 500 }
     );
   }

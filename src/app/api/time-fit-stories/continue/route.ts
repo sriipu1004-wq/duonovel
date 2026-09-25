@@ -1048,6 +1048,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model,
+        store: false,
         input: [
           {
             role: "developer",
@@ -1089,7 +1090,7 @@ export async function POST(request: Request) {
 
     const responseBody = (await openAIResponse.json()) as OpenAIResponseBody;
     if (!openAIResponse.ok) {
-      const message = responseBody.error?.message || "続編の生成に失敗しました。";
+      const message = "続編の生成に失敗しました。";
       await failReservation({
         supabase: adminSupabase,
         requestId: requestMeta.requestId,
@@ -1164,14 +1165,15 @@ export async function POST(request: Request) {
       message: "続きが下書きとして保存されました。",
     });
   } catch (error) {
-    console.error("[time-fit-continuation-generate]", error);
+    console.error("[time-fit-continuation-generate]", {
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
     await failReservation({
       supabase: adminSupabase,
       requestId: requestMeta.requestId,
       seriesId: generationRequest.seriesId,
       errorCode: "continuation_generation_failed",
-      errorMessage:
-        error instanceof Error ? error.message : "続編生成中にエラーが発生しました。",
+      errorMessage: "続編生成中にエラーが発生しました。",
       isCounted: openAiRequestStarted,
     });
 

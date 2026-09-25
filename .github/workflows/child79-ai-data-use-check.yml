@@ -1,0 +1,64 @@
+name: Child79 AI data-use checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/child79-ai-data-use-check.yml"
+      - "docs/ai-data-flow.md"
+      - "scripts/test-author-ai-data-use.ts"
+      - "src/app/api/word-explanations/**"
+      - "src/app/api/time-fit-stories/**"
+      - "src/app/privacy/**"
+      - "src/app/faq/**"
+      - "src/features/write/TranslationPermissionWorkspaceBridge.tsx"
+      - "src/lib/translation/openAITranslation.ts"
+      - "src/lib/translation/publicEpisodeTranslation.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Child79 regression
+        run: node --import tsx scripts/test-author-ai-data-use.ts
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Changed-scope ESLint
+        run: >
+          npx eslint
+          scripts/test-author-ai-data-use.ts
+          src/app/api/word-explanations/route.ts
+          src/app/api/time-fit-stories/generate/route.ts
+          src/app/api/time-fit-stories/continue/route.ts
+          src/app/privacy/page.tsx
+          src/app/faq/page.tsx
+          src/features/write/TranslationPermissionWorkspaceBridge.tsx
+          src/lib/translation/openAITranslation.ts
+          src/lib/translation/publicEpisodeTranslation.ts
+
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
+
+      - name: Diff whitespace check
+        run: git diff --check origin/main...HEAD
