@@ -23,7 +23,15 @@ The newer shared AI-action log contained 2 counted story-generation actions from
 
 ## External demand / platform review
 
-Current platform policy points toward separating or restricting generated fiction rather than making first-party full-text generation a core publishing feature:
+Current platform policy points toward separating or restricting generated fiction rather than making first-party full-text generation a core publishing feature. Sources reviewed on 2026-09-25:
+
+- 小説家になろう 2026-06-09 Terms update: https://blog.syosetu.com/article/view/article_id/5157/
+- 小説家になろう 2026-08-24 AI-use Q&A: https://blog.syosetu.com/article/view/article_id/5224/
+- カクヨム 2026-05-27 AI guideline update: https://kakuyomu.jp/info/entry/gen_ai_guideline
+- Royal Road AI content policy / knowledge base: https://www.royalroad.com/support/knowledgebase/114
+- Authors Guild 2023 author survey (usage mix; older than the platform-policy sources above): https://authorsguild.org/news/ai-survey-90-percent-of-writers-believe-authors-should-be-compensated-for-ai-training-use/
+
+Observed direction:
 
 - 小説家になろう requires AI-use disclosure and prohibits fully AI-generated text under its 2026 rules.
 - カクヨム introduced explicit AI-text usage tags in 2026.
