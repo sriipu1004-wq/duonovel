@@ -55,6 +55,7 @@ type WriteSeriesFormProps = {
 
 type SaveState = "idle" | "saving" | "success" | "error";
 type TranslationPermissionMode = "open" | "closed";
+type HumanTranslationPermissionMode = "open" | "closed";
 type SeriesValidationField = "title" | "sourceLanguage" | "scheduledFor";
 type SeriesValidationErrors = Partial<Record<SeriesValidationField, string>>;
 
@@ -277,6 +278,7 @@ function buildWorkspaceFields(args: {
   tags: string[];
   recordingPermissionMode: RecordingPermissionMode;
   translationPermissionMode: TranslationPermissionMode;
+  humanTranslationPermissionMode: HumanTranslationPermissionMode;
   effectSettings: EffectSettings | null;
 }) {
   return {
@@ -287,6 +289,7 @@ function buildWorkspaceFields(args: {
     tags: args.tags,
     recording_permission_mode: args.recordingPermissionMode,
     translation_permission_mode: args.translationPermissionMode,
+    human_translation_permission_mode: args.humanTranslationPermissionMode,
     effect_settings: args.effectSettings,
   };
 }
@@ -437,6 +440,14 @@ export default function WriteSeriesForm({
           ? "open"
           : "closed"
     );
+  const [humanTranslationPermissionMode, setHumanTranslationPermissionMode] =
+    useState<HumanTranslationPermissionMode>(
+      mode === "create"
+        ? "open"
+        : series?.human_translation_permission_mode === "open"
+          ? "open"
+          : "closed"
+    );
   const [storyFormat, setStoryFormat] = useState<StoryFormat>(
     initialStoryFormat
   );
@@ -493,6 +504,26 @@ export default function WriteSeriesForm({
       window.removeEventListener(
         "libread:translation-permission-selection-changed",
         handleTranslationPermissionSelection
+      );
+  }, []);
+
+  useEffect(() => {
+    function handleHumanTranslationPermissionSelection(event: Event) {
+      const detail = (event as CustomEvent<{ mode?: unknown }>).detail;
+      if (detail?.mode === "open" || detail?.mode === "closed") {
+        setHumanTranslationPermissionMode(detail.mode);
+        resetSaveUi();
+      }
+    }
+
+    window.addEventListener(
+      "libread:human-translation-permission-selection-changed",
+      handleHumanTranslationPermissionSelection
+    );
+    return () =>
+      window.removeEventListener(
+        "libread:human-translation-permission-selection-changed",
+        handleHumanTranslationPermissionSelection
       );
   }, []);
 
@@ -739,6 +770,7 @@ const publicVisibleCount = sortedEpisodes.filter(
       tags: nextTags,
       recordingPermissionMode,
       translationPermissionMode,
+      humanTranslationPermissionMode,
       effectSettings: preserveWorkspaceEffectSettings(
         buildSeriesDisplayEffectSettings(),
         effectiveStoryFormat
@@ -835,6 +867,7 @@ const publicVisibleCount = sortedEpisodes.filter(
       tags: nextTags,
       recordingPermissionMode,
       translationPermissionMode,
+      humanTranslationPermissionMode,
       effectSettings: preserveWorkspaceEffectSettings(
         buildSeriesDisplayEffectSettings(),
         effectiveStoryFormat

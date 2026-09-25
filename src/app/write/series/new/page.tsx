@@ -3,6 +3,7 @@ import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import WriteSeriesForm from "@/features/write/WriteSeriesForm";
 import ContentRatingWorkspaceBridge from "@/features/write/ContentRatingWorkspaceBridge";
 import TranslationPermissionWorkspaceBridge from "@/features/write/TranslationPermissionWorkspaceBridge";
+import HumanTranslationPermissionWorkspaceBridge from "@/features/write/HumanTranslationPermissionWorkspaceBridge";
 import SourceLanguageWorkspaceBridge from "@/features/write/SourceLanguageWorkspaceBridge";
 import SeriesStatusPortal from "@/features/write/SeriesStatusPortal";
 
@@ -19,6 +20,7 @@ export default async function WriteSeriesNewPage() {
         initialMode="open"
         isOfficialAuthor={isOfficialAccountEmail(user.email)}
       />
+      <HumanTranslationPermissionWorkspaceBridge initialMode="open" />
       <ContentRatingWorkspaceBridge initialWarnings={[]} />
     </>
   );

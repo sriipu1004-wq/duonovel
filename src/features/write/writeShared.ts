@@ -1,4 +1,5 @@
 export type RecordingPermissionMode = "open" | "closed";
+export type HumanTranslationPermissionMode = "open" | "closed";
 export type SeriesPublicationStatus = "private" | "public";
 export type EpisodePostingStatus = "draft" | "scheduled" | "posted";
 export type EpisodeStatusKind =
@@ -30,6 +31,8 @@ export type SeriesRow = Record<string, unknown> & {
   genre_list?: string[] | string | null;
   genreList?: string[] | string | null;
   recording_permission_mode?: RecordingPermissionMode | null;
+  translation_permission_mode?: "open" | "closed" | null;
+  human_translation_permission_mode?: HumanTranslationPermissionMode | null;
   reviews_enabled?: boolean | null;
   reviewsEnabled?: boolean | null;
   episode_comments_enabled?: boolean | null;

@@ -5,6 +5,7 @@ import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import WriteSeriesForm from "@/features/write/WriteSeriesForm";
 import ContentRatingWorkspaceBridge from "@/features/write/ContentRatingWorkspaceBridge";
 import TranslationPermissionWorkspaceBridge from "@/features/write/TranslationPermissionWorkspaceBridge";
+import HumanTranslationPermissionWorkspaceBridge from "@/features/write/HumanTranslationPermissionWorkspaceBridge";
 import SourceLanguageWorkspaceBridge from "@/features/write/SourceLanguageWorkspaceBridge";
 import SeriesStatusPortal from "@/features/write/SeriesStatusPortal";
 import SeriesTranslationGlossaryWorkspace, {
@@ -145,6 +146,8 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
       : series.translation_permission_mode === "closed"
         ? "closed"
         : null;
+  const humanTranslationPermissionMode =
+    series.human_translation_permission_mode === "open" ? "open" : "closed";
   const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
   const sourceLanguage = canonicalSourceLanguage ?? inferSeriesSourceLanguage(series, episodes[0] ? getEpisodeBody(episodes[0]) : null);
   const glossaryDataPromise = canonicalSourceLanguage
@@ -178,6 +181,10 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
         seriesId={series.id}
         initialMode={translationPermissionMode}
         isOfficialAuthor={isOfficialAccountEmail(user.email)}
+      />
+      <HumanTranslationPermissionWorkspaceBridge
+        seriesId={series.id}
+        initialMode={humanTranslationPermissionMode}
       />
       <ContentRatingWorkspaceBridge
         seriesId={series.id}

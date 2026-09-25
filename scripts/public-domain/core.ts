@@ -171,6 +171,7 @@ export type DraftSeriesRow = {
   is_public: false;
   source_language: PublicDomainSourceLanguage;
   translation_permission_mode: "open";
+  human_translation_permission_mode: "open";
   recording_permission_mode: "open";
   genres: string[];
   tags: string[];
@@ -1154,6 +1155,7 @@ export function buildDraftImportPlan(args: {
       // Importability already requires a human-approved rights manifest. Approved
       // Public Domain works are therefore open for translation and Human narration.
       translation_permission_mode: "open",
+      human_translation_permission_mode: "open",
       recording_permission_mode: "open",
       genres,
       tags,
