@@ -44,7 +44,7 @@ const USAGE_COPY = {
       `${isSubscriber ? "Premium" : "Free"}の保存数：${current.toLocaleString("ja-JP")} / ${limit.toLocaleString("ja-JP")}作品`,
     compare: "Free / Premiumを見る",
     sharedAllowance:
-      "Freeの1日の利用枠（AI物語生成・公開作品の翻訳解放・個人本棚への取り込みで共有）：",
+      "Freeの1日の利用枠（公開作品の翻訳解放・個人本棚への取り込みで共有）：",
     workLimitPremium:
       "保存上限に達しています。新しい作品を取り込むには、既存作品を削除してください。",
     workLimitFree:
@@ -57,7 +57,7 @@ const USAGE_COPY = {
       `${isSubscriber ? "Premium" : "Free"} storage: ${current.toLocaleString("en-US")} / ${limit.toLocaleString("en-US")} works`,
     compare: "Compare Free and Premium",
     sharedAllowance:
-      "Free included daily allowance (shared by AI story generation, public-translation unlocks, and My Library imports):",
+      "Free included daily allowance (shared by public-translation unlocks and My Library imports):",
     workLimitPremium:
       "You've reached your storage limit. Delete an existing work before importing another one.",
     workLimitFree:
@@ -70,7 +70,7 @@ const USAGE_COPY = {
       `${isSubscriber ? "Premium" : "Free"} 보관 수: ${current.toLocaleString("ko-KR")} / ${limit.toLocaleString("ko-KR")}작품`,
     compare: "Free와 Premium 비교",
     sharedAllowance:
-      "Free 포함 일일 이용 한도(AI 이야기 생성·공개 작품 번역 잠금 해제·개인 서재 가져오기가 공유):",
+      "Free 포함 일일 이용 한도(공개 작품 번역 잠금 해제·개인 서재 가져오기가 공유):",
     workLimitPremium:
       "보관 한도에 도달했습니다. 새 작품을 가져오려면 기존 작품을 삭제하세요.",
     workLimitFree:
@@ -188,7 +188,7 @@ export default function LibraryImportForm({
   const hasReachedWorkLimit = currentWorkCount >= workLimit;
   const hasReachedFreeUsageLimit =
     !isSubscriber &&
-    isAiUsageLimitReached(aiUsage?.actions.story_generation);
+    isAiUsageLimitReached(aiUsage?.actions.library_import);
   const [savedUnits, setSavedUnits] = useState(0);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const parseRequestIdRef = useRef(0);
@@ -402,7 +402,7 @@ export default function LibraryImportForm({
                 <span>
                   {usageCopy.sharedAllowance}
                   {" "}
-                  {formatAiUsage(aiUsage?.actions.story_generation)}
+                  {formatAiUsage(aiUsage?.actions.library_import)}
                 </span>
                 {hasReachedFreeUsageLimit ? (
                   <Link href="/subscription" className="font-semibold text-sky-800 underline underline-offset-4">
