@@ -421,51 +421,6 @@ function buildAvailableGenres(works: WorkCard[]): GenreChip[] {
   });
 }
 
-function estimateTagChipUnits(chip: TagChip): number {
-  return chip.label.length * 2 + String(chip.count).length + 8;
-}
-
-function pickTagChipsWithinBudget(chips: TagChip[], budget: number): TagChip[] {
-  const picked: TagChip[] = [];
-  let used = 0;
-
-  for (const chip of chips) {
-    const nextUnits = estimateTagChipUnits(chip);
-    if (picked.length > 0 && used + nextUnits > budget) {
-      break;
-    }
-
-    picked.push(chip);
-    used += nextUnits;
-  }
-
-  return picked;
-}
-
-function estimateGenreChipUnits(chip: GenreChip): number {
-  return chip.label.length * 2 + String(chip.count).length + 8;
-}
-
-function pickGenreChipsWithinBudget(
-  chips: GenreChip[],
-  budget: number
-): GenreChip[] {
-  const picked: GenreChip[] = [];
-  let used = 0;
-
-  for (const chip of chips) {
-    const nextUnits = estimateGenreChipUnits(chip);
-    if (picked.length > 0 && used + nextUnits > budget) {
-      break;
-    }
-
-    picked.push(chip);
-    used += nextUnits;
-  }
-
-  return picked;
-}
-
 function resolveOrder(value: string): OrderKey {
   if (value === "updated" || value === "latest") {
     return "updated";
@@ -621,21 +576,6 @@ function filterWorksWithNarrationActivity(
 
     return narrationCount > 0;
   });
-}
-
-function filterWorksByDateRange(
-  works: WorkCard[],
-  startAt: number,
-  endAt: number
-): WorkCard[] {
-  const safeStart = Math.min(startAt, endAt);
-  const safeEnd = Math.max(startAt, endAt);
-
-  return works.filter(
-    (work) =>
-      work.latestPostedAtValue >= safeStart &&
-      work.latestPostedAtValue <= safeEnd
-  );
 }
 
 function sortWorks(
@@ -1347,7 +1287,20 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         </div>
 
         <PublicSearchControls
-          key={`search-language:${sourceLanguages.join(",") || "none"}`}
+          key={[
+            "search-controls",
+            query,
+            selectedTagLabels.join(","),
+            selectedGenreLabels.join(","),
+            sourceLanguages.join(","),
+            savedFilter ?? "",
+            order,
+            selectedStartInput,
+            selectedEndInput,
+            showAllTags ? "tags-open" : "tags-closed",
+            showAllGenres ? "genres-open" : "genres-closed",
+            shelfTab,
+          ].join("|")}
           query={query}
           selectedTagLabels={selectedTagLabels}
           selectedGenreLabels={selectedGenreLabels}
