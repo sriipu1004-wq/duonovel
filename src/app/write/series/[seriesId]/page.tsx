@@ -183,7 +183,6 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
         seriesId={series.id}
         initialWarnings={getSeriesContentWarnings(series)}
         lockedWarnings={getSeriesContentWarningLocks(series)}
-        isAiGenerated={isAiGenerated}
       />
     </div>
   );
