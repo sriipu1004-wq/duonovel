@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "使い方・取り扱い説明 | LIB read",
-  description: "個人本棚、多言語対訳、読み上げ、AI物語、作品投稿の使い方",
+  description: "個人本棚、多言語対訳、読み上げ、作品投稿の使い方",
 };
 
 function Section({
@@ -32,7 +32,7 @@ export default function GuidePage() {
         <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">LIB read</p>
         <h1 className="text-3xl font-bold text-black">使い方・取り扱い説明</h1>
         <p className="text-sm leading-7 text-neutral-700">
-          個人本棚、多言語対訳、読み上げ、AI物語、Web小説の閲覧・投稿について、画面名と基本操作をまとめています。
+          個人本棚、多言語対訳、読み上げ、Web小説の閲覧・投稿について、画面名と基本操作をまとめています。
         </p>
         <div className="flex flex-wrap gap-4 text-sm">
           <Link className="text-neutral-700 underline underline-offset-4" href="/">
@@ -49,7 +49,7 @@ export default function GuidePage() {
 
       <Section title="1. LIB read って何のサイトか">
         <p>
-          LIB read は、自分で用意した外国語の長編を個人本棚で管理して読み続ける機能と、公開Web小説、読み上げ、AI物語生成をまとめた読書サービスです。
+          LIB read は、自分で用意した外国語の長編を個人本棚で管理して読み続ける機能と、公開Web小説、読み上げ、作品投稿をまとめた読書サービスです。
         </p>
         <p>
           画面名は、作品の概要と各話一覧を「作品ページ（目次）」、本文を読む場所を「読む画面」、作者が編集する場所を「作品ワークスペース」と表記します。
@@ -62,7 +62,7 @@ export default function GuidePage() {
           <li>手元の長編を読む場合は「個人本棚」を開き、ファイルを取り込む</li>
           <li>公開作品を読む場合はトップページまたは検索から作品ページ（目次）を開く</li>
           <li>読む画面で本文、対訳、読み上げ、栞を利用する</li>
-          <li>物語を作る場合はAI生成または作品ワークスペースを使う</li>
+          <li>物語を投稿する場合は作品ワークスペースを使う</li>
         </ol>
       </Section>
 
@@ -135,17 +135,14 @@ export default function GuidePage() {
         </p>
       </Section>
 
-      <Section title="8. 生成回数とAI物語">
+      <Section title="8. 利用回数とPremium">
         <p>
-          無料利用では、AI物語生成・対訳生成・個人本棚への取り込みを合わせて1日3回まで利用できます。各生成・取り込み画面に現在の利用回数を表示します。単語解説は別枠で、サブスク対象では無制限です。
-        </p>
-        <p>
-          保存したAI生成作品は作品ワークスペースから続きを生成できます。短編で最初の続きを作る場合は、元の第1話を残したまま長編へ切り替え、第2話を下書き保存します。
+          無料利用では、公開作品の翻訳解放と個人本棚への取り込みを合わせて1日3回まで利用できます。単語解説は別枠です。
         </p>
         <FreePlanOnly>
           <p>
             <Link className="underline underline-offset-4" href="/subscription">月額680円のサブスク</Link>
-            では、AI物語生成は1日10回、対訳生成は1日30回、単語解説は無制限になります。AI生成には日次上限に加えて月間AI利用上限があります。
+            では、公開作品の翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なし、単語解説は無制限です。
           </p>
         </FreePlanOnly>
       </Section>
@@ -177,26 +174,6 @@ export default function GuidePage() {
           を使ってください。
         </p>
       </Section>
-        {/* AI_GUIDE_V1 */}
-        <Section title="11. AI生成で物語を作る">
-          <p>
-            AI生成ページでは、読む時間、場面、ジャンル、雰囲気を選んで、その条件に合わせた短編を作れます。
-          </p>
-          <ol className="list-decimal space-y-2 pl-5">
-            <li>
-              <Link className="underline underline-offset-4" href="/generate">
-                AI生成ページ
-              </Link>
-              で条件を選ぶ
-            </li>
-            <li>生成された物語を読む。生成直後の内容は端末内の一時データとして扱われます</li>
-            <li>残したい場合はログイン後に保存・編集し、公開したい場合は内容を確認して投稿する</li>
-          </ol>
-          <p>
-            AI生成結果は自動出力であり、事実性や第三者権利の非侵害を保証するものではありません。
-            公開前に必ず内容を確認してください。
-          </p>
-        </Section>
 
       </div>
     </main>
