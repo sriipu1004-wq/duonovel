@@ -37,6 +37,24 @@ jobs:
       - name: Child79 regression
         run: node --import tsx scripts/test-author-ai-data-use.ts
 
+      - name: Existing translation and permission regressions
+        run: |
+          npm run test:series-translation-permission-schema
+          npm run test:translation-consistency
+          npm run test:public-classic-translation
+          npm run test:translation-credit-runtime
+
+      - name: Existing security and workspace regressions
+        run: |
+          npm run test:security-authz
+          npm run test:workspace-schema-queries
+          npm run test:author-workspace-ux
+
+      - name: Existing reader and narration-boundary regressions
+        run: |
+          npm run test:reader-mode-unification
+          npm run test:human-recording-boundaries
+
       - name: TypeScript
         run: npx tsc --noEmit
 
