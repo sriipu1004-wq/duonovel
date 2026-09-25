@@ -44,7 +44,7 @@ type Counts = Partial<Record<SupportedLanguageTag, number>>;
 type PublicSearchLanguageFiltersProps = {
   sourceLanguages: SupportedLanguageTag[];
   onSourceLanguagesChange: (languages: SupportedLanguageTag[]) => void;
-  countsOverride?: Counts;
+  countsOverride: Counts;
 };
 
 export default function PublicSearchLanguageFilters({
@@ -54,28 +54,10 @@ export default function PublicSearchLanguageFilters({
 }: PublicSearchLanguageFiltersProps) {
   const locale = useUiLocale();
   const languageChipListRef = useRef<HTMLDivElement | null>(null);
-  const [fetchedCounts, setFetchedCounts] = useState<Counts>({});
   const [showAllLanguages, setShowAllLanguages] = useState(false);
   const [hasHiddenLanguages, setHasHiddenLanguages] = useState(false);
 
-  useEffect(() => {
-    if (countsOverride) return;
-
-    let cancelled = false;
-    void fetch("/api/public/work-language-counts", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((payload: { counts?: Counts }) => {
-        if (!cancelled && payload.counts) setFetchedCounts(payload.counts);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [countsOverride]);
-
-  const counts = countsOverride ?? fetchedCounts;
-  const hasKnownCounts =
-    countsOverride !== undefined || Object.keys(fetchedCounts).length > 0;
+  const counts = countsOverride;
 
   const orderedLanguages = useMemo(() => {
     const preferred = locale as SupportedLanguageTag;
@@ -133,7 +115,7 @@ export default function PublicSearchLanguageFilters({
           {orderedLanguages.map((tag) => {
             const active = sourceLanguages.includes(tag);
             const count = Number(counts[tag] ?? 0);
-            const disabled = hasKnownCounts && !active && count === 0;
+            const disabled = !active && count === 0;
             return (
               <button
                 key={tag}
