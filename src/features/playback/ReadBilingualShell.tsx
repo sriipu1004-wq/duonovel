@@ -631,14 +631,16 @@ export default function ReadBilingualShell({
   );
 
   const translationSourceControls =
-    humanTranslations.length > 0 ? (
+    humanTranslations.length > 0 || humanTranslationPermissionOpen ? (
       <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-end gap-2 px-3 pt-2 sm:px-6">
-        <TranslationSourceSelector
-          value={translationSourceKey}
-          humanTranslations={humanTranslations}
-          showAi={aiTranslationEligible}
-          onChange={handleTranslationSourceChange}
-        />
+        {humanTranslations.length > 0 ? (
+          <TranslationSourceSelector
+            value={translationSourceKey}
+            humanTranslations={humanTranslations}
+            showAi={aiTranslationEligible}
+            onChange={handleTranslationSourceChange}
+          />
+        ) : null}
         {humanTranslationPermissionOpen ? (
           <a
             href={selfTranslateHref}
@@ -711,6 +713,7 @@ export default function ReadBilingualShell({
             onChange={handleModeChange}
           />
         ) : null}
+        {translationSourceControls}
         <main className="min-h-[70vh] bg-white text-black">
           <div className="mx-auto flex w-full max-w-xl justify-center px-4 py-12 sm:px-6">
             <p className="rounded-[28px] border border-black/10 bg-neutral-50 px-6 py-5 text-sm text-neutral-700">
