@@ -80,12 +80,9 @@ assert.deepEqual(
 );
 
 const reader = read("src/app/read/[seriesId]/[episodeNumber]/page.tsx");
-assert.ok(reader.includes('settings?.source === "time_fit_ai_story"'));
-assert.ok(reader.includes("aiGeneratedAttribution"));
 assert.equal(reader.includes("ContinueStoryAction"), false);
 
 const workspace = read("src/app/write/series/[seriesId]/page.tsx");
-assert.ok(workspace.includes('settings?.source === "time_fit_ai_story"'));
 assert.equal(workspace.includes("ContinueStoryAction"), false);
 
 assert.ok(existsSync("src/app/api/episode-translations/generate/route.ts"));
@@ -102,6 +99,7 @@ assert.equal(libraryImport.includes("actions.story_generation"), false);
 
 const quotaMigration = read("supabase/migrations/20260925183000_retire_story_generation_quota.sql");
 assert.ok(quotaMigration.includes("'library_import'"));
-assert.ok(quotaMigration.includes("Historical story_generation rows"));
+assert.ok(quotaMigration.includes("delete from public.series"));
+assert.ok(quotaMigration.includes('\"source\":\"time_fit_ai_story\"'));
 
-console.log("PASS: AI story generation surfaces removed while historical provenance and reading-support AI remain");
+console.log("PASS: AI story generation surfaces and persisted generated works are removed while reading-support AI remains");
