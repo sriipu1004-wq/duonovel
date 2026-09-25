@@ -54,6 +54,16 @@ async function verifyLanguageControlsAreMultiSelect() {
     const [languages, setLanguages] = useState<SupportedLanguageTag[]>([]);
     return React.createElement(PublicSearchLanguageFilters, {
       sourceLanguages: languages,
+      countsOverride: {
+        ja: 40,
+        en: 3,
+        ko: 2,
+        fr: 0,
+        de: 0,
+        es: 0,
+        "zh-Hans": 0,
+        "zh-Hant": 0,
+      },
       onSourceLanguagesChange: setLanguages,
     });
   }

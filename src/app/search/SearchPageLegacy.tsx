@@ -16,7 +16,22 @@ import {
   getSavedFilterLabel,
   resolveSavedFilter,
 } from "@/lib/searchSavedFilters";
-import { parsePublicSearchSourceLanguages } from "@/lib/search/publicWorkLanguageFilter";
+import {
+  matchesPublicWorkLanguageFilters,
+  parsePublicSearchSourceLanguages,
+  PUBLIC_SEARCH_SOURCE_LANGUAGES,
+} from "@/lib/search/publicWorkLanguageFilter";
+import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import {
+  clampPublicSearchQuery,
+  getPublicSearchMatchScore,
+} from "@/lib/search/publicSearchMatching";
+import {
+  buildPublicSearchPaginationItems,
+  clampPublicSearchPage,
+  parsePublicSearchPage,
+  PUBLIC_SEARCH_PAGE_SIZE,
+} from "@/lib/search/publicSearchPagination";
 import { getUiLocale } from "@/i18n/server";
 import { canonicalizeTagLabel } from "@/i18n/tagLabels";
 import { canonicalizeGenreLabel, localizeGenreLabel } from "@/i18n/genreLabels";
@@ -39,6 +54,7 @@ type SearchPageProps = {
     saved?: string;
     source_language?: string;
     read_language?: string;
+    page?: string;
   }>;
 };
 
@@ -53,6 +69,7 @@ type ShelfTabKey =
 type WorkCard = {
   seriesId: string;
   title: string;
+  originalTitle: string | null;
   summary: string;
   authorName: string;
   authorId: string | null;
@@ -64,6 +81,7 @@ type WorkCard = {
   createdAtValue: number;
   tags: string[];
   genres: string[];
+  sourceLanguage: SupportedLanguageTag | null;
   likeCount: number;
   bookmarkCount: number;
   viewCount: number;
@@ -260,6 +278,7 @@ function buildSearchHref(params: {
   showTags?: boolean;
   showGenres?: boolean;
   shelfTab?: ShelfTabKey;
+  page?: number;
 }): string {
   const query = new URLSearchParams();
 
@@ -303,20 +322,12 @@ function buildSearchHref(params: {
     query.set("shelfTab", params.shelfTab);
   }
 
+  if (params.page && Number.isInteger(params.page) && params.page > 1) {
+    query.set("page", String(params.page));
+  }
+
   const queryString = query.toString();
   return queryString ? `/search?${queryString}` : "/search";
-}
-
-function buildSearchTarget(work: WorkCard): string {
-  return [
-    work.title,
-    work.summary,
-    work.authorName,
-    work.tags.join(" "),
-    work.genres.join(" "),
-  ]
-    .join("\n")
-    .toLowerCase();
 }
 
 function buildAvailableTags(works: WorkCard[]): TagChip[] {
@@ -356,6 +367,21 @@ function buildAvailableTags(works: WorkCard[]): TagChip[] {
   });
 }
 
+function buildLanguageCounts(
+  works: WorkCard[]
+): Record<SupportedLanguageTag, number> {
+  const counts = Object.fromEntries(
+    PUBLIC_SEARCH_SOURCE_LANGUAGES.map((language) => [language, 0])
+  ) as Record<SupportedLanguageTag, number>;
+
+  for (const work of works) {
+    if (!work.sourceLanguage) continue;
+    counts[work.sourceLanguage] += 1;
+  }
+
+  return counts;
+}
+
 function buildAvailableGenres(works: WorkCard[]): GenreChip[] {
   const counter = new Map<string, GenreChip>();
 
@@ -393,51 +419,6 @@ function buildAvailableGenres(works: WorkCard[]): GenreChip[] {
 
     return a.label.localeCompare(b.label, "ja");
   });
-}
-
-function estimateTagChipUnits(chip: TagChip): number {
-  return chip.label.length * 2 + String(chip.count).length + 8;
-}
-
-function pickTagChipsWithinBudget(chips: TagChip[], budget: number): TagChip[] {
-  const picked: TagChip[] = [];
-  let used = 0;
-
-  for (const chip of chips) {
-    const nextUnits = estimateTagChipUnits(chip);
-    if (picked.length > 0 && used + nextUnits > budget) {
-      break;
-    }
-
-    picked.push(chip);
-    used += nextUnits;
-  }
-
-  return picked;
-}
-
-function estimateGenreChipUnits(chip: GenreChip): number {
-  return chip.label.length * 2 + String(chip.count).length + 8;
-}
-
-function pickGenreChipsWithinBudget(
-  chips: GenreChip[],
-  budget: number
-): GenreChip[] {
-  const picked: GenreChip[] = [];
-  let used = 0;
-
-  for (const chip of chips) {
-    const nextUnits = estimateGenreChipUnits(chip);
-    if (picked.length > 0 && used + nextUnits > budget) {
-      break;
-    }
-
-    picked.push(chip);
-    used += nextUnits;
-  }
-
-  return picked;
 }
 
 function resolveOrder(value: string): OrderKey {
@@ -597,21 +578,6 @@ function filterWorksWithNarrationActivity(
   });
 }
 
-function filterWorksByDateRange(
-  works: WorkCard[],
-  startAt: number,
-  endAt: number
-): WorkCard[] {
-  const safeStart = Math.min(startAt, endAt);
-  const safeEnd = Math.max(startAt, endAt);
-
-  return works.filter(
-    (work) =>
-      work.latestPostedAtValue >= safeStart &&
-      work.latestPostedAtValue <= safeEnd
-  );
-}
-
 function sortWorks(
   works: WorkCard[],
   order: OrderKey,
@@ -694,7 +660,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const savedFilter = resolveSavedFilter(pickText(resolvedSearchParams?.saved));
   const savedFilterLabel = savedFilter ? getSavedFilterLabel(savedFilter) : "";
 
-  const query = pickText(resolvedSearchParams?.q);
+  const query = clampPublicSearchQuery(pickText(resolvedSearchParams?.q));
   const selectedTagLabels = parseSelectedTagLabels(
     pickText(resolvedSearchParams?.tags),
     pickText(resolvedSearchParams?.tag)
@@ -720,6 +686,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   const baseWorkCardsPromise = getCachedPublicBaseWorkCards({
     ignoreContentLanguageFilter: true,
+    ignorePublicSearchLanguageFilter: true,
   });
   const authSupabase = savedFilter ? await createServerClient() : null;
   const [baseWorkCards, authResult] = await Promise.all([
@@ -728,8 +695,20 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   ]);
   const currentUser = authResult?.data.user ?? null;
 
+  const baseWorkCardsForCurrentLanguage =
+    sourceLanguages.length === 0
+      ? baseWorkCards
+      : baseWorkCards.filter((work) =>
+          matchesPublicWorkLanguageFilters({
+            work,
+            sourceLanguages,
+          })
+        );
   const popularityDatasetPromise = fetchSeriesPopularityDataset(
-    baseWorkCards.map((work) => work.seriesId)
+    (shelfTab === "narration-popular"
+      ? baseWorkCards
+      : baseWorkCardsForCurrentLanguage
+    ).map((work) => work.seriesId)
   );
 
   let savedAuthorIds = new Set<string>();
@@ -768,7 +747,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const popularityDataset = await popularityDatasetPromise;
   const currentPopularityMap = buildSeriesPopularityMap(popularityDataset);
 
-  const workCards: WorkCard[] = baseWorkCards.map((work) => {
+  const allWorkCards: WorkCard[] = baseWorkCards.map((work) => {
     const currentPopularity =
       currentPopularityMap.get(work.seriesId) ??
       createEmptyPopularityMetrics(work.seriesId);
@@ -783,8 +762,17 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     };
   });
 
+  const currentLanguageSeriesIds = new Set(
+    baseWorkCardsForCurrentLanguage.map((work) => work.seriesId)
+  );
+  const workCards =
+    sourceLanguages.length === 0
+      ? allWorkCards
+      : allWorkCards.filter((work) =>
+          currentLanguageSeriesIds.has(work.seriesId)
+        );
 
-  const savedFilterRequiresLogin = Boolean(savedFilter && !currentUser);  
+  const savedFilterRequiresLogin = Boolean(savedFilter && !currentUser);
 
   const oldestPublicAtValue =
     workCards.reduce((min, work) => {
@@ -808,7 +796,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const selectedStartInput = formatInputDate(safeStartAtValue);
   const selectedEndInput = formatInputDate(safeEndAtValue);
 
-  const normalizedQuery = query.trim().toLowerCase();
   const selectedTagTokens = selectedTagLabels.map(normalizeTagToken);
   const selectedGenreTokens = selectedGenreLabels.map(normalizeGenreToken);
 
@@ -820,18 +807,28 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         })
       : null;
 
-  const filteredWorks = workCards.filter((work) => {
-    const queryOk =
-      normalizedQuery.length === 0 ||
-      buildSearchTarget(work).includes(normalizedQuery);
+  const searchScoreBySeriesId = new Map(
+    allWorkCards.map((work) => [
+      work.seriesId,
+      getPublicSearchMatchScore(query, work),
+    ])
+  );
+
+  function matchesCurrentConditions(
+    work: WorkCard,
+    ignoredFacet?: "tag" | "genre"
+  ): boolean {
+    const queryOk = (searchScoreBySeriesId.get(work.seriesId) ?? 0) > 0;
 
     const tagOk =
+      ignoredFacet === "tag" ||
       selectedTagTokens.length === 0 ||
       selectedTagTokens.every((selectedToken) =>
         work.tags.some((tag) => normalizeTagToken(tag) === selectedToken)
       );
 
     const genreOk =
+      ignoredFacet === "genre" ||
       selectedGenreTokens.length === 0 ||
       selectedGenreTokens.every((selectedToken) =>
         work.genres.some(
@@ -865,22 +862,38 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     })();
 
     return queryOk && tagOk && genreOk && dateOk && savedOk;
-  });
+  }
 
-  const shelfFilteredWorks =
-    shelfTab === "narration-popular"
+  function applyShelfEligibility(works: WorkCard[]): WorkCard[] {
+    return shelfTab === "narration-popular"
       ? filterWorksWithNarrationActivity(
-          filteredWorks,
+          works,
           selectedPopularityMap ?? undefined
         )
-      : filteredWorks;
+      : works;
+  }
 
-  const sortedWorks = sortWorksForShelfTab(
+  const filteredWorks = workCards.filter((work) =>
+    matchesCurrentConditions(work)
+  );
+  const shelfFilteredWorks = applyShelfEligibility(filteredWorks);
+
+  const modeSortedWorks = sortWorksForShelfTab(
     shelfFilteredWorks,
     order,
     shelfTab,
     selectedPopularityMap ?? undefined
   );
+
+  const sortedWorks =
+    query.length === 0
+      ? modeSortedWorks
+      : [...modeSortedWorks].sort((left, right) => {
+          const scoreDifference =
+            (searchScoreBySeriesId.get(right.seriesId) ?? 0) -
+            (searchScoreBySeriesId.get(left.seriesId) ?? 0);
+          return scoreDifference;
+        });
 
   const currentResultsHeading = savedFilterLabel
     ? `${savedFilterLabel} の一覧`
@@ -896,6 +909,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   const activeConditionCount =
     (query.trim().length > 0 ? 1 : 0) +
+    sourceLanguages.length +
     selectedGenreLabels.length +
     selectedTagLabels.length +
     (savedFilter ? 1 : 0) +
@@ -924,20 +938,51 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     shelfTab,
   });
 
-  const availableTags = buildAvailableTags(workCards);
+  const tagFacetWorks = applyShelfEligibility(
+    workCards.filter((work) => matchesCurrentConditions(work, "tag"))
+  );
+  const genreFacetWorks = applyShelfEligibility(
+    workCards.filter((work) => matchesCurrentConditions(work, "genre"))
+  );
+  const languageFacetWorks = applyShelfEligibility(
+    allWorkCards.filter((work) => matchesCurrentConditions(work))
+  );
+
+  const availableTags = buildAvailableTags(tagFacetWorks);
   const availableGenres = buildAvailableGenres(workCards);
-  const genreCandidateSource = availableGenres;
+  const genreCandidateSource = buildAvailableGenres(genreFacetWorks);
+  const languageCounts = buildLanguageCounts(languageFacetWorks);
 
-  const collapsedTagPreview = availableTags.slice(0, 10);
-  const collapsedGenrePreview = genreCandidateSource.slice(0, 7);
-
-  const hasHiddenTags = availableTags.length > 10;
-  const hasHiddenGenres = genreCandidateSource.length > 7;
-
-  const visibleTagChips = showAllTags ? availableTags : collapsedTagPreview;
-  const visibleGenreChips = showAllGenres
-    ? genreCandidateSource
-    : collapsedGenrePreview;
+  const totalResultCount = sortedWorks.length;
+  const totalPages = Math.max(
+    1,
+    Math.ceil(totalResultCount / PUBLIC_SEARCH_PAGE_SIZE)
+  );
+  const requestedPage = parsePublicSearchPage(resolvedSearchParams?.page);
+  const currentPage = clampPublicSearchPage(requestedPage, totalPages);
+  const pageStart = (currentPage - 1) * PUBLIC_SEARCH_PAGE_SIZE;
+  const paginatedWorks = sortedWorks.slice(
+    pageStart,
+    pageStart + PUBLIC_SEARCH_PAGE_SIZE
+  );
+  const paginationItems = buildPublicSearchPaginationItems(
+    currentPage,
+    totalPages
+  );
+  const buildPaginationHref = (page: number) =>
+    buildSearchHref({
+      q: query,
+      selectedTags: selectedTagLabels,
+      selectedGenres: selectedGenreLabels,
+      saved: savedFilter ?? "",
+      order,
+      start: selectedStartInput,
+      end: selectedEndInput,
+      showTags: showAllTags,
+      showGenres: showAllGenres,
+      shelfTab,
+      page,
+    });
 
   const isOverallShelfTab = shelfTab === "overall-popular";
   const isLatestShelfTab = shelfTab === "latest";
@@ -1242,7 +1287,20 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         </div>
 
         <PublicSearchControls
-          key={`search-language:${sourceLanguages.join(",") || "none"}`}
+          key={[
+            "search-controls",
+            query,
+            selectedTagLabels.join(","),
+            selectedGenreLabels.join(","),
+            sourceLanguages.join(","),
+            savedFilter ?? "",
+            order,
+            selectedStartInput,
+            selectedEndInput,
+            showAllTags ? "tags-open" : "tags-closed",
+            showAllGenres ? "genres-open" : "genres-closed",
+            shelfTab,
+          ].join("|")}
           query={query}
           selectedTagLabels={selectedTagLabels}
           selectedGenreLabels={selectedGenreLabels}
@@ -1258,6 +1316,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           allTagChips={availableTags}
           allGenreChips={genreCandidateSource}
           sourceLanguages={sourceLanguages}
+          languageCounts={languageCounts}
         />
 
         <section id="shelves" className="pt-10 scroll-mt-24">
@@ -1630,7 +1689,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
-                {sortedWorks.length}件
+                {totalResultCount}件
               </span>
             </div>
           </div>
@@ -1674,7 +1733,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             </div>
           ) : (
             <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
-              {sortedWorks.map((work) => {
+              {paginatedWorks.map((work) => {
 
                 return (
                   <div
@@ -1704,20 +1763,89 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           )}
         </section>
 
-        <div className="mt-10 flex flex-wrap gap-3">
-          <Link
-            href="/"
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+        {totalResultCount > PUBLIC_SEARCH_PAGE_SIZE ? (
+          <nav
+            aria-label={
+              uiLocale === "en"
+                ? "Search result pages"
+                : uiLocale === "ko"
+                  ? "검색 결과 페이지"
+                  : "検索結果ページ"
+            }
+            className="mt-8 flex flex-wrap items-center justify-center gap-2"
           >
-            TOPへ戻る
-          </Link>
+            {currentPage > 1 ? (
+              <SearchNavButton
+                href={buildPaginationHref(currentPage - 1)}
+                scrollTargetId="results"
+                className="min-h-10 rounded-full border border-black/10 bg-white px-3 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+              >
+                前へ
+              </SearchNavButton>
+            ) : (
+              <span
+                aria-disabled="true"
+                className="min-h-10 rounded-full border border-black/5 bg-neutral-50 px-3 py-2 text-sm text-neutral-400"
+              >
+                前へ
+              </span>
+            )}
 
-          <Link
-            href="/#latest"
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+            {paginationItems.map((item, index) =>
+              item === "ellipsis" ? (
+                <span
+                  key={`ellipsis-${index}`}
+                  aria-hidden="true"
+                  className="px-1 text-sm text-neutral-400"
+                >
+                  …
+                </span>
+              ) : item === currentPage ? (
+                <span
+                  key={item}
+                  aria-current="page"
+                  className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-black"
+                >
+                  {item}
+                </span>
+              ) : (
+                <SearchNavButton
+                  key={item}
+                  href={buildPaginationHref(item)}
+                  scrollTargetId="results"
+                  className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full border border-black/10 bg-white px-3 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+                >
+                  {item}
+                </SearchNavButton>
+              )
+            )}
+
+            {currentPage < totalPages ? (
+              <SearchNavButton
+                href={buildPaginationHref(currentPage + 1)}
+                scrollTargetId="results"
+                className="min-h-10 rounded-full border border-black/10 bg-white px-3 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
+              >
+                次へ
+              </SearchNavButton>
+            ) : (
+              <span
+                aria-disabled="true"
+                className="min-h-10 rounded-full border border-black/5 bg-neutral-50 px-3 py-2 text-sm text-neutral-400"
+              >
+                次へ
+              </span>
+            )}
+          </nav>
+        ) : null}
+
+        <div className="mt-8 flex justify-center">
+          <a
+            href="#search-filters"
+            className="inline-flex min-h-11 items-center rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-neutral-800 transition hover:bg-neutral-50"
           >
-            トップの一覧へ戻る
-          </Link>
+            検索条件へ戻る
+          </a>
         </div>
       </div>
     </main>

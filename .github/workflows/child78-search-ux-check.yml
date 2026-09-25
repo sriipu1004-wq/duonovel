@@ -1,0 +1,66 @@
+name: Child78 Search UX checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/child78-search-ux-check.yml"
+      - "package.json"
+      - "scripts/test-search-ux-final.ts"
+      - "scripts/test-public-search-language-filters.ts"
+      - "src/app/search/**"
+      - "src/components/search/**"
+      - "src/components/public/PublicWorkBoardCard.tsx"
+      - "src/lib/publicWorks.ts"
+      - "src/lib/search/**"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Search UX regression
+        run: npm run test:search-ux-final
+
+      - name: Public Search language regression
+        run: npm run test:public-search-language-filters
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Changed-scope ESLint
+        run: >
+          npx eslint
+          scripts/test-search-ux-final.ts
+          src/app/search/SearchPageLegacy.tsx
+          src/components/search/PublicSearchControls.tsx
+          src/components/search/PublicSearchLanguageFilters.tsx
+          src/components/search/SearchNavButton.tsx
+          src/lib/publicWorks.ts
+          src/lib/search/publicSearchMatching.ts
+          src/lib/search/publicSearchPagination.ts
+          src/lib/search/searchLocaleCopy.ts
+
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
+
+      - name: Diff whitespace check
+        run: git diff --check origin/main...HEAD

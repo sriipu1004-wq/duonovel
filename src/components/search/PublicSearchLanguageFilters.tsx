@@ -44,7 +44,7 @@ type Counts = Partial<Record<SupportedLanguageTag, number>>;
 type PublicSearchLanguageFiltersProps = {
   sourceLanguages: SupportedLanguageTag[];
   onSourceLanguagesChange: (languages: SupportedLanguageTag[]) => void;
-  countsOverride?: Counts;
+  countsOverride: Counts;
 };
 
 export default function PublicSearchLanguageFilters({
@@ -54,26 +54,10 @@ export default function PublicSearchLanguageFilters({
 }: PublicSearchLanguageFiltersProps) {
   const locale = useUiLocale();
   const languageChipListRef = useRef<HTMLDivElement | null>(null);
-  const [fetchedCounts, setFetchedCounts] = useState<Counts>({});
   const [showAllLanguages, setShowAllLanguages] = useState(false);
   const [hasHiddenLanguages, setHasHiddenLanguages] = useState(false);
 
-  useEffect(() => {
-    if (countsOverride) return;
-
-    let cancelled = false;
-    void fetch("/api/public/work-language-counts", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((payload: { counts?: Counts }) => {
-        if (!cancelled && payload.counts) setFetchedCounts(payload.counts);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [countsOverride]);
-
-  const counts = countsOverride ?? fetchedCounts;
+  const counts = countsOverride;
 
   const orderedLanguages = useMemo(() => {
     const preferred = locale as SupportedLanguageTag;
@@ -92,22 +76,14 @@ export default function PublicSearchLanguageFilters({
   }, [counts, locale]);
 
   useEffect(() => {
-    if (showAllLanguages) {
-      setHasHiddenLanguages(false);
-      return;
-    }
+    if (showAllLanguages) return;
 
     const container = languageChipListRef.current;
-    if (!container) return;
+    if (!container || typeof ResizeObserver === "undefined") return;
 
-    const updateOverflow = () => {
+    const observer = new ResizeObserver(() => {
       setHasHiddenLanguages(container.scrollHeight > container.clientHeight + 1);
-    };
-
-    updateOverflow();
-    if (typeof ResizeObserver === "undefined") return;
-
-    const observer = new ResizeObserver(updateOverflow);
+    });
     observer.observe(container);
     return () => observer.disconnect();
   }, [orderedLanguages, showAllLanguages]);
@@ -138,23 +114,28 @@ export default function PublicSearchLanguageFilters({
         >
           {orderedLanguages.map((tag) => {
             const active = sourceLanguages.includes(tag);
+            const count = Number(counts[tag] ?? 0);
+            const disabled = !active && count === 0;
             return (
               <button
                 key={tag}
                 type="button"
                 aria-pressed={active}
+                disabled={disabled}
                 title={getLanguageLabel(tag, locale)}
                 onClick={() => toggle(tag)}
                 className={[
                   "inline-flex max-w-full items-center overflow-hidden rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
                   active
                     ? "border-sky-200 bg-sky-50 text-black"
-                    : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
+                    : disabled
+                      ? "cursor-not-allowed border-black/5 bg-neutral-50 text-neutral-300"
+                      : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
                 ].join(" ")}
               >
                 <span className="truncate">{getLanguageLabel(tag, locale)}</span>
                 <span className="ml-1.5 shrink-0 text-[10px] text-neutral-400">
-                  {Number(counts[tag] ?? 0)}
+                  {count}
                 </span>
               </button>
             );

@@ -43,7 +43,8 @@
     "public-domain:repartition-audit": "node --import tsx scripts/public-domain/repartition-audit.ts",
     "public-domain:legacy-provenance-audit": "node --import tsx scripts/public-domain/legacy-provenance-audit.ts",
     "public-domain:migrate-legacy-approved": "node --import tsx scripts/public-domain/migrate-legacy-approved.ts",
-    "test:legacy-official-rights-audit": "node --import tsx scripts/test-legacy-official-rights-audit.ts"
+    "test:legacy-official-rights-audit": "node --import tsx scripts/test-legacy-official-rights-audit.ts",
+    "test:search-ux-final": "node --import tsx scripts/test-search-ux-final.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
