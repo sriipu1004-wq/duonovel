@@ -44,6 +44,8 @@ export async function GET(_request: Request, context: RouteContext) {
   }
   return NextResponse.json({
     ok: true,
+    status: "ready",
+    provenance: "human",
     translationId: row.id,
     sourceHash: current.sourceHash,
     sourceLanguage: current.sourceLanguage,

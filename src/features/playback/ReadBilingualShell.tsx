@@ -212,18 +212,31 @@ export default function ReadBilingualShell({
       } else if (requested === "ai" && aiTranslationEligible) {
         setTranslationSourceKey("ai");
       } else {
-        setTranslationSourceKey((current) => {
-          if (
-            current.startsWith("human:") &&
-            next.some((option) => "human:" + option.id === current)
-          ) {
-            return current;
+        const currentStillExists =
+          translationSourceKey.startsWith("human:") &&
+          next.some(
+            (option) => "human:" + option.id === translationSourceKey
+          );
+        if (currentStillExists) {
+          return;
+        }
+
+        if (!aiTranslationEligible && next[0]) {
+          const nextKey = "human:" + next[0].id;
+          setTranslationSourceKey(nextKey);
+          if (mode === "bilingual" || mode === "translation") {
+            replaceReaderUrl(
+              mode,
+              language,
+              false,
+              sessionLanguageLocked,
+              nextKey
+            );
           }
-          if (!aiTranslationEligible && next[0]) {
-            return "human:" + next[0].id;
-          }
-          return "ai";
-        });
+          return;
+        }
+
+        setTranslationSourceKey("ai");
       }
     } catch {
       setHumanTranslations([]);
