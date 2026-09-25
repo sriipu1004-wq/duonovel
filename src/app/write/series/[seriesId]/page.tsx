@@ -12,7 +12,6 @@ import SeriesTranslationGlossaryWorkspace, {
   type SeriesTranslationGlossaryTargetRow,
   type SeriesTranslationProfileRow,
 } from "@/features/write/SeriesTranslationGlossaryWorkspace";
-import ContinueStoryAction from "@/features/generation/ContinueStoryAction";
 import {
   getEpisodeBody,
   type EpisodeRow,
@@ -192,11 +191,6 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
           </Suspense>
         ) : null}
       </SeriesStatusPortal>
-      {isAiGenerated && episodes.length > 0 ? (
-        <div className="mx-auto w-full max-w-5xl px-4 pb-6 sm:px-6">
-          <ContinueStoryAction seriesId={series.id} isShortStory={shortStoryComplete} />
-        </div>
-      ) : null}
       <TranslationPermissionWorkspaceBridge
         seriesId={series.id}
         initialMode={translationPermissionMode}
