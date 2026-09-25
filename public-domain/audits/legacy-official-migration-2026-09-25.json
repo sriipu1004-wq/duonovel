@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "generated_at": "2026-09-25T02:35:00+10:00",
+  "base_commit": "81edc154562b0ce0510320efcfcb3bf73e1a59ff",
+  "scope": "Child77 targeted current-format migration after complete legacy rights/provenance classification",
+  "production_write": {
+    "targeted_series_count": 1,
+    "series_id": "e943259d-600a-437e-9147-16fd722357a7",
+    "title": "文鳥・夏目漱石",
+    "manifest_id": "aozora-000753",
+    "before": {
+      "rights_checked": false,
+      "translation_permission_mode": "closed",
+      "recording_permission_mode": "open",
+      "episode_count": 3,
+      "max_episode_chars": 5494
+    },
+    "after": {
+      "rights_checked": true,
+      "translation_permission_mode": "open",
+      "recording_permission_mode": "open",
+      "episode_count": 3,
+      "max_episode_chars": 5494
+    },
+    "publication_state_changed": false,
+    "series_id_changed": false,
+    "episode_rows_changed": false,
+    "repartition_performed": false,
+    "source_hash": "2398d7180d7c003d68270b6bd6197720d735b146c42bc49e6b796986f8336538",
+    "pre_and_post_episode_fingerprints_verified": true,
+    "existing_dependencies": {
+      "translations": 0,
+      "unlocks": 0,
+      "recordings": 15,
+      "comments": 0,
+      "continuation_reservations": 0
+    }
+  },
+  "production_postcheck": {
+    "official_total": 120,
+    "official_public": 120,
+    "current_rights_checked_public_domain": 84,
+    "legacy_unchecked_official": 36,
+    "current_pd_by_source_language": {
+      "ja": 4,
+      "en": 40,
+      "ko": 40
+    },
+    "legacy_translation_open": 0,
+    "legacy_recording_open": 36,
+    "search_membership_columns_changed": false
+  },
+  "classification_pre_migration": {
+    "total": 37,
+    "CURRENT_PD_APPROVED": 1,
+    "RIGHTS_CLEAR_SOURCE_UNCERTAIN": 25,
+    "RIGHTS_REVIEW_REQUIRED": 8,
+    "SOURCE_OR_EDITION_RISK": 3,
+    "REJECT_ACTION_REQUIRED": 0,
+    "report": "public-domain/audits/legacy-official-rights-classification-2026-09-25.json"
+  },
+  "safeguards": {
+    "fabricated_source_added": false,
+    "unapproved_work_migrated": false,
+    "unapproved_permission_changed": false,
+    "general_user_work_changed": false,
+    "new_public_domain_work_added": false,
+    "mass_translation_generated": false,
+    "oversized_unapproved_repartitioned": false
+  }
+}
