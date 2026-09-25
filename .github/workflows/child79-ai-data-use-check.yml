@@ -17,6 +17,9 @@ on:
       - "src/features/write/TranslationPermissionWorkspaceBridge.tsx"
       - "src/lib/translation/openAITranslation.ts"
       - "src/lib/translation/publicEpisodeTranslation.ts"
+      - "src/lib/aiUsage/**"
+      - "src/features/library/LibraryImportForm.tsx"
+      - "supabase/migrations/20260925183000_retire_story_generation_quota.sql"
 
 permissions:
   contents: read
