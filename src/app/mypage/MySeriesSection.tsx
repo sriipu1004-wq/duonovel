@@ -8,7 +8,7 @@ import { getEpisodeNumber, getSeriesPublicationStatus } from "@/features/write/w
 type SeriesOrder = "updated" | "added";
 
 function readRecord(value: unknown): Record<string, unknown> | null { if (value && typeof value === "object") return value as Record<string, unknown>; if (typeof value === "string" && value.trim()) { try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : null; } catch { return null; } } return null; }
-function isShortStorySeries(series: AuthorSeriesCard["series"]): boolean { const settings = readRecord(series.effect_settings ?? series["effectSettings"]); const tags = Array.isArray(series.tags) ? series.tags.map((item) => String(item).trim()) : typeof series.tags === "string" ? series.tags.split(/[\n,、]/u).map((item) => item.trim()) : []; return tags.includes("AI生成") || settings?.source === "time_fit_ai_story" || settings?.aiGenerated === true || settings?.authorName === "AI生成" || settings?.storyFormat === "short"; }
+function isShortStorySeries(series: AuthorSeriesCard["series"]): boolean { const settings = readRecord(series.effect_settings ?? series["effectSettings"]); return settings?.storyFormat === "short"; }
 function toTime(value: unknown): number { if (typeof value !== "string") return 0; const time = new Date(value).getTime(); return Number.isNaN(time) ? 0 : time; }
 
 export default function MySeriesSection({ cards }: { cards: AuthorSeriesCard[] }) {

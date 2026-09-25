@@ -20,10 +20,8 @@ function readSettings(value: unknown): Record<string, unknown> | null {
 }
 
 function isShortStory(series: Record<string, unknown>): boolean {
-  const rawTags = series.tags;
-  const tags = Array.isArray(rawTags) ? rawTags.map(String) : typeof rawTags === "string" ? rawTags.split(/[\n,、]/u) : [];
   const settings = readSettings(series.effect_settings ?? series.effectSettings);
-  return tags.includes("AI生成") || settings?.storyFormat === "short" || settings?.aiGenerated === true || settings?.source === "time_fit_ai_story";
+  return settings?.storyFormat === "short";
 }
 
 async function fetchEpisodes(seriesId: string, supabase: Awaited<ReturnType<typeof requireOwnedSeries>>["supabase"]): Promise<EpisodeRow[]> {

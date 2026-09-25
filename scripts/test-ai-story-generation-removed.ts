@@ -67,6 +67,11 @@ for (const path of sourceFiles("src")) {
     "AI story generation",
     "AI story generations",
     "AI 이야기 생성",
+    "time_fit_ai_story",
+    "isAiGeneratedSeries",
+    "aiGeneratedAttribution",
+    "AI-generated works remain eligible",
+    "AI生成作品はAI対訳生成の対象として固定",
   ]) {
     if (source.includes(marker)) {
       staleGeneratorMarkers.push(path + " => " + marker);

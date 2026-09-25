@@ -55,46 +55,6 @@ type EpisodePayload = {
   last_edited_at: string | null;
 };
 
-function isAiGeneratedSeriesRow(value: unknown): boolean {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const row = value as Record<string, unknown>;
-  const tags = row.tags;
-
-  if (Array.isArray(tags)) {
-    if (tags.map((item) => String(item).trim()).includes("AI生成")) {
-      return true;
-    }
-  }
-
-  if (typeof tags === "string") {
-    if (
-      tags
-        .split(/[\n,、]/)
-        .map((item) => item.trim())
-        .includes("AI生成")
-    ) {
-      return true;
-    }
-  }
-
-  const settings = row.effect_settings ?? row.effectSettings;
-
-  if (!settings || typeof settings !== "object") {
-    return false;
-  }
-
-  const record = settings as Record<string, unknown>;
-
-  return (
-    record.source === "time_fit_ai_story" ||
-    record.aiGenerated === true ||
-    record.authorName === "AI生成"
-  );
-}
-
 function formatDateTimeLocal(value?: string | null): string {
   if (!value) {
     return "";
@@ -492,39 +452,6 @@ const scheduledBeforePreviousIsBlocked =
     target.focus({ preventScroll: true });
   }
 
-  async function ensureAiGeneratedSeriesPublicSurface(
-    nextPostingStatus: EpisodePostingStatus
-  ): Promise<string | null> {
-    if (nextPostingStatus !== "posted") {
-      return null;
-    }
-
-    const lookup = await supabase
-      .from("series")
-      .select("tags, effect_settings")
-      .eq("id", seriesId)
-      .maybeSingle();
-
-    if (lookup.error || !lookup.data) {
-      return "作品の公開状態を更新できませんでした。";
-    }
-
-    if (!isAiGeneratedSeriesRow(lookup.data)) {
-      return null;
-    }
-
-    const update = await supabase
-      .from("series")
-      .update({
-        publication_status: "public",
-        is_public: true,
-        recording_permission_mode: "open",
-      })
-      .eq("id", seriesId);
-
-    return update.error ? "作品の公開状態を更新できませんでした。" : null;
-  }
-
   async function handleSubmit(
     destination: "workspace" | "next" = "workspace"
   ) {
@@ -603,18 +530,6 @@ const scheduledBeforePreviousIsBlocked =
         .single();
 
       if (!result.error && result.data?.id) {
-        const publicSurfaceError =
-          await ensureAiGeneratedSeriesPublicSurface(postingStatus);
-
-        if (publicSurfaceError) {
-          hideGlobalLoadingFeedback();
-          submittingRef.current = false;
-          setSaveState("error");
-          setErrorMessage(
-            "話は保存されましたが、作品の公開状態を更新できませんでした。"
-          );
-          return;
-        }
 
         setSaveState("success");
         setSuccessMessage("話を作成した。");
@@ -643,18 +558,6 @@ const scheduledBeforePreviousIsBlocked =
       .eq("id", episode?.id ?? "");
 
     if (!result.error) {
-      const publicSurfaceError =
-        await ensureAiGeneratedSeriesPublicSurface(postingStatus);
-
-      if (publicSurfaceError) {
-        hideGlobalLoadingFeedback();
-        submittingRef.current = false;
-        setSaveState("error");
-        setErrorMessage(
-          "話は保存されましたが、作品の公開状態を更新できませんでした。"
-        );
-        return;
-      }
 
       submittingRef.current = false;
       setSaveState("success");

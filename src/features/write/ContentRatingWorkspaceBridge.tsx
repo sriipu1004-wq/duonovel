@@ -8,7 +8,6 @@ type Props = {
   seriesId?: string | null;
   initialWarnings?: SeriesContentWarning[];
   lockedWarnings?: SeriesContentWarning[];
-  isAiGenerated?: boolean;
 };
 
 const PENDING_KEY = "duonovel:pending-content-rating-create";
@@ -101,7 +100,6 @@ export default function ContentRatingWorkspaceBridge({
   seriesId,
   initialWarnings = [],
   lockedWarnings = [],
-  isAiGenerated = false,
 }: Props) {
   const normalizedInitial = useMemo(
     () => Array.from(new Set(initialWarnings)),
@@ -343,11 +341,6 @@ export default function ContentRatingWorkspaceBridge({
               })}
             </div>
 
-            {isAiGenerated && normalizedLocks.includes("sexual_r18") ? (
-              <p className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs leading-6 text-red-700">
-                この作品はAI生成時点で性的コンテンツを含むと判定されたため、R18警告を解除できません。
-              </p>
-            ) : null}
 
             {!seriesId && warnings.length > 0 ? (
               <p className="mt-3 text-xs leading-6 text-neutral-500">

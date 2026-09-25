@@ -59,51 +59,6 @@ function parseCsv(value: string | undefined): Set<string> {
   );
 }
 
-function parseRecord(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === "object") {
-    return value as Record<string, unknown>;
-  }
-
-  if (typeof value === "string" && value.trim()) {
-    try {
-      const parsed = JSON.parse(value);
-      return parsed && typeof parsed === "object"
-        ? (parsed as Record<string, unknown>)
-        : null;
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-}
-
-function parseTags(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item).trim()).filter(Boolean);
-  }
-
-  if (typeof value === "string") {
-    return value
-      .split(/[\n,、]/u)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  return [];
-}
-
-export function isSeriesAiGenerated(series: SeriesRow): boolean {
-  const settings = parseRecord(series.effect_settings ?? series.effectSettings);
-  const tags = parseTags(series.tags);
-
-  return (
-    tags.includes("AI生成") ||
-    settings?.source === "time_fit_ai_story" ||
-    settings?.aiGenerated === true ||
-    settings?.authorName === "AI生成"
-  );
-}
 
 export function isSeriesTranslationEligible(series: SeriesRow): boolean {
   return series.translation_permission_mode === "open";

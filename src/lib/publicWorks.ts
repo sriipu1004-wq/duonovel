@@ -140,15 +140,8 @@ function readEffectSettings(value: unknown): Record<string, unknown> | null {
 function isShortStorySeriesForSitemap(series: SeriesRow): boolean {
   const effectSettings = series["effect_settings"] ?? series["effectSettings"];
   if (readPublicDomainMetadata(effectSettings)) return false;
-  const tags = getSeriesTags(series);
   const settings = readEffectSettings(effectSettings);
-  return (
-    tags.includes("#AI生成") ||
-    settings?.source === "time_fit_ai_story" ||
-    settings?.aiGenerated === true ||
-    settings?.authorName === "AI生成" ||
-    settings?.storyFormat === "short"
-  );
+  return settings?.storyFormat === "short";
 }
 
 const PUBLIC_WORK_SERIES_SELECT = `

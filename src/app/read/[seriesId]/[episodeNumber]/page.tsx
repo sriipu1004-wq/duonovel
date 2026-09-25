@@ -66,52 +66,6 @@ function parseRecord(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
-function parseTagList(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item).trim()).filter(Boolean);
-  }
-
-  if (typeof value === "string" && value.trim()) {
-    return value
-      .split(/[\n,、]/u)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  return [];
-}
-
-function isAiGeneratedSeries(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
-  const series = value as Record<string, unknown>;
-  const tags = parseTagList(series.tags);
-  const settings = parseRecord(series.effect_settings ?? series.effectSettings);
-  return (
-    tags.includes("AI生成") ||
-    settings?.source === "time_fit_ai_story" ||
-    settings?.aiGenerated === true ||
-    settings?.authorName === "AI生成"
-  );
-}
-
-function getAiGeneratedReadAttribution(
-  value: unknown,
-  aiGeneratedLabel: string,
-  editorUnsetLabel: string
-): { authorName: string; editorName: string } | null {
-  if (!value || typeof value !== "object" || !isAiGeneratedSeries(value)) {
-    return null;
-  }
-
-  const series = value as Record<string, unknown>;
-  const settings = parseRecord(series.effect_settings ?? series.effectSettings);
-
-  return {
-    authorName: aiGeneratedLabel,
-    editorName:
-      pickText(settings?.editorName, settings?.editor_name) || editorUnsetLabel,
-  };
-}
 
 function getStoryFormat(value: unknown): "short" | "long" {
   if (!value || typeof value !== "object") return "long";
@@ -123,7 +77,7 @@ function getStoryFormat(value: unknown): "short" | "long" {
     return settings.storyFormat;
   }
 
-  return isAiGeneratedSeries(value) ? "short" : "long";
+  return "long";
 }
 
 function getRecordingReaderName(
@@ -294,14 +248,7 @@ export async function generateMetadata({
       pickText(episode.title, episode["episode_title"]) ||
       readUi.episode(currentEpisodeNumber);
     const summary = getSeriesSummary(series).trim();
-    const aiGeneratedAttribution = getAiGeneratedReadAttribution(
-      series,
-      readUi.aiGenerated,
-      readUi.editorUnset
-    );
-    const authorLabel = aiGeneratedAttribution
-      ? aiGeneratedAttribution.authorName
-      : await getNormalAuthorName(series, readUi.authorUnset);
+    const authorLabel = await getNormalAuthorName(series, readUi.authorUnset);
 
     const description = [
       summary || ui.fallbackDescription(seriesTitle, episodeTitle),
@@ -385,16 +332,9 @@ export default async function ReadEpisodePage({
     viewerUserId,
     viewerEmail,
   } = payload;
-  const aiGeneratedAttribution = getAiGeneratedReadAttribution(
-    series,
-    ui.aiGenerated,
-    ui.editorUnset
-  );
   const [subscriber, normalAuthorName] = await Promise.all([
     viewerUserId ? isSubscriber(viewerUserId) : Promise.resolve(false),
-    aiGeneratedAttribution
-      ? Promise.resolve(null)
-      : getNormalAuthorName(series, ui.authorUnset),
+    getNormalAuthorName(series, ui.authorUnset),
   ]);
   const availableHumanRecordings = payload.allEpisodeRecordings.filter(
     isPublishedHumanRecording
@@ -475,10 +415,8 @@ export default async function ReadEpisodePage({
     ? getSupportedLanguage(sourceLanguage).speechLanguage
     : "ja-JP";
 
-  const workAuthorName = aiGeneratedAttribution
-    ? aiGeneratedAttribution.authorName
-    : normalAuthorName ?? ui.authorUnset;
-  const workEditorName = aiGeneratedAttribution?.editorName ?? "";
+  const workAuthorName = normalAuthorName ?? ui.authorUnset;
+  const workEditorName = "";
 
   const prevEpisodeHref =
     prevEpisodeNumber !== null

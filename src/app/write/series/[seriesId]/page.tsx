@@ -43,22 +43,6 @@ function readSettings(value: unknown): Record<string, unknown> | null {
   }
 }
 
-function parseTags(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw.map(String).map((tag) => tag.trim()).filter(Boolean);
-  if (typeof raw === "string") return raw.split(/[\n,、]/u).map((tag) => tag.trim()).filter(Boolean);
-  return [];
-}
-
-function isAiGeneratedSeries(series: SeriesRow): boolean {
-  const tags = parseTags(series.tags);
-  const settings = readSettings(series.effect_settings ?? series["effectSettings"]);
-  return (
-    tags.includes("AI生成") ||
-    settings?.source === "time_fit_ai_story" ||
-    settings?.aiGenerated === true ||
-    settings?.authorName === "AI生成"
-  );
-}
 
 function isShortStory(series: SeriesRow, episodeCount: number): boolean {
   const settings = readSettings(series.effect_settings ?? series["effectSettings"]);
@@ -155,7 +139,6 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
   if (!series) notFound();
   const shortStoryComplete = isShortStory(series, episodes.length) && episodes.length > 0;
   const className = [styles.workspace, shortStoryComplete ? styles.shortStoryComplete : ""].filter(Boolean).join(" ");
-  const isAiGenerated = isAiGeneratedSeries(series);
   const translationPermissionMode =
     series.translation_permission_mode === "open"
       ? "open"
@@ -194,14 +177,12 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
       <TranslationPermissionWorkspaceBridge
         seriesId={series.id}
         initialMode={translationPermissionMode}
-        isAiGenerated={isAiGenerated}
         isOfficialAuthor={isOfficialAccountEmail(user.email)}
       />
       <ContentRatingWorkspaceBridge
         seriesId={series.id}
         initialWarnings={getSeriesContentWarnings(series)}
         lockedWarnings={getSeriesContentWarningLocks(series)}
-        isAiGenerated={isAiGenerated}
       />
     </div>
   );

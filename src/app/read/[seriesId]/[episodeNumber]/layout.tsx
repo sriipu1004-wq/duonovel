@@ -35,39 +35,6 @@ function parseEpisodeNumber(value: string): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function parseRecord(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === "object") {
-    return value as Record<string, unknown>;
-  }
-
-  if (typeof value === "string" && value.trim()) {
-    try {
-      const parsed = JSON.parse(value);
-      return parsed && typeof parsed === "object"
-        ? (parsed as Record<string, unknown>)
-        : null;
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-}
-
-function parseTags(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item).trim()).filter(Boolean);
-  }
-
-  if (typeof value === "string") {
-    return value
-      .split(/[\n,、]/u)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  return [];
-}
 
 function resolveReadAttribution(
   series: SeriesRow,
@@ -76,23 +43,6 @@ function resolveReadAttribution(
   authorName: string;
   editorName: string;
 } {
-  const settings = parseRecord(series.effect_settings ?? series.effectSettings);
-  const tags = parseTags(series.tags);
-  const isAiGenerated =
-    tags.includes("AI生成") ||
-    settings?.source === "time_fit_ai_story" ||
-    settings?.aiGenerated === true ||
-    settings?.authorName === "AI生成";
-
-  if (isAiGenerated) {
-    return {
-      authorName: dictionary.aiGenerated,
-      editorName:
-        pickText(settings?.editorName, settings?.editor_name) ||
-        dictionary.editorUnset,
-    };
-  }
-
   return {
     authorName: pickText(series["author_name"]) || dictionary.authorUnset,
     editorName: "",
