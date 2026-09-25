@@ -71,11 +71,11 @@ export default function FaqPage() {
           question="無料で使える？"
           answer={
             <>
-              公開作品の閲覧、最大3作品の個人本棚、読み上げなどは無料で利用できます。AI機能には無料枠があります。
+              公開作品の閲覧、最大3作品の個人本棚、読み上げなどは無料で利用できます。AI翻訳・単語解説には無料枠があります。
               <FreePlanOnly>
                 {" "}月額680円の
                 <Link className="underline underline-offset-4" href="/subscription">サブスク</Link>
-                で生成上限の拡大、単語解説無制限、次話対訳の先読みを利用できます。
+                で公開翻訳の利用上限拡大、単語解説無制限、次話対訳の先読みを利用できます。
               </FreePlanOnly>
             </>
           }
@@ -186,32 +186,6 @@ export default function FaqPage() {
           }
         />
       </Section>
-        {/* AI_FAQ_V1 */}
-        <Section title="AI生成">
-          <FaqItem
-            question="AI生成は何ができる？"
-            answer={
-              <>
-                <Link className="underline underline-offset-4" href="/generate">
-                  AI生成ページ
-                </Link>
-                で、読む時間、場面、ジャンル、雰囲気を選び、その条件に合わせた短編を作れる。
-              </>
-            }
-          />
-          <FaqItem
-            question="ログインしなくても生成できる？"
-            answer="生成そのものはログインしなくても利用できる。生成後の保存、編集、公開にはログインが必要。"
-          />
-          <FaqItem
-            question="生成した物語はどこに保存される？"
-            answer="生成直後の内容は端末内の一時データとして扱われる。保存または公開の操作をした場合は、機能の提供に必要な範囲でサービス側にも保存される。"
-          />
-          <FaqItem
-            question="AI生成結果をそのまま公開してよい？"
-            answer="公開前に内容を確認し、公開するコンテンツについて利用者が責任を負う。第三者の権利侵害や規約違反がないかを確認する。"
-          />
-        </Section>
 
       </div>
     </main>
