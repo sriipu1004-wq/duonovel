@@ -754,8 +754,20 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   ]);
   const currentUser = authResult?.data.user ?? null;
 
+  const baseWorkCardsForCurrentLanguage =
+    sourceLanguages.length === 0
+      ? baseWorkCards
+      : baseWorkCards.filter((work) =>
+          matchesPublicWorkLanguageFilters({
+            work,
+            sourceLanguages,
+          })
+        );
   const popularityDatasetPromise = fetchSeriesPopularityDataset(
-    baseWorkCards.map((work) => work.seriesId)
+    (shelfTab === "narration-popular"
+      ? baseWorkCards
+      : baseWorkCardsForCurrentLanguage
+    ).map((work) => work.seriesId)
   );
 
   let savedAuthorIds = new Set<string>();
@@ -809,14 +821,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     };
   });
 
+  const currentLanguageSeriesIds = new Set(
+    baseWorkCardsForCurrentLanguage.map((work) => work.seriesId)
+  );
   const workCards =
     sourceLanguages.length === 0
       ? allWorkCards
       : allWorkCards.filter((work) =>
-          matchesPublicWorkLanguageFilters({
-            work,
-            sourceLanguages,
-          })
+          currentLanguageSeriesIds.has(work.seriesId)
         );
 
   const savedFilterRequiresLogin = Boolean(savedFilter && !currentUser);
@@ -999,17 +1011,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const availableGenres = buildAvailableGenres(workCards);
   const genreCandidateSource = buildAvailableGenres(genreFacetWorks);
   const languageCounts = buildLanguageCounts(languageFacetWorks);
-
-  const collapsedTagPreview = availableTags.slice(0, 10);
-  const collapsedGenrePreview = genreCandidateSource.slice(0, 7);
-
-  const hasHiddenTags = availableTags.length > 10;
-  const hasHiddenGenres = genreCandidateSource.length > 7;
-
-  const visibleTagChips = showAllTags ? availableTags : collapsedTagPreview;
-  const visibleGenreChips = showAllGenres
-    ? genreCandidateSource
-    : collapsedGenrePreview;
 
   const totalResultCount = sortedWorks.length;
   const totalPages = Math.max(
