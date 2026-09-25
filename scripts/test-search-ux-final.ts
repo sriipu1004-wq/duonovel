@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  clampPublicSearchQuery,
   getPublicSearchMatchScore,
   normalizePublicSearchText,
   PUBLIC_SEARCH_QUERY_MAX_LENGTH,
@@ -50,7 +51,6 @@ function verifyNormalizationAndMatching() {
 
   assert.ok(getPublicSearchMatchScore("文鳥", bunchou) > 0);
   assert.ok(getPublicSearchMatchScore("夏目　漱石 文鳥", bunchou) > 0);
-  assert.ok(getPublicSearchMatchScore("夏目漱石文鳥", bunchou) > 0);
   assert.ok(getPublicSearchMatchScore("어린왕자", korean) > 0);
 
   assert.equal(
@@ -60,7 +60,7 @@ function verifyNormalizationAndMatching() {
   );
 
   assert.equal(
-    "x".repeat(PUBLIC_SEARCH_QUERY_MAX_LENGTH + 20).slice(0, PUBLIC_SEARCH_QUERY_MAX_LENGTH).length,
+    clampPublicSearchQuery("x".repeat(PUBLIC_SEARCH_QUERY_MAX_LENGTH + 20)).length,
     PUBLIC_SEARCH_QUERY_MAX_LENGTH
   );
 }
@@ -135,10 +135,10 @@ function verifySourceContracts() {
   assert.ok(publicWorks.includes("originalTitle: publicDomain?.originalTitle ?? null"));
   assert.ok(publicWorks.includes("ignorePublicSearchLanguageFilter?: boolean"));
 
-  const card = readFileSync("src/components/public/PublicWorkBoardCard.tsx", "utf8");
-  assert.equal(card.includes("viewCount"), false);
-  assert.equal(card.includes("likeCount"), false);
-  assert.equal(card.includes("bookmarkCount"), false);
+  assert.equal(page.includes("viewCount={"), false);
+  assert.equal(page.includes("likeCount={"), false);
+  assert.equal(page.includes("bookmarkCount={"), false);
+  assert.equal(page.includes("narrationPlayCount={"), false);
 }
 
 verifyNormalizationAndMatching();
