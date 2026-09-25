@@ -8,6 +8,10 @@ on:
       - ".github/workflows/child77-legacy-rights-audit.yml"
       - "scripts/public-domain/legacy-provenance-audit.ts"
       - "public-domain/audits/legacy-official-production-fingerprints-2026-09-25.json"
+      - "public-domain/audits/legacy-official-rights-classification-2026-09-25.json"
+      - "public-domain/manifests/aozora-000753.json"
+      - "scripts/public-domain/migrate-legacy-approved.ts"
+      - "package.json"
   workflow_dispatch:
 
 permissions:
@@ -21,6 +25,9 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - name: Checkout audit branch
         uses: actions/checkout@v4
@@ -72,6 +79,18 @@ jobs:
           if (serialized.includes('"body":')) throw new Error("raw Production body leaked into provenance report");
           console.log(report.summary);
           NODE
+
+      - name: Validate Public Domain manifests
+        run: npm run public-domain:validate
+
+      - name: Dry-run approved legacy migration against live Production identity
+        run: npm run public-domain:migrate-legacy-approved
+
+      - name: Public Domain regression
+        run: npm run test:public-domain-ingestion
+
+      - name: TypeScript
+        run: npx tsc --noEmit
 
       - name: Persist read-only evidence
         shell: bash
