@@ -150,41 +150,24 @@ export default function PublicSearchControls({
       locale
     );
 
-  useEffect(() => setQueryValue(query), [query]);
-  useEffect(() => setStartValue(selectedStartInput), [selectedStartInput]);
-  useEffect(() => setEndValue(selectedEndInput), [selectedEndInput]);
-  useEffect(() => setGenreLimitMessage(""), [selectedGenreLabels]);
-  useEffect(() => setLocalSelectedTagLabels(initialSelectedTagLabels), [initialSelectedTagLabels]);
-  useEffect(() => setLocalSelectedGenreLabels(initialSelectedGenreLabels), [initialSelectedGenreLabels]);
-  useEffect(() => setLocalShowAllTags(initialShowAllTags), [initialShowAllTags]);
-  useEffect(() => setLocalShowAllGenres(initialShowAllGenres), [initialShowAllGenres]);
-
   useEffect(() => {
-    if (showAllTags) {
-      setHasHiddenTags(false);
-      return;
-    }
+    if (showAllTags) return;
     const container = tagChipListRef.current;
-    if (!container) return;
-    const updateOverflow = () => setHasHiddenTags(container.scrollHeight > container.clientHeight + 1);
-    updateOverflow();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(updateOverflow);
+    if (!container || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      setHasHiddenTags(container.scrollHeight > container.clientHeight + 1);
+    });
     observer.observe(container);
     return () => observer.disconnect();
   }, [allTagChips, showAllTags]);
 
   useEffect(() => {
-    if (showAllGenres) {
-      setHasHiddenGenres(false);
-      return;
-    }
+    if (showAllGenres) return;
     const container = genreChipListRef.current;
-    if (!container) return;
-    const updateOverflow = () => setHasHiddenGenres(container.scrollHeight > container.clientHeight + 1);
-    updateOverflow();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(updateOverflow);
+    if (!container || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      setHasHiddenGenres(container.scrollHeight > container.clientHeight + 1);
+    });
     observer.observe(container);
     return () => observer.disconnect();
   }, [allGenreChips, showAllGenres]);
