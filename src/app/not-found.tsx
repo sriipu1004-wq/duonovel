@@ -8,7 +8,6 @@ const copy = {
     description: "URLが変更されたか、公開されていないページにアクセスした可能性があります。",
     home: "トップへ戻る",
     search: "作品を探す",
-    generate: "AI生成を試す",
     contact: "お問い合わせ",
   },
   en: {
@@ -16,7 +15,6 @@ const copy = {
     description: "The URL may have changed, or this page may not be publicly available.",
     home: "Back to home",
     search: "Explore works",
-    generate: "Try AI Stories",
     contact: "Contact",
   },
   ko: {
@@ -24,7 +22,6 @@ const copy = {
     description: "URL이 변경되었거나 공개되지 않은 페이지일 수 있습니다.",
     home: "홈으로 돌아가기",
     search: "작품 찾기",
-    generate: "AI 이야기 사용하기",
     contact: "문의하기",
   },
 } as const;
@@ -59,12 +56,6 @@ export default async function NotFound() {
             className="rounded-full border border-black/15 px-5 py-3 font-semibold text-black transition hover:bg-black/5"
           >
             {text.search}
-          </Link>
-          <Link
-            href={localizePath("/generate", locale)}
-            className="rounded-full border border-black/15 px-5 py-3 font-semibold text-black transition hover:bg-black/5"
-          >
-            {text.generate}
           </Link>
           <Link
             href={localizePath("/contact", locale)}
