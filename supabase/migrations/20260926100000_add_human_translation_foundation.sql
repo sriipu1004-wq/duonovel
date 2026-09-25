@@ -34,7 +34,7 @@ create table if not exists public.episode_human_translations (
   id uuid primary key default gen_random_uuid(),
   series_id uuid not null references public.series(id) on delete cascade,
   episode_id uuid not null references public.episodes(id) on delete cascade,
-  translator_user_id uuid not null,
+  translator_user_id uuid not null references auth.users(id) on delete cascade,
   source_language text not null,
   target_language text not null,
   source_hash text not null,
