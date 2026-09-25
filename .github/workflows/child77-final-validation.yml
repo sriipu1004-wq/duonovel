@@ -1,0 +1,48 @@
+name: Child77 final validation
+
+on:
+  push:
+    branches:
+      - audit/legacy-official-rights-provenance
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Validate manifests
+        run: npm run public-domain:validate
+      - name: Child77 audit invariants
+        run: npm run test:legacy-official-rights-audit
+      - name: Existing regressions
+        run: |
+          npm run test:public-domain-ingestion
+          npm run test:series-translation-permission-schema
+          npm run test:public-classic-translation
+          npm run test:public-search-language-filters
+          npm run test:human-recording-state
+          npm run test:human-recording-boundaries
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Runtime script ESLint
+        run: npx eslint scripts/public-domain/legacy-provenance-audit.ts scripts/public-domain/migrate-legacy-approved.ts
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
+      - name: Diff whitespace check
+        run: git diff --check 81edc154562b0ce0510320efcfcb3bf73e1a59ff...HEAD
