@@ -651,6 +651,8 @@ export default function ReadBilingualShell({
             value={translationSourceKey}
             humanTranslations={humanTranslations}
             showAi={aiTranslationEligible}
+            episodeId={episodeId}
+            targetLanguage={targetLanguage}
             onChange={handleTranslationSourceChange}
           />
         ) : null}
