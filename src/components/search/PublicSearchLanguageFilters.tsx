@@ -74,6 +74,8 @@ export default function PublicSearchLanguageFilters({
   }, [countsOverride]);
 
   const counts = countsOverride ?? fetchedCounts;
+  const hasKnownCounts =
+    countsOverride !== undefined || Object.keys(fetchedCounts).length > 0;
 
   const orderedLanguages = useMemo(() => {
     const preferred = locale as SupportedLanguageTag;
@@ -139,7 +141,7 @@ export default function PublicSearchLanguageFilters({
           {orderedLanguages.map((tag) => {
             const active = sourceLanguages.includes(tag);
             const count = Number(counts[tag] ?? 0);
-            const disabled = !active && count === 0;
+            const disabled = hasKnownCounts && !active && count === 0;
             return (
               <button
                 key={tag}
