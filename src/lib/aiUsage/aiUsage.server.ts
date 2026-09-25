@@ -17,15 +17,11 @@ function readLimit(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
 }
 
-export const FREE_STORY_AND_TRANSLATION_DAILY_LIMIT = 3;
+export const FREE_TRANSLATION_DAILY_LIMIT = 3;
 
 const LIMITS: Record<AiActionType, { free: number; subscriber: number }> = {
-  story_generation: {
-    free: FREE_STORY_AND_TRANSLATION_DAILY_LIMIT,
-    subscriber: readLimit("LIBREAD_SUBSCRIBER_STORY_DAILY_LIMIT", 10),
-  },
   translation_generation: {
-    free: FREE_STORY_AND_TRANSLATION_DAILY_LIMIT,
+    free: FREE_TRANSLATION_DAILY_LIMIT,
     subscriber: readLimit("LIBREAD_SUBSCRIBER_TRANSLATION_DAILY_LIMIT", 30),
   },
   word_explanation: {
@@ -35,7 +31,6 @@ const LIMITS: Record<AiActionType, { free: number; subscriber: number }> = {
 };
 
 const SUBSCRIBER_RESERVED_COST_JPY: Partial<Record<AiActionType, number>> = {
-  story_generation: 10,
   translation_generation: 8,
   word_explanation: 0.05,
 };
@@ -321,8 +316,10 @@ export async function getAiUsageSnapshot(
   const { data, error } = await admin.rpc("get_libread_daily_ai_usage", {
     p_user_id: identity.userId,
     p_anonymous_key: identity.anonymousKey,
-    p_free_story_limit: LIMITS.story_generation.free,
-    p_subscriber_story_limit: LIMITS.story_generation.subscriber,
+    // Legacy RPC parameters remain until the database function is migrated.
+    // Story generation is no longer an active application action.
+    p_free_story_limit: 0,
+    p_subscriber_story_limit: 0,
     p_free_translation_limit: LIMITS.translation_generation.free,
     p_subscriber_translation_limit: LIMITS.translation_generation.subscriber,
     p_free_word_limit: LIMITS.word_explanation.free,
@@ -331,7 +328,6 @@ export async function getAiUsageSnapshot(
   if (error) throw new Error(`AI利用回数を取得できませんでした: ${error.message}`);
 
   const actions = {
-    story_generation: { used: 0, limit: LIMITS.story_generation.free },
     translation_generation: { used: 0, limit: LIMITS.translation_generation.free },
     word_explanation: { used: 0, limit: LIMITS.word_explanation.free },
   };
