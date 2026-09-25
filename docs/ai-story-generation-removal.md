@@ -49,3 +49,12 @@ The removal therefore targets **creative text generation**, not every feature th
 ## Data cleanup rule
 
 Delete persisted works whose provenance identifies LIB read's retired first-party generator (`time_fit_ai_story`), including work-scoped child rows through existing foreign-key cascades. Keep generation logs only as non-content audit/security history; series references become null through the existing foreign-key rule. Do not treat those logs as publishable works or restore deleted generated prose from them.
+
+
+## Final runtime cleanup and deployment verification
+
+PR #76 removed the remaining runtime-only branches that special-cased works from the retired first-party AI story generator. The cleanup covers Reader attribution, work pages, My Page, author workspace, episode creation, posting behavior, and translation eligibility. Active source code must not reintroduce `time_fit_ai_story`, `isAiGeneratedSeries`, or AI-story-specific attribution/permission behavior.
+
+Merged cleanup commit: `fa94f0d7e431c01bfc3230c12daedbdb95bfe8b6`.
+
+After any Vercel build-rate-limit interruption, verify that the Production deployment is based on this commit or a descendant before closing the removal work. Then smoke-check that `/generate` and the retired generation APIs return 404, normal translation/word-explanation endpoints remain present, and Production contains zero persisted first-party AI-generated works.
