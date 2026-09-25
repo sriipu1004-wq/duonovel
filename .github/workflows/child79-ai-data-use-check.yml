@@ -6,8 +6,12 @@ on:
       - ".github/workflows/child79-ai-data-use-check.yml"
       - "docs/ai-data-flow.md"
       - "scripts/test-author-ai-data-use.ts"
+      - "scripts/test-ai-story-generation-removed.ts"
       - "src/app/api/word-explanations/**"
       - "src/app/api/time-fit-stories/**"
+      - "src/app/generate/**"
+      - "src/app/read/generated/**"
+      - "src/features/generation/**"
       - "src/app/privacy/**"
       - "src/app/faq/**"
       - "src/features/write/TranslationPermissionWorkspaceBridge.tsx"
@@ -35,7 +39,9 @@ jobs:
         run: npm ci
 
       - name: Child79 regression
-        run: node --import tsx scripts/test-author-ai-data-use.ts
+        run: |
+          node --import tsx scripts/test-author-ai-data-use.ts
+          node --import tsx scripts/test-ai-story-generation-removed.ts
 
       - name: Existing translation and permission regressions
         run: |
@@ -62,9 +68,8 @@ jobs:
         run: >
           npx eslint
           scripts/test-author-ai-data-use.ts
+          scripts/test-ai-story-generation-removed.ts
           src/app/api/word-explanations/route.ts
-          src/app/api/time-fit-stories/generate/route.ts
-          src/app/api/time-fit-stories/continue/route.ts
           src/app/privacy/page.tsx
           src/app/faq/page.tsx
           src/features/write/TranslationPermissionWorkspaceBridge.tsx
