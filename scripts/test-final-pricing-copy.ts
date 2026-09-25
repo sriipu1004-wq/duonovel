@@ -15,27 +15,21 @@ function comparison(locale: "ja" | "en" | "ko", label: string) {
   return found;
 }
 
-// Free is one shared 3-use allowance, not three separate 3/day buckets.
-assert.match(comparison("ja", "AI物語生成").free, /共通で1日3回/u);
+// Free translation unlocks and library imports share the 3-use allowance.
 assert.match(comparison("ja", "公開作品の翻訳解放").free, /共通で1日3回/u);
 assert.match(comparison("ja", "個人本棚への取り込み").free, /共通で1日3回/u);
-assert.match(comparison("en", "AI story generation").free, /3\/day shared/i);
 assert.match(comparison("en", "Public translation unlocks").free, /3\/day shared/i);
 assert.match(comparison("en", "Library imports").free, /3\/day shared/i);
-assert.match(comparison("ko", "AI 이야기 생성").free, /합산 하루 3회/u);
 assert.match(comparison("ko", "공개 작품 번역 잠금 해제").free, /합산 하루 3회/u);
 assert.match(comparison("ko", "개인 서재 가져오기").free, /합산 하루 3회/u);
 
 // Premium canonical allowances and My Library capacity.
-assert.equal(comparison("ja", "AI物語生成").subscriber, "1日10回まで");
 assert.equal(comparison("ja", "公開作品の翻訳解放").subscriber, "1日30回まで");
 assert.equal(comparison("ja", "個人本棚への取り込み").subscriber, "日次回数制限なし");
 assert.equal(comparison("ja", "個人本棚・読書進捗").free, "最大3作品");
 assert.equal(comparison("ja", "個人本棚・読書進捗").subscriber, "最大20作品");
-assert.match(subscriptionDictionaries.en.heroDescription, /10 AI stories per day/i);
 assert.match(subscriptionDictionaries.en.heroDescription, /30 public-translation unlocks per day/i);
 assert.match(subscriptionDictionaries.en.heroDescription, /up to 20 library works/i);
-assert.match(subscriptionDictionaries.ko.heroDescription, /AI 이야기 생성 하루 10회/u);
 assert.match(subscriptionDictionaries.ko.heroDescription, /번역 잠금 해제 하루 30회/u);
 assert.match(subscriptionDictionaries.ko.heroDescription, /최대 20작품/u);
 assert.match(subscriptionDictionaries.ja.paid, /680/u);
@@ -89,7 +83,7 @@ assert.match(creditsPage, /購入クレジットより先に利用枠/u);
 // Live EN/KO SEO facts are canonicalized after legacy-copy compatibility mapping.
 const seo = source("src/lib/seo/currentSearchDiscovery.ts");
 for (const literal of [
-  "AI story generation, public-work translation unlocks, and My Library imports share 3 uses per day in total",
+  "public-work translation unlocks and My Library imports share 3 uses per day in total",
   "up to 30 public-work translation unlocks per day",
   "Free stores up to 3 works. Premium stores up to 20 works.",
   "Original reading does not require a translation unlock.",
@@ -103,7 +97,6 @@ for (const literal of [
 
 // Legal subscription description must match the current Production offering.
 const terms = source("src/app/terms/page.tsx");
-assert.match(terms, /AI物語生成を1日10回/u);
 assert.match(terms, /公開作品の翻訳解放を1日30回/u);
 assert.match(terms, /個人本棚への取り込みは日次回数制限なし/u);
 assert.match(terms, /最大20作品/u);
