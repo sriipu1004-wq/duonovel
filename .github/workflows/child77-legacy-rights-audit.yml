@@ -1,0 +1,75 @@
+name: Child77 legacy Official provenance audit
+
+on:
+  push:
+    branches:
+      - audit/legacy-official-rights-provenance
+    paths:
+      - ".github/workflows/child77-legacy-rights-audit.yml"
+      - "scripts/public-domain/legacy-provenance-audit.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: child77-legacy-rights-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: \${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Checkout audit branch
+        uses: actions/checkout@v4
+        with:
+          ref: audit/legacy-official-rights-provenance
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate Production read credentials
+        shell: bash
+        run: |
+          test -n "$NEXT_PUBLIC_SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+
+      - name: Recover exact Aozora provenance against Production
+        run: npx tsx scripts/public-domain/legacy-provenance-audit.ts
+
+      - name: Verify snapshot contains no raw bodies
+        shell: bash
+        run: |
+          test -f public-domain/audits/legacy-official-provenance-recovery-2026-09-25.json
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const report = JSON.parse(fs.readFileSync("public-domain/audits/legacy-official-provenance-recovery-2026-09-25.json", "utf8"));
+          if (report.summary.legacy_series !== 37) throw new Error("legacy count drift");
+          const serialized = JSON.stringify(report);
+          if (serialized.includes('"body":')) throw new Error("raw Production body leaked into report");
+          console.log(report.summary);
+          NODE
+
+      - name: Persist read-only evidence
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public-domain/audits/legacy-official-provenance-recovery-2026-09-25.json
+          if git diff --cached --quiet; then
+            echo "No audit snapshot change"
+          else
+            git commit -m "Child77: persist legacy provenance recovery snapshot"
+            git push origin HEAD:audit/legacy-official-rights-provenance
+          fi
