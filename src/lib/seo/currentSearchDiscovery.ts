@@ -72,11 +72,11 @@ function currentPlanFacts(locale: SearchLocale) {
       },
       {
         label: "Free included daily allowance",
-        value: "On Free, AI story generation, public-work translation unlocks, and My Library imports share 3 uses per day in total.",
+        value: "On Free, public-work translation unlocks and My Library imports share 3 uses per day in total.",
       },
       {
         label: "Premium included daily allowances",
-        value: "Premium provides up to 10 AI story generations per day and up to 30 public-work translation unlocks per day. My Library imports have no daily count limit.",
+        value: "Premium provides up to 30 public-work translation unlocks per day. My Library imports have no daily count limit.",
       },
       {
         label: "My Library capacity",
@@ -96,11 +96,11 @@ function currentPlanFacts(locale: SearchLocale) {
     },
     {
       label: "Free 포함 일일 이용 한도",
-      value: "Free에서는 AI 이야기 생성, 공개 작품 번역 잠금 해제, 개인 서재 가져오기가 합산 하루 3회를 공유합니다.",
+      value: "Free에서는 공개 작품 번역 잠금 해제와 개인 서재 가져오기가 합산 하루 3회를 공유합니다.",
     },
     {
       label: "Premium 포함 일일 이용 한도",
-      value: "Premium은 AI 이야기 생성 하루 최대 10회, 공개 작품 번역 잠금 해제 하루 최대 30회를 제공하며 개인 서재 가져오기는 일일 횟수 제한이 없습니다.",
+      value: "Premium은 공개 작품 번역 잠금 해제 하루 최대 30회를 제공하며 개인 서재 가져오기는 일일 횟수 제한이 없습니다.",
     },
     {
       label: "개인 서재 보관 한도",
