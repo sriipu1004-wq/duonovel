@@ -86,7 +86,7 @@ for (const literal of [
   "up to 30 public-work translation unlocks per day",
   "Free stores up to 3 works. Premium stores up to 20 works.",
   "Original reading does not require a translation unlock.",
-  "공개 작품 번역 잠금 해제, 개인 서재 가져오기가 합산 하루 3회",
+  "Free에서는 공개 작품 번역 잠금 해제와 개인 서재 가져오기가 합산 하루 3회를 공유합니다.",
   "공개 작품 번역 잠금 해제 하루 최대 30회",
   "Free는 최대 3작품, Premium은 최대 20작품",
   "원문 읽기에는 번역 잠금 해제가 필요하지 않습니다.",
