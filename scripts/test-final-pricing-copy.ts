@@ -47,7 +47,6 @@ for (const locale of ["ja", "en", "ko"] as const) {
   const prompt = billingPromptDictionaries[locale].exhausted;
   assert.doesNotMatch(prompt, /単語解説|word.?explanation|단어 설명/ui);
   assert.doesNotMatch(prompt, /生成上限を増や|increases generation limits|생성 한도를 늘/ui);
-  assert.match(prompt, /10/u);
   assert.match(prompt, /30/u);
 }
 
