@@ -492,7 +492,9 @@ export default function WriteSeriesForm({
       const detail = (event as CustomEvent<{ mode?: unknown }>).detail;
       if (detail?.mode === "open" || detail?.mode === "closed") {
         setTranslationPermissionMode(detail.mode);
-        resetSaveUi();
+        setSaveState("idle");
+        setErrorMessage("");
+        setSuccessMessage("");
       }
     }
 
@@ -512,7 +514,9 @@ export default function WriteSeriesForm({
       const detail = (event as CustomEvent<{ mode?: unknown }>).detail;
       if (detail?.mode === "open" || detail?.mode === "closed") {
         setHumanTranslationPermissionMode(detail.mode);
-        resetSaveUi();
+        setSaveState("idle");
+        setErrorMessage("");
+        setSuccessMessage("");
       }
     }
 
