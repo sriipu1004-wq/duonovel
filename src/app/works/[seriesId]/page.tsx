@@ -182,18 +182,12 @@ function isShortStorySeries(series: SeriesRow): boolean {
   const effectSettings = series.effect_settings ?? series["effectSettings"];
   if (readPublicDomainMetadata(effectSettings)) return false;
   const settings = readRecord(effectSettings);
-  const tags = parseTags(series["tags"]);
-  const isAiGenerated =
-    tags.includes("#AI生成") ||
-    settings?.source === "time_fit_ai_story" ||
-    settings?.aiGenerated === true ||
-    settings?.authorName === "AI生成";
 
   if (settings?.storyFormat === "short" || settings?.storyFormat === "long") {
     return settings.storyFormat === "short";
   }
 
-  return isAiGenerated;
+  return false;
 }
 
 function getSeriesTags(series: SeriesRow): string[] {
@@ -624,9 +618,8 @@ export async function generateMetadata({
     );
     const authorLabel =
       publicDomain?.originalAuthor ||
-      (isShortStorySeries(series)
-        ? "AI生成"
-        : pickText(series["author_name"]) || "LIB read投稿作品");
+      pickText(series["author_name"]) ||
+      "LIB read投稿作品";
 
     const description = [
       summary || seriesTitle + "の作品ページ。",
