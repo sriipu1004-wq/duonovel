@@ -76,6 +76,7 @@ contains(humanPermission, [
   "ONにしても本文をAIサービスへ送信しません",
   "Already-published translations are not deleted.",
   "/human-translation-permission",
+  "libread:human-translation-permission-selection-changed",
 ]);
 
 const aiPermission =
@@ -85,6 +86,7 @@ contains(aiPermission, [
   "OpenAI API",
   '"AI translation (bilingual generation)"',
   '"AI 번역(대역 생성)"',
+  "libread:translation-permission-selection-changed",
 ]);
 
 const publicDomain = "scripts/public-domain/core.ts";

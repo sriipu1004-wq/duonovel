@@ -109,6 +109,12 @@ export default function HumanTranslationPermissionWorkspaceBridge({ seriesId, in
       setMode(actual);
       setSavedMode(actual);
       setMessage(copy.saved);
+      window.dispatchEvent(
+        new CustomEvent(
+          "libread:human-translation-permission-selection-changed",
+          { detail: { mode: actual } }
+        )
+      );
     } catch {
       setMessage(copy.failed);
     } finally {
