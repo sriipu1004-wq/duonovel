@@ -50,6 +50,7 @@ for (const path of activeCopyFiles) {
   }
 }
 
+const staleGeneratorMarkers: string[] = [];
 for (const path of sourceFiles("src")) {
   const source = read(path);
   for (const marker of [
@@ -67,9 +68,16 @@ for (const path of sourceFiles("src")) {
     "AI story generations",
     "AI 이야기 생성",
   ]) {
-    assert.equal(source.includes(marker), false, path + " still contains removed generator marker " + marker);
+    if (source.includes(marker)) {
+      staleGeneratorMarkers.push(path + " => " + marker);
+    }
   }
 }
+assert.deepEqual(
+  staleGeneratorMarkers,
+  [],
+  "removed generator markers remain:\n" + staleGeneratorMarkers.join("\n")
+);
 
 const reader = read("src/app/read/[seriesId]/[episodeNumber]/page.tsx");
 assert.ok(reader.includes('settings?.source === "time_fit_ai_story"'));
