@@ -32,7 +32,7 @@ function appendPersistentSearchParams(
   if (pathname !== "/search") return href;
 
   const nextQuery = new URLSearchParams(rawQuery);
-  for (const key of ["saved", "source_language", "read_language"] as const) {
+  for (const key of ["saved", "source_language"] as const) {
     const currentValue = currentSearchParams.get(key)?.trim() ?? "";
     if (currentValue && !nextQuery.has(key)) {
       nextQuery.set(key, currentValue);
@@ -82,7 +82,7 @@ export default function SearchNavButton({
         disabled={isPending}
         onClick={() => {
           setIsPending(true);
-          router.replace(resolvedHref, { scroll: false });
+          router.push(resolvedHref, { scroll: false });
 
           if (scrollTargetId) {
             window.setTimeout(() => scrollToTarget(scrollTargetId), 0);
