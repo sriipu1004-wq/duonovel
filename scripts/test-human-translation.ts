@@ -49,11 +49,13 @@ contains(migration, [
   "published_payload jsonb",
   "published_source_hash text",
   "alter table public.episode_human_translations enable row level security",
-  "grant select on table public.episode_human_translations to anon, authenticated",
+  "revoke all on table public.episode_human_translations from anon, authenticated",
+  "grant all on table public.episode_human_translations to service_role",
 ]);
 omits(migration, [
   "OFFICIAL_ACCOUNT_EMAIL",
   "author_id =",
+  "grant select on table public.episode_human_translations to anon, authenticated",
   "grant insert on table public.episode_human_translations to authenticated",
   "grant update on table public.episode_human_translations to authenticated",
 ]);
@@ -277,6 +279,8 @@ contains(terms, [
   "文章（人による翻訳を含みます）",
   "投稿作品に対する権利は原則として当該利用者または正当な権利者に留保されます。",
   "非独占的な権利を許諾",
+  "作品の作者が「人による翻訳」を許可した場合",
+  "この設定は著作権の譲渡を意味せず",
 ]);
 
 console.log(

@@ -70,8 +70,10 @@ create index if not exists idx_episode_human_translations_translator
 
 alter table public.episode_human_translations enable row level security;
 
+-- All Human translation table access goes through server routes. Keeping the
+-- Data API grant closed also prevents stale published payloads from being read
+-- directly by bypassing the current-source hash checks in those routes.
 revoke all on table public.episode_human_translations from anon, authenticated;
-grant select on table public.episode_human_translations to anon, authenticated;
 grant all on table public.episode_human_translations to service_role;
 
 drop policy if exists episode_human_translations_select on public.episode_human_translations;
