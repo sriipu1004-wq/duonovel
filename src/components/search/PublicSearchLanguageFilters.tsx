@@ -94,22 +94,14 @@ export default function PublicSearchLanguageFilters({
   }, [counts, locale]);
 
   useEffect(() => {
-    if (showAllLanguages) {
-      setHasHiddenLanguages(false);
-      return;
-    }
+    if (showAllLanguages) return;
 
     const container = languageChipListRef.current;
-    if (!container) return;
+    if (!container || typeof ResizeObserver === "undefined") return;
 
-    const updateOverflow = () => {
+    const observer = new ResizeObserver(() => {
       setHasHiddenLanguages(container.scrollHeight > container.clientHeight + 1);
-    };
-
-    updateOverflow();
-    if (typeof ResizeObserver === "undefined") return;
-
-    const observer = new ResizeObserver(updateOverflow);
+    });
     observer.observe(container);
     return () => observer.disconnect();
   }, [orderedLanguages, showAllLanguages]);
