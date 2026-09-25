@@ -14,7 +14,6 @@ export default function AppHeader() {
   const dictionary = useCommonDictionary();
   const readerPage = isReaderPath(pathname);
   const navItems = [
-    { href: "/generate", label: dictionary.navGenerate },
     { href: "/library", label: dictionary.navLibrary },
     { href: "/search", label: dictionary.navSearch },
     { href: "/record", label: dictionary.navNarration },

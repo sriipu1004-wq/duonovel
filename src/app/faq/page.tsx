@@ -71,11 +71,11 @@ export default function FaqPage() {
           question="無料で使える？"
           answer={
             <>
-              公開作品の閲覧、最大3作品の個人本棚、読み上げなどは無料で利用できます。AI機能には無料枠があります。
+              公開作品の閲覧、最大3作品の個人本棚、読み上げなどは無料で利用できます。AI翻訳・単語解説には無料枠があります。
               <FreePlanOnly>
                 {" "}月額680円の
                 <Link className="underline underline-offset-4" href="/subscription">サブスク</Link>
-                で生成上限の拡大、単語解説無制限、次話対訳の先読みを利用できます。
+                で公開翻訳の利用上限拡大、単語解説無制限、次話対訳の先読みを利用できます。
               </FreePlanOnly>
             </>
           }
@@ -142,6 +142,25 @@ export default function FaqPage() {
         />
       </Section>
 
+      <Section title="投稿作品とAI">
+        <FaqItem
+          question="投稿作品はLIB readのAI学習に使われる？"
+          answer="現行実装には、通常の投稿作品をLIB read独自のモデル学習用データセットやfine-tuning用コーパスとして収集・出力する処理はありません。ただし、作者がAI翻訳を許可した作品で読者が未生成の翻訳等を利用すると、処理に必要な本文がOpenAI APIへ送信されることがあります。OpenAIの公開方針ではAPIの入力・出力は既定では学習に利用されませんが、組織が明示的にデータ共有へ参加した場合は別です。"
+        />
+        <FaqItem
+          question="AI翻訳を許可すると何が起こる？"
+          answer="作品を投稿・公開しただけではAIへ送信しません。読者がまだ生成されていない対訳を実際に利用するとき、対象話の本文と、用語・翻訳方針・直前の公開話など翻訳の一貫性に必要な限定情報をOpenAI APIへ送信することがあります。生成済み翻訳はLIB read内に保存し、同じ条件では再利用します。"
+        />
+        <FaqItem
+          question="AI翻訳を許可しないことはできる？"
+          answer="できます。AI翻訳を許可しない設定では、その作品について新しいAI翻訳と新しいAI単語解説を実行しません。既に生成済みの翻訳や単語解説は、再生成を避けるためLIB read内で再利用される場合があります。"
+        />
+        <FaqItem
+          question="公開作品がAIクローラーに収集される問題も同じ？"
+          answer="別の問題です。LIB readが翻訳のためにOpenAI APIへ本文を送る処理と、公開Webページを外部クローラーが巡回することは別経路です。現在のrobots設定は一般公開ページを主要AIクローラー専用には遮断していません。robotsの指定だけで収集や学習を完全に防げるとも限りません。"
+        />
+      </Section>
+
       <Section title="困ったとき">
         <FaqItem
           question="不具合や要望はどこから送る？"
@@ -167,32 +186,6 @@ export default function FaqPage() {
           }
         />
       </Section>
-        {/* AI_FAQ_V1 */}
-        <Section title="AI生成">
-          <FaqItem
-            question="AI生成は何ができる？"
-            answer={
-              <>
-                <Link className="underline underline-offset-4" href="/generate">
-                  AI生成ページ
-                </Link>
-                で、読む時間、場面、ジャンル、雰囲気を選び、その条件に合わせた短編を作れる。
-              </>
-            }
-          />
-          <FaqItem
-            question="ログインしなくても生成できる？"
-            answer="生成そのものはログインしなくても利用できる。生成後の保存、編集、公開にはログインが必要。"
-          />
-          <FaqItem
-            question="生成した物語はどこに保存される？"
-            answer="生成直後の内容は端末内の一時データとして扱われる。保存または公開の操作をした場合は、機能の提供に必要な範囲でサービス側にも保存される。"
-          />
-          <FaqItem
-            question="AI生成結果をそのまま公開してよい？"
-            answer="公開前に内容を確認し、公開するコンテンツについて利用者が責任を負う。第三者の権利侵害や規約違反がないかを確認する。"
-          />
-        </Section>
 
       </div>
     </main>

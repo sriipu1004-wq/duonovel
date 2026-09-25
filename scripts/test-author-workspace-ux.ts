@@ -119,7 +119,9 @@ function main() {
   assertContains(translationPermission, [
     "NARRATION_PERMISSION_LABELS",
     "/translation-permission",
-    '"対訳許可を更新できませんでした。"',
+    '"AI翻訳の許可設定を更新できませんでした。"',
+    '"Allow AI translation"',
+    '"AI 번역 허용"',
   ]);
 
   const contentRating = "src/features/write/ContentRatingWorkspaceBridge.tsx";

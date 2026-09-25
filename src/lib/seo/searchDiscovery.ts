@@ -78,12 +78,12 @@ const commonFacts: Record<SearchLocale, Array<{ label: string; value: string }>>
     {
       label: "Free daily allowance",
       value:
-        "On Free, AI story generation, bilingual generation, and My Library imports share a total allowance of 3 uses per day. This is one shared allowance, not 3 translations per day.",
+        "On Free, public-work translation unlocks and My Library imports share a total allowance of 3 uses per day. This is one shared allowance.",
     },
     {
       label: "Premium daily allowances",
       value:
-        "Premium provides up to 10 AI story generations per day and up to 30 bilingual generations per day. My Library imports and word explanations have no daily count limit.",
+        "Premium provides up to 30 public-work translation unlocks per day. My Library imports and word explanations have no daily count limit.",
     },
   ],
   ko: [
@@ -94,12 +94,12 @@ const commonFacts: Record<SearchLocale, Array<{ label: string; value: string }>>
     {
       label: "Free 일일 이용량",
       value:
-        "Free에서는 AI 이야기 생성, 대역 생성, 개인 서재 가져오기가 합산 하루 3회의 공통 이용량을 공유합니다. 번역만 하루 3회라는 뜻은 아닙니다.",
+        "Free에서는 공개 작품 번역 잠금 해제와 개인 서재 가져오기가 합산 하루 3회의 공통 이용량을 공유합니다.",
     },
     {
       label: "Premium 일일 이용량",
       value:
-        "Premium은 AI 이야기 생성 하루 최대 10회, 대역 생성 하루 최대 30회를 제공합니다. 개인 서재 가져오기와 단어 설명에는 일일 횟수 제한이 없습니다.",
+        "Premium은 공개 작품 번역 잠금 해제를 하루 최대 30회 제공합니다. 개인 서재 가져오기와 단어 설명에는 일일 횟수 제한이 없습니다.",
     },
   ],
 };
@@ -230,7 +230,7 @@ function japaneseNovelReader(locale: SearchLocale): Definition {
           {
             question: "Is LIB read free?",
             answer:
-              "There is a ¥0 Free plan. Premium is ¥680 per month in JPY. On Free, AI stories, bilingual generation, and My Library imports share a total allowance of 3 uses per day.",
+              "There is a ¥0 Free plan. Premium is ¥680 per month in JPY. On Free, public-work translation unlocks and My Library imports share a total allowance of 3 uses per day.",
           },
         ],
         primaryCta: {
@@ -323,7 +323,7 @@ function japaneseNovelReader(locale: SearchLocale): Definition {
         { question: "일본어 원문은 그대로 남나요?", answer: "남습니다. 대역은 원문 옆에 번역을 추가하는 방식이며 일본어 본문을 한국어 번역으로 교체하지 않습니다." },
         { question: "긴 장편소설에도 사용할 수 있나요?", answer: "가능합니다. 장·화 단위 관리, 읽던 위치, 책갈피, 이전·다음 화 이동을 이용해 여러 번에 나누어 이어 읽을 수 있습니다." },
         { question: "EPUB이나 PDF도 가져올 수 있나요?", answer: "TXT, EPUB, DOCX와 텍스트를 추출할 수 있는 PDF를 지원합니다. 이미지뿐인 스캔 PDF는 지원하지 않습니다." },
-        { question: "LIB read는 무료인가요?", answer: "¥0 Free 플랜이 있습니다. Premium은 월 ¥680(JPY)이며 Free에서는 AI 이야기·대역 생성·개인 서재 가져오기가 합산 하루 3회의 공통 이용량을 공유합니다." },
+        { question: "LIB read는 무료인가요?", answer: "¥0 Free 플랜이 있습니다. Premium은 월 ¥680(JPY)이며 Free에서는 공개 작품 번역 잠금 해제와 개인 서재 가져오기가 합산 하루 3회의 공통 이용량을 공유합니다." },
       ],
       primaryCta: { href: href("/search", "ko"), label: "공개 작품 찾기" },
       secondaryCta: { href: href("/library/import", "ko"), label: "개인 서재에 책 가져오기" },
@@ -398,7 +398,7 @@ function learnJapanese(locale: SearchLocale): Definition {
           { question: "Do I have to read the English translation all the time?", answer: "No. The original Japanese remains visible, so you can read it directly and use the English side only when you need help." },
           { question: "Can I study with web novels?", answer: "You can read public works on LIB read and use bilingual reading on supported content. LIB read does not currently import a novel automatically from an external web-novel URL." },
           { question: "Does it save where I stopped?", answer: "Yes. Reading position and bookmarks are part of the long-form Reader, so you can resume the same work later." },
-          { question: "Is there a free plan?", answer: "Yes. Free costs ¥0. Premium costs ¥680/month in JPY. Free AI stories, bilingual generation, and My Library imports share a total allowance of 3 uses per day." },
+          { question: "Is there a free plan?", answer: "Yes. Free costs ¥0. Premium costs ¥680/month in JPY. Public-work translation unlocks and My Library imports share a total allowance of 3 uses per day on Free." },
         ],
         primaryCta: { href: href("/search", "en"), label: "Find a Japanese work" },
         secondaryCta: { href: href("/library", "en"), label: "Open My Library" },
@@ -471,7 +471,7 @@ function learnJapanese(locale: SearchLocale): Definition {
         { question: "항상 한국어 번역을 읽어야 하나요?", answer: "아닙니다. 일본어 원문이 계속 보이므로 일본어로 직접 읽고 이해가 어려운 부분에서만 한국어를 참고할 수 있습니다." },
         { question: "웹소설로도 공부할 수 있나요?", answer: "LIB read의 공개 작품을 읽고 지원되는 콘텐츠에서 대역을 사용할 수 있습니다. 현재 외부 웹소설 URL을 붙여 자동으로 가져오는 기능은 없습니다." },
         { question: "어디까지 읽었는지 저장되나요?", answer: "저장됩니다. 읽던 위치와 책갈피를 이용해 같은 작품의 이어지는 부분부터 다시 시작할 수 있습니다." },
-        { question: "무료 플랜이 있나요?", answer: "있습니다. Free는 ¥0이고 Premium은 월 ¥680(JPY)입니다. Free의 AI 이야기·대역 생성·개인 서재 가져오기는 합산 하루 3회의 공통 이용량입니다." },
+        { question: "무료 플랜이 있나요?", answer: "있습니다. Free는 ¥0이고 Premium은 월 ¥680(JPY)입니다. Free의 공개 작품 번역 잠금 해제와 개인 서재 가져오기는 합산 하루 3회의 공통 이용량입니다." },
       ],
       primaryCta: { href: href("/search", "ko"), label: "일본어 작품 찾기" },
       secondaryCta: { href: href("/library", "ko"), label: "개인 서재 열기" },
@@ -547,7 +547,7 @@ function fileReader(locale: SearchLocale): Definition {
           { question: "Does LIB read support EPUB?", answer: "Yes. EPUB is supported along with TXT, DOCX, and text-based PDF files." },
           { question: "Does it work with scanned image PDFs?", answer: "No. Image-only scanned PDFs that require OCR are not currently supported." },
           { question: "Are imported books public?", answer: "No. My Library works are private to the owner and are not shown in the public works list or public search." },
-          { question: "How much does it cost?", answer: "Free costs ¥0 and Premium costs ¥680/month in JPY. Free AI stories, bilingual generation, and My Library imports share a total allowance of 3 uses per day." },
+          { question: "How much does it cost?", answer: "Free costs ¥0 and Premium costs ¥680/month in JPY. Public-work translation unlocks and My Library imports share a total allowance of 3 uses per day on Free." },
         ],
         primaryCta: { href: href("/library/import", "en"), label: "Import a long-form file" , note: "My Library import requires an account. Only import content you have the right to store and translate."},
         secondaryCta: { href: href("/subscription", "en"), label: "Compare Free and Premium" },
@@ -621,7 +621,7 @@ function fileReader(locale: SearchLocale): Definition {
         { question: "EPUB도 지원하나요?", answer: "지원합니다. EPUB 외에 TXT, DOCX, 텍스트 PDF도 가져올 수 있습니다." },
         { question: "스캔 이미지 PDF도 되나요?", answer: "현재는 지원하지 않습니다. OCR이 필요한 이미지뿐인 스캔 PDF는 가져오기 대상이 아닙니다." },
         { question: "가져온 책이 다른 사람에게 공개되나요?", answer: "아닙니다. 개인 서재 작품은 소유자에게만 공개되며 공개 작품 목록이나 공개 검색에 나오지 않습니다." },
-        { question: "요금은 얼마인가요?", answer: "Free는 ¥0이고 Premium은 월 ¥680(JPY)입니다. Free의 AI 이야기·대역 생성·개인 서재 가져오기는 합산 하루 3회의 공통 이용량입니다." },
+        { question: "요금은 얼마인가요?", answer: "Free는 ¥0이고 Premium은 월 ¥680(JPY)입니다. Free의 공개 작품 번역 잠금 해제와 개인 서재 가져오기는 합산 하루 3회의 공통 이용량입니다." },
       ],
       primaryCta: { href: href("/library/import", "ko"), label: "장편 파일 가져오기", note: "개인 서재 가져오기는 로그인이 필요합니다. 저장·번역할 권리가 있는 콘텐츠만 가져오세요." },
       secondaryCta: { href: href("/subscription", "ko"), label: "Free와 Premium 비교" },

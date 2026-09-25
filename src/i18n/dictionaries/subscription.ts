@@ -8,7 +8,7 @@ export type SubscriptionComparison = {
 
 const ja = {
   pageTitle: "サブスク",
-  metadataDescription: "LIB readの月額680円サブスク。AI物語、公開作品の翻訳解放、個人本棚への取り込み回数と保存上限を拡大します。",
+  metadataDescription: "LIB readの月額680円サブスク。公開作品の翻訳解放、個人本棚への取り込み回数と保存上限を拡大します。",
   contractStatus: "契約状態",
   checkoutSuccessActive: "決済を受け付けました。有料機能は利用可能です。",
   paidFeaturesActive: "有料機能は有効です。",
@@ -18,7 +18,7 @@ const ja = {
   checkoutSuccessPending: "決済を受け付けました。Stripeからの決済完了通知後に有料機能へ切り替わります。反映されない場合は数秒後に再読み込みしてください。",
   checkoutCanceled: "決済はキャンセルされ、請求は発生していません。",
   heroTitle: "読む・訳す量に合わせて、利用枠を広げる。",
-  heroDescription: "PremiumではAI物語生成は1日10回、公開作品の翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なし。個人本棚は最大20作品まで使えます。",
+  heroDescription: "Premiumでは公開作品の翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なし。個人本棚は最大20作品まで使えます。",
   perMonth: "/ 月（税込）",
   currencyNote: "日本円（JPY）での請求です。申込日に課金され、毎月同日に自動更新されます。いつでも解約できます。",
   freePlan: "無料プラン",
@@ -49,11 +49,10 @@ const ja = {
   startPaid: "月額680円で始める",
   billingNotReady: "現在は決済情報と法定表示の設定待ちです。設定完了まで請求は発生しません。",
   comparisons: [
-    { label: "AI物語生成", free: "公開翻訳・本棚取り込みと共通で1日3回", subscriber: "1日10回まで" },
-    { label: "公開作品の翻訳解放", free: "AI物語生成・本棚取り込みと共通で1日3回", subscriber: "1日30回まで" },
+    { label: "公開作品の翻訳解放", free: "本棚取り込みと共通で1日3回", subscriber: "1日30回まで" },
     { label: "朗読", free: "画面を開いて再生", subscriber: "次話自動再生。バックグラウンド再生はユーザー朗読のみ" },
     { label: "個人本棚・読書進捗", free: "最大3作品", subscriber: "最大20作品" },
-    { label: "個人本棚への取り込み", free: "AI物語・公開翻訳と共通で1日3回", subscriber: "日次回数制限なし" },
+    { label: "個人本棚への取り込み", free: "公開翻訳と共通で1日3回", subscriber: "日次回数制限なし" },
   ] satisfies SubscriptionComparison[],
 } as const;
 
@@ -71,7 +70,7 @@ type SubscriptionDictionary = Widen<typeof ja>;
 
 const en: SubscriptionDictionary = {
   pageTitle: "Subscription",
-  metadataDescription: "LIB read Premium is ¥680/month (JPY), with higher AI-story and public-translation allowances plus larger My Library limits.",
+  metadataDescription: "LIB read Premium is ¥680/month (JPY), with higher public-translation allowances plus larger My Library limits.",
   contractStatus: "Subscription status",
   checkoutSuccessActive: "Payment was accepted. Paid features are available.",
   paidFeaturesActive: "Paid features are active.",
@@ -81,7 +80,7 @@ const en: SubscriptionDictionary = {
   checkoutSuccessPending: "Payment was accepted. Paid features will activate after Stripe confirms the payment. Reload shortly if the status does not update.",
   checkoutCanceled: "Checkout was canceled. You have not been charged.",
   heroTitle: "Expand your limits as you read and translate more.",
-  heroDescription: "Premium includes up to 10 AI stories per day, 30 public-translation unlocks per day, no daily count limit for My Library imports, and storage for up to 20 library works.",
+  heroDescription: "Premium includes up to 30 public-translation unlocks per day, no daily count limit for My Library imports, and storage for up to 20 library works.",
   perMonth: "/ month (tax included)",
   currencyNote: "Charged in Japanese yen (JPY). Billing starts when you subscribe and renews monthly on the same date. You can cancel at any time.",
   freePlan: "Free plan",
@@ -112,17 +111,16 @@ const en: SubscriptionDictionary = {
   startPaid: "Start for ¥680/month (JPY)",
   billingNotReady: "Billing setup is not yet complete. You will not be charged until it is enabled.",
   comparisons: [
-    { label: "AI story generation", free: "3/day shared with public translations and library imports", subscriber: "Up to 10/day" },
-    { label: "Public translation unlocks", free: "3/day shared with AI stories and library imports", subscriber: "Up to 30/day" },
+    { label: "Public translation unlocks", free: "3/day shared with library imports", subscriber: "Up to 30/day" },
     { label: "Read-aloud", free: "Play while the page is open", subscriber: "Auto-play next episode; background playback is limited to user narration" },
     { label: "My Library and progress", free: "Up to 3 works", subscriber: "Up to 20 works" },
-    { label: "Library imports", free: "3/day shared with AI stories and public translations", subscriber: "No daily count limit" },
+    { label: "Library imports", free: "3/day shared with public translations", subscriber: "No daily count limit" },
   ],
 };
 
 const ko: SubscriptionDictionary = {
   pageTitle: "구독",
-  metadataDescription: "LIB read Premium은 월 680엔(JPY)이며 AI 이야기, 공개 작품 번역 잠금 해제, 개인 서재 가져오기와 보관 한도를 확대합니다.",
+  metadataDescription: "LIB read Premium은 월 680엔(JPY)이며 공개 작품 번역 잠금 해제, 개인 서재 가져오기와 보관 한도를 확대합니다.",
   contractStatus: "구독 상태",
   checkoutSuccessActive: "결제가 접수되었습니다. 유료 기능을 이용할 수 있습니다.",
   paidFeaturesActive: "유료 기능이 활성화되어 있습니다.",
@@ -132,7 +130,7 @@ const ko: SubscriptionDictionary = {
   checkoutSuccessPending: "결제가 접수되었습니다. Stripe의 결제 완료 확인 후 유료 기능으로 전환됩니다. 반영되지 않으면 잠시 후 새로고침하세요.",
   checkoutCanceled: "결제가 취소되었습니다. 청구되지 않았습니다.",
   heroTitle: "더 많이 읽고 번역할수록 이용 한도를 넓히세요.",
-  heroDescription: "Premium에서는 AI 이야기 생성 하루 10회, 공개 작품 번역 잠금 해제 하루 30회, 개인 서재 가져오기 일일 횟수 제한 없음, 개인 서재 최대 20작품을 이용할 수 있습니다.",
+  heroDescription: "Premium에서는 공개 작품 번역 잠금 해제 하루 30회, 개인 서재 가져오기 일일 횟수 제한 없음, 개인 서재 최대 20작품을 이용할 수 있습니다.",
   perMonth: "/ 월 (세금 포함)",
   currencyNote: "일본 엔(JPY)으로 청구됩니다. 가입일에 결제되고 매월 같은 날짜에 자동 갱신됩니다. 언제든 해지할 수 있습니다.",
   freePlan: "무료 플랜",
@@ -163,11 +161,10 @@ const ko: SubscriptionDictionary = {
   startPaid: "월 680엔(JPY)으로 시작",
   billingNotReady: "현재 결제 설정이 완료되지 않았습니다. 활성화되기 전에는 청구되지 않습니다.",
   comparisons: [
-    { label: "AI 이야기 생성", free: "공개 번역·서재 가져오기와 합산 하루 3회", subscriber: "하루 최대 10회" },
-    { label: "공개 작품 번역 잠금 해제", free: "AI 이야기·서재 가져오기와 합산 하루 3회", subscriber: "하루 최대 30회" },
+    { label: "공개 작품 번역 잠금 해제", free: "서재 가져오기와 합산 하루 3회", subscriber: "하루 최대 30회" },
     { label: "읽어주기", free: "화면을 연 상태에서 재생", subscriber: "다음 화 자동 재생. 백그라운드 재생은 사용자 낭독만 지원" },
     { label: "개인 서재·읽기 진행률", free: "최대 3작품", subscriber: "최대 20작품" },
-    { label: "개인 서재 가져오기", free: "AI 이야기·공개 번역과 합산 하루 3회", subscriber: "일일 횟수 제한 없음" },
+    { label: "개인 서재 가져오기", free: "공개 번역과 합산 하루 3회", subscriber: "일일 횟수 제한 없음" },
   ],
 };
 

@@ -9,9 +9,7 @@ const EN: Record<string, string> = {
   "無料枠あり": "Free tier available",
   "個人本棚 / 多言語対訳 / 読み上げ / AI生成": "Personal library / bilingual reading / read-aloud / AI generation",
   "読む、聴く、学ぶ。": "Read. Listen. Learn.",
-  "外国語の長編を、自分の本棚で読み続ける。多言語対訳、読み上げ、AI物語、Web小説にも対応。": "Keep reading long-form stories in another language in your own library. Bilingual text, read-aloud, AI stories and web novels are all supported.",
-  "PDF・EPUB・TXT・DOCXを作品単位で取り込み、章・話ごとの読書位置、対訳、栞を管理できます。公開作品を読む・聴く・投稿する機能と、時間に合わせたAI物語生成も同じ場所で利用できます。": "Import PDF, EPUB, TXT or DOCX files and keep reading position, bilingual text and bookmarks by work and chapter. Read, listen to and publish public works, or generate AI stories for the time you have.",
-  "物語を生成する": "Generate a story",
+
   "個人本棚を開く": "Open My Library",
   "作品を探す": "Explore works",
   "作品を投稿する": "Create / publish a work",
@@ -25,7 +23,7 @@ const EN: Record<string, string> = {
   "総合人気順": "Overall popular",
   "朗読視聴人気順": "Narration popularity",
   "月額680円で、長編の対訳を止めずに読む。": "Read long-form bilingual text without interruption for ¥680/month.",
-  "単語解説は無制限。AI物語は1日10回、対訳生成は1日30回へ拡大し、読書中に次話の対訳を1話だけ先読みします。": "Word explanations are unlimited. AI stories expand to 10 per day and bilingual generation to 30 per day, with one episode prefetched while you read.",
+
   "無料版との違いを見る": "Compare with the free tier",
   "長編を読む・聴く・作る・学ぶための機能を、作品単位で管理する。": "Manage reading, listening, creation and learning tools around each work.",
   "個人本棚": "Personal library",
@@ -34,8 +32,7 @@ const EN: Record<string, string> = {
   "原文と訳文を上下で同期し、語の意味・品詞も確認できる。保存済み対訳は再利用する。": "Keep original and translated text synchronized, inspect meanings and parts of speech, and reuse saved translations.",
   "読み上げ・栞": "Read-aloud & bookmarks",
   "ブラウザ読み上げと投稿朗読に対応。読書位置や栞、表示・朗読設定を保持する。": "Supports browser read-aloud and published narration while preserving reading position, bookmarks, display and narration settings.",
-  "AI物語・投稿": "AI stories & publishing",
-  "読む時間に合わせた物語を生成し、保存後は作品ワークスペースで編集・続編生成・投稿ができる。": "Generate a story for the time you have, then edit, continue and publish it from the work workspace.",
+
   "最近更新された公開作品。": "Recently updated public works.",
   "新しめの作品から入りやすくする。": "Discover recently published works.",
   "現時点の人気寄り順で公開作品を表示。": "Public works ordered by current popularity.",
@@ -175,9 +172,7 @@ const KO: Record<string, string> = {
   "無料枠あり": "무료 이용 가능",
   "個人本棚 / 多言語対訳 / 読み上げ / AI生成": "개인 서재 / 다국어 대역 / 읽어주기 / AI 생성",
   "読む、聴く、学ぶ。": "읽고, 듣고, 배우기.",
-  "外国語の長編を、自分の本棚で読み続ける。多言語対訳、読み上げ、AI物語、Web小説にも対応。": "개인 서재에서 장편 외국어 작품을 이어 읽고, 다국어 대역·읽어주기·AI 이야기·웹소설을 함께 이용할 수 있습니다.",
-  "PDF・EPUB・TXT・DOCXを作品単位で取り込み、章・話ごとの読書位置、対訳、栞を管理できます。公開作品を読む・聴く・投稿する機能と、時間に合わせたAI物語生成も同じ場所で利用できます。": "PDF, EPUB, TXT, DOCX를 작품 단위로 가져와 장·화별 읽던 위치, 대역, 책갈피를 관리할 수 있습니다. 공개 작품을 읽고 듣고 게시하거나 시간에 맞는 AI 이야기를 만들 수도 있습니다.",
-  "物語を生成する": "AI 이야기 만들기",
+
   "個人本棚を開く": "개인 서재 열기",
   "作品を探す": "작품 찾기",
   "作品を投稿する": "작품 제작·게시",
@@ -191,7 +186,7 @@ const KO: Record<string, string> = {
   "総合人気順": "종합 인기순",
   "朗読視聴人気順": "낭독 인기순",
   "月額680円で、長編の対訳を止めずに読む。": "월 ¥680으로 장편 대역을 끊김 없이 읽기.",
-  "単語解説は無制限。AI物語は1日10回、対訳生成は1日30回へ拡大し、読書中に次話の対訳を1話だけ先読みします。": "단어 설명은 무제한입니다. AI 이야기는 하루 10회, 대역 생성은 하루 30회로 늘어나며 읽는 동안 다음 화 대역을 1화 미리 생성합니다.",
+
   "無料版との違いを見る": "무료 버전과 비교",
   "長編を読む・聴く・作る・学ぶための機能を、作品単位で管理する。": "장편을 읽고 듣고 만들고 학습하는 기능을 작품 단위로 관리합니다.",
   "個人本棚": "개인 서재",
@@ -200,8 +195,7 @@ const KO: Record<string, string> = {
   "原文と訳文を上下で同期し、語の意味・品詞も確認できる。保存済み対訳は再利用する。": "원문과 번역문을 동기화하고 단어 뜻과 품사를 확인할 수 있습니다. 저장된 대역은 재사용합니다.",
   "読み上げ・栞": "읽어주기·책갈피",
   "ブラウザ読み上げと投稿朗読に対応。読書位置や栞、表示・朗読設定を保持する。": "브라우저 읽어주기와 게시 낭독을 지원하며 읽던 위치, 책갈피, 표시·낭독 설정을 유지합니다.",
-  "AI物語・投稿": "AI 이야기·게시",
-  "読む時間に合わせた物語を生成し、保存後は作品ワークスペースで編集・続編生成・投稿ができる。": "읽을 시간에 맞는 이야기를 만들고 저장 후 작품 워크스페이스에서 편집, 후속편 생성, 게시할 수 있습니다.",
+
   "最近更新された公開作品。": "최근 업데이트된 공개 작품입니다.",
   "新しめの作品から入りやすくする。": "최근 공개된 작품을 발견합니다.",
   "現時点の人気寄り順で公開作品を表示。": "현재 인기순으로 공개 작품을 표시합니다.",

@@ -7,7 +7,6 @@ export type HomeDictionary = {
   description: string;
   freeBadge: string;
   featureBadge: string;
-  generate: string;
   library: string;
   explore: string;
   signup: string;
@@ -95,10 +94,9 @@ const ja: HomeDictionary = {
   eyebrow: "LONG-FORM / WEB NOVELS / MULTILINGUAL",
   title: "長編・Web小説を、原文を残したまま多言語で読む。",
   lead: "投稿された一つの作品を、原文・対訳・翻訳のみで読み分ける。長編で訳語が揺れにくいよう、作品単位の翻訳用語集と直前話の限定コンテキストを利用します。",
-  description: "日本語・英語・韓国語など異なる原文言語の公開作品を同じプラットフォームで扱い、公開翻訳が許可された作品は対応言語へ展開できます。公開翻訳は保存して同じ話・原文版・翻訳言語で再利用します。PDF・EPUB・TXT・DOCXを扱う個人本棚、読み上げ、AI物語生成も利用できます。",
+  description: "日本語・英語・韓国語など異なる原文言語の公開作品を同じプラットフォームで扱い、公開翻訳が許可された作品は対応言語へ展開できます。公開翻訳は保存して同じ話・原文版・翻訳言語で再利用します。PDF・EPUB・TXT・DOCXを扱う個人本棚、読み上げ、作品投稿も利用できます。",
   freeBadge: "無料枠あり",
   featureBadge: "長編 / 原文付き翻訳 / 共有翻訳 / 多言語公開",
-  generate: "物語を生成する",
   library: "個人本棚を開く",
   explore: "作品を探す",
   signup: "アカウント作成",
@@ -114,7 +112,7 @@ const ja: HomeDictionary = {
   narrationChip: "朗読視聴人気順",
   subscriptionEyebrow: "PREMIUM",
   subscriptionTitle: "月額680円で、公開作品の翻訳利用枠を広げる。",
-  subscriptionDescription: "FreeではAI物語生成・公開作品の翻訳解放・個人本棚への取り込みが合計1日3回の共通枠です。PremiumではAI物語生成は1日10回、公開作品の翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なし。個人本棚は最大20作品です。",
+  subscriptionDescription: "Freeでは公開作品の翻訳解放と個人本棚への取り込みが合計1日3回の共通枠です。Premiumでは公開作品の翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なし。個人本棚は最大20作品です。",
   subscriptionCta: "Freeとの違いを見る",
   whyEyebrow: "WHY LIB READ",
   features: "LIB read の特徴",
@@ -186,10 +184,9 @@ const en: HomeDictionary = {
   eyebrow: "LONG-FORM / WEB NOVELS / MULTILINGUAL",
   title: "Read long-form fiction and web novels across languages without replacing the original.",
   lead: "One published work can be read as Original, Bilingual, or Translation only. To reduce terminology drift across a long series, public translation uses a work-level glossary plus limited context from the immediately preceding public episode.",
-  description: "Japanese-, English-, Korean-, and other supported source-language works can coexist on the same platform. When public translation is allowed, a work can be read in supported target languages without creating a duplicate work for each language. Saved public translations are reused for the same episode, source version, and target language. Private file import, read-aloud, and AI story generation remain available as additional tools.",
+  description: "Japanese-, English-, Korean-, and other supported source-language works can coexist on the same platform. When public translation is allowed, a work can be read in supported target languages without creating a duplicate work for each language. Saved public translations are reused for the same episode, source version, and target language. Private file import, read-aloud, and publishing remain available as additional tools.",
   freeBadge: "Free plan available",
   featureBadge: "long-form / source + translation / shared translations / multilingual publishing",
-  generate: "Generate a story",
   library: "Open My Library",
   explore: "Explore works",
   signup: "Create an account",
@@ -205,7 +202,7 @@ const en: HomeDictionary = {
   narrationChip: "Popular narration",
   subscriptionEyebrow: "PREMIUM",
   subscriptionTitle: "Expand your public-work translation allowance for ¥680/month.",
-  subscriptionDescription: "On Free, AI story generation, public-work translation unlocks, and My Library imports share a total allowance of 3 uses per day. Premium provides up to 10 AI stories/day, 30 public-work translation unlocks/day, no daily count limit for My Library imports, and storage for up to 20 library works.",
+  subscriptionDescription: "On Free, public-work translation unlocks and My Library imports share a total allowance of 3 uses per day. Premium provides up to 30 public-work translation unlocks/day, no daily count limit for My Library imports, and storage for up to 20 library works.",
   subscriptionCta: "Compare Free and Premium",
   whyEyebrow: "WHY LIB READ",
   features: "What you can do with LIB read",
@@ -277,10 +274,9 @@ const ko: HomeDictionary = {
   eyebrow: "LONG-FORM / WEB NOVELS / MULTILINGUAL",
   title: "장편소설과 웹소설을 원문을 유지한 채 여러 언어로 읽기.",
   lead: "게시된 하나의 작품을 원문·대역·번역만 보기로 읽을 수 있습니다. 장편에서 번역 용어가 흔들리는 것을 줄이기 위해 작품 단위 번역 용어집과 바로 이전 공개 회차의 제한된 문맥을 사용합니다.",
-  description: "일본어·영어·한국어 등 서로 다른 원문 언어의 작품이 같은 플랫폼에 존재할 수 있으며, 공개 번역이 허용된 작품은 지원 대상 언어로 읽을 수 있습니다. 언어별로 작품을 복제하지 않으며, 같은 회차·원문 버전·번역 언어의 저장된 공개 번역은 재사용합니다. 개인 파일 가져오기, 읽어주기, AI 이야기 생성도 추가 기능으로 이용할 수 있습니다.",
+  description: "일본어·영어·한국어 등 서로 다른 원문 언어의 작품이 같은 플랫폼에 존재할 수 있으며, 공개 번역이 허용된 작품은 지원 대상 언어로 읽을 수 있습니다. 언어별로 작품을 복제하지 않으며, 같은 회차·원문 버전·번역 언어의 저장된 공개 번역은 재사용합니다. 개인 파일 가져오기, 읽어주기, 작품 게시도 추가 기능으로 이용할 수 있습니다.",
   freeBadge: "Free 플랜 제공",
   featureBadge: "장편 / 원문+번역 / 공유 번역 / 다국어 게시",
-  generate: "AI 이야기 만들기",
   library: "개인 서재 열기",
   explore: "작품 찾기",
   signup: "회원가입",
@@ -296,7 +292,7 @@ const ko: HomeDictionary = {
   narrationChip: "인기 낭독",
   subscriptionEyebrow: "PREMIUM",
   subscriptionTitle: "월 ¥680으로 공개 작품 번역 이용 한도를 늘리세요.",
-  subscriptionDescription: "Free에서는 AI 이야기 생성·공개 작품 번역 잠금 해제·개인 서재 가져오기가 합산 하루 3회의 공통 이용량을 공유합니다. Premium은 AI 이야기 하루 10회, 공개 작품 번역 잠금 해제 하루 30회, 개인 서재 가져오기 일일 횟수 제한 없음, 개인 서재 최대 20작품을 제공합니다.",
+  subscriptionDescription: "Free에서는 공개 작품 번역 잠금 해제와 개인 서재 가져오기가 합산 하루 3회의 공통 이용량을 공유합니다. Premium은 공개 작품 번역 잠금 해제 하루 30회, 개인 서재 가져오기 일일 횟수 제한 없음, 개인 서재 최대 20작품을 제공합니다.",
   subscriptionCta: "Free와 Premium 비교",
   whyEyebrow: "WHY LIB READ",
   features: "LIB read에서 할 수 있는 것",

@@ -17,15 +17,15 @@ function readLimit(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
 }
 
-export const FREE_STORY_AND_TRANSLATION_DAILY_LIMIT = 3;
+export const FREE_TRANSLATION_DAILY_LIMIT = 3;
 
 const LIMITS: Record<AiActionType, { free: number; subscriber: number }> = {
-  story_generation: {
-    free: FREE_STORY_AND_TRANSLATION_DAILY_LIMIT,
-    subscriber: readLimit("LIBREAD_SUBSCRIBER_STORY_DAILY_LIMIT", 10),
+  library_import: {
+    free: FREE_TRANSLATION_DAILY_LIMIT,
+    subscriber: -1,
   },
   translation_generation: {
-    free: FREE_STORY_AND_TRANSLATION_DAILY_LIMIT,
+    free: FREE_TRANSLATION_DAILY_LIMIT,
     subscriber: readLimit("LIBREAD_SUBSCRIBER_TRANSLATION_DAILY_LIMIT", 30),
   },
   word_explanation: {
@@ -35,7 +35,6 @@ const LIMITS: Record<AiActionType, { free: number; subscriber: number }> = {
 };
 
 const SUBSCRIBER_RESERVED_COST_JPY: Partial<Record<AiActionType, number>> = {
-  story_generation: 10,
   translation_generation: 8,
   word_explanation: 0.05,
 };
@@ -321,8 +320,11 @@ export async function getAiUsageSnapshot(
   const { data, error } = await admin.rpc("get_libread_daily_ai_usage", {
     p_user_id: identity.userId,
     p_anonymous_key: identity.anonymousKey,
-    p_free_story_limit: LIMITS.story_generation.free,
-    p_subscriber_story_limit: LIMITS.story_generation.subscriber,
+    // Production still exposes the legacy parameter names until the
+    // accompanying database migration is applied. They now represent the
+    // Free shared library-import / public-translation allowance.
+    p_free_story_limit: LIMITS.library_import.free,
+    p_subscriber_story_limit: LIMITS.library_import.subscriber,
     p_free_translation_limit: LIMITS.translation_generation.free,
     p_subscriber_translation_limit: LIMITS.translation_generation.subscriber,
     p_free_word_limit: LIMITS.word_explanation.free,
@@ -331,7 +333,7 @@ export async function getAiUsageSnapshot(
   if (error) throw new Error(`AI利用回数を取得できませんでした: ${error.message}`);
 
   const actions = {
-    story_generation: { used: 0, limit: LIMITS.story_generation.free },
+    library_import: { used: 0, limit: LIMITS.library_import.free },
     translation_generation: { used: 0, limit: LIMITS.translation_generation.free },
     word_explanation: { used: 0, limit: LIMITS.word_explanation.free },
   };
@@ -340,7 +342,13 @@ export async function getAiUsageSnapshot(
 
   for (const raw of data ?? []) {
     const row = raw as Record<string, unknown>;
-    const action = String(row.action_type ?? "") as AiActionType;
+    const rawAction = String(row.action_type ?? "");
+    // Before the DB migration, the shared Free bucket is returned with the
+    // historical story_generation key. Do not expose that removed product
+    // concept to clients.
+    const action = (
+      rawAction === "story_generation" ? "library_import" : rawAction
+    ) as AiActionType;
     if (!AI_ACTION_TYPES.includes(action)) continue;
     actions[action] = {
       used: Number(row.used_count ?? 0),

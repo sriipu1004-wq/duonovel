@@ -87,89 +87,6 @@ assert.ok(
   "R18 metadata must be reduced to generic noindex metadata before title/summary/author fields are read"
 );
 
-const savePrivate = source("src/app/api/time-fit-stories/save-private/route.ts");
-const savePrivateAuth = savePrivate.indexOf("const user = await requireSignedInUser()");
-const savePrivateJson = savePrivate.indexOf("await request.json()");
-assert.ok(
-  savePrivateAuth >= 0 &&
-    savePrivateJson >= 0 &&
-    savePrivateAuth < savePrivateJson,
-  "time-fit private save must authenticate before parsing the JSON body"
-);
-assert.equal(
-  savePrivate.includes("payload.editorName"),
-  false,
-  "time-fit private save must not trust a client-supplied editor display name"
-);
-assert.equal(
-  savePrivate.includes("readText(args.userEmail)"),
-  false,
-  "time-fit private save must not copy the account email into the public display-name fallback"
-);
-for (const required of [
-  "MAX_REQUEST_BYTES",
-  "STORY_ID_MAX_LENGTH",
-  "TITLE_MAX_LENGTH",
-  "SYNOPSIS_MAX_LENGTH",
-  "BODY_MAX_LENGTH",
-]) {
-  assert.equal(
-    savePrivate.includes(required),
-    true,
-    `time-fit private save must keep server-side input bound: ${required}`
-  );
-}
-for (const forbidden of [
-  "saveCountResult.error.message },",
-  "error: lastSeriesError",
-  "error: episodeResult.error?.message",
-  "error: bookmarkResult.error.message",
-]) {
-  assert.equal(
-    savePrivate.includes(forbidden),
-    false,
-    `time-fit private save must not return raw database errors: ${forbidden}`
-  );
-}
-
-const timeFitPublish = source("src/app/api/time-fit-stories/publish/route.ts");
-const timeFitPublishAuth = timeFitPublish.indexOf(
-  "const user = await requireSignedInUser()"
-);
-const timeFitPublishJson = timeFitPublish.indexOf("await request.json()");
-assert.ok(
-  timeFitPublishAuth >= 0 &&
-    timeFitPublishJson >= 0 &&
-    timeFitPublishAuth < timeFitPublishJson,
-  "time-fit publish must authenticate before parsing the JSON body"
-);
-for (const required of [
-  "MAX_REQUEST_BYTES",
-  "isUuid(seriesId)",
-  '.eq("author_id", user.id)',
-  '.eq("series_id", seriesId)',
-]) {
-  assert.equal(
-    timeFitPublish.includes(required),
-    true,
-    `time-fit publish must retain server-side request/ownership guard: ${required}`
-  );
-}
-for (const forbidden of [
-  "seriesResult.error?.message",
-  "episodeResult.error?.message",
-  "aiSeriesResult.error.message",
-  "publishCountResult.error.message",
-  "seriesUpdate.error.message",
-  "episodeUpdate.error.message",
-]) {
-  assert.equal(
-    timeFitPublish.includes(forbidden),
-    false,
-    `time-fit publish must not return raw database errors: ${forbidden}`
-  );
-}
-
 const translationStatus = source(
   "src/app/api/episode-translations/[episodeId]/route.ts"
 );
@@ -193,42 +110,6 @@ assert.equal(
   true,
   "translation status should return a stable generic storage failure message"
 );
-
-const generatedTranslation = source(
-  "src/app/api/generated-story-translations/generate/route.ts"
-);
-const generatedRequestLimit = generatedTranslation.indexOf("requestTooLarge(request)");
-const generatedJsonParse = generatedTranslation.indexOf("await request.json()");
-assert.ok(
-  generatedRequestLimit >= 0 &&
-    generatedJsonParse >= 0 &&
-    generatedRequestLimit < generatedJsonParse,
-  "generated-story translation must reject oversized declared requests before JSON parsing"
-);
-for (const required of [
-  "MAX_REQUEST_BYTES",
-  "TITLE_MAX_LENGTH",
-  'message: "対訳の状態を更新できません。"',
-  'message: "対訳の準備に失敗しました。"',
-  "message: clientMessage",
-]) {
-  assert.equal(
-    generatedTranslation.includes(required),
-    true,
-    `generated-story translation must retain input/error-minimization guard: ${required}`
-  );
-}
-for (const forbidden of [
-  "message: staleUpdate.error.message",
-  "message: reservationResult.error.message",
-  "translationUpdate.error.message",
-]) {
-  assert.equal(
-    generatedTranslation.includes(forbidden),
-    false,
-    `generated-story translation must not return raw provider/database errors: ${forbidden}`
-  );
-}
 
 const aiUsage = source("src/app/api/ai-usage/route.ts");
 assert.equal(

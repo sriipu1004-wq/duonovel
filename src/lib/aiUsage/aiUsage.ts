@@ -1,5 +1,5 @@
 export const AI_ACTION_TYPES = [
-  "story_generation",
+  "library_import",
   "translation_generation",
   "word_explanation",
 ] as const;

@@ -68,26 +68,6 @@ function main() {
     "Private Library Translation only must reuse the private translation backend"
   );
 
-  const generatedShell = source(
-    "src/features/playback/GeneratedStoryReaderShell.tsx"
-  );
-  assert.ok(
-    generatedShell.includes("<ReaderModeSelector") &&
-      generatedShell.includes('mode === "standard"') &&
-      generatedShell.includes("<GeneratedStoryBilingualPlayback"),
-    "generated stories must use the same three-mode shell"
-  );
-
-  const generatedOriginal = source(
-    "src/app/read/generated/[storyId]/GeneratedStoryReaderClient.tsx"
-  );
-  assert.ok(
-    generatedOriginal.includes("visibleMarkerIndex") &&
-      generatedOriginal.includes("writeReadingHistory({") &&
-      generatedOriginal.includes("generated:"),
-    "generated Original must separate its visible marker from the canonical reading anchor"
-  );
-
   const footer = source("src/features/playback/BilingualStoppedFooter.tsx");
   assert.ok(
     footer.includes("createPortal") &&
@@ -97,7 +77,7 @@ function main() {
   );
 
   console.log(
-    "PASS: Reader marker separation, settings replacement, and Public/Private/AI three-mode structure"
+    "PASS: Reader marker separation, settings replacement, and Public/Private three-mode structure"
   );
 }
 

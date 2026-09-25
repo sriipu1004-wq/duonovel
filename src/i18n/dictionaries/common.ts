@@ -1,7 +1,6 @@
 import type { UiLocale } from "../config";
 
 const ja = {
-  navGenerate: "AI生成",
   navLibrary: "個人本棚",
   navSearch: "探す",
   navNarration: "朗読",
@@ -35,7 +34,6 @@ const ja = {
 type CommonDictionary = { [K in keyof typeof ja]: string };
 
 const en = {
-  navGenerate: "AI Stories",
   navLibrary: "My Library",
   navSearch: "Explore",
   navNarration: "Narration",
@@ -67,7 +65,6 @@ const en = {
 } satisfies CommonDictionary;
 
 const ko = {
-  navGenerate: "AI 이야기",
   navLibrary: "개인 서재",
   navSearch: "작품 찾기",
   navNarration: "낭독",

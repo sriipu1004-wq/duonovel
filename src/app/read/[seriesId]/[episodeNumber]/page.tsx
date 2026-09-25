@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import WebSpeechEpisodePlayback from "@/features/playback/WebSpeechEpisodePlayback";
-import ContinueStoryAction from "@/features/generation/ContinueStoryAction";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -383,7 +382,6 @@ export default async function ReadEpisodePage({
     series,
     episode,
     publicEpisodes,
-    isOwner,
     viewerUserId,
     viewerEmail,
   } = payload;
@@ -538,11 +536,6 @@ export default async function ReadEpisodePage({
       ? localizePath(buildRecordingEntryPath(seriesId), locale)
       : null;
   const recordingCreateLabel = ui.createHumanNarration;
-  const showContinueStoryAction =
-    isOwner &&
-    Boolean(aiGeneratedAttribution) &&
-    nextEpisodeNumber === null &&
-    episodeBody.trim().length > 0;
 
   const effectSettings = mergeEffectSettings(
     parseEffectSettingsFromRow(
@@ -587,19 +580,14 @@ export default async function ReadEpisodePage({
       effectSettings={effectSettings}
       speechLanguage={speechLanguage}
       ownerActions={
-        recordingCreateHref || showContinueStoryAction ? (
+        recordingCreateHref ? (
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            {recordingCreateHref ? (
-              <Link
-                href={recordingCreateHref}
-                className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-medium text-black transition hover:bg-sky-100"
-              >
-                {recordingCreateLabel}
-              </Link>
-            ) : null}
-            {showContinueStoryAction ? (
-              <ContinueStoryAction seriesId={seriesId} isShortStory={isShortStory} />
-            ) : null}
+            <Link
+              href={recordingCreateHref}
+              className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-medium text-black transition hover:bg-sky-100"
+            >
+              {recordingCreateLabel}
+            </Link>
           </div>
         ) : null
       }

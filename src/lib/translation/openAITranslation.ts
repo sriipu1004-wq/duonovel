@@ -474,6 +474,7 @@ async function translateBatch(args: {
       signal: AbortSignal.timeout(BATCH_TIMEOUT_MS),
       body: JSON.stringify({
         model: args.model,
+        store: false,
         temperature: args.model.startsWith("gpt-4") ? 0 : undefined,
         reasoning: getTranslationReasoning(args.model),
         input: [
@@ -595,7 +596,7 @@ async function translateBatch(args: {
 
   if (!response.ok) {
     throw new OpenAITranslationError(
-      responseBody.error?.message ?? label + "の生成に失敗しました。",
+      label + "の生成に失敗しました。",
       response.status,
       response.status === 408 ||
         response.status === 409 ||
@@ -725,6 +726,7 @@ export async function translateTerminology(args: {
       signal: AbortSignal.timeout(BATCH_TIMEOUT_MS),
       body: JSON.stringify({
         model: args.model,
+        store: false,
         temperature: args.model.startsWith("gpt-4") ? 0 : undefined,
         reasoning: getTranslationReasoning(args.model),
         input: [
@@ -798,7 +800,7 @@ export async function translateTerminology(args: {
   const responseBody = await readOpenAIResponseBody(response);
   if (!response.ok) {
     throw new OpenAITranslationError(
-      responseBody.error?.message ?? "作品用語の準備に失敗しました。",
+      "作品用語の準備に失敗しました。",
       response.status,
       response.status === 408 ||
         response.status === 409 ||
