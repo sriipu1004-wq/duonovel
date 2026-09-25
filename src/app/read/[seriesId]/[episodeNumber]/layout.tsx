@@ -18,6 +18,10 @@ import {
   isEpisodeTranslationAllowlisted,
   isSeriesTranslationEligibleIncludingOfficial,
 } from "@/lib/translation/episodeTranslationServer";
+import {
+  hasCurrentPublishedHumanTranslation,
+  isHumanTranslationPermissionOpen,
+} from "@/lib/translation/humanTranslationServer";
 import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 import { getUiLocale } from "@/i18n/server";
 import {
@@ -144,10 +148,13 @@ export default async function ReadEpisodeLayout({
 
   const currentEpisodeNumber =
     getEpisodeNumber(payload.episode) || parsedEpisodeNumber;
-  let translationEligible = false;
+  let aiTranslationEligible = false;
+  let humanTranslationAvailable = false;
+  const humanTranslationPermissionOpen =
+    isHumanTranslationPermissionOpen(payload.series);
 
   try {
-    translationEligible =
+    aiTranslationEligible =
       payload.isOwner ||
       (await isSeriesTranslationEligibleIncludingOfficial(payload.series)) ||
       isEpisodeTranslationAllowlisted({
@@ -155,9 +162,18 @@ export default async function ReadEpisodeLayout({
         seriesId,
         episodeNumber: currentEpisodeNumber,
       });
+    humanTranslationAvailable = await hasCurrentPublishedHumanTranslation({
+      episodeId: payload.episode.id,
+      body: getEpisodeBody(payload.episode),
+    });
   } catch {
     return withSettingsTopBridge(children);
   }
+
+  const translationEligible =
+    aiTranslationEligible ||
+    humanTranslationPermissionOpen ||
+    humanTranslationAvailable;
 
   if (!translationEligible) {
     return withContentWarningSurface(
@@ -197,6 +213,8 @@ export default async function ReadEpisodeLayout({
     withSettingsTopBridge(
       <ReadBilingualShell
         translationEligible={translationEligible}
+        aiTranslationEligible={aiTranslationEligible}
+        humanTranslationPermissionOpen={humanTranslationPermissionOpen}
         seriesId={seriesId}
         episodeId={payload.episode.id}
         episodeNumber={currentEpisodeNumber}
