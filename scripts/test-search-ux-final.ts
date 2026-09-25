@@ -100,9 +100,13 @@ function verifyPagination() {
 
 function verifySourceContracts() {
   const controls = readFileSync("src/components/search/PublicSearchControls.tsx", "utf8");
+  const languageHandlerStart = controls.indexOf(
+    "onSourceLanguagesChange={(nextLanguages)"
+  );
+  assert.ok(languageHandlerStart >= 0);
   const languageHandler = controls.slice(
-    controls.indexOf("onSourceLanguagesChange"),
-    controls.indexOf("onSourceLanguagesChange") + 420
+    languageHandlerStart,
+    languageHandlerStart + 420
   );
   assert.equal(
     languageHandler.includes('"results"'),
@@ -113,7 +117,17 @@ function verifySourceContracts() {
     controls.indexOf("function handleSearch"),
     controls.indexOf("function handleClear")
   );
+  const genreHandler = controls.slice(
+    controls.indexOf("function handleGenreToggle"),
+    controls.indexOf("function handleTagToggle")
+  );
+  const tagHandler = controls.slice(
+    controls.indexOf("function handleTagToggle"),
+    controls.indexOf("const hasClearableConditions")
+  );
   assert.ok(searchHandler.includes('"results"'), "explicit Search may scroll to results");
+  assert.equal(genreHandler.includes('"results"'), false);
+  assert.equal(tagHandler.includes('"results"'), false);
 
   const nav = readFileSync("src/components/search/SearchNavButton.tsx", "utf8");
   assert.ok(nav.includes("router.push(resolvedHref, { scroll: false })"));
@@ -128,8 +142,14 @@ function verifySourceContracts() {
   assert.ok(page.includes("const paginatedWorks = sortedWorks.slice"));
   assert.ok(page.includes('href="#search-filters"'));
   assert.ok(page.includes('aria-current="page"'));
+  assert.ok(page.includes("PUBLIC_SEARCH_PAGE_SIZE"));
+  assert.ok(page.includes("const totalResultCount = sortedWorks.length"));
   assert.equal(page.includes("TOPへ戻る"), false);
   assert.equal(page.includes("トップの一覧へ戻る"), false);
+
+  const localeCopy = readFileSync("src/lib/search/searchLocaleCopy.ts", "utf8");
+  assert.ok(localeCopy.includes('"検索条件へ戻る": "Back to filters"'));
+  assert.ok(localeCopy.includes('"検索条件へ戻る": "검색 조건으로 돌아가기"'));
 
   const publicWorks = readFileSync("src/lib/publicWorks.ts", "utf8");
   assert.ok(publicWorks.includes("originalTitle: publicDomain?.originalTitle ?? null"));
