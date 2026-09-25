@@ -138,23 +138,28 @@ export default function PublicSearchLanguageFilters({
         >
           {orderedLanguages.map((tag) => {
             const active = sourceLanguages.includes(tag);
+            const count = Number(counts[tag] ?? 0);
+            const disabled = !active && count === 0;
             return (
               <button
                 key={tag}
                 type="button"
                 aria-pressed={active}
+                disabled={disabled}
                 title={getLanguageLabel(tag, locale)}
                 onClick={() => toggle(tag)}
                 className={[
                   "inline-flex max-w-full items-center overflow-hidden rounded-full border px-2.5 py-1.5 text-xs leading-tight transition",
                   active
                     ? "border-sky-200 bg-sky-50 text-black"
-                    : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
+                    : disabled
+                      ? "cursor-not-allowed border-black/5 bg-neutral-50 text-neutral-300"
+                      : "border-black/10 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50 hover:text-black",
                 ].join(" ")}
               >
                 <span className="truncate">{getLanguageLabel(tag, locale)}</span>
                 <span className="ml-1.5 shrink-0 text-[10px] text-neutral-400">
-                  {Number(counts[tag] ?? 0)}
+                  {count}
                 </span>
               </button>
             );
