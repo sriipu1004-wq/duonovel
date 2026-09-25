@@ -116,10 +116,6 @@ export function buildSitemapEntries(
     changeFrequency: "weekly",
     priority: 1,
   });
-  pushLocalizedEntries(entries, "/generate", {
-    changeFrequency: "monthly",
-    priority: 0.8,
-  });
   pushLocalizedEntries(entries, "/subscription", {
     changeFrequency: "monthly",
     priority: 0.85,
