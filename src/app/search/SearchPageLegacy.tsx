@@ -81,6 +81,7 @@ type WorkCard = {
   createdAtValue: number;
   tags: string[];
   genres: string[];
+  sourceLanguage: SupportedLanguageTag | null;
   likeCount: number;
   bookmarkCount: number;
   viewCount: number;
