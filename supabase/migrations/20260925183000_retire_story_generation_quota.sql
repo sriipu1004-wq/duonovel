@@ -3,6 +3,14 @@
 -- counted only as legacy members of the current day's shared Free bucket.
 begin;
 
+-- AI creative-writing generation has been removed from the product. Purge
+-- persisted works created by that first-party generator as well. Foreign-key
+-- cascades remove their episodes, bookmarks, translations, recordings and
+-- other work-scoped rows. Generation audit logs retain their event history and
+-- lose the series reference via the existing ON DELETE SET NULL relationship.
+delete from public.series
+where effect_settings @> '{"source":"time_fit_ai_story"}'::jsonb;
+
 alter table public.libread_daily_ai_action_logs
   drop constraint if exists libread_daily_ai_action_logs_action_type_check;
 
