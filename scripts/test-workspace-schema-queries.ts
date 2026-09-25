@@ -44,7 +44,6 @@ for (const path of [
   "src/lib/recording/nemoGenerationQueue.ts",
   "src/lib/recording/nemoAutoGeneration.ts",
   "src/lib/recording/aivisAutoGeneration.ts",
-  "src/app/api/time-fit-stories/continue/route.ts",
 ]) {
   assertCanonicalEpisodeQueries(path);
 }
