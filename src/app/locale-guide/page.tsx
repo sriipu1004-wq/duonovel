@@ -37,7 +37,6 @@ export default async function LocaleGuidePage() {
         <nav className="mt-8 flex flex-wrap gap-3 text-sm">
           <Link className="rounded-full border border-black/10 px-4 py-2" href={localizePath("/", locale)}>{dictionary.home}</Link>
           <Link className="rounded-full border border-black/10 px-4 py-2" href={localizePath("/search", locale)}>{dictionary.search}</Link>
-          <Link className="rounded-full border border-black/10 px-4 py-2" href={localizePath("/generate", locale)}>{dictionary.generate}</Link>
           <Link className="rounded-full border border-black/10 px-4 py-2" href={localizePath("/library", locale)}>{dictionary.library}</Link>
         </nav>
       </div>
