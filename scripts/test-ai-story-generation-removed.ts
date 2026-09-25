@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 
 const read = (path: string) => readFileSync(path, "utf8");
+
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const path = dir + "/" + name;
+    if (statSync(path).isDirectory()) return sourceFiles(path);
+    return /\.(?:ts|tsx|js|jsx)$/.test(path) ? [path] : [];
+  });
+}
 
 const removedPaths = [
   "src/app/generate/page.tsx",
@@ -37,6 +45,27 @@ for (const path of activeCopyFiles) {
   const source = read(path);
   for (const marker of ["/generate", "AI物語生成", "AI story generation", "AI 이야기 생성"]) {
     assert.equal(source.includes(marker), false, path + " still exposes " + marker);
+  }
+}
+
+for (const path of sourceFiles("src")) {
+  const source = read(path);
+  for (const marker of [
+    "/api/time-fit-stories/",
+    "/api/generated-story-translations/",
+    "/read/generated/",
+    'href="/generate"',
+    'localizePath("/generate"',
+    "@/features/generation/",
+    "@/i18n/dictionaries/generate",
+    "@/i18n/dictionaries/generatedReader",
+    "@/i18n/dictionaries/continuation",
+    "AI物語生成",
+    "AI story generation",
+    "AI story generations",
+    "AI 이야기 생성",
+  ]) {
+    assert.equal(source.includes(marker), false, path + " still contains removed generator marker " + marker);
   }
 }
 
