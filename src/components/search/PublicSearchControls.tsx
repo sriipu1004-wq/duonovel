@@ -9,6 +9,7 @@ import { localizePath } from "@/i18n/navigation";
 import type { SavedFilterKey } from "@/lib/searchSavedFilters";
 import { getLocalizedSavedFilterLabel, publicSearchControlCopy } from "@/lib/search/searchLocaleCopy";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import { PUBLIC_SEARCH_QUERY_MAX_LENGTH } from "@/lib/search/publicSearchMatching";
 import { localizeTagLabel } from "@/i18n/tagLabels";
 import { localizeGenreLabel } from "@/i18n/genreLabels";
 
@@ -33,6 +34,7 @@ type PublicSearchControlsProps = {
   allTagChips: TagChip[];
   allGenreChips: GenrePlaceholderChip[];
   sourceLanguages: SupportedLanguageTag[];
+  languageCounts: Partial<Record<SupportedLanguageTag, number>>;
 };
 
 function normalizeTagToken(value: string): string {
@@ -75,6 +77,7 @@ export function buildPublicSearchHref(params: {
   showGenres?: boolean;
   shelfTab?: ShelfTabKey;
   sourceLanguages?: SupportedLanguageTag[];
+  page?: number;
 }): string {
   const query = new URLSearchParams();
   if (params.q?.trim()) query.set("q", params.q.trim());
@@ -89,6 +92,9 @@ export function buildPublicSearchHref(params: {
   if (params.shelfTab) query.set("shelfTab", params.shelfTab);
   if (params.sourceLanguages?.length) {
     query.set("source_language", params.sourceLanguages.join(","));
+  }
+  if (params.page && Number.isInteger(params.page) && params.page > 1) {
+    query.set("page", String(params.page));
   }
   const queryString = query.toString();
   return queryString ? `/search?${queryString}` : "/search";
@@ -110,6 +116,7 @@ export default function PublicSearchControls({
   allTagChips,
   allGenreChips,
   sourceLanguages: initialSourceLanguages,
+  languageCounts,
 }: PublicSearchControlsProps) {
   const router = useRouter();
   const locale = useUiLocale();
@@ -296,7 +303,7 @@ export default function PublicSearchControls({
     order !== "popular";
 
   return (
-    <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6 lg:p-8">
+    <section id="search-filters" className="scroll-mt-24 rounded-[28px] border border-black/10 bg-white p-5 shadow-sm sm:p-6 lg:p-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[11px] tracking-[0.24em] text-neutral-500">PUBLIC SEARCH</p>
@@ -309,6 +316,7 @@ export default function PublicSearchControls({
         <input
           type="text"
           value={queryValue}
+          maxLength={PUBLIC_SEARCH_QUERY_MAX_LENGTH}
           onChange={(event) => setQueryValue(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -445,12 +453,10 @@ export default function PublicSearchControls({
 
         <PublicSearchLanguageFilters
           sourceLanguages={selectedSourceLanguages}
+          countsOverride={languageCounts}
           onSourceLanguagesChange={(nextLanguages) => {
             setSelectedSourceLanguages(nextLanguages);
-            navigate(
-              commonHref({ sourceLanguages: nextLanguages }),
-              "results"
-            );
+            navigate(commonHref({ sourceLanguages: nextLanguages }));
           }}
         />
       </div>
