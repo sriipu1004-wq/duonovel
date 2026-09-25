@@ -17,10 +17,10 @@ import { localizeTagLabel } from "@/i18n/tagLabels";
 import type { UiLocale } from "@/i18n/config";
 
 const HOME_DESCRIPTION =
-  "外国語の長編を管理して読む個人本棚、多言語対訳、読み上げ、AI物語生成、Web小説の閲覧・投稿に対応した読書サービスです。";
+  "外国語の長編を管理して読む個人本棚、多言語対訳、読み上げ、Web小説の閲覧・投稿に対応した読書サービスです。";
 
 export const metadata: Metadata = {
-  title: "個人本棚・多言語対訳・AI物語・Web小説 | LIB read",
+  title: "個人本棚・多言語対訳・Web小説 | LIB read",
   description: HOME_DESCRIPTION,
   alternates: {
     canonical: "/",
@@ -537,7 +537,6 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
               {dictionary.description}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href={localizePath("/generate", locale)} className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-neutral-800">{dictionary.generate}</Link>
               <Link href={localizePath("/library", locale)} className="rounded-full border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-medium text-violet-900 transition hover:bg-violet-100">{dictionary.library}</Link>
               <Link href={localizePath("/search", locale)} className="rounded-full border border-black/10 bg-neutral-100 px-5 py-3 text-sm font-medium text-neutral-800 transition hover:bg-neutral-200">{dictionary.explore}</Link>
               <Link href={localizePath("/write", locale)} className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-medium text-black transition hover:bg-sky-100">{dictionary.write}</Link>
