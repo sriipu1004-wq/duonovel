@@ -242,7 +242,9 @@ contains(bilingual, [
   'translationProvenance === "human" && humanTranslationId',
   '"/api/human-translations/"',
   'translationProvenance !== "ai"',
-  'translationProvenance === "ai" ? handleSelectWord : undefined',
+  'translationProvenance === "ai"',
+  "? handleSelectWord",
+  ": undefined",
 ]);
 const translationOnly =
   "src/features/playback/TranslationOnlyEpisodePlayback.tsx";
@@ -270,13 +272,13 @@ for (const path of noAiStoryFiles) {
   ]);
 }
 
-console.log(
-  "PASS: Human translation permission, provenance, editor, stale safety, Reader integration, free/no-AI boundaries, and AI-story regression guards are present"
-);
-
 const terms = "src/app/terms/page.tsx";
 contains(terms, [
   "文章（人による翻訳を含みます）",
   "投稿作品に対する権利は原則として当該利用者または正当な権利者に留保されます。",
   "非独占的な権利を許諾",
 ]);
+
+console.log(
+  "PASS: Human translation permission, provenance, editor, stale safety, Reader integration, free/no-AI boundaries, moderation, terms, and AI-story regression guards are present"
+);
