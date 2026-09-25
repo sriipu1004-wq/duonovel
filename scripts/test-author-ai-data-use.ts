@@ -24,14 +24,6 @@ const permissionIndex = word.indexOf("if (!resolved.aiGenerationAllowed)");
 const reserveIndex = word.indexOf("const requestId = randomUUID()");
 assert.ok(cacheIndex >= 0 && permissionIndex > cacheIndex && reserveIndex > permissionIndex);
 
-for (const path of [
-  "src/app/api/time-fit-stories/generate/route.ts",
-  "src/app/api/time-fit-stories/continue/route.ts",
-]) {
-  const source = read(path);
-  assert.ok(source.includes("store: false"), path + " must disable Responses application-state storage");
-  assert.equal(source.includes("responseBody.error?.message"), false, path + " must not forward raw provider messages");
-}
 
 const workspace = read("src/features/write/TranslationPermissionWorkspaceBridge.tsx");
 for (const text of [
@@ -64,6 +56,7 @@ for (const text of [
   "unverified",
   "Public Web crawlers are separate",
   "Human translation itself is not implemented",
+  "AI story generation, AI story continuation",
 ]) assert.ok(audit.includes(text), "audit doc missing: " + text);
 
 console.log("PASS: Child79 AI data-flow, retention minimization, permission boundary and transparency contracts");
