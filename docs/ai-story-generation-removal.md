@@ -8,7 +8,7 @@ LIB read removes its first-party AI story generation feature, continuation gener
 
 AI translation and word explanation are treated separately as reading/accessibility/translation support and remain available under the existing permission and data-flow controls.
 
-Previously saved or published AI-generated works are **not deleted**. Their AI provenance remains visible so historical AI-generated content is not misrepresented as human-authored content.
+Previously saved or published works created by LIB read's first-party AI story generator are deleted. Historical generation logs may remain for security, billing, and audit purposes, but generated story content is not retained as a user-facing work.
 
 ## LIB read Production usage snapshot
 
@@ -46,6 +46,6 @@ For LIB read, first-party story generation had low observed usage and created a 
 
 The removal therefore targets **creative text generation**, not every feature that happens to use an AI provider.
 
-## Preservation rule
+## Data cleanup rule
 
-Do not drop the historical generation tables or erase AI provenance merely because the active feature has been removed. Historical logs may be needed for billing/security/audit purposes, and saved user works remain user content. Any later data-retention cleanup should be a separate, explicit migration with a defined retention policy.
+Delete persisted works whose provenance identifies LIB read's retired first-party generator (`time_fit_ai_story`), including work-scoped child rows through existing foreign-key cascades. Keep generation logs only as non-content audit/security history; series references become null through the existing foreign-key rule. Do not treat those logs as publishable works or restore deleted generated prose from them.
