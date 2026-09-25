@@ -1,0 +1,104 @@
+name: Child80 Human translation checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/child80-human-translation-check.yml"
+      - "package.json"
+      - "scripts/test-human-translation.ts"
+      - "scripts/public-domain/core.ts"
+      - "src/app/api/human-translations/**"
+      - "src/app/api/series/**/human-translation-permission/**"
+      - "src/app/read/**"
+      - "src/app/translate/**"
+      - "src/app/write/series/**"
+      - "src/features/playback/BilingualEpisodePlayback.tsx"
+      - "src/features/playback/ReadBilingualShell.tsx"
+      - "src/features/playback/TranslationOnlyEpisodePlayback.tsx"
+      - "src/features/playback/TranslationSourceSelector.tsx"
+      - "src/features/translation/**"
+      - "src/features/write/HumanTranslationPermissionWorkspaceBridge.tsx"
+      - "src/features/write/WriteSeriesForm.tsx"
+      - "src/features/write/writeShared.ts"
+      - "src/lib/translation/humanTranslationServer.ts"
+      - "supabase/migrations/20260926100000_add_human_translation_foundation.sql"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Human translation regression
+        run: npm run test:human-translation
+
+      - name: Existing permission and translation regressions
+        run: |
+          npm run test:series-translation-permission-schema
+          npm run test:translation-consistency
+          npm run test:public-classic-translation
+          npm run test:translation-credit-runtime
+
+      - name: Existing Reader, security, workspace, narration, PD regressions
+        run: |
+          npm run test:reader-mode-unification
+          npm run test:multilingual-work-reader
+          npm run test:security-authz
+          npm run test:workspace-schema-queries
+          npm run test:author-workspace-ux
+          npm run test:human-recording-boundaries
+          npm run test:public-domain-ingestion
+          npm run test:legacy-official-rights-audit
+
+      - name: EN / KO regression
+        run: npm run test:en-ko-i18n
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Changed-scope ESLint
+        run: >
+          npx eslint
+          scripts/test-human-translation.ts
+          scripts/public-domain/core.ts
+          src/app/api/human-translations/draft/route.ts
+          src/app/api/human-translations/[translationId]/route.ts
+          src/app/api/human-translations/[translationId]/publish/route.ts
+          src/app/api/human-translations/[translationId]/withdraw/route.ts
+          src/app/api/human-translations/episode/[episodeId]/route.ts
+          src/app/api/series/[seriesId]/human-translation-permission/route.ts
+          src/app/read/[seriesId]/[episodeNumber]/layout.tsx
+          src/app/translate/[seriesId]/[episodeNumber]/page.tsx
+          src/features/playback/BilingualEpisodePlayback.tsx
+          src/features/playback/ReadBilingualShell.tsx
+          src/features/playback/TranslationOnlyEpisodePlayback.tsx
+          src/features/playback/TranslationSourceSelector.tsx
+          src/features/translation/HumanTranslationEditor.tsx
+          src/features/write/HumanTranslationPermissionWorkspaceBridge.tsx
+          src/features/write/WriteSeriesForm.tsx
+          src/features/write/writeShared.ts
+          src/lib/translation/humanTranslationServer.ts
+
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
+
+      - name: Diff whitespace check
+        run: git diff --check origin/main...HEAD
