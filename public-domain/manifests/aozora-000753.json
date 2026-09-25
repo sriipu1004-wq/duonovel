@@ -1,0 +1,92 @@
+{
+  "id": "aozora-000753",
+  "title": "文鳥・夏目漱石",
+  "original_title": "文鳥",
+  "original_author": "夏目漱石",
+  "author_death_year": 1916,
+  "original_language": "ja",
+  "first_publication_year": 1908,
+  "source_provider": "Aozora Bunko",
+  "source_url": "https://www.aozora.gr.jp/cards/000148/card753.html",
+  "source_download_url": "https://www.aozora.gr.jp/cards/000148/files/753_ruby_1701.zip",
+  "source_file": "public-domain/sources/raw/aozora-000753.txt",
+  "source_retrieved_at": "2026-09-25T01:53:51.909Z",
+  "source_encoding": "shift_jis",
+  "normalization_profile": "aozora",
+  "edition": "夏目漱石全集10",
+  "edition_publication_year": 1988,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "approved",
+  "rights_basis": "Exact Aozora Bunko No.753 source bytes were fetched and SHA-256 pinned. Production's three current episodes cryptographically match ordered slices of the normalized Aozora text after whitespace normalization, covering 98.554% of the candidate display text; unmatched material is outside the three Production episode slices and is not treated as proof of additional content. Natsume Soseki died in 1916 and the work first appeared in 1908. Japan: the author's term expired long before the 2018 extension and was not revived. United States: even if URAA restoration had applied, a 1908 pre-1978 publication's full 95-year term would have expired. South Korea: the Japanese source-country term has expired and Article 3(4) does not recognize a longer Korean term for a foreign work once the source-country term has expired. Scope is the exact Aozora transcription only.",
+  "rights_notes": "Child77 legacy provenance backfill. Aozora card No.753 identifies first publication as Osaka Asahi, June 1908; base edition 夏目漱石全集10 (ちくま文庫/筑摩書房, 1988), parent edition 筑摩全集類聚版夏目漱石全集 (1971-1972), input by 柴田卓治 and proofread by 大野晋. The Aozora work/contributor copyright flags were なし in the official expanded catalog. No translator is present. No cover, illustrations, commentary, publisher layout, or other separately protected edition material is intentionally reused. Production series ID is preserved by the migration.",
+  "rights_components": {
+    "original_work": {
+      "status": "approved",
+      "basis": "夏目漱石 died in 1916; first publication is 1908. JP term had expired before the 2018 extension; U.S. pre-1978 maximum term is exhausted; Korean foreign-work/source-country term rule does not extend an already expired Japanese term.",
+      "notes": "Reviewed against Japan Agency for Cultural Affairs term-extension Q&A, U.S. Copyright Office Title 17 §104A/Circular 38B, and Korea Copyright Act Article 3(4)."
+    },
+    "edition": {
+      "status": "approved",
+      "basis": "Reuse is limited to the exact Aozora text transcription whose source bytes are pinned. The 1988 Chikuma base-edition layout, cover, commentary and other publisher-created matter are not imported.",
+      "notes": "Aozora card identifies the base and parent editions. No independently protected modern editorial material was identified in the reused text beyond the transcription/orthographic representation distributed by Aozora."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": "Original Japanese text; no translator is present in the Aozora record."
+    },
+    "editorial": {
+      "status": "approved",
+      "basis": "No separate modern commentary or editorial prose is reused; scope is the Aozora transcription of Soseki's original work.",
+      "notes": "Production text was matched against the Aozora source rather than inferred from the base-edition title."
+    },
+    "annotations": {
+      "status": "approved",
+      "basis": "Aozora ruby/annotation representation is covered by the provider's expired-work file reuse rules; provenance remains pinned to the exact source bytes.",
+      "notes": "LIB read does not claim the unmatched Aozora header/provenance text as Production body."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": "No illustrations are included in the matched Production text."
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": "No provider/base-edition cover is reused."
+    },
+    "digitization": {
+      "status": "approved",
+      "basis": "Aozora's handling rules expressly permit copying, redistribution, sharing, commercial use and format conversion of files for copyright-expired works.",
+      "notes": "Aozora card credits input 柴田卓治 and proofreading 大野晋; exact TXT bytes are pinned by SHA-256."
+    },
+    "provider_terms": {
+      "status": "approved",
+      "basis": "Aozora Bunko's current handling rules permit free copying, redistribution, sharing and reuse of copyright-expired work files, including commercial use and format conversion.",
+      "notes": "Provider terms rechecked 2026-09-25 at https://www.aozora.gr.jp/guide/kijyunn.html."
+    }
+  },
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-09-25T02:30:00+10:00",
+  "reviewed_by": "LIB read Child77 rights/provenance audit",
+  "chapter_count": 1,
+  "chapter_split": {
+    "strategy": "single"
+  },
+  "tags": [
+    "Public Domain",
+    "Aozora Bunko",
+    "夏目漱石"
+  ],
+  "source_hash": "2398d7180d7c003d68270b6bd6197720d735b146c42bc49e6b796986f8336538",
+  "approved": true,
+  "import_status": "imported",
+  "cover_source": null,
+  "cover_rights_status": null
+}
