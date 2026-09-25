@@ -45,6 +45,7 @@ import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 export type PublicBaseWorkCard = {
   seriesId: string;
   title: string;
+  originalTitle: string | null;
   summary: string;
   authorName: string;
   authorId: string | null;
@@ -357,6 +358,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
       return {
         seriesId: series.id,
         title,
+        originalTitle: publicDomain?.originalTitle ?? null,
         summary,
         authorName: publicDomain?.originalAuthor || authorAccount?.displayName || "作者名未設定",
         authorId: publicDomain ? null : authorId,
@@ -413,6 +415,7 @@ function prioritizeForLocale(cards: PublicBaseWorkCard[], locale: "ja" | "en" | 
 export async function getCachedPublicBaseWorkCards(options?: {
   visibility?: PublicWorkVisibility;
   ignoreContentLanguageFilter?: boolean;
+  ignorePublicSearchLanguageFilter?: boolean;
   prioritizeForUiLocale?: boolean;
 }): Promise<PublicBaseWorkCard[]> {
   const cards = await getCachedPublicBaseWorkCardsInternal();
@@ -441,7 +444,10 @@ export async function getCachedPublicBaseWorkCards(options?: {
   }
 
   const searchLanguageFilters = getPublicSearchLanguageFilters();
-  if (searchLanguageFilters?.sourceLanguages.length) {
+  if (
+    !options?.ignorePublicSearchLanguageFilter &&
+    searchLanguageFilters?.sourceLanguages.length
+  ) {
     visibleCards = visibleCards.filter((work) =>
       matchesPublicWorkLanguageFilters({
         work,
