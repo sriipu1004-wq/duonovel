@@ -1,0 +1,12 @@
+{
+  "mode": "READ_ONLY_DUPLICATE_AUDIT",
+  "notes": [
+    "Normalization maps 虜美人草→虞美人草 and 竜→龍 and removes punctuation/whitespace.",
+    "No deletion or publication-state mutation is performed by this query."
+  ],
+  "matches": [],
+  "generated_at": "2026-09-25T02:03:48.413546+00:00",
+  "legacy_series": 37,
+  "legacy_work_units": 75,
+  "current_rights_checked_series": 83
+}
