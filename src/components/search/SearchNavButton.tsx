@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useTransition, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type SearchNavButtonProps = {
@@ -52,7 +52,7 @@ export default function SearchNavButton({
 }: SearchNavButtonProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isPending, setIsPending] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const resolvedHref = useMemo(
     () => appendPersistentSearchParams(href, searchParams),
@@ -62,10 +62,6 @@ export default function SearchNavButton({
   useEffect(() => {
     router.prefetch(resolvedHref);
   }, [resolvedHref, router]);
-
-  useEffect(() => {
-    setIsPending(false);
-  }, [searchParams]);
 
   return (
     <>
@@ -81,8 +77,9 @@ export default function SearchNavButton({
         aria-busy={isPending}
         disabled={isPending}
         onClick={() => {
-          setIsPending(true);
-          router.push(resolvedHref, { scroll: false });
+          startTransition(() => {
+            router.push(resolvedHref, { scroll: false });
+          });
 
           if (scrollTargetId) {
             window.setTimeout(() => scrollToTarget(scrollTargetId), 0);
