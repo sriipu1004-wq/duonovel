@@ -40,6 +40,8 @@ const activeCopyFiles = [
   "src/app/faq/page.tsx",
   "src/app/status/page.tsx",
   "src/app/terms/page.tsx",
+  "src/app/commercial-transactions/page.tsx",
+  "src/features/library/LibraryImportForm.tsx",
 ];
 for (const path of activeCopyFiles) {
   const source = read(path);
@@ -81,5 +83,17 @@ assert.equal(workspace.includes("ContinueStoryAction"), false);
 assert.ok(existsSync("src/app/api/episode-translations/generate/route.ts"));
 assert.ok(existsSync("src/app/api/library/translations/generate/route.ts"));
 assert.ok(existsSync("src/app/api/word-explanations/route.ts"));
+
+const usageTypes = read("src/lib/aiUsage/aiUsage.ts");
+assert.ok(usageTypes.includes('"library_import"'));
+assert.equal(usageTypes.includes('"story_generation"'), false);
+
+const libraryImport = read("src/features/library/LibraryImportForm.tsx");
+assert.ok(libraryImport.includes("aiUsage?.actions.library_import"));
+assert.equal(libraryImport.includes("actions.story_generation"), false);
+
+const quotaMigration = read("supabase/migrations/20260925183000_retire_story_generation_quota.sql");
+assert.ok(quotaMigration.includes("'library_import'"));
+assert.ok(quotaMigration.includes("Historical story_generation rows"));
 
 console.log("PASS: AI story generation surfaces removed while historical provenance and reading-support AI remain");
