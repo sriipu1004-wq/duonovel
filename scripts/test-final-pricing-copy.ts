@@ -99,7 +99,7 @@ for (const literal of [
 
 // Legal subscription description must match the current Production offering.
 const terms = source("src/app/terms/page.tsx");
-assert.match(terms, /公開作品の翻訳解放を1日30回/u);
+assert.match(terms, /公開作品のAI翻訳解放を1日30回/u);
 assert.match(terms, /個人本棚への取り込みは日次回数制限なし/u);
 assert.match(terms, /最大20作品/u);
 for (const stale of ["対訳生成1日30回", "単語解説の日次回数制限なし", "次話1話の先読み"]) {
