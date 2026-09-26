@@ -1,7 +1,7 @@
 # LIB read — Ordered Roadmap
 
 Last updated: **2026-09-26**
-Product-state baseline: `ca216ac38f4e1150859ef3bc28b4ee60f1f2be58`
+Product-state baseline: `57e06d82e14ac33808f3f90c7403234517ee2542`
 
 This file is the canonical ordered backlog for the next workstreams. It exists specifically so parent-chat replacement or context compression does not reorder the planned site work.
 
@@ -26,7 +26,9 @@ This is documentation/operations work only. It must not silently absorb the impl
 
 ### P1 — Child81: public description / SEO / AI-search information alignment
 
-Status: **implementation complete in Draft PR #80; Preview approval / merge / Production verification pending**
+Status: **complete**
+
+Merged PR #80 as `57e06d82e14ac33808f3f90c7403234517ee2542`; Production deployment reached READY and post-deploy smoke verification passed on 2026-09-26.
 
 Keep the previously agreed scope:
 
@@ -62,7 +64,7 @@ Important current facts for Child81:
 
 ### P2 — Child82: external information update
 
-Status: **after Child81 Production completion**
+Status: **next product work**
 
 Scope:
 
