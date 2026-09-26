@@ -29,11 +29,13 @@ export async function generateMetadata(): Promise<Metadata> {
       url: canonical,
       title: `${dictionary.guideTitle} | LIB read`,
       description: dictionary.guideLead,
+      images: ["/opengraph-image"],
     },
     twitter: {
       card: "summary_large_image",
       title: `${dictionary.guideTitle} | LIB read`,
       description: dictionary.guideLead,
+      images: ["/opengraph-image"],
     },
   };
 }
