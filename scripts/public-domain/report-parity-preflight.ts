@@ -77,13 +77,8 @@ const rows = batch.works.map((entry) => {
       throw new Error(`${id}: approved manifest is missing reviewer metadata`);
     }
   }
-  const sourcePrepared =
-    manifest.import_status === "prepared" ||
-    (humanApproved && manifest.import_status === "imported");
-  if (!sourcePrepared) {
-    throw new Error(
-      `${id}: source-prepared manifest must be marked prepared, or imported after human approval`
-    );
+  if (manifest.import_status !== "prepared") {
+    throw new Error(`${id}: source-prepared manifest must be marked prepared`);
   }
 
   return {

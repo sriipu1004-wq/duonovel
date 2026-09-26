@@ -44,7 +44,47 @@ jobs:
       - name: Validate generated pending manifests
         run: npm run public-domain:validate
 
+      - name: Check whether parity cohort still needs acquisition
+        id: cohort
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const batch = require("./public-domain/batches/en-ko-parity-2026-09-23.json");
+          let needsAcquisition = false;
+          for (const entry of batch.works) {
+            const id = entry.provider === "gutenberg"
+              ? "gutenberg-" + String(entry.provider_id).padStart(6, "0")
+              : "gongu-" + entry.provider_id;
+            const manifest = JSON.parse(
+              fs.readFileSync(
+                path.join("public-domain", "manifests", id + ".json"),
+                "utf8"
+              )
+            );
+            if (
+              manifest.rights_status !== "approved" ||
+              manifest.approved !== true ||
+              manifest.import_status !== "imported"
+            ) {
+              needsAcquisition = true;
+              break;
+            }
+          }
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            "needs_acquisition=" + String(needsAcquisition) + "\n"
+          );
+          console.log(
+            needsAcquisition
+              ? "Parity cohort still has non-imported works; acquisition is required."
+              : "Parity cohort is already fully approved and imported; acquisition is skipped."
+          );
+          NODE
+
       - name: Acquire and prepare English sources
+        if: steps.cohort.outputs.needs_acquisition == 'true'
         shell: bash
         run: |
           mapfile -t IDS < <(
@@ -58,6 +98,7 @@ jobs:
           npm run public-domain:source-sync -- "${IDS[@]}" --prepare --limit=50 --delay-ms=750
 
       - name: Acquire and prepare Korean sources
+        if: steps.cohort.outputs.needs_acquisition == 'true'
         shell: bash
         run: |
           mapfile -t IDS < <(
@@ -71,13 +112,15 @@ jobs:
           npm run public-domain:source-sync -- "${IDS[@]}" --prepare --limit=50 --delay-ms=750
 
       - name: Verify prepared cohort
+        if: steps.cohort.outputs.needs_acquisition == 'true'
         run: npx tsx scripts/public-domain/report-parity-preflight.ts
 
       - name: Validate prepared manifests
+        if: steps.cohort.outputs.needs_acquisition == 'true'
         run: npm run public-domain:validate
 
       - name: Persist source provenance and preflight report
-        if: github.event_name == 'pull_request'
+        if: steps.cohort.outputs.needs_acquisition == 'true' && github.event_name == 'pull_request'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -92,6 +135,7 @@ jobs:
           fi
 
       - name: Upload prepared evidence
+        if: steps.cohort.outputs.needs_acquisition == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: child73-en-ko-parity-prepared
