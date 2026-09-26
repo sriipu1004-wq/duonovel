@@ -75,7 +75,7 @@
   ],
   "reviewed_at": "2026-09-23T08:19:00+10:00",
   "reviewed_by": "LIB read operator (explicit user approval in Child72 continuation)",
-  "chapter_count": 9,
+  "chapter_count": 32,
   "chapter_split": {
     "strategy": "paragraph_chunks",
     "max_characters": 30000
