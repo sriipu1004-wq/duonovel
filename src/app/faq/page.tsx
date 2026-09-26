@@ -21,6 +21,13 @@ export const metadata: Metadata = {
     url: "/faq",
     title: "FAQ | LIB read",
     description: "LIB readのReader、AI翻訳、Human translation、個人本棚、料金、投稿に関するよくある質問。",
+    images: ["/opengraph-image"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FAQ | LIB read",
+    description: "LIB readのReader、AI翻訳、Human translation、個人本棚、料金、投稿に関するよくある質問。",
+    images: ["/opengraph-image"],
   },
 };
 
@@ -164,7 +171,7 @@ export default function FaqPage() {
       <Section title="投稿作品・AI翻訳・Human translation">
         <FaqItem
           question="投稿作品はLIB readのAI学習に使われる？"
-          answer="現行実装には、通常の投稿作品をLIB read独自のモデル学習用データセットやfine-tuning用コーパスとして収集・出力する処理はありません。ただし、作者がAI翻訳を許可した作品で読者が未生成の翻訳等を利用すると、処理に必要な本文がOpenAI APIへ送信されることがあります。OpenAIの公開方針ではAPIの入力・出力は既定では学習に利用されませんが、組織が明示的にデータ共有へ参加した場合は別です。"
+          answer="現行実装には、通常の投稿作品をLIB read独自のモデル学習用データセットやfine-tuning用コーパスとして収集・出力する処理はありません。ただし、作者がAI翻訳を許可した作品で読者が未生成のAI翻訳等を利用すると、処理に必要な本文がOpenAI APIへ送信されることがあります。OpenAIの公開方針ではAPIの入力・出力は既定では学習に利用されませんが、組織が明示的にデータ共有へ参加した場合は別です。標準のabuse-monitoring logsでは内容が最大30日保持される場合があり、LIB readのOpenAIアカウント固有のdata sharing・Zero Data Retention・Modified Abuse Monitoring設定は現時点で未確認です。"
         />
         <FaqItem
           question="AI翻訳を許可すると何が起こる？"
