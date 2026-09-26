@@ -16,21 +16,24 @@ function comparison(locale: "ja" | "en" | "ko", label: string) {
 }
 
 // Free translation unlocks and library imports share the 3-use allowance.
-assert.match(comparison("ja", "公開作品の翻訳解放").free, /共通で1日3回/u);
+assert.match(comparison("ja", "公開作品のAI翻訳解放").free, /共通で1日3回/u);
 assert.match(comparison("ja", "個人本棚への取り込み").free, /共通で1日3回/u);
-assert.match(comparison("en", "Public translation unlocks").free, /3\/day shared/i);
+assert.match(comparison("en", "Public AI translation unlocks").free, /3\/day shared/i);
 assert.match(comparison("en", "Library imports").free, /3\/day shared/i);
-assert.match(comparison("ko", "공개 작품 번역 잠금 해제").free, /합산 하루 3회/u);
+assert.match(comparison("ko", "공개 작품 AI 번역 잠금 해제").free, /합산 하루 3회/u);
 assert.match(comparison("ko", "개인 서재 가져오기").free, /합산 하루 3회/u);
+assert.match(comparison("ja", "Human translation").free, /AI利用枠\/クレジット不要/u);
+assert.match(comparison("en", "Human translation").free, /no AI allowance or credits/i);
+assert.match(comparison("ko", "Human translation").free, /AI 이용량\/크레딧 불필요/u);
 
 // Premium canonical allowances and My Library capacity.
-assert.equal(comparison("ja", "公開作品の翻訳解放").subscriber, "1日30回まで");
+assert.equal(comparison("ja", "公開作品のAI翻訳解放").subscriber, "1日30回まで");
 assert.equal(comparison("ja", "個人本棚への取り込み").subscriber, "日次回数制限なし");
 assert.equal(comparison("ja", "個人本棚・読書進捗").free, "最大3作品");
 assert.equal(comparison("ja", "個人本棚・読書進捗").subscriber, "最大20作品");
-assert.match(subscriptionDictionaries.en.heroDescription, /30 public-translation unlocks per day/i);
+assert.match(subscriptionDictionaries.en.heroDescription, /30 public AI-translation unlocks per day/i);
 assert.match(subscriptionDictionaries.en.heroDescription, /up to 20 library works/i);
-assert.match(subscriptionDictionaries.ko.heroDescription, /번역 잠금 해제 하루 30회/u);
+assert.match(subscriptionDictionaries.ko.heroDescription, /AI 번역 잠금 해제 하루 30회/u);
 assert.match(subscriptionDictionaries.ko.heroDescription, /최대 20작품/u);
 assert.match(subscriptionDictionaries.ja.paid, /680/u);
 assert.match(subscriptionDictionaries.en.paid, /680/u);
@@ -82,12 +85,12 @@ assert.match(creditsPage, /購入クレジットより先に利用枠/u);
 // Live EN/KO SEO facts are canonicalized after legacy-copy compatibility mapping.
 const seo = source("src/lib/seo/currentSearchDiscovery.ts");
 for (const literal of [
-  "public-work translation unlocks and My Library imports share 3 uses per day in total",
-  "up to 30 public-work translation unlocks per day",
+  "public-work AI translation unlocks and My Library imports share 3 uses per day in total",
+  "up to 30 public-work AI translation unlocks per day",
   "Free stores up to 3 works. Premium stores up to 20 works.",
   "Original reading does not require a translation unlock.",
-  "Free에서는 공개 작품 번역 잠금 해제와 개인 서재 가져오기가 합산 하루 3회를 공유합니다.",
-  "공개 작품 번역 잠금 해제 하루 최대 30회",
+  "Free에서는 공개 작품 AI 번역 잠금 해제와 개인 서재 가져오기가 합산 하루 3회를 공유합니다.",
+  "공개 작품 AI 번역 잠금 해제 하루 최대 30회",
   "Free는 최대 3작품, Premium은 최대 20작품",
   "원문 읽기에는 번역 잠금 해제가 필요하지 않습니다.",
 ]) {
