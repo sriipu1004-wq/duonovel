@@ -13,11 +13,11 @@ type Definition = ReturnType<typeof getLegacySearchDiscoveryDefinition>;
 function replaceCurrentTerms(text: string, locale: SearchLocale): string {
   if (locale === "en") {
     return text
-      .replace(/bilingual generations?/gi, "public-work translation unlocks")
-      .replace(/bilingual generation/gi, "public-work translation unlock");
+      .replace(/bilingual generations?/gi, "public-work AI translation unlocks")
+      .replace(/bilingual generation/gi, "public-work AI translation unlock");
   }
 
-  return text.replace(/대역 생성/g, "공개 작품 번역 잠금 해제");
+  return text.replace(/대역 생성/g, "공개 작품 AI 번역 잠금 해제");
 }
 function mapStrings<T>(value: T, locale: SearchLocale): T {
   if (typeof value === "string") {
@@ -46,11 +46,11 @@ function currentPlanFacts(locale: SearchLocale) {
       },
       {
         label: "Free included daily allowance",
-        value: "On Free, public-work translation unlocks and My Library imports share 3 uses per day in total.",
+        value: "On Free, public-work AI translation unlocks and My Library imports share 3 uses per day in total.",
       },
       {
         label: "Premium included daily allowances",
-        value: "Premium provides up to 30 public-work translation unlocks per day. My Library imports have no daily count limit.",
+        value: "Premium provides up to 30 public-work AI translation unlocks per day. My Library imports have no daily count limit.",
       },
       {
         label: "My Library capacity",
@@ -78,11 +78,11 @@ function currentPlanFacts(locale: SearchLocale) {
     },
     {
       label: "Free 포함 일일 이용 한도",
-      value: "Free에서는 공개 작품 번역 잠금 해제와 개인 서재 가져오기가 합산 하루 3회를 공유합니다.",
+      value: "Free에서는 공개 작품 AI 번역 잠금 해제와 개인 서재 가져오기가 합산 하루 3회를 공유합니다.",
     },
     {
       label: "Premium 포함 일일 이용 한도",
-      value: "Premium은 공개 작품 번역 잠금 해제 하루 최대 30회를 제공하며 개인 서재 가져오기는 일일 횟수 제한이 없습니다.",
+      value: "Premium은 공개 작품 AI 번역 잠금 해제 하루 최대 30회를 제공하며 개인 서재 가져오기는 일일 횟수 제한이 없습니다.",
     },
     {
       label: "개인 서재 보관 한도",
