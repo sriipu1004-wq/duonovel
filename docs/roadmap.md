@@ -9,7 +9,9 @@ This file is the canonical ordered backlog for the next workstreams. It exists s
 
 ### P0 — Project governance baseline
 
-Status: **in progress on `chore/project-governance-baseline`**
+Status: **complete**
+
+Merged governance baseline: `45f1a2aa031d76625327a68551d59821f978786d`
 
 Scope:
 
@@ -24,7 +26,7 @@ This is documentation/operations work only. It must not silently absorb the impl
 
 ### P1 — Child81: public description / SEO / AI-search information alignment
 
-Status: **next product work**
+Status: **implementation complete in Draft PR #80; Preview approval / merge / Production verification pending**
 
 Keep the previously agreed scope:
 

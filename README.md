@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LIB read
 
-## Getting Started
+LIB read is a multilingual web-novel posting and reading platform.
 
-First, run the development server:
+Production: https://www.syosetu-libread.com
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Product
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+A published work keeps its source text as the canonical work and can be read in three Reader modes:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Original
+- Bilingual
+- Translation only
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Translation provenance is separate from Reader mode:
 
-## Learn More
+- **AI translation**: author-controlled. A missing translation may be generated through the configured OpenAI API path after server-side permission and entitlement checks. Saved public translations can be reused for the same source/version/language conditions.
+- **Human translation**: separately author-controlled user translation with draft, edit, publish, and withdraw states. Human translation does not call OpenAI and does not consume AI allowance, credits, or AI unlocks.
 
-To learn more about Next.js, take a look at the following resources:
+For long-form AI translation, LIB read can use a work-level glossary and bounded context from earlier eligible public content to reduce terminology drift. This does not guarantee perfect consistency or human-level translation quality.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+LIB read also includes a private My Library for supported user-owned/imported files, public work posting, read-aloud support, and narration features.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## AI boundary
 
-## Deploy on Vercel
+First-party AI novel/story generation is retired and is not part of the active product. AI is used for reading and translation support, including AI translation and word explanation.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Posting or publishing a work does not by itself send the work to OpenAI. Provider processing occurs only on supported requested AI features after the relevant checks. See [docs/ai-data-flow.md](docs/ai-data-flow.md) for the audited data flow and current limitations on provider/account claims.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Current plans
+
+- Free: ¥0; public AI-translation unlocks and My Library imports share 3 uses/day; My Library capacity 3 works.
+- Premium: ¥680/month; up to 30 public AI-translation unlocks/day; My Library imports have no daily count limit; My Library capacity 20 works.
+- Credits: 5 = ¥300, 8 = ¥450, 12 = ¥600; valid for 150 days; 1 credit unlocks one public episode in one target language for AI translation.
+- Human translation is free to read and does not consume AI credits or allowances.
+
+## Development
+
+Canonical project state and workflow live in:
+
+- [docs/project-state.md](docs/project-state.md)
+- [docs/roadmap.md](docs/roadmap.md)
+- [docs/decisions.md](docs/decisions.md)
+- [docs/development-workflow.md](docs/development-workflow.md)
+
+Normal delivery flow is: latest main → work branch → implementation → validation → Draft PR → Vercel Preview → explicit approval → merge → Production verification.

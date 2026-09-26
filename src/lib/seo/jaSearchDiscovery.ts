@@ -14,37 +14,49 @@ type Definition = {
 const commonFacts = [
   {
     label: "Free",
-    value: "¥0。公開作品の翻訳解放・個人本棚への取り込みが、合計1日3回の共通枠です。",
+    value: "¥0。公開作品のAI翻訳解放・個人本棚への取り込みが、合計1日3回の共通枠です。",
   },
   {
     label: "Premium",
-    value: "月額680円（JPY）。公開作品の翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なし。個人本棚は最大20作品です。",
+    value: "月額680円（JPY）。公開作品のAI翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なし。個人本棚は最大20作品です。",
   },
   {
-    label: "公開作品の翻訳解放",
-    value: "Bilingual（原文＋翻訳）とTranslation only（翻訳のみ）は同じ翻訳解放を利用します。",
+    label: "公開作品のAI翻訳解放",
+    value: "Bilingual（原文＋翻訳）とTranslation only（翻訳のみ）は同じAI翻訳解放を利用します。Originalには翻訳解放が不要です。",
+  },
+  {
+    label: "クレジット",
+    value: "5クレジット=300円、8クレジット=450円、12クレジット=600円。有効期間は150日で、1クレジットで公開作品1話×対象言語1つのAI翻訳を解放できます。",
+  },
+  {
+    label: "Human translation",
+    value: "公開済みHuman translationは無料で読め、AI利用枠・クレジット・AI unlockを消費しません。利用可否は作品・対象言語ごとの公開状況によります。",
   },
 ];
 
 const publicTranslationFeatures = [
   {
-    title: "長編で訳語が揺れにくい仕組み",
-    body: "公開作品の翻訳では、人名・固有名詞・組織名・世界観用語を作品単位の用語集で保持し、直前の公開話から必要な範囲だけを限定コンテキストとして使います。作者は必要に応じて用語集の訳語を修正・固定できます。",
+    title: "AI長編翻訳で訳語の揺れを抑える",
+    body: "AI翻訳では、人名・固有名詞・組織名・世界観用語を作品単位の用語集で保持し、前の公開話から必要な範囲だけを限定コンテキストとして使います。作者は用語集の訳語を修正・固定できますが、完全な一貫性や人間同等の品質を保証するものではありません。",
   },
   {
     title: "一つの作品を複数の読み方で",
     body: "公開作品は原文を正本として、Original・Bilingual・Translation onlyを切り替えて読みます。言語ごとに別作品を複製する構造ではありません。",
   },
   {
-    title: "保存済みの公開翻訳を共有",
-    body: "公開翻訳は同じ話・原文言語・翻訳言語・原文版の組み合わせで保存・再利用します。読者ごとに同じ翻訳を毎回作り直す構造ではありません。",
+    title: "保存済みAI翻訳を再利用",
+    body: "公開AI翻訳は同じ話・原文言語・翻訳言語・原文版の組み合わせで保存・再利用します。読者ごとに同じ翻訳を毎回作り直す構造ではありません。",
+  },
+  {
+    title: "AI翻訳とHuman translationを分離",
+    body: "作者はAI翻訳とHuman translationを別々に許可できます。Human translationはOpenAIを呼ばずAI利用枠・クレジットを消費せず、公開済みHuman translationがある場合だけReaderの翻訳ソースとして選べます。",
   },
 ];
 
 const englishNovelReader: Definition = {
   title: "英語小説を日本語対訳で読む | LIB read",
   description:
-    "英語小説・Web小説を原文のまま残し、日本語訳と対応させて長編を読み続ける方法。公開作品では作品単位の翻訳用語集、直前話の限定コンテキスト、保存済み翻訳の再利用に対応します。",
+    "英語小説・Web小説を原文のまま残し、日本語訳と対応させて長編を読み続ける方法。公開作品のAI翻訳では作品単位の用語集、限定された前話コンテキスト、保存済み翻訳の再利用に対応し、Human translationは別ソースとして扱います。",
   config: {
     eyebrow: "ENGLISH NOVEL / BILINGUAL READING",
     title: "英語小説を、日本語対訳で読み続ける",
@@ -75,7 +87,7 @@ const englishNovelReader: Definition = {
       note: "実際のReaderでは、対応文の同期、読書位置・栞、表示設定、読み上げなどを利用できます。",
     },
     steps: [
-      "公開作品検索で原文言語をEnglish、読む言語をJapaneseにして作品を探すか、手元の英語小説を個人本棚へ取り込みます。",
+      "公開作品検索で原文言語をEnglishに絞って作品を探すか、手元の英語小説を個人本棚へ取り込みます。翻訳先のJapaneseはReaderで選びます。",
       "作品または章・話を開き、Original・Bilingual・Translation onlyから読み方を選びます。",
       "公開作品で翻訳が未解放なら、Readerの確認導線から日本語翻訳を解放します。検索結果を表示しただけでは翻訳生成や解放は始まりません。",
       "読書位置や栞を残し、次回は同じ作品の続きから再開します。",
@@ -91,15 +103,15 @@ const englishNovelReader: Definition = {
       },
       {
         title: "長編の状態を維持する",
-        body: "話数、読書位置、栞に加え、公開翻訳では作品用語集と直前話の限定コンテキストを使います。",
+        body: "話数、読書位置、栞に加え、AI翻訳では作品用語集と直前話の限定コンテキストを使います。",
       },
     ],
     capabilities: [
       "Original / Bilingual / Translation only",
       "英語原文と日本語訳の文単位同期",
-      "公開作品の作品単位翻訳用語集",
-      "直前公開話の限定翻訳コンテキスト",
-      "保存済み公開翻訳の再利用",
+      "公開AI翻訳の作品単位用語集",
+      "AI翻訳の限定された前話コンテキスト",
+      "保存済みAI翻訳の再利用",
       "TXT・EPUB・DOCX・テキストPDFの個人本棚取り込み",
       "章・話単位の長編管理",
       "読書位置と栞",
@@ -125,8 +137,8 @@ const englishNovelReader: Definition = {
       },
     ],
     primaryCta: {
-      href: "/search?source_language=en&read_language=ja",
-      label: "英語原文を日本語で読める作品を探す",
+      href: "/search?source_language=en",
+      label: "英語原文の作品を探す",
     },
     secondaryCta: { href: "/library/import", label: "英語小説を個人本棚へ取り込む" },
     related: [
@@ -143,7 +155,7 @@ const englishNovelReader: Definition = {
       {
         href: "/subscription",
         label: "Free / Premium",
-        description: "公開作品の翻訳解放を含む現在の利用枠と料金を確認します。",
+        description: "公開作品のAI翻訳解放を含む現在の利用枠と料金を確認します。",
       },
     ],
   },
@@ -152,14 +164,14 @@ const englishNovelReader: Definition = {
 const webNovelLearning: Definition = {
   title: "ネット小説で外国語を学ぶ | LIB read",
   description:
-    "ネット小説や長編小説を原文と翻訳で読み続けながら外国語に触れる方法。読書位置・栞・文同期に加え、公開作品では長編向け翻訳用語集と保存済み翻訳の再利用に対応します。",
+    "ネット小説や長編小説を原文と翻訳で読み続けながら外国語に触れる方法。公開作品のAI翻訳では長編向け用語集と保存済み翻訳を利用し、公開済みHuman translationは別の翻訳ソースとして選択できます。",
   config: {
     eyebrow: "WEB NOVEL / LANGUAGE LEARNING",
     title: "ネット小説を読み続けながら、外国語を学ぶ",
     intro:
       "短い例文ではなく、同じ登場人物・世界観が続く作品そのものを読み続ける。LIB readは原文を消さずに翻訳を参照し、話数・読書位置・栞を保ちながら長編・Web小説を継続するための読書プラットフォームです。",
     directAnswer:
-      "原文を先に読み、必要なときだけBilingualやTranslation onlyへ切り替えられます。公開作品検索では原文言語と読む言語を別々に指定できるため、UIの表示言語とは独立して読みたい組み合わせを探せます。",
+      "原文を先に読み、必要なときだけBilingualやTranslation onlyへ切り替えられます。公開作品検索は作品の原文言語を絞り込み、翻訳先言語はReaderで選びます。UI言語・原文言語・翻訳先言語は別の設定です。",
     features: [
       {
         title: "物語の長い文脈で読む",
@@ -183,40 +195,40 @@ const webNovelLearning: Definition = {
       note: "実際のReaderでは、原文・対訳・翻訳のみの切替、文同期、読書位置・栞、読み上げを利用できます。",
     },
     steps: [
-      "公開作品検索で原文言語と読む言語を選ぶか、自分で利用権限を持つ長編ファイルを個人本棚へ取り込みます。",
+      "公開作品検索で原文言語を選ぶか、自分で利用権限を持つ長編ファイルを個人本棚へ取り込みます。翻訳先言語はReaderで選びます。",
       "原文を中心に読み、必要に応じてBilingualまたはTranslation onlyへ切り替えます。",
-      "公開作品では、許可された翻訳言語だけをReaderの確認導線から解放します。検索だけでは翻訳生成・解放・クレジット消費は発生しません。",
+      "公開作品では、AI翻訳が許可されている場合にReaderの確認導線から対象言語のAI翻訳を解放します。検索だけでは翻訳生成・解放・クレジット消費は発生しません。",
       "読書位置や栞を残し、次回は同じ作品の続きから再開します。",
     ],
     differences: [
       { title: "例文学習より文脈が長い", body: "人物関係や場面、語彙の反復を含む長い文脈の中で原文へ触れられます。" },
       { title: "翻訳だけに置き換えない", body: "原文と訳文を同じ作品で扱うため、理解できる部分は原文のまま読み進められます。" },
-      { title: "その日の作業で終わらない", body: "話数、読書位置、栞と公開翻訳資産を作品単位で持ち、長編を継続して読みます。" },
+      { title: "その日の作業で終わらない", body: "話数、読書位置、栞と公開AI翻訳資産を作品単位で持ち、長編を継続して読みます。" },
     ],
     capabilities: [
       "原文 / 対訳 / 翻訳のみのReader mode",
-      "原文言語と読む言語を分けた公開作品検索",
+      "原文言語を絞り込む公開作品検索とReader側の翻訳先言語選択",
       "文単位の同期",
-      "公開作品の作品単位翻訳用語集",
-      "直前公開話の限定翻訳コンテキスト",
-      "保存済み公開翻訳の再利用",
+      "公開AI翻訳の作品単位用語集",
+      "AI翻訳の限定された前話コンテキスト",
+      "保存済みAI翻訳の再利用",
       "日本語・英語・韓国語など複数原文言語の公開作品",
       "読書位置と栞",
       "ブラウザ読み上げ",
     ],
     facts: commonFacts,
     faq: [
-      { question: "UIが日本語でも英語原文を韓国語で読む作品を探せますか？", answer: "はい。UI言語、作品の原文言語、読む言語は別の設定です。公開作品検索で原文言語と読む言語を独立して選べます。" },
-      { question: "翻訳済みの作品だけが検索に出ますか？", answer: "いいえ。読む言語の検索条件は既存翻訳cacheの有無ではなく、原文がその言語か、公開翻訳が許可されその言語が対応対象かで判定します。検索表示だけで翻訳は生成しません。" },
+      { question: "UIが日本語でも英語原文を韓国語で読めますか？", answer: "はい。UI言語、作品の原文言語、翻訳先言語は別の設定です。Searchで英語原文の作品を探し、Readerで韓国語を翻訳先として選びます。" },
+      { question: "翻訳済みの作品だけが検索に出ますか？", answer: "いいえ。Searchは原文言語など作品メタデータを基準に絞り込みます。検索結果を表示しただけではAI翻訳生成・解放・クレジット消費は発生しません。" },
       { question: "URLを貼るだけで外部Web小説を取り込めますか？", answer: "現在は対応していません。個人本棚は自分で利用権限を持つTXT、EPUB、DOCX、テキストPDFを取り込みます。" },
-      { question: "長編の翻訳一貫性は保証されますか？", answer: "保証はしません。公開翻訳では作品用語集と直前話の限定コンテキストを使い、訳語の揺れを抑える設計です。" },
+      { question: "長編の翻訳一貫性は保証されますか？", answer: "保証はしません。AI翻訳では作品用語集と直前話の限定コンテキストを使い、訳語の揺れを抑える設計です。" },
     ],
     primaryCta: { href: "/search", label: "読む作品を探す" },
     secondaryCta: { href: "/library", label: "個人本棚を開く" },
     related: [
       { href: "/english-novel-reader", label: "英語小説を日本語対訳で読む", description: "英語原文を残し、日本語訳と対応させて長編を読む方法。" },
       { href: "/pdf-bilingual-reader", label: "PDF・EPUBを対訳で読む", description: "手元の長編ファイルを章・話単位で読み続ける方法。" },
-      { href: "/subscription", label: "Free / Premium", description: "公開作品の翻訳解放を含む現在の利用枠と料金を確認します。" },
+      { href: "/subscription", label: "Free / Premium", description: "公開作品のAI翻訳解放を含む現在の利用枠と料金を確認します。" },
     ],
   },
 };
@@ -236,7 +248,7 @@ const pdfReader: Definition = {
       { title: "ファイルではなく作品として管理", body: "取り込んだ長編を章・話の単位へ分け、非公開の一作品として本棚に置きます。" },
       { title: "原文を残して対訳", body: "翻訳済みの別PDFへ置き換えず、原文と訳文を同じReaderで対応させて表示します。" },
       { title: "必要な話から続きを読む", body: "読書位置、栞、前話・次話を使い、前回の続きから再開できます。" },
-      { title: "公開作品は別の共有翻訳構造", body: "個人本棚とは別に、公開作品では同一作品へ翻訳レイヤーを重ね、作品用語集・直前話の限定コンテキスト・保存済み翻訳の再利用を行います。" },
+      { title: "公開作品はAI/Human翻訳を別管理", body: "個人本棚とは別に、公開作品では原文に翻訳レイヤーを重ねます。AI翻訳は作品用語集・限定された前話コンテキスト・保存済み翻訳を利用し、Human translationは別のprovenanceとして扱います。" },
     ],
     demo: {
       sourceLabel: "ORIGINAL TEXT",
@@ -248,7 +260,7 @@ const pdfReader: Definition = {
     steps: [
       "ログイン後、個人本棚の取り込み画面から、自分で保存・翻訳する権利を持つTXT・EPUB・DOCX・テキストPDFを選びます。",
       "ブラウザ側で本文を抽出し、検出した章・話を非公開の作品として保存します。元ファイル自体はサーバーへ保存しません。",
-      "作品目次から読みたい章・話を開き、必要に応じて対訳をオンにして読む言語を選びます。",
+      "作品目次から読みたい章・話を開き、必要に応じて対訳をオンにして翻訳先言語を選びます。",
       "読書位置や栞を残して終了し、次回は同じ作品の続きから再開します。",
     ],
     differences: [
@@ -291,4 +303,22 @@ const definitions: Record<JaSearchDiscoverySlug, Definition> = {
 
 export function getJaSearchDiscoveryDefinition(slug: JaSearchDiscoverySlug): Definition {
   return definitions[slug];
+}
+
+export function buildJaSearchDiscoveryStructuredData(slug: JaSearchDiscoverySlug) {
+  const definition = getJaSearchDiscoveryDefinition(slug);
+  const path = `/${slug}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: definition.title,
+    description: definition.description,
+    url: `https://www.syosetu-libread.com${path}`,
+    inLanguage: "ja",
+    isPartOf: {
+      "@type": "WebSite",
+      name: "LIB read",
+      url: "https://www.syosetu-libread.com/",
+    },
+  };
 }

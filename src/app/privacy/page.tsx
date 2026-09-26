@@ -50,7 +50,7 @@ export default function PrivacyPage() {
           <p>本サービスでは、以下の情報を取得することがあります。</p>
           <ul className="list-disc space-y-2 pl-5">
             <li>アカウント登録情報</li>
-            <li>投稿作品、プロフィール、朗読音声、説明文等の利用者入力情報</li>
+            <li>投稿作品、人による翻訳、プロフィール、朗読音声、説明文等の利用者入力情報</li>
             <li>個人本棚へ取り込んだ作品のタイトル、作者名、抽出本文、章・話、読書進捗、栞、対訳および作品用語</li>
             <li>決済事業者の顧客ID、契約ID、契約状態および利用期限（カード番号は取得・保存しません）</li>
             <li>アクセス日時、IPアドレス、ブラウザ情報、端末情報、操作ログ等の利用情報</li>
@@ -186,6 +186,10 @@ export default function PrivacyPage() {
               OpenAI API data controls
             </a>
             を確認してください。
+          </p>
+          <p>
+            人による翻訳（Human translation）はAI翻訳とは別の利用者投稿コンテンツとして保存されます。
+            Human translationの作成・編集・公開・取り下げの処理自体はOpenAIを呼び出さず、翻訳本文をOpenAIへ送信しません。
           </p>
         </Section>
 

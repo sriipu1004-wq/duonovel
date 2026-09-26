@@ -50,13 +50,14 @@ for (const crawler of ["GPTBot", "Google-Extended", "ClaudeBot", "Bytespider"]) 
 
 const audit = read("docs/ai-data-flow.md");
 for (const text of [
-  "Reviewed at: **2026-09-25**",
+  "Reviewed at: **2026-09-26**",
   "OpenAI Responses API",
   "account-specific status",
   "unverified",
   "Public Web crawlers are separate",
-  "Human translation itself is not implemented",
-  "AI story generation, AI story continuation",
+  "Human translation",
+  "does not call OpenAI",
+  "AI novel/story generation, AI story continuation",
 ]) assert.ok(audit.includes(text), "audit doc missing: " + text);
 
 console.log("PASS: Child79 AI data-flow, retention minimization, permission boundary and transparency contracts");

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import PublicTopPageLegacy from "./PublicTopPageLegacy";
 
 const HOME_DESCRIPTION =
-  "長編・Web小説を原文・対訳・翻訳のみで読み分ける多言語読書プラットフォーム。作品単位の翻訳用語集、直前公開話の限定コンテキスト、保存済み公開翻訳の再利用に対応します。";
+  "長編・Web小説をOriginal・Bilingual・Translation onlyで読む多言語読書プラットフォーム。作者がAI翻訳とHuman translationを別々に許可でき、AI翻訳は作品用語集と限定コンテキスト、保存済み翻訳の再利用に対応します。";
 
 export const metadata: Metadata = {
   title: "長編・Web小説を原文付きで多言語読書 | LIB read",
@@ -37,5 +37,22 @@ export const metadata: Metadata = {
 type PageProps = Parameters<typeof PublicTopPageLegacy>[0];
 
 export default function PublicTopPage(props: PageProps) {
-  return <PublicTopPageLegacy {...props} />;
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "LIB read",
+    url: "https://www.syosetu-libread.com/",
+    inLanguage: "ja",
+    description: HOME_DESCRIPTION,
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      <PublicTopPageLegacy {...props} />
+    </>
+  );
 }

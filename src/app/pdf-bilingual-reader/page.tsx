@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import SearchLandingPage from "@/components/seo/SearchLandingPage";
-import { getJaSearchDiscoveryDefinition } from "@/lib/seo/jaSearchDiscovery";
+import {
+  buildJaSearchDiscoveryStructuredData,
+  getJaSearchDiscoveryDefinition,
+} from "@/lib/seo/jaSearchDiscovery";
 
 const definition = getJaSearchDiscoveryDefinition("pdf-bilingual-reader");
 
@@ -35,5 +38,14 @@ export const metadata: Metadata = {
 };
 
 export default function PdfBilingualReaderPage() {
-  return <SearchLandingPage config={definition.config} />;
+  const structuredData = buildJaSearchDiscoveryStructuredData("pdf-bilingual-reader");
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      <SearchLandingPage config={definition.config} />
+    </>
+  );
 }

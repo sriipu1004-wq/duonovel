@@ -1,0 +1,98 @@
+name: Child81 public SEO alignment checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/child81-public-seo-alignment-check.yml"
+      - "README.md"
+      - "docs/roadmap.md"
+      - "package.json"
+      - "scripts/test-public-seo-alignment.ts"
+      - "scripts/test-final-pricing-copy.ts"
+      - "scripts/test-author-ai-data-use.ts"
+      - "src/app/commercial-transactions/**"
+      - "src/app/credits/**"
+      - "src/app/english-novel-reader/**"
+      - "src/app/faq/**"
+      - "src/app/guide/**"
+      - "src/app/layout.tsx"
+      - "src/app/locale-faq/**"
+      - "src/app/locale-guide/**"
+      - "src/app/locale-home/**"
+      - "src/app/page.tsx"
+      - "src/app/pdf-bilingual-reader/**"
+      - "src/app/privacy/**"
+      - "src/app/subscription/**"
+      - "src/app/terms/**"
+      - "src/app/web-novel-language-learning/**"
+      - "src/i18n/dictionaries/help.ts"
+      - "src/i18n/dictionaries/home.ts"
+      - "src/i18n/dictionaries/subscription.ts"
+      - "src/lib/seo/currentSearchDiscovery.ts"
+      - "src/lib/seo/jaSearchDiscovery.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Child81 public copy and SEO regression
+        run: npm run test:public-seo-alignment
+
+      - name: Pricing copy regression
+        run: npm run test:pricing-copy
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Changed-scope ESLint
+        run: >
+          npx eslint
+          scripts/test-public-seo-alignment.ts
+          scripts/test-final-pricing-copy.ts
+          scripts/test-author-ai-data-use.ts
+          src/app/commercial-transactions/page.tsx
+          src/app/credits/page.tsx
+          src/app/english-novel-reader/page.tsx
+          src/app/faq/page.tsx
+          src/app/guide/page.tsx
+          src/app/layout.tsx
+          src/app/locale-faq/page.tsx
+          src/app/locale-guide/page.tsx
+          src/app/locale-home/page.tsx
+          src/app/page.tsx
+          src/app/pdf-bilingual-reader/page.tsx
+          src/app/privacy/page.tsx
+          src/app/subscription/page.tsx
+          src/app/terms/page.tsx
+          src/app/web-novel-language-learning/page.tsx
+          src/i18n/dictionaries/help.ts
+          src/i18n/dictionaries/home.ts
+          src/i18n/dictionaries/subscription.ts
+          src/lib/seo/currentSearchDiscovery.ts
+          src/lib/seo/jaSearchDiscovery.ts
+
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
+
+      - name: Diff whitespace check
+        run: git diff --check origin/main...HEAD

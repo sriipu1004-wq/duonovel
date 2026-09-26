@@ -1,10 +1,34 @@
 import Link from "next/link";
-import FreePlanOnly from "@/features/billing/FreePlanOnly";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "使い方・取り扱い説明 | LIB read",
-  description: "個人本棚、多言語対訳、読み上げ、作品投稿の使い方",
+  description: "Original・Bilingual・Translation only、AI/Human翻訳、個人本棚、読み上げ、作品投稿の使い方。",
+  alternates: {
+    canonical: "/guide",
+    languages: {
+      ja: "/guide",
+      en: "/en/guide",
+      ko: "/ko/guide",
+      "x-default": "/guide",
+    },
+  },
+  robots: { index: false, follow: true },
+  openGraph: {
+    type: "website",
+    locale: "ja_JP",
+    siteName: "LIB read",
+    url: "/guide",
+    title: "使い方・取り扱い説明 | LIB read",
+    description: "Original・Bilingual・Translation only、AI/Human翻訳、個人本棚、読み上げ、作品投稿の使い方。",
+    images: ["/opengraph-image"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "使い方・取り扱い説明 | LIB read",
+    description: "Original・Bilingual・Translation only、AI/Human翻訳、個人本棚、読み上げ、作品投稿の使い方。",
+    images: ["/opengraph-image"],
+  },
 };
 
 function Section({
@@ -32,7 +56,7 @@ export default function GuidePage() {
         <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">LIB read</p>
         <h1 className="text-3xl font-bold text-black">使い方・取り扱い説明</h1>
         <p className="text-sm leading-7 text-neutral-700">
-          個人本棚、多言語対訳、読み上げ、Web小説の閲覧・投稿について、画面名と基本操作をまとめています。
+          3つのReader mode、AI/Human翻訳、個人本棚、読み上げ、Web小説の閲覧・投稿について、画面名と基本操作をまとめています。
         </p>
         <div className="flex flex-wrap gap-4 text-sm">
           <Link className="text-neutral-700 underline underline-offset-4" href="/">
@@ -49,7 +73,7 @@ export default function GuidePage() {
 
       <Section title="1. LIB read って何のサイトか">
         <p>
-          LIB read は、自分で用意した外国語の長編を個人本棚で管理して読み続ける機能と、公開Web小説、読み上げ、作品投稿をまとめた読書サービスです。
+          LIB read は、長編・Web小説を投稿・閲覧し、原文を正本としてOriginal・Bilingual・Translation onlyで読み分ける多言語読書サービスです。AI翻訳とHuman translationは別の翻訳ソースとして扱い、個人本棚や読み上げも利用できます。
         </p>
         <p>
           画面名は、作品の概要と各話一覧を「作品ページ（目次）」、本文を読む場所を「読む画面」、作者が編集する場所を「作品ワークスペース」と表記します。
@@ -61,7 +85,7 @@ export default function GuidePage() {
         <ol className="list-decimal space-y-2 pl-5">
           <li>手元の長編を読む場合は「個人本棚」を開き、ファイルを取り込む</li>
           <li>公開作品を読む場合はトップページまたは検索から作品ページ（目次）を開く</li>
-          <li>読む画面で本文、対訳、読み上げ、栞を利用する</li>
+          <li>ReaderでOriginal・Bilingual・Translation onlyを選び、必要なら翻訳先言語とAI/Humanの翻訳ソースを選ぶ</li>
           <li>物語を投稿する場合は作品ワークスペースを使う</li>
         </ol>
       </Section>
@@ -90,16 +114,24 @@ export default function GuidePage() {
         </p>
       </Section>
 
-      <Section title="5. 多言語対訳と単語解説">
+      <Section title="5. Reader modeと翻訳ソース">
         <p>
-          「対訳をオン」を押して対訳言語を選びます。保存済み対訳があれば「対訳を開く」、なければ「対訳を生成」と表示されます。
+          公開作品のReader modeはOriginal・Bilingual・Translation onlyの3つです。modeは本文の見せ方を決めるもので、AI/Humanは別の「翻訳ソース」です。
         </p>
         <ul className="list-disc space-y-2 pl-5">
-          <li>原文と訳文は上下で同期してスクロールします</li>
-          <li>文を選び、その中の語をタップすると対応する意味と品詞を確認できます</li>
-          <li>複数話の作品では、チェックを入れると同じタブ内で対訳言語を固定できます</li>
-          <li>サブスク対象では、読書が50%に達すると次の1話だけ先読み翻訳します</li>
+          <li>Original：原文だけを読む</li>
+          <li>Bilingual：原文と翻訳を対応させて読む</li>
+          <li>Translation only：翻訳だけを読む</li>
+          <li>公開済みHuman translationがある場合だけ、Bilingual / Translation onlyでAI/Humanの翻訳ソース選択が表示されます</li>
+          <li>modeや翻訳ソースを切り替えても、読書位置と栞は原文側の位置を基準に扱います</li>
         </ul>
+        <p>
+          AI翻訳が未生成の場合は、作者のAI翻訳許可とアクセス・利用資格の確認後に生成されることがあります。作品を投稿・公開しただけではOpenAIへ送信しません。
+          Human translationは作者が別途許可した作品で利用者がDraftを作成・編集・公開・取り下げでき、Human translationの処理自体はOpenAIを呼びません。
+        </p>
+        <p>
+          AI翻訳では作品単位の用語集と限定された前話コンテキストを使い、長編での訳語の揺れを抑えます。ただし、完全な一貫性や人間同等の翻訳品質を保証するものではありません。
+        </p>
       </Section>
 
       <Section title="6. 読み上げ・設定・栞">
@@ -135,16 +167,20 @@ export default function GuidePage() {
         </p>
       </Section>
 
-      <Section title="8. 利用回数とPremium">
+      <Section title="8. 利用回数・Premium・クレジット">
         <p>
-          無料利用では、公開作品の翻訳解放と個人本棚への取り込みを合わせて1日3回まで利用できます。単語解説は別枠です。
+          Freeは¥0です。公開作品のAI翻訳解放と個人本棚への取り込みは、合計1日3回の共通枠です。個人本棚は最大3作品です。
         </p>
-        <FreePlanOnly>
-          <p>
-            <Link className="underline underline-offset-4" href="/subscription">月額680円のサブスク</Link>
-            では、公開作品の翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なし、単語解説は無制限です。
-          </p>
-        </FreePlanOnly>
+        <p>
+          <Link className="underline underline-offset-4" href="/subscription">Premium（月額680円）</Link>
+          では、公開作品のAI翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なし、個人本棚は最大20作品です。
+        </p>
+        <p>
+          クレジットは5クレジット=300円、8クレジット=450円、12クレジット=600円で、有効期間は150日です。1クレジットで公開作品1話×対象言語1つのAI翻訳を解放できます。BilingualとTranslation onlyは同じ解放を共有し、Originalには解放が不要です。
+        </p>
+        <p>
+          Human translationは無料で読め、AI利用枠・クレジット・AI unlockを消費しません。
+        </p>
       </Section>
 
       <Section title="9. 継続的な改善について">

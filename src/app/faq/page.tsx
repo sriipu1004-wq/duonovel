@@ -1,10 +1,34 @@
 import Link from "next/link";
-import FreePlanOnly from "@/features/billing/FreePlanOnly";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "FAQ | LIB read",
-  description: "LIB read のよくある質問",
+  description: "LIB readのReader、AI翻訳、Human translation、個人本棚、料金、投稿に関するよくある質問。",
+  alternates: {
+    canonical: "/faq",
+    languages: {
+      ja: "/faq",
+      en: "/en/faq",
+      ko: "/ko/faq",
+      "x-default": "/faq",
+    },
+  },
+  robots: { index: false, follow: true },
+  openGraph: {
+    type: "website",
+    locale: "ja_JP",
+    siteName: "LIB read",
+    url: "/faq",
+    title: "FAQ | LIB read",
+    description: "LIB readのReader、AI翻訳、Human translation、個人本棚、料金、投稿に関するよくある質問。",
+    images: ["/opengraph-image"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FAQ | LIB read",
+    description: "LIB readのReader、AI翻訳、Human translation、個人本棚、料金、投稿に関するよくある質問。",
+    images: ["/opengraph-image"],
+  },
 };
 
 function Section({
@@ -65,18 +89,16 @@ export default function FaqPage() {
       <Section title="サイト全般">
         <FaqItem
           question="LIB read は何のサイト？"
-          answer="小説投稿サイトを基盤にしつつ、朗読や演出も一緒に扱えるサイト。読むだけでも、聞くだけでも使える。"
+          answer="長編・Web小説を投稿・閲覧し、同じ作品をOriginal・Bilingual・Translation onlyで読める多言語読書プラットフォームです。AI翻訳とHuman translationは別の翻訳ソースとして扱い、個人本棚や読み上げも利用できます。"
         />
         <FaqItem
           question="無料で使える？"
           answer={
             <>
-              公開作品の閲覧、最大3作品の個人本棚、読み上げなどは無料で利用できます。AI翻訳・単語解説には無料枠があります。
-              <FreePlanOnly>
-                {" "}月額680円の
-                <Link className="underline underline-offset-4" href="/subscription">サブスク</Link>
-                で公開翻訳の利用上限拡大、単語解説無制限、次話対訳の先読みを利用できます。
-              </FreePlanOnly>
+              はい。Freeは¥0で、公開作品の閲覧と最大3作品の個人本棚を利用できます。公開作品のAI翻訳解放と個人本棚への取り込みは合計1日3回の共通枠です。Premiumは月額680円で、公開AI翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なし、個人本棚は最大20作品です。詳しくは
+              {" "}
+              <Link className="underline underline-offset-4" href="/subscription">料金ページ</Link>
+              を確認してください。Human translationの閲覧にはAI利用枠やクレジットを使いません。
             </>
           }
         />
@@ -89,15 +111,19 @@ export default function FaqPage() {
       <Section title="読む・聞く">
         <FaqItem
           question="アカウントがなくても使える？"
-          answer="公開ページや公開作品の閲覧を中心に使える構成で進んでいる。ただし一部機能はログイン前提になることがある。"
+          answer="公開ページと公開作品はアカウントなしでも閲覧できます。個人本棚への取り込み、翻訳作成など、利用者本人の保存・投稿を伴う機能にはログインが必要です。"
+        />
+        <FaqItem
+          question="Readerには何種類の読み方がある？"
+          answer="Original・Bilingual・Translation onlyの3種類です。AI/Humanは4つ目のReader modeではなく、BilingualまたはTranslation onlyで使う翻訳ソースの選択です。"
         />
         <FaqItem
           question="朗読が付いている作品だけ聞ける？"
           answer="朗読が登録されている作品なら聞ける。すべての作品に朗読があるわけではない。"
         />
         <FaqItem
-          question="演出って何を見るもの？"
-          answer="文字や背景などの見せ方を含めた表現。作品によって有無や強さが違うので、通常の読書体験に追加される要素として見ると分かりやすい。"
+          question="Human translationはいつ選べる？"
+          answer="その作品・対象言語に公開済みのHuman translationがある場合だけ、Readerに翻訳ソース選択が表示されます。すべての作品にHuman translationがあるわけではありません。"
         />
       </Section>
 
@@ -142,10 +168,10 @@ export default function FaqPage() {
         />
       </Section>
 
-      <Section title="投稿作品とAI">
+      <Section title="投稿作品・AI翻訳・Human translation">
         <FaqItem
           question="投稿作品はLIB readのAI学習に使われる？"
-          answer="現行実装には、通常の投稿作品をLIB read独自のモデル学習用データセットやfine-tuning用コーパスとして収集・出力する処理はありません。ただし、作者がAI翻訳を許可した作品で読者が未生成の翻訳等を利用すると、処理に必要な本文がOpenAI APIへ送信されることがあります。OpenAIの公開方針ではAPIの入力・出力は既定では学習に利用されませんが、組織が明示的にデータ共有へ参加した場合は別です。"
+          answer="現行実装には、通常の投稿作品をLIB read独自のモデル学習用データセットやfine-tuning用コーパスとして収集・出力する処理はありません。ただし、作者がAI翻訳を許可した作品で読者が未生成のAI翻訳等を利用すると、処理に必要な本文がOpenAI APIへ送信されることがあります。OpenAIの公開方針ではAPIの入力・出力は既定では学習に利用されませんが、組織が明示的にデータ共有へ参加した場合は別です。標準のabuse-monitoring logsでは内容が最大30日保持される場合があり、LIB readのOpenAIアカウント固有のdata sharing・Zero Data Retention・Modified Abuse Monitoring設定は現時点で未確認です。"
         />
         <FaqItem
           question="AI翻訳を許可すると何が起こる？"
@@ -154,6 +180,22 @@ export default function FaqPage() {
         <FaqItem
           question="AI翻訳を許可しないことはできる？"
           answer="できます。AI翻訳を許可しない設定では、その作品について新しいAI翻訳と新しいAI単語解説を実行しません。既に生成済みの翻訳や単語解説は、再生成を避けるためLIB read内で再利用される場合があります。"
+        />
+        <FaqItem
+          question="AI翻訳とHuman translationの許可は同じ設定？"
+          answer="別です。作者はAI翻訳とHuman translationを別々に許可・停止できます。Human translationを許可してもOpenAIへ本文を送ることにはならず、人が作成する翻訳はAI利用枠・クレジット・AI unlockを消費しません。"
+        />
+        <FaqItem
+          question="Human translationは誰でも公開できる？"
+          answer="作者がHuman translationを許可している作品で、ログイン利用者が対象話・対象言語の翻訳をDraftとして作成し、編集後に公開できます。公開後は取り下げもできます。複数の翻訳者が同じ話・言語に別々の翻訳を公開できる設計です。"
+        />
+        <FaqItem
+          question="AI翻訳の長編一貫性は保証される？"
+          answer="保証されません。作品単位の用語集と限定された前話コンテキストを使って人名・固有名詞などの揺れを抑える設計ですが、完全な一貫性や人間同等の翻訳品質を保証するものではありません。"
+        />
+        <FaqItem
+          question="LIB read OfficialならすべてPublic Domain？"
+          answer="いいえ。Officialであること自体はPublic Domainの根拠ではありません。Public Domainとして扱うには、作品ごとの出典・権利状態を確認できるprovenanceとrights reviewが必要です。"
         />
         <FaqItem
           question="公開作品がAIクローラーに収集される問題も同じ？"
