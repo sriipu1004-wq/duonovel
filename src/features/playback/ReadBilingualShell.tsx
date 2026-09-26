@@ -104,7 +104,8 @@ export default function ReadBilingualShell({
   nextEpisodeHref,
 }: ReadBilingualShellProps) {
   const uiLocale = useUiLocale();
-  const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
+  const { snapshot: aiUsage, refresh: refreshAiUsage } =
+    useAiUsage(aiTranslationEligible);
   const [mode, setMode] = useState<ReadingMode>("standard");
   const [translationUiVisible, setTranslationUiVisible] = useState(true);
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);

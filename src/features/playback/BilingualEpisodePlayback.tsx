@@ -157,7 +157,8 @@ export default function BilingualEpisodePlayback({
   const locale = useUiLocale();
   const dictionary = readerDictionaries[locale];
   const bilingualDictionary = bilingualReaderDictionaries[locale];
-  const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
+  const { snapshot: aiUsage, refresh: refreshAiUsage } =
+    useAiUsage(translationProvenance === "ai");
   const { displaySettings, setDisplaySettings } =
     useReaderDisplaySettings(seriesId);
   const preference = useMemo(

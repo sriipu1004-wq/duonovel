@@ -229,6 +229,7 @@ contains(shell, [
   "translationProvenance={",
   "humanTranslationId={selectedHumanTranslationId}",
   "translateYourself",
+  "useAiUsage(aiTranslationEligible)",
 ]);
 const selector = "src/features/playback/TranslationSourceSelector.tsx";
 contains(selector, [
@@ -252,6 +253,7 @@ contains(bilingual, [
   'translationProvenance === "ai"',
   "? handleSelectWord",
   ": undefined",
+  'useAiUsage(translationProvenance === "ai")',
 ]);
 const translationOnly =
   "src/features/playback/TranslationOnlyEpisodePlayback.tsx";
@@ -260,6 +262,7 @@ contains(translationOnly, [
   'translationProvenance === "human" && humanTranslationId',
   '"/api/human-translations/"',
   'translationProvenance !== "ai"',
+  'useAiUsage(translationProvenance === "ai")',
 ]);
 
 const noAiStoryFiles = [

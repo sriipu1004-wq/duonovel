@@ -17,6 +17,7 @@ on:
       - "src/features/playback/TranslationOnlyEpisodePlayback.tsx"
       - "src/features/playback/TranslationSourceSelector.tsx"
       - "src/features/translation/**"
+      - "src/features/usage/useAiUsage.ts"
       - "src/features/write/HumanTranslationPermissionWorkspaceBridge.tsx"
       - "src/features/write/WriteSeriesForm.tsx"
       - "src/features/write/writeShared.ts"
@@ -88,6 +89,7 @@ jobs:
           src/features/playback/TranslationOnlyEpisodePlayback.tsx
           src/features/playback/TranslationSourceSelector.tsx
           src/features/translation/HumanTranslationEditor.tsx
+          src/features/usage/useAiUsage.ts
           src/features/write/HumanTranslationPermissionWorkspaceBridge.tsx
           src/features/write/WriteSeriesForm.tsx
           src/features/write/writeShared.ts

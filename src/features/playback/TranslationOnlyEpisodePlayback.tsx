@@ -85,7 +85,8 @@ export default function TranslationOnlyEpisodePlayback({
   humanTranslationId = null,
 }: Props) {
   const dictionary = readerDictionaries[useUiLocale()];
-  const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
+  const { snapshot: aiUsage, refresh: refreshAiUsage } =
+    useAiUsage(translationProvenance === "ai");
   const { displaySettings, setDisplaySettings } = useReaderDisplaySettings(seriesId);
   const [targetLanguage, setTargetLanguage] =
     useState<PublicTranslationTargetLanguage>(initialTargetLanguage);
