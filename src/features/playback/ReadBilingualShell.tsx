@@ -862,7 +862,7 @@ export default function ReadBilingualShell({
         />
       ) : null}
       {translationEligible && translationUiVisible ? (
-        <div className="mx-auto flex w-full max-w-4xl justify-end px-3 pt-2 sm:px-6">
+        <div className="mx-auto flex w-full max-w-4xl flex-wrap justify-end gap-2 px-3 pt-2 sm:px-6">
           <TranslationLanguageSelect
             value={targetLanguage}
             sourceLanguage={sourceLanguage}
@@ -870,6 +870,14 @@ export default function ReadBilingualShell({
               setTargetLanguage(language);
             }}
           />
+          {humanTranslationPermissionOpen ? (
+            <a
+              href={selfTranslateHref}
+              className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              {humanCopy.translateYourself}
+            </a>
+          ) : null}
         </div>
       ) : null}
       {children}
