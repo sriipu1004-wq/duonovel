@@ -162,10 +162,12 @@ export default async function ReadEpisodeLayout({
         seriesId,
         episodeNumber: currentEpisodeNumber,
       });
-    humanTranslationAvailable = await hasCurrentPublishedHumanTranslation({
-      episodeId: payload.episode.id,
-      body: getEpisodeBody(payload.episode),
-    });
+    if (!aiTranslationEligible && !humanTranslationPermissionOpen) {
+      humanTranslationAvailable = await hasCurrentPublishedHumanTranslation({
+        episodeId: payload.episode.id,
+        body: getEpisodeBody(payload.episode),
+      });
+    }
   } catch {
     return withSettingsTopBridge(children);
   }
