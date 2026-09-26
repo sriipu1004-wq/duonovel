@@ -21,6 +21,13 @@ export const metadata: Metadata = {
     url: "/guide",
     title: "使い方・取り扱い説明 | LIB read",
     description: "Original・Bilingual・Translation only、AI/Human翻訳、個人本棚、読み上げ、作品投稿の使い方。",
+    images: ["/opengraph-image"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "使い方・取り扱い説明 | LIB read",
+    description: "Original・Bilingual・Translation only、AI/Human翻訳、個人本棚、読み上げ、作品投稿の使い方。",
+    images: ["/opengraph-image"],
   },
 };
 
