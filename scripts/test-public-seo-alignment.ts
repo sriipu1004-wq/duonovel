@@ -14,6 +14,9 @@ const currentSeo = read("src/lib/seo/currentSearchDiscovery.ts");
 const legacySeo = read("src/lib/seo/searchDiscovery.ts");
 const subscription = read("src/i18n/dictionaries/subscription.ts");
 const credits = read("src/app/credits/page.tsx");
+const terms = read("src/app/terms/page.tsx");
+const privacy = read("src/app/privacy/page.tsx");
+const commercial = read("src/app/commercial-transactions/page.tsx");
 const readme = read("README.md");
 const robots = read("src/app/robots.ts");
 const sitemap = read("src/app/sitemap.ts");
@@ -52,6 +55,13 @@ assert.ok(subscription.includes("Public AI translation unlocks"));
 assert.ok(subscription.includes("공개 작품 AI 번역 잠금 해제"));
 assert.ok(credits.includes("Human translationにはクレジットを使いません"));
 assert.ok(credits.includes("Human translation does not use credits"));
+
+assert.ok(terms.includes("公開作品のAI翻訳解放"));
+assert.ok(terms.includes("Human translationはAI翻訳とは別"));
+assert.ok(commercial.includes("公開話のAI翻訳解放"));
+assert.ok(commercial.includes("Human translationにはクレジットを使用せず"));
+assert.ok(privacy.includes("人による翻訳（Human translation）"));
+assert.ok(privacy.includes("Human translationの作成・編集・公開・取り下げの処理自体はOpenAIを呼び出さず"));
 
 assert.ok(readme.startsWith("# LIB read"));
 assert.equal(readme.includes("create-next-app"), false);
