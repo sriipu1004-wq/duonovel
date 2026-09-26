@@ -38,10 +38,7 @@ export function useAiUsage(enabled = true) {
   }, [enabled]);
 
   useEffect(() => {
-    if (!enabled) {
-      setSnapshot(null);
-      return;
-    }
+    if (!enabled) return;
     const timer = window.setTimeout(() => void refresh(), 0);
     return () => window.clearTimeout(timer);
   }, [enabled, refresh]);

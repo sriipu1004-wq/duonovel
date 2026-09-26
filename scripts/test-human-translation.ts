@@ -239,9 +239,11 @@ contains(selector, [
   '"Author translation"',
   '"작가 번역"',
   '"Report translation"',
-  "Human translation ID:",
-  "Episode ID:",
-  "Target language:",
+  "reportSubject",
+  "reportTranslationId",
+  "reportEpisodeId",
+  "reportTarget",
+  "reportPrompt",
 ]);
 
 const bilingual = "src/features/playback/BilingualEpisodePlayback.tsx";

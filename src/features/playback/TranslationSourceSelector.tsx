@@ -27,6 +27,11 @@ const COPY = {
     human: (name: string) => "Human — " + name,
     author: "作者による翻訳",
     report: "翻訳を報告",
+    reportSubject: "LIB read Human translation 通報",
+    reportTranslationId: "Human translation ID",
+    reportEpisodeId: "Episode ID",
+    reportTarget: "翻訳先",
+    reportPrompt: "spam・権利侵害・嫌がらせ等、問題の内容を記載してください：",
   },
   en: {
     label: "Translation source",
@@ -34,6 +39,11 @@ const COPY = {
     human: (name: string) => "Human — " + name,
     author: "Author translation",
     report: "Report translation",
+    reportSubject: "LIB read Human translation report",
+    reportTranslationId: "Human translation ID",
+    reportEpisodeId: "Episode ID",
+    reportTarget: "Target language",
+    reportPrompt: "Please describe the spam, abuse, copyright, or other issue below:",
   },
   ko: {
     label: "번역 선택",
@@ -41,6 +51,11 @@ const COPY = {
     human: (name: string) => "Human — " + name,
     author: "작가 번역",
     report: "번역 신고",
+    reportSubject: "LIB read Human translation 신고",
+    reportTranslationId: "Human translation ID",
+    reportEpisodeId: "Episode ID",
+    reportTarget: "번역 언어",
+    reportPrompt: "스팸, 권리 침해, 괴롭힘 등 문제 내용을 적어 주세요:",
   },
 } as const;
 
@@ -59,15 +74,15 @@ export default function TranslationSourceSelector({
     : null;
   const reportHref = selectedHuman
     ? "mailto:libread08@gmail.com?subject=" +
-      encodeURIComponent("LIB read Human translation report") +
+      encodeURIComponent(copy.reportSubject) +
       "&body=" +
       encodeURIComponent(
         [
-          "Human translation ID: " + selectedHuman.id,
-          "Episode ID: " + episodeId,
-          "Target language: " + targetLanguage,
+          copy.reportTranslationId + ": " + selectedHuman.id,
+          copy.reportEpisodeId + ": " + episodeId,
+          copy.reportTarget + ": " + targetLanguage,
           "",
-          "Please describe the spam, abuse, copyright, or other issue below:",
+          copy.reportPrompt,
         ].join("\n")
       )
     : null;
