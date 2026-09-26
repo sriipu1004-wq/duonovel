@@ -5,7 +5,6 @@ import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 
 export type HumanTranslationSourceOption = {
   id: string;
-  translatorId: string;
   translatorDisplayName: string;
   isAuthor: boolean;
   publishedAt?: string | null;
@@ -65,7 +64,6 @@ export default function TranslationSourceSelector({
       encodeURIComponent(
         [
           "Human translation ID: " + selectedHuman.id,
-          "Translator ID: " + selectedHuman.translatorId,
           "Episode ID: " + episodeId,
           "Target language: " + targetLanguage,
           "",

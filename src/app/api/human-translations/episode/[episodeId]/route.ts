@@ -50,7 +50,6 @@ export async function GET(request: Request, context: RouteContext) {
     if (!displayName) return [];
     return [{
       id: String(row.id),
-      translatorId,
       translatorDisplayName: displayName,
       isAuthor: translatorId === current.seriesAuthorId,
       publishedAt: row.published_at,

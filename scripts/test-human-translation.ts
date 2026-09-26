@@ -183,7 +183,12 @@ contains(list, [
   '.select("id,display_name")',
   "isAuthor: translatorId === current.seriesAuthorId",
 ]);
-omits(list, ["published_payload", "draft_payload", "email"]);
+omits(list, [
+  "published_payload",
+  "draft_payload",
+  "email",
+  "translatorId,",
+]);
 
 const editor = "src/features/translation/HumanTranslationEditor.tsx";
 contains(editor, [
@@ -233,7 +238,6 @@ contains(selector, [
   '"작가 번역"',
   '"Report translation"',
   "Human translation ID:",
-  "Translator ID:",
   "Episode ID:",
   "Target language:",
 ]);
