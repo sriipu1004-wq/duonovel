@@ -53,6 +53,7 @@ const ja = {
     { label: "朗読", free: "画面を開いて再生", subscriber: "次話自動再生。バックグラウンド再生はユーザー朗読のみ" },
     { label: "個人本棚・読書進捗", free: "最大3作品", subscriber: "最大20作品" },
     { label: "個人本棚への取り込み", free: "公開AI翻訳と共通で1日3回", subscriber: "日次回数制限なし" },
+    { label: "Human translation", free: "無料・AI利用枠/クレジット不要", subscriber: "無料・AI利用枠/クレジット不要" },
   ] satisfies SubscriptionComparison[],
 } as const;
 
@@ -115,6 +116,7 @@ const en: SubscriptionDictionary = {
     { label: "Read-aloud", free: "Play while the page is open", subscriber: "Auto-play next episode; background playback is limited to user narration" },
     { label: "My Library and progress", free: "Up to 3 works", subscriber: "Up to 20 works" },
     { label: "Library imports", free: "3/day shared with public AI translations", subscriber: "No daily count limit" },
+    { label: "Human translation", free: "Free; no AI allowance or credits", subscriber: "Free; no AI allowance or credits" },
   ],
 };
 
@@ -165,6 +167,7 @@ const ko: SubscriptionDictionary = {
     { label: "읽어주기", free: "화면을 연 상태에서 재생", subscriber: "다음 화 자동 재생. 백그라운드 재생은 사용자 낭독만 지원" },
     { label: "개인 서재·읽기 진행률", free: "최대 3작품", subscriber: "최대 20작품" },
     { label: "개인 서재 가져오기", free: "공개 AI 번역과 합산 하루 3회", subscriber: "일일 횟수 제한 없음" },
+    { label: "Human translation", free: "무료 · AI 이용량/크레딧 불필요", subscriber: "무료 · AI 이용량/크레딧 불필요" },
   ],
 };
 
