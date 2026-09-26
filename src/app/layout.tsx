@@ -27,19 +27,19 @@ const metadataByLocale: Record<UiLocale, { title: string; description: string; o
   ja: {
     title: "LIB read | 長編・Web小説を原文付きで多言語読書",
     description:
-      "長編小説・Web小説を、原文を正本としてOriginal・Bilingual・Translation onlyで読み分ける多言語読書サービス。公開翻訳は保存して再利用し、個人本棚・読み上げ・投稿にも対応します。",
+      "長編小説・Web小説をOriginal・Bilingual・Translation onlyで読む多言語読書サービス。AI翻訳とHuman translationは別管理・別許可で、個人本棚・読み上げ・投稿にも対応します。",
     ogLocale: "ja_JP",
   },
   en: {
     title: "LIB read | Multilingual Long-Form & Web Novel Reader",
     description:
-      "Read long-form fiction and web novels as Original, Bilingual, or Translation only while keeping the source work canonical. Saved public translations are reused, with private library import, read-aloud, and publishing also available.",
+      "Read long-form fiction and web novels as Original, Bilingual, or Translation only. AI and Human translation have separate provenance and author permissions, with private library import, read-aloud, and publishing also available.",
     ogLocale: "en_US",
   },
   ko: {
     title: "LIB read | 다국어 장편소설·웹소설 리더",
     description:
-      "장편소설과 웹소설을 원문 작품을 정본으로 유지한 채 원문·대역·번역만 보기로 읽는 다국어 독서 서비스입니다. 저장된 공개 번역을 재사용하며 개인 서재, 읽어주기, 작품 게시도 지원합니다.",
+      "장편소설과 웹소설을 원문·대역·번역만 보기로 읽는 다국어 독서 서비스입니다. AI 번역과 Human translation은 출처와 작가 허가가 분리되며 개인 서재, 읽어주기, 작품 게시도 지원합니다.",
     ogLocale: "ko_KR",
   },
 };
