@@ -55,7 +55,8 @@ for (const text of [
   "account-specific status",
   "unverified",
   "Public Web crawlers are separate",
-  "Human translation itself is not implemented",
+  "Human translation",
+  "does not call OpenAI",
   "AI story generation, AI story continuation",
 ]) assert.ok(audit.includes(text), "audit doc missing: " + text);
 
