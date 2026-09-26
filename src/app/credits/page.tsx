@@ -16,7 +16,7 @@ const COPY = {
   ja: {
     eyebrow: "CREDIT STORE",
     title: "クレジット購入",
-    lead: "本日の利用枠を使い切った後、1クレジットで公開作品1話 × 1翻訳言語を解放できます。",
+    lead: "本日のAI翻訳利用枠を使い切った後、1クレジットで公開作品1話 × 1翻訳言語のAI翻訳を解放できます。Human translationにはクレジットを使いません。",
     rule1: "同じ話・同じ翻訳言語は、一度解放すれば再読で追加消費しません。",
     rule2: "原文本文が更新されて翻訳を作り直す場合も、その話・翻訳言語の解放状態は維持されます。",
     rule3: "Free / Premium の本日の利用枠が残っている場合は、購入クレジットより先に利用枠を使います。",
@@ -29,7 +29,7 @@ const COPY = {
   en: {
     eyebrow: "CREDIT STORE",
     title: "Buy credits",
-    lead: "After using today's included daily allowance, 1 credit unlocks 1 public-work episode × 1 target language.",
+    lead: "After using today's included AI-translation allowance, 1 credit unlocks AI translation for 1 public-work episode × 1 target language. Human translation does not use credits.",
     rule1: "Once an episode/target-language pair is unlocked, rereading it does not consume another credit.",
     rule2: "If the source episode is updated and its translation is regenerated, the unlock for that episode/target-language pair remains.",
     rule3: "If your Free or Premium included daily allowance remains, it is used before purchased credits.",
@@ -42,7 +42,7 @@ const COPY = {
   ko: {
     eyebrow: "CREDIT STORE",
     title: "크레딧 구매",
-    lead: "오늘 포함된 일일 이용 한도를 모두 사용한 뒤, 1크레딧으로 공개 작품 1화 × 대상 언어 1개를 잠금 해제할 수 있습니다.",
+    lead: "오늘 포함된 AI 번역 이용 한도를 모두 사용한 뒤, 1크레딧으로 공개 작품 1화 × 대상 언어 1개의 AI 번역을 잠금 해제할 수 있습니다. Human translation에는 크레딧을 사용하지 않습니다.",
     rule1: "같은 화·같은 대상 언어는 한 번 잠금 해제하면 다시 읽어도 추가 차감되지 않습니다.",
     rule2: "원문 회차가 수정되어 번역을 다시 생성해도 해당 화·대상 언어의 잠금 해제 상태는 유지됩니다.",
     rule3: "Free / Premium의 포함된 일일 이용 한도가 남아 있으면 구매 크레딧보다 먼저 사용됩니다.",
