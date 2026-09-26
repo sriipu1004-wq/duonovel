@@ -56,7 +56,7 @@ const publicTranslationFeatures = [
 const englishNovelReader: Definition = {
   title: "英語小説を日本語対訳で読む | LIB read",
   description:
-    "英語小説・Web小説を原文のまま残し、日本語訳と対応させて長編を読み続ける方法。公開作品では作品単位の翻訳用語集、直前話の限定コンテキスト、保存済み翻訳の再利用に対応します。",
+    "英語小説・Web小説を原文のまま残し、日本語訳と対応させて長編を読み続ける方法。公開作品のAI翻訳では作品単位の用語集、限定された前話コンテキスト、保存済み翻訳の再利用に対応し、Human translationは別ソースとして扱います。",
   config: {
     eyebrow: "ENGLISH NOVEL / BILINGUAL READING",
     title: "英語小説を、日本語対訳で読み続ける",
@@ -109,8 +109,8 @@ const englishNovelReader: Definition = {
     capabilities: [
       "Original / Bilingual / Translation only",
       "英語原文と日本語訳の文単位同期",
-      "公開作品の作品単位翻訳用語集",
-      "直前公開話の限定翻訳コンテキスト",
+      "公開AI翻訳の作品単位用語集",
+      "AI翻訳の限定された前話コンテキスト",
       "保存済みAI翻訳の再利用",
       "TXT・EPUB・DOCX・テキストPDFの個人本棚取り込み",
       "章・話単位の長編管理",
@@ -164,7 +164,7 @@ const englishNovelReader: Definition = {
 const webNovelLearning: Definition = {
   title: "ネット小説で外国語を学ぶ | LIB read",
   description:
-    "ネット小説や長編小説を原文と翻訳で読み続けながら外国語に触れる方法。読書位置・栞・文同期に加え、公開作品では長編向け翻訳用語集と保存済み翻訳の再利用に対応します。",
+    "ネット小説や長編小説を原文と翻訳で読み続けながら外国語に触れる方法。公開作品のAI翻訳では長編向け用語集と保存済み翻訳を利用し、公開済みHuman translationは別の翻訳ソースとして選択できます。",
   config: {
     eyebrow: "WEB NOVEL / LANGUAGE LEARNING",
     title: "ネット小説を読み続けながら、外国語を学ぶ",
@@ -209,8 +209,8 @@ const webNovelLearning: Definition = {
       "原文 / 対訳 / 翻訳のみのReader mode",
       "原文言語を絞り込む公開作品検索とReader側の翻訳先言語選択",
       "文単位の同期",
-      "公開作品の作品単位翻訳用語集",
-      "直前公開話の限定翻訳コンテキスト",
+      "公開AI翻訳の作品単位用語集",
+      "AI翻訳の限定された前話コンテキスト",
       "保存済みAI翻訳の再利用",
       "日本語・英語・韓国語など複数原文言語の公開作品",
       "読書位置と栞",
@@ -248,7 +248,7 @@ const pdfReader: Definition = {
       { title: "ファイルではなく作品として管理", body: "取り込んだ長編を章・話の単位へ分け、非公開の一作品として本棚に置きます。" },
       { title: "原文を残して対訳", body: "翻訳済みの別PDFへ置き換えず、原文と訳文を同じReaderで対応させて表示します。" },
       { title: "必要な話から続きを読む", body: "読書位置、栞、前話・次話を使い、前回の続きから再開できます。" },
-      { title: "公開作品は別の共有翻訳構造", body: "個人本棚とは別に、公開作品では同一作品へ翻訳レイヤーを重ね、作品用語集・直前話の限定コンテキスト・保存済み翻訳の再利用を行います。" },
+      { title: "公開作品はAI/Human翻訳を別管理", body: "個人本棚とは別に、公開作品では原文に翻訳レイヤーを重ねます。AI翻訳は作品用語集・限定された前話コンテキスト・保存済み翻訳を利用し、Human translationは別のprovenanceとして扱います。" },
     ],
     demo: {
       sourceLabel: "ORIGINAL TEXT",
