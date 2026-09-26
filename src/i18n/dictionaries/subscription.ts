@@ -81,7 +81,7 @@ const en: SubscriptionDictionary = {
   checkoutSuccessPending: "Payment was accepted. Paid features will activate after Stripe confirms the payment. Reload shortly if the status does not update.",
   checkoutCanceled: "Checkout was canceled. You have not been charged.",
   heroTitle: "Expand your limits as you read and translate more.",
-  heroDescription: "Premium includes up to 30 public-translation unlocks per day, no daily count limit for My Library imports, and storage for up to 20 library works.",
+  heroDescription: "Premium includes up to 30 public AI-translation unlocks per day, no daily count limit for My Library imports, and storage for up to 20 library works.",
   perMonth: "/ month (tax included)",
   currencyNote: "Charged in Japanese yen (JPY). Billing starts when you subscribe and renews monthly on the same date. You can cancel at any time.",
   freePlan: "Free plan",
