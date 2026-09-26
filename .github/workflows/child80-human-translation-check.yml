@@ -21,7 +21,7 @@ on:
       - "src/features/write/WriteSeriesForm.tsx"
       - "src/features/write/writeShared.ts"
       - "src/lib/translation/humanTranslationServer.ts"
-      - "supabase/migrations/20260926100000_add_human_translation_foundation.sql"
+      - "supabase/migrations/20260926003521_add_human_translation_foundation.sql"
 
 permissions:
   contents: read

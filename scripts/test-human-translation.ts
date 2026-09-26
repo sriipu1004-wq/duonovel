@@ -36,7 +36,7 @@ assert.ok(
 );
 
 const migration =
-  "supabase/migrations/20260926100000_add_human_translation_foundation.sql";
+  "supabase/migrations/20260926003521_add_human_translation_foundation.sql";
 contains(migration, [
   "human_translation_permission_mode text not null default 'closed'",
   "check (human_translation_permission_mode in ('open', 'closed'))",
