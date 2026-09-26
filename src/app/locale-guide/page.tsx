@@ -8,10 +8,33 @@ import { localizePath } from "@/i18n/navigation";
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getUiLocale();
   const dictionary = helpDictionaries[locale];
+  const canonical = localizePath("/guide", locale);
   return {
     title: `${dictionary.guideTitle} | LIB read`,
     description: dictionary.guideLead,
+    alternates: {
+      canonical,
+      languages: {
+        ja: "/guide",
+        en: "/en/guide",
+        ko: "/ko/guide",
+        "x-default": "/guide",
+      },
+    },
     robots: { index: false, follow: true },
+    openGraph: {
+      type: "website",
+      locale: locale === "en" ? "en_US" : "ko_KR",
+      siteName: "LIB read",
+      url: canonical,
+      title: `${dictionary.guideTitle} | LIB read`,
+      description: dictionary.guideLead,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${dictionary.guideTitle} | LIB read`,
+      description: dictionary.guideLead,
+    },
   };
 }
 
