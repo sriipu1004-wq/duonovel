@@ -58,6 +58,8 @@ type Props = {
   sourceLanguage: SupportedLanguageTag;
   autoGenerateMissingTranslation: boolean;
   targetLanguageLocked: boolean;
+  translationProvenance?: "ai" | "human";
+  humanTranslationId?: string | null;
 };
 
 function safeText(value: string | undefined, fallback: string): string {
@@ -79,9 +81,12 @@ export default function TranslationOnlyEpisodePlayback({
   sourceLanguage,
   autoGenerateMissingTranslation,
   targetLanguageLocked,
+  translationProvenance = "ai",
+  humanTranslationId = null,
 }: Props) {
   const dictionary = readerDictionaries[useUiLocale()];
-  const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
+  const { snapshot: aiUsage, refresh: refreshAiUsage } =
+    useAiUsage(translationProvenance === "ai");
   const { displaySettings, setDisplaySettings } = useReaderDisplaySettings(seriesId);
   const [targetLanguage, setTargetLanguage] =
     useState<PublicTranslationTargetLanguage>(initialTargetLanguage);
@@ -108,7 +113,9 @@ export default function TranslationOnlyEpisodePlayback({
   const loadTranslation = useCallback(async () => {
     try {
       const response = await fetch(
-        `/api/episode-translations/${encodeURIComponent(episodeId)}?sourceLanguage=${encodeURIComponent(sourceLanguage)}&targetLanguage=${encodeURIComponent(targetLanguage)}`,
+        translationProvenance === "human" && humanTranslationId
+          ? "/api/human-translations/" + encodeURIComponent(humanTranslationId)
+          : `/api/episode-translations/${encodeURIComponent(episodeId)}?sourceLanguage=${encodeURIComponent(sourceLanguage)}&targetLanguage=${encodeURIComponent(targetLanguage)}`,
         { cache: "no-store" }
       );
       const payload = (await response.json()) as TranslationStatusResponse;
@@ -137,10 +144,19 @@ export default function TranslationOnlyEpisodePlayback({
       setTranslationStatus("error");
       setStatusMessage(dictionary.translationLoadFailed);
     }
-  }, [dictionary.translationLoadFailed, episodeId, sourceLanguage, targetLanguage]);
+  }, [
+    dictionary.translationLoadFailed,
+    episodeId,
+    sourceLanguage,
+    targetLanguage,
+    translationProvenance,
+    humanTranslationId,
+  ]);
 
   const requestTranslationGeneration = useCallback(async () => {
-    if (generationInFlightRef.current) return false;
+    if (translationProvenance !== "ai" || generationInFlightRef.current) {
+      return false;
+    }
     generationInFlightRef.current = true;
     setIsGenerating(true);
     setStatusMessage("");
@@ -197,6 +213,7 @@ export default function TranslationOnlyEpisodePlayback({
     refreshAiUsage,
     sourceLanguage,
     targetLanguage,
+    translationProvenance,
   ]);
 
   useEffect(() => {
@@ -217,6 +234,7 @@ export default function TranslationOnlyEpisodePlayback({
   useEffect(() => {
     const attemptKey = `${episodeId}:${sourceLanguage}:${targetLanguage}`;
     if (
+      translationProvenance !== "ai" ||
       !autoGenerateMissingTranslation ||
       !["missing", "stale", "failed"].includes(translationStatus) ||
       !canGenerate ||
@@ -236,11 +254,12 @@ export default function TranslationOnlyEpisodePlayback({
     sourceLanguage,
     targetLanguage,
     translationStatus,
+    translationProvenance,
   ]);
 
   useEffect(() => {
     if (translationStatus !== "ready" || segments.length === 0) return;
-    const key = `${episodeNumber}:${sourceLanguage}:${targetLanguage}`;
+    const key = `${episodeNumber}:${sourceLanguage}:${targetLanguage}:${translationProvenance}:${humanTranslationId ?? "ai"}`;
     if (restoredKeyRef.current === key) return;
     restoredKeyRef.current = key;
     const location = readEpisodeReadingPosition(seriesId, episodeNumber);
@@ -272,6 +291,8 @@ export default function TranslationOnlyEpisodePlayback({
     sourceLanguage,
     targetLanguage,
     translationStatus,
+    translationProvenance,
+    humanTranslationId,
   ]);
 
   useEffect(() => {
@@ -483,7 +504,8 @@ export default function TranslationOnlyEpisodePlayback({
                     {statusMessage}
                   </p>
                 ) : null}
-                {canGenerate &&
+                {translationProvenance === "ai" &&
+                canGenerate &&
                 ["missing", "stale", "failed"].includes(translationStatus) ? (
                   <button
                     type="button"

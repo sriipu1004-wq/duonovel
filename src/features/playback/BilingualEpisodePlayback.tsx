@@ -72,6 +72,8 @@ type BilingualEpisodePlaybackProps = {
   sourceLanguage: SupportedLanguageTag;
   autoGenerateMissingTranslation: boolean;
   targetLanguageLocked: boolean;
+  translationProvenance?: "ai" | "human";
+  humanTranslationId?: string | null;
   onDisableBilingual: (segmentIndex: number) => void;
 };
 
@@ -148,12 +150,15 @@ export default function BilingualEpisodePlayback({
   sourceLanguage,
   autoGenerateMissingTranslation,
   targetLanguageLocked,
+  translationProvenance = "ai",
+  humanTranslationId = null,
   onDisableBilingual,
 }: BilingualEpisodePlaybackProps) {
   const locale = useUiLocale();
   const dictionary = readerDictionaries[locale];
   const bilingualDictionary = bilingualReaderDictionaries[locale];
-  const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
+  const { snapshot: aiUsage, refresh: refreshAiUsage } =
+    useAiUsage(translationProvenance === "ai");
   const { displaySettings, setDisplaySettings } =
     useReaderDisplaySettings(seriesId);
   const preference = useMemo(
@@ -229,7 +234,7 @@ export default function BilingualEpisodePlayback({
 
   useEffect(() => {
     if (translationStatus !== "ready" || segments.length === 0) return;
-    const restoreKey = `${episodeNumber}:${sourceLanguage}:${targetLanguage}:${sourceHash ?? "ready"}`;
+    const restoreKey = `${episodeNumber}:${sourceLanguage}:${targetLanguage}:${translationProvenance}:${humanTranslationId ?? "ai"}:${sourceHash ?? "ready"}`;
     if (restoredBookmarkKeyRef.current === restoreKey) return;
     restoredBookmarkKeyRef.current = restoreKey;
     const location = readEpisodeReadingPosition(seriesId, episodeNumber);
@@ -261,10 +266,14 @@ export default function BilingualEpisodePlayback({
     sourceLanguage,
     targetLanguage,
     translationStatus,
+    translationProvenance,
+    humanTranslationId,
   ]);
 
   const requestTranslationGeneration = useCallback(async () => {
-    if (generationInFlightRef.current) return false;
+    if (translationProvenance !== "ai" || generationInFlightRef.current) {
+      return false;
+    }
 
     generationInFlightRef.current = true;
     setIsGenerating(true);
@@ -334,17 +343,21 @@ export default function BilingualEpisodePlayback({
     refreshAiUsage,
     sourceLanguage,
     targetLanguage,
+    translationProvenance,
   ]);
 
   const loadTranslation = useCallback(async () => {
     try {
       const response = await fetch(
-        "/api/episode-translations/" +
-          encodeURIComponent(episodeId) +
-          "?sourceLanguage=" +
-          encodeURIComponent(sourceLanguage) +
-          "&targetLanguage=" +
-          encodeURIComponent(targetLanguage),
+        translationProvenance === "human" && humanTranslationId
+          ? "/api/human-translations/" +
+              encodeURIComponent(humanTranslationId)
+          : "/api/episode-translations/" +
+              encodeURIComponent(episodeId) +
+              "?sourceLanguage=" +
+              encodeURIComponent(sourceLanguage) +
+              "&targetLanguage=" +
+              encodeURIComponent(targetLanguage),
         { cache: "no-store" }
       );
       const payload = (await response.json()) as TranslationStatusResponse;
@@ -398,6 +411,8 @@ export default function BilingualEpisodePlayback({
     locale,
     sourceLanguage,
     targetLanguage,
+    translationProvenance,
+    humanTranslationId,
   ]);
 
   useEffect(() => {
@@ -415,6 +430,7 @@ export default function BilingualEpisodePlayback({
   useEffect(() => {
     const attemptKey = `${episodeId}:${sourceLanguage}:${targetLanguage}`;
     if (
+      translationProvenance !== "ai" ||
       !autoGenerateMissingTranslation ||
       !["missing", "stale", "failed"].includes(translationStatus) ||
       !canGenerate ||
@@ -434,6 +450,7 @@ export default function BilingualEpisodePlayback({
     sourceLanguage,
     targetLanguage,
     translationStatus,
+    translationProvenance,
   ]);
 
   useEffect(() => {
@@ -647,19 +664,21 @@ export default function BilingualEpisodePlayback({
                 targetLanguage={targetLanguage}
                 seriesId={seriesId}
               />
-              <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
-                {dictionary.studyWordHelp} {bilingualDictionary.wordExplanation}{" "}
-                {formatAiUsage(aiUsage?.actions.word_explanation)}
-                {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
-                !aiUsage?.isSubscriber ? (
-                  <Link
-                    href={localizePath("/subscription", locale)}
-                    className="ml-2 font-semibold text-sky-700 underline underline-offset-2"
-                  >
-                    {bilingualDictionary.unlimitedUpgrade}
-                  </Link>
-                ) : null}
-              </div>
+              {translationProvenance === "ai" ? (
+                <div className="border-b border-black/10 bg-white px-4 py-2 text-right text-[11px] text-neutral-500 sm:px-6">
+                  {dictionary.studyWordHelp} {bilingualDictionary.wordExplanation}{" "}
+                  {formatAiUsage(aiUsage?.actions.word_explanation)}
+                  {isAiUsageLimitReached(aiUsage?.actions.word_explanation) &&
+                  !aiUsage?.isSubscriber ? (
+                    <Link
+                      href={localizePath("/subscription", locale)}
+                      className="ml-2 font-semibold text-sky-700 underline underline-offset-2"
+                    >
+                      {bilingualDictionary.unlimitedUpgrade}
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div
                 ref={readerGridRef}
@@ -725,7 +744,11 @@ export default function BilingualEpisodePlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
-                    onSelectWord={handleSelectWord}
+                    onSelectWord={
+                      translationProvenance === "ai"
+                        ? handleSelectWord
+                        : undefined
+                    }
                     wordInsight={wordInsight}
                     displaySettings={displaySettings}
                   />
@@ -742,7 +765,11 @@ export default function BilingualEpisodePlayback({
                     onSelectSegment={handleSelectSegment}
                     onHoverSegment={setHoveredSegmentId}
                     onReadingPositionChange={handleReadingPositionChange}
-                    onSelectWord={handleSelectWord}
+                    onSelectWord={
+                      translationProvenance === "ai"
+                        ? handleSelectWord
+                        : undefined
+                    }
                     wordInsight={wordInsight}
                     displaySettings={displaySettings}
                   />
@@ -803,7 +830,8 @@ export default function BilingualEpisodePlayback({
                   </>
                 )}
 
-                {canGenerate &&
+                {translationProvenance === "ai" &&
+                canGenerate &&
                 (translationStatus === "missing" ||
                   translationStatus === "stale" ||
                   translationStatus === "failed") ? (
@@ -824,7 +852,8 @@ export default function BilingualEpisodePlayback({
                   </button>
                 ) : null}
 
-                {isAiUsageLimitReached(aiUsage?.actions.translation_generation) &&
+                {translationProvenance === "ai" &&
+                isAiUsageLimitReached(aiUsage?.actions.translation_generation) &&
                 !aiUsage?.isSubscriber ? (
                   <Link
                     href={localizePath("/subscription", locale)}

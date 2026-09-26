@@ -365,6 +365,11 @@ export default function TranslationPermissionWorkspaceBridge({
       setMode(saved);
       setSavedMode(saved);
       setMessage(copy.saved);
+      window.dispatchEvent(
+        new CustomEvent("libread:translation-permission-selection-changed", {
+          detail: { mode: saved },
+        })
+      );
     } catch {
       setMessage(copy.updateFailed);
     } finally {

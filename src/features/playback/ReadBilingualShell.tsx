@@ -15,6 +15,9 @@ import TranslationLanguageSelect, {
   TRANSLATION_TARGET_LANGUAGE_CHANGED_EVENT,
 } from "@/features/playback/TranslationLanguageSelect";
 import TranslationOnlyEpisodePlayback from "@/features/playback/TranslationOnlyEpisodePlayback";
+import TranslationSourceSelector, {
+  type HumanTranslationSourceOption,
+} from "@/features/playback/TranslationSourceSelector";
 import {
   readReadingHistory,
   readEpisodeReadingPosition,
@@ -31,6 +34,7 @@ import {
 import { writeBilingualSessionPreference } from "@/lib/translation/bilingualSessionPreference";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { readerDictionaries } from "@/i18n/dictionaries/reader";
+import { localizePath } from "@/i18n/navigation";
 import {
   TRANSLATION_READER_VISIBILITY_EVENT,
   readTranslationReaderVisible,
@@ -40,6 +44,8 @@ import {
 type ReadBilingualShellProps = {
   children: ReactNode;
   translationEligible: boolean;
+  aiTranslationEligible: boolean;
+  humanTranslationPermissionOpen: boolean;
   seriesId: string;
   episodeId: string;
   episodeNumber: number;
@@ -64,9 +70,26 @@ function defaultTargetLanguage(
   return sourceLanguage === "ja" ? "en" : "ja";
 }
 
+const HUMAN_TRANSLATION_COPY = {
+  ja: {
+    translateYourself: "自分で翻訳する",
+    missing: "この言語のHuman translationはまだありません。",
+  },
+  en: {
+    translateYourself: "Translate it yourself",
+    missing: "No Human translation is available in this language yet.",
+  },
+  ko: {
+    translateYourself: "직접 번역하기",
+    missing: "이 언어의 Human translation은 아직 없습니다.",
+  },
+} as const;
+
 export default function ReadBilingualShell({
   children,
   translationEligible,
+  aiTranslationEligible,
+  humanTranslationPermissionOpen,
   seriesId,
   episodeId,
   episodeNumber,
@@ -81,7 +104,8 @@ export default function ReadBilingualShell({
   nextEpisodeHref,
 }: ReadBilingualShellProps) {
   const uiLocale = useUiLocale();
-  const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
+  const { snapshot: aiUsage, refresh: refreshAiUsage } =
+    useAiUsage(aiTranslationEligible);
   const [mode, setMode] = useState<ReadingMode>("standard");
   const [translationUiVisible, setTranslationUiVisible] = useState(true);
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
@@ -99,6 +123,11 @@ export default function ReadBilingualShell({
     useState<PublicTranslationTargetLanguage>(() =>
       defaultTargetLanguage(sourceLanguage, uiLocale)
     );
+  const [humanTranslations, setHumanTranslations] =
+    useState<HumanTranslationSourceOption[]>([]);
+  const [humanOptionsLoaded, setHumanOptionsLoaded] = useState(false);
+  const [translationSourceKey, setTranslationSourceKey] =
+    useState<string>("ai");
   const [resumeSegmentIndex, setResumeSegmentIndex] = useState<number | null>(null);
   const [restoreToken, setRestoreToken] = useState(0);
   const availabilityCheckVersionRef = useRef(0);
@@ -107,6 +136,17 @@ export default function ReadBilingualShell({
     language: PublicTranslationTargetLanguage,
     existingVersion?: number
   ) {
+    if (translationSourceKey !== "ai") {
+      setTranslationAvailability("ready");
+      setTranslationEntitlement(null);
+      return;
+    }
+    if (!aiTranslationEligible) {
+      setTranslationAvailability("missing");
+      setTranslationEntitlement(null);
+      return;
+    }
+
     const checkVersion = existingVersion ?? ++availabilityCheckVersionRef.current;
     if (existingVersion === undefined) setTranslationAvailability("checking");
     try {
@@ -136,6 +176,73 @@ export default function ReadBilingualShell({
     } catch {
       if (availabilityCheckVersionRef.current !== checkVersion) return;
       setTranslationAvailability("error");
+    }
+  }
+
+  async function loadHumanTranslationOptions(
+    language: PublicTranslationTargetLanguage
+  ) {
+    setHumanOptionsLoaded(false);
+    try {
+      const response = await fetch(
+        "/api/human-translations/episode/" +
+          encodeURIComponent(episodeId) +
+          "?targetLanguage=" +
+          encodeURIComponent(language),
+        { cache: "no-store" }
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean;
+            translations?: HumanTranslationSourceOption[];
+          }
+        | null;
+      const next =
+        response.ok && payload?.ok && Array.isArray(payload.translations)
+          ? payload.translations
+          : [];
+      setHumanTranslations(next);
+
+      const params = new URLSearchParams(window.location.search);
+      const requested = params.get("translationSource");
+      if (
+        requested?.startsWith("human:") &&
+        next.some((option) => "human:" + option.id === requested)
+      ) {
+        setTranslationSourceKey(requested);
+      } else if (requested === "ai" && aiTranslationEligible) {
+        setTranslationSourceKey("ai");
+      } else {
+        const currentStillExists =
+          translationSourceKey.startsWith("human:") &&
+          next.some(
+            (option) => "human:" + option.id === translationSourceKey
+          );
+        if (currentStillExists) {
+          return;
+        }
+
+        if (!aiTranslationEligible && next[0]) {
+          const nextKey = "human:" + next[0].id;
+          setTranslationSourceKey(nextKey);
+          if (mode === "bilingual" || mode === "translation") {
+            replaceReaderUrl(
+              mode,
+              language,
+              false,
+              sessionLanguageLocked,
+              nextKey
+            );
+          }
+          return;
+        }
+
+        setTranslationSourceKey("ai");
+      }
+    } catch {
+      setHumanTranslations([]);
+    } finally {
+      setHumanOptionsLoaded(true);
     }
   }
 
@@ -197,7 +304,8 @@ export default function ReadBilingualShell({
     nextMode: ReadingMode,
     nextTargetLanguage = targetLanguage,
     autoGenerate = false,
-    lockLanguage = false
+    lockLanguage = false,
+    nextTranslationSourceKey = translationSourceKey
   ) {
     const history = readReadingHistory(seriesId);
     const baseHref =
@@ -226,6 +334,7 @@ export default function ReadBilingualShell({
       else url.searchParams.delete("autoGenerate");
       if (lockLanguage) url.searchParams.set("lockLanguage", "1");
       else url.searchParams.delete("lockLanguage");
+      url.searchParams.set("translationSource", nextTranslationSourceKey);
     } else {
       for (const key of [
         "bilingual",
@@ -234,6 +343,7 @@ export default function ReadBilingualShell({
         "targetLanguage",
         "autoGenerate",
         "lockLanguage",
+        "translationSource",
       ]) {
         url.searchParams.delete(key);
       }
@@ -244,6 +354,29 @@ export default function ReadBilingualShell({
       "",
       `${url.pathname}${url.search}${url.hash}`
     );
+  }
+
+  function handleTranslationSourceChange(nextKey: string) {
+    if (nextKey === translationSourceKey) return;
+    if (
+      nextKey !== "ai" &&
+      !humanTranslations.some((option) => "human:" + option.id === nextKey)
+    ) {
+      return;
+    }
+    setTranslationSourceKey(nextKey);
+    setTranslationEntitlement(null);
+    setEntitlementError(null);
+    setTranslationAvailability(nextKey === "ai" ? "checking" : "ready");
+    if (mode === "bilingual" || mode === "translation") {
+      replaceReaderUrl(
+        mode,
+        targetLanguage,
+        nextKey === "ai" ? autoGenerateMissingTranslation : false,
+        sessionLanguageLocked,
+        nextKey
+      );
+    }
   }
 
   function setTranslationFeaturesVisible(visible: boolean) {
@@ -261,9 +394,17 @@ export default function ReadBilingualShell({
     if (!translationEligible || !translationUiVisible || nextTargetLanguage === sourceLanguage) return;
     stopOriginalPlayback();
     setTargetLanguage(nextTargetLanguage);
-    setAutoGenerateMissingTranslation(autoGenerate);
+    const effectiveAutoGenerate =
+      translationSourceKey === "ai" ? autoGenerate : false;
+    setAutoGenerateMissingTranslation(effectiveAutoGenerate);
     setSessionLanguageLocked(lockLanguage);
-    replaceReaderUrl(nextMode, nextTargetLanguage, autoGenerate, lockLanguage);
+    replaceReaderUrl(
+      nextMode,
+      nextTargetLanguage,
+      effectiveAutoGenerate,
+      lockLanguage,
+      translationSourceKey
+    );
     setIsLanguagePickerOpen(false);
     setMode(nextMode);
   }
@@ -327,12 +468,16 @@ export default function ReadBilingualShell({
         return;
       }
       setTargetLanguage(language);
+      setHumanTranslations([]);
+      setHumanOptionsLoaded(false);
+      setTranslationSourceKey("ai");
       if (mode === "bilingual" || mode === "translation") {
         replaceReaderUrl(
           mode,
           language,
           autoGenerateMissingTranslation,
-          sessionLanguageLocked
+          sessionLanguageLocked,
+          "ai"
         );
       }
     };
@@ -384,6 +529,7 @@ export default function ReadBilingualShell({
     const requestedTarget = parseSupportedLanguageTag(params.get("targetLanguage"));
     const requestedAutoGenerate = params.get("autoGenerate") === "1";
     const requestedLanguageLock = params.get("lockLanguage") === "1";
+    const requestedTranslationSource = params.get("translationSource");
     const requestedMode: ReadingMode =
       params.get("translationOnly") === "1" || params.get("readingMode") === "translation"
         ? "translation"
@@ -408,7 +554,17 @@ export default function ReadBilingualShell({
       }
       setTargetLanguage(requestedTarget);
       setSessionLanguageLocked(requestedLanguageLock);
-      setAutoGenerateMissingTranslation(requestedAutoGenerate);
+      if (
+        requestedTranslationSource === "ai" ||
+        requestedTranslationSource?.startsWith("human:")
+      ) {
+        setTranslationSourceKey(requestedTranslationSource);
+      }
+      setAutoGenerateMissingTranslation(
+        requestedTranslationSource?.startsWith("human:")
+          ? false
+          : requestedAutoGenerate
+      );
       stopOriginalPlayback();
       setMode(requestedMode);
     }, 0);
@@ -417,16 +573,168 @@ export default function ReadBilingualShell({
 
   useEffect(() => {
     if (mode !== "bilingual" && mode !== "translation") return;
-    void checkTranslationAvailability(targetLanguage);
+    void loadHumanTranslationOptions(targetLanguage);
   }, [episodeId, mode, targetLanguage]);
 
+  useEffect(() => {
+    if (mode !== "bilingual" && mode !== "translation") return;
+    if (translationSourceKey !== "ai") {
+      setTranslationAvailability("ready");
+      setTranslationEntitlement(null);
+      return;
+    }
+    void checkTranslationAvailability(targetLanguage);
+  }, [
+    aiTranslationEligible,
+    episodeId,
+    mode,
+    targetLanguage,
+    translationSourceKey,
+  ]);
+
+  useEffect(() => {
+    if (mode !== "bilingual" && mode !== "translation") return;
+    if (
+      translationSourceKey !== "ai" ||
+      humanTranslations.length === 0 ||
+      !translationEntitlement ||
+      translationEntitlement.status === "unlocked"
+    ) {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("translationSource")) return;
+    handleTranslationSourceChange("human:" + humanTranslations[0]!.id);
+  }, [
+    humanTranslations,
+    mode,
+    translationEntitlement,
+    translationSourceKey,
+  ]);
+
+  const selectedHumanTranslationId = translationSourceKey.startsWith("human:")
+    ? translationSourceKey.slice("human:".length)
+    : null;
   const translatedModeLocked =
+    translationSourceKey === "ai" &&
     (mode === "bilingual" || mode === "translation") &&
     translationEntitlement !== null &&
     translationEntitlement.status !== "unlocked";
   const translatedModeChecking =
+    translationSourceKey === "ai" &&
     (mode === "bilingual" || mode === "translation") &&
     translationAvailability === "checking";
+  const waitingForHumanOptions =
+    !aiTranslationEligible &&
+    (mode === "bilingual" || mode === "translation") &&
+    !humanOptionsLoaded;
+  const noReadableTranslationSource =
+    !aiTranslationEligible &&
+    (mode === "bilingual" || mode === "translation") &&
+    humanOptionsLoaded &&
+    humanTranslations.length === 0;
+  const humanCopy = HUMAN_TRANSLATION_COPY[uiLocale];
+  const selfTranslateHref = localizePath(
+    "/translate/" +
+      encodeURIComponent(seriesId) +
+      "/" +
+      String(episodeNumber) +
+      "?targetLanguage=" +
+      encodeURIComponent(targetLanguage),
+    uiLocale
+  );
+
+  const translationSourceControls =
+    humanTranslations.length > 0 || humanTranslationPermissionOpen ? (
+      <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-end gap-2 px-3 pt-2 sm:px-6">
+        {humanTranslations.length > 0 ? (
+          <TranslationSourceSelector
+            value={translationSourceKey}
+            humanTranslations={humanTranslations}
+            showAi={aiTranslationEligible}
+            episodeId={episodeId}
+            targetLanguage={targetLanguage}
+            onChange={handleTranslationSourceChange}
+          />
+        ) : null}
+        {humanTranslationPermissionOpen ? (
+          <a
+            href={selfTranslateHref}
+            className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+          >
+            {humanCopy.translateYourself}
+          </a>
+        ) : null}
+      </div>
+    ) : null;
+
+  if (waitingForHumanOptions) {
+    return (
+      <>
+        {translationUiVisible ? (
+          <ReaderModeSelector
+            mode={mode}
+            translationEnabled={translationEligible}
+            onChange={handleModeChange}
+          />
+        ) : null}
+        {translationSourceControls}
+        <main className="min-h-[70vh] bg-white text-black">
+          <div className="mx-auto flex w-full max-w-xl justify-center px-4 py-12 sm:px-6">
+            <p className="rounded-[28px] border border-black/10 bg-neutral-50 px-6 py-5 text-sm text-neutral-700">
+              {readerDictionaries[uiLocale].checkingTranslation}
+            </p>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  if (noReadableTranslationSource) {
+    return (
+      <>
+        {translationUiVisible ? (
+          <ReaderModeSelector
+            mode={mode}
+            translationEnabled={translationEligible}
+            onChange={handleModeChange}
+          />
+        ) : null}
+        <main className="min-h-[70vh] bg-white text-black">
+          <div className="mx-auto w-full max-w-xl px-4 py-12 sm:px-6">
+            <div className="mb-4 flex justify-end">
+              <TranslationLanguageSelect
+                value={targetLanguage}
+                sourceLanguage={sourceLanguage}
+                onChange={(language) => {
+                  setTargetLanguage(language);
+                  setTranslationSourceKey("ai");
+                  replaceReaderUrl(
+                    mode,
+                    language,
+                    false,
+                    sessionLanguageLocked,
+                    "ai"
+                  );
+                }}
+              />
+            </div>
+            <div className="rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-center">
+              <p className="text-lg font-semibold">{humanCopy.missing}</p>
+              {humanTranslationPermissionOpen ? (
+                <a
+                  href={selfTranslateHref}
+                  className="mt-5 inline-flex rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white"
+                >
+                  {humanCopy.translateYourself}
+                </a>
+              ) : null}
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   if (translatedModeChecking) {
     return (
@@ -438,6 +746,7 @@ export default function ReadBilingualShell({
             onChange={handleModeChange}
           />
         ) : null}
+        {translationSourceControls}
         <main className="min-h-[70vh] bg-white text-black">
           <div className="mx-auto flex w-full max-w-xl justify-center px-4 py-12 sm:px-6">
             <p className="rounded-[28px] border border-black/10 bg-neutral-50 px-6 py-5 text-sm text-neutral-700">
@@ -459,6 +768,7 @@ export default function ReadBilingualShell({
             onChange={handleModeChange}
           />
         ) : null}
+        {translationSourceControls}
         <main className="min-h-[70vh] bg-white text-black">
           <div className="mx-auto w-full max-w-xl px-4 py-12 sm:px-6">
             <div className="rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-center">
@@ -470,6 +780,14 @@ export default function ReadBilingualShell({
                 onConfirmIncluded={() => completeEntitlement("included")}
                 onConfirmCredit={() => completeEntitlement("credit")}
               />
+              {humanTranslationPermissionOpen ? (
+                <a
+                  href={selfTranslateHref}
+                  className="mt-5 inline-flex rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700"
+                >
+                  {humanCopy.translateYourself}
+                </a>
+              ) : null}
             </div>
           </div>
         </main>
@@ -487,6 +805,7 @@ export default function ReadBilingualShell({
             onChange={handleModeChange}
           />
         ) : null}
+        {translationSourceControls}
         <BilingualEpisodePlayback
           seriesId={seriesId}
           episodeId={episodeId}
@@ -500,8 +819,14 @@ export default function ReadBilingualShell({
           nextEpisodeHref={nextEpisodeHref}
           initialTargetLanguage={targetLanguage}
           sourceLanguage={sourceLanguage}
-          autoGenerateMissingTranslation={autoGenerateMissingTranslation}
+          autoGenerateMissingTranslation={
+            translationSourceKey === "ai" && autoGenerateMissingTranslation
+          }
           targetLanguageLocked={sessionLanguageLocked}
+          translationProvenance={
+            selectedHumanTranslationId ? "human" : "ai"
+          }
+          humanTranslationId={selectedHumanTranslationId}
           onDisableBilingual={disableTranslated}
         />
       </>
@@ -518,6 +843,7 @@ export default function ReadBilingualShell({
             onChange={handleModeChange}
           />
         ) : null}
+        {translationSourceControls}
         <TranslationOnlyEpisodePlayback
           seriesId={seriesId}
           episodeId={episodeId}
@@ -531,8 +857,14 @@ export default function ReadBilingualShell({
           nextEpisodeHref={nextEpisodeHref}
           initialTargetLanguage={targetLanguage}
           sourceLanguage={sourceLanguage}
-          autoGenerateMissingTranslation={autoGenerateMissingTranslation}
+          autoGenerateMissingTranslation={
+            translationSourceKey === "ai" && autoGenerateMissingTranslation
+          }
           targetLanguageLocked={sessionLanguageLocked}
+          translationProvenance={
+            selectedHumanTranslationId ? "human" : "ai"
+          }
+          humanTranslationId={selectedHumanTranslationId}
         />
       </>
     );
@@ -548,7 +880,7 @@ export default function ReadBilingualShell({
         />
       ) : null}
       {translationEligible && translationUiVisible ? (
-        <div className="mx-auto flex w-full max-w-4xl justify-end px-3 pt-2 sm:px-6">
+        <div className="mx-auto flex w-full max-w-4xl flex-wrap justify-end gap-2 px-3 pt-2 sm:px-6">
           <TranslationLanguageSelect
             value={targetLanguage}
             sourceLanguage={sourceLanguage}
@@ -556,6 +888,14 @@ export default function ReadBilingualShell({
               setTargetLanguage(language);
             }}
           />
+          {humanTranslationPermissionOpen ? (
+            <a
+              href={selfTranslateHref}
+              className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              {humanCopy.translateYourself}
+            </a>
+          ) : null}
         </div>
       ) : null}
       {children}

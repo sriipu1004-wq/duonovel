@@ -7,10 +7,14 @@ type AiUsageResponse = Partial<AiUsageSnapshot> & {
   ok?: boolean;
 };
 
-export function useAiUsage() {
+export function useAiUsage(enabled = true) {
   const [snapshot, setSnapshot] = useState<AiUsageSnapshot | null>(null);
 
   const refresh = useCallback(async () => {
+    if (!enabled) {
+      setSnapshot(null);
+      return;
+    }
     try {
       const response = await fetch("/api/ai-usage", { cache: "no-store" });
       const payload = (await response.json()) as AiUsageResponse;
@@ -31,12 +35,13 @@ export function useAiUsage() {
     } catch {
       // Buttons remain usable; the server still enforces the quota.
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     const timer = window.setTimeout(() => void refresh(), 0);
     return () => window.clearTimeout(timer);
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   return { snapshot, refresh };
 }
