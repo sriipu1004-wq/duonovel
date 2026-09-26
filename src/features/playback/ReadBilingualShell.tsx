@@ -702,6 +702,23 @@ export default function ReadBilingualShell({
         ) : null}
         <main className="min-h-[70vh] bg-white text-black">
           <div className="mx-auto w-full max-w-xl px-4 py-12 sm:px-6">
+            <div className="mb-4 flex justify-end">
+              <TranslationLanguageSelect
+                value={targetLanguage}
+                sourceLanguage={sourceLanguage}
+                onChange={(language) => {
+                  setTargetLanguage(language);
+                  setTranslationSourceKey("ai");
+                  replaceReaderUrl(
+                    mode,
+                    language,
+                    false,
+                    sessionLanguageLocked,
+                    "ai"
+                  );
+                }}
+              />
+            </div>
             <div className="rounded-[28px] border border-black/10 bg-neutral-50 p-6 text-center">
               <p className="text-lg font-semibold">{humanCopy.missing}</p>
               {humanTranslationPermissionOpen ? (
