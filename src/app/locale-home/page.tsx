@@ -11,12 +11,12 @@ const searchLandingCopy = {
   en: {
     title: "Multilingual Long-Form & Web Novel Reader",
     description:
-      "Read long-form fiction and web novels as Original, Bilingual, or Translation only without duplicating the work by language. LIB read reuses saved public translations and uses a work glossary plus limited previous-episode context to reduce terminology drift.",
+      "Read long-form fiction and web novels as Original, Bilingual, or Translation only. Authors control AI and Human translation separately; AI translation can use a work glossary, bounded previous-episode context, and saved translation reuse.",
   },
   ko: {
     title: "다국어 장편소설·웹소설 리더",
     description:
-      "장편소설과 웹소설을 언어별 작품으로 복제하지 않고 원문·대역·번역만 보기로 읽을 수 있습니다. 저장된 공개 번역을 재사용하고 작품 단위 용어집과 바로 이전 공개 회차의 제한된 문맥으로 번역 용어의 흔들림을 줄입니다.",
+      "장편소설과 웹소설을 원문·대역·번역만 보기로 읽을 수 있습니다. 작가는 AI 번역과 Human translation을 별도로 허용하며, AI 번역은 작품 단위 용어집·제한된 이전 회차 문맥·저장된 번역 재사용을 이용할 수 있습니다.",
   },
 } as const;
 
