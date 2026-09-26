@@ -51,7 +51,6 @@ export async function GET(_request: Request, context: RouteContext) {
     sourceLanguage: current.sourceLanguage,
     targetLanguage: current.targetLanguage,
     translator: {
-      id: row.translator_user_id,
       displayName: translatorName,
       isAuthor: row.translator_user_id === current.seriesAuthorId,
     },

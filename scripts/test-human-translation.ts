@@ -137,6 +137,7 @@ contains(mutate, [
   '.select("display_name")',
 ]);
 omits(mutate, [
+  "id: row.translator_user_id",
   'select("email',
   'email.split("@")',
   "OpenAI",
