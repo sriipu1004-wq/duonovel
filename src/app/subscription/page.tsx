@@ -20,8 +20,8 @@ const SITE_URL = "https://www.syosetu-libread.com";
 const pricingSeoCopy: Record<UiLocale, { title: string; description: string; summary: string; freeHeader: string; premiumHeader: string }> = {
   ja: {
     title: "料金・Free / Premiumプラン | LIB read",
-    description: "LIB readの料金。Freeは¥0、Premiumは月額680円（JPY）。公開作品の翻訳解放、個人本棚への取り込み回数と保存上限を比較できます。",
-    summary: "Freeは¥0。Premiumは月額680円（税込・JPY）です。Freeでは公開作品の翻訳解放と個人本棚への取り込みが合計1日3回の共通枠です。Premiumでは公開作品の翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なしです。",
+    description: "LIB readの料金。Freeは¥0、Premiumは月額680円（JPY）。公開作品のAI翻訳解放、個人本棚への取り込み回数と保存上限を比較できます。",
+    summary: "Freeは¥0。Premiumは月額680円（税込・JPY）です。Freeでは公開作品のAI翻訳解放と個人本棚への取り込みが合計1日3回の共通枠です。Premiumでは公開作品のAI翻訳解放は1日30回、個人本棚への取り込みは日次回数制限なしです。",
     freeHeader: "Free — ¥0",
     premiumHeader: "Premium — 月額680円",
   },
@@ -34,8 +34,8 @@ const pricingSeoCopy: Record<UiLocale, { title: string; description: string; sum
   },
   ko: {
     title: "요금: Free와 Premium 플랜 | LIB read",
-    description: "LIB read 요금은 Free ¥0, Premium 월 ¥680(JPY)입니다. 공개 작품 번역 잠금 해제, 개인 서재 가져오기, 읽어주기와 보관 한도를 비교할 수 있습니다.",
-    summary: "Free는 ¥0, Premium은 월 ¥680(JPY)입니다. Free에서는 공개 작품 번역 잠금 해제와 개인 서재 가져오기가 합산 하루 3회를 공유합니다. Premium은 공개 번역 하루 30회, 개인 서재 가져오기 일일 횟수 제한 없음입니다.",
+    description: "LIB read 요금은 Free ¥0, Premium 월 ¥680(JPY)입니다. 공개 작품 AI 번역 잠금 해제, 개인 서재 가져오기, 읽어주기와 보관 한도를 비교할 수 있습니다.",
+    summary: "Free는 ¥0, Premium은 월 ¥680(JPY)입니다. Free에서는 공개 작품 AI 번역 잠금 해제와 개인 서재 가져오기가 합산 하루 3회를 공유합니다. Premium은 공개 AI 번역 하루 30회, 개인 서재 가져오기 일일 횟수 제한 없음입니다.",
     freeHeader: "Free — ¥0",
     premiumHeader: "Premium — 월 ¥680 (JPY)",
   },
