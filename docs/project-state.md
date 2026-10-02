@@ -212,6 +212,21 @@ Child82 aligned the user-controlled external descriptions of LIB read with the c
 
 See `docs/external-information-inventory.md`.
 
+## Indexing / webmaster state
+
+Child83 is in progress as of 2026-10-02.
+
+- current Production JA/EN/KO Home HTML is aligned with Child81 and contains no audited retired AI Story wording or `read_language` residue;
+- Production `robots.txt` and `sitemap.xml` are reachable and the existing crawler policy is unchanged;
+- Production sitemap currently exposes 10,227 public URLs and the audited URL set did not show private/auth routes;
+- Google Search Console Domain-property ownership already exists, but current URL Inspection/Sitemaps-report state still requires authenticated account access;
+- a public crawl snapshot of Home remains stale with the retired AI-short-story positioning, so live Production and indexed/cached copies must remain distinct;
+- at least one user-controlled Note page also has a stale pre-Child82 crawl, while third-party historical pages are source-content history rather than a Production cache defect;
+- Bing Webmaster and Naver Search Advisor authenticated site states remain unverified;
+- IndexNow is not being added before the actual Bing Webmaster state is known; normal sitemap/URL recrawl paths are preferred first.
+
+See `docs/indexing-webmaster-state.md`.
+
 ## Current unresolved verification items
 
 These are not automatic priority changes; they are release/claim gates:
