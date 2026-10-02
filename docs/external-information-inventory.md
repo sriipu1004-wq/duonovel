@@ -2,7 +2,7 @@
 
 Last updated: **2026-10-02**
 Child: **82 — external information update**
-Status: **in progress**
+Status: **complete**
 Baseline main: `efd8a7b5f3e138c417c04befb4f4c00ac7e376f5`
 Production: https://www.syosetu-libread.com
 
@@ -60,9 +60,9 @@ https://github.com/sriipu1004-wq/duonovel
 Verified through the connected GitHub account:
 
 - visibility: public
-- repository description: **unset**
+- repository description: **set to the canonical Child82 description and independently verified through the authenticated GitHub connector on 2026-10-02**
 - README: already aligned by Child81; no rewrite needed
-- homepage URL / topics: not exposed by the current connector response and therefore not claimed as verified
+- homepage URL / topics: reviewed by the user; connector coverage does not expose all of these fields, so only the description is independently verified here
 
 Canonical repository description:
 
@@ -84,24 +84,24 @@ Topic candidates, only if the existing topic list is reviewed in the GitHub UI:
 
 Remove stale topics such as `ai-story` or `story-generator` if they actually exist. Do not assume they exist.
 
-Write status: **user/login UI action required** with the currently available GitHub connector because repository metadata mutation is not exposed.
+Write status: **complete**. The user performed the GitHub UI update; the resulting repository description was independently verified through the authenticated GitHub connector on 2026-10-02.
 
 ### Note profile
 
 Profile/account:
 https://note.com/dandy_shrew8963
 
-Public article footer/search snapshot currently exposes the stale profile text:
+The pre-update public crawler snapshot exposed the stale profile text:
 
 > 色々できる小説投稿サイトを鋭意運営中。 ↓できること 対訳。朗読。
 
-This does not explicitly revive AI Story, but it is materially behind the current positioning.
+That snapshot predates the user's 2026-10-02 update. The user reports the profile has been replaced with the current canonical positioning. Available public crawl/search results have not refreshed yet; that indexing/cache lag is deferred to Child83.
 
 Canonical replacement:
 
 > 多言語Web小説投稿・読書サービス「LIB read」を運営中。Original / Bilingual / Translation onlyで読書。AI翻訳とHuman translationは別扱い。AI小説生成は廃止済み。
 
-Write status: **user/login UI action required**.
+Write status: **complete by user action on 2026-10-02; public crawler refresh pending and deferred to Child83**.
 
 ### Note — 2026-09-03 language-learning article
 
@@ -111,7 +111,7 @@ https://note.com/dandy_shrew8963/n/n3517b7472720
 Title:
 `長編ネット小説を対訳して多読するという語学学習アプローチを試してみたい方へ`
 
-Verified stale claims include:
+Pre-update stale claims verified before the user's 2026-10-02 edit included:
 
 - "主に3つの機能" as parallel translation / personal library / **AI story generation**
 - a dedicated `AI生成物語` section
@@ -127,7 +127,7 @@ Required change:
 - state that AI story generation has been retired
 - reinsert/refresh the LIB read link card if possible after editing
 
-Write status: **user/login UI action required**.
+Write status: **complete by user action on 2026-10-02; public crawler refresh pending and deferred to Child83**.
 
 ### Note — 2026-04-23 launch article
 
@@ -137,7 +137,7 @@ https://note.com/dandy_shrew8963/n/n2bb4ddc729f7
 Title:
 `聞く、読む、読む。すべてが気軽に可能な小説投稿サイト（試作）を作りました。`
 
-This is a historical launch article and contains multiple statements that no longer represent current product state, including:
+This is a historical launch article. Before the 2026-10-02 update it contained multiple statements that no longer represented current product state, including:
 
 - narration-first positioning
 - statement that current readable works are Official public-domain works
@@ -157,7 +157,7 @@ Required treatment:
 - state that Official alone is not a Public Domain basis
 - link to current site documentation
 
-Write status: **user/login UI action required**.
+Write status: **complete by user action on 2026-10-02; the historical body is preserved with a current-state notice, and public crawler refresh is deferred to Child83**.
 
 ### X
 
@@ -169,7 +169,7 @@ Historical display name observed in third-party embedding:
 
 `LIB read＠朗読&小説投稿サイト`
 
-The current X profile bio and current pinned-post state could not be fetched reliably from the public Web in this workstream. Do not claim the current bio/pin is stale without direct account/UI verification.
+The current X profile bio and pinned-post state could not be fetched reliably from the public Web in this workstream. The user reports completing the requested profile/pinned-post updates on 2026-10-02. This is recorded as user-verified rather than independently crawler-verified. Historical cached/embedded X copies may remain until external indexes refresh.
 
 Canonical profile candidate:
 
@@ -187,7 +187,7 @@ Canonical introduction/pinned-post candidate:
 >
 > https://www.syosetu-libread.com
 
-Write status: **current state verification + user/login UI action required**.
+Write status: **complete by user action on 2026-10-02; independent public-Web verification unavailable in this workstream**.
 
 ## Third-party surfaces found
 
@@ -232,40 +232,38 @@ Do not state:
 
 unless account-specific evidence is verified.
 
-## 2026-10-02 verification attempt
+## 2026-10-02 final verification
 
-The user reported that all requested user-controlled external surfaces had been updated.
+The user reported completing all requested user-controlled external updates.
 
-Independent verification results:
+Final verification results:
 
 - latest Git main remains `efd8a7b5f3e138c417c04befb4f4c00ac7e376f5`
-- Production remains READY on that same main SHA
-- the Child82 branch Preview is READY on `ec92dd138e63fd5063e5e720ab4dcb53032b09b0`
-- the connected GitHub repository lookup still returns repository description as **unset / null**
-- public Note search/open results still expose pre-update copies, but their crawl timestamps predate the user's reported changes; therefore those cached results are not sufficient evidence that the edits failed
-- exact searches for the proposed new Note wording returned no indexed results yet
-- the current X profile/pinned-post state still cannot be fetched reliably through the available public-Web path
+- Production remains READY on that main baseline during Child82
+- GitHub repository description is now the canonical Child82 description and was independently verified through the authenticated GitHub connector
+- Note profile and both identified user-controlled Note articles are user-verified complete
+- available Note public crawl/search results still expose pre-update cached copies whose crawl state predates the user's update; refresh/index diagnostics are Child83 scope
+- X profile/pinned-post updates are user-verified complete; the available public-Web path cannot reliably fetch the current profile/pin
+- third-party historical descriptions were inventoried but not modified or contacted in Child82
 
-Therefore:
+Child82 does not treat stale external caches as a reason to rewrite current product copy again. Child83 owns indexing/webmaster submission and cache/index diagnostics.
 
-- Note profile/article edits: **user-reported complete; independent live-public verification pending because available crawlers are stale**
-- X profile/pinned-post edits: **user-reported complete; independent live-public verification unavailable**
-- GitHub About description: **not independently confirmed; authenticated GitHub connector still reports null and should be rechecked in the GitHub UI**
+## Completion state
 
-Do not mark Child82 complete solely from stale crawler results. Once the GitHub description discrepancy is resolved and the external display is either independently confirmed or explicitly accepted as user-verified, finalize the roadmap/docs state.
+Child82 is **complete** for its defined scope.
 
-## Completion gate
+Completed:
 
-Child82 remains **in progress** until the user-controlled external surfaces above are updated or explicitly reviewed and left unchanged.
+- user-controlled external surfaces were inventoried
+- stale AI Story positioning was identified
+- GitHub repository description was updated and independently verified
+- Note profile / identified user-controlled Note articles were updated by the user
+- X profile / pinned introduction were updated by the user
+- canonical Reader / translation provenance / AI-retirement / claim guardrails were preserved
+- no traction, Human-translation inventory, narration inventory, rights status, or OpenAI account settings were fabricated
+- no Child83 indexing/webmaster actions were executed
+- no acquisition/outreach actions were executed
 
-When those actions are complete:
+Remaining external cache/search refresh and webmaster/indexing diagnostics belong to **Child83**.
 
-1. re-check public Note/X/GitHub display where possible;
-2. update this inventory with final state;
-3. update `docs/project-state.md` only if needed;
-4. update `docs/roadmap.md` to mark Child82 complete and Child83 next;
-5. do not add a durable decision entry unless a new durable product decision was actually made;
-6. validate latest main / Production / external state;
-7. obtain explicit approval before merging the docs PR.
-
-Child83 indexing/webmaster work must not start inside Child82.
+Before merging this docs PR, follow the normal workflow and obtain explicit user approval. Child83 must not start inside Child82.
