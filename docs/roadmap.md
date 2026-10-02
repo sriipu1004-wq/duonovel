@@ -1,6 +1,6 @@
 # LIB read — Ordered Roadmap
 
-Last updated: **2026-09-26**
+Last updated: **2026-10-02**
 Product-state baseline: `57e06d82e14ac33808f3f90c7403234517ee2542`
 
 This file is the canonical ordered backlog for the next workstreams. It exists specifically so parent-chat replacement or context compression does not reorder the planned site work.
@@ -64,23 +64,31 @@ Important current facts for Child81:
 
 ### P2 — Child82: external information update
 
-Status: **next product work**
+Status: **complete**
 
-Scope:
+Completed 2026-10-02.
 
-- public GitHub/repository description where appropriate
-- Note or equivalent public introduction copy
-- X profile / fixed post if the user wants to update them
-- other external descriptions already under the user’s control
-- replace stale AI Story / AI-generated-novel positioning
-- reuse the canonical short/medium/technical descriptions produced by Child81
-- do not invent traction, Human-translation inventory, narration inventory, or user counts
+Scope completed:
 
-This child may require explicit user login/action for external accounts.
+- inventoried user-controlled and relevant third-party external descriptions
+- updated GitHub repository description to the canonical multilingual web-novel positioning
+- updated user-controlled Note profile/articles to remove active AI Story positioning and distinguish the current Reader/translation model
+- updated X profile/pinned introduction through user action
+- preserved AI Story retirement, Reader 3-mode model, AI/Human provenance separation, Public Domain rights rules, and verified-facts-only AI claims
+- recorded stale search/crawler caches without treating them as current Production state
+- did not perform webmaster/indexing submissions, crawler-policy changes, third-party outreach, or acquisition
+
+Verification notes:
+
+- GitHub repository description was independently verified through the authenticated connector on 2026-10-02.
+- Note/X account edits are user-verified; available public crawlers may still return older cached copies.
+- external cache/index refresh belongs to Child83.
+
+See `docs/external-information-inventory.md`.
 
 ### P3 — Child83: indexing / webmaster submission
 
-Status: **after Child82**
+Status: **next product work**
 
 Scope:
 
