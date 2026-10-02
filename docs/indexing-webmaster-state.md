@@ -232,3 +232,69 @@ Blocked on authenticated webmaster account access:
 - Naver site state / sitemap / crawl/index inspection.
 
 Do not advance the roadmap to P4 Acquisition until these Child83 account-side checks are completed or explicitly waived by the user.
+
+## Google authenticated inspection update — 2026-10-03
+
+GSC Wizard is now connected to the existing `sc-domain:syosetu-libread.com` property.
+
+Connected Google scope is currently read-only (`webmasters.readonly`). Read operations succeed; a sitemap re-submit attempt was rejected because full Search Console write scope is not enabled.
+
+### Sitemap report
+
+Current Search Console sitemap state:
+
+- sitemap: `https://www.syosetu-libread.com/sitemap.xml`
+- first/last submitted timestamp visible: 2026-07-03
+- last downloaded: 2026-09-27
+- pending: false
+- warnings: 0
+- errors: 0
+- submitted URL count reported by the connector: 10,227
+
+The connector currently reports `indexed=0` in sitemap content statistics. This was not treated as proof that all sitemap URLs are unindexed because URL Inspection and Search Analytics both show indexed/search-visible URLs.
+
+### URL Inspection
+
+Audited URLs:
+
+| URL | Google state | Last crawl |
+| --- | --- | --- |
+| `/` | Submitted and indexed | 2026-09-10 |
+| `/en` | URL unknown to Google | none |
+| `/ko` | URL unknown to Google | none |
+| `/english-novel-reader` | URL unknown to Google | none |
+| `/web-novel-language-learning` | URL unknown to Google | none |
+| `/pdf-bilingual-reader` | URL unknown to Google | none |
+| `/en/japanese-novel-reader` | Discovered - currently not indexed | none |
+| `/ko/japanese-novel-reader` | Discovered - currently not indexed | none |
+| `/en/learn-japanese-with-web-novels` | URL unknown to Google | none |
+| `/ko/learn-japanese-with-web-novels` | URL unknown to Google | none |
+| `/en/pdf-epub-bilingual-reader` | URL unknown to Google | none |
+| `/ko/pdf-epub-bilingual-reader` | Discovered - currently not indexed | none |
+
+Home was last crawled on 2026-09-10, before the Child81 public-positioning update on 2026-09-26. This directly explains why Google can still hold the retired Home copy while live Production is current.
+
+### Retired /generate
+
+Google URL Inspection currently reports `https://www.syosetu-libread.com/generate` as **Submitted and indexed**, last crawled 2026-09-06.
+
+Live Production now returns HTTP **404** for `/generate`.
+
+Search Analytics for the last 28 settled days still shows the retired `/generate` URL with 2 impressions, although a narrower 2026-09-26 through 2026-09-29 query returned no rows for that URL. Treat this as stale Google index/search residue that should disappear after Google recrawls the 404.
+
+### Search performance snapshot
+
+Last 28 settled days through 2026-09-29:
+
+- clicks: 0
+- impressions: 9
+- average position: approximately 21.6
+- Home: 7 impressions
+- retired `/generate`: 2 impressions in the broad 28-day result
+
+### Google action blocker
+
+A sitemap re-submit was attempted through the authenticated connector and Google rejected it because the connected OAuth scope is read-only.
+
+To complete Google submission actions, enable full Search Console access for this GSC Wizard connection. URL Inspection itself is available now, but this connector does not expose Google's general-purpose manual "Request indexing" UI action for ordinary web pages. After full access is enabled, re-submit the existing sitemap. For individual Home/locale/SEO URLs, use Search Console URL Inspection's manual Request indexing control if still needed.
+
