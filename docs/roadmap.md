@@ -88,7 +88,7 @@ See `docs/external-information-inventory.md`.
 
 ### P3 — Child83: indexing / webmaster submission
 
-Status: **next product work**
+Status: **in progress — authenticated webmaster checks pending**
 
 Scope:
 
@@ -99,6 +99,16 @@ Scope:
 - sitemap submission / verification
 - indexing diagnostics
 - coverage checks
+
+Current 2026-10-02 audit state:
+
+- live Production metadata/robots/sitemap re-audited and current;
+- existing Google Search Console Domain-property ownership confirmed from account notifications;
+- stale Home and user-controlled Note crawl snapshots identified and separated from current Production;
+- IndexNow checked and not added before actual Bing Webmaster state is known;
+- authenticated Google URL Inspection/Sitemaps, Bing Webmaster, and Naver Search Advisor checks remain the completion blockers.
+
+See `docs/indexing-webmaster-state.md`.
 
 Do not change crawler blocking policy just to complete submission.
 
