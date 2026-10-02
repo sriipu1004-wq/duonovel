@@ -1,6 +1,6 @@
 # LIB read — External information inventory
 
-Last updated: **2026-09-27**
+Last updated: **2026-10-02**
 Child: **82 — external information update**
 Status: **in progress**
 Baseline main: `efd8a7b5f3e138c417c04befb4f4c00ac7e376f5`
@@ -231,6 +231,28 @@ Do not state:
 - "Zero Data Retention is enabled"
 
 unless account-specific evidence is verified.
+
+## 2026-10-02 verification attempt
+
+The user reported that all requested user-controlled external surfaces had been updated.
+
+Independent verification results:
+
+- latest Git main remains `efd8a7b5f3e138c417c04befb4f4c00ac7e376f5`
+- Production remains READY on that same main SHA
+- the Child82 branch Preview is READY on `ec92dd138e63fd5063e5e720ab4dcb53032b09b0`
+- the connected GitHub repository lookup still returns repository description as **unset / null**
+- public Note search/open results still expose pre-update copies, but their crawl timestamps predate the user's reported changes; therefore those cached results are not sufficient evidence that the edits failed
+- exact searches for the proposed new Note wording returned no indexed results yet
+- the current X profile/pinned-post state still cannot be fetched reliably through the available public-Web path
+
+Therefore:
+
+- Note profile/article edits: **user-reported complete; independent live-public verification pending because available crawlers are stale**
+- X profile/pinned-post edits: **user-reported complete; independent live-public verification unavailable**
+- GitHub About description: **not independently confirmed; authenticated GitHub connector still reports null and should be rechecked in the GitHub UI**
+
+Do not mark Child82 complete solely from stale crawler results. Once the GitHub description discrepancy is resolved and the external display is either independently confirmed or explicitly accepted as user-verified, finalize the roadmap/docs state.
 
 ## Completion gate
 
