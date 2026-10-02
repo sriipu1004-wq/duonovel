@@ -1,6 +1,6 @@
 # LIB read — Project State
 
-Last updated: **2026-09-26**
+Last updated: **2026-10-02**
 Last product-changing main commit: `57e06d82e14ac33808f3f90c7403234517ee2542`
 Production: https://www.syosetu-libread.com
 Repository: `sriipu1004-wq/duonovel`
@@ -199,6 +199,18 @@ Removed from active product:
 - AI-generated runtime special cases
 
 Historical audit/migration records may remain for accountability. Active product behavior must not depend on them.
+
+## External public positioning
+
+Child82 aligned the user-controlled external descriptions of LIB read with the current product definition.
+
+- GitHub repository description now identifies LIB read as a multilingual web-novel posting and reading platform and was independently verified through the authenticated GitHub connector on 2026-10-02.
+- User-controlled Note profile/articles were updated by the user to remove active AI Story positioning and to point readers to the current Reader/translation model.
+- X profile/pinned introduction were updated by the user; the available public-Web path could not independently fetch the current profile/pin.
+- Search/crawler caches may still expose retired AI Story wording from older crawls. That is an indexing/cache issue, not current Production state, and belongs to Child83.
+- Third-party historical descriptions were inventoried but were not modified or contacted in Child82.
+
+See `docs/external-information-inventory.md`.
 
 ## Current unresolved verification items
 
