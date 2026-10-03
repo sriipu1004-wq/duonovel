@@ -1,6 +1,6 @@
 # LIB read — Project State
 
-Last updated: **2026-10-02**
+Last updated: **2026-10-03**
 Last product-changing main commit: `57e06d82e14ac33808f3f90c7403234517ee2542`
 Production: https://www.syosetu-libread.com
 Repository: `sriipu1004-wq/duonovel`
@@ -214,16 +214,24 @@ See `docs/external-information-inventory.md`.
 
 ## Indexing / webmaster state
 
-Child83 is in progress as of 2026-10-02.
+Child83 implementation is complete on Draft PR #83; merge and Production verification remain pending Preview approval.
 
-- current Production JA/EN/KO Home HTML is aligned with Child81 and contains no audited retired AI Story wording or `read_language` residue;
-- Production `robots.txt` and `sitemap.xml` are reachable and the existing crawler policy is unchanged;
-- Production sitemap currently exposes 10,227 public URLs and the audited URL set did not show private/auth routes;
-- Google Search Console Domain-property ownership already exists, but current URL Inspection/Sitemaps-report state still requires authenticated account access;
-- a public crawl snapshot of Home remains stale with the retired AI-short-story positioning, so live Production and indexed/cached copies must remain distinct;
-- at least one user-controlled Note page also has a stale pre-Child82 crawl, while third-party historical pages are source-content history rather than a Production cache defect;
-- Bing Webmaster and Naver Search Advisor authenticated site states remain unverified;
-- IndexNow is not being added before the actual Bing Webmaster state is known; normal sitemap/URL recrawl paths are preferred first.
+Current state:
+
+- current Production JA/EN/KO Home HTML is aligned with Child81 and contains no audited retired AI Story wording or retired `read_language`;
+- Production `robots.txt` and `sitemap.xml` are healthy; crawler blocking policy is unchanged;
+- Google Search Console Domain property is connected with full Search Console access;
+- the existing 10,227-URL sitemap was successfully re-submitted on 2026-10-03 with zero immediate warnings/errors and is pending Google re-download;
+- 15 priority URLs are now tracked through GSC Wizard URL Inspection;
+- current tracker snapshot: 4 indexed / 11 not indexed / 0 pending / 0 errors;
+- Home remains indexed from a 2026-09-10 crawl, before Child81, explaining stale Home copy;
+- retired `/generate` remains indexed from a 2026-09-06 crawl while live Production returns 404;
+- two deleted generated-work URLs remain indexed from July/August crawls, while live Production now renders noindex not-found surfaces with no retired story body/title;
+- user-controlled Note search snapshots can still expose pre-Child82 AI Story wording; this is stale crawler state, not current Note/Production state;
+- third-party historical descriptions remain third-party source content;
+- Bing Webmaster authenticated work is deferred because the user does not want to add/switch Microsoft accounts solely for this task;
+- Naver Search Advisor authenticated work is deferred because no authenticated connector/session is available and no verification token should be invented;
+- IndexNow remains intentionally unconfigured; the current issue is stale crawl state rather than a need for permanent rapid-submission infrastructure.
 
 See `docs/indexing-webmaster-state.md`.
 
