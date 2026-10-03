@@ -153,6 +153,8 @@ Last 28 settled days through 2026-09-29:
 - average position: approximately 21.6
 - Home: 7 impressions
 - retired `/generate`: 2 impressions in the broad 28-day result
+- retired generated-work Reader URL `/read/af9f56ea-93b4-4e34-8779-89aa8758f3aa/1`: 2 impressions
+- retired generated-work page `/works/af9f56ea-93b4-4e34-8779-89aa8758f3aa`: 2 impressions
 - a narrower 2026-09-26 through 2026-09-29 query returned no rows for `/generate`
 
 This is consistent with old indexed residue decaying while Google has not yet completed a fresh crawl.
