@@ -240,3 +240,57 @@ Future parent/child chats should read:
 - relevant feature-specific docs
 
 The repository state is used to preserve priority and canonical decisions across chat replacement/context compression.
+
+## D019 — Public pages must isolate optional dependency failure
+
+Decision:
+A failure in optional/viewer-specific data must not make unrelated public content unusable.
+
+Examples of optional/viewer-specific data:
+- public-page Auth/viewer state
+- subscription personalization
+- bookmarks
+- recording/narration aggregates
+- related works
+- popularity metrics
+
+Consequences:
+- public Hero/core content must render independently where its own critical data is available
+- optional sections use local fallback/retry states
+- loading must be bounded; do not leave indefinite spinners
+- limited retries are permitted only for safe read-only transient-network failures
+
+Do not blindly retry mutations, credits, unlocks, payments, permission changes, or publishing.
+
+Reason:
+The 2026-10-03 Supabase/network incident showed that broad dependency coupling can turn an upstream partial outage into a whole-page LIB read outage.
+
+## D020 — Optimize by reducing work, not by weakening correctness
+
+Decision:
+The reliability/performance workstream keeps the current UI/feature semantics by default and first reduces query count, rows, columns, N+1 calls, raw-event processing, cache rebuilds, and critical-path dependencies.
+
+Do not:
+- remove UI solely because it is currently expensive
+- weaken R18/auth/ownership/publication/translation-entitlement checks
+- trade correct Search result counts for speed
+- create a duplicate popularity aggregate when `series_popularity_daily` already exists without evidence that it is insufficient
+
+UI removal requires a separate explicit user decision after isolation/narrow-query/lazy-load options are measured.
+
+## D021 — Public Domain corpus growth is gated by capacity verification
+
+Decision:
+Do not jump from the current corpus directly to hundreds of additional Public Domain works while broad all-corpus reads remain.
+
+Order:
+1. Child84 reliability/performance hardening
+2. controlled 30–60 rights/provenance-verified Public Domain works
+3. Production scale verification
+4. further staged growth only after the gate passes
+5. Acquisition after the initial scale gate
+
+This priority change was explicitly approved by the user after a Production incident and therefore satisfies the roadmap priority-change protocol.
+
+Public Domain rights/provenance rules are unchanged.
+
