@@ -1,6 +1,6 @@
 # LIB read — Project State
 
-Last updated: **2026-10-03**
+Last updated: **2026-10-04**
 Last product-changing main commit: `57e06d82e14ac33808f3f90c7403234517ee2542`
 Production: https://www.syosetu-libread.com
 Repository: `sriipu1004-wq/duonovel`
@@ -256,6 +256,22 @@ Canonical resilience direction:
 - safe read-only retries, if used, must be bounded and limited to transient network failures;
 - mutation/credit/unlock/payment/publish operations must not receive blind retries;
 - performance work must preserve security/R18/ownership/publication/permission/entitlement correctness.
+
+
+Child84 implementation is in progress on a bounded no-schema PR1. As of 2026-10-04, the branch has:
+
+- separated Home Hero/static content from Auth, bookmark/subscriber, recording-popularity, and public-work failures;
+- added bounded timeout/retry only around safe read-only operations and local unavailable states for optional data;
+- batched public author display-name lookup through public.users instead of Auth Admin N+1 calls;
+- removed the stale Official-account translation-permission override so closed remains closed;
+- changed Work detail from all-episode detail fetch + Node slice to minimal navigation metadata, DB count, and a 50-row detail range;
+- shared the Work series read between metadata/page through request memoization;
+- isolated Work recording, reader-like, related-work, and subscriber reads;
+- bounded Search public-data/Auth/saved-filter/popularity reads without changing Child78 fuzzy/facet/page semantics;
+- narrowed public series/episode queries with the canonical publication filters;
+- hardened public Reader reads while retaining private-owner and R18 fail-closed behavior.
+
+The upstream incident is still reproducible on 2026-10-04. Both connected SQL verification and a direct public PostgREST read hit connection timeout / Cloudflare 522. Production curl probes with a 20 s cap showed Home timing out after partial HTTP 200 streaming on 3/3 runs, the sampled Work detail timing out after partial HTTP 200 streaming on 3/3 runs, and Search timing out on 1/3 runs while the other two completed in about 0.48–0.67 s. This supports an intermittent streaming-tail/optional-dependency problem rather than a uniform render failure.
 
 Confirmed current technical debt includes:
 

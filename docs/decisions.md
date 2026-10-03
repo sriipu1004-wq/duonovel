@@ -1,6 +1,6 @@
 # LIB read — Durable Decision Log
 
-Last updated: **2026-10-03**
+Last updated: **2026-10-04**
 
 This log records decisions that future chats must not casually reverse. It is not a chronological implementation diary. Add an entry only when the decision has lasting product/architecture consequences.
 
@@ -293,4 +293,23 @@ Order:
 This priority change was explicitly approved by the user after a Production incident and therefore satisfies the roadmap priority-change protocol.
 
 Public Domain rights/provenance rules are unchanged.
+
+## D022 — Dependency unavailability is not a valid business-state value
+
+Decision:
+A failed or timed-out read must not be silently reinterpreted as a real zero/false state when that distinction affects user meaning.
+
+Examples:
+- Auth unavailable is not proof that the viewer is signed out;
+- public-work data unavailable is not proof that zero public works exist;
+- bookmark/subscription data unavailable is not proof that the user has none;
+- popularity data unavailable is not proof that popularity is zero.
+
+Consequences:
+- use explicit availability state or section-local unavailable UI where the distinction matters;
+- fail closed for security-sensitive gates such as private ownership and R18;
+- do not weaken permission checks to preserve rendering during an outage.
+
+Reason:
+The 2026-10-03/04 incident showed that treating dependency failure as ordinary empty data can avoid a global error while still presenting materially false state.
 

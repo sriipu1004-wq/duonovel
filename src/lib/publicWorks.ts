@@ -35,7 +35,6 @@ import {
 } from "@/lib/translation/seriesSourceLanguage";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { isSeriesTranslationEligible } from "@/lib/translation/episodeTranslationServer";
-import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { matchesPublicWorkLanguageFilters } from "@/lib/search/publicWorkLanguageFilter";
 import { getPublicSearchLanguageFilters } from "@/lib/search/publicSearchRequestContext";
 import { PUBLIC_RECORDING_AGGREGATE_SELECT } from "@/lib/recording/publicRecordingSelects";
@@ -73,7 +72,6 @@ export type PublicWorkVisibility = "viewer" | "general" | "all";
 
 type PublicAuthorAccount = {
   displayName: string;
-  isOfficial: boolean;
 };
 
 function formatDate(value: string | null | undefined): string {
@@ -169,6 +167,7 @@ async function fetchPublicSeriesRows(): Promise<SeriesRow[]> {
     return supabase
       .from("series")
       .select(selectClause)
+      .eq("publication_status", "public")
       .order("created_at", { ascending: false })
       .order("id", { ascending: true })
       .range(start, start + PAGE_SIZE - 1);
@@ -210,6 +209,8 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
         .from("episodes")
         .select(selectClause)
         .in("series_id", seriesIds)
+        .eq("posting_status", "posted")
+        .eq("is_published", true)
         .order("series_id", { ascending: true })
         .order("episode_number", { ascending: true })
         .order("id", { ascending: true })
@@ -273,28 +274,27 @@ async function fetchEpisodeBodyMapByIds(
   );
 }
 
-function readAuthAccountDisplayName(metadata: unknown): string {
-  if (!metadata || typeof metadata !== "object") return "";
-  const record = metadata as Record<string, unknown>;
-  return pickPublicAuthorName(record.display_name_candidate, record.display_name);
-}
-
 async function fetchAuthorAccountMap(authorIds: string[]): Promise<Map<string, PublicAuthorAccount>> {
   if (authorIds.length === 0) return new Map();
-  const adminSupabase = createAdminClient();
-  const result = new Map<string, PublicAuthorAccount>();
 
-  await Promise.all(
-    authorIds.map(async (authorId) => {
-      const { data, error } = await adminSupabase.auth.admin.getUserById(authorId);
-      if (error || !data?.user) return;
-      result.set(authorId, {
-        displayName: readAuthAccountDisplayName(data.user.user_metadata),
-        isOfficial: isOfficialAccountEmail(data.user.email),
-      });
-    })
+  const adminSupabase = createAdminClient();
+  const { data, error } = await adminSupabase
+    .from("users")
+    .select("id, display_name")
+    .in("id", authorIds);
+
+  if (error) {
+    console.warn("[public-works] author profiles unavailable", error.message);
+    return new Map();
+  }
+
+  return new Map(
+    ((data ?? []) as Array<{ id: string; display_name?: string | null }>)
+      .map((row) => [
+        row.id,
+        { displayName: pickPublicAuthorName(row.display_name) },
+      ] as const)
   );
-  return result;
 }
 
 async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
@@ -366,8 +366,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
           ? sourceLanguageToContentLanguage(canonicalSourceLanguage)
           : detectContentLanguage(title, summary),
         sourceLanguage,
-        translationEligible:
-          isSeriesTranslationEligible(series) || authorAccount?.isOfficial === true,
+        translationEligible: isSeriesTranslationEligible(series),
         isShortStory: isShortStorySeriesForSitemap(series),
         publicEpisodeNumbers: publicEpisodes
           .map((episode) => getEpisodeNumber(episode))

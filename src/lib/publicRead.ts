@@ -11,6 +11,7 @@ import { isR18Series } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
+import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 
 export type PublicReadRecordingRow = Record<string, unknown> & {
   id: string;
@@ -71,86 +72,218 @@ const PUBLIC_READ_RECORDING_SELECT = `
   is_public
 `;
 
-async function fetchEpisodeNavigation(seriesId: string): Promise<EpisodeRow[]> {
+async function fetchEpisodeNavigation(
+  seriesId: string,
+  includePrivate: boolean
+): Promise<EpisodeRow[]> {
   const admin = createAdminClient();
-  const narrow = await admin
-    .from("episodes")
-    .select(PUBLIC_READ_EPISODE_NAV_SELECT)
-    .eq("series_id", seriesId);
+
+  async function run(selectClause: string) {
+    let query = admin
+      .from("episodes")
+      .select(selectClause)
+      .eq("series_id", seriesId);
+
+    if (!includePrivate) {
+      query = query
+        .eq("posting_status", "posted")
+        .eq("is_published", true);
+    }
+
+    return query
+      .order("episode_number", { ascending: true })
+      .order("id", { ascending: true });
+  }
+
+  const narrow = await run(PUBLIC_READ_EPISODE_NAV_SELECT);
   if (!narrow.error) return (narrow.data ?? []) as unknown as EpisodeRow[];
 
-  const fallback = await admin.from("episodes").select("*").eq("series_id", seriesId);
-  if (!fallback.error) return (fallback.data ?? []) as EpisodeRow[];
-  return [];
+  const fallback = await run("*");
+  if (!fallback.error) {
+    return (fallback.data ?? []) as unknown as EpisodeRow[];
+  }
+  throw new Error(`reader episode navigation failed: ${fallback.error.message}`);
 }
 
 async function fetchCurrentEpisode(
   seriesId: string,
-  episodeNumber: number
+  episodeNumber: number,
+  includePrivate: boolean
 ): Promise<EpisodeRow | null> {
   const admin = createAdminClient();
-  const result = await admin
+  let query = admin
     .from("episodes")
     .select("*")
     .eq("series_id", seriesId)
-    .eq("episode_number", episodeNumber)
-    .maybeSingle();
-  if (result.error || !result.data) return null;
-  return result.data as EpisodeRow;
+    .eq("episode_number", episodeNumber);
+
+  if (!includePrivate) {
+    query = query
+      .eq("posting_status", "posted")
+      .eq("is_published", true);
+  }
+
+  const result = await query.maybeSingle();
+  if (result.error) {
+    throw new Error(`reader episode failed: ${result.error.message}`);
+  }
+  return result.data ? (result.data as EpisodeRow) : null;
 }
 
-async function fetchPublicRecordings(episodeId: string): Promise<PublicReadRecordingRow[]> {
+async function fetchPublicRecordings(
+  episodeId: string
+): Promise<PublicReadRecordingRow[]> {
   if (!episodeId) return [];
   const admin = createAdminClient();
-  const narrow = await admin
-    .from("recordings")
-    .select(PUBLIC_READ_RECORDING_SELECT)
-    .eq("episode_id", episodeId)
-    .order("created_at", { ascending: false });
-  const firstTry = narrow.error
-    ? await admin
-        .from("recordings")
-        .select("*")
-        .eq("episode_id", episodeId)
-        .order("created_at", { ascending: false })
-    : narrow;
-  if (!firstTry.error) {
-    return ((firstTry.data ?? []) as unknown as PublicReadRecordingRow[])
-      .filter(isPublishedHumanRecording)
-      .map((recording) => ({
-        ...recording,
-        audio_storage_path: buildHumanRecordingPlaybackHref(recording.id),
-      }));
+
+  try {
+    const narrow = await runReadOnlyWithRetry(
+      async () =>
+        await admin
+          .from("recordings")
+          .select(PUBLIC_READ_RECORDING_SELECT)
+          .eq("episode_id", episodeId)
+          .order("created_at", { ascending: false }),
+      { operation: "reader recordings", timeoutMs: 1800, retries: 0 }
+    );
+
+    const firstTry = narrow.error
+      ? await runReadOnlyWithRetry(
+          async () =>
+            await admin
+              .from("recordings")
+              .select("*")
+              .eq("episode_id", episodeId)
+              .order("created_at", { ascending: false }),
+          {
+            operation: "reader recordings compatibility",
+            timeoutMs: 1800,
+            retries: 0,
+          }
+        )
+      : narrow;
+
+    if (!firstTry.error) {
+      return ((firstTry.data ?? []) as unknown as PublicReadRecordingRow[])
+        .filter(isPublishedHumanRecording)
+        .map((recording) => ({
+          ...recording,
+          audio_storage_path: buildHumanRecordingPlaybackHref(recording.id),
+        }));
+    }
+  } catch {
+    console.warn("[reader] recordings unavailable");
   }
+
   return [];
+}
+
+type ReaderViewerState = {
+  available: boolean;
+  userId: string | null;
+  email: string | null;
+};
+
+async function loadReaderViewerState(
+  sessionClient: Awaited<ReturnType<typeof createClient>>,
+  options: { timeoutMs: number; retries: number }
+): Promise<ReaderViewerState> {
+  try {
+    const result = await runReadOnlyWithRetry(
+      async () => {
+        const authResult = await sessionClient.auth.getUser();
+        if (authResult.error) throw authResult.error;
+        return authResult;
+      },
+      {
+        operation: "reader auth",
+        timeoutMs: options.timeoutMs,
+        retries: options.retries,
+      }
+    );
+    return {
+      available: true,
+      userId: result.data.user?.id ?? null,
+      email: result.data.user?.email ?? null,
+    };
+  } catch {
+    console.warn("[reader] auth unavailable");
+    return { available: false, userId: null, email: null };
+  }
 }
 
 export async function getCachedPublicReadPagePayload(
   seriesId: string,
   episodeNumber: number
 ): Promise<PublicReadPagePayload | null> {
-  const [sessionClient, admin] = await Promise.all([createClient(), Promise.resolve(createAdminClient())]);
-  const [{ data: authData }, seriesResult] = await Promise.all([
-    sessionClient.auth.getUser(),
-    admin.from("series").select("*").eq("id", seriesId).maybeSingle(),
+  const [sessionClient, admin] = await Promise.all([
+    createClient(),
+    Promise.resolve(createAdminClient()),
   ]);
 
-  if (seriesResult.error || !seriesResult.data) return null;
+  const viewerPromise = loadReaderViewerState(sessionClient, {
+    timeoutMs: 1000,
+    retries: 0,
+  });
+  const seriesResult = await runReadOnlyWithRetry(
+    async () => {
+      const result = await admin
+        .from("series")
+        .select("*")
+        .eq("id", seriesId)
+        .maybeSingle();
+      if (result.error) {
+        throw new Error(`reader series failed: ${result.error.message}`);
+      }
+      return result;
+    },
+    { operation: "reader series", timeoutMs: 2500, retries: 1 }
+  );
+
+  if (!seriesResult.data) return null;
 
   const series = seriesResult.data as SeriesRow;
-  const currentUserId = authData.user?.id ?? "";
-  const ownerId = pickText(series.author_id, series["user_id"], series["userId"]);
-  const isOwner = currentUserId.length > 0 && ownerId === currentUserId;
   const isPublicSeries = getSeriesPublicationStatus(series) === "public";
+  let viewer = await viewerPromise;
+
+  if (!isPublicSeries && !viewer.available) {
+    viewer = await loadReaderViewerState(sessionClient, {
+      timeoutMs: 2000,
+      retries: 1,
+    });
+  }
+
+  const ownerId = pickText(
+    series.author_id,
+    series["user_id"],
+    series["userId"]
+  );
+  const isOwner = Boolean(viewer.userId && ownerId === viewer.userId);
 
   if (!isPublicSeries && !isOwner) return null;
 
-  const r18PreferencePromise = isR18Series(series)
-    ? getCurrentR18ViewerPreference()
-    : Promise.resolve(null);
+  const r18PreferencePromise =
+    isR18Series(series) && viewer.userId
+      ? runReadOnlyWithRetry(
+          () => getCurrentR18ViewerPreference(),
+          { operation: "reader r18 preference", timeoutMs: 1800, retries: 0 }
+        ).catch(() => ({
+          signedIn: true,
+          userId: viewer.userId,
+          showR18Content: false,
+          ageConfirmed: false,
+        }))
+      : Promise.resolve(null);
+
   const [episode, episodeNavigation, r18Preference] = await Promise.all([
-    fetchCurrentEpisode(seriesId, episodeNumber),
-    fetchEpisodeNavigation(seriesId),
+    runReadOnlyWithRetry(
+      () => fetchCurrentEpisode(seriesId, episodeNumber, isOwner),
+      { operation: "reader episode", timeoutMs: 2500, retries: 1 }
+    ),
+    runReadOnlyWithRetry(
+      () => fetchEpisodeNavigation(seriesId, isOwner),
+      { operation: "reader episode navigation", timeoutMs: 2500, retries: 1 }
+    ),
     r18PreferencePromise,
   ]);
 
@@ -161,9 +294,9 @@ export async function getCachedPublicReadPagePayload(
   const visibleEpisodes = isOwner
     ? allEpisodes
     : allEpisodes.filter((item) => isEpisodePubliclyVisible(item));
-
-  const viewerSignedIn = r18Preference?.signedIn ?? Boolean(authData.user);
-  const r18Blocked = r18Preference ? !r18Preference.showR18Content : false;
+  const r18Blocked = isR18Series(series)
+    ? !(r18Preference?.showR18Content ?? false)
+    : false;
 
   return {
     series,
@@ -174,8 +307,8 @@ export async function getCachedPublicReadPagePayload(
       : await fetchPublicRecordings(episode.id),
     isOwner,
     r18Blocked,
-    viewerSignedIn,
-    viewerUserId: authData.user?.id ?? null,
-    viewerEmail: authData.user?.email ?? null,
+    viewerSignedIn: Boolean(viewer.userId),
+    viewerUserId: viewer.userId,
+    viewerEmail: viewer.email,
   };
 }
