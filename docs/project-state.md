@@ -235,6 +235,48 @@ Current state:
 
 See `docs/indexing-webmaster-state.md`.
 
+## Production reliability / scale gate
+
+A 2026-10-03 Production incident exposed an upstream-dependency resilience problem and confirmed several public-read/Search performance bottlenecks.
+
+Verified infrastructure state at review:
+
+- Vercel Production Functions run in `iad1` (US East);
+- Supabase project is in `ap-southeast-1` (Singapore);
+- Vercel runtime logs include Supabase-origin Cloudflare 522 timeouts plus series/episodes/recordings failures;
+- Supabase's official status page reported an unresolved eastern-US intermittent-latency incident affecting eastern-US servers/serverless clients regardless of project region;
+- direct read-only Supabase SQL verification attempts also timed out during the review.
+
+This does not prove every timeout is application-caused. The immediate incident is strongly consistent with the upstream/network path. The application issue is that optional failures can still broaden into whole-page failure.
+
+Canonical resilience direction:
+
+- public Hero/core content must not depend on Auth success;
+- optional bookmark/subscription/recording/recommendation/popularity failure must degrade locally;
+- safe read-only retries, if used, must be bounded and limited to transient network failures;
+- mutation/credit/unlock/payment/publish operations must not receive blind retries;
+- performance work must preserve security/R18/ownership/publication/permission/entitlement correctness.
+
+Confirmed current technical debt includes:
+
+- all-public episode metadata used to build public work cards;
+- per-author Auth Admin lookup;
+- Home recording aggregates coupled to main work-card loading;
+- work-detail metadata/page duplicate data fetches;
+- all-episode fetch followed by 50-item Node slicing;
+- related works depending on the all-public-work dataset;
+- broad Search in-memory filter/sort/pagination;
+- raw popularity event reads despite an existing `series_popularity_daily` aggregate table;
+- hot-path `select("*")` compatibility fallbacks.
+
+The `source_language` runtime fallback must remain until Production proves canonical coverage complete; its original migration intentionally permitted legacy NULL rows.
+
+Scale order is now:
+
+Child84 reliability/performance -> Child85 30–60 verified Public Domain works -> Child86 Production scale gate -> Acquisition -> minimal real-usage analytics.
+
+See `docs/public-read-reliability-performance.md`.
+
 ## Current unresolved verification items
 
 These are not automatic priority changes; they are release/claim gates:
