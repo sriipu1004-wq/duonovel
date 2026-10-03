@@ -113,9 +113,61 @@ External crawler refresh remains asynchronous and is not a code/merge blocker. D
 
 See `docs/indexing-webmaster-state.md`.
 
-### P4 — Acquisition
+### P4 — Child84: Public read / Search reliability & performance hardening
 
 Status: **next**
+
+Priority was inserted on 2026-10-03 after a real Production availability incident exposed broad coupling to Supabase/network failures.
+
+Primary objectives:
+
+- public pages degrade partially rather than failing globally when optional data/auth/recording/recommendation reads fail;
+- remove confirmed overfetch, N+1, duplicated reads, raw popularity-event aggregation, and all-corpus dependencies;
+- preserve UI behavior, Search correctness, security, R18, ownership, publication visibility, translation entitlement, credit/subscription rules, and private/public isolation;
+- validate Vercel-region and DB-index hypotheses before Production changes.
+
+Ordered phases:
+
+1. Production resilience / fault isolation;
+2. obvious overfetch and duplicate reads;
+3. list/Search/ranking foundation;
+4. cache/infrastructure;
+5. before/after Production measurement.
+
+See `docs/public-read-reliability-performance.md`.
+
+### P5 — Child85: staged Public Domain expansion
+
+Status: **after Child84 Production verification**
+
+Add a controlled batch of approximately **30–60 rights/provenance-verified Public Domain works** using the existing canonical ingestion rules.
+
+Do not:
+
+- bulk-approve the 36 legacy rights-unverified Official works;
+- fabricate source/edition/translator/hash data;
+- expand into hundreds of works before the post-expansion performance gate.
+
+### P6 — Child86: post-expansion Production scale verification
+
+Status: **after Child85**
+
+Measure Home / Search / Work detail / Reader after the 30–60-work batch.
+
+Validate:
+
+- error/timeout rate;
+- request/query shape;
+- TTFB/server duration where available;
+- result correctness;
+- Search >1000-row behavior;
+- cache/revalidation behavior.
+
+Only if this gate passes should further staged Public Domain growth proceed.
+
+### P7 — Acquisition
+
+Status: **after Child86 scale gate**
 
 Primary objective: real authors and readers, not more feature breadth.
 
@@ -128,9 +180,11 @@ Candidate channels:
 - third-party reviews
 - micro-influencer experiments
 
+Acquisition was displaced by the Production reliability incident; it was not canceled.
+
 Do not use AI Fund/job-search context here.
 
-### P5 — Real usage observation and minimal analytics
+### P8 — Real usage observation and minimal analytics
 
 Status: **after meaningful external traffic begins**
 
