@@ -1,6 +1,6 @@
 # LIB read — Ordered Roadmap
 
-Last updated: **2026-10-02**
+Last updated: **2026-10-03**
 Product-state baseline: `57e06d82e14ac33808f3f90c7403234517ee2542`
 
 This file is the canonical ordered backlog for the next workstreams. It exists specifically so parent-chat replacement or context compression does not reorder the planned site work.
@@ -88,33 +88,34 @@ See `docs/external-information-inventory.md`.
 
 ### P3 — Child83: indexing / webmaster submission
 
-Status: **in progress — authenticated webmaster checks pending**
+Status: **complete on Draft PR #83 — Preview approval / merge / Production verification pending**
 
-Scope:
+Completed scope:
 
-- Google Search Console
-- Bing Webmaster Tools
-- IndexNow where appropriate
-- Naver Search Advisor
-- sitemap submission / verification
-- indexing diagnostics
-- coverage checks
+- re-audited live Production metadata, canonical, hreflang, robots and sitemap;
+- authenticated the existing Google Search Console Domain property;
+- inspected Home, locale Home pages, SEO landing pages, retired `/generate`, and stale generated-work URLs;
+- re-submitted the existing 10,227-URL sitemap successfully on 2026-10-03;
+- created an active 15-URL GSC Wizard Indexing Tracker for continued recrawl/index-state observation;
+- established that stale Home/AI Story search copies are older crawler/index state, not current Production;
+- confirmed deleted generated-work URLs no longer expose retired story content live and are served with noindex not-found surfaces;
+- rechecked stale user-controlled Note snapshots and third-party historical descriptions;
+- kept crawler blocking policy unchanged;
+- did not add IndexNow infrastructure without demonstrated need.
 
-Current 2026-10-02 audit state:
+Explicitly deferred as non-blocking account-side work:
 
-- live Production metadata/robots/sitemap re-audited and current;
-- existing Google Search Console Domain-property ownership confirmed from account notifications;
-- stale Home and user-controlled Note crawl snapshots identified and separated from current Production;
-- IndexNow checked and not added before actual Bing Webmaster state is known;
-- authenticated Google URL Inspection/Sitemaps, Bing Webmaster, and Naver Search Advisor checks remain the completion blockers.
+- Bing Webmaster authenticated setup/inspection, because the user chose not to add/switch Microsoft accounts solely for Child83;
+- Naver Search Advisor authenticated setup/inspection, because no usable authenticated connector/session is available and no verification artifact should be fabricated;
+- Google UI-only per-URL Request indexing, because sitemap re-submission succeeded and priority URLs are under automated inspection tracking.
+
+External crawler refresh remains asynchronous and is not a code/merge blocker. Do not wait for every stale search copy to disappear before closing Child83.
 
 See `docs/indexing-webmaster-state.md`.
 
-Do not change crawler blocking policy just to complete submission.
-
 ### P4 — Acquisition
 
-Status: **after public positioning + indexing**
+Status: **next after Child83 merge / Production verification**
 
 Primary objective: real authors and readers, not more feature breadth.
 
