@@ -1,6 +1,6 @@
 # LIB read — Project State
 
-Last updated: **2026-10-02**
+Last updated: **2026-10-03**
 Last product-changing main commit: `57e06d82e14ac33808f3f90c7403234517ee2542`
 Production: https://www.syosetu-libread.com
 Repository: `sriipu1004-wq/duonovel`
@@ -211,6 +211,29 @@ Child82 aligned the user-controlled external descriptions of LIB read with the c
 - Third-party historical descriptions were inventoried but were not modified or contacted in Child82.
 
 See `docs/external-information-inventory.md`.
+
+## Indexing / webmaster state
+
+Child83 implementation is complete on Draft PR #83; merge and Production verification remain pending Preview approval.
+
+Current state:
+
+- current Production JA/EN/KO Home HTML is aligned with Child81 and contains no audited retired AI Story wording or retired `read_language`;
+- Production `robots.txt` and `sitemap.xml` are healthy; crawler blocking policy is unchanged;
+- Google Search Console Domain property is connected with full Search Console access;
+- the existing 10,227-URL sitemap was successfully re-submitted on 2026-10-03 with zero immediate warnings/errors and is pending Google re-download;
+- 15 priority URLs are now tracked through GSC Wizard URL Inspection;
+- current tracker snapshot: 4 indexed / 11 not indexed / 0 pending / 0 errors;
+- Home remains indexed from a 2026-09-10 crawl, before Child81, explaining stale Home copy;
+- retired `/generate` remains indexed from a 2026-09-06 crawl while live Production returns 404;
+- two deleted generated-work URLs remain indexed from July/August crawls, while live Production now renders noindex not-found surfaces with no retired story body/title;
+- user-controlled Note search snapshots can still expose pre-Child82 AI Story wording; this is stale crawler state, not current Note/Production state;
+- third-party historical descriptions remain third-party source content;
+- Bing Webmaster authenticated work is deferred because the user does not want to add/switch Microsoft accounts solely for this task;
+- Naver Search Advisor authenticated work is deferred because no authenticated connector/session is available and no verification token should be invented;
+- IndexNow remains intentionally unconfigured; the current issue is stale crawl state rather than a need for permanent rapid-submission infrastructure.
+
+See `docs/indexing-webmaster-state.md`.
 
 ## Current unresolved verification items
 
