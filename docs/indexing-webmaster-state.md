@@ -298,3 +298,24 @@ A sitemap re-submit was attempted through the authenticated connector and Google
 
 To complete Google submission actions, enable full Search Console access for this GSC Wizard connection. URL Inspection itself is available now, but this connector does not expose Google's general-purpose manual "Request indexing" UI action for ordinary web pages. After full access is enabled, re-submit the existing sitemap. For individual Home/locale/SEO URLs, use Search Console URL Inspection's manual Request indexing control if still needed.
 
+
+
+### Google sitemap re-submit — 2026-10-03
+
+GSC Wizard now reports both `webmasters.readonly` and full `webmasters` OAuth scopes for the connected Google account. The account UI shows `GSC (full access)`.
+
+Re-submitted `https://www.syosetu-libread.com/sitemap.xml` successfully through the authenticated Search Console connection.
+
+Result:
+
+- attempted: 1
+- submitted: 1
+- failed: 0
+- accepted: true
+- confirmed: true
+- lastSubmitted: 2026-10-03T08:44:11Z
+- pending immediately after submission: true
+- warnings: 0
+- errors: 0
+
+This queues Google to download the sitemap again; it does not itself guarantee indexing. Follow-up should re-check Search Console sitemap state after Google processes the submission and continue URL-level verification for Home, locale Home pages, SEO landing pages, and retired `/generate`.
