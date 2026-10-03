@@ -214,7 +214,7 @@ See `docs/external-information-inventory.md`.
 
 ## Indexing / webmaster state
 
-Child83 implementation is complete on Draft PR #83; merge and Production verification remain pending Preview approval.
+Child83 is complete. PR #83 was merged as `29cd37ca0feb667f53fc6a69d61c86f2d3490e80`; the corresponding Production deployment reached READY and post-merge Production smoke verification passed on 2026-10-03.
 
 Current state:
 

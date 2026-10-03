@@ -256,7 +256,7 @@ These may be reopened later if actual search-engine evidence makes them necessar
 
 ## Completion status
 
-Child83 implementation is **complete on the work branch; merge and Production verification remain gated by Preview approval**.
+Child83 is **complete**. PR #83 was merged as `29cd37ca0feb667f53fc6a69d61c86f2d3490e80`, the Production deployment reached READY, and the Production smoke check passed on 2026-10-03.
 
 Completed:
 
@@ -283,4 +283,4 @@ Remaining external processing, not an implementation blocker:
 - stale search/crawler copies can persist until those crawlers refresh;
 - third-party historical source pages remain third-party content.
 
-Do not start P4 Acquisition inside Child83. After Preview approval, merge PR #83, verify Production, return the Child83 completion report, then P4 becomes the next roadmap workstream.
+Child83 is closed. P4 Acquisition is the next roadmap workstream.

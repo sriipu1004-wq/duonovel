@@ -88,7 +88,7 @@ See `docs/external-information-inventory.md`.
 
 ### P3 — Child83: indexing / webmaster submission
 
-Status: **complete on Draft PR #83 — Preview approval / merge / Production verification pending**
+Status: **complete**
 
 Completed scope:
 
@@ -115,7 +115,7 @@ See `docs/indexing-webmaster-state.md`.
 
 ### P4 — Acquisition
 
-Status: **next after Child83 merge / Production verification**
+Status: **next**
 
 Primary objective: real authors and readers, not more feature breadth.
 
