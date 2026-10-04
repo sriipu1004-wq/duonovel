@@ -264,6 +264,17 @@ After Ranking was removed from static generation, the next Preview exposed the s
 
 PR1 therefore makes the sitemap metadata route dynamic and bounds public-work discovery to 2.5 seconds with no retry. On upstream failure, the existing static landing URLs remain available and the next crawler request can recover work/episode entries without waiting for a new deployment. No crawler-visible route is removed.
 
+### 4.16 Work / Reader core-read failure semantics — addressed in PR1
+
+Preview runtime verification against the continuing Supabase outage showed that optional Home/Search/Ranking/Sitemap failures were contained, but the requested Work/Reader core series read could still throw a `ReadOnlyTimeoutError` into the streamed route. A streamed HTTP 200 with generic error/not-found-looking output is not an acceptable substitute for a readable failure state.
+
+PR1 now keeps these cases distinct:
+
+- a successful core lookup that proves the work/episode does not exist or is not publicly visible still follows the existing `notFound()` / permission path;
+- a timeout, 522/503, connection failure, or other upstream read failure returns a localized temporary-unavailable surface instead of the generic page error;
+- private-owner and R18 checks are unchanged and continue to fail closed;
+- subscriber, author-profile and narration-related reads remain optional and cannot remove the core public reading surface.
+
 ## 5. Retry / timeout rules
 
 Limited retry may be useful only for safe, idempotent/read-only operations and only for clearly transient network failures.
@@ -288,7 +299,9 @@ Requirements:
 - bounded timeout;
 - at most a small bounded retry count;
 - network/transient classification;
-- then local fallback/retry UI rather than an indefinite spinner.
+- then local fallback/retry UI rather than an indefinite spinner;
+- do not retry a locally generated `ReadOnlyTimeoutError` when the underlying request cannot be aborted. `Promise.race` only bounds how long LIB read waits; it does not cancel the still-running Supabase request, so retrying that local timeout can overlap duplicate reads and amplify an outage;
+- immediate upstream failures that have already terminated, such as explicit 522/503/connection-reset responses, may still use the small read-only retry budget.
 
 ## 6. Fault-isolation model
 

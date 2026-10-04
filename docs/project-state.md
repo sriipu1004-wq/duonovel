@@ -271,7 +271,9 @@ Child84 implementation is in progress on a bounded no-schema PR1. As of 2026-10-
 - narrowed public series/episode queries with the canonical publication filters;
 - hardened public Reader reads while retaining private-owner and R18 fail-closed behavior;
 - moved the public Ranking page out of build-time static Supabase reads and onto bounded runtime reads that reuse the canonical public-work/recording helpers;
-- moved sitemap dynamic work loading out of deploy-time static generation and added a bounded runtime fallback so a Supabase 522 cannot stall the build or turn the sitemap into a 500.
+- moved sitemap dynamic work loading out of deploy-time static generation and added a bounded runtime fallback so a Supabase 522 cannot stall the build or turn the sitemap into a 500;
+- added explicit Work/Reader core-read unavailable states so series/episode timeouts no longer escape as the generic streamed page error;
+- stopped retrying local read timeouts because the underlying Promise is not aborted; immediate upstream 522/503/network failures remain eligible for the bounded read-only retry.
 
 The upstream incident is still reproducible on 2026-10-04. Both connected SQL verification and a direct public PostgREST read hit connection timeout / Cloudflare 522. Production curl probes with a 20 s cap showed Home timing out after partial HTTP 200 streaming on 3/3 runs, the sampled Work detail timing out after partial HTTP 200 streaming on 3/3 runs, and Search timing out on 1/3 runs while the other two completed in about 0.48–0.67 s. This supports an intermittent streaming-tail/optional-dependency problem rather than a uniform render failure.
 

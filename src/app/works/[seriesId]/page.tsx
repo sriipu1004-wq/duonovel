@@ -1260,6 +1260,65 @@ async function RelatedWorksSection({
   );
 }
 
+function WorkTemporaryUnavailable({
+  locale,
+  retryHref,
+}: {
+  locale: Awaited<ReturnType<typeof getUiLocale>>;
+  retryHref: string;
+}) {
+  const copy =
+    locale === "en"
+      ? {
+          title: "This work is temporarily unavailable",
+          body: "The public work data could not be loaded. This is a temporary upstream problem; no publication or permission state has been changed.",
+          retry: "Retry this page",
+          search: "Browse Search",
+        }
+      : locale === "ko"
+        ? {
+            title: "작품을 일시적으로 불러올 수 없습니다",
+            body: "공개 작품 데이터를 불러오지 못했습니다. 일시적인 상위 서비스 문제이며 공개 상태나 권한은 변경되지 않았습니다.",
+            retry: "이 페이지 다시 시도",
+            search: "검색으로 이동",
+          }
+        : {
+            title: "作品を一時的に読み込めない",
+            body: "公開作品データを取得できない。一時的な上流障害で、公開状態や権限が変更されたわけではない。",
+            retry: "このページを再読み込み",
+            search: "Searchを見る",
+          };
+  const workHref = (href: string) => localizePath(href, locale);
+
+  return (
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
+        <section className="rounded-[28px] border border-black/10 bg-white p-6 shadow-sm sm:p-8">
+          <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+            TEMPORARILY UNAVAILABLE
+          </p>
+          <h1 className="mt-3 text-2xl font-bold text-black">{copy.title}</h1>
+          <p className="mt-4 text-sm leading-8 text-neutral-700">{copy.body}</p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href={retryHref}
+              className="rounded-full border border-black/10 bg-neutral-100 px-4 py-2.5 text-sm font-medium text-black"
+            >
+              {copy.retry}
+            </Link>
+            <Link
+              href={workHref("/search")}
+              className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-medium text-black"
+            >
+              {copy.search}
+            </Link>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
 export default async function WorkPage({ params, searchParams }: PageProps) {
   const locale = await getUiLocale();
   const dictionary = workDictionaries[locale];
@@ -1279,7 +1338,21 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   // Viewer state is optional on a public work page. Keep it out of the
   // critical series read so an Auth outage cannot make the public work vanish.
   const currentUserPromise = loadOptionalWorkUser();
-  const seriesResult = await fetchSeriesResult(seriesId);
+  let seriesResult: Awaited<ReturnType<typeof fetchSeriesResult>>;
+  try {
+    seriesResult = await fetchSeriesResult(seriesId);
+  } catch (error) {
+    console.warn(
+      "[work] core series unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+    return (
+      <WorkTemporaryUnavailable
+        locale={locale}
+        retryHref={localizePath(`/works/${seriesId}`, locale)}
+      />
+    );
+  }
   const { data: seriesData } = seriesResult;
 
   if (!seriesData) {
@@ -1300,8 +1373,11 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     series["userId"]
   ) || null;
 
-  const [author, rawEpisodeNavigation, episodeCount] =
-    await Promise.all([
+  let author: UserRow | null;
+  let rawEpisodeNavigation: EpisodeRow[];
+  let episodeCount: number;
+  try {
+    [author, rawEpisodeNavigation, episodeCount] = await Promise.all([
       loadOptionalAuthor(authorId),
       runReadOnlyWithRetry(
         () => fetchEpisodeNavigationBySeriesId(seriesId),
@@ -1312,6 +1388,18 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
         { operation: "work episode count", timeoutMs: 2500, retries: 1 }
       ),
     ]);
+  } catch (error) {
+    console.warn(
+      "[work] core episode navigation unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+    return (
+      <WorkTemporaryUnavailable
+        locale={locale}
+        retryHref={localizePath(`/works/${seriesId}`, locale)}
+      />
+    );
+  }
   const currentUserIdPromise = currentUserPromise.then((user) => user?.id ?? null);
   const subscriberPromise = currentUserIdPromise.then((userId) =>
     loadOptionalSubscriber(userId)
@@ -1347,14 +1435,28 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       ? Math.floor((currentRangeRaw - 1) / 50) * 50 + 1
       : 1;
 
-  const visibleEpisodes = sortEpisodes(
-    (
-      await runReadOnlyWithRetry(
-        () => fetchEpisodeRangeBySeriesId(seriesId, currentRangeStart),
-        { operation: "work episode range", timeoutMs: 2500, retries: 1 }
-      )
-    ).filter((episode) => isEpisodePubliclyVisible(episode))
-  );
+  let visibleEpisodes: EpisodeRow[];
+  try {
+    visibleEpisodes = sortEpisodes(
+      (
+        await runReadOnlyWithRetry(
+          () => fetchEpisodeRangeBySeriesId(seriesId, currentRangeStart),
+          { operation: "work episode range", timeoutMs: 2500, retries: 1 }
+        )
+      ).filter((episode) => isEpisodePubliclyVisible(episode))
+    );
+  } catch (error) {
+    console.warn(
+      "[work] core episode range unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+    return (
+      <WorkTemporaryUnavailable
+        locale={locale}
+        retryHref={localizePath(`/works/${seriesId}`, locale)}
+      />
+    );
+  }
   const rangeOptions = buildRangeOptions(episodeCount);
 
   const recordingPermissionMode = resolveRecordingPermissionMode(

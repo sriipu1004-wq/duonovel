@@ -48,18 +48,24 @@ async function verifyReadOnlyRetry(): Promise<void> {
   );
   assert.equal(attempts, 1);
 
+  attempts = 0;
   await assert.rejects(
     () =>
       runReadOnlyWithRetry(
-        () => new Promise<string>(() => undefined),
+        () => {
+          attempts += 1;
+          return new Promise<string>(() => undefined);
+        },
         {
           operation: "test timeout",
           timeoutMs: 250,
-          retries: 0,
+          retries: 2,
+          retryDelayMs: 0,
         }
       ),
     ReadOnlyTimeoutError
   );
+  assert.equal(attempts, 1);
 }
 function verifyHomeIsolation(): void {
   const home = source("src/app/PublicTopPageLegacy.tsx");
@@ -94,6 +100,10 @@ function verifyWorkIsolationAndRange(): void {
   );
   assert.ok(work.includes("currentUserIdPromise"));
   assert.ok(work.includes("subscriberPromise"));
+  assert.ok(work.includes("function WorkTemporaryUnavailable"));
+  assert.ok(work.includes("[work] core series unavailable"));
+  assert.ok(work.includes("[work] core episode navigation unavailable"));
+  assert.ok(work.includes("[work] core episode range unavailable"));
   assert.ok(work.includes('{ operation: "work recordings", timeoutMs: 1800, retries: 0 }'));
   assert.ok(work.includes("Related works are temporarily unavailable."));
   assert.equal(work.includes("fetchEpisodesBySeriesId(seriesId)"), false);
@@ -153,6 +163,13 @@ function verifyReaderIsolation(): void {
       '{ operation: "reader recordings", timeoutMs: 1800, retries: 0 }'
     )
   );
+
+  const readerPage = source("src/app/read/[seriesId]/[episodeNumber]/page.tsx");
+  assert.ok(readerPage.includes("function ReadTemporaryUnavailable"));
+  assert.ok(readerPage.includes("[reader] core public read unavailable"));
+  assert.ok(readerPage.includes("loadOptionalReadSubscriber"));
+  assert.ok(readerPage.includes('operation: "reader author profile"'));
+  assert.equal(readerPage.includes("auth.admin.getUserById"), false);
 }
 
 function verifyPublicDatabaseFilters(): void {

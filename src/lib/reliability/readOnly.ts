@@ -13,7 +13,11 @@ export class ReadOnlyTimeoutError extends Error {
 }
 
 function isTransientReadFailure(error: unknown): boolean {
-  if (error instanceof ReadOnlyTimeoutError) return true;
+  // Promise.race cannot abort the underlying request. Retrying our own timeout
+  // would overlap another read with the still-running first request and can
+  // amplify an upstream outage. Immediate upstream 522/503/network failures
+  // remain retryable below.
+  if (error instanceof ReadOnlyTimeoutError) return false;
   const message =
     error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return [
