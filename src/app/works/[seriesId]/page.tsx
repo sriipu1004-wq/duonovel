@@ -46,7 +46,10 @@ import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 import { getSupportedLanguage, parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { localizeGenreList } from "@/i18n/genreLabels";
-import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
+import {
+  isSchemaCompatibilityReadFailure,
+  runReadOnlyWithRetry,
+} from "@/lib/reliability/readOnly";
 import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
 
 type PageProps = {
@@ -297,68 +300,79 @@ const WORK_PAGE_EPISODE_RANGE_SELECT = `
 `;
 
 async function fetchEpisodeNavigationBySeriesId(
-  seriesId: string
+  seriesId: string,
+  signal?: AbortSignal
 ): Promise<EpisodeRow[]> {
-  const narrow = await supabase
-    .from("episodes")
-    .select(WORK_PAGE_EPISODE_NAV_SELECT)
-    .eq("series_id", seriesId)
-    .order("episode_number", { ascending: true })
-    .order("id", { ascending: true });
+  const run = (selectClause: string) => {
+    let query = supabase
+      .from("episodes")
+      .select(selectClause)
+      .eq("series_id", seriesId)
+      .order("episode_number", { ascending: true })
+      .order("id", { ascending: true });
+    if (signal) query = query.abortSignal(signal);
+    return query;
+  };
 
+  const narrow = await run(WORK_PAGE_EPISODE_NAV_SELECT);
   if (!narrow.error) {
     return (narrow.data ?? []) as unknown as EpisodeRow[];
   }
-  const fallback = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("series_id", seriesId)
-    .order("episode_number", { ascending: true })
-    .order("id", { ascending: true });
+  if (!isSchemaCompatibilityReadFailure(narrow.error)) {
+    throw new Error(`episodes の取得に失敗: ${narrow.error.message}`);
+  }
+
+  const fallback = await run("*");
   if (!fallback.error) {
-    return (fallback.data ?? []) as EpisodeRow[];
+    return (fallback.data ?? []) as unknown as EpisodeRow[];
   }
   throw new Error(`episodes の取得に失敗: ${fallback.error.message}`);
 }
 
 async function fetchEpisodeRangeBySeriesId(
   seriesId: string,
-  start: number
+  start: number,
+  signal?: AbortSignal
 ): Promise<EpisodeRow[]> {
   const from = Math.max(0, start - 1);
   const to = from + 49;
-  const narrow = await supabase
-    .from("episodes")
-    .select(WORK_PAGE_EPISODE_RANGE_SELECT)
-    .eq("series_id", seriesId)
-    .order("episode_number", { ascending: true })
-    .order("id", { ascending: true })
-    .range(from, to);
+  const run = (selectClause: string) => {
+    let query = supabase
+      .from("episodes")
+      .select(selectClause)
+      .eq("series_id", seriesId)
+      .order("episode_number", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+    if (signal) query = query.abortSignal(signal);
+    return query;
+  };
 
+  const narrow = await run(WORK_PAGE_EPISODE_RANGE_SELECT);
   if (!narrow.error) {
     return (narrow.data ?? []) as unknown as EpisodeRow[];
   }
+  if (!isSchemaCompatibilityReadFailure(narrow.error)) {
+    throw new Error(`episode range の取得に失敗: ${narrow.error.message}`);
+  }
 
-  const fallback = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("series_id", seriesId)
-    .order("episode_number", { ascending: true })
-    .order("id", { ascending: true })
-    .range(from, to);
+  const fallback = await run("*");
   if (!fallback.error) {
-    return (fallback.data ?? []) as EpisodeRow[];
+    return (fallback.data ?? []) as unknown as EpisodeRow[];
   }
   throw new Error(`episode range の取得に失敗: ${fallback.error.message}`);
 }
 
 async function fetchPublicEpisodeCountBySeriesId(
-  seriesId: string
+  seriesId: string,
+  signal?: AbortSignal
 ): Promise<number> {
-  const result = await supabase
+  let query = supabase
     .from("episodes")
     .select("id", { count: "exact", head: true })
     .eq("series_id", seriesId);
+  if (signal) query = query.abortSignal(signal);
+  const result = await query;
   if (result.error) {
     throw new Error(`episode count の取得に失敗: ${result.error.message}`);
   }
@@ -367,11 +381,12 @@ async function fetchPublicEpisodeCountBySeriesId(
 
 const fetchSeriesResult = cache(async (seriesId: string) =>
   runReadOnlyWithRetry(
-    async () => {
+    async (signal) => {
       const result = await supabase
         .from("series")
         .select("*")
         .eq("id", seriesId)
+        .abortSignal(signal)
         .maybeSingle();
       if (result.error) {
         throw new Error(`series read failed: ${result.error.message}`);
@@ -384,7 +399,7 @@ const fetchSeriesResult = cache(async (seriesId: string) =>
 
 const fetchFirstPublicEpisode = cache(async (seriesId: string) =>
   runReadOnlyWithRetry(
-    async () => {
+    async (signal) => {
       const result = await supabase
         .from("episodes")
         .select(WORK_PAGE_EPISODE_NAV_SELECT)
@@ -392,6 +407,7 @@ const fetchFirstPublicEpisode = cache(async (seriesId: string) =>
         .order("episode_number", { ascending: true })
         .order("id", { ascending: true })
         .limit(1)
+        .abortSignal(signal)
         .maybeSingle();
       if (result.error) {
         throw new Error(`first episode の取得に失敗: ${result.error.message}`);
@@ -447,11 +463,12 @@ async function loadOptionalAuthor(authorId: string | null): Promise<UserRow | nu
   if (!authorId) return null;
   try {
     const result = await runReadOnlyWithRetry(
-      async () =>
+      async (signal) =>
         await adminSupabase
           .from("users")
           .select("id, display_name, username, pen_name, name")
           .eq("id", authorId)
+          .abortSignal(signal)
           .maybeSingle(),
       { operation: "work author profile", timeoutMs: 1500, retries: 0 }
     );
@@ -501,13 +518,14 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
   let firstTry;
   try {
     firstTry = await runReadOnlyWithRetry(
-      async () =>
+      async (signal) =>
         await adminSupabase
           .from("recordings")
           .select(PUBLIC_WORK_RECORDING_SELECT)
           .in("episode_id", episodeIds)
           .order("created_at", { ascending: false })
-          .order("id", { ascending: false }),
+          .order("id", { ascending: false })
+          .abortSignal(signal),
       { operation: "work recordings", timeoutMs: 1800, retries: 0 }
     );
   } catch {
@@ -529,16 +547,24 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
     };
   }
 
+  if (!isSchemaCompatibilityReadFailure(firstTry.error)) {
+    return {
+      recordings: [],
+      fetchErrorMessage: "朗読情報を一時的に取得できない。",
+    };
+  }
+
   let fallback;
   try {
     fallback = await runReadOnlyWithRetry(
-      async () =>
+      async (signal) =>
         await adminSupabase
           .from("recordings")
           .select("*")
           .in("episode_id", episodeIds)
           .order("created_at", { ascending: false })
-          .order("id", { ascending: false }),
+          .order("id", { ascending: false })
+          .abortSignal(signal),
       { operation: "work recordings compatibility", timeoutMs: 1800, retries: 0 }
     );
   } catch {
@@ -1343,7 +1369,6 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
   // Viewer state is optional on a public work page. Keep it out of the
   // critical series read so an Auth outage cannot make the public work vanish.
-  const currentUserPromise = loadOptionalWorkUser();
   let seriesResult: Awaited<ReturnType<typeof fetchSeriesResult>>;
   try {
     seriesResult = await fetchSeriesResult(seriesId);
@@ -1369,6 +1394,8 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   if (getSeriesPublicationStatus(series) !== "public") {
     notFound();
   }
+
+  const currentUserPromise = loadOptionalWorkUser();
   const publicDomain = readPublicDomainMetadata(
     series.effect_settings ?? series["effectSettings"]
   );
@@ -1386,11 +1413,11 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     [author, rawEpisodeNavigation, episodeCount] = await Promise.all([
       loadOptionalAuthor(authorId),
       runReadOnlyWithRetry(
-        () => fetchEpisodeNavigationBySeriesId(seriesId),
+        (signal) => fetchEpisodeNavigationBySeriesId(seriesId, signal),
         { operation: "work episode navigation", timeoutMs: 2500, retries: 1 }
       ),
       runReadOnlyWithRetry(
-        () => fetchPublicEpisodeCountBySeriesId(seriesId),
+        (signal) => fetchPublicEpisodeCountBySeriesId(seriesId, signal),
         { operation: "work episode count", timeoutMs: 2500, retries: 1 }
       ),
     ]);
@@ -1446,7 +1473,8 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     visibleEpisodes = sortEpisodes(
       (
         await runReadOnlyWithRetry(
-          () => fetchEpisodeRangeBySeriesId(seriesId, currentRangeStart),
+          (signal) =>
+            fetchEpisodeRangeBySeriesId(seriesId, currentRangeStart, signal),
           { operation: "work episode range", timeoutMs: 2500, retries: 1 }
         )
       ).filter((episode) => isEpisodePubliclyVisible(episode))

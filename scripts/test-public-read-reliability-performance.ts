@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { AuthSessionMissingError } from "@supabase/supabase-js";
 import {
   ReadOnlyTimeoutError,
+  isSchemaCompatibilityReadFailure,
   runReadOnlyWithRetry,
 } from "../src/lib/reliability/readOnly";
 import { isAuthSessionMissingError } from "../src/lib/auth/authSessionState";
@@ -19,9 +20,16 @@ function verifyAuthSessionClassification(): void {
   const home = source("src/app/PublicTopPageLegacy.tsx");
   const work = source("src/app/works/[seriesId]/page.tsx");
   const reader = source("src/lib/publicRead.ts");
+  const authStatus = source("src/components/auth/AuthStatus.tsx");
   assert.ok(home.includes("isAuthSessionMissingError(result.error)"));
   assert.ok(work.includes("isAuthSessionMissingError(authResult.error)"));
   assert.ok(reader.includes("isAuthSessionMissingError(authResult.error)"));
+  assert.ok(authStatus.includes("isAuthSessionMissingError(error)"));
+  assert.ok(
+    authStatus.includes(
+      '{ operation: "header auth", timeoutMs: 2500, retries: 0 }'
+    )
+  );
 }
 
 async function verifyReadOnlyRetry(): Promise<void> {
@@ -64,12 +72,21 @@ async function verifyReadOnlyRetry(): Promise<void> {
   assert.equal(attempts, 1);
 
   attempts = 0;
+  let aborted = false;
   await assert.rejects(
     () =>
       runReadOnlyWithRetry(
-        () => {
+        (signal) => {
           attempts += 1;
-          return new Promise<string>(() => undefined);
+          return new Promise<string>(() => {
+            signal.addEventListener(
+              "abort",
+              () => {
+                aborted = true;
+              },
+              { once: true }
+            );
+          });
         },
         {
           operation: "test timeout",
@@ -81,6 +98,22 @@ async function verifyReadOnlyRetry(): Promise<void> {
     ReadOnlyTimeoutError
   );
   assert.equal(attempts, 1);
+  assert.equal(aborted, true);
+
+  assert.equal(isSchemaCompatibilityReadFailure({ code: "42703" }), true);
+  assert.equal(isSchemaCompatibilityReadFailure({ code: "PGRST204" }), true);
+  assert.equal(
+    isSchemaCompatibilityReadFailure({
+      message: "column series.foo does not exist",
+    }),
+    true
+  );
+  assert.equal(
+    isSchemaCompatibilityReadFailure({
+      message: "522 Connection timed out",
+    }),
+    false
+  );
 }
 function verifyHomeIsolation(): void {
   const home = source("src/app/PublicTopPageLegacy.tsx");
@@ -110,6 +143,8 @@ function verifyWorkIsolationAndRange(): void {
   assert.ok(work.includes("fetchFirstPublicEpisode"));
   assert.ok(work.includes("fetchEpisodeRangeBySeriesId"));
   assert.ok(work.includes(".range(from, to)"));
+  assert.ok(work.includes(".abortSignal(signal)"));
+  assert.ok(work.includes("isSchemaCompatibilityReadFailure"));
   assert.ok(
     work.includes('.select("id", { count: "exact", head: true })')
   );
@@ -140,6 +175,17 @@ function verifyPublicWorkCardQueries(): void {
   // connectivity is degraded, so the canonical legacy inference gate remains.
   assert.ok(publicWorks.includes("inferSeriesSourceLanguage("));
   assert.ok(publicWorks.includes("fetchEpisodeBodyMapByIds("));
+  assert.ok(publicWorks.includes("isSchemaCompatibilityReadFailure"));
+  assert.ok(
+    publicWorks.includes(
+      "result.error && isSchemaCompatibilityReadFailure(result.error)"
+    )
+  );
+
+  const publicServer = source("src/lib/supabase/serverPublic.ts");
+  assert.ok(publicServer.includes("new AbortController()"));
+  assert.ok(publicServer.includes("controller.abort()"));
+  assert.ok(publicServer.includes("fetch: publicReadFetch"));
 }
 
 function verifySearchIsolation(): void {
@@ -169,6 +215,8 @@ function verifyReaderIsolation(): void {
     )
   );
   assert.ok(reader.includes("includePrivate: boolean"));
+  assert.ok(reader.includes(".abortSignal(signal)"));
+  assert.ok(reader.includes("isSchemaCompatibilityReadFailure"));
   assert.ok(reader.includes('.eq("posting_status", "posted")'));
   assert.ok(reader.includes('.eq("is_published", true)'));
   assert.ok(reader.includes("if (!isPublicSeries && !isOwner) return null"));

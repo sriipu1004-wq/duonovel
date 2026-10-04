@@ -11,7 +11,10 @@ import { isR18Series } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
-import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
+import {
+  isSchemaCompatibilityReadFailure,
+  runReadOnlyWithRetry,
+} from "@/lib/reliability/readOnly";
 import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
 
 export type PublicReadRecordingRow = Record<string, unknown> & {
@@ -75,7 +78,8 @@ const PUBLIC_READ_RECORDING_SELECT = `
 
 async function fetchEpisodeNavigation(
   seriesId: string,
-  includePrivate: boolean
+  includePrivate: boolean,
+  signal?: AbortSignal
 ): Promise<EpisodeRow[]> {
   const admin = createAdminClient();
 
@@ -91,13 +95,18 @@ async function fetchEpisodeNavigation(
         .eq("is_published", true);
     }
 
-    return query
+    query = query
       .order("episode_number", { ascending: true })
       .order("id", { ascending: true });
+    if (signal) query = query.abortSignal(signal);
+    return query;
   }
 
   const narrow = await run(PUBLIC_READ_EPISODE_NAV_SELECT);
   if (!narrow.error) return (narrow.data ?? []) as unknown as EpisodeRow[];
+  if (!isSchemaCompatibilityReadFailure(narrow.error)) {
+    throw new Error(`reader episode navigation failed: ${narrow.error.message}`);
+  }
 
   const fallback = await run("*");
   if (!fallback.error) {
@@ -109,7 +118,8 @@ async function fetchEpisodeNavigation(
 async function fetchCurrentEpisode(
   seriesId: string,
   episodeNumber: number,
-  includePrivate: boolean
+  includePrivate: boolean,
+  signal?: AbortSignal
 ): Promise<EpisodeRow | null> {
   const admin = createAdminClient();
   let query = admin
@@ -124,6 +134,7 @@ async function fetchCurrentEpisode(
       .eq("is_published", true);
   }
 
+  if (signal) query = query.abortSignal(signal);
   const result = await query.maybeSingle();
   if (result.error) {
     throw new Error(`reader episode failed: ${result.error.message}`);
@@ -139,30 +150,33 @@ async function fetchPublicRecordings(
 
   try {
     const narrow = await runReadOnlyWithRetry(
-      async () =>
+      async (signal) =>
         await admin
           .from("recordings")
           .select(PUBLIC_READ_RECORDING_SELECT)
           .eq("episode_id", episodeId)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .abortSignal(signal),
       { operation: "reader recordings", timeoutMs: 1800, retries: 0 }
     );
 
-    const firstTry = narrow.error
-      ? await runReadOnlyWithRetry(
-          async () =>
-            await admin
-              .from("recordings")
-              .select("*")
-              .eq("episode_id", episodeId)
-              .order("created_at", { ascending: false }),
-          {
-            operation: "reader recordings compatibility",
-            timeoutMs: 1800,
-            retries: 0,
-          }
-        )
-      : narrow;
+    let firstTry = narrow;
+    if (narrow.error && isSchemaCompatibilityReadFailure(narrow.error)) {
+      firstTry = await runReadOnlyWithRetry(
+        async (signal) =>
+          await admin
+            .from("recordings")
+            .select("*")
+            .eq("episode_id", episodeId)
+            .order("created_at", { ascending: false })
+            .abortSignal(signal),
+        {
+          operation: "reader recordings compatibility",
+          timeoutMs: 1800,
+          retries: 0,
+        }
+      );
+    }
 
     if (!firstTry.error) {
       return ((firstTry.data ?? []) as unknown as PublicReadRecordingRow[])
@@ -227,16 +241,13 @@ export async function getCachedPublicReadPagePayload(
     Promise.resolve(createAdminClient()),
   ]);
 
-  const viewerPromise = loadReaderViewerState(sessionClient, {
-    timeoutMs: 1000,
-    retries: 0,
-  });
   const seriesResult = await runReadOnlyWithRetry(
-    async () => {
+    async (signal) => {
       const result = await admin
         .from("series")
         .select("*")
         .eq("id", seriesId)
+        .abortSignal(signal)
         .maybeSingle();
       if (result.error) {
         throw new Error(`reader series failed: ${result.error.message}`);
@@ -250,6 +261,10 @@ export async function getCachedPublicReadPagePayload(
 
   const series = seriesResult.data as SeriesRow;
   const isPublicSeries = getSeriesPublicationStatus(series) === "public";
+  const viewerPromise = loadReaderViewerState(sessionClient, {
+    timeoutMs: 1000,
+    retries: 0,
+  });
   let viewer = await viewerPromise;
 
   if (!isPublicSeries && !viewer.available) {
@@ -283,11 +298,12 @@ export async function getCachedPublicReadPagePayload(
 
   const [episode, episodeNavigation, r18Preference] = await Promise.all([
     runReadOnlyWithRetry(
-      () => fetchCurrentEpisode(seriesId, episodeNumber, isOwner),
+      (signal) =>
+        fetchCurrentEpisode(seriesId, episodeNumber, isOwner, signal),
       { operation: "reader episode", timeoutMs: 2500, retries: 1 }
     ),
     runReadOnlyWithRetry(
-      () => fetchEpisodeNavigation(seriesId, isOwner),
+      (signal) => fetchEpisodeNavigation(seriesId, isOwner, signal),
       { operation: "reader episode navigation", timeoutMs: 2500, retries: 1 }
     ),
     r18PreferencePromise,
