@@ -182,6 +182,20 @@ function verifyRankingIsolation(): void {
   assert.equal(ranking.includes('.select("*")'), false);
 }
 
+function verifySitemapIsolation(): void {
+  const sitemap = source("src/app/sitemap.ts");
+
+  assert.ok(sitemap.includes('export const dynamic = "force-dynamic"'));
+  assert.ok(sitemap.includes("loadSitemapWorkFallback"));
+  assert.ok(
+    sitemap.includes(
+      'operation: "sitemap public works"'
+    )
+  );
+  assert.ok(sitemap.includes("timeoutMs: 2500"));
+  assert.ok(sitemap.includes("retries: 0"));
+}
+
 async function main(): Promise<void> {
   await verifyReadOnlyRetry();
   verifyHomeIsolation();
@@ -191,6 +205,7 @@ async function main(): Promise<void> {
   verifyReaderIsolation();
   verifyPublicDatabaseFilters();
   verifyRankingIsolation();
+  verifySitemapIsolation();
 
   console.log(
     "PASS: Child84 public-read resilience, optional isolation, author batching and work-detail range contracts"

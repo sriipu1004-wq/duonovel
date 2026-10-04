@@ -4,7 +4,9 @@ import {
   type PublicBaseWorkCard,
 } from "@/lib/publicWorks";
 import { loadSitemapWorkFallback } from "@/lib/sitemap/loadSitemapWorkFallback";
+import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 60;
 
 const SITE_URL = "https://www.syosetu-libread.com";
@@ -104,7 +106,13 @@ export async function loadSitemapWorks(
   loadWorks: () => Promise<PublicBaseWorkCard[]> = () =>
     getCachedPublicBaseWorkCards({ visibility: "general" })
 ): Promise<PublicBaseWorkCard[]> {
-  return loadSitemapWorkFallback(loadWorks);
+  return loadSitemapWorkFallback(() =>
+    runReadOnlyWithRetry(loadWorks, {
+      operation: "sitemap public works",
+      timeoutMs: 2500,
+      retries: 0,
+    })
+  );
 }
 
 export function buildSitemapEntries(
