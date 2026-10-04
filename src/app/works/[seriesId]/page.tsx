@@ -282,10 +282,7 @@ function resolveRecordingPermissionMode(value: unknown): RecordingPermissionMode
 
 const WORK_PAGE_EPISODE_NAV_SELECT = `
   id,
-  series_id,
-  episode_number,
-  posting_status,
-  scheduled_for
+  episode_number
 `;
 
 const WORK_PAGE_EPISODE_RANGE_SELECT = `
@@ -303,30 +300,44 @@ async function fetchEpisodeNavigationBySeriesId(
   seriesId: string,
   signal?: AbortSignal
 ): Promise<EpisodeRow[]> {
-  const run = (selectClause: string) => {
-    let query = supabase
-      .from("episodes")
-      .select(selectClause)
-      .eq("series_id", seriesId)
-      .order("episode_number", { ascending: true })
-      .order("id", { ascending: true });
-    if (signal) query = query.abortSignal(signal);
-    return query;
-  };
+  const PAGE_SIZE = 1000;
 
-  const narrow = await run(WORK_PAGE_EPISODE_NAV_SELECT);
-  if (!narrow.error) {
-    return (narrow.data ?? []) as unknown as EpisodeRow[];
-  }
-  if (!isSchemaCompatibilityReadFailure(narrow.error)) {
-    throw new Error(`episodes の取得に失敗: ${narrow.error.message}`);
+  async function fetchPaged(selectClause: string) {
+    const rows: EpisodeRow[] = [];
+
+    for (let start = 0; ; start += PAGE_SIZE) {
+      let query = supabase
+        .from("episodes")
+        .select(selectClause)
+        .eq("series_id", seriesId)
+        .eq("posting_status", "posted")
+        .eq("is_published", true)
+        .order("episode_number", { ascending: true })
+        .order("id", { ascending: true })
+        .range(start, start + PAGE_SIZE - 1);
+      if (signal) query = query.abortSignal(signal);
+
+      const result = await query;
+      if (result.error) {
+        return { rows: [] as EpisodeRow[], error: result.error };
+      }
+
+      const pageRows = (result.data ?? []) as unknown as EpisodeRow[];
+      rows.push(...pageRows);
+      if (pageRows.length < PAGE_SIZE) {
+        return { rows, error: null };
+      }
+    }
   }
 
-  const fallback = await run("*");
-  if (!fallback.error) {
-    return (fallback.data ?? []) as unknown as EpisodeRow[];
+  let fetched = await fetchPaged(WORK_PAGE_EPISODE_NAV_SELECT);
+  if (fetched.error && isSchemaCompatibilityReadFailure(fetched.error)) {
+    fetched = await fetchPaged("*");
   }
-  throw new Error(`episodes の取得に失敗: ${fallback.error.message}`);
+  if (fetched.error) {
+    throw new Error(`episodes の取得に失敗: ${fetched.error.message}`);
+  }
+  return fetched.rows;
 }
 
 async function fetchEpisodeRangeBySeriesId(
@@ -341,6 +352,8 @@ async function fetchEpisodeRangeBySeriesId(
       .from("episodes")
       .select(selectClause)
       .eq("series_id", seriesId)
+      .eq("posting_status", "posted")
+      .eq("is_published", true)
       .order("episode_number", { ascending: true })
       .order("id", { ascending: true })
       .range(from, to);
@@ -361,22 +374,6 @@ async function fetchEpisodeRangeBySeriesId(
     return (fallback.data ?? []) as unknown as EpisodeRow[];
   }
   throw new Error(`episode range の取得に失敗: ${fallback.error.message}`);
-}
-
-async function fetchPublicEpisodeCountBySeriesId(
-  seriesId: string,
-  signal?: AbortSignal
-): Promise<number> {
-  let query = supabase
-    .from("episodes")
-    .select("id", { count: "exact", head: true })
-    .eq("series_id", seriesId);
-  if (signal) query = query.abortSignal(signal);
-  const result = await query;
-  if (result.error) {
-    throw new Error(`episode count の取得に失敗: ${result.error.message}`);
-  }
-  return result.count ?? 0;
 }
 
 const fetchSeriesResult = cache(async (seriesId: string) =>
@@ -404,6 +401,8 @@ const fetchFirstPublicEpisode = cache(async (seriesId: string) =>
         .from("episodes")
         .select(WORK_PAGE_EPISODE_NAV_SELECT)
         .eq("series_id", seriesId)
+        .eq("posting_status", "posted")
+        .eq("is_published", true)
         .order("episode_number", { ascending: true })
         .order("id", { ascending: true })
         .limit(1)
@@ -1408,17 +1407,12 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
   let author: UserRow | null;
   let rawEpisodeNavigation: EpisodeRow[];
-  let episodeCount: number;
   try {
-    [author, rawEpisodeNavigation, episodeCount] = await Promise.all([
+    [author, rawEpisodeNavigation] = await Promise.all([
       loadOptionalAuthor(authorId),
       runReadOnlyWithRetry(
         (signal) => fetchEpisodeNavigationBySeriesId(seriesId, signal),
         { operation: "work episode navigation", timeoutMs: 2500, retries: 1 }
-      ),
-      runReadOnlyWithRetry(
-        (signal) => fetchPublicEpisodeCountBySeriesId(seriesId, signal),
-        { operation: "work episode count", timeoutMs: 2500, retries: 1 }
       ),
     ]);
   } catch (error) {
@@ -1437,11 +1431,10 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const subscriberPromise = currentUserIdPromise.then((userId) =>
     loadOptionalSubscriber(userId)
   );
-  const episodes = sortEpisodes(
-    rawEpisodeNavigation.filter((episode) => isEpisodePubliclyVisible(episode))
-  );
+  const episodes = sortEpisodes(rawEpisodeNavigation);
+  const episodeCount = episodes.length;
 
-  if (episodeCount === 0 || episodes.length === 0) {
+  if (episodeCount === 0) {
     notFound();
   }
 

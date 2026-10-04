@@ -264,7 +264,7 @@ Child84 implementation is in progress on a bounded no-schema PR1. As of 2026-10-
 - added bounded timeout/retry only around safe read-only operations and local unavailable states for optional data;
 - batched public author display-name lookup through public.users instead of Auth Admin N+1 calls;
 - removed the stale Official-account translation-permission override so closed remains closed;
-- changed Work detail from all-episode detail fetch + Node slice to minimal navigation metadata, DB count, and a 50-row detail range;
+- changed Work detail from all-episode detail fetch + Node slice to minimal public-only navigation metadata and a 50-row detail range; range count is derived from navigation rows so the redundant exact-count query is gone;
 - shared the Work series read between metadata/page through request memoization;
 - isolated Work recording, reader-like, related-work, and subscriber reads;
 - bounded Search public-data/Auth/saved-filter/popularity reads without changing Child78 fuzzy/facet/page semantics;
@@ -273,13 +273,15 @@ Child84 implementation is in progress on a bounded no-schema PR1. As of 2026-10-
 - moved the public Ranking page out of build-time static Supabase reads and onto bounded runtime reads that reuse the canonical public-work/recording helpers;
 - moved sitemap dynamic work loading out of deploy-time static generation and added a bounded runtime fallback so a Supabase 522 cannot stall the build or turn the sitemap into a 500;
 - added explicit Work/Reader core-read unavailable states so series/episode timeouts no longer escape as the generic streamed page error;
-- stopped retrying local read timeouts because the underlying Promise is not aborted; immediate upstream 522/503/network failures remain eligible for the bounded read-only retry.
+- stopped retrying local read deadlines and now supplies AbortSignal cancellation to supported Supabase reads so timed-out HTTP work does not continue behind the local fallback; immediate terminated 522/503/network failures remain eligible for the bounded read-only retry.
 
 The upstream incident is still reproducible on 2026-10-04. Both connected SQL verification and a direct public PostgREST read hit connection timeout / Cloudflare 522. Production curl probes with a 20 s cap showed Home timing out after partial HTTP 200 streaming on 3/3 runs, the sampled Work detail timing out after partial HTTP 200 streaming on 3/3 runs, and Search timing out on 1/3 runs while the other two completed in about 0.48–0.67 s. This supports an intermittent streaming-tail/optional-dependency problem rather than a uniform render failure.
 
-Latest PR1 Preview `b2619b16b63d14478c310431b57fe69ebab7a74b` is READY. During the same continuing upstream outage, Home, Search, Ranking, Sitemap, sampled Work detail, and sampled Reader all returned HTTP 200 without a generic application-error surface. Runtime logs showed bounded 2.5–3.5 s read timeouts and local fallback paths; Work and Reader specifically rendered the dedicated temporary-unavailable surface instead of escaping the timeout into the route. The Preview build completed without a build-time Supabase/522 read after Ranking and Sitemap were made dynamic.
+Latest PR1 code Preview `b28277dea391249223fed92e5b6264bab7d80e00` is READY. During the continuing upstream outage, Home, Search, sampled Work detail, and sampled Reader all returned HTTP 200 without a generic application-error surface. The final measured Preview samples were approximately 2.869 s for Home, 2.970 s for Search, 5.693 s for the sampled Work page, and 3.277 s for the sampled Reader. The same Work URL on current Production main took approximately 39.488 s in the comparison sample. PR1 now aborts supported underlying Supabase HTTP reads rather than merely timing out the await, and network/timeout failures no longer trigger broad `select("*")` compatibility fallbacks.
 
-A stacked Singapore-region Preview (PR #86, Function region `sin1`) reproduced the same Home/Search/Ranking/Sitemap/Work timeouts, so moving Vercel Functions from `iad1` to Singapore is not a supported incident fix. Cache invalidation audit also confirmed there is no complete tag/path invalidation boundary: primary series/episode writes still occur directly from Client Components to Supabase. Public cache TTLs therefore remain short and unchanged. Normal anonymous `AuthSessionMissingError` is now treated as healthy signed-out state rather than an Auth outage.
+The global client Auth header is also bounded at 2.5 s so the original indefinite “認証確認中...” symptom cannot persist on an Auth/network stall; normal anonymous `AuthSessionMissingError` is treated as healthy signed-out state.
+
+A stacked Singapore-region Preview (PR #86, Function region `sin1`) reproduced the same Home/Search/Ranking/Sitemap/Work timeouts, so moving Vercel Functions from `iad1` to Singapore is not a supported incident fix. PR #86 was closed unmerged. Cache invalidation audit also confirmed there is no complete tag/path invalidation boundary: primary series/episode writes still occur directly from Client Components to Supabase. Public cache TTLs therefore remain short and unchanged.
 
 Confirmed current technical debt after PR1 includes:
 

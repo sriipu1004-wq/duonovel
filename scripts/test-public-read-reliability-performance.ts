@@ -145,9 +145,15 @@ function verifyWorkIsolationAndRange(): void {
   assert.ok(work.includes(".range(from, to)"));
   assert.ok(work.includes(".abortSignal(signal)"));
   assert.ok(work.includes("isSchemaCompatibilityReadFailure"));
-  assert.ok(
-    work.includes('.select("id", { count: "exact", head: true })')
+  assert.equal(
+    work.includes('.select("id", { count: "exact", head: true })'),
+    false
   );
+  assert.ok(work.includes("const episodeCount = episodes.length"));
+  assert.ok(work.includes("const PAGE_SIZE = 1000"));
+  assert.ok(work.includes(".range(start, start + PAGE_SIZE - 1)"));
+  assert.ok(work.includes('.eq("posting_status", "posted")'));
+  assert.ok(work.includes('.eq("is_published", true)'));
   assert.ok(work.includes("currentUserIdPromise"));
   assert.ok(work.includes("subscriberPromise"));
   assert.ok(work.includes("function WorkTemporaryUnavailable"));

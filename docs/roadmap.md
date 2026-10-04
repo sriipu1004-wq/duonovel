@@ -134,7 +134,7 @@ Ordered phases:
 4. cache/infrastructure;
 5. before/after Production measurement.
 
-Current bounded PR1 covers the no-schema portions of phases 1–2 plus safe Home/Work/Reader/Search/Ranking/sitemap timeout isolation. Work/Reader distinguish true not-found from transient upstream failure, and Ranking/sitemap dynamic work discovery no longer perform deploy-time Supabase reads. It does not mark Child84 complete.
+Current bounded PR1 covers the no-schema portions of phases 1–2 plus safe Home/Work/Reader/Search/Ranking/sitemap timeout isolation. Supported public Supabase reads now abort the underlying HTTP request at the deadline rather than only timing out the await, network failures no longer trigger broad compatibility fallbacks, the global Auth header spinner is bounded, Work/Reader distinguish true not-found from transient upstream failure, and Ranking/sitemap dynamic work discovery no longer perform deploy-time Supabase reads. It does not mark Child84 complete.
 
 Still gated by live Production verification:
 

@@ -161,10 +161,11 @@ PR1 adds a request-memoized series loader shared by `generateMetadata()` and the
 PR1 splits episode data into:
 
 - minimal navigation metadata;
-- an exact DB count for range controls;
 - a DB `range(...)` query for the visible 50 detailed rows.
 
-This removes the former all-detail-row fetch followed by Node slicing while retaining ordering, first-episode redirect behavior, reader selection, and public visibility semantics.
+The range count is derived from the already-required navigation rows instead of issuing a second exact-count query. Navigation is paged in 1,000-row chunks so series above the default PostgREST row cap still produce a correct count and resume-range map. Navigation, first-episode, and range reads explicitly apply the same posted/public predicate as the public episode policy (`posting_status = 'posted'` and `is_published = true`), so an authenticated owner session cannot accidentally mix draft/scheduled rows into public range math.
+
+This removes the former all-detail-row fetch followed by Node slicing and one redundant DB request while retaining ordering, first-episode redirect behavior, reader selection, and public visibility semantics.
 
 ### 4.8 Related works still depend on the all-public-work base-card dataset
 
@@ -242,15 +243,11 @@ Classification:
 - no large Search rewrite solely for this task;
 - move toward dictionary-native rendering when Search is next structurally refactored.
 
-### 4.13 OpenGraph crawler load should be measured
+### 4.13 OpenGraph crawler load — audited, no Child84 change required
 
-`/opengraph-image` is expected to receive crawler traffic.
+`src/app/opengraph-image.tsx` is data-independent: it does not read Supabase, Auth, or any external API. Current Vercel builds classify `/opengraph-image` as `○ (Static) prerendered as static content`, not a runtime server-rendered route.
 
-Target direction:
-
-- measure request volume/cost;
-- verify whether current ImageResponse path is adequately cached;
-- static asset or stronger caching may be considered only if SEO/social rendering remains correct.
+Therefore the OpenGraph image is not part of the observed Vercel→Supabase failure path and does not justify a Child84 cache/static-asset rewrite. Revisit only if future usage/cost evidence shows image-delivery overhead independent of the current database incident.
 
 ### 4.14 Ranking deploy-time Supabase dependency — addressed in PR1
 
@@ -320,6 +317,44 @@ A future TTL increase requires either:
 - adding an equally complete invalidation mechanism that also covers the current client-direct Supabase mutation paths.
 
 Partial server-route invalidation alone is insufficient and should not be presented as complete.
+
+### 4.19 Read deadline must abort the underlying HTTP request
+
+The first PR1 timeout implementation used `Promise.race` to stop awaiting a read. Preview timing proved that this was insufficient for some streamed routes: the route could render a local timeout state while the underlying Supabase HTTP request remained alive and kept the full response open.
+
+Measured from the same authorized desktop during the continuing incident:
+
+| Surface | Production main sample | pre-abort Preview sample | final abort Preview `b28277d` |
+| --- | ---: | ---: | ---: |
+| Home | 40.493 s | 3.595–3.705 s | 2.869 s |
+| Search | 0.427 s | 3.434–4.101 s | 2.970 s |
+| sampled Work | 39.488 s | 39.614–39.967 s | 5.693 s |
+| sampled Reader | not included in the Production timing sample | 2.892 s after core abort | 3.277 s |
+
+The Search Production sample happened to complete during an intermittent healthy interval and is not treated as a stable baseline.
+
+PR1 therefore now:
+
+- supplies an `AbortSignal` from the bounded read helper and aborts it at the deadline;
+- applies `.abortSignal(signal)` to Work/Reader critical PostgREST reads;
+- configures the anonymous public-work Supabase client with a 2.5 s aborting fetch boundary;
+- bounds Work layout content-rating and translation-availability reads as well as the page body;
+- does not retry a locally generated deadline after abort;
+- keeps the dedicated local unavailable UI.
+
+This changed the sampled Work failure path from roughly 40 seconds to roughly 5.7 seconds while the upstream remained unhealthy. The remaining duration is consistent with multiple separately bounded Work route layers rather than one unbounded connection.
+
+### 4.20 Compatibility fallback is schema-only
+
+A narrow-column read must not fall back to `select("*")` merely because the network, gateway, or database is unavailable. During a 522/timeout this would duplicate the failed request and increase upstream work.
+
+PR1 now permits the broad compatibility fallback only for recognizable schema/column compatibility failures such as PostgreSQL `42703` or PostgREST `PGRST204`. Network failures, 522/503, aborts, and timeouts propagate to the bounded local failure state instead.
+
+### 4.21 Global Auth header spinner is bounded
+
+The original incident included the header remaining on “認証確認中...” indefinitely. The client `AuthStatus` component previously called `supabase.auth.getUser()` without a deadline.
+
+PR1 now releases that loading state after a 2.5 s bounded read. A real Auth/network failure shows the existing Auth-state error/login surface, while `AuthSessionMissingError` remains a normal signed-out state. This directly closes the indefinite global auth-spinner path without weakening authenticated behavior.
 
 ## 5. Retry / timeout rules
 

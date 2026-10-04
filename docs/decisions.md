@@ -313,3 +313,17 @@ Consequences:
 Reason:
 The 2026-10-03/04 incident showed that treating dependency failure as ordinary empty data can avoid a global error while still presenting materially false state.
 
+## D023 — A public-read deadline must stop underlying work when supported
+
+Decision:
+A bounded public read is not considered contained merely because the UI stops awaiting it. When the database/client API supports cancellation, the underlying HTTP/PostgREST request must receive an AbortSignal and be aborted at the deadline.
+
+Consequences:
+- locally generated read deadlines are not retried;
+- immediate terminated transient failures such as explicit 522/503/connection-reset responses may still use a small read-only retry budget;
+- a narrow-query compatibility fallback to `select("*")` is permitted only for recognizable schema/column mismatch, not for network/gateway/timeout/abort failures;
+- public route layers that independently query Supabase must each have their own bounded/cancelable failure path.
+
+Reason:
+Preview measurement during the 2026-10-04 incident showed that a `Promise.race` timeout could render fallback UI while an un-aborted Supabase request kept a streamed Work response open for about 40 seconds. Adding request cancellation and bounding the Work layout reduced the sampled failure response to about 5.7 seconds without weakening publication, ownership, R18, or translation permission checks.
+
