@@ -277,6 +277,8 @@ Child84 implementation is in progress on a bounded no-schema PR1. As of 2026-10-
 
 The upstream incident is still reproducible on 2026-10-04. Both connected SQL verification and a direct public PostgREST read hit connection timeout / Cloudflare 522. Production curl probes with a 20 s cap showed Home timing out after partial HTTP 200 streaming on 3/3 runs, the sampled Work detail timing out after partial HTTP 200 streaming on 3/3 runs, and Search timing out on 1/3 runs while the other two completed in about 0.48–0.67 s. This supports an intermittent streaming-tail/optional-dependency problem rather than a uniform render failure.
 
+Latest PR1 Preview `b2619b16b63d14478c310431b57fe69ebab7a74b` is READY. During the same continuing upstream outage, Home, Search, Ranking, Sitemap, sampled Work detail, and sampled Reader all returned HTTP 200 without a generic application-error surface. Runtime logs showed bounded 2.5–3.5 s read timeouts and local fallback paths; Work and Reader specifically rendered the dedicated temporary-unavailable surface instead of escaping the timeout into the route. The Preview build completed without a build-time Supabase/522 read after Ranking and Sitemap were made dynamic.
+
 Confirmed current technical debt includes:
 
 - all-public episode metadata used to build public work cards;

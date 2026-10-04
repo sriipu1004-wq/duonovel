@@ -275,6 +275,17 @@ PR1 now keeps these cases distinct:
 - private-owner and R18 checks are unchanged and continue to fail closed;
 - subscriber, author-profile and narration-related reads remain optional and cannot remove the core public reading surface.
 
+Preview verification on commit `b2619b16b63d14478c310431b57fe69ebab7a74b` confirmed the containment while the upstream remained unhealthy:
+
+- `/` → 200 with Home-local unavailable state;
+- `/search` → 200 with bounded public-work fallback;
+- `/ranking` → 200 with bounded ranking fallback;
+- `/sitemap.xml` → 200 using the static-only fallback when public-work discovery timed out;
+- sampled `/works/{seriesId}` → 200 with the dedicated Work temporary-unavailable surface after a 2.5 s core series timeout;
+- sampled `/read/{seriesId}/1` → 200 with the dedicated Reader temporary-unavailable surface after a 2.5 s core series timeout.
+
+The Preview runtime logs contain those bounded timeout classifications and no generic page-error message for the sampled routes.
+
 ## 5. Retry / timeout rules
 
 Limited retry may be useful only for safe, idempotent/read-only operations and only for clearly transient network failures.
