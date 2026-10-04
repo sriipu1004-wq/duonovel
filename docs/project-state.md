@@ -1,6 +1,6 @@
 # LIB read — Project State
 
-Last updated: **2026-10-03**
+Last updated: **2026-10-04**
 Last product-changing main commit: `57e06d82e14ac33808f3f90c7403234517ee2542`
 Production: https://www.syosetu-libread.com
 Repository: `sriipu1004-wq/duonovel`
@@ -257,17 +257,39 @@ Canonical resilience direction:
 - mutation/credit/unlock/payment/publish operations must not receive blind retries;
 - performance work must preserve security/R18/ownership/publication/permission/entitlement correctness.
 
-Confirmed current technical debt includes:
 
-- all-public episode metadata used to build public work cards;
-- per-author Auth Admin lookup;
-- Home recording aggregates coupled to main work-card loading;
-- work-detail metadata/page duplicate data fetches;
-- all-episode fetch followed by 50-item Node slicing;
-- related works depending on the all-public-work dataset;
-- broad Search in-memory filter/sort/pagination;
-- raw popularity event reads despite an existing `series_popularity_daily` aggregate table;
-- hot-path `select("*")` compatibility fallbacks.
+Child84 implementation is in progress on a bounded no-schema PR1. As of 2026-10-04, the branch has:
+
+- separated Home Hero/static content from Auth, bookmark/subscriber, recording-popularity, and public-work failures;
+- added bounded timeout/retry only around safe read-only operations and local unavailable states for optional data;
+- batched public author display-name lookup through public.users instead of Auth Admin N+1 calls;
+- removed the stale Official-account translation-permission override so closed remains closed;
+- changed Work detail from all-episode detail fetch + Node slice to minimal navigation metadata, DB count, and a 50-row detail range;
+- shared the Work series read between metadata/page through request memoization;
+- isolated Work recording, reader-like, related-work, and subscriber reads;
+- bounded Search public-data/Auth/saved-filter/popularity reads without changing Child78 fuzzy/facet/page semantics;
+- narrowed public series/episode queries with the canonical publication filters;
+- hardened public Reader reads while retaining private-owner and R18 fail-closed behavior;
+- moved the public Ranking page out of build-time static Supabase reads and onto bounded runtime reads that reuse the canonical public-work/recording helpers;
+- moved sitemap dynamic work loading out of deploy-time static generation and added a bounded runtime fallback so a Supabase 522 cannot stall the build or turn the sitemap into a 500;
+- added explicit Work/Reader core-read unavailable states so series/episode timeouts no longer escape as the generic streamed page error;
+- stopped retrying local read timeouts because the underlying Promise is not aborted; immediate upstream 522/503/network failures remain eligible for the bounded read-only retry.
+
+The upstream incident is still reproducible on 2026-10-04. Both connected SQL verification and a direct public PostgREST read hit connection timeout / Cloudflare 522. Production curl probes with a 20 s cap showed Home timing out after partial HTTP 200 streaming on 3/3 runs, the sampled Work detail timing out after partial HTTP 200 streaming on 3/3 runs, and Search timing out on 1/3 runs while the other two completed in about 0.48–0.67 s. This supports an intermittent streaming-tail/optional-dependency problem rather than a uniform render failure.
+
+Latest PR1 Preview `b2619b16b63d14478c310431b57fe69ebab7a74b` is READY. During the same continuing upstream outage, Home, Search, Ranking, Sitemap, sampled Work detail, and sampled Reader all returned HTTP 200 without a generic application-error surface. Runtime logs showed bounded 2.5–3.5 s read timeouts and local fallback paths; Work and Reader specifically rendered the dedicated temporary-unavailable surface instead of escaping the timeout into the route. The Preview build completed without a build-time Supabase/522 read after Ranking and Sitemap were made dynamic.
+
+A stacked Singapore-region Preview (PR #86, Function region `sin1`) reproduced the same Home/Search/Ranking/Sitemap/Work timeouts, so moving Vercel Functions from `iad1` to Singapore is not a supported incident fix. Cache invalidation audit also confirmed there is no complete tag/path invalidation boundary: primary series/episode writes still occur directly from Client Components to Supabase. Public cache TTLs therefore remain short and unchanged. Normal anonymous `AuthSessionMissingError` is now treated as healthy signed-out state rather than an Auth outage.
+
+Confirmed current technical debt after PR1 includes:
+
+- all-public episode navigation metadata is still read to build the global public-work-card dataset;
+- Work detail still reads the full minimal episode-navigation row set even though detailed episode data is limited to the selected 50-row range;
+- related works still depends on the all-public-work dataset, although failure is now locally bounded;
+- broad Search filtering, fuzzy matching, facets, sorting, and pagination still operate over the in-memory public-work dataset;
+- raw popularity event rows are still read despite an existing `series_popularity_daily` aggregate table;
+- hot-path `select("*")` compatibility fallbacks remain where schema compatibility has not been proven removable;
+- public cache invalidation is not centralized because canonical series/episode edits still include direct Client-to-Supabase writes.
 
 The `source_language` runtime fallback must remain until Production proves canonical coverage complete; its original migration intentionally permitted legacy NULL rows.
 

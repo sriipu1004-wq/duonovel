@@ -5,6 +5,7 @@ import { isR18Series } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 import { getSupportedLanguage } from "@/lib/translation/languageRegistry";
 import { getPublicWorkTranslationOverview } from "@/lib/translation/publicWorkTranslations";
+import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 
 type Props = {
   seriesId: string;
@@ -41,10 +42,18 @@ const text = {
 } as const;
 
 export default async function WorkTranslationAvailability({ seriesId }: Props) {
-  const [locale, overview] = await Promise.all([
-    getUiLocale(),
-    getPublicWorkTranslationOverview(seriesId),
-  ]);
+  const localePromise = getUiLocale();
+  let overview;
+  try {
+    overview = await runReadOnlyWithRetry(
+      (signal) => getPublicWorkTranslationOverview(seriesId, signal),
+      { operation: "work translation availability", timeoutMs: 2200, retries: 0 }
+    );
+  } catch {
+    console.warn("[work] translation availability unavailable");
+    return null;
+  }
+  const locale = await localePromise;
   if (!overview) return null;
 
   if (isR18Series(overview.series)) {

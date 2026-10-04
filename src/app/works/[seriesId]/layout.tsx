@@ -13,6 +13,7 @@ import {
   readPageDictionaries,
   type ReadPageDictionary,
 } from "@/i18n/dictionaries/readPage";
+import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 
 type Props = {
   children: ReactNode;
@@ -56,11 +57,16 @@ async function loadWorkSurfaceState(
 ): Promise<WorkSurfaceState | null> {
   try {
     const admin = createAdminClient();
-    const result = await admin
-      .from("series")
-      .select("id, content_rating, content_warnings")
-      .eq("id", seriesId)
-      .maybeSingle();
+    const result = await runReadOnlyWithRetry(
+      async (signal) =>
+        await admin
+          .from("series")
+          .select("id, content_rating, content_warnings")
+          .eq("id", seriesId)
+          .abortSignal(signal)
+          .maybeSingle(),
+      { operation: "work layout series", timeoutMs: 2200, retries: 0 }
+    );
 
     if (result.error || !result.data) return null;
 
