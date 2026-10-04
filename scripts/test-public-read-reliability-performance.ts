@@ -157,6 +157,25 @@ function verifyWorkIsolationAndRange(): void {
   assert.ok(work.includes('{ operation: "work recordings", timeoutMs: 1800, retries: 0 }'));
   assert.ok(work.includes("Related works are temporarily unavailable."));
   assert.equal(work.includes("fetchEpisodesBySeriesId(seriesId)"), false);
+
+  const workLayout = source("src/app/works/[seriesId]/layout.tsx");
+  assert.ok(workLayout.includes('operation: "work layout series"'));
+  assert.ok(workLayout.includes(".abortSignal(signal)"));
+
+  const translationAvailability = source(
+    "src/features/works/WorkTranslationAvailability.tsx"
+  );
+  assert.ok(
+    translationAvailability.includes(
+      'operation: "work translation availability"'
+    )
+  );
+
+  const publicTranslations = source(
+    "src/lib/translation/publicWorkTranslations.ts"
+  );
+  assert.ok(publicTranslations.includes("signal?: AbortSignal"));
+  assert.ok(publicTranslations.includes(".abortSignal(signal)"));
 }
 function verifyPublicWorkCardQueries(): void {
   const publicWorks = source("src/lib/publicWorks.ts");
