@@ -163,6 +163,25 @@ function verifyPublicDatabaseFilters(): void {
   assert.ok(publicWorks.includes('.eq("is_published", true)'));
 }
 
+function verifyRankingIsolation(): void {
+  const ranking = source("src/app/ranking/page.tsx");
+
+  assert.ok(ranking.includes('export const dynamic = "force-dynamic"'));
+  assert.ok(ranking.includes("getCachedPublicBaseWorkCards"));
+  assert.ok(ranking.includes("getCachedPublicRecordingAggregates"));
+  assert.ok(
+    ranking.includes(
+      '{ operation: "ranking public works", timeoutMs: 3000, retries: 0 }'
+    )
+  );
+  assert.ok(
+    ranking.includes(
+      '{ operation: "ranking recording aggregates", timeoutMs: 2000, retries: 0 }'
+    )
+  );
+  assert.equal(ranking.includes('.select("*")'), false);
+}
+
 async function main(): Promise<void> {
   await verifyReadOnlyRetry();
   verifyHomeIsolation();
@@ -171,6 +190,7 @@ async function main(): Promise<void> {
   verifySearchIsolation();
   verifyReaderIsolation();
   verifyPublicDatabaseFilters();
+  verifyRankingIsolation();
 
   console.log(
     "PASS: Child84 public-read resilience, optional isolation, author batching and work-detail range contracts"

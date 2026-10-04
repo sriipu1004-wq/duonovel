@@ -58,7 +58,8 @@ Bounded PR1 therefore focuses on no-schema containment that can be validated wit
 - local fallback for Work recording/reader-like/related reads;
 - bounded Search public-data/Auth/saved-filter/popularity reads without rewriting fuzzy/facet semantics;
 - explicit canonical public filters on hot public series/episode reads;
-- Reader public-read timeout isolation while keeping private-owner and R18 checks fail closed.
+- Reader public-read timeout isolation while keeping private-owner and R18 checks fail closed;
+- Ranking changed from deploy-time static `select("*")` reads to bounded runtime reads reusing the canonical public-work and recording helpers.
 
 PR1 does not complete Child84. DB summary/Search pagination, popularity-daily cutover, source-language fallback removal, cache TTL/invalidation changes, DB indexes, and Vercel-region changes remain gated on live verification.
 
@@ -250,6 +251,12 @@ Target direction:
 - measure request volume/cost;
 - verify whether current ImageResponse path is adequately cached;
 - static asset or stronger caching may be considered only if SEO/social rendering remains correct.
+
+### 4.14 Ranking deploy-time Supabase dependency — addressed in PR1
+
+The baseline Ranking page was statically evaluated during `next build` and issued three broad `select("*")` reads against series, recordings, and episodes. During the 2026-10-04 Preview build, those reads reproduced Cloudflare 522 and held static generation open.
+
+PR1 changes Ranking to `force-dynamic`, reuses the canonical cached public-work and public-recording aggregate loaders, applies bounded runtime timeouts, and keeps the existing local error/partial-warning UI. This removes Ranking's Supabase dependency from the deployment build path without removing the surface.
 
 ## 5. Retry / timeout rules
 

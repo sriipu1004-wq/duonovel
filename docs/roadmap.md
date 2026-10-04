@@ -134,7 +134,7 @@ Ordered phases:
 4. cache/infrastructure;
 5. before/after Production measurement.
 
-Current bounded PR1 covers the no-schema portions of phases 1–2 plus safe Search/Reader timeout isolation. It does not mark Child84 complete.
+Current bounded PR1 covers the no-schema portions of phases 1–2 plus safe Search/Reader/Ranking timeout isolation. Ranking no longer performs deploy-time static Supabase reads. It does not mark Child84 complete.
 
 Still gated by live Production verification:
 
