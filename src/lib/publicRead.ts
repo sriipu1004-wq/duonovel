@@ -12,6 +12,7 @@ import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
+import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
 
 export type PublicReadRecordingRow = Record<string, unknown> & {
   id: string;
@@ -192,7 +193,12 @@ async function loadReaderViewerState(
     const result = await runReadOnlyWithRetry(
       async () => {
         const authResult = await sessionClient.auth.getUser();
-        if (authResult.error) throw authResult.error;
+        if (
+          authResult.error &&
+          !isAuthSessionMissingError(authResult.error)
+        ) {
+          throw authResult.error;
+        }
         return authResult;
       },
       {

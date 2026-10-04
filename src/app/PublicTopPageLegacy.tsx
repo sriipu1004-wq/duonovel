@@ -16,6 +16,7 @@ import { localizePath } from "@/i18n/navigation";
 import { localizeTagLabel } from "@/i18n/tagLabels";
 import type { UiLocale } from "@/i18n/config";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
+import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
 
 const HOME_DESCRIPTION =
   "外国語の長編を管理して読む個人本棚、多言語対訳、読み上げ、Web小説の閲覧・投稿に対応した読書サービスです。";
@@ -303,7 +304,9 @@ async function loadHomeViewerState(): Promise<HomeViewerState> {
     const authResult = await runReadOnlyWithRetry(
       async () => {
         const result = await authSupabase.auth.getUser();
-        if (result.error) throw result.error;
+        if (result.error && !isAuthSessionMissingError(result.error)) {
+          throw result.error;
+        }
         return result;
       },
       { operation: "home auth", timeoutMs: 2000, retries: 1 }

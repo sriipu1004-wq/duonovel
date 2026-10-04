@@ -1,12 +1,27 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { AuthSessionMissingError } from "@supabase/supabase-js";
 import {
   ReadOnlyTimeoutError,
   runReadOnlyWithRetry,
 } from "../src/lib/reliability/readOnly";
+import { isAuthSessionMissingError } from "../src/lib/auth/authSessionState";
 
 function source(path: string): string {
   return readFileSync(path, "utf8");
+}
+
+function verifyAuthSessionClassification(): void {
+  assert.equal(isAuthSessionMissingError(new AuthSessionMissingError()), true);
+  assert.equal(isAuthSessionMissingError(new Error("Auth session missing!")), true);
+  assert.equal(isAuthSessionMissingError(new Error("fetch failed")), false);
+
+  const home = source("src/app/PublicTopPageLegacy.tsx");
+  const work = source("src/app/works/[seriesId]/page.tsx");
+  const reader = source("src/lib/publicRead.ts");
+  assert.ok(home.includes("isAuthSessionMissingError(result.error)"));
+  assert.ok(work.includes("isAuthSessionMissingError(authResult.error)"));
+  assert.ok(reader.includes("isAuthSessionMissingError(authResult.error)"));
 }
 
 async function verifyReadOnlyRetry(): Promise<void> {
@@ -214,6 +229,7 @@ function verifySitemapIsolation(): void {
 }
 
 async function main(): Promise<void> {
+  verifyAuthSessionClassification();
   await verifyReadOnlyRetry();
   verifyHomeIsolation();
   verifyWorkIsolationAndRange();

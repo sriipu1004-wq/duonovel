@@ -47,6 +47,7 @@ import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 import { getSupportedLanguage, parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { localizeGenreList } from "@/i18n/genreLabels";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
+import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -406,7 +407,12 @@ async function loadOptionalWorkUser() {
     const result = await runReadOnlyWithRetry(
       async () => {
         const authResult = await authSupabase.auth.getUser();
-        if (authResult.error) throw authResult.error;
+        if (
+          authResult.error &&
+          !isAuthSessionMissingError(authResult.error)
+        ) {
+          throw authResult.error;
+        }
         return authResult;
       },
       { operation: "work auth", timeoutMs: 2000, retries: 1 }

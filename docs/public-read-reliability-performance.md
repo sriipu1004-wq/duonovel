@@ -286,6 +286,41 @@ Preview verification on commit `b2619b16b63d14478c310431b57fe69ebab7a74b` confir
 
 The Preview runtime logs contain those bounded timeout classifications and no generic page-error message for the sampled routes.
 
+A follow-up Preview log audit also showed repeated `Auth session missing!` warnings for normal anonymous requests. PR1 now classifies Supabase `AuthSessionMissingError` as a healthy signed-out state. Real Auth/network errors remain unavailable. This prevents anonymous users from being mislabeled as an Auth outage while preserving the same fail-safe behavior for actual Auth failures.
+
+### 4.17 Vercel Singapore region experiment — rejected as an incident fix
+
+A stacked Preview-only experiment (PR #86, commit `e1adf8d694b35ec1186a7b1bafe49e257b1dc615`) added Vercel `regions: ["sin1"]` on top of PR1. Deployment metadata confirmed the Vercel Function region was `sin1`; a sampled response also reported an `x-vercel-id` ending in the Singapore execution region.
+
+The same upstream failure still reproduced:
+
+- Home public works timed out after 2.5 s;
+- Search public works timed out after 3.5 s;
+- Ranking public works timed out after 3.0 s;
+- Sitemap public works timed out after 2.5 s;
+- sampled Work core series read timed out after 2.5 s.
+
+Therefore moving Vercel Functions from `iad1` to `sin1` does **not** resolve the current incident. The region change is not a Production recommendation and PR #86 must remain unmerged.
+
+### 4.18 Cache invalidation audit — TTL extension remains blocked
+
+Current hot caches are:
+
+- public base work cards: 60 s;
+- public recording aggregates: 60 s;
+- raw popularity dataset: 15 s.
+
+Repository-wide inspection found no current `revalidateTag`, `updateTag`, or `revalidatePath` invalidation path for these caches. More importantly, primary series and episode create/edit flows write directly from Client Components to Supabase, including `WriteSeriesForm`, `WriteSeriesCreateForm`, and `WriteEpisodeForm`. Recording mutations are split across server routes/libraries.
+
+Because not every canonical public-data mutation passes through one server-controlled invalidation boundary, extending metadata TTL now could serve stale publication/title/episode state after a successful edit. PR1 therefore keeps the current short TTLs unchanged.
+
+A future TTL increase requires either:
+
+- centralizing relevant public mutations behind server-controlled endpoints/actions; or
+- adding an equally complete invalidation mechanism that also covers the current client-direct Supabase mutation paths.
+
+Partial server-route invalidation alone is insufficient and should not be presented as complete.
+
 ## 5. Retry / timeout rules
 
 Limited retry may be useful only for safe, idempotent/read-only operations and only for clearly transient network failures.

@@ -141,10 +141,11 @@ Still gated by live Production verification:
 - exact `source_language` coverage before legacy inference removal;
 - `series_popularity_daily` freshness/invariants before runtime cutover;
 - DB-side public-work summary / Search pagination that preserves fuzzy/facet semantics;
-- safe cache invalidation before any longer public metadata TTL;
-- Vercel Asia-region Preview comparison;
+- a complete invalidation boundary before any longer public metadata TTL;
 - EXPLAIN/advisor-driven index changes;
 - final before/after Production measurement.
+
+Vercel Asia-region Preview comparison is complete: a `sin1` stacked Preview reproduced the same bounded Supabase timeouts as `iad1`, so region relocation is rejected as the current incident fix.
 
 See `docs/public-read-reliability-performance.md`.
 
