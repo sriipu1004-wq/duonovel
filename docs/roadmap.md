@@ -149,6 +149,8 @@ Vercel Asia-region Preview comparison is complete: a `sin1` stacked Preview repr
 
 Post-merge Production on main `f9f94512047d12f295937bd258880ace276ed0be` is READY. During the continuing upstream outage, sampled Home/Search/Work/Reader/Sitemap requests all completed with HTTP 200 in approximately 2.8–3.8 s and no generic page-error surface. Connected Supabase SQL still cannot complete even `select 1`, so the remaining DB-side work must not be guessed. Child85 remains blocked until Child84's DB verification gates can be completed.
 
+A DB-independent Child84 PR2 is now ready for review as PR #88. It replaces Reader all-episode navigation loading with bounded previous/next one-row reads and request-memoizes the Reader payload shared by metadata/page/layout. CI and Production build pass; Preview is READY and preserves the bounded temporary-unavailable behavior during the ongoing Supabase outage. PR2 does not unblock the DB-verification gates or Child85 by itself.
+
 See `docs/public-read-reliability-performance.md`.
 
 ### P5 — Child85: staged Public Domain expansion
