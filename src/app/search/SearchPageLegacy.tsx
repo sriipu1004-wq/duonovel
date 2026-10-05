@@ -37,6 +37,7 @@ import { canonicalizeTagLabel } from "@/i18n/tagLabels";
 import { canonicalizeGenreLabel, localizeGenreLabel } from "@/i18n/genreLabels";
 import type { UiLocale } from "@/i18n/config";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
+import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
 
 type SearchPageProps = {
   searchParams?: Promise<{
@@ -713,7 +714,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       const authResult = await runReadOnlyWithRetry(
         async () => {
           const result = await authSupabase.auth.getUser();
-          if (result.error) throw result.error;
+          if (
+            result.error &&
+            !isAuthSessionMissingError(result.error)
+          ) {
+            throw result.error;
+          }
           return result;
         },
         { operation: "search auth", timeoutMs: 2000, retries: 1 }

@@ -285,7 +285,7 @@ Preview verification on commit `b2619b16b63d14478c310431b57fe69ebab7a74b` confir
 
 The Preview runtime logs contain those bounded timeout classifications and no generic page-error message for the sampled routes.
 
-A follow-up Preview log audit also showed repeated `Auth session missing!` warnings for normal anonymous requests. PR1 now classifies Supabase `AuthSessionMissingError` as a healthy signed-out state. Real Auth/network errors remain unavailable. This prevents anonymous users from being mislabeled as an Auth outage while preserving the same fail-safe behavior for actual Auth failures.
+A follow-up Preview log audit also showed repeated `Auth session missing!` warnings for normal anonymous requests. PR1 now classifies Supabase `AuthSessionMissingError` as a healthy signed-out state on Home, Work, Reader, and Search saved-filter paths. Real Auth/network errors remain unavailable. This prevents anonymous users from being mislabeled as an Auth outage while preserving the same fail-safe behavior for actual Auth failures.
 
 ### 4.17 Vercel Singapore region experiment — rejected as an incident fix
 

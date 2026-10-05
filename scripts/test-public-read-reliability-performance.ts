@@ -244,6 +244,7 @@ function verifySearchIsolation(): void {
   );
   assert.ok(search.includes("publicWorksAvailable"));
   assert.ok(search.includes("popularityAvailable"));
+  assert.ok(search.includes("isAuthSessionMissingError(result.error)"));
   assert.ok(search.includes("Public work data is temporarily unavailable."));
 }
 
