@@ -1,9 +1,9 @@
+import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   getSeriesPublicationStatus,
   isEpisodePubliclyVisible,
-  sortEpisodes,
   type EpisodeRow,
   type SeriesRow,
 } from "@/features/write/writeShared";
@@ -39,7 +39,8 @@ export type PublicReadRecordingRow = Record<string, unknown> & {
 export type PublicReadPagePayload = {
   series: SeriesRow;
   episode: EpisodeRow;
-  publicEpisodes: EpisodeRow[];
+  previousEpisode: EpisodeRow | null;
+  nextEpisode: EpisodeRow | null;
   allEpisodeRecordings: PublicReadRecordingRow[];
   isOwner: boolean;
   r18Blocked: boolean;
@@ -76,11 +77,13 @@ const PUBLIC_READ_RECORDING_SELECT = `
   is_public
 `;
 
-async function fetchEpisodeNavigation(
+async function fetchAdjacentEpisode(
   seriesId: string,
+  episodeNumber: number,
+  direction: "previous" | "next",
   includePrivate: boolean,
   signal?: AbortSignal
-): Promise<EpisodeRow[]> {
+): Promise<EpisodeRow | null> {
   const admin = createAdminClient();
 
   async function run(selectClause: string) {
@@ -95,24 +98,39 @@ async function fetchEpisodeNavigation(
         .eq("is_published", true);
     }
 
-    query = query
-      .order("episode_number", { ascending: true })
-      .order("id", { ascending: true });
+    query =
+      direction === "previous"
+        ? query
+            .lt("episode_number", episodeNumber)
+            .order("episode_number", { ascending: false })
+            .order("id", { ascending: false })
+        : query
+            .gt("episode_number", episodeNumber)
+            .order("episode_number", { ascending: true })
+            .order("id", { ascending: true });
+
+    query = query.limit(1);
     if (signal) query = query.abortSignal(signal);
-    return query;
+    return query.maybeSingle();
   }
 
   const narrow = await run(PUBLIC_READ_EPISODE_NAV_SELECT);
-  if (!narrow.error) return (narrow.data ?? []) as unknown as EpisodeRow[];
+  if (!narrow.error) {
+    return narrow.data ? (narrow.data as unknown as EpisodeRow) : null;
+  }
   if (!isSchemaCompatibilityReadFailure(narrow.error)) {
-    throw new Error(`reader episode navigation failed: ${narrow.error.message}`);
+    throw new Error(
+      `reader ${direction} episode failed: ${narrow.error.message}`
+    );
   }
 
   const fallback = await run("*");
   if (!fallback.error) {
-    return (fallback.data ?? []) as unknown as EpisodeRow[];
+    return fallback.data ? (fallback.data as unknown as EpisodeRow) : null;
   }
-  throw new Error(`reader episode navigation failed: ${fallback.error.message}`);
+  throw new Error(
+    `reader ${direction} episode failed: ${fallback.error.message}`
+  );
 }
 
 async function fetchCurrentEpisode(
@@ -232,10 +250,10 @@ async function loadReaderViewerState(
   }
 }
 
-export async function getCachedPublicReadPagePayload(
+export const getCachedPublicReadPagePayload = cache(async (
   seriesId: string,
   episodeNumber: number
-): Promise<PublicReadPagePayload | null> {
+): Promise<PublicReadPagePayload | null> => {
   const [sessionClient, admin] = await Promise.all([
     createClient(),
     Promise.resolve(createAdminClient()),
@@ -296,26 +314,49 @@ export async function getCachedPublicReadPagePayload(
         }))
       : Promise.resolve(null);
 
-  const [episode, episodeNavigation, r18Preference] = await Promise.all([
-    runReadOnlyWithRetry(
-      (signal) =>
-        fetchCurrentEpisode(seriesId, episodeNumber, isOwner, signal),
-      { operation: "reader episode", timeoutMs: 2500, retries: 1 }
-    ),
-    runReadOnlyWithRetry(
-      (signal) => fetchEpisodeNavigation(seriesId, isOwner, signal),
-      { operation: "reader episode navigation", timeoutMs: 2500, retries: 1 }
-    ),
-    r18PreferencePromise,
-  ]);
+  const [episode, previousEpisode, nextEpisode, r18Preference] =
+    await Promise.all([
+      runReadOnlyWithRetry(
+        (signal) =>
+          fetchCurrentEpisode(seriesId, episodeNumber, isOwner, signal),
+        { operation: "reader episode", timeoutMs: 2500, retries: 1 }
+      ),
+      runReadOnlyWithRetry(
+        (signal) =>
+          fetchAdjacentEpisode(
+            seriesId,
+            episodeNumber,
+            "previous",
+            isOwner,
+            signal
+          ),
+        {
+          operation: "reader previous episode",
+          timeoutMs: 1800,
+          retries: 1,
+        }
+      ),
+      runReadOnlyWithRetry(
+        (signal) =>
+          fetchAdjacentEpisode(
+            seriesId,
+            episodeNumber,
+            "next",
+            isOwner,
+            signal
+          ),
+        {
+          operation: "reader next episode",
+          timeoutMs: 1800,
+          retries: 1,
+        }
+      ),
+      r18PreferencePromise,
+    ]);
 
   if (!episode) return null;
   if (!isOwner && !isEpisodePubliclyVisible(episode)) return null;
 
-  const allEpisodes = sortEpisodes(episodeNavigation);
-  const visibleEpisodes = isOwner
-    ? allEpisodes
-    : allEpisodes.filter((item) => isEpisodePubliclyVisible(item));
   const r18Blocked = isR18Series(series)
     ? !(r18Preference?.showR18Content ?? false)
     : false;
@@ -323,7 +364,8 @@ export async function getCachedPublicReadPagePayload(
   return {
     series,
     episode,
-    publicEpisodes: visibleEpisodes,
+    previousEpisode,
+    nextEpisode,
     allEpisodeRecordings: r18Blocked
       ? []
       : await fetchPublicRecordings(episode.id),
@@ -333,4 +375,4 @@ export async function getCachedPublicReadPagePayload(
     viewerUserId: viewer.userId,
     viewerEmail: viewer.email,
   };
-}
+});

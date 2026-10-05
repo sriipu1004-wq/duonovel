@@ -431,7 +431,8 @@ export default async function ReadEpisodePage({
   const {
     series,
     episode,
-    publicEpisodes,
+    previousEpisode,
+    nextEpisode,
     viewerUserId,
     viewerEmail,
   } = payload;
@@ -491,14 +492,9 @@ export default async function ReadEpisodePage({
   );
 
   const currentEpisodeNumber = getEpisodeNumber(episode) || parsedEpisodeNumber;
-  const prevEpisode =
-    [...publicEpisodes]
-      .reverse()
-      .find((item) => getEpisodeNumber(item) < currentEpisodeNumber) ?? null;
-  const nextEpisode =
-    publicEpisodes.find((item) => getEpisodeNumber(item) > currentEpisodeNumber) ??
-    null;
-  const prevEpisodeNumber = prevEpisode ? getEpisodeNumber(prevEpisode) : null;
+  const prevEpisodeNumber = previousEpisode
+    ? getEpisodeNumber(previousEpisode)
+    : null;
   const nextEpisodeNumber = nextEpisode ? getEpisodeNumber(nextEpisode) : null;
 
   const storyFormat = getStoryFormat(series);

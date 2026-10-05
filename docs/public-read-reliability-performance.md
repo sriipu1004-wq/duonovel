@@ -92,6 +92,30 @@ Live DB verification is still unavailable: connected Supabase SQL fails even for
 
 Child85 remains blocked by this DB-verification gate.
 
+### 1.3 2026-10-05 DB-independent Reader PR2
+
+While live SQL verification remains unavailable, Child84 can still remove overfetch that is provably independent of Production data contents.
+
+PR #88 changes the Reader path from:
+
+- current episode;
+- full episode-navigation list for the entire work;
+- Node search for previous/next;
+
+to:
+
+- current episode;
+- one bounded query for the immediately previous visible episode;
+- one bounded query for the immediately next visible episode.
+
+For public readers, the adjacent queries preserve the existing `posting_status = posted` and `is_published = true` filters. Owner/private behavior keeps the existing owner gate and may query adjacent private episodes only after the owner check. Schema compatibility fallback remains schema-only.
+
+The shared Reader payload is also wrapped in React request `cache()`, allowing `generateMetadata()`, Reader layout and page rendering in the same request to reuse the same public-read loader rather than independently repeating series/current/adjacent/Auth work.
+
+Independent review on 2026-10-06 found no application-code regression in public publication filters, private-owner visibility, R18 fail-closed handling, previous/next semantics, Reader modes, AI/Human translation provenance or permission separation, or credit/subscription entitlement boundaries. The review also found that `scripts/test-public-read-reliability-performance.ts` was not directly invoked by an existing pull-request workflow. PR #88 therefore adds a dedicated Child84 workflow that runs that regression together with Reader/translation/security regressions, TypeScript, changed-scope ESLint, Production build and whitespace validation. The latest workflow and Vercel Preview must be revalidated after these review commits before merge.
+
+No DB/schema/data write is part of PR2. It does not change Reader modes, R18/ownership/publication checks, translation entitlement, credits/subscription, Public Domain rules, or the DB-verification gates that still block Child85.
+
 ## 2. Billing state snapshot
 
 Stripe Live was independently re-read during this review.
