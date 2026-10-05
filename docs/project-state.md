@@ -1,7 +1,7 @@
 # LIB read — Project State
 
-Last updated: **2026-10-04**
-Last product-changing main commit: `57e06d82e14ac33808f3f90c7403234517ee2542`
+Last updated: **2026-10-05**
+Last product-changing main commit: `f9f94512047d12f295937bd258880ace276ed0be`
 Production: https://www.syosetu-libread.com
 Repository: `sriipu1004-wq/duonovel`
 
@@ -258,7 +258,7 @@ Canonical resilience direction:
 - performance work must preserve security/R18/ownership/publication/permission/entitlement correctness.
 
 
-Child84 implementation is in progress on a bounded no-schema PR1. As of 2026-10-04, the branch has:
+Child84 bounded no-schema PR1 was merged as PR #85 on 2026-10-05 and is live in Production at main `f9f94512047d12f295937bd258880ace276ed0be`. It:
 
 - separated Home Hero/static content from Auth, bookmark/subscriber, recording-popularity, and public-work failures;
 - added bounded timeout/retry only around safe read-only operations and local unavailable states for optional data;
@@ -283,6 +283,10 @@ Latest PR1 code Preview `b28277dea391249223fed92e5b6264bab7d80e00` is READY. Dur
 The global client Auth header is also bounded at 2.5 s so the original indefinite “認証確認中...” symptom cannot persist on an Auth/network stall; normal anonymous `AuthSessionMissingError` is treated as healthy signed-out state.
 
 Preview `eb55c0348f2f8a885346c12c9c82112c67701c78` additionally verified the Work safety boundary during the ongoing outage: content-rating verification timed out after 2.2 s, the page-level series read timed out after 2.5 s, HTTP 200 returned the dedicated content-safety unavailable surface, and the work content was not rendered.
+
+Post-merge Production verification on 2026-10-05 confirmed deployment `dpl_fEhzkzw6FiQhwacjhn7f488aAGYJ` READY and aliased to `www.syosetu-libread.com`. During the same continuing upstream failure, sampled Production requests all returned HTTP 200 without the generic page-error surface: Home 3.777 s, Search 2.880 s, Work 3.519 s, Reader 2.830 s, and Sitemap 2.902 s total from the authorized validation host. Work/Reader/Sitemap used their bounded unavailable/fallback paths as expected. The pre-PR1 sampled Work response had taken about 39.488 s under the incident, so the long-hang failure mode is materially reduced.
+
+Connected Supabase SQL still fails even for `select 1` with `Connection terminated due to connection timeout`. Child84 therefore remains open only for DB-dependent verification/optimization that cannot be safely inferred: exact `source_language` coverage, `series_popularity_daily` invariants/cutover, DB-side public-work/Search summary work, and EXPLAIN/advisor-driven indexes.
 
 A stacked Singapore-region Preview (PR #86, Function region `sin1`) reproduced the same Home/Search/Ranking/Sitemap/Work timeouts, so moving Vercel Functions from `iad1` to Singapore is not a supported incident fix. PR #86 was closed unmerged. Cache invalidation audit also confirmed there is no complete tag/path invalidation boundary: primary series/episode writes still occur directly from Client Components to Supabase. Public cache TTLs therefore remain short and unchanged.
 

@@ -1,7 +1,7 @@
 # LIB read — Ordered Roadmap
 
-Last updated: **2026-10-04**
-Product-state baseline: `57e06d82e14ac33808f3f90c7403234517ee2542`
+Last updated: **2026-10-05**
+Product-state baseline: `f9f94512047d12f295937bd258880ace276ed0be`
 
 This file is the canonical ordered backlog for the next workstreams. It exists specifically so parent-chat replacement or context compression does not reorder the planned site work.
 
@@ -115,7 +115,7 @@ See `docs/indexing-webmaster-state.md`.
 
 ### P4 — Child84: Public read / Search reliability & performance hardening
 
-Status: **in progress**
+Status: **in progress — PR1 Production complete; DB verification blocked by current Supabase connectivity**
 
 Priority was inserted on 2026-10-03 after a real Production availability incident exposed broad coupling to Supabase/network failures.
 
@@ -134,9 +134,9 @@ Ordered phases:
 4. cache/infrastructure;
 5. before/after Production measurement.
 
-Current bounded PR1 covers the no-schema portions of phases 1–2 plus safe Home/Work/Reader/Search/Ranking/sitemap timeout isolation. Supported public Supabase reads now abort the underlying HTTP request at the deadline rather than only timing out the await, network failures no longer trigger broad compatibility fallbacks, the global Auth header spinner is bounded, Work/Reader distinguish true not-found from transient upstream failure, and Ranking/sitemap dynamic work discovery no longer perform deploy-time Supabase reads. It does not mark Child84 complete.
+PR #85 merged to main on 2026-10-05 and Production verification passed for the bounded no-schema portions of phases 1–2 plus safe Home/Work/Reader/Search/Ranking/sitemap timeout isolation. Supported public Supabase reads abort underlying HTTP work at the deadline, network failures no longer trigger broad compatibility fallbacks, the global Auth header spinner is bounded, Work/Reader distinguish true not-found from transient upstream failure, Work content-rating/R18 verification fails closed, and Ranking/sitemap dynamic work discovery no longer perform deploy-time Supabase reads. Child84 is not complete because DB-dependent phases remain verification-gated.
 
-Still gated by live Production verification:
+Still gated by live Supabase/Production DB verification:
 
 - exact `source_language` coverage before legacy inference removal;
 - `series_popularity_daily` freshness/invariants before runtime cutover;
@@ -146,6 +146,8 @@ Still gated by live Production verification:
 - final before/after Production measurement.
 
 Vercel Asia-region Preview comparison is complete: a `sin1` stacked Preview reproduced the same bounded Supabase timeouts as `iad1`, so region relocation is rejected as the current incident fix.
+
+Post-merge Production on main `f9f94512047d12f295937bd258880ace276ed0be` is READY. During the continuing upstream outage, sampled Home/Search/Work/Reader/Sitemap requests all completed with HTTP 200 in approximately 2.8–3.8 s and no generic page-error surface. Connected Supabase SQL still cannot complete even `select 1`, so the remaining DB-side work must not be guessed. Child85 remains blocked until Child84's DB verification gates can be completed.
 
 See `docs/public-read-reliability-performance.md`.
 
