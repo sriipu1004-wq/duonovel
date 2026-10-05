@@ -1,7 +1,7 @@
 # LIB read — Public read / Search reliability & performance plan
 
-Reviewed: **2026-10-04**
-Status: **in progress — bounded PR1 implementation**
+Reviewed: **2026-10-05**
+Status: **PR1 merged / Production verified; DB-dependent remainder blocked by live Supabase connectivity**
 Starting canonical main: `049f89cfcbc28f0273dc2f74bd274480699a1a40`
 Production: https://www.syosetu-libread.com
 
@@ -61,7 +61,36 @@ Bounded PR1 therefore focuses on no-schema containment that can be validated wit
 - Reader public-read timeout isolation while keeping private-owner and R18 checks fail closed;
 - Ranking changed from deploy-time static `select("*")` reads to bounded runtime reads reusing the canonical public-work and recording helpers.
 
-PR1 does not complete Child84. DB summary/Search pagination, popularity-daily cutover, source-language fallback removal, cache TTL/invalidation changes, DB indexes, and Vercel-region changes remain gated on live verification.
+PR1 does not complete Child84. DB summary/Search pagination, popularity-daily cutover, source-language fallback removal, cache invalidation redesign, and DB indexes remain gated on live verification. The Vercel-region experiment is complete and rejected as the current incident fix.
+
+### 1.2 2026-10-05 merge and Production verification
+
+PR #85 was explicitly approved, merged as main `f9f94512047d12f295937bd258880ace276ed0be`, and deployed READY to Production as `dpl_fEhzkzw6FiQhwacjhn7f488aAGYJ`.
+
+The upstream Supabase path remained unhealthy after deployment. Production runtime logs still show bounded `reader series timed out after 2500ms` and Sitemap public-work timeout messages, while the routes return HTTP 200 through their local fallback paths.
+
+A five-route curl sample from the authorized validation host produced:
+
+| Surface | HTTP | TTFB | Total |
+| --- | ---: | ---: | ---: |
+| Home | 200 | 1.287 s | 3.777 s |
+| Search | 200 | 0.361 s | 2.880 s |
+| sampled Work | 200 | 1.023 s | 3.519 s |
+| sampled Reader | 200 | 0.330 s | 2.830 s |
+| Sitemap | 200 | 2.900 s | 2.902 s |
+
+The sampled Work route before PR1 took approximately 39.488 s during the same incident class. This does not prove healthy-database steady-state latency improvement, but it does verify that the incident-time long-hang/global-error path was replaced by bounded local degradation in Production.
+
+Live DB verification is still unavailable: connected Supabase SQL fails even for `select now(), 1` with `Connection terminated due to connection timeout`. Therefore the following remain intentionally unimplemented/unverified rather than guessed:
+
+- exact canonical `source_language` coverage and legacy inference removal;
+- `series_popularity_daily` row/freshness/invariant validation and runtime cutover;
+- DB-side public-work summary / Search pagination preserving Child78 semantics;
+- EXPLAIN/advisor-driven index changes;
+- schema-proof removal of remaining legacy `select("*")` reads;
+- final healthy-upstream before/after measurements.
+
+Child85 remains blocked by this DB-verification gate.
 
 ## 2. Billing state snapshot
 
