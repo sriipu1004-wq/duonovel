@@ -1,6 +1,6 @@
 # LIB read — Project State
 
-Last updated: **2026-10-05**
+Last updated: **2026-10-06**
 Last product-changing main commit: `f9f94512047d12f295937bd258880ace276ed0be`
 Production: https://www.syosetu-libread.com
 Repository: `sriipu1004-wq/duonovel`
@@ -288,7 +288,7 @@ Post-merge Production verification on 2026-10-05 confirmed deployment `dpl_fEhzk
 
 Connected Supabase SQL still fails even for `select 1` with `Connection terminated due to connection timeout`. Child84 therefore remains open only for DB-dependent verification/optimization that cannot be safely inferred: exact `source_language` coverage, `series_popularity_daily` invariants/cutover, DB-side public-work/Search summary work, and EXPLAIN/advisor-driven indexes.
 
-Child84 PR2 is open as PR #88 on branch `perf/child84-reader-adjacent-navigation`. It is DB-independent and removes another all-episode Reader hot path: Reader navigation now performs only bounded previous/next one-row queries instead of loading the work's full episode-navigation list, and the Reader payload is request-memoized so metadata/page/layout share the same loader result. Final PR2 head `c4b7e9f204d9e6bd17dc744eebdbb8588137c281` passed the full GitHub workflow including Reader/security regressions, TypeScript, changed-scope ESLint and Production build; Vercel Preview `dpl_DvJNFRdHSm9fsQDUUV7RCKuKHgkh` is READY. During the continuing upstream outage, a sampled Preview Reader returned HTTP 200 with the dedicated temporary-unavailable surface rather than a generic error. PR2 remains unmerged pending explicit user approval.
+Child84 PR2 is open as PR #88 on branch `perf/child84-reader-adjacent-navigation`. It is DB-independent and removes another all-episode Reader hot path: Reader navigation now performs only bounded previous/next one-row queries instead of loading the work's full episode-navigation list, and the Reader payload is request-memoized so metadata/page/layout share the same loader result. Independent review on 2026-10-06 confirmed that the public posting/publication filters, private-owner boundary, R18 fail-closed behavior, Reader three-mode model, AI/Human translation provenance and permission separation, and credit/subscription entitlement boundaries are preserved. The review also identified that the Child84-specific reliability regression script was not directly executed by an existing PR workflow, so PR #88 now adds a dedicated Child84 workflow before merge. The latest CI and Preview must be green after the review commits; PR2 remains unmerged pending explicit user approval.
 
 A stacked Singapore-region Preview (PR #86, Function region `sin1`) reproduced the same Home/Search/Ranking/Sitemap/Work timeouts, so moving Vercel Functions from `iad1` to Singapore is not a supported incident fix. PR #86 was closed unmerged. Cache invalidation audit also confirmed there is no complete tag/path invalidation boundary: primary series/episode writes still occur directly from Client Components to Supabase. Public cache TTLs therefore remain short and unchanged.
 
