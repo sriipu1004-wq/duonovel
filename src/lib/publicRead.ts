@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -249,10 +250,10 @@ async function loadReaderViewerState(
   }
 }
 
-export async function getCachedPublicReadPagePayload(
+export const getCachedPublicReadPagePayload = cache(async (
   seriesId: string,
   episodeNumber: number
-): Promise<PublicReadPagePayload | null> {
+): Promise<PublicReadPagePayload | null> => {
   const [sessionClient, admin] = await Promise.all([
     createClient(),
     Promise.resolve(createAdminClient()),
@@ -374,4 +375,4 @@ export async function getCachedPublicReadPagePayload(
     viewerUserId: viewer.userId,
     viewerEmail: viewer.email,
   };
-}
+});
