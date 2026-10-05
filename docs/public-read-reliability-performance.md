@@ -276,6 +276,8 @@ PR1 now keeps these cases distinct:
 
 Work content-rating safety has its own independent fail-closed boundary. If the layout cannot verify `content_rating/content_warnings`, it does not render the Work children even if the page-level series read happens to succeed. It returns a localized temporary-unavailable safety surface instead. For a verified R18 work, the viewer-preference read is also bounded; failure remains blocked rather than assuming R18 access.
 
+Preview `eb55c0348f2f8a885346c12c9c82112c67701c78` verified this during the live incident: the Work layout series read timed out after 2.2 s and the page series read after 2.5 s, the route returned HTTP 200 with the content-safety unavailable surface, and the sampled work content was not rendered.
+
 Preview verification on commit `b2619b16b63d14478c310431b57fe69ebab7a74b` confirmed the containment while the upstream remained unhealthy:
 
 - `/` → 200 with Home-local unavailable state;

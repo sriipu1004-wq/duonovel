@@ -282,6 +282,8 @@ Latest PR1 code Preview `b28277dea391249223fed92e5b6264bab7d80e00` is READY. Dur
 
 The global client Auth header is also bounded at 2.5 s so the original indefinite “認証確認中...” symptom cannot persist on an Auth/network stall; normal anonymous `AuthSessionMissingError` is treated as healthy signed-out state.
 
+Preview `eb55c0348f2f8a885346c12c9c82112c67701c78` additionally verified the Work safety boundary during the ongoing outage: content-rating verification timed out after 2.2 s, the page-level series read timed out after 2.5 s, HTTP 200 returned the dedicated content-safety unavailable surface, and the work content was not rendered.
+
 A stacked Singapore-region Preview (PR #86, Function region `sin1`) reproduced the same Home/Search/Ranking/Sitemap/Work timeouts, so moving Vercel Functions from `iad1` to Singapore is not a supported incident fix. PR #86 was closed unmerged. Cache invalidation audit also confirmed there is no complete tag/path invalidation boundary: primary series/episode writes still occur directly from Client Components to Supabase. Public cache TTLs therefore remain short and unchanged.
 
 Confirmed current technical debt after PR1 includes:
