@@ -278,16 +278,8 @@ function verifyReaderIsolation(): void {
   assert.ok(reader.includes('.lt("episode_number", episodeNumber)'));
   assert.ok(reader.includes('.gt("episode_number", episodeNumber)'));
   assert.ok(reader.includes(".limit(1)"));
-  assert.ok(
-    reader.includes(
-      '{ operation: "reader previous episode",'
-    )
-  );
-  assert.ok(
-    reader.includes(
-      '{ operation: "reader next episode",'
-    )
-  );
+  assert.ok(reader.includes('operation: "reader previous episode"'));
+  assert.ok(reader.includes('operation: "reader next episode"'));
   assert.equal(reader.includes("fetchEpisodeNavigation"), false);
   assert.equal(reader.includes("publicEpisodes:"), false);
   assert.ok(reader.includes(".abortSignal(signal)"));
