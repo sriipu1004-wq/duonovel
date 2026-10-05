@@ -274,6 +274,8 @@ PR1 now keeps these cases distinct:
 - private-owner and R18 checks are unchanged and continue to fail closed;
 - subscriber, author-profile and narration-related reads remain optional and cannot remove the core public reading surface.
 
+Work content-rating safety has its own independent fail-closed boundary. If the layout cannot verify `content_rating/content_warnings`, it does not render the Work children even if the page-level series read happens to succeed. It returns a localized temporary-unavailable safety surface instead. For a verified R18 work, the viewer-preference read is also bounded; failure remains blocked rather than assuming R18 access.
+
 Preview verification on commit `b2619b16b63d14478c310431b57fe69ebab7a74b` confirmed the containment while the upstream remained unhealthy:
 
 - `/` → 200 with Home-local unavailable state;

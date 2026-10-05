@@ -167,6 +167,17 @@ function verifyWorkIsolationAndRange(): void {
   const workLayout = source("src/app/works/[seriesId]/layout.tsx");
   assert.ok(workLayout.includes('operation: "work layout series"'));
   assert.ok(workLayout.includes(".abortSignal(signal)"));
+  assert.ok(workLayout.includes('status: "unavailable"'));
+  assert.ok(workLayout.includes("[work-layout] content safety unavailable"));
+  assert.ok(
+    workLayout.includes('surfaceResult.status === "unavailable"')
+  );
+  assert.ok(workLayout.includes("<WorkSafetyUnavailable"));
+  assert.ok(
+    workLayout.includes(
+      'operation: "work layout r18 preference"'
+    )
+  );
 
   const translationAvailability = source(
     "src/features/works/WorkTranslationAvailability.tsx"
