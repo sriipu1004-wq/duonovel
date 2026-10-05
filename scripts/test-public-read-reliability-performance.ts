@@ -262,6 +262,12 @@ function verifySearchIsolation(): void {
 function verifyReaderIsolation(): void {
   const reader = source("src/lib/publicRead.ts");
 
+  assert.ok(reader.includes('import { cache } from "react"'));
+  assert.ok(
+    reader.includes(
+      "export const getCachedPublicReadPagePayload = cache(async ("
+    )
+  );
   assert.ok(
     reader.includes(
       '{ operation: "reader series", timeoutMs: 2500, retries: 1 }'
