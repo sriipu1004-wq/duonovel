@@ -1,0 +1,77 @@
+name: Child84 public read reliability checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/child84-public-read-reliability-check.yml"
+      - "package.json"
+      - "scripts/test-public-read-reliability-performance.ts"
+      - "src/app/PublicTopPageLegacy.tsx"
+      - "src/app/ranking/**"
+      - "src/app/read/**"
+      - "src/app/search/**"
+      - "src/app/sitemap.ts"
+      - "src/app/works/**"
+      - "src/components/auth/AuthStatus.tsx"
+      - "src/features/works/WorkTranslationAvailability.tsx"
+      - "src/lib/auth/authSessionState.ts"
+      - "src/lib/publicRead.ts"
+      - "src/lib/publicWorks.ts"
+      - "src/lib/reliability/**"
+      - "src/lib/supabase/serverPublic.ts"
+      - "src/lib/translation/publicWorkTranslations.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Child84 reliability regression
+        run: npm run test:public-read-reliability-performance
+
+      - name: Reader and translation regressions
+        run: |
+          npm run test:reader-mode-unification
+          npm run test:multilingual-work-reader
+          npm run test:human-translation
+          npm run test:series-translation-permission-schema
+          npm run test:translation-credit-runtime
+
+      - name: Security regression
+        run: npm run test:security-authz
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Changed-scope ESLint
+        run: >
+          npx eslint
+          scripts/test-public-read-reliability-performance.ts
+          src/app/read/[seriesId]/[episodeNumber]/layout.tsx
+          src/app/read/[seriesId]/[episodeNumber]/page.tsx
+          src/lib/publicRead.ts
+
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
+
+      - name: Diff whitespace check
+        run: git diff --check origin/main...HEAD
