@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
+import { cache, Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
@@ -46,6 +46,11 @@ import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 import { getSupportedLanguage, parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { localizeGenreList } from "@/i18n/genreLabels";
+import {
+  isSchemaCompatibilityReadFailure,
+  runReadOnlyWithRetry,
+} from "@/lib/reliability/readOnly";
+import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -275,7 +280,12 @@ function resolveRecordingPermissionMode(value: unknown): RecordingPermissionMode
   return "closed";
 }
 
-const WORK_PAGE_EPISODE_SELECT = `
+const WORK_PAGE_EPISODE_NAV_SELECT = `
+  id,
+  episode_number
+`;
+
+const WORK_PAGE_EPISODE_RANGE_SELECT = `
   id,
   series_id,
   episode_number,
@@ -286,24 +296,211 @@ const WORK_PAGE_EPISODE_SELECT = `
   last_edited_at
 `;
 
-async function fetchEpisodesBySeriesId(seriesId: string): Promise<EpisodeRow[]> {
-  const narrow = await supabase
-    .from("episodes")
-    .select(WORK_PAGE_EPISODE_SELECT)
-    .eq("series_id", seriesId);
+async function fetchEpisodeNavigationBySeriesId(
+  seriesId: string,
+  signal?: AbortSignal
+): Promise<EpisodeRow[]> {
+  const PAGE_SIZE = 1000;
 
+  async function fetchPaged(selectClause: string) {
+    const rows: EpisodeRow[] = [];
+
+    for (let start = 0; ; start += PAGE_SIZE) {
+      let query = supabase
+        .from("episodes")
+        .select(selectClause)
+        .eq("series_id", seriesId)
+        .eq("posting_status", "posted")
+        .eq("is_published", true)
+        .order("episode_number", { ascending: true })
+        .order("id", { ascending: true })
+        .range(start, start + PAGE_SIZE - 1);
+      if (signal) query = query.abortSignal(signal);
+
+      const result = await query;
+      if (result.error) {
+        return { rows: [] as EpisodeRow[], error: result.error };
+      }
+
+      const pageRows = (result.data ?? []) as unknown as EpisodeRow[];
+      rows.push(...pageRows);
+      if (pageRows.length < PAGE_SIZE) {
+        return { rows, error: null };
+      }
+    }
+  }
+
+  let fetched = await fetchPaged(WORK_PAGE_EPISODE_NAV_SELECT);
+  if (fetched.error && isSchemaCompatibilityReadFailure(fetched.error)) {
+    fetched = await fetchPaged("*");
+  }
+  if (fetched.error) {
+    throw new Error(`episodes の取得に失敗: ${fetched.error.message}`);
+  }
+  return fetched.rows;
+}
+
+async function fetchEpisodeRangeBySeriesId(
+  seriesId: string,
+  start: number,
+  signal?: AbortSignal
+): Promise<EpisodeRow[]> {
+  const from = Math.max(0, start - 1);
+  const to = from + 49;
+  const run = (selectClause: string) => {
+    let query = supabase
+      .from("episodes")
+      .select(selectClause)
+      .eq("series_id", seriesId)
+      .eq("posting_status", "posted")
+      .eq("is_published", true)
+      .order("episode_number", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+    if (signal) query = query.abortSignal(signal);
+    return query;
+  };
+
+  const narrow = await run(WORK_PAGE_EPISODE_RANGE_SELECT);
   if (!narrow.error) {
     return (narrow.data ?? []) as unknown as EpisodeRow[];
   }
-
-  const fallback = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("series_id", seriesId);
-  if (!fallback.error) {
-    return (fallback.data ?? []) as EpisodeRow[];
+  if (!isSchemaCompatibilityReadFailure(narrow.error)) {
+    throw new Error(`episode range の取得に失敗: ${narrow.error.message}`);
   }
-  throw new Error(`episodes の取得に失敗: ${fallback.error.message}`);
+
+  const fallback = await run("*");
+  if (!fallback.error) {
+    return (fallback.data ?? []) as unknown as EpisodeRow[];
+  }
+  throw new Error(`episode range の取得に失敗: ${fallback.error.message}`);
+}
+
+const fetchSeriesResult = cache(async (seriesId: string) =>
+  runReadOnlyWithRetry(
+    async (signal) => {
+      const result = await supabase
+        .from("series")
+        .select("*")
+        .eq("id", seriesId)
+        .abortSignal(signal)
+        .maybeSingle();
+      if (result.error) {
+        throw new Error(`series read failed: ${result.error.message}`);
+      }
+      return result;
+    },
+    { operation: "work series", timeoutMs: 2500, retries: 1 }
+  )
+);
+
+const fetchFirstPublicEpisode = cache(async (seriesId: string) =>
+  runReadOnlyWithRetry(
+    async (signal) => {
+      const result = await supabase
+        .from("episodes")
+        .select(WORK_PAGE_EPISODE_NAV_SELECT)
+        .eq("series_id", seriesId)
+        .eq("posting_status", "posted")
+        .eq("is_published", true)
+        .order("episode_number", { ascending: true })
+        .order("id", { ascending: true })
+        .limit(1)
+        .abortSignal(signal)
+        .maybeSingle();
+      if (result.error) {
+        throw new Error(`first episode の取得に失敗: ${result.error.message}`);
+      }
+      return result.data ? (result.data as unknown as EpisodeRow) : null;
+    },
+    { operation: "work first episode", timeoutMs: 2500, retries: 1 }
+  )
+);
+async function loadOptionalWorkUser() {
+  try {
+    const authSupabase = await createServerClient();
+    const result = await runReadOnlyWithRetry(
+      async () => {
+        const authResult = await authSupabase.auth.getUser();
+        if (
+          authResult.error &&
+          !isAuthSessionMissingError(authResult.error)
+        ) {
+          throw authResult.error;
+        }
+        return authResult;
+      },
+      { operation: "work auth", timeoutMs: 2000, retries: 1 }
+    );
+    return result.data.user ?? null;
+  } catch (error) {
+    console.warn(
+      "[work] auth unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+    return null;
+  }
+}
+
+async function loadOptionalSubscriber(userId: string | null): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    return await runReadOnlyWithRetry(
+      () => isSubscriber(userId),
+      { operation: "work subscriber", timeoutMs: 2000, retries: 1 }
+    );
+  } catch (error) {
+    console.warn(
+      "[work] subscriber unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+    return false;
+  }
+}
+
+async function loadOptionalAuthor(authorId: string | null): Promise<UserRow | null> {
+  if (!authorId) return null;
+  try {
+    const result = await runReadOnlyWithRetry(
+      async (signal) =>
+        await adminSupabase
+          .from("users")
+          .select("id, display_name, username, pen_name, name")
+          .eq("id", authorId)
+          .abortSignal(signal)
+          .maybeSingle(),
+      { operation: "work author profile", timeoutMs: 1500, retries: 0 }
+    );
+    return result.error || !result.data ? null : (result.data as UserRow);
+  } catch {
+    console.warn("[work] author profile unavailable");
+    return null;
+  }
+}
+
+async function WorkSubscriptionNotice({
+  subscriberPromise,
+  subscriptionHref,
+}: {
+  subscriberPromise: Promise<boolean>;
+  subscriptionHref: string;
+}) {
+  const subscriber = await subscriberPromise;
+  if (subscriber) return null;
+
+  return (
+    <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <p className="leading-6 text-sky-950">
+        月額680円で単語解説が無制限。対訳生成上限と次話先読みも利用できます。
+      </p>
+      <Link
+        href={subscriptionHref}
+        className="shrink-0 font-semibold text-sky-800 underline underline-offset-4"
+      >
+        サブスクを見る
+      </Link>
+    </div>
+  );
 }
 
 async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
@@ -317,12 +514,25 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
     };
   }
 
-  const firstTry = await adminSupabase
-    .from("recordings")
-    .select(PUBLIC_WORK_RECORDING_SELECT)
-    .in("episode_id", episodeIds)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
+  let firstTry;
+  try {
+    firstTry = await runReadOnlyWithRetry(
+      async (signal) =>
+        await adminSupabase
+          .from("recordings")
+          .select(PUBLIC_WORK_RECORDING_SELECT)
+          .in("episode_id", episodeIds)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .abortSignal(signal),
+      { operation: "work recordings", timeoutMs: 1800, retries: 0 }
+    );
+  } catch {
+    return {
+      recordings: [],
+      fetchErrorMessage: "朗読情報を一時的に取得できない。",
+    };
+  }
 
   if (!firstTry.error) {
     return {
@@ -336,12 +546,32 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
     };
   }
 
-  const fallback = await adminSupabase
-    .from("recordings")
-    .select("*")
-    .in("episode_id", episodeIds)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
+  if (!isSchemaCompatibilityReadFailure(firstTry.error)) {
+    return {
+      recordings: [],
+      fetchErrorMessage: "朗読情報を一時的に取得できない。",
+    };
+  }
+
+  let fallback;
+  try {
+    fallback = await runReadOnlyWithRetry(
+      async (signal) =>
+        await adminSupabase
+          .from("recordings")
+          .select("*")
+          .in("episode_id", episodeIds)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .abortSignal(signal),
+      { operation: "work recordings compatibility", timeoutMs: 1800, retries: 0 }
+    );
+  } catch {
+    return {
+      recordings: [],
+      fetchErrorMessage: "朗読情報を一時的に取得できない。",
+    };
+  }
 
   if (!fallback.error) {
     return {
@@ -566,13 +796,9 @@ export async function generateMetadata({
   }
 
   try {
-    const { data, error } = await supabase
-      .from("series")
-      .select("*")
-      .eq("id", seriesId)
-      .maybeSingle();
+    const { data } = await fetchSeriesResult(seriesId);
 
-    if (error || !data) {
+    if (!data) {
       return {
         title: "作品が見つかりません | LIB read",
         robots: {
@@ -594,13 +820,9 @@ export async function generateMetadata({
       };
     }
 
-    const publicEpisodes = sortEpisodes(
-      (await fetchEpisodesBySeriesId(seriesId)).filter((episode) =>
-        isEpisodePubliclyVisible(episode)
-      )
-    );
+    const firstPublicEpisode = await fetchFirstPublicEpisode(seriesId);
 
-    if (publicEpisodes.length === 0) {
+    if (!firstPublicEpisode || !isEpisodePubliclyVisible(firstPublicEpisode)) {
       return {
         title: "公開話なし | LIB read",
         robots: {
@@ -788,7 +1010,7 @@ async function ReaderTabContent({
   selectedReaderKey,
   selectedReaderName,
   currentRangeStart,
-  currentUserId,
+  currentUserIdPromise,
   locale,
   loginHref,
   recordingResultPromise,
@@ -798,7 +1020,7 @@ async function ReaderTabContent({
   selectedReaderKey: string;
   selectedReaderName: string;
   currentRangeStart: number;
-  currentUserId: string | null;
+  currentUserIdPromise: Promise<string | null>;
   locale: Awaited<ReturnType<typeof getUiLocale>>;
   loginHref: string;
   recordingResultPromise?: ReturnType<typeof fetchRecordingsByEpisodeIds> | null;
@@ -815,12 +1037,22 @@ async function ReaderTabContent({
       rank: index + 1,
     })
   );
-  const readerCardLikeSnapshotMap = await fetchReaderCardLikeSnapshotMap({
-    supabase: adminSupabase,
-    seriesId,
-    readerKeys: displayedReaderCards.map((reader) => reader.readerKey),
-    currentUserId,
-  });
+  const currentUserId = await currentUserIdPromise;
+  let readerCardLikeSnapshotMap = new Map();
+  try {
+    readerCardLikeSnapshotMap = await runReadOnlyWithRetry(
+      () =>
+        fetchReaderCardLikeSnapshotMap({
+          supabase: adminSupabase,
+          seriesId,
+          readerKeys: displayedReaderCards.map((reader) => reader.readerKey),
+          currentUserId,
+        }),
+      { operation: "reader card likes", timeoutMs: 1800, retries: 1 }
+    );
+  } catch {
+    console.warn("[work] reader card likes unavailable");
+  }
   const workHref = (href: string) => localizePath(href, locale);
 
   return (
@@ -944,7 +1176,26 @@ async function RelatedWorksSection({
   authorId: string | null;
   locale: Awaited<ReturnType<typeof getUiLocale>>;
 }) {
-  const allPublicBaseWorks = await getCachedPublicBaseWorkCards();
+  let allPublicBaseWorks;
+  try {
+    allPublicBaseWorks = await runReadOnlyWithRetry(
+      () => getCachedPublicBaseWorkCards(),
+      { operation: "related public works", timeoutMs: 2000, retries: 0 }
+    );
+  } catch {
+    const message =
+      locale === "en"
+        ? "Related works are temporarily unavailable."
+        : locale === "ko"
+          ? "관련 작품을 일시적으로 불러올 수 없습니다."
+          : "関連作品を一時的に取得できない。";
+    return (
+      <section className="mt-8 rounded-[24px] border border-black/10 bg-white p-5">
+        <p className="text-sm leading-7 text-neutral-600">{message}</p>
+      </section>
+    );
+  }
+
   const relatedBase: Array<RelatedWorkCard & { sameAuthor: boolean }> =
     allPublicBaseWorks
       .filter((item) => item.seriesId !== seriesId)
@@ -1040,6 +1291,65 @@ async function RelatedWorksSection({
   );
 }
 
+function WorkTemporaryUnavailable({
+  locale,
+  retryHref,
+}: {
+  locale: Awaited<ReturnType<typeof getUiLocale>>;
+  retryHref: string;
+}) {
+  const copy =
+    locale === "en"
+      ? {
+          title: "This work is temporarily unavailable",
+          body: "The public work data could not be loaded. This is a temporary upstream problem; no publication or permission state has been changed.",
+          retry: "Retry this page",
+          search: "Browse Search",
+        }
+      : locale === "ko"
+        ? {
+            title: "작품을 일시적으로 불러올 수 없습니다",
+            body: "공개 작품 데이터를 불러오지 못했습니다. 일시적인 상위 서비스 문제이며 공개 상태나 권한은 변경되지 않았습니다.",
+            retry: "이 페이지 다시 시도",
+            search: "검색으로 이동",
+          }
+        : {
+            title: "作品を一時的に読み込めない",
+            body: "公開作品データを取得できない。一時的な上流障害で、公開状態や権限が変更されたわけではない。",
+            retry: "このページを再読み込み",
+            search: "Searchを見る",
+          };
+  const workHref = (href: string) => localizePath(href, locale);
+
+  return (
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
+        <section className="rounded-[28px] border border-black/10 bg-white p-6 shadow-sm sm:p-8">
+          <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+            TEMPORARILY UNAVAILABLE
+          </p>
+          <h1 className="mt-3 text-2xl font-bold text-black">{copy.title}</h1>
+          <p className="mt-4 text-sm leading-8 text-neutral-700">{copy.body}</p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href={retryHref}
+              className="rounded-full border border-black/10 bg-neutral-100 px-4 py-2.5 text-sm font-medium text-black"
+            >
+              {copy.retry}
+            </Link>
+            <Link
+              href={workHref("/search")}
+              className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-medium text-black"
+            >
+              {copy.search}
+            </Link>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
 export default async function WorkPage({ params, searchParams }: PageProps) {
   const locale = await getUiLocale();
   const dictionary = workDictionaries[locale];
@@ -1056,22 +1366,24 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     selectedReaderName
   );
 
-  const authSupabase = await createServerClient();
-  // Auth and the primary work row are independent. Start both immediately so
-  // the above-the-fold work shell is not blocked by an avoidable waterfall.
-  const [authResult, seriesResult] = await Promise.all([
-    authSupabase.auth.getUser(),
-    supabase.from("series").select("*").eq("id", seriesId).single(),
-  ]);
-  const currentUser = authResult.data.user;
-  const { data: seriesData, error: seriesError } = seriesResult;
-
-  if (seriesError) {
-    if (seriesError.code === "PGRST116") {
-      notFound();
-    }
-    throw new Error(`series の取得に失敗: ${seriesError.message}`);
+  // Viewer state is optional on a public work page. Keep it out of the
+  // critical series read so an Auth outage cannot make the public work vanish.
+  let seriesResult: Awaited<ReturnType<typeof fetchSeriesResult>>;
+  try {
+    seriesResult = await fetchSeriesResult(seriesId);
+  } catch (error) {
+    console.warn(
+      "[work] core series unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+    return (
+      <WorkTemporaryUnavailable
+        locale={locale}
+        retryHref={localizePath(`/works/${seriesId}`, locale)}
+      />
+    );
   }
+  const { data: seriesData } = seriesResult;
 
   if (!seriesData) {
     notFound();
@@ -1081,6 +1393,8 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   if (getSeriesPublicationStatus(series) !== "public") {
     notFound();
   }
+
+  const currentUserPromise = loadOptionalWorkUser();
   const publicDomain = readPublicDomainMetadata(
     series.effect_settings ?? series["effectSettings"]
   );
@@ -1091,19 +1405,36 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     series["userId"]
   ) || null;
 
-  const [authorResult, rawEpisodes, subscriber] = await Promise.all([
-    authorId
-      ? adminSupabase.from("users").select("*").eq("id", authorId).maybeSingle()
-      : Promise.resolve({ data: null }),
-    fetchEpisodesBySeriesId(seriesId),
-    currentUser ? isSubscriber(currentUser.id) : Promise.resolve(false),
-  ]);
-  const author = authorResult.data ? (authorResult.data as UserRow) : null;
-  const episodes = sortEpisodes(
-    rawEpisodes.filter((episode) => isEpisodePubliclyVisible(episode))
+  let author: UserRow | null;
+  let rawEpisodeNavigation: EpisodeRow[];
+  try {
+    [author, rawEpisodeNavigation] = await Promise.all([
+      loadOptionalAuthor(authorId),
+      runReadOnlyWithRetry(
+        (signal) => fetchEpisodeNavigationBySeriesId(seriesId, signal),
+        { operation: "work episode navigation", timeoutMs: 2500, retries: 1 }
+      ),
+    ]);
+  } catch (error) {
+    console.warn(
+      "[work] core episode navigation unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+    return (
+      <WorkTemporaryUnavailable
+        locale={locale}
+        retryHref={localizePath(`/works/${seriesId}`, locale)}
+      />
+    );
+  }
+  const currentUserIdPromise = currentUserPromise.then((user) => user?.id ?? null);
+  const subscriberPromise = currentUserIdPromise.then((userId) =>
+    loadOptionalSubscriber(userId)
   );
+  const episodes = sortEpisodes(rawEpisodeNavigation);
+  const episodeCount = episodes.length;
 
-  if (episodes.length === 0) {
+  if (episodeCount === 0) {
     notFound();
   }
 
@@ -1130,8 +1461,30 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       ? Math.floor((currentRangeRaw - 1) / 50) * 50 + 1
       : 1;
 
-  const visibleEpisodes = episodes.slice(currentRangeStart - 1, currentRangeStart - 1 + 50);
-  const rangeOptions = buildRangeOptions(episodes.length);
+  let visibleEpisodes: EpisodeRow[];
+  try {
+    visibleEpisodes = sortEpisodes(
+      (
+        await runReadOnlyWithRetry(
+          (signal) =>
+            fetchEpisodeRangeBySeriesId(seriesId, currentRangeStart, signal),
+          { operation: "work episode range", timeoutMs: 2500, retries: 1 }
+        )
+      ).filter((episode) => isEpisodePubliclyVisible(episode))
+    );
+  } catch (error) {
+    console.warn(
+      "[work] core episode range unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+    return (
+      <WorkTemporaryUnavailable
+        locale={locale}
+        retryHref={localizePath(`/works/${seriesId}`, locale)}
+      />
+    );
+  }
+  const rangeOptions = buildRangeOptions(episodeCount);
 
   const recordingPermissionMode = resolveRecordingPermissionMode(
     series.recording_permission_mode
@@ -1402,12 +1755,12 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   hidden={currentTab !== "toc"}
                   className="mt-5"
                 >
-                  {!subscriber ? (
-                    <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-                      <p className="leading-6 text-sky-950">月額680円で単語解説が無制限。対訳生成上限と次話先読みも利用できます。</p>
-                      <Link href={workHref("/subscription")} className="shrink-0 font-semibold text-sky-800 underline underline-offset-4">サブスクを見る</Link>
-                    </div>
-                  ) : null}
+                  <Suspense fallback={null}>
+                    <WorkSubscriptionNotice
+                      subscriberPromise={subscriberPromise}
+                      subscriptionHref={workHref("/subscription")}
+                    />
+                  </Suspense>
                   <Suspense fallback={<TocEpisodeListFallback />}>
                     <TocEpisodeListContent
                       seriesId={seriesId}
@@ -1434,7 +1787,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                       selectedReaderKey={selectedReaderKey}
                       selectedReaderName={selectedReaderName}
                       currentRangeStart={currentRangeStart}
-                      currentUserId={currentUser?.id ?? null}
+                      currentUserIdPromise={currentUserIdPromise}
                       locale={locale}
                       loginHref={loginHref}
                       recordingResultPromise={selectedReaderRecordingPromise}

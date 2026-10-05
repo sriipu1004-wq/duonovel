@@ -1,40 +1,11 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
-import { isEpisodePubliclyVisible } from "@/features/write/writeShared";
+import {
+  getCachedPublicBaseWorkCards,
+  getCachedPublicRecordingAggregates,
+} from "@/lib/publicWorks";
+import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 
-type SeriesRow = Record<string, unknown> & {
-  id: string;
-  title?: string | null;
-  summary?: string | null;
-  description?: string | null;
-  catch_copy?: string | null;
-  synopsis?: string | null;
-  body?: string | null;
-};
-
-type RecordingRow = Record<string, unknown> & {
-  id: string;
-  series_id?: string | null;
-  seriesId?: string | null;
-  like_count?: number | string | null;
-  likes_count?: number | string | null;
-  play_count?: number | string | null;
-  plays_count?: number | string | null;
-  is_public?: boolean | null;
-  public?: boolean | null;
-};
-
-type EpisodeRow = Record<string, unknown> & {
-  id: string;
-  series_id?: string | null;
-  seriesId?: string | null;
-  is_published?: boolean | null;
-  published?: boolean | null;
-  posting_status?: "draft" | "scheduled" | "posted" | null;
-  postingStatus?: "draft" | "scheduled" | "posted" | null;
-  scheduled_for?: string | null;
-  scheduledFor?: string | null;
-};
+export const dynamic = "force-dynamic";
 
 type RankingItem = {
   id: string;
@@ -46,143 +17,73 @@ type RankingItem = {
   episodeCount: number;
 };
 
-function pickText(...values: unknown[]): string {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value.trim();
-    }
-  }
-  return "";
-}
-
-function getLinkedSeriesId(row: Record<string, unknown>): string {
-  const raw = row.series_id ?? row.seriesId;
-  return typeof raw === "string" ? raw : "";
-}
-
-function getNumber(value: unknown): number {
-  if (typeof value === "number") return value;
-  if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-  return 0;
-}
-
-function isPublicRecording(recording: RecordingRow): boolean {
-  if (recording.is_public === false) return false;
-  if (recording.public === false) return false;
-  return true;
-}
-
-function pickSnippet(series: SeriesRow): string {
-  return (
-    pickText(
-      series.summary,
-      series.description,
-      series.catch_copy,
-      series.synopsis,
-      series.body
-    ) || "この作品にはまだ説明文が登録されていません。"
-  );
-}
-
 export default async function RankingPage() {
-  const [
-    { data: seriesData, error: seriesError },
-    { data: recordingsData, error: recordingsError },
-    { data: episodesData, error: episodesError },
-  ] = await Promise.all([
-    supabase.from("series").select("*").limit(100),
-    supabase.from("recordings").select("*").limit(500),
-    supabase.from("episodes").select("*").limit(500),
-  ]);
-
   let errorMessage = "";
-  if (seriesError) {
-    console.error("ランキング用 series 取得エラー:", seriesError);
+  let partialWarning = false;
+  let workCards: Awaited<ReturnType<typeof getCachedPublicBaseWorkCards>> = [];
+  try {
+    workCards = await runReadOnlyWithRetry(
+      () =>
+        getCachedPublicBaseWorkCards({
+          visibility: "all",
+          ignoreContentLanguageFilter: true,
+          ignorePublicSearchLanguageFilter: true,
+          prioritizeForUiLocale: false,
+        }),
+      { operation: "ranking public works", timeoutMs: 3000, retries: 0 }
+    );
+  } catch (error) {
+    console.error(
+      "[ranking] public works unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
     errorMessage = "ランキングの取得中にエラーが発生しました。";
   }
 
-  if (recordingsError) {
-    console.error("ランキング用 recordings 取得エラー:", recordingsError);
-  }
-
-  if (episodesError) {
-    console.error("ランキング用 episodes 取得エラー:", episodesError);
-  }
-
-  const seriesRows = ((seriesData ?? []) as SeriesRow[]).filter(
-    (series) => typeof series.id === "string" && series.id.length > 0
-  );
-
-  const publicRecordings = ((recordingsData ?? []) as RecordingRow[]).filter(
-    (recording) =>
-      typeof recording.id === "string" &&
-      recording.id.length > 0 &&
-      isPublicRecording(recording)
-  );
-
-  const now = new Date();
-
-  const publicVisibleEpisodes = ((episodesData ?? []) as EpisodeRow[]).filter(
-    (episode) =>
-      typeof episode.id === "string" &&
-      episode.id.length > 0 &&
-      isEpisodePubliclyVisible(episode, now)
-  );
-
-  const recordingStatMap = new Map<
+  let recordingAggregateMap = new Map<
     string,
-    { totalLikes: number; totalPlays: number; recordingCount: number }
+    {
+      totalRecordingLikes: number;
+      totalRecordingPlays: number;
+      totalRecordingCount: number;
+    }
   >();
-
-  for (const recording of publicRecordings) {
-    const seriesId = getLinkedSeriesId(recording);
-    if (!seriesId) continue;
-
-    const current = recordingStatMap.get(seriesId) ?? {
-      totalLikes: 0,
-      totalPlays: 0,
-      recordingCount: 0,
-    };
-
-    current.totalLikes += getNumber(
-      recording.like_count ?? recording.likes_count ?? 0
-    );
-    current.totalPlays += getNumber(
-      recording.play_count ?? recording.plays_count ?? 0
-    );
-    current.recordingCount += 1;
-
-    recordingStatMap.set(seriesId, current);
+  if (workCards.length > 0) {
+    try {
+      const aggregates = await runReadOnlyWithRetry(
+        () =>
+          getCachedPublicRecordingAggregates(
+            workCards.map((work) => work.seriesId)
+          ),
+        { operation: "ranking recording aggregates", timeoutMs: 2000, retries: 0 }
+      );
+      recordingAggregateMap = new Map(
+        aggregates.map((aggregate) => [aggregate.seriesId, aggregate])
+      );
+    } catch (error) {
+      console.warn(
+        "[ranking] recording aggregates unavailable",
+        error instanceof Error ? error.message : String(error)
+      );
+      partialWarning = true;
+    }
   }
 
-  const episodeCountMap = new Map<string, number>();
-
-  for (const episode of publicVisibleEpisodes) {
-    const seriesId = getLinkedSeriesId(episode);
-    if (!seriesId) continue;
-
-    episodeCountMap.set(seriesId, (episodeCountMap.get(seriesId) ?? 0) + 1);
-  }
-
-  const rankingItems: RankingItem[] = seriesRows
-    .map((series) => {
-      const recordingStats = recordingStatMap.get(series.id) ?? {
-        totalLikes: 0,
-        totalPlays: 0,
-        recordingCount: 0,
+  const rankingItems: RankingItem[] = workCards
+    .map((work) => {
+      const recordingStats = recordingAggregateMap.get(work.seriesId) ?? {
+        totalRecordingLikes: 0,
+        totalRecordingPlays: 0,
+        totalRecordingCount: 0,
       };
-
       return {
-        id: series.id,
-        title: pickText(series.title) || "無題",
-        snippet: pickSnippet(series),
-        totalLikes: recordingStats.totalLikes,
-        totalPlays: recordingStats.totalPlays,
-        recordingCount: recordingStats.recordingCount,
-        episodeCount: episodeCountMap.get(series.id) ?? 0,
+        id: work.seriesId,
+        title: work.title,
+        snippet: work.summary,
+        totalLikes: recordingStats.totalRecordingLikes,
+        totalPlays: recordingStats.totalRecordingPlays,
+        recordingCount: recordingStats.totalRecordingCount,
+        episodeCount: work.episodeCount,
       };
     })
     .sort((a, b) => {
@@ -196,9 +97,6 @@ export default async function RankingPage() {
       }
       return a.title.localeCompare(b.title, "ja");
     });
-
-  const partialWarning =
-    !errorMessage && (Boolean(recordingsError) || Boolean(episodesError));
 
   return (
     <main className="min-h-screen bg-[#050510] px-6 py-8 text-[#f5f5f5]">

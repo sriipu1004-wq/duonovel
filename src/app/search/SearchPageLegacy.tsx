@@ -36,6 +36,8 @@ import { getUiLocale } from "@/i18n/server";
 import { canonicalizeTagLabel } from "@/i18n/tagLabels";
 import { canonicalizeGenreLabel, localizeGenreLabel } from "@/i18n/genreLabels";
 import type { UiLocale } from "@/i18n/config";
+import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
+import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
 
 type SearchPageProps = {
   searchParams?: Promise<{
@@ -684,16 +686,49 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const showAllGenres = pickText(resolvedSearchParams?.showGenres) === "1";
   const shelfTab = resolveShelfTab(pickText(resolvedSearchParams?.shelfTab));
 
-  const baseWorkCardsPromise = getCachedPublicBaseWorkCards({
-    ignoreContentLanguageFilter: true,
-    ignorePublicSearchLanguageFilter: true,
-  });
+  let publicWorksAvailable = true;
+  let baseWorkCards: Awaited<ReturnType<typeof getCachedPublicBaseWorkCards>> = [];
+
+  try {
+    baseWorkCards = await runReadOnlyWithRetry(
+      () =>
+        getCachedPublicBaseWorkCards({
+          ignoreContentLanguageFilter: true,
+          ignorePublicSearchLanguageFilter: true,
+        }),
+      { operation: "search public works", timeoutMs: 3500, retries: 0 }
+    );
+  } catch (error) {
+    publicWorksAvailable = false;
+    console.warn(
+      "[search] public work data unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+
   const authSupabase = savedFilter ? await createServerClient() : null;
-  const [baseWorkCards, authResult] = await Promise.all([
-    baseWorkCardsPromise,
-    authSupabase ? authSupabase.auth.getUser() : Promise.resolve(null),
-  ]);
-  const currentUser = authResult?.data.user ?? null;
+  let currentUser = null;
+
+  if (authSupabase) {
+    try {
+      const authResult = await runReadOnlyWithRetry(
+        async () => {
+          const result = await authSupabase.auth.getUser();
+          if (
+            result.error &&
+            !isAuthSessionMissingError(result.error)
+          ) {
+            throw result.error;
+          }
+          return result;
+        },
+        { operation: "search auth", timeoutMs: 2000, retries: 1 }
+      );
+      currentUser = authResult.data.user ?? null;
+    } catch {
+      console.warn("[search] viewer auth unavailable");
+    }
+  }
 
   const baseWorkCardsForCurrentLanguage =
     sourceLanguages.length === 0
@@ -704,47 +739,86 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             sourceLanguages,
           })
         );
-  const popularityDatasetPromise = fetchSeriesPopularityDataset(
-    (shelfTab === "narration-popular"
+  const popularitySeriesIds = (
+    shelfTab === "narration-popular"
       ? baseWorkCards
       : baseWorkCardsForCurrentLanguage
-    ).map((work) => work.seriesId)
-  );
+  ).map((work) => work.seriesId);
+  const popularityStatePromise = runReadOnlyWithRetry(
+    () => fetchSeriesPopularityDataset(popularitySeriesIds),
+    { operation: "search popularity", timeoutMs: 2500, retries: 0 }
+  )
+    .then((dataset) => ({ available: true, dataset }))
+    .catch((error) => {
+      console.warn(
+        "[search] popularity data unavailable",
+        error instanceof Error ? error.message : String(error)
+      );
+      return {
+        available: false,
+        dataset: {
+          seriesIds: popularitySeriesIds,
+          dailyRows: [],
+        },
+      };
+    });
 
   let savedAuthorIds = new Set<string>();
   let savedSeriesIds = new Set<string>();
 
   if (savedFilter && currentUser && authSupabase) {
-    if (savedFilter === "followed-authors") {
-      savedAuthorIds = await fetchSavedAuthorIdsForUser({
-        supabase: authSupabase,
-        userId: currentUser.id,
-        tableName: "author_follows",
-        targetColumn: "followed_author_id",
-      });
-    } else if (savedFilter === "liked-authors") {
-      savedAuthorIds = await fetchSavedAuthorIdsForUser({
-        supabase: authSupabase,
-        userId: currentUser.id,
-        tableName: "author_profile_likes",
-        targetColumn: "author_id",
-      });
-    } else if (savedFilter === "liked-works") {
-      savedSeriesIds = await fetchSavedSeriesIdsForUser({
-        supabase: authSupabase,
-        userId: currentUser.id,
-        tableName: "user_series_reactions",
-      });
-    } else if (savedFilter === "liked-readers") {
-      savedSeriesIds = await fetchSavedSeriesIdsForUser({
-        supabase: authSupabase,
-        userId: currentUser.id,
-        tableName: "reader_card_likes",
-      });
+    try {
+      if (savedFilter === "followed-authors") {
+        savedAuthorIds = await runReadOnlyWithRetry(
+          () =>
+            fetchSavedAuthorIdsForUser({
+              supabase: authSupabase,
+              userId: currentUser.id,
+              tableName: "author_follows",
+              targetColumn: "followed_author_id",
+            }),
+          { operation: "search followed authors", timeoutMs: 2000, retries: 1 }
+        );
+      } else if (savedFilter === "liked-authors") {
+        savedAuthorIds = await runReadOnlyWithRetry(
+          () =>
+            fetchSavedAuthorIdsForUser({
+              supabase: authSupabase,
+              userId: currentUser.id,
+              tableName: "author_profile_likes",
+              targetColumn: "author_id",
+            }),
+          { operation: "search liked authors", timeoutMs: 2000, retries: 1 }
+        );
+      } else if (savedFilter === "liked-works") {
+        savedSeriesIds = await runReadOnlyWithRetry(
+          () =>
+            fetchSavedSeriesIdsForUser({
+              supabase: authSupabase,
+              userId: currentUser.id,
+              tableName: "user_series_reactions",
+            }),
+          { operation: "search liked works", timeoutMs: 2000, retries: 1 }
+        );
+      } else if (savedFilter === "liked-readers") {
+        savedSeriesIds = await runReadOnlyWithRetry(
+          () =>
+            fetchSavedSeriesIdsForUser({
+              supabase: authSupabase,
+              userId: currentUser.id,
+              tableName: "reader_card_likes",
+            }),
+          { operation: "search liked readers", timeoutMs: 2000, retries: 1 }
+        );
+      }
+    } catch {
+      console.warn("[search] saved-filter state unavailable");
     }
   }
 
-  const popularityDataset = await popularityDatasetPromise;
+  const popularityState = await popularityStatePromise;
+  const popularityAvailable = popularityState.available;
+  const popularityDataset = popularityState.dataset;
   const currentPopularityMap = buildSeriesPopularityMap(popularityDataset);
 
   const allWorkCards: WorkCard[] = baseWorkCards.map((work) => {
@@ -1689,12 +1763,30 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
-                {totalResultCount}件
+                {publicWorksAvailable ? <>{totalResultCount}件</> : "—"}
               </span>
             </div>
           </div>
 
-          {workCards.length === 0 ? (
+          {!popularityAvailable && publicWorksAvailable ? (
+            <div className="mt-4 rounded-[20px] border border-black/10 bg-neutral-50 px-4 py-3 text-sm leading-7 text-neutral-600">
+              {uiLocale === "en"
+                ? "Popularity metrics are temporarily unavailable. Other search conditions still work."
+                : uiLocale === "ko"
+                  ? "인기 지표를 일시적으로 불러올 수 없습니다. 다른 검색 조건은 계속 사용할 수 있습니다."
+                  : "人気指標を一時的に取得できない。他の検索条件は引き続き利用できる。"}
+            </div>
+          ) : null}
+
+          {!publicWorksAvailable ? (
+            <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
+              {uiLocale === "en"
+                ? "Public work data is temporarily unavailable. Search controls remain available; try again shortly."
+                : uiLocale === "ko"
+                  ? "공개 작품 데이터를 일시적으로 불러올 수 없습니다. 검색 조건은 계속 사용할 수 있으니 잠시 후 다시 시도하세요."
+                  : "公開作品データを一時的に取得できない。検索条件は利用できるため、少し時間を置いて再試行して。"}
+            </div>
+          ) : workCards.length === 0 ? (
             <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
               まだ公開作品がない。
             </div>

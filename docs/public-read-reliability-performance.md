@@ -1,8 +1,8 @@
 # LIB read — Public read / Search reliability & performance plan
 
-Reviewed: **2026-10-03**
-Status: **planned / priority inserted before Acquisition**
-Baseline main at review: `1428b1449e47c52cd54dc4c318c6ee3c180801a0`
+Reviewed: **2026-10-04**
+Status: **in progress — bounded PR1 implementation**
+Starting canonical main: `049f89cfcbc28f0273dc2f74bd274480699a1a40`
 Production: https://www.syosetu-libread.com
 
 This document records the 2026-10-03 Production incident, the confirmed application-side bottlenecks exposed by that incident, the items that are still unverified, and the ordered optimization plan. It is not permission to weaken security, ownership, R18, publication visibility, translation entitlement, credit, subscription, or private/public isolation.
@@ -41,6 +41,28 @@ Current root-cause classification:
 - this is not sufficient reason to treat every observed timeout as an application regression;
 - however, LIB read currently has application coupling that turns upstream/optional dependency failure into unnecessarily broad page failure, so application resilience work is required even though the upstream incident cannot be prevented by LIB read.
 
+### 1.1 2026-10-04 continuation evidence and PR1 scope
+
+The same dependency path remained unhealthy on 2026-10-04:
+
+- connected read-only SQL still terminated on connection timeout;
+- a direct public PostgREST request from the authorized Windows validation host returned Cloudflare 522;
+- Production curl probes with a 20 s cap showed Home failing to complete on 3/3 runs despite partial HTTP 200 responses (TTFB about 0.36–0.82 s), the sampled Work detail failing to complete on 3/3 runs (TTFB about 0.30–0.74 s), and Search failing to complete on 1/3 runs while two runs completed in about 0.48–0.67 s.
+
+Bounded PR1 therefore focuses on no-schema containment that can be validated without inventing DB state:
+
+- Home/Auth/bookmark/subscriber/recording/public-work fault isolation;
+- safe read-only timeout/retry helper with no mutation retry;
+- Author N+1 removal through one public profile query;
+- Work metadata/page series sharing and 50-row episode-detail range;
+- local fallback for Work recording/reader-like/related reads;
+- bounded Search public-data/Auth/saved-filter/popularity reads without rewriting fuzzy/facet semantics;
+- explicit canonical public filters on hot public series/episode reads;
+- Reader public-read timeout isolation while keeping private-owner and R18 checks fail closed;
+- Ranking changed from deploy-time static `select("*")` reads to bounded runtime reads reusing the canonical public-work and recording helpers.
+
+PR1 does not complete Child84. DB summary/Search pagination, popularity-daily cutover, source-language fallback removal, cache TTL/invalidation changes, DB indexes, and Vercel-region changes remain gated on live verification.
+
 ## 2. Billing state snapshot
 
 Stripe Live was independently re-read during this review.
@@ -74,36 +96,34 @@ Current rule:
 
 ## 4. Confirmed current-code bottlenecks
 
-### 4.1 Public work base-card rebuild reads all public episode metadata
+### 4.1 Public work base-card rebuild still reads all public episode rows
 
 `src/lib/publicWorks.ts` currently:
 
 1. fetches all public `series` rows in pages;
-2. fetches episode metadata for all public series IDs;
-3. groups/sorts all returned episode rows in Node;
+2. fetches all public episode rows for those series;
+3. groups/sorts the returned episode rows in Node;
 4. derives card values such as:
    - episode count;
    - first episode number;
    - latest posted date;
    - public episode-number list.
 
-The card layer does not need all episode rows merely to derive summary fields.
+PR1 reduces each global episode row to the four fields actually needed by this derivation: `id`, `series_id`, `episode_number`, and `posted_at`. The query itself enforces `posting_status = 'posted'` and `is_published = true`, so the former status/schedule columns and Node visibility re-check are no longer fetched for every row.
+
+The remaining bottleneck is row cardinality, not per-row width: the card layer still reads every public episode row to derive summary fields.
 
 Target direction:
 
 - use DB-side aggregation / summary query / safe view / RPC where justified;
-- return only the fields needed by cards;
-- preserve exact public visibility and >1000-row correctness.
+- preserve exact public visibility and >1000-row correctness;
+- keep the four-column projection until the DB-side summary path is proven.
 
-### 4.2 Author N+1 through Auth Admin
+### 4.2 Author N+1 through Auth Admin — addressed in PR1
 
-Public base-card construction currently calls `auth.admin.getUserById(authorId)` per distinct author.
+Baseline behavior called `auth.admin.getUserById(authorId)` once per distinct author.
 
-Target direction:
-
-- prefer an existing public-safe/profile/user data source that can be fetched in one bounded `IN (...)` query where current schema/visibility rules permit;
-- preserve Official detection semantics;
-- do not expose email or privileged Auth metadata.
+PR1 replaces that path with one bounded `public.users(id, display_name)` query using `IN (...)`. Email and privileged Auth metadata are no longer needed for public card construction. Translation eligibility now follows the canonical permission field only; Official authorship is not a permission override.
 
 ### 4.3 source_language legacy fallback still exists and is not yet removable
 
@@ -120,66 +140,38 @@ Therefore:
 - if non-zero, determine a rights-safe/correct backfill source rather than guessing;
 - only remove the body-based fallback after the canonical data gate is proven complete.
 
-The count could not be re-verified during this review because direct Production SQL attempts timed out.
+The count still could not be re-verified on 2026-10-04: connected Production SQL timed out and a separate public PostgREST read returned Cloudflare 522.
 
-### 4.4 Home recordings are coupled to the main work-card promise
+### 4.4 Home recording coupling — isolated in PR1
 
-Home `loadHomeWorkCards()` waits for:
+Baseline `loadHomeWorkCards()` waited for both public base work cards and recording aggregates.
 
-- public base work cards;
-- public recording aggregates for those works.
+PR1 separates recording aggregation into its own bounded promise/Suspense path. Latest/weekly public shelves no longer require recording metrics, and recording failure renders local unavailable state for popularity/narration-dependent sections rather than collapsing the Home page.
 
-A recordings failure can therefore block the Home work sections.
+### 4.5 Home Auth/viewer blocking — removed in PR1
 
-Target direction:
+Baseline `PublicTopPageLegacy` awaited viewer state before returning the public page tree.
 
-- public Home shell first;
-- core public works independently;
-- narration/recording popularity as optional/lazy/fallback-capable data;
-- recording failure must not collapse unrelated Home content.
+PR1 no longer awaits Auth/subscriber/bookmark state in the root Home component. Viewer-specific sections stream independently with bounded reads and availability flags. Auth unavailability is not presented as a confirmed signed-out/bookmark-empty/subscription-empty state.
 
-### 4.5 Home blocks the public shell on Auth/viewer state
+### 4.6 Work detail metadata/page duplicate reads — reduced in PR1
 
-`PublicTopPageLegacy` starts work-card and viewer-state promises concurrently but then awaits `loadHomeViewerState()` before returning the public page tree.
+PR1 adds a request-memoized series loader shared by `generateMetadata()` and the page body. Metadata checks only the first visible episode needed for indexability instead of loading all episode metadata. Canonical/hreflang behavior is preserved.
 
-`loadHomeViewerState()` performs:
+### 4.7 Work detail all-detail episode fetch — reduced in PR1
 
-- Auth `getUser()`;
-- subscriber lookup when signed in;
-- bookmark lookup when signed in.
+PR1 splits episode data into:
 
-Target direction:
+- minimal navigation metadata;
+- a DB `range(...)` query for the visible 50 detailed rows.
 
-- public Hero / public navigation / core public content must not require Auth success;
-- viewer-specific state may stream/lazy-load separately;
-- Auth failure should degrade the viewer-specific UI, not the public site.
+The range count is derived from the already-required navigation rows instead of issuing a second exact-count query. Navigation is paged in 1,000-row chunks so series above the default PostgREST row cap still produce a correct count and resume-range map. Navigation, first-episode, and range reads explicitly apply the same posted/public predicate as the public episode policy (`posting_status = 'posted'` and `is_published = true`), so an authenticated owner session cannot accidentally mix draft/scheduled rows into public range math.
 
-### 4.6 Work detail metadata and page body duplicate major reads
+This removes the former all-detail-row fetch followed by Node slicing and one redundant DB request while retaining ordering, first-episode redirect behavior, reader selection, and public visibility semantics.
 
-`/works/[seriesId]`:
+### 4.8 Related works still depend on the all-public-work base-card dataset
 
-- `generateMetadata()` reads the series and episode metadata;
-- the page body independently reads the series and episode metadata again.
-
-Target direction:
-
-- request-scoped memoized/shared loader where compatible with Next.js behavior;
-- preserve SEO metadata and canonical/hreflang correctness.
-
-### 4.7 Work detail fetches all episodes then slices 50 in Node
-
-The UI exposes 50-episode ranges, but the data path fetches all episode metadata and later calls `episodes.slice(..., 50)`.
-
-Target direction:
-
-- DB count for total visible episodes;
-- DB range query for the visible 50;
-- fetch only additional minimum data required for first-episode/redirect/reader behavior;
-- preserve ordering and public visibility rules.
-
-### 4.8 Related works depend on the all-public-work base-card dataset
-
-`RelatedWorksSection` calls `getCachedPublicBaseWorkCards()` and filters all public works to produce:
+PR1 adds a bounded timeout and local fallback so this optional dependency no longer needs to fail the whole work page. The performance dependency remains: `RelatedWorksSection` still calls `getCachedPublicBaseWorkCards()` and filters all public works to produce:
 
 - up to 4 other works by the same author;
 - up to 4 similar works.
@@ -189,9 +181,11 @@ Target direction:
 - targeted bounded queries, or isolate as below-the-fold optional data;
 - do not remove the UI without an explicit user decision.
 
-### 4.9 Search pagination is UI pagination over a broad in-memory dataset
+### 4.9 Search pagination remains UI pagination over a broad in-memory dataset
 
-Current Search starts from `getCachedPublicBaseWorkCards()`, then performs a significant portion of filtering/faceting/sorting before pagination.
+PR1 bounds/fault-isolates the broad public-data/Auth/saved-filter/popularity reads and distinguishes unavailable data from a real zero-result state. It deliberately does not replace Child78 fuzzy/CJK/Levenshtein/facet semantics with naive SQL matching.
+
+Current Search still starts from `getCachedPublicBaseWorkCards()`, then performs a significant portion of filtering/faceting/sorting before pagination.
 
 Target direction:
 
@@ -251,15 +245,122 @@ Classification:
 - no large Search rewrite solely for this task;
 - move toward dictionary-native rendering when Search is next structurally refactored.
 
-### 4.13 OpenGraph crawler load should be measured
+### 4.13 OpenGraph crawler load — audited, no Child84 change required
 
-`/opengraph-image` is expected to receive crawler traffic.
+`src/app/opengraph-image.tsx` is data-independent: it does not read Supabase, Auth, or any external API. Current Vercel builds classify `/opengraph-image` as `○ (Static) prerendered as static content`, not a runtime server-rendered route.
 
-Target direction:
+Therefore the OpenGraph image is not part of the observed Vercel→Supabase failure path and does not justify a Child84 cache/static-asset rewrite. Revisit only if future usage/cost evidence shows image-delivery overhead independent of the current database incident.
 
-- measure request volume/cost;
-- verify whether current ImageResponse path is adequately cached;
-- static asset or stronger caching may be considered only if SEO/social rendering remains correct.
+### 4.14 Ranking deploy-time Supabase dependency — addressed in PR1
+
+The baseline Ranking page was statically evaluated during `next build` and issued three broad `select("*")` reads against series, recordings, and episodes. During the 2026-10-04 Preview build, those reads reproduced Cloudflare 522 and held static generation open.
+
+PR1 changes Ranking to `force-dynamic`, reuses the canonical cached public-work and public-recording aggregate loaders, applies bounded runtime timeouts, and keeps the existing local error/partial-warning UI. This removes Ranking's Supabase dependency from the deployment build path without removing the surface.
+
+### 4.15 Sitemap deploy-time dynamic-work dependency — addressed in PR1
+
+After Ranking was removed from static generation, the next Preview exposed the same upstream failure in `/sitemap.xml`: dynamic public-work discovery hit Cloudflare 522 during `next build`. The existing sitemap fallback prevented a build failure, but the deploy still waited on the upstream request and could publish a sitemap temporarily missing work/episode URLs.
+
+PR1 therefore makes the sitemap metadata route dynamic and bounds public-work discovery to 2.5 seconds with no retry. On upstream failure, the existing static landing URLs remain available and the next crawler request can recover work/episode entries without waiting for a new deployment. No crawler-visible route is removed.
+
+### 4.16 Work / Reader core-read failure semantics — addressed in PR1
+
+Preview runtime verification against the continuing Supabase outage showed that optional Home/Search/Ranking/Sitemap failures were contained, but the requested Work/Reader core series read could still throw a `ReadOnlyTimeoutError` into the streamed route. A streamed HTTP 200 with generic error/not-found-looking output is not an acceptable substitute for a readable failure state.
+
+PR1 now keeps these cases distinct:
+
+- a successful core lookup that proves the work/episode does not exist or is not publicly visible still follows the existing `notFound()` / permission path;
+- a timeout, 522/503, connection failure, or other upstream read failure returns a localized temporary-unavailable surface instead of the generic page error;
+- private-owner and R18 checks are unchanged and continue to fail closed;
+- subscriber, author-profile and narration-related reads remain optional and cannot remove the core public reading surface.
+
+Work content-rating safety has its own independent fail-closed boundary. If the layout cannot verify `content_rating/content_warnings`, it does not render the Work children even if the page-level series read happens to succeed. It returns a localized temporary-unavailable safety surface instead. For a verified R18 work, the viewer-preference read is also bounded; failure remains blocked rather than assuming R18 access.
+
+Preview `eb55c0348f2f8a885346c12c9c82112c67701c78` verified this during the live incident: the Work layout series read timed out after 2.2 s and the page series read after 2.5 s, the route returned HTTP 200 with the content-safety unavailable surface, and the sampled work content was not rendered.
+
+Preview verification on commit `b2619b16b63d14478c310431b57fe69ebab7a74b` confirmed the containment while the upstream remained unhealthy:
+
+- `/` → 200 with Home-local unavailable state;
+- `/search` → 200 with bounded public-work fallback;
+- `/ranking` → 200 with bounded ranking fallback;
+- `/sitemap.xml` → 200 using the static-only fallback when public-work discovery timed out;
+- sampled `/works/{seriesId}` → 200 with the dedicated Work temporary-unavailable surface after a 2.5 s core series timeout;
+- sampled `/read/{seriesId}/1` → 200 with the dedicated Reader temporary-unavailable surface after a 2.5 s core series timeout.
+
+The Preview runtime logs contain those bounded timeout classifications and no generic page-error message for the sampled routes.
+
+A follow-up Preview log audit also showed repeated `Auth session missing!` warnings for normal anonymous requests. PR1 now classifies Supabase `AuthSessionMissingError` as a healthy signed-out state on Home, Work, Reader, and Search saved-filter paths. Real Auth/network errors remain unavailable. This prevents anonymous users from being mislabeled as an Auth outage while preserving the same fail-safe behavior for actual Auth failures.
+
+### 4.17 Vercel Singapore region experiment — rejected as an incident fix
+
+A stacked Preview-only experiment (PR #86, commit `e1adf8d694b35ec1186a7b1bafe49e257b1dc615`) added Vercel `regions: ["sin1"]` on top of PR1. Deployment metadata confirmed the Vercel Function region was `sin1`; a sampled response also reported an `x-vercel-id` ending in the Singapore execution region.
+
+The same upstream failure still reproduced:
+
+- Home public works timed out after 2.5 s;
+- Search public works timed out after 3.5 s;
+- Ranking public works timed out after 3.0 s;
+- Sitemap public works timed out after 2.5 s;
+- sampled Work core series read timed out after 2.5 s.
+
+Therefore moving Vercel Functions from `iad1` to `sin1` does **not** resolve the current incident. The region change is not a Production recommendation and PR #86 must remain unmerged.
+
+### 4.18 Cache invalidation audit — TTL extension remains blocked
+
+Current hot caches are:
+
+- public base work cards: 60 s;
+- public recording aggregates: 60 s;
+- raw popularity dataset: 15 s.
+
+Repository-wide inspection found no current `revalidateTag`, `updateTag`, or `revalidatePath` invalidation path for these caches. More importantly, primary series and episode create/edit flows write directly from Client Components to Supabase, including `WriteSeriesForm`, `WriteSeriesCreateForm`, and `WriteEpisodeForm`. Recording mutations are split across server routes/libraries.
+
+Because not every canonical public-data mutation passes through one server-controlled invalidation boundary, extending metadata TTL now could serve stale publication/title/episode state after a successful edit. PR1 therefore keeps the current short TTLs unchanged.
+
+A future TTL increase requires either:
+
+- centralizing relevant public mutations behind server-controlled endpoints/actions; or
+- adding an equally complete invalidation mechanism that also covers the current client-direct Supabase mutation paths.
+
+Partial server-route invalidation alone is insufficient and should not be presented as complete.
+
+### 4.19 Read deadline must abort the underlying HTTP request
+
+The first PR1 timeout implementation used `Promise.race` to stop awaiting a read. Preview timing proved that this was insufficient for some streamed routes: the route could render a local timeout state while the underlying Supabase HTTP request remained alive and kept the full response open.
+
+Measured from the same authorized desktop during the continuing incident:
+
+| Surface | Production main sample | pre-abort Preview sample | final abort Preview `b28277d` |
+| --- | ---: | ---: | ---: |
+| Home | 40.493 s | 3.595–3.705 s | 2.869 s |
+| Search | 0.427 s | 3.434–4.101 s | 2.970 s |
+| sampled Work | 39.488 s | 39.614–39.967 s | 5.693 s |
+| sampled Reader | not included in the Production timing sample | 2.892 s after core abort | 3.277 s |
+
+The Search Production sample happened to complete during an intermittent healthy interval and is not treated as a stable baseline.
+
+PR1 therefore now:
+
+- supplies an `AbortSignal` from the bounded read helper and aborts it at the deadline;
+- applies `.abortSignal(signal)` to Work/Reader critical PostgREST reads;
+- configures the anonymous public-work Supabase client with a 2.5 s aborting fetch boundary;
+- bounds Work layout content-rating and translation-availability reads as well as the page body;
+- does not retry a locally generated deadline after abort;
+- keeps the dedicated local unavailable UI.
+
+This changed the sampled Work failure path from roughly 40 seconds to roughly 5.7 seconds while the upstream remained unhealthy. The remaining duration is consistent with multiple separately bounded Work route layers rather than one unbounded connection.
+
+### 4.20 Compatibility fallback is schema-only
+
+A narrow-column read must not fall back to `select("*")` merely because the network, gateway, or database is unavailable. During a 522/timeout this would duplicate the failed request and increase upstream work.
+
+PR1 now permits the broad compatibility fallback only for recognizable schema/column compatibility failures such as PostgreSQL `42703` or PostgREST `PGRST204`. Network failures, 522/503, aborts, and timeouts propagate to the bounded local failure state instead.
+
+### 4.21 Global Auth header spinner is bounded
+
+The original incident included the header remaining on “認証確認中...” indefinitely. The client `AuthStatus` component previously called `supabase.auth.getUser()` without a deadline.
+
+PR1 now releases that loading state after a 2.5 s bounded read. A real Auth/network failure shows the existing Auth-state error/login surface, while `AuthSessionMissingError` remains a normal signed-out state. This directly closes the indefinite global auth-spinner path without weakening authenticated behavior.
 
 ## 5. Retry / timeout rules
 
@@ -285,7 +386,9 @@ Requirements:
 - bounded timeout;
 - at most a small bounded retry count;
 - network/transient classification;
-- then local fallback/retry UI rather than an indefinite spinner.
+- then local fallback/retry UI rather than an indefinite spinner;
+- do not retry a locally generated `ReadOnlyTimeoutError` when the underlying request cannot be aborted. `Promise.race` only bounds how long LIB read waits; it does not cancel the still-running Supabase request, so retrying that local timeout can overlap duplicate reads and amplify an outage;
+- immediate upstream failures that have already terminated, such as explicit 522/503/connection-reset responses, may still use the small read-only retry budget.
 
 ## 6. Fault-isolation model
 

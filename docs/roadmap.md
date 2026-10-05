@@ -1,6 +1,6 @@
 # LIB read — Ordered Roadmap
 
-Last updated: **2026-10-03**
+Last updated: **2026-10-04**
 Product-state baseline: `57e06d82e14ac33808f3f90c7403234517ee2542`
 
 This file is the canonical ordered backlog for the next workstreams. It exists specifically so parent-chat replacement or context compression does not reorder the planned site work.
@@ -115,7 +115,7 @@ See `docs/indexing-webmaster-state.md`.
 
 ### P4 — Child84: Public read / Search reliability & performance hardening
 
-Status: **next**
+Status: **in progress**
 
 Priority was inserted on 2026-10-03 after a real Production availability incident exposed broad coupling to Supabase/network failures.
 
@@ -133,6 +133,19 @@ Ordered phases:
 3. list/Search/ranking foundation;
 4. cache/infrastructure;
 5. before/after Production measurement.
+
+Current bounded PR1 covers the no-schema portions of phases 1–2 plus safe Home/Work/Reader/Search/Ranking/sitemap timeout isolation. Supported public Supabase reads now abort the underlying HTTP request at the deadline rather than only timing out the await, network failures no longer trigger broad compatibility fallbacks, the global Auth header spinner is bounded, Work/Reader distinguish true not-found from transient upstream failure, and Ranking/sitemap dynamic work discovery no longer perform deploy-time Supabase reads. It does not mark Child84 complete.
+
+Still gated by live Production verification:
+
+- exact `source_language` coverage before legacy inference removal;
+- `series_popularity_daily` freshness/invariants before runtime cutover;
+- DB-side public-work summary / Search pagination that preserves fuzzy/facet semantics;
+- a complete invalidation boundary before any longer public metadata TTL;
+- EXPLAIN/advisor-driven index changes;
+- final before/after Production measurement.
+
+Vercel Asia-region Preview comparison is complete: a `sin1` stacked Preview reproduced the same bounded Supabase timeouts as `iad1`, so region relocation is rejected as the current incident fix.
 
 See `docs/public-read-reliability-performance.md`.
 

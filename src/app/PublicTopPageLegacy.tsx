@@ -15,6 +15,8 @@ import { homeDictionaries, type HomeDictionary } from "@/i18n/dictionaries/home"
 import { localizePath } from "@/i18n/navigation";
 import { localizeTagLabel } from "@/i18n/tagLabels";
 import type { UiLocale } from "@/i18n/config";
+import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
+import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
 
 const HOME_DESCRIPTION =
   "外国語の長編を管理して読む個人本棚、多言語対訳、読み上げ、Web小説の閲覧・投稿に対応した読書サービスです。";
@@ -288,67 +290,129 @@ function getDiscoveryLinks(locale: UiLocale, dictionary: HomeDictionary) {
 }
 
 type HomeViewerState = {
+  authAvailable: boolean;
+  subscriberAvailable: boolean;
+  bookmarksAvailable: boolean;
   signedIn: boolean;
   subscriber: boolean;
   bookmarkedSeriesIds: Set<string>;
 };
 
 async function loadHomeViewerState(): Promise<HomeViewerState> {
-  const authSupabase = await createServerClient();
-  const {
-    data: { user },
-  } = await authSupabase.auth.getUser();
+  try {
+    const authSupabase = await createServerClient();
+    const authResult = await runReadOnlyWithRetry(
+      async () => {
+        const result = await authSupabase.auth.getUser();
+        if (result.error && !isAuthSessionMissingError(result.error)) {
+          throw result.error;
+        }
+        return result;
+      },
+      { operation: "home auth", timeoutMs: 2000, retries: 1 }
+    );
+    const user = authResult.data.user;
 
-  const [subscriber, bookmarkResult] = await Promise.all([
-    user ? isSubscriber(user.id) : Promise.resolve(false),
-    user
-      ? authSupabase
-          .from("user_series_bookmarks")
-          .select("series_id")
-          .eq("user_id", user.id)
-      : Promise.resolve({ data: [] }),
-  ]);
-  const bookmarkRows = (bookmarkResult.data ?? []) as Array<{
-    series_id?: string | null;
-  }>;
+    if (!user) {
+      return {
+        authAvailable: true,
+        subscriberAvailable: true,
+        bookmarksAvailable: true,
+        signedIn: false,
+        subscriber: false,
+        bookmarkedSeriesIds: new Set(),
+      };
+    }
 
-  return {
-    signedIn: Boolean(user),
-    subscriber,
-    bookmarkedSeriesIds: new Set(
-      bookmarkRows
-        .map((row) => (typeof row.series_id === "string" ? row.series_id : ""))
-        .filter((value) => value.length > 0)
-    ),
-  };
+    const [subscriberResult, bookmarkResult] = await Promise.allSettled([
+      runReadOnlyWithRetry(
+        () => isSubscriber(user.id),
+        { operation: "home subscriber", timeoutMs: 2000, retries: 1 }
+      ),
+      runReadOnlyWithRetry(
+        async () => {
+          const result = await authSupabase
+            .from("user_series_bookmarks")
+            .select("series_id")
+            .eq("user_id", user.id);
+          if (result.error) throw result.error;
+          return result.data ?? [];
+        },
+        { operation: "home bookmarks", timeoutMs: 2000, retries: 1 }
+      ),
+    ]);
+
+    if (subscriberResult.status === "rejected") {
+      console.warn("[home] subscriber state unavailable");
+    }
+    if (bookmarkResult.status === "rejected") {
+      console.warn("[home] bookmark state unavailable");
+    }
+
+    const bookmarkRows =
+      bookmarkResult.status === "fulfilled"
+        ? (bookmarkResult.value as Array<{ series_id?: string | null }>)
+        : [];
+
+    return {
+      authAvailable: true,
+      subscriberAvailable: subscriberResult.status === "fulfilled",
+      bookmarksAvailable: bookmarkResult.status === "fulfilled",
+      signedIn: true,
+      subscriber:
+        subscriberResult.status === "fulfilled" ? subscriberResult.value : false,
+      bookmarkedSeriesIds: new Set(
+        bookmarkRows
+          .map((row) => (typeof row.series_id === "string" ? row.series_id : ""))
+          .filter((value) => value.length > 0)
+      ),
+    };
+  } catch (error) {
+    console.warn(
+      "[home] viewer state unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+    return {
+      authAvailable: false,
+      subscriberAvailable: false,
+      bookmarksAvailable: false,
+      signedIn: false,
+      subscriber: false,
+      bookmarkedSeriesIds: new Set(),
+    };
+  }
 }
+
+type HomeRecordingSnapshot = {
+  available: boolean;
+  aggregateMap: Map<
+    string,
+    {
+      totalRecordingLikes: number;
+      totalRecordingPlays: number;
+      totalRecordingCount: number;
+    }
+  >;
+};
 
 async function loadHomeWorkCards(
   locale: UiLocale,
   dictionary: HomeDictionary
 ): Promise<WorkCard[]> {
-  const baseWorkCards = await getCachedPublicBaseWorkCards();
-  const recordingAggregates = await getCachedPublicRecordingAggregates(
-    baseWorkCards.map((work) => work.seriesId)
-  );
-  const recordingAggregateMap = new Map(
-    recordingAggregates.map((aggregate) => [aggregate.seriesId, aggregate])
+  const baseWorkCards = await runReadOnlyWithRetry(
+    () => getCachedPublicBaseWorkCards(),
+    { operation: "home public works", timeoutMs: 2500, retries: 0 }
   );
 
   return baseWorkCards.map((work) => {
-    const aggregate = recordingAggregateMap.get(work.seriesId) ?? {
-      totalRecordingLikes: 0,
-      totalRecordingPlays: 0,
-      totalRecordingCount: 0,
-    };
-    const title = work.title === "無題" ? fallbackLabels[locale].untitled : work.title;
+    const title =
+      work.title === "無題" ? fallbackLabels[locale].untitled : work.title;
     const authorName =
       work.authorName === "作者名未設定"
         ? fallbackLabels[locale].unknownAuthor
         : work.authorName;
     const summary =
       work.summary === "あらすじはまだ登録されていません。" ? "" : work.summary;
-
     return {
       seriesId: work.seriesId,
       title,
@@ -365,6 +429,55 @@ async function loadHomeWorkCards(
       latestPostedAtValue: work.latestPostedAtValue,
       createdAtValue: work.createdAtValue,
       tags: work.tags,
+      totalRecordingLikes: 0,
+      totalRecordingPlays: 0,
+      totalRecordingCount: 0,
+      popularityScore: work.episodeCount,
+    };
+  });
+}
+
+async function loadHomeRecordingSnapshot(
+  workCardsPromise: Promise<WorkCard[]>
+): Promise<HomeRecordingSnapshot> {
+  try {
+    const workCards = await workCardsPromise;
+    const recordingAggregates = await runReadOnlyWithRetry(
+      () =>
+        getCachedPublicRecordingAggregates(
+          workCards.map((work) => work.seriesId)
+        ),
+      { operation: "home recording aggregates", timeoutMs: 1500, retries: 0 }
+    );
+
+    return {
+      available: true,
+      aggregateMap: new Map(
+        recordingAggregates.map((aggregate) => [aggregate.seriesId, aggregate])
+      ),
+    };
+  } catch (error) {
+    console.warn(
+      "[home] recording aggregates unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+    return { available: false, aggregateMap: new Map() };
+  }
+}
+
+function withHomeRecordingMetrics(
+  workCards: WorkCard[],
+  snapshot: HomeRecordingSnapshot
+): WorkCard[] {
+  return workCards.map((work) => {
+    const aggregate = snapshot.aggregateMap.get(work.seriesId) ?? {
+      totalRecordingLikes: 0,
+      totalRecordingPlays: 0,
+      totalRecordingCount: 0,
+    };
+
+    return {
+      ...work,
       totalRecordingLikes: aggregate.totalRecordingLikes,
       totalRecordingPlays: aggregate.totalRecordingPlays,
       totalRecordingCount: aggregate.totalRecordingCount,
@@ -377,6 +490,32 @@ async function loadHomeWorkCards(
   });
 }
 
+function HomeSectionUnavailable({ locale }: { locale: UiLocale }) {
+  const message =
+    locale === "en"
+      ? "This section is temporarily unavailable. Other public content remains available."
+      : locale === "ko"
+        ? "이 섹션은 일시적으로 사용할 수 없습니다. 다른 공개 콘텐츠는 계속 이용할 수 있습니다."
+        : "この欄は一時的に利用できない。他の公開コンテンツは引き続き利用できる。";
+  return (
+    <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
+      {message}
+    </div>
+  );
+}
+
+function HomeSingleSectionFallback({ id }: { id: string }) {
+  return (
+    <section id={id} className="pt-10" aria-busy="true">
+      <div className="border-b border-black/10 pb-3">
+        <div className="h-3 w-32 rounded-full bg-neutral-100" />
+        <div className="mt-3 h-7 w-56 rounded-full bg-neutral-100" />
+      </div>
+      <div className="mt-6 h-28 rounded-[24px] border border-black/10 bg-neutral-50" />
+    </section>
+  );
+}
+
 function HomeWorkSectionsFallback({ mode }: { mode: string }) {
   const sectionIds = [
     "bookmark-updates",
@@ -386,121 +525,365 @@ function HomeWorkSectionsFallback({ mode }: { mode: string }) {
     "narration-popular",
     ...(mode ? ["results"] : []),
   ];
-
   return (
     <>
       {sectionIds.map((id) => (
-        <section key={id} id={id} className="pt-10" aria-busy="true">
-          <div className="border-b border-black/10 pb-3">
-            <div className="h-3 w-32 rounded-full bg-neutral-100" />
-            <div className="mt-3 h-7 w-56 rounded-full bg-neutral-100" />
-            <div className="mt-3 h-4 w-full max-w-xl rounded-full bg-neutral-100" />
-          </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-2">
-            {[0, 1, 2, 3].map((index) => (
-              <div
-                key={index}
-                className="h-36 rounded-[20px] border border-black/10 bg-neutral-50"
-              />
-            ))}
-          </div>
-        </section>
+        <HomeSingleSectionFallback key={id} id={id} />
       ))}
     </>
   );
 }
 
+async function HomeBookmarkSection({
+  workCards,
+  viewerStatePromise,
+  locale,
+  dictionary,
+}: {
+  workCards: WorkCard[];
+  viewerStatePromise: Promise<HomeViewerState>;
+  locale: UiLocale;
+  dictionary: HomeDictionary;
+}) {
+  const viewerState = await viewerStatePromise;
+  const loginHref = `${localizePath("/login", locale)}?next=${encodeURIComponent(
+    localizePath("/", locale)
+  )}`;
+  const bookmarkedWorks = sortLatest(
+    workCards.filter((work) =>
+      viewerState.bookmarkedSeriesIds.has(work.seriesId)
+    )
+  ).slice(0, 4);
+  const personalizationUnavailable =
+    !viewerState.authAvailable ||
+    (viewerState.signedIn && !viewerState.bookmarksAvailable);
+
+  return (
+    <section id="bookmark-updates" className="pt-10">
+      <SectionHeading
+        eyebrow="BOOKMARK UPDATES"
+        title={dictionary.bookmarkTitle}
+        description={
+          viewerState.signedIn
+            ? dictionary.bookmarkSignedIn
+            : dictionary.bookmarkSignedOut
+        }
+        moreHref={
+          viewerState.signedIn
+            ? localizePath(
+                "/search?saved=bookmarked-works&order=updated",
+                locale
+              )
+            : loginHref
+        }
+        showMore={dictionary.showMore}
+      />
+      {personalizationUnavailable ? (
+        <HomeSectionUnavailable locale={locale} />
+      ) : viewerState.signedIn ? (
+        <WorkGrid works={bookmarkedWorks} emptyLabel={dictionary.noWorks} />
+      ) : (
+        <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
+          {dictionary.bookmarkLoginPrompt}{" "}
+          <Link
+            href={loginHref}
+            className="font-medium text-black underline underline-offset-4"
+          >
+            {dictionary.login}
+          </Link>
+        </div>
+      )}
+    </section>
+  );
+}
+
+async function HomePopularitySections({
+  workCards,
+  recordingSnapshotPromise,
+  locale,
+  dictionary,
+}: {
+  workCards: WorkCard[];
+  recordingSnapshotPromise: Promise<HomeRecordingSnapshot>;
+  locale: UiLocale;
+  dictionary: HomeDictionary;
+}) {
+  const snapshot = await recordingSnapshotPromise;
+
+  if (!snapshot.available) {
+    return (
+      <>
+        <section id="overall-popular" className="pt-12">
+          <SectionHeading
+            eyebrow="OVERALL POPULAR"
+            title={dictionary.overallTitle}
+            description={dictionary.overallDescription}
+            moreHref={localizePath(buildMoreHref("overall-popular"), locale)}
+            showMore={dictionary.showMore}
+          />
+          <HomeSectionUnavailable locale={locale} />
+        </section>
+        <section id="narration-popular" className="pt-12">
+          <SectionHeading
+            eyebrow="NARRATION POPULAR"
+            title={dictionary.narrationTitle}
+            description={dictionary.narrationDescription}
+            moreHref={localizePath(buildMoreHref("narration-popular"), locale)}
+            showMore={dictionary.showMore}
+          />
+          <HomeSectionUnavailable locale={locale} />
+        </section>
+      </>
+    );
+  }
+
+  const enrichedWorks = withHomeRecordingMetrics(workCards, snapshot);
+  const overallPopularWorks = sortOverallPopular(enrichedWorks).slice(0, 4);
+  const narrationPopularWorks = sortNarrationPopular(enrichedWorks).slice(0, 4);
+  return (
+    <>
+      <section id="overall-popular" className="pt-12">
+        <SectionHeading
+          eyebrow="OVERALL POPULAR"
+          title={dictionary.overallTitle}
+          description={dictionary.overallDescription}
+          moreHref={localizePath(buildMoreHref("overall-popular"), locale)}
+          showMore={dictionary.showMore}
+        />
+        <WorkGrid works={overallPopularWorks} emptyLabel={dictionary.noWorks} />
+      </section>
+      <section id="narration-popular" className="pt-12">
+        <SectionHeading
+          eyebrow="NARRATION POPULAR"
+          title={dictionary.narrationTitle}
+          description={dictionary.narrationDescription}
+          moreHref={localizePath(buildMoreHref("narration-popular"), locale)}
+          showMore={dictionary.showMore}
+        />
+        <WorkGrid works={narrationPopularWorks} emptyLabel={dictionary.noWorks} />
+      </section>
+    </>
+  );
+}
+
+async function HomeResultsSection({
+  workCards,
+  recordingSnapshotPromise,
+  mode,
+  tag,
+  locale,
+  dictionary,
+}: {
+  workCards: WorkCard[];
+  recordingSnapshotPromise: Promise<HomeRecordingSnapshot>;
+  mode: string;
+  tag: string;
+  locale: UiLocale;
+  dictionary: HomeDictionary;
+}) {
+  const filtered =
+    mode === "tag" && tag
+      ? workCards.filter((work) => work.tags.includes(tag))
+      : workCards;
+  let resultWorks: WorkCard[] = [];
+  let metricsAvailable = true;
+
+  if (mode === "latest") {
+    resultWorks = sortLatest(filtered);
+  } else if (mode === "weekly-new") {
+    resultWorks = sortWeeklyNew(filtered);
+  } else if (
+    mode === "overall-popular" ||
+    mode === "narration-popular" ||
+    mode === "tag"
+  ) {
+    const snapshot = await recordingSnapshotPromise;
+    metricsAvailable = snapshot.available;
+    if (snapshot.available) {
+      const enriched = withHomeRecordingMetrics(filtered, snapshot);
+      resultWorks =
+        mode === "narration-popular"
+          ? sortNarrationPopular(enriched)
+          : sortOverallPopular(enriched);
+    }
+  }
+
+  const resultHeading = ResultHeading({ mode, tag, locale, dictionary });
+
+  return (
+    <section id="results" className="pt-12">
+      <div className="border-b border-black/10 pb-3">
+        <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+          {dictionary.resultsEyebrow}
+        </p>
+        <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">
+          {resultHeading.title}
+        </h2>
+        <p className="mt-2 text-sm leading-7 text-neutral-600">
+          {resultHeading.description}
+        </p>
+      </div>
+      {metricsAvailable ? (
+        <WorkGrid works={resultWorks} emptyLabel={dictionary.noWorks} />
+      ) : (
+        <HomeSectionUnavailable locale={locale} />
+      )}
+    </section>
+  );
+}
+
 async function HomeWorkSections({
   workCardsPromise,
-  viewerState,
+  viewerStatePromise,
+  recordingSnapshotPromise,
   mode,
   tag,
   locale,
   dictionary,
 }: {
   workCardsPromise: Promise<WorkCard[]>;
-  viewerState: HomeViewerState;
+  viewerStatePromise: Promise<HomeViewerState>;
+  recordingSnapshotPromise: Promise<HomeRecordingSnapshot>;
   mode: string;
   tag: string;
   locale: UiLocale;
   dictionary: HomeDictionary;
 }) {
-  const workCards = await workCardsPromise;
+  let workCards: WorkCard[];
+  try {
+    workCards = await workCardsPromise;
+  } catch (error) {
+    console.warn(
+      "[home] public work cards unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+    return (
+      <section id="latest" className="pt-10">
+        <SectionHeading
+          eyebrow="LATEST UPDATES"
+          title={dictionary.latestTitle}
+          description={dictionary.latestDescription}
+          moreHref={localizePath(buildMoreHref("latest"), locale)}
+          showMore={dictionary.showMore}
+        />
+        <HomeSectionUnavailable locale={locale} />
+      </section>
+    );
+  }
+
   const latestWorks = sortLatest(workCards).slice(0, 4);
   const weeklyNewWorks = sortWeeklyNew(workCards).slice(0, 4);
-  const overallPopularWorks = sortOverallPopular(workCards).slice(0, 4);
-  const narrationPopularWorks = sortNarrationPopular(workCards).slice(0, 4);
-  const bookmarkedWorks = sortLatest(
-    workCards.filter((work) => viewerState.bookmarkedSeriesIds.has(work.seriesId))
-  ).slice(0, 4);
-
-  const filteredForResults =
-    mode === "tag" && tag ? workCards.filter((work) => work.tags.includes(tag)) : workCards;
-  const resultWorks =
-    mode === "latest"
-      ? sortLatest(filteredForResults)
-      : mode === "weekly-new"
-        ? sortWeeklyNew(filteredForResults)
-        : mode === "overall-popular"
-          ? sortOverallPopular(filteredForResults)
-          : mode === "narration-popular"
-            ? sortNarrationPopular(filteredForResults)
-            : mode === "tag"
-              ? sortOverallPopular(filteredForResults)
-              : [];
-  const resultHeading = ResultHeading({ mode, tag, locale, dictionary });
-  const loginHref = `${localizePath("/login", locale)}?next=${encodeURIComponent(
-    localizePath("/", locale)
-  )}`;
 
   return (
     <>
-      <section id="bookmark-updates" className="pt-10">
-        <SectionHeading
-          eyebrow="BOOKMARK UPDATES"
-          title={dictionary.bookmarkTitle}
-          description={viewerState.signedIn ? dictionary.bookmarkSignedIn : dictionary.bookmarkSignedOut}
-          moreHref={viewerState.signedIn ? localizePath("/search?saved=bookmarked-works&order=updated", locale) : loginHref}
-          showMore={dictionary.showMore}
+      <Suspense fallback={<HomeSingleSectionFallback id="bookmark-updates" />}>
+        <HomeBookmarkSection
+          workCards={workCards}
+          viewerStatePromise={viewerStatePromise}
+          locale={locale}
+          dictionary={dictionary}
         />
-        {viewerState.signedIn ? (
-          <WorkGrid works={bookmarkedWorks} emptyLabel={dictionary.noWorks} />
-        ) : (
-          <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
-            {dictionary.bookmarkLoginPrompt}{" "}
-            <Link href={loginHref} className="font-medium text-black underline underline-offset-4">{dictionary.login}</Link>
-          </div>
-        )}
-      </section>
+      </Suspense>
 
       <section id="latest" className="pt-10">
-        <SectionHeading eyebrow="LATEST UPDATES" title={dictionary.latestTitle} description={dictionary.latestDescription} moreHref={localizePath(buildMoreHref("latest"), locale)} showMore={dictionary.showMore} />
+        <SectionHeading
+          eyebrow="LATEST UPDATES"
+          title={dictionary.latestTitle}
+          description={dictionary.latestDescription}
+          moreHref={localizePath(buildMoreHref("latest"), locale)}
+          showMore={dictionary.showMore}
+        />
         <WorkGrid works={latestWorks} emptyLabel={dictionary.noWorks} />
       </section>
+
       <section id="weekly-new" className="pt-12">
-        <SectionHeading eyebrow="WEEKLY NEW RECOMMEND" title={dictionary.weeklyTitle} description={dictionary.weeklyDescription} moreHref={localizePath(buildMoreHref("weekly-new"), locale)} showMore={dictionary.showMore} />
+        <SectionHeading
+          eyebrow="WEEKLY NEW RECOMMEND"
+          title={dictionary.weeklyTitle}
+          description={dictionary.weeklyDescription}
+          moreHref={localizePath(buildMoreHref("weekly-new"), locale)}
+          showMore={dictionary.showMore}
+        />
         <WorkGrid works={weeklyNewWorks} emptyLabel={dictionary.noWorks} />
       </section>
-      <section id="overall-popular" className="pt-12">
-        <SectionHeading eyebrow="OVERALL POPULAR" title={dictionary.overallTitle} description={dictionary.overallDescription} moreHref={localizePath(buildMoreHref("overall-popular"), locale)} showMore={dictionary.showMore} />
-        <WorkGrid works={overallPopularWorks} emptyLabel={dictionary.noWorks} />
-      </section>
-      <section id="narration-popular" className="pt-12">
-        <SectionHeading eyebrow="NARRATION POPULAR" title={dictionary.narrationTitle} description={dictionary.narrationDescription} moreHref={localizePath(buildMoreHref("narration-popular"), locale)} showMore={dictionary.showMore} />
-        <WorkGrid works={narrationPopularWorks} emptyLabel={dictionary.noWorks} />
-      </section>
+      <Suspense
+        fallback={
+          <>
+            <HomeSingleSectionFallback id="overall-popular" />
+            <HomeSingleSectionFallback id="narration-popular" />
+          </>
+        }
+      >
+        <HomePopularitySections
+          workCards={workCards}
+          recordingSnapshotPromise={recordingSnapshotPromise}
+          locale={locale}
+          dictionary={dictionary}
+        />
+      </Suspense>
 
       {mode ? (
-        <section id="results" className="pt-12">
-          <div className="border-b border-black/10 pb-3">
-            <p className="text-[11px] tracking-[0.22em] text-neutral-500">{dictionary.resultsEyebrow}</p>
-            <h2 className="mt-2 text-xl font-bold text-black sm:text-2xl">{resultHeading.title}</h2>
-            <p className="mt-2 text-sm leading-7 text-neutral-600">{resultHeading.description}</p>
-          </div>
-          <WorkGrid works={resultWorks} emptyLabel={dictionary.noWorks} />
-        </section>
+        <Suspense fallback={<HomeSingleSectionFallback id="results" />}>
+          <HomeResultsSection
+            workCards={workCards}
+            recordingSnapshotPromise={recordingSnapshotPromise}
+            mode={mode}
+            tag={tag}
+            locale={locale}
+            dictionary={dictionary}
+          />
+        </Suspense>
       ) : null}
     </>
+  );
+}
+
+async function HomeSubscriptionChip({
+  viewerStatePromise,
+  dictionary,
+}: {
+  viewerStatePromise: Promise<HomeViewerState>;
+  dictionary: HomeDictionary;
+}) {
+  const viewerState = await viewerStatePromise;
+  if (!viewerState.authAvailable || !viewerState.subscriberAvailable) return null;
+  return viewerState.subscriber ? null : (
+    <ExploreChip href="#subscription" label={dictionary.subscriptionChip} />
+  );
+}
+
+async function HomeSubscriptionSection({
+  viewerStatePromise,
+  locale,
+  dictionary,
+}: {
+  viewerStatePromise: Promise<HomeViewerState>;
+  locale: UiLocale;
+  dictionary: HomeDictionary;
+}) {
+  const viewerState = await viewerStatePromise;
+  if (
+    !viewerState.authAvailable ||
+    !viewerState.subscriberAvailable ||
+    viewerState.subscriber
+  ) {
+    return null;
+  }
+  return (
+    <section id="subscription" className="pt-10">
+      <div className="overflow-hidden rounded-[28px] bg-neutral-950 px-5 py-7 text-white sm:px-8 sm:py-9">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-[11px] tracking-[0.22em] text-sky-300">{dictionary.subscriptionEyebrow}</p>
+            <h2 className="mt-2 text-2xl font-bold">{dictionary.subscriptionTitle}</h2>
+            <p className="mt-3 text-sm leading-7 text-neutral-300">{dictionary.subscriptionDescription}</p>
+          </div>
+          <Link href={localizePath("/subscription", locale)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-neutral-100">
+            {dictionary.subscriptionCta}
+          </Link>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -513,8 +896,7 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
 
   const viewerStatePromise = loadHomeViewerState();
   const workCardsPromise = loadHomeWorkCards(locale, dictionary);
-  const viewerState = await viewerStatePromise;
-  const subscriber = viewerState.subscriber;
+  const recordingSnapshotPromise = loadHomeRecordingSnapshot(workCardsPromise);
   const discoveryLinks = getDiscoveryLinks(locale, dictionary);
 
   return (
@@ -546,7 +928,12 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
               <p className="text-[11px] tracking-[0.22em] text-neutral-500">{dictionary.toc}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <ExploreChip href="#prelaunch-summary" label={dictionary.featuresChip} />
-                {!subscriber ? <ExploreChip href="#subscription" label={dictionary.subscriptionChip} /> : null}
+                <Suspense fallback={null}>
+                  <HomeSubscriptionChip
+                    viewerStatePromise={viewerStatePromise}
+                    dictionary={dictionary}
+                  />
+                </Suspense>
                 <ExploreChip href="#bookmark-updates" label={dictionary.bookmarkChip} />
                 <ExploreChip href="#latest" label={dictionary.latestChip} />
                 <ExploreChip href="#weekly-new" label={dictionary.weeklyChip} />
@@ -557,22 +944,13 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
           </div>
         </section>
 
-        {!subscriber ? (
-          <section id="subscription" className="pt-10">
-            <div className="overflow-hidden rounded-[28px] bg-neutral-950 px-5 py-7 text-white sm:px-8 sm:py-9">
-              <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-                <div className="max-w-3xl">
-                  <p className="text-[11px] tracking-[0.22em] text-sky-300">{dictionary.subscriptionEyebrow}</p>
-                  <h2 className="mt-2 text-2xl font-bold">{dictionary.subscriptionTitle}</h2>
-                  <p className="mt-3 text-sm leading-7 text-neutral-300">{dictionary.subscriptionDescription}</p>
-                </div>
-                <Link href={localizePath("/subscription", locale)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-neutral-100">
-                  {dictionary.subscriptionCta}
-                </Link>
-              </div>
-            </div>
-          </section>
-        ) : null}
+        <Suspense fallback={null}>
+          <HomeSubscriptionSection
+            viewerStatePromise={viewerStatePromise}
+            locale={locale}
+            dictionary={dictionary}
+          />
+        </Suspense>
 
         <section id="prelaunch-summary" className="pt-10">
           <div className="rounded-[24px] border border-black/10 bg-neutral-50 p-5 sm:p-6">
@@ -614,7 +992,8 @@ export default async function PublicTopPage({ searchParams }: PageProps) {
         <Suspense fallback={<HomeWorkSectionsFallback mode={mode} />}>
           <HomeWorkSections
             workCardsPromise={workCardsPromise}
-            viewerState={viewerState}
+            viewerStatePromise={viewerStatePromise}
+            recordingSnapshotPromise={recordingSnapshotPromise}
             mode={mode}
             tag={tag}
             locale={locale}

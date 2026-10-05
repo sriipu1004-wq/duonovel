@@ -32,6 +32,7 @@ import { isUuid } from "@/lib/uuid";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { buildRecordingEntryPath } from "@/lib/recording/recordingEntry";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -156,27 +157,38 @@ async function getNormalAuthorName(
 ): Promise<string> {
   const authorId =
     pickText(series.author_id, series["user_id"], series["userId"]) || "";
+  const fallbackName = pickText(series["author_name"]) || authorUnsetLabel;
 
   if (!authorId) {
-    return pickText(series["author_name"]) || authorUnsetLabel;
+    return fallbackName;
   }
 
-  const adminSupabase = createAdminClient();
-  const { data, error } = await adminSupabase.auth.admin.getUserById(authorId);
-
-  if (!error && data?.user) {
-    const metadata = data.user.user_metadata as Record<string, unknown> | null;
-    const displayName = pickText(
-      metadata?.display_name_candidate,
-      metadata?.display_name,
-      metadata?.displayName,
-      metadata?.name,
-      metadata?.full_name
+  try {
+    const adminSupabase = createAdminClient();
+    const result = await runReadOnlyWithRetry(
+      async () =>
+        await adminSupabase
+          .from("users")
+          .select("display_name, username, pen_name, name")
+          .eq("id", authorId)
+          .maybeSingle(),
+      { operation: "reader author profile", timeoutMs: 1500, retries: 0 }
     );
-    if (displayName) return displayName;
+
+    if (!result.error && result.data) {
+      const displayName = pickText(
+        result.data.display_name,
+        result.data.pen_name,
+        result.data.username,
+        result.data.name
+      );
+      if (displayName) return displayName;
+    }
+  } catch {
+    console.warn("[reader] author profile unavailable");
   }
 
-  return pickText(series["author_name"]) || authorUnsetLabel;
+  return fallbackName;
 }
 
 export async function generateMetadata({
@@ -303,6 +315,80 @@ export async function generateMetadata({
   }
 }
 
+async function loadOptionalReadSubscriber(
+  userId: string | null
+): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    return await runReadOnlyWithRetry(
+      () => isSubscriber(userId),
+      { operation: "reader subscriber", timeoutMs: 1800, retries: 0 }
+    );
+  } catch {
+    console.warn("[reader] subscriber unavailable");
+    return false;
+  }
+}
+
+function ReadTemporaryUnavailable({
+  locale,
+  retryHref,
+}: {
+  locale: Awaited<ReturnType<typeof getUiLocale>>;
+  retryHref: string;
+}) {
+  const copy =
+    locale === "en"
+      ? {
+          title: "This episode is temporarily unavailable",
+          body: "The public reading data could not be loaded. This is a temporary upstream problem; the work has not been removed.",
+          retry: "Retry this page",
+          search: "Browse Search",
+        }
+      : locale === "ko"
+        ? {
+            title: "이 화를 일시적으로 불러올 수 없습니다",
+            body: "공개 읽기 데이터를 불러오지 못했습니다. 일시적인 상위 서비스 문제이며 작품이 삭제된 것은 아닙니다.",
+            retry: "이 페이지 다시 시도",
+            search: "검색으로 이동",
+          }
+        : {
+            title: "この話を一時的に読み込めない",
+            body: "公開読書データを取得できない。一時的な上流障害で、作品が削除されたわけではない。",
+            retry: "このページを再読み込み",
+            search: "Searchを見る",
+          };
+  const localHref = (href: string) => localizePath(href, locale);
+
+  return (
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
+        <section className="rounded-[28px] border border-black/10 bg-white p-6 shadow-sm sm:p-8">
+          <p className="text-[11px] tracking-[0.22em] text-neutral-500">
+            TEMPORARILY UNAVAILABLE
+          </p>
+          <h1 className="mt-3 text-2xl font-bold text-black">{copy.title}</h1>
+          <p className="mt-4 text-sm leading-8 text-neutral-700">{copy.body}</p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href={retryHref}
+              className="rounded-full border border-black/10 bg-neutral-100 px-4 py-2.5 text-sm font-medium text-black"
+            >
+              {copy.retry}
+            </Link>
+            <Link
+              href={localHref("/search")}
+              className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-medium text-black"
+            >
+              {copy.search}
+            </Link>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
 export default async function ReadEpisodePage({
   params,
   searchParams,
@@ -315,10 +401,27 @@ export default async function ReadEpisodePage({
 
   if (!isUuid(seriesId) || !parsedEpisodeNumber) notFound();
 
-  const payload = await getCachedPublicReadPagePayload(
-    seriesId,
-    parsedEpisodeNumber
-  );
+  let payload: Awaited<ReturnType<typeof getCachedPublicReadPagePayload>>;
+  try {
+    payload = await getCachedPublicReadPagePayload(
+      seriesId,
+      parsedEpisodeNumber
+    );
+  } catch (error) {
+    console.warn(
+      "[reader] core public read unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+    return (
+      <ReadTemporaryUnavailable
+        locale={locale}
+        retryHref={localizePath(
+          `/read/${seriesId}/${parsedEpisodeNumber}`,
+          locale
+        )}
+      />
+    );
+  }
   if (!payload) notFound();
 
   // The parent layout renders the R18 gate. Do not build or serialize the child
@@ -333,7 +436,7 @@ export default async function ReadEpisodePage({
     viewerEmail,
   } = payload;
   const [subscriber, normalAuthorName] = await Promise.all([
-    viewerUserId ? isSubscriber(viewerUserId) : Promise.resolve(false),
+    loadOptionalReadSubscriber(viewerUserId),
     getNormalAuthorName(series, ui.authorUnset),
   ]);
   const availableHumanRecordings = payload.allEpisodeRecordings.filter(

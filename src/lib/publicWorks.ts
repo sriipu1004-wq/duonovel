@@ -8,7 +8,6 @@ import {
   getSeriesGenres,
   getSeriesPublicationStatus,
   getSeriesSummary,
-  isEpisodePubliclyVisible,
   pickText,
   sortEpisodes,
   type EpisodeRow,
@@ -35,12 +34,12 @@ import {
 } from "@/lib/translation/seriesSourceLanguage";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { isSeriesTranslationEligible } from "@/lib/translation/episodeTranslationServer";
-import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { matchesPublicWorkLanguageFilters } from "@/lib/search/publicWorkLanguageFilter";
 import { getPublicSearchLanguageFilters } from "@/lib/search/publicSearchRequestContext";
 import { PUBLIC_RECORDING_AGGREGATE_SELECT } from "@/lib/recording/publicRecordingSelects";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
+import { isSchemaCompatibilityReadFailure } from "@/lib/reliability/readOnly";
 
 export type PublicBaseWorkCard = {
   seriesId: string;
@@ -73,7 +72,6 @@ export type PublicWorkVisibility = "viewer" | "general" | "all";
 
 type PublicAuthorAccount = {
   displayName: string;
-  isOfficial: boolean;
 };
 
 function formatDate(value: string | null | undefined): string {
@@ -169,6 +167,7 @@ async function fetchPublicSeriesRows(): Promise<SeriesRow[]> {
     return supabase
       .from("series")
       .select(selectClause)
+      .eq("publication_status", "public")
       .order("created_at", { ascending: false })
       .order("id", { ascending: true })
       .range(start, start + PAGE_SIZE - 1);
@@ -176,7 +175,7 @@ async function fetchPublicSeriesRows(): Promise<SeriesRow[]> {
 
   for (let start = 0; ; start += PAGE_SIZE) {
     let result = await fetchPage(start, PUBLIC_WORK_SERIES_SELECT);
-    if (result.error) {
+    if (result.error && isSchemaCompatibilityReadFailure(result.error)) {
       result = await fetchPage(start, "*");
     }
     if (result.error) {
@@ -210,6 +209,8 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
         .from("episodes")
         .select(selectClause)
         .in("series_id", seriesIds)
+        .eq("posting_status", "posted")
+        .eq("is_published", true)
         .order("series_id", { ascending: true })
         .order("episode_number", { ascending: true })
         .order("id", { ascending: true })
@@ -231,7 +232,7 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
   }
 
   let fetched = await fetchPaged(PUBLIC_WORK_EPISODE_SELECT);
-  if (fetched.error) {
+  if (fetched.error && isSchemaCompatibilityReadFailure(fetched.error)) {
     fetched = await fetchPaged("*");
   }
   if (fetched.error) {
@@ -248,7 +249,7 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
     grouped.set(seriesId, current);
   }
   for (const [seriesId, list] of grouped.entries()) {
-    grouped.set(seriesId, sortEpisodes(list.filter((episode) => isEpisodePubliclyVisible(episode))));
+    grouped.set(seriesId, sortEpisodes(list));
   }
   return grouped;
 }
@@ -264,37 +265,48 @@ async function fetchEpisodeBodyMapByIds(
     .from("episodes")
     .select("id, body")
     .in("id", ids);
-  const rows = !narrow.error
-    ? ((narrow.data ?? []) as EpisodeRow[])
-    : (((await supabase.from("episodes").select("*").in("id", ids)).data ?? []) as EpisodeRow[]);
+
+  let rows: EpisodeRow[];
+  if (!narrow.error) {
+    rows = (narrow.data ?? []) as EpisodeRow[];
+  } else if (isSchemaCompatibilityReadFailure(narrow.error)) {
+    const fallback = await supabase.from("episodes").select("*").in("id", ids);
+    if (fallback.error) {
+      throw new Error(
+        `episode body fallback の取得に失敗: ${fallback.error.message}`
+      );
+    }
+    rows = (fallback.data ?? []) as EpisodeRow[];
+  } else {
+    throw new Error(`episode body の取得に失敗: ${narrow.error.message}`);
+  }
 
   return new Map(
     rows.map((episode) => [episode.id, getEpisodeBody(episode)] as const)
   );
 }
 
-function readAuthAccountDisplayName(metadata: unknown): string {
-  if (!metadata || typeof metadata !== "object") return "";
-  const record = metadata as Record<string, unknown>;
-  return pickPublicAuthorName(record.display_name_candidate, record.display_name);
-}
-
 async function fetchAuthorAccountMap(authorIds: string[]): Promise<Map<string, PublicAuthorAccount>> {
   if (authorIds.length === 0) return new Map();
-  const adminSupabase = createAdminClient();
-  const result = new Map<string, PublicAuthorAccount>();
 
-  await Promise.all(
-    authorIds.map(async (authorId) => {
-      const { data, error } = await adminSupabase.auth.admin.getUserById(authorId);
-      if (error || !data?.user) return;
-      result.set(authorId, {
-        displayName: readAuthAccountDisplayName(data.user.user_metadata),
-        isOfficial: isOfficialAccountEmail(data.user.email),
-      });
-    })
+  const adminSupabase = createAdminClient();
+  const { data, error } = await adminSupabase
+    .from("users")
+    .select("id, display_name")
+    .in("id", authorIds);
+
+  if (error) {
+    console.warn("[public-works] author profiles unavailable", error.message);
+    return new Map();
+  }
+
+  return new Map(
+    ((data ?? []) as Array<{ id: string; display_name?: string | null }>)
+      .map((row) => [
+        row.id,
+        { displayName: pickPublicAuthorName(row.display_name) },
+      ] as const)
   );
-  return result;
 }
 
 async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
@@ -366,8 +378,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
           ? sourceLanguageToContentLanguage(canonicalSourceLanguage)
           : detectContentLanguage(title, summary),
         sourceLanguage,
-        translationEligible:
-          isSeriesTranslationEligible(series) || authorAccount?.isOfficial === true,
+        translationEligible: isSeriesTranslationEligible(series),
         isShortStory: isShortStorySeriesForSitemap(series),
         publicEpisodeNumbers: publicEpisodes
           .map((episode) => getEpisodeNumber(episode))
@@ -482,8 +493,6 @@ const PUBLIC_WORK_EPISODE_SELECT = `
   id,
   series_id,
   episode_number,
-  posting_status,
-  scheduled_for,
   posted_at
 `;
 
@@ -540,7 +549,7 @@ async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<Pub
 
     if (!narrow.error) {
       data = (narrow.data ?? []) as RecordingAggregateRow[];
-    } else {
+    } else if (isSchemaCompatibilityReadFailure(narrow.error)) {
       const fallback = await supabase
         .from("recordings")
         .select("*")
@@ -549,15 +558,21 @@ async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<Pub
         throw new Error(`recordings の取得に失敗: ${fallback.error.message}`);
       }
       data = (fallback.data ?? []) as RecordingAggregateRow[];
+    } else {
+      throw new Error(`recordings の取得に失敗: ${narrow.error.message}`);
     }
   } else {
     const narrow = await supabase.from("recordings").select(PUBLIC_RECORDING_AGGREGATE_SELECT);
     if (!narrow.error) {
       data = (narrow.data ?? []) as RecordingAggregateRow[];
-    } else {
+    } else if (isSchemaCompatibilityReadFailure(narrow.error)) {
       const fallback = await supabase.from("recordings").select("*");
-      if (fallback.error) throw new Error(`recordings の取得に失敗: ${fallback.error.message}`);
+      if (fallback.error) {
+        throw new Error(`recordings の取得に失敗: ${fallback.error.message}`);
+      }
       data = (fallback.data ?? []) as RecordingAggregateRow[];
+    } else {
+      throw new Error(`recordings の取得に失敗: ${narrow.error.message}`);
     }
   }
 

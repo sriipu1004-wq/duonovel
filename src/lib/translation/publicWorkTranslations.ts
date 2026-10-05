@@ -46,34 +46,39 @@ type TranslationRow = {
 
 async function fetchSeriesEpisodes(
   admin: ReturnType<typeof createAdminClient>,
-  seriesId: string
+  seriesId: string,
+  signal?: AbortSignal
 ): Promise<EpisodeRow[]> {
-  const firstTry = await admin
+  let query = admin
     .from("episodes")
     .select("*")
     .eq("series_id", seriesId);
+  if (signal) query = query.abortSignal(signal);
+  const firstTry = await query;
   if (!firstTry.error) return (firstTry.data ?? []) as EpisodeRow[];
   return [];
 }
 
 export async function getPublicWorkTranslationOverview(
-  seriesId: string
+  seriesId: string,
+  signal?: AbortSignal
 ): Promise<PublicWorkTranslationOverview | null> {
   const cleanSeriesId = seriesId.trim();
   if (!cleanSeriesId) return null;
 
   const admin = createAdminClient();
-  const seriesResult = await admin
+  let seriesQuery = admin
     .from("series")
     .select("*")
-    .eq("id", cleanSeriesId)
-    .maybeSingle();
+    .eq("id", cleanSeriesId);
+  if (signal) seriesQuery = seriesQuery.abortSignal(signal);
+  const seriesResult = await seriesQuery.maybeSingle();
   if (seriesResult.error || !seriesResult.data) return null;
 
   const series = seriesResult.data as SeriesRow;
   if (getSeriesPublicationStatus(series) !== "public") return null;
 
-  const episodes = (await fetchSeriesEpisodes(admin, cleanSeriesId))
+  const episodes = (await fetchSeriesEpisodes(admin, cleanSeriesId, signal))
     .filter((episode) => isEpisodePubliclyVisible(episode))
     .sort((left, right) => getEpisodeNumber(left) - getEpisodeNumber(right));
   if (episodes.length === 0) return null;
@@ -88,12 +93,14 @@ export async function getPublicWorkTranslationOverview(
 
   if (translationEligible) {
     const episodeIds = episodes.map((episode) => episode.id).filter(Boolean);
-    const translationResult = await admin
+    let translationQuery = admin
       .from("episode_translations")
       .select("episode_id, source_language, target_language, source_hash, status")
       .in("episode_id", episodeIds)
       .eq("source_language", sourceLanguage)
       .eq("status", "ready");
+    if (signal) translationQuery = translationQuery.abortSignal(signal);
+    const translationResult = await translationQuery;
 
     const rows = translationResult.error
       ? []

@@ -1,6 +1,6 @@
 # LIB read — Durable Decision Log
 
-Last updated: **2026-10-03**
+Last updated: **2026-10-04**
 
 This log records decisions that future chats must not casually reverse. It is not a chronological implementation diary. Add an entry only when the decision has lasting product/architecture consequences.
 
@@ -293,4 +293,37 @@ Order:
 This priority change was explicitly approved by the user after a Production incident and therefore satisfies the roadmap priority-change protocol.
 
 Public Domain rights/provenance rules are unchanged.
+
+## D022 — Dependency unavailability is not a valid business-state value
+
+Decision:
+A failed or timed-out read must not be silently reinterpreted as a real zero/false state when that distinction affects user meaning.
+
+Examples:
+- Auth unavailable is not proof that the viewer is signed out;
+- public-work data unavailable is not proof that zero public works exist;
+- bookmark/subscription data unavailable is not proof that the user has none;
+- popularity data unavailable is not proof that popularity is zero.
+
+Consequences:
+- use explicit availability state or section-local unavailable UI where the distinction matters;
+- fail closed for security-sensitive gates such as private ownership and R18;
+- do not weaken permission checks to preserve rendering during an outage.
+
+Reason:
+The 2026-10-03/04 incident showed that treating dependency failure as ordinary empty data can avoid a global error while still presenting materially false state.
+
+## D023 — A public-read deadline must stop underlying work when supported
+
+Decision:
+A bounded public read is not considered contained merely because the UI stops awaiting it. When the database/client API supports cancellation, the underlying HTTP/PostgREST request must receive an AbortSignal and be aborted at the deadline.
+
+Consequences:
+- locally generated read deadlines are not retried;
+- immediate terminated transient failures such as explicit 522/503/connection-reset responses may still use a small read-only retry budget;
+- a narrow-query compatibility fallback to `select("*")` is permitted only for recognizable schema/column mismatch, not for network/gateway/timeout/abort failures;
+- public route layers that independently query Supabase must each have their own bounded/cancelable failure path.
+
+Reason:
+Preview measurement during the 2026-10-04 incident showed that a `Promise.race` timeout could render fallback UI while an un-aborted Supabase request kept a streamed Work response open for about 40 seconds. Adding request cancellation and bounding the Work layout reduced the sampled failure response to about 5.7 seconds without weakening publication, ownership, R18, or translation permission checks.
 

@@ -9,6 +9,8 @@ import { useCommonDictionary, useUiLocale } from "@/i18n/UiLocaleProvider";
 import { localizePath } from "@/i18n/navigation";
 import { stripUiLocalePrefix } from "@/i18n/config";
 import { buildCurrentLoginHref } from "@/lib/auth/loginRedirect";
+import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
+import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 
 function shortenEmail(email: string): string {
   if (email.length <= 28) return email;
@@ -38,19 +40,30 @@ export default function AuthStatus() {
     let active = true;
 
     async function loadUser() {
-      const { data, error } = await supabase.auth.getUser();
+      try {
+        const { data, error } = await runReadOnlyWithRetry(
+          () => supabase.auth.getUser(),
+          { operation: "header auth", timeoutMs: 2500, retries: 0 }
+        );
 
-      if (!active) return;
+        if (!active) return;
 
-      if (error) {
+        if (error && !isAuthSessionMissingError(error)) {
+          setErrorMessage(dictionary.authStateFailed);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        setErrorMessage("");
+        setUser(data.user ?? null);
+        setLoading(false);
+      } catch {
+        if (!active) return;
         setErrorMessage(dictionary.authStateFailed);
         setUser(null);
         setLoading(false);
-        return;
       }
-
-      setUser(data.user ?? null);
-      setLoading(false);
     }
 
     void loadUser();
