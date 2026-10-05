@@ -197,19 +197,9 @@ export default async function ReadEpisodeLayout({
     );
   }
 
-  const orderedEpisodes = [...payload.publicEpisodes].sort(
-    (left, right) => getEpisodeNumber(left) - getEpisodeNumber(right)
-  );
-  const currentEpisodeIndex = orderedEpisodes.findIndex(
-    (episode) => getEpisodeNumber(episode) === currentEpisodeNumber
-  );
-  const hasMultipleEpisodes = orderedEpisodes.length > 1;
-  const previousEpisode =
-    currentEpisodeIndex > 0 ? orderedEpisodes[currentEpisodeIndex - 1] : null;
-  const nextEpisode =
-    currentEpisodeIndex >= 0 && currentEpisodeIndex < orderedEpisodes.length - 1
-      ? orderedEpisodes[currentEpisodeIndex + 1]
-      : null;
+  const previousEpisode = payload.previousEpisode;
+  const nextEpisode = payload.nextEpisode;
+  const hasMultipleEpisodes = Boolean(previousEpisode || nextEpisode);
 
   return withContentWarningSurface(
     withSettingsTopBridge(
