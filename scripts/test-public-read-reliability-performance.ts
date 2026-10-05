@@ -268,6 +268,22 @@ function verifyReaderIsolation(): void {
     )
   );
   assert.ok(reader.includes("includePrivate: boolean"));
+  assert.ok(reader.includes("fetchAdjacentEpisode"));
+  assert.ok(reader.includes('.lt("episode_number", episodeNumber)'));
+  assert.ok(reader.includes('.gt("episode_number", episodeNumber)'));
+  assert.ok(reader.includes(".limit(1)"));
+  assert.ok(
+    reader.includes(
+      '{ operation: "reader previous episode",'
+    )
+  );
+  assert.ok(
+    reader.includes(
+      '{ operation: "reader next episode",'
+    )
+  );
+  assert.equal(reader.includes("fetchEpisodeNavigation"), false);
+  assert.equal(reader.includes("publicEpisodes:"), false);
   assert.ok(reader.includes(".abortSignal(signal)"));
   assert.ok(reader.includes("isSchemaCompatibilityReadFailure"));
   assert.ok(reader.includes('.eq("posting_status", "posted")'));
@@ -285,6 +301,9 @@ function verifyReaderIsolation(): void {
   assert.ok(readerPage.includes("[reader] core public read unavailable"));
   assert.ok(readerPage.includes("loadOptionalReadSubscriber"));
   assert.ok(readerPage.includes('operation: "reader author profile"'));
+  assert.ok(readerPage.includes("previousEpisode"));
+  assert.ok(readerPage.includes("nextEpisode"));
+  assert.equal(readerPage.includes("publicEpisodes"), false);
   assert.equal(readerPage.includes("auth.admin.getUserById"), false);
 }
 
