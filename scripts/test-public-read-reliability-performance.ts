@@ -311,6 +311,11 @@ function verifyReaderIsolation(): void {
   assert.ok(readerPage.includes("nextEpisode"));
   assert.equal(readerPage.includes("publicEpisodes"), false);
   assert.equal(readerPage.includes("auth.admin.getUserById"), false);
+
+  const readerLayout = source("src/app/read/[seriesId]/[episodeNumber]/layout.tsx");
+  assert.ok(readerLayout.includes("payload.previousEpisode"));
+  assert.ok(readerLayout.includes("payload.nextEpisode"));
+  assert.equal(readerLayout.includes("payload.publicEpisodes"), false);
 }
 
 function verifyPublicDatabaseFilters(): void {
