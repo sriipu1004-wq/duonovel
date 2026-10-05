@@ -206,6 +206,22 @@ function verifyPublicWorkCardQueries(): void {
       "result.error && isSchemaCompatibilityReadFailure(result.error)"
     )
   );
+  assert.ok(publicWorks.includes('.eq("posting_status", "posted")'));
+  assert.ok(publicWorks.includes('.eq("is_published", true)'));
+  const episodeProjectionStart = publicWorks.indexOf(
+    "const PUBLIC_WORK_EPISODE_SELECT"
+  );
+  const episodeProjectionEnd = publicWorks.indexOf(
+    "function isEmailLike",
+    episodeProjectionStart
+  );
+  const episodeProjection = publicWorks.slice(
+    episodeProjectionStart,
+    episodeProjectionEnd
+  );
+  assert.ok(episodeProjection.includes("posted_at"));
+  assert.equal(episodeProjection.includes("scheduled_for"), false);
+  assert.equal(episodeProjection.includes("posting_status"), false);
 
   const publicServer = source("src/lib/supabase/serverPublic.ts");
   assert.ok(publicServer.includes("new AbortController()"));

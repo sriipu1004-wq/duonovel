@@ -285,7 +285,7 @@ A stacked Singapore-region Preview (PR #86, Function region `sin1`) reproduced t
 
 Confirmed current technical debt after PR1 includes:
 
-- all-public episode navigation metadata is still read to build the global public-work-card dataset;
+- all public episode rows are still read to build the global public-work-card dataset, although PR1 narrows each row to id/series_id/episode_number/posted_at;
 - Work detail still reads the full minimal episode-navigation row set even though detailed episode data is limited to the selected 50-row range;
 - related works still depends on the all-public-work dataset, although failure is now locally bounded;
 - broad Search filtering, fuzzy matching, facets, sorting, and pagination still operate over the in-memory public-work dataset;

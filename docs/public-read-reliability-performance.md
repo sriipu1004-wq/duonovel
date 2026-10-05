@@ -96,26 +96,28 @@ Current rule:
 
 ## 4. Confirmed current-code bottlenecks
 
-### 4.1 Public work base-card rebuild reads all public episode metadata
+### 4.1 Public work base-card rebuild still reads all public episode rows
 
 `src/lib/publicWorks.ts` currently:
 
 1. fetches all public `series` rows in pages;
-2. fetches episode metadata for all public series IDs;
-3. groups/sorts all returned episode rows in Node;
+2. fetches all public episode rows for those series;
+3. groups/sorts the returned episode rows in Node;
 4. derives card values such as:
    - episode count;
    - first episode number;
    - latest posted date;
    - public episode-number list.
 
-The card layer does not need all episode rows merely to derive summary fields.
+PR1 reduces each global episode row to the four fields actually needed by this derivation: `id`, `series_id`, `episode_number`, and `posted_at`. The query itself enforces `posting_status = 'posted'` and `is_published = true`, so the former status/schedule columns and Node visibility re-check are no longer fetched for every row.
+
+The remaining bottleneck is row cardinality, not per-row width: the card layer still reads every public episode row to derive summary fields.
 
 Target direction:
 
 - use DB-side aggregation / summary query / safe view / RPC where justified;
-- return only the fields needed by cards;
-- preserve exact public visibility and >1000-row correctness.
+- preserve exact public visibility and >1000-row correctness;
+- keep the four-column projection until the DB-side summary path is proven.
 
 ### 4.2 Author N+1 through Auth Admin — addressed in PR1
 

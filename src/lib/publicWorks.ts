@@ -8,7 +8,6 @@ import {
   getSeriesGenres,
   getSeriesPublicationStatus,
   getSeriesSummary,
-  isEpisodePubliclyVisible,
   pickText,
   sortEpisodes,
   type EpisodeRow,
@@ -250,7 +249,7 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
     grouped.set(seriesId, current);
   }
   for (const [seriesId, list] of grouped.entries()) {
-    grouped.set(seriesId, sortEpisodes(list.filter((episode) => isEpisodePubliclyVisible(episode))));
+    grouped.set(seriesId, sortEpisodes(list));
   }
   return grouped;
 }
@@ -494,8 +493,6 @@ const PUBLIC_WORK_EPISODE_SELECT = `
   id,
   series_id,
   episode_number,
-  posting_status,
-  scheduled_for,
   posted_at
 `;
 
