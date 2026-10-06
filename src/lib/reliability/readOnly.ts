@@ -12,24 +12,32 @@ export class ReadOnlyTimeoutError extends Error {
   }
 }
 
-function isTransientReadFailure(error: unknown): boolean {
-  // A local deadline is final for this attempt. Callers that pass the supplied
-  // AbortSignal can cancel the underlying request; callers that cannot are still
-  // protected from overlapping a second read with a possibly lingering first one.
-  // Immediate upstream 522/503/network failures remain retryable below.
-  if (error instanceof ReadOnlyTimeoutError) return false;
+export function isTransientReadUnavailable(error: unknown): boolean {
+  if (error instanceof ReadOnlyTimeoutError) return true;
+
   const message =
     error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+
   return [
     "522",
+    "503",
     "timeout",
     "timed out",
     "fetch failed",
+    "failed to fetch",
+    "network error",
+    "network request failed",
     "connection terminated",
     "connection reset",
     "econnreset",
-    "503",
   ].some((needle) => message.includes(needle));
+}
+
+function isTransientReadFailure(error: unknown): boolean {
+  // A local deadline is final for retry purposes. It is still a valid trigger
+  // for a separately isolated browser-direct fallback path.
+  if (error instanceof ReadOnlyTimeoutError) return false;
+  return isTransientReadUnavailable(error);
 }
 
 export function isSchemaCompatibilityReadFailure(error: unknown): boolean {
