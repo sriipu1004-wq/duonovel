@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import WebSpeechEpisodePlayback from "@/features/playback/WebSpeechEpisodePlayback";
+import PublicReaderBrowserFallback from "@/features/playback/PublicReaderBrowserFallback";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -32,7 +33,10 @@ import { isUuid } from "@/lib/uuid";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { buildRecordingEntryPath } from "@/lib/recording/recordingEntry";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
-import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
+import {
+  isTransientReadUnavailable,
+  runReadOnlyWithRetry,
+} from "@/lib/reliability/readOnly";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -412,6 +416,17 @@ export default async function ReadEpisodePage({
       "[reader] core public read unavailable",
       error instanceof Error ? error.message : String(error)
     );
+
+    if (isTransientReadUnavailable(error)) {
+      return (
+        <PublicReaderBrowserFallback
+          locale={locale}
+          seriesId={seriesId}
+          episodeNumber={parsedEpisodeNumber}
+        />
+      );
+    }
+
     return (
       <ReadTemporaryUnavailable
         locale={locale}
