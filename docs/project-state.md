@@ -290,6 +290,14 @@ Connected Supabase SQL still fails even for `select 1` with `Connection terminat
 
 Child84 PR2 was merged as PR #88 on 2026-10-06 at main `63f340168da1725f9c147a8dba05ecc88898b532`. It removes another all-episode Reader hot path: Reader navigation now performs only bounded previous/next one-row queries instead of loading the work's full episode-navigation list, and the Reader payload is request-memoized so metadata/page/layout share the same loader result. Independent review confirmed that the public posting/publication filters, private-owner boundary, R18 fail-closed behavior, Reader three-mode model, AI/Human translation provenance and permission separation, and credit/subscription entitlement boundaries are preserved. PR #88 also added a dedicated Child84 pull-request workflow so the reliability regression runs directly. Production deployment `dpl_ApuftG7vGmithHbv38hSKpvYytqV` reached READY and was aliased to `www.syosetu-libread.com`. Production Home, Work, and JA/EN/KO sampled Reader routes returned HTTP 200 without a generic page-error surface; Work/Reader correctly used their bounded temporary-unavailable surfaces while the Supabase outage continued. Healthy-upstream previous/next click-through remains unverified because the current upstream still cannot serve the core Reader data. A fresh connected SQL probe (`select now(), 1`) still failed with `Connection terminated due to connection timeout`, so DB-dependent Child84 work remains blocked and no DB/schema/data change was attempted.
 
+Child84b then audited a second failure path for the core public Reader. A minimal anonymous browser-direct Supabase prototype was built only on a branch and validated in Preview. Its publication/R18 contract was intentionally narrow: public series only, posted + published episode source only, metadata-first R18 rejection before any body read, and no translation/entitlement/narration/bookmark/mutation paths.
+
+The prototype did **not** establish a useful independent failure domain. Preview `dpl_EbXjLSTs5FKbBGgRXNMLQPCa66A9` at SHA `45496159a4598c04f70e05d84e599a4e8969eb91` was READY and all five PR workflows passed. In a real browser, the server-side Reader timeout correctly activated the local fallback; the Supabase REST CORS preflight reached the public gateway with HTTP 200, but the actual series GET did not complete. A separate direct public Data API GET from the authorized validation machine also timed out after 15 s with 0 response bytes / HTTP 000. This shows that removing Vercel from the path does not bypass the current failing Supabase read data plane. The browser fallback code was therefore withdrawn before merge; Child84b completes with **no Production fallback adoption**.
+
+Repository RLS hardening supports the intended public-only row contract, but live Production policy/grant verification is still blocked by the same SQL timeout. RLS also does not replace the application R18 viewer-preference gate, so any future direct path must continue to reject R18 before episode/body retrieval when viewer preference cannot be verified.
+
+Supabase Read Replica was reviewed but not adopted. Project-specific compute/backup eligibility and cost remain unverified, and asynchronous replica lag can return stale publication state after unpublish/delete, which conflicts with the fail-closed visibility requirement. A truly independent public mirror/cache remains blocked until publish/edit/unpublish/delete have a complete server-controlled invalidation/tombstone boundary.
+
 A stacked Singapore-region Preview (PR #86, Function region `sin1`) reproduced the same Home/Search/Ranking/Sitemap/Work timeouts, so moving Vercel Functions from `iad1` to Singapore is not a supported incident fix. PR #86 was closed unmerged. Cache invalidation audit also confirmed there is no complete tag/path invalidation boundary: primary series/episode writes still occur directly from Client Components to Supabase. Public cache TTLs therefore remain short and unchanged.
 
 Confirmed current technical debt after PR1 includes:
@@ -306,7 +314,9 @@ The `source_language` runtime fallback must remain until Production proves canon
 
 Scale order is now:
 
-Child84 reliability/performance -> Child85 30–60 verified Public Domain works -> Child86 Production scale gate -> Acquisition -> minimal real-usage analytics.
+Child84 DB-dependent remainder after Supabase recovery -> Child85 30–60 verified Public Domain works -> Child86 Production scale gate -> Acquisition -> minimal real-usage analytics.
+
+Child84b is complete and does not insert a new Production fallback into this order.
 
 See `docs/public-read-reliability-performance.md`.
 
