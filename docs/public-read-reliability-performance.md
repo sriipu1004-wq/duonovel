@@ -1,7 +1,7 @@
 # LIB read — Public read / Search reliability & performance plan
 
 Reviewed: **2026-10-06**
-Status: **PR1 + PR2 merged / Production verified; DB-dependent remainder blocked by live Supabase connectivity**
+Status: **PR1 + PR2 merged / Production verified; DB-dependent remainder blocked; Child84b browser-direct fallback under Preview validation**
 Starting canonical main: `049f89cfcbc28f0273dc2f74bd274480699a1a40`
 Production: https://www.syosetu-libread.com
 
@@ -417,6 +417,40 @@ The original incident included the header remaining on “認証確認中...” 
 
 PR1 now releases that loading state after a 2.5 s bounded read. A real Auth/network failure shows the existing Auth-state error/login surface, while `AuthSessionMissingError` remains a normal signed-out state. This directly closes the indefinite global auth-spinner path without weakening authenticated behavior.
 
+
+### 4.22 Child84b public Reader browser-direct fallback
+
+The dependency block exposed a separate failure-domain question: can the core public Reader recover through the end-user browser when the Vercel server -> Supabase path is transiently unavailable?
+
+Current audit result:
+
+- the connected Production project remains `ACTIVE_HEALTHY` in `ap-southeast-1`, but the connected SQL path still fails even a minimal `select now(), 1` with `Connection terminated due to connection timeout`;
+- Production Vercel remains READY in `iad1`; a prior `sin1` Preview reproduced the same class of timeout, so Vercel region switching alone is not the Child84b design;
+- the project has an active legacy anon key and an active modern publishable key; the current application contract still uses `NEXT_PUBLIC_SUPABASE_ANON_KEY`;
+- Supabase's current security guidance permits frontend Data API access with a publishable/legacy anon key only when exposed tables are protected by RLS and least-privilege grants; service-role/secret credentials remain forbidden in frontend code;
+- repository migrations enable RLS on `series` and `episodes`; the canonical 2026-09-15 hardening migration removes the old `is_public` permissive policy and limits anonymous public series to `publication_status = 'public'`, while public episode access additionally requires `posting_status = 'posted'` and `is_published = true`;
+- live policy-catalog/grant verification is still blocked by the same Production SQL connection failure, so repository migration state plus Preview/browser behavior are required evidence until SQL access recovers.
+
+Prototype architecture:
+
+1. The normal server Reader remains authoritative.
+2. Only a classified transient server failure may instantiate the browser fallback. Successful null/not-found, permission denial, malformed ID, and non-transient failures do not trigger it.
+3. The fallback creates a dedicated sessionless browser Supabase client using only the public environment URL/key.
+4. It reads narrow series metadata with an explicit `publication_status = 'public'` filter.
+5. It evaluates the canonical content-rating helper **before any episode/body query**. All R18 series are excluded from fallback because anonymous browser access cannot verify the viewer's R18 preference. This is fail-closed.
+6. Only after the series passes that gate does it request the current/previous/next episode, each explicitly filtered to `posting_status = 'posted'` and `is_published = true`.
+7. Returned rows are validated again against the same public-only contract.
+8. The degraded surface renders source text and navigation only. It does not load or mutate AI/Human translation, entitlement/credits, Human narration, bookmarks/reactions, publishing state, or any other optional data.
+9. The browser attempt has its own bounded AbortController deadline. Failure returns the dedicated unavailable surface and does not escalate to the global error UI.
+
+R18 note:
+
+RLS is the publication boundary, not the R18 viewer-preference boundary. Current RLS can allow an anonymous request to a canonically public R18 row. Therefore Child84b does **not** claim that RLS alone enforces R18. Safety is maintained by the two-stage series-first contract that refuses to issue the episode/body request when the work is R18.
+
+Read Replica finding:
+
+Supabase currently documents Read Replicas for Pro/Team/Enterprise projects, requiring AWS, at least Small compute, Postgres 15+, and no legacy logical backups. This organization is Pro and the project is Postgres 17 in an AWS region, but current compute size and backup-mode prerequisites have not been independently verified here. Read Replicas are asynchronous and can lag; they provide dedicated database/API endpoints and REST GET support, while Auth/Storage/Realtime do not execute on a replica. Replica cost is additional compute plus replica disk (and optional IOPS/throughput/IPv4), so there is no evidence yet that it is more cost-effective than the browser-direct fallback at current scale. No replica is created in Child84b.
+
 ## 5. Retry / timeout rules
 
 Limited retry may be useful only for safe, idempotent/read-only operations and only for clearly transient network failures.
@@ -633,13 +667,15 @@ Public Domain rules remain unchanged:
 
 This Production incident is a valid priority interrupt under the canonical roadmap protocol.
 
-New order:
+Current dependency-aware order:
 
-1. Child84 — Public read / Search reliability & performance hardening;
-2. Child85 — staged Public Domain expansion (30–60 verified works);
-3. Child86 — post-expansion Production scale verification;
-4. Child87 — Acquisition;
-5. Child88 — Real usage observation / minimal analytics.
+1. Child84 — DB-dependent remainder remains blocked while the connected Supabase SQL path cannot complete the minimal probe;
+2. Child84b — Public Reader failure-domain diversification proceeds during that dependency block;
+3. after Supabase recovery, return to the Child84 DB-dependent remainder and complete its verification gates;
+4. Child85 — staged Public Domain expansion (30–60 verified works);
+5. Child86 — post-expansion Production scale verification;
+6. Child87 — Acquisition;
+7. Child88 — Real usage observation / minimal analytics.
 
 Acquisition is displaced, not deleted.
 
