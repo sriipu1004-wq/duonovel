@@ -27,7 +27,7 @@ export const PUBLIC_READER_FALLBACK_EPISODE_SELECT = [
 
 export function isPublicReaderFallbackSeriesEligible(
   series: SeriesRow | null | undefined
-): boolean {
+): series is SeriesRow {
   return Boolean(
     series &&
       getSeriesPublicationStatus(series) === "public" &&
@@ -37,7 +37,7 @@ export function isPublicReaderFallbackSeriesEligible(
 
 export function isPublicReaderFallbackEpisodeEligible(
   episode: EpisodeRow | null | undefined
-): boolean {
+): episode is EpisodeRow {
   return Boolean(
     episode &&
       getEpisodePostingStatus(episode) === "posted" &&
