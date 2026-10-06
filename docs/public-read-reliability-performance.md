@@ -1,7 +1,7 @@
 # LIB read — Public read / Search reliability & performance plan
 
 Reviewed: **2026-10-06**
-Status: **PR1 + PR2 merged / Production verified; DB-dependent remainder blocked by live Supabase connectivity**
+Status: **PR1 + PR2 merged / Production verified; DB-dependent remainder blocked; Child84b completed with browser-direct fallback not adopted**
 Starting canonical main: `049f89cfcbc28f0273dc2f74bd274480699a1a40`
 Production: https://www.syosetu-libread.com
 
@@ -417,6 +417,62 @@ The original incident included the header remaining on “認証確認中...” 
 
 PR1 now releases that loading state after a 2.5 s bounded read. A real Auth/network failure shows the existing Auth-state error/login surface, while `AuthSessionMissingError` remains a normal signed-out state. This directly closes the indefinite global auth-spinner path without weakening authenticated behavior.
 
+
+### 4.22 Child84b public Reader failure-domain audit
+
+Question:
+
+Can the core public Reader recover through the end-user browser when the Vercel server -> Supabase path is transiently unavailable?
+
+Result: **no for the current incident; browser-direct fallback is not adopted.**
+
+Audit findings:
+
+- the connected Production Supabase project remains `ACTIVE_HEALTHY` in `ap-southeast-1`, but connected SQL still fails even `select now(), 1` with `Connection terminated due to connection timeout`;
+- Production Vercel remains READY in `iad1`; the earlier `sin1` Preview reproduced the same bounded Supabase timeouts, so Vercel region switching alone is not a failure-domain fix;
+- the project exposes the normal low-privilege frontend Supabase credential and repository migrations enable RLS on `series` and `episodes`;
+- the canonical 2026-09-15 RLS hardening migration removes the old permissive `is_public` policy, limits anonymous series reads to `publication_status = 'public'`, and limits public episode reads to a public series plus `posting_status = 'posted'` and `is_published = true`;
+- live Production policy-catalog/grant verification remains impossible while the SQL connection path is down, so repository migration state is not promoted to a stronger live-state claim.
+
+Prototype security contract:
+
+1. normal server Reader stayed authoritative;
+2. only a classified transient server failure could start fallback;
+3. fallback used a dedicated sessionless anonymous browser client and never a service-role credential;
+4. series metadata was queried first with an explicit public filter;
+5. canonical content rating was checked before any episode/body query;
+6. R18 was excluded because the anonymous path cannot safely prove the viewer's R18 preference;
+7. current/previous/next episode queries required `posting_status = 'posted'` and `is_published = true` and were post-validated;
+8. the degraded surface was source-only and excluded AI/Human translation, entitlement/credits, narration, bookmarks/reactions, publishing, and every mutation;
+9. browser failure stayed on a dedicated unavailable surface rather than escalating to the global error.
+
+Preview / direct-path evidence:
+
+- prototype Preview deployment `dpl_EbXjLSTs5FKbBGgRXNMLQPCa66A9` at branch SHA `45496159a4598c04f70e05d84e599a4e8969eb91` reached READY;
+- all five GitHub PR workflows on that prototype SHA passed, including the dedicated Child84 fallback/security regression, Reader/Human-translation/security regressions, TypeScript, ESLint, and Production build;
+- a real browser opened the sampled public Reader route and the bounded server-side Reader failure correctly activated the local fallback rather than the global application-error surface;
+- the browser's Supabase REST CORS preflight returned HTTP 200 through the Supabase/Cloudflare edge, proving the browser could reach the public gateway;
+- the actual public series Data API GET did not return before the fallback deadline;
+- an independent direct GET from the authorized Windows validation machine, using the same public Data API route, was allowed 15 s and ended with 0 response bytes, HTTP 000, and a client timeout.
+
+Interpretation:
+
+The browser path removed Vercel from the network chain but did **not** remove the failing Supabase read data plane. This incident therefore is not adequately isolated by Browser -> Supabase. The fallback would add a second client-side data path and extra incident latency without demonstrated recovery benefit. The prototype application code was withdrawn before merge.
+
+R18 / publication finding:
+
+RLS is the publication boundary, not the R18 viewer-preference boundary. A canonically public R18 row can be readable under publication RLS even when the application's viewer-preference check is unavailable. Any future direct fallback must therefore remain a two-stage metadata-first design and fail closed before body retrieval. Child84b does not alter the current R18 behavior.
+
+Read Replica finding:
+
+Supabase currently documents Read Replicas for Pro/Team/Enterprise projects with infrastructure prerequisites including AWS, at least Small compute, Postgres 15+, and non-legacy backup requirements. This organization is Pro and the project is Postgres 17 in an AWS region, but current compute size and backup-mode prerequisites have not been independently verified. Replicas are asynchronous and can lag; they expose dedicated database/API endpoints and REST GET support, while Auth/Storage/Realtime are not served from the replica. Cost is additional replica compute and storage plus applicable optional resources; no project-specific amount is claimed here.
+
+A Read Replica is **not** adopted as Child84b outage failover. Beyond unverified eligibility/cost, asynchronous lag can return stale publication state after unpublish/delete. That conflicts with the hard requirement that private, deleted, or unpublished content must not become visible through a resilience path.
+
+Future true-diversification condition:
+
+A genuinely independent public Reader mirror/cache becomes eligible for design only after all publish/edit/unpublish/delete operations pass through a complete server-controlled invalidation/tombstone boundary. At that point an independently hosted read-only mirror/CDN can carry explicit source/version/visibility state and be tested for fail-closed withdrawal semantics. Until then, stale-cache fallback remains more dangerous than the availability gain.
+
 ## 5. Retry / timeout rules
 
 Limited retry may be useful only for safe, idempotent/read-only operations and only for clearly transient network failures.
@@ -633,13 +689,15 @@ Public Domain rules remain unchanged:
 
 This Production incident is a valid priority interrupt under the canonical roadmap protocol.
 
-New order:
+Current dependency-aware order:
 
-1. Child84 — Public read / Search reliability & performance hardening;
-2. Child85 — staged Public Domain expansion (30–60 verified works);
-3. Child86 — post-expansion Production scale verification;
-4. Child87 — Acquisition;
-5. Child88 — Real usage observation / minimal analytics.
+1. Child84 — DB-dependent remainder remains blocked while the connected Supabase SQL path cannot complete the minimal probe;
+2. Child84b — completed during that dependency block with no browser-direct fallback adoption;
+3. after Supabase recovery, return to the Child84 DB-dependent remainder and complete its verification gates;
+4. Child85 — staged Public Domain expansion (30–60 verified works);
+5. Child86 — post-expansion Production scale verification;
+6. Child87 — Acquisition;
+7. Child88 — Real usage observation / minimal analytics.
 
 Acquisition is displaced, not deleted.
 
