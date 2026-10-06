@@ -1,6 +1,6 @@
 # LIB read — Durable Decision Log
 
-Last updated: **2026-10-06**
+Last updated: **2026-10-07**
 
 This log records decisions that future chats must not casually reverse. It is not a chronological implementation diary. Add an entry only when the decision has lasting product/architecture consequences.
 
