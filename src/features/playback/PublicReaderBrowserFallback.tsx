@@ -278,23 +278,23 @@ export default function PublicReaderBrowserFallback(props: Props) {
 
   useEffect(() => {
     const controller = new AbortController();
-    const timer = window.setTimeout(
-      () => controller.abort(),
-      FALLBACK_TIMEOUT_MS
-    );
+    let active = true;
+    const timer = window.setTimeout(() => {
+      controller.abort();
+      if (active) setState({ status: "unavailable" });
+    }, FALLBACK_TIMEOUT_MS);
 
     void loadPublicFallback(seriesId, episodeNumber, controller.signal)
       .then((next) => {
-        if (!controller.signal.aborted) setState(next);
+        if (active) setState(next);
       })
       .catch(() => {
-        if (!controller.signal.aborted) {
-          setState({ status: "unavailable" });
-        }
+        if (active) setState({ status: "unavailable" });
       })
       .finally(() => window.clearTimeout(timer));
 
     return () => {
+      active = false;
       window.clearTimeout(timer);
       controller.abort();
     };
