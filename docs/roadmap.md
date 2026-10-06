@@ -115,7 +115,7 @@ See `docs/indexing-webmaster-state.md`.
 
 ### P4 — Child84: Public read / Search reliability & performance hardening
 
-Status: **in progress — DB verification blocked; Child84b active during the dependency block**
+Status: **in progress — DB verification blocked; Child84b completed with no fallback adoption**
 
 Priority was inserted on 2026-10-03 after a real Production availability incident exposed broad coupling to Supabase/network failures.
 
@@ -147,7 +147,7 @@ Still gated by live Supabase/Production DB verification:
 
 Vercel Asia-region Preview comparison is complete: a `sin1` stacked Preview reproduced the same bounded Supabase timeouts as `iad1`, so region relocation is rejected as the current incident fix.
 
-Post-merge Production on main `f9f94512047d12f295937bd258880ace276ed0be` is READY. During the continuing upstream outage, sampled Home/Search/Work/Reader/Sitemap requests all completed with HTTP 200 in approximately 2.8–3.8 s and no generic page-error surface. Connected Supabase SQL still cannot complete even `select 1`, so the remaining DB-side work must not be guessed. During this dependency block, Child84b is the active P4 workstream. Child85 remains blocked until Child84b is resolved and Child84's DB verification gates can be completed after Supabase recovery.
+Post-merge Production on main `f9f94512047d12f295937bd258880ace276ed0be` is READY. During the continuing upstream outage, sampled Home/Search/Work/Reader/Sitemap requests all completed with HTTP 200 in approximately 2.8–3.8 s and no generic page-error surface. Connected Supabase SQL still cannot complete even `select 1`, so the remaining DB-side work must not be guessed. Child84b has now completed its dependency-unblocked audit with a no-adoption result. Child85 remains blocked until the Child84 DB verification gates can be completed after Supabase recovery.
 
 Child84 PR2 was merged as PR #88 on 2026-10-06 at main `63f340168da1725f9c147a8dba05ecc88898b532`. It replaces Reader all-episode navigation loading with bounded previous/next one-row reads and request-memoizes the Reader payload shared by metadata/page/layout. Independent review and final CI preserved publication, owner/private, R18, Reader-mode, translation provenance/permission, and entitlement semantics. Production deployment `dpl_ApuftG7vGmithHbv38hSKpvYytqV` reached READY; sampled Home/Work and JA/EN/KO Reader requests returned HTTP 200 without a generic page-error surface. A fresh connected SQL probe still ended in `Connection terminated due to connection timeout`, so PR2 does not unblock the remaining DB-verification gates or Child85.
 
@@ -155,7 +155,7 @@ See `docs/public-read-reliability-performance.md`.
 
 #### Child84b — Public Reader failure-domain diversification
 
-Status: **in progress — dependency-unblocked P4 workstream**
+Status: **complete — option B; browser-direct fallback not adopted**
 
 Purpose:
 
@@ -191,7 +191,18 @@ The dependency order is:
 3. after Supabase recovery, return to the Child84 DB-dependent remainder;
 4. only after Child84 verification completes may Child85 start.
 
-Browser-direct fallback is accepted only if RLS/security and Preview failure simulation demonstrate the public-only contract. A documented decision not to ship it is also a valid Child84b completion if safety or consistency cannot be proven.
+Browser-direct fallback was **not adopted** after Preview failure simulation. The prototype correctly entered only after the bounded server-side Reader failure and stayed on a dedicated degraded surface, but the end-user browser's direct Supabase REST read did not complete. The browser reached the Supabase/Cloudflare gateway and received a successful CORS preflight, while the actual public Data API GET remained unanswered; an independent 15 s direct GET from the authorized validation machine also ended with 0 response bytes / HTTP 000. This demonstrates that the current incident is not isolated to the Vercel -> Supabase hop and that browser-direct access does not provide the required independent read failure domain.
+
+The prototype application changes were therefore withdrawn before merge. Child84b leaves no extra browser Supabase client or Reader fallback in the product.
+
+Reconsider browser-direct only if a future incident proves all of the following:
+
+- the server-side Reader path fails transiently while the same public Data API GET succeeds reliably from representative end-user networks;
+- live Production RLS/grants can be verified, not only inferred from repository migrations;
+- the R18 viewer-preference boundary remains fail-closed before any body read;
+- measured recovery benefit exceeds the extra client surface and added timeout latency.
+
+Read Replica also remains unadopted as an outage fallback. Besides unverified project-specific compute/backup prerequisites and added cost, asynchronous replication can expose stale publication state; that conflicts with the requirement that deleted/unpublished content must not be served stale. A genuinely independent public mirror/cache should not be reconsidered until publish/edit/unpublish/delete have a complete server-controlled invalidation/tombstone boundary.
 
 ### P5 — Child85: staged Public Domain expansion
 
