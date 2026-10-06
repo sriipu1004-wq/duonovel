@@ -1,6 +1,6 @@
 # LIB read — Durable Decision Log
 
-Last updated: **2026-10-04**
+Last updated: **2026-10-06**
 
 This log records decisions that future chats must not casually reverse. It is not a chronological implementation diary. Add an entry only when the decision has lasting product/architecture consequences.
 
@@ -327,3 +327,28 @@ Consequences:
 Reason:
 Preview measurement during the 2026-10-04 incident showed that a `Promise.race` timeout could render fallback UI while an un-aborted Supabase request kept a streamed Work response open for about 40 seconds. Adding request cancellation and bounding the Work layout reduced the sampled failure response to about 5.7 seconds without weakening publication, ownership, R18, or translation permission checks.
 
+
+## D024 — Browser-direct Reader fallback is public-source-only and transient-only
+
+Decision:
+When the normal server-side public Reader path fails because of a clearly classified transient upstream/network failure, LIB read may attempt one bounded anonymous browser-direct Supabase Data API read for the core public source.
+
+This is an availability fallback, not a second authorization model.
+
+Required contract:
+- use only the public/publishable browser credential; never expose `service_role`;
+- query only `series.publication_status = 'public'`;
+- query only episodes with `posting_status = 'posted'` and `is_published = true`;
+- validate those conditions again after the response;
+- check series content rating before any episode/body query;
+- R18 works are excluded from this fallback because viewer R18 preference cannot be safely verified on the anonymous path;
+- private/owner-only, draft, scheduled, unpublished, and deleted/unverified content must never be recovered through fallback;
+- do not invoke AI/Human translation, entitlement, credits, narration, bookmarks/reactions, publishing, or any mutation;
+- fallback failure returns the existing dedicated unavailable state and must not fall into a global error.
+
+Trigger contract:
+- eligible: bounded timeout, 522/503, connection reset/termination, fetch/network failure;
+- ineligible: successful not-found/empty result, permission denial, invalid ID, schema/business-state failure.
+
+Reason:
+The 2026-10-03/06 incident showed that Vercel -> Supabase can be unavailable while the application still has a potentially independent end-user browser -> Supabase network path. The extra route is useful only if it preserves the same public visibility semantics and fails closed for R18 rather than increasing availability by weakening authorization.
