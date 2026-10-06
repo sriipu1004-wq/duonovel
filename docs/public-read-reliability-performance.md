@@ -1,7 +1,7 @@
 # LIB read — Public read / Search reliability & performance plan
 
-Reviewed: **2026-10-05**
-Status: **PR1 merged / Production verified; DB-dependent remainder blocked by live Supabase connectivity**
+Reviewed: **2026-10-06**
+Status: **PR1 + PR2 merged / Production verified; DB-dependent remainder blocked by live Supabase connectivity**
 Starting canonical main: `049f89cfcbc28f0273dc2f74bd274480699a1a40`
 Production: https://www.syosetu-libread.com
 
@@ -112,9 +112,11 @@ For public readers, the adjacent queries preserve the existing `posting_status =
 
 The shared Reader payload is also wrapped in React request `cache()`, allowing `generateMetadata()`, Reader layout and page rendering in the same request to reuse the same public-read loader rather than independently repeating series/current/adjacent/Auth work.
 
-Independent review on 2026-10-06 found no application-code regression in public publication filters, private-owner visibility, R18 fail-closed handling, previous/next semantics, Reader modes, AI/Human translation provenance or permission separation, or credit/subscription entitlement boundaries. The review also found that `scripts/test-public-read-reliability-performance.ts` was not directly invoked by an existing pull-request workflow. PR #88 therefore adds a dedicated Child84 workflow that runs that regression together with Reader/translation/security regressions, TypeScript, changed-scope ESLint, Production build and whitespace validation. The latest workflow and Vercel Preview must be revalidated after these review commits before merge.
+Independent review on 2026-10-06 found no application-code regression in public publication filters, private-owner visibility, R18 fail-closed handling, previous/next semantics, Reader modes, AI/Human translation provenance or permission separation, or credit/subscription entitlement boundaries. The review also found that `scripts/test-public-read-reliability-performance.ts` was not directly invoked by an existing pull-request workflow, so PR #88 added a dedicated Child84 workflow. On final head `a198de75485e07d9f8b1d1be3563b16c1e95ae25`, the Child84 reliability regression, Reader/translation regressions, security regression, TypeScript, changed-scope ESLint, Production build and whitespace check all passed; Child80 and Child81 workflows also passed, and Preview `dpl_ChgTjVCCwjjBkFgMxjsQfJwmgoMP` reached READY.
 
-No DB/schema/data write is part of PR2. It does not change Reader modes, R18/ownership/publication checks, translation entitlement, credits/subscription, Public Domain rules, or the DB-verification gates that still block Child85.
+PR #88 was merged as main `63f340168da1725f9c147a8dba05ecc88898b532`. Production deployment `dpl_ApuftG7vGmithHbv38hSKpvYytqV` reached READY and was aliased to `www.syosetu-libread.com`. Production Home, sampled Work, and sampled JA/EN/KO Reader routes returned HTTP 200 with no generic page-error surface. During the continuing upstream outage, Work/Reader used the dedicated bounded temporary-unavailable surfaces. Healthy-upstream previous/next click-through could not be reverified because a fresh connected SQL probe (`select now(), 1`) still failed with `Connection terminated due to connection timeout`.
+
+No DB/schema/data write is part of PR2 or its Production verification. It does not change Reader modes, R18/ownership/publication checks, translation entitlement, credits/subscription, Public Domain rules, or the DB-verification gates that still block Child85.
 
 ## 2. Billing state snapshot
 
