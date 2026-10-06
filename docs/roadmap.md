@@ -187,7 +187,7 @@ Fallback may start only after a transient server-side upstream failure such as a
 The dependency order is:
 
 1. Child84 DB-dependent remainder stays blocked while the connected Production SQL path cannot complete a minimal probe;
-2. Child84b is executed during that block;
+2. Child84b completed during that block with no fallback adoption;
 3. after Supabase recovery, return to the Child84 DB-dependent remainder;
 4. only after Child84 verification completes may Child85 start.
 
