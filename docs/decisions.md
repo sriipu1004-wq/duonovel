@@ -328,27 +328,31 @@ Reason:
 Preview measurement during the 2026-10-04 incident showed that a `Promise.race` timeout could render fallback UI while an un-aborted Supabase request kept a streamed Work response open for about 40 seconds. Adding request cancellation and bounding the Work layout reduced the sampled failure response to about 5.7 seconds without weakening publication, ownership, R18, or translation permission checks.
 
 
-## D024 — Browser-direct Reader fallback is public-source-only and transient-only
+## D024 — Browser-direct Reader fallback is not adopted under the current failure mode
 
 Decision:
-When the normal server-side public Reader path fails because of a clearly classified transient upstream/network failure, LIB read may attempt one bounded anonymous browser-direct Supabase Data API read for the core public source.
+Do **not** ship the Child84b anonymous browser-direct Supabase Reader fallback.
 
-This is an availability fallback, not a second authorization model.
+The prototype established a security contract that could keep the fallback public-source-only and R18 fail-closed, but Preview failure simulation showed that the browser path does not recover the current outage. The end-user browser reached the Supabase/Cloudflare gateway and completed the CORS preflight, while the actual public Data API GET remained unanswered. A separate direct GET from the authorized validation machine also timed out after 15 s with 0 response bytes / HTTP 000.
 
-Required contract:
-- use only the public/publishable browser credential; never expose `service_role`;
-- query only `series.publication_status = 'public'`;
-- query only episodes with `posting_status = 'posted'` and `is_published = true`;
-- validate those conditions again after the response;
-- check series content rating before any episode/body query;
-- R18 works are excluded from this fallback because viewer R18 preference cannot be safely verified on the anonymous path;
-- private/owner-only, draft, scheduled, unpublished, and deleted/unverified content must never be recovered through fallback;
-- do not invoke AI/Human translation, entitlement, credits, narration, bookmarks/reactions, publishing, or any mutation;
-- fallback failure returns the existing dedicated unavailable state and must not fall into a global error.
+Therefore the current failure is not isolated to the Vercel -> Supabase hop. Shipping the fallback would add another browser-side data-access surface and another bounded wait without providing demonstrated availability.
 
-Trigger contract:
-- eligible: bounded timeout, 522/503, connection reset/termination, fetch/network failure;
-- ineligible: successful not-found/empty result, permission denial, invalid ID, schema/business-state failure.
+Security findings retained from the prototype:
+- frontend Supabase access must use only the publishable/legacy anon credential; `service_role` remains forbidden;
+- canonical repository RLS restricts anonymous series reads to `publication_status = 'public'` and episode reads to public series plus `posting_status = 'posted'` and `is_published = true`;
+- live Production policy/grant verification is still blocked by the same SQL connection timeout and must be repeated after recovery;
+- RLS is not the R18 viewer-preference gate. Any future browser fallback must verify series rating before an episode/body request and exclude R18 when viewer preference cannot be proven;
+- private/owner-only, draft, scheduled, unpublished, deleted/unverified content, translations, entitlement/credits, narration, bookmarks/reactions, publishing, and all mutations remain outside any such fallback.
+
+Re-entry conditions:
+- only reconsider browser-direct after a future incident demonstrates that representative browser Data API GETs remain healthy while the server-side Reader path is transiently unavailable;
+- require live RLS/grant verification and security regression before adoption;
+- do not treat 404/not-found, permission denial, invalid IDs, or business-state absence as an outage trigger.
+
+Infrastructure alternatives:
+- Vercel region relocation alone remains rejected because the prior `sin1` Preview reproduced the failure;
+- Supabase Read Replica remains unadopted for outage failover: eligibility/cost still require project-specific verification, and asynchronous replication can produce stale publication state that conflicts with the requirement not to expose deleted/unpublished content;
+- stale public snapshots/mirrors remain blocked until publish/edit/unpublish/delete have a complete server-controlled invalidation/tombstone boundary.
 
 Reason:
-The 2026-10-03/06 incident showed that Vercel -> Supabase can be unavailable while the application still has a potentially independent end-user browser -> Supabase network path. The extra route is useful only if it preserves the same public visibility semantics and fails closed for R18 rather than increasing availability by weakening authorization.
+Child84b was created to diversify the actual failure domain, not merely to add another code path. The observed browser/direct-GET timeout proves that this prototype did not establish the required independence, so non-adoption preserves a smaller attack surface and lower incident latency without giving up a demonstrated recovery path.
