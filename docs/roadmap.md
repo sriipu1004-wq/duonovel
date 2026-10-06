@@ -115,7 +115,7 @@ See `docs/indexing-webmaster-state.md`.
 
 ### P4 — Child84: Public read / Search reliability & performance hardening
 
-Status: **in progress — PR1 Production complete; DB verification blocked by current Supabase connectivity**
+Status: **in progress — DB verification blocked; Child84b active during the dependency block**
 
 Priority was inserted on 2026-10-03 after a real Production availability incident exposed broad coupling to Supabase/network failures.
 
@@ -147,11 +147,51 @@ Still gated by live Supabase/Production DB verification:
 
 Vercel Asia-region Preview comparison is complete: a `sin1` stacked Preview reproduced the same bounded Supabase timeouts as `iad1`, so region relocation is rejected as the current incident fix.
 
-Post-merge Production on main `f9f94512047d12f295937bd258880ace276ed0be` is READY. During the continuing upstream outage, sampled Home/Search/Work/Reader/Sitemap requests all completed with HTTP 200 in approximately 2.8–3.8 s and no generic page-error surface. Connected Supabase SQL still cannot complete even `select 1`, so the remaining DB-side work must not be guessed. Child85 remains blocked until Child84's DB verification gates can be completed.
+Post-merge Production on main `f9f94512047d12f295937bd258880ace276ed0be` is READY. During the continuing upstream outage, sampled Home/Search/Work/Reader/Sitemap requests all completed with HTTP 200 in approximately 2.8–3.8 s and no generic page-error surface. Connected Supabase SQL still cannot complete even `select 1`, so the remaining DB-side work must not be guessed. During this dependency block, Child84b is the active P4 workstream. Child85 remains blocked until Child84b is resolved and Child84's DB verification gates can be completed after Supabase recovery.
 
 Child84 PR2 was merged as PR #88 on 2026-10-06 at main `63f340168da1725f9c147a8dba05ecc88898b532`. It replaces Reader all-episode navigation loading with bounded previous/next one-row reads and request-memoizes the Reader payload shared by metadata/page/layout. Independent review and final CI preserved publication, owner/private, R18, Reader-mode, translation provenance/permission, and entitlement semantics. Production deployment `dpl_ApuftG7vGmithHbv38hSKpvYytqV` reached READY; sampled Home/Work and JA/EN/KO Reader requests returned HTTP 200 without a generic page-error surface. A fresh connected SQL probe still ended in `Connection terminated due to connection timeout`, so PR2 does not unblock the remaining DB-verification gates or Child85.
 
 See `docs/public-read-reliability-performance.md`.
+
+#### Child84b — Public Reader failure-domain diversification
+
+Status: **in progress — dependency-unblocked P4 workstream**
+
+Purpose:
+
+- reduce the single failure path from Vercel server execution to Supabase for the core public Reader only;
+- audit whether an anonymous browser -> Supabase Data API path can safely recover public source text after a clearly classified transient server-side upstream failure;
+- preserve canonical publication/R18/ownership/translation/credit boundaries even if availability does not improve.
+
+Initial scope is intentionally narrow:
+
+- public series core metadata;
+- current public episode source;
+- previous / next public episode;
+- read-only anon/public Data API only.
+
+Explicitly excluded from the first fallback:
+
+- private/owner-only reads;
+- draft/scheduled/unpublished episodes;
+- R18 episode body when viewer preference cannot be safely verified;
+- Search/Home/related/popularity;
+- AI or Human translation;
+- translation entitlement/unlock/credits;
+- narration;
+- bookmarks/reactions;
+- any mutation.
+
+Fallback may start only after a transient server-side upstream failure such as a bounded timeout, 522/503, connection reset/termination, or fetch/network failure. A successful not-found result, permission denial, malformed ID, or other non-transient failure must not be reinterpreted as an outage.
+
+The dependency order is:
+
+1. Child84 DB-dependent remainder stays blocked while the connected Production SQL path cannot complete a minimal probe;
+2. Child84b is executed during that block;
+3. after Supabase recovery, return to the Child84 DB-dependent remainder;
+4. only after Child84 verification completes may Child85 start.
+
+Browser-direct fallback is accepted only if RLS/security and Preview failure simulation demonstrate the public-only contract. A documented decision not to ship it is also a valid Child84b completion if safety or consistency cannot be proven.
 
 ### P5 — Child85: staged Public Domain expansion
 
