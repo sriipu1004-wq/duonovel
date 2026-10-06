@@ -692,7 +692,7 @@ This Production incident is a valid priority interrupt under the canonical roadm
 Current dependency-aware order:
 
 1. Child84 — DB-dependent remainder remains blocked while the connected Supabase SQL path cannot complete the minimal probe;
-2. Child84b — Public Reader failure-domain diversification proceeds during that dependency block;
+2. Child84b — completed during that dependency block with no browser-direct fallback adoption;
 3. after Supabase recovery, return to the Child84 DB-dependent remainder and complete its verification gates;
 4. Child85 — staged Public Domain expansion (30–60 verified works);
 5. Child86 — post-expansion Production scale verification;
