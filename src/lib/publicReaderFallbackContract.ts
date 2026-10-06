@@ -8,8 +8,7 @@ import { isR18Series } from "@/lib/contentRating";
 export const PUBLIC_READER_FALLBACK_SERIES_SELECT = [
   "id",
   "title",
-  "summary",
-  "author_name",
+  "description",
   "publication_status",
   "source_language",
   "content_rating",
