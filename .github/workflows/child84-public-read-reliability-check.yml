@@ -6,7 +6,6 @@ on:
       - ".github/workflows/child84-public-read-reliability-check.yml"
       - "package.json"
       - "scripts/test-public-read-reliability-performance.ts"
-      - "scripts/test-public-reader-browser-fallback.ts"
       - "src/app/PublicTopPageLegacy.tsx"
       - "src/app/ranking/**"
       - "src/app/read/**"
@@ -15,14 +14,11 @@ on:
       - "src/app/works/**"
       - "src/components/auth/AuthStatus.tsx"
       - "src/features/works/WorkTranslationAvailability.tsx"
-      - "src/features/playback/PublicReaderBrowserFallback.tsx"
       - "src/lib/auth/authSessionState.ts"
       - "src/lib/publicRead.ts"
-      - "src/lib/publicReaderFallbackContract.ts"
       - "src/lib/publicWorks.ts"
       - "src/lib/reliability/**"
       - "src/lib/supabase/serverPublic.ts"
-      - "src/lib/supabase/browserPublic.ts"
       - "src/lib/translation/publicWorkTranslations.ts"
 
 permissions:
@@ -48,9 +44,6 @@ jobs:
       - name: Child84 reliability regression
         run: npm run test:public-read-reliability-performance
 
-      - name: Child84b browser fallback security regression
-        run: npm run test:public-reader-browser-fallback
-
       - name: Reader and translation regressions
         run: |
           npm run test:reader-mode-unification
@@ -69,14 +62,9 @@ jobs:
         run: >
           npx eslint
           scripts/test-public-read-reliability-performance.ts
-          scripts/test-public-reader-browser-fallback.ts
           src/app/read/[seriesId]/[episodeNumber]/layout.tsx
           src/app/read/[seriesId]/[episodeNumber]/page.tsx
-          src/features/playback/PublicReaderBrowserFallback.tsx
           src/lib/publicRead.ts
-          src/lib/publicReaderFallbackContract.ts
-          src/lib/reliability/readOnly.ts
-          src/lib/supabase/browserPublic.ts
 
       - name: Production build
         env:
