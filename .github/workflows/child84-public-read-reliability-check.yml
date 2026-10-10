@@ -6,6 +6,9 @@ on:
       - ".github/workflows/child84-public-read-reliability-check.yml"
       - "package.json"
       - "scripts/test-public-read-reliability-performance.ts"
+      - "scripts/test-scheduled-episode-release-contract.ts"
+      - "scripts/test-scheduled-episode-release-postgres.sh"
+      - "supabase/migrations/20261010230000_child84_scheduled_episode_db_release.sql"
       - "scripts/test-owned-series-server-save.ts"
       - "src/app/actions/**"
       - "src/lib/write/**"
@@ -72,6 +75,9 @@ jobs:
           npm run test:child84-visibility-gates
           npm run test:ai-permission-cache-coherence
 
+      - name: Scheduled release source/visibility contract (no DB writes)
+        run: npm run test:scheduled-episode-release-contract
+
       - name: Reader and translation regressions
         run: |
           npm run test:reader-mode-unification
@@ -90,6 +96,7 @@ jobs:
         run: >
           npx eslint
           scripts/test-public-read-reliability-performance.ts
+          scripts/test-scheduled-episode-release-contract.ts
           scripts/test-public-fetch-timeout-diagnostics.ts
           scripts/test-owned-series-server-save.ts
           src/app/actions/saveOwnedSeriesWorkspace.ts
@@ -125,3 +132,27 @@ jobs:
 
       - name: Diff whitespace check
         run: git diff --check origin/main...HEAD
+
+  scheduled-postgres-sql-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: child84_validation
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: child84-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d child84_validation"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute actual Cron SQL in ephemeral PostgreSQL 17
+        env:
+          CHILD84_PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: bash scripts/test-scheduled-episode-release-postgres.sh

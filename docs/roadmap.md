@@ -218,6 +218,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-11 Child84 Production release checkpoint (no roadmap reorder):** User approved the verified Child84 code releases: #98 diagnostic `927b7996`, #99 canonical public-source catalog `640e3cd8`, #101 owner-series action + public card tag `ab3615aa`, and #109 consolidated owner episode/create/R18/language/AI-permission mutation cache boundaries `10764dec`. All reached Vercel Production READY, final anonymous Home/Search/Work/Reader smoke 200/200/200/200. The #102/#103/#104/#105/#107 Draft PRs were closed unmerged as shipped via #109; #100/#106 were rejected/closed. Remaining non-atomic mutation/cache race, deletions, signed-in E2E, Search semantic equality, backup restore and scheduler remain explicit gates. #108 Cron remains Draft/unmerged/unapplied: independent DB/backup required; no Supabase branch or local dump CLI available. **Child84 open; Child85 blocked.**
 
+**2026-10-11 Child84 Cron candidate isolated PostgreSQL gate (no priority change):** PR #108 uses ephemeral PostgreSQL 17 CI to execute the real release SQL against synthetic rows, verifying gap-safe ordering, rollback and 200-row batching. This does not verify pg_cron scheduler/permissions or the independent off-site backup restore; Production Cron stays disabled. Child84 remains open and Child85 blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**
