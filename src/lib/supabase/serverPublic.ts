@@ -31,7 +31,7 @@ export function classifyPublicReadEndpoint(input: Parameters<typeof fetch>[0]): 
   }
 }
 
-const publicReadFetch: typeof fetch = async (input, init) => {
+export const publicReadFetch: typeof fetch = async (input, init) => {
   const controller = new AbortController();
   const upstreamSignal = init?.signal;
   const startedAt = Date.now();
