@@ -7,7 +7,9 @@ on:
       - "package.json"
       - "scripts/test-public-read-reliability-performance.ts"
       - "scripts/test-owned-series-server-save.ts"
+      - "scripts/test-series-route-cache-invalidation.ts"
       - "src/app/actions/**"
+      - "src/app/api/series/**"
       - "src/lib/write/**"
       - "src/features/write/WriteSeriesForm.tsx"
       - "src/app/PublicTopPageLegacy.tsx"
@@ -51,6 +53,9 @@ jobs:
       - name: Owner workspace server action regression
         run: npm run test:owned-series-server-save
 
+      - name: Series metadata cache invalidation regression
+        run: npm run test:series-route-cache-invalidation
+
       - name: Reader and translation regressions
         run: |
           npm run test:reader-mode-unification
@@ -70,6 +75,9 @@ jobs:
           npx eslint
           scripts/test-public-read-reliability-performance.ts
           scripts/test-owned-series-server-save.ts
+          scripts/test-series-route-cache-invalidation.ts
+          src/app/api/series/[seriesId]/source-language/route.ts
+          src/app/api/series/[seriesId]/content-rating/route.ts
           src/app/actions/saveOwnedSeriesWorkspace.ts
           src/lib/write/ownedSeriesPayload.ts
           src/features/write/WriteSeriesForm.tsx
