@@ -10,6 +10,8 @@ type Props = {
   lockedWarnings?: SeriesContentWarning[];
 };
 
+const EMPTY_WARNINGS: SeriesContentWarning[] = [];
+
 const PUBLICATION_LABELS = new Set([
   "公開状態",
   "Publication",
@@ -96,8 +98,8 @@ function ensureHosts(): {
 
 export default function ContentRatingWorkspaceBridge({
   seriesId,
-  initialWarnings = [],
-  lockedWarnings = [],
+  initialWarnings = EMPTY_WARNINGS,
+  lockedWarnings = EMPTY_WARNINGS,
 }: Props) {
   const normalizedInitial = useMemo(
     () => Array.from(new Set(initialWarnings)),
