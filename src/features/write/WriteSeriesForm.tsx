@@ -8,6 +8,7 @@ import { canonicalizeTagList, localizeTagList } from "@/i18n/tagLabels";
 import { canonicalizeGenreList, localizeGenreList } from "@/i18n/genreLabels";
 import { saveOwnedSeriesWorkspace } from "@/app/actions/saveOwnedSeriesWorkspace";
 import { createOwnedSeries } from "@/app/actions/createOwnedSeries";
+import { parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import {
   hideGlobalLoadingFeedback,
   showGlobalLoadingFeedback,
@@ -746,6 +747,24 @@ const publicVisibleCount = sortedEpisodes.filter(
     }
 
     const trimmedTitle = title.trim();
+    const sourceLanguage = parseSupportedLanguageTag(
+      document.querySelector<HTMLSelectElement>("[data-source-language-select='true']")?.value
+    );
+    const warningsField = document.querySelector<HTMLInputElement>(
+      "[data-create-content-warnings='true']"
+    );
+    let selectedWarnings: unknown = null;
+    try {
+      selectedWarnings = JSON.parse(warningsField?.value ?? "null");
+    } catch {
+      // Fail closed: never silently treat unknown R18 state as general.
+    }
+    if (!sourceLanguage || !Array.isArray(selectedWarnings)) {
+      setSaveState("error");
+      setErrorMessage("原文言語・コンテンツ警告を確認できないため、作品作成を中止した。画面を再読み込みして設定を確認してください。");
+      return;
+    }
+
     submittingRef.current = true;
     setSaveState("saving");
     setErrorMessage("");
@@ -774,8 +793,17 @@ const publicVisibleCount = sortedEpisodes.filter(
         title: trimmedTitle,
         description: summary.trim(),
         ...workspaceFields,
+        source_language: sourceLanguage,
+        content_warnings: selectedWarnings,
       });
       if (result.ok || result.persisted) {
+        // Prevent old pending bridge tokens from replaying these metadata writes.
+        try {
+          window.sessionStorage.removeItem("duonovel:pending-source-language-create");
+          window.sessionStorage.removeItem("duonovel:pending-content-rating-create");
+        } catch {
+          // Session storage is not required for the atomic INSERT.
+        }
         // A cache-expiry failure is still a committed INSERT. Never retry it.
         setSaveState(result.ok ? "success" : "error");
         setSuccessMessage(result.ok ? "作品を作成した。" : "");

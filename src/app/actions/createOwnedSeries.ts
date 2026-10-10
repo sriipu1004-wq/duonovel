@@ -2,7 +2,7 @@
 
 import { updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { isOwnedSeriesWorkspacePayload } from "@/lib/write/ownedSeriesPayload";
+import { validateOwnedSeriesCreationPayload } from "@/lib/write/ownedSeriesCreatePayload";
 
 const PUBLIC_WORKS_CACHE_TAG = "public-base-work-cards";
 
@@ -14,10 +14,11 @@ type CreateResult =
 /**
  * Create through the request's authenticated Supabase session, never an
  * admin/service role. Both author-create forms must use this entrypoint.
- * The existing post-create source-language bridge remains unchanged.
+ * Source language and R18 warnings are stored in the same INSERT as the work.
  */
 export async function createOwnedSeries(candidate: unknown): Promise<CreateResult> {
-  if (!isOwnedSeriesWorkspacePayload(candidate)) {
+  const validated = validateOwnedSeriesCreationPayload(candidate);
+  if (!validated) {
     return { ok: false, persisted: false, code: "invalid_request" };
   }
 
@@ -31,7 +32,7 @@ export async function createOwnedSeries(candidate: unknown): Promise<CreateResul
   // metadata. The existing series INSERT WITH CHECK RLS is a second boundary.
   const { data, error } = await supabase
     .from("series")
-    .insert({ ...candidate, author_id: auth.user.id })
+    .insert({ ...validated, author_id: auth.user.id })
     .select("id")
     .single();
 
