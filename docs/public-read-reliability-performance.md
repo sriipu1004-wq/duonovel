@@ -473,6 +473,19 @@ Future true-diversification condition:
 
 A genuinely independent public Reader mirror/cache becomes eligible for design only after all publish/edit/unpublish/delete operations pass through a complete server-controlled invalidation/tombstone boundary. At that point an independently hosted read-only mirror/CDN can carry explicit source/version/visibility state and be tested for fail-closed withdrawal semantics. Until then, stale-cache fallback remains more dangerous than the availability gain.
 
+### 4.23 Post-incident recovery and DB-read audit (2026-10-10)
+
+Supabase Support ticket SU-500983 confirmed the project became unhealthy around 2026-10-02 13:10 UTC with memory overcommitment and elevated IOWait; OOM was possible but not confirmed. Support restarted the project and connected Production `select now(), 1` succeeded. This **unblocks read-only Child84 DB verification**; it does not prove the prior failure's sole root cause or that all pages are healthy. Nano is still configured. A paid-org Nano -> Micro upgrade is recommended by Support at the same credited compute rate, but requires manual Dashboard action and brief downtime; no upgrade was executed in this audit.
+
+Initial non-mutating SQL audit:
+- `series`: 123 total, 120 public, public source_language NULL = 0; public JA=40, EN=40, KO=40; private NULL=3.
+- `series_popularity_daily`: 294 buckets, latest bucket 2026-10-02, view sum 518 vs 444 raw `series_view_events`; 50 buckets refer to non-existent series and account for all 74 excess views, of which 48 are mismatched. Invariant and lifecycle semantics must be resolved before a popularity runtime cutover; **no data cleanup** was performed.
+- DB size approximately 77 MB, `episodes` approximately 35 MB, `pg_stat_statements` installed. Cumulative statistics show heavy historical episode/recording query activity, but no narrow incident-time causation was proven.
+- Live `public.users` schema has `id` and `display_name`, not `username`, `pen_name`, or `name`. Edge logs after recovery show optional Work author metadata queries repeatedly returning 400 due to a legacy column selection. Draft PR #91 narrows the selection and adds a regression; not merged.
+- DB backups / off-site export have not been independently verified. Restoring or replacing the Production DB remains out of scope.
+
+Retain the existing Child78 Search, R18, publication, owner, translation, and entitlement invariants. Before Child84 DONE: complete DB-dependent safe cutovers and healthy-upstream measurements, verify the micro-upgrade / backup status separately, then obtain explicit approval for any merge.
+
 ## 5. Retry / timeout rules
 
 Limited retry may be useful only for safe, idempotent/read-only operations and only for clearly transient network failures.
