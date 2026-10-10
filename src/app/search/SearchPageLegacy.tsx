@@ -26,6 +26,7 @@ import {
   clampPublicSearchQuery,
   getPublicSearchMatchScore,
 } from "@/lib/search/publicSearchMatching";
+import { matchesPublicSearchConditions } from "@/lib/search/publicSearchConditions";
 import {
   buildPublicSearchPaginationItems,
   clampPublicSearchPage,
@@ -892,50 +893,20 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     work: WorkCard,
     ignoredFacet?: "tag" | "genre"
   ): boolean {
-    const queryOk = (searchScoreBySeriesId.get(work.seriesId) ?? 0) > 0;
-
-    const tagOk =
-      ignoredFacet === "tag" ||
-      selectedTagTokens.length === 0 ||
-      selectedTagTokens.every((selectedToken) =>
-        work.tags.some((tag) => normalizeTagToken(tag) === selectedToken)
-      );
-
-    const genreOk =
-      ignoredFacet === "genre" ||
-      selectedGenreTokens.length === 0 ||
-      selectedGenreTokens.every((selectedToken) =>
-        work.genres.some(
-          (genre) => normalizeGenreToken(genre) === selectedToken
-        )
-      );
-
-    const dateOk =
-      order === "popular"
-        ? true
-        : work.latestPostedAtValue >= safeStartAtValue &&
-          work.latestPostedAtValue <= safeEndAtValue;
-
-    const savedOk = (() => {
-      if (!savedFilter) {
-        return true;
-      }
-
-      if (savedFilterRequiresLogin) {
-        return false;
-      }
-
-      if (
-        savedFilter === "followed-authors" ||
-        savedFilter === "liked-authors"
-      ) {
-        return !!work.authorId && savedAuthorIds.has(work.authorId);
-      }
-
-      return savedSeriesIds.has(work.seriesId);
-    })();
-
-    return queryOk && tagOk && genreOk && dateOk && savedOk;
+    return matchesPublicSearchConditions({
+      work,
+      matchScore: searchScoreBySeriesId.get(work.seriesId) ?? 0,
+      selectedTagTokens,
+      selectedGenreTokens,
+      ignoredFacet,
+      order,
+      startAtValue: safeStartAtValue,
+      endAtValue: safeEndAtValue,
+      savedFilter,
+      savedFilterRequiresLogin,
+      savedAuthorIds,
+      savedSeriesIds,
+    });
   }
 
   function applyShelfEligibility(works: WorkCard[]): WorkCard[] {
