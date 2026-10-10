@@ -7,9 +7,11 @@ on:
       - "package.json"
       - "scripts/test-public-read-reliability-performance.ts"
       - "scripts/test-owned-series-server-save.ts"
+      - "scripts/test-owned-episode-server-save.ts"
       - "src/app/actions/**"
       - "src/lib/write/**"
       - "src/features/write/WriteSeriesForm.tsx"
+      - "src/features/write/WriteEpisodeForm.tsx"
       - "src/app/PublicTopPageLegacy.tsx"
       - "src/app/ranking/**"
       - "src/app/read/**"
@@ -51,6 +53,9 @@ jobs:
       - name: Owner workspace server action regression
         run: npm run test:owned-series-server-save
 
+      - name: Owned episode mutation regression
+        run: npm run test:owned-episode-server-save
+
       - name: Reader and translation regressions
         run: |
           npm run test:reader-mode-unification
@@ -70,6 +75,10 @@ jobs:
           npx eslint
           scripts/test-public-read-reliability-performance.ts
           scripts/test-owned-series-server-save.ts
+          scripts/test-owned-episode-server-save.ts
+          src/app/actions/saveOwnedEpisode.ts
+          src/lib/write/ownedEpisodePayload.ts
+          src/features/write/WriteEpisodeForm.tsx
           src/app/actions/saveOwnedSeriesWorkspace.ts
           src/lib/write/ownedSeriesPayload.ts
           src/features/write/WriteSeriesForm.tsx
