@@ -351,6 +351,21 @@ function verifySitemapIsolation(): void {
   assert.ok(sitemap.includes("retries: 0"));
 }
 
+function verifyPopularityDailyCutover(): void {
+  const popularity = source("src/lib/popularity.ts");
+  assert.ok(popularity.includes('.from("series_popularity_daily")'));
+  assert.ok(popularity.includes('.in("series_id", normalizedSeriesIds)'));
+  assert.ok(popularity.includes('.order("series_id", { ascending: true })'));
+  assert.ok(popularity.includes('.order("bucket_date", { ascending: true })'));
+  assert.ok(popularity.includes('.range(start, start + POPULARITY_DAILY_PAGE_SIZE - 1)'));
+  assert.ok(popularity.includes("rows.length < POPULARITY_DAILY_PAGE_SIZE"));
+  assert.ok(popularity.includes("throw new Error("));
+  assert.equal(popularity.includes('.from("user_series_reactions")'), false);
+  assert.equal(popularity.includes('.from("user_series_bookmarks")'), false);
+  assert.equal(popularity.includes('.from("series_view_events")'), false);
+  assert.equal(popularity.includes('.from("recording_play_events")'), false);
+}
+
 async function main(): Promise<void> {
   verifyAuthSessionClassification();
   await verifyReadOnlyRetry();
@@ -358,6 +373,7 @@ async function main(): Promise<void> {
   verifyWorkIsolationAndRange();
   verifyPublicWorkCardQueries();
   verifySearchIsolation();
+  verifyPopularityDailyCutover();
   verifyReaderIsolation();
   verifyPublicDatabaseFilters();
   verifyRankingIsolation();
