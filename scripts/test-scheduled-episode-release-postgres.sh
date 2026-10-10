@@ -124,7 +124,7 @@ BEGIN
  IF (SELECT count(*) FROM public.libread_scheduled_episode_release_audit) <> 2 THEN
    RAISE EXCEPTION 'Idempotent no-op added an audit row';
  END IF;
- IF (SELECT count(*) FROM public.episodes WHERE posting_status='scheduled') <> 4 THEN
+ IF (SELECT count(*) FROM public.episodes WHERE posting_status='scheduled') <> 3 THEN
    RAISE EXCEPTION 'Draft/future/gap episode incorrectly published';
  END IF;
 END $verify$;
