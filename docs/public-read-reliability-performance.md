@@ -770,7 +770,13 @@ Production deployment `dpl_5kruXnw1gihDmRgpikL5XrttKnV4` (main `398eb396796f2485
 - Public general Work HTTP 200, TTFB 0.563 s, total 3.621 s
 - Public general Reader episode 1 HTTP 200, TTFB 0.640 s, total 4.342 s
 
-Supabase Data API edge telemetry recorded `/rest/v1/public_episode_work_summaries` with HTTP 200 after the merge. These bounded samples are smoke tests, not a full interactive E2E or p95 performance benchmark; Next.js cache warmth and other network conditions were uncontrolled. Reader prev/next, translation choice/mode, actual R18 fail-closed UI, Search result/facet/ordering parity and deletion/unpublish invalidation must be separately tested.
+Supabase Data API edge telemetry recorded `/rest/v1/public_episode_work_summaries` with HTTP 200 after the merge. Additional anonymous public Reader route-pair smoke using published, general-rating works:
+- EN episode 1 / 2: HTTP 200, total 3.289 s / 2.978 s
+- JA episode 1 / 2: HTTP 200, total 4.187 s / 4.866 s
+- KO episode 1 / 2: HTTP 200, total 4.048 s / 3.505 s
+These were separate GET requests rather than browser next-button clicks and do not verify translated content, Human translation selection, logged-in permissions or R18 interactivity. All six requests returned 200; no source work was edited.
+
+These bounded samples are smoke tests, not a full interactive E2E or p95 performance benchmark; Next.js cache warmth and other network conditions were uncontrolled. Reader prev/next, translation choice/mode, actual R18 fail-closed UI, Search result/facet/ordering parity and deletion/unpublish invalidation must be separately tested.
 
 Current Search obtains cached public work cards (at present 120 public series), then applies in-memory source-language filters, fuzzy title/author search, tag/genre self-excluded facet counts, popularity/daily-score and narration sorting, saved lists and pagination. Shipping a simple DB LIMIT/OFFSET upstream would alter result totals, ranking, and facets. A DB-paging rewrite must first define equivalent matching/aggregation semantics, count sources and 1000+ rows parity tests, with no retired `read_language` reintroduction. Given current dataset size, defer any unverified optimization change rather than regress Search correctness; the canonical roadmap order remains unchanged.
 
