@@ -208,6 +208,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-10 Child84 post-recovery verification checkpoint (no priority change):** healthy-upstream Home/Search/Work/Reader sampled HTTP GETs returned 200, and new summary-view requests were observed in Production. Search DB-side pagination remains **in progress / not shipped**: today's 120-public-series in-memory path also drives fuzzy ranking, current-condition facet counts, popularity-score sort and cross-tab shelves, so a naïve DB `LIMIT/OFFSET` would silently truncate valid results and corrupt counts. Preserve all Child78/80 language/permission/search behaviors and implement only after an exact-results-and-facets parity harness. Author client-side series/episode mutations still lack complete server-side cache invalidation/tombstones, so do not increase public TTL or adopt read replicas/mirrors. Off-site backup/restore verification and interactive Reader smoke remain open; do not mark Child84 DONE or start Child85 until required gates are satisfied.
 
+**2026-10-10 canonical source-language fallback checkpoint:** connected Production proves 120 public series have explicit JA/EN/KO (40 each); 3 private NULL rows are unaffected. Draft public-catalog source-language-only cutover eliminates the unused public episode-body guessing path and fails closed for future public rows lacking canonical source metadata. This is a subtask within Child84, not a change in roadmap priority. Merge and Production verification require explicit approval; Child85 remains blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**
