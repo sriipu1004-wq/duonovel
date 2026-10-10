@@ -465,7 +465,7 @@ async function loadOptionalAuthor(authorId: string | null): Promise<UserRow | nu
       async (signal) =>
         await adminSupabase
           .from("users")
-          .select("id, display_name, username, pen_name, name")
+          .select("id, display_name")
           .eq("id", authorId)
           .abortSignal(signal)
           .maybeSingle(),
