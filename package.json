@@ -47,6 +47,7 @@
     "test:search-ux-final": "node --import tsx scripts/test-search-ux-final.ts",
     "test:public-seo-alignment": "node --import tsx scripts/test-public-seo-alignment.ts",
     "test:public-read-reliability-performance": "node --import tsx scripts/test-public-read-reliability-performance.ts",
+    "test:public-fetch-timeout-diagnostics": "node --import tsx scripts/test-public-fetch-timeout-diagnostics.ts",
     "test:owned-series-server-save": "node --import tsx scripts/test-owned-series-server-save.ts"
   },
   "dependencies": {

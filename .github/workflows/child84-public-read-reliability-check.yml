@@ -10,6 +10,7 @@ on:
       - "src/app/actions/**"
       - "src/lib/write/**"
       - "src/features/write/WriteSeriesForm.tsx"
+      - "scripts/test-public-fetch-timeout-diagnostics.ts"
       - "src/app/PublicTopPageLegacy.tsx"
       - "src/app/ranking/**"
       - "src/app/read/**"
@@ -48,6 +49,9 @@ jobs:
       - name: Child84 reliability regression
         run: npm run test:public-read-reliability-performance
 
+      - name: Public read HTTP deadline behavior (no network)
+        run: npm run test:public-fetch-timeout-diagnostics
+
       - name: Owner workspace server action regression
         run: npm run test:owned-series-server-save
 
@@ -69,6 +73,7 @@ jobs:
         run: >
           npx eslint
           scripts/test-public-read-reliability-performance.ts
+          scripts/test-public-fetch-timeout-diagnostics.ts
           scripts/test-owned-series-server-save.ts
           src/app/actions/saveOwnedSeriesWorkspace.ts
           src/lib/write/ownedSeriesPayload.ts
