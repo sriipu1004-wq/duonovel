@@ -364,3 +364,6 @@ PR #98 was merged at main `927b79964cfe8761d5a9b91a6b09ab5ccdca6194` after user 
 
 ### 2026-10-11 Child84 PR #101 reconciliation
 PR #101 was reconciled against approved Production PR #98/#99, retaining the canonical public catalog v12 cache key while registering its `public-base-work-cards` expiry tag. Only owner-authorized existing-series workspace edit and rights metadata preservation are targeted; DB commit and cache expiry remain non-atomic. PR #101 authenticated E2E/Preview required. Child84 NOT DONE; Child85 BLOCKED.
+
+## 2026-10-11 Child84 author write integration candidate (Draft PR)
+Main `ab3615aa0818e89426d9636f98f6fc0c7720f6f6` has Production READY after #98 diagnostic, #99 canonical catalog and #101 owner series save. The following combined branch carries existing #102 episode writes, #103 source-language/R18 route cache expiry, #104 atomic work create, and #107 AI permission cache expiry. This is not a scheduler/backup recovery, logged-in author E2E, Search SQL cutover, or full deletion/tombstone proof. All existing 120 public + 3 private series and rights evidence must be protected. Child84 NOT DONE; Child85 BLOCKED.

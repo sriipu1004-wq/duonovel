@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -122,8 +123,20 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  return NextResponse.json({
-    ok: true,
-    mode: normalizeMode(updateResult.data.translation_permission_mode) ?? mode,
-  });
+  const savedMode = normalizeMode(updateResult.data.translation_permission_mode) ?? mode;
+
+  try {
+    // This value is copied into public-base-work-cards.translationEligible.
+    // Route Handlers must use immediate expiration, not a stale SWR profile.
+    revalidateTag("public-base-work-cards", { expire: 0 });
+  } catch {
+    // The DB update committed. Returning persisted:true avoids misleading
+    // author UI and duplicate retry of a successful permission change.
+    return NextResponse.json(
+      { ok: false, error: "cache_invalidation_failed", persisted: true, mode: savedMode },
+      { status: 503 }
+    );
+  }
+
+  return NextResponse.json({ ok: true, mode: savedMode });
 }

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { createOwnedSeries } from "@/app/actions/createOwnedSeries";
+import { LANGUAGE_REGISTRY, type SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import type { SeriesContentWarning } from "@/lib/contentRating";
 import {
   hideGlobalLoadingFeedback,
   showGlobalLoadingFeedback,
@@ -17,17 +19,6 @@ type SaveState = "idle" | "saving" | "success" | "error";
 type WriteSeriesCreateFormProps = {
   currentUserId: string;
 };
-
-function buildSummaryValue(summary: string): Array<Record<string, string>> {
-  const trimmed = summary.trim();
-
-  return [
-    { summary: trimmed, description: trimmed, catch_copy: trimmed },
-    { summary: trimmed },
-    { description: trimmed },
-    { catch_copy: trimmed },
-  ];
-}
 
 function parseList(raw: string): string[] {
   return raw
@@ -61,12 +52,13 @@ function buildWorkspaceFields(args: {
   };
 }
 
-export default function WriteSeriesCreateForm({
-  currentUserId,
-}: WriteSeriesCreateFormProps) {
+export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps) {
   const router = useRouter();
+  const submittingRef = useRef(false);
 
   const [title, setTitle] = useState("");
+  const [sourceLanguage, setSourceLanguage] = useState<SupportedLanguageTag | "">("");
+  const [contentWarnings, setContentWarnings] = useState<SeriesContentWarning[]>([]);
   const [summary, setSummary] = useState("");
   const [publicationStatus, setPublicationStatus] =
     useState<SeriesPublicationStatus>("private");
@@ -116,15 +108,17 @@ export default function WriteSeriesCreateForm({
   }
 
   async function handleCreate(destination: "episode" | "workspace") {
+    if (submittingRef.current) return;
     const trimmedTitle = title.trim();
 
-    if (!trimmedTitle) {
+    if (!trimmedTitle || !sourceLanguage) {
       setSaveState("error");
-      setErrorMessage("タイトルは必須。");
+      setErrorMessage(!trimmedTitle ? "タイトルは必須。" : "原文言語を選択してください。");
       setSuccessMessage("");
       return;
     }
 
+    submittingRef.current = true;
     setSaveState("saving");
     setErrorMessage("");
     setSuccessMessage("");
@@ -138,52 +132,52 @@ export default function WriteSeriesCreateForm({
       recordingPermissionMode,
     });
 
-    const summaryVariants = buildSummaryValue(summary);
-    const payloads: Array<Record<string, unknown>> = summaryVariants.map(
-      (summaryFields) => ({
+    try {
+      const result = await createOwnedSeries({
         title: trimmedTitle,
-        author_id: currentUserId,
-        ...summaryFields,
+        description: summary.trim(),
         ...workspaceFields,
-      })
-    );
+        translation_permission_mode: "open",
+        human_translation_permission_mode: "open",
+        effect_settings: null,
+        source_language: sourceLanguage,
+        content_warnings: contentWarnings,
+      });
 
-    payloads.push({
-      title: trimmedTitle,
-      author_id: currentUserId,
-      ...workspaceFields,
-    });
-
-    let lastError = "作品作成に失敗した。";
-
-    for (const payload of payloads) {
-      const result = await supabase
-        .from("series")
-        .insert(payload)
-        .select("id")
-        .single();
-
-      if (!result.error && result.data?.id) {
-        setSaveState("success");
-        setSuccessMessage("作品を作成した。");
-
+      if (result.ok || result.persisted) {
+        try {
+          window.sessionStorage.removeItem("duonovel:pending-source-language-create");
+          window.sessionStorage.removeItem("duonovel:pending-content-rating-create");
+          window.sessionStorage.removeItem("duonovel:pending-translation-permission-create");
+        } catch {
+          // Legacy session-only state is optional.
+        }
+        setSaveState(result.ok ? "success" : "error");
+        setSuccessMessage(result.ok ? "作品を作成した。" : "");
+        if (result.persisted) {
+          setErrorMessage("作品は作成されたが、公開一覧のキャッシュ更新に失敗した。再作成せず、作品ワークスペースで状態を確認してください。");
+        }
         router.push(
-          destination === "episode"
-            ? `/write/series/${result.data.id}/episodes/new`
-            : `/write/series/${result.data.id}`
+          destination === "episode" && result.ok
+            ? `/write/series/${result.seriesId}/episodes/new`
+            : `/write/series/${result.seriesId}`
         );
         router.refresh();
         return;
       }
-
-      if (result.error) {
-        lastError = result.error.message;
-      }
+      setSaveState("error");
+      setErrorMessage(
+        result.code === "authentication_required"
+          ? "ログイン状態を確認してから、もう一度作成してください。"
+          : "作品作成に失敗した。入力内容を確認してください。"
+      );
+    } catch {
+      setSaveState("error");
+      setErrorMessage("作成結果を確認できなかった。重複作成を避けるため、作品一覧を確認してください。");
+    } finally {
+      submittingRef.current = false;
+      hideGlobalLoadingFeedback();
     }
-
-    hideGlobalLoadingFeedback();
-    setSaveState("error");
-    setErrorMessage(lastError);
   }
 
   const isSaving = saveState === "saving";
@@ -239,6 +233,45 @@ export default function WriteSeriesCreateForm({
                     className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                   />
                 </label>
+
+                <label className="grid gap-2">
+                  <span className="text-sm text-neutral-700">原文言語（必須）</span>
+                  <select
+                    value={sourceLanguage}
+                    onChange={(event) => {
+                      setSourceLanguage(event.target.value as SupportedLanguageTag);
+                      resetNotice();
+                    }}
+                    className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black"
+                  >
+                    <option value="" disabled>原文言語を選択</option>
+                    {(Object.keys(LANGUAGE_REGISTRY) as SupportedLanguageTag[]).map((tag) => (
+                      <option key={tag} value={tag}>{LANGUAGE_REGISTRY[tag].nativeLabel}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <fieldset className="grid gap-2">
+                  <legend className="text-sm text-neutral-700">コンテンツ警告（作成時に保存）</legend>
+                  {([
+                    ["sexual_r18", "性的表現を含む（R18）"],
+                    ["violence", "暴力描写あり"],
+                  ] as const).map(([value, label]) => (
+                    <label key={value} className="flex items-center gap-2 text-sm text-neutral-700">
+                      <input
+                        type="checkbox"
+                        checked={contentWarnings.includes(value)}
+                        onChange={(event) => {
+                          setContentWarnings((current) => event.target.checked
+                            ? [...current, value]
+                            : current.filter((item) => item !== value));
+                          resetNotice();
+                        }}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </fieldset>
 
                 <label className="grid gap-2">
                   <span className="text-sm text-neutral-700">あらすじ</span>
@@ -441,7 +474,7 @@ export default function WriteSeriesCreateForm({
                   disabled={isSaving}
                   className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isSaving ? "作成中..." : "作品を生成して1話目へ"}
+                  {isSaving ? "作成中..." : "作品を作成して1話目へ"}
                 </button>
 
                 <button
@@ -450,7 +483,7 @@ export default function WriteSeriesCreateForm({
                   disabled={isSaving}
                   className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isSaving ? "作成中..." : "作品を生成"}
+                  {isSaving ? "作成中..." : "作品を作成してワークスペースへ"}
                 </button>
 
                 <Link
