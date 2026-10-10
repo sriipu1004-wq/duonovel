@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createOwnedSeries } from "@/app/actions/createOwnedSeries";
 import {
@@ -17,17 +17,6 @@ type SaveState = "idle" | "saving" | "success" | "error";
 type WriteSeriesCreateFormProps = {
   currentUserId: string;
 };
-
-function buildSummaryValue(summary: string): Array<Record<string, string>> {
-  const trimmed = summary.trim();
-
-  return [
-    { summary: trimmed, description: trimmed, catch_copy: trimmed },
-    { summary: trimmed },
-    { description: trimmed },
-    { catch_copy: trimmed },
-  ];
-}
 
 function parseList(raw: string): string[] {
   return raw
@@ -63,6 +52,7 @@ function buildWorkspaceFields(args: {
 
 export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps) {
   const router = useRouter();
+  const submittingRef = useRef(false);
 
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
@@ -114,6 +104,7 @@ export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps
   }
 
   async function handleCreate(destination: "episode" | "workspace") {
+    if (submittingRef.current) return;
     const trimmedTitle = title.trim();
 
     if (!trimmedTitle) {
@@ -123,6 +114,7 @@ export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps
       return;
     }
 
+    submittingRef.current = true;
     setSaveState("saving");
     setErrorMessage("");
     setSuccessMessage("");
@@ -170,6 +162,7 @@ export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps
       setSaveState("error");
       setErrorMessage("作成結果を確認できなかった。重複作成を避けるため、作品一覧を確認してください。");
     } finally {
+      submittingRef.current = false;
       hideGlobalLoadingFeedback();
     }
   }
