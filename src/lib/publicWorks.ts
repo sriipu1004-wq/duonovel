@@ -2,7 +2,6 @@ import { unstable_cache } from "next/cache";
 import { headers } from "next/headers";
 import { createPublicServerClient } from "@/lib/supabase/serverPublic";
 import {
-  getEpisodeBody,
   getEpisodeNumber,
   getEpisodePostedAtValue,
   getSeriesGenres,
@@ -23,12 +22,10 @@ import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 import { DEFAULT_UI_LOCALE, isUiLocale, UI_LOCALE_HEADER } from "@/i18n/config";
 import {
   CONTENT_LANGUAGE_FILTER_HEADER,
-  detectContentLanguage,
   parseContentLanguageList,
   type ContentLanguage,
 } from "@/i18n/contentLanguage";
 import {
-  inferSeriesSourceLanguage,
   readCanonicalSeriesSourceLanguage,
   sourceLanguageToContentLanguage,
 } from "@/lib/translation/seriesSourceLanguage";
@@ -335,38 +332,6 @@ async function fetchPublicEpisodeSummariesBySeriesIds(
   return summaries;
 }
 
-async function fetchEpisodeBodyMapByIds(
-  episodeIds: string[]
-): Promise<Map<string, string>> {
-  const ids = Array.from(new Set(episodeIds.filter(Boolean)));
-  if (ids.length === 0) return new Map();
-
-  const supabase = createPublicServerClient();
-  const narrow = await supabase
-    .from("episodes")
-    .select("id, body")
-    .in("id", ids);
-
-  let rows: EpisodeRow[];
-  if (!narrow.error) {
-    rows = (narrow.data ?? []) as EpisodeRow[];
-  } else if (isSchemaCompatibilityReadFailure(narrow.error)) {
-    const fallback = await supabase.from("episodes").select("*").in("id", ids);
-    if (fallback.error) {
-      throw new Error(
-        `episode body fallback の取得に失敗: ${fallback.error.message}`
-      );
-    }
-    rows = (fallback.data ?? []) as EpisodeRow[];
-  } else {
-    throw new Error(`episode body の取得に失敗: ${narrow.error.message}`);
-  }
-
-  return new Map(
-    rows.map((episode) => [episode.id, getEpisodeBody(episode)] as const)
-  );
-}
-
 async function fetchAuthorAccountMap(authorIds: string[]): Promise<Map<string, PublicAuthorAccount>> {
   if (authorIds.length === 0) return new Map();
 
@@ -407,18 +372,14 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
     fetchPublicEpisodeSummariesBySeriesIds(publicSeries.map((series) => series.id)),
   ]);
 
-  const legacyFirstEpisodeIds = publicSeries
-    .filter((series) => !readCanonicalSeriesSourceLanguage(series))
-    .map((series) => summariesBySeriesId.get(series.id)?.first_episode_id ?? "")
-    .filter((episodeId) => episodeId.length > 0);
-  const legacyFirstEpisodeBodyMap = await fetchEpisodeBodyMapByIds(
-    legacyFirstEpisodeIds
-  );
-
   return publicSeries
     .map((series) => {
       const episodeSummary = summariesBySeriesId.get(series.id);
       if (!episodeSummary || episodeSummary.episode_count === 0) return null;
+      // The public catalog uses canonical source language only. Never infer
+      // a new public work's language from its title, summary or episode body.
+      const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
+      if (!canonicalSourceLanguage) return null;
       const authorId = pickText(series.author_id, series["user_id"], series["userId"]) || null;
       const authorAccount = authorId ? authorAccountMap.get(authorId) : undefined;
       const publicDomain = readPublicDomainMetadata(
@@ -432,11 +393,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
       const contentRating = getSeriesContentRating(series);
       const title = pickText(series.title) || "無題";
       const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
-      const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
-      const sourceLanguage = inferSeriesSourceLanguage(
-        series,
-        legacyFirstEpisodeBodyMap.get(episodeSummary.first_episode_id)
-      );
+
 
       return {
         seriesId: series.id,
@@ -452,10 +409,8 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         earliestPublicAtValue: firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
         createdAtValue,
         contentRating,
-        contentLanguage: canonicalSourceLanguage
-          ? sourceLanguageToContentLanguage(canonicalSourceLanguage)
-          : detectContentLanguage(title, summary),
-        sourceLanguage,
+        contentLanguage: sourceLanguageToContentLanguage(canonicalSourceLanguage),
+        sourceLanguage: canonicalSourceLanguage,
         translationEligible: isSeriesTranslationEligible(series),
         isShortStory: isShortStorySeriesForSitemap(series),
         publicEpisodeNumbers: episodeSummary.public_episode_numbers,
@@ -476,7 +431,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
   buildPublicBaseWorkCards,
-  ["public-base-work-cards-v11-episode-summary"],
+  ["public-base-work-cards-v12-canonical-source-language"],
   { revalidate: 60 }
 );
 
