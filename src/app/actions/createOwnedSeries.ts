@@ -7,7 +7,7 @@ import { isOwnedSeriesWorkspacePayload } from "@/lib/write/ownedSeriesPayload";
 const PUBLIC_WORKS_CACHE_TAG = "public-base-work-cards";
 
 type CreateResult =
-  | { ok: true; seriesId: string }
+  | { ok: true; persisted: false; seriesId: string }
   | { ok: false; persisted: true; code: "cache_invalidation_failed"; seriesId: string }
   | { ok: false; persisted: false; code: "invalid_request" | "authentication_required" | "save_failed" };
 
@@ -48,5 +48,5 @@ export async function createOwnedSeries(candidate: unknown): Promise<CreateResul
     return { ok: false, persisted: true, code: "cache_invalidation_failed", seriesId: data.id };
   }
 
-  return { ok: true, seriesId: data.id };
+  return { ok: true, persisted: false, seriesId: data.id };
 }
