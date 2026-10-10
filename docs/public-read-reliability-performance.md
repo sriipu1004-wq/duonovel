@@ -815,3 +815,22 @@ Independent off-site backup restore, current Compute tier direct metadata, compl
 Production runtime errors were observed in `sfo1` (US West), while the Supabase DB is `ap-southeast-1` (Singapore). Its `src/lib/supabase/serverPublic.ts` client aborts each HTTP read after 2,500ms and public base-work cache revalidation is 60s, creating repeated `AbortError` groups. SQL health alone does not measure gateway/TLS/transcontinental response time or request error rates. The Vercel regional placement is a **hypothesis**, not confirmed root cause. Earlier Child84b `sin1` Preview reproduced the *prior Supabase-wide outage*, so a region change is **not** an outage fallback (D024 preserved).
 
 This separate Draft Preview-only candidate sets `vercel.json` `regions:["sin1"]` to probe **post-recovery performance**, preserving every public/private/R18/Auth, query, cache TTL, DB policy, permission, and user-visible behavior. Compare to latest-main Production using the same anonymous Home/Search/Work/Reader pages and cache-warm/cold state, observe the actual Vercel deployment regions and abort logs. It must NOT be merged until user approval, a controlled healthy-window A/B result, regression CI, and explicit review of cache behavior and Vercel regional cost (Singapore pricing differs). This does not demonstrate external failure-domain independence, solve global Supabase outage, or justify a stale public snapshot. The current portfolio retains no live region change.
+
+### Experiment result / non-adoption (2026-10-10)
+
+The single-region `sin1` test deployment `dpl_Au54unrsKSVf13B8U9LEapvKfwbR` reached READY and Child84 GitHub Actions passed. Main Production deployment is configured for `iad1`; the Preview deployment is configured for `sin1`. Vercel Runtime Log `region` describes the **edge region processing the request**; its `sfo1` Production and `hnd1` Preview values MUST NOT be misinterpreted as the origin Function execution location. Verify function-location evidence separately.
+
+A fixed authorized client read the same 4 public paths from each environment on 4 alternating passes (total **32/32 HTTP 200**). Approximate median complete HTTP response times in seconds:
+
+| Route | Production iad1 | Preview sin1 |
+|---|---:|---:|
+| Home | 2.106 | 2.947 |
+| Search | 2.442 | 5.685 |
+| Work detail | 5.838 | 3.911 |
+| Reader | 4.057 | 1.494 |
+
+This is **only n=4 per route/environment** on one client and uncontrolled warm/cold caches, so it is not an independent p95/average or a statistically powered production latency comparison. Singapore improved sampled Work/Reader but **regressed sampled Home/Search**. Preview `sin1` itself still produced two `unstable_cache` revalidation AbortError log events during the sampling window. Therefore the region change by itself does not resolve the class of cache failures, does not guarantee a net user-visible improvement, and is **NO-GO for deployment / keep unmerged**. Prior D024 continues to reject geographic relocation as a solution for a Supabase-wide outage.
+
+Next concrete discriminant is existing Draft **PR #98**: log only known endpoint category and locally-expired 2.5-second deadline, never sensitive URL/query/body/ID. Combine with production-safe observation after separate user approval before considering altering a timeout or cache TTL. Do not infer a DB outage from one slow public PostgREST fetch: a read-only healthy-upstream `EXPLAIN ANALYZE` of `public_episode_work_summaries` over 120 public works / 3,284 episodes took about 6.574 ms internal DB execution time. That query is not an end-to-end HTTP measurement.
+
+No Production deployment, schema, cache semantics, permissions, or DB/data mutated during this probe.
