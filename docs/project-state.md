@@ -358,3 +358,6 @@ The current ordered roadmap lives in `docs/roadmap.md`. Do not reconstruct prior
 ## Operating rule
 
 For implementation work, read this file, `docs/roadmap.md`, `docs/decisions.md`, and the relevant feature-specific audit/doc before coding. Verify the current Git main/Production state rather than trusting an old chat SHA.
+
+### 2026-10-11 approved Child84 diagnostic shipment
+PR #98 was merged at main `927b79964cfe8761d5a9b91a6b09ab5ccdca6194` after user approval and its Vercel Production deployment `dpl_HnU5fHhjSeB3d7MNVDSdCUDXMkVj` reached READY. Anonymous Home/Search/Work/Reader HTTP smoke returned 200/200/200/200. Public fetch 2,500ms deadline and all permission boundaries unchanged. PR #99 source-language-only catalog candidate remains an independently reviewed release with all public 120 works populated, no data rewrite. Child84 NOT DONE; Child85 BLOCKED.

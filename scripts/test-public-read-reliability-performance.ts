@@ -217,10 +217,12 @@ function verifyPublicWorkCardQueries(): void {
     )
   );
 
-  // source_language backfill is still unverified while Production Supabase
-  // connectivity is degraded, so the canonical legacy inference gate remains.
-  assert.ok(publicWorks.includes("inferSeriesSourceLanguage("));
-  assert.ok(publicWorks.includes("fetchEpisodeBodyMapByIds("));
+  // 2026-10-10 read-only Production: all 120 public series have canonical
+  // source_language (40 each JA/EN/KO). Missing private values are separate.
+  assert.equal(publicWorks.includes("inferSeriesSourceLanguage("), false);
+  assert.equal(publicWorks.includes("fetchEpisodeBodyMapByIds("), false);
+  assert.ok(publicWorks.includes("if (!canonicalSourceLanguage) return null;"));
+  assert.ok(publicWorks.includes("sourceLanguage: canonicalSourceLanguage,"));
   assert.ok(publicWorks.includes("isSchemaCompatibilityReadFailure"));
   assert.ok(
     publicWorks.includes(
@@ -304,7 +306,7 @@ function verifyPublicEpisodeSummaryReadBoundary(): void {
 
   const summaryRead = works.slice(
     works.indexOf("async function fetchPublicEpisodeSummariesBySeriesIds("),
-    works.indexOf("async function fetchEpisodeBodyMapByIds(")
+    works.indexOf("async function fetchAuthorAccountMap(")
   );
   assert.ok(summaryRead.includes('.from("public_episode_work_summaries")'));
   assert.ok(summaryRead.includes('.in("series_id", seriesIds)'));
@@ -320,7 +322,8 @@ function verifyPublicEpisodeSummaryReadBoundary(): void {
   assert.ok(build.includes("fetchPublicEpisodeSummariesBySeriesIds("));
   assert.equal(build.includes("fetchEpisodesBySeriesIds("), false);
   assert.ok(build.includes("episodeSummary.public_episode_numbers"));
-  assert.ok(build.includes("legacyFirstEpisodeBodyMap.get(episodeSummary.first_episode_id)"));
+  assert.equal(build.includes("legacyFirstEpisodeBodyMap"), false);
+  assert.ok(build.includes("readCanonicalSeriesSourceLanguage(series)"));
 }
 
 function verifyReaderIsolation(): void {
