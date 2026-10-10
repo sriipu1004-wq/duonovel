@@ -486,6 +486,11 @@ Initial non-mutating SQL audit:
 
 Retain the existing Child78 Search, R18, publication, owner, translation, and entitlement invariants. Before Child84 DONE: complete DB-dependent safe cutovers and healthy-upstream measurements, verify the micro-upgrade / backup status separately, then obtain explicit approval for any merge.
 
+
+### 4.24 Reader author metadata 400 follow-up (Draft; 2026-10-10)
+
+Production Edge logs after PR #91/#92 deployment still showed a separate `public.users` 400 with `select=display_name,username,pen_name,name`. Source inspection identified `src/app/read/[seriesId]/[episodeNumber]/page.tsx`'s `getNormalAuthorName` as the exact query path; Production `public.users` has `display_name` but not the three legacy columns. Child84 Reader follow-up selects only `display_name`, retaining the existing `series.author_name` / localized fallback and existing timeout handling. This is distinct from the already merged Work-detail author fix in PR #91. No DB/schema/data change. The follow-up remains Draft pending CI, Preview, user approval and healthy Production validation.
+
 ## 5. Retry / timeout rules
 
 Limited retry may be useful only for safe, idempotent/read-only operations and only for clearly transient network failures.
