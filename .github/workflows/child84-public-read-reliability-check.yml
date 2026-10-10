@@ -10,6 +10,7 @@ on:
       - "scripts/test-owned-series-create.ts"
       - "scripts/test-owned-episode-server-save.ts"
       - "scripts/test-series-route-cache-invalidation.ts"
+      - "scripts/test-child84-visibility-gates.ts"
       - "src/app/actions/**"
       - "src/app/api/series/**"
       - "src/lib/write/**"
@@ -61,6 +62,7 @@ jobs:
           npm run test:owned-series-create
           npm run test:owned-episode-server-save
           npm run test:series-route-cache-invalidation
+          npm run test:child84-visibility-gates
 
       - name: Reader and translation regressions
         run: |
@@ -84,6 +86,7 @@ jobs:
           scripts/test-owned-series-create.ts
           scripts/test-owned-episode-server-save.ts
           scripts/test-series-route-cache-invalidation.ts
+          scripts/test-child84-visibility-gates.ts
           src/app/actions/saveOwnedSeriesWorkspace.ts
           src/app/actions/createOwnedSeries.ts
           src/app/actions/saveOwnedEpisode.ts
