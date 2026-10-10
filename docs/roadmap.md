@@ -314,3 +314,5 @@ When the order changes:
 Do not infer a new priority merely because an older chat suggested an alternative.
 
 **Child84 author-create Server Action candidate (Draft, no priority change):** stacked on #101, both author creation forms route new series through owner-RLS Server Action and immediate public-card tag expiration. Existing source-language pending bridge, external client writers and delete/scheduled transitions remain separate, non-atomic boundaries. CI / Preview / explicit user approval and authenticated Production verification required. Child85 remains blocked.
+
+**Child84 PR #104 safety gate (Draft; priority unchanged):** create-time original language + R18/violence warnings + publication visibility are validated and inserted in one owner-authenticated DB write. Old post-navigation writes are no longer used for new submissions. Delete, external direct DB writers, non-atomic cache refresh and authenticated E2E remain open; Child85 blocked.
