@@ -646,7 +646,7 @@ async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<Pub
       throw new Error(`recordings の取得に失敗: ${result.error.message}`);
     }
 
-    const pageRows = (result.data ?? []) as RecordingAggregateRow[];
+    const pageRows = (result.data ?? []) as unknown as RecordingAggregateRow[];
     data.push(...pageRows);
     if (pageRows.length < PUBLIC_HUMAN_RECORDING_PAGE_SIZE) {
       break;
