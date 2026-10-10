@@ -46,7 +46,7 @@ CREATE TABLE public.libread_scheduled_episode_release_audit (
 );
 INSERT INTO public.episodes
   (id,series_id,episode_number,posting_status,is_published,scheduled_for,posted_at)
-SELECT lpad(to_hex(v.id),32,'0')::uuid, lpad(to_hex(v.sid),32,'0')::uuid,
+SELECT lpad(v.id::text,32,'0')::uuid, lpad(v.sid::text,32,'0')::uuid,
        v.n,v.st,v.pub,v.due,
        CASE WHEN v.st='posted' THEN '2020-01-01T00:00:00Z'::timestamptz ELSE NULL END
 FROM (VALUES
@@ -134,7 +134,7 @@ SQL
 psql_fixture <<'SQL'
 INSERT INTO public.episodes
   (id,series_id,episode_number,posting_status,is_published,scheduled_for)
-VALUES (lpad(to_hex(20),32,'0')::uuid,lpad(to_hex(20),32,'0')::uuid,
+VALUES (lpad(20::text,32,'0')::uuid,lpad(20::text,32,'0')::uuid,
   1,'scheduled',false,'2020-01-02T00:00:00Z'::timestamptz);
 ALTER TABLE public.libread_scheduled_episode_release_audit
   ADD CONSTRAINT simulate_audit_failure CHECK (released_count<0) NOT VALID;
@@ -175,7 +175,7 @@ SQL
 psql_fixture <<'SQL'
 INSERT INTO public.episodes
   (id,series_id,episode_number,posting_status,is_published,scheduled_for)
-SELECT lpad(to_hex(i),32,'0')::uuid,lpad(to_hex(i),32,'0')::uuid,
+SELECT lpad(i::text,32,'0')::uuid,lpad(i::text,32,'0')::uuid,
   1,'scheduled',false,'2020-01-02T00:00:00Z'::timestamptz
 FROM generate_series(1000,1204) i;
 SQL
