@@ -162,10 +162,11 @@ BEGIN
  IF (SELECT posting_status FROM public.episodes WHERE right(id::text,12)::int=20) <> 'posted' THEN
    RAISE EXCEPTION 'Valid retry failed after audit repair';
  END IF;
- IF (SELECT released_count FROM public.libread_scheduled_episode_release_audit WHERE id=4) IS NOT NULL THEN
-   RAISE EXCEPTION 'Unexpected additional audit';
+ IF (SELECT count(*) FROM public.libread_scheduled_episode_release_audit) <> 3 THEN
+   RAISE EXCEPTION 'Audit row count after valid retry is wrong';
  END IF;
- IF (SELECT released_count FROM public.libread_scheduled_episode_release_audit WHERE id=3) <> 1 THEN
+ -- IDENTITY values consumed by rolled-back INSERTs are not transactional.
+ IF (SELECT released_count FROM public.libread_scheduled_episode_release_audit ORDER BY id DESC LIMIT 1) <> 1 THEN
    RAISE EXCEPTION 'Valid retry must release precisely one episode';
  END IF;
 END $verify$;
@@ -183,7 +184,7 @@ psql_fixture < /tmp/child84-scheduled-job.sql
 psql_fixture <<'SQL'
 DO $verify$
 BEGIN
- IF (SELECT released_count FROM public.libread_scheduled_episode_release_audit WHERE id=4) <> 200 THEN
+ IF (SELECT released_count FROM public.libread_scheduled_episode_release_audit ORDER BY id DESC LIMIT 1) <> 200 THEN
    RAISE EXCEPTION '200-row cap failed';
  END IF;
  IF (SELECT count(*) FROM public.episodes WHERE posting_status='scheduled' AND right(id::text,12)::int>=1000)<>5 THEN
@@ -195,7 +196,7 @@ psql_fixture < /tmp/child84-scheduled-job.sql
 psql_fixture <<'SQL'
 DO $verify$
 BEGIN
- IF (SELECT released_count FROM public.libread_scheduled_episode_release_audit WHERE id=5) <> 5 THEN
+ IF (SELECT released_count FROM public.libread_scheduled_episode_release_audit ORDER BY id DESC LIMIT 1) <> 5 THEN
    RAISE EXCEPTION 'Five-row remainder count failed';
  END IF;
  IF (SELECT count(*) FROM public.episodes WHERE posting_status='scheduled' AND right(id::text,12)::int>=1000)<>0 THEN
