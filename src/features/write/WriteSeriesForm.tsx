@@ -7,6 +7,7 @@ import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { canonicalizeTagList, localizeTagList } from "@/i18n/tagLabels";
 import { canonicalizeGenreList, localizeGenreList } from "@/i18n/genreLabels";
 import { supabase } from "@/lib/supabaseClient";
+import { saveOwnedSeriesWorkspace } from "@/app/actions/saveOwnedSeriesWorkspace";
 import {
   hideGlobalLoadingFeedback,
   showGlobalLoadingFeedback,
@@ -860,7 +861,6 @@ const publicVisibleCount = sortedEpisodes.filter(
     setErrorMessage("");
     setSuccessMessage("");
 
-    const summaryVariants = buildSummaryValue(summary);
     const nextGenres = canonicalizeGenreList(parseTags(genreEditorValue));
     const nextTags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue));
     const workspaceFields = buildWorkspaceFields({
@@ -878,27 +878,14 @@ const publicVisibleCount = sortedEpisodes.filter(
       ),
     });
 
-    const payloads: Array<Record<string, unknown>> = summaryVariants.map(
-      (summaryFields) => ({
+    try {
+      const result = await saveOwnedSeriesWorkspace(series.id, {
         title: trimmedTitle,
-        author_id: currentUserId,
-        ...summaryFields,
+        description: summary.trim(),
         ...workspaceFields,
-      })
-    );
+      });
 
-    payloads.push({
-      title: trimmedTitle,
-      ...workspaceFields,
-    });
-
-    const updateFailureMessage =
-      "作品を保存できませんでした。入力内容を確認して、もう一度お試しください。";
-
-    for (const payload of payloads) {
-      const result = await supabase.from("series").update(payload).eq("id", series.id);
-
-      if (!result.error) {
+      if (result.ok) {
         setSavedGenres(nextGenres);
         setGenreEditorValue(toEditorValue(nextGenres));
         setSavedTags(nextTags);
@@ -906,21 +893,29 @@ const publicVisibleCount = sortedEpisodes.filter(
         setSavedRecordingPermissionMode(recordingPermissionMode);
 
         hideGlobalLoadingFeedback();
-
-        submittingRef.current = false;
         setSaveState("success");
         setSuccessMessage("作品ワークスペースを保存した。");
         router.refresh();
         return;
       }
 
+      setSaveState("error");
+      setErrorMessage(
+        result.persisted
+          ? "作品情報は保存されたが、公開一覧のキャッシュ更新に失敗した。公開状態がしばらく古い可能性がある。"
+          : result.code === "authentication_required"
+            ? "ログイン状態を確認してから、もう一度保存してください。"
+            : result.code === "not_found_or_forbidden"
+              ? "作品の編集権限を確認できませんでした。"
+              : "作品を保存できませんでした。入力内容を確認して、もう一度お試しください。"
+      );
+    } catch {
+      setSaveState("error");
+      setErrorMessage("作品を保存できませんでした。通信状態を確認してください。");
+    } finally {
+      submittingRef.current = false;
+      hideGlobalLoadingFeedback();
     }
-
-    submittingRef.current = false;
-    hideGlobalLoadingFeedback();
-
-    setSaveState("error");
-    setErrorMessage(updateFailureMessage);
   }
 
   async function handleSubmit(destination: "episode" | "workspace" = "workspace") {
