@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 
@@ -84,6 +85,19 @@ export async function POST(request: Request, context: RouteContext) {
         message: updateResult.error?.message ?? "更新に失敗しました。",
       },
       { status: 500 }
+    );
+  }
+
+  try {
+    // Next 16 Route Handlers cannot call updateTag (Server Actions only).
+    // expire: 0 forces blocking refresh instead of stale-while-revalidate,
+    // which must not expose pre-change general/public catalog metadata.
+    revalidateTag("public-base-work-cards", { expire: 0 });
+  } catch {
+    // Database mutation has already committed. Do not report that it did not.
+    return NextResponse.json(
+      { ok: false, error: "cache_invalidation_failed", persisted: true },
+      { status: 503 }
     );
   }
 
