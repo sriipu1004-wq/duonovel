@@ -169,19 +169,14 @@ async function getNormalAuthorName(
       async () =>
         await adminSupabase
           .from("users")
-          .select("display_name, username, pen_name, name")
+          .select("display_name")
           .eq("id", authorId)
           .maybeSingle(),
       { operation: "reader author profile", timeoutMs: 1500, retries: 0 }
     );
 
     if (!result.error && result.data) {
-      const displayName = pickText(
-        result.data.display_name,
-        result.data.pen_name,
-        result.data.username,
-        result.data.name
-      );
+      const displayName = pickText(result.data.display_name);
       if (displayName) return displayName;
     }
   } catch {

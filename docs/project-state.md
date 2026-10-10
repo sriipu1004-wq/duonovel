@@ -326,9 +326,9 @@ Supabase Support ticket SU-500983 confirmed that the Production project became u
 
 Post-restart read-only Production SQL verified 123 series, 120 public series (40 JA/40 EN/40 KO), 3 private series with NULL source_language and 0 public NULL. The database size is approximately 77 MB. The existing `series_popularity_daily` has 294 buckets, of which 50 refer to non-existent series; 48 of those contain 74 retained view counts absent from the raw events. No aggregate cutover, cleanup, schema/data write, or index change was made. Reconciliation and safe publication filtering remain required.
 
-Post-recovery `public.users` REST reads exposed a Work-detail optional author query selecting obsolete `username, pen_name, name` columns not present in Production. A two-file fix and regression are under **Draft PR #91**, unmerged pending CI, Preview, and explicit approval.
+Post-recovery `public.users` REST reads exposed a Work-detail optional author query selecting obsolete `username, pen_name, name` columns not present in Production. Work author query fix merged as **PR #91** and deployed READY on 2026-10-10 together with **PR #92** daily popularity read cutover. Separate Reader author metadata legacy-column 400 was then observed after deployment and is being handled in **Draft PR #93**, unmerged pending review and explicit approval.
 
-Independent database backup availability / download is not yet verified. Do not assume recovery automatically implies a validated off-site backup. Child84 DB-dependent remainder is now **unblocked for read-only audit**, but Child84 is not DONE and Child85 remains gated.
+Independent database backup availability / download is not yet verified. Do not assume recovery automatically implies a validated off-site backup. Child84 DB-dependent remainder is now **unblocked** and read-only audits have resumed; PR #91/#92 merged and Production READY. Child84 is not DONE, and Child85 remains gated.
 
 ## Current unresolved verification items
 
