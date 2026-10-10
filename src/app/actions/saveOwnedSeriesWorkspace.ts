@@ -2,7 +2,7 @@
 
 import { updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { isValidSeriesId, isOwnedSeriesWorkspacePayload } from "@/lib/write/ownedSeriesPayload";
+import { isValidSeriesId, isOwnedSeriesWorkspacePayload, preserveSeriesPublicDomainMetadata } from "@/lib/write/ownedSeriesPayload";
 
 type SaveResult =
   | { ok: true }
@@ -31,9 +31,28 @@ export async function saveOwnedSeriesWorkspace(
     return { ok: false, code: "authentication_required", persisted: false };
   }
 
+  // Preserve reviewed Public Domain provenance currently stored in the DB.
+  // The editor serializes presentation settings without this metadata.
+  const { data: previous, error: previousError } = await supabase
+    .from("series")
+    .select("id, effect_settings")
+    .eq("id", seriesId)
+    .eq("author_id", auth.user.id)
+    .maybeSingle();
+  if (previousError) return { ok: false, code: "save_failed", persisted: false };
+  if (!previous) return { ok: false, code: "not_found_or_forbidden", persisted: false };
+
+  const safeFields = {
+    ...candidate,
+    effect_settings: preserveSeriesPublicDomainMetadata(
+      candidate.effect_settings,
+      previous.effect_settings
+    ),
+  };
+
   const { data, error } = await supabase
     .from("series")
-    .update(candidate)
+    .update(safeFields)
     .eq("id", seriesId)
     .eq("author_id", auth.user.id)
     .select("id")
