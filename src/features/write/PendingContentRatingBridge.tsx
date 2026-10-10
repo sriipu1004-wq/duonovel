@@ -82,15 +82,15 @@ export default function PendingContentRatingBridge() {
           }
         );
         const payload = (await response.json().catch(() => null)) as
-          | { ok?: boolean; warnings?: SeriesContentWarning[] }
+          | { ok?: boolean; persisted?: boolean; warnings?: SeriesContentWarning[] }
           | null;
 
         window.sessionStorage.removeItem(PENDING_KEY);
 
-        if (response.ok && payload?.ok && Array.isArray(payload.warnings)) {
+        if ((response.ok && payload?.ok || payload?.persisted === true) && Array.isArray(payload?.warnings)) {
           window.dispatchEvent(
             new CustomEvent("libread:content-rating-applied", {
-              detail: { warnings: payload.warnings },
+              detail: { warnings: payload.warnings, cacheInvalidationFailed: payload.persisted === true },
             })
           );
         }

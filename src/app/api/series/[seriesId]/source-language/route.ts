@@ -96,7 +96,12 @@ export async function POST(request: Request, context: RouteContext) {
   } catch {
     // Database mutation has already committed. Do not report that it did not.
     return NextResponse.json(
-      { ok: false, error: "cache_invalidation_failed", persisted: true },
+      {
+        ok: false,
+        error: "cache_invalidation_failed",
+        persisted: true,
+        language: parseSupportedLanguageTag(updateResult.data.source_language) ?? language,
+      },
       { status: 503 }
     );
   }

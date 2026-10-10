@@ -91,12 +91,14 @@ export default function SourceLanguageWorkspaceBridge({
 
   useEffect(() => {
     function handleApplied(event: Event) {
-      const detail = (event as CustomEvent<{ language?: unknown }>).detail;
+      const detail = (event as CustomEvent<{ language?: unknown; cacheInvalidationFailed?: boolean }>).detail;
       const applied = parseSupportedLanguageTag(detail?.language);
       if (!applied) return;
       setLanguage(applied);
       setSavedLanguage(applied);
-      setMessage(dictionary.saved);
+      setMessage(detail?.cacheInvalidationFailed
+        ? "原文言語は保存されたが、公開一覧のキャッシュ更新に失敗した。表示がしばらく古い可能性がある。"
+        : dictionary.saved);
       router.refresh();
     }
 
@@ -158,10 +160,18 @@ export default function SourceLanguageWorkspaceBridge({
       );
       const payload = (await response.json()) as {
         ok?: boolean;
+        persisted?: boolean;
         language?: unknown;
         message?: string;
       };
       const saved = parseSupportedLanguageTag(payload.language);
+      if (payload.persisted === true && saved) {
+        setLanguage(saved);
+        setSavedLanguage(saved);
+        setMessage("原文言語は保存されたが、公開一覧のキャッシュ更新に失敗した。表示がしばらく古い可能性がある。");
+        router.refresh();
+        return;
+      }
       if (!response.ok || !payload.ok || !saved) {
         setLanguage(savedLanguage ?? nextLanguage);
         setMessage(dictionary.failed);

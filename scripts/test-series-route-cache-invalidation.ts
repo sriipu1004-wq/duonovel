@@ -22,4 +22,17 @@ for (const route of [sourceRoute, ratingRoute]) {
   assert.ok(write >= 0 && write < invalidation);
 }
 assert.ok(works.includes('{ revalidate: 60, tags: ["public-base-work-cards"] }'));
-console.log("PASS: owned source-language/R18 metadata route expiration uses blocking cache refresh");
+console.log("PASS: owned source-language/R18 metadata expiry and persisted-after-cache-failure clients");
+
+const sourceClient = readFileSync("src/features/write/SourceLanguageWorkspaceBridge.tsx", "utf8");
+const ratingClient = readFileSync("src/features/write/ContentRatingWorkspaceBridge.tsx", "utf8");
+const sourcePending = readFileSync("src/features/write/PendingSourceLanguageBridge.tsx", "utf8");
+const ratingPending = readFileSync("src/features/write/PendingContentRatingBridge.tsx", "utf8");
+assert.ok(sourceRoute.includes('persisted: true,\n        language:'));
+assert.ok(ratingRoute.includes('persisted: true,\n        rating,'));
+assert.ok(sourceClient.includes("payload.persisted === true && saved"));
+assert.ok(ratingClient.includes("payload.persisted === true && Array.isArray(payload.warnings)"));
+assert.ok(sourcePending.includes("payload.persisted === true"));
+assert.ok(ratingPending.includes("payload?.persisted === true"));
+assert.ok(sourcePending.includes("cacheInvalidationFailed: payload.persisted === true"));
+assert.ok(ratingPending.includes("cacheInvalidationFailed: payload.persisted === true"));
