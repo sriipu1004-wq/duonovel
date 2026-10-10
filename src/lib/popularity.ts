@@ -16,13 +16,6 @@ type PopularityDailyRow = Record<string, unknown> & {
   narrationPlayCount?: number | null;
 };
 
-type RawMetricRow = Record<string, unknown> & {
-  series_id?: string | null;
-  seriesId?: string | null;
-  created_at?: string | null;
-  createdAt?: string | null;
-};
-
 export type PopularityWindow = {
   startAtValue?: number | null;
   endAtValue?: number | null;
@@ -44,17 +37,7 @@ export type SeriesPopularityDataset = {
 
 const TOKYO_TIMEZONE = "Asia/Tokyo";
 
-function pickText(...values: unknown[]): string {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value.trim();
-    }
-  }
-
-  return "";
-}
-
-function pickSeriesId(row: PopularityDailyRow | RawMetricRow): string | null {
+function pickSeriesId(row: PopularityDailyRow): string | null {
   const value = row.series_id ?? row.seriesId;
 
   if (typeof value !== "string") {
@@ -101,57 +84,6 @@ function toTokyoDateInput(value: number): string {
   }
 
   return `${year}-${month}-${day}`;
-}
-
-function getMetricBucketDate(row: RawMetricRow): string {
-  const raw = pickText(row.created_at, row.createdAt);
-
-  if (!raw) {
-    return toTokyoDateInput(Date.now());
-  }
-
-  const timestamp = new Date(raw).getTime();
-
-  if (!Number.isFinite(timestamp) || Number.isNaN(timestamp)) {
-    return toTokyoDateInput(Date.now());
-  }
-
-  return toTokyoDateInput(timestamp);
-}
-
-function addDailyCount(args: {
-  map: Map<string, PopularityDailyRow>;
-  row: RawMetricRow;
-  field:
-    | "like_count"
-    | "bookmark_count"
-    | "view_count"
-    | "narration_play_count";
-}) {
-  const seriesId = pickSeriesId(args.row);
-  if (!seriesId) {
-    return;
-  }
-
-  const bucketDate = getMetricBucketDate(args.row);
-  const key = `${seriesId}:${bucketDate}`;
-  const current = args.map.get(key) ?? {
-    series_id: seriesId,
-    bucket_date: bucketDate,
-    like_count: 0,
-    bookmark_count: 0,
-    view_count: 0,
-    narration_play_count: 0,
-  };
-
-  const rawCurrentValue = current[args.field];
-  const currentValue =
-    typeof rawCurrentValue === "number" && Number.isFinite(rawCurrentValue)
-      ? rawCurrentValue
-      : 0;
-
-  current[args.field] = currentValue + 1;
-  args.map.set(key, current);
 }
 
 function hasWindow(window?: PopularityWindow): boolean {
@@ -203,6 +135,8 @@ export function calculatePopularityScore(input: {
   return input.viewCount / 100 + input.likeCount + input.bookmarkCount / 3;
 }
 
+const POPULARITY_DAILY_PAGE_SIZE = 1000;
+
 async function fetchSeriesPopularityDatasetUncached(
   seriesIdsKey: string
 ): Promise<SeriesPopularityDataset> {
@@ -216,66 +150,36 @@ async function fetchSeriesPopularityDatasetUncached(
   );
 
   if (normalizedSeriesIds.length === 0) {
-    return {
-      seriesIds: [],
-      dailyRows: [],
-    };
+    return { seriesIds: [], dailyRows: [] };
   }
 
   const adminSupabase = createAdminClient();
+  const dailyRows: PopularityDailyRow[] = [];
 
-  const [
-    likesResult,
-    bookmarksResult,
-    viewsResult,
-    narrationPlaysResult,
-  ] = await Promise.all([
-    adminSupabase
-      .from("user_series_reactions")
-      .select("series_id, created_at")
+  for (let start = 0; ; start += POPULARITY_DAILY_PAGE_SIZE) {
+    const { data, error } = await adminSupabase
+      .from("series_popularity_daily")
+      .select("series_id, bucket_date, like_count, bookmark_count, view_count, narration_play_count")
       .in("series_id", normalizedSeriesIds)
-      .eq("reaction_type", "support"),
-    adminSupabase
-      .from("user_series_bookmarks")
-      .select("series_id, created_at")
-      .in("series_id", normalizedSeriesIds),
-    adminSupabase
-      .from("series_view_events")
-      .select("series_id, created_at")
-      .in("series_id", normalizedSeriesIds),
-    adminSupabase
-      .from("recording_play_events")
-      .select("series_id, created_at")
-      .in("series_id", normalizedSeriesIds),
-  ]);
+      .order("series_id", { ascending: true })
+      .order("bucket_date", { ascending: true })
+      .range(start, start + POPULARITY_DAILY_PAGE_SIZE - 1);
 
-  const dailyMap = new Map<string, PopularityDailyRow>();
+    if (error) {
+      throw new Error(`series_popularity_daily read failed: ${error.message}`);
+    }
 
-  for (const row of (likesResult.data ?? []) as RawMetricRow[]) {
-    addDailyCount({ map: dailyMap, row, field: "like_count" });
+    const rows = (data ?? []) as PopularityDailyRow[];
+    dailyRows.push(...rows);
+    if (rows.length < POPULARITY_DAILY_PAGE_SIZE) break;
   }
 
-  for (const row of (bookmarksResult.data ?? []) as RawMetricRow[]) {
-    addDailyCount({ map: dailyMap, row, field: "bookmark_count" });
-  }
-
-  for (const row of (viewsResult.data ?? []) as RawMetricRow[]) {
-    addDailyCount({ map: dailyMap, row, field: "view_count" });
-  }
-
-  for (const row of (narrationPlaysResult.data ?? []) as RawMetricRow[]) {
-    addDailyCount({ map: dailyMap, row, field: "narration_play_count" });
-  }
-
-  return {
-    seriesIds: normalizedSeriesIds,
-    dailyRows: Array.from(dailyMap.values()),
-  };
+  return { seriesIds: normalizedSeriesIds, dailyRows };
 }
 
 const getCachedSeriesPopularityDataset = unstable_cache(
   fetchSeriesPopularityDatasetUncached,
-  ["series-popularity-raw-metrics"],
+  ["series-popularity-daily-metrics-v1"],
   {
     revalidate: 15,
   }
