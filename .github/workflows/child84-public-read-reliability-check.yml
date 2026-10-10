@@ -8,9 +8,15 @@ on:
       - "scripts/test-public-read-reliability-performance.ts"
       - "scripts/test-owned-series-server-save.ts"
       - "scripts/test-owned-series-create.ts"
+      - "scripts/test-owned-episode-server-save.ts"
+      - "scripts/test-series-route-cache-invalidation.ts"
       - "src/app/actions/**"
+      - "src/app/api/series/**"
       - "src/lib/write/**"
       - "src/features/write/WriteSeriesForm.tsx"
+      - "src/features/write/WriteEpisodeForm.tsx"
+      - "src/features/write/SourceLanguageWorkspaceBridge.tsx"
+      - "src/features/write/ContentRatingWorkspaceBridge.tsx"
       - "src/app/PublicTopPageLegacy.tsx"
       - "src/app/ranking/**"
       - "src/app/read/**"
@@ -53,6 +59,8 @@ jobs:
         run: |
           npm run test:owned-series-server-save
           npm run test:owned-series-create
+          npm run test:owned-episode-server-save
+          npm run test:series-route-cache-invalidation
 
       - name: Reader and translation regressions
         run: |
@@ -74,8 +82,17 @@ jobs:
           scripts/test-public-read-reliability-performance.ts
           scripts/test-owned-series-server-save.ts
           scripts/test-owned-series-create.ts
+          scripts/test-owned-episode-server-save.ts
+          scripts/test-series-route-cache-invalidation.ts
           src/app/actions/saveOwnedSeriesWorkspace.ts
           src/app/actions/createOwnedSeries.ts
+          src/app/actions/saveOwnedEpisode.ts
+          src/lib/write/ownedEpisodePayload.ts
+          src/features/write/WriteEpisodeForm.tsx
+          src/app/api/series/[seriesId]/source-language/route.ts
+          src/app/api/series/[seriesId]/content-rating/route.ts
+          src/features/write/SourceLanguageWorkspaceBridge.tsx
+          src/features/write/ContentRatingWorkspaceBridge.tsx
           src/features/write/WriteSeriesCreateForm.tsx
           src/lib/write/ownedSeriesPayload.ts
           src/features/write/WriteSeriesForm.tsx

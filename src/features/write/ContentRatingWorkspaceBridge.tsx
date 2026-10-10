@@ -131,13 +131,15 @@ export default function ContentRatingWorkspaceBridge({
   useEffect(() => {
     function handleApplied(event: Event) {
       const detail = (
-        event as CustomEvent<{ warnings?: SeriesContentWarning[] }>
+        event as CustomEvent<{ warnings?: SeriesContentWarning[]; cacheInvalidationFailed?: boolean }>
       ).detail;
       if (!Array.isArray(detail?.warnings)) return;
       const next = Array.from(new Set([...detail.warnings, ...normalizedLocks]));
       setWarnings(next);
       setSavedWarnings(next);
-      setMessage("保存済み");
+      setMessage(detail.cacheInvalidationFailed
+        ? "警告は保存されたが、公開一覧のキャッシュ更新に失敗した。表示がしばらく古い可能性がある。"
+        : "保存済み");
     }
 
     window.addEventListener("libread:content-rating-applied", handleApplied);
@@ -199,11 +201,19 @@ export default function ContentRatingWorkspaceBridge({
       );
       const payload = (await response.json()) as {
         ok?: boolean;
+        persisted?: boolean;
         warnings?: SeriesContentWarning[];
         lockedWarnings?: SeriesContentWarning[];
         message?: string;
       };
 
+      if (payload.persisted === true && Array.isArray(payload.warnings)) {
+        const saved = Array.from(new Set([...payload.warnings, ...(payload.lockedWarnings ?? normalizedLocks)]));
+        setWarnings(saved);
+        setSavedWarnings(saved);
+        setMessage("警告は保存されたが、公開一覧のキャッシュ更新に失敗した。表示がしばらく古い可能性がある。");
+        return;
+      }
       if (!response.ok || !payload.ok || !Array.isArray(payload.warnings)) {
         setMessage("コンテンツ警告を更新できませんでした。");
         return;

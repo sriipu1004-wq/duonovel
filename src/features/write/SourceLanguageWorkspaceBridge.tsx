@@ -22,6 +22,7 @@ const copy = {
     legacyNotice: "既存作品の推定値です。内容を確認して確定してください。",
     required: "作品を作成する前に原文言語を選択してください。",
     saved: "保存済み",
+    cacheWarning: "原文言語は保存されたが、公開一覧のキャッシュ更新に失敗した。表示がしばらく古い可能性がある。",
     failed: "原文言語を更新できませんでした。",
   },
   en: {
@@ -32,6 +33,7 @@ const copy = {
     legacyNotice: "This is an inferred value for an existing work. Review it and confirm the language.",
     required: "Choose the original language before creating the work.",
     saved: "Saved",
+    cacheWarning: "The original language was saved, but the public listing cache could not be refreshed. The listing may be temporarily outdated.",
     failed: "Could not update the original language.",
   },
   ko: {
@@ -42,6 +44,7 @@ const copy = {
     legacyNotice: "기존 작품에서 추정한 값입니다. 내용을 확인한 뒤 확정하세요.",
     required: "작품을 만들기 전에 원문 언어를 선택하세요.",
     saved: "저장됨",
+    cacheWarning: "원문 언어는 저장되었지만 공개 목록 캐시를 갱신하지 못했습니다. 목록에 이전 정보가 잠시 표시될 수 있습니다.",
     failed: "원문 언어를 업데이트하지 못했습니다.",
   },
 } as const;
@@ -78,19 +81,21 @@ export default function SourceLanguageWorkspaceBridge({
 
   useEffect(() => {
     function handleApplied(event: Event) {
-      const detail = (event as CustomEvent<{ language?: unknown }>).detail;
+      const detail = (event as CustomEvent<{ language?: unknown; cacheInvalidationFailed?: boolean }>).detail;
       const applied = parseSupportedLanguageTag(detail?.language);
       if (!applied) return;
       setLanguage(applied);
       setSavedLanguage(applied);
-      setMessage(dictionary.saved);
+      setMessage(detail?.cacheInvalidationFailed
+        ? dictionary.cacheWarning
+        : dictionary.saved);
       router.refresh();
     }
 
     window.addEventListener("libread:source-language-applied", handleApplied);
     return () =>
       window.removeEventListener("libread:source-language-applied", handleApplied);
-  }, [dictionary.saved, router]);
+  }, [dictionary.saved, dictionary.cacheWarning, router]);
 
   async function persistLanguage(nextLanguage: SupportedLanguageTag) {
     setLanguage(nextLanguage);
@@ -115,10 +120,18 @@ export default function SourceLanguageWorkspaceBridge({
       );
       const payload = (await response.json()) as {
         ok?: boolean;
+        persisted?: boolean;
         language?: unknown;
         message?: string;
       };
       const saved = parseSupportedLanguageTag(payload.language);
+      if (payload.persisted === true && saved) {
+        setLanguage(saved);
+        setSavedLanguage(saved);
+        setMessage(dictionary.cacheWarning);
+        router.refresh();
+        return;
+      }
       if (!response.ok || !payload.ok || !saved) {
         setLanguage(savedLanguage ?? nextLanguage);
         setMessage(dictionary.failed);
