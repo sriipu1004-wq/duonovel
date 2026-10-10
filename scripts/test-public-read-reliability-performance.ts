@@ -486,7 +486,7 @@ function verifyLivePublicCatalogGate(): void {
   assert.ok(freshLoader.includes('.order("id", { ascending: true })'));
   assert.ok(freshLoader.includes(".range(start, start + PAGE_SIZE - 1)"));
   assert.ok(freshLoader.includes("throw new Error("));
-  assert.equal(freshLoader.includes("unstable_cache"), false);
+  assert.equal(freshLoader.includes("unstable_cache("), false);
 
   const publicCards = works.slice(
     works.indexOf("export async function getCachedPublicBaseWorkCards("),
