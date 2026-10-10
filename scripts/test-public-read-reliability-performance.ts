@@ -268,6 +268,19 @@ function verifySearchIsolation(): void {
   assert.ok(search.includes("Public work data is temporarily unavailable."));
 }
 
+function verifyReaderAuthorProfileColumns(): void {
+  const readerPage = source("src/app/read/[seriesId]/[episodeNumber]/page.tsx");
+  const authorQuery = readerPage.slice(
+    readerPage.indexOf("async function getNormalAuthorName("),
+    readerPage.indexOf("export async function generateMetadata(")
+  );
+  assert.ok(authorQuery.includes('.from("users")'));
+  assert.ok(authorQuery.includes('.select("display_name")'));
+  assert.equal(authorQuery.includes("username, pen_name, name"), false);
+  assert.ok(authorQuery.includes("result.data.display_name"));
+  assert.ok(authorQuery.includes("return fallbackName"));
+}
+
 function verifyReaderIsolation(): void {
   const reader = source("src/lib/publicRead.ts");
 
@@ -383,6 +396,7 @@ async function main(): Promise<void> {
   verifyPublicWorkCardQueries();
   verifySearchIsolation();
   verifyPopularityDailyCutover();
+  verifyReaderAuthorProfileColumns();
   verifyReaderIsolation();
   verifyPublicDatabaseFilters();
   verifyRankingIsolation();

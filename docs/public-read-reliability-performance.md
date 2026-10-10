@@ -481,10 +481,15 @@ Initial non-mutating SQL audit:
 - `series`: 123 total, 120 public, public source_language NULL = 0; public JA=40, EN=40, KO=40; private NULL=3.
 - `series_popularity_daily`: 294 buckets, latest bucket 2026-10-02, view sum 518 vs 444 raw `series_view_events`; 50 buckets refer to non-existent series and account for all 74 excess views, of which 48 are mismatched. Invariant and lifecycle semantics must be resolved before a popularity runtime cutover; **no data cleanup** was performed.
 - DB size approximately 77 MB, `episodes` approximately 35 MB, `pg_stat_statements` installed. Cumulative statistics show heavy historical episode/recording query activity, but no narrow incident-time causation was proven.
-- Live `public.users` schema has `id` and `display_name`, not `username`, `pen_name`, or `name`. Edge logs after recovery show optional Work author metadata queries repeatedly returning 400 due to a legacy column selection. Draft PR #91 narrows the selection and adds a regression; not merged.
+- Live `public.users` schema has `id` and `display_name`, not `username`, `pen_name`, or `name`. Edge logs after recovery show optional Work author metadata queries repeatedly returning 400 due to a legacy column selection. PR #91 narrowed the selection, passed CI and was merged/deployed READY on 2026-10-10; the follow-up Reader column bug is handled separately in Draft PR #93.
 - DB backups / off-site export have not been independently verified. Restoring or replacing the Production DB remains out of scope.
 
 Retain the existing Child78 Search, R18, publication, owner, translation, and entitlement invariants. Before Child84 DONE: complete DB-dependent safe cutovers and healthy-upstream measurements, verify the micro-upgrade / backup status separately, then obtain explicit approval for any merge.
+
+
+### 4.24 Reader author metadata 400 follow-up (Draft; 2026-10-10)
+
+Production Edge logs after PR #91/#92 deployment still showed a separate `public.users` 400 with `select=display_name,username,pen_name,name`. Source inspection identified `src/app/read/[seriesId]/[episodeNumber]/page.tsx`'s `getNormalAuthorName` as the exact query path; Production `public.users` has `display_name` but not the three legacy columns. Child84 Reader follow-up selects only `display_name`, retaining the existing `series.author_name` / localized fallback and existing timeout handling. This is distinct from the already merged Work-detail author fix in PR #91. No DB/schema/data change. The follow-up remains Draft pending CI, Preview, user approval and healthy Production validation.
 
 ## 5. Retry / timeout rules
 
@@ -730,7 +735,7 @@ Use a dedicated branch/PR for reliability/performance.
 
 New feature freeze remains in effect.
 
-## 15. Child84 existing popularity daily aggregation cutover (Draft; not yet Production)
+## 15. Child84 existing popularity daily aggregation cutover (PR #92 Production READY)
 
 2026-10-10 connected Production SQL returned successfully after Supabase Support recovered the database. A read-only reconciliation of `public.series_popularity_daily` against source reactions, bookmarks, view events and recording play events established:
 
@@ -739,8 +744,8 @@ New feature freeze remains in effect.
 - 50 remaining buckets referencing **non-existent** series, including 74 retained view counts no longer present in raw events;
 - existing compound primary key `(series_id, bucket_date)` and daily bucket date index.
 
-The cutover in the accompanying Draft PR reads the existing daily aggregate, restricted to the precise caller-supplied series IDs; consequently, aggregate rows for deleted works are not consulted or exposed. The read is bounded into stable ordered pages of up to 1000 rows, including a continuation page when the limit is reached. The 15-second Next cache revalidation interval and public-search time-window conversion (Asia/Tokyo buckets) are preserved. Failed aggregate reads raise an error so the caller's existing availability/error boundary remains responsible for handling upstream failure, rather than claiming that counts are zero.
+The read cutover merged in PR #92 reads the existing daily aggregate, restricted to the precise caller-supplied series IDs; consequently, aggregate rows for deleted works are not consulted or exposed. The read is bounded into stable ordered pages of up to 1000 rows, including a continuation page when the limit is reached. The 15-second Next cache revalidation interval and public-search time-window conversion (Asia/Tokyo buckets) are preserved. Failed aggregate reads raise an error so the caller's existing availability/error boundary remains responsible for handling upstream failure, rather than claiming that counts are zero.
 
 No `series_popularity_daily` schema, trigger, raw event row, orphan aggregate row, or Production data was modified. The orphan history's retention/deletion semantics remain open for separate review. No new index was added because the current aggregate is tiny and the read-only EXPLAIN evidence does not justify an unreviewed index.
 
-This change is **not live** until CI/Preview approval, explicit merge authorization and Production validation. Child84 Search facets/pagination, public-work metadata summary, cache invalidation, independent backup verification, Reader click-through and before/after healthy-upstream performance verification remain separate gates.
+This change merged in PR #92 after explicit approval and its combined Production deployment reached READY at `dpl_Ew3wnwkFWkTg6f87uUy8etYzn6bP`. Healthy Production request-level behavior and performance improvement measurement remain open. Child84 Search facets/pagination, public-work metadata summary, cache invalidation, independent backup verification, Reader click-through and before/after healthy-upstream performance verification remain separate gates.
