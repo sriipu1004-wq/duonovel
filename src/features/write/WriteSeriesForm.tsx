@@ -8,6 +8,7 @@ import { canonicalizeTagList, localizeTagList } from "@/i18n/tagLabels";
 import { canonicalizeGenreList, localizeGenreList } from "@/i18n/genreLabels";
 import { supabase } from "@/lib/supabaseClient";
 import { saveOwnedSeriesWorkspace } from "@/app/actions/saveOwnedSeriesWorkspace";
+import { createOwnedSeries } from "@/app/actions/createOwnedSeries";
 import {
   hideGlobalLoadingFeedback,
   showGlobalLoadingFeedback,
@@ -394,7 +395,6 @@ function WorkspaceLinkCard({
 
 export default function WriteSeriesForm({
   mode,
-  currentUserId,
   series,
   episodes = [],
 }: WriteSeriesFormProps) {
@@ -764,7 +764,6 @@ const publicVisibleCount = sortedEpisodes.filter(
     setSuccessMessage("");
     showGlobalLoadingFeedback("作成中...", 8000);
 
-    const summaryVariants = buildSummaryValue(summary);
     const nextGenres = canonicalizeGenreList(parseTags(genreEditorValue));
     const nextTags = canonicalizeTagList(buildWorkspaceTags(tagEditorValue));
     const workspaceFields = buildWorkspaceFields({
@@ -782,56 +781,45 @@ const publicVisibleCount = sortedEpisodes.filter(
       ),
     });
 
-    const payloads: Array<Record<string, unknown>> = summaryVariants.map(
-      (summaryFields) => ({
+    try {
+      const result = await createOwnedSeries({
         title: trimmedTitle,
-        author_id: currentUserId,
-        ...summaryFields,
+        description: summary.trim(),
         ...workspaceFields,
-      })
-    );
-
-    payloads.push({
-      title: trimmedTitle,
-      author_id: currentUserId,
-      ...workspaceFields,
-    });
-
-    const createFailureMessage =
-      "作品を作成できませんでした。入力内容を確認して、もう一度お試しください。";
-
-    for (const payload of payloads) {
-      const result = await supabase
-        .from("series")
-        .insert(payload)
-        .select("id")
-        .single();
-
-      if (!result.error && result.data?.id) {
-        hideGlobalLoadingFeedback();
-        setSaveState("success");
-        setSuccessMessage("作品を作成した。");
-
+      });
+      if (result.ok || result.persisted) {
+        // A cache-expiry failure is still a committed INSERT. Never retry it.
+        setSaveState(result.ok ? "success" : "error");
+        setSuccessMessage(result.ok ? "作品を作成した。" : "");
+        if (result.persisted) {
+          setErrorMessage("作品は作成されたが、公開一覧のキャッシュ更新に失敗した。再作成せず、作品ワークスペースで状態を確認してください。");
+        }
         router.push(
-          destination === "episode"
+          destination === "episode" && result.ok
             ? buildEpisodeCreateHref({
-                seriesId: result.data.id,
+                seriesId: result.seriesId,
                 initialPostingStatus,
                 initialScheduledFor,
               })
-            : `/write/series/${result.data.id}`
+            : `/write/series/${result.seriesId}`
         );
         router.refresh();
         return;
       }
 
+      setSaveState("error");
+      setErrorMessage(
+        result.code === "authentication_required"
+          ? "ログイン状態を確認してから、もう一度作成してください。"
+          : "作品を作成できませんでした。入力内容を確認してください。"
+      );
+    } catch {
+      setSaveState("error");
+      setErrorMessage("作成の結果を確認できなかった。重複作成を避けるため、作品一覧を確認してください。");
+    } finally {
+      submittingRef.current = false;
+      hideGlobalLoadingFeedback();
     }
-
-    submittingRef.current = false;
-    hideGlobalLoadingFeedback();
-
-    setSaveState("error");
-    setErrorMessage(createFailureMessage);
   }
 
   async function handleUpdate() {

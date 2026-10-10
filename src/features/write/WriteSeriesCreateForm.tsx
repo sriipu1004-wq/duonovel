@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { createOwnedSeries } from "@/app/actions/createOwnedSeries";
 import {
   hideGlobalLoadingFeedback,
   showGlobalLoadingFeedback,
@@ -61,9 +61,7 @@ function buildWorkspaceFields(args: {
   };
 }
 
-export default function WriteSeriesCreateForm({
-  currentUserId,
-}: WriteSeriesCreateFormProps) {
+export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps) {
   const router = useRouter();
 
   const [title, setTitle] = useState("");
@@ -138,52 +136,42 @@ export default function WriteSeriesCreateForm({
       recordingPermissionMode,
     });
 
-    const summaryVariants = buildSummaryValue(summary);
-    const payloads: Array<Record<string, unknown>> = summaryVariants.map(
-      (summaryFields) => ({
+    try {
+      const result = await createOwnedSeries({
         title: trimmedTitle,
-        author_id: currentUserId,
-        ...summaryFields,
+        description: summary.trim(),
         ...workspaceFields,
-      })
-    );
+        translation_permission_mode: "open",
+        human_translation_permission_mode: "open",
+        effect_settings: null,
+      });
 
-    payloads.push({
-      title: trimmedTitle,
-      author_id: currentUserId,
-      ...workspaceFields,
-    });
-
-    let lastError = "作品作成に失敗した。";
-
-    for (const payload of payloads) {
-      const result = await supabase
-        .from("series")
-        .insert(payload)
-        .select("id")
-        .single();
-
-      if (!result.error && result.data?.id) {
-        setSaveState("success");
-        setSuccessMessage("作品を作成した。");
-
+      if (result.ok || result.persisted) {
+        setSaveState(result.ok ? "success" : "error");
+        setSuccessMessage(result.ok ? "作品を作成した。" : "");
+        if (result.persisted) {
+          setErrorMessage("作品は作成されたが、公開一覧のキャッシュ更新に失敗した。再作成せず、作品ワークスペースで状態を確認してください。");
+        }
         router.push(
-          destination === "episode"
-            ? `/write/series/${result.data.id}/episodes/new`
-            : `/write/series/${result.data.id}`
+          destination === "episode" && result.ok
+            ? `/write/series/${result.seriesId}/episodes/new`
+            : `/write/series/${result.seriesId}`
         );
         router.refresh();
         return;
       }
-
-      if (result.error) {
-        lastError = result.error.message;
-      }
+      setSaveState("error");
+      setErrorMessage(
+        result.code === "authentication_required"
+          ? "ログイン状態を確認してから、もう一度作成してください。"
+          : "作品作成に失敗した。入力内容を確認してください。"
+      );
+    } catch {
+      setSaveState("error");
+      setErrorMessage("作成結果を確認できなかった。重複作成を避けるため、作品一覧を確認してください。");
+    } finally {
+      hideGlobalLoadingFeedback();
     }
-
-    hideGlobalLoadingFeedback();
-    setSaveState("error");
-    setErrorMessage(lastError);
   }
 
   const isSaving = saveState === "saving";

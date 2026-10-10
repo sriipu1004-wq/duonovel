@@ -312,3 +312,5 @@ When the order changes:
 - state the new order in the parent completion report.
 
 Do not infer a new priority merely because an older chat suggested an alternative.
+
+**Child84 author-create Server Action candidate (Draft, no priority change):** stacked on #101, both author creation forms route new series through owner-RLS Server Action and immediate public-card tag expiration. Existing source-language pending bridge, external client writers and delete/scheduled transitions remain separate, non-atomic boundaries. CI / Preview / explicit user approval and authenticated Production verification required. Child85 remains blocked.

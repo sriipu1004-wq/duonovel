@@ -7,6 +7,7 @@ on:
       - "package.json"
       - "scripts/test-public-read-reliability-performance.ts"
       - "scripts/test-owned-series-server-save.ts"
+      - "scripts/test-owned-series-create.ts"
       - "src/app/actions/**"
       - "src/lib/write/**"
       - "src/features/write/WriteSeriesForm.tsx"
@@ -49,7 +50,9 @@ jobs:
         run: npm run test:public-read-reliability-performance
 
       - name: Owner workspace server action regression
-        run: npm run test:owned-series-server-save
+        run: |
+          npm run test:owned-series-server-save
+          npm run test:owned-series-create
 
       - name: Reader and translation regressions
         run: |
@@ -70,7 +73,10 @@ jobs:
           npx eslint
           scripts/test-public-read-reliability-performance.ts
           scripts/test-owned-series-server-save.ts
+          scripts/test-owned-series-create.ts
           src/app/actions/saveOwnedSeriesWorkspace.ts
+          src/app/actions/createOwnedSeries.ts
+          src/features/write/WriteSeriesCreateForm.tsx
           src/lib/write/ownedSeriesPayload.ts
           src/features/write/WriteSeriesForm.tsx
           src/app/read/[seriesId]/[episodeNumber]/layout.tsx
