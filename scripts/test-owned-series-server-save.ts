@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   isOwnedSeriesWorkspacePayload,
   isValidSeriesId,
+  preserveSeriesPublicDomainMetadata,
 } from "../src/lib/write/ownedSeriesPayload";
 
 const id = "d77a5e6c-0c45-4b45-9faf-60d0e6107a94";
@@ -36,6 +37,33 @@ assert.equal(isOwnedSeriesWorkspacePayload({ ...payload, tags: Array.from({ leng
 assert.equal(isOwnedSeriesWorkspacePayload({ ...payload, description: "a".repeat(100001) }), false);
 assert.equal(isOwnedSeriesWorkspacePayload(null), false);
 
+const reviewed = {
+  manifestId: "reviewed-test-manifest",
+  originalAuthor: "Example Author",
+  sourceProvider: "Example",
+  sourceHash: "a".repeat(64),
+  rightsChecked: true,
+};
+const safeStyle = { typography: { bold: true }, storyFormat: "long" };
+assert.equal(isOwnedSeriesWorkspacePayload({ ...payload, effect_settings: { publicDomain: reviewed } }), false);
+assert.deepEqual(
+  preserveSeriesPublicDomainMetadata(safeStyle, { publicDomain: reviewed, storyFormat: "short" }),
+  { ...safeStyle, publicDomain: reviewed }
+);
+assert.deepEqual(
+  preserveSeriesPublicDomainMetadata({ ...safeStyle, publicDomain: { rightsChecked: false } }, { publicDomain: reviewed }),
+  { ...safeStyle, publicDomain: reviewed }
+);
+assert.deepEqual(
+  preserveSeriesPublicDomainMetadata(null, { publicDomain: reviewed }),
+  { publicDomain: reviewed }
+);
+assert.deepEqual(
+  preserveSeriesPublicDomainMetadata({ ...safeStyle, publicDomain: reviewed }, null),
+  safeStyle
+);
+assert.deepEqual(preserveSeriesPublicDomainMetadata(safeStyle, null), safeStyle);
+
 const form = readFileSync("src/features/write/WriteSeriesForm.tsx", "utf8");
 const action = readFileSync("src/app/actions/saveOwnedSeriesWorkspace.ts", "utf8");
 const works = readFileSync("src/lib/publicWorks.ts", "utf8");
@@ -54,6 +82,10 @@ assert.ok(action.includes('import { updateTag } from "next/cache";'));
 assert.ok(action.includes("await supabase.auth.getUser()"));
 assert.ok(action.includes('.eq("author_id", auth.user.id)'));
 assert.ok(action.includes('.select("id")'));
+assert.ok(action.includes('.select("id, effect_settings")'));
+assert.ok(action.includes("preserveSeriesPublicDomainMetadata("));
+assert.ok(action.includes(".update(safeFields)"));
+assert.ok(action.indexOf('.select("id, effect_settings")') < action.indexOf(".update(safeFields)"));
 assert.ok(action.includes(".maybeSingle()"));
 assert.ok(action.includes("if (!data)"));
 assert.ok(action.includes("updateTag(PUBLIC_WORKS_CACHE_TAG);"));

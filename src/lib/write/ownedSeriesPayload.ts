@@ -47,6 +47,11 @@ export function isOwnedSeriesWorkspacePayload(value: unknown): value is Record<s
     data.effect_settings !== null &&
     (typeof data.effect_settings !== "object" || Array.isArray(data.effect_settings))
   ) return false;
+  // Public Domain evidence is reviewed metadata, not author-editable styling.
+  if (
+    data.effect_settings !== null &&
+    Object.prototype.hasOwnProperty.call(data.effect_settings, "publicDomain")
+  ) return false;
   // Bound serialized input size without inspecting or logging the serialized
   // effect settings (which may contain authored presentation content).
   try {
@@ -55,4 +60,40 @@ export function isOwnedSeriesWorkspacePayload(value: unknown): value is Record<s
     return false;
   }
   return true;
+}
+
+function settingsRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Workspace presentation edits must not discard or forge reviewed rights
+ * provenance, which lives inside effect_settings.publicDomain.
+ * Only the existing owner-readable database value may supply this field.
+ */
+export function preserveSeriesPublicDomainMetadata(
+  editable: unknown,
+  stored: unknown
+): Record<string, unknown> | null {
+  const clientSettings = settingsRecord(editable);
+  const storedSettings = settingsRecord(stored);
+  const next = clientSettings ? { ...clientSettings } : null;
+  if (next) delete next.publicDomain;
+  if (!storedSettings || !Object.prototype.hasOwnProperty.call(storedSettings, "publicDomain")) {
+    return next;
+  }
+  return { ...(next ?? {}), publicDomain: storedSettings.publicDomain };
 }
