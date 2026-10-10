@@ -716,3 +716,18 @@ unless an exact dependency is demonstrated.
 Use a dedicated branch/PR for reliability/performance.
 
 New feature freeze remains in effect.
+
+## 15. Child84 existing popularity daily aggregation cutover (Draft; not yet Production)
+
+2026-10-10 connected Production SQL returned successfully after Supabase Support recovered the database. A read-only reconciliation of `public.series_popularity_daily` against source reactions, bookmarks, view events and recording play events established:
+
+- 294 daily buckets total;
+- 244 buckets referencing **existing** series, with **0 discrepancies** across all four event metrics;
+- 50 remaining buckets referencing **non-existent** series, including 74 retained view counts no longer present in raw events;
+- existing compound primary key `(series_id, bucket_date)` and daily bucket date index.
+
+The cutover in the accompanying Draft PR reads the existing daily aggregate, restricted to the precise caller-supplied series IDs; consequently, aggregate rows for deleted works are not consulted or exposed. The read is bounded into stable ordered pages of up to 1000 rows, including a continuation page when the limit is reached. The 15-second Next cache revalidation interval and public-search time-window conversion (Asia/Tokyo buckets) are preserved. Failed aggregate reads raise an error so the caller's existing availability/error boundary remains responsible for handling upstream failure, rather than claiming that counts are zero.
+
+No `series_popularity_daily` schema, trigger, raw event row, orphan aggregate row, or Production data was modified. The orphan history's retention/deletion semantics remain open for separate review. No new index was added because the current aggregate is tiny and the read-only EXPLAIN evidence does not justify an unreviewed index.
+
+This change is **not live** until CI/Preview approval, explicit merge authorization and Production validation. Child84 Search facets/pagination, public-work metadata summary, cache invalidation, independent backup verification, Reader click-through and before/after healthy-upstream performance verification remain separate gates.
