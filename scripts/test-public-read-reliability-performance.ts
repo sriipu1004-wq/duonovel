@@ -281,6 +281,47 @@ function verifyReaderAuthorProfileColumns(): void {
   assert.ok(authorQuery.includes("return fallbackName"));
 }
 
+function verifyPublicEpisodeSummaryReadBoundary(): void {
+  const works = source("src/lib/publicWorks.ts");
+  const migration = source(
+    "supabase/migrations/20261010013603_public_episode_work_summaries.sql"
+  );
+
+  const privilegeMigration = source(
+    "supabase/migrations/20261010013642_restrict_public_episode_work_summaries_grants.sql"
+  );
+  assert.ok(privilegeMigration.includes("revoke all on public.public_episode_work_summaries from anon, authenticated"));
+  assert.ok(privilegeMigration.includes("grant select on public.public_episode_work_summaries to anon, authenticated"));
+  assert.ok(migration.includes("with (security_invoker = true)"));
+  assert.ok(migration.includes("join public.series s on s.id = e.series_id"));
+  assert.ok(migration.includes("s.publication_status = 'public'"));
+  assert.ok(migration.includes("e.posting_status = 'posted'"));
+  assert.ok(migration.includes("e.is_published = true"));
+  assert.ok(migration.includes("grant select on public.public_episode_work_summaries to anon, authenticated"));
+  assert.equal(migration.includes("security definer"), false);
+  assert.equal(migration.includes("e.body"), false);
+
+  const summaryRead = works.slice(
+    works.indexOf("async function fetchPublicEpisodeSummariesBySeriesIds("),
+    works.indexOf("async function fetchEpisodeBodyMapByIds(")
+  );
+  assert.ok(summaryRead.includes('.from("public_episode_work_summaries")'));
+  assert.ok(summaryRead.includes('.in("series_id", seriesIds)'));
+  assert.ok(summaryRead.includes('.order("series_id", { ascending: true })'));
+  assert.ok(summaryRead.includes(".range(start, start + PAGE_SIZE - 1)"));
+  assert.ok(summaryRead.includes("isMissingEpisodeSummaryView(error)"));
+  assert.ok(summaryRead.includes("throw new Error("));
+  assert.ok(works.includes('code === "PGRST205" || code === "42P01"'));
+  const build = works.slice(
+    works.indexOf("async function buildPublicBaseWorkCards()"),
+    works.indexOf("const getCachedPublicBaseWorkCardsInternal")
+  );
+  assert.ok(build.includes("fetchPublicEpisodeSummariesBySeriesIds("));
+  assert.equal(build.includes("fetchEpisodesBySeriesIds("), false);
+  assert.ok(build.includes("episodeSummary.public_episode_numbers"));
+  assert.ok(build.includes("legacyFirstEpisodeBodyMap.get(episodeSummary.first_episode_id)"));
+}
+
 function verifyReaderIsolation(): void {
   const reader = source("src/lib/publicRead.ts");
 
@@ -394,6 +435,7 @@ async function main(): Promise<void> {
   verifyHomeIsolation();
   verifyWorkIsolationAndRange();
   verifyPublicWorkCardQueries();
+  verifyPublicEpisodeSummaryReadBoundary();
   verifySearchIsolation();
   verifyPopularityDailyCutover();
   verifyReaderAuthorProfileColumns();

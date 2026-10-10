@@ -68,6 +68,16 @@ export type PublicBaseWorkCard = {
   publicDomainFirstPublicationYear?: number | null;
 };
 
+type PublicEpisodeWorkSummary = {
+  series_id: string;
+  episode_count: number;
+  first_episode_id: string;
+  first_episode_number: number;
+  first_posted_at: string | null;
+  latest_posted_at: string | null;
+  public_episode_numbers: number[];
+};
+
 export type PublicWorkVisibility = "viewer" | "general" | "all";
 
 type PublicAuthorAccount = {
@@ -254,6 +264,77 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
   return grouped;
 }
 
+function isMissingEpisodeSummaryView(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as Record<string, unknown>;
+  const code = typeof record.code === "string" ? record.code : "";
+  const message = typeof record.message === "string" ? record.message : "";
+  return (
+    (code === "PGRST205" || code === "42P01") &&
+    message.includes("public_episode_work_summaries")
+  );
+}
+
+function summarizeLegacyEpisodes(
+  episodesBySeriesId: Map<string, EpisodeRow[]>
+): Map<string, PublicEpisodeWorkSummary> {
+  const summaries = new Map<string, PublicEpisodeWorkSummary>();
+  for (const [seriesId, episodes] of episodesBySeriesId) {
+    if (episodes.length === 0) continue;
+    const first = episodes[0];
+    const latest = episodes[episodes.length - 1];
+    summaries.set(seriesId, {
+      series_id: seriesId,
+      episode_count: episodes.length,
+      first_episode_id: first.id,
+      first_episode_number: getEpisodeNumber(first),
+      first_posted_at: getEpisodePostedAtValue(first) || null,
+      latest_posted_at: getEpisodePostedAtValue(latest) || null,
+      public_episode_numbers: episodes.map(getEpisodeNumber).filter((n) => n > 0),
+    });
+  }
+  return summaries;
+}
+
+async function fetchPublicEpisodeSummariesBySeriesIds(
+  seriesIds: string[]
+): Promise<Map<string, PublicEpisodeWorkSummary>> {
+  if (seriesIds.length === 0) return new Map();
+  const supabase = createPublicServerClient();
+  const PAGE_SIZE = 1000;
+  const summaries = new Map<string, PublicEpisodeWorkSummary>();
+
+  for (let start = 0; ; start += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("public_episode_work_summaries")
+      .select(
+        "series_id, episode_count, first_episode_id, first_episode_number, first_posted_at, latest_posted_at, public_episode_numbers"
+      )
+      .in("series_id", seriesIds)
+      .order("series_id", { ascending: true })
+      .range(start, start + PAGE_SIZE - 1);
+
+    if (error) {
+      // Preview / rollout environments may not have the approved migration yet.
+      // Do not fall back on transient DB timeouts or permission failures.
+      if (start === 0 && isMissingEpisodeSummaryView(error)) {
+        return summarizeLegacyEpisodes(await fetchEpisodesBySeriesIds(seriesIds));
+      }
+      throw new Error(`public episode summaries の取得に失敗: ${error.message}`);
+    }
+
+    const rows = (data ?? []) as PublicEpisodeWorkSummary[];
+    for (const summary of rows) {
+      if (seriesIds.includes(summary.series_id)) {
+        summaries.set(summary.series_id, summary);
+      }
+    }
+    if (rows.length < PAGE_SIZE) break;
+  }
+
+  return summaries;
+}
+
 async function fetchEpisodeBodyMapByIds(
   episodeIds: string[]
 ): Promise<Map<string, string>> {
@@ -321,14 +402,14 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
     )
   );
 
-  const [authorAccountMap, episodesBySeriesId] = await Promise.all([
+  const [authorAccountMap, summariesBySeriesId] = await Promise.all([
     fetchAuthorAccountMap(authorIds),
-    fetchEpisodesBySeriesIds(publicSeries.map((series) => series.id)),
+    fetchPublicEpisodeSummariesBySeriesIds(publicSeries.map((series) => series.id)),
   ]);
 
   const legacyFirstEpisodeIds = publicSeries
     .filter((series) => !readCanonicalSeriesSourceLanguage(series))
-    .map((series) => episodesBySeriesId.get(series.id)?.[0]?.id ?? "")
+    .map((series) => summariesBySeriesId.get(series.id)?.first_episode_id ?? "")
     .filter((episodeId) => episodeId.length > 0);
   const legacyFirstEpisodeBodyMap = await fetchEpisodeBodyMapByIds(
     legacyFirstEpisodeIds
@@ -336,18 +417,15 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 
   return publicSeries
     .map((series) => {
-      const publicEpisodes = episodesBySeriesId.get(series.id) ?? [];
-      if (publicEpisodes.length === 0) return null;
-
-      const firstEpisode = publicEpisodes[0] ?? null;
-      const latestEpisode = publicEpisodes[publicEpisodes.length - 1] ?? null;
+      const episodeSummary = summariesBySeriesId.get(series.id);
+      if (!episodeSummary || episodeSummary.episode_count === 0) return null;
       const authorId = pickText(series.author_id, series["user_id"], series["userId"]) || null;
       const authorAccount = authorId ? authorAccountMap.get(authorId) : undefined;
       const publicDomain = readPublicDomainMetadata(
         series["effect_settings"] ?? series["effectSettings"]
       );
-      const latestPostedRaw = latestEpisode ? getEpisodePostedAtValue(latestEpisode) : null;
-      const firstPostedRaw = firstEpisode ? getEpisodePostedAtValue(firstEpisode) : null;
+      const latestPostedRaw = episodeSummary.latest_posted_at;
+      const firstPostedRaw = episodeSummary.first_posted_at;
       const latestPostedAtValue = latestPostedRaw ? new Date(latestPostedRaw).getTime() : 0;
       const firstPostedAtValue = firstPostedRaw ? new Date(firstPostedRaw).getTime() : 0;
       const createdAtValue = toTimeValue(series["created_at"]);
@@ -357,7 +435,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
       const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
       const sourceLanguage = inferSeriesSourceLanguage(
         series,
-        firstEpisode ? legacyFirstEpisodeBodyMap.get(firstEpisode.id) : null
+        legacyFirstEpisodeBodyMap.get(episodeSummary.first_episode_id)
       );
 
       return {
@@ -367,8 +445,8 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         summary,
         authorName: publicDomain?.originalAuthor || authorAccount?.displayName || "作者名未設定",
         authorId: publicDomain ? null : authorId,
-        episodeCount: publicEpisodes.length,
-        firstEpisodeNumber: firstEpisode ? getEpisodeNumber(firstEpisode) : null,
+        episodeCount: episodeSummary.episode_count,
+        firstEpisodeNumber: episodeSummary.first_episode_number,
         latestPostedLabel: formatDate(latestPostedRaw),
         latestPostedAtValue,
         earliestPublicAtValue: firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
@@ -380,9 +458,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
         sourceLanguage,
         translationEligible: isSeriesTranslationEligible(series),
         isShortStory: isShortStorySeriesForSitemap(series),
-        publicEpisodeNumbers: publicEpisodes
-          .map((episode) => getEpisodeNumber(episode))
-          .filter((episodeNumber) => episodeNumber > 0),
+        publicEpisodeNumbers: episodeSummary.public_episode_numbers,
         publicDomainRightsChecked: publicDomain?.rightsChecked === true,
         publicDomainSourceProvider: publicDomain?.sourceProvider ?? null,
         publicDomainSourceUrl: publicDomain?.sourceUrl ?? null,
@@ -400,7 +476,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
   buildPublicBaseWorkCards,
-  ["public-base-work-cards-v10-narrow-series"],
+  ["public-base-work-cards-v11-episode-summary"],
   { revalidate: 60 }
 );
 
