@@ -750,14 +750,36 @@ No `series_popularity_daily` schema, trigger, raw event row, orphan aggregate ro
 
 This change merged in PR #92 after explicit approval and its combined Production deployment reached READY at `dpl_Ew3wnwkFWkTg6f87uUy8etYzn6bP`. Healthy Production request-level behavior and performance improvement measurement remain open. Child84 Search facets/pagination, public-work metadata summary, cache invalidation, independent backup verification, Reader click-through and before/after healthy-upstream performance verification remain separate gates.
 
-## 16. Child84 public-work episode summary (Draft, schema migration not applied)
+## 16. Child84 public-work episode summary (PR #94 merged; Production verified)
 
 **Motivation.** `buildPublicBaseWorkCards` still fetched up to 3,284 posted/published episode metadata rows in repeated 1,000-row API pages for 120 public series. This was wasteful during Home/Search/Work/Reader/SEO cache misses and cache revalidation.
 
-**Proposed migration:** `supabase/migrations/20261010114000_public_episode_work_summaries.sql` creates a `public_episode_work_summaries` VIEW with `security_invoker = true`, explicit `anon` / `authenticated` SELECT grants and no episode bodies. Its query joins `public.series` and `public.episodes`, requires `series.publication_status='public'`, `episodes.posting_status='posted'` and `episodes.is_published=true`. Existing source-table RLS and the application's subsequent content-rating / viewer boundary remain in force. First/last episodes use `episode_number` plus `id` deterministic ordering; each summary retains every positive public episode number required by the existing product.
+**Applied migration:** `supabase/migrations/20261010013603_public_episode_work_summaries.sql` creates a `public_episode_work_summaries` VIEW with `security_invoker = true`, explicit `anon` / `authenticated` SELECT grants and no episode bodies. Its query joins `public.series` and `public.episodes`, requires `series.publication_status='public'`, `episodes.posting_status='posted'` and `episodes.is_published=true`. Existing source-table RLS and the application's subsequent content-rating / viewer boundary remain in force. First/last episodes use `episode_number` plus `id` deterministic ordering; each summary retains every positive public episode number required by the existing product.
 
 **Read-only Production evidence (2026-10-10):** 120 series / 3,284 visible episodes; direct ranked-baseline vs aggregate comparison showed 0 discrepancies for count, first id/number/posted_at and latest posted_at, and 0 positive-number-array length discrepancies. On warm Production data, `EXPLAIN (ANALYZE, BUFFERS)` reported approximately 6.4 ms database execution, with 0 disk reads in that run. Equivalent illustrative SQL JSON payloads measured 546,764 bytes for existing episode rows vs 44,309 bytes for summaries (~92% fewer bytes); **not** a measured HTTP transfer or page latency improvement.
 
 **Application behavior:** the server's public Supabase client reads the new view with bounded ordered pagination and a server-side input-series filter. When the view is specifically missing (`PGRST205` / `42P01` naming the view), the legacy paginated episode path remains available for Preview and phased rollout. Other failures (timeouts, permissions, Data API errors) throw, preserving the existing failure boundary rather than masking the incident.
 
-**Rollout gate:** This is a proposed schema migration and code patch; neither is in Production as of this Draft PR. Do not apply the migration, merge code, change cache TTL, or touch data without explicit review/approval. Validate Preview/CI; after approval, apply exactly the reviewed view migration, audit its `security_invoker` and grants, compare responses with the baseline, merge through normal workflow, verify healthy Production and before/after Search/Home effects. The implementation does not change source-language search semantics, ownership, publication, R18, AI/Human provenance, or entitlements.
+**Production acceptance:** Both exact Supabase migration versions `20261010013603` (view) and `20261010013642` (revoke default DML grants; retain anon/authenticated SELECT) were applied and appear in the migration history. The view has `security_invoker=true`, anon SELECT returns 120 public series / 3,284 episodes, INSERT/UPDATE/DELETE are denied, no nonpublic series was found and the underlying 123 series / 3,284 episode rows remained unchanged. After explicit approval PR #94 merged into main `398eb396796f2485f37dc5880d33281fdaf4ac08`; Vercel Production `dpl_5kruXnw1gihDmRgpikL5XrttKnV4` became READY. A live Supabase Edge log recorded HTTP 200 for `/rest/v1/public_episode_work_summaries`, confirming runtime adoption. Cache TTL remains 60s. Exact before/after HTTP payload, p95 latency and long-run error reduction remain unproven; do not claim measured 92% network reduction. Source-language search, ownership, publication, R18, AI/Human provenance and entitlements remain unchanged.
+
+## 17. Child84 post-recovery public smoke and remaining Search/cache gates
+
+Production deployment `dpl_5kruXnw1gihDmRgpikL5XrttKnV4` (main `398eb396796f2485f37dc5880d33281fdaf4ac08`) was READY. Authorized read-only HTTP GETs:
+- Home HTTP 200, TTFB 1.138 s, total 2.617 s
+- Search HTTP 200, TTFB 0.826 s, total 2.257 s
+- Public general Work HTTP 200, TTFB 0.563 s, total 3.621 s
+- Public general Reader episode 1 HTTP 200, TTFB 0.640 s, total 4.342 s
+
+Supabase Data API edge telemetry recorded `/rest/v1/public_episode_work_summaries` with HTTP 200 after the merge. Additional anonymous public Reader route-pair smoke using published, general-rating works:
+- EN episode 1 / 2: HTTP 200, total 3.289 s / 2.978 s
+- JA episode 1 / 2: HTTP 200, total 4.187 s / 4.866 s
+- KO episode 1 / 2: HTTP 200, total 4.048 s / 3.505 s
+These were separate GET requests rather than browser next-button clicks and do not verify translated content, Human translation selection, logged-in permissions or R18 interactivity. All six requests returned 200; no source work was edited.
+
+These bounded samples are smoke tests, not a full interactive E2E or p95 performance benchmark; Next.js cache warmth and other network conditions were uncontrolled. Reader prev/next, translation choice/mode, actual R18 fail-closed UI, Search result/facet/ordering parity and deletion/unpublish invalidation must be separately tested.
+
+Current Search obtains cached public work cards (at present 120 public series), then applies in-memory source-language filters, fuzzy title/author search, tag/genre self-excluded facet counts, popularity/daily-score and narration sorting, saved lists and pagination. Shipping a simple DB LIMIT/OFFSET upstream would alter result totals, ranking, and facets. A DB-paging rewrite must first define equivalent matching/aggregation semantics, count sources and 1000+ rows parity tests, with no retired `read_language` reintroduction. Given current dataset size, defer any unverified optimization change rather than regress Search correctness; the canonical roadmap order remains unchanged.
+
+The public-work cache currently revalidates after 60s and source-language legacy fallback still exists for private NULL rows. Author series/episode writes still include Client-to-Supabase mutations without centralized publish/unpublish/delete revalidation; do **not** extend cache TTL or add asynchronous read-mirror delivery until server-controlled invalidation/tombstones can guarantee fail-closed public visibility.
+
+No additional Production DB/data writes, indexes or cache configuration changes were made in this read-only smoke/plan update. Independent backup/restore proof and current Compute tier metadata remain unverified.
