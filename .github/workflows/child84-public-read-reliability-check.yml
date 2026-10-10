@@ -11,8 +11,11 @@ on:
       - "scripts/test-owned-episode-server-save.ts"
       - "scripts/test-series-route-cache-invalidation.ts"
       - "scripts/test-child84-visibility-gates.ts"
+      - "scripts/test-ai-permission-cache-coherence.ts"
       - "src/app/actions/**"
       - "src/app/api/series/**"
+      - "src/features/write/TranslationPermissionWorkspaceBridge.tsx"
+      - "src/features/write/PendingTranslationPermissionBridge.tsx"
       - "src/lib/write/**"
       - "src/features/write/WriteSeriesForm.tsx"
       - "src/features/write/WriteEpisodeForm.tsx"
@@ -63,6 +66,7 @@ jobs:
           npm run test:owned-episode-server-save
           npm run test:series-route-cache-invalidation
           npm run test:child84-visibility-gates
+          npm run test:ai-permission-cache-coherence
 
       - name: Reader and translation regressions
         run: |
@@ -87,6 +91,10 @@ jobs:
           scripts/test-owned-episode-server-save.ts
           scripts/test-series-route-cache-invalidation.ts
           scripts/test-child84-visibility-gates.ts
+          scripts/test-ai-permission-cache-coherence.ts
+          src/app/api/series/[seriesId]/translation-permission/route.ts
+          src/features/write/TranslationPermissionWorkspaceBridge.tsx
+          src/features/write/PendingTranslationPermissionBridge.tsx
           src/app/actions/saveOwnedSeriesWorkspace.ts
           src/app/actions/createOwnedSeries.ts
           src/app/actions/saveOwnedEpisode.ts

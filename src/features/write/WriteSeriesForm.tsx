@@ -801,6 +801,7 @@ const publicVisibleCount = sortedEpisodes.filter(
         try {
           window.sessionStorage.removeItem("duonovel:pending-source-language-create");
           window.sessionStorage.removeItem("duonovel:pending-content-rating-create");
+          window.sessionStorage.removeItem("duonovel:pending-translation-permission-create");
         } catch {
           // Session storage is not required for the atomic INSERT.
         }
