@@ -284,9 +284,14 @@ function verifyReaderAuthorProfileColumns(): void {
 function verifyPublicEpisodeSummaryReadBoundary(): void {
   const works = source("src/lib/publicWorks.ts");
   const migration = source(
-    "supabase/migrations/20261010114000_public_episode_work_summaries.sql"
+    "supabase/migrations/20261010013603_public_episode_work_summaries.sql"
   );
 
+  const privilegeMigration = source(
+    "supabase/migrations/20261010013642_restrict_public_episode_work_summaries_grants.sql"
+  );
+  assert.ok(privilegeMigration.includes("revoke all on public.public_episode_work_summaries from anon, authenticated"));
+  assert.ok(privilegeMigration.includes("grant select on public.public_episode_work_summaries to anon, authenticated"));
   assert.ok(migration.includes("with (security_invoker = true)"));
   assert.ok(migration.includes("join public.series s on s.id = e.series_id"));
   assert.ok(migration.includes("s.publication_status = 'public'"));
