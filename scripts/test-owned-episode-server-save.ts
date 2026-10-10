@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { isOwnedEpisodeSavePayload } from "../src/lib/write/ownedEpisodePayload";
+import { isOwnedEpisodeSavePayload, validateEpisodePreviousTransition } from "../src/lib/write/ownedEpisodePayload";
 
 const seriesId = "d77a5e6c-0c45-4b45-9faf-60d0e6107a94";
 const payload = {
@@ -32,6 +32,19 @@ assert.equal(isOwnedEpisodeSavePayload({ ...payload, effect_settings: {}}), fals
 assert.equal(isOwnedEpisodeSavePayload({ ...payload, body: "x".repeat(950_000) }), false);
 assert.equal(isOwnedEpisodeSavePayload(null), false);
 
+const nextScheduled = { posting_status: "scheduled" as const, scheduled_for: "2026-10-10T10:00:00.000Z" };
+const nextPosted = { posting_status: "posted" as const, scheduled_for: null };
+const nextDraft = { posting_status: "draft" as const, scheduled_for: null };
+assert.equal(validateEpisodePreviousTransition(nextScheduled, null), true);
+assert.equal(validateEpisodePreviousTransition(nextDraft, { posting_status: "draft", scheduled_for: null }), true);
+assert.equal(validateEpisodePreviousTransition(nextScheduled, { posting_status: "draft", scheduled_for: null }), false);
+assert.equal(validateEpisodePreviousTransition(nextPosted, { posting_status: "draft", scheduled_for: null }), false);
+assert.equal(validateEpisodePreviousTransition(nextPosted, { posting_status: "scheduled", scheduled_for: "2026-10-10T12:00:00.000Z" }), true);
+assert.equal(validateEpisodePreviousTransition(nextScheduled, { posting_status: "scheduled", scheduled_for: "2026-10-10T10:00:00.000Z" }), true);
+assert.equal(validateEpisodePreviousTransition(nextScheduled, { posting_status: "scheduled", scheduled_for: "2026-10-10T11:00:00.000Z" }), false);
+assert.equal(validateEpisodePreviousTransition(nextScheduled, { posting_status: "scheduled", scheduled_for: null }), false);
+assert.equal(validateEpisodePreviousTransition(nextScheduled, { posting_status: "posted", scheduled_for: null }), true);
+
 const form = readFileSync("src/features/write/WriteEpisodeForm.tsx", "utf8");
 const action = readFileSync("src/app/actions/saveOwnedEpisode.ts", "utf8");
 const works = readFileSync("src/lib/publicWorks.ts", "utf8");
@@ -48,6 +61,9 @@ assert.ok(action.includes('.eq("series_id", candidate.series_id)'));
 assert.ok(action.includes('.eq("episode_number", candidate.episode_number)'));
 assert.ok(action.includes('.from("episodes")'));
 assert.ok(action.includes(".insert(updateFields)"));
+assert.ok(action.includes("validateEpisodePreviousTransition(candidate, previous)"));
+assert.ok(action.includes(' .eq("episode_number", candidate.episode_number - 1)'.trim()));
+assert.ok(action.indexOf("validateEpisodePreviousTransition(candidate, previous)") < action.indexOf("const write = mode"));
 assert.ok(action.includes(".update(updateFields)"));
 assert.ok(action.includes(".maybeSingle()"));
 assert.ok(action.includes("updateTag(PUBLIC_WORKS_CACHE_TAG);"));
