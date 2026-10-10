@@ -115,7 +115,7 @@ See `docs/indexing-webmaster-state.md`.
 
 ### P4 — Child84: Public read / Search reliability & performance hardening
 
-Status: **in progress — DB verification blocked; Child84b completed with no fallback adoption**
+Status: **in progress — connected DB recovered; read-only DB verification resumed; Child84b completed with no fallback adoption**
 
 Priority was inserted on 2026-10-03 after a real Production availability incident exposed broad coupling to Supabase/network failures.
 
@@ -135,6 +135,8 @@ Ordered phases:
 5. before/after Production measurement.
 
 PR #85 merged to main on 2026-10-05 and Production verification passed for the bounded no-schema portions of phases 1–2 plus safe Home/Work/Reader/Search/Ranking/sitemap timeout isolation. Supported public Supabase reads abort underlying HTTP work at the deadline, network failures no longer trigger broad compatibility fallbacks, the global Auth header spinner is bounded, Work/Reader distinguish true not-found from transient upstream failure, Work content-rating/R18 verification fails closed, and Ranking/sitemap dynamic work discovery no longer perform deploy-time Supabase reads. Child84 is not complete because DB-dependent phases remain verification-gated.
+
+2026-10-10 recovery update: Supabase Support restarted the previously unhealthy Nano project; connected `select now(), 1` now succeeds. Post-recovery DB audit is active. source_language coverage is verified for all 120 public series (no NULL); 3 private series retain NULL. An obsolete optional Work author read is fixed on Draft PR #91, pending independent review / Preview / approval. Daily popularity rows include 50 buckets for non-existent series, 48 with 74 orphaned views; aggregate cutover and data cleanup remain blocked until semantics and tombstones are verified. Nano -> Micro upgrade and independent backup verification remain account-side operations. Child84 is not DONE; Child85 remains blocked.
 
 Still gated by live Supabase/Production DB verification:
 

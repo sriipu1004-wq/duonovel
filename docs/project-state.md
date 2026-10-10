@@ -320,6 +320,16 @@ Child84b is complete and does not insert a new Production fallback into this ord
 
 See `docs/public-read-reliability-performance.md`.
 
+## 2026-10-10 Supabase recovery / Child84 resumed audit
+
+Supabase Support ticket SU-500983 confirmed that the Production project became unhealthy around 2026-10-02 13:10 UTC, with memory overcommitment, elevated disk I/O wait, and possible OOM. Support restarted the project; connected Production `select now(), 1` succeeded on 2026-10-10. The project is still on paid-plan **Nano** compute. Support recommends a Nano -> Micro upgrade at the same covered compute rate, but changing compute requires an account-side Dashboard operation and brief downtime; **upgrade not yet performed**.
+
+Post-restart read-only Production SQL verified 123 series, 120 public series (40 JA/40 EN/40 KO), 3 private series with NULL source_language and 0 public NULL. The database size is approximately 77 MB. The existing `series_popularity_daily` has 294 buckets, of which 50 refer to non-existent series; 48 of those contain 74 retained view counts absent from the raw events. No aggregate cutover, cleanup, schema/data write, or index change was made. Reconciliation and safe publication filtering remain required.
+
+Post-recovery `public.users` REST reads exposed a Work-detail optional author query selecting obsolete `username, pen_name, name` columns not present in Production. A two-file fix and regression are under **Draft PR #91**, unmerged pending CI, Preview, and explicit approval.
+
+Independent database backup availability / download is not yet verified. Do not assume recovery automatically implies a validated off-site backup. Child84 DB-dependent remainder is now **unblocked for read-only audit**, but Child84 is not DONE and Child85 remains gated.
+
 ## Current unresolved verification items
 
 These are not automatic priority changes; they are release/claim gates:
