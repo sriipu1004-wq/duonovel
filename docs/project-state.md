@@ -330,6 +330,12 @@ Post-recovery `public.users` REST reads exposed a Work-detail optional author qu
 
 Independent database backup availability / download is not yet verified. Do not assume recovery automatically implies a validated off-site backup. Child84 DB-dependent remainder is now **unblocked** and read-only audits have resumed; PR #91/#92 merged and Production READY. Child84 is not DONE, and Child85 remains gated.
 
+### 2026-10-10 Child84 Human narration read cutover and timeout diagnosis
+
+Explicitly approved PR #97 merged at `5812deca12fd1549a03329124d30b37cfbde7dc2`; Vercel Production deployment `dpl_GzmY9kjL3UhEKUfawru6259Bffgw` reached READY. It restricts public Human-recording aggregate candidate queries to `is_public=true AND voice_model_id IS NULL` and introduces stable ordered 1,000-row paging with the canonical Human-storage/readers provenance check retained. No DB/data/schema change. SQL verification: 2,277 recording rows, 97 candidates (not Human inventory), 0 satisfying current `/human/` storage-path provenance. No synthetic/TTS record was relabeled.
+
+Draft PR #98 is diagnosis only: it records allowlisted endpoint classes for locally expired 2,500-ms public DB reads, without URL, IDs, query, token, payload or duration policy changes. Vercel cache-revalidation AbortErrors remain observable; no proven root cause or permanent fix. Child84 is NOT DONE; Child85 is blocked. Off-site backup restore, controlled publish/unpublish cache invalidation, SQL Search pagination equivalence and authenticated Reader/R18/Human E2E remain pending.
+
 ### 2026-10-10 Child84 healthy-upstream smoke gate
 
 Following approved PR #94, Production Home/Search/Work/Reader anonymous HTTP GET samples all returned 200 from the authorized validation device: Home TTFB 1.14 s / total 2.62 s; Search TTFB 0.83 s / total 2.26 s; Work total 3.62 s; Reader first episode total 4.34 s. Supabase Edge logs independently recorded HTTP 200 for `/rest/v1/public_episode_work_summaries` (the new Data API path), confirming the summary view is used in Production, not merely a migration-missing fallback. The view's SQL-invoker setting, anon role visibility (120 public series / 3,284 posted+published episodes), and SELECT-only anon/authenticated privileges were directly verified. Base data remained 123 series / 3,284 episodes.
@@ -352,3 +358,6 @@ The current ordered roadmap lives in `docs/roadmap.md`. Do not reconstruct prior
 ## Operating rule
 
 For implementation work, read this file, `docs/roadmap.md`, `docs/decisions.md`, and the relevant feature-specific audit/doc before coding. Verify the current Git main/Production state rather than trusting an old chat SHA.
+
+### 2026-10-11 approved Child84 diagnostic shipment
+PR #98 was merged at main `927b79964cfe8761d5a9b91a6b09ab5ccdca6194` after user approval and its Vercel Production deployment `dpl_HnU5fHhjSeB3d7MNVDSdCUDXMkVj` reached READY. Anonymous Home/Search/Work/Reader HTTP smoke returned 200/200/200/200. Public fetch 2,500ms deadline and all permission boundaries unchanged. PR #99 source-language-only catalog candidate remains an independently reviewed release with all public 120 works populated, no data rewrite. Child84 NOT DONE; Child85 BLOCKED.

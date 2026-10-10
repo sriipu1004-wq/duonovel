@@ -7,6 +7,7 @@ import {
   runReadOnlyWithRetry,
 } from "../src/lib/reliability/readOnly";
 import { isAuthSessionMissingError } from "../src/lib/auth/authSessionState";
+import { classifyPublicReadEndpoint } from "../src/lib/supabase/serverPublic";
 
 function source(path: string): string {
   return readFileSync(path, "utf8");
@@ -216,8 +217,8 @@ function verifyPublicWorkCardQueries(): void {
     )
   );
 
-  // Production audit: all 120 public works have source_language; 3 legacy
-  // null values belong to private works. Do not infer public source languages.
+  // 2026-10-10 read-only Production: all 120 public series have canonical
+  // source_language (40 each JA/EN/KO). Missing private values are separate.
   assert.equal(publicWorks.includes("inferSeriesSourceLanguage("), false);
   assert.equal(publicWorks.includes("fetchEpisodeBodyMapByIds("), false);
   assert.ok(publicWorks.includes("if (!canonicalSourceLanguage) return null;"));
@@ -454,6 +455,40 @@ function verifyHumanRecordingAggregatePaging(): void {
   assert.ok(works.includes('["public-recording-aggregates-human-filtered-paged-v2"]'));
 }
 
+function verifyPublicDbTimeoutDiagnostics(): void {
+  // Route classification must never reveal query text, row IDs or auth secrets.
+  assert.equal(
+    classifyPublicReadEndpoint(
+      "https://some-db.supabase.co/rest/v1/series?title=eq.secret&apikey=private"
+    ),
+    "series"
+  );
+  assert.equal(
+    classifyPublicReadEndpoint(
+      "https://some-db.supabase.co/rest/v1/public_episode_work_summaries?series_id=eq.secret"
+    ),
+    "public_episode_work_summaries"
+  );
+  assert.equal(
+    classifyPublicReadEndpoint("https://some-db.supabase.co/auth/v1/admin/users/secret"),
+    "other"
+  );
+  assert.equal(
+    classifyPublicReadEndpoint("https://some-db.supabase.co/rest/v1/unknown_data?secret=x"),
+    "other"
+  );
+  assert.equal(classifyPublicReadEndpoint("invalid-url"), "other");
+
+  const server = source("src/lib/supabase/serverPublic.ts");
+  assert.ok(server.includes("didReachLocalDeadline = true;"));
+  assert.ok(server.includes("!upstreamSignal?.aborted"));
+  assert.ok(server.includes('console.warn("[public-db-local-timeout]"'));
+  assert.ok(server.includes("throw error;"));
+  assert.ok(server.includes("timeoutMs: PUBLIC_READ_FETCH_TIMEOUT_MS"));
+  assert.ok(server.includes("PUBLIC_READ_FETCH_TIMEOUT_MS = 2500;"));
+  assert.equal(server.includes("console.warn(input)"), false);
+}
+
 async function main(): Promise<void> {
   verifyAuthSessionClassification();
   await verifyReadOnlyRetry();
@@ -467,6 +502,7 @@ async function main(): Promise<void> {
   verifyReaderAuthorProfileColumns();
   verifyReaderIsolation();
   verifyPublicDatabaseFilters();
+  verifyPublicDbTimeoutDiagnostics();
   verifyRankingIsolation();
   verifySitemapIsolation();
 
