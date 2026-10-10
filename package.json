@@ -48,7 +48,8 @@
     "test:public-seo-alignment": "node --import tsx scripts/test-public-seo-alignment.ts",
     "test:public-read-reliability-performance": "node --import tsx scripts/test-public-read-reliability-performance.ts",
     "test:owned-series-server-save": "node --import tsx scripts/test-owned-series-server-save.ts",
-    "test:owned-series-create": "node --import tsx scripts/test-owned-series-create.ts"
+    "test:owned-series-create": "node --import tsx scripts/test-owned-series-create.ts",
+    "test:ai-permission-cache-coherence": "node --import tsx scripts/test-ai-permission-cache-coherence.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

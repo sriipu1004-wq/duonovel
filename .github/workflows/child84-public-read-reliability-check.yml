@@ -8,9 +8,13 @@ on:
       - "scripts/test-public-read-reliability-performance.ts"
       - "scripts/test-owned-series-server-save.ts"
       - "scripts/test-owned-series-create.ts"
+      - "scripts/test-ai-permission-cache-coherence.ts"
       - "src/app/actions/**"
       - "src/lib/write/**"
       - "src/features/write/WriteSeriesForm.tsx"
+      - "src/app/api/series/[seriesId]/translation-permission/route.ts"
+      - "src/features/write/TranslationPermissionWorkspaceBridge.tsx"
+      - "src/features/write/PendingTranslationPermissionBridge.tsx"
       - "src/app/PublicTopPageLegacy.tsx"
       - "src/app/ranking/**"
       - "src/app/read/**"
@@ -53,6 +57,7 @@ jobs:
         run: |
           npm run test:owned-series-server-save
           npm run test:owned-series-create
+          npm run test:ai-permission-cache-coherence
 
       - name: Reader and translation regressions
         run: |
@@ -74,6 +79,10 @@ jobs:
           scripts/test-public-read-reliability-performance.ts
           scripts/test-owned-series-server-save.ts
           scripts/test-owned-series-create.ts
+          scripts/test-ai-permission-cache-coherence.ts
+          src/app/api/series/[seriesId]/translation-permission/route.ts
+          src/features/write/TranslationPermissionWorkspaceBridge.tsx
+          src/features/write/PendingTranslationPermissionBridge.tsx
           src/app/actions/saveOwnedSeriesWorkspace.ts
           src/app/actions/createOwnedSeries.ts
           src/features/write/WriteSeriesCreateForm.tsx

@@ -12,9 +12,6 @@ type TranslationPermissionWorkspaceBridgeProps = {
   isOfficialAuthor?: boolean;
 };
 
-const PENDING_CREATE_PERMISSION_KEY =
-  "duonovel:pending-translation-permission-create";
-
 const NARRATION_PERMISSION_LABELS = new Set([
   "朗読許可",
   "Narration permission",
@@ -36,6 +33,7 @@ const AI_TRANSLATION_PERMISSION_COPY = {
       "許可すると、読者が未生成の対訳を利用するとき、対象話の本文と、用語・翻訳方針・直前の公開話など翻訳の一貫性に必要な限定情報をOpenAI APIへ送信することがあります。許可しない場合、新規AI翻訳と新規AI単語解説は実行しません。生成済み翻訳はLIB read内で保存・再利用されます。",
     saved: "保存済み",
     updateFailed: "AI翻訳の許可設定を更新できませんでした。",
+    cacheWarning: "AI翻訳の許可設定は保存されましたが、公開一覧の更新に失敗しました。表示が古い可能性があります。",
     restore: "保存済みに戻す",
   },
   en: {
@@ -46,6 +44,7 @@ const AI_TRANSLATION_PERMISSION_COPY = {
       "If allowed, when a reader requests a translation that has not been generated yet, LIB read may send the relevant episode text and limited consistency context—such as glossary terms, translation guidance, and the immediately preceding published episode—to the OpenAI API. If not allowed, no new AI translation or AI word explanation is generated. Existing translations may be stored and reused within LIB read.",
     saved: "Saved",
     updateFailed: "Could not update the AI translation permission.",
+    cacheWarning: "AI translation permission was saved, but public-list cache refresh failed. Some labels may be stale.",
     restore: "Restore saved value",
   },
   ko: {
@@ -56,6 +55,7 @@ const AI_TRANSLATION_PERMISSION_COPY = {
       "허용하면 독자가 아직 생성되지 않은 번역을 요청할 때 해당 회차의 본문과 용어집, 번역 지침, 바로 앞의 공개 회차 등 번역 일관성에 필요한 제한된 문맥이 OpenAI API로 전송될 수 있습니다. 허용하지 않으면 새로운 AI 번역과 새로운 AI 단어 설명을 생성하지 않습니다. 이미 생성된 번역은 LIB read 안에서 저장·재사용될 수 있습니다.",
     saved: "저장됨",
     updateFailed: "AI 번역 허용 설정을 업데이트하지 못했습니다.",
+    cacheWarning: "AI 번역 허용 설정은 저장되었지만 공개 목록 캐시 갱신에 실패했습니다. 표시가 오래되었을 수 있습니다.",
     restore: "저장된 값으로 되돌리기",
   },
 } as const;
@@ -257,34 +257,6 @@ export default function TranslationPermissionWorkspaceBridge({
   }, [copy.saved]);
 
   useEffect(() => {
-    if (seriesId) return;
-
-    function rememberCreateSelection(event: MouseEvent) {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-
-      const button = target.closest<HTMLButtonElement>("button");
-      if (!button || !button.textContent?.includes("作品を作成して")) return;
-      if (mode !== "open" && mode !== "closed") {
-        window.sessionStorage.removeItem(PENDING_CREATE_PERMISSION_KEY);
-        return;
-      }
-
-      window.sessionStorage.setItem(
-        PENDING_CREATE_PERMISSION_KEY,
-        JSON.stringify({
-          mode,
-          startedAt: Date.now(),
-          sourcePath: window.location.pathname,
-        })
-      );
-    }
-
-    document.addEventListener("click", rememberCreateSelection, true);
-    return () => document.removeEventListener("click", rememberCreateSelection, true);
-  }, [mode, seriesId]);
-
-  useEffect(() => {
     let currentHost: HTMLElement | null = null;
 
     function ensureIntegratedUi() {
@@ -352,19 +324,24 @@ export default function TranslationPermissionWorkspaceBridge({
       );
       const payload = (await response.json()) as {
         ok?: boolean;
+        persisted?: boolean;
         mode?: TranslationPermissionMode;
         message?: string;
       };
 
-      if (!response.ok || !payload.ok) {
+      if ((!response.ok || !payload.ok) && payload.persisted !== true) {
+        setMessage(copy.updateFailed);
+        return;
+      }
+      if (payload.mode !== "open" && payload.mode !== "closed") {
         setMessage(copy.updateFailed);
         return;
       }
 
-      const saved = payload.mode === "open" ? "open" : "closed";
+      const saved = payload.mode;
       setMode(saved);
       setSavedMode(saved);
-      setMessage(copy.saved);
+      setMessage(payload.persisted === true ? copy.cacheWarning : copy.saved);
       window.dispatchEvent(
         new CustomEvent("libread:translation-permission-selection-changed", {
           detail: { mode: saved },

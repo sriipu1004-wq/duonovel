@@ -148,6 +148,7 @@ export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps
         try {
           window.sessionStorage.removeItem("duonovel:pending-source-language-create");
           window.sessionStorage.removeItem("duonovel:pending-content-rating-create");
+          window.sessionStorage.removeItem("duonovel:pending-translation-permission-create");
         } catch {
           // Legacy session-only state is optional.
         }

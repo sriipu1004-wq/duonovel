@@ -71,12 +71,13 @@ export default function PendingTranslationPermissionBridge() {
         );
         const payload = (await response.json()) as {
           ok?: boolean;
+          persisted?: boolean;
           mode?: "open" | "closed";
         };
 
         window.sessionStorage.removeItem(PENDING_CREATE_PERMISSION_KEY);
 
-        if (response.ok && payload.ok) {
+        if ((response.ok && payload.ok) || payload.persisted === true) {
           window.dispatchEvent(
             new CustomEvent("libread:translation-permission-applied", {
               detail: { mode: payload.mode ?? pending.mode },
