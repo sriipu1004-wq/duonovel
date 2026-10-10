@@ -429,6 +429,28 @@ function verifyPopularityDailyCutover(): void {
   assert.equal(popularity.includes('.from("recording_play_events")'), false);
 }
 
+function verifyHumanRecordingAggregatePaging(): void {
+  const works = source("src/lib/publicWorks.ts");
+  const begin = works.indexOf("async function buildPublicRecordingAggregates(");
+  const end = works.indexOf("const getCachedPublicRecordingAggregatesInternal", begin);
+  assert.ok(begin >= 0 && end > begin);
+  const block = works.slice(begin, end);
+
+  assert.ok(works.includes("const PUBLIC_HUMAN_RECORDING_PAGE_SIZE = 1000;"));
+  assert.ok(block.includes('.eq("is_public", true)'));
+  assert.ok(block.includes('.is("voice_model_id", null)'));
+  assert.ok(block.includes('.in("series_id", normalizedSeriesIds)'));
+  assert.ok(block.includes('.order("id", { ascending: true })'));
+  assert.ok(block.includes('.range(start, start + PUBLIC_HUMAN_RECORDING_PAGE_SIZE - 1)'));
+  assert.ok(block.includes("start += PUBLIC_HUMAN_RECORDING_PAGE_SIZE"));
+  assert.ok(block.includes("pageRows.length < PUBLIC_HUMAN_RECORDING_PAGE_SIZE"));
+  assert.ok(block.includes("isSchemaCompatibilityReadFailure(result.error)"));
+  assert.ok(block.includes("throw new Error("));
+  assert.ok(block.includes("isPublishedHumanRecording(rawRecording)"));
+  assert.ok(block.includes("data.push(...pageRows)"));
+  assert.ok(works.includes('["public-recording-aggregates-human-filtered-paged-v2"]'));
+}
+
 async function main(): Promise<void> {
   verifyAuthSessionClassification();
   await verifyReadOnlyRetry();
@@ -438,6 +460,7 @@ async function main(): Promise<void> {
   verifyPublicEpisodeSummaryReadBoundary();
   verifySearchIsolation();
   verifyPopularityDailyCutover();
+  verifyHumanRecordingAggregatePaging();
   verifyReaderAuthorProfileColumns();
   verifyReaderIsolation();
   verifyPublicDatabaseFilters();

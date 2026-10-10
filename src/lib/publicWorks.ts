@@ -612,43 +612,44 @@ function normalizeSeriesIds(seriesIds?: string[]): string[] {
   ).sort((left, right) => left.localeCompare(right));
 }
 
+const PUBLIC_HUMAN_RECORDING_PAGE_SIZE = 1000;
+
 async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<PublicRecordingAggregate[]> {
   const supabase = createAdminClient();
   const normalizedSeriesIds = normalizeSeriesIds(seriesIds);
-  let data: RecordingAggregateRow[] = [];
+  const data: RecordingAggregateRow[] = [];
 
-  if (normalizedSeriesIds.length > 0) {
-    const narrow = await supabase
+  // isPublishedHumanRecording requires is_public=true and no voice_model_id.
+  // Push both *necessary* conditions into SQL, but retain the complete
+  // audio-path/reader provenance check below. Production has UUID
+  // voice_model_id, so NULL cannot conceal an empty-string model ID.
+  async function fetchPage(start: number, selectClause: string) {
+    let query = supabase
       .from("recordings")
-      .select(PUBLIC_RECORDING_AGGREGATE_SELECT)
-      .in("series_id", normalizedSeriesIds);
-
-    if (!narrow.error) {
-      data = (narrow.data ?? []) as RecordingAggregateRow[];
-    } else if (isSchemaCompatibilityReadFailure(narrow.error)) {
-      const fallback = await supabase
-        .from("recordings")
-        .select("*")
-        .in("series_id", normalizedSeriesIds);
-      if (fallback.error) {
-        throw new Error(`recordings の取得に失敗: ${fallback.error.message}`);
-      }
-      data = (fallback.data ?? []) as RecordingAggregateRow[];
-    } else {
-      throw new Error(`recordings の取得に失敗: ${narrow.error.message}`);
+      .select(selectClause)
+      .eq("is_public", true)
+      .is("voice_model_id", null);
+    if (normalizedSeriesIds.length > 0) {
+      query = query.in("series_id", normalizedSeriesIds);
     }
-  } else {
-    const narrow = await supabase.from("recordings").select(PUBLIC_RECORDING_AGGREGATE_SELECT);
-    if (!narrow.error) {
-      data = (narrow.data ?? []) as RecordingAggregateRow[];
-    } else if (isSchemaCompatibilityReadFailure(narrow.error)) {
-      const fallback = await supabase.from("recordings").select("*");
-      if (fallback.error) {
-        throw new Error(`recordings の取得に失敗: ${fallback.error.message}`);
-      }
-      data = (fallback.data ?? []) as RecordingAggregateRow[];
-    } else {
-      throw new Error(`recordings の取得に失敗: ${narrow.error.message}`);
+    return query
+      .order("id", { ascending: true })
+      .range(start, start + PUBLIC_HUMAN_RECORDING_PAGE_SIZE - 1);
+  }
+
+  for (let start = 0; ; start += PUBLIC_HUMAN_RECORDING_PAGE_SIZE) {
+    let result = await fetchPage(start, PUBLIC_RECORDING_AGGREGATE_SELECT);
+    if (result.error && isSchemaCompatibilityReadFailure(result.error)) {
+      result = await fetchPage(start, "*");
+    }
+    if (result.error) {
+      throw new Error(`recordings の取得に失敗: ${result.error.message}`);
+    }
+
+    const pageRows = (result.data ?? []) as unknown as RecordingAggregateRow[];
+    data.push(...pageRows);
+    if (pageRows.length < PUBLIC_HUMAN_RECORDING_PAGE_SIZE) {
+      break;
     }
   }
 
@@ -688,7 +689,7 @@ const getCachedPublicRecordingAggregatesInternal = unstable_cache(
       : [];
     return buildPublicRecordingAggregates(seriesIds);
   },
-  ["public-recording-aggregates"],
+  ["public-recording-aggregates-human-filtered-paged-v2"],
   { revalidate: 60 }
 );
 
