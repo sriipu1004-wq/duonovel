@@ -7,6 +7,7 @@ import {
   runReadOnlyWithRetry,
 } from "../src/lib/reliability/readOnly";
 import { isAuthSessionMissingError } from "../src/lib/auth/authSessionState";
+import { filterCachedPublicCatalogByLiveSeries } from "../src/lib/publicCatalogFreshness";
 
 function source(path: string): string {
   return readFileSync(path, "utf8");
@@ -451,12 +452,61 @@ function verifyHumanRecordingAggregatePaging(): void {
   assert.ok(works.includes('["public-recording-aggregates-human-filtered-paged-v2"]'));
 }
 
+function verifyLivePublicCatalogGate(): void {
+  const cached = [
+    { seriesId: "a", contentRating: "general" as const, sourceLanguage: "ja" as const },
+    { seriesId: "b", contentRating: "general" as const, sourceLanguage: "en" as const },
+    { seriesId: "c", contentRating: "general" as const, sourceLanguage: "ko" as const },
+    { seriesId: "d", contentRating: "r18" as const, sourceLanguage: "ja" as const },
+    { seriesId: "e", contentRating: "general" as const, sourceLanguage: "en" as const },
+  ];
+  const current = [
+    { id: "a", content_rating: "general", source_language: "ja" },
+    // Unpublished/deleted b must be absent from the fresh public result.
+    { id: "c", content_rating: "r18", source_language: "ko" },
+    { id: "d", content_rating: "r18", source_language: "ja" },
+    { id: "e", content_rating: "general", source_language: "ja" },
+  ];
+  assert.deepEqual(
+    filterCachedPublicCatalogByLiveSeries(cached, current).map((x) => x.seriesId),
+    ["a", "d"],
+    "Unpublished, deleted, R18-changed or source-language-changed cached cards must be withheld"
+  );
+  assert.deepEqual(filterCachedPublicCatalogByLiveSeries(cached, []), []);
+  assert.deepEqual(filterCachedPublicCatalogByLiveSeries([], current), []);
+
+  const works = source("src/lib/publicWorks.ts");
+  const freshLoader = works.slice(
+    works.indexOf("async function fetchCurrentPublicCatalogVisibility("),
+    works.indexOf("export async function getCachedPublicBaseWorkCards(")
+  );
+  assert.ok(freshLoader.includes('.from("series")'));
+  assert.ok(freshLoader.includes('.select("id, content_rating, source_language")'));
+  assert.ok(freshLoader.includes('.eq("publication_status", "public")'));
+  assert.ok(freshLoader.includes('.order("id", { ascending: true })'));
+  assert.ok(freshLoader.includes(".range(start, start + PAGE_SIZE - 1)"));
+  assert.ok(freshLoader.includes("throw new Error("));
+  assert.equal(freshLoader.includes("unstable_cache"), false);
+
+  const publicCards = works.slice(
+    works.indexOf("export async function getCachedPublicBaseWorkCards("),
+    works.indexOf("type RecordingAggregateRow")
+  );
+  assert.ok(publicCards.includes("await fetchCurrentPublicCatalogVisibility()"));
+  assert.ok(publicCards.includes("filterCachedPublicCatalogByLiveSeries(cards, livePublicSeries)"));
+  assert.ok(publicCards.includes('visibility === "all") return currentCards'));
+  assert.ok(publicCards.includes('visibility === "general") return currentCards.filter'));
+  assert.ok(publicCards.includes("? currentCards"));
+  assert.equal(publicCards.includes("? cards\n"), false);
+}
+
 async function main(): Promise<void> {
   verifyAuthSessionClassification();
   await verifyReadOnlyRetry();
   verifyHomeIsolation();
   verifyWorkIsolationAndRange();
   verifyPublicWorkCardQueries();
+  verifyLivePublicCatalogGate();
   verifyPublicEpisodeSummaryReadBoundary();
   verifySearchIsolation();
   verifyPopularityDailyCutover();
