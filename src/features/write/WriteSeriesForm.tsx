@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { canonicalizeTagList, localizeTagList } from "@/i18n/tagLabels";
 import { canonicalizeGenreList, localizeGenreList } from "@/i18n/genreLabels";
-import { supabase } from "@/lib/supabaseClient";
 import { saveOwnedSeriesWorkspace } from "@/app/actions/saveOwnedSeriesWorkspace";
 import { createOwnedSeries } from "@/app/actions/createOwnedSeries";
 import {
@@ -118,17 +117,6 @@ const DISPLAY_TEXT_COLOR_OPTIONS = [
   { value: "#ffffff", label: "白", className: "bg-neutral-900 text-white" },
 ] as const;
 
-
-function buildSummaryValue(summary: string): Array<Record<string, string>> {
-  const trimmed = summary.trim();
-
-  return [
-    { summary: trimmed, description: trimmed, catch_copy: trimmed },
-    { summary: trimmed },
-    { description: trimmed },
-    { catch_copy: trimmed },
-  ];
-}
 
 function getTitle(series?: SeriesRow | null): string {
   return pickText(series?.title);
