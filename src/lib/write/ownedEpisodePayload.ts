@@ -48,3 +48,23 @@ export function isOwnedEpisodeSavePayload(
   }
   return true;
 }
+
+/** Preserve the existing editor's preceding-episode publication sequence rule
+ * when the Server Action is invoked directly. This check is not a DB transaction:
+ * concurrent changes and separate scheduler/direct-write paths need their own guard.
+ */
+export function validateEpisodePreviousTransition(
+  next: Pick<OwnedEpisodeSavePayload, "posting_status" | "scheduled_for">,
+  previous: { posting_status: string; scheduled_for: string | null } | null
+): boolean {
+  if (next.posting_status === "draft" || !previous) return true;
+  if (previous.posting_status === "draft") return false;
+  if (next.posting_status === "scheduled" && previous.posting_status === "scheduled") {
+    const nextTimestamp = Date.parse(next.scheduled_for ?? "");
+    const previousTimestamp = Date.parse(previous.scheduled_for ?? "");
+    return Number.isFinite(nextTimestamp) &&
+      Number.isFinite(previousTimestamp) &&
+      nextTimestamp >= previousTimestamp;
+  }
+  return true;
+}
