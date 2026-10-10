@@ -394,7 +394,6 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
       const title = pickText(series.title) || "無題";
       const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
 
-
       return {
         seriesId: series.id,
         title,
