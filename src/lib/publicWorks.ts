@@ -40,6 +40,7 @@ import { PUBLIC_RECORDING_AGGREGATE_SELECT } from "@/lib/recording/publicRecordi
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 import { isSchemaCompatibilityReadFailure } from "@/lib/reliability/readOnly";
+import { filterCachedPublicCatalogByLiveSeries, type LivePublicCatalogSeries } from "@/lib/publicCatalogFreshness";
 
 export type PublicBaseWorkCard = {
   seriesId: string;
@@ -492,6 +493,34 @@ function prioritizeForLocale(cards: PublicBaseWorkCard[], locale: "ja" | "en" | 
     .map(({ card }) => card);
 }
 
+// Deliberately not wrapped in unstable_cache. A stale cached catalogue must
+// never authorize a series removed from publication, or retain its old R18
+// rating or source language. Failure propagates to the caller's existing
+// temporary-unavailable handling rather than returning stale public metadata.
+async function fetchCurrentPublicCatalogVisibility(): Promise<LivePublicCatalogSeries[]> {
+  const supabase = createPublicServerClient();
+  const PAGE_SIZE = 1000;
+  const resultRows: LivePublicCatalogSeries[] = [];
+
+  for (let start = 0; ; start += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("series")
+      .select("id, content_rating, source_language")
+      .eq("publication_status", "public")
+      .order("id", { ascending: true })
+      .range(start, start + PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(`public series visibility verification failed: ${error.message}`);
+    }
+
+    const page = (data ?? []) as LivePublicCatalogSeries[];
+    resultRows.push(...page);
+    if (page.length < PAGE_SIZE) break;
+  }
+  return resultRows;
+}
+
 export async function getCachedPublicBaseWorkCards(options?: {
   visibility?: PublicWorkVisibility;
   ignoreContentLanguageFilter?: boolean;
@@ -499,15 +528,17 @@ export async function getCachedPublicBaseWorkCards(options?: {
   prioritizeForUiLocale?: boolean;
 }): Promise<PublicBaseWorkCard[]> {
   const cards = await getCachedPublicBaseWorkCardsInternal();
+  const livePublicSeries = await fetchCurrentPublicCatalogVisibility();
+  const currentCards = filterCachedPublicCatalogByLiveSeries(cards, livePublicSeries);
   const visibility = options?.visibility ?? "viewer";
 
-  if (visibility === "all") return cards;
-  if (visibility === "general") return cards.filter((card) => card.contentRating !== "r18");
+  if (visibility === "all") return currentCards;
+  if (visibility === "general") return currentCards.filter((card) => card.contentRating !== "r18");
 
   const preference = await getCurrentR18ViewerPreference();
   let visibleCards = preference.showR18Content
-    ? cards
-    : cards.filter((card) => card.contentRating !== "r18");
+    ? currentCards
+    : currentCards.filter((card) => card.contentRating !== "r18");
 
   const requestHeaders = await headers();
   const headerLocale = requestHeaders.get(UI_LOCALE_HEADER);
