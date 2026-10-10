@@ -6,6 +6,7 @@ on:
       - ".github/workflows/child84-public-read-reliability-check.yml"
       - "package.json"
       - "scripts/test-public-read-reliability-performance.ts"
+      - "vercel.json"
       - "src/app/PublicTopPageLegacy.tsx"
       - "src/app/ranking/**"
       - "src/app/read/**"
@@ -40,6 +41,10 @@ jobs:
 
       - name: Install locked dependencies
         run: npm ci
+
+      - name: Verify Singapore Preview fixture
+        run: |
+          node -e 'const assert=require("node:assert/strict"); const fs=require("node:fs"); const config=JSON.parse(fs.readFileSync("vercel.json","utf8")); assert.deepEqual(config.regions,["sin1"]);'
 
       - name: Child84 reliability regression
         run: npm run test:public-read-reliability-performance
