@@ -30,7 +30,7 @@ export function isOwnedEpisodeSavePayload(
   const keys = Object.keys(obj);
   if (keys.length !== EPISODE_KEYS.size || keys.some(key => !EPISODE_KEYS.has(key))) return false;
   if (typeof obj.series_id !== "string" || !isValidSeriesId(obj.series_id)) return false;
-  if (!Number.isSafeInteger(obj.episode_number) || (obj.episode_number as number) <= 0) return false;
+  if (typeof obj.episode_number !== "number" || !Number.isSafeInteger(obj.episode_number) || obj.episode_number <= 0) return false;
   if (typeof obj.title !== "string" || !obj.title.trim()) return false;
   if (typeof obj.body !== "string") return false;
   if (obj.posting_status !== "draft" && obj.posting_status !== "scheduled" && obj.posting_status !== "posted") return false;
