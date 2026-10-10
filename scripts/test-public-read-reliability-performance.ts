@@ -139,6 +139,15 @@ function verifyWorkIsolationAndRange(): void {
   const work = source("src/app/works/[seriesId]/page.tsx");
 
   assert.ok(work.includes('import { cache, Suspense } from "react"'));
+  const optionalAuthorRead = work.slice(
+    work.indexOf("async function loadOptionalAuthor"),
+    work.indexOf("async function WorkSubscriptionNotice")
+  );
+  assert.ok(optionalAuthorRead.includes('.select("id, display_name")'));
+  assert.equal(
+    optionalAuthorRead.includes('.select("id, display_name, username, pen_name, name")'),
+    false
+  );
   assert.ok(work.includes("const fetchSeriesResult = cache("));
   assert.ok(work.includes("fetchFirstPublicEpisode"));
   assert.ok(work.includes("fetchEpisodeRangeBySeriesId"));
