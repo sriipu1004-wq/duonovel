@@ -13,10 +13,6 @@ const EDITABLE_KEYS = new Set([
   "effect_settings",
 ]);
 
-type SaveResult =
-  | { ok: true }
-  | { ok: false; code: "invalid_request" | "authentication_required" | "not_found_or_forbidden" | "save_failed" | "cache_invalidation_failed"; persisted: boolean };
-
 export function isValidSeriesId(value: string): boolean {
   return /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value);
 }
