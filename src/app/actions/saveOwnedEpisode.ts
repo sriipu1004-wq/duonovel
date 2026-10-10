@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isValidSeriesId } from "@/lib/write/ownedSeriesPayload";
 import {
   isOwnedEpisodeSavePayload,
+  validateEpisodePreviousTransition,
   type OwnedEpisodeSavePayload,
 } from "@/lib/write/ownedEpisodePayload";
 
@@ -54,6 +55,21 @@ export async function saveOwnedEpisode(
     .maybeSingle();
   if (ownerError) return { ok: false, code: "save_failed", persisted: false };
   if (!ownedSeries) return { ok: false, code: "not_found_or_forbidden", persisted: false };
+
+  // The editor has these checks, but an Action can be called without the UI.
+  // Read only the immediately preceding episode under the owner's RLS.
+  if (candidate.posting_status !== "draft" && candidate.episode_number > 1) {
+    const { data: previous, error: previousError } = await supabase
+      .from("episodes")
+      .select("posting_status, scheduled_for")
+      .eq("series_id", candidate.series_id)
+      .eq("episode_number", candidate.episode_number - 1)
+      .maybeSingle();
+    if (previousError) return { ok: false, code: "save_failed", persisted: false };
+    if (!validateEpisodePreviousTransition(candidate, previous)) {
+      return { ok: false, code: "invalid_request", persisted: false };
+    }
+  }
 
   let updateFields: OwnedEpisodeSavePayload = candidate;
   if (mode === "edit") {
