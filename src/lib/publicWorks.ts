@@ -431,7 +431,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
   buildPublicBaseWorkCards,
   ["public-base-work-cards-v12-canonical-source-language"],
-  { revalidate: 60 }
+  { revalidate: 60, tags: ["public-base-work-cards"] }
 );
 
 function prioritizeForLocale(cards: PublicBaseWorkCard[], locale: "ja" | "en" | "ko"): PublicBaseWorkCard[] {

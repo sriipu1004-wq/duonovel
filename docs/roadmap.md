@@ -212,6 +212,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-10 canonical source-language fallback checkpoint:** connected Production proves 120 public series have explicit JA/EN/KO (40 each); 3 private NULL rows are unaffected. Draft public-catalog source-language-only cutover eliminates the unused public episode-body guessing path and fails closed for future public rows lacking canonical source metadata. This is a subtask within Child84, not a change in roadmap priority. Merge and Production verification require explicit approval; Child85 remains blocked.
 
+**2026-10-10 Child84 author edit mutation boundary (Draft; backlog order unchanged):** implemented a candidate owner-authenticated Server Action for *existing-series edits only*, with explicit RLS owner filter, constrained editable fields and Next.js 16 immediate `updateTag` expiration of the 60-second public base-card cache. Author creation, episode mutation, deletion, scheduler and other direct-client paths remain outside this bounded candidate; DB commit and cache expiration are not atomic. This improves one mutation path only and must not be characterized as a complete publication/tombstone system or used to unblock Child85 without the remaining gates. Await CI, Preview, user approval, then Production authenticated edit/unpublish verification.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**

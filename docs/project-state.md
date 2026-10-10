@@ -361,3 +361,6 @@ For implementation work, read this file, `docs/roadmap.md`, `docs/decisions.md`,
 
 ### 2026-10-11 approved Child84 diagnostic shipment
 PR #98 was merged at main `927b79964cfe8761d5a9b91a6b09ab5ccdca6194` after user approval and its Vercel Production deployment `dpl_HnU5fHhjSeB3d7MNVDSdCUDXMkVj` reached READY. Anonymous Home/Search/Work/Reader HTTP smoke returned 200/200/200/200. Public fetch 2,500ms deadline and all permission boundaries unchanged. PR #99 source-language-only catalog candidate remains an independently reviewed release with all public 120 works populated, no data rewrite. Child84 NOT DONE; Child85 BLOCKED.
+
+### 2026-10-11 Child84 PR #101 reconciliation
+PR #101 was reconciled against approved Production PR #98/#99, retaining the canonical public catalog v12 cache key while registering its `public-base-work-cards` expiry tag. Only owner-authorized existing-series workspace edit and rights metadata preservation are targeted; DB commit and cache expiry remain non-atomic. PR #101 authenticated E2E/Preview required. Child84 NOT DONE; Child85 BLOCKED.
