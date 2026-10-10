@@ -6,6 +6,10 @@ on:
       - ".github/workflows/child84-public-read-reliability-check.yml"
       - "package.json"
       - "scripts/test-public-read-reliability-performance.ts"
+      - "scripts/test-owned-series-server-save.ts"
+      - "src/app/actions/**"
+      - "src/lib/write/**"
+      - "src/features/write/WriteSeriesForm.tsx"
       - "src/app/PublicTopPageLegacy.tsx"
       - "src/app/ranking/**"
       - "src/app/read/**"
@@ -44,6 +48,9 @@ jobs:
       - name: Child84 reliability regression
         run: npm run test:public-read-reliability-performance
 
+      - name: Owner workspace server action regression
+        run: npm run test:owned-series-server-save
+
       - name: Reader and translation regressions
         run: |
           npm run test:reader-mode-unification
@@ -62,6 +69,10 @@ jobs:
         run: >
           npx eslint
           scripts/test-public-read-reliability-performance.ts
+          scripts/test-owned-series-server-save.ts
+          src/app/actions/saveOwnedSeriesWorkspace.ts
+          src/lib/write/ownedSeriesPayload.ts
+          src/features/write/WriteSeriesForm.tsx
           src/app/read/[seriesId]/[episodeNumber]/layout.tsx
           src/app/read/[seriesId]/[episodeNumber]/page.tsx
           src/lib/publicRead.ts
