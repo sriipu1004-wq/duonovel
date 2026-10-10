@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createOwnedSeries } from "@/app/actions/createOwnedSeries";
+import { LANGUAGE_REGISTRY, type SupportedLanguageTag } from "@/lib/translation/languageRegistry";
+import type { SeriesContentWarning } from "@/lib/contentRating";
 import {
   hideGlobalLoadingFeedback,
   showGlobalLoadingFeedback,
@@ -55,6 +57,8 @@ export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps
   const submittingRef = useRef(false);
 
   const [title, setTitle] = useState("");
+  const [sourceLanguage, setSourceLanguage] = useState<SupportedLanguageTag | "">("");
+  const [contentWarnings, setContentWarnings] = useState<SeriesContentWarning[]>([]);
   const [summary, setSummary] = useState("");
   const [publicationStatus, setPublicationStatus] =
     useState<SeriesPublicationStatus>("private");
@@ -107,9 +111,9 @@ export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps
     if (submittingRef.current) return;
     const trimmedTitle = title.trim();
 
-    if (!trimmedTitle) {
+    if (!trimmedTitle || !sourceLanguage) {
       setSaveState("error");
-      setErrorMessage("タイトルは必須。");
+      setErrorMessage(!trimmedTitle ? "タイトルは必須。" : "原文言語を選択してください。");
       setSuccessMessage("");
       return;
     }
@@ -136,9 +140,17 @@ export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps
         translation_permission_mode: "open",
         human_translation_permission_mode: "open",
         effect_settings: null,
+        source_language: sourceLanguage,
+        content_warnings: contentWarnings,
       });
 
       if (result.ok || result.persisted) {
+        try {
+          window.sessionStorage.removeItem("duonovel:pending-source-language-create");
+          window.sessionStorage.removeItem("duonovel:pending-content-rating-create");
+        } catch {
+          // Legacy session-only state is optional.
+        }
         setSaveState(result.ok ? "success" : "error");
         setSuccessMessage(result.ok ? "作品を作成した。" : "");
         if (result.persisted) {
@@ -220,6 +232,45 @@ export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps
                     className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-neutral-500"
                   />
                 </label>
+
+                <label className="grid gap-2">
+                  <span className="text-sm text-neutral-700">原文言語（必須）</span>
+                  <select
+                    value={sourceLanguage}
+                    onChange={(event) => {
+                      setSourceLanguage(event.target.value as SupportedLanguageTag);
+                      resetNotice();
+                    }}
+                    className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-black"
+                  >
+                    <option value="" disabled>原文言語を選択</option>
+                    {(Object.keys(LANGUAGE_REGISTRY) as SupportedLanguageTag[]).map((tag) => (
+                      <option key={tag} value={tag}>{LANGUAGE_REGISTRY[tag].nativeLabel}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <fieldset className="grid gap-2">
+                  <legend className="text-sm text-neutral-700">コンテンツ警告（作成時に保存）</legend>
+                  {([
+                    ["sexual_r18", "性的表現を含む（R18）"],
+                    ["violence", "暴力描写あり"],
+                  ] as const).map(([value, label]) => (
+                    <label key={value} className="flex items-center gap-2 text-sm text-neutral-700">
+                      <input
+                        type="checkbox"
+                        checked={contentWarnings.includes(value)}
+                        onChange={(event) => {
+                          setContentWarnings((current) => event.target.checked
+                            ? [...current, value]
+                            : current.filter((item) => item !== value));
+                          resetNotice();
+                        }}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </fieldset>
 
                 <label className="grid gap-2">
                   <span className="text-sm text-neutral-700">あらすじ</span>

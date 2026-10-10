@@ -10,8 +10,6 @@ type Props = {
   lockedWarnings?: SeriesContentWarning[];
 };
 
-const PENDING_KEY = "duonovel:pending-content-rating-create";
-
 const PUBLICATION_LABELS = new Set([
   "公開状態",
   "Publication",
@@ -174,34 +172,6 @@ export default function ContentRatingWorkspaceBridge({
     };
   }, []);
 
-  useEffect(() => {
-    if (seriesId) return;
-
-    function rememberCreateSelection(event: MouseEvent) {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const button = target.closest<HTMLButtonElement>("button");
-      if (!button || !button.textContent?.includes("作品を作成")) return;
-
-      if (warnings.length === 0) {
-        window.sessionStorage.removeItem(PENDING_KEY);
-        return;
-      }
-
-      window.sessionStorage.setItem(
-        PENDING_KEY,
-        JSON.stringify({
-          warnings,
-          startedAt: Date.now(),
-          sourcePath: window.location.pathname,
-        })
-      );
-    }
-
-    document.addEventListener("click", rememberCreateSelection, true);
-    return () => document.removeEventListener("click", rememberCreateSelection, true);
-  }, [seriesId, warnings]);
-
   async function persistWarnings(nextWarnings: SeriesContentWarning[]) {
     const protectedWarnings = Array.from(
       new Set([...nextWarnings, ...normalizedLocks])
@@ -344,7 +314,7 @@ export default function ContentRatingWorkspaceBridge({
 
             {!seriesId && warnings.length > 0 ? (
               <p className="mt-3 text-xs leading-6 text-neutral-500">
-                選択した警告は作品作成直後に新しい作品へ保存されます。
+                選択した警告は作品作成時に公開状態と一緒に保存されます。
               </p>
             ) : null}
 
@@ -379,6 +349,9 @@ export default function ContentRatingWorkspaceBridge({
 
   return (
     <>
+      {!seriesId ? (
+        <input type="hidden" data-create-content-warnings="true" value={JSON.stringify(warnings)} readOnly />
+      ) : null}
       {status}
       {panel}
     </>

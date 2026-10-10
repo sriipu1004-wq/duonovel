@@ -3,28 +3,15 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
-import { stripUiLocalePrefix } from "@/i18n/config";
 import {
   LANGUAGE_REGISTRY,
   parseSupportedLanguageTag,
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 
-const PENDING_CREATE_SOURCE_LANGUAGE_KEY =
-  "duonovel:pending-source-language-create";
-
 const SOURCE_LANGUAGE_OPTIONS = Object.keys(
   LANGUAGE_REGISTRY
 ) as SupportedLanguageTag[];
-
-const CREATE_ACTION_LABELS = new Set([
-  "作品を作成して1話目へ",
-  "作品を作成してワークスペースへ",
-  "Create work and continue to episode 1",
-  "Create work and open workspace",
-  "작품을 만들고 1화로",
-  "작품을 만들고 워크스페이스로",
-]);
 
 const copy = {
   ja: {
@@ -104,36 +91,6 @@ export default function SourceLanguageWorkspaceBridge({
     return () =>
       window.removeEventListener("libread:source-language-applied", handleApplied);
   }, [dictionary.saved, router]);
-
-  useEffect(() => {
-    if (seriesId) return;
-
-    function rememberCreateSelection(event: MouseEvent) {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const button = target.closest<HTMLButtonElement>("button[type='button']");
-      if (!button) return;
-      const label = button.textContent?.trim() ?? "";
-      if (!CREATE_ACTION_LABELS.has(label)) return;
-
-      if (!language) {
-        setMessage(dictionary.required);
-        return;
-      }
-
-      window.sessionStorage.setItem(
-        PENDING_CREATE_SOURCE_LANGUAGE_KEY,
-        JSON.stringify({
-          language,
-          startedAt: Date.now(),
-          sourcePath: stripUiLocalePrefix(window.location.pathname),
-        })
-      );
-    }
-
-    document.addEventListener("click", rememberCreateSelection, true);
-    return () => document.removeEventListener("click", rememberCreateSelection, true);
-  }, [dictionary.required, language, seriesId]);
 
   async function persistLanguage(nextLanguage: SupportedLanguageTag) {
     setLanguage(nextLanguage);
