@@ -75,7 +75,7 @@ const updateForm = form.slice(
 assert.ok(form.includes('import { saveOwnedSeriesWorkspace } from "@/app/actions/saveOwnedSeriesWorkspace";'));
 assert.ok(updateForm.includes("await saveOwnedSeriesWorkspace(series.id, {"));
 assert.equal(updateForm.includes('supabase.from("series").update('), false);
-assert.ok(form.includes('.from("series")\n        .insert(payload)')); // creation remains unchanged
+assert.ok(form.includes("await createOwnedSeries(")); // creation migrated in Child84 stacked PR
 assert.ok(updateForm.includes("result.persisted")); // post-write cache failure is visible
 
 assert.ok(action.includes('import { updateTag } from "next/cache";'));

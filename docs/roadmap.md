@@ -214,6 +214,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-10 Child84 author edit mutation boundary (Draft; backlog order unchanged):** implemented a candidate owner-authenticated Server Action for *existing-series edits only*, with explicit RLS owner filter, constrained editable fields and Next.js 16 immediate `updateTag` expiration of the 60-second public base-card cache. Author creation, episode mutation, deletion, scheduler and other direct-client paths remain outside this bounded candidate; DB commit and cache expiration are not atomic. This improves one mutation path only and must not be characterized as a complete publication/tombstone system or used to unblock Child85 without the remaining gates. Await CI, Preview, user approval, then Production authenticated edit/unpublish verification.
 
+**2026-10-11 Child84 consolidated author mutation release checkpoint (no priority change):** following approved #98/#99/#101 Production deployment, test previously Draft #102/#103/#104/#107 together against current canonical main in one bounded release candidate. Preserve R18/permissions, author RLS, Public Domain provenance, canonical language/Reader behavior, short cache TTL. Publication, cache expiry and DB commit remain non-atomic; deleted/externally written content, authenticated E2E, Cron activation and SQL Search equivalence are still separate gates. Child85 remains blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**

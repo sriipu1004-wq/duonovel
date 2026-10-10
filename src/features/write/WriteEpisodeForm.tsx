@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { saveOwnedEpisode } from "@/app/actions/saveOwnedEpisode";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -522,64 +522,53 @@ const scheduledBeforePreviousIsBlocked =
       existingEpisode: episode ?? null,
     });
 
-    if (mode === "create") {
-      const result = await supabase
-        .from("episodes")
-        .insert(payload)
-        .select("id")
-        .single();
+    try {
+      const result = await saveOwnedEpisode(
+        mode,
+        mode === "edit" ? episode?.id ?? null : null,
+        payload
+      );
 
-      if (!result.error && result.data?.id) {
-
+      if (result.ok) {
         setSaveState("success");
-        setSuccessMessage("話を作成した。");
-
-        router.push(
-          destination === "next"
-            ? `/write/series/${seriesId}/episodes/new`
-            : `/write/series/${seriesId}`
-        );
+        setSuccessMessage(mode === "create" ? "話を作成した。" : "話を保存した。");
+        if (mode === "create") {
+          router.push(
+            destination === "next"
+              ? `/write/series/${seriesId}/episodes/new`
+              : `/write/series/${seriesId}`
+          );
+        } else if (destination === "next") {
+          router.push(`/write/series/${seriesId}/episodes/new`);
+        }
         router.refresh();
         return;
       }
 
+      setSaveState("error");
+      if (result.persisted) {
+        // Database commit succeeded. Do not retry the same CREATE operation.
+        setErrorMessage(
+          "話は保存されたが、公開一覧のキャッシュ更新に失敗した。再度作成せず、作品ワークスペースで状態を確認してください。"
+        );
+        if (mode === "create") {
+          router.push(`/write/series/${seriesId}`);
+          router.refresh();
+        }
+      } else if (result.code === "authentication_required") {
+        setErrorMessage("ログイン状態を確認してから、もう一度保存してください。");
+      } else if (result.code === "not_found_or_forbidden") {
+        setErrorMessage("この話の編集権限を確認できませんでした。");
+      } else {
+        setErrorMessage("話を保存できませんでした。入力内容を確認して、もう一度お試しください。");
+      }
+    } catch {
+      setSaveState("error");
+      setErrorMessage("話を保存できませんでした。通信状態を確認してください。");
+    } finally {
       submittingRef.current = false;
       hideGlobalLoadingFeedback();
-      setSaveState("error");
-      setErrorMessage(
-        "話を作成できませんでした。入力内容を確認して、もう一度お試しください。"
-      );
-      return;
     }
-
-    const result = await supabase
-      .from("episodes")
-      .update(payload)
-      .eq("id", episode?.id ?? "");
-
-    if (!result.error) {
-
-      submittingRef.current = false;
-      setSaveState("success");
-      setSuccessMessage("話を保存した。");
-
-      if (destination === "next") {
-        router.push(`/write/series/${seriesId}/episodes/new`);
-      } else {
-        router.refresh();
-        hideGlobalLoadingFeedback();
-      }
-
-      router.refresh();
-      return;
-    }
-
-    submittingRef.current = false;
-    hideGlobalLoadingFeedback();
-    setSaveState("error");
-    setErrorMessage(
-      "話を保存できませんでした。入力内容を確認して、もう一度お試しください。"
-    );
   }
 
   const heading = mode === "create" ? "新しい話を追加" : "話本文を編集";

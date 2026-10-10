@@ -10,7 +10,7 @@ type Props = {
   lockedWarnings?: SeriesContentWarning[];
 };
 
-const PENDING_KEY = "duonovel:pending-content-rating-create";
+const EMPTY_WARNINGS: SeriesContentWarning[] = [];
 
 const PUBLICATION_LABELS = new Set([
   "公開状態",
@@ -98,8 +98,8 @@ function ensureHosts(): {
 
 export default function ContentRatingWorkspaceBridge({
   seriesId,
-  initialWarnings = [],
-  lockedWarnings = [],
+  initialWarnings = EMPTY_WARNINGS,
+  lockedWarnings = EMPTY_WARNINGS,
 }: Props) {
   const normalizedInitial = useMemo(
     () => Array.from(new Set(initialWarnings)),
@@ -131,13 +131,15 @@ export default function ContentRatingWorkspaceBridge({
   useEffect(() => {
     function handleApplied(event: Event) {
       const detail = (
-        event as CustomEvent<{ warnings?: SeriesContentWarning[] }>
+        event as CustomEvent<{ warnings?: SeriesContentWarning[]; cacheInvalidationFailed?: boolean }>
       ).detail;
       if (!Array.isArray(detail?.warnings)) return;
       const next = Array.from(new Set([...detail.warnings, ...normalizedLocks]));
       setWarnings(next);
       setSavedWarnings(next);
-      setMessage("保存済み");
+      setMessage(detail.cacheInvalidationFailed
+        ? "警告は保存されたが、公開一覧のキャッシュ更新に失敗した。表示がしばらく古い可能性がある。"
+        : "保存済み");
     }
 
     window.addEventListener("libread:content-rating-applied", handleApplied);
@@ -174,34 +176,6 @@ export default function ContentRatingWorkspaceBridge({
     };
   }, []);
 
-  useEffect(() => {
-    if (seriesId) return;
-
-    function rememberCreateSelection(event: MouseEvent) {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const button = target.closest<HTMLButtonElement>("button");
-      if (!button || !button.textContent?.includes("作品を作成")) return;
-
-      if (warnings.length === 0) {
-        window.sessionStorage.removeItem(PENDING_KEY);
-        return;
-      }
-
-      window.sessionStorage.setItem(
-        PENDING_KEY,
-        JSON.stringify({
-          warnings,
-          startedAt: Date.now(),
-          sourcePath: window.location.pathname,
-        })
-      );
-    }
-
-    document.addEventListener("click", rememberCreateSelection, true);
-    return () => document.removeEventListener("click", rememberCreateSelection, true);
-  }, [seriesId, warnings]);
-
   async function persistWarnings(nextWarnings: SeriesContentWarning[]) {
     const protectedWarnings = Array.from(
       new Set([...nextWarnings, ...normalizedLocks])
@@ -227,11 +201,19 @@ export default function ContentRatingWorkspaceBridge({
       );
       const payload = (await response.json()) as {
         ok?: boolean;
+        persisted?: boolean;
         warnings?: SeriesContentWarning[];
         lockedWarnings?: SeriesContentWarning[];
         message?: string;
       };
 
+      if (payload.persisted === true && Array.isArray(payload.warnings)) {
+        const saved = Array.from(new Set([...payload.warnings, ...(payload.lockedWarnings ?? normalizedLocks)]));
+        setWarnings(saved);
+        setSavedWarnings(saved);
+        setMessage("警告は保存されたが、公開一覧のキャッシュ更新に失敗した。表示がしばらく古い可能性がある。");
+        return;
+      }
       if (!response.ok || !payload.ok || !Array.isArray(payload.warnings)) {
         setMessage("コンテンツ警告を更新できませんでした。");
         return;
@@ -344,7 +326,7 @@ export default function ContentRatingWorkspaceBridge({
 
             {!seriesId && warnings.length > 0 ? (
               <p className="mt-3 text-xs leading-6 text-neutral-500">
-                選択した警告は作品作成直後に新しい作品へ保存されます。
+                選択した警告は作品作成時に公開状態と一緒に保存されます。
               </p>
             ) : null}
 
@@ -379,6 +361,9 @@ export default function ContentRatingWorkspaceBridge({
 
   return (
     <>
+      {!seriesId ? (
+        <input type="hidden" data-create-content-warnings="true" value={JSON.stringify(warnings)} readOnly />
+      ) : null}
       {status}
       {panel}
     </>

@@ -25,6 +25,17 @@ on:
       - "src/lib/reliability/**"
       - "src/lib/supabase/serverPublic.ts"
       - "src/lib/translation/publicWorkTranslations.ts"
+      - "scripts/test-owned-series-create.ts"
+      - "scripts/test-owned-episode-server-save.ts"
+      - "scripts/test-series-route-cache-invalidation.ts"
+      - "scripts/test-child84-visibility-gates.ts"
+      - "scripts/test-ai-permission-cache-coherence.ts"
+      - "src/app/api/series/**"
+      - "src/features/write/TranslationPermissionWorkspaceBridge.tsx"
+      - "src/features/write/PendingTranslationPermissionBridge.tsx"
+      - "src/features/write/WriteEpisodeForm.tsx"
+      - "src/features/write/SourceLanguageWorkspaceBridge.tsx"
+      - "src/features/write/ContentRatingWorkspaceBridge.tsx"
 
 permissions:
   contents: read
@@ -52,8 +63,14 @@ jobs:
       - name: Public read HTTP deadline behavior (no network)
         run: npm run test:public-fetch-timeout-diagnostics
 
-      - name: Owner workspace server action regression
-        run: npm run test:owned-series-server-save
+      - name: Owner publication mutation and cache-integrity regressions
+        run: |
+          npm run test:owned-series-server-save
+          npm run test:owned-series-create
+          npm run test:owned-episode-server-save
+          npm run test:series-route-cache-invalidation
+          npm run test:child84-visibility-gates
+          npm run test:ai-permission-cache-coherence
 
       - name: Reader and translation regressions
         run: |
@@ -81,6 +98,23 @@ jobs:
           src/app/read/[seriesId]/[episodeNumber]/layout.tsx
           src/app/read/[seriesId]/[episodeNumber]/page.tsx
           src/lib/publicRead.ts
+          scripts/test-owned-series-create.ts
+          scripts/test-owned-episode-server-save.ts
+          scripts/test-series-route-cache-invalidation.ts
+          scripts/test-child84-visibility-gates.ts
+          scripts/test-ai-permission-cache-coherence.ts
+          src/app/api/series/[seriesId]/translation-permission/route.ts
+          src/features/write/TranslationPermissionWorkspaceBridge.tsx
+          src/features/write/PendingTranslationPermissionBridge.tsx
+          src/app/actions/createOwnedSeries.ts
+          src/app/actions/saveOwnedEpisode.ts
+          src/lib/write/ownedEpisodePayload.ts
+          src/features/write/WriteEpisodeForm.tsx
+          src/app/api/series/[seriesId]/source-language/route.ts
+          src/app/api/series/[seriesId]/content-rating/route.ts
+          src/features/write/SourceLanguageWorkspaceBridge.tsx
+          src/features/write/ContentRatingWorkspaceBridge.tsx
+          src/features/write/WriteSeriesCreateForm.tsx
 
       - name: Production build
         env:

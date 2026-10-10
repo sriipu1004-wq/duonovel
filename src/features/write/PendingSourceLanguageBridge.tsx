@@ -96,21 +96,22 @@ export default function PendingSourceLanguageBridge() {
           }
         );
 
-        let payload: { ok?: boolean; language?: unknown } = {};
+        let payload: { ok?: boolean; persisted?: boolean; language?: unknown } = {};
         try {
           payload = (await response.json()) as {
             ok?: boolean;
+            persisted?: boolean;
             language?: unknown;
           };
         } catch {
           // A transient non-JSON server response can be retried below.
         }
 
-        if (response.ok && payload.ok) {
+        if ((response.ok && payload.ok) || payload.persisted === true) {
           clearPendingSourceLanguage();
           window.dispatchEvent(
             new CustomEvent("libread:source-language-applied", {
-              detail: { language: payload.language ?? language },
+              detail: { language: payload.language ?? language, cacheInvalidationFailed: payload.persisted === true },
             })
           );
           return;
