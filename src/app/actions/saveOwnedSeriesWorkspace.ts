@@ -4,6 +4,10 @@ import { updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isValidSeriesId, isOwnedSeriesWorkspacePayload } from "@/lib/write/ownedSeriesPayload";
 
+type SaveResult =
+  | { ok: true }
+  | { ok: false; code: "invalid_request" | "authentication_required" | "not_found_or_forbidden" | "save_failed" | "cache_invalidation_failed"; persisted: boolean };
+
 const PUBLIC_WORKS_CACHE_TAG = "public-base-work-cards";
 /**
  * Canonical edit-workspace save entrypoint. Does not use a service role:
