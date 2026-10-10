@@ -210,6 +210,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-10 Child84 author edit mutation boundary (Draft; backlog order unchanged):** implemented a candidate owner-authenticated Server Action for *existing-series edits only*, with explicit RLS owner filter, constrained editable fields and Next.js 16 immediate `updateTag` expiration of the 60-second public base-card cache. Author creation, episode mutation, deletion, scheduler and other direct-client paths remain outside this bounded candidate; DB commit and cache expiration are not atomic. This improves one mutation path only and must not be characterized as a complete publication/tombstone system or used to unblock Child85 without the remaining gates. Await CI, Preview, user approval, then Production authenticated edit/unpublish verification.
 
+**Child84 stacked episode-save hardening (Draft, after PR #101):** move author episode create/edit into a cookie-authenticated, RLS-preserving Server Action and expire tagged public-work-card cache on successful writes. This closes another client-direct cache-invalidation gap only after both approved PRs merge. It does not cover work creation/deletion, episode deletion, scheduler/external writes, or atomic DB/cache expiration. Reader/R18/translation checks, 60-second TTL, and roadmap priority remain unchanged; Child84 cannot be DONE solely on this patch. Future large (>900k serialized bytes) episode upload support requires an explicit separate solution. Child85 remains blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**
