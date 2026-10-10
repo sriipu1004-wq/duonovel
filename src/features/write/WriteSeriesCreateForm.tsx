@@ -422,7 +422,7 @@ export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps
                   disabled={isSaving}
                   className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isSaving ? "作成中..." : "作品を生成して1話目へ"}
+                  {isSaving ? "作成中..." : "作品を作成して1話目へ"}
                 </button>
 
                 <button
@@ -431,7 +431,7 @@ export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps
                   disabled={isSaving}
                   className="rounded-full border border-sky-200 bg-sky-50 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isSaving ? "作成中..." : "作品を生成"}
+                  {isSaving ? "作成中..." : "作品を作成してワークスペースへ"}
                 </button>
 
                 <Link
