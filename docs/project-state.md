@@ -336,6 +336,10 @@ Following approved PR #94, Production Home/Search/Work/Reader anonymous HTTP GET
 
 Unfinished: independent off-site backup/restore verification; Compute tier must be checked in Dashboard; interactive Reader prev/next and AI/Human translation E2E; healthy-upstream longitudinal error/latency and p95 measurement; Search DB pagination with existing fuzzy/facet/popularity semantics; complete author edit/publish/unpublish/delete cache invalidation. **Child84 not DONE; Child85 remains blocked.**
 
+### Child84 server-controlled author edit preparation (Draft; 2026-10-10)
+
+A candidate for moving the existing-series author workspace edit from direct browser Supabase UPDATE into a cookie-authenticated Server Action has been prepared. The action uses existing author RLS plus an explicit owner filter, allowlisted payload validation and `updateTag` immediate public-card cache expiration after successful updates. It does not change the 60-second TTL, database RLS or schema. Author create / episode edit / delete / scheduler flows and cross-system commit/invalidation races remain unresolved. This branch is unmerged and not in Production, so it is not evidence that Child84 is DONE.
+
 ## Current unresolved verification items
 
 These are not automatic priority changes; they are release/claim gates:
