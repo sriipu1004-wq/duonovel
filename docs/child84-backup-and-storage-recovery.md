@@ -54,3 +54,6 @@ Repeat the aggregate read-only audit using `scripts/child84-storage-recovery-aud
 - Existing project gates: `docs/development-workflow.md`, `docs/decisions.md`, `docs/roadmap.md`.
 
 **State:** Child84 remains open; Child85 remains blocked. A runbook plus SQL row counts are not a verified independent backup, restoration or durable deletion policy.
+
+## 2026-10-11 scheduled Cron test branch, backup evidence still blocked
+An isolated Supabase development branch was created for an hourly quoted rate of 0.01344, used only for synthetic Cron execution and then explicitly deleted. Its own canonical migration replay failed because a prior migration tried to ALTER a missing `public.series`. The Cron extension and job succeeded after constructing only minimal synthetic tables. This branch was **not** a restored snapshot of the user's real Production data and is **not** evidence of a database or Storage backup/restore. Preserve the requirements above and `docs/child84-cron-isolated-supabase-evidence.md` before any Production scheduler adoption.
