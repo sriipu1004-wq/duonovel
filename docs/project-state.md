@@ -1,11 +1,23 @@
 # LIB read — Project State
 
-Last updated: **2026-10-07**
-Last product-changing main commit: `63f340168da1725f9c147a8dba05ecc88898b532`
+Last updated: **2026-10-11**
+Last product-changing main commit: `b49e797313b0daf0d245e7e39e48dc22d520be7b` (Child84f saved Search correctness; later merged changes are source-only audits)
 Production: https://www.syosetu-libread.com
 Repository: `sriipu1004-wq/duonovel`
 
 This document is the compact canonical state for future parent/child chats. It should describe the current product, not the full history. Historical rationale belongs in `docs/decisions.md`.
+
+## Current Child84 P4 acceptance snapshot — 2026-10-11
+
+- Verified GitHub `main`: `6ef2d3b5aa5caa2f6344268766347fa2a7cb964c`. The newest **READY Production** deployment at audit time was `dpl_E2vh7KjcPje7CSbA7SDA3ehF3H9m`, SHA `6114d2bc92a041dcdfd2f283b4d2d030443c0bbf`. The main-only diff after that deploy consists of Child84's Search SQL audit document and offline test, not runtime changes. The subsequent merge's Vercel status shows the free build-rate-limit; do not claim the docs-only SHA deployed.
+- Merged #124: current late-callback Production evidence; JavaScript's 2,500ms timeout timer sometimes fires tens of seconds late, while abort settlement is fast. Root cause remains **unverified**; no deadline/TTL/region/unsafe public fallback change.
+- Merged #121: Search exact-semantics audit **NO SQL CUTOVER**, reconciled with already shipped #122 bookmarked-works fix. Existing full JS candidate/ranking/facets/pagination remain canonical; do not implement DB LIMIT/OFFSET without a genuinely independent full-parity result and performance benefit.
+- Draft #123: temporary **fail-closed** account-deletion proposal and accurate Privacy/Terms copy, source-only security+build CI **4/4 PASS**; **not deployed**. Active Production still has the old Auth soft-deletion API with no complete author-unpublication/personal-data erasure guarantee. Latest-HEAD Vercel Preview is blocked by verified build/deployment daily quota; public contact inbox receipt and operator deletion-identity triage are unverified. User approved review-required work, but approval is not test/Preview/delivery proof. The proposed permanent B-default / C opt-in / A erasure-request policy is still **not enacted**. Do not test with a real account deletion.
+- Attempting an emergency Vercel Firewall deny rule for only the legacy account-delete POST was stopped by an external safety check; **no Firewall configuration change was applied**. Do not claim the endpoint is blocked.
+- Read-only Production DB snapshot: 123 works (120 public, 3 private), 0 public R18, 0 currently unpublished episodes, 0 publicly authored works tied to deleted/missing Auth users, 6 historic Auth soft-deletions. These aggregates do **not** establish erasure of private data or future deletion correctness.
+- Draft #108 scheduled-episode Cron stays **unmerged/uninstalled**. The short-lived isolated Supabase branch test passed, but its replay lacked baseline `series`, and there is **no verified independent DB and ~30 GB Storage restoration** or authorized full-schema/authenticated Reader/author/R18 E2E. No Publication Cron activation is justified.
+- Overall: **Child84 NOT DONE; Child85 BLOCKED**. Gate order: resolve current unsafe deletion operation without harming support/billing; complete authorized Preview/identity/rights checks; prove recoverability and authenticated E2E; only then consider scheduled Cron. Keep 60-second catalog TTL, R18/ownership/publishing gates, Reader three modes and AI/Human translation separation. The roadmap order remains unchanged.
+
 
 ## Product definition
 
