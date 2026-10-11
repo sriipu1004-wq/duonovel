@@ -228,6 +228,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-11 Child84 optional Work translation badge query prefilter (no priority change):** current 120 public works/3284 episodes but only 12 ready AI translation rows. A Draft head-only inner join can avoid fetching full episode bodies for badges known to have zero ready cached translations, without changing full translation version page, AI/Human permissions, credit use or R18. Zero-count is a performance hint only; auth/cache/hash and gateway-failure behavior remain canonical. CI+Preview and Production latency verification needed; Child85 stays blocked.
 
+**2026-10-11 Child84 Work layout optional streaming checkpoint (no reorder):** a bounded Work-only `Suspense` isolates the optional translated-language badge after the existing R18/series-publication safety checks. The head-only ready-row filter avoids unnecessary full body scans only on verified zero count, with error fallback. Production impact unmeasured until deployment. Child84 open; Child85 blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**
@@ -331,4 +333,3 @@ When the order changes:
 
 Do not infer a new priority merely because an older chat suggested an alternative.
 
-**2026-10-11 Child84 Work layout optional streaming checkpoint (no reorder):** a bounded Work-only `Suspense` isolates the optional translated-language badge after the existing R18/series-publication safety checks. The head-only ready-row filter avoids unnecessary full body scans only on verified zero count, with error fallback. Production impact unmeasured until deployment. Child84 open; Child85 blocked.
