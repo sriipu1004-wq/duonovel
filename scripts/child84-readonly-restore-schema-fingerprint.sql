@@ -3,6 +3,7 @@
 -- SAME-TIMESTAMP snapshot, ideally the same PostgreSQL major/extension versions.
 -- Returns aggregate counts and SHA-256 of canonicalized catalog definitions,
 -- not raw DDL, user content, object names, tokens or private data.
+-- Policy role OIDs are normalized to role NAMES to allow cross-instance comparison.
 -- Hash equality is evidence of these catalog subsets only; it cannot prove
 -- an archive, Auth/Storage bytes, backup freshness, exact row contents or
 -- full instance recovery. Never send actual database dumps to CI.
@@ -41,7 +42,13 @@ WITH inventory AS (
   UNION ALL
   SELECT 'policies',
     format('%s.%s.%s|cmd=%s|roles=%s|qual=%s|check=%s',
-      n.nspname,c.relname,p.polname,p.polcmd,p.polroles::text,
+      n.nspname,c.relname,p.polname,p.polcmd,
+      ARRAY(
+        SELECT CASE WHEN role_oid = 0 THEN 'PUBLIC'
+                    ELSE pg_get_userbyid(role_oid) END
+        FROM unnest(p.polroles) AS roles(role_oid)
+        ORDER BY 1
+      )::text,
       coalesce(pg_get_expr(p.polqual,p.polrelid),''),
       coalesce(pg_get_expr(p.polwithcheck,p.polrelid),''))
   FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid
