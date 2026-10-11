@@ -79,7 +79,7 @@ async function main() {
 
   // Full public catalog is the source of truth for public visibility, not
   // user-owned bookmark rows. Private bookmarked IDs never enter Search.
-  const publicWorks = Array.from({ length: 1280 }, (_, i) => ({
+  const publicWorks = Array.from({ length: 1200 }, (_, i) => ({
     seriesId: ids[i].series_id,
     authorId: `author-${i % 3}`,
     tags: [i % 2 ? "#History" : "#Fantasy"],
@@ -110,8 +110,8 @@ async function main() {
   assert.ok(results.every(w => w.tags.includes("#Fantasy") && w.genres.includes("Fantasy")));
   assert.ok(matches("tag").length >= results.length);
   assert.ok(matches("genre").length >= results.length);
-  assert.ok(!publicWorks.some(w => w.seriesId === ids[1252].series_id) || bookmarked.has(ids[1252].series_id));
-  assert.ok(!publicWorks.some(w => w.seriesId === ids[1300]?.series_id), "Out-of-catalog bookmarks must not leak");
+  assert.ok(bookmarked.has(ids[1252].series_id), "Bookmarked IDs beyond the first 1,000 exist");
+  assert.ok(!publicWorks.some(w => w.seriesId === ids[1252].series_id), "Private/out-of-catalog bookmark IDs must not leak");
   const pagesCount = Math.max(1, Math.ceil(results.length / PUBLIC_SEARCH_PAGE_SIZE));
   for (const request of [1, 2, 50, 999]) {
     const page = clampPublicSearchPage(request, pagesCount);
