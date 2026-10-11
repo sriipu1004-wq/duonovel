@@ -50,4 +50,3 @@ These DB times are **cumulative across the extension's statistics interval, not 
 - Vercel docs on [Fluid Compute](https://vercel.com/docs/fluid-compute), [Function configuration](https://vercel.com/docs/functions/configuring-functions) and [Function duration](https://vercel.com/docs/functions/configuring-functions/duration) provide possible platform context; **not** proof of this project's current enabled settings.
 - Implementation: `src/lib/supabase/serverPublic.ts`; regression: `scripts/test-public-fetch-timeout-diagnostics.ts`.
 - Child84 remains **NOT DONE**, Child85 **BLOCKED**. Backup/restore, full Search SQL parity, deletion/tombstone, authenticated Reader/R18/author E2E and Cron Production release remain unverified.
-
