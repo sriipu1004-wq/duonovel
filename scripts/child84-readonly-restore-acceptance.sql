@@ -6,7 +6,7 @@
 -- Passing this query alone does NOT prove a database backup exists, byte-level
 -- Storage recovery, media hashes, R18/Human permissions, real login E2E or
 -- a consistent point-in-time export. Do not execute on an untrusted database.
-BEGIN READ ONLY;
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
 
 DO $child84$
 DECLARE
