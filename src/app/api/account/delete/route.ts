@@ -19,6 +19,13 @@ export async function POST() {
       error: userError,
     } = await supabase.auth.getUser();
 
+    if (userError?.name === "AuthSessionMissingError") {
+      return NextResponse.json(
+        { error: "ログイン状態を確認できなかった。" },
+        { status: 401 }
+      );
+    }
+
     if (userError) {
       return NextResponse.json(
         { error: "認証の確認が一時的に利用できません。" },
