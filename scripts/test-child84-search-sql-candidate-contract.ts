@@ -45,7 +45,7 @@ type Fixture = {
 };
 const rawLanguages = ["ja","en","ko","fr","de","es","zh-Hans","zh-Hant","EN ","xx",null] as const;
 const input: Fixture[] = Array.from({length:1803},(_,i)=>{
- const rawLanguage=rawLanguages[i%rawLanguages.length];
+ const rawLanguage=i===1802 ? "en" : rawLanguages[i%rawLanguages.length];
  return {
   id:String(i),seriesId:String(i),pub:i%31!==0,posted:i%29!==0,
   rawLanguage,sourceLanguage:parseSupportedLanguageTag(rawLanguage),
