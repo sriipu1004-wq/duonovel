@@ -232,6 +232,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-11 Child84 deadline-versus-abort-settlement diagnostic checkpoint (no reprioritization):** current Production public-series/episode-summary fetches still occasionally abort; observed total elapsed sometimes far exceeds the 2,500ms deadline. Source-only instrumentation separates delayed timer callback from delayed promise rejection, with no endpoint key/URL disclosure or timeout policy change. No performance win/root-cause claim before Production logging. Backup/restore, signed-in E2E, Search full SQL semantic parity and deferred Cron remain the Child84 gates; Child85 blocked.
 
+**2026-10-11 Child84 localized Work metadata fail-closed checkpoint (no priority change):** a transient global public catalog cache revalidation error must not crash localized Work metadata. Candidate catches failure and emits only generic noindex/nofollow rather than stale private/R18 work data; success path remains unchanged, as do core Work/Reader permissions. This reduces optional error propagation but is not proof of Production latency improvement or completion of SQL Search, backup/restore or authenticated E2E. Child85 blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**

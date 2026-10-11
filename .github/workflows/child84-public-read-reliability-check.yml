@@ -25,6 +25,8 @@ on:
       - "src/app/search/**"
       - "src/app/sitemap.ts"
       - "src/app/works/**"
+      - "src/app/locale-work/[seriesId]/page.tsx"
+      - "scripts/test-child84-locale-work-metadata-fallback.ts"
       - "src/components/auth/AuthStatus.tsx"
       - "src/features/works/WorkTranslationAvailability.tsx"
       - "scripts/test-child84-optional-work-translation-badge.ts"
@@ -92,6 +94,9 @@ jobs:
       - name: Optional Work translation badge head-only prefilter (no DB network)
         run: npm run test:child84-optional-work-translation-badge
 
+      - name: Localised Work metadata outage fallback (no network)
+        run: npm run test:child84-locale-work-metadata-fallback
+
       - name: Reader and translation regressions
         run: |
           npm run test:reader-mode-unification
@@ -114,6 +119,8 @@ jobs:
           scripts/test-child84-search-sql-candidate-contract.ts
           scripts/test-child84-storage-backup-audit.ts
           scripts/test-public-fetch-timeout-diagnostics.ts
+          scripts/test-child84-locale-work-metadata-fallback.ts
+          src/app/locale-work/[seriesId]/page.tsx
           scripts/test-owned-series-server-save.ts
           src/app/actions/saveOwnedSeriesWorkspace.ts
           src/lib/write/ownedSeriesPayload.ts
