@@ -23,7 +23,7 @@ assert.equal(route.includes("mayHaveReadyTranslationForWorkBadge"),false);
 assert.ok(fetcher.includes("if (getSeriesPublicationStatus(series) !== \"public\") return null"));
 assert.ok(fetcher.includes("isSeriesTranslationEligibleIncludingOfficial(series)"));
 assert.ok(badge.includes("getCurrentR18ViewerPreference()"));
-assert.ok(evidence.includes("12 ready rows"));
+assert.ok(evidence.includes("12 total ready"));
 for(const {readyRowCount,error,full} of [
  {readyRowCount:0,error:null,full:false},
  {readyRowCount:1,error:null,full:true},
