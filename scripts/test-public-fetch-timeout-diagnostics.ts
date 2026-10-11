@@ -39,6 +39,20 @@ async function main(): Promise<void> {
     assert.ok(Number.isFinite(metadata.abortSettlementDelayMs));
     assert.ok((metadata.deadlineTimerDelayMs as number) >= 0);
     assert.ok((metadata.abortSettlementDelayMs as number) >= 0);
+    for (const key of [
+      "elapsedMonotonicMs",
+      "deadlineTimerDelayMonotonicMs",
+      "deadlineTimerCpuUserMs",
+      "deadlineTimerCpuSystemMs",
+    ]) {
+      assert.equal(typeof metadata[key], "number", `${key} must be numeric`);
+      assert.ok(Number.isFinite(metadata[key]), `${key} must be finite`);
+      assert.ok((metadata[key] as number) >= 0, `${key} must be nonnegative`);
+    }
+    assert.ok(
+      Math.abs((metadata.elapsedMonotonicMs as number) - (metadata.elapsedMs as number)) < 1000,
+      "monotonic and wall clock normally agree without system clock steps"
+    );
     const splitDuration =
       (metadata.timeoutMs as number) +
       (metadata.deadlineTimerDelayMs as number) +
@@ -73,7 +87,7 @@ async function main(): Promise<void> {
     assert.equal(ok.status, 200);
     assert.equal(warnings.length, 0);
 
-    console.log("PASS: real 2500ms local AbortSignal, phase-only numeric timeout diagnostics and endpoint allowlist; caller abort/network/success semantics unchanged");
+    console.log("PASS: real 2500ms local AbortSignal, wall/monotonic/process-CPU diagnostics and endpoint allowlist; caller abort/network/success semantics unchanged");
   } finally {
     globalThis.fetch = realFetch;
     console.warn = realWarn;
