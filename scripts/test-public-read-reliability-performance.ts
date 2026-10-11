@@ -321,9 +321,17 @@ function verifyPublicEpisodeSummaryReadBoundary(): void {
   );
   assert.ok(build.includes("fetchPublicEpisodeSummariesBySeriesIds("));
   assert.equal(build.includes("fetchEpisodesBySeriesIds("), false);
-  assert.ok(build.includes("episodeSummary.public_episode_numbers"));
+  // The catalog and the bounded single-work metadata lookup share the
+  // same mapper. Validate semantic guards on that shared mapper rather than
+  // assuming the card construction still resides inside the full catalog.
+  const sharedCardMapper = works.slice(
+    works.indexOf("function makePublicBaseWorkCard("),
+    works.indexOf("async function buildPublicBaseWorkCards(")
+  );
+  assert.ok(sharedCardMapper.includes("episodeSummary.public_episode_numbers"));
+  assert.ok(sharedCardMapper.includes("readCanonicalSeriesSourceLanguage(series)"));
+  assert.ok(build.includes("makePublicBaseWorkCard(series, summariesBySeriesId.get(series.id), authorAccountMap)"));
   assert.equal(build.includes("legacyFirstEpisodeBodyMap"), false);
-  assert.ok(build.includes("readCanonicalSeriesSourceLanguage(series)"));
 }
 
 function verifyReaderIsolation(): void {
