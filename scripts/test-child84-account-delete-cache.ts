@@ -111,9 +111,9 @@ async function main() {
       assert.equal(first.result.body.ok, undefined);
     }
   }
-  
+
   console.log("PASS: interim deletion API fail-closed on authenticated/anonymous/Auth-error/timeout/retry mocks; no billing, DB mutation or Auth deletion side effects; truthful UI/Privacy/Terms/contact");
-  
+
 }
 
 void main().catch((error: unknown) => {
