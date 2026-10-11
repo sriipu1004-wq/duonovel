@@ -234,6 +234,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-11 Child84 localized Work metadata fail-closed checkpoint (no priority change):** a transient global public catalog cache revalidation error must not crash localized Work metadata. Candidate catches failure and emits only generic noindex/nofollow rather than stale private/R18 work data; success path remains unchanged, as do core Work/Reader permissions. This reduces optional error propagation but is not proof of Production latency improvement or completion of SQL Search, backup/restore or authenticated E2E. Child85 blocked.
 
+**2026-10-11 Child84 confirmed late timeout callback evidence (no roadmap reorder):** shipped #116 telemetry distinguishes 2,500ms local deadline from callback dispatch delay and post-abort settlement. An actual Production `series` warning reported 83,379ms total, with 80,876ms late callback and 3ms settlement, while cumulative Supabase SQL exec times were far shorter. This single incident does not identify the cause (event-loop block vs runtime pause); no timeout extension, region switch or unsafe stale-public fallback adopted. Evidence `docs/child84-public-db-timeout-phase-evidence.md`; other Child84 gates remain. Child85 blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**

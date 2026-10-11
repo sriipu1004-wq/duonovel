@@ -19,6 +19,8 @@ on:
       - "src/features/write/WriteSeriesForm.tsx"
       - "src/features/write/writeShared.ts"
       - "scripts/test-public-fetch-timeout-diagnostics.ts"
+      - "docs/child84-public-db-timeout-phase-evidence.md"
+      - "scripts/test-child84-timeout-phase-evidence.ts"
       - "src/app/PublicTopPageLegacy.tsx"
       - "src/app/ranking/**"
       - "src/app/read/**"
@@ -97,6 +99,9 @@ jobs:
       - name: Localised Work metadata outage fallback (no network)
         run: npm run test:child84-locale-work-metadata-fallback
 
+      - name: Child84 timeout phase evidence contract (no network)
+        run: node --import tsx scripts/test-child84-timeout-phase-evidence.ts
+
       - name: Reader and translation regressions
         run: |
           npm run test:reader-mode-unification
@@ -119,6 +124,7 @@ jobs:
           scripts/test-child84-search-sql-candidate-contract.ts
           scripts/test-child84-storage-backup-audit.ts
           scripts/test-public-fetch-timeout-diagnostics.ts
+          scripts/test-child84-timeout-phase-evidence.ts
           scripts/test-child84-locale-work-metadata-fallback.ts
           src/app/locale-work/[seriesId]/page.tsx
           scripts/test-owned-series-server-save.ts
