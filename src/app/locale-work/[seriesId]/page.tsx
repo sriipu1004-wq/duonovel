@@ -17,11 +17,31 @@ export async function generateMetadata({
   const dictionary = workDictionaries[locale];
   const { seriesId } = await params;
 
-  const works = await getCachedPublicBaseWorkCards({
-    ignoreContentLanguageFilter: true,
-    prioritizeForUiLocale: false,
-  });
-  const work = works.find((item) => item.seriesId === seriesId);
+  // Metadata must never make a localised Work page fail just because the
+  // optional all-catalog cache is being revalidated. A failed lookup must
+  // reveal neither a potentially private work nor an R18-filtered title.
+  if (!isUuid(seriesId)) {
+    return {
+      title: `${dictionary.notFound} | LIB read`,
+      robots: { index: false, follow: false },
+    };
+  }
+
+  let work: Awaited<ReturnType<typeof getCachedPublicBaseWorkCards>>[number] | undefined;
+  try {
+    const works = await getCachedPublicBaseWorkCards({
+      ignoreContentLanguageFilter: true,
+      prioritizeForUiLocale: false,
+    });
+    work = works.find((item) => item.seriesId === seriesId);
+  } catch {
+    // A transient all-catalog timeout must not throw from generateMetadata.
+    // Do not serve stale work-specific metadata or expose private/R18 content.
+    return {
+      title: "LIB read",
+      robots: { index: false, follow: false },
+    };
+  }
 
   if (!work) {
     return {
