@@ -281,3 +281,51 @@ full backup content or object keys in chat/GitHub/CI.
 **Current decision:** SOURCE-ONLY EVIDENCE IMPROVED;
 INDEPENDENT DB RESTORE = UNPROVEN; STORAGE BYTE RESTORE = UNPROVEN;
 PR #108 CRON = NO-GO; Child84 NOT DONE / Child85 BLOCKED.
+
+
+## 2026-10-11 Child84j project-specific backup timestamp probe
+
+**The requested backup creation timestamp remains UNVERIFIED, not
+estimated.** Official Supabase Management API documentation explicitly
+provides **`GET /v1/projects/{ref}/database/backups`** with OAuth
+`database:read` / fine-grained `backups_read`. Its response includes
+the per-backup ID, status, `inserted_at`, and physical/PITR status
+indicators. The current connected Supabase app exposes project,
+branches, SQL and migration information but has **no general GET or
+backup-list action**. No management token for that endpoint was present
+in the authorized Windows device's process environment or its default
+Supabase CLI access-token file when checked without displaying secrets.
+Do not infer that automatic backup eligibility implies a completed
+backup on a particular UTC date.
+
+A minimal script
+`scripts/child84-backup-inventory-readonly.ps1` now supports an
+**authorized least-privilege management API token placed only in
+the local process environment**. It targets the fixed Production ref,
+issues only one HTTPS GET without redirects, reports aggregate counts
+and the latest parseable completed backup **UTC** time, and does not
+display the token, raw backup payload, account data or backup contents.
+Source-only test `scripts/test-child84-backup-inventory-contract.ts`
+runs offline in the Child84 public-read CI. This is a **tool prepared**,
+not a successful live inventory query.
+
+The preferred no-token route remains the authenticated Supabase
+Dashboard → Project `nyxbnccuvmlzffgtdadi` → Database → Backups:
+view the actual completed backup entry with UTC timestamp and type.
+If an operator instead provisions a least-privilege Supabase
+management token, **never paste it into this chat, GitHub, a public
+issue, CI secret output or a shell command argument**; secure it
+as a per-process secret in their authorized environment and run the
+script locally. Do not broaden permission scopes just to bypass a
+403 response. An actual `200` response with at least one
+`COMPLETED` row and parseable `inserted_at` would prove only a
+record of a backup at that time — NOT exportability, retained object
+bytes, independent Postgres restore or authorization isolation.
+
+Official primary references:
+- `https://supabase.com/docs/reference/api/v1-list-all-backups`
+- `https://supabase.com/docs/guides/platform/backups`
+- `https://supabase.com/docs/guides/platform/clone-project`
+
+**No new resource, paid subscription, Production restore, DB/storage
+write, file-byte backup transfer or token collection occurred.**
