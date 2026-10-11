@@ -12,16 +12,30 @@ import { createClient } from "@/lib/supabase/server";
  * self-service delete button. No payment, Auth mutation, or DB write occurs.
  */
 export async function POST() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-  if (userError || !user) {
+    if (userError) {
+      return NextResponse.json(
+        { error: "認証の確認が一時的に利用できません。" },
+        { status: 503 }
+      );
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "ログイン状態を確認できなかった。" },
+        { status: 401 }
+      );
+    }
+  } catch {
     return NextResponse.json(
-      { error: "ログイン状態を確認できなかった。" },
-      { status: 401 }
+      { error: "認証の確認が一時的に利用できません。" },
+      { status: 503 }
     );
   }
 
