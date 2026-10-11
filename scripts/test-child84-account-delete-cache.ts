@@ -10,6 +10,27 @@ const terms = readFileSync("src/app/terms/page.tsx", "utf8");
 const contact = readFileSync("src/app/contact/page.tsx", "utf8");
 const catalog = readFileSync("src/lib/publicWorks.ts", "utf8");
 const permission = readFileSync("src/app/api/series/[seriesId]/translation-permission/route.ts", "utf8");
+
+const subscriptionPage = readFileSync("src/app/subscription/page.tsx", "utf8");
+const billingPortal = readFileSync("src/app/api/billing/portal/route.ts", "utf8");
+const billingButton = readFileSync("src/features/billing/SubscriptionActionButton.tsx", "utf8");
+
+// Suspending deletion must not hide or disable the independent paid
+// subscription-management path. These are source contracts, not a live
+// Stripe portal E2E and do not claim a subscription was canceled.
+assert.ok(subscriptionPage.includes('<SubscriptionActionButton mode="portal"'),
+  "subscription page must retain its dedicated billing-management action");
+assert.ok(billingButton.includes('mode === "checkout" ? "/api/billing/checkout" : "/api/billing/portal"'),
+  "portal mode must continue to call the separate authenticated billing API");
+assert.ok(billingPortal.includes("supabase.auth.getUser()"),
+  "billing portal must validate the account independently of deletion");
+assert.ok(billingPortal.includes("getBillingCustomerId(data.user.id)"),
+  "billing portal must only use the authenticated account's customer ID");
+assert.ok(billingPortal.includes("billingPortal.sessions.create("),
+  "Stripe portal access must not depend on the suspended deletion API");
+assert.ok(!billingPortal.includes('/api/account/delete'),
+  "deletion review must not be a prerequisite for subscription cancellation");
+
 const deletedRefs = readFileSync("scripts/child84h-soft-deleted-reference-inventory.sql", "utf8");
 const cleanedDeletedRefs = deletedRefs.replace(/^\s*--.*$/gm, "").trim();
 assert.ok(cleanedDeletedRefs.startsWith("BEGIN READ ONLY;"), "historical-reference audit must be read-only");
