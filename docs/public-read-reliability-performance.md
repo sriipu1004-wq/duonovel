@@ -906,5 +906,64 @@ Previously shared owner helper `isEpisodePubliclyVisible` treated due-but-unpost
 ## 40. Child84 actual Supabase-managed Cron isolated acceptance (2026-10-11)
 See `docs/child84-cron-isolated-supabase-evidence.md` for precise synthetic data, results and boundary. A one-minute `pg_cron 1.6.4` job genuinely ran via Supabase's scheduler on a temporary development branch: `cron.job_run_details` succeeded and a due scheduled episode became posted+published, with one private count-checked audit record. Pre-existing base migrations failed to replay on that new branch (`public.series` absent before translation-permission ALTER), so this is *not* a full Production-schema acceptance. The branch's job was unscheduled and the paid branch deleted. Production remains cron-free. Independent off-site database/Storage recovery and authenticated E2E remain NO-GO; do not merge or apply Draft #108 solely from this proof.
 
-## 41. Child84 scheduled release implementation Draft after isolated Supabase scheduler success
-Source candidate #108 adds a named once-per-minute `pg_cron` worker that transitions at most 200 due scheduled rows, checks latest existing preceding episode, sets posted/published state and writes an exact private RLS-protected audit in the same SQL statement, without changing public read grants. Post-release owner UI #112 already requires posted+published rather than due clock; the independent Supabase-managed scheduler fixture and cleanup were documented on main in #113. This Draft's Docker and PostgreSQL SQL suites are acceptance of code semantics, not a production backup or full-schema authentication/R18/Reader acceptance. A paid no-data Supabase test branch did not fully replay prior migrations due to missing series baseline; it was deleted. Do not adopt Production scheduled publication until independent DB+Storage restore and complete application E2E. No production write occurred via this Draft.
+## 42. Child84 Search SQL broad eligibility parity, not a cutover
+Source-only query `scripts/child84-search-eligible-sql-parity.sql` executed against Production in a READ ONLY transaction. Direct posted+published EXISTS and canonical summary-view eligibility agree: 120 each, zero symmetric difference, source language counts ja40/en40/ko40. CI validates the broad candidate with synthetic 1,803-work fuzzy/period/saved/source/tag/genre/page data; see `docs/child84-search-sql-eligible-parity.md`. This is not exact facet/popularity/shelf/translation/R18 SQL equivalence and not evidence to adopt DB LIMIT/OFFSET or raise cache TTL. Production Search remains unchanged. Child84 NOT DONE/Child85 BLOCKED.
+
+## 43. Child84 optional Work translation badge preflight (Draft)
+Production read-only SQL shows 12 total ready `episode_translations` rows across 3284 posted episodes (max 261 per work); 120 works. Before this change, the optional badge fetched `episodes.select("*")` and processed per-episode hashes on every Work, usually rendering nothing. A Work-badge-only head/count query (ready AI rows for posted+published episodes of the named series) now skips the expensive full overview only on a definitive zero result, falling through to the existing full public authorization, source-hash freshness, translation permission and R18 checks on positive/unknown/error. Neither the standalone translation-version route nor Human translation/credits is changed. Preflight is not a security predicate, a DB schema change or proof of latency impact. Must measure Work errors/latency after Preview/Production. Child84 NOT DONE; Child85 BLOCKED.
+
+**2026-10-11 Work optional streaming note:** The Work Layout awaits `loadWorkSurfaceState` and rejects blocked R18 prior to rendering the children; the optional translation-availability component now sits in its own `Suspense fallback={null}` segment rather than preceding all Work content without a boundary. This does not remove the mandatory publication/R18 checks or guarantee response-time improvement. The source-only test locks the order and null fallback. No change to the standalone translation-version page.
+
+## 44. Child84 public-read timeout: callback-vs-abort-settlement diagnostics (Draft)
+Production logs from the most recent short retention window confirmed `[public-db-local-timeout]` warnings on allowlisted `series` and `public_episode_work_summaries` endpoints. Some current warnings reported elapsed wall time tens of seconds longer than the configured 2,500ms timeout; because a JavaScript callback/promise may be delayed, those times are **not by themselves proof of a slow Supabase query**, nor do they prove a Vercel event-loop failure. The existing instrumentation cannot split the two phases. This narrowly scoped candidate captures the actual timer callback timestamp and records a nonnegative `deadlineTimerDelayMs` and `abortSettlementDelayMs` at the abort rejection, without exposing URLs, identifiers, secrets, query contents or user data. A local fetch mock asserts bounded 2,500ms abort and that the phase timings account for elapsed time. Caller-abort, network error and successful fetch remain unchanged. The production observation and timeout distribution must be measured after deployment before claiming a cause; adding a stale public snapshot or extending cache TTL is not authorized. Child84 NOT DONE; Child85 BLOCKED.
+
+## 45. Localized Work metadata catalog cache failure isolation (Draft)
+The localized Work metadata function calls `getCachedPublicBaseWorkCards` for canonical author/title/description/rights-backed attribution, but previously lacked a catch. Unlike the canonical Work component, this creates an additional all-corpus dependency for localized metadata: the active Production `public-base-work-cards-v12` cache revalidation may throw an AbortError at the 2,500ms public DB deadline. This Draft adds an explicit UUID gate and local try/catch; if the global catalog fails, metadata returns **only** a generic `LIB read` title with `robots:index=false,follow=false`. It never returns a stale/private/R18-specific title/summary when safety verification is unavailable. On success the full metadata content and canonical/hreflang/OG sources stay exactly unchanged. The Work's direct per-series auth/R18 and content loading paths remain authoritative and untouched. This is failure isolation, not caching TTL increase, a new endpoint, proven p95 win or recovery of missing DB data; transient noindex SEO effects require monitoring. Child84 NOT DONE; Child85 BLOCKED.
+
+## 46. 2026-10-11 Production timing-phase decomposition after PR #116
+Current Production `[public-db-local-timeout]` instrumentation confirms at least one extreme late deadline callback: 2,500ms configured timeout + **80,876ms deadlineTimerDelayMs** + **3ms abortSettlementDelayMs** = **83,379ms elapsedMs** for an allowlisted `series` request. The Vercel log envelope placed that event in region sfo1. This supports a timer dispatch/scheduling delay rather than a 83s SQL execution or slow abort settlement, but **does not independently establish which platform/process component caused the callback to run late**. Read-only Production `pg_stat_statements` cumulative series mean0.79ms/max13.26ms over 1,817 calls and episode-summary mean26.30ms/max106.24ms over 198 calls are not request-correlated. Details, caveats, and safe next measures: `docs/child84-public-db-timeout-phase-evidence.md`. No automatic region/timeout/compute changes or DB write was justified. Child84 NOT DONE, Child85 BLOCKED.
+
+## 42. Child84 Auth soft deletion and cache expiry consistency (Draft)
+Production `auth.users.deleted_at` may mark soft-deleted Auth identities, but the account delete route only cancels billing then uses `auth.admin.deleteUser(user.id, true)`; it does not currently change any public series' publication or content. Source and read-only Production query found 0 series referencing soft-deleted Auth accounts and 0 remaining public.users rows referencing those accounts at audit time. This does **not** prove account deletion removes authored works for future accounts or define policy for author rights retention. A small Draft adds blocking `revalidateTag("public-base-work-cards", { expire: 0 })` after successful soft deletion and keeps `ok:true` on cache-invalidation failure, optionally marking `cacheRefreshPending:true`, because reporting the irreversible Auth deletion as failed would induce an impossible retry. No metadata/PII logs, R18/ownership/translation/rights policy changes or authenticated destructive E2E performed. The incomplete delete/unpublish/tombstone boundary remains a Child84 blocker.
+
+## 47. Child84 synthetic-role Production RLS admission test (2026-10-11)
+
+A checked-in, **read-only** SQL test now records the exact role-based privacy boundary in
+`scripts/child84-readonly-role-boundary-audit.sql`. The **exact file** at blob
+`f1036916f959465261d998117502e557c5b8ec2d` was executed successfully
+on the connected Production project. No application migration, API mutation,
+PostgreSQL DDL/DML, Auth creation, Stripe call, or Storage operation occurred.
+
+The single transaction uses `BEGIN READ ONLY`, verifies that the fixed dummy UUID
+does **not** exist in `auth.users`, captures aggregate canonical public-admission
+counts under the privileged review connection, then tests the genuine PostgreSQL
+`anon` role and the `authenticated` role with a fake local
+`request.jwt.claim.sub`. It raises an exception on unexpected series/episode
+admission, visibility of publicly eligible recording metadata, someone else's bookmarks/Private Library, and direct SELECT privileges on intentionally server-only Human translation and Private Library progress tables.
+
+| Read-only check | Verified result |
+| --- | --- |
+| Privileged baseline / anon-visible public series | 120 / 120 |
+| Privileged baseline / anon-visible posted+published episodes | 3,284 / 3,284 |
+| Anon-visible private series / nonposted or unpublished episodes | 0 / 0 |
+| Fake authenticated stranger: visible public series / episodes | 120 / 3,284 |
+| Fake authenticated stranger: visible private series / private episodes / Private Library | 0 / 0 / 0 |
+| Publicly eligible recordings vs anon / synthetic authenticated role | 2,277 / 2,277 / 2,277 |
+| Anon / synthetic authenticated access to others' bookmarks | 0 / 0 |
+| Direct SELECT privilege on Human translation table (anon / authenticated) | denied / denied |
+| Direct SELECT privilege on Private Library progress (anon / authenticated) | denied / denied |
+| Real Auth users created, Production writes, private data exported | 0 / 0 / 0 |
+
+**Scope boundary:** This is a direct RLS role-policy test under a privileged SQL
+connection, **not** a real authenticated HTTP session, owner write test, R18
+content-preference test, Human/AI translation provenance test, narration test,
+Reader UI smoke, actual valid Human translation handling, cache tombstone test or backup/restore proof. The Human translation table's client grants are intentionally revoked; its server-authorized API routes use an admin client and must enforce public/source hash/ownership/permission checks before returning any published translation. Existing Production has no Human translation rows, so no translation-content visibility assertion can be made. A real logged-in
+test identity with authorization-limited data and a full public/private fixture
+must still be exercised before marking the Child84 authenticated E2E gate
+complete. Current Production has no public R18 work or scheduled/draft episodes;
+the test cannot prove those branches by observing zero existing rows alone.
+
+**Release state:** This source-only acceptance milestone changes no Runtime
+RLS policies. Do not enlarge public visibility, disable R18, adopt SQL Search
+pagination, introduce stale work mirrors or mark Child84 DONE based on it.
+Child85 remains BLOCKED.
