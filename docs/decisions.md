@@ -356,3 +356,21 @@ Infrastructure alternatives:
 
 Reason:
 Child84b was created to diversify the actual failure domain, not merely to add another code path. The observed browser/direct-GET timeout proves that this prototype did not establish the required independence, so non-adoption preserves a smaller attack surface and lower incident latency without giving up a demonstrated recovery path.
+
+## D025 — Interim managed-DB-backup reliance is a risk acceptance, not restoration proof (2026-10-12)
+
+Decision (explicit user instruction): **End Child84k now. Use the existing Supabase-managed database backup for the time being. Do not initiate independent database backup/restore, full ~30 GB Storage backup/restore, new paid resources or replacement backup infrastructure as part of this workstream.**
+
+Evidence recorded by Child84k from the user's authenticated Supabase Dashboard: multiple backup generations, latest displayed PHYSICAL record at **2026-10-10 19:54:54 UTC**, and a restore control. This is a *backup-record observation*, not a successful independent archive export or restore. The main and Production were unchanged by Child84k.
+
+Boundaries:
+- Managed DB backups do **not** include Supabase Storage object bytes; audio/image file recovery is not established.
+- Independent DB restoration, all-byte Storage recovery, matched Auth/RLS/security verification and recovery-time testing remain **NOT VERIFIED**.
+- The user approved stopping the independent recovery investigation, **not** a claim of technical success and **not** a blanket waiver of rollout requirements for Cron #108, other destructive changes or Child84 closure.
+- Keep Cron #108 unmerged/uninstalled under the preexisting restoration and authenticated-E2E acceptance gates. Changing that high-risk release policy needs a separately recorded explicit user decision plus appropriate security review.
+- Resume this deferred scope only on new user authorization or material changed risk; do not charge, re-probe, transfer a large object corpus or ask repeatedly for backup details.
+- Preserve repo source-audit evidence in PR #127 for future reference without merging unneeded unverified restoration code.
+- Child84 remains open for other verified work; Child85 stays blocked under the canonical roadmap.
+
+Reason: User prioritized current low-cost operation and explicitly accepted residual recovery risk instead of spending time/cost on independent restore work. Distinguishing operator risk acceptance from verified recoverability prevents false safety claims.
+
