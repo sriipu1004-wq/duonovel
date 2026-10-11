@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 // Source-only regression. No DB connection is ever opened by this script.
 const sql = readFileSync("scripts/child84-readonly-restore-schema-fingerprint.sql", "utf8");
 const cleaned = sql.replace(/^\s*--.*$/gm, "").trim();
-assert.ok(cleaned.startsWith("BEGIN READ ONLY;"));
+assert.ok(cleaned.startsWith("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;"), "fingerprint requires stable read-only snapshot");
 assert.ok(cleaned.endsWith("COMMIT;"));
-assert.equal((sql.match(/BEGIN READ ONLY;/g) ?? []).length, 1);
+assert.equal((sql.match(/BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;/g) ?? []).length, 1);
 assert.equal((sql.match(/COMMIT;/g) ?? []).length, 1);
 // Strip string constants: descriptive names and SQL source definitions are
 // data, not executable statements in this accepted read-only SELECT.
@@ -30,6 +30,19 @@ for (const guard of [
   "sha256(convert_to(", "string_agg(descriptor,E'\\n' ORDER BY descriptor)",
   "GROUP BY category ORDER BY category",
 ]) assert.ok(sql.includes(guard), `missing catalog invariant: ${guard}`);
+for (const category of [
+  "policy_admission_flags", "trigger_activation_flags",
+  "function_execution_security", "schema_usage_security", "relation_ownership",
+]) assert.ok(sql.includes("\'" + category + "\'"), `missing security-admission fingerprint category: ${category}`);
+for (const flag of [
+  "p.polpermissive", "t.tgenabled", "t.tgdeferrable",
+  "p.prosecdef", "pg_get_userbyid(p.proowner)",
+  "has_function_privilege(\'anon\'",
+  "has_function_privilege(\'authenticated\'",
+  "has_schema_privilege(\'anon\'",
+  "has_schema_privilege(\'authenticated\'",
+  "pg_get_userbyid(c.relowner)",
+]) assert.ok(sql.includes(flag), `missing privilege or ownership fingerprint: ${flag}`);
 assert.ok(!sql.includes("p.polroles::text"), "Role OIDs differ between source and restored clusters");
 assert.ok(!sql.includes("SELECT descriptor"), "Do not export raw SQL/function definitions");
 assert.ok(!sql.includes("service_role"), "Do not collect privileged tokens");
