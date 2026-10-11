@@ -6,6 +6,7 @@ on:
       - ".github/workflows/child78-search-ux-check.yml"
       - "package.json"
       - "scripts/test-search-ux-final.ts"
+      - "scripts/test-child84-search-bookmarked-works.ts"
       - "scripts/test-public-search-language-filters.ts"
       - "src/app/search/**"
       - "src/components/search/**"
@@ -36,6 +37,9 @@ jobs:
       - name: Search UX regression
         run: npm run test:search-ux-final
 
+      - name: Child84f bookmarked-works correctness regression
+        run: npm run test:child84-search-bookmarks
+
       - name: Public Search language regression
         run: npm run test:public-search-language-filters
 
@@ -46,6 +50,8 @@ jobs:
         run: >
           npx eslint
           scripts/test-search-ux-final.ts
+          scripts/test-child84-search-bookmarked-works.ts
+          src/lib/search/searchSavedBookmarkIds.ts
           src/app/search/SearchPageLegacy.tsx
           src/components/search/PublicSearchControls.tsx
           src/components/search/PublicSearchLanguageFilters.tsx
