@@ -6,6 +6,9 @@ on:
       - ".github/workflows/child84-public-read-reliability-check.yml"
       - "package.json"
       - "scripts/test-public-read-reliability-performance.ts"
+      - "scripts/test-child84-storage-backup-audit.ts"
+      - "scripts/child84-storage-recovery-audit.sql"
+      - "docs/child84-backup-and-storage-recovery.md"
       - "scripts/test-owned-series-server-save.ts"
       - "src/app/actions/**"
       - "src/lib/write/**"
@@ -72,6 +75,9 @@ jobs:
           npm run test:child84-visibility-gates
           npm run test:ai-permission-cache-coherence
 
+      - name: Storage inventory and restore-gate regression (no network or DB writes)
+        run: npm run test:child84-storage-backup-audit
+
       - name: Reader and translation regressions
         run: |
           npm run test:reader-mode-unification
@@ -90,6 +96,7 @@ jobs:
         run: >
           npx eslint
           scripts/test-public-read-reliability-performance.ts
+          scripts/test-child84-storage-backup-audit.ts
           scripts/test-public-fetch-timeout-diagnostics.ts
           scripts/test-owned-series-server-save.ts
           src/app/actions/saveOwnedSeriesWorkspace.ts
