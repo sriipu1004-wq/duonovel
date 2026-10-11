@@ -373,4 +373,3 @@ Boundaries:
 - Child84 remains open for other verified work; Child85 stays blocked under the canonical roadmap.
 
 Reason: User prioritized current low-cost operation and explicitly accepted residual recovery risk instead of spending time/cost on independent restore work. Distinguishing operator risk acceptance from verified recoverability prevents false safety claims.
-
