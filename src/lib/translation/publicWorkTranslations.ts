@@ -21,6 +21,18 @@ import {
   type SupportedLanguageTag,
 } from "@/lib/translation/languageRegistry";
 
+/**
+ * This prefilter is deliberately only a performance hint for the optional
+ * Work-page translation badge, never an authorization or Reader decision.
+ * If the count is unknown or the query failed, run the canonical full path.
+ */
+export function shouldLoadFullWorkTranslationOverview(
+  readyRowCount: number | null,
+  error: unknown
+): boolean {
+  return error != null || readyRowCount !== 0;
+}
+
 export type PublicWorkTranslationEpisode = {
   id: string;
   episodeNumber: number;
@@ -57,6 +69,37 @@ async function fetchSeriesEpisodes(
   const firstTry = await query;
   if (!firstTry.error) return (firstTry.data ?? []) as EpisodeRow[];
   return [];
+}
+
+/**
+ * Optional Work badge only. A positive count is a coarse candidate, NOT
+ * proof that the cache's source hash is current, the work is public, or the
+ * viewer can see R18. The full overview still enforces those conditions.
+ *
+ * The negative case is safe: no ready AI translation rows means no badge
+ * could render. A query error/null count always falls through to the
+ * previous full overview, never silently hides a possible translation.
+ * The standalone translation-version page does not call this prefilter.
+ */
+export async function mayHaveReadyTranslationForWorkBadge(
+  seriesId: string,
+  signal?: AbortSignal
+): Promise<boolean> {
+  const cleanSeriesId = seriesId.trim();
+  if (!cleanSeriesId) return false;
+
+  const admin = createAdminClient();
+  let query = admin
+    .from("episode_translations")
+    .select("episode_id, episodes!inner(series_id)", { count: "exact", head: true })
+    .eq("episodes.series_id", cleanSeriesId)
+    .eq("episodes.posting_status", "posted")
+    .eq("episodes.is_published", true)
+    .eq("status", "ready");
+
+  if (signal) query = query.abortSignal(signal);
+  const { count, error } = await query;
+  return shouldLoadFullWorkTranslationOverview(count, error);
 }
 
 export async function getPublicWorkTranslationOverview(

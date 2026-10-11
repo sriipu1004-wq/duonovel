@@ -27,6 +27,7 @@ on:
       - "src/app/works/**"
       - "src/components/auth/AuthStatus.tsx"
       - "src/features/works/WorkTranslationAvailability.tsx"
+      - "scripts/test-child84-optional-work-translation-badge.ts"
       - "src/lib/auth/authSessionState.ts"
       - "src/lib/publicRead.ts"
       - "src/lib/publicWorks.ts"
@@ -88,6 +89,9 @@ jobs:
           npm run test:child84-search-sql-candidate
           npm run test:search-ux-final
 
+      - name: Optional Work translation badge head-only prefilter (no DB network)
+        run: npm run test:child84-optional-work-translation-badge
+
       - name: Reader and translation regressions
         run: |
           npm run test:reader-mode-unification
@@ -106,6 +110,7 @@ jobs:
         run: >
           npx eslint
           scripts/test-public-read-reliability-performance.ts
+          scripts/test-child84-optional-work-translation-badge.ts
           scripts/test-child84-search-sql-candidate-contract.ts
           scripts/test-child84-storage-backup-audit.ts
           scripts/test-public-fetch-timeout-diagnostics.ts
@@ -113,6 +118,8 @@ jobs:
           src/app/actions/saveOwnedSeriesWorkspace.ts
           src/lib/write/ownedSeriesPayload.ts
           src/features/write/WriteSeriesForm.tsx
+          src/features/works/WorkTranslationAvailability.tsx
+          src/lib/translation/publicWorkTranslations.ts
           src/features/write/writeShared.ts
           src/app/read/[seriesId]/[episodeNumber]/layout.tsx
           src/app/read/[seriesId]/[episodeNumber]/page.tsx

@@ -4,7 +4,7 @@ import { localizePath } from "@/i18n/navigation";
 import { isR18Series } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 import { getSupportedLanguage } from "@/lib/translation/languageRegistry";
-import { getPublicWorkTranslationOverview } from "@/lib/translation/publicWorkTranslations";
+import { getPublicWorkTranslationOverview, mayHaveReadyTranslationForWorkBadge } from "@/lib/translation/publicWorkTranslations";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 
 type Props = {
@@ -43,6 +43,20 @@ const text = {
 
 export default async function WorkTranslationAvailability({ seriesId }: Props) {
   const localePromise = getUiLocale();
+
+  // Most public works have no ready AI translation at all. Avoid fetching
+  // every full episode body solely to render an optional badge that is null.
+  // Errors/unknown count fall back to the canonical overview unchanged.
+  try {
+    const hasCandidate = await runReadOnlyWithRetry(
+      (signal) => mayHaveReadyTranslationForWorkBadge(seriesId, signal),
+      { operation: "work translation badge candidate", timeoutMs: 1000, retries: 0 }
+    );
+    if (!hasCandidate) return null;
+  } catch {
+    // Preserve prior semantics on gateway/timeouts: perform full lookup.
+  }
+
   let overview;
   try {
     overview = await runReadOnlyWithRetry(

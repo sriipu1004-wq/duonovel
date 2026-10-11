@@ -226,6 +226,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-11 Child84 Search DB candidate eligibility milestone (no reprioritization):** read-only Production compares canonical summary vs directly posted/published episode-eligible public source-language work IDs: 120 vs 120, zero mismatch, ja/en/ko 40 each. A 1,803-row synthetic Search case prevents premature 1,000-row/24-item SQL LIMIT, protects fuzzy/saved/date and self-excluded source/genre/tag facet parity, but does not constitute final exact ranking/metric parity or SQL pagination rollout. See `docs/child84-search-sql-eligible-parity.md`. Child84 open; Child85 blocked.
 
+**2026-10-11 Child84 optional Work translation badge query prefilter (no priority change):** current 120 public works/3284 episodes but only 12 ready AI translation rows. A Draft head-only inner join can avoid fetching full episode bodies for badges known to have zero ready cached translations, without changing full translation version page, AI/Human permissions, credit use or R18. Zero-count is a performance hint only; auth/cache/hash and gateway-failure behavior remain canonical. CI+Preview and Production latency verification needed; Child85 stays blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**
