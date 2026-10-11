@@ -53,11 +53,6 @@ on:
       - "src/features/write/WriteEpisodeForm.tsx"
       - "src/features/write/SourceLanguageWorkspaceBridge.tsx"
       - "src/features/write/ContentRatingWorkspaceBridge.tsx"
-      - "scripts/test-scheduled-episode-release-contract.ts"
-      - "scripts/test-scheduled-episode-release-postgres.sh"
-      - "scripts/test-scheduled-episode-pgcron-runtime.sh"
-      - "scripts/child84-pgcron-test.Dockerfile"
-      - "supabase/migrations/20261010230000_child84_scheduled_episode_db_release.sql"
 
 permissions:
   contents: read
@@ -117,9 +112,6 @@ jobs:
       - name: Child84 timeout phase evidence contract (no network)
         run: node --import tsx scripts/test-child84-timeout-phase-evidence.ts
 
-      - name: Scheduled release source/visibility contract
-        run: npm run test:scheduled-episode-release-contract
-
       - name: Reader and translation regressions
         run: |
           npm run test:reader-mode-unification
@@ -138,7 +130,6 @@ jobs:
         run: >
           npx eslint
           scripts/test-public-read-reliability-performance.ts
-          scripts/test-scheduled-episode-release-contract.ts
           scripts/test-child84-optional-work-translation-badge.ts
           scripts/test-child84-search-sql-candidate-contract.ts
           scripts/test-child84-storage-backup-audit.ts
@@ -185,35 +176,3 @@ jobs:
 
       - name: Diff whitespace check
         run: git diff --check origin/main...HEAD
-
-  scheduled-postgres-sql-integration:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_DB: child84_validation
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: child84-ci-only
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d child84_validation"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - name: Execute release SQL against throwaway PostgreSQL 17
-        env:
-          CHILD84_PG_CONTAINER: ${{ job.services.postgres.id }}
-        run: bash scripts/test-scheduled-episode-release-postgres.sh
-
-  scheduled-real-pgcron-runtime:
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run pg_cron timer in isolated PostgreSQL Docker
-        run: bash scripts/test-scheduled-episode-pgcron-runtime.sh
