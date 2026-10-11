@@ -8,6 +8,33 @@ const ui = readFileSync("src/app/mypage/AccountSettingsCard.tsx", "utf8");
 const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
 const terms = readFileSync("src/app/terms/page.tsx", "utf8");
 const contact = readFileSync("src/app/contact/page.tsx", "utf8");
+
+const intake = readFileSync("docs/child84-account-deletion-manual-intake.md", "utf8");
+for (const requirement of [
+  "NOT LIVE / NOT VERIFIED",
+  "libread08@gmail.com",
+  "RECEIPT_VERIFIED=true",
+  "REPLY_VERIFIED=true",
+  "ACCOUNT_CLOSURE",
+  "PERSONAL_DATA_ERASURE",
+  "AUTHOR_WORK_UNPUBLISH",
+  "HUMAN_TRANSLATION_WITHDRAW",
+  "HUMAN_NARRATION_WITHDRAW",
+  "RIGHTS_COMPLAINT",
+  "BILLING_CANCEL",
+  "NEEDS_REVIEW",
+  "case_id",
+  "identity_status",
+  "billing_status",
+  "postcondition",
+  "/api/billing/portal",
+  "Child84 NOT DONE; Child85 BLOCKED",
+]) assert.ok(intake.includes(requirement), `Missing manual support gate: ${requirement}`);
+assert.ok(intake.includes("Never ask by ordinary email for passwords"),
+  "Manual intake must not solicit passwords or one-time codes by email");
+assert.ok(intake.includes("A matching email sender is not"),
+  "Email sender address alone must not authorize destructive actions");
+
 const catalog = readFileSync("src/lib/publicWorks.ts", "utf8");
 const permission = readFileSync("src/app/api/series/[seriesId]/translation-permission/route.ts", "utf8");
 
