@@ -12,6 +12,7 @@ on:
       - "scripts/child84h-soft-deleted-reference-inventory.sql"
       - "scripts/test-child84-account-delete-cache.ts"
       - "docs/child84-account-deletion-safety-design.md"
+      - "docs/child84-account-deletion-manual-intake.md"
       - "package.json"
       - "package-lock.json"
   workflow_dispatch:
