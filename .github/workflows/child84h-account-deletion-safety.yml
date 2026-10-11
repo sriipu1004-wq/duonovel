@@ -46,5 +46,8 @@ jobs:
           src/app/privacy/page.tsx
           src/app/terms/page.tsx
           scripts/test-child84-account-delete-cache.ts
-      - name: Next build
+      - name: Next build (offline synthetic public configuration)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.invalid
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-only-non-production-placeholder
         run: npm run build
