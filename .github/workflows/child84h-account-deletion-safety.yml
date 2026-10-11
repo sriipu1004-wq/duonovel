@@ -50,4 +50,5 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.invalid
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-only-non-production-placeholder
+          SUPABASE_SERVICE_ROLE_KEY: ci-only-no-privileges-placeholder
         run: npm run build
