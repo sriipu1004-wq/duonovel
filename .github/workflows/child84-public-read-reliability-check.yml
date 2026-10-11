@@ -14,6 +14,8 @@ on:
       - "scripts/test-child84-rls-role-boundary-contract.ts"
       - "scripts/child84-readonly-restore-acceptance.sql"
       - "scripts/test-child84-restore-acceptance-contract.ts"
+      - "scripts/child84-readonly-restore-schema-fingerprint.sql"
+      - "scripts/test-child84-restore-schema-fingerprint.ts"
       - "scripts/test-child84-storage-backup-audit.ts"
       - "scripts/child84-storage-recovery-audit.sql"
       - "docs/child84-backup-and-storage-recovery.md"
@@ -100,6 +102,9 @@ jobs:
       - name: Restore acceptance source guard (no network or DB writes)
         run: node --import tsx scripts/test-child84-restore-acceptance-contract.ts
 
+      - name: Restore schema/RLS/grant fingerprint source guard (offline)
+        run: node --import tsx scripts/test-child84-restore-schema-fingerprint.ts
+
       - name: Storage inventory and restore-gate regression (no network or DB writes)
         run: npm run test:child84-storage-backup-audit
 
@@ -139,6 +144,7 @@ jobs:
           scripts/test-child84-search-sql-candidate-contract.ts
           scripts/test-child84-storage-backup-audit.ts
           scripts/test-child84-restore-acceptance-contract.ts
+          scripts/test-child84-restore-schema-fingerprint.ts
           scripts/test-public-fetch-timeout-diagnostics.ts
           scripts/test-child84-timeout-phase-evidence.ts
           scripts/test-child84-locale-work-metadata-fallback.ts
