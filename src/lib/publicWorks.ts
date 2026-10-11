@@ -471,11 +471,12 @@ export async function getPublicWorkMetadataCardById(seriesId: string): Promise<P
   const viewer = await getCurrentR18ViewerPreference();
   if (!viewer.showR18Content && getSeriesContentRating(series) === "r18") return null;
 
-  const summaries = await fetchPublicEpisodeSummariesBySeriesIds([seriesId]);
-  if (!summaries.has(seriesId)) return null;
-
   const authorId = pickText(series.author_id, series["user_id"], series["userId"]);
-  const authors = await fetchAuthorAccountMap(authorId ? [authorId] : []);
+  const [summaries, authors] = await Promise.all([
+    fetchPublicEpisodeSummariesBySeriesIds([seriesId]),
+    fetchAuthorAccountMap(authorId ? [authorId] : []),
+  ]);
+  if (!summaries.has(seriesId)) return null;
   const work = makePublicBaseWorkCard(series, summaries.get(seriesId), authors);
   if (!work) return null;
 
