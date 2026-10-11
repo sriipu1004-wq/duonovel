@@ -236,6 +236,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-11 Child84 confirmed late timeout callback evidence (no roadmap reorder):** shipped #116 telemetry distinguishes 2,500ms local deadline from callback dispatch delay and post-abort settlement. An actual Production `series` warning reported 83,379ms total, with 80,876ms late callback and 3ms settlement, while cumulative Supabase SQL exec times were far shorter. This single incident does not identify the cause (event-loop block vs runtime pause); no timeout extension, region switch or unsafe stale-public fallback adopted. Evidence `docs/child84-public-db-timeout-phase-evidence.md`; other Child84 gates remain. Child85 blocked.
 
+**2026-10-11 Child84 account soft-delete public cache coherence checkpoint (no priority reorder):** add immediate public work-card tag expiration after confirmed Auth soft-delete without confusing cache expiry for deletion of authors' published works. Account content retention/tombstones, irreversible deletion E2E and out-of-band DB writes remain separate security/product-decision gates. No DB mutation in the Draft. Child84 open, Child85 blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**

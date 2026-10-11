@@ -44,6 +44,8 @@ on:
       - "scripts/test-child84-visibility-gates.ts"
       - "scripts/test-ai-permission-cache-coherence.ts"
       - "src/app/api/series/**"
+      - "src/app/api/account/delete/**"
+      - "scripts/test-child84-account-delete-cache.ts"
       - "src/features/write/TranslationPermissionWorkspaceBridge.tsx"
       - "src/features/write/PendingTranslationPermissionBridge.tsx"
       - "src/features/write/WriteEpisodeForm.tsx"
@@ -84,6 +86,9 @@ jobs:
           npm run test:series-route-cache-invalidation
           npm run test:child84-visibility-gates
           npm run test:ai-permission-cache-coherence
+
+      - name: Account soft-delete cache-coherence boundary (source-only)
+        run: npm run test:child84-account-delete-cache
 
       - name: Storage inventory and restore-gate regression (no network or DB writes)
         run: npm run test:child84-storage-backup-audit
@@ -141,6 +146,8 @@ jobs:
           scripts/test-owned-episode-server-save.ts
           scripts/test-series-route-cache-invalidation.ts
           scripts/test-child84-visibility-gates.ts
+          scripts/test-child84-account-delete-cache.ts
+          src/app/api/account/delete/route.ts
           scripts/test-ai-permission-cache-coherence.ts
           src/app/api/series/[seriesId]/translation-permission/route.ts
           src/features/write/TranslationPermissionWorkspaceBridge.tsx
