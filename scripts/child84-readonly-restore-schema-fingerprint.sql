@@ -9,7 +9,7 @@
 -- Hash equality is evidence of these catalog subsets only; it cannot prove
 -- an archive, Auth/Storage bytes, backup freshness, exact row contents or
 -- full instance recovery. Never send actual database dumps to CI.
-BEGIN READ ONLY;
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
 
 WITH inventory AS (
   SELECT 'relations'::text AS category,
