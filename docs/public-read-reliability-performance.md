@@ -967,3 +967,42 @@ the test cannot prove those branches by observing zero existing rows alone.
 RLS policies. Do not enlarge public visibility, disable R18, adopt SQL Search
 pagination, introduce stale work mirrors or mark Child84 DONE based on it.
 Child85 remains BLOCKED.
+
+## Child84 — Localized Work metadata single-series candidate (2026-10-11, Draft #128)
+
+**Source-level root-cause narrowing:** Production Vercel cache-revalidation warnings
+for `public-base-work-cards-v12-canonical-source-language` occur during GETs to
+several unrelated paths (Home, login, register, read, translate). Host-log path
+alone does **not** prove the route synchronously requested the catalog:
+revalidation work may be associated with later background scheduling.
+In a fresh thirty-minute sample, six `series` warnings had 2,500ms
+nominal deadline, roughly 7–81 seconds of **timer callback dispatch delay**
+and only 1–2ms abort settlement. No platform scheduler/root cause is
+established by those observations.
+
+**Confirmed source-side avoidable dependency:** localized
+`/en/works/[seriesId]` and `/ko/works/[seriesId]` metadata generation
+loads all `getCachedPublicBaseWorkCards` for a single work. Draft #128
+instead uses an uncached, **one-ID** read of `public.series` and the
+published/posting-filtered episode-summary view. The same
+`makePublicBaseWorkCard` function is shared with the existing global
+catalog, retaining description, author attribution, canonical source language,
+Public Domain provenance, genre/tags, and translation eligibility.
+The individual metadata path first checks series publication, canonical
+source, R18 viewer preference and presence of a published episode. When
+uncertain it returns generic **noindex/nofollow** rather than stale
+work-identifying metadata. The existing Work body owns its independent
+publication/R18/ownership gate.
+
+**Preserved:** Search/Ranking/Home/related global catalog cache,
+60-second TTL, tag invalidation behavior, UI locale and original/source
+language distinction, three Reader modes and AI/Human provenance. No
+cached private/R18 metadata or browser-direct data mirror was added.
+
+**Acceptance limits:** This is a narrow *dependency reduction*, not a fix
+for Vercel runtime scheduling, upstream timeouts, all public-cache
+revalidation failures, or inconsistent publication/cache transactions.
+Static correctness tests, GitHub CI, a full matching-head Preview, parent
+review and Production time-matched behavior remain necessary before
+merging. Existing single-work body authorization does not substitute
+for actual logged-in R18/translation E2E. Child84 NOT DONE / Child85 BLOCKED.
