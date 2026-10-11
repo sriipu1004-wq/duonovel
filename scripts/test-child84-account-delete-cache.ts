@@ -37,7 +37,7 @@ assert.ok(catalog.includes('{ revalidate: 60, tags: ["public-base-work-cards"] }
 assert.ok(permission.includes('revalidateTag("public-base-work-cards", { expire: 0 })'));
 
 type Scenario = {
-  session: "authenticated" | "anonymous" | "auth_error" | "auth_throw" | "client_throw";
+  session: "authenticated" | "anonymous" | "session_missing" | "auth_error" | "auth_throw" | "client_throw";
 };
 
 async function invoke(scenario: Scenario) {
@@ -70,6 +70,11 @@ async function invoke(scenario: Scenario) {
                 getUser: async () => {
                   calls.push("getUser");
                   if (scenario.session === "auth_throw") throw Error("simulated timeout");
+                  if (scenario.session === "session_missing") {
+                    const error = new Error("Auth session missing");
+                    error.name = "AuthSessionMissingError";
+                    return { data: { user: null }, error };
+                  }
                   if (scenario.session === "auth_error") {
                     return { data: { user: null }, error: new Error("simulated provider failure") };
                   }
@@ -92,10 +97,10 @@ async function invoke(scenario: Scenario) {
 }
 
 async function main() {
-  for (const session of ["authenticated", "anonymous", "auth_error", "auth_throw", "client_throw"] as const) {
+  for (const session of ["authenticated", "anonymous", "session_missing", "auth_error", "auth_throw", "client_throw"] as const) {
     const first = await invoke({ session });
     const second = await invoke({ session });
-    const expectedStatus = session === "authenticated" ? 409 : session === "anonymous" ? 401 : 503;
+    const expectedStatus = session === "authenticated" ? 409 : session === "anonymous" || session === "session_missing" ? 401 : 503;
     assert.equal(first.result.status, expectedStatus, session);
     assert.equal(second.result.status, expectedStatus, `retry: ${session}`);
     assert.equal(JSON.stringify(first.result), JSON.stringify(second.result));
