@@ -177,7 +177,7 @@ audited Production roll-out. Do not use actual user deletion as a smoke test.
 ## 7. Historical deleted-identity residual-reference audit — read-only, 2026-10-11
 
 The **exact checked-in** `scripts/child84h-soft-deleted-reference-inventory.sql`
-(blob `9864c67ebe2c46aba9b17e9237242182c160379c`) was run inside
+(blob `3d5d046d729dc7a805cc8f5e50be575b90fdd82f`) was run inside
 `BEGIN READ ONLY` against the connected Production database. No user IDs,
 email addresses, private data, Storage keys or raw account data were exported.
 It has a fail-closed 44-column source-schema drift guard and no DDL/DML.
@@ -188,8 +188,14 @@ It has a fail-closed 44-column source-schema drift guard and no DDL/DML.
 - `public.users.id` also yielded zero such rows.
 - Storage object `owner` (UUID) and `owner_id` (text) both yielded zero
   owner references to those identities, across their respective metadata.
-- The count-only output contains 47 distinct reference paths (44 public
-  columns, one profile identity column and two Storage owner columns).
+- The inventory was extended to text user ID references in
+  `nemo_generation_queue.last_requested_by_user_id`,
+  `storage.buckets.owner_id`, `storage.s3_multipart_uploads.owner_id`,
+  and `storage.s3_multipart_uploads_parts.owner_id`. All four returned
+  zero matches in a repeat read-only execution.
+- The count-only output now contains **51 distinct reference paths**
+  (44 public UUID columns, one profile identity column, and six
+  Storage/text principal references). No affected customer IDs returned.
 - The prior independent inventory found 4,720 recording-audio objects with
   no `owner_id`; owner join non-matches cannot prove whether any of these
   files contain previously deleted users' data.
