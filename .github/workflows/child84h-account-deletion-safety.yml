@@ -1,0 +1,50 @@
+name: Child84h account deletion safety
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/child84h-account-deletion-safety.yml"
+      - "src/app/api/account/delete/**"
+      - "src/app/mypage/AccountSettingsCard.tsx"
+      - "src/app/contact/page.tsx"
+      - "src/app/privacy/page.tsx"
+      - "src/app/terms/page.tsx"
+      - "scripts/test-child84-account-delete-cache.ts"
+      - "docs/child84-account-deletion-safety-design.md"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Interim account deletion API and failure/retry mocks
+        run: npm run test:child84-account-delete-cache
+      - name: Security regression
+        run: npm run test:security-authz
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: ESLint
+        run: >-
+          npx eslint
+          src/app/api/account/delete/route.ts
+          src/app/mypage/AccountSettingsCard.tsx
+          src/app/contact/page.tsx
+          src/app/privacy/page.tsx
+          src/app/terms/page.tsx
+          scripts/test-child84-account-delete-cache.ts
+      - name: Next build
+        run: npm run build
