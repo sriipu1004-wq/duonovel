@@ -6,6 +6,10 @@ on:
       - ".github/workflows/child84-public-read-reliability-check.yml"
       - "package.json"
       - "scripts/test-public-read-reliability-performance.ts"
+      - "scripts/child84-search-eligible-sql-parity.sql"
+      - "scripts/test-child84-search-sql-candidate-contract.ts"
+      - "docs/child84-search-sql-eligible-parity.md"
+      - "src/lib/search/**"
       - "scripts/test-child84-storage-backup-audit.ts"
       - "scripts/child84-storage-recovery-audit.sql"
       - "docs/child84-backup-and-storage-recovery.md"
@@ -79,6 +83,11 @@ jobs:
       - name: Storage inventory and restore-gate regression (no network or DB writes)
         run: npm run test:child84-storage-backup-audit
 
+      - name: SQL broad-candidate Search compatibility and 1,803-row pagination parity (source-only)
+        run: |
+          npm run test:child84-search-sql-candidate
+          npm run test:search-ux-final
+
       - name: Reader and translation regressions
         run: |
           npm run test:reader-mode-unification
@@ -97,6 +106,7 @@ jobs:
         run: >
           npx eslint
           scripts/test-public-read-reliability-performance.ts
+          scripts/test-child84-search-sql-candidate-contract.ts
           scripts/test-child84-storage-backup-audit.ts
           scripts/test-public-fetch-timeout-diagnostics.ts
           scripts/test-owned-series-server-save.ts
