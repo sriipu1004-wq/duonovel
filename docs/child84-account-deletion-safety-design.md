@@ -173,3 +173,37 @@ Stripe failure injection and pagination checks, RLS/FK read-only re-audit,
 real Storage API dry-run against **only** authorized test objects, idempotent
 partial-failure retries, Preview, then explicit user approval and separately
 audited Production roll-out. Do not use actual user deletion as a smoke test.
+
+## 7. Historical deleted-identity residual-reference audit — read-only, 2026-10-11
+
+The **exact checked-in** `scripts/child84h-soft-deleted-reference-inventory.sql`
+(blob `9864c67ebe2c46aba9b17e9237242182c160379c`) was run inside
+`BEGIN READ ONLY` against the connected Production database. No user IDs,
+email addresses, private data, Storage keys or raw account data were exported.
+It has a fail-closed 44-column source-schema drift guard and no DDL/DML.
+
+- Six Auth identities have `deleted_at IS NOT NULL` at audit time.
+- Of 44 UUID-typed user/owner/author/reader/translator reference columns in
+  `public`, **zero** rows joined to those six deleted Auth identities.
+- `public.users.id` also yielded zero such rows.
+- Storage object `owner` (UUID) and `owner_id` (text) both yielded zero
+  owner references to those identities, across their respective metadata.
+- The count-only output contains 47 distinct reference paths (44 public
+  columns, one profile identity column and two Storage owner columns).
+- The prior independent inventory found 4,720 recording-audio objects with
+  no `owner_id`; owner join non-matches cannot prove whether any of these
+  files contain previously deleted users' data.
+
+**Important non-conclusion:** This is not proof that deletion completed
+correctly, that old account data no longer exists, or that the old Auth
+soft-delete route is safe for any future author. Stripe, Auth identity
+records, non-UUID/non-identifying linkages, logs, file-byte payloads,
+unattributed/shared recordings, separate providers and backups are NOT
+fully inventoried by this SQL. No deletion or user creation occurred.
+
+Re-run when historical deletion cohorts or schema change and audit the
+join coverage before giving any erasure assurance. The companion
+`scripts/test-child84-account-delete-cache.ts` asserts the exact scope
+and read-only nature in CI. This does NOT unblock #123's actual latest-head
+Preview and operational support-inbox receipt gates, nor restore a working
+account-deletion request process on Production.
