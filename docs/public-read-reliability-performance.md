@@ -925,3 +925,41 @@ Current Production `[public-db-local-timeout]` instrumentation confirms at least
 
 ## 42. Child84 Auth soft deletion and cache expiry consistency (Draft)
 Production `auth.users.deleted_at` may mark soft-deleted Auth identities, but the account delete route only cancels billing then uses `auth.admin.deleteUser(user.id, true)`; it does not currently change any public series' publication or content. Source and read-only Production query found 0 series referencing soft-deleted Auth accounts and 0 remaining public.users rows referencing those accounts at audit time. This does **not** prove account deletion removes authored works for future accounts or define policy for author rights retention. A small Draft adds blocking `revalidateTag("public-base-work-cards", { expire: 0 })` after successful soft deletion and keeps `ok:true` on cache-invalidation failure, optionally marking `cacheRefreshPending:true`, because reporting the irreversible Auth deletion as failed would induce an impossible retry. No metadata/PII logs, R18/ownership/translation/rights policy changes or authenticated destructive E2E performed. The incomplete delete/unpublish/tombstone boundary remains a Child84 blocker.
+
+## 47. Child84 synthetic-role Production RLS admission test (2026-10-11)
+
+A checked-in, **read-only** SQL test now records the exact role-based privacy boundary in
+`scripts/child84-readonly-role-boundary-audit.sql`. The **exact file** at blob
+`de5b1b0fae72167bfc48dd7ef63be1da33b6ec51` was executed successfully
+on the connected Production project. No application migration, API mutation,
+PostgreSQL DDL/DML, Auth creation, Stripe call, or Storage operation occurred.
+
+The single transaction uses `BEGIN READ ONLY`, verifies that the fixed dummy UUID
+does **not** exist in `auth.users`, captures aggregate canonical public-admission
+counts under the privileged review connection, then tests the genuine PostgreSQL
+`anon` role and the `authenticated` role with a fake local
+`request.jwt.claim.sub`. It raises an exception on unexpected series/episode
+admission or another user's Private Library visibility.
+
+| Read-only check | Verified result |
+| --- | --- |
+| Privileged baseline / anon-visible public series | 120 / 120 |
+| Privileged baseline / anon-visible posted+published episodes | 3,284 / 3,284 |
+| Anon-visible private series / nonposted or unpublished episodes | 0 / 0 |
+| Fake authenticated stranger: visible public series / episodes | 120 / 3,284 |
+| Fake authenticated stranger: visible private series / private episodes / Private Library | 0 / 0 / 0 |
+| Real Auth users created, Production writes, private data exported | 0 / 0 / 0 |
+
+**Scope boundary:** This is a direct RLS role-policy test under a privileged SQL
+connection, **not** a real authenticated HTTP session, owner write test, R18
+content-preference test, Human/AI translation provenance test, narration test,
+Reader UI smoke, cache tombstone test or backup/restore proof. A real logged-in
+test identity with authorization-limited data and a full public/private fixture
+must still be exercised before marking the Child84 authenticated E2E gate
+complete. Current Production has no public R18 work or scheduled/draft episodes;
+the test cannot prove those branches by observing zero existing rows alone.
+
+**Release state:** This source-only acceptance milestone changes no Runtime
+RLS policies. Do not enlarge public visibility, disable R18, adopt SQL Search
+pagination, introduce stale work mirrors or mark Child84 DONE based on it.
+Child85 remains BLOCKED.
