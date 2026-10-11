@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import UiLanguageSetting from "./UiLanguageSetting";
 
@@ -9,7 +10,6 @@ type PendingAction =
   | "change-email"
   | "change-password"
   | "content-preference"
-  | "delete"
   | null;
 
 function isValidEmail(value: string): boolean {
@@ -36,7 +36,6 @@ export default function AccountSettingsCard() {
   const [r18PreferenceLoaded, setR18PreferenceLoaded] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [ageConfirmationChecked, setAgeConfirmationChecked] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -224,37 +223,6 @@ export default function AccountSettingsCard() {
     setPendingAction(null);
   }
 
-  async function handleDelete() {
-    resetNotice();
-
-    if (!confirmed) {
-      setErrorMessage("削除前の確認チェックを入れて。");
-      return;
-    }
-
-    setPendingAction("delete");
-
-    const response = await fetch("/api/account/delete", {
-      method: "POST",
-    });
-
-    const json = (await response.json().catch(() => null)) as
-      | { ok?: boolean; error?: string }
-      | null;
-
-    if (!response.ok) {
-      setErrorMessage(json?.error ?? "アカウント削除に失敗した。");
-      setPendingAction(null);
-      return;
-    }
-
-    await supabase.auth.signOut();
-
-    setMessage("アカウントを削除した。トップへ戻る。");
-    setPendingAction(null);
-    router.push("/");
-    router.refresh();
-  }
 
   return (
     <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
@@ -428,31 +396,22 @@ export default function AccountSettingsCard() {
         </div>
 
         <div className="rounded-[24px] border border-red-200 bg-red-50 p-4">
-          <p className="text-sm font-semibold text-red-700">アカウント削除</p>
+          <p className="text-sm font-semibold text-red-700">アカウント削除・データ消去の申請</p>
           <p className="mt-2 text-sm leading-7 text-red-700">
-            削除すると、このアカウントではログインできなくなる。
+            現在、アカウントの自動削除を一時停止している。
+            投稿作品や朗読音声の公開、個人本棚、翻訳、購入履歴などを含む削除範囲を確認する必要があるため、
+            ボタン操作だけでは退会・データ消去は完了しない。
           </p>
-
-          <label className="mt-4 flex items-start gap-3 text-sm leading-7 text-red-700">
-            <input
-              type="checkbox"
-              checked={confirmed}
-              onChange={(event) => setConfirmed(event.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-red-300"
-            />
-            <span>削除すると元に戻せないことを確認した</span>
-          </label>
-
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => void handleDelete()}
-              disabled={isPending}
-              className="inline-flex rounded-full bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {pendingAction === "delete" ? "削除中..." : "アカウントを削除"}
-            </button>
-          </div>
+          <p className="mt-2 text-sm leading-7 text-red-700">
+            削除・公開停止の希望はお問い合わせから申請できる。申請後に必要な本人確認と対象の確認を行う。
+            継続課金の停止は、申請とは別にサブスクの契約管理で行ってください。
+          </p>
+          <Link
+            href="/contact"
+            className="mt-4 inline-flex rounded-full border border-red-300 bg-white px-5 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100"
+          >
+            削除・公開停止について問い合わせる
+          </Link>
         </div>
       </div>
 
