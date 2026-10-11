@@ -107,3 +107,46 @@ Storage object payloads are absent. A later restored-environment
 execution and file-byte validation are independently mandatory before
 Cron #108 or Child84 acceptance. No schema, object or Production data
 was changed by this source audit.
+
+## 2026-10-11 portable schema-drift fingerprint (read-only, source only)
+
+The second exact checked-in SQL file
+`scripts/child84-readonly-restore-schema-fingerprint.sql`
+(blob `51ec10f6dd8a66c2d065a2a36dd598eef78235c1`)
+ran successfully against Production inside `BEGIN READ ONLY` and returned
+aggregate object counts plus **SHA-256 fingerprints of sorted catalog
+definitions** for `public`, `storage`, and installed extensions.
+It exposes neither function bodies nor object names or credentials.
+RLS policy role OIDs are normalized to **role names** so identifiers
+from independently created PostgreSQL clusters are not hashed directly.
+
+| Catalog category | Count | Observed SHA-256 |
+| --- | ---: | --- |
+| relations | 67 | `c260a007a3704915a0593a44dcf2dbb91a9fb4c946a6c08d1c0ad57b79f6ccab` |
+| columns | 682 | `1fd35664502ef00d55da4117c506ec502a64077f7ffafb53c515ee22e5bda34e` |
+| constraints | 285 | `8dc22ce3e95803f053a91d48a074674048d6f7be0b1b803877746a4fc59bd9e4` |
+| policies | 80 | `dea5d96e9443ca2a5aa4d378bdb6f268f45e31ba2376d66e618d2f6e4466e3cb` |
+| functions | 66 | `a484459f961b1cc921effd0d225d2aed0e3f3a89f2fd42f611834bf429c506cf` |
+| indexes | 201 | `9300da5b8529232d7c0eccde988199af8e303414499f9b07b71b272247d9d207` |
+| triggers | 21 | `60a31a97995b31a481097b08981479c8c518bf3006a82ed220dc50c04ffedd96` |
+| anon/authenticated table privileges | 63 | `07af89af845e4fca5249eb8ce7f4775431e2cec407eb6125aff6b08653886601` |
+| extensions | 5 | `3ba611e22fec2898e1de6ee8cdd53ef9e16f7c73300fbd7876d0aeb85e5774cd` |
+
+**Scope:** These are the values for the live source at the collection
+point, not fabricated restore checksums. A restored environment should
+re-run the identical script and compare every count and fingerprint
+against the matching backup/export snapshot, with compatible PostgreSQL
+major version, installed extensions and role names. Expected application
+migrations or platform differences must be reviewed instead of being
+automatically ignored. Hashes are deterministic schema-drift signals for
+these catalog subsets, not proof of a complete cluster security audit,
+actual user-row recovery or object-byte integrity. The current live
+source may legitimately drift before a later backup/export; recapture
+a timestamp-matched source baseline then.
+
+Companion offline CI:
+`scripts/test-child84-restore-schema-fingerprint.ts` ensures no writes
+and required catalog/role-name normalization. **No independent DB restore
+or Storage file-byte download was performed**. In particular the
+2,443 Storage metadata objects lacking direct `recordings` references
+remain untouched and must not be labeled orphaned.
