@@ -6,6 +6,11 @@ import { matchesPublicSearchConditions } from "../src/lib/search/publicSearchCon
 import { matchesPublicWorkLanguageFilters } from "../src/lib/search/publicWorkLanguageFilter";
 import { PUBLIC_SEARCH_PAGE_SIZE, clampPublicSearchPage } from "../src/lib/search/publicSearchPagination";
 
+const liveSearchSource = readFileSync("src/app/search/SearchPageLegacy.tsx", "utf8");
+assert.ok(liveSearchSource.includes('savedFilter === "bookmarked-works"'), "Child84f bookmark branch must exist");
+assert.ok(liveSearchSource.includes("collectBookmarkedSeriesIds("), "Bookmark IDs must be fetched without silent truncation");
+assert.ok(liveSearchSource.includes('.from("user_series_bookmarks")'), "Bookmark IDs must come from the authenticated bookmark table");
+
 const sql = readFileSync("scripts/child84-search-eligible-sql-parity.sql","utf8");
 const nonComments = sql.replace(/^--.*$/gm, "").trim();
 assert.ok(nonComments.startsWith("BEGIN READ ONLY;"));
@@ -199,8 +204,8 @@ function compareSearchCandidate(works: ExtendedFixture[], c: ExtendedCase) {
     );
   const savedAuthors = new Set(["author-1","author-5"]);
   const savedWorks = new Set(base.filter(w => Number(w.id)%13===0).map(w => w.id));
-  // Current runtime does not load bookmarked-works in its viewer branch.
-  if (c.saved === "bookmarked-works") savedWorks.clear();
+  // Child84f (#122) now loads bookmarked-works through the viewer's
+  // auth/RLS-bound user_series_bookmarks path. Preserve nonempty matches.
   function eligible(w: ExtendedFixture, excluded?: "tag"|"genre") {
     return matchesPublicSearchConditions({
       work:w, matchScore:getPublicSearchMatchScore(c.q,w),
