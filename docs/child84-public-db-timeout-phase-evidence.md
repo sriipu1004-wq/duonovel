@@ -60,3 +60,65 @@ These DB times are **cumulative across the extension's statistics interval, not 
 - Vercel docs on [Fluid Compute](https://vercel.com/docs/fluid-compute), [Function configuration](https://vercel.com/docs/functions/configuring-functions) and [Function duration](https://vercel.com/docs/functions/configuring-functions/duration) provide possible platform context; **not** proof of this project's current enabled settings.
 - Implementation: `src/lib/supabase/serverPublic.ts`; regression: `scripts/test-public-fetch-timeout-diagnostics.ts`.
 - Child84 remains **NOT DONE**, Child85 **BLOCKED**. Backup/restore, full Search SQL parity, deletion/tombstone, authenticated Reader/R18/author E2E and Cron Production release remain unverified.
+
+## Child84 continuation — 2026-10-11 04:19:52–04:49:52 UTC, read-only Production observability
+
+The following observations were obtained **without** source/runtime/configuration changes from
+Vercel runtime logs against current `main` `b49e797313b0daf0d245e7e39e48dc22d520be7b`
+(deployment `dpl_8hYNcAZsvzN8JcHu1iM1G4dQCYao`, READY).
+
+- An exact **30-minute log window** returned **11** warning records matching
+  `[public-db-local-timeout]`, all allowlisted `endpoint: 'series'`.
+  Their configured deadline was 2,500 ms; observed `elapsedMs` ranged from
+  **5,486 to 94,728 ms**.
+- `deadlineTimerDelayMs` ranged from **2,984 to 92,226 ms**
+  (the **median of these 11 warning events was 36,277 ms**).
+  `abortSettlementDelayMs` was **1–2 ms** in every displayed case.
+  The 94,728-ms event consisted of 2,500-ms nominal deadline,
+  92,226-ms late timer callback, 2-ms abort settlement.
+- `deadlineTimerCpuUserMs` ranged from **14 to 102 ms** among these events.
+  That process-level CPU interval is not attributable to an individual
+  request in shared concurrency; low CPU is **not proof** of a suspended
+  Vercel function. Runtime host-log edge-region labels appeared varied,
+  while deployment metadata continued to report the same function deployment;
+  do not infer multi-region function execution.
+- Separate 30-minute log-level aggregation at audit time yielded 17
+  `error` and 11 `warn` log entries. These are log counts, **not**
+  HTTP-error responses or independent end users; the queries are not
+  a stable numerator/denominator for a rate.
+- A separate 24-hour grouped-error view included 218 events attributed
+  to a public-work-card cache-revalidation error group and 95 events
+  for a Human-recording aggregate revalidation group on the newer
+  production deployment. Those counts may reflect repeated revalidation
+  and must not be treated as 218 or 95 failed users or as proof that
+  stale/private data were returned.
+- The Hobby log API refused a 24-hour raw-log read due to retention limits.
+  The 30-minute raw-log sample and 24-hour *preaggregated* error grouping
+  are different observability sources and must not be compared as an
+  exact time-matched error rate.
+
+**Interpretation:** Timer dispatch is still dramatically later than
+the nominal 2,500-ms deadline in some cases, while promise settlement
+immediately follows abort. Repeated `series` timeout warnings on
+unrelated route types may also be background shared-cache revalidations;
+the host-log request route alone does not prove that each unrelated page
+synchronously requires the public catalog. Supabase gateway latency,
+Vercel scheduling, process suspension, event-loop delay, runtime
+resource contention and transient infrastructure faults remain
+**undifferentiated causes**. Do not ascribe cause to the observed
+host-log region, Supabase SQL, Fluid Compute or bots without stronger
+correlated evidence.
+
+**Safe next gate:** Obtain request-level duration and HTTP-status
+denominators plus a time-matched correlation between
+`[public-db-local-timeout]` and Vercel runtime scheduling/CPU
+instrumentation in a representative authorized environment. Keep
+the existing 2,500-ms deadline, 60-second public metadata TTL,
+publication/R18 fail-closed checks and no-stale-public-mirror
+decision unchanged. Do not 'solve' a delayed JavaScript timer by
+claiming the deadline is reliable, by raising its duration, or by
+publishing an unverified cache of withdrawn work.
+
+This is an audit-only addition; it **does not** satisfy the
+longitudinal p95 / end-to-end Reader acceptance gate.
+Child84 NOT DONE; Child85 BLOCKED.
