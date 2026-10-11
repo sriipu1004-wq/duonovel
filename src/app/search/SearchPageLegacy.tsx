@@ -27,6 +27,7 @@ import {
   getPublicSearchMatchScore,
 } from "@/lib/search/publicSearchMatching";
 import { matchesPublicSearchConditions } from "@/lib/search/publicSearchConditions";
+import { collectBookmarkedSeriesIds } from "@/lib/search/searchSavedBookmarkIds";
 import {
   buildPublicSearchPaginationItems,
   clampPublicSearchPage,
@@ -143,7 +144,7 @@ async function fetchSavedAuthorIdsForUser(args: {
     .eq(ownerColumn, args.userId);
 
   if (error) {
-    return new Set();
+    throw error;
   }
 
   return new Set(
@@ -169,7 +170,7 @@ async function fetchSavedSeriesIdsForUser(args: {
       .eq("reaction_type", "support");
 
     if (error) {
-      return new Set();
+      throw error;
     }
 
     return new Set(
@@ -187,7 +188,7 @@ async function fetchSavedSeriesIdsForUser(args: {
     .eq("user_id", args.userId);
 
   if (error) {
-    return new Set();
+    throw error;
   }
 
   return new Set(
@@ -709,6 +710,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   const authSupabase = savedFilter ? await createServerClient() : null;
   let currentUser = null;
+  let savedFilterAuthUnavailable = false;
 
   if (authSupabase) {
     try {
@@ -727,6 +729,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       );
       currentUser = authResult.data.user ?? null;
     } catch {
+      savedFilterAuthUnavailable = true;
       console.warn("[search] viewer auth unavailable");
     }
   }
@@ -766,10 +769,25 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   let savedAuthorIds = new Set<string>();
   let savedSeriesIds = new Set<string>();
+  let savedFilterDataUnavailable = false;
 
   if (savedFilter && currentUser && authSupabase) {
     try {
-      if (savedFilter === "followed-authors") {
+      if (savedFilter === "bookmarked-works") {
+        savedSeriesIds = await runReadOnlyWithRetry(
+          () =>
+            collectBookmarkedSeriesIds(async (from, to) => {
+              const result = await authSupabase
+                .from("user_series_bookmarks")
+                .select("series_id", { count: "exact" })
+                .eq("user_id", currentUser.id)
+                .order("id", { ascending: true })
+                .range(from, to);
+              return result;
+            }),
+          { operation: "search bookmarked works", timeoutMs: 2000, retries: 1 }
+        );
+      } else if (savedFilter === "followed-authors") {
         savedAuthorIds = await runReadOnlyWithRetry(
           () =>
             fetchSavedAuthorIdsForUser({
@@ -813,6 +831,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         );
       }
     } catch {
+      savedFilterDataUnavailable = true;
       console.warn("[search] saved-filter state unavailable");
     }
   }
@@ -847,7 +866,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           currentLanguageSeriesIds.has(work.seriesId)
         );
 
-  const savedFilterRequiresLogin = Boolean(savedFilter && !currentUser);
+  const savedFilterUnavailable = Boolean(
+    savedFilter && (savedFilterAuthUnavailable || savedFilterDataUnavailable)
+  );
+  const savedFilterRequiresLogin = Boolean(
+    savedFilter && !savedFilterUnavailable && !currentUser
+  );
 
   const oldestPublicAtValue =
     workCards.reduce((min, work) => {
@@ -1734,7 +1758,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-black/10 bg-neutral-50 px-4 py-2 text-sm text-neutral-700">
-                {publicWorksAvailable ? <>{totalResultCount}件</> : "—"}
+                {publicWorksAvailable && !savedFilterUnavailable ? <>{totalResultCount}件</> : "—"}
               </span>
             </div>
           </div>
@@ -1756,6 +1780,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 : uiLocale === "ko"
                   ? "공개 작품 데이터를 일시적으로 불러올 수 없습니다. 검색 조건은 계속 사용할 수 있으니 잠시 후 다시 시도하세요."
                   : "公開作品データを一時的に取得できない。検索条件は利用できるため、少し時間を置いて再試行して。"}
+            </div>
+          ) : savedFilterUnavailable ? (
+            <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600" role="status">
+              {uiLocale === "en"
+                ? "Saved search data is temporarily unavailable. This is not an empty saved list. Please retry."
+                : uiLocale === "ko"
+                  ? "저장한 검색 데이터를 일시적으로 불러올 수 없습니다. 저장 목록이 비어 있다는 뜻은 아닙니다. 다시 시도해 주세요."
+                  : "保存条件のデータを一時的に取得できない。保存一覧が0件という意味ではない。再試行して。"}
             </div>
           ) : workCards.length === 0 ? (
             <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-8 text-sm leading-8 text-neutral-600">
