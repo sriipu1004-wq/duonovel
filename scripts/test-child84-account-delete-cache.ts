@@ -10,6 +10,23 @@ const terms = readFileSync("src/app/terms/page.tsx", "utf8");
 const contact = readFileSync("src/app/contact/page.tsx", "utf8");
 const catalog = readFileSync("src/lib/publicWorks.ts", "utf8");
 const permission = readFileSync("src/app/api/series/[seriesId]/translation-permission/route.ts", "utf8");
+const deletedRefs = readFileSync("scripts/child84h-soft-deleted-reference-inventory.sql", "utf8");
+const cleanedDeletedRefs = deletedRefs.replace(/^\\s*--.*$/gm, "").trim();
+assert.ok(cleanedDeletedRefs.startsWith("BEGIN READ ONLY;"), "historical-reference audit must be read-only");
+assert.ok(cleanedDeletedRefs.endsWith("COMMIT;"), "audit must close its transaction");
+assert.equal(
+  /\\b(INSERT|UPDATE|DELETE|TRUNCATE|CREATE|ALTER|DROP|GRANT|REVOKE|COPY|CALL|EXECUTE|VACUUM)\\b/i.test(
+    cleanedDeletedRefs.replace(/'(?:[^']|'')*'/g, "''")
+  ),
+  false,
+  "historical-reference audit may not mutate data or permissions",
+);
+assert.equal((deletedRefs.match(/FROM public\\.[a-z0-9_]+ t\\b/g) ?? []).length, 44,
+  "historical reference inventory must cover all 44 verified public UUID principal columns");
+assert.equal((deletedRefs.match(/JOIN auth\\.users au ON/g) ?? []).length, 47,
+  "the 44 column inventory plus public.users and two Storage owner variants must all be checked");
+assert.ok(deletedRefs.includes("expected 44, got"), "fail closed on future source-schema drift");
+assert.ok(!deletedRefs.includes("SELECT au.id"), "never export soft-deleted principal IDs");
 
 // The prior auto-deletion flow could strand data and return a misleading
 // success. This regression intentionally rejects its old "success" contract.
