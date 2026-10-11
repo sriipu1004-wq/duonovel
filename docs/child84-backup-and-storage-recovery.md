@@ -329,3 +329,33 @@ Official primary references:
 
 **No new resource, paid subscription, Production restore, DB/storage
 write, file-byte backup transfer or token collection occurred.**
+
+
+## 2026-10-11 bounded real Storage byte-read proof (NOT full restore)
+
+After confirming the selected source item in `storage.objects`
+(read-only PostgreSQL query: **one** `illustrations` object,
+public bucket, metadata-reported `143,600` bytes),
+the authorized Windows host fetched **the actual public object bytes**
+over HTTPS, saved them only in a uniquely named temporary directory,
+copied them to a second temporary local file, re-read both files and
+computed separate **SHA-256** digests. The script returned:
+
+- HTTPS object retrieval: **SUCCESS** (one public image only)
+- Source object payload: **143,600 bytes**
+- Second local copy: **143,600 bytes**
+- Payload length equals `storage.objects.metadata.size`: **PASS**
+- Independently computed SHA-256 digests of the two local files: **EQUAL**
+- Temporary source/copy directory: removed in `finally`
+- Production PostgreSQL, Auth, Storage and Stripe writes: **ZERO**
+
+This demonstrates **one sample's actual source byte availability and a
+byte-identical temporary local copy**, rather than merely checking a
+`storage.objects` metadata row. It is not a recovered independent
+Supabase Storage bucket, a private-bucket authorization test, an archive
+with durable hashes, or a complete off-site recovery demonstration.
+No customer object keys, user content or per-object checksums are
+published in this document. The planned isolated object-store upload,
+download and SHA-256 round-trip remains **NOT DONE**, as does
+the full **4,728 object / 30,189,639,005 byte** backup/restore.
+Do not call this a verified whole-bucket recovery.
