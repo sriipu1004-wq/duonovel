@@ -222,6 +222,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-11 Child84 scheduled author UI consistency (no reprioritization):** owner-side read links require committed posted+published rather than due clock alone. Due clock is shown separately as `予約時刻経過・公開待ち`. This changes no Reader/RLS/permission policy and does not replace Draft #108 Cron, restore gates or signed-in E2E. Child85 blocked.
 
+**2026-10-11 Child84 isolated Supabase Cron milestone (no priority change):** real `pg_cron 1.6.4` on a short-lived paid development branch successfully published a synthetic due episode, audited one exact ID, respected draft/future rows and was unscheduled. The temporary branch was deleted and Production remains unchanged. The branch's canonical migration chain could not replay due to missing `public.series` baseline; DB and ~30 GB Storage backup/restore, full-schema E2E and 2.5s timeout monitoring are still blocking; #108 remains Draft. Evidence: `docs/child84-cron-isolated-supabase-evidence.md`. Child85 blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**
