@@ -1,5 +1,5 @@
 -- Child84h: HISTORICAL soft-deleted Auth reference inventory, READ ONLY.
--- Scan 44 explicit public UUID principal columns plus public.users and Storage
+-- Scan 44 explicit public UUID principal columns, text user references, public.users and Storage
 -- owner metadata. No IDs, emails, paths, or content are returned; counts only.
 -- A zero result DOES NOT imply total erasure (orphans, Stripe, logs, media bytes,
 -- backups, non-UUID PII and external systems are outside this query).
@@ -303,6 +303,29 @@ FROM (
   SELECT 'storage.objects.owner_id'::text,
          count(*)::bigint
   FROM storage.objects o JOIN auth.users au ON au.id::text = o.owner_id
+  WHERE au.deleted_at IS NOT NULL
+  UNION ALL
+  SELECT 'storage.buckets.owner_id'::text,
+         count(*)::bigint
+  FROM storage.buckets b JOIN auth.users au ON au.id::text = b.owner_id
+  WHERE au.deleted_at IS NOT NULL
+  UNION ALL
+  SELECT 'storage.s3_multipart_uploads.owner_id'::text,
+         count(*)::bigint
+  FROM storage.s3_multipart_uploads u
+  JOIN auth.users au ON au.id::text = u.owner_id
+  WHERE au.deleted_at IS NOT NULL
+  UNION ALL
+  SELECT 'storage.s3_multipart_uploads_parts.owner_id'::text,
+         count(*)::bigint
+  FROM storage.s3_multipart_uploads_parts p
+  JOIN auth.users au ON au.id::text = p.owner_id
+  WHERE au.deleted_at IS NOT NULL
+  UNION ALL
+  SELECT 'public.nemo_generation_queue.last_requested_by_user_id'::text,
+         count(*)::bigint
+  FROM public.nemo_generation_queue q
+  JOIN auth.users au ON au.id::text = q.last_requested_by_user_id
   WHERE au.deleted_at IS NOT NULL
 ) counts
 ORDER BY reference_path;
