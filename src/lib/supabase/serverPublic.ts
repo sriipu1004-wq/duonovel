@@ -35,8 +35,13 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
   const controller = new AbortController();
   const upstreamSignal = init?.signal;
   const startedAt = Date.now();
+  const monotonicStartedAtMs = performance.now();
+  // CPU usage is process-wide; shared Fluid instances can serve other requests.
+  const cpuStartedAt = process.cpuUsage();
   let didReachLocalDeadline = false;
   let timerFiredAtMs: number | null = null;
+  let timerFiredMonotonicAtMs: number | null = null;
+  let timerCpuUsageMs: { user: number; system: number } | null = null;
 
   const abortFromUpstream = () => controller.abort();
   if (upstreamSignal?.aborted) {
@@ -47,6 +52,12 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
 
   const timer = setTimeout(() => {
     timerFiredAtMs = Date.now();
+    timerFiredMonotonicAtMs = performance.now();
+    const cpuAtDeadline = process.cpuUsage(cpuStartedAt);
+    timerCpuUsageMs = {
+      user: Math.max(0, Math.round(cpuAtDeadline.user / 1000)),
+      system: Math.max(0, Math.round(cpuAtDeadline.system / 1000)),
+    };
     didReachLocalDeadline = true;
     controller.abort();
   }, PUBLIC_READ_FETCH_TIMEOUT_MS);
@@ -77,6 +88,15 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
           timerElapsedMs - PUBLIC_READ_FETCH_TIMEOUT_MS
         ),
         abortSettlementDelayMs: Math.max(0, elapsedMs - timerElapsedMs),
+        // Monotonic measurement helps detect wall-clock steps in Date.now().
+        elapsedMonotonicMs: Math.max(0, Math.round(performance.now() - monotonicStartedAtMs)),
+        deadlineTimerDelayMonotonicMs: Math.max(
+          0,
+          Math.round((timerFiredMonotonicAtMs ?? monotonicStartedAtMs) - monotonicStartedAtMs - PUBLIC_READ_FETCH_TIMEOUT_MS)
+        ),
+        // Process-wide CPU time during the pending timer; not per-request attribution.
+        deadlineTimerCpuUserMs: timerCpuUsageMs?.user ?? 0,
+        deadlineTimerCpuSystemMs: timerCpuUsageMs?.system ?? 0,
       });
     }
     throw error;
