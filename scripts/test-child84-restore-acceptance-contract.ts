@@ -5,9 +5,9 @@ import { readFileSync } from "node:fs";
 // Real SQL execution is separately authorized and is NEVER run from CI.
 const sql = readFileSync("scripts/child84-readonly-restore-acceptance.sql", "utf8");
 const stripped = sql.replace(/^\s*--.*$/gm, "").trim();
-assert.ok(stripped.startsWith("BEGIN READ ONLY;"), "must enforce read-only transaction");
+assert.ok(stripped.startsWith("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;"), "stable snapshot and read-only transaction required");
 assert.ok(stripped.endsWith("COMMIT;"), "must terminate read-only transaction");
-assert.equal((sql.match(/BEGIN READ ONLY;/g) ?? []).length, 1);
+assert.equal((sql.match(/BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;/g) ?? []).length, 1);
 assert.equal((sql.match(/COMMIT;/g) ?? []).length, 1);
 
 // Remove SQL string constants first; table names and exception text may contain
@@ -40,7 +40,6 @@ for (const required of [
   "recording_paths_missing_metadata",
   "audio_objects_without_direct_recording_reference",
 ]) {
-  if (required === "HAVING_") continue;
   assert.ok(sql.includes(required), `missing restore guard: ${required}`);
 }
 assert.ok(sql.includes("SELECT count(*) FROM referenced_audio"), "Media completeness is reported in aggregate");
