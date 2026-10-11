@@ -14,7 +14,7 @@ function sourceContracts() {
   assert.ok(source.includes('savedFilter === "bookmarked-works"'), "Normal Search must fetch bookmarks");
   assert.ok(source.includes('.from("user_series_bookmarks")'), "Read the canonical bookmark table");
   assert.ok(source.includes('.select("series_id", { count: "exact" })'), "Verify the complete RLS-filtered result count");
-  assert.ok(source.includes('.eq("user_id", currentUser.id)'), "Owner-scope the bookmark lookup");
+  assert.ok(source.includes('.eq("user_id", authenticatedUserId)'), "Owner-scope the bookmark lookup");
   assert.ok(source.includes('.order("id", { ascending: true })'), "Use deterministic unique-key paging");
   assert.ok(source.includes(".range(from, to)"), "Page beyond the first 1,000 bookmarks");
   assert.ok(source.includes("savedFilterDataUnavailable = true"), "Failures must not become empty sets");
