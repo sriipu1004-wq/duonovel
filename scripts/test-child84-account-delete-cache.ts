@@ -29,6 +29,7 @@ assert.ok(route.includes("await supabase.auth.getUser()"));
 assert.ok(!ui.includes('fetch("/api/account/delete"'));
 assert.ok(!ui.includes("handleDelete()"));
 assert.ok(ui.includes('href="/contact"'));
+assert.ok(ui.includes('href="/subscription"'), "users need direct billing management while automatic deletion is paused");
 assert.ok(privacy.includes("セルフサービス自動削除を一時停止"));
 assert.ok(privacy.includes("完全消去を保証していませんでした"));
 assert.ok(terms.includes("第13条 アカウント削除・公開停止の申請"));
