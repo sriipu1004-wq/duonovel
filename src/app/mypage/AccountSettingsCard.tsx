@@ -398,20 +398,28 @@ export default function AccountSettingsCard() {
         <div className="rounded-[24px] border border-red-200 bg-red-50 p-4">
           <p className="text-sm font-semibold text-red-700">アカウント削除・データ消去の申請</p>
           <p className="mt-2 text-sm leading-7 text-red-700">
-            現在、アカウントの自動削除を一時停止している。
+            現在、アカウントの自動削除を一時停止しています。
             投稿作品や朗読音声の公開、個人本棚、翻訳、購入履歴などを含む削除範囲を確認する必要があるため、
-            ボタン操作だけでは退会・データ消去は完了しない。
+            ボタン操作だけでは退会・データ消去は完了しません。
           </p>
           <p className="mt-2 text-sm leading-7 text-red-700">
-            削除・公開停止の希望はお問い合わせから申請できる。申請後に必要な本人確認と対象の確認を行う。
+            削除・公開停止の希望はお問い合わせから申請できます。申請後に必要な本人確認と対象の確認を行います。
             継続課金の停止は、申請とは別にサブスクの契約管理で行ってください。
           </p>
-          <Link
-            href="/contact"
-            className="mt-4 inline-flex rounded-full border border-red-300 bg-white px-5 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100"
-          >
-            削除・公開停止について問い合わせる
-          </Link>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              href="/contact"
+              className="inline-flex rounded-full border border-red-300 bg-white px-5 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100"
+            >
+              削除・公開停止について問い合わせる
+            </Link>
+            <Link
+              href="/subscription"
+              className="inline-flex rounded-full border border-red-300 bg-white px-5 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100"
+            >
+              サブスクの契約を確認・管理する
+            </Link>
+          </div>
         </div>
       </div>
 
