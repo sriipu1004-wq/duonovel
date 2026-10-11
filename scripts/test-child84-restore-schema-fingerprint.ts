@@ -25,10 +25,12 @@ for (const guard of [
   "pg_index", "pg_trigger", "pg_extension",
   "c.relrowsecurity", "c.relforcerowsecurity", "pg_get_expr",
   "pg_get_functiondef", "pg_get_indexdef", "pg_get_triggerdef",
+  "pg_get_userbyid(role_oid)", "FROM unnest(p.polroles) AS roles(role_oid)",
   "has_table_privilege('anon'", "has_table_privilege('authenticated'",
   "sha256(convert_to(", "string_agg(descriptor,E'\\n' ORDER BY descriptor)",
   "GROUP BY category ORDER BY category",
 ]) assert.ok(sql.includes(guard), `missing catalog invariant: ${guard}`);
+assert.ok(!sql.includes("p.polroles::text"), "Role OIDs differ between source and restored clusters");
 assert.ok(!sql.includes("SELECT descriptor"), "Do not export raw SQL/function definitions");
 assert.ok(!sql.includes("service_role"), "Do not collect privileged tokens");
 console.log("PASS: read-only Child84 schema and permissions SHA-256 fingerprint contract");
