@@ -1,0 +1,76 @@
+name: Child84 scheduled publication candidate (isolated only)
+
+# Dedicated candidate CI. No Vercel or Production migration is applied.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/child84-scheduled-episode-candidate.yml"
+      - "supabase/migrations/20261010230000_child84_scheduled_episode_db_release.sql"
+      - "scripts/test-scheduled-episode-release-contract.ts"
+      - "scripts/test-scheduled-episode-release-postgres.sh"
+      - "scripts/test-scheduled-episode-pgcron-runtime.sh"
+      - "scripts/child84-pgcron-test.Dockerfile"
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Cron SQL source and public visibility contract (offline)
+        run: node --import tsx scripts/test-scheduled-episode-release-contract.ts
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Scoped ESLint
+        run: npx eslint scripts/test-scheduled-episode-release-contract.ts
+      - name: Production build using invalid synthetic CI credentials only
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
+      - name: Diff whitespace check
+        run: git diff --check origin/main...HEAD
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: child84_validation
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: child84-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d child84_validation"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute exact release SQL against throwaway PostgreSQL 17
+        env:
+          CHILD84_PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: bash scripts/test-scheduled-episode-release-postgres.sh
+
+  real-pgcron-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test pg_cron execution in isolated Docker PostgreSQL
+        run: bash scripts/test-scheduled-episode-pgcron-runtime.sh
