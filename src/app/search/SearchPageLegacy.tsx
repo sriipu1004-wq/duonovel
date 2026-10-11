@@ -772,6 +772,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   let savedFilterDataUnavailable = false;
 
   if (savedFilter && currentUser && authSupabase) {
+    const authenticatedUserId = currentUser.id;
     try {
       if (savedFilter === "bookmarked-works") {
         savedSeriesIds = await runReadOnlyWithRetry(
@@ -780,7 +781,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               const result = await authSupabase
                 .from("user_series_bookmarks")
                 .select("series_id", { count: "exact" })
-                .eq("user_id", currentUser.id)
+                .eq("user_id", authenticatedUserId)
                 .order("id", { ascending: true })
                 .range(from, to);
               return result;
