@@ -930,7 +930,7 @@ Production `auth.users.deleted_at` may mark soft-deleted Auth identities, but th
 
 A checked-in, **read-only** SQL test now records the exact role-based privacy boundary in
 `scripts/child84-readonly-role-boundary-audit.sql`. The **exact file** at blob
-`de5b1b0fae72167bfc48dd7ef63be1da33b6ec51` was executed successfully
+`f1036916f959465261d998117502e557c5b8ec2d` was executed successfully
 on the connected Production project. No application migration, API mutation,
 PostgreSQL DDL/DML, Auth creation, Stripe call, or Storage operation occurred.
 
@@ -939,7 +939,7 @@ does **not** exist in `auth.users`, captures aggregate canonical public-admissio
 counts under the privileged review connection, then tests the genuine PostgreSQL
 `anon` role and the `authenticated` role with a fake local
 `request.jwt.claim.sub`. It raises an exception on unexpected series/episode
-admission or another user's Private Library visibility.
+admission, visibility of publicly eligible recording metadata, someone else's bookmarks/Private Library, and direct SELECT privileges on intentionally server-only Human translation and Private Library progress tables.
 
 | Read-only check | Verified result |
 | --- | --- |
@@ -948,12 +948,16 @@ admission or another user's Private Library visibility.
 | Anon-visible private series / nonposted or unpublished episodes | 0 / 0 |
 | Fake authenticated stranger: visible public series / episodes | 120 / 3,284 |
 | Fake authenticated stranger: visible private series / private episodes / Private Library | 0 / 0 / 0 |
+| Publicly eligible recordings vs anon / synthetic authenticated role | 2,277 / 2,277 / 2,277 |
+| Anon / synthetic authenticated access to others' bookmarks | 0 / 0 |
+| Direct SELECT privilege on Human translation table (anon / authenticated) | denied / denied |
+| Direct SELECT privilege on Private Library progress (anon / authenticated) | denied / denied |
 | Real Auth users created, Production writes, private data exported | 0 / 0 / 0 |
 
 **Scope boundary:** This is a direct RLS role-policy test under a privileged SQL
 connection, **not** a real authenticated HTTP session, owner write test, R18
 content-preference test, Human/AI translation provenance test, narration test,
-Reader UI smoke, cache tombstone test or backup/restore proof. A real logged-in
+Reader UI smoke, actual valid Human translation handling, cache tombstone test or backup/restore proof. The Human translation table's client grants are intentionally revoked; its server-authorized API routes use an admin client and must enforce public/source hash/ownership/permission checks before returning any published translation. Existing Production has no Human translation rows, so no translation-content visibility assertion can be made. A real logged-in
 test identity with authorization-limited data and a full public/private fixture
 must still be exercised before marking the Child84 authenticated E2E gate
 complete. Current Production has no public R18 work or scheduled/draft episodes;
