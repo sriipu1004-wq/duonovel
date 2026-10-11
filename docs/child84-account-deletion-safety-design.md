@@ -1,16 +1,18 @@
 # Child84h — Account deletion safety and retention design (PROPOSED, NOT APPROVED)
 
-Status: **Draft interim safety gate plus proposed future contract**. Not a permanent product/rights decision.
+Status: **Interim fail-closed gate merged/Production READY in PR #123; future B/C/A contract remains PROPOSED, NOT APPROVED**. This historical design document does not authorize destructive operations.
 Date: 2026-10-11 AEST. Base: `b49e797313b0daf0d245e7e39e48dc22d520be7b`.
 Scope: Child84 P4 remainder only. Child84 NOT DONE; Child85 BLOCKED.
 
 ## 1. Evidence and the immediate risk
 
-Current `/api/account/delete` authenticates, cancels blocking Stripe subscriptions, calls
+**Pre-PR #123 historical behavior**: the former `/api/account/delete` authenticated users, canceled blocking Stripe subscriptions, and called
 `admin.auth.admin.deleteUser(user.id, true)` (Auth soft-delete), expires a public card cache tag,
 then returns success. It neither unpublishes `series` nor deletes Personal Library, translations,
 reading progress, narration, associated Storage objects or all detached audit/credit rows.
 That contradicts Privacy section 15's former unqualified deletion claim.
+
+**Now deployed (2026-10-11):** PR #123 replaced this self-service handler with a no-side-effect authenticated 409 temporary gate (401 without a session, 503 on Auth failure); corrected Privacy/Terms and account UI; and retained a separately authenticated subscription-management route. The real published support inbox's receipt+reply channel was verified; requests still require case-specific identity, author/translator/narrator rights and retention assessment. Do not treat this as complete account erasure or an accepted future B/C/A rights policy.
 
 Production READ ONLY findings from Child84g (verify at acceptance):
 - Auth soft-deleted users: 6; no retained `public.users` profile or owned series/private-library works for these 6 at audit time. This does **not** prove that owner data deletion is safe.
