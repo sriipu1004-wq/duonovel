@@ -220,6 +220,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-11 Child84 independent DB/Storage recoverability gate:** verified Supabase Pro organization status, but not a project-specific backup restore; ~30.19 GB in 4,728 Storage objects is outside standard database backups. 2,277/2,277 recordings had matching audio objects; 2,443 other objects are only *potential* cleanup candidates and must not be deleted without a full provenance audit. The new `docs/child84-backup-and-storage-recovery.md` runbook and read-only SQL do not satisfy the off-site restore requirement or unblock #108 Cron / Child85. No priority reorder.
 
+**2026-10-11 Child84 scheduled author UI consistency (no reprioritization):** owner-side read links require committed posted+published rather than due clock alone. Due clock is shown separately as `予約時刻経過・公開待ち`. This changes no Reader/RLS/permission policy and does not replace Draft #108 Cron, restore gates or signed-in E2E. Child85 blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**

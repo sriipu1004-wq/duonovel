@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   isEpisodePubliclyVisible,
+  getEpisodeStatusKind,
+  getEpisodeStatusLabel,
   type EpisodeRow,
 } from "../src/features/write/writeShared";
 import { validateOwnedSeriesCreationPayload } from "../src/lib/write/ownedSeriesCreatePayload";
@@ -39,10 +41,7 @@ assert.equal(validateOwnedSeriesCreationPayload(invalidRating), null);
 const invalidOwner = { ...newWork, author_id: "00000000-0000-4000-8000-000000000000" };
 assert.equal(validateOwnedSeriesCreationPayload(invalidOwner), null);
 
-// Current owner UI interprets a scheduled episode as live once its clock
-// passes. This is deliberately NOT an acceptance test for public exposure;
-// Production RLS and public selects presently only allow posted+published.
-// It documents the mismatch without weakening either side independently.
+// Time passing is not public admission; a committed posted+published row is.
 const scheduled: EpisodeRow = {
   id: "9ae39b4a-2f1e-4444-8d5e-82d8f41d413b",
   series_id: "7ae09a66-3c1f-4f0e-a29c-6df02dd2ab78",
@@ -51,8 +50,14 @@ const scheduled: EpisodeRow = {
   is_published: false,
   scheduled_for: "2026-01-01T00:00:00Z",
 };
-assert.equal(isEpisodePubliclyVisible(scheduled, new Date("2026-01-02T00:00:00Z")), true);
+assert.equal(isEpisodePubliclyVisible(scheduled, new Date("2026-01-02T00:00:00Z")), false);
 assert.equal(isEpisodePubliclyVisible(scheduled, new Date("2025-12-31T00:00:00Z")), false);
+assert.equal(getEpisodeStatusKind(scheduled, new Date("2026-01-02T00:00:00Z")), "scheduled_live");
+assert.equal(getEpisodeStatusKind(scheduled, new Date("2025-12-31T00:00:00Z")), "scheduled");
+assert.equal(getEpisodeStatusLabel(scheduled, new Date("2026-01-02T00:00:00Z")), "予約時刻経過・公開待ち");
+assert.equal(isEpisodePubliclyVisible({ ...scheduled, posting_status: "posted", is_published: false }), false);
+assert.equal(isEpisodePubliclyVisible({ ...scheduled, posting_status: "posted", is_published: true }), true);
+assert.equal(isEpisodePubliclyVisible({ ...scheduled, posting_status: "draft", is_published: false }), false);
 
 const reader = source("lib/publicRead.ts");
 const work = source("app/works/[seriesId]/page.tsx");
@@ -84,4 +89,4 @@ assert.equal(legacyRating.includes("rememberCreateSelection("), false);
 assert.equal(legacyLanguage.includes("rememberCreateSelection("), false);
 
 console.log("PASS: Child84 integrated R18/private mutation contracts remain fail-closed");
-console.log("KNOWN GAP: scheduled-clock visibility predicate is not yet equal to public SQL/RLS admission; no scheduler rows in verified Production");
+console.log("KNOWN GAP: scheduled episodes remain without an installed automatic transition job, but owner read links now require posted+published.");

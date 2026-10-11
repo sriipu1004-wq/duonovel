@@ -2039,7 +2039,7 @@ const publicVisibleCount = sortedEpisodes.filter(
                                 </span>
                                 {postingStatus === "scheduled" ? (
                                   <span className="text-xs text-neutral-500">
-                                    時刻到達後に公開対象
+                                    公開処理が完了するまで非公開
                                   </span>
                                 ) : null}
                               </div>

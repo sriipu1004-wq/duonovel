@@ -13,6 +13,7 @@ on:
       - "src/app/actions/**"
       - "src/lib/write/**"
       - "src/features/write/WriteSeriesForm.tsx"
+      - "src/features/write/writeShared.ts"
       - "scripts/test-public-fetch-timeout-diagnostics.ts"
       - "src/app/PublicTopPageLegacy.tsx"
       - "src/app/ranking/**"
@@ -102,6 +103,7 @@ jobs:
           src/app/actions/saveOwnedSeriesWorkspace.ts
           src/lib/write/ownedSeriesPayload.ts
           src/features/write/WriteSeriesForm.tsx
+          src/features/write/writeShared.ts
           src/app/read/[seriesId]/[episodeNumber]/layout.tsx
           src/app/read/[seriesId]/[episodeNumber]/page.tsx
           src/lib/publicRead.ts

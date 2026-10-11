@@ -305,18 +305,13 @@ export function isEpisodePubliclyVisible(
   episode: EpisodeRow,
   now = new Date()
 ): boolean {
-  const status = getEpisodePostingStatus(episode);
-
-  if (status === "posted") {
-    return true;
-  }
-
-  if (status === "scheduled") {
-    const scheduledFor = getEpisodeScheduledForDate(episode);
-    return !!scheduledFor && scheduledFor.getTime() <= now.getTime();
-  }
-
-  return false;
+  // Retain the clock argument for call-site compatibility, but time alone
+  // cannot authorize an uncommitted scheduled episode for public reading.
+  void now;
+  return (
+    getEpisodePostingStatus(episode) === "posted" &&
+    getEpisodePublishedValue(episode) === true
+  );
 }
 
 export function getEpisodeStatusKind(
@@ -330,7 +325,9 @@ export function getEpisodeStatusKind(
   }
 
   if (status === "scheduled") {
-    return isEpisodePubliclyVisible(episode, now)
+    // Author-only overdue badge, NOT proof of actual public visibility.
+    const scheduledFor = getEpisodeScheduledForDate(episode);
+    return scheduledFor && scheduledFor.getTime() <= now.getTime()
       ? "scheduled_live"
       : "scheduled";
   }
@@ -346,7 +343,7 @@ export function getEpisodeStatusLabel(
 
   if (kind === "draft") return "下書き";
   if (kind === "scheduled") return "予約投稿";
-  if (kind === "scheduled_live") return "予約到達";
+  if (kind === "scheduled_live") return "予約時刻経過・公開待ち";
   return "投稿済み";
 }
 
