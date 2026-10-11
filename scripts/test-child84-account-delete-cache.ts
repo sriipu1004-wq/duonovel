@@ -91,19 +91,27 @@ async function invoke(scenario: Scenario) {
   return { result, calls };
 }
 
-for (const session of ["authenticated", "anonymous", "auth_error", "auth_throw", "client_throw"] as const) {
-  const first = await invoke({ session });
-  const second = await invoke({ session });
-  const expectedStatus = session === "authenticated" ? 409 : session === "anonymous" ? 401 : 503;
-  assert.equal(first.result.status, expectedStatus, session);
-  assert.equal(second.result.status, expectedStatus, `retry: ${session}`);
-  assert.equal(JSON.stringify(first.result), JSON.stringify(second.result));
-  assert.equal(first.calls.some((x) => /admin|stripe|billing|cache/i.test(x)), false);
-  if (session === "authenticated") {
-    assert.equal(first.result.body.code, "ACCOUNT_DELETION_REVIEW_REQUIRED");
-    assert.equal(first.result.body.contactPath, "/contact");
-    assert.equal(first.result.body.ok, undefined);
+async function main() {
+  for (const session of ["authenticated", "anonymous", "auth_error", "auth_throw", "client_throw"] as const) {
+    const first = await invoke({ session });
+    const second = await invoke({ session });
+    const expectedStatus = session === "authenticated" ? 409 : session === "anonymous" ? 401 : 503;
+    assert.equal(first.result.status, expectedStatus, session);
+    assert.equal(second.result.status, expectedStatus, `retry: ${session}`);
+    assert.equal(JSON.stringify(first.result), JSON.stringify(second.result));
+    assert.equal(first.calls.some((x) => /admin|stripe|billing|cache/i.test(x)), false);
+    if (session === "authenticated") {
+      assert.equal(first.result.body.code, "ACCOUNT_DELETION_REVIEW_REQUIRED");
+      assert.equal(first.result.body.contactPath, "/contact");
+      assert.equal(first.result.body.ok, undefined);
+    }
   }
+  
+  console.log("PASS: interim deletion API fail-closed on authenticated/anonymous/Auth-error/timeout/retry mocks; no billing, DB mutation or Auth deletion side effects; truthful UI/Privacy/Terms/contact");
+  
 }
 
-console.log("PASS: interim deletion API fail-closed on authenticated/anonymous/Auth-error/timeout/retry mocks; no billing, DB mutation or Auth deletion side effects; truthful UI/Privacy/Terms/contact");
+void main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
