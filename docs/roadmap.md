@@ -332,4 +332,3 @@ When the order changes:
 - state the new order in the parent completion report.
 
 Do not infer a new priority merely because an older chat suggested an alternative.
-
