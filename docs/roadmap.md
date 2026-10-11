@@ -117,6 +117,8 @@ See `docs/indexing-webmaster-state.md`.
 
 Status: **in progress — connected DB recovered; read-only DB verification resumed; Child84b completed with no fallback adoption**
 
+**2026-10-11 acceptance gate update (status only; backlog order unchanged):** #124 timeout evidence and #121 Search no-cutover audit merged; #122 saved bookmarked-work Search fix is Production-ready. The last runtime-product-changing commit is `b49e797313b0daf0d245e7e39e48dc22d520be7b`. A known unsafe legacy self-service account soft-deletion route remains in Production: pending #123's fail-closed interim guard, which passed 4/4 CI but lacks current-HEAD Vercel Preview (daily build/API quota) and verified deletion-request inbox/handling. A Vercel Firewall emergency rule was **not applied**. Independently restored DB+Storage backup, signed-in author/Reader/translation/R18 E2E, time-correlated public DB outage/error analysis, and safe scheduled Cron acceptance remain unsatisfied. Existing Search keeps exact JS ranking/facets/page semantics; its SQL paginator has an explicit no-cutover decision. Do not relax rights, ownership, R18, AI/Human provenance or 60-second freshness for a premature Child84 DONE. **Child85 remains blocked.**
+
 Priority was inserted on 2026-10-03 after a real Production availability incident exposed broad coupling to Supabase/network failures.
 
 Primary objectives:
