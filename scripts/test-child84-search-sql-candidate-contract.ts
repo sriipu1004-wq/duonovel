@@ -6,6 +6,11 @@ import { matchesPublicSearchConditions } from "../src/lib/search/publicSearchCon
 import { matchesPublicWorkLanguageFilters } from "../src/lib/search/publicWorkLanguageFilter";
 import { PUBLIC_SEARCH_PAGE_SIZE, clampPublicSearchPage } from "../src/lib/search/publicSearchPagination";
 
+const liveSearchSource = readFileSync("src/app/search/SearchPageLegacy.tsx", "utf8");
+assert.ok(liveSearchSource.includes('savedFilter === "bookmarked-works"'), "Child84f bookmark branch must exist");
+assert.ok(liveSearchSource.includes("collectBookmarkedSeriesIds("), "Bookmark IDs must be fetched without silent truncation");
+assert.ok(liveSearchSource.includes('.from("user_series_bookmarks")'), "Bookmark IDs must come from the authenticated bookmark table");
+
 const sql = readFileSync("scripts/child84-search-eligible-sql-parity.sql","utf8");
 const nonComments = sql.replace(/^--.*$/gm, "").trim();
 assert.ok(nonComments.startsWith("BEGIN READ ONLY;"));
@@ -128,3 +133,167 @@ for (const required of [
 ]) assert.ok(runtime.includes(required),required);
 assert.equal(runtime.includes(".limit(24)"),false);
 console.log("PASS: Child84 Search SQL broad-candidate boundary, eight canonical languages, >1k fuzzy/dated/saved/facet/page parity and no premature LIMIT");
+
+
+// Child84e: strengthen the broad SQL eligibility model against complete
+// *current JavaScript downstream* result/facet/sort/page semantics. This is
+// NOT an executable SQL paginator or an end-to-end SQL equivalence proof.
+type ExtendedFixture = Fixture & {
+  createdAtValue: number;
+  rating: "general" | "r18";
+  viewCount: number;
+  likeCount: number;
+  bookmarkCount: number;
+  narrationCount: number;
+};
+const extended: ExtendedFixture[] = input.map((work, i) => ({
+  ...work,
+  latestPostedAtValue: 100000 + Math.floor(i / 5), // deliberate ties
+  createdAtValue: 90000 + Math.floor(i / 7),
+  rating: i % 19 === 0 ? "r18" : "general",
+  viewCount: (i % 17) * 10,
+  likeCount: i % 7,
+  bookmarkCount: i % 5,
+  narrationCount: i % 11 === 0 ? i % 9 + 1 : 0,
+}));
+const canonical = extended.filter(w => w.pub && w.posted && w.sourceLanguage !== null);
+const sqlBroad = extended.filter(w =>
+  w.pub && w.posted && w.rawLanguage !== null &&
+  languages.includes(w.rawLanguage.trim().toLowerCase())
+);
+assert.deepEqual(sqlBroad.map(w => w.id), canonical.map(w => w.id));
+assert.ok(canonical.length > 1000);
+
+type ExtendedCase = {
+  q: string;
+  langs: SupportedLanguageTag[];
+  tags: string[];
+  genres: string[];
+  order: "popular" | "updated";
+  shelf: "overall" | "narration";
+  saved: string | null;
+  signedIn: boolean;
+  showR18: boolean;
+  start: number;
+  end: number;
+};
+const parityCases: ExtendedCase[] = [
+  { q:"", langs:[], tags:[], genres:[], order:"popular", shelf:"overall", saved:null, signedIn:false, showR18:false, start:0, end:999999 },
+  { q:"", langs:[], tags:[], genres:[], order:"updated", shelf:"overall", saved:null, signedIn:false, showR18:true, start:0, end:999999 },
+  { q:"Detetive", langs:["en"], tags:[], genres:[], order:"popular", shelf:"overall", saved:null, signedIn:false, showR18:false, start:0, end:999999 },
+  { q:"文鳥", langs:["ja","en"], tags:["adventure"], genres:[], order:"updated", shelf:"overall", saved:null, signedIn:true, showR18:true, start:100020, end:100300 },
+  { q:"어린왕자", langs:["ko"], tags:[], genres:["literature"], order:"popular", shelf:"overall", saved:"followed-authors", signedIn:true, showR18:false, start:100000, end:100150 },
+  { q:"Fantasy", langs:[], tags:["mystery"], genres:["fantasy"], order:"popular", shelf:"narration", saved:"liked-authors", signedIn:true, showR18:true, start:100000, end:100120 },
+  { q:"", langs:["ja","en","ko"], tags:[], genres:[], order:"popular", shelf:"narration", saved:"liked-works", signedIn:true, showR18:false, start:100000, end:100340 },
+  { q:"", langs:[], tags:[], genres:[], order:"updated", shelf:"narration", saved:"liked-readers", signedIn:true, showR18:true, start:100000, end:100340 },
+  { q:"", langs:[], tags:[], genres:[], order:"popular", shelf:"overall", saved:"bookmarked-works", signedIn:true, showR18:false, start:0, end:999999 },
+  { q:"", langs:["zh-Hans","zh-Hant","fr"], tags:[], genres:[], order:"popular", shelf:"overall", saved:null, signedIn:true, showR18:false, start:0, end:999999 },
+  { q:"NoSuchWorkInFixture", langs:[], tags:[], genres:[], order:"updated", shelf:"overall", saved:null, signedIn:false, showR18:false, start:0, end:999999 },
+  { q:"", langs:[], tags:[], genres:[], order:"popular", shelf:"overall", saved:"followed-authors", signedIn:false, showR18:false, start:0, end:999999 },
+];
+
+function compareSearchCandidate(works: ExtendedFixture[], c: ExtendedCase) {
+  // Canonical public-card order supplies the final stable tie-break. A SQL
+  // implementation would need to make that ordering fully deterministic.
+  const base = works
+    .filter(w => c.showR18 || w.rating !== "r18")
+    .sort((a,b) =>
+      b.latestPostedAtValue-a.latestPostedAtValue ||
+      b.createdAtValue-a.createdAtValue ||
+      a.id.localeCompare(b.id)
+    );
+  const savedAuthors = new Set(["author-1","author-5"]);
+  const savedWorks = new Set(base.filter(w => Number(w.id)%13===0).map(w => w.id));
+  // Child84f (#122) now loads bookmarked-works through the viewer's
+  // auth/RLS-bound user_series_bookmarks path. Preserve nonempty matches.
+  function eligible(w: ExtendedFixture, excluded?: "tag"|"genre") {
+    return matchesPublicSearchConditions({
+      work:w, matchScore:getPublicSearchMatchScore(c.q,w),
+      selectedTagTokens:c.tags, selectedGenreTokens:c.genres,
+      ignoredFacet:excluded, order:c.order,
+      startAtValue:c.start, endAtValue:c.end,
+      savedFilter:c.saved, savedFilterRequiresLogin:!c.signedIn,
+      savedAuthorIds:savedAuthors, savedSeriesIds:savedWorks,
+    });
+  }
+  function metrics(w: ExtendedFixture) {
+    // Synthetic windowed popularity. Uses window for popular sort, while
+    // updated sort retains all-time popularity data as the runtime does.
+    const active = c.order === "updated" ||
+      (w.latestPostedAtValue >= c.start && w.latestPostedAtValue <= c.end);
+    return {
+      score:active ? w.viewCount/100 + w.likeCount + w.bookmarkCount/3 : 0,
+      views:active ? w.viewCount : 0,
+      narration:active ? w.narrationCount : 0,
+    };
+  }
+  function narrationOk(w: ExtendedFixture) {
+    return c.shelf !== "narration" || metrics(w).narration>0;
+  }
+  function facets(items: ExtendedFixture[], key: "tags"|"genres") {
+    const counts=new Map<string,number>();
+    for(const w of items){
+      const tokens=new Set(w[key].map(value =>
+        key==="tags"
+          ? value.trim().replace(/^#+/,"").toLowerCase()
+          : value.trim().toLowerCase()
+      ).filter(Boolean));
+      for(const t of tokens) counts.set(t,(counts.get(t)??0)+1);
+    }
+    return [...counts.entries()].sort((a,b)=>a[0].localeCompare(b[0],"ja"));
+  }
+  const inLang=(w:ExtendedFixture)=>
+    matchesPublicWorkLanguageFilters({work:w,sourceLanguages:c.langs});
+  const qualified=base.filter(w=>inLang(w)&&eligible(w)&&narrationOk(w));
+  const sorted=[...qualified].sort((a,b)=>{
+    const am=metrics(a),bm=metrics(b);
+    if(c.order==="updated")
+      return b.latestPostedAtValue-a.latestPostedAtValue ||
+        b.createdAtValue-a.createdAtValue;
+    if(c.shelf==="narration" && bm.narration!==am.narration)
+      return bm.narration-am.narration;
+    if(c.shelf!=="narration" && bm.score!==am.score)
+      return bm.score-am.score;
+    return bm.views-am.views ||
+      b.likeCount-a.likeCount ||
+      b.bookmarkCount-a.bookmarkCount ||
+      b.latestPostedAtValue-a.latestPostedAtValue;
+  });
+  if(c.q.length>0)sorted.sort((a,b)=>
+    getPublicSearchMatchScore(c.q,b)-getPublicSearchMatchScore(c.q,a)
+  );
+  const tagCandidates=base.filter(w=>inLang(w)&&eligible(w,"tag")&&narrationOk(w));
+  const genreCandidates=base.filter(w=>inLang(w)&&eligible(w,"genre")&&narrationOk(w));
+  const languageCandidates=base.filter(w=>eligible(w)&&narrationOk(w));
+  return {
+    ids:sorted.map(w=>w.id),
+    count:sorted.length,
+    tagCounts:facets(tagCandidates,"tags"),
+    genreCounts:facets(genreCandidates,"genres"),
+    languageCounts:Object.fromEntries(PUBLIC_TEST_LANGUAGES.map(lang=>
+      [lang,languageCandidates.filter(w=>w.sourceLanguage===lang).length])),
+  };
+}
+const PUBLIC_TEST_LANGUAGES=Object.keys(LANGUAGE_REGISTRY) as SupportedLanguageTag[];
+for (const caseData of parityCases) {
+  const expected=compareSearchCandidate(canonical,caseData);
+  const actual=compareSearchCandidate(sqlBroad,caseData);
+  assert.deepEqual(actual,expected,JSON.stringify(caseData));
+  const pages=Math.max(1,Math.ceil(expected.count/PUBLIC_SEARCH_PAGE_SIZE));
+  for(const requested of [1,2,3,24,75,999]){
+    const page=clampPublicSearchPage(requested,pages);
+    const start=(page-1)*PUBLIC_SEARCH_PAGE_SIZE;
+    assert.deepEqual(
+      actual.ids.slice(start,start+PUBLIC_SEARCH_PAGE_SIZE),
+      expected.ids.slice(start,start+PUBLIC_SEARCH_PAGE_SIZE),
+      "page window mismatch"
+    );
+  }
+}
+const noFilter=parityCases[0];
+const allResults=compareSearchCandidate(canonical,{...noFilter,showR18:true});
+assert.ok(allResults.count>1000);
+assert.ok(allResults.ids.slice(1000).length>0);
+const narrowed=compareSearchCandidate(sqlBroad,{...noFilter,q:"Galactic detective end-of-corpus"});
+assert.deepEqual(narrowed.ids,["1802"]);
+console.log("PASS: Child84e broad-SQL-candidate vs downstream JS ordered IDs, totals, full facet counts, 24/page windows, scores, narrator, viewer/R18 and 1k+ boundary (synthetic only)");
