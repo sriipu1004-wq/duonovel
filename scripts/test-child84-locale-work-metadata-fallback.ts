@@ -46,6 +46,8 @@ for (const guard of [
   "getPublicSearchLanguageFilters()",
   "matchesPublicWorkLanguageFilters({",
 ]) assert.ok(bounded.includes(guard), `Missing bounded metadata safety guard: ${guard}`);
+assert.ok(bounded.includes("const [summaries, authors] = await Promise.all(["),
+  "Individual public episode summaries and optional author profile must load concurrently");
 assert.ok(!bounded.includes("fetchPublicSeriesRows()"), "Never load all series");
 assert.ok(!bounded.includes("getCachedPublicBaseWorkCardsInternal()"), "Never read shared catalog cache");
 assert.ok(!bounded.includes("unstable_cache("), "Do not serve stale metadata from a new cache");
