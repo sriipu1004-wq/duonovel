@@ -23,8 +23,14 @@ assert.equal(
 );
 assert.equal((deletedRefs.match(/FROM public\.[a-z0-9_]+ t\b/g) ?? []).length, 44,
   "historical reference inventory must cover all 44 verified public UUID principal columns");
-assert.equal((deletedRefs.match(/JOIN auth\.users au ON/g) ?? []).length, 47,
-  "the 44 column inventory plus public.users and two Storage owner variants must all be checked");
+assert.equal((deletedRefs.match(/JOIN auth\.users au ON/g) ?? []).length, 51,
+  "44 UUID user-reference columns plus seven profile, Storage and text principal references must all be checked");
+for (const required of [
+  "storage.buckets.owner_id",
+  "storage.s3_multipart_uploads.owner_id",
+  "storage.s3_multipart_uploads_parts.owner_id",
+  "public.nemo_generation_queue.last_requested_by_user_id",
+]) assert.ok(deletedRefs.includes(required), `missing non-UUID principal audit: ${required}`);
 assert.ok(deletedRefs.includes("expected 44, got"), "fail closed on future source-schema drift");
 assert.ok(!deletedRefs.includes("SELECT au.id"), "never export soft-deleted principal IDs");
 
