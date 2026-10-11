@@ -57,3 +57,53 @@ Repeat the aggregate read-only audit using `scripts/child84-storage-recovery-aud
 
 ## 2026-10-11 scheduled Cron test branch, backup evidence still blocked
 An isolated Supabase development branch was created for an hourly quoted rate of 0.01344, used only for synthetic Cron execution and then explicitly deleted. Its own canonical migration replay failed because a prior migration tried to ALTER a missing `public.series`. The Cron extension and job succeeded after constructing only minimal synthetic tables. This branch was **not** a restored snapshot of the user's real Production data and is **not** evidence of a database or Storage backup/restore. Preserve the requirements above and `docs/child84-cron-isolated-supabase-evidence.md` before any Production scheduler adoption.
+
+
+## 2026-10-11 executable read-only restore acceptance contract
+
+`scripts/child84-readonly-restore-acceptance.sql` is the repeatable
+**read-only consistency checklist** for a trusted privileged inspector.
+It must be run first on the connected Production database as an
+export-time aggregate baseline and then on a **separate actually restored**
+database at the same snapshot. Execute as one `BEGIN READ ONLY`
+transaction, never through a user/anon Data API token.
+
+The script fails closed if a critical relation or foreign key is missing,
+sensitive RLS is disabled, prohibited Human translation/private table
+SELECT grants exist, or episode/recording parent references are broken.
+It emits only aggregate totals and a check of database-held recording
+references versus `storage.objects` metadata. It does **not** reveal
+owner IDs, paths, user-supplied text or private object names.
+
+**Production source baseline (read-only execution):**
+the *exact source* SQL blob `a3bb683a015dac853c61793bf4f4b288df78bb05`
+completed without exceptions; 2,277 distinct recording-audio references
+matched 4,720 object metadata records, with **0** referenced recordings
+missing metadata and **2,443** objects without a direct recording-table
+reference. The pre-existing full inventory remains 4,728 objects across
+all buckets (about 30.19 GB metadata-reported size).
+All of these are **source-only** observations and **not** proof of a
+database archive, restored database, Storage object byte download,
+checksum or retained off-site copy.
+
+The CI source contract
+`scripts/test-child84-restore-acceptance-contract.ts` ensures this
+SQL remains read-only and preserves the RLS/FK/metadata assertions;
+CI itself does not connect to Production. Before relying on recovery:
+
+1. Verify a genuine database backup and export-time timestamp.
+2. Restore into an independent trusted Postgres/Supabase environment,
+   ensuring grants, Auth, RLS, views and functions are present.
+3. Run the acceptance SQL there; compare aggregates with the *same*
+   export-time baseline, not a later live Production state.
+4. Separately restore actual Storage object bytes into a private isolated
+   destination, cryptographically compare hashes/sizes, and verify
+   playback and privacy/authorization under an authenticated test identity.
+5. Retain private restore evidence and never publish dumps, source
+   credentials, user data or object keys in GitHub, Vercel or this audit.
+
+**No-go remains:** database-only SQL consistency can pass while the
+Storage object payloads are absent. A later restored-environment
+execution and file-byte validation are independently mandatory before
+Cron #108 or Child84 acceptance. No schema, object or Production data
+was changed by this source audit.
