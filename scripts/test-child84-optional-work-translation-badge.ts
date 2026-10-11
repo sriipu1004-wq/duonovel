@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 
 const fetcher = readFileSync("src/lib/translation/publicWorkTranslations.ts","utf8");
 const badge = readFileSync("src/features/works/WorkTranslationAvailability.tsx","utf8");
+const layout = readFileSync("src/app/works/[seriesId]/layout.tsx","utf8");
 const route = readFileSync("src/app/works/[seriesId]/translations/[targetLanguage]/page.tsx","utf8");
 const evidence = readFileSync("docs/public-read-reliability-performance.md","utf8");
 
@@ -17,6 +18,9 @@ assert.ok(fetcher.includes("return error != null || readyRowCount !== 0;"));
 assert.ok(badge.includes("mayHaveReadyTranslationForWorkBadge(seriesId, signal)"));
 assert.ok(badge.includes("if (!hasCandidate) return null;"));
 assert.ok(badge.includes("getPublicWorkTranslationOverview(seriesId, signal)"));
+assert.ok(layout.includes('<Suspense fallback={null}>\\n        <WorkTranslationAvailability seriesId={seriesId} />'.replace("\\\\n","\\n")) || layout.includes('<Suspense fallback={null}>\n        <WorkTranslationAvailability seriesId={seriesId} />'));
+assert.ok(layout.indexOf("if (surface?.r18Blocked)") < layout.indexOf("<Suspense fallback={null}>"));
+assert.ok(layout.indexOf("loadWorkSurfaceState(seriesId)") < layout.indexOf("<Suspense fallback={null}>"));
 assert.ok(route.includes("getPublicWorkTranslationOverview(seriesId)"),
  "Standalone translation-version page must retain its all-episodes behavior");
 assert.equal(route.includes("mayHaveReadyTranslationForWorkBadge"),false);

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import R18ContentGate from "@/components/content/R18ContentGate";
 import WorkTranslationAvailability from "@/features/works/WorkTranslationAvailability";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -169,7 +169,9 @@ export default async function WorkLayout({ children, params }: Props) {
 
   const body = (
     <>
-      <WorkTranslationAvailability seriesId={seriesId} />
+      <Suspense fallback={null}>
+        <WorkTranslationAvailability seriesId={seriesId} />
+      </Suspense>
       {children}
     </>
   );

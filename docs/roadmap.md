@@ -330,3 +330,5 @@ When the order changes:
 - state the new order in the parent completion report.
 
 Do not infer a new priority merely because an older chat suggested an alternative.
+
+**2026-10-11 Child84 Work layout optional streaming checkpoint (no reorder):** a bounded Work-only `Suspense` isolates the optional translated-language badge after the existing R18/series-publication safety checks. The head-only ready-row filter avoids unnecessary full body scans only on verified zero count, with error fallback. Production impact unmeasured until deployment. Child84 open; Child85 blocked.
