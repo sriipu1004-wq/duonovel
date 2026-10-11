@@ -9,9 +9,9 @@ requests can currently be received or completed.
 ## 0. Mandatory launch gate: support mailbox and accountable operator
 
 Published destination: `libread08@gmail.com`.
-Connected operator Gmail identities available to this audit were
-`sriipu1004@gmail.com` and `execute.865@gmail.com`, **not** the
-published destination. A harmless test message was SENT to
+Neither of the connected operator mailboxes directly accessible to this
+audit is the published destination. Their individual identities are
+intentionally omitted from this public operational checklist.
 `libread08@gmail.com` on 2026-10-11, but its RECEIPT at that mailbox
 and the ability to reply from it have **not** been verified. Do not
 represent this as a functional intake channel until an authorized
