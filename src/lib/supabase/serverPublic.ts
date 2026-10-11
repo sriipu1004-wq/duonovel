@@ -41,7 +41,8 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
   let didReachLocalDeadline = false;
   let timerFiredAtMs: number | null = null;
   let timerFiredMonotonicAtMs: number | null = null;
-  let timerCpuUsageMs: { user: number; system: number } | null = null;
+  let deadlineTimerCpuUserMs = 0;
+  let deadlineTimerCpuSystemMs = 0;
 
   const abortFromUpstream = () => controller.abort();
   if (upstreamSignal?.aborted) {
@@ -54,10 +55,8 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
     timerFiredAtMs = Date.now();
     timerFiredMonotonicAtMs = performance.now();
     const cpuAtDeadline = process.cpuUsage(cpuStartedAt);
-    timerCpuUsageMs = {
-      user: Math.max(0, Math.round(cpuAtDeadline.user / 1000)),
-      system: Math.max(0, Math.round(cpuAtDeadline.system / 1000)),
-    };
+    deadlineTimerCpuUserMs = Math.max(0, Math.round(cpuAtDeadline.user / 1000));
+    deadlineTimerCpuSystemMs = Math.max(0, Math.round(cpuAtDeadline.system / 1000));
     didReachLocalDeadline = true;
     controller.abort();
   }, PUBLIC_READ_FETCH_TIMEOUT_MS);
@@ -95,8 +94,8 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
           Math.round((timerFiredMonotonicAtMs ?? monotonicStartedAtMs) - monotonicStartedAtMs - PUBLIC_READ_FETCH_TIMEOUT_MS)
         ),
         // Process-wide CPU time during the pending timer; not per-request attribution.
-        deadlineTimerCpuUserMs: timerCpuUsageMs?.user ?? 0,
-        deadlineTimerCpuSystemMs: timerCpuUsageMs?.system ?? 0,
+        deadlineTimerCpuUserMs,
+        deadlineTimerCpuSystemMs,
       });
     }
     throw error;
