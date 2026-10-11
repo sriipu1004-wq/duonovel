@@ -65,8 +65,9 @@ An isolated Supabase development branch was created for an hourly quoted rate of
 **read-only consistency checklist** for a trusted privileged inspector.
 It must be run first on the connected Production database as an
 export-time aggregate baseline and then on a **separate actually restored**
-database at the same snapshot. Execute as one `BEGIN READ ONLY`
-transaction, never through a user/anon Data API token.
+database at the same snapshot. Execute as one `BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`
+transaction; plain read-only with PostgreSQL's default READ COMMITTED does not
+ensure all SELECT statements observe the same MVCC snapshot, never through a user/anon Data API token.
 
 The script fails closed if a critical relation or foreign key is missing,
 sensitive RLS is disabled, prohibited Human translation/private table
@@ -76,7 +77,7 @@ references versus `storage.objects` metadata. It does **not** reveal
 owner IDs, paths, user-supplied text or private object names.
 
 **Production source baseline (read-only execution):**
-the *exact source* SQL blob `a3bb683a015dac853c61793bf4f4b288df78bb05`
+the *exact source* SQL blob `91f9e75b98df49529c5e960be9970a0a844b1ad1`
 completed without exceptions; 2,277 distinct recording-audio references
 matched 4,720 object metadata records, with **0** referenced recordings
 missing metadata and **2,443** objects without a direct recording-table
@@ -112,7 +113,7 @@ was changed by this source audit.
 
 The second exact checked-in SQL file
 `scripts/child84-readonly-restore-schema-fingerprint.sql`
-(blob `51ec10f6dd8a66c2d065a2a36dd598eef78235c1`)
+(blob `7bb2d5c8a81642b98fd88c33876ffb2c504589c0`)
 ran successfully against Production inside `BEGIN READ ONLY` and returned
 aggregate object counts plus **SHA-256 fingerprints of sorted catalog
 definitions** for `public`, `storage`, and installed extensions.
@@ -150,3 +151,133 @@ and required catalog/role-name normalization. **No independent DB restore
 or Storage file-byte download was performed**. In particular the
 2,443 Storage metadata objects lacking direct `recordings` references
 remain untouched and must not be labeled orphaned.
+
+
+## 2026-10-11 Child84j independent review and restoration feasibility
+
+**Verified live platform and migration source:** Production PostgreSQL 17.6.1 is
+ACTIVE_HEALTHY; `pg_database_size(current_database())` returned
+**80,243,859 bytes** (approximately 77 MiB) from a read-only query.
+The management connector lists 20 recorded applied migrations; the
+repository stores 75 migration files, starting with
+`ALTER TABLE public.series` on a table not created by that chain.
+Neither a Supabase development branch nor a bare migration replay
+can be described as a complete restored Production snapshot. The current
+Supabase Management connector has **no list-backups action**, and
+the connected project/organization APIs do **not** report backup point
+IDs or timestamps. This workstream therefore **did not verify a
+project-specific backup instance, backup creation date, actual archive,
+checksum, or restore success**. Pro plan's *eligibility* for seven days
+of daily database backups is not an independently observed backup.
+
+**Verified Supabase-managed compute estimate for this organization:**
+- Development branch starts at **USD 0.01344 per hour**, excluding
+  resource consumption and potential egress. Branches generated from
+  tracked migrations lack real user data in this project and are not a
+  source-data restore. Branching is **not spend-cap protected**.
+- Extra Supabase project quoted **USD 10 per month**, before any
+  extras related to matched CPU/compute configuration, storage/disk
+  usage and egress. The paid `Restore to a new project` feature uses
+  an existing physical backup, automatically clones Auth data and
+  encryption root key, but **does not copy Storage file bytes or all
+  non-DB settings**. It can reactivate inherited pg_cron/pg_net,
+  triggers/webhooks and external integrations when the clone starts.
+  Those must be independently reviewed and contained **before**
+  authorizing a clone. Never click in-place `Restore` on Production.
+- Running an isolated **local PostgreSQL 17** DB is the lowest
+  recurring cloud-cost choice for the approximately 77 MiB source DB,
+  but a complete, privately protected logical export is not yet
+  available, and a bare database may lack the Supabase-managed
+  roles/Auth/extensions and encryption root key. Cross-platform
+  login/Reader/RLS end-to-end tests cannot be inferred from a
+  table-only PostgreSQL replay. The local Windows preflight did
+  **not** find an already available `docker`, `pg_dump`, `psql`
+  or Supabase CLI on PATH (this is not an installation audit).
+- Local Windows storage capacity inspection found **no single drive
+  with 30.19 GB of current free space**; therefore copying all
+  4,728 Storage objects as one uncompressed set is not presently
+  practical without safe additional space or an approved partitioned
+  encrypted destination. No local backup output or data was copied.
+
+**Independent security issues in the original fingerprint:**
+`pg_get_triggerdef` does not prove the trigger is enabled,
+and `pg_get_expr` for a policy does not include its
+permissive/restrictive flag. Original catalog hashes also omitted
+function EXECUTE permissions, SECURITY DEFINER ownership, per-schema
+USAGE/CREATE rights and relation owner/replication flags. The
+fingerprint now **adds five security categories** without changing
+the existing nine baseline-category definitions:
+
+| Additional security category | Production count | SHA-256 |
+| --- | ---: | --- |
+| policy_admission_flags | 80 | `7168600734013637556c05d9e772567c58b0fc88df825c6f01aee6c3046d15f5` |
+| trigger_activation_flags | 21 | `fddf15a8da94956b93dbecea2ba15eb6b39953be351bab59b194cb5b008c05fc` |
+| function_execution_security | 66 | `04d613f2d0ade4a0424d1be5dbbf728c4ff99c88a0630ada63a4e7d272fdc157` |
+| schema_usage_security | 2 | `96f0f6ee83fde2b32924833eee6baa5d0904b8422920258d9089c9135836b92b` |
+| relation_ownership | 67 | `b076513ca39415bb051aed9b39c9fae416ae6c2ce09e31436636e958afc71176` |
+
+Both checked-in PR #127 SQL files were **independently re-executed
+against Production** as exact-source, `REPEATABLE READ READ ONLY`
+transactions without error. This reports 2,277 direct recording
+metadata references matched, 4,720 recording-audio object metadata
+rows, zero missing direct metadata references, and 2,443 objects with
+no *direct* recording row reference. The third-party or legacy
+references for those 2,443 were **not resolved**, and no deletion
+or direct Storage-object-byte download was authorized or completed.
+Static CI checks now require the repeatable-read boundary and all
+five additional security dimensions.
+
+### Mandatory staged proof, with distinct acceptance levels
+
+1. **Source and platform inspection (completed):** counts, source
+   schema SHA-256, RLS/FK admission, recording-to-metadata
+   relationships, actual DB size, project/org fee quotes.
+   **Never label this 'backup verified'.**
+2. **Backup and DB restore (NOT DONE):** inspect actual
+   `Database > Backups` for this *specific* project and record a
+   completed backup ID and UTC timestamp in a restricted audit note.
+   Prefer a secured local logical backup/archive if obtaining a
+   Supabase physical backup for download is not offered. Use an isolated
+   matching PostgreSQL 17/Supabase environment with no Production
+   secrets or outbound integration actions. Validate an actual archive
+   checksum and restored row counts against the **export-time** source,
+   plus all 14 schema/security fingerprint categories. Also inspect
+   Auth and platform configuration separately: this fingerprint hashes
+   `public` and `storage`, **not `auth`**, Vault key material,
+   external Auth providers, Edge Functions or Storage bytes.
+3. **Bounded Storage file sample (NOT DONE):** select a safe,
+   authorized, low-size real source object; download bytes to a
+   restricted local temporary destination, compute a local SHA-256
+   hash, independently copy/restore to a second protected isolated
+   destination, re-read **actual** bytes and compare SHA-256/length
+   (not an ETag or a `storage.objects` metadata row). Check
+   public/private retrieval authorization and delete the temporary
+   sample only under explicit lifecycle agreement.
+4. **Full Storage backup/restore (NOT DONE):** choose >=40 GB free
+   encrypted local/external space or a separately approved secure
+   cloud storage destination, including checksum/manifest overhead.
+   Export and privately inventory **all 4,728** current object
+   payloads across all buckets, preserving bucket/key mapping;
+   hash check every byte stream, restore to a distinct isolated
+   destination and re-read/hash check. Reconcile counts and bytes at
+   the same recorded source snapshot, not from a later live database.
+   Confirm 2,443 objects are not unilaterally classified as orphaned.
+5. **Full app acceptance (NOT DONE):** synthetic authenticated
+   ownership, R18/publication visibility, AI/Human provenance,
+   TTS vs Human narration, public search, Reader and real supported
+   audio playback without contacting Production from a cloned
+   scheduler/worker. Test auth and Storage using fully isolated
+   endpoints, not repointed Production keys. Approval and an auditable
+   rollback path remain required before Cron #108 or Child84 closure.
+
+**Administrative gate:** No backup restore, CLI dump, new paid
+project/branch, Storage-object payload copy, key provisioning or
+live user/Stripe/Auth mutation was performed in Child84j. Project-specific
+backup timestamps must be obtained through the operator's authorized
+Supabase Dashboard view or a read-only Management API token with a
+confirmed retrieval path; never share PAT, DB credentials, JWTs,
+full backup content or object keys in chat/GitHub/CI.
+
+**Current decision:** SOURCE-ONLY EVIDENCE IMPROVED;
+INDEPENDENT DB RESTORE = UNPROVEN; STORAGE BYTE RESTORE = UNPROVEN;
+PR #108 CRON = NO-GO; Child84 NOT DONE / Child85 BLOCKED.
