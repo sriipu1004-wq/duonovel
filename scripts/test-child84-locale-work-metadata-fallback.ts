@@ -53,7 +53,7 @@ assert.ok(!bounded.includes("unstable_cache("), "Do not serve stale metadata fro
 const makerStart = works.indexOf("function makePublicBaseWorkCard(");
 const makerEnd = works.indexOf("async function buildPublicBaseWorkCards(", makerStart);
 const builderStart = works.indexOf("async function buildPublicBaseWorkCards(");
-assert.ok(makerStart >= 0 && makerEnd > makerStart && builderStart > makerEnd);
+assert.ok(makerStart >= 0 && makerEnd > makerStart && builderStart === makerEnd);
 const maker = works.slice(makerStart, makerEnd);
 const builder = works.slice(builderStart, boundedStart);
 assert.ok(builder.includes("makePublicBaseWorkCard(series, summariesBySeriesId.get(series.id), authorAccountMap)"),
