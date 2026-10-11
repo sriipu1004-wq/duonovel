@@ -1,0 +1,56 @@
+# Child84 — Independent database and Storage recovery gate
+
+Status: **Audit and runbook only, not a proven backup/restore.**
+Snapshot: 2026-10-11 AEST. Source: connected, read-only Production Supabase SQL and organization metadata.
+
+## Verified platform and data inventory
+
+- Supabase organization plan: `pro`; Production project: `nyxbnccuvmlzffgtdadi`, PostgreSQL 17, region `ap-southeast-1`, observed healthy.
+- Supabase documentation states Pro organizations are normally eligible for daily **database** backups with up to seven days of backup availability. This audit did **not** retrieve project-specific backup timestamps, backup files or restore evidence. Do not treat plan eligibility as proof that a usable backup exists.
+- Supabase's standard database backup includes database tables/metadata, **not** object bytes in Supabase Storage. A database restore cannot recreate absent/deleted audio/image files.
+- The following counts and byte totals were observed at one point in time and are **not** verified backup archive sizes or transfer costs.
+
+| Bucket | Visibility | Objects | Reported object bytes |
+| --- | --- | ---: | ---: |
+| recording-audio | public | 4,720 | 30,165,700,212 |
+| illustrations | public | 6 | 12,290,705 |
+| bgm-library | public | 2 | 11,648,088 |
+| human-recording-audio | private | 0 | 0 |
+| **Total** | | **4,728** | **30,189,639,005** |
+
+The database currently contains 2,277 `public.recordings` rows with nonempty, distinct audio URLs. Parsing the `recording-audio/` object name from each URL and joining against `storage.objects` found **2,277/2,277 referenced files present** (28,152,902,530 bytes). The other **2,443** objects in that bucket (2,012,797,682 bytes) are **not referenced by `recordings.audio_storage_path`**. This does *not* prove they are orphaned: the audit has not excluded other tables, segmented output, old operational workflows, or pending/legacy references. **Never delete them on this evidence.** No media contents, private keys, signed URLs, filenames or hashes were exported or displayed.
+
+Repeat the aggregate read-only audit using `scripts/child84-storage-recovery-audit.sql`. Re-run the checks immediately before/after any authorized backup or restoration, as data can change.
+
+## Backup plan — two distinct recoverability claims
+
+### 1. Database recovery
+
+1. Open Supabase Dashboard → project → **Database → Backups** (scheduled backups) and document the latest actual restore point, scheduled backup status and retention visible to the operator. Check that the expected project and database ID match. No backup was inspected via the available connected API in this workstream.
+2. In a trusted environment, export a **separate logical backup** for off-site retention (Supabase CLI `db dump` or supported `pg_dump`) using a narrowly controlled database credential. Never embed the database URL/password, access token, or the resulting database contents in a public repository, PR comment, Vercel runtime log or unencrypted GitHub Actions artifact.
+3. Verify that the resulting archive is readable; compute and record an actual checksum *after* export. Do not invent backup checksums or assume a successful export is a verified restoration.
+4. Restore into a separate, access-controlled non-Production database with known compatible PostgreSQL major version. Verify table/view/function/RLS/grant presence and counts, reference ownership, author permissions, public-vs-private episode admission and the 84 currently observed rights-evidence rows against the **export-time** baseline. Do not restore onto the running Production project to perform this test.
+5. Record reproducible evidence (verified restore timestamp, source/target environment, storage location under private control, actual hash, representative SQL checks) without publishing sensitive credentials or private user data.
+
+### 2. Storage object recovery
+
+1. Select an independently durable destination for the ~30.19 GB of current Storage object bytes; confirm actual network egress, storage charges, data residency and permissions before transferring. No export, purchase or credential provisioning is authorized by this runbook.
+2. Export each permitted bucket/object using authenticated server-side access; preserve the complete source bucket/object key mapping securely. For private buckets, do not alter visibility or use public URLs as a backup mechanism.
+3. Build a manifest from real exports containing bucket/key, byte length and computed checksum per object, stored **privately**. Check source inventory counts against completed export counts; do not make stronger integrity claims without completed cryptographic verification.
+4. Test restoring a bounded representative sample to an isolated bucket. Compare recovered bytes/hashes, retrieval authorization and DB-to-object resolution. A Storage restore can be operationally independent of a DB restore, so verify both together for actual Reader/audio playback.
+5. Retain independent storage-object backups in a secure off-site location with a documented restoration path. Decide retention and coverage before promising a site-wide disaster-recovery objective.
+
+## Production rollout gates
+
+- **No-go:** PR #108's scheduled-posting Cron SQL may not be applied merely because isolated PostgreSQL CI succeeded. Actual Supabase `pg_cron` extension/permissions, schedule execution, audit visibility, rollback and monitoring require an isolated environment; database recovery must have verified backup/restore evidence. The existing Reader/RLS published-only filter must not be relaxed.
+- **No-go:** do not clear or bulk-delete the 2,443 non-`recordings`-referenced audio objects. A lifecycle and provenance investigation with complete reference inventory is a separate auditable task.
+- **No-go:** do not make a public mirror, alter R18/author privacy, or store backup archives under public `recording-audio`, public GitHub/Vercel artifacts, or a shared URL.
+- No database writes, Storage mutations, outside transfer or new paid Supabase project were performed as part of this audit.
+
+## Documentation sources
+
+- Supabase Database Backups: https://supabase.com/docs/guides/platform/backups
+- Supabase Cron: https://supabase.com/docs/guides/cron
+- Existing project gates: `docs/development-workflow.md`, `docs/decisions.md`, `docs/roadmap.md`.
+
+**State:** Child84 remains open; Child85 remains blocked. A runbook plus SQL row counts are not a verified independent backup, restoration or durable deletion policy.
