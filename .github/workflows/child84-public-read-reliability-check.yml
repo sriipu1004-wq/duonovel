@@ -6,11 +6,12 @@ on:
       - ".github/workflows/child84-public-read-reliability-check.yml"
       - "package.json"
       - "scripts/test-public-read-reliability-performance.ts"
-      - "scripts/test-scheduled-episode-release-contract.ts"
-      - "scripts/test-scheduled-episode-release-postgres.sh"
-      - "scripts/test-scheduled-episode-pgcron-runtime.sh"
-      - "scripts/child84-pgcron-test.Dockerfile"
-      - "supabase/migrations/20261010230000_child84_scheduled_episode_db_release.sql"
+      - "scripts/child84-search-eligible-sql-parity.sql"
+      - "scripts/test-child84-search-sql-candidate-contract.ts"
+      - "docs/child84-search-sql-eligible-parity.md"
+      - "src/lib/search/**"
+      - "scripts/child84-readonly-role-boundary-audit.sql"
+      - "scripts/test-child84-rls-role-boundary-contract.ts"
       - "scripts/test-child84-storage-backup-audit.ts"
       - "scripts/child84-storage-recovery-audit.sql"
       - "docs/child84-backup-and-storage-recovery.md"
@@ -20,14 +21,19 @@ on:
       - "src/features/write/WriteSeriesForm.tsx"
       - "src/features/write/writeShared.ts"
       - "scripts/test-public-fetch-timeout-diagnostics.ts"
+      - "docs/child84-public-db-timeout-phase-evidence.md"
+      - "scripts/test-child84-timeout-phase-evidence.ts"
       - "src/app/PublicTopPageLegacy.tsx"
       - "src/app/ranking/**"
       - "src/app/read/**"
       - "src/app/search/**"
       - "src/app/sitemap.ts"
       - "src/app/works/**"
+      - "src/app/locale-work/[seriesId]/page.tsx"
+      - "scripts/test-child84-locale-work-metadata-fallback.ts"
       - "src/components/auth/AuthStatus.tsx"
       - "src/features/works/WorkTranslationAvailability.tsx"
+      - "scripts/test-child84-optional-work-translation-badge.ts"
       - "src/lib/auth/authSessionState.ts"
       - "src/lib/publicRead.ts"
       - "src/lib/publicWorks.ts"
@@ -40,11 +46,18 @@ on:
       - "scripts/test-child84-visibility-gates.ts"
       - "scripts/test-ai-permission-cache-coherence.ts"
       - "src/app/api/series/**"
+      - "src/app/api/account/delete/**"
+      - "scripts/test-child84-account-delete-cache.ts"
       - "src/features/write/TranslationPermissionWorkspaceBridge.tsx"
       - "src/features/write/PendingTranslationPermissionBridge.tsx"
       - "src/features/write/WriteEpisodeForm.tsx"
       - "src/features/write/SourceLanguageWorkspaceBridge.tsx"
       - "src/features/write/ContentRatingWorkspaceBridge.tsx"
+      - "scripts/test-scheduled-episode-release-contract.ts"
+      - "scripts/test-scheduled-episode-release-postgres.sh"
+      - "scripts/test-scheduled-episode-pgcron-runtime.sh"
+      - "scripts/child84-pgcron-test.Dockerfile"
+      - "supabase/migrations/20261010230000_child84_scheduled_episode_db_release.sql"
 
 permissions:
   contents: read
@@ -81,8 +94,28 @@ jobs:
           npm run test:child84-visibility-gates
           npm run test:ai-permission-cache-coherence
 
+      - name: Account soft-delete cache-coherence boundary (source-only)
+        run: npm run test:child84-account-delete-cache
+
+      - name: Synthetic anon/authenticated RLS audit contract (offline, no DB access)
+        run: npx tsx scripts/test-child84-rls-role-boundary-contract.ts
+
       - name: Storage inventory and restore-gate regression (no network or DB writes)
         run: npm run test:child84-storage-backup-audit
+
+      - name: SQL broad-candidate Search compatibility and 1,803-row pagination parity (source-only)
+        run: |
+          npm run test:child84-search-sql-candidate
+          npm run test:search-ux-final
+
+      - name: Optional Work translation badge head-only prefilter (no DB network)
+        run: npm run test:child84-optional-work-translation-badge
+
+      - name: Localised Work metadata outage fallback (no network)
+        run: npm run test:child84-locale-work-metadata-fallback
+
+      - name: Child84 timeout phase evidence contract (no network)
+        run: node --import tsx scripts/test-child84-timeout-phase-evidence.ts
 
       - name: Scheduled release source/visibility contract
         run: npm run test:scheduled-episode-release-contract
@@ -106,12 +139,19 @@ jobs:
           npx eslint
           scripts/test-public-read-reliability-performance.ts
           scripts/test-scheduled-episode-release-contract.ts
+          scripts/test-child84-optional-work-translation-badge.ts
+          scripts/test-child84-search-sql-candidate-contract.ts
           scripts/test-child84-storage-backup-audit.ts
           scripts/test-public-fetch-timeout-diagnostics.ts
+          scripts/test-child84-timeout-phase-evidence.ts
+          scripts/test-child84-locale-work-metadata-fallback.ts
+          src/app/locale-work/[seriesId]/page.tsx
           scripts/test-owned-series-server-save.ts
           src/app/actions/saveOwnedSeriesWorkspace.ts
           src/lib/write/ownedSeriesPayload.ts
           src/features/write/WriteSeriesForm.tsx
+          src/features/works/WorkTranslationAvailability.tsx
+          src/lib/translation/publicWorkTranslations.ts
           src/features/write/writeShared.ts
           src/app/read/[seriesId]/[episodeNumber]/layout.tsx
           src/app/read/[seriesId]/[episodeNumber]/page.tsx
@@ -120,6 +160,8 @@ jobs:
           scripts/test-owned-episode-server-save.ts
           scripts/test-series-route-cache-invalidation.ts
           scripts/test-child84-visibility-gates.ts
+          scripts/test-child84-account-delete-cache.ts
+          src/app/api/account/delete/route.ts
           scripts/test-ai-permission-cache-coherence.ts
           src/app/api/series/[seriesId]/translation-permission/route.ts
           src/features/write/TranslationPermissionWorkspaceBridge.tsx
