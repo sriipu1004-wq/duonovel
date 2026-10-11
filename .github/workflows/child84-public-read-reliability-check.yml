@@ -10,6 +10,8 @@ on:
       - "scripts/test-child84-search-sql-candidate-contract.ts"
       - "docs/child84-search-sql-eligible-parity.md"
       - "src/lib/search/**"
+      - "scripts/child84-readonly-role-boundary-audit.sql"
+      - "scripts/test-child84-rls-role-boundary-contract.ts"
       - "scripts/test-child84-storage-backup-audit.ts"
       - "scripts/child84-storage-recovery-audit.sql"
       - "docs/child84-backup-and-storage-recovery.md"
@@ -89,6 +91,9 @@ jobs:
 
       - name: Account soft-delete cache-coherence boundary (source-only)
         run: npm run test:child84-account-delete-cache
+
+      - name: Synthetic anon/authenticated RLS audit contract (offline, no DB access)
+        run: npx tsx scripts/test-child84-rls-role-boundary-contract.ts
 
       - name: Storage inventory and restore-gate regression (no network or DB writes)
         run: npm run test:child84-storage-backup-audit
