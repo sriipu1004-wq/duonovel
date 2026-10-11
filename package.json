@@ -54,7 +54,8 @@
     "test:series-route-cache-invalidation": "node --import tsx scripts/test-series-route-cache-invalidation.ts",
     "test:child84-visibility-gates": "node --import tsx scripts/test-child84-visibility-gates.ts",
     "test:ai-permission-cache-coherence": "node --import tsx scripts/test-ai-permission-cache-coherence.ts",
-    "test:child84-storage-backup-audit": "node --import tsx scripts/test-child84-storage-backup-audit.ts"
+    "test:child84-storage-backup-audit": "node --import tsx scripts/test-child84-storage-backup-audit.ts",
+    "test:scheduled-episode-release-contract": "node --import tsx scripts/test-scheduled-episode-release-contract.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

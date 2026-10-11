@@ -224,6 +224,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-11 Child84 isolated Supabase Cron milestone (no priority change):** real `pg_cron 1.6.4` on a short-lived paid development branch successfully published a synthetic due episode, audited one exact ID, respected draft/future rows and was unscheduled. The temporary branch was deleted and Production remains unchanged. The branch's canonical migration chain could not replay due to missing `public.series` baseline; DB and ~30 GB Storage backup/restore, full-schema E2E and 2.5s timeout monitoring are still blocking; #108 remains Draft. Evidence: `docs/child84-cron-isolated-supabase-evidence.md`. Child85 blocked.
 
+**Child84 #108 Draft latest-main compatibility gate (no roadmap reorder):** integrate real Cron scheduler, isolated SQL/RLS tests and bounded audit with already released #112 fail-closed author UI and #113 Supabase experiment evidence. These do not resolve incomplete schema bootstrap, independent DB + 30GB Storage restoration, signed-in/E2E or persistent local DB timeouts. Keep Production Cron disabled; Child85 remains blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**
