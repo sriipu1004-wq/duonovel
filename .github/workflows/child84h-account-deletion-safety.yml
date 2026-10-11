@@ -9,6 +9,7 @@ on:
       - "src/app/contact/page.tsx"
       - "src/app/privacy/page.tsx"
       - "src/app/terms/page.tsx"
+      - "scripts/child84h-soft-deleted-reference-inventory.sql"
       - "scripts/test-child84-account-delete-cache.ts"
       - "docs/child84-account-deletion-safety-design.md"
       - "package.json"
