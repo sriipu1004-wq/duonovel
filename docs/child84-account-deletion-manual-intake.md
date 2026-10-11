@@ -1,40 +1,35 @@
 # Child84h — Account deletion, unpublication and erasure request triage
 
-Status: **OPERATIONS DRAFT — NOT LIVE / NOT VERIFIED**.
-Workstream: Child84 P4, PR #123. Date: 2026-10-11.
-This document is a *temporary manual review checklist*, not a permanent
-retention policy, authority to delete customer data, or proof that support
-requests can currently be received or completed.
+Status: **PUBLIC MAIL INTAKE VERIFIED; MANUAL REVIEW ONLY; NO AUTOMATED ERASURE**.
+Workstream: Child84 P4, PR #123 (merged and Production READY on 2026-10-11).
+This document remains a temporary manual review checklist, not a permanent
+retention policy, authorization to delete customer data or evidence that
+any specific user request has already been reviewed or completed.
 
-## 0. Mandatory launch gate: support mailbox and accountable operator
+## 0. Published support mailbox — connection and delivery verified
 
-Published destination: `libread08@gmail.com`.
-Neither of the connected operator mailboxes directly accessible to this
-audit is the published destination. Their individual identities are
-intentionally omitted from this public operational checklist.
-`libread08@gmail.com` on 2026-10-11, but its RECEIPT at that mailbox
-and the ability to reply from it have **not** been verified. Do not
-represent this as a functional intake channel until an authorized
-operator:
+Published receiving account: `libread08@gmail.com`.
+In an authorized Gmail connection, the original non-sensitive Child84
+test message was found in this exact account's INBOX. A non-sensitive
+reply was sent from this account and its arrival in the original sender's
+INBOX was independently verified; the support account also showed the
+reply under SENT. Both `RECEIPT_VERIFIED=true` and
+`REPLY_VERIFIED=true` apply **only to this controlled test**.
 
-1. Opens the *actual receiving inbox*, with secure sign-in and MFA where
-   available, and confirms the precise test subject and receipt time.
-2. Sends a non-sensitive reply from that mailbox, or an explicitly
-   controlled sending alias, to the test sender and confirms its arrival.
-3. Identifies a responsible human operator, restricted access and
-   a case-tracking method; checks how messages are routed, retained,
-   backed up and escalated if the primary operator is unavailable.
-4. Records **only** `RECEIPT_VERIFIED=true`, `REPLY_VERIFIED=true`,
-   verification date/time and responsible operator in a restricted
-   operational record. **Do not put raw emails, access tokens or
-   customer identifiers in this repository or public PR comments.**
+A dedicated Gmail intake label
+`LIB read/退会・データ消去申請/要確認` was created.
+The account controller is the interim operator. For actual requests,
+assign a responsible operator per case, maintain access restrictions,
+handle absences and retain a private minimal case ledger; the label
+does not automatically complete any deletion or prove response times.
+Public docs must not include private operator account details,
+user messages, message IDs, credentials or attachment content.
 
-An outbound Gmail SENT event, absence of a bounce, DNS/MX resolution
-or a website `mailto:` link alone does not meet this gate. If the
-mailbox cannot be operated, **DO NOT deploy text promising request
-acceptance at that address**; escalate to the parent for an explicitly
-approved and independently verified alternative. Do not invent a
-replacement address.
+Receiving a request is not identity verification, permission to modify
+works, a subscription cancellation or a completed erasure. For every
+real request follow the steps below, and use NEEDS_REVIEW if any approved
+verification/deletion procedure is unavailable.
+
 
 ## 1. Triage and minimum necessary request
 
@@ -164,25 +159,34 @@ approved retention basis, and distinguishing unpublication from
 erasure. Until that process exists, use `NEEDS_REVIEW` rather than
 `COMPLETE`.
 
-## 7. PR #123 release / Production verification gates
+## 7. PR #123 acceptance and Production verification evidence
 
-- Exact HEAD GitHub CI 4/4 and corresponding Vercel Preview READY.
-- The user's **explicit approval of that Preview, temporary disabling
-  of self-service deletion, and changed Privacy/Terms wording**.
-- Proven support-inbox **receipt and reply**, a named operator and
-  restricted case record. These are external operational facts,
-  not proved by CI or simulated responses.
-- Review 401 unauthenticated, 409 authenticated, 503 Auth outage
-  in no-side-effect automated tests. Authorized authenticated
-  smoke must not use a real account-delete scenario; no real user
-  is deleted. For actual HTTP POST verification, only an approved
-  non-customer synthetic session and no-side-effect fixture may be
-  used, if provisioned.
-- Merge with explicit approval; confirm new main, Vercel Production
-  READY for that exact SHA, Privacy/Terms/contact/UI and safe
-  anonymous GET/no cached "deleted successfully" copy. Monitor
-  no Auth/Stripe/Storage mutations or unexpected error spikes.
-- **If any gate is unverified, leave #123 Draft/unmerged, record
-  the specific blocker and hand back to Child84 parent.**
+- User expressly approved current PR #123 Preview, temporary self-service
+  deletion suspension, and published Privacy/Terms changes.
+- Exact reviewed HEAD `ddf62d87d4a919ce502aafbfd1cc8ab8ef7af3dd`
+  passed four GitHub Actions workflows; matching Preview was READY.
+- The actual published mailbox was connected; non-sensitive inbound and
+  outbound reply arrival were independently checked. Intake label created.
+- PR #123 was merged into main as
+  `fa86529be99f167df9e673724adb4be6f8189ebf`; matching Vercel
+  Production deployment `dpl_BKpqovPvodbLBYvmHSZzKTUjvLBd` is READY.
+- Production anonymous GETs for `/`, `/privacy`, `/terms` and
+  `/contact` returned HTTP 200 with updated wording; GET on
+  `/api/account/delete` returned 405. This is not authenticated POST
+  execution or a complete interactive Account Settings proof.
+- Exact source and offline mocked API checks establish HTTP 409 for an
+  authenticated user, 401 absent session and 503 Auth dependency failure;
+  neither Supabase Auth deletion nor Stripe/database/Storage mutation
+  is called. No real-user deletion E2E was performed.
+
+## 8. Outstanding permanent workflow and other Child84 gates
+
+The interim gate is **LIVE**, but safe irreversible deletion orchestration,
+approval of B/C/A rights and retention rules, individual identity-verified
+request handling, Stripe cancellation proof, independently restored DB and
+Storage object bytes, R18/author/Reader/Human translation authenticated E2E
+and Cron activation remain **UNVERIFIED / NOT AUTHORIZED**.
+Never report full data erasure, automatic case processing or Child84 DONE
+from this deploy.
 
 Child84 NOT DONE; Child85 BLOCKED.

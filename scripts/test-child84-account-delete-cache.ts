@@ -11,7 +11,7 @@ const contact = readFileSync("src/app/contact/page.tsx", "utf8");
 
 const intake = readFileSync("docs/child84-account-deletion-manual-intake.md", "utf8");
 for (const requirement of [
-  "NOT LIVE / NOT VERIFIED",
+  "PUBLIC MAIL INTAKE VERIFIED; MANUAL REVIEW ONLY; NO AUTOMATED ERASURE",
   "libread08@gmail.com",
   "RECEIPT_VERIFIED=true",
   "REPLY_VERIFIED=true",
@@ -32,6 +32,10 @@ for (const requirement of [
 ]) assert.ok(intake.includes(requirement), `Missing manual support gate: ${requirement}`);
 assert.ok(intake.includes("Never ask by ordinary email for passwords"),
   "Manual intake must not solicit passwords or one-time codes by email");
+assert.ok(intake.includes("A dedicated Gmail intake label"),
+  "Approved operator intake must remain auditable");
+assert.ok(intake.includes("Receiving a request is not identity verification"),
+  "Verified email delivery cannot authorize destructive account changes");
 assert.ok(intake.includes("A matching email sender is not"),
   "Email sender address alone must not authorize destructive actions");
 
