@@ -57,3 +57,24 @@ Repeat the aggregate read-only audit using `scripts/child84-storage-recovery-aud
 
 ## 2026-10-11 scheduled Cron test branch, backup evidence still blocked
 An isolated Supabase development branch was created for an hourly quoted rate of 0.01344, used only for synthetic Cron execution and then explicitly deleted. Its own canonical migration replay failed because a prior migration tried to ALTER a missing `public.series`. The Cron extension and job succeeded after constructing only minimal synthetic tables. This branch was **not** a restored snapshot of the user's real Production data and is **not** evidence of a database or Storage backup/restore. Preserve the requirements above and `docs/child84-cron-isolated-supabase-evidence.md` before any Production scheduler adoption.
+
+## 2026-10-12 Child84k final operator disposition — managed backup only
+
+**Status: CHILD84K CLOSED — USER-ACCEPTED DEFERRAL; INDEPENDENT RESTORE UNVERIFIED.**
+
+User instruction, quoted verbatim in the child completion report:
+
+> 別に一旦supabaseのバックアップのみでいいと思う。これで終わりでいい。ユーザーがこういってるってのも報告文に記入よろしく
+
+Child84k reviewed an authenticated Supabase Dashboard screenshot and reported project-specific existing backup records, multiple generations, latest visible backup **2026-10-10 19:54:54 UTC**, type **PHYSICAL**, plus a visible Supabase restoration interface. No actual backup ID, archive bytes, integrity checksum or successful restore was exported or proven by the parent. The source-only PR #127 SQL/CI work and one 143,600-byte public object read/copy/SHA-256 comparison are preserved as *limited evidence*, not as an independent restoration.
+
+**Operator-accepted temporary operating model:**
+1. Continue relying on the existing Supabase-managed **database** backups.
+2. Do not run independent database export/restore or full 4,728-object / ~30.19 GB Storage byte backup/restore as part of the closed Child84k.
+3. Do not provision paid projects, branches or third-party backup infrastructure, transfer all Storage bytes or repeatedly seek dashboard details without a newly authorized scope.
+4. Preserve awareness that Storage **file payloads are not covered** by database backup; database metadata recovery could leave audio or image files missing.
+5. Do not treat an available PHYSICAL backup entry or visible Restore button as proof of successfully restored data, users, rights permissions, RLS, private media or application operation.
+6. Maintain PR #108 Cron and other high-risk irreversible release gates until independently satisfied or explicitly redecided under their own risk assessment. This user decision alone does not make Child84 DONE or unblock Child85.
+
+**No new changes:** No Production database/Storage/Auth/Stripe writes, file transfers, extra resource charges or restoration were made to establish this disposition. The remaining PR #127 audit source can be archived unmerged and reopened only on new authorization. Roadmap priority is unchanged.
+
