@@ -36,6 +36,7 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
   const upstreamSignal = init?.signal;
   const startedAt = Date.now();
   let didReachLocalDeadline = false;
+  let timerFiredAtMs: number | null = null;
 
   const abortFromUpstream = () => controller.abort();
   if (upstreamSignal?.aborted) {
@@ -45,6 +46,7 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
   }
 
   const timer = setTimeout(() => {
+    timerFiredAtMs = Date.now();
     didReachLocalDeadline = true;
     controller.abort();
   }, PUBLIC_READ_FETCH_TIMEOUT_MS);
@@ -58,10 +60,23 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
     // Record only local-deadline failures. Upstream cancellation and all
     // other network failures keep their previous propagation semantics.
     if (didReachLocalDeadline && !upstreamSignal?.aborted) {
+      const elapsedMs = Math.max(0, Date.now() - startedAt);
+      const timerElapsedMs = Math.max(
+        0,
+        (timerFiredAtMs ?? startedAt) - startedAt
+      );
+      // Distinguish delayed deadline callback from delayed promise
+      // settlement after abort. Neither value implies a network cause.
+      // Only bounded numeric timings and an allowlisted endpoint are logged.
       console.warn("[public-db-local-timeout]", {
         endpoint: classifyPublicReadEndpoint(input),
         timeoutMs: PUBLIC_READ_FETCH_TIMEOUT_MS,
-        elapsedMs: Math.max(0, Date.now() - startedAt),
+        elapsedMs,
+        deadlineTimerDelayMs: Math.max(
+          0,
+          timerElapsedMs - PUBLIC_READ_FETCH_TIMEOUT_MS
+        ),
+        abortSettlementDelayMs: Math.max(0, elapsedMs - timerElapsedMs),
       });
     }
     throw error;

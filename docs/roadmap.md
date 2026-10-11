@@ -230,6 +230,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-11 Child84 Work layout optional streaming checkpoint (no reorder):** a bounded Work-only `Suspense` isolates the optional translated-language badge after the existing R18/series-publication safety checks. The head-only ready-row filter avoids unnecessary full body scans only on verified zero count, with error fallback. Production impact unmeasured until deployment. Child84 open; Child85 blocked.
 
+**2026-10-11 Child84 deadline-versus-abort-settlement diagnostic checkpoint (no reprioritization):** current Production public-series/episode-summary fetches still occasionally abort; observed total elapsed sometimes far exceeds the 2,500ms deadline. Source-only instrumentation separates delayed timer callback from delayed promise rejection, with no endpoint key/URL disclosure or timeout policy change. No performance win/root-cause claim before Production logging. Backup/restore, signed-in E2E, Search full SQL semantic parity and deferred Cron remain the Child84 gates; Child85 blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**

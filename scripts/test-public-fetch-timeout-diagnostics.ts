@@ -33,6 +33,18 @@ async function main(): Promise<void> {
     assert.equal(metadata.endpoint, "series");
     assert.equal(metadata.timeoutMs, 2500);
     assert.equal(typeof metadata.elapsedMs, "number");
+    assert.equal(typeof metadata.deadlineTimerDelayMs, "number");
+    assert.equal(typeof metadata.abortSettlementDelayMs, "number");
+    assert.ok(Number.isFinite(metadata.deadlineTimerDelayMs));
+    assert.ok(Number.isFinite(metadata.abortSettlementDelayMs));
+    assert.ok((metadata.deadlineTimerDelayMs as number) >= 0);
+    assert.ok((metadata.abortSettlementDelayMs as number) >= 0);
+    const splitDuration =
+      (metadata.timeoutMs as number) +
+      (metadata.deadlineTimerDelayMs as number) +
+      (metadata.abortSettlementDelayMs as number);
+    assert.ok(Math.abs((metadata.elapsedMs as number) - splitDuration) < 150,
+      "deadline timer delay plus post-abort settlement should explain elapsedMs");
     const json = JSON.stringify(warnings);
     for (const forbidden of ["never-log-this", "private-title", "demo.supabase.co"]) {
       assert.equal(json.includes(forbidden), false);
@@ -61,7 +73,7 @@ async function main(): Promise<void> {
     assert.equal(ok.status, 200);
     assert.equal(warnings.length, 0);
 
-    console.log("PASS: real 2500ms local AbortSignal and endpoint-only telemetry; caller abort, network failure and success retain semantics");
+    console.log("PASS: real 2500ms local AbortSignal, phase-only numeric timeout diagnostics and endpoint allowlist; caller abort/network/success semantics unchanged");
   } finally {
     globalThis.fetch = realFetch;
     console.warn = realWarn;
