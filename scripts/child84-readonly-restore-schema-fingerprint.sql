@@ -3,7 +3,9 @@
 -- SAME-TIMESTAMP snapshot, ideally the same PostgreSQL major/extension versions.
 -- Returns aggregate counts and SHA-256 of canonicalized catalog definitions,
 -- not raw DDL, user content, object names, tokens or private data.
--- Policy role OIDs are normalized to role NAMES to allow cross-instance comparison.
+-- Policy role and object owner OIDs are normalized to role NAMES.
+-- Includes policy permissiveness, trigger enabled state, and function EXECUTE
+-- rights; raw DDL/passwords/individual database rows are never output.
 -- Hash equality is evidence of these catalog subsets only; it cannot prove
 -- an archive, Auth/Storage bytes, backup freshness, exact row contents or
 -- full instance recovery. Never send actual database dumps to CI.
@@ -96,6 +98,55 @@ WITH inventory AS (
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
   WHERE n.nspname IN ('public','storage')
     AND c.relkind IN ('r','p','v','m')
+
+  UNION ALL
+  -- pg_get_expr does not encode a policy's permissive/restrictive flag.
+  SELECT 'policy_admission_flags',
+    format('%s.%s.%s|permissive=%s|cmd=%s',
+      n.nspname,c.relname,p.polname,p.polpermissive,p.polcmd)
+  FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid
+  JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname IN ('public','storage')
+
+  UNION ALL
+  -- pg_get_triggerdef does not encode ALTER TABLE ENABLE/DISABLE TRIGGER.
+  SELECT 'trigger_activation_flags',
+    format('%s.%s.%s|enabled=%s|deferrable=%s',
+      n.nspname,c.relname,t.tgname,t.tgenabled,t.tgdeferrable)
+  FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+  JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname IN ('public','storage') AND NOT t.tgisinternal
+
+  UNION ALL
+  -- Function ACL and SECURITY DEFINER ownership are independent boundaries.
+  SELECT 'function_execution_security',
+    format('%s.%s(%s)|owner=%s|definer=%s|config=%s|anon=%s|authenticated=%s',
+      n.nspname,p.proname,pg_get_function_identity_arguments(p.oid),
+      pg_get_userbyid(p.proowner),p.prosecdef,coalesce(p.proconfig::text,''),
+      has_function_privilege('anon',p.oid,'EXECUTE'),
+      has_function_privilege('authenticated',p.oid,'EXECUTE'))
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname IN ('public','storage')
+
+  UNION ALL
+  SELECT 'schema_usage_security',
+    format('%s|owner=%s|anon-usage=%s|auth-usage=%s|anon-create=%s|auth-create=%s',
+      n.nspname,pg_get_userbyid(n.nspowner),
+      has_schema_privilege('anon',n.oid,'USAGE'),
+      has_schema_privilege('authenticated',n.oid,'USAGE'),
+      has_schema_privilege('anon',n.oid,'CREATE'),
+      has_schema_privilege('authenticated',n.oid,'CREATE'))
+  FROM pg_namespace n
+  WHERE n.nspname IN ('public','storage')
+
+  UNION ALL
+  SELECT 'relation_ownership',
+    format('%s.%s|owner=%s|replica-identity=%s|persistence=%s',
+      n.nspname,c.relname,pg_get_userbyid(c.relowner),
+      c.relreplident,c.relpersistence)
+  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname IN ('public','storage')
+    AND c.relkind IN ('r','p','v','m','S')
 
   UNION ALL
   SELECT 'extensions',
