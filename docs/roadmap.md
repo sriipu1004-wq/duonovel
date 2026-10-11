@@ -224,6 +224,8 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 **2026-10-11 Child84 isolated Supabase Cron milestone (no priority change):** real `pg_cron 1.6.4` on a short-lived paid development branch successfully published a synthetic due episode, audited one exact ID, respected draft/future rows and was unscheduled. The temporary branch was deleted and Production remains unchanged. The branch's canonical migration chain could not replay due to missing `public.series` baseline; DB and ~30 GB Storage backup/restore, full-schema E2E and 2.5s timeout monitoring are still blocking; #108 remains Draft. Evidence: `docs/child84-cron-isolated-supabase-evidence.md`. Child85 blocked.
 
+**2026-10-11 Child84 Search DB candidate eligibility milestone (no reprioritization):** read-only Production compares canonical summary vs directly posted/published episode-eligible public source-language work IDs: 120 vs 120, zero mismatch, ja/en/ko 40 each. A 1,803-row synthetic Search case prevents premature 1,000-row/24-item SQL LIMIT, protects fuzzy/saved/date and self-excluded source/genre/tag facet parity, but does not constitute final exact ranking/metric parity or SQL pagination rollout. See `docs/child84-search-sql-eligible-parity.md`. Child84 open; Child85 blocked.
+
 ### P5 — Child85: staged Public Domain expansion
 
 Status: **after Child84 Production verification**
