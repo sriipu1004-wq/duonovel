@@ -46,6 +46,7 @@ Primary policy: https://www.aozora.gr.jp/guide/kijyunn.html
 - A translated work can still be protected when translator rights remain; do not approve by author age alone.
 - Aozora asks that title/author/translator/base-edition/input/proofreading/provenance information not be removed when redistributing, and expects transformation history to be clear when text is altered.
 - The importer therefore preserves Aozora ruby and `［＃...］` annotations and only separates a recognized trailing bibliographic/provenance block into archive metadata. It does not blanket-strip source notation.
+- **Child85 opt-in profile:** `aozora_reader_body` is for newly acquired, individually reviewed sources whose initial two-line title/author block and the exact paired-separator Aozora notation legend have been verified. Only that header is moved into local archive metadata; the literary text, Aozora in-body ruby/annotations and trailing provenance remain retained. Unknown front-matter shapes **fail closed** rather than guessing where the text begins. Title/author remain in the manifest and Official work metadata. The legacy `aozora` profile is unchanged; **never mass-reprepare or rewrite previously imported works** because of this new option. Human review must still establish that no protected base-edition editorial material is reused. See `docs/child85-public-domain-pilot-preflight.md`.
 
 ### Project Gutenberg
 
