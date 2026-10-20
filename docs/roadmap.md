@@ -1,9 +1,11 @@
 # LIB read — Ordered Roadmap
 
-Last updated: **2026-10-06**
+Last updated: **2026-10-21**
 Product-state baseline: `63f340168da1725f9c147a8dba05ecc88898b532`
 
 This file is the canonical ordered backlog for the next workstreams. It exists specifically so parent-chat replacement or context compression does not reorder the planned site work.
+
+> **Parent recovery and permanent specialist ownership:** see [PROJECT_MASTER.md](../PROJECT_MASTER.md) and [docs/chat-operations.md](chat-operations.md). Child84/85/86 are roadmap Work IDs, not disposable ChatGPT chat identities. This documentation-only governance adjustment does **not** change the ordered priorities below. Git/Production status in old dated notes remains historical, not an implicit release gate waiver.
 
 ## Current priority order
 
