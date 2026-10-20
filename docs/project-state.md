@@ -1,6 +1,6 @@
 # LIB read — Project State
 
-Last updated: **2026-10-11**
+Last updated: **2026-10-21**
 Last product-changing main commit: `fa86529be99f167df9e673724adb4be6f8189ebf` (Child84i PR #123: temporary fail-closed self-service account deletion suspension and truthful Privacy/Terms)
 Production: https://www.syosetu-libread.com
 Repository: `sriipu1004-wq/duonovel`
@@ -10,6 +10,10 @@ This document is the compact canonical state for future parent/child chats. It s
 ## Current operational status — 2026-10-21
 
 Child84 is operationally CLOSED with user-accepted deferrals, not fully verified. Child85 is NEXT for staged rights/provenance-verified Public Domain expansion; do not bulk-ingest or waive rights evidence. Source: docs/child84-operational-closure.md. Main 208c09beb1c28d6c71d4a5c101827c05ac4f8151 and matching Production READY were confirmed before this documentation workstream. Earlier Child84 NOT DONE / Child85 BLOCKED entries below are historical snapshots, superseded only as workflow status, not as evidence of completed tests.
+
+### Child85 five-work Aozora source pilot — source-only checkpoint (2026-10-21)
+
+Child85 has collected and SHA-256-pinned **five Japanese original-text candidates** on an isolated checkout; chapter/metadata preparation and duplicate-ID/hash/title Production READ ONLY preflight passed. The candidate manifests remain **rights_status=pending / approved=false**, and **zero** new Production series, episodes, Drafts, translations, narration or Storage objects have been written. A new opt-in `aozora_reader_body` normalization profile removes only a verified technical Aozora notation preface from newly prepared Reader text while archiving it; the historical `aozora` preparation profile and existing 84 imported works are unchanged. Full human review of the exact source, historical author terms in JP/US/KR, modern base-edition/editorial matter and rights components remains required before any rights approval. **Child85 is not complete; no Production Draft import or publication is authorized.** Audit and gates: `docs/child85-public-domain-pilot-preflight.md` and `public-domain/audits/child85-pilot-preflight-2026-10-21.json`. The original Child84 deferred risks remain deferred.
 
 ## Historical Child84 P4 acceptance snapshot — 2026-10-11
 
