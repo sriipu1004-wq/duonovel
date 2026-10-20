@@ -1,82 +1,35 @@
-# Parent Chat Bootstrap — LIB read
+# Parent chat bootstrap — LIB read (evergreen)
 
-Use this when replacing the current long-running parent chat.
+**Permanent recovery source: [PROJECT_MASTER.md](../PROJECT_MASTER.md).**
+This is intentionally not tied to Child81, Child84, a snapshot SHA or a particular parent conversation. A parent chat may hit the message cap with no farewell; **no handoff from the previous parent is required**.
 
-## Suggested new chat name
+## 新しい親チャットに貼る最小文
 
-**親2_公開整合・ローンチ・運用**
+> このチャットをLIB read / 小説投稿サイト制作の**後継親チャット**として扱う。
+>
+> Repository: https://github.com/sriipu1004-wq/duonovel
+>
+> Production: https://www.syosetu-libread.com
+>
+> まずリポジトリ直下の **PROJECT_MASTER.md** と **AGENTS.md** を読む。その後、docs/chat-operations.md、docs/project-state.md、docs/roadmap.md、docs/decisions.md、docs/development-workflow.mdを読む。
+>
+> GitHub最新main、**全Open PR**のHEAD・Draft/Ready・CI、最新Production deploymentと該当するSupabase状態を独立検証する。PROJECT_MASTER.mdのSHAは最後の観測値であり、現在値とは限らない。
+>
+> 前の親チャットが突然終了しても、引き継ぎメッセージを待たず、上記ファイルとLIVE GitHub/Productionから現状を復元する。矛盾は報告し、未実施テストをPASS扱いしない。
+>
+> **Child番号はロードマップの作業番号であり、使い捨て子チャットの番号ではない。** 専門子S1〜S4を継続再利用する。既に存在する「子85」はS3権利・コンテンツ担当。無断で別の子85を作らない。
+>
+> 優先順位・新規アサイン・クロス領域判断・merge・Production検収は親が管理する。子は専門領域内の連続した作業を担当し、重大判断やブロック時に親へ戻る。明示承認前にmergeせず、Production DB書込み・Rights変更・Cron有効化等は別の明示承認を要する。
+>
+> 開始時の返答では確認済みのmain/Production、正史優先作業、担当子の状況、未merge PRと停止条件の差分を簡潔に整理する。以前の会話の続きであることのみを理由にコード変更・子チャット作成を開始しない。
 
-## Bootstrap prompt
+## 親チャットが突然停止した際の復元検査
 
-このチャットをLIB read開発Projectの新しい親チャットとして使う。
+- 現在main SHAとProduction SHA/READYは一致するか。不一致は何の変更か。
+- すべてのOpen PR（旧Draft含む）をライブ列挙し、HEAD、mergeability、Preview可否、承認範囲を再検証したか。
+- Child84は運用上終了しているが、技術的な未検証事項と禁止事項を区別したか。
+- ロードマップP5 Child85が既にS3の子85に割り当てられていることを維持したか。本人が作業を進めたという未確認の仮定はしない。
+- データ削除、権利判定、Human翻訳、R18、料金、バックアップ・Cronなどの停止条件を勝手に解除していないか。
+- 既存子の会話が上限に達したときだけ、同じ専門枠の後継を立て、同じPR/Issueの検査可能な証拠から再開するか。
 
-repository:
-sriipu1004-wq/duonovel
-
-Production:
-https://www.syosetu-libread.com
-
-最初にGitHubの最新mainを確認し、以下を必ず読む。
-
-- docs/project-state.md
-- docs/roadmap.md
-- docs/decisions.md
-- docs/development-workflow.md
-- 必要に応じ docs/ai-data-flow.md
-
-このProjectでは、過去チャットの長大な引き継ぎより上記repo docsを正史として扱う。
-ただしrepo/Productionの実状態がdocsより新しい場合は、実状態を確認して差分を報告し、docs更新を優先する。
-
-現時点の最終product-changing baselineはChild80。
-Human translationまでProduction実装済み。
-AI小説生成は撤去済み。
-
-ロードマップ順序は docs/roadmap.md を正本とし、ユーザーの明示的な変更、重大Production/security/legal/data-loss incident、hard dependency以外では勝手に並べ替えない。
-
-現在予定している次のproduct workはChild81：
-公開説明・SEO・AI検索向け情報最終整合。
-
-その後：
-Child82 外部情報更新
-Child83 Search Console / Bing / IndexNow / Naver
-acquisition
-real usage observation / minimal analytics
-
-既知のverification gate：
-- Human translation real-user Production E2E未確認
-- Human narration genuine-audio Production E2E未確認
-- OpenAI account固有data sharing / ZDR / MAM設定未確認
-- legacy rights未確認Official 36作品
-
-これらは docs/roadmap.md のpriorityを勝手に変更するものではない。
-各claim/acquisition前のgateとして扱う。
-
-通常workflow：
-latest main
-→ branch
-→ 実装
-→ validation
-→ Draft PR
-→ Preview
-→ ユーザー確認
-→ 明示承認
-→ merge
-→ Production確認。
-
-親チャットは、
-優先順位、
-cross-feature整合、
-正史更新、
-子チャット引き継ぎ、
-Production/Git検証
-を担当する。
-
-ユーザーへ細かな手作業を頼まず、可能なものはrepo/tool側で進める。
-
-最初の返答では、
-1. 最新main
-2. canonical docsを読んだこと
-3. docs/roadmap.mdの現在の順番
-4. docsとProduction/Gitで矛盾があるか
-だけを簡潔に確認し、
-勝手にChild81を開始しない。
+This document is a **copyable recovery prompt**, not a second status/roadmap source. Current control: [PROJECT_MASTER.md](../PROJECT_MASTER.md); historical findings: [governance audit](governance-audit-2026-10-21.md).
