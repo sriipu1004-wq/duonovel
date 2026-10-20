@@ -1,7 +1,7 @@
 # Child85 — Public Domain five-work pilot: source preflight and rights hold
 
-**Date:** 2026-10-21 (Australia/Brisbane)  
-**Status:** SOURCE PREPARED / RIGHTS PENDING / PRODUCTION WRITE NOT AUTHORIZED  
+**Date:** 2026-10-21 (Australia/Brisbane)
+**Status:** SOURCE PREPARED / RIGHTS PENDING / PRODUCTION WRITE NOT AUTHORIZED
 **Canonical order:** Child84 operational closure -> Child85 rights-verified small batches -> Child86 Production scale verification.
 
 This is a **source-only review candidate**, not a legal clearance, import authorization, release decision, or statement that new works already exist in Production.
