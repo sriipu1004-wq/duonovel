@@ -265,3 +265,9 @@ When any parent chat disappears or reaches message limits:
 Do not equate a manually recorded "last verified" SHA with current GitHub HEAD, a green CI with authenticated E2E, or user-accepted deferral with technical PASS. Review/test status, merge authorization and Production data authorization remain separate.
 
 An implementer/parent must update PROJECT_MASTER.md and the relevant current product/doc decision in the **same PR** when a durable workstream status, explicit user choice, release gate or owner assignment changes. No new third-party database or paid automation is required. Updating repository files does not change external ChatGPT Project settings automatically.
+
+## 16. Bounded commit and Preview budget hygiene
+
+For multiple related documentation/source files in one coherent PR, **batch edits into one logical commit where tooling permits** (e.g., a Git tree/commit update) instead of triggering a Vercel deployment for every individual file update. A large series of per-file pushes can exhaust the Vercel Hobby daily deployment quota and crowd out an active feature child such as Child85.
+
+Do not force-push unrelated contributors' work or bypass HEAD/branch lease checks to achieve fewer commits. Use a dedicated branch, an expected HEAD, one focused commit, and one exact-HEAD CI/Preview validation when possible. If deployment quota is exhausted, record the external blocker and do not buy an unapproved paid upgrade or claim Preview READY.

@@ -48,3 +48,7 @@
 - Roadmap order, product safety and original Draft → Preview → explicit approval → Production procedure remain unchanged.
 
 Follow-up housekeeping (not auto-assigned): audit and disposition old PR #68/#79/#130; finish PR #131 Preview/review if still valuable; keep Cron #108 held. Do not interrupt Child85 for non-urgent paperwork once this index is accepted.
+
+## G9 — Avoid self-induced Preview/deployment churn
+
+This governance work initially used repeated per-file GitHub Contents commits. Vercel created or canceled several Preview builds for those successive commits while the separate Child85 implementation branch was also building. No damage or billing overage was verified, but this is unnecessary quota contention. Future coherent multi-file updates should use an atomic Git tree/commit where supported; verify final HEAD once, and do not infer a build/test result from intermediate commits. This process correction is recorded in the development workflow.
