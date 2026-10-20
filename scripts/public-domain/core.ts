@@ -37,6 +37,7 @@ export type ImportStatus = (typeof IMPORT_STATUSES)[number];
 export const NORMALIZATION_PROFILES = [
   "plain",
   "aozora",
+  "aozora_reader_body",
   "gutenberg",
   "standard_ebooks",
   "gongu_madang",
@@ -714,6 +715,26 @@ function normalizeAozora(source: string): NormalizationResult {
   return { displayText, archiveMetadata, changes, warnings };
 }
 
+// Opt-in source profile: keep legacy "aozora" Reader bodies unchanged.
+function normalizeAozoraReaderBody(source: string): NormalizationResult {
+  const normalized = normalizeAozora(source);
+  const frontMatter = /^[^\n]+\n[^\n]+\n\n(-{30,})\n\u3010\u30c6\u30ad\u30b9\u30c8\u4e2d\u306b\u73fe\u308c\u308b\u8a18\u53f7\u306b\u3064\u3044\u3066\u3011[\s\S]*?\n\1\n\n/u.exec(
+    normalized.displayText
+  );
+  if (!frontMatter) {
+    throw new Error("AOZORA_READER_FRONT_MATTER_UNRECOGNIZED: manual review required");
+  }
+  const displayText = normalized.displayText.slice(frontMatter[0].length).trim();
+  if (!displayText) throw new Error("AOZORA_READER_BODY_EMPTY");
+  return {
+    displayText,
+    archiveMetadata: [frontMatter[0].trim(), normalized.archiveMetadata]
+      .filter(Boolean).join("\n\n--- AOZORA SOURCE METADATA ---\n\n"),
+    changes: [...normalized.changes, "separated verified Aozora header/notation legend"],
+    warnings: normalized.warnings,
+  };
+}
+
 function normalizeGutenberg(source: string): NormalizationResult {
   const base = normalizeLineEndings(source);
   const startPattern = /^\*\*\*\s*START OF (?:THE|THIS) PROJECT GUTENBERG EBOOK.*\*\*\*\s*$/imu;
@@ -758,6 +779,7 @@ export function normalizeSource(
   profile: NormalizationProfile
 ): NormalizationResult {
   if (profile === "aozora") return normalizeAozora(source);
+  if (profile === "aozora_reader_body") return normalizeAozoraReaderBody(source);
   if (profile === "gutenberg") return normalizeGutenberg(source);
 
   const base = normalizeLineEndings(source);
