@@ -333,6 +333,21 @@ function testAozoraAndGutenbergNormalization() {
   assert.equal(gutenberg.archiveMetadata.includes("License footer"), true);
 }
 
+function testAozoraReaderBodyOptIn() {
+  const marker = "\u3010\u30c6\u30ad\u30b9\u30c8\u4e2d\u306b\u73fe\u308c\u308b\u8a18\u53f7\u306b\u3064\u3044\u3066\u3011";
+  const separator = "-".repeat(55);
+  const fixture = ["Test Title", "Test Author", "", separator, marker,
+    "Ruby notation example", separator, "", "Original story body",
+    "", "Second paragraph"].join("\n");
+  const cleaned = normalizeSource(fixture, "aozora_reader_body");
+  assert.equal(cleaned.displayText, "Original story body\n\nSecond paragraph");
+  assert.equal(cleaned.archiveMetadata.includes(marker), true);
+  assert.equal(cleaned.archiveMetadata.includes("Test Title"), true);
+  assert.equal(normalizeSource(fixture, "aozora").displayText.includes(marker), true);
+  assert.throws(() => normalizeSource("Unknown body format", "aozora_reader_body"),
+    /AOZORA_READER_FRONT_MATTER_UNRECOGNIZED/);
+}
+
 function testPreparedArtifactAndDraftPlan() {
   const raw = new TextEncoder().encode("abc");
   const prepared = prepareArtifact({
@@ -659,6 +674,7 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
 }
 
 function main() {
+  testAozoraReaderBodyOptIn();
   testPendingAndApprovedGates();
   testApprovedManifestRequiresAuditMetadata();
   testSourceHash();
