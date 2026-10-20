@@ -115,7 +115,9 @@ See `docs/indexing-webmaster-state.md`.
 
 ### P4 — Child84: Public read / Search reliability & performance hardening
 
-Status: **in progress — connected DB recovered; read-only DB verification resumed; Child84b completed with no fallback adoption**
+Status: **operationally closed 2026-10-21 with explicit deferrals; not full verification**
+
+**2026-10-21 superseding closure decision:** Child84 is operationally CLOSED at the user's direction; Child85 is unblocked for staged, rights-verified planning and limited execution under existing safety gates. Historical paragraphs below record earlier blocked states and are not current status. See docs/child84-operational-closure.md. Unexecuted E2E, independent restore, Search SQL cutover, and unresolved timer cause remain explicitly unverified.
 
 **2026-10-11 acceptance gate update (status only; backlog order unchanged):** #123 temporary fail-closed self-service account deletion guard and truthful Privacy/Terms were explicitly approved and merged as `fa86529be99f167df9e673724adb4be6f8189ebf`; matching Vercel Production `dpl_BKpqovPvodbLBYvmHSZzKTUjvLBd` is READY. The published support mailbox `libread08@gmail.com` was actually connected, incoming harmless test email found, reply sent, and its receipt at the source inbox confirmed; restricted intake labeling established. Real user deletions are disabled pending verified manual identity/rights/retention review. Previous Auth soft-delete did not guarantee data erasure. This change does **not** authorize permanent B/C/A policy, automatic erasure, Stripe cancellation on a support request or live destructive E2E. #124 public DB late-timer evidence, #121 Search SQL NO CUTOVER, #122 saved Search filter, and #126 read-only RLS audit were previously merged. Independent DB + ~30GB Storage *file-byte* restoration, real authenticated author/Reader/Human/R18 E2E, production timeout root cause, Cron #108 and metadata optimization #128 remain separately gated. Existing Search JS ranking/facets/pagination, rights, ownership, AI/Human provenance, R18 and public cache freshness must remain intact. **Child84 NOT DONE; Child85 BLOCKED.**
 
@@ -242,7 +244,7 @@ Read Replica also remains unadopted as an outage fallback. Besides unverified pr
 
 ### P5 — Child85: staged Public Domain expansion
 
-Status: **after Child84 Production verification**
+Status: **next — Child84 operational closure accepted; staged rights-verified batch only**
 
 Add a controlled batch of approximately **30–60 rights/provenance-verified Public Domain works** using the existing canonical ingestion rules.
 
