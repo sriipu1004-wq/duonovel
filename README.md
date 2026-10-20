@@ -34,6 +34,16 @@ Posting or publishing a work does not by itself send the work to OpenAI. Provide
 - Credits: 5 = ¥300, 8 = ¥450, 12 = ¥600; valid for 150 days; 1 credit unlocks one public episode in one target language for AI translation.
 - Human translation is free to read and does not consume AI credits or allowances.
 
+## Project control and ChatGPT workstreams
+
+**Start here after a parent chat ends unexpectedly:** [PROJECT_MASTER.md](PROJECT_MASTER.md) and [AGENTS.md](AGENTS.md).
+
+- Persistent specialist areas S1–S4 and reusable child chats: [docs/chat-operations.md](docs/chat-operations.md).
+- Evergreen parent replacement prompt: [docs/parent-chat-bootstrap.md](docs/parent-chat-bootstrap.md).
+- Governance/handoff gaps found on 2026-10-21: [docs/governance-audit-2026-10-21.md](docs/governance-audit-2026-10-21.md).
+
+Roadmap Child85 is a **task**, not a demand for another temporary conversation. All current status values must be independently rechecked against GitHub and Production.
+
 ## Development
 
 Canonical project state and workflow live in:
