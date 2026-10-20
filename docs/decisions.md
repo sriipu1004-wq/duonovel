@@ -360,3 +360,13 @@ Child84b was created to diversify the actual failure domain, not merely to add a
 ## D — 2026-10-21 Child84 operational closure with accepted verification gaps
 
 At the user's explicit direction, Child84 is operationally closed without claiming full certification. Authenticated E2E is deferred; independent DB/Storage restoration was previously declined in favor of managed backups. The unresolved late-timer cause and Search SQL parity are not presumed resolved. Child85 may proceed in canonical roadmap order with staged rights-verified ingestion, without relaxing any authorization, R18, provenance, translation, credit, or Production-write safeguards. See docs/child84-operational-closure.md.
+
+## D-GOV-20261021 — Reusable specialist chats and crash-recoverable parent control
+
+Decision (2026-10-21): Separate roadmapped Child Work IDs from persistent specialist chat roles. Reuse the same **S1 Reader/Translation/Search**, **S2 Auth/Authors/User Data**, **S3 Public Domain/Provenance**, and **S4 Infrastructure/Reliability/Release** conversations for successive coherent tasks. Independent review requires a distinct reviewing actor; a fifth dedicated QA chat is optional, not automatically created. The user has already created the Child85 chat; it is S3's current Child85 assignment, not a trigger for a duplicate child.
+
+Keep [PROJECT_MASTER.md](../PROJECT_MASTER.md) as the root permanent parent recovery entrypoint, discoverable from [AGENTS.md](../AGENTS.md) and [parent-chat-bootstrap.md](parent-chat-bootstrap.md). If the parent chat abruptly reaches its limit, the replacement independently reconstructs live main/PRs/Production, accepted residual risks and specialist assignment from the repo. No farewell handoff is required; the index is last-reviewed and must not be mistaken for a live auto-sync.
+
+One coherent workstream may span several PRs within one specialist chat. Children do not autonomously reprioritize, create new task chats, merge without exact approval or mark source/mock success as live E2E. Only replace a chat instance at its limit or when a specialist's long-term scope genuinely requires one. Update this state with accepted durable changes; preserve the existing ordered roadmap, Product safety invariants, strict Preview → explicit user merge approval, and independently authorized Production data changes.
+
+Reason: old root PROJECT_STATUS.md and parent-chat bootstrap were stale, Child84a–l were unnecessarily disposable per-PR/task threads, and the parent had no single fixed crash-recovery link. The user's intent is specialist depth and low-overhead continuity, not a growing collection of one-off chats. This decision changes collaboration governance, **not** existing Product behavior or Child85 ingestion rights.
