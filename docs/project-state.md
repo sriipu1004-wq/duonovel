@@ -1,12 +1,14 @@
 # LIB read — Project State
 
-Last updated: **2026-10-11**
+Last updated: **2026-10-21**
 Last product-changing main commit: `fa86529be99f167df9e673724adb4be6f8189ebf` (Child84i PR #123: temporary fail-closed self-service account deletion suspension and truthful Privacy/Terms)
 Production: https://www.syosetu-libread.com
 Repository: `sriipu1004-wq/duonovel`
 
 This document is the compact canonical state for future parent/child chats. It should describe the current product, not the full history. Historical rationale belongs in `docs/decisions.md`.
 
+> **CURRENT PARENT ENTRYPOINT:** [PROJECT_MASTER.md](../PROJECT_MASTER.md) (CONTROL-R1) is the fixed, independently recoverable parent overview, current specialist S1–S4 assignments and open-PR register. [docs/chat-operations.md](chat-operations.md) specifies long-lived roles. Always independently verify GitHub main/Production because the last-reviewed SHA may become stale. Older Child84 NOT DONE and Child85 BLOCKED notes below are explicitly historical; [Child84 operational closure](child84-operational-closure.md) and the roadmap P5 NEXT status take precedence for workstream state. Missing signed-in E2E/Storage restoration/timer-cause/Search SQL parity tests remain unverified.
+ 
 ## Current operational status — 2026-10-21
 
 Child84 is operationally CLOSED with user-accepted deferrals, not fully verified. Child85 is NEXT for staged rights/provenance-verified Public Domain expansion; do not bulk-ingest or waive rights evidence. Source: docs/child84-operational-closure.md. Main 208c09beb1c28d6c71d4a5c101827c05ac4f8151 and matching Production READY were confirmed before this documentation workstream. Earlier Child84 NOT DONE / Child85 BLOCKED entries below are historical snapshots, superseded only as workflow status, not as evidence of completed tests.
