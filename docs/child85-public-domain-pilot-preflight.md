@@ -84,6 +84,37 @@ READ ONLY SQL was executed on Production for each of the five actual manifest ID
 
 Review each actual text and work card for original publication/author dates, modern editorial changes, historical-language/content warnings, source licensing, annotation/proofreader status, and any inherited rights. Final review must record the reviewer, timestamp, JP/US/KR findings, rights-components basis, and accepted source hash. Before such sign-off, keep **`rights_status=pending`, `approved=false`, `reviewed_at=null`** for every candidate. Current `import_status=prepared` means source *preparation*, not imported into the site.
 
+## 2026-10-21 follow-up — original economic-rights terms and alternate-edition screening
+
+The five **underlying original works** have a stronger preliminary expiry case, **separately from the exact Aozora transcription's modern editorial scope**:
+
+- **Japan (official Agency for Cultural Affairs):** 2018 life+50 to life+70 extension did not resurrect protection already expired before the reform; all five writers died in 1908–1930, decades before the transition. See https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html (questions 2–4).
+- **United States:** Cornell's January 2026 public-domain chart confirms works first published outside the US **before 1931** are out of their published-work terms (subject to source/edition identity). The five original publication years are 1908–1927. https://guides.library.cornell.edu/copyright/publicdomain
+- **South Korea:** Korean Copyright Commission and official government guidance confirm 2013 life+50 to life+70 extension did **not** apply to economic rights already expired by commencement; ordinary author terms for these authors ended by 1980 at the latest. https://www.easylaw.go.kr/CSP/CnpClsMain.laf?ccfNo=2&cciNo=1&cnpClsNo=2&csmSeq=695 ; https://www.copyright.or.kr/customer-center/faq/list.do?categorycode1=&counselfaqno=47592&pageIndex=2&portalcode=04&searchkeyword=
+- **Aozora file policy:** explicitly allows commercial/noncommercial copying, redistribution and format conversion of files for expired works and requests that provenance and alteration history be kept. https://www.aozora.gr.jp/guide/kijyunn.html
+
+This is **AI-assisted legal/bibliographic preflight, not human legal clearance**; modern textual editorial choices, independently copyrightable notes, exact reused printing and source-license nuances are still `needs_review`. The five manifests therefore remain **pending / approved=false**. The existing audit now records the ordinary old-term end-year calculation per writer, with explicit exclusions.
+
+### Future candidate alternative: actual early editions rather than only old first editions
+
+An independent reparse of the Aozora **19,502-row official expanded catalog** found 3,632 records passing the conservative rights/author/first-publication classifier and 3,585 not already represented by a manifest ID or the legacy-title exclusion audit. **75** of those have a first BASE edition no later than 1930. That does **not** imply the actual input or proof print was from before 1931, the exact material is rights-cleared, or the genre is suitable for LIB read.
+
+Five individual cards were independently opened for a tighter, **metadata-only future shortlist**. No files were downloaded, no source SHA-256 is claimed, no manifest was added, and there was no Production write:
+
+| ID | Work | First base edition | Input/proof edition | Relative suitability |
+|---|---|---|---|---|
+| `aozora-057848` | 袈裟の良人 — 菊池寛 | 1923 | 1923 input / 1923 proof | Literary prose; comparatively strong edition provenance |
+| `aozora-053520` | 死刑 — 上司小剣 | 1930 | 1930 input / 1930 proof | Historical fiction; provider expression advisory |
+| `aozora-049394` | 一九二八年三月十五日 — 小林多喜二 | 1928 | Original 1928 two-issue serialization | Long narrative; chapters 1–9 and content warning to review |
+| `aozora-055427` | 海蛍の話 — 神田左京 | 1923 | 1923 input / 1923 proof | Science nonfiction; lower fit for a novel-focused shelf |
+| `aozora-046337` | 妖怪研究 — 伊東忠太 | 1928 | 1928 input / 1928 proof | Folklore research nonfiction; lower fit, expression advisory |
+
+Primary records: https://www.aozora.gr.jp/cards/000083/card57848.html ; https://www.aozora.gr.jp/cards/000248/card53520.html ; https://www.aozora.gr.jp/cards/000156/card49394.html ; https://www.aozora.gr.jp/cards/001731/card55427.html ; https://www.aozora.gr.jp/cards/001232/card46337.html
+
+**Counterexample:** `aozora-001412` *出家とその弟子* has a first base edition in 1927 but the actual transcription used a 1991 printing and proofed against a 1974 printing, demonstrating why a first-edition-year filter cannot serve as a rights-approval gate: https://www.aozora.gr.jp/cards/000256/card1412.html .
+
+**Decision:** Hold all five pilot rights approvals and any later 75-candidate expansion until individual actual editions and textual rights are reviewed. The early-edition screen is a **future priority queue only**, not authorization to exceed the 3–6-work pilot or to bulk-add works. See the companion JSON under `early_base_edition_screening`.
+
 ## Verification and change limits
 
 - Local manifest validation: PASS; existing legacy max-length clamp warnings remain unrelated.
