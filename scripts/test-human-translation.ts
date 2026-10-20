@@ -62,12 +62,14 @@ omits(migration, [
 
 const workspace = "src/features/write/WriteSeriesForm.tsx";
 contains(workspace, [
-  'mode === "create"\n        ? "open"',
+  'humanTranslationPermissionMode, setHumanTranslationPermissionMode',
   "human_translation_permission_mode: args.humanTranslationPermissionMode",
   "recording_permission_mode: args.recordingPermissionMode",
   "translation_permission_mode: args.translationPermissionMode",
   "libread:human-translation-permission-selection-changed",
 ]);
+
+assert.match(source(workspace), /useState<HumanTranslationPermissionMode>\(\s*mode === "create"\s*\? "open"/, "New works must default Human translation permission to open");
 
 const humanPermission =
   "src/features/write/HumanTranslationPermissionWorkspaceBridge.tsx";
