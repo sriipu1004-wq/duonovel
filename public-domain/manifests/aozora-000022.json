@@ -1,0 +1,89 @@
+{
+  "id": "aozora-000022",
+  "title": "羅生門の後に・芥川竜之介",
+  "original_title": "羅生門の後に",
+  "original_author": "芥川竜之介",
+  "author_death_year": 1927,
+  "original_language": "ja",
+  "first_publication_year": 1917,
+  "source_provider": "Aozora Bunko",
+  "source_url": "https://www.aozora.gr.jp/cards/000879/card22.html",
+  "source_download_url": "https://www.aozora.gr.jp/cards/000879/files/22_ruby_983.zip",
+  "source_file": "public-domain/sources/raw/aozora-000022.txt",
+  "source_retrieved_at": "2026-10-20T17:37:17.771Z",
+  "source_encoding": "shift_jis",
+  "normalization_profile": "aozora_reader_body",
+  "edition": "日本の文学　33　羅生門",
+  "edition_publication_year": 1984,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora catalog flags are なし and candidate cutoffs passed; verify exact work and jurisdiction before approval."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify whether the exact base edition contributes protectable modern editorial matter."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify modernization/editorial contribution in the selected source."
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora annotations/provenance are preserved and must be reviewed."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review Aozora file handling rules and preserve provenance."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review current Aozora file handling rules at approval time."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 1,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 8000
+  },
+  "tags": [
+    "Public Domain",
+    "Aozora Bunko",
+    "芥川竜之介"
+  ],
+  "source_hash": "7fd64ae9f13d8a04e111d67e2eab2644c9a20fe576778163be305f90ff0cd3df",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}
