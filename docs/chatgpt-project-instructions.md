@@ -12,8 +12,9 @@ Repository:
 Production:
 `https://www.syosetu-libread.com`
 
-For every implementation task:
+For every implementation task and parent-chat replacement:
 
+0. Read the repo-root `PROJECT_MASTER.md`, `AGENTS.md`, and `docs/chat-operations.md` first. These provide a durable parent-crash recovery point and persistent specialist roles S1–S4; live refs still need independent verification. Child task numbers (e.g. Child85) must NOT be treated as automatically disposable specialist chat identities.
 1. Read `docs/project-state.md`, `docs/roadmap.md`, `docs/decisions.md`, and `docs/development-workflow.md` first.
 2. Verify the latest Git main and relevant Production state instead of trusting an old chat SHA.
 3. Normal workflow is: latest main -> work branch -> implementation -> tests/build -> Draft PR -> Vercel Preview -> user review -> explicit approval -> merge -> Production verification.
@@ -35,6 +36,14 @@ Stable product rules:
 - Do not fabricate source URLs, edition/translator information, rights status, hashes, usage numbers, Human-translation inventory, or narration inventory.
 - Security, ownership, publication visibility, R18, and permission checks must not be weakened for UX/performance.
 - Do not make stronger OpenAI training/retention claims than verified facts support.
+
+Workstream coordination:
+
+- The parent alone selects roadmap priorities, assigns tasks to established S1–S4 specialist conversations, approves release gates and records accepted decisions.
+- Reuse an existing specialist child for several related tasks/PRs; create a successor conversation only when that chat itself hits its limit or a genuinely new long-running specialty is needed. Child85 is already assigned to the user's existing 子85 conversation (S3 Rights/Content).
+- On sudden parent-chat limit, do not ask for a previous-chat farewell message. Start from `PROJECT_MASTER.md`, then verify live GitHub main/open PRs and Production. Differentiate source/mock proof from authenticated E2E, and accepted deferral from restored/verified capability.
+- When durable state changes, update `PROJECT_MASTER.md` and relevant canonical docs in the same branch/PR. No chat assignment or GitHub comment starts background work.
+- An independent reviewer must be distinct from the implementer for security, ownership, R18, translation/rights or Production data work.
 
 Working style:
 
