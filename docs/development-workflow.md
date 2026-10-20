@@ -57,35 +57,39 @@ Use dry-run / exact IDs / count checks where possible. Never use “Official own
 
 The parent chat owns:
 
-- ordered roadmap
-- cross-feature consistency
-- product-level decisions
-- durable constraints
-- accepting child completion reports
-- verifying Git/Production state when possible
-- deciding when an issue interrupts the roadmap
-- maintaining canonical docs
+- ordered roadmap, cross-feature consistency and product-level decisions;
+- persistent specialist S1–S4 assignment (not disposable chat creation per Child/PR);
+- accepting implementer and **independent reviewer** evidence;
+- verifying live GitHub main/PRs and Production state before every release;
+- maintaining [PROJECT_MASTER.md](../PROJECT_MASTER.md) as an unconditional restart entrypoint;
+- durable constraints, accepted verification deferrals and their residual risks;
+- explicit user Preview/merge authorization and high-risk Production data release gates;
+- recording priority changes in the canonical roadmap only on an approved basis.
 
-The parent should not re-derive the product from old conversation memory when repository docs are available.
+The parent should not re-derive the product from old conversation memory when repository docs are available. Parent crashes require no handoff message: start from the root entrypoint, then verify live Git/Production and reconcile any state that could not be persisted.
 
-## 5. Child-chat role
+## 5. Persistent specialist-chat role
 
-One child chat should normally own one coherent workstream.
+**Child85 and similar numbers are roadmapped work IDs, not a reason to create a new chat.** Keep existing chats per specialist domain; roles S1–S4 and current ownership are in [docs/chat-operations.md](chat-operations.md).
 
-At start, the child must:
+At the start/resumption of a coherent workstream, the chosen specialist must:
 
-- read canonical docs
-- verify latest main
-- state branch/base
-- inspect existing implementation before designing replacements
-- preserve out-of-scope canonical behavior
+- read [PROJECT_MASTER.md](../PROJECT_MASTER.md), canonical docs and its feature-specific evidence;
+- verify the latest main, open PRs and relevant Production state;
+- state work ID, **Sx slot**, branch/base, permitted operations, independent reviewer and stopping criteria;
+- inspect existing implementation before designing replacements;
+- preserve out-of-scope canonical behavior.
 
 During implementation:
 
-- avoid unrelated cleanup
-- keep migration/data changes explicit
-- do not merge before user Preview approval
-- update feature-specific regression tests when durable behavior changes
+- continue across related PRs within the same specialist conversation instead of asking for a fresh numbered child per task;
+- avoid unrelated cleanup and keep migration/data changes explicit;
+- keep source-only/mock/live-E2E claims separate;
+- do not merge before user Preview approval;
+- update feature-specific regression tests and canonical state when durable behavior changes;
+- return to parent on accepted completion, genuine blocker, cross-specialty decision, risk/roadmap change or chat length cap.
+
+At a chat length limit, only the **conversation instance** is replaced; record a verifiable PR/Issue checkpoint and retain the specialist role and unfinished Work ID. A reviewer must be a distinct actor/chat when independence is required, not the implementer re-reviewing itself. Child chats cannot independently choose next roadmap priorities or assign other children.
 
 ## 6. Priority integrity
 
@@ -245,3 +249,19 @@ Typical cases:
 - account-specific OpenAI data-control settings not exposed by repo/Vercel
 - subjective brand/copy decisions where multiple valid choices materially differ
 - controlled real-user E2E when user identity/login is required and no authorized automation path exists
+
+## 15. Parent crash and durable checkpoint protocol
+
+Repository root [AGENTS.md](../AGENTS.md) and [PROJECT_MASTER.md](../PROJECT_MASTER.md) are permanent discovery entrypoints. Existing [parent-chat bootstrap](parent-chat-bootstrap.md) is an evergreen prompt, never pinned to Child81 or an old SHA.
+
+When any parent chat disappears or reaches message limits:
+
+1. read the root entrypoint and the four canonical files;
+2. fetch live main SHA, all open PR HEAD/state, CI/Preview, Production, and any material data facts;
+3. recover S1–S4 ownership and the actual workstream from GitHub comments/branches plus recent user instructions;
+4. reconcile unfinished approvals, user-deferred risk, stale Drafts, and historical vs current status **without inventing continuity**;
+5. persist the accepted current state in the repository before moving on.
+
+Do not equate a manually recorded "last verified" SHA with current GitHub HEAD, a green CI with authenticated E2E, or user-accepted deferral with technical PASS. Review/test status, merge authorization and Production data authorization remain separate.
+
+An implementer/parent must update PROJECT_MASTER.md and the relevant current product/doc decision in the **same PR** when a durable workstream status, explicit user choice, release gate or owner assignment changes. No new third-party database or paid automation is required. Updating repository files does not change external ChatGPT Project settings automatically.
