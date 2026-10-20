@@ -395,6 +395,26 @@ function testNewAozoraSourceAttributionGate() {
   assert.equal(legacy?.inputBy, null);
 }
 
+function testAozoraNumberedHeadingDisplayTitles() {
+  const first = "［＃５字下げ］一［＃「一」は中見出し］";
+  const second = "［＃５字下げ］二［＃「二」は中見出し］";
+  const source = [first, "First passage", second, "Second passage"].join("\n");
+  const chapter_split = {
+    strategy: "heading_regex" as const,
+    heading_pattern: "^［＃５字下げ］[一二]［＃「[一二]」は中見出し］$",
+  };
+  const clean = splitChapters(source, {
+    title: "Novel",
+    chapter_split,
+    normalization_profile: "aozora_reader_body",
+  });
+  assert.deepEqual(clean.map(({ title }) => title), ["一", "二"]);
+  assert.deepEqual(clean.map(({ body }) => body), ["First passage", "Second passage"]);
+  const original = splitChapters(source, { title: "Novel", chapter_split });
+  assert.equal(original[0]?.title, first);
+  assert.equal(original[1]?.title, second);
+}
+
 function testPreparedArtifactAndDraftPlan() {
   const raw = new TextEncoder().encode("abc");
   const prepared = prepareArtifact({
@@ -731,6 +751,7 @@ function main() {
   testHeadingSplitFixture();
   testHeadingSplitCanDropProviderFrontMatter();
   testAozoraAndGutenbergNormalization();
+  testAozoraNumberedHeadingDisplayTitles();
   testNewAozoraSourceAttributionGate();
   testPreparedArtifactAndDraftPlan();
   testGonguEncodingDetection();

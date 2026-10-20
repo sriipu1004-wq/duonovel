@@ -828,9 +828,17 @@ export function normalizeSource(
   };
 }
 
+function readableAozoraHeading(heading: string): string {
+  // Strip only the exact input-layout notation surrounding a numbered heading;
+  // retain every other Aozora annotation in chapter body/archive for review.
+  const matched = heading.match(/^［＃５字下げ］([一二三四五六七八九十]+)［＃「\1」は中見出し］$/u);
+  return matched?.[1] ?? heading;
+}
+
 export function splitChapters(
   text: string,
-  manifest: Pick<PublicDomainManifest, "title" | "chapter_split">
+  manifest: Pick<PublicDomainManifest, "title" | "chapter_split"> &
+    Partial<Pick<PublicDomainManifest, "normalization_profile">>
 ): PreparedChapter[] {
   const body = text.trim();
   if (!body) return [];
@@ -936,7 +944,11 @@ export function splitChapters(
       index === 0 && prefix && keepPrefix
         ? `${prefix}\n\n${content}`.trim()
         : content;
-    return { title: heading.title, body: chapterBody };
+    const title =
+      manifest.normalization_profile === "aozora_reader_body"
+        ? readableAozoraHeading(heading.title)
+        : heading.title;
+    return { title, body: chapterBody };
   });
 
   // Preserve semantic headings where possible, but never let a naturally long
