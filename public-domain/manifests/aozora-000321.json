@@ -1,0 +1,89 @@
+{
+  "id": "aozora-000321",
+  "title": "二老人・国木田独歩",
+  "original_title": "二老人",
+  "original_author": "国木田独歩",
+  "author_death_year": 1908,
+  "original_language": "ja",
+  "first_publication_year": 1908,
+  "source_provider": "Aozora Bunko",
+  "source_url": "https://www.aozora.gr.jp/cards/000038/card321.html",
+  "source_download_url": "https://www.aozora.gr.jp/cards/000038/files/321_ruby_4292.zip",
+  "source_file": "public-domain/sources/raw/aozora-000321.txt",
+  "source_retrieved_at": "2026-10-20T17:38:23.441Z",
+  "source_encoding": "shift_jis",
+  "normalization_profile": "aozora_reader_body",
+  "edition": "号外・少年の悲哀　他六篇",
+  "edition_publication_year": 1939,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora catalog flags are なし and candidate cutoffs passed; verify exact work and jurisdiction before approval."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify whether the exact base edition contributes protectable modern editorial matter."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify modernization/editorial contribution in the selected source."
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora annotations/provenance are preserved and must be reviewed."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review Aozora file handling rules and preserve provenance."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review current Aozora file handling rules at approval time."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 1,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 8000
+  },
+  "tags": [
+    "Public Domain",
+    "Aozora Bunko",
+    "国木田独歩"
+  ],
+  "source_hash": "fe3c023fb00ea334cb7cae24934c83aeebe5210a415f4b02e2e18c4875b08f5e",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}
