@@ -395,6 +395,27 @@ function testNewAozoraSourceAttributionGate() {
   assert.equal(legacy?.inputBy, null);
 }
 
+function testPilotSemanticChapterSplits() {
+  const scenarios = [
+    { id: "aozora-000195", headings: ["１", "２", "３", "４", "５", "６", "７", "８"] },
+    { id: "aozora-000204", headings: ["（一）", "（二）", "（三）", "（四）", "（五）", "（六）", "（七）"] },
+    { id: "aozora-000321", headings: ["上", "下"] },
+  ];
+  for (const { id, headings } of scenarios) {
+    const manifest = JSON.parse(
+      readFileSync(`public-domain/manifests/${id}.json`, "utf8")
+    ) as PublicDomainManifest;
+    assert.equal(manifest.chapter_split.strategy, "heading_regex");
+    assert.equal(manifest.chapter_count, headings.length);
+    const fixture = headings
+      .map((heading, index) => `${heading}\n${String(index + 1).repeat(250)}`)
+      .join("\n\n");
+    const chapters = splitChapters(fixture, manifest);
+    assert.deepEqual(chapters.map((chapter) => chapter.title), headings);
+    assert.deepEqual(chapters.map((chapter) => chapter.characterCount), headings.map(() => 250));
+  }
+}
+
 function testAozoraNumberedHeadingDisplayTitles() {
   const first = "［＃５字下げ］一［＃「一」は中見出し］";
   const second = "［＃５字下げ］二［＃「二」は中見出し］";
@@ -751,6 +772,7 @@ function main() {
   testHeadingSplitFixture();
   testHeadingSplitCanDropProviderFrontMatter();
   testAozoraAndGutenbergNormalization();
+  testPilotSemanticChapterSplits();
   testAozoraNumberedHeadingDisplayTitles();
   testNewAozoraSourceAttributionGate();
   testPreparedArtifactAndDraftPlan();

@@ -133,7 +133,8 @@
           "independent license/provider term",
           "final human/legal signoff"
         ]
-      }
+      },
+      "curation_hold": "NOT_PROSE_FICTION_NDC914_EXCLUDED_FROM_FIRST_NOVEL_IMPORT"
     },
     {
       "manifest_id": "aozora-000195",
@@ -154,9 +155,16 @@
       "source_sha256": "9f641bf3cf71a82854dd6c1d4d91f1d3ac40305bfcd306e2c183db588a5a392d",
       "raw_size_bytes": 16921,
       "normalization_profile": "aozora_reader_body",
-      "chapter_count": 1,
+      "chapter_count": 8,
       "chapter_character_counts": [
-        8076
+        573,
+        743,
+        1060,
+        1453,
+        596,
+        1002,
+        2196,
+        400
       ],
       "archive_metadata_characters": 505,
       "source_hash_verified": true,
@@ -215,6 +223,12 @@
           "independent license/provider term",
           "final human/legal signoff"
         ]
+      },
+      "semantic_section_audit": {
+        "strategy": "heading_regex",
+        "source_heading_description": "八つの原文数字見出し",
+        "source_hash_verified": true,
+        "all_under_10000_character_limit": true
       }
     },
     {
@@ -321,12 +335,12 @@
       "normalization_profile": "aozora_reader_body",
       "chapter_count": 7,
       "chapter_character_counts": [
-        7208,
-        6238,
-        3076,
-        5318,
-        5250,
-        4992,
+        7198,
+        4646,
+        4659,
+        5313,
+        5245,
+        4987,
         5684
       ],
       "archive_metadata_characters": 644,
@@ -386,6 +400,12 @@
           "independent license/provider term",
           "final human/legal signoff"
         ]
+      },
+      "semantic_section_audit": {
+        "strategy": "heading_regex",
+        "source_heading_description": "原文の（一）～（七）",
+        "source_hash_verified": true,
+        "all_under_10000_character_limit": true
       }
     },
     {
@@ -407,9 +427,10 @@
       "source_sha256": "fe3c023fb00ea334cb7cae24934c83aeebe5210a415f4b02e2e18c4875b08f5e",
       "raw_size_bytes": 14976,
       "normalization_profile": "aozora_reader_body",
-      "chapter_count": 1,
+      "chapter_count": 2,
       "chapter_character_counts": [
-        7018
+        3817,
+        3193
       ],
       "archive_metadata_characters": 584,
       "source_hash_verified": true,
@@ -468,6 +489,12 @@
           "independent license/provider term",
           "final human/legal signoff"
         ]
+      },
+      "semantic_section_audit": {
+        "strategy": "heading_regex",
+        "source_heading_description": "原文の上・下",
+        "source_hash_verified": true,
+        "all_under_10000_character_limit": true
       }
     }
   ],
@@ -681,5 +708,48 @@
     "legacy": "Existing imported works unaffected; never fabricate absent contributor/edition fields.",
     "new_pending_manifest_count": 2,
     "new_candidates_are_alternates": true
-  }
+  },
+  "curation_content_preflight_2026_10_21": {
+    "status": "AI_ASSISTED_SOURCE_CURATION_NOT_HUMAN_RIGHTS_OR_R18_APPROVAL",
+    "evidence": [
+      "Aozora primary work cards and NDC codes",
+      "Seven re-fetched SHA-matched full source texts",
+      "Local source-aware chapter-splitting checks"
+    ],
+    "total_prepared_manifests": 7,
+    "total_prepared_chapters": 34,
+    "prose_fiction_shortlist_pending_rights": [
+      "aozora-000195",
+      "aozora-000198",
+      "aozora-000204",
+      "aozora-000321",
+      "aozora-053520"
+    ],
+    "excluded_from_first_prose_fiction_batch": {
+      "aozora-000022": {
+        "classification": "nonfiction author reflection/preface on short-story collection",
+        "ndc": "914",
+        "basis_url": "https://www.aozora.gr.jp/cards/000879/card22.html",
+        "reason": "Not the story 羅生門; do not advertise as a short novel."
+      },
+      "aozora-057848": {
+        "classification": "five-act stage drama",
+        "basis_url": "https://www.aozora.gr.jp/cards/000083/card57848.html",
+        "reason": "Play script with stage directions and dramatis personae; only consider via separate dramatic-works curation."
+      }
+    },
+    "historical_expression_notices": [
+      "aozora-000195",
+      "aozora-000198",
+      "aozora-000204",
+      "aozora-000321",
+      "aozora-053520"
+    ],
+    "human_content_rating_signoffs": 0,
+    "human_rights_signoffs": 0,
+    "note": "Only proposed editorial classification; do not infer R18 or waive edition/right components. First Draft 3–6 works only after explicit authorization."
+  },
+  "prepared_manifest_count_after_curation": 7,
+  "prepared_chapter_count_after_curation": 34,
+  "import_authorized_count": 0
 }

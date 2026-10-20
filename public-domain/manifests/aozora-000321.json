@@ -71,10 +71,10 @@
   "jurisdictions_reviewed": [],
   "reviewed_at": null,
   "reviewed_by": null,
-  "chapter_count": 1,
+  "chapter_count": 2,
   "chapter_split": {
-    "strategy": "paragraph_chunks",
-    "max_characters": 8000
+    "strategy": "heading_regex",
+    "heading_pattern": "^[上下]$"
   },
   "tags": [
     "Public Domain",

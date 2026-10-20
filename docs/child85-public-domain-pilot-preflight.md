@@ -23,10 +23,10 @@ The repository's allowlisted Aozora work-classifier read the **official expanded
 | Manifest / Japanese title and author | First published / died | Aozora primary record | Base edition from provider catalog | Actual downloaded SHA-256 | Verified chapters |
 |---|---|---|---|---|---|
 | `aozora-000022` 羅生門の後に — 芥川竜之介 | 1917 / 1927 | https://www.aozora.gr.jp/cards/000879/card22.html | 日本の文学 33 羅生門 (1984) | `7fd64ae9f13d8a04e111d67e2eab2644c9a20fe576778163be305f90ff0cd3df` | 1 |
-| `aozora-000195` 可哀相な姉 — 渡辺温 | 1927 / 1930 | https://www.aozora.gr.jp/cards/000020/card195.html | アンドロギュノスの裔 (1970) | `9f641bf3cf71a82854dd6c1d4d91f1d3ac40305bfcd306e2c183db588a5a392d` | 1 |
+| `aozora-000195` 可哀相な姉 — 渡辺温 | 1927 / 1930 | https://www.aozora.gr.jp/cards/000020/card195.html | アンドロギュノスの裔 (1970) | `9f641bf3cf71a82854dd6c1d4d91f1d3ac40305bfcd306e2c183db588a5a392d` | 8 |
 | `aozora-000198` 青白き夢 — 素木しづ | 1915 / 1918 | https://www.aozora.gr.jp/cards/000012/card198.html | 素木しづ作品集 (1970) | `ce465e83545a7ddafb698b8179fc9157f8c1194f3687799ea5a0901c2495150c` | 3 |
 | `aozora-000204` カインの末裔 — 有島武郎 | 1917 / 1923 | https://www.aozora.gr.jp/cards/000025/card204.html | カインの末裔 クララの出家 (1940) | `c478211aae151241801c48aa09c6d3fb9268ea1612a67fd245690ea66fafe211` | 7 |
-| `aozora-000321` 二老人 — 国木田独歩 | 1908 / 1908 | https://www.aozora.gr.jp/cards/000038/card321.html | 号外・少年の悲哀 他六篇 (1939) | `fe3c023fb00ea334cb7cae24934c83aeebe5210a415f4b02e2e18c4875b08f5e` | 1 |
+| `aozora-000321` 二老人 — 国木田独歩 | 1908 / 1908 | https://www.aozora.gr.jp/cards/000038/card321.html | 号外・少年の悲哀 他六篇 (1939) | `fe3c023fb00ea334cb7cae24934c83aeebe5210a415f4b02e2e18c4875b08f5e` | 2 |
 
 `羅生門の後に` is distinct from the story `羅生門`; do not treat these as identical works from a shared name fragment.
 
@@ -67,7 +67,7 @@ The old `aozora` normalizer separated trailing provenance but retained a leading
 
 The **opt-in** `aozora_reader_body` profile matches only a verified two-line title/author header plus an exact Aozora notation legend enclosed by matching separators. It moves that front matter to archive metadata, retains the literary body and trailing bibliographic metadata, and **fails closed** on unrecognized front matter. It does not change the original `aozora` profile or re-prepare the 84 previously imported works. In-body Aozora ruby and annotations are retained, not blanket stripped.
 
-Verified chapter counts after preparation: 1, 1, 3, 7, 1 (13 chapters total). All bodies <=10,000 characters. The single 8,076-character `aozora-000195` body is below the hard maximum; `aozora-000198` uses 6,000-character chunks to avoid an ~900-character orphan chapter. Each full source hash equals its prepared artifact source hash, and manifest chapter counts equal actual chapter counts.
+Verified chapter counts after preparation: 1, 8, 3, 7, 2 (21 chapters total). All bodies <=10,000 characters. The original eight separately numbered sections of `aozora-000195` are now preserved as eight episodes (maximum 2,196 characters); `aozora-000198` uses 6,000-character chunks to avoid an ~900-character orphan chapter. Each full source hash equals its prepared artifact source hash, and manifest chapter counts equal actual chapter counts.
 
 ## Duplicate and provenance preflight
 
@@ -134,7 +134,7 @@ Machine-readable per-work audit: `public-domain/audits/child85-pilot-preflight-2
 
 ## 2026-10-21 source-credit persistence and two early-impression alternatives
 
-This Draft PR now contains **five original pilot manifests plus two separate rights-pending alternatives** (seven source-prepared candidates, **26** prepared chapter rows in total: original five 13 + alternatives 5 and 8). This is still a **3–6-work maximum initial DB import proposal after rights approval**, not authorization to import all candidates or publish. All seven remain `rights_status=pending`, `approved=false`, `reviewed_at=null`.
+This Draft PR now contains **five original pilot manifests plus two separate rights-pending alternatives** (seven source-prepared candidates, **34** prepared chapter rows in total: original five 21 + alternatives 5 and 8). This is still a **3–6-work maximum initial DB import proposal after rights approval**, not authorization to import all candidates or publish. All seven remain `rights_status=pending`, `approved=false`, `reviewed_at=null`.
 
 **New safe provenance path:** Individual cards for all seven now supply `source_provenance` metadata (input/proof contributor names and input/proof editions where specified). The optional per-manifest data is validated; approved opt-in Aozora Reader-body entries must contain the edition and input/proof attribution. The importer preserves these fields in existing `effect_settings.publicDomain`, and the work page shows them next to the original provider link only for verified Public Domain series. No change or fabricated metadata for the existing 84 imported works.
 
@@ -147,3 +147,25 @@ The legacy Production baseline read-only query found **0** duplicate manifest ID
 **Release/rights hold remains intact.** The new provenance source panel appears in Preview only when legitimate rightsChecked metadata exists; the two pending candidates cannot be imported as published series. The PR requires explicit merge approval, and a separate exact-ID Production Draft-import approval only after qualified individual legal/edition review. Publication remains a third distinct gate.
 
 **Reader heading QA:** The alternative `aozora-053520` has seven numbered sections but Aozora embeds input-layout commands in heading lines. The opt-in `aozora_reader_body` title conversion now displays the exact Japanese numeral only (一～七), preserving chapter body and unsupported/unrecognized annotations. Fifth section remains split into two technical episodes, with its original section number retained. Other normalization profiles and the 84 preexisting imported works are unchanged. Regression checks explicitly compare opt-in and legacy behavior.
+
+## 2026-10-21 content curation and author-numbered Reader chapter boundaries
+
+All seven exact source files were re-fetched, matched to their preexisting SHA-256 manifests, and reviewed against the Aozora primary source cards. This is **source verification**, not a publication, a human rights approval, or a human content rating.
+
+- `aozora-000022` **羅生門の後に** is the author's *nonfiction reflection on his short-story collection* (Aozora **NDC 914**), not the fictional story `羅生門`. It is **excluded from the first novel batch** as a curatorial decision; its rights stay pending and its source evidence is retained.
+- `aozora-057848` **袈裟の良人** is a five-act **戯曲** (cast and staging directions; original publication so identifies it). It is **deferred from the first prose fiction batch**, not auto-rejected for legal/R18 reasons.
+- `aozora-000195`, `aozora-000198`, `aozora-000204`, `aozora-000321`, `aozora-053520` form the **five-title prose-fiction shortlist pending rights and content review**. It is not an approval to import them.
+
+The prior generic splitting inadvertently hid true numbered literary sections in three works. The approved **source-preparation changes only** are:
+
+| Work | Before | Author's actual divisions | Now | Maximum chars |
+| --- | ---: | --- | ---: | ---: |
+| `aozora-000195` 可哀相な姉 | 1 episode | １–８ | 8 | 2,196 |
+| `aozora-000204` カインの末裔 | 7 arbitrary chunks | （一）–（七） | 7 | 7,198 |
+| `aozora-000321` 二老人 | 1 episode | 上・下 | 2 | 3,817 |
+
+**New prepared totals: 7 works / 34 Reader episodes** (five original source candidates: 21; two alternate candidates: 13). Excluding the essay and drama for first-stage prose curation leaves **5 novels/stories / 28 prepared Reader episodes**; rights-approved and Production-imported counts both remain **zero**. A test fixture verifies these exact regexes continue to split the authored headings.
+
+The provider has a notice about historically inappropriate language for **five** works (195, 198, 204, 321, 53520), but **a provider notice is not an R18 classification**. Individual scene, violence/sexual/context content and age-appropriate warnings must still be reviewed by a person. The modern 1970/1980/1960 source-editing risks remain unresolved even where the original author's economic rights expired.
+
+Primary cards: https://www.aozora.gr.jp/cards/000879/card22.html ; https://www.aozora.gr.jp/cards/000020/card195.html ; https://www.aozora.gr.jp/cards/000012/card198.html ; https://www.aozora.gr.jp/cards/000025/card204.html ; https://www.aozora.gr.jp/cards/000038/card321.html ; https://www.aozora.gr.jp/cards/000083/card57848.html ; https://www.aozora.gr.jp/cards/000248/card53520.html .

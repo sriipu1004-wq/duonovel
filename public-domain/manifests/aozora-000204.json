@@ -73,8 +73,8 @@
   "reviewed_by": null,
   "chapter_count": 7,
   "chapter_split": {
-    "strategy": "paragraph_chunks",
-    "max_characters": 8000
+    "strategy": "heading_regex",
+    "heading_pattern": "^（[一二三四五六七]）$"
   },
   "tags": [
     "Public Domain",
