@@ -169,3 +169,22 @@ The prior generic splitting inadvertently hid true numbered literary sections in
 The provider has a notice about historically inappropriate language for **five** works (195, 198, 204, 321, 53520), but **a provider notice is not an R18 classification**. Individual scene, violence/sexual/context content and age-appropriate warnings must still be reviewed by a person. The modern 1970/1980/1960 source-editing risks remain unresolved even where the original author's economic rights expired.
 
 Primary cards: https://www.aozora.gr.jp/cards/000879/card22.html ; https://www.aozora.gr.jp/cards/000020/card195.html ; https://www.aozora.gr.jp/cards/000012/card198.html ; https://www.aozora.gr.jp/cards/000025/card204.html ; https://www.aozora.gr.jp/cards/000038/card321.html ; https://www.aozora.gr.jp/cards/000083/card57848.html ; https://www.aozora.gr.jp/cards/000248/card53520.html .
+
+## 2026-10-21 automated Reader annotation-fidelity preflight
+
+The source-side operator command `npm run public-domain:annotation-audit` analyzes local ignored `prepared.json` files. It verifies each manifest ID, source SHA-256, normalization profile, and chapter count. It calls the actual existing `normalizeAozoraTextForDisplay` implementation for each prepared chapter, rather than approximating its text normalization. **This changes neither the Public Reader nor any stored literary text.**
+
+| Manifest | Original inline Aozora directives | Remain after current Reader normalization |
+| --- | ---: | ---: |
+| `aozora-000195` | 6 | 2 |
+| `aozora-000198` | 14 | 13 |
+| `aozora-000204` | 57 | 56 |
+| `aozora-000321` | 7 | 6 |
+| `aozora-053520` | 13 | 9 |
+| **Total** | **97** | **86** |
+
+The remaining 86 are **72 bouten/emphasis instructions**, **8 textual edition-variant notices**, **5 gaiji/character-code notices**, and **1 ruby editorial notice**. The runtime normalizer removes eleven layout directives; this is only the normalization stage, **not authenticated browser E2E or proof that all 86 actually appear literally on screen**.
+
+The remaining source annotations convey literary and editorial information. Never blindly remove all `［＃…］` tokens; source text and note provenance must be preserved. For the five fiction candidates the **Reader fidelity gate stays HOLD**, separate from the unresolved human rights, edition and content-rating gates. Prior to approval or publication, a qualified reviewer must inspect representative passages for each annotation class in Original/Bilingual/Translation modes and verify emphasis, gaiji, textual variants and ruby notes are legible and correctly represented. An S1 Reader-specific workstream may be needed, subject to the canonical roadmap and parent assignment.
+
+The CLI emits category/count metadata only, does not commit full texts, does not call any external API or database, does not grant rights approvals or credit entitlements, and does not authorize production imports or publication. Synthetic regression tests check known annotations and unknown instructions.

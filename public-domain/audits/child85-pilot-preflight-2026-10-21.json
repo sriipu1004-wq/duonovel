@@ -751,5 +751,85 @@
   },
   "prepared_manifest_count_after_curation": 7,
   "prepared_chapter_count_after_curation": 34,
-  "import_authorized_count": 0
+  "import_authorized_count": 0,
+  "reader_annotation_fidelity_preflight_2026_10_21": {
+    "status": "READER_FIDELITY_HOLD_NOT_E2E_NOT_HUMAN_APPROVAL",
+    "method": "normalizeAozoraTextForDisplay on hash-matched ignored local prepared artifacts, per chapter",
+    "source_directives_total": 97,
+    "remaining_directives_after_runtime_normalization": 86,
+    "layout_directives_removed_by_runtime_normalization": 11,
+    "remaining_by_category": {
+      "emphasis": 72,
+      "edition_variant": 8,
+      "gaiji": 5,
+      "ruby_note": 1,
+      "layout": 0,
+      "unclassified": 0
+    },
+    "by_manifest": [
+      {
+        "manifest_id": "aozora-000195",
+        "original_directives": 6,
+        "remaining_after_normalization": 2,
+        "remaining_semantic": {
+          "emphasis": 1,
+          "edition_variant": 0,
+          "gaiji": 1,
+          "ruby_note": 0
+        },
+        "ready_for_publication": false
+      },
+      {
+        "manifest_id": "aozora-000198",
+        "original_directives": 14,
+        "remaining_after_normalization": 13,
+        "remaining_semantic": {
+          "emphasis": 4,
+          "edition_variant": 8,
+          "gaiji": 1,
+          "ruby_note": 0
+        },
+        "ready_for_publication": false
+      },
+      {
+        "manifest_id": "aozora-000204",
+        "original_directives": 57,
+        "remaining_after_normalization": 56,
+        "remaining_semantic": {
+          "emphasis": 55,
+          "edition_variant": 0,
+          "gaiji": 1,
+          "ruby_note": 0
+        },
+        "ready_for_publication": false
+      },
+      {
+        "manifest_id": "aozora-000321",
+        "original_directives": 7,
+        "remaining_after_normalization": 6,
+        "remaining_semantic": {
+          "emphasis": 5,
+          "edition_variant": 0,
+          "gaiji": 1,
+          "ruby_note": 0
+        },
+        "ready_for_publication": false
+      },
+      {
+        "manifest_id": "aozora-053520",
+        "original_directives": 13,
+        "remaining_after_normalization": 9,
+        "remaining_semantic": {
+          "emphasis": 7,
+          "edition_variant": 0,
+          "gaiji": 1,
+          "ruby_note": 1
+        },
+        "ready_for_publication": false
+      }
+    ],
+    "evidence": "npm run public-domain:annotation-audit",
+    "limits": "Runtime text normalization prediction only, not browser Original/Bilingual/Translation E2E or human content/legal clearance",
+    "next": "S1 Reader fidelity review to preserve bouten/edition variants/gaiji/ruby semantic information; no blanket strip."
+  }
 }

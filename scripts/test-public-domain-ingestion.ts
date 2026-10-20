@@ -28,6 +28,7 @@ import {
   isAllowedGonguTextUrl,
 } from "./public-domain/gongu";
 import { readPublicDomainMetadata } from "../src/lib/publicDomainMetadata";
+import { auditPreparedAozoraAnnotationFidelity, classifyAozoraAnnotation } from "./public-domain/aozora-annotation-fidelity";
 
 function component(
   status: "approved" | "not_applicable" | "needs_review" | "rejected" = "approved"
@@ -331,6 +332,42 @@ function testAozoraAndGutenbergNormalization() {
   assert.equal(gutenberg.displayText, "Chapter body");
   assert.equal(gutenberg.archiveMetadata.includes("Project metadata"), true);
   assert.equal(gutenberg.archiveMetadata.includes("License footer"), true);
+}
+
+function testAozoraAnnotationFidelityPreflight() {
+  const source = [
+    "本文［＃「本文」に傍点］",
+    "校訂［＃「校訂」は底本では「原本」］",
+    "外字※［＃「文字」、第4水準2-89-1］",
+    "読仮［＃ルビの「よみ」はママ］",
+    "［＃ここから３字下げ］段落［＃ここで字下げ終わり］",
+    "［＃未知の指示］",
+  ].join("\n");
+  const prepared = artifact({
+    chapters: [{ number: 1, title: "Fixture", body: source, characterCount: source.length }],
+  });
+  const report = auditPreparedAozoraAnnotationFidelity(prepared);
+  assert.equal(report.originalAnnotationCount, 7);
+  assert.equal(report.removedByRuntimeNormalization, 2);
+  assert.equal(report.remainingAfterRuntimeNormalization, 5);
+  assert.deepEqual(report.remainingByCategory, {
+    layout: 0,
+    emphasis: 1,
+    edition_variant: 1,
+    gaiji: 1,
+    ruby_note: 1,
+    unclassified: 1,
+  });
+  assert.equal(report.unclassifiedAnnotationsRemain, true);
+  assert.equal(report.manualReaderFidelityReviewRequired, true);
+  assert.equal(classifyAozoraAnnotation("ここから３字下げ"), "layout");
+  assert.equal(classifyAozoraAnnotation("未知の形式"), "unclassified");
+
+  const plain = auditPreparedAozoraAnnotationFidelity(artifact({
+    chapters: [{ number: 1, title: "Plain", body: "No markup", characterCount: 9 }],
+  }));
+  assert.equal(plain.originalAnnotationCount, 0);
+  assert.equal(plain.manualReaderFidelityReviewRequired, false);
 }
 
 function testAozoraReaderBodyOptIn() {
@@ -762,6 +799,7 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
 }
 
 function main() {
+  testAozoraAnnotationFidelityPreflight();
   testAozoraReaderBodyOptIn();
   testPendingAndApprovedGates();
   testApprovedManifestRequiresAuditMetadata();

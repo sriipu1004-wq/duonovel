@@ -123,6 +123,8 @@ Prepare performs:
 - excessive chapter count, many-short-chapter, duplicate-title, and very-long-chapter warnings;
 - local prepared artifact creation under `.public-domain-work/<id>/`.
 
+For opt-in Aozora Reader-body candidates, run `npm run public-domain:annotation-audit` after source sync/prepare. This read-only local CLI verifies the manifest ID, source hash, chapter count and the actual Reader text-normalization result. Remaining non-layout annotations must be individually reviewed before publication; the command does not confer rights or content-rating approval and must not strip annotation tokens.
+
 The prepared artifact is not a rights approval. The operator must review chapter boundaries and update `source_hash`, `chapter_count`, rights fields, and approval fields in the manifest before import.
 
 ## 8. Import safety
