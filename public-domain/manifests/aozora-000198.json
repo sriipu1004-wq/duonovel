@@ -1,0 +1,89 @@
+{
+  "id": "aozora-000198",
+  "title": "青白き夢・素木しづ",
+  "original_title": "青白き夢",
+  "original_author": "素木しづ",
+  "author_death_year": 1918,
+  "original_language": "ja",
+  "first_publication_year": 1915,
+  "source_provider": "Aozora Bunko",
+  "source_url": "https://www.aozora.gr.jp/cards/000012/card198.html",
+  "source_download_url": "https://www.aozora.gr.jp/cards/000012/files/198_ruby_20962.zip",
+  "source_file": "public-domain/sources/raw/aozora-000198.txt",
+  "source_retrieved_at": "2026-10-20T17:37:19.346Z",
+  "source_encoding": "shift_jis",
+  "normalization_profile": "aozora_reader_body",
+  "edition": "素木しづ作品集",
+  "edition_publication_year": 1970,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora catalog flags are なし and candidate cutoffs passed; verify exact work and jurisdiction before approval."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify whether the exact base edition contributes protectable modern editorial matter."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify modernization/editorial contribution in the selected source."
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora annotations/provenance are preserved and must be reviewed."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review Aozora file handling rules and preserve provenance."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review current Aozora file handling rules at approval time."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 3,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 6000
+  },
+  "tags": [
+    "Public Domain",
+    "Aozora Bunko",
+    "素木しづ"
+  ],
+  "source_hash": "ce465e83545a7ddafb698b8179fc9157f8c1194f3687799ea5a0901c2495150c",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null
+}
