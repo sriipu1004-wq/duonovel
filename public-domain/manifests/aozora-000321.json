@@ -85,5 +85,11 @@
   "approved": false,
   "import_status": "prepared",
   "cover_source": null,
-  "cover_rights_status": null
+  "cover_rights_status": null,
+  "source_provenance": {
+    "input_edition": "1981（昭和56）年4月10日第34刷",
+    "proof_edition": "2000（平成12）年7月14日第38刷",
+    "input_by": "紅邪鬼",
+    "proofread_by": "鈴木厚司"
+  }
 }

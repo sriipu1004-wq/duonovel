@@ -88,6 +88,8 @@ Required audit fields include identity/title/author/language/publication dates, 
 
 The schema intentionally requires explicit component reviews for original work, edition, translation, editorial work, annotations, illustrations, cover, digitization, and provider terms. `not_applicable` is valid when that component is genuinely absent.
 
+For an **approved** opt-in `aozora_reader_body` manifest, additionally require a non-empty base `edition` and `source_provenance`: `input_edition` / `proof_edition` (nullable only when unspecified by the provider), `input_by`, and `proofread_by`. The Draft importer preserves these credits in `series.effect_settings.publicDomain`, and the public Work source panel displays only populated fields **after** the standard rightsChecked gate. The existing 84 imported Public Domain works remain readable and are not backfilled with guessed provenance; archival technical/bibliographic notices remain in local `archive-metadata.txt` and the source-card link remains available.
+
 ## 6. Source acquisition and raw preservation
 
 Current Child71 flow is manual-source-first:

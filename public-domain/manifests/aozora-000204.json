@@ -85,5 +85,11 @@
   "approved": false,
   "import_status": "prepared",
   "cover_source": null,
-  "cover_rights_status": null
+  "cover_rights_status": null,
+  "source_provenance": {
+    "input_edition": "1990（平成2）年4月15日第35刷（1980年第25刷改版）",
+    "proof_edition": null,
+    "input_by": "鈴木厚司",
+    "proofread_by": "地田尚"
+  }
 }

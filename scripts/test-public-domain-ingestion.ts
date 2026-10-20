@@ -348,6 +348,53 @@ function testAozoraReaderBodyOptIn() {
     /AOZORA_READER_FRONT_MATTER_UNRECOGNIZED/);
 }
 
+function testNewAozoraSourceAttributionGate() {
+  const reviewed = approvedManifest({
+    normalization_profile: "aozora_reader_body",
+    source_provenance: {
+      input_edition: "1923 first edition",
+      proof_edition: "1923 tenth printing",
+      input_by: "Transcriber",
+      proofread_by: "Proofreader",
+    },
+  });
+  assert.equal(validateManifest(reviewed).ok, true);
+  const missing = validateManifest({ ...reviewed, source_provenance: null });
+  assert.equal(missing.ok, false);
+  assert.equal(
+    missing.errors.some((error) => error.includes("input/proof provenance")),
+    true
+  );
+  const malformed = validateManifest({
+    ...reviewed,
+    source_provenance: { ...reviewed.source_provenance, proofread_by: "" },
+  });
+  assert.equal(malformed.ok, false);
+  const plan = buildDraftImportPlan({
+    manifest: reviewed,
+    artifact: artifact(),
+    officialUserId: "official-user-id",
+  });
+  const publicMetadata = readPublicDomainMetadata(plan.series.effect_settings);
+  assert.equal(publicMetadata?.edition, "Synthetic fixture");
+  assert.equal(publicMetadata?.inputEdition, "1923 first edition");
+  assert.equal(publicMetadata?.proofEdition, "1923 tenth printing");
+  assert.equal(publicMetadata?.inputBy, "Transcriber");
+  assert.equal(publicMetadata?.proofreadBy, "Proofreader");
+
+  const legacy = readPublicDomainMetadata({
+    publicDomain: {
+      manifestId: "legacy",
+      originalAuthor: "Original",
+      sourceProvider: "Provider",
+      sourceHash: reviewed.source_hash,
+      rightsChecked: true,
+    },
+  });
+  assert.equal(legacy?.edition, null);
+  assert.equal(legacy?.inputBy, null);
+}
+
 function testPreparedArtifactAndDraftPlan() {
   const raw = new TextEncoder().encode("abc");
   const prepared = prepareArtifact({
@@ -684,6 +731,7 @@ function main() {
   testHeadingSplitFixture();
   testHeadingSplitCanDropProviderFrontMatter();
   testAozoraAndGutenbergNormalization();
+  testNewAozoraSourceAttributionGate();
   testPreparedArtifactAndDraftPlan();
   testGonguEncodingDetection();
   testKoreanSourceLanguage();

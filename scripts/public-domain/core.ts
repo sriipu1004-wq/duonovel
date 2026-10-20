@@ -78,6 +78,13 @@ export type ChapterSplitConfig =
       max_characters: number;
     };
 
+export type PublicDomainSourceProvenance = {
+  input_edition: string | null;
+  proof_edition: string | null;
+  input_by: string;
+  proofread_by: string;
+};
+
 export type PublicDomainManifest = {
   id: string;
   title: string;
@@ -97,6 +104,7 @@ export type PublicDomainManifest = {
 
   edition: string | null;
   edition_publication_year: number | null;
+  source_provenance?: PublicDomainSourceProvenance | null;
 
   translator: string | null;
   translator_death_year: number | null;
@@ -363,6 +371,20 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     "edition_publication_year",
     errors
   );
+  const sourceProvenanceRaw = value.source_provenance;
+  let sourceProvenance: PublicDomainSourceProvenance | null = null;
+  if (sourceProvenanceRaw !== null && sourceProvenanceRaw !== undefined) {
+    if (!isRecord(sourceProvenanceRaw)) {
+      errors.push("source_provenance must be an object or null");
+    } else {
+      sourceProvenance = {
+        input_edition: readString(sourceProvenanceRaw, "input_edition", errors, { nullable: true }),
+        proof_edition: readString(sourceProvenanceRaw, "proof_edition", errors, { nullable: true }),
+        input_by: readString(sourceProvenanceRaw, "input_by", errors) ?? "",
+        proofread_by: readString(sourceProvenanceRaw, "proofread_by", errors) ?? "",
+      };
+    }
+  }
   const translator = readString(value, "translator", errors, { nullable: true });
   const translatorDeathYear = readNullableYear(
     value,
@@ -554,6 +576,9 @@ export function validateManifest(value: unknown): ManifestValidationResult {
   }
 
   if (approved) {
+    if (normalizationProfile === "aozora_reader_body" && (!edition?.trim() || !sourceProvenance)) {
+      errors.push("approved aozora_reader_body manifests require edition and input/proof provenance");
+    }
     if (!rightsBasis.trim()) errors.push("approved manifests require rights_basis");
     if (!sourceRetrievedAt) {
       errors.push("approved manifests require source_retrieved_at");
@@ -615,6 +640,7 @@ export function validateManifest(value: unknown): ManifestValidationResult {
       : "plain",
     edition,
     edition_publication_year: editionPublicationYear,
+    source_provenance: sourceProvenance,
     translator,
     translator_death_year: translatorDeathYear,
     translation_language:
@@ -1191,6 +1217,11 @@ export function buildDraftImportPlan(args: {
           firstPublicationYear: args.manifest.first_publication_year,
           sourceProvider: args.manifest.source_provider,
           sourceUrl: args.manifest.source_url,
+          edition: args.manifest.edition,
+          inputEdition: args.manifest.source_provenance?.input_edition ?? null,
+          proofEdition: args.manifest.source_provenance?.proof_edition ?? null,
+          inputBy: args.manifest.source_provenance?.input_by ?? null,
+          proofreadBy: args.manifest.source_provenance?.proofread_by ?? null,
           sourceHash: args.artifact.sourceHash,
           rightsChecked: true,
           reviewedAt: args.manifest.reviewed_at,

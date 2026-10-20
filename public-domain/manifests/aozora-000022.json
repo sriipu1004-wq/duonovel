@@ -85,5 +85,11 @@
   "approved": false,
   "import_status": "prepared",
   "cover_source": null,
-  "cover_rights_status": null
+  "cover_rights_status": null,
+  "source_provenance": {
+    "input_edition": "1986（昭和61）年12月1日初版第3刷",
+    "proof_edition": null,
+    "input_by": "j.utiyama",
+    "proofread_by": "もりみつじゅんじ"
+  }
 }

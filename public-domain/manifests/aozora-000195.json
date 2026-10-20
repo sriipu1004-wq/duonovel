@@ -84,5 +84,11 @@
   "approved": false,
   "import_status": "prepared",
   "cover_source": null,
-  "cover_rights_status": null
+  "cover_rights_status": null,
+  "source_provenance": {
+    "input_edition": null,
+    "proof_edition": null,
+    "input_by": "森下祐行",
+    "proofread_by": "もりみつじゅんじ"
+  }
 }

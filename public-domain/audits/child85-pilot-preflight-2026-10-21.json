@@ -598,5 +598,88 @@
       "actual_proof_year": 1974,
       "reason": "Nominal 1927 first edition is insufficient to eliminate modern source-impression risk."
     }
+  },
+  "alternate_early_edition_sources": {
+    "prepared_at": "2026-10-21",
+    "decision": "ALTERNATE_RIGHTS_PENDING_NOT_PART_OF_FIVE_WORK_INITIAL_PILOT",
+    "source_credits": "Aozora primary card and exact editorial provenance; no legal or human approval",
+    "selected": [
+      {
+        "id": "aozora-057848",
+        "title": "袈裟の良人",
+        "author": "菊池寛",
+        "year": 1923,
+        "authorDeath": 1948,
+        "source": "https://www.aozora.gr.jp/cards/000083/card57848.html",
+        "chapters": 5,
+        "sha": "cd5b77635f317f284b93e26c318603d7c1a3c2e806d8a0582325f53e46f969d7",
+        "total": 12711,
+        "archive": 931,
+        "source_chars": [
+          4937,
+          1444,
+          1474,
+          2655,
+          2168
+        ],
+        "first_card_comment": "From 1923 first edition and 1923 tenth-printing proof. Input Aozora note compares suspected typos against first 1923 magazine, using publicly available NDL page images.",
+        "note": "Five-act drama; must review shelf classification, editorial corrections and content.",
+        "rights_status": "pending",
+        "approved": false,
+        "db_imported": false,
+        "duplicate_preflight": {
+          "manifest_id": 0,
+          "source_sha256": 0,
+          "series_title": 0,
+          "episode_title": 0
+        },
+        "artifact_source_sha256_match": true,
+        "max_chapter_characters": 4937,
+        "max_allowed_chapter_characters": 10000
+      },
+      {
+        "id": "aozora-053520",
+        "title": "死刑",
+        "author": "上司小剣",
+        "year": 1930,
+        "authorDeath": 1947,
+        "source": "https://www.aozora.gr.jp/cards/000248/card53520.html",
+        "chapters": 8,
+        "sha": "e66e40aba2133adc738e8a38dc0cdfd6d058f09f4a299f193a51d47438abeaf1",
+        "total": 30133,
+        "archive": 690,
+        "source_chars": [
+          2269,
+          3642,
+          3693,
+          5459,
+          7976,
+          2044,
+          2119,
+          2765
+        ],
+        "first_card_comment": "Both input and proofreading from identical 1930 first edition. Provider historical-expression warning. Seven semantic headings, long fifth split in two under 10k-char limit.",
+        "note": "Historical fiction; require text-specific treatment of violence, execution theme and historical expressions rather than automatic R18.",
+        "rights_status": "pending",
+        "approved": false,
+        "db_imported": false,
+        "duplicate_preflight": {
+          "manifest_id": 0,
+          "source_sha256": 0,
+          "series_title": 0,
+          "episode_title": 0
+        },
+        "artifact_source_sha256_match": true,
+        "max_chapter_characters": 7976,
+        "max_allowed_chapter_characters": 10000
+      }
+    ]
+  },
+  "provenance_credit_release_gate": {
+    "status": "DRAFT_BRANCH_ONLY_NO_PRODUCTION_DATA_CHANGE",
+    "rule": "New approved aozora_reader_body imports need base edition and input/proof contributor records with separately recorded input/proof editions where stated; preserve in effect_settings and render through rightsChecked source section.",
+    "legacy": "Existing imported works unaffected; never fabricate absent contributor/edition fields.",
+    "new_pending_manifest_count": 2,
+    "new_candidates_are_alternates": true
   }
 }
