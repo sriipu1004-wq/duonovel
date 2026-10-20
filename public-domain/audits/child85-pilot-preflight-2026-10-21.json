@@ -1,0 +1,317 @@
+{
+  "generated_at": "2026-10-21",
+  "audit_type": "CHILD85_PILOT_SOURCE_PREFLIGHT_ONLY",
+  "decision": "HOLD_HUMAN_RIGHTS_REVIEW_NO_DB_WRITE",
+  "git_base_main": "9c34659ca167ead0c860456437bd5fe8fe9086d2",
+  "production_deployment": "dpl_3DVLLda3DYfcZ8cQKJwLXFmmN6H2",
+  "production_status": "READY",
+  "source_baseline": {
+    "total_series": 123,
+    "public_series": 120,
+    "private_series": 3,
+    "rights_checked_series": 84,
+    "rights_unchecked_public": 36,
+    "rights_unchecked_private": 3,
+    "ja_public": 40,
+    "en_public": 40,
+    "ko_public": 40,
+    "ja_rights_checked": 4,
+    "en_rights_checked": 40,
+    "ko_rights_checked": 40,
+    "episodes_published": 3284,
+    "episodes_draft": 0,
+    "episodes_scheduled": 0
+  },
+  "existing_manifests": {
+    "count": 86,
+    "approved_imported": 84,
+    "pending": 2
+  },
+  "pilot": {
+    "count": 5,
+    "language": "ja",
+    "approved": 0,
+    "db_drafts_imported": 0,
+    "publications": 0
+  },
+  "acquisition": "official Aozora expanded UTF8 catalog + allowlisted source ZIP; source files remain ignored and local, manifest SHA tracked",
+  "rights_framework": {
+    "jp": "https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html",
+    "us": "https://www.copyright.gov/circs/circ38b.pdf",
+    "kr": "https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1033063625",
+    "provider": "https://www.aozora.gr.jp/guide/kijyunn.html"
+  },
+  "outstanding_rights_review": [
+    "Confirm per-card first publication, author and source status",
+    "Distinguish modern base-edition editorial/orthographic contributions from expired original text",
+    "Review individual annotations, bibliography and Aozora digitization terms",
+    "Confirm Japan, United States and South Korea distribution analysis for exact source",
+    "Ensure modern translations, illustrations, covers and narration assets are not imported",
+    "Record human reviewer, review timestamp, and explicit rights-component resolutions before changing approved flags",
+    "Review chapter boundaries, especially source-short final parts, before import"
+  ],
+  "no_change_to_existing_imported_aozora_profile": true,
+  "production_reads_only": true,
+  "production_writes": 0,
+  "works": [
+    {
+      "manifest_id": "aozora-000022",
+      "title": "羅生門の後に",
+      "author": "芥川竜之介",
+      "author_death_year": 1927,
+      "first_publication_year": 1917,
+      "original_language": "ja",
+      "source_provider": "Aozora Bunko",
+      "source_url": "https://www.aozora.gr.jp/cards/000879/card22.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000879/files/22_ruby_983.zip",
+      "base_edition": "日本の文学　33　羅生門",
+      "base_edition_publication_year": 1984,
+      "translator": null,
+      "source_encoding": "shift_jis",
+      "raw_file_path": "public-domain/sources/raw/aozora-000022.txt",
+      "source_retrieved_at": "2026-10-20T17:37:17.771Z",
+      "source_sha256": "7fd64ae9f13d8a04e111d67e2eab2644c9a20fe576778163be305f90ff0cd3df",
+      "raw_size_bytes": 4143,
+      "normalization_profile": "aozora_reader_body",
+      "chapter_count": 1,
+      "chapter_character_counts": [
+        1642
+      ],
+      "archive_metadata_characters": 552,
+      "source_hash_verified": true,
+      "chapter_count_verified": true,
+      "technical_legend_archived": true,
+      "rights_status": "pending",
+      "approved": false,
+      "import_status": "prepared",
+      "needs_review": [
+        "original_work",
+        "edition",
+        "editorial",
+        "annotations",
+        "digitization",
+        "provider_terms"
+      ],
+      "jurisdictions_reviewed": [],
+      "collision": {
+        "manifest_id_or_source_sha": 0,
+        "series_title": 0,
+        "episode_title": 0
+      },
+      "technical_notation_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
+      ],
+      "publication_authorization": false
+    },
+    {
+      "manifest_id": "aozora-000195",
+      "title": "可哀相な姉",
+      "author": "渡辺温",
+      "author_death_year": 1930,
+      "first_publication_year": 1927,
+      "original_language": "ja",
+      "source_provider": "Aozora Bunko",
+      "source_url": "https://www.aozora.gr.jp/cards/000020/card195.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000020/files/195_ruby_26090.zip",
+      "base_edition": "アンドロギュノスの裔",
+      "base_edition_publication_year": 1970,
+      "translator": null,
+      "source_encoding": "shift_jis",
+      "raw_file_path": "public-domain/sources/raw/aozora-000195.txt",
+      "source_retrieved_at": "2026-10-20T17:37:18.558Z",
+      "source_sha256": "9f641bf3cf71a82854dd6c1d4d91f1d3ac40305bfcd306e2c183db588a5a392d",
+      "raw_size_bytes": 16921,
+      "normalization_profile": "aozora_reader_body",
+      "chapter_count": 1,
+      "chapter_character_counts": [
+        8076
+      ],
+      "archive_metadata_characters": 505,
+      "source_hash_verified": true,
+      "chapter_count_verified": true,
+      "technical_legend_archived": true,
+      "rights_status": "pending",
+      "approved": false,
+      "import_status": "prepared",
+      "needs_review": [
+        "original_work",
+        "edition",
+        "editorial",
+        "annotations",
+        "digitization",
+        "provider_terms"
+      ],
+      "jurisdictions_reviewed": [],
+      "collision": {
+        "manifest_id_or_source_sha": 0,
+        "series_title": 0,
+        "episode_title": 0
+      },
+      "technical_notation_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling",
+        "CHAPTER_TRANSLATION_TARGET: one or more chapters exceed the 8000-character target"
+      ],
+      "publication_authorization": false
+    },
+    {
+      "manifest_id": "aozora-000198",
+      "title": "青白き夢",
+      "author": "素木しづ",
+      "author_death_year": 1918,
+      "first_publication_year": 1915,
+      "original_language": "ja",
+      "source_provider": "Aozora Bunko",
+      "source_url": "https://www.aozora.gr.jp/cards/000012/card198.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000012/files/198_ruby_20962.zip",
+      "base_edition": "素木しづ作品集",
+      "base_edition_publication_year": 1970,
+      "translator": null,
+      "source_encoding": "shift_jis",
+      "raw_file_path": "public-domain/sources/raw/aozora-000198.txt",
+      "source_retrieved_at": "2026-10-20T17:37:19.346Z",
+      "source_sha256": "ce465e83545a7ddafb698b8179fc9157f8c1194f3687799ea5a0901c2495150c",
+      "raw_size_bytes": 34689,
+      "normalization_profile": "aozora_reader_body",
+      "chapter_count": 3,
+      "chapter_character_counts": [
+        5993,
+        6000,
+        4911
+      ],
+      "archive_metadata_characters": 567,
+      "source_hash_verified": true,
+      "chapter_count_verified": true,
+      "technical_legend_archived": true,
+      "rights_status": "pending",
+      "approved": false,
+      "import_status": "prepared",
+      "needs_review": [
+        "original_work",
+        "edition",
+        "editorial",
+        "annotations",
+        "digitization",
+        "provider_terms"
+      ],
+      "jurisdictions_reviewed": [],
+      "collision": {
+        "manifest_id_or_source_sha": 0,
+        "series_title": 0,
+        "episode_title": 0
+      },
+      "technical_notation_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
+      ],
+      "publication_authorization": false
+    },
+    {
+      "manifest_id": "aozora-000204",
+      "title": "カインの末裔",
+      "author": "有島武郎",
+      "author_death_year": 1923,
+      "first_publication_year": 1917,
+      "original_language": "ja",
+      "source_provider": "Aozora Bunko",
+      "source_url": "https://www.aozora.gr.jp/cards/000025/card204.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000025/files/204_ruby_3382.zip",
+      "base_edition": "カインの末裔　クララの出家",
+      "base_edition_publication_year": 1940,
+      "translator": null,
+      "source_encoding": "shift_jis",
+      "raw_file_path": "public-domain/sources/raw/aozora-000204.txt",
+      "source_retrieved_at": "2026-10-20T17:38:22.658Z",
+      "source_sha256": "c478211aae151241801c48aa09c6d3fb9268ea1612a67fd245690ea66fafe211",
+      "raw_size_bytes": 76658,
+      "normalization_profile": "aozora_reader_body",
+      "chapter_count": 7,
+      "chapter_character_counts": [
+        7208,
+        6238,
+        3076,
+        5318,
+        5250,
+        4992,
+        5684
+      ],
+      "archive_metadata_characters": 644,
+      "source_hash_verified": true,
+      "chapter_count_verified": true,
+      "technical_legend_archived": true,
+      "rights_status": "pending",
+      "approved": false,
+      "import_status": "prepared",
+      "needs_review": [
+        "original_work",
+        "edition",
+        "editorial",
+        "annotations",
+        "digitization",
+        "provider_terms"
+      ],
+      "jurisdictions_reviewed": [],
+      "collision": {
+        "manifest_id_or_source_sha": 0,
+        "series_title": 0,
+        "episode_title": 0
+      },
+      "technical_notation_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
+      ],
+      "publication_authorization": false
+    },
+    {
+      "manifest_id": "aozora-000321",
+      "title": "二老人",
+      "author": "国木田独歩",
+      "author_death_year": 1908,
+      "first_publication_year": 1908,
+      "original_language": "ja",
+      "source_provider": "Aozora Bunko",
+      "source_url": "https://www.aozora.gr.jp/cards/000038/card321.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000038/files/321_ruby_4292.zip",
+      "base_edition": "号外・少年の悲哀　他六篇",
+      "base_edition_publication_year": 1939,
+      "translator": null,
+      "source_encoding": "shift_jis",
+      "raw_file_path": "public-domain/sources/raw/aozora-000321.txt",
+      "source_retrieved_at": "2026-10-20T17:38:23.441Z",
+      "source_sha256": "fe3c023fb00ea334cb7cae24934c83aeebe5210a415f4b02e2e18c4875b08f5e",
+      "raw_size_bytes": 14976,
+      "normalization_profile": "aozora_reader_body",
+      "chapter_count": 1,
+      "chapter_character_counts": [
+        7018
+      ],
+      "archive_metadata_characters": 584,
+      "source_hash_verified": true,
+      "chapter_count_verified": true,
+      "technical_legend_archived": true,
+      "rights_status": "pending",
+      "approved": false,
+      "import_status": "prepared",
+      "needs_review": [
+        "original_work",
+        "edition",
+        "editorial",
+        "annotations",
+        "digitization",
+        "provider_terms"
+      ],
+      "jurisdictions_reviewed": [],
+      "collision": {
+        "manifest_id_or_source_sha": 0,
+        "series_title": 0,
+        "episode_title": 0
+      },
+      "technical_notation_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
+      ],
+      "publication_authorization": false
+    }
+  ]
+}
