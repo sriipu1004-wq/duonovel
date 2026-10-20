@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-10-21",
   "audit_type": "CHILD85_PILOT_SOURCE_PREFLIGHT_ONLY",
-  "decision": "HOLD_HUMAN_RIGHTS_REVIEW_NO_DB_WRITE",
+  "decision": "HOLD_HUMAN_RIGHTS_REVIEW_NO_DB_WRITE__PRIMARY_LEGAL_TERMS_PRELIMINARY_SUPPORTED",
   "git_base_main": "9c34659ca167ead0c860456437bd5fe8fe9086d2",
   "production_deployment": "dpl_3DVLLda3DYfcZ8cQKJwLXFmmN6H2",
   "production_status": "READY",
@@ -116,6 +116,23 @@
         "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
         "modern_editorial_scope_status": "NEEDS_REVIEW",
         "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      },
+      "original_work_term_preflight": {
+        "basis": "LIFESPAN_PUBLICATION_PRELIMINARY_ONLY",
+        "assessed_at": "2026-10-21",
+        "jp_ordinary_old_50_year_end": "1977-12-31",
+        "kr_old_50_year_end": "1977-12-31",
+        "us_95_year_published_end": "2012-12-31",
+        "conclusion": "LIKELY_EXPIRED_ORIGINAL_WORK_TERMS_IN_JP_US_KR",
+        "explicit_exclusions": [
+          "later creative edition changes",
+          "annotation/editorial additions",
+          "modern translation",
+          "cover/illustrations",
+          "audio/narration rights",
+          "independent license/provider term",
+          "final human/legal signoff"
+        ]
       }
     },
     {
@@ -181,6 +198,23 @@
         "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
         "modern_editorial_scope_status": "NEEDS_REVIEW",
         "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      },
+      "original_work_term_preflight": {
+        "basis": "LIFESPAN_PUBLICATION_PRELIMINARY_ONLY",
+        "assessed_at": "2026-10-21",
+        "jp_ordinary_old_50_year_end": "1980-12-31",
+        "kr_old_50_year_end": "1980-12-31",
+        "us_95_year_published_end": "2022-12-31",
+        "conclusion": "LIKELY_EXPIRED_ORIGINAL_WORK_TERMS_IN_JP_US_KR",
+        "explicit_exclusions": [
+          "later creative edition changes",
+          "annotation/editorial additions",
+          "modern translation",
+          "cover/illustrations",
+          "audio/narration rights",
+          "independent license/provider term",
+          "final human/legal signoff"
+        ]
       }
     },
     {
@@ -247,6 +281,23 @@
         "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
         "modern_editorial_scope_status": "NEEDS_REVIEW",
         "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      },
+      "original_work_term_preflight": {
+        "basis": "LIFESPAN_PUBLICATION_PRELIMINARY_ONLY",
+        "assessed_at": "2026-10-21",
+        "jp_ordinary_old_50_year_end": "1968-12-31",
+        "kr_old_50_year_end": "1968-12-31",
+        "us_95_year_published_end": "2010-12-31",
+        "conclusion": "LIKELY_EXPIRED_ORIGINAL_WORK_TERMS_IN_JP_US_KR",
+        "explicit_exclusions": [
+          "later creative edition changes",
+          "annotation/editorial additions",
+          "modern translation",
+          "cover/illustrations",
+          "audio/narration rights",
+          "independent license/provider term",
+          "final human/legal signoff"
+        ]
       }
     },
     {
@@ -318,6 +369,23 @@
         "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
         "modern_editorial_scope_status": "NEEDS_REVIEW",
         "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      },
+      "original_work_term_preflight": {
+        "basis": "LIFESPAN_PUBLICATION_PRELIMINARY_ONLY",
+        "assessed_at": "2026-10-21",
+        "jp_ordinary_old_50_year_end": "1973-12-31",
+        "kr_old_50_year_end": "1973-12-31",
+        "us_95_year_published_end": "2012-12-31",
+        "conclusion": "LIKELY_EXPIRED_ORIGINAL_WORK_TERMS_IN_JP_US_KR",
+        "explicit_exclusions": [
+          "later creative edition changes",
+          "annotation/editorial additions",
+          "modern translation",
+          "cover/illustrations",
+          "audio/narration rights",
+          "independent license/provider term",
+          "final human/legal signoff"
+        ]
       }
     },
     {
@@ -383,6 +451,23 @@
         "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
         "modern_editorial_scope_status": "NEEDS_REVIEW",
         "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      },
+      "original_work_term_preflight": {
+        "basis": "LIFESPAN_PUBLICATION_PRELIMINARY_ONLY",
+        "assessed_at": "2026-10-21",
+        "jp_ordinary_old_50_year_end": "1958-12-31",
+        "kr_old_50_year_end": "1958-12-31",
+        "us_95_year_published_end": "2003-12-31",
+        "conclusion": "LIKELY_EXPIRED_ORIGINAL_WORK_TERMS_IN_JP_US_KR",
+        "explicit_exclusions": [
+          "later creative edition changes",
+          "annotation/editorial additions",
+          "modern translation",
+          "cover/illustrations",
+          "audio/narration rights",
+          "independent license/provider term",
+          "final human/legal signoff"
+        ]
       }
     }
   ],
@@ -400,5 +485,118 @@
     "korea_general_term_current": "https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1029475235",
     "provider_policy_current": "https://www.aozora.gr.jp/guide/kijyunn.html",
     "human_rights_signoff": false
+  },
+  "jurisdictional_preliminary_original_rights_analysis": {
+    "evidence_date": "2026-10-21",
+    "status": "PRELIMINARY_ORIGINAL_WORK_TERM_ONLY__DO_NOT_APPROVE",
+    "methodological_boundary": "AI statutory/evidence analysis. Human reviewer has not signed off. No modern edition, editorial annotation, digitization or provider component is cleared merely by original-work term expiry.",
+    "japan": {
+      "official_url": "https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html",
+      "rule": "Prior author life+50 expired before 2018-12-30 is not revived when the term extends to 70 years. Standard author basis; exceptions still reviewed at signoff."
+    },
+    "united_states": {
+      "library_chart": "https://guides.library.cornell.edu/copyright/publicdomain",
+      "rule": "Foreign-authored works first published before 1931 are public domain in the US as of 2026 under the chart's general pre-1931 published-work treatment. Verify source/bibliographic publication year and edition changes."
+    },
+    "south_korea": {
+      "government_guidance": "https://www.easylaw.go.kr/CSP/CnpClsMain.laf?ccfNo=2&cciNo=1&cnpClsNo=2&csmSeq=695",
+      "commission_faq": "https://www.copyright.or.kr/customer-center/faq/list.do?categorycode1=&counselfaqno=47592&pageIndex=2&portalcode=04&searchkeyword=",
+      "law_as_of_2026": "https://law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0039&lsiSeq=283335&urlMode=lsScJoRltInfoR",
+      "rule": "2013-07-01 author life+50 to life+70 transition did not revive already expired economic rights. Foreign works generally treated under national treatment; original authors here died by 1930."
+    },
+    "provider": {
+      "official_url": "https://www.aozora.gr.jp/guide/kijyunn.html",
+      "rule": "Aozora says copyright-expired work files can be copied, redistributed, shared and format-changed even commercially; maintain provenance and transformation history as requested; independently confirm source card copyright flags and scope of any protected changes."
+    }
+  },
+  "early_base_edition_screening": {
+    "analyzed_at": "2026-10-21",
+    "scope": "Aozora official expanded catalog; existing manifest IDs and legacy series title audit exclusions; conservative flag, contributors, author death<=1955 and first publication<=1930 checks",
+    "catalog_rows": 19502,
+    "eligible_by_conservative_classifier": 3632,
+    "remaining_after_existing_manifest_and_legacy_title_screen": 3585,
+    "first_base_edition_year_on_or_before_1930": 75,
+    "caution": "75 is an initial earliest BASE FIRST-EDITION date screen, not 75 independently checked actual input/proofing editions, not a library-relevance filter, not 75 copyright-approved titles. Several cards use much later impressions even if first edition was pre-1930.",
+    "carefully_checked_future_cards": [
+      {
+        "id": "aozora-057848",
+        "title": "袈裟の良人",
+        "author": "菊池寛",
+        "source_url": "https://www.aozora.gr.jp/cards/000083/card57848.html",
+        "first_publication_year": 1923,
+        "author_death_year": 1948,
+        "base_first_year": 1923,
+        "actual_input_year": 1923,
+        "actual_proof_year": 1923,
+        "source_status": "CARD_METADATA_ONLY_NO_RAW_NO_HASH",
+        "priority": "HIGHER_RELATIVE_PRIORITY",
+        "notes": "Original-edition input plus contemporaneous 10th printing used for proof. NDL digitized page image claimed by provider. No production import/approval."
+      },
+      {
+        "id": "aozora-053520",
+        "title": "死刑",
+        "author": "上司小剣",
+        "source_url": "https://www.aozora.gr.jp/cards/000248/card53520.html",
+        "first_publication_year": 1924,
+        "author_death_year": 1947,
+        "base_first_year": 1930,
+        "actual_input_year": 1930,
+        "actual_proof_year": 1930,
+        "source_status": "CARD_METADATA_ONLY_NO_RAW_NO_HASH",
+        "priority": "HIGHER_RELATIVE_PRIORITY",
+        "notes": "Historical-expression warning; 1930 anthology exact copy used for both input and proof."
+      },
+      {
+        "id": "aozora-049394",
+        "title": "一九二八年三月十五日",
+        "author": "小林多喜二",
+        "source_url": "https://www.aozora.gr.jp/cards/000156/card49394.html",
+        "first_publication_year": 1928,
+        "author_death_year": 1933,
+        "base_first_year": 1928,
+        "actual_input_year": 1928,
+        "actual_proof_year": 1928,
+        "source_status": "CARD_METADATA_ONLY_NO_RAW_NO_HASH",
+        "priority": "HIGHER_RELATIVE_PRIORITY",
+        "notes": "Two original 1928 serial issues (chapters 1-4 and 5-9), historical expression advisory; check complete series chapter structure."
+      },
+      {
+        "id": "aozora-055427",
+        "title": "海蛍の話",
+        "author": "神田左京",
+        "source_url": "https://www.aozora.gr.jp/cards/001731/card55427.html",
+        "first_publication_year": 1921,
+        "author_death_year": 1939,
+        "base_first_year": 1923,
+        "actual_input_year": 1923,
+        "actual_proof_year": 1923,
+        "source_status": "CARD_METADATA_ONLY_NO_RAW_NO_HASH",
+        "priority": "LOWER_PRODUCT_FIT",
+        "notes": "Science/natural-history nonfiction; safe historical edition timing but not a web-novel genre. Use only if expanding beyond literary fiction is intentional."
+      },
+      {
+        "id": "aozora-046337",
+        "title": "妖怪研究",
+        "author": "伊東忠太",
+        "source_url": "https://www.aozora.gr.jp/cards/001232/card46337.html",
+        "first_publication_year": 1917,
+        "author_death_year": 1954,
+        "base_first_year": 1928,
+        "actual_input_year": 1928,
+        "actual_proof_year": 1928,
+        "source_status": "CARD_METADATA_ONLY_NO_RAW_NO_HASH",
+        "priority": "LOWER_PRODUCT_FIT",
+        "notes": "Folklore/research prose, not narrative fiction; expression advisory and subject/content judgement required."
+      }
+    ],
+    "excluded_example": {
+      "id": "aozora-001412",
+      "title": "出家とその弟子",
+      "source_url": "https://www.aozora.gr.jp/cards/000256/card1412.html",
+      "base_first_year": 1927,
+      "actual_input_year": 1991,
+      "actual_proof_year": 1974,
+      "reason": "Nominal 1927 first edition is insufficient to eliminate modern source-impression risk."
+    }
   }
 }
