@@ -30,6 +30,22 @@ The repository's allowlisted Aozora work-classifier read the **official expanded
 
 `羅生門の後に` is distinct from the story `羅生門`; do not treat these as identical works from a shared name fragment.
 
+### Provider primary-card verification (2026-10-21)
+
+Directly rechecked all five Aozora figure cards, rather than assuming expanded-catalog fields alone establish rights. Recorded work title, original printed publication, author, creator lifetime, orthography, base edition and **actual used/revised impression**, input/proofreading contributors, and provider notices in the companion machine-readable audit. The five manifest metadata records match the individual primary cards. **This verifies bibliographic provenance only, not modern editorial rights.**
+
+| ID | First published per source | Base edition and revisions that must be separately cleared | Aozora's historical-language advisory |
+|---|---|---|---|
+| `aozora-000022` | 「時事新報」1917-05-05 | ほるぷ出版1984初版; 1986第3刷を入力; 親本は1917阿蘭陀書房 | No advisory on this card |
+| `aozora-000195` | 「新青年」1927-10 | 薔薇十字社1970初版 | **Yes** |
+| `aozora-000198` | 「新小説」1915-01 | 札幌・北書房1970初版; 新字旧仮名を保持 | **Yes** |
+| `aozora-000204` | 「新小説」1917-07 | 岩波文庫1940初版、**1980第25刷改版**、入力は1990第35刷。親本1918新潮社 | **Yes** |
+| `aozora-000321` | 「文章世界」1908-01 | 岩波文庫1939初版、**1960第14刷改版**、入力1981第34刷、校正2000第38刷 | **Yes** |
+
+Provider cards are `https://www.aozora.gr.jp/cards/000879/card22.html`, `https://www.aozora.gr.jp/cards/000020/card195.html`, `https://www.aozora.gr.jp/cards/000012/card198.html`, `https://www.aozora.gr.jp/cards/000025/card204.html`, and `https://www.aozora.gr.jp/cards/000038/card321.html`.
+
+**Publication-specific hold:** The four provider advisories are notices about potentially inappropriate historical expressions, not determinations of `content_rating=R18`. Each text must undergo an independent rating/content-warnings review. The 1980 and 1960 revised printings in particular require inspection for separately protected editorial alterations before the exact Aozora transcription is rights-approved. Retain the known contributors and provenance in the manifest/audit; it is not enough to identify only the original author and early first edition.
+
 ### Reproducible, local-only source preparation
 
 The raw Shift-JIS texts were acquired from each allowlisted Aozora ZIP and decoded by the existing source-sync pipeline. Raw sources remain in gitignored `public-domain/sources/raw/`; `prepared.json`, `normalized.txt` and `archive-metadata.txt` remain in gitignored `.public-domain-work/<manifestId>/`. Neither raw text nor prepared bodies are published by this PR.
