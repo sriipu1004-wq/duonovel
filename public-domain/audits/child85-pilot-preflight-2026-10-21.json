@@ -102,7 +102,21 @@
         "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
         "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
       ],
-      "publication_authorization": false
+      "publication_authorization": false,
+      "primary_source_card": {
+        "card_url": "https://www.aozora.gr.jp/cards/000879/card22.html",
+        "first_publication": "時事新報 1917-05-05",
+        "orthography": "新字新仮名",
+        "base_edition": "日本の文学 33 羅生門 / ほるぷ出版 初版1984-08-01",
+        "edition_used": "1986-12-01 初版第3刷",
+        "parent_edition": "羅生門 / 阿蘭陀書房 大正6年5月",
+        "input": "j.utiyama",
+        "proofreader": "もりみつじゅんじ",
+        "provider_content_advisory": false,
+        "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+        "modern_editorial_scope_status": "NEEDS_REVIEW",
+        "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      }
     },
     {
       "manifest_id": "aozora-000195",
@@ -153,7 +167,21 @@
         "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling",
         "CHAPTER_TRANSLATION_TARGET: one or more chapters exceed the 8000-character target"
       ],
-      "publication_authorization": false
+      "publication_authorization": false,
+      "primary_source_card": {
+        "card_url": "https://www.aozora.gr.jp/cards/000020/card195.html",
+        "first_publication": "新青年 1927-10",
+        "orthography": "新字新仮名",
+        "base_edition": "アンドロギュノスの裔 / 薔薇十字社 初版1970-09-01",
+        "edition_used": null,
+        "parent_edition": null,
+        "input": "森下祐行",
+        "proofreader": "もりみつじゅんじ",
+        "provider_content_advisory": true,
+        "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+        "modern_editorial_scope_status": "NEEDS_REVIEW",
+        "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      }
     },
     {
       "manifest_id": "aozora-000198",
@@ -205,7 +233,21 @@
         "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
         "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
       ],
-      "publication_authorization": false
+      "publication_authorization": false,
+      "primary_source_card": {
+        "card_url": "https://www.aozora.gr.jp/cards/000012/card198.html",
+        "first_publication": "新小説 1915-01",
+        "orthography": "新字旧仮名",
+        "base_edition": "素木しづ作品集 / 札幌・北書房 初版1970-06-15",
+        "edition_used": null,
+        "parent_edition": null,
+        "input": "小林徹",
+        "proofreader": "Juki",
+        "provider_content_advisory": true,
+        "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+        "modern_editorial_scope_status": "NEEDS_REVIEW",
+        "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      }
     },
     {
       "manifest_id": "aozora-000204",
@@ -261,7 +303,22 @@
         "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
         "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
       ],
-      "publication_authorization": false
+      "publication_authorization": false,
+      "primary_source_card": {
+        "card_url": "https://www.aozora.gr.jp/cards/000025/card204.html",
+        "first_publication": "新小説 1917-07",
+        "orthography": "新字新仮名",
+        "base_edition": "カインの末裔 クララの出家 / 岩波文庫 初版1940-09-10",
+        "edition_used": "1980-05-16 第25刷改版、入力に1990-04-15第35刷",
+        "parent_edition": "有島武郎著作集 第三輯 / 新潮社 1918-02",
+        "input": "鈴木厚司",
+        "proofreader": "地田尚",
+        "provider_content_advisory": true,
+        "modern_revision_attention": "1980改版を経た1990刷を入力底本としている。1940年の初版年だけで安全と判断しない。",
+        "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+        "modern_editorial_scope_status": "NEEDS_REVIEW",
+        "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      }
     },
     {
       "manifest_id": "aozora-000321",
@@ -311,7 +368,37 @@
         "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
         "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
       ],
-      "publication_authorization": false
+      "publication_authorization": false,
+      "primary_source_card": {
+        "card_url": "https://www.aozora.gr.jp/cards/000038/card321.html",
+        "first_publication": "文章世界 1908-01",
+        "orthography": "新字新仮名",
+        "base_edition": "号外・少年の悲哀 他六篇 / 岩波文庫 初版1939-04-17",
+        "edition_used": "1960-01-25 第14刷改版、入力1981-04-10 第34刷、校正2000-07-14 第38刷",
+        "parent_edition": null,
+        "input": "紅邪鬼",
+        "proofreader": "鈴木厚司",
+        "provider_content_advisory": true,
+        "modern_revision_attention": "1960改版と1981/2000校正対象版の創作的編集・本文異同を審査する。",
+        "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+        "modern_editorial_scope_status": "NEEDS_REVIEW",
+        "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      }
     }
-  ]
+  ],
+  "primary_source_card_verification": {
+    "checked_at": "2026-10-21",
+    "provider": "Aozora Bunko original individual HTML work cards",
+    "result": "All five actual card titles, author death years, first publication metadata, provenance workers and downloaded ZIP links independently matched their corresponding manifest/catalog ID. This is bibliographic verification, not an independent clearance of modern edition editorial copyright.",
+    "cards_checked": 5,
+    "provider_content_advisory_count": 4,
+    "content_advisory_meaning": "Provider notes historically inappropriate expressions; do not infer R18 or classify publication rating automatically. Operator must review actual text and decide accurate content notices.",
+    "legal_sources_checked_at": "2026-10-21",
+    "japan_norevival": "https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html",
+    "us_restoration": "https://www.copyright.gov/circs/circ38b.pdf",
+    "korea_foreign_works_current": "https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1033063625",
+    "korea_general_term_current": "https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1029475235",
+    "provider_policy_current": "https://www.aozora.gr.jp/guide/kijyunn.html",
+    "human_rights_signoff": false
+  }
 }
