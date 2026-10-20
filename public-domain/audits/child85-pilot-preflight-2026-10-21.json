@@ -831,5 +831,130 @@
     "evidence": "npm run public-domain:annotation-audit",
     "limits": "Runtime text normalization prediction only, not browser Original/Bilingual/Translation E2E or human content/legal clearance",
     "next": "S1 Reader fidelity review to preserve bouten/edition variants/gaiji/ruby semantic information; no blanket strip."
+  },
+  "literal_public_body_overlap_preflight_2026_10_21": {
+    "status": "EXACT_PUBLIC_JA_SUBSTRING_PREFLIGHT_CLEAR_SEMANTIC_DUPLICATES_UNVERIFIED",
+    "query_scope": "Read-only public series s.is_public=true, publication_status=public, source_language=ja; episode posting_status=posted (NOT published)",
+    "eligible_ja_episodes": 440,
+    "works": 5,
+    "total_exact_contiguous_verbatim_probes": 15,
+    "live_production_matches": 0,
+    "by_manifest": [
+      {
+        "id": "aozora-000195",
+        "probes": [
+          {
+            "index": 1,
+            "characters": 24,
+            "sha256": "cb9237e53e8737dbf91c768d3ec5e2869234086eaa818c7b46c42be1018a6a48"
+          },
+          {
+            "index": 2,
+            "characters": 24,
+            "sha256": "d0347e209a07ec8909b117a587ba1a7ed7815327a7921bdca24392d30f5b86c0"
+          },
+          {
+            "index": 3,
+            "characters": 24,
+            "sha256": "15b27d40bd29290e42e2e2cdb0186c3b66f3f9aa5855d5654a7814693cde0fdf"
+          }
+        ],
+        "episode_matches": 0,
+        "series_matches": 0
+      },
+      {
+        "id": "aozora-000198",
+        "probes": [
+          {
+            "index": 1,
+            "characters": 24,
+            "sha256": "ed505b4b33acf29841df5bb9fe7dc0b2de82c24f16c7621194c9976c3f17f1bd"
+          },
+          {
+            "index": 2,
+            "characters": 24,
+            "sha256": "3f8eb11b284e525928a5e53e00635e731f83783f057436b167629fe665435d14"
+          },
+          {
+            "index": 3,
+            "characters": 24,
+            "sha256": "3bf8ddf8235d62a6eba9421f7beb08b19227d7754eb976ed7f0939885e947528"
+          }
+        ],
+        "episode_matches": 0,
+        "series_matches": 0
+      },
+      {
+        "id": "aozora-000204",
+        "probes": [
+          {
+            "index": 1,
+            "characters": 24,
+            "sha256": "23cfaa9b3140830d0e63baf288a1c2bc589fef164fe250574d35a0505e7719f8"
+          },
+          {
+            "index": 2,
+            "characters": 24,
+            "sha256": "c3e19f3c4cf923c06dadefa8df5f94831cdc9be67566b160daf0bbaef6da3f33"
+          },
+          {
+            "index": 3,
+            "characters": 24,
+            "sha256": "557cda4491adc5fcf2cc6013d099a98ade2f0750417944326712a0f1e5c235b0"
+          }
+        ],
+        "episode_matches": 0,
+        "series_matches": 0
+      },
+      {
+        "id": "aozora-000321",
+        "probes": [
+          {
+            "index": 1,
+            "characters": 24,
+            "sha256": "5e131197081177ad97f483a9e1253a2f563b012c8e0d2b9d7628d3f51cc82872"
+          },
+          {
+            "index": 2,
+            "characters": 24,
+            "sha256": "c3b4e698dc9646d8e06f8897f93ac1f1b5f86f08f4a4134a66ba4215b9b6d474"
+          },
+          {
+            "index": 3,
+            "characters": 24,
+            "sha256": "0433d4b5b2c8521aef63b933095fbdf7b398af8a2d6a9eef8569786e4bbd4af8"
+          }
+        ],
+        "episode_matches": 0,
+        "series_matches": 0
+      },
+      {
+        "id": "aozora-053520",
+        "probes": [
+          {
+            "index": 1,
+            "characters": 16,
+            "sha256": "22485d27153ae5768ebf532dd009db64f5de06a722e0d3ca8940820cc4b677c4"
+          },
+          {
+            "index": 2,
+            "characters": 16,
+            "sha256": "6d21216e735a8da70d85decc1a64212667bb87c0b0bb590d71da557c0129190a"
+          },
+          {
+            "index": 3,
+            "characters": 16,
+            "sha256": "04de360ae9ef7724696d395a985dc43e5a82e747164e3182bccade17b7dd93a4"
+          }
+        ],
+        "episode_matches": 0,
+        "series_matches": 0
+      }
+    ],
+    "evidence": "Operator executed generated SQL from npm run public-domain:duplicate-probes -- --sql against Production using Supabase read-only SQL, verified posted baseline 440 and fifteen rows returned with zero matches",
+    "source_text_repositories": false,
+    "limits": "Exact contiguous 24-character Japanese runs, reduced to 16 characters for ruby-dense aozora-053520; no inference about transformed editions, translations, segmented matches or full text duplicate status. Candidate extracted snippets are NOT committed.",
+    "import_rights_publication_authorized": false,
+    "human_semantic_duplicate_review_required": true
   }
 }

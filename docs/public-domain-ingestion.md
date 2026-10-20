@@ -125,6 +125,8 @@ Prepare performs:
 
 For opt-in Aozora Reader-body candidates, run `npm run public-domain:annotation-audit` after source sync/prepare. This read-only local CLI verifies the manifest ID, source hash, chapter count and the actual Reader text-normalization result. Remaining non-layout annotations must be individually reviewed before publication; the command does not confer rights or content-rating approval and must not strip annotation tokens.
 
+For Japanese rights-pending candidates, `npm run public-domain:duplicate-probes` generates local-only SHA-256-backed **verbatim-contiguous** Reader excerpts for overlap checks (without outputting literary text by default). `npm run public-domain:duplicate-probes -- --sql` emits a bounded **READ-ONLY** public Japanese/posted episode query that includes its eligible-corpus count. The SQL contains short verbatim text: it must not be committed or used as evidence of complete semantic deduplication. Verify the returned eligible baseline is nonzero; the actual published episode state is `posted`, not `published`.
+
 The prepared artifact is not a rights approval. The operator must review chapter boundaries and update `source_hash`, `chapter_count`, rights fields, and approval fields in the manifest before import.
 
 ## 8. Import safety

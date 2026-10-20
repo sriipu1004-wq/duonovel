@@ -29,6 +29,7 @@ import {
 } from "./public-domain/gongu";
 import { readPublicDomainMetadata } from "../src/lib/publicDomainMetadata";
 import { auditPreparedAozoraAnnotationFidelity, classifyAozoraAnnotation } from "./public-domain/aozora-annotation-fidelity";
+import { selectExactJapaneseProbes, publicJaExactProbeSql } from "./public-domain/prose-duplicate-probes";
 
 function component(
   status: "approved" | "not_applicable" | "needs_review" | "rejected" = "approved"
@@ -332,6 +333,50 @@ function testAozoraAndGutenbergNormalization() {
   assert.equal(gutenberg.displayText, "Chapter body");
   assert.equal(gutenberg.archiveMetadata.includes("Project metadata"), true);
   assert.equal(gutenberg.archiveMetadata.includes("License footer"), true);
+}
+
+function testVerbatimPublicDomainDuplicateProbes() {
+  const sample = [
+    "あ".repeat(30),
+    "｜漢字《かんじ》",
+    "い".repeat(30),
+    "［＃「字」は底本では「文字」］",
+    "う".repeat(30),
+  ].join("\n");
+  const probes = selectExactJapaneseProbes("aozora-000195", [{ body: sample }]);
+  assert.equal(probes.length, 3);
+  assert.deepEqual(probes.map((item) => item.characterCount), [24, 24, 24]);
+  assert.deepEqual(
+    probes.map((item) => item.phrase),
+    ["あ".repeat(24), "い".repeat(24), "う".repeat(24)]
+  );
+  assert.equal(probes.every((item) => sample.includes(item.phrase)), true);
+  assert.equal(probes.every((item) => item.phraseSha256.length === 64), true);
+
+  const rubyDenseSource = ["甲".repeat(19), "乙".repeat(19), "丙".repeat(19)].join("《ルビ》");
+  const denseProbes = selectExactJapaneseProbes(
+    "aozora-053520", [{ body: rubyDenseSource }]
+  );
+  assert.deepEqual(
+    denseProbes.map((item) => item.characterCount),
+    [16, 16, 16]
+  );
+  assert.equal(denseProbes.every((item) => rubyDenseSource.includes(item.phrase)), true);
+  const sql = publicJaExactProbeSql([...probes, ...denseProbes]);
+  assert.equal(sql.includes("s.source_language = 'ja'"), true);
+  assert.equal(sql.includes("e.posting_status = 'posted'"), true);
+  assert.equal(sql.includes("WHERE s.is_public IS TRUE"), true);
+  assert.equal(sql.includes("eligible_ja_episodes"), true);
+  assert.equal(sql.includes("UPDATE public."), false);
+  assert.equal(sql.includes("INSERT INTO"), false);
+  assert.throws(
+    () => selectExactJapaneseProbes("aozora-invalid", [{ body: sample }]),
+    /INVALID_EXACT_PROBE_SOURCE/
+  );
+  assert.throws(
+    () => selectExactJapaneseProbes("aozora-000195", [{ body: "｜漢《かん》" }]),
+    /EXACT_PROBE_TOO_FEW_RAW_CONTIGUOUS_SPANS/
+  );
 }
 
 function testAozoraAnnotationFidelityPreflight() {
@@ -799,6 +844,7 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
 }
 
 function main() {
+  testVerbatimPublicDomainDuplicateProbes();
   testAozoraAnnotationFidelityPreflight();
   testAozoraReaderBodyOptIn();
   testPendingAndApprovedGates();
