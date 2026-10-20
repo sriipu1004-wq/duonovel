@@ -36,7 +36,7 @@ A new specialist conversation should be created only if no appropriate slot exis
 - Roadmap order and priorities remain **docs/roadmap.md**. The parent controls every reprioritization or approved exception.
 - Parent maintains **PROJECT_MASTER.md** as the recoverable current operational index and selects Sx assignment; one child cannot assign other child chats.
 - Parent verifies real merge and Production, handles cross-feature and rights decisions, accepts or rejects child evidence, controls approved deferrals and risk gates.
-- Parent reconciles open PRs regularly, especially stale Drafts and superseded branches; statuses are not accepted from old chat reports alone.
+- Parent reconciles open PRs regularly, especially stale Drafts and superseded branches; statuses are not accepted from old chat reports alone. Routine HEAD/CI/Preview updates belong in the specific PR/Issue; only accepted durable milestone/owner/decision changes require updating the shared PROJECT_MASTER.md. This avoids concurrent specialist merge conflicts and needless Preview rebuilds.
 - Parent should not allow its own chat to become the only home for a decision. Persist relevant approved state before ending each consequential interaction.
 - If interrupted unexpectedly, any new parent can bootstrap by reading one root file and checking live GitHub/Vercel state. Do not require a specially composed farewell message from the previous parent.
 

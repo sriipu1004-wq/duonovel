@@ -264,7 +264,7 @@ When any parent chat disappears or reaches message limits:
 
 Do not equate a manually recorded "last verified" SHA with current GitHub HEAD, a green CI with authenticated E2E, or user-accepted deferral with technical PASS. Review/test status, merge authorization and Production data authorization remain separate.
 
-An implementer/parent must update PROJECT_MASTER.md and the relevant current product/doc decision in the **same PR** when a durable workstream status, explicit user choice, release gate or owner assignment changes. No new third-party database or paid automation is required. Updating repository files does not change external ChatGPT Project settings automatically.
+A parent checkpoint must persist **accepted durable** ownership, explicit user choice, roadmap, release-gate or risk-deferral changes to PROJECT_MASTER.md and the relevant current product/doc decision, ideally in the corresponding PR. A specialist records routine HEAD/CI/Preview progress on its own task PR/Issue; do **not** edit the shared master in every concurrent feature PR merely to update transient metadata. On parent crash, recover newer unrecorded facts from live GitHub/Production. No new third-party database or paid automation is required. Updating repository files does not change external ChatGPT Project settings automatically.
 
 ## 16. Bounded commit and Preview budget hygiene
 
