@@ -1,0 +1,13 @@
+# Child84 operational closure and residual risks
+
+## 2026-10-21 Child84 operational closure — explicitly accepted deferrals
+
+The user directed that Child84 work be concluded and that the next roadmap workstream proceed. This is **operational closure with accepted residual risks**, NOT full E2E/restore/performance certification. Child85 may begin with its existing small-batch rights-evidence requirements; no mass ingestion or production writes are authorized by this note.
+
+Verified at closure: main `208c09beb1c28d6c71d4a5c101827c05ac4f8151` and matching Vercel Production deployment `dpl_5Pj8QDt1G7g9jN9bjYBjfDCmcrfP` READY; Child84l test-only PR #132 merged; six targeted local regression suites PASS; Human translation GitHub Actions PASS and Preview READY. Anonymous Production GETs returned 200 for Home/Search/Contact, 401 for bookmark state, 400 for nonexistent Human-translation episode ID, and 404 for nonexistent Human translation ID. Supabase Auth contains the user-designated test account, but **no authenticated session was used**. Read-only historical DB snapshot: 120 public works, 0 public R18 works, 0 Human translations, 4 bookmarks; not a fresh ingestion baseline.
+
+Deferred, NOT EXECUTED: real-session owner/other-user/R18/Human-translation/credit and signed-in account-delete E2E. The user explicitly chose to postpone or skip this rather than operate an interactive test session. Do not claim actual-session authorization or no-AI credit consumption was demonstrated.
+
+Accepted non-blocking limits: independent DB/Storage byte restoration was explicitly declined in favor of Supabase managed backups (restorability not independently verified); Production late timer callback root cause remains unresolved; Search SQL pagination candidate remains NO CUTOVER because full ranking/facet parity was not established; automatic publication Cron PR #108 remains unmerged; do not deploy unsafe fallback, change TTLs, delete orphan popularity rows, or silently apply speculative DB/index changes. Final broad before/after performance measurement is incomplete; Child86 remains the ordered post-expansion Production scale gate.
+
+Preserve all security, ownership, publication visibility, R18, Reader three-mode, Human-vs-AI provenance, translation permission and credits, rights evidence, and canonical Search semantics. No Production DB/data changes, deletions, or test-account mutations were made during Child84l. Resume deferred checks when they become relevant or before any change that relies on their unverified guarantees. This entry does not retroactively mark any missing test as PASS.

@@ -356,3 +356,7 @@ Infrastructure alternatives:
 
 Reason:
 Child84b was created to diversify the actual failure domain, not merely to add another code path. The observed browser/direct-GET timeout proves that this prototype did not establish the required independence, so non-adoption preserves a smaller attack surface and lower incident latency without giving up a demonstrated recovery path.
+
+## D — 2026-10-21 Child84 operational closure with accepted verification gaps
+
+At the user's explicit direction, Child84 is operationally closed without claiming full certification. Authenticated E2E is deferred; independent DB/Storage restoration was previously declined in favor of managed backups. The unresolved late-timer cause and Search SQL parity are not presumed resolved. Child85 may proceed in canonical roadmap order with staged rights-verified ingestion, without relaxing any authorization, R18, provenance, translation, credit, or Production-write safeguards. See docs/child84-operational-closure.md.

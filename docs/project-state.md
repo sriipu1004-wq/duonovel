@@ -7,7 +7,11 @@ Repository: `sriipu1004-wq/duonovel`
 
 This document is the compact canonical state for future parent/child chats. It should describe the current product, not the full history. Historical rationale belongs in `docs/decisions.md`.
 
-## Current Child84 P4 acceptance snapshot — 2026-10-11
+## Current operational status — 2026-10-21
+
+Child84 is operationally CLOSED with user-accepted deferrals, not fully verified. Child85 is NEXT for staged rights/provenance-verified Public Domain expansion; do not bulk-ingest or waive rights evidence. Source: docs/child84-operational-closure.md. Main 208c09beb1c28d6c71d4a5c101827c05ac4f8151 and matching Production READY were confirmed before this documentation workstream. Earlier Child84 NOT DONE / Child85 BLOCKED entries below are historical snapshots, superseded only as workflow status, not as evidence of completed tests.
+
+## Historical Child84 P4 acceptance snapshot — 2026-10-11
 
 - Verified GitHub `main` after merging PR #123: `fa86529be99f167df9e673724adb4be6f8189ebf`. Vercel Production deployment `dpl_BKpqovPvodbLBYvmHSZzKTUjvLBd` for this exact SHA is **READY**. Read-only live GET verification: `/`, `/privacy`, `/terms`, `/contact` all HTTP 200 with corrected public copy; `/api/account/delete` GET returned 405. Anonymous/authenticated POST must not use a real person's deletion; 401/409/503 are tested by synthetic mock, not real-session E2E.
 - Merged #124: current late-callback Production evidence; JavaScript's 2,500ms timeout timer sometimes fires tens of seconds late, while abort settlement is fast. Root cause remains **unverified**; no deadline/TTL/region/unsafe public fallback change.
