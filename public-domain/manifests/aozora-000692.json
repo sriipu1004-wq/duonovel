@@ -1,0 +1,94 @@
+{
+  "id": "aozora-000692",
+  "title": "高瀬舟・森鴎外",
+  "original_title": "高瀬舟",
+  "original_author": "森鴎外",
+  "author_death_year": 1922,
+  "original_language": "ja",
+  "first_publication_year": 1916,
+  "source_provider": "Aozora Bunko",
+  "source_url": "https://www.aozora.gr.jp/cards/000129/card692.html",
+  "source_download_url": "https://www.aozora.gr.jp/cards/000129/files/692_ruby_16056.zip",
+  "source_file": "public-domain/sources/raw/aozora-000692.txt",
+  "source_retrieved_at": "2026-10-21T01:19:48.109Z",
+  "source_encoding": "shift_jis",
+  "normalization_profile": "aozora_reader_body",
+  "edition": "中央公論　第三十一年第一號",
+  "edition_publication_year": 1916,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora catalog flags are なし and candidate cutoffs passed; verify exact work and jurisdiction before approval."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify whether the exact base edition contributes protectable modern editorial matter."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify modernization/editorial contribution in the selected source."
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora annotations/provenance are preserved and must be reviewed."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review Aozora file handling rules and preserve provenance."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review current Aozora file handling rules at approval time."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 1,
+  "chapter_split": {
+    "strategy": "single"
+  },
+  "tags": [
+    "Public Domain",
+    "Aozora Bunko",
+    "森鴎外"
+  ],
+  "source_hash": "2e7cfc79c6dc03f0b3953682401d189e9482e484a0f9793d1bf8cca942abaf68",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null,
+  "source_provenance": {
+    "input_edition": "1916（大正5）年1月",
+    "proof_edition": "1916（大正5）年1月",
+    "input_by": "岡島昭浩",
+    "proofread_by": "小林繁雄"
+  }
+}
