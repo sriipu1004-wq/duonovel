@@ -1,57 +1,64 @@
-# LIB read specialist chat dispatch — existing chat or successor (2026-10-21)
+# LIB read — Parent-controlled single-child dispatch (2026-10-21)
 
-## Dispatch condition — apply to EVERY specialist task
+## Authoritative dispatch contract — STRICT SERIAL, one child at a time
 
-**The user retired all child conversations that existed before the 2026-10-21 reset** (including the old Child85). Do not reuse any of those. ChatGPT Project UI archival is a user action and has not been automatically performed by GitHub.
+The user has **not yet started any post-reset child chat**. All older children, including former Child85, are retired for manual ChatGPT UI archival. The parent sends an instruction to **one child only**; other slots remain QUEUED / NO ACTION. An Issue alone does not activate a child.
 
-For each slot S1, S2, S3, S4, use this decision sequence:
+**At any moment there is at most ONE child assigned an active production/repository work phase.** This includes investigation, authoring, revisions and independent review. The parent, not a child, grants the next dispatch. Do not proactively launch a second child, give any other specialist a simultaneous task, or start the next Issue merely because it is in the queue. Existing Draft PRs #108/#131/#136 and governance #145 are NOT a license to resume their child authors.
 
-1. **If the corresponding active post-reset specialist chat already exists, is not archived, and accepts new messages:** paste its assignment below **into that existing chat**. Continue its current Issue/PR if unfinished; do not create a duplicate or restart work.
-2. **If no active post-reset specialist chat exists, or its conversation reached a limit and was archived:** create exactly **one new successor** in the LIB read Project, named with the same Sx slot (append `v2`, `v3` only for successive replacements), and paste the **same assignment text** as its first message. Retrieve open task status from GitHub rather than relying on a lost chat transcript.
-3. **Do not create all four every time.** One active instance per specialist slot; former chat histories remain references, not authoritative release records. Parent retains this conversation and all cross-slot approvals. There is no tool to directly send these messages to another ChatGPT conversation; a user must invoke/paste each assignment. Writing an Issue alone never starts background execution.
+Choose a child conversation as follows:
+1. If the assigned slot has an **active post-reset** ChatGPT conversation that accepts messages, send the work instruction to that existing conversation.
+2. If none exists, or it hit its limit and was archived, create **one** specialist conversation (or same-slot v2/v3 successor), then send the same instruction as its first message.
+3. Never reuse the retired pre-reset threads. Do not create S1/S2/S3/S4 in advance: only create the currently assigned child's chat.
+4. Before entering a different child, require an immutable GitHub checkpoint on the current Issue/PR, stop the current child's repository work, and have the parent explicitly release the dispatch. There is **no automatic transition**, even when the current child reports finished.
+5. Independent review is **sequential**: after an author's branch/CI/Draft PR/Preview checkpoint, the parent freezes its HEAD/work, then sends an explicit **review-only** instruction to a distinct child. Reviewer may report GO/NO-GO/FIX; it must NOT push commits or start its own backlog Issue. If FIX is required, parent can return the baton to the author. No self-review.
+6. The parent alone confirms matching-head CI/Preview, explicit user merge approval, merge/Production smoke where authorized, and marks the work accepted, blocked, or deferred. **Do not merge or mutate Production without the separate previously required scope-specific approval.**
 
-**Always first:** repository `sriipu1004-wq/duonovel`; Production `https://www.syosetu-libread.com`; read `AGENTS.md`, `PROJECT_MASTER.md`, `docs/project-state.md`, `docs/roadmap.md`, `docs/decisions.md`, `docs/development-workflow.md`. Fetch live main, all open PRs, Production and relevant Supabase evidence before acting. Prior checkpoint main `37650ac9b391c1a76f597751ea44c6110541a697` is only a snapshot. Draft governance PR [#145](https://github.com/sriipu1004-wq/duonovel/pull/145) is not main until explicitly approved/merged; old [#136](https://github.com/sriipu1004-wq/duonovel/pull/136) must not be merged redundantly. Preserve existing product security/rights and do not merge without explicit approval.
+### Collision and release control
 
-A specialist may conduct authorized READ-ONLY investigation and create an **isolated branch + Draft PR + exact-HEAD tests/Preview** within its assigned scope. No Production data/rights, Auth/provider, RLS/security, advertising activation, publication, Cron activation or merge without separate scoped user approval. Use an **independent** reviewer from another child slot; authors cannot certify their own changes as independent.
+- One active Issue and one working child at a time. **Queue is not authorization**. Record active issue, actor slot, exact branch/base/HEAD, PR, current phase and stop gate in the active Issue checkpoint and parent control.
+- Work branch is created from independently checked latest main; no direct main writes. Other PRs stay Draft/held until the parent explicitly sequences them.
+- Each child modifies only its authorized files/workflow; no shared `PROJECT_MASTER.md` / `docs/roadmap.md` cleanup except if its task specifically requires canonical changes. Parent controls shared governance files.
+- Each next stage re-checks live main, all open PRs and Production; do not rely on the previous child's old SHA. Maintain separate source/Preview/Production evidence.
+- These are **procedural locks** enforced by the parent, not a GitHub branch-protection or automated mutex. The user must send one assignment at a time; a GitHub Issue does not trigger background work.
+- A verified urgent Production/security incident may **preempt** the current task, but first freeze/checkpoint it and explicitly hand off; never create a second concurrent workstream.
 
-## S4 — 新子S4_インフラ・性能・リリース (highest priority)
+### Initial serial dispatch queue
 
-Send to active S4; if missing or archived at chat limit, create successor S4 and send as its first message:
+| Order | Parent sends to | Issue and scope | Gate before next |
+| --- | --- | --- | --- |
+| **ACTIVE NEXT: 1** | **S4** | [#137 Production cache `AbortError`](https://github.com/sriipu1004-wq/duonovel/issues/137) — measured investigation, scoped fix Draft PR only if justified | S4 finishes/fixes branch + CI + Preview and checks in; parent freezes work |
+| 2 | S1 | **Review ONLY** S4 #137 exact HEAD for Reader/Search/Work parity, publication/R18 (NOT #140 yet) | Independent review checkpoint; if FIX, parent hands back to S4 |
+| 3 | S2 | [#138](https://github.com/sriipu1004-wq/duonovel/issues/138) Supabase Auth/RPC/SECURITY DEFINER read-only audit; changes require separate release gate | S2 checkpoint, with separate S4 independent review only when needed |
+| 4 | S1 | [#140](https://github.com/sriipu1004-wq/duonovel/issues/140) Aozora Reader annotation fidelity, draft if needed | S1 source/Preview + distinct S3 provenance review |
+| 5 | S3 | [#139](https://github.com/sriipu1004-wq/duonovel/issues/139) Child85 rights/edition proposal, coordinated *sequentially* with S1/S2 review | Individual verified rights/user decisions; separately authorized bounded Production Draft import/publication |
+| later | Parent decides | [#141](https://github.com/sriipu1004-wq/duonovel/issues/141) P6 scale after admitted corpus; [#142](https://github.com/sriipu1004-wq/duonovel/issues/142) P7 Google OAuth; [#143](https://github.com/sriipu1004-wq/duonovel/issues/143) P8 AdSense | Existing roadmap dependency and explicit release gates |
 
-> このチャットをLIB readの専門子S4（インフラ・性能・リリース）として継続、または新規後継として引き継ぐ。2026-10-21以前の旧子チャットは全て引退済みで再利用しない。まずリポジトリのAGENTS.md、PROJECT_MASTER.md、正史4文書を読み、GitHub最新main・全Open PR・Vercel Productionと必要なSupabase状態を再確認する。現在の未完了タスクが既にあれば同じIssue/PRを続け、重複開始しない。
+The queue above is *dispatch order*, not a silent change to roadmap P5/P6/P7/P8; R0 reliability and security investigation are operational safety exceptions. P5 rights and Reader work are on hold until their turn. **No other child should receive an assignment now.**
+
+## Send now — S4 single assignment (existing chat, or create missing S4)
+
+> このチャットを LIB read の S4（インフラ・性能・リリース）として扱う。2026-10-21より前の旧子チャットは引退済み。稼働中の新S4があれば同じチャットで継続し、なければ新S4として開始する。
 >
-> 最優先は [Issue #137](https://github.com/sriipu1004-wq/duonovel/issues/137)。Productionのpublic-base-work-cards/recording集計のcache revalidation AbortErrorについて、アクセス障害と正常なabortの区別、ユーザー影響、発生経路、実測指標、キャッシュ/timeout境界を調べる。既存 [PR #131](https://github.com/sriipu1004-wq/duonovel/pull/131) は資料として再評価し、無条件mergeしない。根拠があれば限定的に修正し、テスト・build・Draft PR・同一HEAD Previewまで実行。独立レビューはS1。権限・R18・公開範囲・Search結果の正確性を犠牲にせず、Production設定/DB書き込み/mergeは別途承認を得る。
+> Repository: `sriipu1004-wq/duonovel`
+> Production: `https://www.syosetu-libread.com`
+> 親の管理PR: `https://github.com/sriipu1004-wq/duonovel/pull/145`
+> 正式Issue: `https://github.com/sriipu1004-wq/duonovel/issues/137`
 >
-> 次の [Issue #141](https://github.com/sriipu1004-wq/duonovel/issues/141) Child86は権利審査済み作品の実投入後。[Issue #143](https://github.com/sriipu1004-wq/duonovel/issues/143) AdSenseはP8、P7 Googleログイン後に実装判定する。段階の飛ばし・自己承認はしない。報告はGit/Production、Changed、DB/Data、Preserved、Validation、Remaining、Canonical docs、Nextを必須とする。
-
-## S2 — 新子S2_認証・権限・ユーザーデータ (highest priority)
-
-Send to active S2; if missing or archived at chat limit, create successor S2 and send as its first message:
-
-> このチャットをLIB readの専門子S2（認証・権限・ユーザーデータ）として継続、または新規後継として引き継ぐ。旧子チャットは全件引退済み。AGENTS.md、PROJECT_MASTER.md、正史4文書と現在のGitHub main/PRs、Production/Supabaseを再取得し、既に進行中の同一Issue/PRがあれば続行して重複作業を避ける。
+> **この工程で作業を行う子チャットはS4だけ。S1/S2/S3にはまだ作業を依頼していない。** 他の子に作業を割り当てず、独立レビューが必要になったら親へ返す。最初にAGENTS.md、PROJECT_MASTER.md、docs/project-state.md、docs/roadmap.md、docs/decisions.md、docs/development-workflow.mdを確認し、GitHub最新main、全Open PRとProductionを独立検証。現在のPR #145は未mergeの運用変更案として参照し、既存の旧Draft PR #108/#131/#136を自動的にmerge/再開しない。
 >
-> 最優先は [Issue #138](https://github.com/sriipu1004-wq/duonovel/issues/138)。SupabaseのSECURITY DEFINER RPC 10件、漏えいパスワード保護無効、RLS/no-policy情報通知をREAD-ONLYで実際の関数定義・認可判定・GRANT・所有権境界に沿って監査する。警告だけで脆弱性確定とせず、危険な一括REVOKEやRLS変更はしない。必要な最小修正はbranch→回帰検査→Draft PR→Previewで提出し、S4の独立レビューとProduction Auth/DB個別承認を求める。アカウント削除停止と未実施の実認証E2Eは解決済みと称さない。
+> **今回の範囲はIssue #137のみ。** Vercelのpublic-base-work-cards/recording aggregateの再検証AbortErrorについて、利用者影響、5xxか失敗時の限定表示か、timeout/async timer/関数スケジュール、リクエスト・クエリ境界をREAD-ONLYに調査する。既存PR #131は資料として判断する。再現性と安全性が証明できた限定修正に限り、最新mainから単独ブランチを作り、テスト・build・Draft PR・同一HEAD Previewまで進める。検索の正確性、公開/非公開、R18、認証、Reader三モード、AI/Human区別を維持する。権限やProduction DB設定の変更・Production data writes・mergeはしない。
 >
-> 後続 [Issue #142](https://github.com/sriipu1004-wq/duonovel/issues/142) GoogleログインはP7。既存Auth・同一メール・identity紐付け・Stripe/credit/作品/本棚/R18の所有権を保持する設計から着手し、親の優先順/承認なくOAuth providerを有効にしない。報告項目はGit/Production、Changed、DB/Data、Preserved、Validation、Remaining、Canonical docs、Next。
-
-## S1 — 新子S1_Reader・翻訳・検索品質 (P5, parallel)
-
-Send to active S1; if missing or archived at chat limit, create successor S1 and send as its first message:
-
-> このチャットをLIB readの専門子S1（Reader・翻訳・検索品質）として継続、または新規後継として引き継ぐ。旧子チャットは全件引退済み。AGENTS.md、PROJECT_MASTER.md、正史4文書とGitHub最新main/PRs、Productionを取得。未完了の同じIssue/PRが存在したらその証拠から再開する。
+> GitHub Issue #137に最新main、担当S4、branch/base/HEAD、変更範囲、証拠、独立レビュー待ち/停止条件を残す。Draft PR + CI + Preview準備ができたら**そこで作業を停止し**、親へ結果を報告する。S1独立レビューは親が後で単独指示する。次のIssue #141/#143や他領域を自動開始しない。
 >
-> 最初の実装・監査対象は [Issue #140](https://github.com/sriipu1004-wq/duonovel/issues/140)。Child85で準備済みの青空文庫8散文候補に残る注記102件（傍点、外字、ルビ、異本注、レイアウト）を原文ハッシュ/ソースと照合し、Original/Bilingual/Translation表示の忠実性を検証する。権利未承認作品をProductionに公開せず、検証用fixture/Previewで確認。既存AI/Human出所・権限・クレジット、R18、publication、source-language Searchを保持し、修正が必要なら限定Draft PRとHEAD一致Previewを作る。S3が独立に出典/本文と照合し、S2がセキュリティ影響を確認する。
->
-> 併行してS4 [Issue #137](https://github.com/sriipu1004-wq/duonovel/issues/137) のReader/Search/Work結果を**別担当として**独立レビューする。自身が実装したPRを自分で独立監査しない。各段階を親の承認ゲートへ戻し、所定のGit/Production等8項目で報告する。
+> 完了報告は Git/Production、Changed、DB/Data、Preserved、Validation（SOURCE/MOCK/Preview/Productionを区別）、Remaining、Canonical docs updated、Next を含める。
 
-## S3 — 新子S3_Public Domain・出典・権利 (P5, parallel)
+## Later review-only message — DO NOT SEND YET
 
-Send to active S3; if missing or archived at chat limit, create successor S3 and send as its first message:
+After parent has received and frozen S4 #137 exact PR HEAD, parent may send this to an existing post-reset S1, or create S1 if missing:
 
-> このチャットをLIB readの専門子S3（Public Domain・出典・権利）として継続、または新規後継として引き継ぐ。旧子85を含む2026-10-21以前の子は全件引退済み。AGENTS.md、PROJECT_MASTER.md、正史4文書、merge済み [PR #135](https://github.com/sriipu1004-wq/duonovel/pull/135)、[Issue #139](https://github.com/sriipu1004-wq/duonovel/issues/139) と権利レビュー記録を読み、最新main/PR/Production/DBを再検証。既存の継続PRや審査票があれば重複作業せず引き継ぐ。
->
-> Child85は未完了。10候補/39話はSOURCE準備済みだが、権利承認ゼロ・Production取り込みゼロ。まず候補を絞り、原著・実使用底本/改版・校訂/注記・デジタル化/提供条件を一次情報で照合し、JP/US/KR権利リスク、内容区分/R18、既存作品との重複を作品単位で審査表に記録する。S1 [Issue #140](https://github.com/sriipu1004-wq/duonovel/issues/140) の注記表示検証と、独立S2の権利・R18レビューを受ける。初回3–6作品のDraft候補でも、AI調査だけで最終的な人間の法律審査済みと称さない。作品ごとの権利承認、PR merge、本番Draft import、本番公開はそれぞれ別承認として扱い、未承認のDB/Storage操作をしない。親への報告はGit/Production等8項目と証拠URLを付ける。
+> このチャットをLIB readのS1とする。今回の作業は**新S4 Issue #137の完成したDraft PRの独立READ-ONLYレビューだけ**。S1の独自Issue #140は開始しない。親が指定した正確なPR番号、HEAD、CI、Preview、main/Productionを独立確認し、Reader/Search/Work結果の正確性、公開/非公開、R18、言語分離、既存Reader三モードに回帰がないか確認する。作者の実装PRに直接pushしない。GO/NO-GO/FIXと証拠を対象PRに提出後、親へ報告して停止する。追加実装や別Issueを始めない。
 
-## Execution limitations and succession
+## Succession
 
-The parent cannot address a different ChatGPT thread with these repository tools. Send each packet manually to an existing *active post-reset* chat or to a newly opened successor if none exists. On chat limit, checkpoint the active Issue/PR first if possible, archive that **instance only**, and create one same-slot successor that reconstructs GitHub/Production before continuing. Do not reuse the pre-reset legacy child chats or archive the parent conversation. Do not automatically activate dormant P6/P7/P8 when a child finishes R0/P5; parent controls the next assignment.
+When the currently active specialist hits a conversation length limit, require its Issue/PR checkpoint, archive that instance in ChatGPT Project UI, and create a successor **only for the same active slot**. Reconstruct progress from GitHub, not transcript guesses. The user must invoke the one child message; no GitHub connector here sends cross-chat instructions.
