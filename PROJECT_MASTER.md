@@ -1,69 +1,61 @@
-# LIB read — Permanent Parent Recovery / Project Control
+# LIB read — durable recovery / single operator control
 
-**Status entrypoint: CONTROL-R1 (2026-10-21).** This is the one-file bootstrap for an abruptly terminated parent chat. Read [AGENTS.md](AGENTS.md), this document, and then the linked canonical files. **This is a last-reviewed snapshot, not an automatically synchronized live dashboard.**
+**CONTROL-R4 (accepted single-window operating design, 2026-10-21).** Root entrypoint for an unexpectedly ended operator conversation. Status values here are dated snapshots: **ALWAYS independently recheck live GitHub/Production/Supabase before taking action.** User approval to *adopt an operating method* does not authorize merging any pending PR or performing Production changes.
 
-- Repository: [sriipu1004-wq/duonovel](https://github.com/sriipu1004-wq/duonovel)
+- Repo: https://github.com/sriipu1004-wq/duonovel
 - Production: https://www.syosetu-libread.com
-- Last independently observed main before this governance branch: 9c34659ca167ead0c860456437bd5fe8fe9086d2 (2026-10-21).
-- Last independently observed Production: dpl_3DVLLda3DYfcZ8cQKJwLXFmmN6H2, READY, same commit.
-- **FIRST ACTION ON EVERY RESTART:** fetch LIVE main, all open PR HEADs/status, Production state and any relevant DB state. Never assume this snapshot is current.
-- Product facts: [docs/project-state.md](docs/project-state.md); backlog order: [docs/roadmap.md](docs/roadmap.md); binding product decisions: [docs/decisions.md](docs/decisions.md); execution rules: [docs/development-workflow.md](docs/development-workflow.md).
-- Specialist ownership and chat lifecycle: [docs/chat-operations.md](docs/chat-operations.md). Findings from reviewing earlier gaps: [docs/governance-audit-2026-10-21.md](docs/governance-audit-2026-10-21.md).
+- Read: [AGENTS.md](AGENTS.md), [project-state](docs/project-state.md), [ordered roadmap](docs/roadmap.md), [decisions](docs/decisions.md), [development workflow](docs/development-workflow.md), [chat operations](docs/chat-operations.md).
+- Stable product and safety boundaries are in AGENTS and canonical docs; prefer live evidence to old chat claims.
 
-## Current accepted workstream disposition (verify GitHub live)
+## Live-verified snapshot (2026-10-21, update only after external checks)
 
-1. **P4 / Child84:** operationally CLOSED with accepted verification deferrals, **NOT** technically certified. Decision: [docs/child84-operational-closure.md](docs/child84-operational-closure.md); main merged PR #133. Historic text deeper in project-state/roadmap saying Child84 NOT DONE is a dated snapshot, not an order to restart it.
-2. **P5 / Child85:** IN PROGRESS, assigned to the user's already-created **子85_Public Domain権利・出典確認済み作品の段階的追加** (standing S3 Rights/Content specialist). Live Draft [PR #135](https://github.com/sriipu1004-wq/duonovel/pull/135) was observed at HEAD `8862a5c69102f16f2e0909c2be7e9180388b7cc8` on 2026-10-21: five source-prepared JA Aozora candidates, **ALL rights pending / NOT approved / NOT Production imported**; GitHub CI had failures at `Diff whitespace check` and exact-HEAD Preview was BUILDING at that check, not accepted. Reverify current PR/CI/Preview. **Do not create another Child85 chat by default**.
-3. **P6 / Child86:** after Child85, Production scale/performance acceptance. Do not pre-certify post-expansion performance.
-4. **Child84 deferrals:** authenticated Owner/Reader/R18/Human-translation E2E NOT VERIFIED; independent DB restoration and ~30GB Storage byte recovery **user-deferred** (not RESTORE PASS); public DB timer callback root cause UNKNOWN; Search full SQL ranking/facet parity unproven and **NO SQL CUTOVER**; permanent user-erasure workflow unimplemented; scheduled-publication Cron #108 not deployed. Do not silently revive any closed workstream or confuse risk acceptance with successful testing.
+- GitHub main `37650ac9b391c1a76f597751ea44c6110541a697` and Vercel Production `dpl_3Zhkw9WLfYmdzChM2LRRQDNLpXCL` READY on that same commit. No governance Draft or Issue #137 fix is yet Production.
+- Supabase `nyxbnccuvmlzffgtdadi`: ACTIVE_HEALTHY as last checked. Last READ-ONLY database checkpoint: 123 series, 120 public, 3 private; 84 public rightsChecked and 36 JA legacy unverified; 3,284 episodes, zero Human-translation rows, zero active/trialing subscriptions; Storage ~30 GB snapshot. These are not unique-user or real-audio claims and not proof of restore/E2E.
+- PR #135 **MERGED** into current main, source-prepared 10 Aozora manifests / 39 chapters; all `rights_status=pending` / `approved=false`; zero new rights approvals, Production Draft imports or publications. P5 Child85 remains open.
+- Production cache revalidation `AbortError` and unusually late timer callbacks still not root-caused; an `ACTIVE_HEALTHY` DB doesn't prove 5xx-free application operation.
+- Accepted historical deferrals: real signed-in Owner/Reader/R18/Human E2E; full independent DB and ~30 GB Storage bytes restore; Search SQL >1000 full parity (NO CUTOVER); timer root cause; deletion process; scheduled Cron PR #108 **NO-GO**.
 
-Production read-only corpus snapshot from 2026-10-21, **not a guaranteed live count**: 123 works / 120 public / 3 private; 84 public rightsChecked; 36 public without that flag (never batch-approve); public JA/EN/KO 40 each. Rights provenance and source details require item-by-item current verification.
+## CURRENT WORK LOCK — STOP at independent-review gate
 
-## Open PR control — last observed 2026-10-21 (always re-query)
+**User-approved operating method is now ONE ordinary ChatGPT operator window with internal S1–S4 scope labels.** Old pre-reset child conversations are historical references. S4 completed a **physical legacy-author phase** for Issue #137 and STOPPED. No new Issue authoring/implementation has been authorized on the basis of this switch.
 
-| PR | Position at last check | Re-entry disposition |
+- Active Work ID: [Issue #137](https://github.com/sriipu1004-wq/duonovel/issues/137), authored/frozen S4 [Draft PR #146](https://github.com/sriipu1004-wq/duonovel/pull/146), base main `37650ac9b391c1a76f597751ea44c6110541a697`, exact HEAD `2d8cae74edea88e3425011d9a7b3950260e8aea6`.
+- PR #146 exact-head GitHub workflow checks 3/3 SUCCESS; Vercel Preview `dpl_GUCibV6ZNM6zBZAqP6BqfDChRaid` READY. Scope: EN/KO one-ID Work metadata and JA episode-public SEO predicate; **not a fix for the global AbortError/timer root cause**. No Production data/DB/config writes.
+- **Next required gate: genuinely independent Reader/Search/rights/visibility review of PR #146's frozen HEAD.** Same-window switching to “S1” does NOT count. Until separate reviewer evidence is recorded, REVIEW_PENDING, no merge or release; other Issues still queued. Reviewer must not push author's branch. On FIX, return the task to operator for bounded implementation/new-HEAD review; on GO, seek explicit user merge approval and verify Production after approved merge.
+- Old [Draft #131](https://github.com/sriipu1004-wq/duonovel/pull/131) is candidate reference only, not automatically merged.
+
+## Governance / Draft PR resolution (not yet merged)
+
+- [PR #147](https://github.com/sriipu1004-wq/duonovel/pull/147): **OPEN/DRAFT, targeted directly at main**; single-window CONTROL-R4 governance and Project Settings copy, 13 documentation files, pending user-specific explicit merge approval. Project Settings UI is **not automatically synchronized**.
+- [PR #145](https://github.com/sriipu1004-wq/duonovel/pull/145): **CLOSED UNMERGED**, superseded by #147 after exact changed-file coverage check.
+- [PR #136](https://github.com/sriipu1004-wq/duonovel/pull/136): **CLOSED UNMERGED**, Google OAuth/AdSense plan carried forward into #147's roadmap/decisions; no provider/ad activation authorized.
+- [PR #108](https://github.com/sriipu1004-wq/duonovel/pull/108): Cron Draft NO-GO. Never activate without separate security/release decision.
+- Issue #144 tracks outstanding ChatGPT Project UI instruction alignment and legacy chat archival; a GitHub commit cannot change the actual Project Settings text.
+- Approved *planning* order: P5 Child85 rights/edition, P6 Child86 scale, P7 Google OAuth, P8 publisher AdSense, P9 acquisition, P10 minimal analytics; R0 incident/security safety triage may precede but **not execute concurrently**. `docs/roadmap.md` is canonical and not changed by one-window adoption.
+
+## Internal specialist responsibility register
+
+| Role label (not a separate ordinary chat) | Area | Queued issue |
 | --- | --- | --- |
-| [#68](https://github.com/sriipu1004-wq/duonovel/pull/68) | Legacy Draft; old base, non-mergeable | Compare current Human-translation code; archive/close or replace only after explicit review, never merge stale permission code. |
-| [#79](https://github.com/sriipu1004-wq/duonovel/pull/79) | Legacy one-file governance Draft; old base, non-mergeable | Audit against latest roadmap; do not overwrite current priority/status. |
-| [#108](https://github.com/sriipu1004-wq/duonovel/pull/108) | Scheduled-publication Cron Draft; old base, non-mergeable | **NO-GO / do not deploy** without separate security/release decision. |
-| [#130](https://github.com/sriipu1004-wq/duonovel/pull/130) | Child84k backup-deferral documentation Draft; old base, non-mergeable | Some content now covered by merged #133; compare precisely before close, cherry-pick or merge; no duplicate or contradictory decision. |
-| [#131](https://github.com/sriipu1004-wq/duonovel/pull/131) | Work SEO single-ID optimization Draft; last checked mergeable | Exact-HEAD GitHub CI PASS, matching-head Vercel Preview **not established** (Hobby quota at that time); rebase/retest/review before considering merge. |
-| [#135](https://github.com/sriipu1004-wq/duonovel/pull/135) | **Active Child85 S3** five-candidate Public Domain source-preflight Draft; CI whitespace failures, Preview not yet accepted at last check | Preserve rights_status=pending, approved=false and no Production import; S3 owns fixes and current-head CI/Preview. Require individual rights review, then separate merge/Draft import/publication approvals. |
+| S1 | Reader, AI/Human translation fidelity, Search/source-language, SEO UX | #140; independent PR #146 review is **separate reviewer SESSION**, not self-review |
+| S2 | Supabase Auth, author/user permissions, account data, R18, billing boundaries | #138 urgent security audit; #142 Google OAuth after P6 |
+| S3 | Public Domain rights, exact sources/editions, manifests and controlled Draft cohort | #139, Child85 P5 |
+| S4 | Vercel/DB performance, caching, infra, release | #137 review pending; #141 after expansion; #143 AdSense after P7 |
 
-**A Draft PR is neither approved nor Production.** The presence of an open PR does not itself justify interrupting the Child85 roadmap. Parent assigns a reviewer and decides scope; never blindly merge old work.
+No Issue begins simply because it is on this table. One active Work ID; parent/user authorization and a stored checkpoint before any next action. No parallel writers.
 
-## Permanent specialist conversations (roles, not task numbers)
+## Independent reviews and user approvals
 
-| Slot | Reuse this same conversation for | Current routing |
-| --- | --- | --- |
-| **S1 — Reader / Translation / Search UX** | Reader, AI-vs-Human translation presentation, localization, Search correctness, reading UI | Available when parent assigns; no need to start a replacement immediately. |
-| **S2 — Auth / Authors / User Data & Rights Enforcement** | Author publishing, ownership, R18, consent, deletion, private library, data security | Available; high-risk changes require independent review. |
-| **S3 — Public Domain / Content Provenance** | Original texts, source/licence audits, manifests, cautious batches, text rights | **Child85 assigned to the already-created 子85 conversation**. |
-| **S4 — Infrastructure / Reliability / Release** | Next.js/Vercel, Supabase, performance, caches, deploy, backup risk, observability | Available; Cron remains NO-GO. |
+- A separate review session or genuinely independent human **must** retrieve the fixed source PR/HEAD and test failure, private/public, R18, owner and locale semantics. It writes GO/FIX/NO-GO to that PR/Issue directly. Do not invent a review if none was executed.
+- User explicitly approves the **actual change and Preview** for each merge; for high-risk Production DB/Storage, Auth/RLS/provider, rights approval, publication, payment or advertising activation, require **separate** authorization of exact scope/cohort. Green CI alone is insufficient.
+- Routine lower-risk docs/UI changes can pass source self-checks/tests/Preview and user merge approval; self-check must be labeled as self-check, not independent review.
 
-Independent QA/security review is a **separate reviewer role**, usually parent or a non-author specialist. Create a separate persistent QA conversation only when recurring independent reviews justify it; naming the author twice does not provide independence. Parent owns priority, conflicts and final acceptance.
+## Crash or context-limit bootstrap
 
-**A specialist continues on multiple relevant PRs and future roadmapped tasks**. When a chat reaches length limits, create **Sx successor v2** retaining the same slot; leave a checkpoint in GitHub and update the slot's locator if provided. Do not create a new chat for each Child84a/b/c or PR. Existing historical chats stay as references. No stable ChatGPT conversation URL has been supplied; never invent one.
+1. Read this file, AGENTS and all four canonical files plus chat-operations; this replaces asking prior operator/child for a handoff.
+2. Verify latest main and every Open PR HEAD/status/CI/Preview, Production deployment SHA/READY and relevant Supabase read-only counts; check if any external reviewer/action is actually pending. A snapshot here is not a live dashboard.
+3. Read active Issue and PR comment/checkpoint. Recover Work ID, phase, allowed actions, branch/base/HEAD, test evidence, exact pending reviewer, user approval evidence and exclusions.
+4. If missing independent review, approval or preserved data rights, STOP and request only that gate. A sudden context loss can lose uncommitted in-chat work, so recovery is **fail closed**, not perfect replay.
+5. Update durable accepted decisions only in [docs/decisions.md](docs/decisions.md) and appropriate project-state/roadmap files; ephemeral runs/HEAD belong to Issue/PR. Avoid shared-doc changes on unrelated work branches.
 
-## Parent crash / replacement — deterministic recovery
-
-1. Open this fixed file from repository root; do not wait for the previous parent to author a handoff.
-2. Verify live main SHA, 100% of open PRs, relevant PR diffs/CI, Vercel Production and (when material) Supabase. Obtain provider evidence, not just child claims.
-3. Reconcile accepted decisions and gates against the top of project-state and the roadmap. **Last checked != currently verified.** Resolve contradictory history explicitly.
-4. Review the open PR control table and update it from observed reality; distinguish CLOSED, OPEN, superseded, blocked, reviewed, approved, MERGED, Preview READY and Production READY.
-5. Confirm which persistent S1–S4 specialist owns the next roadmap step. Check its last PR/comments and specialist checkpoint; do not duplicate work or automatically start a new chat.
-6. If the previous chat stopped between a user approval and a merge, verify exact approval scope and live HEAD; do not infer authority from this document. When uncertain, leave Draft and ask only for that specific release decision.
-7. Record **accepted durable** owner, roadmap, safety/deferral, and release decisions in this file at a parent checkpoint, ideally within the relevant governance/product PR. Record routine per-commit CI, PR and Preview checkpoints in the task PR/Issue instead; do not make every parallel specialist branch edit this shared parent file or burn deployment quota. After an unexpected parent crash, reconstruct intervening work from live PRs/GitHub/Production; files do not update themselves.
-
-**Truth precedence:** latest explicit user intent and signed-off choices (within authorized scope) → independently verified GitHub/Production/DB facts about actual execution → [docs/decisions.md](docs/decisions.md) for binding product contracts and [docs/roadmap.md](docs/roadmap.md) for ordered priority → [docs/project-state.md](docs/project-state.md) for current product description → named source audit/release evidence → dated historical docs → chat summaries. Operational reality does not by itself authorize a new product decision, data write, merge or rights reclassification.
-
-## Acceptance and checkpoint contract
-
-- Before branch/PR: specify Work ID, specialist Sx, exact scope, base SHA, owner, **independent reviewer**, risk level, evidence requirements and stop/return conditions.
-- At meaningful checkpoints: attach exact commit/Preview/CI and remaining conditions to the same task PR/Issue, **not a chain of disposable chat transcripts**.
-- On finish or accepted deferral: record Git/Production, Changed, DB/Data, Preserved, Validation, Remaining, Canonical docs updated, Next; distinguish user waiver from test PASS.
-- Parent decides when to change roadmap, accept release, revisit deferred risks, and assign the next milestone. A child does not assign another child or reprioritize itself.
-- No background processing follows from assignment; execution happens only when the selected conversation is actually invoked.
-- Every implementation follows existing Draft → Preview → explicit approval → merge → Production smoke. Every Production data/rights permission change additionally needs exact cohort, count, reversibility and separate explicit authorization.
-
-This page stays short/current. Long rationale is in [decisions](docs/decisions.md), previous evidence in audit files and PRs, not appended forever to this entrypoint.
+Completion report: **Git/Production; Changed; DB/Data; Preserved; Validation by type; Remaining; Canonical docs updated; Next; Explicit approvals consumed/outstanding.** No direct main commits or automatic background execution.

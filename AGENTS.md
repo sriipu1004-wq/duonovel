@@ -1,16 +1,27 @@
-# LIB read — agent and chat recovery entrypoint
+# LIB read — entrypoint and safety contract
 
-**Every new parent or specialist conversation starts with [PROJECT_MASTER.md](PROJECT_MASTER.md).**
-This is a permanent discovery contract. The previous parent chat may have ended without a handoff.
+**CONTROL-R4 (2026-10-21): single ChatGPT operator window, S1–S4 specialist RESPONSIBILITIES, not mandatory physical child chats.** The user approved this operating model on 2026-10-21; GitHub governance is being reconciled in Draft PR #147. This file is a recovery entrypoint, not a self-updating status dashboard.
 
-1. Read [PROJECT_MASTER.md](PROJECT_MASTER.md) and [docs/chat-operations.md](docs/chat-operations.md).
-2. Read the canonical product documents: [project-state](docs/project-state.md), [ordered roadmap](docs/roadmap.md), [decisions](docs/decisions.md), and [development workflow](docs/development-workflow.md).
-3. Independently verify the live GitHub main, open PRs (including HEAD and status), Production deployment SHA/READY, and relevant Supabase state. The last-observed SHA in any file is **not** the current SHA by itself.
-4. If files, prior chats and live evidence disagree, report the conflict; distinguish historical snapshots from current decisions. Never infer a successful test/merge/restore from a label alone.
-5. Parent controls roadmap, specialist assignments, cross-cutting decisions, acceptance, approvals and Production release. Specialist conversations persist across multiple related workstreams; Child84, Child85, etc. are **roadmap work IDs, not disposable chat identities**.
-6. Preserve the existing workflow: latest main → separate branch → implementation → tests/build → Draft PR → matching-HEAD Preview → user review → **explicit merge approval** → merge → Production READY/smoke. Data writes and high-risk release decisions have separate approvals. Do not merge because a PR is merely green.
-7. Persist **accepted durable** priority, ownership, risk, or release decisions in [PROJECT_MASTER.md](PROJECT_MASTER.md) and relevant canonical docs at a parent checkpoint. Routine PR HEAD/CI/Preview changes belong in their PR threads and are always re-queried live; do not force every specialist PR to edit the shared parent file. If the parent crashes first, the next parent reconstructs drift from live evidence rather than assuming snapshots are self-updating.
+Repository: `sriipu1004-wq/duonovel`
+Production: `https://www.syosetu-libread.com`
 
-Stable product invariants: AI story generation is retired; AI reading/translation support remains. Human vs AI translation use separate provenance, permissions and allowances (Human never calls OpenAI or consumes AI credits). Reader modes are Original, Bilingual, Translation only. Keep UI locale, source language, target language distinct; Search filters source language. Preserve R18, authorization, publication/owner isolation, rights evidence, and Human narration vs TTS. "LIB read Official" is not Public Domain proof. Do not fabricate rights, provider, edition, hashes, translations, recordings or usage.
+## Required first actions
 
-No chat assignment, GitHub comment, Issue or file edit launches asynchronous child execution. Follow the user's actual scope and established review/merge approvals.
+1. Read `PROJECT_MASTER.md`, `docs/project-state.md`, `docs/roadmap.md`, `docs/decisions.md`, `docs/development-workflow.md`, and `docs/chat-operations.md`.
+2. Independently fetch current main, **ALL** Open PRs and their HEAD/draft/CI states, Vercel Production SHA/READY, and relevant Supabase state. Resolve contradictions between dated documents, past chats and actual GitHub/Production evidence. Don't call a cached SHA current.
+3. Read the active Issue/PR checkpoint; verify precise phase, authorized work, outstanding reviewers, Preview, data permissions, approvals and stop gate. An Issue alone never starts work.
+
+## Operating model
+
+- A single ordinary ChatGPT conversation is the user-facing operator and normal implementer. **S1** Reader/translation/Search, **S2** Auth/ownership/R18/data, **S3** Public Domain/source/rights and **S4** infrastructure/performance/release are internal scope labels and checklists.
+- Work is **strictly serial**: one user-authorized Issue/phase at a time; no competing writers, automatic next-Issue selection or independent permission to reorder `docs/roadmap.md`. Keep checkpoints and exact HEAD in GitHub.
+- Self-review is not independent review. For relevant rights, private/public visibility, R18, Auth/RLS, ownership, AI/Human entitlements, payment/credits, destructive Production data, sensitive SEO or security changes, demand a truly separate reviewer session/person using the fixed PR HEAD. If one cannot be reached, leave REVIEW_PENDING. CI PASS/Preview READY never substitutes for it.
+- Normal release: latest main → isolated branch → source/test/build → Draft PR → matching-head Preview → applicable separate audit → user inspection and **explicit merge approval** → merge → Production SHA/READY and smoke. Production DB/Storage/rights/Auth/RLS/ads/Cron/publication writes need distinct scope-specific approvals. No change to main directly.
+- Default tools: direct GitHub, Vercel, Supabase (read-only unless authorized). Do not default to Codex, Work, ongoing agents or paid external infrastructure. Treat unavailable local build/authenticated E2E as **unverified**, never as PASS.
+- Restart at chat context cap: `PROJECT_MASTER.md` + all canonical files + **live** GitHub/Production/PR evidence; require checkpoint of work phase, scope, base/branch/HEAD, CI/Preview, review, explicit approvals and blockers. Missing approval evidence => STOP/reconfirm. GitHub does not recover uncommitted chat-only work.
+
+## Product invariants
+
+AI novel/story generation retired. AI translation and Human translation are different provenance/permissions; Human translation never calls OpenAI or consumes AI allowance/credits. Human narration != TTS. Reader modes are Original / Bilingual / Translation; AI/Human is a source choice. UI locale, original/source language and reading target language are distinct; Search filters source language. Public Domain needs exact rights/provenance/edition evidence; “LIB read Official” alone is not grounds. Preserve ownership, private/public boundaries, R18, security, publication and billing. Do not fabricate rights, sources, translator/edition hashes, usage, inventory or stronger provider data claims than evidence supports.
+
+**Canonical operations:** `docs/chat-operations.md`. **Operator checklist:** `docs/development-workflow.md`. **Current status/approvals:** `PROJECT_MASTER.md` plus live Issues and PRs. **Historical child-chat launch packets** in `docs/chat-launch-2026-10-21.md` are archive-only, not active dispatch instructions.

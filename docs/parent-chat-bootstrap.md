@@ -1,35 +1,22 @@
-# Parent chat bootstrap — LIB read (evergreen)
+# LIB read — new operator ChatGPT chat bootstrap
 
-**Permanent recovery source: [PROJECT_MASTER.md](../PROJECT_MASTER.md).**
-This is intentionally not tied to Child81, Child84, a snapshot SHA or a particular parent conversation. A parent chat may hit the message cap with no farewell; **no handoff from the previous parent is required**.
+The previous operator conversation may reach its context limit unexpectedly. A new ordinary ChatGPT conversation in the same Project is the **single-window successor**, not a new parent or specialist child. No old chat farewell or manual summary should be required for recorded facts. Recovery uses live GitHub/Production, not conversation inference.
 
-## 新しい親チャットに貼る最小文
+## Minimal startup message (copy only when replacing the current window)
 
-> このチャットをLIB read / 小説投稿サイト制作の**後継親チャット**として扱う。
+> このチャットをLIB read（sriipu1004-wq/duonovel、Production https://www.syosetu-libread.com）の後継**単一操作窓口**として扱う。S1 Reader/翻訳/Search、S2 認証・権限、S3 出典・権利、S4 インフラはこの窓口内の専門責務であり、物理的な通常子チャットを要求しない。
 >
-> Repository: https://github.com/sriipu1004-wq/duonovel
+> GitHubのAGENTS.md、PROJECT_MASTER.md、docs/project-state.md、docs/roadmap.md、docs/decisions.md、docs/development-workflow.md、docs/chat-operations.mdを読む。最新main、全Open PR/HEAD/CI/Preview、Vercel Production SHA/READYと必要なSupabase状態を独立検証し、GitHub Issue/PRから進行中の**1件**と停止条件を復旧する。
 >
-> Production: https://www.syosetu-libread.com
+> 未実施の独立レビューを自己レビューで代替しない。明示的なmerge承認、Production DB/Storage/権利/Auth/広告などの別承認を推測しない。PR #146の現在の状況を含め、すべてLIVE再確認する。未記録の承認やチャット上限で失われた作業はSTOPとして示す。新Issueを自動開始しない。
 >
-> まずリポジトリ直下の **PROJECT_MASTER.md** と **AGENTS.md** を読む。その後、docs/chat-operations.md、docs/project-state.md、docs/roadmap.md、docs/decisions.md、docs/development-workflow.mdを読む。
->
-> GitHub最新main、**全Open PR**のHEAD・Draft/Ready・CI、最新Production deploymentと該当するSupabase状態を独立検証する。PROJECT_MASTER.mdのSHAは最後の観測値であり、現在値とは限らない。
->
-> 前の親チャットが突然終了しても、引き継ぎメッセージを待たず、上記ファイルとLIVE GitHub/Productionから現状を復元する。矛盾は報告し、未実施テストをPASS扱いしない。
->
-> **Child番号はロードマップの作業番号であり、使い捨て子チャットの番号ではない。** 専門子S1〜S4を継続再利用する。既に存在する「子85」はS3権利・コンテンツ担当。無断で別の子85を作らない。
->
-> 優先順位・新規アサイン・クロス領域判断・merge・Production検収は親が管理する。子は専門領域内の連続した作業を担当し、重大判断やブロック時に親へ戻る。明示承認前にmergeせず、Production DB書込み・Rights変更・Cron有効化等は別の明示承認を要する。
->
-> 開始時の返答では確認済みのmain/Production、正史優先作業、担当子の状況、未merge PRと停止条件の差分を簡潔に整理する。以前の会話の続きであることのみを理由にコード変更・子チャット作成を開始しない。
+> 検証済みの現在のmain/Production、Open PR、active Work ID/HEAD、独立レビューとユーザー承認の待機事項、次に実行可能な**同一Issue内の手順**を簡潔に報告する。
 
-## 親チャットが突然停止した際の復元検査
+## Recovery checklist
 
-- 現在main SHAとProduction SHA/READYは一致するか。不一致は何の変更か。
-- すべてのOpen PR（旧Draft含む）をライブ列挙し、HEAD、mergeability、Preview可否、承認範囲を再検証したか。
-- Child84は運用上終了しているが、技術的な未検証事項と禁止事項を区別したか。
-- ロードマップP5 Child85が既にS3の子85に割り当てられていることを維持したか。本人が作業を進めたという未確認の仮定はしない。
-- データ削除、権利判定、Human翻訳、R18、料金、バックアップ・Cronなどの停止条件を勝手に解除していないか。
-- 既存子の会話が上限に達したときだけ、同じ専門枠の後継を立て、同じPR/Issueの検査可能な証拠から再開するか。
-
-This document is a **copyable recovery prompt**, not a second status/roadmap source. Current control: [PROJECT_MASTER.md](../PROJECT_MASTER.md); historical findings: [governance audit](governance-audit-2026-10-21.md).
+1. Fetch `PROJECT_MASTER.md` and canonical files **from current main**, then compare pending governance Draft branches without treating them as deployed policy.
+2. Independently enumerate ALL Open PRs, live HEAD, CI/Preview, Production, and relevant Supabase. Compare to the last durable Issue/PR checkpoint; raise drift.
+3. Determine whether a fixed HEAD is frozen for separate review and whether any reviewer posted evidence in GitHub. A self-review in the same operator window is never independent.
+4. Find exact user merge/data release approval in verifiable current context; if missing, do not merge or execute sensitive actions. GitHub file commits do not modify ChatGPT Project Settings automatically.
+5. Keep one active Issue/phase; previous context/operation might have been interrupted. No parallel child launch, Codex-first fallback or unrequested automation.
+6. Persist newly accepted durable changes in docs/decisions.md / roadmap / project-state within an approved workstream. Keep transient HEAD/CI/Preview and reviewer records in Issue/PR.

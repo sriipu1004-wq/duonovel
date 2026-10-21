@@ -5,9 +5,14 @@ Product-state baseline: `63f340168da1725f9c147a8dba05ecc88898b532`
 
 This file is the canonical ordered backlog for the next workstreams. It exists specifically so parent-chat replacement or context compression does not reorder the planned site work.
 
-> **Parent recovery and permanent specialist ownership:** see [PROJECT_MASTER.md](../PROJECT_MASTER.md) and [docs/chat-operations.md](chat-operations.md). Child84/85/86 are roadmap Work IDs, not disposable ChatGPT chat identities. This documentation-only governance adjustment does **not** change the ordered priorities below. Git/Production status in old dated notes remains historical, not an implicit release gate waiver.
+> **CONTROL-R4 single operator window:** S1–S4 are internal specialist responsibilities, not ordinary child chat assignments. See [PROJECT_MASTER.md](../PROJECT_MASTER.md) and [docs/chat-operations.md](chat-operations.md). Child84/85/86 are roadmap Work IDs. **This operator change does not reorder any priorities**. Git/Production status in old dated notes is historical; live checks and approvals still govern.
 
 ## Current priority order
+
+**Owner-approved 2026-10-21 priority insertion:** keep P5 Child85 rights/edition review and P6 Child86 scale gate; queue P7 Google OAuth sign-in and P8 publisher-side Google AdSense review/controlled ad placements. Displaced Acquisition and minimal analytics remain P9 and P10, not canceled. These priorities authorize planning only; OAuth provider activation, consent and ad scripts require their own evidence/review/approvals. This supersedes Draft PR #136 if this PR is approved.
+
+**Urgent R0 safety work is strictly serial, not a roadmap renumber:** [#137 public-cache AbortError](https://github.com/sriipu1004-wq/duonovel/issues/137) was investigated in S4 and resulted in frozen Draft PR #146, **independent review pending**. After that acceptance gate is resolved, [#138 Auth/RPC audit](https://github.com/sriipu1004-wq/duonovel/issues/138) is the next urgent queued issue unless a new critical incident changes authorization. S1–S4 are internal operator responsibilities; #139/#140 P5 work stays queued. [Live work registry](../PROJECT_MASTER.md) is separate from ordered Work IDs.
+
 
 ### P0 — Project governance baseline
 
@@ -273,7 +278,42 @@ Validate:
 
 Only if this gate passes should further staged Public Domain growth proceed.
 
-### P7 — Acquisition
+### P7 — Google account login via Supabase Auth
+
+Status: **queued — after Child86 Production scale acceptance**
+
+Owner: **S2 (Auth / Authors / User Data)**, with a distinct security reviewer.
+
+Goal: let users sign in with their Google account as an additional authentication method, without replacing the existing sign-in path or silently changing account ownership.
+
+Acceptance gates:
+- inspect the actual current Supabase Auth/login/callback/session/account lifecycle first; use the supported Google OAuth provider instead of building a parallel identity store;
+- configure and review the authorized Google Cloud OAuth client, Supabase provider, exact Production/Preview redirect allowlist and secrets, without disclosing credentials or assuming account-side settings are already enabled;
+- preserve existing user IDs, profiles, works, author permissions, subscriptions/credits, R18 preferences, private libraries, RLS and account-deletion safeguards; define safe handling for an existing email, account linking and duplicate identities before shipping;
+- test new Google sign-in, existing-account paths, cancellation/error/expired-code flows, callback/redirect tampering and logged-in/out state against the approved security contract, including an appropriate authenticated Preview flow;
+- pass independent auth/security review, matching-HEAD Preview, explicit user merge approval and Production smoke. Do not enable uncontrolled provider/identity changes on a documentation-only decision.
+
+Primary integration reference: https://supabase.com/docs/guides/auth/social-login/auth-google
+
+### P8 — Google AdSense eligibility, review and controlled site ad placement
+
+Status: **queued — after P7; ad serving is conditional on AdSense site approval and policy acceptance**
+
+Owner: **S4 (Infrastructure / Reliability / Release)** with S1 UX and S2 privacy/R18 independent review. This means **publisher-side Google AdSense**, not paid acquisition through Google Ads.
+
+Goal: connect the LIB read domain to AdSense and, when eligible and approved, place a small number of measured, policy-compliant ads without degrading the reading experience.
+
+Acceptance gates:
+- check whether the operator actually has an AdSense account, its site verification/review status and official supplied publisher ID; never fabricate an AdSense account, approval or estimated earnings;
+- examine Google Publisher Policies for user-generated novels, sexual/explicit or R18 content and potential rights problems; start with explicitly eligible public pages, exclude private, unapproved, R18 or unknown-risk content and avoid indiscriminate global ad injection;
+- agree specific ad placements and interaction limits before implementing; protect Reader text/translation/audio controls, mobile readability, accessibility, load time, CLS, indexability and paid Premium differentiation;
+- review Privacy/Terms disclosures, regional consent/cookies/CMP requirements including EEA/UK/Switzerland where applicable, and appropriate ads.txt/site verification; never activate tracking before the required gate;
+- only use official AdSense integration and approved site/placement configuration; staged Preview and independent policy/security/UX review precede explicit merge and any separate live-ad activation;
+- verify live ad eligibility/status, actual behavior and performance after authorization; if the account or site is not approved, leave the work BLOCKED without claiming ads are serving.
+
+Official references: https://support.google.com/adsense/answer/7584263 and https://support.google.com/adsense/answer/48182
+
+### P9 — Acquisition
 
 Status: **after Child86 scale gate**
 
@@ -292,7 +332,7 @@ Acquisition was displaced by the Production reliability incident; it was not can
 
 Do not use AI Fund/job-search context here.
 
-### P8 — Real usage observation and minimal analytics
+### P10 — Real usage observation and minimal analytics
 
 Status: **after meaningful external traffic begins**
 
