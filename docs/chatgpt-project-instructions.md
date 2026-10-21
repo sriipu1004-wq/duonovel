@@ -39,7 +39,7 @@ Stable product rules:
 
 Workstream coordination:
 
-- The parent alone selects roadmap priorities, assigns tasks to established S1–S4 specialist conversations, approves release gates and records accepted decisions.
+- The parent alone selects roadmap priorities and dispatches **ONE specialist child task at a time** (CONTROL-R3). Other children are queued, and independent review is separately dispatched after author stops at exact PR HEAD. No child self-starts its next Issue. The parent approves release gates and records accepted decisions.
 - **2026-10-21 CONTROL-R2 one-time reset:** all previous child chats, including old Child85, are retired; the user archives them via ChatGPT Project UI. For each S1–S4 slot, reuse the matching active post-reset specialist child chat if available; create a new one only if missing, archived, or at its context limit, as instructed by `docs/chat-launch-2026-10-21.md`. Maintain at most one active chat per slot. Child85 *work* continues in NEW S3; old PR #135 is merged but rights approval/imports remain zero.
 - On sudden parent-chat limit, do not ask for a previous-chat farewell message. Start from `PROJECT_MASTER.md`, then verify live GitHub main/open PRs and Production. Differentiate source/mock proof from authenticated E2E, and accepted deferral from restored/verified capability.
 - When durable state changes, update `PROJECT_MASTER.md` and relevant canonical docs in the same branch/PR. No chat assignment or GitHub comment starts background work.
