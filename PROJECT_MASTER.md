@@ -26,9 +26,9 @@
 
 ## Governance / Draft PR resolution (not yet merged)
 
-- [PR #147](https://github.com/sriipu1004-wq/duonovel/pull/147): consolidated CONTROL-R4 one-window proposal and canonical governance implementation, awaiting exact Preview and explicit merge approval. Retarget to `main` and confirm diff rather than merge stacked governance blindly.
-- [PR #145](https://github.com/sriipu1004-wq/duonovel/pull/145): earlier CONTROL-R3 physical-child Draft to be closed **unmerged as superseded only when #147 fully includes its still-relevant docs and is retargeted to main**.
-- [PR #136](https://github.com/sriipu1004-wq/duonovel/pull/136): earlier Google OAuth/AdSense priority Draft, to close as redundant after single consolidated governance PR approval/merge; do not merge both.
+- [PR #147](https://github.com/sriipu1004-wq/duonovel/pull/147): **OPEN/DRAFT, targeted directly at main**; single-window CONTROL-R4 governance and Project Settings copy, 13 documentation files, pending user-specific explicit merge approval. Project Settings UI is **not automatically synchronized**.
+- [PR #145](https://github.com/sriipu1004-wq/duonovel/pull/145): **CLOSED UNMERGED**, superseded by #147 after exact changed-file coverage check.
+- [PR #136](https://github.com/sriipu1004-wq/duonovel/pull/136): **CLOSED UNMERGED**, Google OAuth/AdSense plan carried forward into #147's roadmap/decisions; no provider/ad activation authorized.
 - [PR #108](https://github.com/sriipu1004-wq/duonovel/pull/108): Cron Draft NO-GO. Never activate without separate security/release decision.
 - Issue #144 tracks outstanding ChatGPT Project UI instruction alignment and legacy chat archival; a GitHub commit cannot change the actual Project Settings text.
 - Approved *planning* order: P5 Child85 rights/edition, P6 Child86 scale, P7 Google OAuth, P8 publisher AdSense, P9 acquisition, P10 minimal analytics; R0 incident/security safety triage may precede but **not execute concurrently**. `docs/roadmap.md` is canonical and not changed by one-window adoption.
