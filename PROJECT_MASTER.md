@@ -34,12 +34,12 @@
 
 **Specialist startup:** [docs/chat-launch-2026-10-21.md](docs/chat-launch-2026-10-21.md). User must physically create four new ChatGPT specialist conversations and archive old children individually. Assign tasks to new chat ONLY; GitHub issues are not asynchronous agents. Preserve implementation vs independent reviewer roles; parent controls cross-scope approval and merges.
 
-## Open PR audit (2026-10-21 snapshot)
+## Open/closed PR audit (2026-10-21 snapshot)
 
-- [#68](https://github.com/sriipu1004-wq/duonovel/pull/68) legacy Human translation Draft, outdated/non-mergeable: DO NOT merge without a fresh rights/security review.
-- [#79](https://github.com/sriipu1004-wq/duonovel/pull/79) old governance Draft, outdated/non-mergeable: archive/close only after exact content disposition.
+- [#68](https://github.com/sriipu1004-wq/duonovel/pull/68) **CLOSED UNMERGED** (2026-10-21), old Human translation permission/default proposal deemed unsafe to blindly adopt; future S2/S1 design only.
+- [#79](https://github.com/sriipu1004-wq/duonovel/pull/79) **CLOSED UNMERGED** (2026-10-21), exact one-line governance status already in main.
 - [#108](https://github.com/sriipu1004-wq/duonovel/pull/108) scheduled publication Cron Draft, non-mergeable and **NO-GO**: no activation.
-- [#130](https://github.com/sriipu1004-wq/duonovel/pull/130) backup deferral Draft, outdated/non-mergeable: reconcile against #133.
+- [#130](https://github.com/sriipu1004-wq/duonovel/pull/130) **CLOSED UNMERGED** (2026-10-21), accepted restore deferral already in #133; detailed source kept as history.
 - [#131](https://github.com/sriipu1004-wq/duonovel/pull/131) SEO query Draft, currently non-mergeable after #135: rebase/retest if still useful.
 - [#136](https://github.com/sriipu1004-wq/duonovel/pull/136) Google login + AdSense documentation Draft, **superseded by consolidated reset PR on approval**; do not merge both.
 - [#135](https://github.com/sriipu1004-wq/duonovel/pull/135) **MERGED**. Do not put it back into open-PR list.
