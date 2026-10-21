@@ -16,7 +16,7 @@
 - PR [#135](https://github.com/sriipu1004-wq/duonovel/pull/135) **MERGED** on main: exactly **ten source-prepared, rights-pending Aozora manifests / 39 prepared chapters** plus ingestion preflight. **0 approved / 0 Production imported/published. Child85 P5 remains OPEN.** Never describe the old merged PR as still Draft or confuse source-prepared with rights-approved.
 - Read-only Supabase checkpoint: 123 series / 120 public / 3 private, public JA/EN/KO 40 each, 84 public rightsChecked / **36 JA legacy unverified**, 3,284 public posted episodes, 0 Human translations, 0 active billing subscriptions, 9 non-soft-deleted Auth accounts, 4,728 Storage objects (~30.19 GB). These are date-bound counts, not automatic metrics.
 - Vercel runtime errors included `AbortError` during public-cache revalidation across Reader/Search/Works: **triage required**, not proof of data leak or global outage. Supabase Advisor listed leaked-password protection disabled and ten authenticated-executable SECURITY DEFINER RPC warnings: **review contracts before changing grants**, not a demonstrated exploit. Independent DB/Storage restoration and real-session E2E remain user-deferred/unverified; #108 Cron still NO-GO.
-- User directed on 2026-10-21: **retire/archive ALL old child chat instances (including the old Child85), create only NEW specialist chats, and triage current problems.** Previous S1–S4 role names remain useful, but **no previous chat instance is active**. ChatGPT UI archive operation is not available through this connector; user-performed per-chat archive remains outstanding and must not be reported complete.
+- User directed on 2026-10-21: **retire/archive ALL old child chat instances (including the old Child85), establish the S1–S4 post-reset specialist roles (reusing any active post-reset instance, creating one only if missing/archived/capped), and triage current problems.** Previous S1–S4 role names remain useful, but **no previous chat instance is active**. ChatGPT UI archive operation is not available through this connector; user-performed per-chat archive remains outstanding and must not be reported complete.
 - Ordered roadmap: P5 Child85 → P6 Child86 → **P7 Google sign-in** → **P8 AdSense publisher ads** → P9 acquisition → P10 minimal analytics. Documented in the **Draft governance PR replacing #136** until explicitly merged; no OAuth or ads feature is deployed merely by this decision.
 
 ## New-child GitHub work registry
@@ -32,7 +32,7 @@
 | P8/S4 | [AdSense eligibility and cautious placement](https://github.com/sriipu1004-wq/duonovel/issues/143) |
 | OPS/Parent | [Legacy PR/docs/chat cleanup](https://github.com/sriipu1004-wq/duonovel/issues/144) |
 
-**Specialist startup:** [docs/chat-launch-2026-10-21.md](docs/chat-launch-2026-10-21.md). User must physically create four new ChatGPT specialist conversations and archive old children individually. Assign tasks to new chat ONLY; GitHub issues are not asynchronous agents. Preserve implementation vs independent reviewer roles; parent controls cross-scope approval and merges.
+**Specialist startup:** [docs/chat-launch-2026-10-21.md](docs/chat-launch-2026-10-21.md). User must archive old legacy children individually and send each packet to the matching active post-reset Sx chat; only create a missing or context-limited successor. Assign tasks to post-reset chat ONLY; GitHub issues are not asynchronous agents. Preserve implementation vs independent reviewer roles; parent controls cross-scope approval and merges.
 
 ## Open/closed PR audit (2026-10-21 snapshot)
 
@@ -46,7 +46,7 @@
 
 Open PR states, bases, merges and branches must be refreshed from GitHub, never assumed from this register.
 
-## New specialist conversations — all previous children retired
+## Active post-reset specialist slots — all pre-reset children retired
 
 | New slot | New chat name | Scope / first issue |
 | --- | --- | --- |
@@ -55,7 +55,7 @@ Open PR states, bases, merges and branches must be refreshed from GitHub, never 
 | S3 | 新子S3_Public Domain・出典・権利 | Child85 continuation [#139](https://github.com/sriipu1004-wq/duonovel/issues/139) after old Child85 archived |
 | S4 | 新子S4_インフラ・性能・リリース | Production reliability [#137](https://github.com/sriipu1004-wq/duonovel/issues/137), later Child86 [#141](https://github.com/sriipu1004-wq/duonovel/issues/141), AdSense [#143](https://github.com/sriipu1004-wq/duonovel/issues/143) |
 
-Dedicated S5 audit chat is **not** required now; independent reviewers must be other new specialists and/or parent. All legacy child chats are READ-ONLY historical references after archival and must never be treated as active assignees. No shared chat URLs have been verified.
+Dedicated S5 audit chat is **not** required now; independent reviewers must be other new specialists and/or parent. All legacy pre-reset child chats are READ-ONLY historical references after archival and must never be treated as active assignees. One active post-reset chat per slot; if it already exists, send instructions there, else create exactly one new successor. No shared chat URLs have been verified.
 
 ## Parent crash / replacement — deterministic recovery
 
