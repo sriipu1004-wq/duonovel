@@ -27,12 +27,12 @@
 
 No task is automatically executing from being assigned. The parent must use a NEW selected ChatGPT child; each needs independent review by a different chat/actor. Google login and AdSense insertions postpone, not erase, acquisition and minimum analytics.
 
-## Old PR reconciliation queue (no blind closure)
+## Old PR reconciliation / exact-diff dispositions
 
-- #68 legacy Human translation old permission code; re-evaluate replacement before closing.
-- #79 old governance roadmap; likely superseded, inspect file content before archival.
+- #68 **CLOSED UNMERGED** (2026-10-21), unsafe/outdated legacy Human translation-default edits; source preserved, S2/S1 reassess only if useful.
+- #79 **CLOSED UNMERGED** (2026-10-21), single old P0 COMPLETE status already in main.
 - #108 publication Cron NO-GO; keep gated, no deploy.
-- #130 DB backup deferral; partly superseded by #133.
+- #130 **CLOSED UNMERGED** (2026-10-21), operator-accepted managed-backup-only deferral recorded by merged #133, no false restore pass.
 - #131 Work SEO isolated optimization; currently non-mergeable and must re-evaluate value/rebase.
 - #136 prior Google priorities Draft; superseded once the full consolidated reset PR is accepted and merged; close with cross-reference rather than merging twice.
 - #135 merged and Production READY, not an active PR.
