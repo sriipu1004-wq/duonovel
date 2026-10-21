@@ -32,7 +32,7 @@ const r18Guard = metadata.slice(r18Gate, episodeGate);
 assert.ok(r18Guard.includes("await getCurrentR18ViewerPreference()"),
   "JA Work metadata must use the authenticated server-side R18 preference");
 assert.match(r18Guard,
-  /if \(!viewer\.showR18Content\) \{\s*return \{\s*title: "作品が見つかりません \\| LIB read",\s*robots: \{\s*index: false,\s*follow: false,/,
+  /if \(!viewer\.showR18Content\) \{\s*return \{\s*title: "作品が見つかりません \| LIB read",\s*robots: \{\s*index: false,\s*follow: false,/,
   "Denied or unknown R18 viewer must receive only generic noindex/nofollow metadata");
 for (const forbidden of ["seriesTitle", "description,", "openGraph:", "twitter:", "index: true"]) {
   assert.ok(!r18Guard.includes(forbidden), "Denied R18 metadata must not include " + forbidden);
