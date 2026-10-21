@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { isEpisodePubliclyVisible } from "../src/features/write/writeShared";
 import { getSeriesContentRating } from "../src/lib/contentRating";
+import { canViewPublicWorkBody } from "../src/lib/workBodyVisibility";
+import type { SeriesRow } from "../src/features/write/writeShared";
 
 // Regression for the Production 200/noindex "公開話なし" metadata observed
 // while the same exact public work's Reader and EN/KO Work pages render.
@@ -59,4 +61,71 @@ assert.equal(isEpisodePubliclyVisible({
 assert.equal(isEpisodePubliclyVisible({
   ...idAndNumberOnly, posting_status: "posted", is_published: false,
 }), false, "unpublished remains denied");
+
 console.log("PASS: JA Work SEO metadata checks effective R18 rating and fail-closed viewer preference before indexing while retaining posted/published episode gate");
+
+// Exercise the predicate used by the actual shared Work BODY, not merely a
+// source string. All three JA/EN/KO Work routes share this server component.
+const fixture = (
+  publication_status: "public" | "private" | undefined,
+  content_rating: "general" | "r18",
+  content_warnings: string[] = []
+): SeriesRow => ({
+  id: "fixture",
+  publication_status,
+  content_rating,
+  content_warnings,
+} as SeriesRow);
+const permittedViewer = { showR18Content: true };
+const deniedViewer = { showR18Content: false };
+for (const [series, viewer, expected, label] of [
+  [fixture("public", "general"), null, true, "general/anonymous; no Auth needed"],
+  [fixture("public", "general", ["violence"]), null, true, "violence warning only"],
+  [fixture("public", "r18"), null, false, "rating R18/anonymous"],
+  [fixture("public", "r18"), deniedViewer, false, "rating R18/opted out"],
+  [fixture("public", "r18"), permittedViewer, true, "rating R18/verified opt in"],
+  [fixture("public", "general", ["sexual_r18"]), null, false, "sexual warning/anonymous"],
+  [fixture("public", "general", ["sexual_r18"]), deniedViewer, false, "sexual warning/opted out"],
+  [fixture("public", "general", ["sexual_r18"]), permittedViewer, true, "sexual warning/verified opt in"],
+  [fixture("private", "general"), permittedViewer, false, "private/general even opted in"],
+  [fixture("private", "r18"), permittedViewer, false, "private/R18 even opted in"],
+  [fixture(undefined, "general"), null, false, "unknown publication/anonymous"],
+  [null, permittedViewer, false, "absent series even opted in"],
+] as const) {
+  assert.equal(canViewPublicWorkBody(series, viewer), expected, label);
+}
+
+const bodyStart = source.indexOf("export default async function WorkPage(");
+assert.ok(bodyStart > metadataEnd, "shared Work body component must exist");
+const body = source.slice(bodyStart);
+const bodyPublication = body.indexOf('getSeriesPublicationStatus(series) !== "public"');
+const bodyRating = body.indexOf('getSeriesContentRating(series) === "r18"');
+const bodyPreference = body.indexOf("await getCurrentR18ViewerPreference()");
+const bodyGuard = body.indexOf("if (!canViewPublicWorkBody(series, r18Viewer))");
+const firstDetailRead = body.indexOf("const currentUserPromise = loadOptionalWorkUser()");
+const firstPublicDomain = body.indexOf("const publicDomain = readPublicDomainMetadata(");
+const firstAuthorLoad = body.indexOf("loadOptionalAuthor(authorId)");
+const shortStoryRedirect = body.indexOf("if (isShortStorySeries(series)");
+const seriesTitle = body.indexOf("const seriesTitle = pickText(series.title)");
+assert.ok(bodyPublication >= 0 && bodyPublication < bodyRating &&
+  bodyRating < bodyPreference && bodyPreference < bodyGuard,
+  "Private guard must run before R18 authentication and denial");
+assert.ok(bodyGuard < firstDetailRead && bodyGuard < firstPublicDomain &&
+  bodyGuard < firstAuthorLoad && bodyGuard < shortStoryRedirect &&
+  bodyGuard < seriesTitle,
+  "R18 body permission guard must precede user/author/episode data reads, redirect and work identity");
+const deniedBody = body.slice(bodyGuard, firstDetailRead);
+assert.match(deniedBody, /if \(!canViewPublicWorkBody\(series, r18Viewer\)\) \{\s*notFound\(\);\s*\}/,
+  "Denied R18 Work body must stop via generic notFound, not render title or a fallback");
+const r18OnlyCall = body.slice(bodyRating, bodyGuard);
+assert.ok(r18OnlyCall.includes("? await getCurrentR18ViewerPreference()") &&
+  r18OnlyCall.includes(": null;"),
+  "Only R18 public Work must load viewer preference; general Work must not depend on Auth");
+const localeWrapper = readFileSync("src/app/locale-work/[seriesId]/page.tsx", "utf8");
+assert.ok(localeWrapper.includes("<WorkPage {...props} />"),
+  "EN and KO wrappers must render the same gated Work body");
+const translationBadge = readFileSync("src/features/works/WorkTranslationAvailability.tsx", "utf8");
+assert.ok(translationBadge.includes("isR18Series(overview.series)") &&
+  translationBadge.includes("if (!preference.showR18Content) return null"),
+  "Localized pre-body badge must not reveal R18 translation availability");
+console.log("PASS: shared JA/EN/KO Work BODY denies unauthorized R18 and private work; general remains anonymous-accessible; guard runs before content");
