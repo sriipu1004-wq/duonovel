@@ -1,7 +1,7 @@
 # LIB read — Project State
 
 Last updated: **2026-10-21**
-Last product-changing main commit: `fa86529be99f167df9e673724adb4be6f8189ebf` (Child84i PR #123: temporary fail-closed self-service account deletion suspension and truthful Privacy/Terms)
+Last merged main with code changes: `37650ac9b391c1a76f597751ea44c6110541a697` (Child85 PR #135: source/preflight safeguards and bounded Work provenance presentation; **no new Public Domain DB import**). Earlier Child84i PR #123 account-deletion suspension remains in force.
 Production: https://www.syosetu-libread.com
 Repository: `sriipu1004-wq/duonovel`
 
