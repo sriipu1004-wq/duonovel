@@ -17,7 +17,7 @@ This is intentionally not tied to Child81, Child84, a snapshot SHA or a particul
 >
 > 前の親チャットが突然終了しても、引き継ぎメッセージを待たず、上記ファイルとLIVE GitHub/Productionから現状を復元する。矛盾は報告し、未実施テストをPASS扱いしない。
 >
-> **Child番号はロードマップの作業番号であり、使い捨て子チャットの番号ではない。** 専門子S1〜S4を継続再利用する。既に存在する「子85」はS3権利・コンテンツ担当。無断で別の子85を作らない。
+> **Child番号は作業番号。2026-10-21に旧子チャットは子85を含めて全て引退指定された。** 新規のS1〜S4チャット4本だけを作成し、それ以降は同じ新しい専門チャットを継続再利用する。Child85は新S3が引き継ぐ。正史の開始指示はdocs/chat-launch-2026-10-21.mdを参照。
 >
 > 優先順位・新規アサイン・クロス領域判断・merge・Production検収は親が管理する。子は専門領域内の連続した作業を担当し、重大判断やブロック時に親へ戻る。明示承認前にmergeせず、Production DB書込み・Rights変更・Cron有効化等は別の明示承認を要する。
 >
@@ -28,8 +28,8 @@ This is intentionally not tied to Child81, Child84, a snapshot SHA or a particul
 - 現在main SHAとProduction SHA/READYは一致するか。不一致は何の変更か。
 - すべてのOpen PR（旧Draft含む）をライブ列挙し、HEAD、mergeability、Preview可否、承認範囲を再検証したか。
 - Child84は運用上終了しているが、技術的な未検証事項と禁止事項を区別したか。
-- ロードマップP5 Child85が既にS3の子85に割り当てられていることを維持したか。本人が作業を進めたという未確認の仮定はしない。
+- Child85のPR #135はmerge済みだが作品未取り込みであることを確認したか。旧子85を復活させず、新S3へ仕事を引き継いだか。新チャットがUI上で実際に作成・起動済みかも区別する。
 - データ削除、権利判定、Human翻訳、R18、料金、バックアップ・Cronなどの停止条件を勝手に解除していないか。
-- 既存子の会話が上限に達したときだけ、同じ専門枠の後継を立て、同じPR/Issueの検査可能な証拠から再開するか。
+- 今回のCONTROL-R2例外では旧チャット全件を引退させ新S1〜S4を起動する。以後は新チャットが上限に達した場合に限り後継を作り、PR/Issue証拠から再開するか。
 
 This document is a **copyable recovery prompt**, not a second status/roadmap source. Current control: [PROJECT_MASTER.md](../PROJECT_MASTER.md); historical findings: [governance audit](governance-audit-2026-10-21.md).
