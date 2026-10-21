@@ -53,6 +53,7 @@ import {
 import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
 import { getSeriesContentRating } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
+import { canViewPublicWorkBody } from "@/lib/workBodyVisibility";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -1411,6 +1412,16 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
   const series = seriesData as SeriesRow;
   if (getSeriesPublicationStatus(series) !== "public") {
+    notFound();
+  }
+
+  // This also guards the EN/KO wrappers, which render this shared Work body.
+  // Check before loading author, chapter navigation, redirects or work details.
+  // Do not require Auth for general-rated public works during an Auth outage.
+  const r18Viewer = getSeriesContentRating(series) === "r18"
+    ? await getCurrentR18ViewerPreference()
+    : null;
+  if (!canViewPublicWorkBody(series, r18Viewer)) {
     notFound();
   }
 
