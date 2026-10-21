@@ -1,49 +1,61 @@
 # LIB read — Permanent Parent Recovery / Project Control
 
-**Status entrypoint: CONTROL-R1 (2026-10-21).** This is the one-file bootstrap for an abruptly terminated parent chat. Read [AGENTS.md](AGENTS.md), this document, and then the linked canonical files. **This is a last-reviewed snapshot, not an automatically synchronized live dashboard.**
+**Status entrypoint: CONTROL-R2 (2026-10-21).** This is the one-file bootstrap for an abruptly terminated parent chat. Read [AGENTS.md](AGENTS.md), this document, and then the linked canonical files. **This is a last-reviewed snapshot, not an automatically synchronized live dashboard.**
 
 - Repository: [sriipu1004-wq/duonovel](https://github.com/sriipu1004-wq/duonovel)
 - Production: https://www.syosetu-libread.com
-- Last independently observed main before this governance branch: 9c34659ca167ead0c860456437bd5fe8fe9086d2 (2026-10-21).
-- Last independently observed Production: dpl_3DVLLda3DYfcZ8cQKJwLXFmmN6H2, READY, same commit.
+- Last verified main before this operator-reset review: 37650ac9b391c1a76f597751ea44c6110541a697 (2026-10-21).
+- Last verified Production: dpl_3Zhkw9WLfYmdzChM2LRRQDNLpXCL, READY, same commit.
 - **FIRST ACTION ON EVERY RESTART:** fetch LIVE main, all open PR HEADs/status, Production state and any relevant DB state. Never assume this snapshot is current.
 - Product facts: [docs/project-state.md](docs/project-state.md); backlog order: [docs/roadmap.md](docs/roadmap.md); binding product decisions: [docs/decisions.md](docs/decisions.md); execution rules: [docs/development-workflow.md](docs/development-workflow.md).
 - Specialist ownership and chat lifecycle: [docs/chat-operations.md](docs/chat-operations.md). Findings from reviewing earlier gaps: [docs/governance-audit-2026-10-21.md](docs/governance-audit-2026-10-21.md).
 
-## Current accepted workstream disposition (verify GitHub live)
+## Live-verified operator checkpoint (2026-10-21; reverify before action)
 
-1. **P4 / Child84:** operationally CLOSED with accepted verification deferrals, **NOT** technically certified. Decision: [docs/child84-operational-closure.md](docs/child84-operational-closure.md); main merged PR #133. Historic text deeper in project-state/roadmap saying Child84 NOT DONE is a dated snapshot, not an order to restart it.
-2. **P5 / Child85:** IN PROGRESS, assigned to the user's already-created **子85_Public Domain権利・出典確認済み作品の段階的追加** (standing S3 Rights/Content specialist). Live Draft [PR #135](https://github.com/sriipu1004-wq/duonovel/pull/135) was observed at HEAD `8862a5c69102f16f2e0909c2be7e9180388b7cc8` on 2026-10-21: five source-prepared JA Aozora candidates, **ALL rights pending / NOT approved / NOT Production imported**; GitHub CI had failures at `Diff whitespace check` and exact-HEAD Preview was BUILDING at that check, not accepted. Reverify current PR/CI/Preview. **Do not create another Child85 chat by default**.
-3. **P6 / Child86:** after Child85, Production scale/performance acceptance. Do not pre-certify post-expansion performance.
-4. **Child84 deferrals:** authenticated Owner/Reader/R18/Human-translation E2E NOT VERIFIED; independent DB restoration and ~30GB Storage byte recovery **user-deferred** (not RESTORE PASS); public DB timer callback root cause UNKNOWN; Search full SQL ranking/facet parity unproven and **NO SQL CUTOVER**; permanent user-erasure workflow unimplemented; scheduled-publication Cron #108 not deployed. Do not silently revive any closed workstream or confuse risk acceptance with successful testing.
+- Last verified `main` **`37650ac9b391c1a76f597751ea44c6110541a697`**; Vercel Production `dpl_3Zhkw9WLfYmdzChM2LRRQDNLpXCL` **READY**, same commit. These are snapshots, not a live sync.
+- PR [#135](https://github.com/sriipu1004-wq/duonovel/pull/135) **MERGED** on main: exactly **ten source-prepared, rights-pending Aozora manifests / 39 prepared chapters** plus ingestion preflight. **0 approved / 0 Production imported/published. Child85 P5 remains OPEN.** Never describe the old merged PR as still Draft or confuse source-prepared with rights-approved.
+- Read-only Supabase checkpoint: 123 series / 120 public / 3 private, public JA/EN/KO 40 each, 84 public rightsChecked / **36 JA legacy unverified**, 3,284 public posted episodes, 0 Human translations, 0 active billing subscriptions, 9 non-soft-deleted Auth accounts, 4,728 Storage objects (~30.19 GB). These are date-bound counts, not automatic metrics.
+- Vercel runtime errors included `AbortError` during public-cache revalidation across Reader/Search/Works: **triage required**, not proof of data leak or global outage. Supabase Advisor listed leaked-password protection disabled and ten authenticated-executable SECURITY DEFINER RPC warnings: **review contracts before changing grants**, not a demonstrated exploit. Independent DB/Storage restoration and real-session E2E remain user-deferred/unverified; #108 Cron still NO-GO.
+- User directed on 2026-10-21: **retire/archive ALL old child chat instances (including the old Child85), create only NEW specialist chats, and triage current problems.** Previous S1–S4 role names remain useful, but **no previous chat instance is active**. ChatGPT UI archive operation is not available through this connector; user-performed per-chat archive remains outstanding and must not be reported complete.
+- Ordered roadmap: P5 Child85 → P6 Child86 → **P7 Google sign-in** → **P8 AdSense publisher ads** → P9 acquisition → P10 minimal analytics. Documented in the **Draft governance PR replacing #136** until explicitly merged; no OAuth or ads feature is deployed merely by this decision.
 
-Production read-only corpus snapshot from 2026-10-21, **not a guaranteed live count**: 123 works / 120 public / 3 private; 84 public rightsChecked; 36 public without that flag (never batch-approve); public JA/EN/KO 40 each. Rights provenance and source details require item-by-item current verification.
+## New-child GitHub work registry
 
-## Open PR control — last observed 2026-10-21 (always re-query)
+| Priority/owner | Work issue |
+| --- | --- |
+| R0/S4 | [Production AbortError](https://github.com/sriipu1004-wq/duonovel/issues/137) |
+| R0/S2 | [Auth/RPC security audit](https://github.com/sriipu1004-wq/duonovel/issues/138) |
+| P5/S3 | [Child85 rights review and 3–6 candidate gate](https://github.com/sriipu1004-wq/duonovel/issues/139) |
+| P5/S1 | [Aozora annotation Reader fidelity](https://github.com/sriipu1004-wq/duonovel/issues/140) |
+| P6/S4 | [Child86 scale, backup and observability](https://github.com/sriipu1004-wq/duonovel/issues/141) |
+| P7/S2 | [Google OAuth sign-in](https://github.com/sriipu1004-wq/duonovel/issues/142) |
+| P8/S4 | [AdSense eligibility and cautious placement](https://github.com/sriipu1004-wq/duonovel/issues/143) |
+| OPS/Parent | [Legacy PR/docs/chat cleanup](https://github.com/sriipu1004-wq/duonovel/issues/144) |
 
-| PR | Position at last check | Re-entry disposition |
+**Specialist startup:** [docs/chat-launch-2026-10-21.md](docs/chat-launch-2026-10-21.md). User must physically create four new ChatGPT specialist conversations and archive old children individually. Assign tasks to new chat ONLY; GitHub issues are not asynchronous agents. Preserve implementation vs independent reviewer roles; parent controls cross-scope approval and merges.
+
+## Open PR audit (2026-10-21 snapshot)
+
+- [#68](https://github.com/sriipu1004-wq/duonovel/pull/68) legacy Human translation Draft, outdated/non-mergeable: DO NOT merge without a fresh rights/security review.
+- [#79](https://github.com/sriipu1004-wq/duonovel/pull/79) old governance Draft, outdated/non-mergeable: archive/close only after exact content disposition.
+- [#108](https://github.com/sriipu1004-wq/duonovel/pull/108) scheduled publication Cron Draft, non-mergeable and **NO-GO**: no activation.
+- [#130](https://github.com/sriipu1004-wq/duonovel/pull/130) backup deferral Draft, outdated/non-mergeable: reconcile against #133.
+- [#131](https://github.com/sriipu1004-wq/duonovel/pull/131) SEO query Draft, currently non-mergeable after #135: rebase/retest if still useful.
+- [#136](https://github.com/sriipu1004-wq/duonovel/pull/136) Google login + AdSense documentation Draft, **superseded by consolidated reset PR on approval**; do not merge both.
+- [#135](https://github.com/sriipu1004-wq/duonovel/pull/135) **MERGED**. Do not put it back into open-PR list.
+
+Open PR states, bases, merges and branches must be refreshed from GitHub, never assumed from this register.
+
+## New specialist conversations — all previous children retired
+
+| New slot | New chat name | Scope / first issue |
 | --- | --- | --- |
-| [#68](https://github.com/sriipu1004-wq/duonovel/pull/68) | Legacy Draft; old base, non-mergeable | Compare current Human-translation code; archive/close or replace only after explicit review, never merge stale permission code. |
-| [#79](https://github.com/sriipu1004-wq/duonovel/pull/79) | Legacy one-file governance Draft; old base, non-mergeable | Audit against latest roadmap; do not overwrite current priority/status. |
-| [#108](https://github.com/sriipu1004-wq/duonovel/pull/108) | Scheduled-publication Cron Draft; old base, non-mergeable | **NO-GO / do not deploy** without separate security/release decision. |
-| [#130](https://github.com/sriipu1004-wq/duonovel/pull/130) | Child84k backup-deferral documentation Draft; old base, non-mergeable | Some content now covered by merged #133; compare precisely before close, cherry-pick or merge; no duplicate or contradictory decision. |
-| [#131](https://github.com/sriipu1004-wq/duonovel/pull/131) | Work SEO single-ID optimization Draft; last checked mergeable | Exact-HEAD GitHub CI PASS, matching-head Vercel Preview **not established** (Hobby quota at that time); rebase/retest/review before considering merge. |
-| [#135](https://github.com/sriipu1004-wq/duonovel/pull/135) | **Active Child85 S3** five-candidate Public Domain source-preflight Draft; CI whitespace failures, Preview not yet accepted at last check | Preserve rights_status=pending, approved=false and no Production import; S3 owns fixes and current-head CI/Preview. Require individual rights review, then separate merge/Draft import/publication approvals. |
+| S1 | 新子S1_Reader・翻訳・検索品質 | Reader fidelity [#140](https://github.com/sriipu1004-wq/duonovel/issues/140); reviewer for S4 public-cache changes |
+| S2 | 新子S2_認証・権限・ユーザーデータ | Security [#138](https://github.com/sriipu1004-wq/duonovel/issues/138), later OAuth [#142](https://github.com/sriipu1004-wq/duonovel/issues/142) |
+| S3 | 新子S3_Public Domain・出典・権利 | Child85 continuation [#139](https://github.com/sriipu1004-wq/duonovel/issues/139) after old Child85 archived |
+| S4 | 新子S4_インフラ・性能・リリース | Production reliability [#137](https://github.com/sriipu1004-wq/duonovel/issues/137), later Child86 [#141](https://github.com/sriipu1004-wq/duonovel/issues/141), AdSense [#143](https://github.com/sriipu1004-wq/duonovel/issues/143) |
 
-**A Draft PR is neither approved nor Production.** The presence of an open PR does not itself justify interrupting the Child85 roadmap. Parent assigns a reviewer and decides scope; never blindly merge old work.
-
-## Permanent specialist conversations (roles, not task numbers)
-
-| Slot | Reuse this same conversation for | Current routing |
-| --- | --- | --- |
-| **S1 — Reader / Translation / Search UX** | Reader, AI-vs-Human translation presentation, localization, Search correctness, reading UI | Available when parent assigns; no need to start a replacement immediately. |
-| **S2 — Auth / Authors / User Data & Rights Enforcement** | Author publishing, ownership, R18, consent, deletion, private library, data security | Available; high-risk changes require independent review. |
-| **S3 — Public Domain / Content Provenance** | Original texts, source/licence audits, manifests, cautious batches, text rights | **Child85 assigned to the already-created 子85 conversation**. |
-| **S4 — Infrastructure / Reliability / Release** | Next.js/Vercel, Supabase, performance, caches, deploy, backup risk, observability | Available; Cron remains NO-GO. |
-
-Independent QA/security review is a **separate reviewer role**, usually parent or a non-author specialist. Create a separate persistent QA conversation only when recurring independent reviews justify it; naming the author twice does not provide independence. Parent owns priority, conflicts and final acceptance.
-
-**A specialist continues on multiple relevant PRs and future roadmapped tasks**. When a chat reaches length limits, create **Sx successor v2** retaining the same slot; leave a checkpoint in GitHub and update the slot's locator if provided. Do not create a new chat for each Child84a/b/c or PR. Existing historical chats stay as references. No stable ChatGPT conversation URL has been supplied; never invent one.
+Dedicated S5 audit chat is **not** required now; independent reviewers must be other new specialists and/or parent. All legacy child chats are READ-ONLY historical references after archival and must never be treated as active assignees. No shared chat URLs have been verified.
 
 ## Parent crash / replacement — deterministic recovery
 
