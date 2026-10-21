@@ -41,4 +41,17 @@ assert.deepEqual([...json.preliminary_first_review_order],["aozora-000692","aozo
 assert.equal(new Set(json.preliminary_first_review_order).size,4);
 assert(json.preliminary_first_review_order.every(id=>ids.has(id)));
 assert(json.excluded_or_deferred_initial_prose.every(id=>ids.has(id)));
+const variants = json.same_title_edition_variants;
+assert.equal(variants.status, "VARIANT_EDITIONS_IDENTIFIED_NO_CROSS_EDITION_APPROVAL");
+assert.equal(variants.card_count_by_selected_manifest["aozora-000692"], 3);
+assert.equal(Object.keys(variants.card_count_by_selected_manifest).length, 10);
+assert.equal(Object.values(variants.card_count_by_selected_manifest).filter(n=>n===1).length, 9);
+assert.equal(variants.high_priority_review.reference_probes, 19);
+assert.equal(variants.high_priority_review.new_candidate_manifests_created, 0);
+assert.equal(variants.rights_or_import_permission_change, false);
+assert.deepEqual(
+  variants.high_priority_review.comparison_cards.map(x=>[x.id,x.exact_24char_probe_matches]),
+  [["aozora-000691",11],["aozora-045245",0]]
+);
+assert(variants.high_priority_review.comparison_cards.every(x=>/^[0-9a-f]{64}$/u.test(x.sha256)));
 console.log("PASS: Child85 10 primary Aozora card snapshot fields, candidate status HOLD, 39 chapters and review ordering");
