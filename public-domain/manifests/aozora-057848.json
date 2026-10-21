@@ -1,0 +1,95 @@
+{
+  "id": "aozora-057848",
+  "title": "袈裟の良人・菊池寛",
+  "original_title": "袈裟の良人",
+  "original_author": "菊池寛",
+  "author_death_year": 1948,
+  "original_language": "ja",
+  "first_publication_year": 1923,
+  "source_provider": "Aozora Bunko",
+  "source_url": "https://www.aozora.gr.jp/cards/000083/card57848.html",
+  "source_download_url": "https://www.aozora.gr.jp/cards/000083/files/57848_ruby_77096.zip",
+  "source_file": "public-domain/sources/raw/aozora-057848.txt",
+  "source_retrieved_at": "2026-10-20T18:22:46.877Z",
+  "source_encoding": "shift_jis",
+  "normalization_profile": "aozora_reader_body",
+  "edition": "袈裟の良人",
+  "edition_publication_year": 1923,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora catalog flags are なし and candidate cutoffs passed; verify exact work and jurisdiction before approval."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify whether the exact base edition contributes protectable modern editorial matter."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify modernization/editorial contribution in the selected source."
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora annotations/provenance are preserved and must be reviewed."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review Aozora file handling rules and preserve provenance."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review current Aozora file handling rules at approval time."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 5,
+  "chapter_split": {
+    "strategy": "heading_regex",
+    "heading_pattern": "^第[一二三四五]齣$"
+  },
+  "tags": [
+    "Public Domain",
+    "Aozora Bunko",
+    "菊池寛"
+  ],
+  "source_hash": "cd5b77635f317f284b93e26c318603d7c1a3c2e806d8a0582325f53e46f969d7",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null,
+  "source_provenance": {
+    "input_edition": "1923（大正12）年2月25日",
+    "proof_edition": "1923（大正12）年11月20日10版",
+    "input_by": "あまの",
+    "proofread_by": "友理"
+  }
+}

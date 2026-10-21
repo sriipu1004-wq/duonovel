@@ -37,6 +37,7 @@ export type ImportStatus = (typeof IMPORT_STATUSES)[number];
 export const NORMALIZATION_PROFILES = [
   "plain",
   "aozora",
+  "aozora_reader_body",
   "gutenberg",
   "standard_ebooks",
   "gongu_madang",
@@ -77,6 +78,13 @@ export type ChapterSplitConfig =
       max_characters: number;
     };
 
+export type PublicDomainSourceProvenance = {
+  input_edition: string | null;
+  proof_edition: string | null;
+  input_by: string;
+  proofread_by: string;
+};
+
 export type PublicDomainManifest = {
   id: string;
   title: string;
@@ -96,6 +104,7 @@ export type PublicDomainManifest = {
 
   edition: string | null;
   edition_publication_year: number | null;
+  source_provenance?: PublicDomainSourceProvenance | null;
 
   translator: string | null;
   translator_death_year: number | null;
@@ -362,6 +371,20 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     "edition_publication_year",
     errors
   );
+  const sourceProvenanceRaw = value.source_provenance;
+  let sourceProvenance: PublicDomainSourceProvenance | null = null;
+  if (sourceProvenanceRaw !== null && sourceProvenanceRaw !== undefined) {
+    if (!isRecord(sourceProvenanceRaw)) {
+      errors.push("source_provenance must be an object or null");
+    } else {
+      sourceProvenance = {
+        input_edition: readString(sourceProvenanceRaw, "input_edition", errors, { nullable: true }),
+        proof_edition: readString(sourceProvenanceRaw, "proof_edition", errors, { nullable: true }),
+        input_by: readString(sourceProvenanceRaw, "input_by", errors) ?? "",
+        proofread_by: readString(sourceProvenanceRaw, "proofread_by", errors) ?? "",
+      };
+    }
+  }
   const translator = readString(value, "translator", errors, { nullable: true });
   const translatorDeathYear = readNullableYear(
     value,
@@ -553,6 +576,9 @@ export function validateManifest(value: unknown): ManifestValidationResult {
   }
 
   if (approved) {
+    if (normalizationProfile === "aozora_reader_body" && (!edition?.trim() || !sourceProvenance)) {
+      errors.push("approved aozora_reader_body manifests require edition and input/proof provenance");
+    }
     if (!rightsBasis.trim()) errors.push("approved manifests require rights_basis");
     if (!sourceRetrievedAt) {
       errors.push("approved manifests require source_retrieved_at");
@@ -614,6 +640,7 @@ export function validateManifest(value: unknown): ManifestValidationResult {
       : "plain",
     edition,
     edition_publication_year: editionPublicationYear,
+    source_provenance: sourceProvenance,
     translator,
     translator_death_year: translatorDeathYear,
     translation_language:
@@ -714,6 +741,26 @@ function normalizeAozora(source: string): NormalizationResult {
   return { displayText, archiveMetadata, changes, warnings };
 }
 
+// Opt-in source profile: keep legacy "aozora" Reader bodies unchanged.
+function normalizeAozoraReaderBody(source: string): NormalizationResult {
+  const normalized = normalizeAozora(source);
+  const frontMatter = /^[^\n]+\n[^\n]+\n\n(-{30,})\n\u3010\u30c6\u30ad\u30b9\u30c8\u4e2d\u306b\u73fe\u308c\u308b\u8a18\u53f7\u306b\u3064\u3044\u3066\u3011[\s\S]*?\n\1\n\n/u.exec(
+    normalized.displayText
+  );
+  if (!frontMatter) {
+    throw new Error("AOZORA_READER_FRONT_MATTER_UNRECOGNIZED: manual review required");
+  }
+  const displayText = normalized.displayText.slice(frontMatter[0].length).trim();
+  if (!displayText) throw new Error("AOZORA_READER_BODY_EMPTY");
+  return {
+    displayText,
+    archiveMetadata: [frontMatter[0].trim(), normalized.archiveMetadata]
+      .filter(Boolean).join("\n\n--- AOZORA SOURCE METADATA ---\n\n"),
+    changes: [...normalized.changes, "separated verified Aozora header/notation legend"],
+    warnings: normalized.warnings,
+  };
+}
+
 function normalizeGutenberg(source: string): NormalizationResult {
   const base = normalizeLineEndings(source);
   const startPattern = /^\*\*\*\s*START OF (?:THE|THIS) PROJECT GUTENBERG EBOOK.*\*\*\*\s*$/imu;
@@ -758,6 +805,7 @@ export function normalizeSource(
   profile: NormalizationProfile
 ): NormalizationResult {
   if (profile === "aozora") return normalizeAozora(source);
+  if (profile === "aozora_reader_body") return normalizeAozoraReaderBody(source);
   if (profile === "gutenberg") return normalizeGutenberg(source);
 
   const base = normalizeLineEndings(source);
@@ -780,9 +828,17 @@ export function normalizeSource(
   };
 }
 
+function readableAozoraHeading(heading: string): string {
+  // Strip only the exact input-layout notation surrounding a numbered heading;
+  // retain every other Aozora annotation in chapter body/archive for review.
+  const matched = heading.match(/^［＃５字下げ］([一二三四五六七八九十]+)［＃「\1」は中見出し］$/u);
+  return matched?.[1] ?? heading;
+}
+
 export function splitChapters(
   text: string,
-  manifest: Pick<PublicDomainManifest, "title" | "chapter_split">
+  manifest: Pick<PublicDomainManifest, "title" | "chapter_split"> &
+    Partial<Pick<PublicDomainManifest, "normalization_profile">>
 ): PreparedChapter[] {
   const body = text.trim();
   if (!body) return [];
@@ -888,7 +944,11 @@ export function splitChapters(
       index === 0 && prefix && keepPrefix
         ? `${prefix}\n\n${content}`.trim()
         : content;
-    return { title: heading.title, body: chapterBody };
+    const title =
+      manifest.normalization_profile === "aozora_reader_body"
+        ? readableAozoraHeading(heading.title)
+        : heading.title;
+    return { title, body: chapterBody };
   });
 
   // Preserve semantic headings where possible, but never let a naturally long
@@ -1109,6 +1169,71 @@ export function prepareArtifact(args: {
   };
 }
 
+/**
+ * Source approval is tied to the exact downloaded bytes and deterministic
+ * chapter output, not to an unverified hash string inside prepared.json.
+ * This guard prevents stale/tampered ignored preparation from being imported
+ * even when chapter count and the copied sourceHash field still look valid.
+ *
+ * It does NOT grant human rights/edition/content/Reader release approval.
+ */
+export function assertPreparedArtifactMatchesRawSource(
+  manifest: PublicDomainManifest,
+  artifact: PreparedArtifact,
+  rawBytes: Uint8Array
+): void {
+  const actualHash = sha256Bytes(rawBytes);
+  if (!manifest.source_hash ||
+      actualHash !== manifest.source_hash ||
+      artifact.sourceHash !== actualHash) {
+    throw new Error("SOURCE_RAW_HASH_MISMATCH: raw source, manifest and prepared hash must agree");
+  }
+  let rebuilt: PreparedArtifact;
+  try {
+    rebuilt = prepareArtifact({
+      manifest,
+      rawBytes,
+      preparedAt: artifact.preparedAt,
+    });
+  } catch {
+    // Includes stale chapter patterns that no longer split into legal bodies.
+    // Fail closed without exposing any source passage in the error.
+    throw new Error("SOURCE_PREPARATION_MISMATCH: cannot regenerate valid chapters from raw bytes");
+  }
+  const fields = [
+    "version",
+    "manifestId",
+    "sourceHash",
+    "normalizationProfile",
+    "rawCharacterCount",
+    "displayCharacterCount",
+    "archiveMetadataCharacterCount",
+  ] as const;
+  for (const field of fields) {
+    if (artifact[field] !== rebuilt[field]) {
+      throw new Error(`SOURCE_PREPARATION_MISMATCH: ${field} differs from verified raw source`);
+    }
+  }
+  if (JSON.stringify(artifact.normalizationChanges) !== JSON.stringify(rebuilt.normalizationChanges) ||
+      JSON.stringify(artifact.warnings) !== JSON.stringify(rebuilt.warnings)) {
+    throw new Error("SOURCE_PREPARATION_MISMATCH: normalization audit or warnings changed");
+  }
+  if (artifact.chapters.length !== rebuilt.chapters.length) {
+    throw new Error("SOURCE_PREPARATION_MISMATCH: chapter count differs from rebuilt source");
+  }
+  for (let i = 0; i < rebuilt.chapters.length; i += 1) {
+    const expected = rebuilt.chapters[i]!;
+    const actual = artifact.chapters[i];
+    if (!actual ||
+        actual.number !== expected.number ||
+        actual.title !== expected.title ||
+        actual.body !== expected.body ||
+        actual.characterCount !== expected.characterCount) {
+      throw new Error(`SOURCE_PREPARATION_MISMATCH: chapter ${i + 1} is not the regenerated source`);
+    }
+  }
+}
+
 export function assertImportable(
   manifest: PublicDomainManifest,
   artifact: PreparedArtifact
@@ -1169,6 +1294,11 @@ export function buildDraftImportPlan(args: {
           firstPublicationYear: args.manifest.first_publication_year,
           sourceProvider: args.manifest.source_provider,
           sourceUrl: args.manifest.source_url,
+          edition: args.manifest.edition,
+          inputEdition: args.manifest.source_provenance?.input_edition ?? null,
+          proofEdition: args.manifest.source_provenance?.proof_edition ?? null,
+          inputBy: args.manifest.source_provenance?.input_by ?? null,
+          proofreadBy: args.manifest.source_provenance?.proofread_by ?? null,
           sourceHash: args.artifact.sourceHash,
           rightsChecked: true,
           reviewedAt: args.manifest.reviewed_at,

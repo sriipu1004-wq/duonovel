@@ -1,0 +1,95 @@
+{
+  "id": "aozora-004386",
+  "title": "修道院の秋・南部修太郎",
+  "original_title": "修道院の秋",
+  "original_author": "南部修太郎",
+  "author_death_year": 1936,
+  "original_language": "ja",
+  "first_publication_year": 1916,
+  "source_provider": "Aozora Bunko",
+  "source_url": "https://www.aozora.gr.jp/cards/000048/card4386.html",
+  "source_download_url": "https://www.aozora.gr.jp/cards/000048/files/4386_ruby.zip",
+  "source_file": "public-domain/sources/raw/aozora-004386.txt",
+  "source_retrieved_at": "2026-10-21T01:19:47.337Z",
+  "source_encoding": "shift_jis",
+  "normalization_profile": "aozora_reader_body",
+  "edition": "新進作家叢書22　修道院の秋",
+  "edition_publication_year": 1918,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora catalog flags are なし and candidate cutoffs passed; verify exact work and jurisdiction before approval."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify whether the exact base edition contributes protectable modern editorial matter."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify modernization/editorial contribution in the selected source."
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora annotations/provenance are preserved and must be reviewed."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review Aozora file handling rules and preserve provenance."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review current Aozora file handling rules at approval time."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 3,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 7500
+  },
+  "tags": [
+    "Public Domain",
+    "Aozora Bunko",
+    "南部修太郎"
+  ],
+  "source_hash": "90d366172fa7f91e4255e02a460491205f6bf5ac790847470427d92152bda8b2",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null,
+  "source_provenance": {
+    "input_edition": "1922（大正11）年8月15日13版",
+    "proof_edition": null,
+    "input_by": "小林徹",
+    "proofread_by": "林幸雄"
+  }
+}

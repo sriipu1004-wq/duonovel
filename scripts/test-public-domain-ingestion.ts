@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { assertExactDraftEpisodeInsert, assertDraftRollbackConfirmed } from "./public-domain/import-integrity";
 import {
   assertImportable,
+  assertPreparedArtifactMatchesRawSource,
   buildDraftImportPlan,
   isDuplicatePublicDomainSeries,
   normalizeSource,
@@ -28,6 +30,9 @@ import {
   isAllowedGonguTextUrl,
 } from "./public-domain/gongu";
 import { readPublicDomainMetadata } from "../src/lib/publicDomainMetadata";
+import { auditPreparedAozoraAnnotationFidelity, classifyAozoraAnnotation } from "./public-domain/aozora-annotation-fidelity";
+import { selectExactJapaneseProbes, publicJaExactProbeSql } from "./public-domain/prose-duplicate-probes";
+import { auditAozoraEditionCollisions } from "./public-domain/aozora-edition-collisions";
 
 function component(
   status: "approved" | "not_applicable" | "needs_review" | "rejected" = "approved"
@@ -118,6 +123,98 @@ function artifact(
     ],
     ...overrides,
   };
+}
+
+function testPreparedArtifactIsBoundToRawBytes() {
+  const raw = new TextEncoder().encode("abc");
+  const manifest = approvedManifest({ source_hash: sha256Bytes(raw) });
+  const prepared = prepareArtifact({ manifest, rawBytes: raw, preparedAt: "2026-10-21T00:00:00.000Z" });
+  assert.equal(prepared.chapters.length, 1);
+  assert.doesNotThrow(() => assertPreparedArtifactMatchesRawSource(manifest, prepared, raw));
+  assert.doesNotThrow(() => assertPreparedArtifactMatchesRawSource(
+    manifest, { ...prepared, preparedAt: "2026-10-22T00:00:00.000Z" }, raw
+  ), "An incidental preparation timestamp must not change source identity");
+
+  // Changing body characters while retaining the forged/copied raw SHA and
+  // chapter count must not let a different literary text enter a Draft.
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(manifest, {
+    ...prepared,
+    chapters: prepared.chapters.map(c => ({ ...c, body: "abd" })),
+  }, raw), /SOURCE_PREPARATION_MISMATCH: chapter 1/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(manifest, {
+    ...prepared,
+    chapters: prepared.chapters.map(c => ({ ...c, title: "Forged" })),
+  }, raw), /SOURCE_PREPARATION_MISMATCH: chapter 1/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(manifest, {
+    ...prepared,
+    chapters: prepared.chapters.map(c => ({ ...c, number: 2 })),
+  }, raw), /SOURCE_PREPARATION_MISMATCH: chapter 1/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(manifest, {
+    ...prepared,
+    chapters: prepared.chapters.map(c => ({ ...c, characterCount: 4 })),
+  }, raw), /SOURCE_PREPARATION_MISMATCH: chapter 1/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(manifest, {
+    ...prepared,
+    normalizationProfile: "aozora",
+  }, raw), /SOURCE_PREPARATION_MISMATCH: normalizationProfile/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(manifest, {
+    ...prepared, warnings: ["operator silently edited file"],
+  }, raw), /SOURCE_PREPARATION_MISMATCH: normalization audit/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(
+    manifest, prepared, new TextEncoder().encode("abd")
+  ), /SOURCE_RAW_HASH_MISMATCH/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(
+    { ...manifest, source_hash: null }, prepared, raw
+  ), /SOURCE_RAW_HASH_MISMATCH/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(
+    { ...manifest, chapter_split: { strategy: "heading_regex", heading_pattern: "^abc$" } },
+    prepared,
+    raw
+  ), /SOURCE_PREPARATION_MISMATCH/u);
+
+  // Human rights acceptance remains separate: exact raw-byte match does not
+  // import a manifest that still has pending rights.
+  assert.throws(() => assertImportable({ ...manifest, rights_status: "pending", approved: false }, prepared),
+    /RIGHTS_NOT_APPROVED/u);
+}
+
+function testDraftInsertConfirmationAndRollback() {
+  const seriesId = "11111111-1111-4111-8111-111111111111";
+  const make = (number: number, id: string) => ({
+    id, series_id: seriesId, episode_number: number,
+    posting_status: "draft", is_published: false,
+  });
+  const valid = [make(2, "episode-2"), make(1, "episode-1")];
+  assert.doesNotThrow(() => assertExactDraftEpisodeInsert([1, 2], seriesId, valid));
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, null),
+    /DRAFT_EPISODE_COUNT_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, [valid[0]!]),
+    /DRAFT_EPISODE_COUNT_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, [
+    make(1, "same"), make(2, "same"),
+  ]), /DRAFT_EPISODE_RESPONSE_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, [
+    make(1, "a"), make(1, "b"),
+  ]), /DRAFT_EPISODE_RESPONSE_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, [
+    make(1, "a"), { ...make(2, "b"), series_id: "wrong" },
+  ]), /DRAFT_EPISODE_RESPONSE_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, [
+    make(1, "a"), { ...make(2, "b"), posting_status: "posted" },
+  ]), /DRAFT_EPISODE_RESPONSE_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, [
+    make(1, "a"), { ...make(2, "b"), is_published: true },
+  ]), /DRAFT_EPISODE_RESPONSE_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 1], seriesId, valid),
+    /DRAFT_INSERT_EXPECTATION_INVALID/u);
+
+  assert.doesNotThrow(() => assertDraftRollbackConfirmed([{ id: seriesId }], seriesId));
+  assert.throws(() => assertDraftRollbackConfirmed([], seriesId), /DRAFT_ROLLBACK_UNVERIFIED/u);
+  assert.throws(() => assertDraftRollbackConfirmed(null, seriesId), /DRAFT_ROLLBACK_UNVERIFIED/u);
+  assert.throws(() => assertDraftRollbackConfirmed([{ id: "other" }], seriesId),
+    /DRAFT_ROLLBACK_UNVERIFIED/u);
+  assert.throws(() => assertDraftRollbackConfirmed([{ id: seriesId }, { id: "other" }], seriesId),
+    /DRAFT_ROLLBACK_UNVERIFIED/u);
 }
 
 function testPendingAndApprovedGates() {
@@ -331,6 +428,234 @@ function testAozoraAndGutenbergNormalization() {
   assert.equal(gutenberg.displayText, "Chapter body");
   assert.equal(gutenberg.archiveMetadata.includes("Project metadata"), true);
   assert.equal(gutenberg.archiveMetadata.includes("License footer"), true);
+}
+
+function testVerbatimPublicDomainDuplicateProbes() {
+  const sample = [
+    "あ".repeat(30),
+    "｜漢字《かんじ》",
+    "い".repeat(30),
+    "［＃「字」は底本では「文字」］",
+    "う".repeat(30),
+  ].join("\n");
+  const probes = selectExactJapaneseProbes("aozora-000195", [{ body: sample }]);
+  assert.equal(probes.length, 3);
+  assert.deepEqual(probes.map((item) => item.characterCount), [24, 24, 24]);
+  assert.deepEqual(
+    probes.map((item) => item.phrase),
+    ["あ".repeat(24), "い".repeat(24), "う".repeat(24)]
+  );
+  assert.equal(probes.every((item) => sample.includes(item.phrase)), true);
+  assert.equal(probes.every((item) => item.phraseSha256.length === 64), true);
+
+  const rubyDenseSource = ["甲".repeat(19), "乙".repeat(19), "丙".repeat(19)].join("《ルビ》");
+  const denseProbes = selectExactJapaneseProbes(
+    "aozora-053520", [{ body: rubyDenseSource }]
+  );
+  assert.deepEqual(
+    denseProbes.map((item) => item.characterCount),
+    [16, 16, 16]
+  );
+  assert.equal(denseProbes.every((item) => rubyDenseSource.includes(item.phrase)), true);
+  const sql = publicJaExactProbeSql([...probes, ...denseProbes]);
+  assert.equal(sql.includes("s.source_language = 'ja'"), true);
+  assert.equal(sql.includes("e.posting_status = 'posted'"), true);
+  assert.equal(sql.includes("WHERE s.is_public IS TRUE"), true);
+  assert.equal(sql.includes("eligible_ja_episodes"), true);
+  assert.equal(sql.includes("UPDATE public."), false);
+  assert.equal(sql.includes("INSERT INTO"), false);
+  assert.throws(
+    () => selectExactJapaneseProbes("aozora-invalid", [{ body: sample }]),
+    /INVALID_EXACT_PROBE_SOURCE/
+  );
+  assert.throws(
+    () => selectExactJapaneseProbes("aozora-000195", [{ body: "｜漢《かん》" }]),
+    /EXACT_PROBE_TOO_FEW_RAW_CONTIGUOUS_SPANS/
+  );
+}
+
+
+function testAozoraEditionCollisionPreflight() {
+  const mk = (id: string, title: string, author: string, role = "著者") => ({
+    "作品ID": id,
+    "作品名": title,
+    "図書カードURL": `https://www.aozora.gr.jp/cards/000129/card${Number(id)}.html`,
+    "役割フラグ": role,
+    "姓": author,
+    "名": "",
+  });
+  const rows = [
+    mk("000692", "高瀬舟", "森鴎外"),
+    mk("000691", "高瀬舟", "森鴎外"),
+    mk("045245", "高瀬舟", "森鴎外"),
+    mk("000692", "高瀬舟", "外部翻訳者", "翻訳者"),
+    mk("000321", "二老人", "国木田独歩"),
+    mk("009001", "同名の作品", "作家A"),
+    mk("009002", "同名の作品", "作家B"),
+  ];
+  const selected = [
+    { id: "aozora-000692", original_title: "高瀬舟", original_author: "森鴎外", source_url: "https://www.aozora.gr.jp/cards/000129/card692.html" },
+    { id: "aozora-000321", original_title: "二老人", original_author: "国木田独歩", source_url: "https://www.aozora.gr.jp/cards/000129/card321.html" },
+    { id: "aozora-009001", original_title: "同名の作品", original_author: "作家A", source_url: "https://www.aozora.gr.jp/cards/000129/card9001.html" },
+  ];
+  const findings = auditAozoraEditionCollisions(rows, selected);
+  assert.equal(findings.length, 3);
+  assert.equal(findings[0]?.status, "SAME_AUTHOR_MULTIPLE_EDITIONS");
+  assert.equal(findings[0]?.sameTitleCardCount, 3);
+  assert.equal(findings[0]?.sameAuthorSameTitleCardCount, 3);
+  assert.deepEqual(findings[0]?.otherEditionCardIds, ["000691", "045245"]);
+  assert.equal(findings[1]?.status, "UNIQUE");
+  assert.equal(findings[2]?.status, "SAME_TITLE_OTHER_AUTHOR");
+  assert.deepEqual(findings[2]?.distinctAuthorCardIds, ["009002"]);
+  assert.equal(
+    auditAozoraEditionCollisions(rows, [
+      { ...selected[0]!, source_url: "https://www.aozora.gr.jp/cards/000129/card999.html" }
+    ])[0]?.status, "SOURCE_CARD_MISMATCH"
+  );
+  assert.throws(() => auditAozoraEditionCollisions(rows, [selected[0]!, selected[0]!]),
+    /AOZORA_EDITION_DUPLICATE_MANIFEST/u);
+  assert.throws(() => auditAozoraEditionCollisions(rows, [
+    { ...selected[0]!, id: "aozora-not-numeric" }
+  ]), /AOZORA_EDITION_MANIFEST_INVALID/u);
+}
+
+function testAozoraAnnotationFidelityPreflight() {
+  const source = [
+    "本文［＃「本文」に傍点］",
+    "校訂［＃「校訂」は底本では「原本」］",
+    "外字※［＃「文字」、第4水準2-89-1］",
+    "読仮［＃ルビの「よみ」はママ］",
+    "［＃ここから３字下げ］段落［＃ここで字下げ終わり］",
+    "［＃未知の指示］",
+  ].join("\n");
+  const prepared = artifact({
+    chapters: [{ number: 1, title: "Fixture", body: source, characterCount: source.length }],
+  });
+  const report = auditPreparedAozoraAnnotationFidelity(prepared);
+  assert.equal(report.originalAnnotationCount, 7);
+  assert.equal(report.removedByRuntimeNormalization, 2);
+  assert.equal(report.remainingAfterRuntimeNormalization, 5);
+  assert.deepEqual(report.remainingByCategory, {
+    layout: 0,
+    emphasis: 1,
+    edition_variant: 1,
+    gaiji: 1,
+    ruby_note: 1,
+    unclassified: 1,
+  });
+  assert.equal(report.unclassifiedAnnotationsRemain, true);
+  assert.equal(report.manualReaderFidelityReviewRequired, true);
+  assert.equal(classifyAozoraAnnotation("ここから３字下げ"), "layout");
+  assert.equal(classifyAozoraAnnotation("未知の形式"), "unclassified");
+
+  const plain = auditPreparedAozoraAnnotationFidelity(artifact({
+    chapters: [{ number: 1, title: "Plain", body: "No markup", characterCount: 9 }],
+  }));
+  assert.equal(plain.originalAnnotationCount, 0);
+  assert.equal(plain.manualReaderFidelityReviewRequired, false);
+}
+
+function testAozoraReaderBodyOptIn() {
+  const marker = "\u3010\u30c6\u30ad\u30b9\u30c8\u4e2d\u306b\u73fe\u308c\u308b\u8a18\u53f7\u306b\u3064\u3044\u3066\u3011";
+  const separator = "-".repeat(55);
+  const fixture = ["Test Title", "Test Author", "", separator, marker,
+    "Ruby notation example", separator, "", "Original story body",
+    "", "Second paragraph"].join("\n");
+  const cleaned = normalizeSource(fixture, "aozora_reader_body");
+  assert.equal(cleaned.displayText, "Original story body\n\nSecond paragraph");
+  assert.equal(cleaned.archiveMetadata.includes(marker), true);
+  assert.equal(cleaned.archiveMetadata.includes("Test Title"), true);
+  assert.equal(normalizeSource(fixture, "aozora").displayText.includes(marker), true);
+  assert.throws(() => normalizeSource("Unknown body format", "aozora_reader_body"),
+    /AOZORA_READER_FRONT_MATTER_UNRECOGNIZED/);
+}
+
+function testNewAozoraSourceAttributionGate() {
+  const reviewed = approvedManifest({
+    normalization_profile: "aozora_reader_body",
+    source_provenance: {
+      input_edition: "1923 first edition",
+      proof_edition: "1923 tenth printing",
+      input_by: "Transcriber",
+      proofread_by: "Proofreader",
+    },
+  });
+  assert.equal(validateManifest(reviewed).ok, true);
+  const missing = validateManifest({ ...reviewed, source_provenance: null });
+  assert.equal(missing.ok, false);
+  assert.equal(
+    missing.errors.some((error) => error.includes("input/proof provenance")),
+    true
+  );
+  const malformed = validateManifest({
+    ...reviewed,
+    source_provenance: { ...reviewed.source_provenance, proofread_by: "" },
+  });
+  assert.equal(malformed.ok, false);
+  const plan = buildDraftImportPlan({
+    manifest: reviewed,
+    artifact: artifact(),
+    officialUserId: "official-user-id",
+  });
+  const publicMetadata = readPublicDomainMetadata(plan.series.effect_settings);
+  assert.equal(publicMetadata?.edition, "Synthetic fixture");
+  assert.equal(publicMetadata?.inputEdition, "1923 first edition");
+  assert.equal(publicMetadata?.proofEdition, "1923 tenth printing");
+  assert.equal(publicMetadata?.inputBy, "Transcriber");
+  assert.equal(publicMetadata?.proofreadBy, "Proofreader");
+
+  const legacy = readPublicDomainMetadata({
+    publicDomain: {
+      manifestId: "legacy",
+      originalAuthor: "Original",
+      sourceProvider: "Provider",
+      sourceHash: reviewed.source_hash,
+      rightsChecked: true,
+    },
+  });
+  assert.equal(legacy?.edition, null);
+  assert.equal(legacy?.inputBy, null);
+}
+
+function testPilotSemanticChapterSplits() {
+  const scenarios = [
+    { id: "aozora-000195", headings: ["１", "２", "３", "４", "５", "６", "７", "８"] },
+    { id: "aozora-000204", headings: ["（一）", "（二）", "（三）", "（四）", "（五）", "（六）", "（七）"] },
+    { id: "aozora-000321", headings: ["上", "下"] },
+  ];
+  for (const { id, headings } of scenarios) {
+    const manifest = JSON.parse(
+      readFileSync(`public-domain/manifests/${id}.json`, "utf8")
+    ) as PublicDomainManifest;
+    assert.equal(manifest.chapter_split.strategy, "heading_regex");
+    assert.equal(manifest.chapter_count, headings.length);
+    const fixture = headings
+      .map((heading, index) => `${heading}\n${String(index + 1).repeat(250)}`)
+      .join("\n\n");
+    const chapters = splitChapters(fixture, manifest);
+    assert.deepEqual(chapters.map((chapter) => chapter.title), headings);
+    assert.deepEqual(chapters.map((chapter) => chapter.characterCount), headings.map(() => 250));
+  }
+}
+
+function testAozoraNumberedHeadingDisplayTitles() {
+  const first = "［＃５字下げ］一［＃「一」は中見出し］";
+  const second = "［＃５字下げ］二［＃「二」は中見出し］";
+  const source = [first, "First passage", second, "Second passage"].join("\n");
+  const chapter_split = {
+    strategy: "heading_regex" as const,
+    heading_pattern: "^［＃５字下げ］[一二]［＃「[一二]」は中見出し］$",
+  };
+  const clean = splitChapters(source, {
+    title: "Novel",
+    chapter_split,
+    normalization_profile: "aozora_reader_body",
+  });
+  assert.deepEqual(clean.map(({ title }) => title), ["一", "二"]);
+  assert.deepEqual(clean.map(({ body }) => body), ["First passage", "Second passage"]);
+  const original = splitChapters(source, { title: "Novel", chapter_split });
+  assert.equal(original[0]?.title, first);
+  assert.equal(original[1]?.title, second);
 }
 
 function testPreparedArtifactAndDraftPlan() {
@@ -634,6 +959,10 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
   assert.equal(runtime.includes(".insert(plan.series)"), true);
   assert.equal(runtime.includes('.from("episodes")'), true);
   assert.equal(runtime.includes(".insert(episodeRows)"), true);
+  assert.equal(runtime.includes("assertExactDraftEpisodeInsert("), true);
+  assert.equal(runtime.includes("assertDraftRollbackConfirmed(cleanup.data, seriesId)"), true);
+  assert.equal(runtime.includes('select("id,series_id,episode_number,posting_status,is_published")'), true);
+  assert.equal(runtime.includes('delete().eq("id", seriesId).select("id")'), true);
   assert.equal(batch.includes("--all-approved"), true);
   assert.equal(batch.includes("--author-id"), true);
   assert.equal(sourceSync.includes("isAllowedAozoraTextUrl"), true);
@@ -659,6 +988,12 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
 }
 
 function main() {
+  testAozoraEditionCollisionPreflight();
+  testVerbatimPublicDomainDuplicateProbes();
+  testAozoraAnnotationFidelityPreflight();
+  testAozoraReaderBodyOptIn();
+  testDraftInsertConfirmationAndRollback();
+  testPreparedArtifactIsBoundToRawBytes();
   testPendingAndApprovedGates();
   testApprovedManifestRequiresAuditMetadata();
   testSourceHash();
@@ -668,6 +1003,9 @@ function main() {
   testHeadingSplitFixture();
   testHeadingSplitCanDropProviderFrontMatter();
   testAozoraAndGutenbergNormalization();
+  testPilotSemanticChapterSplits();
+  testAozoraNumberedHeadingDisplayTitles();
+  testNewAozoraSourceAttributionGate();
   testPreparedArtifactAndDraftPlan();
   testGonguEncodingDetection();
   testKoreanSourceLanguage();

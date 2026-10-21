@@ -1,0 +1,95 @@
+{
+  "id": "aozora-000204",
+  "title": "カインの末裔・有島武郎",
+  "original_title": "カインの末裔",
+  "original_author": "有島武郎",
+  "author_death_year": 1923,
+  "original_language": "ja",
+  "first_publication_year": 1917,
+  "source_provider": "Aozora Bunko",
+  "source_url": "https://www.aozora.gr.jp/cards/000025/card204.html",
+  "source_download_url": "https://www.aozora.gr.jp/cards/000025/files/204_ruby_3382.zip",
+  "source_file": "public-domain/sources/raw/aozora-000204.txt",
+  "source_retrieved_at": "2026-10-20T17:38:22.658Z",
+  "source_encoding": "shift_jis",
+  "normalization_profile": "aozora_reader_body",
+  "edition": "カインの末裔　クララの出家",
+  "edition_publication_year": 1940,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora catalog flags are なし and candidate cutoffs passed; verify exact work and jurisdiction before approval."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify whether the exact base edition contributes protectable modern editorial matter."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify modernization/editorial contribution in the selected source."
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora annotations/provenance are preserved and must be reviewed."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review Aozora file handling rules and preserve provenance."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review current Aozora file handling rules at approval time."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 7,
+  "chapter_split": {
+    "strategy": "heading_regex",
+    "heading_pattern": "^（[一二三四五六七]）$"
+  },
+  "tags": [
+    "Public Domain",
+    "Aozora Bunko",
+    "有島武郎"
+  ],
+  "source_hash": "c478211aae151241801c48aa09c6d3fb9268ea1612a67fd245690ea66fafe211",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null,
+  "source_provenance": {
+    "input_edition": "1990（平成2）年4月15日第35刷（1980年第25刷改版）",
+    "proof_edition": null,
+    "input_by": "鈴木厚司",
+    "proofread_by": "地田尚"
+  }
+}

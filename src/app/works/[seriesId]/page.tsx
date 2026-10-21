@@ -1515,6 +1515,15 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     ) || "作者名未設定";
   const displayedAuthorName = publicDomain?.originalAuthor || authorName;
   const displayedAuthorLabel = publicDomain ? dictionary.originalAuthor : dictionary.author;
+  const provenanceRows = publicDomain
+    ? [
+        { label: dictionary.editionLabel, value: publicDomain.edition },
+        { label: dictionary.inputEditionLabel, value: publicDomain.inputEdition },
+        { label: dictionary.proofEditionLabel, value: publicDomain.proofEdition },
+        { label: dictionary.inputByLabel, value: publicDomain.inputBy },
+        { label: dictionary.proofreadByLabel, value: publicDomain.proofreadBy },
+      ].filter(({ value }) => Boolean(value))
+    : [];
   const sourceLanguageTag = parseSupportedLanguageTag(
     pickText(series.source_language, series["sourceLanguage"])
   );
@@ -1857,6 +1866,16 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                     publicDomain.sourceProvider
                   )}
                 </p>
+                {provenanceRows.length > 0 ? (
+                  <dl className="mt-3 space-y-2 border-t border-black/10 pt-3 text-xs">
+                    {provenanceRows.map(({ label, value }) => (
+                      <div key={label}>
+                        <dt className="text-neutral-500">{label}</dt>
+                        <dd className="mt-1 break-words text-neutral-800">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
               </div>
             ) : null}
 

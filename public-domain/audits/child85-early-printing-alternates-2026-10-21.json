@@ -1,0 +1,315 @@
+{
+  "project": "LIB read",
+  "workstream": "Child85 S3 source-only early-printing candidates",
+  "status": "SOURCE_VERIFIED_HUMAN_RIGHTS_HOLD",
+  "as_of": "2026-10-21",
+  "works": [
+    {
+      "id": "aozora-000692",
+      "original_title": "高瀬舟",
+      "author": "森鴎外",
+      "author_death_year": 1922,
+      "first_publication_year": 1916,
+      "source_url": "https://www.aozora.gr.jp/cards/000129/card692.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000129/files/692_ruby_16056.zip",
+      "source_hash": "2e7cfc79c6dc03f0b3953682401d189e9482e484a0f9793d1bf8cca942abaf68",
+      "source_retrieved_at": "2026-10-21T01:19:48.109Z",
+      "base_edition": "中央公論　第三十一年第一號",
+      "base_publication_year": 1916,
+      "source_provenance": {
+        "input_edition": "1916（大正5）年1月",
+        "proof_edition": "1916（大正5）年1月",
+        "input_by": "岡島昭浩",
+        "proofread_by": "小林繁雄"
+      },
+      "official_card_context": {
+        "classification": "NDC 913",
+        "original": "Chuo Koron, January 1916",
+        "edition_caveat": "The source card identifies the bound original magazine issue tentatively; verify the journal leaf and date against an independent scan."
+      },
+      "source_sha256_verified": true,
+      "chapter_split": {
+        "strategy": "single"
+      },
+      "chapter_count": 1,
+      "chapter_lengths": [
+        8697
+      ],
+      "display_characters": 8697,
+      "normalization_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling",
+        "CHAPTER_TRANSLATION_TARGET: one or more chapters exceed the 8000-character target"
+      ],
+      "annotations": {
+        "originalAnnotationCount": 4,
+        "remainingAfterRuntimeNormalization": 4,
+        "removedByRuntimeNormalization": 0,
+        "sourceByCategory": {
+          "layout": 0,
+          "emphasis": 0,
+          "edition_variant": 2,
+          "gaiji": 2,
+          "ruby_note": 0,
+          "unclassified": 0
+        },
+        "remainingByCategory": {
+          "layout": 0,
+          "emphasis": 0,
+          "edition_variant": 2,
+          "gaiji": 2,
+          "ruby_note": 0,
+          "unclassified": 0
+        },
+        "unclassifiedAnnotationsRemain": false,
+        "manualReaderFidelityReviewRequired": true
+      },
+      "verbatim_ja_public_substring_preflight": {
+        "baseline_eligible_episodes": 440,
+        "probe_count": 3,
+        "probe_fingerprints": [
+          {
+            "index": 1,
+            "length": 24,
+            "sha256": "cedf7313089a77cbc27c6fdd68ef958b84ad569632d33d9b50c7676f9f4a1090"
+          },
+          {
+            "index": 2,
+            "length": 24,
+            "sha256": "a782da352ac55f778b6aa946327191aeb75af100926bb094a9e06f9e1d3509e7"
+          },
+          {
+            "index": 3,
+            "length": 24,
+            "sha256": "297b0f22a8f415394277aa6e53111380a354c688ff1bfff0f47b3ecbb1711525"
+          }
+        ],
+        "episode_hits": 0,
+        "series_hits": 0,
+        "scope": "READ ONLY posted/public Japanese; does not prove no full or semantic duplicates"
+      },
+      "exact_identity_production_preflight": {
+        "manifest_id_hits": 0,
+        "hash_hits": 0,
+        "title_fragment_series_hits": 0,
+        "title_fragment_episode_hits": 0
+      },
+      "rights_status": "pending",
+      "approved": false,
+      "reviewed_at": null,
+      "not_for_first_automatic_import": true
+    },
+    {
+      "id": "aozora-004386",
+      "original_title": "修道院の秋",
+      "author": "南部修太郎",
+      "author_death_year": 1936,
+      "first_publication_year": 1916,
+      "source_url": "https://www.aozora.gr.jp/cards/000048/card4386.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000048/files/4386_ruby.zip",
+      "source_hash": "90d366172fa7f91e4255e02a460491205f6bf5ac790847470427d92152bda8b2",
+      "source_retrieved_at": "2026-10-21T01:19:47.337Z",
+      "base_edition": "新進作家叢書22　修道院の秋",
+      "base_publication_year": 1918,
+      "source_provenance": {
+        "input_edition": "1922（大正11）年8月15日13版",
+        "proof_edition": null,
+        "input_by": "小林徹",
+        "proofread_by": "林幸雄"
+      },
+      "official_card_context": {
+        "classification": "NDC 913",
+        "original": "Mita Bungaku, November 1916",
+        "edition_caveat": "1918 first anthology vs 1922 thirteenth printing; independently compare text variants and source imprint. Card does not state proof printing."
+      },
+      "source_sha256_verified": true,
+      "chapter_split": {
+        "strategy": "paragraph_chunks",
+        "max_characters": 7500
+      },
+      "chapter_count": 3,
+      "chapter_lengths": [
+        3421,
+        7484,
+        1293
+      ],
+      "display_characters": 12200,
+      "normalization_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
+      ],
+      "annotations": {
+        "originalAnnotationCount": 5,
+        "remainingAfterRuntimeNormalization": 5,
+        "removedByRuntimeNormalization": 0,
+        "sourceByCategory": {
+          "layout": 1,
+          "emphasis": 3,
+          "edition_variant": 1,
+          "gaiji": 0,
+          "ruby_note": 0,
+          "unclassified": 0
+        },
+        "remainingByCategory": {
+          "layout": 1,
+          "emphasis": 3,
+          "edition_variant": 1,
+          "gaiji": 0,
+          "ruby_note": 0,
+          "unclassified": 0
+        },
+        "unclassifiedAnnotationsRemain": false,
+        "manualReaderFidelityReviewRequired": true
+      },
+      "verbatim_ja_public_substring_preflight": {
+        "baseline_eligible_episodes": 440,
+        "probe_count": 3,
+        "probe_fingerprints": [
+          {
+            "index": 1,
+            "length": 24,
+            "sha256": "c08e856adb0fd80ada52c3f419c9dd5f9b4e9ef836e23011cb7e5261bbf9a4c0"
+          },
+          {
+            "index": 2,
+            "length": 24,
+            "sha256": "6958fbcbf8a6468f8069a81cb3592a8a4dab96e83eec5a83589ed7d834a4b020"
+          },
+          {
+            "index": 3,
+            "length": 24,
+            "sha256": "af3ec1f5ddd96a6711bde27a560c85a3f9ec665abe89b944169206d9f14a1b8a"
+          }
+        ],
+        "episode_hits": 0,
+        "series_hits": 0,
+        "scope": "READ ONLY posted/public Japanese; does not prove no full or semantic duplicates"
+      },
+      "exact_identity_production_preflight": {
+        "manifest_id_hits": 0,
+        "hash_hits": 0,
+        "title_fragment_series_hits": 0,
+        "title_fragment_episode_hits": 0
+      },
+      "rights_status": "pending",
+      "approved": false,
+      "reviewed_at": null,
+      "not_for_first_automatic_import": true
+    },
+    {
+      "id": "aozora-033200",
+      "original_title": "幸福への道",
+      "author": "素木しづ",
+      "author_death_year": 1918,
+      "first_publication_year": 1915,
+      "source_url": "https://www.aozora.gr.jp/cards/000012/card33200.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000012/files/33200_ruby_11851.zip",
+      "source_hash": "935a2b8b5a0f69df648225f6002ab9249d1516cd096c9fd9bc2c91729ad899bf",
+      "source_retrieved_at": "2026-10-21T01:19:46.470Z",
+      "base_edition": "青白き夢",
+      "base_publication_year": 1918,
+      "source_provenance": {
+        "input_edition": "1918（大正7）年3月15日",
+        "proof_edition": null,
+        "input_by": "小林徹",
+        "proofread_by": "松永正敏"
+      },
+      "official_card_context": {
+        "classification": "NDC 913",
+        "original": "Shincho, January 1915",
+        "edition_caveat": "First 1915 magazine text vs input 1918 book; independently check differences. Card does not state proof printing."
+      },
+      "source_sha256_verified": true,
+      "chapter_split": {
+        "strategy": "single"
+      },
+      "chapter_count": 1,
+      "chapter_lengths": [
+        8073
+      ],
+      "display_characters": 8073,
+      "normalization_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling",
+        "CHAPTER_TRANSLATION_TARGET: one or more chapters exceed the 8000-character target"
+      ],
+      "annotations": {
+        "originalAnnotationCount": 7,
+        "remainingAfterRuntimeNormalization": 7,
+        "removedByRuntimeNormalization": 0,
+        "sourceByCategory": {
+          "layout": 0,
+          "emphasis": 3,
+          "edition_variant": 2,
+          "gaiji": 2,
+          "ruby_note": 0,
+          "unclassified": 0
+        },
+        "remainingByCategory": {
+          "layout": 0,
+          "emphasis": 3,
+          "edition_variant": 2,
+          "gaiji": 2,
+          "ruby_note": 0,
+          "unclassified": 0
+        },
+        "unclassifiedAnnotationsRemain": false,
+        "manualReaderFidelityReviewRequired": true
+      },
+      "verbatim_ja_public_substring_preflight": {
+        "baseline_eligible_episodes": 440,
+        "probe_count": 3,
+        "probe_fingerprints": [
+          {
+            "index": 1,
+            "length": 24,
+            "sha256": "3b29516cbe6393a6b6ef067f0f622d7babfcd9900f3d09ed07343ebc2a3e3501"
+          },
+          {
+            "index": 2,
+            "length": 24,
+            "sha256": "36bf096713613e3f0a68fa39645787e6122f1599fc8302ad8b53dfd968f267ac"
+          },
+          {
+            "index": 3,
+            "length": 24,
+            "sha256": "8a1a1649c2f856e7bbe9ef09d53872c84b77c8ab2dc5bc5bf34bc0e2eaff5d5c"
+          }
+        ],
+        "episode_hits": 0,
+        "series_hits": 0,
+        "scope": "READ ONLY posted/public Japanese; does not prove no full or semantic duplicates"
+      },
+      "exact_identity_production_preflight": {
+        "manifest_id_hits": 0,
+        "hash_hits": 0,
+        "title_fragment_series_hits": 0,
+        "title_fragment_episode_hits": 0
+      },
+      "rights_status": "pending",
+      "approved": false,
+      "reviewed_at": null,
+      "not_for_first_automatic_import": true
+    }
+  ],
+  "summary": {
+    "new_candidates": 3,
+    "new_prepared_chapters": 5,
+    "source_prepared_total_candidates": 10,
+    "source_prepared_total_chapters": 39,
+    "unresolved_reader_annotation_in_new_candidates": 16,
+    "new_exact_source_probes": 9,
+    "eligible_public_ja_episodes": 440,
+    "exact_matches": 0,
+    "rights_approvals": 0,
+    "production_imports": 0
+  },
+  "holds": [
+    "Qualified review of original-term, exact edition and editorial changes, annotations, digitization and provider terms for JP/US/KR",
+    "Human content warnings/R18 and true semantic duplicate review",
+    "Reader annotation fidelity and local original/bilingual/translation verification in S1 scope",
+    "Explicit merge, Production Draft import exact 3–6 ID, and separate publication approvals required"
+  ],
+  "no_source_body_committed": true,
+  "production_writes": false
+}

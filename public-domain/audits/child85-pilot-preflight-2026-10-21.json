@@ -1,0 +1,960 @@
+{
+  "generated_at": "2026-10-21",
+  "audit_type": "CHILD85_PILOT_SOURCE_PREFLIGHT_ONLY",
+  "decision": "HOLD_HUMAN_RIGHTS_REVIEW_NO_DB_WRITE__PRIMARY_LEGAL_TERMS_PRELIMINARY_SUPPORTED",
+  "git_base_main": "9c34659ca167ead0c860456437bd5fe8fe9086d2",
+  "production_deployment": "dpl_3DVLLda3DYfcZ8cQKJwLXFmmN6H2",
+  "production_status": "READY",
+  "source_baseline": {
+    "total_series": 123,
+    "public_series": 120,
+    "private_series": 3,
+    "rights_checked_series": 84,
+    "rights_unchecked_public": 36,
+    "rights_unchecked_private": 3,
+    "ja_public": 40,
+    "en_public": 40,
+    "ko_public": 40,
+    "ja_rights_checked": 4,
+    "en_rights_checked": 40,
+    "ko_rights_checked": 40,
+    "episodes_published": 3284,
+    "episodes_draft": 0,
+    "episodes_scheduled": 0
+  },
+  "existing_manifests": {
+    "count": 86,
+    "approved_imported": 84,
+    "pending": 2
+  },
+  "pilot": {
+    "count": 5,
+    "language": "ja",
+    "approved": 0,
+    "db_drafts_imported": 0,
+    "publications": 0
+  },
+  "acquisition": "official Aozora expanded UTF8 catalog + allowlisted source ZIP; source files remain ignored and local, manifest SHA tracked",
+  "rights_framework": {
+    "jp": "https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html",
+    "us": "https://www.copyright.gov/circs/circ38b.pdf",
+    "kr": "https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1033063625",
+    "provider": "https://www.aozora.gr.jp/guide/kijyunn.html"
+  },
+  "outstanding_rights_review": [
+    "Confirm per-card first publication, author and source status",
+    "Distinguish modern base-edition editorial/orthographic contributions from expired original text",
+    "Review individual annotations, bibliography and Aozora digitization terms",
+    "Confirm Japan, United States and South Korea distribution analysis for exact source",
+    "Ensure modern translations, illustrations, covers and narration assets are not imported",
+    "Record human reviewer, review timestamp, and explicit rights-component resolutions before changing approved flags",
+    "Review chapter boundaries, especially source-short final parts, before import"
+  ],
+  "no_change_to_existing_imported_aozora_profile": true,
+  "production_reads_only": true,
+  "production_writes": 0,
+  "works": [
+    {
+      "manifest_id": "aozora-000022",
+      "title": "羅生門の後に",
+      "author": "芥川竜之介",
+      "author_death_year": 1927,
+      "first_publication_year": 1917,
+      "original_language": "ja",
+      "source_provider": "Aozora Bunko",
+      "source_url": "https://www.aozora.gr.jp/cards/000879/card22.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000879/files/22_ruby_983.zip",
+      "base_edition": "日本の文学　33　羅生門",
+      "base_edition_publication_year": 1984,
+      "translator": null,
+      "source_encoding": "shift_jis",
+      "raw_file_path": "public-domain/sources/raw/aozora-000022.txt",
+      "source_retrieved_at": "2026-10-20T17:37:17.771Z",
+      "source_sha256": "7fd64ae9f13d8a04e111d67e2eab2644c9a20fe576778163be305f90ff0cd3df",
+      "raw_size_bytes": 4143,
+      "normalization_profile": "aozora_reader_body",
+      "chapter_count": 1,
+      "chapter_character_counts": [
+        1642
+      ],
+      "archive_metadata_characters": 552,
+      "source_hash_verified": true,
+      "chapter_count_verified": true,
+      "technical_legend_archived": true,
+      "rights_status": "pending",
+      "approved": false,
+      "import_status": "prepared",
+      "needs_review": [
+        "original_work",
+        "edition",
+        "editorial",
+        "annotations",
+        "digitization",
+        "provider_terms"
+      ],
+      "jurisdictions_reviewed": [],
+      "collision": {
+        "manifest_id_or_source_sha": 0,
+        "series_title": 0,
+        "episode_title": 0
+      },
+      "technical_notation_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
+      ],
+      "publication_authorization": false,
+      "primary_source_card": {
+        "card_url": "https://www.aozora.gr.jp/cards/000879/card22.html",
+        "first_publication": "時事新報 1917-05-05",
+        "orthography": "新字新仮名",
+        "base_edition": "日本の文学 33 羅生門 / ほるぷ出版 初版1984-08-01",
+        "edition_used": "1986-12-01 初版第3刷",
+        "parent_edition": "羅生門 / 阿蘭陀書房 大正6年5月",
+        "input": "j.utiyama",
+        "proofreader": "もりみつじゅんじ",
+        "provider_content_advisory": false,
+        "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+        "modern_editorial_scope_status": "NEEDS_REVIEW",
+        "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      },
+      "original_work_term_preflight": {
+        "basis": "LIFESPAN_PUBLICATION_PRELIMINARY_ONLY",
+        "assessed_at": "2026-10-21",
+        "jp_ordinary_old_50_year_end": "1977-12-31",
+        "kr_old_50_year_end": "1977-12-31",
+        "us_95_year_published_end": "2012-12-31",
+        "conclusion": "LIKELY_EXPIRED_ORIGINAL_WORK_TERMS_IN_JP_US_KR",
+        "explicit_exclusions": [
+          "later creative edition changes",
+          "annotation/editorial additions",
+          "modern translation",
+          "cover/illustrations",
+          "audio/narration rights",
+          "independent license/provider term",
+          "final human/legal signoff"
+        ]
+      },
+      "curation_hold": "NOT_PROSE_FICTION_NDC914_EXCLUDED_FROM_FIRST_NOVEL_IMPORT"
+    },
+    {
+      "manifest_id": "aozora-000195",
+      "title": "可哀相な姉",
+      "author": "渡辺温",
+      "author_death_year": 1930,
+      "first_publication_year": 1927,
+      "original_language": "ja",
+      "source_provider": "Aozora Bunko",
+      "source_url": "https://www.aozora.gr.jp/cards/000020/card195.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000020/files/195_ruby_26090.zip",
+      "base_edition": "アンドロギュノスの裔",
+      "base_edition_publication_year": 1970,
+      "translator": null,
+      "source_encoding": "shift_jis",
+      "raw_file_path": "public-domain/sources/raw/aozora-000195.txt",
+      "source_retrieved_at": "2026-10-20T17:37:18.558Z",
+      "source_sha256": "9f641bf3cf71a82854dd6c1d4d91f1d3ac40305bfcd306e2c183db588a5a392d",
+      "raw_size_bytes": 16921,
+      "normalization_profile": "aozora_reader_body",
+      "chapter_count": 8,
+      "chapter_character_counts": [
+        573,
+        743,
+        1060,
+        1453,
+        596,
+        1002,
+        2196,
+        400
+      ],
+      "archive_metadata_characters": 505,
+      "source_hash_verified": true,
+      "chapter_count_verified": true,
+      "technical_legend_archived": true,
+      "rights_status": "pending",
+      "approved": false,
+      "import_status": "prepared",
+      "needs_review": [
+        "original_work",
+        "edition",
+        "editorial",
+        "annotations",
+        "digitization",
+        "provider_terms"
+      ],
+      "jurisdictions_reviewed": [],
+      "collision": {
+        "manifest_id_or_source_sha": 0,
+        "series_title": 0,
+        "episode_title": 0
+      },
+      "technical_notation_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling",
+        "CHAPTER_TRANSLATION_TARGET: one or more chapters exceed the 8000-character target"
+      ],
+      "publication_authorization": false,
+      "primary_source_card": {
+        "card_url": "https://www.aozora.gr.jp/cards/000020/card195.html",
+        "first_publication": "新青年 1927-10",
+        "orthography": "新字新仮名",
+        "base_edition": "アンドロギュノスの裔 / 薔薇十字社 初版1970-09-01",
+        "edition_used": null,
+        "parent_edition": null,
+        "input": "森下祐行",
+        "proofreader": "もりみつじゅんじ",
+        "provider_content_advisory": true,
+        "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+        "modern_editorial_scope_status": "NEEDS_REVIEW",
+        "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      },
+      "original_work_term_preflight": {
+        "basis": "LIFESPAN_PUBLICATION_PRELIMINARY_ONLY",
+        "assessed_at": "2026-10-21",
+        "jp_ordinary_old_50_year_end": "1980-12-31",
+        "kr_old_50_year_end": "1980-12-31",
+        "us_95_year_published_end": "2022-12-31",
+        "conclusion": "LIKELY_EXPIRED_ORIGINAL_WORK_TERMS_IN_JP_US_KR",
+        "explicit_exclusions": [
+          "later creative edition changes",
+          "annotation/editorial additions",
+          "modern translation",
+          "cover/illustrations",
+          "audio/narration rights",
+          "independent license/provider term",
+          "final human/legal signoff"
+        ]
+      },
+      "semantic_section_audit": {
+        "strategy": "heading_regex",
+        "source_heading_description": "八つの原文数字見出し",
+        "source_hash_verified": true,
+        "all_under_10000_character_limit": true
+      }
+    },
+    {
+      "manifest_id": "aozora-000198",
+      "title": "青白き夢",
+      "author": "素木しづ",
+      "author_death_year": 1918,
+      "first_publication_year": 1915,
+      "original_language": "ja",
+      "source_provider": "Aozora Bunko",
+      "source_url": "https://www.aozora.gr.jp/cards/000012/card198.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000012/files/198_ruby_20962.zip",
+      "base_edition": "素木しづ作品集",
+      "base_edition_publication_year": 1970,
+      "translator": null,
+      "source_encoding": "shift_jis",
+      "raw_file_path": "public-domain/sources/raw/aozora-000198.txt",
+      "source_retrieved_at": "2026-10-20T17:37:19.346Z",
+      "source_sha256": "ce465e83545a7ddafb698b8179fc9157f8c1194f3687799ea5a0901c2495150c",
+      "raw_size_bytes": 34689,
+      "normalization_profile": "aozora_reader_body",
+      "chapter_count": 3,
+      "chapter_character_counts": [
+        5993,
+        6000,
+        4911
+      ],
+      "archive_metadata_characters": 567,
+      "source_hash_verified": true,
+      "chapter_count_verified": true,
+      "technical_legend_archived": true,
+      "rights_status": "pending",
+      "approved": false,
+      "import_status": "prepared",
+      "needs_review": [
+        "original_work",
+        "edition",
+        "editorial",
+        "annotations",
+        "digitization",
+        "provider_terms"
+      ],
+      "jurisdictions_reviewed": [],
+      "collision": {
+        "manifest_id_or_source_sha": 0,
+        "series_title": 0,
+        "episode_title": 0
+      },
+      "technical_notation_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
+      ],
+      "publication_authorization": false,
+      "primary_source_card": {
+        "card_url": "https://www.aozora.gr.jp/cards/000012/card198.html",
+        "first_publication": "新小説 1915-01",
+        "orthography": "新字旧仮名",
+        "base_edition": "素木しづ作品集 / 札幌・北書房 初版1970-06-15",
+        "edition_used": null,
+        "parent_edition": null,
+        "input": "小林徹",
+        "proofreader": "Juki",
+        "provider_content_advisory": true,
+        "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+        "modern_editorial_scope_status": "NEEDS_REVIEW",
+        "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      },
+      "original_work_term_preflight": {
+        "basis": "LIFESPAN_PUBLICATION_PRELIMINARY_ONLY",
+        "assessed_at": "2026-10-21",
+        "jp_ordinary_old_50_year_end": "1968-12-31",
+        "kr_old_50_year_end": "1968-12-31",
+        "us_95_year_published_end": "2010-12-31",
+        "conclusion": "LIKELY_EXPIRED_ORIGINAL_WORK_TERMS_IN_JP_US_KR",
+        "explicit_exclusions": [
+          "later creative edition changes",
+          "annotation/editorial additions",
+          "modern translation",
+          "cover/illustrations",
+          "audio/narration rights",
+          "independent license/provider term",
+          "final human/legal signoff"
+        ]
+      }
+    },
+    {
+      "manifest_id": "aozora-000204",
+      "title": "カインの末裔",
+      "author": "有島武郎",
+      "author_death_year": 1923,
+      "first_publication_year": 1917,
+      "original_language": "ja",
+      "source_provider": "Aozora Bunko",
+      "source_url": "https://www.aozora.gr.jp/cards/000025/card204.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000025/files/204_ruby_3382.zip",
+      "base_edition": "カインの末裔　クララの出家",
+      "base_edition_publication_year": 1940,
+      "translator": null,
+      "source_encoding": "shift_jis",
+      "raw_file_path": "public-domain/sources/raw/aozora-000204.txt",
+      "source_retrieved_at": "2026-10-20T17:38:22.658Z",
+      "source_sha256": "c478211aae151241801c48aa09c6d3fb9268ea1612a67fd245690ea66fafe211",
+      "raw_size_bytes": 76658,
+      "normalization_profile": "aozora_reader_body",
+      "chapter_count": 7,
+      "chapter_character_counts": [
+        7198,
+        4646,
+        4659,
+        5313,
+        5245,
+        4987,
+        5684
+      ],
+      "archive_metadata_characters": 644,
+      "source_hash_verified": true,
+      "chapter_count_verified": true,
+      "technical_legend_archived": true,
+      "rights_status": "pending",
+      "approved": false,
+      "import_status": "prepared",
+      "needs_review": [
+        "original_work",
+        "edition",
+        "editorial",
+        "annotations",
+        "digitization",
+        "provider_terms"
+      ],
+      "jurisdictions_reviewed": [],
+      "collision": {
+        "manifest_id_or_source_sha": 0,
+        "series_title": 0,
+        "episode_title": 0
+      },
+      "technical_notation_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
+      ],
+      "publication_authorization": false,
+      "primary_source_card": {
+        "card_url": "https://www.aozora.gr.jp/cards/000025/card204.html",
+        "first_publication": "新小説 1917-07",
+        "orthography": "新字新仮名",
+        "base_edition": "カインの末裔 クララの出家 / 岩波文庫 初版1940-09-10",
+        "edition_used": "1980-05-16 第25刷改版、入力に1990-04-15第35刷",
+        "parent_edition": "有島武郎著作集 第三輯 / 新潮社 1918-02",
+        "input": "鈴木厚司",
+        "proofreader": "地田尚",
+        "provider_content_advisory": true,
+        "modern_revision_attention": "1980改版を経た1990刷を入力底本としている。1940年の初版年だけで安全と判断しない。",
+        "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+        "modern_editorial_scope_status": "NEEDS_REVIEW",
+        "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      },
+      "original_work_term_preflight": {
+        "basis": "LIFESPAN_PUBLICATION_PRELIMINARY_ONLY",
+        "assessed_at": "2026-10-21",
+        "jp_ordinary_old_50_year_end": "1973-12-31",
+        "kr_old_50_year_end": "1973-12-31",
+        "us_95_year_published_end": "2012-12-31",
+        "conclusion": "LIKELY_EXPIRED_ORIGINAL_WORK_TERMS_IN_JP_US_KR",
+        "explicit_exclusions": [
+          "later creative edition changes",
+          "annotation/editorial additions",
+          "modern translation",
+          "cover/illustrations",
+          "audio/narration rights",
+          "independent license/provider term",
+          "final human/legal signoff"
+        ]
+      },
+      "semantic_section_audit": {
+        "strategy": "heading_regex",
+        "source_heading_description": "原文の（一）～（七）",
+        "source_hash_verified": true,
+        "all_under_10000_character_limit": true
+      }
+    },
+    {
+      "manifest_id": "aozora-000321",
+      "title": "二老人",
+      "author": "国木田独歩",
+      "author_death_year": 1908,
+      "first_publication_year": 1908,
+      "original_language": "ja",
+      "source_provider": "Aozora Bunko",
+      "source_url": "https://www.aozora.gr.jp/cards/000038/card321.html",
+      "source_download_url": "https://www.aozora.gr.jp/cards/000038/files/321_ruby_4292.zip",
+      "base_edition": "号外・少年の悲哀　他六篇",
+      "base_edition_publication_year": 1939,
+      "translator": null,
+      "source_encoding": "shift_jis",
+      "raw_file_path": "public-domain/sources/raw/aozora-000321.txt",
+      "source_retrieved_at": "2026-10-20T17:38:23.441Z",
+      "source_sha256": "fe3c023fb00ea334cb7cae24934c83aeebe5210a415f4b02e2e18c4875b08f5e",
+      "raw_size_bytes": 14976,
+      "normalization_profile": "aozora_reader_body",
+      "chapter_count": 2,
+      "chapter_character_counts": [
+        3817,
+        3193
+      ],
+      "archive_metadata_characters": 584,
+      "source_hash_verified": true,
+      "chapter_count_verified": true,
+      "technical_legend_archived": true,
+      "rights_status": "pending",
+      "approved": false,
+      "import_status": "prepared",
+      "needs_review": [
+        "original_work",
+        "edition",
+        "editorial",
+        "annotations",
+        "digitization",
+        "provider_terms"
+      ],
+      "jurisdictions_reviewed": [],
+      "collision": {
+        "manifest_id_or_source_sha": 0,
+        "series_title": 0,
+        "episode_title": 0
+      },
+      "technical_notation_warnings": [
+        "AOZORA_ANNOTATIONS_PRESENT: reader source retains Aozora annotations; do not blanket-strip them",
+        "AOZORA_RUBY_PRESENT: reader source retains ruby markup for existing reader/translation handling"
+      ],
+      "publication_authorization": false,
+      "primary_source_card": {
+        "card_url": "https://www.aozora.gr.jp/cards/000038/card321.html",
+        "first_publication": "文章世界 1908-01",
+        "orthography": "新字新仮名",
+        "base_edition": "号外・少年の悲哀 他六篇 / 岩波文庫 初版1939-04-17",
+        "edition_used": "1960-01-25 第14刷改版、入力1981-04-10 第34刷、校正2000-07-14 第38刷",
+        "parent_edition": null,
+        "input": "紅邪鬼",
+        "proofreader": "鈴木厚司",
+        "provider_content_advisory": true,
+        "modern_revision_attention": "1960改版と1981/2000校正対象版の創作的編集・本文異同を審査する。",
+        "historical_text_rights_status": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+        "modern_editorial_scope_status": "NEEDS_REVIEW",
+        "content_rating_status": "NEEDS_MANUAL_REVIEW"
+      },
+      "original_work_term_preflight": {
+        "basis": "LIFESPAN_PUBLICATION_PRELIMINARY_ONLY",
+        "assessed_at": "2026-10-21",
+        "jp_ordinary_old_50_year_end": "1958-12-31",
+        "kr_old_50_year_end": "1958-12-31",
+        "us_95_year_published_end": "2003-12-31",
+        "conclusion": "LIKELY_EXPIRED_ORIGINAL_WORK_TERMS_IN_JP_US_KR",
+        "explicit_exclusions": [
+          "later creative edition changes",
+          "annotation/editorial additions",
+          "modern translation",
+          "cover/illustrations",
+          "audio/narration rights",
+          "independent license/provider term",
+          "final human/legal signoff"
+        ]
+      },
+      "semantic_section_audit": {
+        "strategy": "heading_regex",
+        "source_heading_description": "原文の上・下",
+        "source_hash_verified": true,
+        "all_under_10000_character_limit": true
+      }
+    }
+  ],
+  "primary_source_card_verification": {
+    "checked_at": "2026-10-21",
+    "provider": "Aozora Bunko original individual HTML work cards",
+    "result": "All five actual card titles, author death years, first publication metadata, provenance workers and downloaded ZIP links independently matched their corresponding manifest/catalog ID. This is bibliographic verification, not an independent clearance of modern edition editorial copyright.",
+    "cards_checked": 5,
+    "provider_content_advisory_count": 4,
+    "content_advisory_meaning": "Provider notes historically inappropriate expressions; do not infer R18 or classify publication rating automatically. Operator must review actual text and decide accurate content notices.",
+    "legal_sources_checked_at": "2026-10-21",
+    "japan_norevival": "https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html",
+    "us_restoration": "https://www.copyright.gov/circs/circ38b.pdf",
+    "korea_foreign_works_current": "https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1033063625",
+    "korea_general_term_current": "https://www.law.go.kr/lsLinkCommonInfo.do?lsJoLnkSeq=1029475235",
+    "provider_policy_current": "https://www.aozora.gr.jp/guide/kijyunn.html",
+    "human_rights_signoff": false
+  },
+  "jurisdictional_preliminary_original_rights_analysis": {
+    "evidence_date": "2026-10-21",
+    "status": "PRELIMINARY_ORIGINAL_WORK_TERM_ONLY__DO_NOT_APPROVE",
+    "methodological_boundary": "AI statutory/evidence analysis. Human reviewer has not signed off. No modern edition, editorial annotation, digitization or provider component is cleared merely by original-work term expiry.",
+    "japan": {
+      "official_url": "https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html",
+      "rule": "Prior author life+50 expired before 2018-12-30 is not revived when the term extends to 70 years. Standard author basis; exceptions still reviewed at signoff."
+    },
+    "united_states": {
+      "library_chart": "https://guides.library.cornell.edu/copyright/publicdomain",
+      "rule": "Foreign-authored works first published before 1931 are public domain in the US as of 2026 under the chart's general pre-1931 published-work treatment. Verify source/bibliographic publication year and edition changes."
+    },
+    "south_korea": {
+      "government_guidance": "https://www.easylaw.go.kr/CSP/CnpClsMain.laf?ccfNo=2&cciNo=1&cnpClsNo=2&csmSeq=695",
+      "commission_faq": "https://www.copyright.or.kr/customer-center/faq/list.do?categorycode1=&counselfaqno=47592&pageIndex=2&portalcode=04&searchkeyword=",
+      "law_as_of_2026": "https://law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0039&lsiSeq=283335&urlMode=lsScJoRltInfoR",
+      "rule": "2013-07-01 author life+50 to life+70 transition did not revive already expired economic rights. Foreign works generally treated under national treatment; original authors here died by 1930."
+    },
+    "provider": {
+      "official_url": "https://www.aozora.gr.jp/guide/kijyunn.html",
+      "rule": "Aozora says copyright-expired work files can be copied, redistributed, shared and format-changed even commercially; maintain provenance and transformation history as requested; independently confirm source card copyright flags and scope of any protected changes."
+    }
+  },
+  "early_base_edition_screening": {
+    "analyzed_at": "2026-10-21",
+    "scope": "Aozora official expanded catalog; existing manifest IDs and legacy series title audit exclusions; conservative flag, contributors, author death<=1955 and first publication<=1930 checks",
+    "catalog_rows": 19502,
+    "eligible_by_conservative_classifier": 3632,
+    "remaining_after_existing_manifest_and_legacy_title_screen": 3585,
+    "first_base_edition_year_on_or_before_1930": 75,
+    "caution": "75 is an initial earliest BASE FIRST-EDITION date screen, not 75 independently checked actual input/proofing editions, not a library-relevance filter, not 75 copyright-approved titles. Several cards use much later impressions even if first edition was pre-1930.",
+    "carefully_checked_future_cards": [
+      {
+        "id": "aozora-057848",
+        "title": "袈裟の良人",
+        "author": "菊池寛",
+        "source_url": "https://www.aozora.gr.jp/cards/000083/card57848.html",
+        "first_publication_year": 1923,
+        "author_death_year": 1948,
+        "base_first_year": 1923,
+        "actual_input_year": 1923,
+        "actual_proof_year": 1923,
+        "source_status": "CARD_METADATA_ONLY_NO_RAW_NO_HASH",
+        "priority": "HIGHER_RELATIVE_PRIORITY",
+        "notes": "Original-edition input plus contemporaneous 10th printing used for proof. NDL digitized page image claimed by provider. No production import/approval."
+      },
+      {
+        "id": "aozora-053520",
+        "title": "死刑",
+        "author": "上司小剣",
+        "source_url": "https://www.aozora.gr.jp/cards/000248/card53520.html",
+        "first_publication_year": 1924,
+        "author_death_year": 1947,
+        "base_first_year": 1930,
+        "actual_input_year": 1930,
+        "actual_proof_year": 1930,
+        "source_status": "CARD_METADATA_ONLY_NO_RAW_NO_HASH",
+        "priority": "HIGHER_RELATIVE_PRIORITY",
+        "notes": "Historical-expression warning; 1930 anthology exact copy used for both input and proof."
+      },
+      {
+        "id": "aozora-049394",
+        "title": "一九二八年三月十五日",
+        "author": "小林多喜二",
+        "source_url": "https://www.aozora.gr.jp/cards/000156/card49394.html",
+        "first_publication_year": 1928,
+        "author_death_year": 1933,
+        "base_first_year": 1928,
+        "actual_input_year": 1928,
+        "actual_proof_year": 1928,
+        "source_status": "CARD_METADATA_ONLY_NO_RAW_NO_HASH",
+        "priority": "HIGHER_RELATIVE_PRIORITY",
+        "notes": "Two original 1928 serial issues (chapters 1-4 and 5-9), historical expression advisory; check complete series chapter structure."
+      },
+      {
+        "id": "aozora-055427",
+        "title": "海蛍の話",
+        "author": "神田左京",
+        "source_url": "https://www.aozora.gr.jp/cards/001731/card55427.html",
+        "first_publication_year": 1921,
+        "author_death_year": 1939,
+        "base_first_year": 1923,
+        "actual_input_year": 1923,
+        "actual_proof_year": 1923,
+        "source_status": "CARD_METADATA_ONLY_NO_RAW_NO_HASH",
+        "priority": "LOWER_PRODUCT_FIT",
+        "notes": "Science/natural-history nonfiction; safe historical edition timing but not a web-novel genre. Use only if expanding beyond literary fiction is intentional."
+      },
+      {
+        "id": "aozora-046337",
+        "title": "妖怪研究",
+        "author": "伊東忠太",
+        "source_url": "https://www.aozora.gr.jp/cards/001232/card46337.html",
+        "first_publication_year": 1917,
+        "author_death_year": 1954,
+        "base_first_year": 1928,
+        "actual_input_year": 1928,
+        "actual_proof_year": 1928,
+        "source_status": "CARD_METADATA_ONLY_NO_RAW_NO_HASH",
+        "priority": "LOWER_PRODUCT_FIT",
+        "notes": "Folklore/research prose, not narrative fiction; expression advisory and subject/content judgement required."
+      }
+    ],
+    "excluded_example": {
+      "id": "aozora-001412",
+      "title": "出家とその弟子",
+      "source_url": "https://www.aozora.gr.jp/cards/000256/card1412.html",
+      "base_first_year": 1927,
+      "actual_input_year": 1991,
+      "actual_proof_year": 1974,
+      "reason": "Nominal 1927 first edition is insufficient to eliminate modern source-impression risk."
+    }
+  },
+  "alternate_early_edition_sources": {
+    "prepared_at": "2026-10-21",
+    "decision": "ALTERNATE_RIGHTS_PENDING_NOT_PART_OF_FIVE_WORK_INITIAL_PILOT",
+    "source_credits": "Aozora primary card and exact editorial provenance; no legal or human approval",
+    "selected": [
+      {
+        "id": "aozora-057848",
+        "title": "袈裟の良人",
+        "author": "菊池寛",
+        "year": 1923,
+        "authorDeath": 1948,
+        "source": "https://www.aozora.gr.jp/cards/000083/card57848.html",
+        "chapters": 5,
+        "sha": "cd5b77635f317f284b93e26c318603d7c1a3c2e806d8a0582325f53e46f969d7",
+        "total": 12711,
+        "archive": 931,
+        "source_chars": [
+          4937,
+          1444,
+          1474,
+          2655,
+          2168
+        ],
+        "first_card_comment": "From 1923 first edition and 1923 tenth-printing proof. Input Aozora note compares suspected typos against first 1923 magazine, using publicly available NDL page images.",
+        "note": "Five-act drama; must review shelf classification, editorial corrections and content.",
+        "rights_status": "pending",
+        "approved": false,
+        "db_imported": false,
+        "duplicate_preflight": {
+          "manifest_id": 0,
+          "source_sha256": 0,
+          "series_title": 0,
+          "episode_title": 0
+        },
+        "artifact_source_sha256_match": true,
+        "max_chapter_characters": 4937,
+        "max_allowed_chapter_characters": 10000
+      },
+      {
+        "id": "aozora-053520",
+        "title": "死刑",
+        "author": "上司小剣",
+        "year": 1930,
+        "authorDeath": 1947,
+        "source": "https://www.aozora.gr.jp/cards/000248/card53520.html",
+        "chapters": 8,
+        "sha": "e66e40aba2133adc738e8a38dc0cdfd6d058f09f4a299f193a51d47438abeaf1",
+        "total": 30133,
+        "archive": 690,
+        "source_chars": [
+          2269,
+          3642,
+          3693,
+          5459,
+          7976,
+          2044,
+          2119,
+          2765
+        ],
+        "first_card_comment": "Both input and proofreading from identical 1930 first edition. Provider historical-expression warning. Seven semantic headings, long fifth split in two under 10k-char limit.",
+        "note": "Historical fiction; require text-specific treatment of violence, execution theme and historical expressions rather than automatic R18.",
+        "rights_status": "pending",
+        "approved": false,
+        "db_imported": false,
+        "duplicate_preflight": {
+          "manifest_id": 0,
+          "source_sha256": 0,
+          "series_title": 0,
+          "episode_title": 0
+        },
+        "artifact_source_sha256_match": true,
+        "max_chapter_characters": 7976,
+        "max_allowed_chapter_characters": 10000
+      }
+    ]
+  },
+  "provenance_credit_release_gate": {
+    "status": "DRAFT_BRANCH_ONLY_NO_PRODUCTION_DATA_CHANGE",
+    "rule": "New approved aozora_reader_body imports need base edition and input/proof contributor records with separately recorded input/proof editions where stated; preserve in effect_settings and render through rightsChecked source section.",
+    "legacy": "Existing imported works unaffected; never fabricate absent contributor/edition fields.",
+    "new_pending_manifest_count": 2,
+    "new_candidates_are_alternates": true
+  },
+  "curation_content_preflight_2026_10_21": {
+    "status": "AI_ASSISTED_SOURCE_CURATION_NOT_HUMAN_RIGHTS_OR_R18_APPROVAL",
+    "evidence": [
+      "Aozora primary work cards and NDC codes",
+      "Seven re-fetched SHA-matched full source texts",
+      "Local source-aware chapter-splitting checks"
+    ],
+    "total_prepared_manifests": 7,
+    "total_prepared_chapters": 34,
+    "prose_fiction_shortlist_pending_rights": [
+      "aozora-000195",
+      "aozora-000198",
+      "aozora-000204",
+      "aozora-000321",
+      "aozora-053520"
+    ],
+    "excluded_from_first_prose_fiction_batch": {
+      "aozora-000022": {
+        "classification": "nonfiction author reflection/preface on short-story collection",
+        "ndc": "914",
+        "basis_url": "https://www.aozora.gr.jp/cards/000879/card22.html",
+        "reason": "Not the story 羅生門; do not advertise as a short novel."
+      },
+      "aozora-057848": {
+        "classification": "five-act stage drama",
+        "basis_url": "https://www.aozora.gr.jp/cards/000083/card57848.html",
+        "reason": "Play script with stage directions and dramatis personae; only consider via separate dramatic-works curation."
+      }
+    },
+    "historical_expression_notices": [
+      "aozora-000195",
+      "aozora-000198",
+      "aozora-000204",
+      "aozora-000321",
+      "aozora-053520"
+    ],
+    "human_content_rating_signoffs": 0,
+    "human_rights_signoffs": 0,
+    "note": "Only proposed editorial classification; do not infer R18 or waive edition/right components. First Draft 3–6 works only after explicit authorization."
+  },
+  "prepared_manifest_count_after_curation": 7,
+  "prepared_chapter_count_after_curation": 34,
+  "import_authorized_count": 0,
+  "reader_annotation_fidelity_preflight_2026_10_21": {
+    "status": "READER_FIDELITY_HOLD_NOT_E2E_NOT_HUMAN_APPROVAL",
+    "method": "normalizeAozoraTextForDisplay on hash-matched ignored local prepared artifacts, per chapter",
+    "source_directives_total": 97,
+    "remaining_directives_after_runtime_normalization": 86,
+    "layout_directives_removed_by_runtime_normalization": 11,
+    "remaining_by_category": {
+      "emphasis": 72,
+      "edition_variant": 8,
+      "gaiji": 5,
+      "ruby_note": 1,
+      "layout": 0,
+      "unclassified": 0
+    },
+    "by_manifest": [
+      {
+        "manifest_id": "aozora-000195",
+        "original_directives": 6,
+        "remaining_after_normalization": 2,
+        "remaining_semantic": {
+          "emphasis": 1,
+          "edition_variant": 0,
+          "gaiji": 1,
+          "ruby_note": 0
+        },
+        "ready_for_publication": false
+      },
+      {
+        "manifest_id": "aozora-000198",
+        "original_directives": 14,
+        "remaining_after_normalization": 13,
+        "remaining_semantic": {
+          "emphasis": 4,
+          "edition_variant": 8,
+          "gaiji": 1,
+          "ruby_note": 0
+        },
+        "ready_for_publication": false
+      },
+      {
+        "manifest_id": "aozora-000204",
+        "original_directives": 57,
+        "remaining_after_normalization": 56,
+        "remaining_semantic": {
+          "emphasis": 55,
+          "edition_variant": 0,
+          "gaiji": 1,
+          "ruby_note": 0
+        },
+        "ready_for_publication": false
+      },
+      {
+        "manifest_id": "aozora-000321",
+        "original_directives": 7,
+        "remaining_after_normalization": 6,
+        "remaining_semantic": {
+          "emphasis": 5,
+          "edition_variant": 0,
+          "gaiji": 1,
+          "ruby_note": 0
+        },
+        "ready_for_publication": false
+      },
+      {
+        "manifest_id": "aozora-053520",
+        "original_directives": 13,
+        "remaining_after_normalization": 9,
+        "remaining_semantic": {
+          "emphasis": 7,
+          "edition_variant": 0,
+          "gaiji": 1,
+          "ruby_note": 1
+        },
+        "ready_for_publication": false
+      }
+    ],
+    "evidence": "npm run public-domain:annotation-audit",
+    "limits": "Runtime text normalization prediction only, not browser Original/Bilingual/Translation E2E or human content/legal clearance",
+    "next": "S1 Reader fidelity review to preserve bouten/edition variants/gaiji/ruby semantic information; no blanket strip."
+  },
+  "literal_public_body_overlap_preflight_2026_10_21": {
+    "status": "EXACT_PUBLIC_JA_SUBSTRING_PREFLIGHT_CLEAR_SEMANTIC_DUPLICATES_UNVERIFIED",
+    "query_scope": "Read-only public series s.is_public=true, publication_status=public, source_language=ja; episode posting_status=posted (NOT published)",
+    "eligible_ja_episodes": 440,
+    "works": 5,
+    "total_exact_contiguous_verbatim_probes": 15,
+    "live_production_matches": 0,
+    "by_manifest": [
+      {
+        "id": "aozora-000195",
+        "probes": [
+          {
+            "index": 1,
+            "characters": 24,
+            "sha256": "cb9237e53e8737dbf91c768d3ec5e2869234086eaa818c7b46c42be1018a6a48"
+          },
+          {
+            "index": 2,
+            "characters": 24,
+            "sha256": "d0347e209a07ec8909b117a587ba1a7ed7815327a7921bdca24392d30f5b86c0"
+          },
+          {
+            "index": 3,
+            "characters": 24,
+            "sha256": "15b27d40bd29290e42e2e2cdb0186c3b66f3f9aa5855d5654a7814693cde0fdf"
+          }
+        ],
+        "episode_matches": 0,
+        "series_matches": 0
+      },
+      {
+        "id": "aozora-000198",
+        "probes": [
+          {
+            "index": 1,
+            "characters": 24,
+            "sha256": "ed505b4b33acf29841df5bb9fe7dc0b2de82c24f16c7621194c9976c3f17f1bd"
+          },
+          {
+            "index": 2,
+            "characters": 24,
+            "sha256": "3f8eb11b284e525928a5e53e00635e731f83783f057436b167629fe665435d14"
+          },
+          {
+            "index": 3,
+            "characters": 24,
+            "sha256": "3bf8ddf8235d62a6eba9421f7beb08b19227d7754eb976ed7f0939885e947528"
+          }
+        ],
+        "episode_matches": 0,
+        "series_matches": 0
+      },
+      {
+        "id": "aozora-000204",
+        "probes": [
+          {
+            "index": 1,
+            "characters": 24,
+            "sha256": "23cfaa9b3140830d0e63baf288a1c2bc589fef164fe250574d35a0505e7719f8"
+          },
+          {
+            "index": 2,
+            "characters": 24,
+            "sha256": "c3e19f3c4cf923c06dadefa8df5f94831cdc9be67566b160daf0bbaef6da3f33"
+          },
+          {
+            "index": 3,
+            "characters": 24,
+            "sha256": "557cda4491adc5fcf2cc6013d099a98ade2f0750417944326712a0f1e5c235b0"
+          }
+        ],
+        "episode_matches": 0,
+        "series_matches": 0
+      },
+      {
+        "id": "aozora-000321",
+        "probes": [
+          {
+            "index": 1,
+            "characters": 24,
+            "sha256": "5e131197081177ad97f483a9e1253a2f563b012c8e0d2b9d7628d3f51cc82872"
+          },
+          {
+            "index": 2,
+            "characters": 24,
+            "sha256": "c3b4e698dc9646d8e06f8897f93ac1f1b5f86f08f4a4134a66ba4215b9b6d474"
+          },
+          {
+            "index": 3,
+            "characters": 24,
+            "sha256": "0433d4b5b2c8521aef63b933095fbdf7b398af8a2d6a9eef8569786e4bbd4af8"
+          }
+        ],
+        "episode_matches": 0,
+        "series_matches": 0
+      },
+      {
+        "id": "aozora-053520",
+        "probes": [
+          {
+            "index": 1,
+            "characters": 16,
+            "sha256": "22485d27153ae5768ebf532dd009db64f5de06a722e0d3ca8940820cc4b677c4"
+          },
+          {
+            "index": 2,
+            "characters": 16,
+            "sha256": "6d21216e735a8da70d85decc1a64212667bb87c0b0bb590d71da557c0129190a"
+          },
+          {
+            "index": 3,
+            "characters": 16,
+            "sha256": "04de360ae9ef7724696d395a985dc43e5a82e747164e3182bccade17b7dd93a4"
+          }
+        ],
+        "episode_matches": 0,
+        "series_matches": 0
+      }
+    ],
+    "evidence": "Operator executed generated SQL from npm run public-domain:duplicate-probes -- --sql against Production using Supabase read-only SQL, verified posted baseline 440 and fifteen rows returned with zero matches",
+    "source_text_repositories": false,
+    "limits": "Exact contiguous 24-character Japanese runs, reduced to 16 characters for ruby-dense aozora-053520; no inference about transformed editions, translations, segmented matches or full text duplicate status. Candidate extracted snippets are NOT committed.",
+    "import_rights_publication_authorized": false,
+    "human_semantic_duplicate_review_required": true
+  }
+}

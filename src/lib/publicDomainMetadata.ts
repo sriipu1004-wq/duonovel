@@ -5,6 +5,11 @@ export type PublicDomainMetadata = {
   firstPublicationYear: number | null;
   sourceProvider: string;
   sourceUrl: string | null;
+  edition: string | null;
+  inputEdition: string | null;
+  proofEdition: string | null;
+  inputBy: string | null;
+  proofreadBy: string | null;
   sourceHash: string;
   rightsChecked: true;
   reviewedAt: string | null;
@@ -90,6 +95,11 @@ export function readPublicDomainMetadata(effectSettings: unknown): PublicDomainM
     firstPublicationYear: cleanYear(raw.firstPublicationYear),
     sourceProvider,
     sourceUrl: cleanSourceUrl(raw.sourceUrl),
+    edition: cleanOptionalText(raw.edition),
+    inputEdition: cleanOptionalText(raw.inputEdition),
+    proofEdition: cleanOptionalText(raw.proofEdition),
+    inputBy: cleanOptionalText(raw.inputBy),
+    proofreadBy: cleanOptionalText(raw.proofreadBy),
     sourceHash,
     rightsChecked: true,
     reviewedAt: cleanOptionalText(raw.reviewedAt),

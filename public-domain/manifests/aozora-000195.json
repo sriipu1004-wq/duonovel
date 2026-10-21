@@ -1,0 +1,95 @@
+{
+  "id": "aozora-000195",
+  "title": "可哀相な姉・渡辺温",
+  "original_title": "可哀相な姉",
+  "original_author": "渡辺温",
+  "author_death_year": 1930,
+  "original_language": "ja",
+  "first_publication_year": 1927,
+  "source_provider": "Aozora Bunko",
+  "source_url": "https://www.aozora.gr.jp/cards/000020/card195.html",
+  "source_download_url": "https://www.aozora.gr.jp/cards/000020/files/195_ruby_26090.zip",
+  "source_file": "public-domain/sources/raw/aozora-000195.txt",
+  "source_retrieved_at": "2026-10-20T17:37:18.558Z",
+  "source_encoding": "shift_jis",
+  "normalization_profile": "aozora_reader_body",
+  "edition": "アンドロギュノスの裔",
+  "edition_publication_year": 1970,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora catalog flags are なし and candidate cutoffs passed; verify exact work and jurisdiction before approval."
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify whether the exact base edition contributes protectable modern editorial matter."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Verify modernization/editorial contribution in the selected source."
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Aozora annotations/provenance are preserved and must be reviewed."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review Aozora file handling rules and preserve provenance."
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": "Review current Aozora file handling rules at approval time."
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": 8,
+  "chapter_split": {
+    "strategy": "heading_regex",
+    "heading_pattern": "^[１２３４５６７８]$"
+  },
+  "tags": [
+    "Public Domain",
+    "Aozora Bunko",
+    "渡辺温"
+  ],
+  "source_hash": "9f641bf3cf71a82854dd6c1d4d91f1d3ac40305bfcd306e2c183db588a5a392d",
+  "approved": false,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null,
+  "source_provenance": {
+    "input_edition": null,
+    "proof_edition": null,
+    "input_by": "森下祐行",
+    "proofread_by": "もりみつじゅんじ"
+  }
+}

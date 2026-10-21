@@ -46,6 +46,7 @@ Primary policy: https://www.aozora.gr.jp/guide/kijyunn.html
 - A translated work can still be protected when translator rights remain; do not approve by author age alone.
 - Aozora asks that title/author/translator/base-edition/input/proofreading/provenance information not be removed when redistributing, and expects transformation history to be clear when text is altered.
 - The importer therefore preserves Aozora ruby and `［＃...］` annotations and only separates a recognized trailing bibliographic/provenance block into archive metadata. It does not blanket-strip source notation.
+- **Child85 opt-in profile:** `aozora_reader_body` is for newly acquired, individually reviewed sources whose initial two-line title/author block and the exact paired-separator Aozora notation legend have been verified. Only that header is moved into local archive metadata; the literary text, Aozora in-body ruby/annotations and trailing provenance remain retained. Unknown front-matter shapes **fail closed** rather than guessing where the text begins. Title/author remain in the manifest and Official work metadata. The legacy `aozora` profile is unchanged; **never mass-reprepare or rewrite previously imported works** because of this new option. Human review must still establish that no protected base-edition editorial material is reused. See `docs/child85-public-domain-pilot-preflight.md`.
 
 ### Project Gutenberg
 
@@ -87,6 +88,8 @@ Required audit fields include identity/title/author/language/publication dates, 
 
 The schema intentionally requires explicit component reviews for original work, edition, translation, editorial work, annotations, illustrations, cover, digitization, and provider terms. `not_applicable` is valid when that component is genuinely absent.
 
+For an **approved** opt-in `aozora_reader_body` manifest, additionally require a non-empty base `edition` and `source_provenance`: `input_edition` / `proof_edition` (nullable only when unspecified by the provider), `input_by`, and `proofread_by`. The Draft importer preserves these credits in `series.effect_settings.publicDomain`, and the public Work source panel displays only populated fields **after** the standard rightsChecked gate. The existing 84 imported Public Domain works remain readable and are not backfilled with guessed provenance; archival technical/bibliographic notices remain in local `archive-metadata.txt` and the source-card link remains available.
+
 ## 6. Source acquisition and raw preservation
 
 Current Child71 flow is manual-source-first:
@@ -119,6 +122,10 @@ Prepare performs:
 - zero/empty chapter rejection;
 - excessive chapter count, many-short-chapter, duplicate-title, and very-long-chapter warnings;
 - local prepared artifact creation under `.public-domain-work/<id>/`.
+
+For opt-in Aozora Reader-body candidates, run `npm run public-domain:annotation-audit` after source sync/prepare. This read-only local CLI verifies the manifest ID, source hash, chapter count and the actual Reader text-normalization result. Remaining non-layout annotations must be individually reviewed before publication; the command does not confer rights or content-rating approval and must not strip annotation tokens.
+
+For Japanese rights-pending candidates, `npm run public-domain:duplicate-probes` generates local-only SHA-256-backed **verbatim-contiguous** Reader excerpts for overlap checks (without outputting literary text by default). `npm run public-domain:duplicate-probes -- --sql` emits a bounded **READ-ONLY** public Japanese/posted episode query that includes its eligible-corpus count. The SQL contains short verbatim text: it must not be committed or used as evidence of complete semantic deduplication. Verify the returned eligible baseline is nonzero; the actual published episode state is `posted`, not `published`.
 
 The prepared artifact is not a rights approval. The operator must review chapter boundaries and update `source_hash`, `chapter_count`, rights fields, and approval fields in the manifest before import.
 
@@ -362,3 +369,15 @@ The Production audit found only eight ready cached episode translations across t
 ## Child72 deployment note
 
 After rights-approved Public Domain pilots are imported as private Drafts, deploy the verified runtime before publication. If Production runtime verification fails, keep the pilot series private and roll back any attempted publication before retrying the deployment.
+
+### Aozora 同名異版 preflight (Child85)
+
+After selecting candidate card IDs and **before** a person signs actual edition rights, run `npm run public-domain:edition-collision-audit -- --catalog=<OFFICIAL_AOZORA_CATALOG_ZIP>` (offline) or use explicit `--fetch-catalog` to retrieve **one official metadata ZIP only**. The tool scans card IDs, normalized titles, original authors, and exact source-card URLs; it emits warnings when another card of the same author/title exists, rather than silently treating different editions as interchangeable. Use `--ids=id1,id2` for newly researched manifests (up to 60). A manifest/card mismatch causes nonzero exit. Title collision by itself is an **individual-source and editorial-rights review task**, not proof the text differs or automatic denial/clearance. Do not change the existing candidate normalization or public read/reader behavior. This audit is metadata-only and does not fetch or commit literary bodies or write Supabase.
+
+### Raw-source reproducibility at import (Child85 Draft safeguard)
+
+The imported episode body must be derived from the **actual approved source bytes**, not simply from `prepared.json` that happens to claim a matching SHA. After the usual rights-approved manifest gate, the importer opens `manifest.source_file` locally, checks SHA-256 against the manifest **and** the prepared artifact, reruns the same encoding/normalizer/chapter split and matches every generated chapter's number, title, exact body and character count plus derived normalization warnings/provenance lengths. This is performed for **dry-run and every execution target before a database connection**. A missing/raw-changed source or edited/stale preparation fails closed; rerun source acquisition/prepare and human reviewer verification rather than bypass the guard. `preparedAt` is informational and excluded from byte-identity equality. New code is Draft PR #135 and not yet a Production behavior change. This improves technical source fidelity only, **not rights clearance, Reader display acceptance or publication approval**.
+
+### PostgREST Draft insert confirmation and incomplete rollback warning
+
+The future approved importer inserts the private series and Draft episodes in separate requests. The new Child85 Draft guard requires the episode INSERT to return the **exact selected episode numbers and count**, unique row IDs, the just-created series ID, `posting_status=draft` and `is_published=false` before the manifest can be marked imported. The existing series-id-scoped rollback now checks that one matching new series ID was actually returned from DELETE, with live schema `episodes.series_id` ON DELETE CASCADE independently verified. This is still **not a single ACID transaction**. If delete confirmation or local manifest update fails after any DB write, stop and report `DRAFT_ROLLBACK_UNVERIFIED` or `DRAFT_DB_COMMITTED_MANIFEST_UPDATE_FAILED`. Query the exact series ID, title, manifest ID, source hash, privacy and episodes **READ ONLY**; never infer no write occurred, retry automatically, publish or bulk-delete. Actual Production cleanup requires its own explicit user authorization and count checks. No actual destructive DB rollback exercise was conducted by Child85.
