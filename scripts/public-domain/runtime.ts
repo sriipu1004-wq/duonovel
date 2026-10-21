@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { assertExactDraftEpisodeInsert, assertDraftRollbackConfirmed } from "./import-integrity";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
   OFFICIAL_ACCOUNT_EMAIL,
@@ -322,16 +323,48 @@ export async function importManifest(args: {
     ...episode,
     series_id: seriesId,
   }));
-  const episodeResult = await admin.from("episodes").insert(episodeRows).select("id");
+  const episodeResult = await admin.from("episodes")
+    .insert(episodeRows)
+    .select("id,series_id,episode_number,posting_status,is_published");
+  let insertionFailure: string | null = null;
   if (episodeResult.error) {
-    const cleanup = await admin.from("series").delete().eq("id", seriesId);
-    const cleanupSuffix = cleanup.error
-      ? ` Cleanup also failed: ${cleanup.error.message}`
-      : " Inserted draft series was cleaned up.";
-    throw new Error(`Draft episode insert failed: ${episodeResult.error.message}.${cleanupSuffix}`);
+    insertionFailure = `DRAFT_EPISODE_INSERT_FAILED: ${episodeResult.error.message}`;
+  } else {
+    try {
+      assertExactDraftEpisodeInsert(
+        episodeRows.map((row) => row.episode_number),
+        seriesId,
+        episodeResult.data
+      );
+    } catch (error) {
+      insertionFailure = error instanceof Error ? error.message : String(error);
+    }
+  }
+  if (insertionFailure) {
+    // The FK episodes.series_id -> series.id has verified ON DELETE CASCADE.
+    // Delete only this newly inserted series ID, and inspect affected rows.
+    let cleanup: { data: { id: string }[] | null; error: { message: string } | null };
+    try {
+      cleanup = await admin.from("series").delete().eq("id", seriesId).select("id");
+    } catch {
+      throw new Error("DRAFT_ROLLBACK_UNVERIFIED: delete request failed; manual ID-scoped reconciliation required");
+    }
+    if (cleanup.error) {
+      throw new Error(`DRAFT_ROLLBACK_UNVERIFIED: ${cleanup.error.message}; manual ID-scoped reconciliation required`);
+    }
+    assertDraftRollbackConfirmed(cleanup.data, seriesId);
+    throw new Error(`${insertionFailure}; DRAFT_ROLLBACK_CONFIRMED for series ${seriesId}`);
   }
 
-  updateManifestImportStatus(args.id, "imported");
+  try {
+    updateManifestImportStatus(args.id, "imported");
+  } catch {
+    // The database may have committed. Never blindly retry an INSERT.
+    throw new Error(
+      `DRAFT_DB_COMMITTED_MANIFEST_UPDATE_FAILED: inspect private Draft series ${seriesId}; ` +
+      "reconcile local import_status before retry"
+    );
+  }
   return {
     dryRun: false,
     seriesId,

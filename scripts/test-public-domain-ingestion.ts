@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { assertExactDraftEpisodeInsert, assertDraftRollbackConfirmed } from "./public-domain/import-integrity";
 import {
   assertImportable,
   assertPreparedArtifactMatchesRawSource,
@@ -175,6 +176,45 @@ function testPreparedArtifactIsBoundToRawBytes() {
   // import a manifest that still has pending rights.
   assert.throws(() => assertImportable({ ...manifest, rights_status: "pending", approved: false }, prepared),
     /RIGHTS_NOT_APPROVED/u);
+}
+
+function testDraftInsertConfirmationAndRollback() {
+  const seriesId = "11111111-1111-4111-8111-111111111111";
+  const make = (number: number, id: string) => ({
+    id, series_id: seriesId, episode_number: number,
+    posting_status: "draft", is_published: false,
+  });
+  const valid = [make(2, "episode-2"), make(1, "episode-1")];
+  assert.doesNotThrow(() => assertExactDraftEpisodeInsert([1, 2], seriesId, valid));
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, null),
+    /DRAFT_EPISODE_COUNT_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, [valid[0]!]),
+    /DRAFT_EPISODE_COUNT_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, [
+    make(1, "same"), make(2, "same"),
+  ]), /DRAFT_EPISODE_RESPONSE_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, [
+    make(1, "a"), make(1, "b"),
+  ]), /DRAFT_EPISODE_RESPONSE_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, [
+    make(1, "a"), { ...make(2, "b"), series_id: "wrong" },
+  ]), /DRAFT_EPISODE_RESPONSE_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, [
+    make(1, "a"), { ...make(2, "b"), posting_status: "posted" },
+  ]), /DRAFT_EPISODE_RESPONSE_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 2], seriesId, [
+    make(1, "a"), { ...make(2, "b"), is_published: true },
+  ]), /DRAFT_EPISODE_RESPONSE_MISMATCH/u);
+  assert.throws(() => assertExactDraftEpisodeInsert([1, 1], seriesId, valid),
+    /DRAFT_INSERT_EXPECTATION_INVALID/u);
+
+  assert.doesNotThrow(() => assertDraftRollbackConfirmed([{ id: seriesId }], seriesId));
+  assert.throws(() => assertDraftRollbackConfirmed([], seriesId), /DRAFT_ROLLBACK_UNVERIFIED/u);
+  assert.throws(() => assertDraftRollbackConfirmed(null, seriesId), /DRAFT_ROLLBACK_UNVERIFIED/u);
+  assert.throws(() => assertDraftRollbackConfirmed([{ id: "other" }], seriesId),
+    /DRAFT_ROLLBACK_UNVERIFIED/u);
+  assert.throws(() => assertDraftRollbackConfirmed([{ id: seriesId }, { id: "other" }], seriesId),
+    /DRAFT_ROLLBACK_UNVERIFIED/u);
 }
 
 function testPendingAndApprovedGates() {
@@ -919,6 +959,10 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
   assert.equal(runtime.includes(".insert(plan.series)"), true);
   assert.equal(runtime.includes('.from("episodes")'), true);
   assert.equal(runtime.includes(".insert(episodeRows)"), true);
+  assert.equal(runtime.includes("assertExactDraftEpisodeInsert("), true);
+  assert.equal(runtime.includes("assertDraftRollbackConfirmed(cleanup.data, seriesId)"), true);
+  assert.equal(runtime.includes('select("id,series_id,episode_number,posting_status,is_published")'), true);
+  assert.equal(runtime.includes('delete().eq("id", seriesId).select("id")'), true);
   assert.equal(batch.includes("--all-approved"), true);
   assert.equal(batch.includes("--author-id"), true);
   assert.equal(sourceSync.includes("isAllowedAozoraTextUrl"), true);
@@ -948,6 +992,7 @@ function main() {
   testVerbatimPublicDomainDuplicateProbes();
   testAozoraAnnotationFidelityPreflight();
   testAozoraReaderBodyOptIn();
+  testDraftInsertConfirmationAndRollback();
   testPreparedArtifactIsBoundToRawBytes();
   testPendingAndApprovedGates();
   testApprovedManifestRequiresAuditMetadata();
