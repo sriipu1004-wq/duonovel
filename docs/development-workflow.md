@@ -16,7 +16,15 @@ Read:
 
 Do not trust an old chat SHA when the repository can be checked.
 
-## 2. Standard Git / deployment flow
+## 2. Strict single-child dispatch (CONTROL-R3, 2026-10-21)
+
+**No new child chat has yet started.** The parent owns a one-workstream-at-a-time procedural lock. It may instruct **only one specialist child** for one task; other children remain queued and are not sent instructions until the parent explicitly releases the lock. The first assignment is S4 Issue #137. Do not silently start S2 #138, S1 #140 or S3 #139 in parallel. Even independent QA is a distinct **sequential** dispatch after the author has stopped at a fixed PR HEAD and Preview.
+
+At work start/checkpoint, record the active owner, Issue, scope, base/main SHA, branch, commit HEAD, PR number, CI/Preview, status (investigation, authoring, review-only, FIX, acceptance, blocked) and stop condition in the Issue/PR. No other child pushes while its ownership phase is open. Parent alone directs transfer to a reviewer/author or next work. After a real incident, a priority interrupt must first freeze/checkpoint the current child and then explicitly transfer ownership.
+
+This is parent-enforced coordination, **not** branch protection or an automatic lock. Manual simultaneous access to GitHub remains technically possible, so the parent must not send simultaneous child assignments. A child may not launch its next backlog task after completion. Existing user-approved roadmap ordering, product invariants, separate approval for merge and Production writes are unchanged. Canonical dispatch: `docs/chat-launch-2026-10-21.md`.
+
+## 3. Standard Git / deployment flow
 
 Normal sequence:
 
@@ -36,7 +44,7 @@ latest main
 
 Main must not receive direct implementation commits in normal work.
 
-## 3. High-risk changes
+## 4. High-risk changes
 
 Treat these as high-risk and verify explicitly:
 
@@ -53,9 +61,9 @@ Treat these as high-risk and verify explicitly:
 
 Use dry-run / exact IDs / count checks where possible. Never use “Official owner” alone as a Public Domain update predicate.
 
-## 4. Parent-chat role
+## 5. Parent-chat role
 
-**2026-10-21 CONTROL-R2 reset:** all old child conversation instances retired. Only active post-reset S1/S2/S3/S4 chats may take new assignments; reuse the existing active chat of that slot. When missing, archived, or at context limit, create exactly one same-slot successor using `docs/chat-launch-2026-10-21.md` and Issues #137–#143. Archived pre-reset chats are references, not runnable owners. If no active chat has been invoked, assignment is queued, NOT executing. Existing Preview → separate explicit approval → merge and Production-data gates remain unchanged.
+**2026-10-21 CONTROL-R2 reset:** all old child conversation instances retired. Only the ONE parent-dispatched active post-reset S1/S2/S3/S4 chat may work at a time; reuse the existing active chat of that slot. When missing, archived, or at context limit, create exactly one same-slot successor using `docs/chat-launch-2026-10-21.md` and Issues #137–#143. Archived pre-reset chats are references, not runnable owners. If no active chat has been invoked, assignment is queued, NOT executing. Existing Preview → separate explicit approval → merge and Production-data gates remain unchanged.
 
 
 The parent chat owns:
@@ -71,7 +79,7 @@ The parent chat owns:
 
 The parent should not re-derive the product from old conversation memory when repository docs are available. Parent crashes require no handoff message: start from the root entrypoint, then verify live Git/Production and reconcile any state that could not be persisted.
 
-## 5. Persistent specialist-chat role
+## 6. Persistent specialist-chat role
 
 **Child85 and similar numbers are roadmapped work IDs, not a reason to create a new chat.** Keep existing chats per specialist domain; roles S1–S4 and current ownership are in [docs/chat-operations.md](chat-operations.md).
 
@@ -94,7 +102,7 @@ During implementation:
 
 At a chat length limit, only the **conversation instance** is replaced; record a verifiable PR/Issue checkpoint and retain the specialist role and unfinished Work ID. A reviewer must be a distinct actor/chat when independence is required, not the implementer re-reviewing itself. Child chats cannot independently choose next roadmap priorities or assign other children.
 
-## 6. Priority integrity
+## 7. Priority integrity
 
 `docs/roadmap.md` is the canonical ordered backlog.
 
@@ -108,7 +116,7 @@ If priority changes, record the new order instead of merely discussing it in cha
 
 A newly discovered idea goes into “later / candidate” unless one of the conditions above applies.
 
-## 7. State integrity
+## 8. State integrity
 
 `docs/project-state.md` should contain only current state.
 
