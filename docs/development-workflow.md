@@ -55,6 +55,9 @@ Use dry-run / exact IDs / count checks where possible. Never use “Official own
 
 ## 4. Parent-chat role
 
+**2026-10-21 CONTROL-R2 reset:** all old child conversation instances retired. Only freshly created S1/S2/S3/S4 child chats may take new assignments; use `docs/chat-launch-2026-10-21.md` and GitHub Issues #137–#143. Archived old chats are references, not runnable owners. If user has not created these chats yet, assignment is queued, NOT executing. Existing Preview → separate explicit approval → merge and Production-data gates remain unchanged.
+
+
 The parent chat owns:
 
 - ordered roadmap, cross-feature consistency and product-level decisions;
