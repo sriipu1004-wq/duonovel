@@ -60,7 +60,8 @@
     "test:child84-storage-backup-audit": "node --import tsx scripts/test-child84-storage-backup-audit.ts",
     "test:child84-search-sql-candidate": "node --import tsx scripts/test-child84-search-sql-candidate-contract.ts",
     "test:child84-optional-work-translation-badge": "node --import tsx scripts/test-child84-optional-work-translation-badge.ts",
-    "test:child84-locale-work-metadata-fallback": "node --import tsx scripts/test-child84-locale-work-metadata-fallback.ts",
+    "test:child84-locale-work-metadata-fallback": "node --import tsx scripts/test-child84-locale-work-metadata-fallback.ts && node --import tsx scripts/test-issue137-work-metadata-visibility.ts",
+    "test:issue137-work-metadata-visibility": "node --import tsx scripts/test-issue137-work-metadata-visibility.ts",
     "test:child84-account-delete-cache": "node --import tsx scripts/test-child84-account-delete-cache.ts",
     "test:child84-search-bookmarks": "node --import tsx scripts/test-child84-search-bookmarked-works.ts"
   },
