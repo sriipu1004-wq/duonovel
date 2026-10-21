@@ -6,6 +6,7 @@ import {
   isOfficialAccountEmail,
 } from "../../src/lib/auth/officialAccount";
 import {
+  assertPreparedArtifactMatchesRawSource,
   buildDraftImportPlan,
   decodeSourceBytes,
   isDuplicatePublicDomainSeries,
@@ -259,6 +260,16 @@ export async function importManifest(args: {
     artifact,
     officialUserId: "00000000-0000-0000-0000-000000000000",
   });
+
+  // Rights check above fails first for all pending manifests. For an approved
+  // manifest, regenerate from its local raw bytes before ANY DB connection or
+  // insertion. The stored artifact's sourceHash string is not proof that its
+  // body, heading or ordering actually came from those bytes.
+  const sourcePath = repoPath(manifest.source_file);
+  if (!existsSync(sourcePath)) {
+    throw new Error("SOURCE_RAW_REQUIRED_FOR_IMPORT: original raw bytes must be available");
+  }
+  assertPreparedArtifactMatchesRawSource(manifest, artifact, readFileSync(sourcePath));
 
   if (!args.execute) {
     return {

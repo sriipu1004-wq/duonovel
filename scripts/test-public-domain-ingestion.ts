@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   assertImportable,
+  assertPreparedArtifactMatchesRawSource,
   buildDraftImportPlan,
   isDuplicatePublicDomainSeries,
   normalizeSource,
@@ -121,6 +122,59 @@ function artifact(
     ],
     ...overrides,
   };
+}
+
+function testPreparedArtifactIsBoundToRawBytes() {
+  const raw = new TextEncoder().encode("abc");
+  const manifest = approvedManifest({ source_hash: sha256Bytes(raw) });
+  const prepared = prepareArtifact({ manifest, rawBytes: raw, preparedAt: "2026-10-21T00:00:00.000Z" });
+  assert.equal(prepared.chapters.length, 1);
+  assert.doesNotThrow(() => assertPreparedArtifactMatchesRawSource(manifest, prepared, raw));
+  assert.doesNotThrow(() => assertPreparedArtifactMatchesRawSource(
+    manifest, { ...prepared, preparedAt: "2026-10-22T00:00:00.000Z" }, raw
+  ), "An incidental preparation timestamp must not change source identity");
+
+  // Changing body characters while retaining the forged/copied raw SHA and
+  // chapter count must not let a different literary text enter a Draft.
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(manifest, {
+    ...prepared,
+    chapters: prepared.chapters.map(c => ({ ...c, body: "abd" })),
+  }, raw), /SOURCE_PREPARATION_MISMATCH: chapter 1/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(manifest, {
+    ...prepared,
+    chapters: prepared.chapters.map(c => ({ ...c, title: "Forged" })),
+  }, raw), /SOURCE_PREPARATION_MISMATCH: chapter 1/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(manifest, {
+    ...prepared,
+    chapters: prepared.chapters.map(c => ({ ...c, number: 2 })),
+  }, raw), /SOURCE_PREPARATION_MISMATCH: chapter 1/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(manifest, {
+    ...prepared,
+    chapters: prepared.chapters.map(c => ({ ...c, characterCount: 4 })),
+  }, raw), /SOURCE_PREPARATION_MISMATCH: chapter 1/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(manifest, {
+    ...prepared,
+    normalizationProfile: "aozora",
+  }, raw), /SOURCE_PREPARATION_MISMATCH: normalizationProfile/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(manifest, {
+    ...prepared, warnings: ["operator silently edited file"],
+  }, raw), /SOURCE_PREPARATION_MISMATCH: normalization audit/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(
+    manifest, prepared, new TextEncoder().encode("abd")
+  ), /SOURCE_RAW_HASH_MISMATCH/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(
+    { ...manifest, source_hash: null }, prepared, raw
+  ), /SOURCE_RAW_HASH_MISMATCH/u);
+  assert.throws(() => assertPreparedArtifactMatchesRawSource(
+    { ...manifest, chapter_split: { strategy: "heading_regex", heading_pattern: "^abc$" } },
+    prepared,
+    raw
+  ), /SOURCE_PREPARATION_MISMATCH/u);
+
+  // Human rights acceptance remains separate: exact raw-byte match does not
+  // import a manifest that still has pending rights.
+  assert.throws(() => assertImportable({ ...manifest, rights_status: "pending", approved: false }, prepared),
+    /RIGHTS_NOT_APPROVED/u);
 }
 
 function testPendingAndApprovedGates() {
@@ -894,6 +948,7 @@ function main() {
   testVerbatimPublicDomainDuplicateProbes();
   testAozoraAnnotationFidelityPreflight();
   testAozoraReaderBodyOptIn();
+  testPreparedArtifactIsBoundToRawBytes();
   testPendingAndApprovedGates();
   testApprovedManifestRequiresAuditMetadata();
   testSourceHash();

@@ -1169,6 +1169,71 @@ export function prepareArtifact(args: {
   };
 }
 
+/**
+ * Source approval is tied to the exact downloaded bytes and deterministic
+ * chapter output, not to an unverified hash string inside prepared.json.
+ * This guard prevents stale/tampered ignored preparation from being imported
+ * even when chapter count and the copied sourceHash field still look valid.
+ *
+ * It does NOT grant human rights/edition/content/Reader release approval.
+ */
+export function assertPreparedArtifactMatchesRawSource(
+  manifest: PublicDomainManifest,
+  artifact: PreparedArtifact,
+  rawBytes: Uint8Array
+): void {
+  const actualHash = sha256Bytes(rawBytes);
+  if (!manifest.source_hash ||
+      actualHash !== manifest.source_hash ||
+      artifact.sourceHash !== actualHash) {
+    throw new Error("SOURCE_RAW_HASH_MISMATCH: raw source, manifest and prepared hash must agree");
+  }
+  let rebuilt: PreparedArtifact;
+  try {
+    rebuilt = prepareArtifact({
+      manifest,
+      rawBytes,
+      preparedAt: artifact.preparedAt,
+    });
+  } catch {
+    // Includes stale chapter patterns that no longer split into legal bodies.
+    // Fail closed without exposing any source passage in the error.
+    throw new Error("SOURCE_PREPARATION_MISMATCH: cannot regenerate valid chapters from raw bytes");
+  }
+  const fields = [
+    "version",
+    "manifestId",
+    "sourceHash",
+    "normalizationProfile",
+    "rawCharacterCount",
+    "displayCharacterCount",
+    "archiveMetadataCharacterCount",
+  ] as const;
+  for (const field of fields) {
+    if (artifact[field] !== rebuilt[field]) {
+      throw new Error(`SOURCE_PREPARATION_MISMATCH: ${field} differs from verified raw source`);
+    }
+  }
+  if (JSON.stringify(artifact.normalizationChanges) !== JSON.stringify(rebuilt.normalizationChanges) ||
+      JSON.stringify(artifact.warnings) !== JSON.stringify(rebuilt.warnings)) {
+    throw new Error("SOURCE_PREPARATION_MISMATCH: normalization audit or warnings changed");
+  }
+  if (artifact.chapters.length !== rebuilt.chapters.length) {
+    throw new Error("SOURCE_PREPARATION_MISMATCH: chapter count differs from rebuilt source");
+  }
+  for (let i = 0; i < rebuilt.chapters.length; i += 1) {
+    const expected = rebuilt.chapters[i]!;
+    const actual = artifact.chapters[i];
+    if (!actual ||
+        actual.number !== expected.number ||
+        actual.title !== expected.title ||
+        actual.body !== expected.body ||
+        actual.characterCount !== expected.characterCount) {
+      throw new Error(`SOURCE_PREPARATION_MISMATCH: chapter ${i + 1} is not the regenerated source`);
+    }
+  }
+}
+
 export function assertImportable(
   manifest: PublicDomainManifest,
   artifact: PreparedArtifact

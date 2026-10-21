@@ -54,4 +54,32 @@ assert.deepEqual(
   [["aozora-000691",11],["aozora-045245",0]]
 );
 assert(variants.high_priority_review.comparison_cards.every(x=>/^[0-9a-f]{64}$/u.test(x.sha256)));
-console.log("PASS: Child85 10 primary Aozora card snapshot fields, candidate status HOLD, 39 chapters and review ordering");
+const sourceBinding = JSON.parse(readFileSync(
+  "public-domain/audits/child85-source-body-reproducibility-2026-10-21.json",
+  "utf8"
+));
+assert.equal(sourceBinding.status, "SOURCE_RECOMPUTATION_PASS_RIGHTS_REVIEW_HOLD");
+assert.equal(sourceBinding.totals.manifests, 10);
+assert.equal(sourceBinding.totals.prepared_chapters, 39);
+assert.equal(sourceBinding.totals.source_reproduction_failures, 0);
+assert.equal(sourceBinding.totals.human_rights_approvals, 0);
+assert.equal(sourceBinding.totals.production_imports, 0);
+assert.equal(sourceBinding.candidates.length, 10);
+let regeneratedChapters = 0;
+for (const entry of sourceBinding.candidates) {
+  assert.match(entry.source_sha256, /^[0-9a-f]{64}$/u);
+  assert.match(entry.chapter_plan_sha256, /^[0-9a-f]{64}$/u);
+  assert.equal(entry.raw_source_rebuilt_and_compared, true);
+  assert.equal(entry.rights_status, "pending");
+  assert.equal(entry.approved, false);
+  assert.equal(entry.production_imported, false);
+  const sourceManifest = JSON.parse(readFileSync(
+    "public-domain/manifests/" + entry.manifest_id + ".json", "utf8"
+  ));
+  assert.equal(sourceManifest.source_hash, entry.source_sha256);
+  assert.equal(sourceManifest.chapter_count, entry.prepared_chapter_count);
+  regeneratedChapters += entry.prepared_chapter_count;
+}
+assert.equal(regeneratedChapters, 39);
+
+console.log("PASS: Child85 ten source-card records, raw-body reproducibility audit fingerprints, pending rights, 39 chapters and edition review queue");
