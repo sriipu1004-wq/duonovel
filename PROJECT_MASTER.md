@@ -1,6 +1,6 @@
 # LIB read — Permanent Parent Recovery / Project Control
 
-**Status entrypoint: CONTROL-R2 (2026-10-21).** This is the one-file bootstrap for an abruptly terminated parent chat. Read [AGENTS.md](AGENTS.md), this document, and then the linked canonical files. **This is a last-reviewed snapshot, not an automatically synchronized live dashboard.**
+**Status entrypoint: CONTROL-R3 (2026-10-21).** This is the one-file bootstrap for an abruptly terminated parent chat. Read [AGENTS.md](AGENTS.md), this document, and then the linked canonical files. **This is a last-reviewed snapshot, not an automatically synchronized live dashboard.**
 
 - Repository: [sriipu1004-wq/duonovel](https://github.com/sriipu1004-wq/duonovel)
 - Production: https://www.syosetu-libread.com
@@ -9,6 +9,14 @@
 - **FIRST ACTION ON EVERY RESTART:** fetch LIVE main, all open PR HEADs/status, Production state and any relevant DB state. Never assume this snapshot is current.
 - Product facts: [docs/project-state.md](docs/project-state.md); backlog order: [docs/roadmap.md](docs/roadmap.md); binding product decisions: [docs/decisions.md](docs/decisions.md); execution rules: [docs/development-workflow.md](docs/development-workflow.md).
 - Specialist ownership and chat lifecycle: [docs/chat-operations.md](docs/chat-operations.md). Findings from reviewing earlier gaps: [docs/governance-audit-2026-10-21.md](docs/governance-audit-2026-10-21.md).
+
+## ACTIVE DISPATCH LOCK — CONTROL-R3, single child only (2026-10-21)
+
+**Operator confirmation:** no post-reset child chat has been started. Parent **must issue exactly one instruction to exactly one active child**; do not parallel-start S1/S2/S3 or proactively create other chats. This corrects old R0 parallel-lane/parallel-review language in prior snapshots; preserve priority order while serializing actual execution.
+
+**NEXT/ONLY active assignment:** **S4 on [Issue #137](https://github.com/sriipu1004-wq/duonovel/issues/137)** for Production cache `AbortError` evidence and, only if justified, scoped Draft PR/CI/Preview. **Status: QUEUED until the user actually sends the S4 message; NO CHILD RUNNING.** After S4 stops at exact-HEAD checkpoint, parent dispatches S1 independent **review-only**. Then parent either returns to S4 for FIX or accepts; only after that consider S2 #138, S1 #140, S3 #139 in the documented queue. New chat is created only for the assigned slot if it does not exist or its instance has hit the context cap and was archived.
+
+[One-child dispatch and future review prompt](docs/chat-launch-2026-10-21.md). **Parent/Issue checkpoints act as procedural lock, not technical GitHub enforcement.** Old PRs #108/#131/#136 and this doc-only Draft #145 are not automatically reactivated. Maintain no merge without user approval, independent reviewer separate from author, and separate Production data/rights/Auth/AdSense authorization. At stage transitions parent verifies latest main/PRs/Production and only then grants the baton.
 
 ## Live-verified operator checkpoint (2026-10-21; reverify before action)
 
@@ -46,7 +54,7 @@
 
 Open PR states, bases, merges and branches must be refreshed from GitHub, never assumed from this register.
 
-## Active post-reset specialist slots — all pre-reset children retired
+## Specialist slots — QUEUED unless parent currently dispatches
 
 | New slot | New chat name | Scope / first issue |
 | --- | --- | --- |
