@@ -2,19 +2,27 @@
 
 **Effective controls: 2026-10-21, CONTROL-R2 (supersedes prior child conversation assignments).** [Permanent parent-recovery entrypoint](../PROJECT_MASTER.md). This document specifies how to run chats, **not** a new roadmap or permission to perform background work.
 
+## CONTROL-R3 — STRICT SERIAL DISPATCH (2026-10-21; overrides parallel assignments)
+
+The user confirmed that NO new specialist child has been started and explicitly selected **parent → ONE child → parent review → next child** operations to prevent GitHub conflicts. **At most one child chat may be assigned an active task or review at a time**; even reviewer work is invoked only after the author has stopped/checkpointed. Unassigned S1/S2/S3/S4 slots have **QUEUED / NO ACTION** status. Do not pre-create chat instances for queued roles.
+
+**First dispatched work only:** S4 [Issue #137](https://github.com/sriipu1004-wq/duonovel/issues/137). S4 may conduct read-only triage and, if justified, one isolated scoped Draft PR + CI + matching Preview; then **STOP and report**. Parent freezes author work before dispatching S1 *review-only* on exact HEAD, and resumes S4 only if FIX required. S2 #138 then S1 #140 then S3 #139 are queued but NOT active. Parent can preempt for a verified incident only after stop/checkpoint, not by starting a concurrent child. P6/P7/P8 remain gated by the ordered roadmap.
+
+**Single-writer procedural lock:** active Issue must record owner, phase, exact base/branch/PR HEAD and checkpoint. Parent checks no other child is active before issuing any assignment; reviewers never push to author's branch; no child chooses or launches next work. This is a **management rule**, not automated GitHub mutex/branch protection. All work uses latest main→branch→tests→Draft→Preview→explicit approval→merge→Production smoke. Avoid parallel Vercel deployments and conflicting canonical edits. Dispatch/current instruction: [docs/chat-launch-2026-10-21.md](chat-launch-2026-10-21.md).
+
 ## CONTROL-R2 — Legacy chat retirement and NEW specialist instances (user direction, 2026-10-21)
 
 **Override of the previous conversation-reuse assignment:** every existing child ChatGPT conversation, including old Child85, is designated **retired**. This is an operating decision and does **not** itself archive the conversation in the ChatGPT UI. No available connector archives project chats, so the user must perform that operation individually in the Project chat list. Do not use the global archive-all control if it would also archive parent/unrelated chats. Do not falsely claim UI archive success.
 
 For each new specialist slot, **reuse an active post-reset Sx conversation if one exists**. Only when missing, archived, or at the context limit should a new same-slot chat or successor be created using [conditional dispatch packets](chat-launch-2026-10-21.md). Names are `新子S1_Reader・翻訳・検索品質`, `新子S2_認証・権限・ユーザーデータ`, `新子S3_Public Domain・出典・権利`, `新子S4_インフラ・性能・リリース` (append a version suffix for later successors). The slots remain persistent **after this one-time reset**; never reuse pre-reset legacy threads. The old Child85 **workstream is still P5 OPEN** even though its PR #135 merged and its old conversation retired. Existing source/checkpoint state lives in GitHub and remains accessible.
 
-- R0 parallel triage: S4 [#137](https://github.com/sriipu1004-wq/duonovel/issues/137) Production cache `AbortError`, S2 [#138](https://github.com/sriipu1004-wq/duonovel/issues/138) Auth/RPC security. Neither authorizes unsupervised Production change.
+- R0 **queued sequentially**: first S4 [#137](https://github.com/sriipu1004-wq/duonovel/issues/137) Production cache `AbortError`, S2 [#138](https://github.com/sriipu1004-wq/duonovel/issues/138) Auth/RPC security. Neither authorizes unsupervised Production change.
 - P5: S3 [#139](https://github.com/sriipu1004-wq/duonovel/issues/139) rights and bounded cohort; S1 [#140](https://github.com/sriipu1004-wq/duonovel/issues/140) Reader annotation fidelity.
 - P6: S4 [#141](https://github.com/sriipu1004-wq/duonovel/issues/141) scale verification after actual rights-approved corpus expansion.
 - P7/P8: S2 [#142](https://github.com/sriipu1004-wq/duonovel/issues/142) Google OAuth; S4 [#143](https://github.com/sriipu1004-wq/duonovel/issues/143) Google AdSense policy/placement.
 - Parent [#144](https://github.com/sriipu1004-wq/duonovel/issues/144) tracks obsolete PRs, deferred risks, canonical snapshot and ChatGPT UI archive completion.
 
-**Sending a message to an existing chat and opening a missing or capped successor are ChatGPT UI actions, not GitHub operations.** An Issue/PR, status update, or assignment never starts background work. Assign a distinct reviewer per cross-cutting change; this remains the existing merge/Preview/Production protocol.
+**Only the parent sends a message to ONE currently assigned child; opening a missing/capped successor is a ChatGPT UI action, not a GitHub operation.** An Issue/PR, status update, or assignment never starts background work. Assign a distinct reviewer per cross-cutting change; this remains the existing merge/Preview/Production protocol.
 
 ## Two separate identifiers
 
