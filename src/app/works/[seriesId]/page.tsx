@@ -282,7 +282,9 @@ function resolveRecordingPermissionMode(value: unknown): RecordingPermissionMode
 
 const WORK_PAGE_EPISODE_NAV_SELECT = `
   id,
-  episode_number
+  episode_number,
+  posting_status,
+  is_published
 `;
 
 const WORK_PAGE_EPISODE_RANGE_SELECT = `
