@@ -51,6 +51,9 @@ import {
   runReadOnlyWithRetry,
 } from "@/lib/reliability/readOnly";
 import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
+import { getSeriesContentRating } from "@/lib/contentRating";
+import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
+import { canViewPublicWorkBody } from "@/lib/workBodyVisibility";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -282,7 +285,9 @@ function resolveRecordingPermissionMode(value: unknown): RecordingPermissionMode
 
 const WORK_PAGE_EPISODE_NAV_SELECT = `
   id,
-  episode_number
+  episode_number,
+  posting_status,
+  is_published
 `;
 
 const WORK_PAGE_EPISODE_RANGE_SELECT = `
@@ -818,6 +823,22 @@ export async function generateMetadata({
           follow: false,
         },
       };
+    }
+
+    // Mirror the localized Work metadata policy: a public R18 work must not
+    // expose its identity or become indexable for a viewer without confirmed
+    // R18 preference. This includes sexual_r18 warnings on general-rated rows.
+    if (getSeriesContentRating(series) === "r18") {
+      const viewer = await getCurrentR18ViewerPreference();
+      if (!viewer.showR18Content) {
+        return {
+          title: "作品が見つかりません | LIB read",
+          robots: {
+            index: false,
+            follow: false,
+          },
+        };
+      }
     }
 
     const firstPublicEpisode = await fetchFirstPublicEpisode(seriesId);
@@ -1391,6 +1412,16 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
   const series = seriesData as SeriesRow;
   if (getSeriesPublicationStatus(series) !== "public") {
+    notFound();
+  }
+
+  // This also guards the EN/KO wrappers, which render this shared Work body.
+  // Check before loading author, chapter navigation, redirects or work details.
+  // Do not require Auth for general-rated public works during an Auth outage.
+  const r18Viewer = getSeriesContentRating(series) === "r18"
+    ? await getCurrentR18ViewerPreference()
+    : null;
+  if (!canViewPublicWorkBody(series, r18Viewer)) {
     notFound();
   }
 

@@ -5,7 +5,7 @@ import WorkTranslationAvailability from "@/features/works/WorkTranslationAvailab
 import { getUiLocale } from "@/i18n/server";
 import { workDictionaries } from "@/i18n/dictionaries/work";
 import { localizePath } from "@/i18n/navigation";
-import { getCachedPublicBaseWorkCards } from "@/lib/publicWorks";
+import { getPublicWorkMetadataCardById } from "@/lib/publicWorks";
 import { isUuid } from "@/lib/uuid";
 
 type WorkPageProps = Parameters<typeof WorkPage>[0];
@@ -17,8 +17,8 @@ export async function generateMetadata({
   const dictionary = workDictionaries[locale];
   const { seriesId } = await params;
 
-  // Metadata must never make a localised Work page fail just because the
-  // optional all-catalog cache is being revalidated. A failed lookup must
+  // Metadata should fetch one public work rather than refreshing the full
+  // catalog. A failed per-work lookup must
   // reveal neither a potentially private work nor an R18-filtered title.
   if (!isUuid(seriesId)) {
     return {
@@ -27,15 +27,11 @@ export async function generateMetadata({
     };
   }
 
-  let work: Awaited<ReturnType<typeof getCachedPublicBaseWorkCards>>[number] | undefined;
+  let work: Awaited<ReturnType<typeof getPublicWorkMetadataCardById>>;
   try {
-    const works = await getCachedPublicBaseWorkCards({
-      ignoreContentLanguageFilter: true,
-      prioritizeForUiLocale: false,
-    });
-    work = works.find((item) => item.seriesId === seriesId);
+    work = await getPublicWorkMetadataCardById(seriesId);
   } catch {
-    // A transient all-catalog timeout must not throw from generateMetadata.
+    // A transient single-work read failure must not throw from generateMetadata.
     // Do not serve stale work-specific metadata or expose private/R18 content.
     return {
       title: "LIB read",

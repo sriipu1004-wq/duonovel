@@ -355,6 +355,59 @@ async function fetchAuthorAccountMap(authorIds: string[]): Promise<Map<string, P
   );
 }
 
+function makePublicBaseWorkCard(
+  series: SeriesRow,
+  episodeSummary: PublicEpisodeWorkSummary | undefined,
+  authorAccountMap: Map<string, PublicAuthorAccount>
+): PublicBaseWorkCard | null {
+
+  if (!episodeSummary || episodeSummary.episode_count === 0) return null;
+  // The public catalog uses canonical source language only. Never infer
+  // a new public work's language from its title, summary or episode body.
+  const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
+  if (!canonicalSourceLanguage) return null;
+  const authorId = pickText(series.author_id, series["user_id"], series["userId"]) || null;
+  const authorAccount = authorId ? authorAccountMap.get(authorId) : undefined;
+  const publicDomain = readPublicDomainMetadata(
+    series["effect_settings"] ?? series["effectSettings"]
+  );
+  const latestPostedRaw = episodeSummary.latest_posted_at;
+  const firstPostedRaw = episodeSummary.first_posted_at;
+  const latestPostedAtValue = latestPostedRaw ? new Date(latestPostedRaw).getTime() : 0;
+  const firstPostedAtValue = firstPostedRaw ? new Date(firstPostedRaw).getTime() : 0;
+  const createdAtValue = toTimeValue(series["created_at"]);
+  const contentRating = getSeriesContentRating(series);
+  const title = pickText(series.title) || "無題";
+  const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
+
+  return {
+    seriesId: series.id,
+    title,
+    originalTitle: publicDomain?.originalTitle ?? null,
+    summary,
+    authorName: publicDomain?.originalAuthor || authorAccount?.displayName || "作者名未設定",
+    authorId: publicDomain ? null : authorId,
+    episodeCount: episodeSummary.episode_count,
+    firstEpisodeNumber: episodeSummary.first_episode_number,
+    latestPostedLabel: formatDate(latestPostedRaw),
+    latestPostedAtValue,
+    earliestPublicAtValue: firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
+    createdAtValue,
+    contentRating,
+    contentLanguage: sourceLanguageToContentLanguage(canonicalSourceLanguage),
+    sourceLanguage: canonicalSourceLanguage,
+    translationEligible: isSeriesTranslationEligible(series),
+    isShortStory: isShortStorySeriesForSitemap(series),
+    publicEpisodeNumbers: episodeSummary.public_episode_numbers,
+    publicDomainRightsChecked: publicDomain?.rightsChecked === true,
+    publicDomainSourceProvider: publicDomain?.sourceProvider ?? null,
+    publicDomainSourceUrl: publicDomain?.sourceUrl ?? null,
+    publicDomainFirstPublicationYear: publicDomain?.firstPublicationYear ?? null,
+    tags: withSystemContentRatingTag(getSeriesTags(series), contentRating),
+    genres: getSeriesGenres(series),
+  } satisfies PublicBaseWorkCard;
+}
+
 async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
   const publicSeries = await fetchPublicSeriesRows();
   if (publicSeries.length === 0) return [];
@@ -373,59 +426,72 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
   ]);
 
   return publicSeries
-    .map((series) => {
-      const episodeSummary = summariesBySeriesId.get(series.id);
-      if (!episodeSummary || episodeSummary.episode_count === 0) return null;
-      // The public catalog uses canonical source language only. Never infer
-      // a new public work's language from its title, summary or episode body.
-      const canonicalSourceLanguage = readCanonicalSeriesSourceLanguage(series);
-      if (!canonicalSourceLanguage) return null;
-      const authorId = pickText(series.author_id, series["user_id"], series["userId"]) || null;
-      const authorAccount = authorId ? authorAccountMap.get(authorId) : undefined;
-      const publicDomain = readPublicDomainMetadata(
-        series["effect_settings"] ?? series["effectSettings"]
-      );
-      const latestPostedRaw = episodeSummary.latest_posted_at;
-      const firstPostedRaw = episodeSummary.first_posted_at;
-      const latestPostedAtValue = latestPostedRaw ? new Date(latestPostedRaw).getTime() : 0;
-      const firstPostedAtValue = firstPostedRaw ? new Date(firstPostedRaw).getTime() : 0;
-      const createdAtValue = toTimeValue(series["created_at"]);
-      const contentRating = getSeriesContentRating(series);
-      const title = pickText(series.title) || "無題";
-      const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
-
-      return {
-        seriesId: series.id,
-        title,
-        originalTitle: publicDomain?.originalTitle ?? null,
-        summary,
-        authorName: publicDomain?.originalAuthor || authorAccount?.displayName || "作者名未設定",
-        authorId: publicDomain ? null : authorId,
-        episodeCount: episodeSummary.episode_count,
-        firstEpisodeNumber: episodeSummary.first_episode_number,
-        latestPostedLabel: formatDate(latestPostedRaw),
-        latestPostedAtValue,
-        earliestPublicAtValue: firstPostedAtValue > 0 ? firstPostedAtValue : createdAtValue,
-        createdAtValue,
-        contentRating,
-        contentLanguage: sourceLanguageToContentLanguage(canonicalSourceLanguage),
-        sourceLanguage: canonicalSourceLanguage,
-        translationEligible: isSeriesTranslationEligible(series),
-        isShortStory: isShortStorySeriesForSitemap(series),
-        publicEpisodeNumbers: episodeSummary.public_episode_numbers,
-        publicDomainRightsChecked: publicDomain?.rightsChecked === true,
-        publicDomainSourceProvider: publicDomain?.sourceProvider ?? null,
-        publicDomainSourceUrl: publicDomain?.sourceUrl ?? null,
-        publicDomainFirstPublicationYear: publicDomain?.firstPublicationYear ?? null,
-        tags: withSystemContentRatingTag(getSeriesTags(series), contentRating),
-        genres: getSeriesGenres(series),
-      } satisfies PublicBaseWorkCard;
-    })
+    .map((series) => makePublicBaseWorkCard(series, summariesBySeriesId.get(series.id), authorAccountMap))
     .filter((card): card is NonNullable<typeof card> => card !== null)
     .sort((a, b) => {
       if (b.latestPostedAtValue !== a.latestPostedAtValue) return b.latestPostedAtValue - a.latestPostedAtValue;
       return b.createdAtValue - a.createdAtValue;
     });
+}
+
+
+/**
+ * A single-work metadata lookup. Unlike the list/Search catalog, this
+ * must not revalidate every public work just to render a localized Work
+ * title. It is intentionally UNcached: withdrawals must fail closed
+ * immediately and no stale card may identify an unpublished work.
+ *
+ * Keep the same canonical card mapping and viewer R18/source-language
+ * decisions as getCachedPublicBaseWorkCards({ ignoreContentLanguageFilter: true,
+ * prioritizeForUiLocale: false }).
+ */
+export async function getPublicWorkMetadataCardById(seriesId: string): Promise<PublicBaseWorkCard | null> {
+  const supabase = createPublicServerClient();
+  const fetchSeries = (selectClause: string) =>
+    supabase
+      .from("series")
+      .select(selectClause)
+      .eq("id", seriesId)
+      .eq("publication_status", "public")
+      .maybeSingle();
+
+  let result = await fetchSeries(PUBLIC_WORK_SERIES_SELECT);
+  if (result.error && isSchemaCompatibilityReadFailure(result.error)) {
+    result = await fetchSeries("*");
+  }
+  if (result.error) {
+    throw new Error(`public work metadata lookup failed: ${result.error.message}`);
+  }
+  if (!result.data) return null;
+
+  const series = result.data as unknown as SeriesRow;
+  if (getSeriesPublicationStatus(series) !== "public") return null;
+  if (!readCanonicalSeriesSourceLanguage(series)) return null;
+
+  const viewer = await getCurrentR18ViewerPreference();
+  if (!viewer.showR18Content && getSeriesContentRating(series) === "r18") return null;
+
+  const authorId = pickText(series.author_id, series["user_id"], series["userId"]);
+  const [summaries, authors] = await Promise.all([
+    fetchPublicEpisodeSummariesBySeriesIds([seriesId]),
+    fetchAuthorAccountMap(authorId ? [authorId] : []),
+  ]);
+  if (!summaries.has(seriesId)) return null;
+  const work = makePublicBaseWorkCard(series, summaries.get(seriesId), authors);
+  if (!work) return null;
+
+  const searchFilters = getPublicSearchLanguageFilters();
+  if (
+    searchFilters?.sourceLanguages.length &&
+    !matchesPublicWorkLanguageFilters({
+      work,
+      sourceLanguages: searchFilters.sourceLanguages,
+    })
+  ) {
+    return null;
+  }
+
+  return work;
 }
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
