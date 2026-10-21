@@ -40,7 +40,7 @@ Stable product rules:
 Workstream coordination:
 
 - The parent alone selects roadmap priorities, assigns tasks to established S1–S4 specialist conversations, approves release gates and records accepted decisions.
-- Reuse an existing specialist child for several related tasks/PRs; create a successor conversation only when that chat itself hits its limit or a genuinely new long-running specialty is needed. Child85 is already assigned to the user's existing 子85 conversation (S3 Rights/Content).
+- **2026-10-21 CONTROL-R2 one-time reset:** all previous child chats, including old Child85, are retired; the user archives them via ChatGPT Project UI. Create only four NEW specialist child chat instances using `docs/chat-launch-2026-10-21.md`. Thereafter reuse each NEW S1–S4 chat for related tasks/PRs until it hits its limit. Child85 *work* continues in NEW S3; old PR #135 is merged but rights approval/imports remain zero.
 - On sudden parent-chat limit, do not ask for a previous-chat farewell message. Start from `PROJECT_MASTER.md`, then verify live GitHub main/open PRs and Production. Differentiate source/mock proof from authenticated E2E, and accepted deferral from restored/verified capability.
 - When durable state changes, update `PROJECT_MASTER.md` and relevant canonical docs in the same branch/PR. No chat assignment or GitHub comment starts background work.
 - An independent reviewer must be distinct from the implementer for security, ownership, R18, translation/rights or Production data work.
