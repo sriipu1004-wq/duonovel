@@ -1,6 +1,6 @@
-# ChatGPT Project instructions — single-window CANDIDATE (2026-10-21)
+# ChatGPT Project instructions — single-window ADOPTED TEXT, UI UPDATE REQUIRED (2026-10-21)
 
-**PROPOSED ONLY. NOT IN EFFECT.** This is a **copy-and-paste candidate** for the LIB read ChatGPT Project Settings → Project instructions, **not** a repository rule by itself. Do not switch the UI instructions or declare adoption until the user explicitly accepts single-window operation. Keep existing production permissions, draft PR gates and pending independent PR #146 review intact. Changes to GitHub files **never** automatically update ChatGPT Project settings. This candidate belongs to Draft [PR #147](https://github.com/sriipu1004-wq/duonovel/pull/147), dependent on Draft #145; it is **not on main**.
+**DESIGN ADOPTED BY USER; GitHub PR #147 STILL DRAFT; ChatGPT Project UI NOT VERIFIED UPDATED.** This is the exact copy-and-paste content for LIB read Project Settings → Instructions. It is duplicated verbatim in `docs/chatgpt-project-instructions.md`. GitHub file changes **never automatically update ChatGPT Project settings**. Existing Draft PR #146 review and Production permissions remain unaffected.
 
 ## Proposed short text to paste into Project Settings after explicit adoption
 
