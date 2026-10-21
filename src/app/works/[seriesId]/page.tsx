@@ -51,6 +51,8 @@ import {
   runReadOnlyWithRetry,
 } from "@/lib/reliability/readOnly";
 import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
+import { getSeriesContentRating } from "@/lib/contentRating";
+import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -820,6 +822,22 @@ export async function generateMetadata({
           follow: false,
         },
       };
+    }
+
+    // Mirror the localized Work metadata policy: a public R18 work must not
+    // expose its identity or become indexable for a viewer without confirmed
+    // R18 preference. This includes sexual_r18 warnings on general-rated rows.
+    if (getSeriesContentRating(series) === "r18") {
+      const viewer = await getCurrentR18ViewerPreference();
+      if (!viewer.showR18Content) {
+        return {
+          title: "作品が見つかりません | LIB read",
+          robots: {
+            index: false,
+            follow: false,
+          },
+        };
+      }
     }
 
     const firstPublicEpisode = await fetchFirstPublicEpisode(seriesId);
