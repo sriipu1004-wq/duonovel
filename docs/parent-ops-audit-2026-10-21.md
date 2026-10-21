@@ -12,6 +12,10 @@
 - `auth.identities` connected read-only count showed provider email only at snapshot. Google login is not currently proven; no AdSense publisher approval/serving is evidenced.
 - Account deletion is reviewed/manual with old automatic endpoint fail-closed; Auth E2E, SQL Search parity, managed DB recovery+Storage byte recovery, timer callback root cause and Cron #108 are unresolved/accepted risks, not test PASS.
 
+## Dispatch clarification (2026-10-21)
+
+The original row grouping below is priority/planning, **not simultaneous child work**. The user explicitly requested parent-directed **ONE child at a time** and confirmed no post-reset child had started. First: S4 #137; then S1 **review-only** of frozen #137 HEAD; next S2 #138, S1 #140, S3 #139 when parent explicitly transfers the baton. Later gated tasks follow roadmap and own acceptance. Any verified incident interrupt must freeze and checkpoint the current child first. See [single-child dispatch](chat-launch-2026-10-21.md). No automated GitHub mutex was installed.
+
 ## Prioritized dispatch and gates
 
 | Lane | Owner | Issue | Next evidence |
