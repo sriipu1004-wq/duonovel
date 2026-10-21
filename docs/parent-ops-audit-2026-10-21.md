@@ -1,5 +1,8 @@
 # Parent operator audit and issue dispatch — 2026-10-21
 
+**Later CONTROL-R4 override:** User adopted a single ChatGPT operator window with S1–S4 internal responsibilities. The historical specialist-chat dispatch text below must not trigger physical child creation. S4 #137 PR #146 is frozen, independent review PENDING, and the runtime AbortError cause is unresolved. See [PROJECT_MASTER](../PROJECT_MASTER.md) and [single-window workflow](chat-operations.md). Historical counts/priority assessments remain dated evidence.
+
+
 **Status:** READ-ONLY evidence; remediation proposals in separate child Issues. Snapshot, not continuously updated. No provider configuration, Auth, RLS, data, content, ad or code modification by this governance work.
 
 ## Verified provider facts
