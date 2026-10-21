@@ -5,13 +5,13 @@ Product-state baseline: `63f340168da1725f9c147a8dba05ecc88898b532`
 
 This file is the canonical ordered backlog for the next workstreams. It exists specifically so parent-chat replacement or context compression does not reorder the planned site work.
 
-> **Parent recovery and permanent specialist ownership:** see [PROJECT_MASTER.md](../PROJECT_MASTER.md) and [docs/chat-operations.md](chat-operations.md). Child84/85/86 are roadmap Work IDs, not disposable ChatGPT chat identities. This documentation-only governance adjustment does **not** change the ordered priorities below. Git/Production status in old dated notes remains historical, not an implicit release gate waiver.
+> **CONTROL-R4 single operator window:** S1–S4 are internal specialist responsibilities, not ordinary child chat assignments. See [PROJECT_MASTER.md](../PROJECT_MASTER.md) and [docs/chat-operations.md](chat-operations.md). Child84/85/86 are roadmap Work IDs. **This operator change does not reorder any priorities**. Git/Production status in old dated notes is historical; live checks and approvals still govern.
 
 ## Current priority order
 
 **Owner-approved 2026-10-21 priority insertion:** keep P5 Child85 rights/edition review and P6 Child86 scale gate; queue P7 Google OAuth sign-in and P8 publisher-side Google AdSense review/controlled ad placements. Displaced Acquisition and minimal analytics remain P9 and P10, not canceled. These priorities authorize planning only; OAuth provider activation, consent and ad scripts require their own evidence/review/approvals. This supersedes Draft PR #136 if this PR is approved.
 
-**Urgent R0 safety triage is a STRICT SERIAL dispatch queue, not a silent renumbering:** [S4 public-cache AbortError](https://github.com/sriipu1004-wq/duonovel/issues/137) followed, after the parent has closed or paused the active dispatch, by [S2 Supabase Auth/RPC review](https://github.com/sriipu1004-wq/duonovel/issues/138) may be selected before P5–P8 and must not be used as a pretext to waive P5 rights gates. The old Child85 conversation is retired; a post-reset S3 chat continues P5 **only when parent dispatches it**, not concurrently with S4/S2/S1. [Active work registry](../PROJECT_MASTER.md) and [launch packets](chat-launch-2026-10-21.md) are separate from ordered Work IDs.
+**Urgent R0 safety work is strictly serial, not a roadmap renumber:** [#137 public-cache AbortError](https://github.com/sriipu1004-wq/duonovel/issues/137) was investigated in S4 and resulted in frozen Draft PR #146, **independent review pending**. After that acceptance gate is resolved, [#138 Auth/RPC audit](https://github.com/sriipu1004-wq/duonovel/issues/138) is the next urgent queued issue unless a new critical incident changes authorization. S1–S4 are internal operator responsibilities; #139/#140 P5 work stays queued. [Live work registry](../PROJECT_MASTER.md) is separate from ordered Work IDs.
 
 
 ### P0 — Project governance baseline
