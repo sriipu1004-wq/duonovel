@@ -1,6 +1,20 @@
 # LIB read — Persistent Specialist Chats and Parent Control
 
-**Effective proposal: 2026-10-21, CONTROL-R1.** [Permanent parent-recovery entrypoint](../PROJECT_MASTER.md). This document specifies how to run chats, **not** a new roadmap or permission to perform background work.
+**Effective controls: 2026-10-21, CONTROL-R2 (supersedes prior child conversation assignments).** [Permanent parent-recovery entrypoint](../PROJECT_MASTER.md). This document specifies how to run chats, **not** a new roadmap or permission to perform background work.
+
+## CONTROL-R2 — Legacy chat retirement and NEW specialist instances (user direction, 2026-10-21)
+
+**Override of the previous conversation-reuse assignment:** every existing child ChatGPT conversation, including old Child85, is designated **retired**. This is an operating decision and does **not** itself archive the conversation in the ChatGPT UI. No available connector archives project chats, so the user must perform that operation individually in the Project chat list. Do not use the global archive-all control if it would also archive parent/unrelated chats. Do not falsely claim UI archive success.
+
+Create four **new** persistent specialist chat instances using [launch packets](chat-launch-2026-10-21.md). Names: `新子S1_Reader・翻訳・検索品質`, `新子S2_認証・権限・ユーザーデータ`, `新子S3_Public Domain・出典・権利`, `新子S4_インフラ・性能・リリース`. The slots remain persistent **after this one-time reset**; never reuse old threads. The old Child85 **workstream is still P5 OPEN** even though its PR #135 merged and its old conversation retired. Existing source/checkpoint state lives in GitHub and remains accessible.
+
+- R0 parallel triage: S4 [#137](https://github.com/sriipu1004-wq/duonovel/issues/137) Production cache `AbortError`, S2 [#138](https://github.com/sriipu1004-wq/duonovel/issues/138) Auth/RPC security. Neither authorizes unsupervised Production change.
+- P5: S3 [#139](https://github.com/sriipu1004-wq/duonovel/issues/139) rights and bounded cohort; S1 [#140](https://github.com/sriipu1004-wq/duonovel/issues/140) Reader annotation fidelity.
+- P6: S4 [#141](https://github.com/sriipu1004-wq/duonovel/issues/141) scale verification after actual rights-approved corpus expansion.
+- P7/P8: S2 [#142](https://github.com/sriipu1004-wq/duonovel/issues/142) Google OAuth; S4 [#143](https://github.com/sriipu1004-wq/duonovel/issues/143) Google AdSense policy/placement.
+- Parent [#144](https://github.com/sriipu1004-wq/duonovel/issues/144) tracks obsolete PRs, deferred risks, canonical snapshot and ChatGPT UI archive completion.
+
+**New chat creation is a real UI step, not a GitHub operation.** An Issue/PR, status update, or assignment never starts background work. Assign a distinct reviewer per cross-cutting change; this remains the existing merge/Preview/Production protocol.
 
 ## Two separate identifiers
 
@@ -13,9 +27,9 @@
 
 | Slot | Core scope | Typical review partner | Current assignment |
 | --- | --- | --- | --- |
-| S1 Reader / Translation / Search UX | Reader modes, translation source/presentation, source-language Search, UI locale, metadata UX | S2 for auth/entitlement, S4 for performance | No active assignment verified; reuse when needed |
-| S2 Auth / Authors / User Data | Author posting, publication/ownership, R18, Human permissions, deletion, billing coupling, private library | S1 for UX; S4 or parent for independent security | No active assignment verified |
-| S3 Public Domain / Provenance | Candidate rights, edition/translators, original byte sources and hashes, manifests, staged Official Draft import | S2 for rights/publication/R18; S4 for Production data | Child85; user already created 子85 chat |
+| S1 Reader / Translation / Search UX | Reader modes, translation source/presentation, source-language Search, UI locale, metadata UX | S2 for auth/entitlement, S4 for performance | New chat instance pending UI creation; use launch packet |
+| S2 Auth / Authors / User Data | Author posting, publication/ownership, R18, Human permissions, deletion, billing coupling, private library | S1 for UX; S4 or parent for independent security | New chat instance pending UI creation |
+| S3 Public Domain / Provenance | Candidate rights, edition/translators, original byte sources and hashes, manifests, staged Official Draft import | S2 for rights/publication/R18; S4 for Production data | Child85 continues in **new S3**; old Child85 retired |
 | S4 Infrastructure / Reliability / Deployments | Vercel, Supabase, observability, cache, DB reliability, performance, CI and safe releases | S1 or S2 as independent source reviewer | No active assignment verified; PR #131 and old PRs are review queue, not active autonomous work |
 
 Cross-domain tasks: parent assigns **one implementer slot, one distinct reviewer** and a fixed acceptance contract. For high-risk Auth/credits/rights/data writes, independent reviewer and parent release gate are required. Independent review cannot be the same chat asserting its own tests are independent. Dedicated S5 Audit is **optional**, established only if repeated independent work justifies keeping that conversation active.
@@ -23,7 +37,7 @@ Cross-domain tasks: parent assigns **one implementer slot, one distinct reviewer
 ## Chat reuse and lifecycle
 
 1. **Parent assignment**: name the roadmap Work ID and permanent specialist slot. Give latest canonical entrypoint, intended outcome, explicit allowed operations, risk level, reviewer, stop conditions and current PR/branch (if any).
-2. **Start or resume**: reuse existing Sx chat, read the current parent entrypoint, verify main/Production/open PR, and check last checkpoint. The specialist may work through multiple coherent PRs without a fresh chat.
+2. **Start or resume**: use the **new Sx chat from CONTROL-R2**, read the current parent entrypoint, verify main/Production/open PR, and check last checkpoint. The specialist may work through multiple coherent PRs without a fresh chat.
 3. **Continue internally** until the defined acceptance or parent-return gate. Do not send the user back to the parent after each passing test, and do not pick a new roadmap item yourself.
 4. **Return to parent** only if milestone accepted/blocked, cross-specialty decision needed, release authorization needed, change to roadmap/security/product contract, or context limit reached.
 5. **At length limit**: create exactly one successor for the same Sx role, not a new generic Child number. Record pending task, evidence/PR URLs, last verified commit, remaining blockers, and chat locator if provided in the parent-entrypoint registry. Keep old conversation as history; new chat is explicitly a successor.
