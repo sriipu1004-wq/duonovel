@@ -1,6 +1,6 @@
 # LIB read — Single-window ChatGPT operation: feasibility and migration proposal
 
-**Status: PROPOSAL / DESIGN-ONLY / NOT ADOPTED (2026-10-21).** This document is intentionally in a Draft PR stacked on governance Draft PR #145. Neither this file nor its PR changes current assignments, grants merge/Production/DB/rights authority, starts a new Issue, or completes the pending independent review of PR #146. User acceptance of the design is required before replacing active chat-operation rules. **Do not interpret this proposal as an instruction to resume #137 or start #138/#139/#140.**
+**Status: USER-ADOPTED OPERATING DESIGN / CANONICAL IMPLEMENTATION IN DRAFT PR #147, NOT YET MERGED (2026-10-21).** The user explicitly accepted the proposed single-window operating method. This document originally began as a proposal stacked on governance Draft #145; the consolidated governance PR #147 is to be retargeted to main, and #145 closed as superseded after scope verification. No merge/Production/DB/rights permission or completion of PR #146 independent review is implied. **Do not interpret this proposal as an instruction to resume #137 or start #138/#139/#140.**
 
 Repository: `sriipu1004-wq/duonovel`; Production: `https://www.syosetu-libread.com`.
 
@@ -76,13 +76,13 @@ If a separate session cannot be invoked or cannot publish review evidence, the r
 
 **Limits:** A suddenly lost, uncommitted in-chat action or unverifiable chat-only approval cannot be perfectly reconstructed. Recovery is fail-closed by design: preserve verified GitHub work and explicitly re-establish missing decisions. Avoid promising automatic cross-chat continuation.
 
-## 7. Migration plan and exact governance file changes (not applied by this design PR)
+## 7. Adoption and exact governance changes (prepared in Draft PR #147, not yet merged)
 
-1. User reviews this proposal and decides whether to adopt **single-window as default**. Until then PR #145 CONTROL-R3 physical-child model and its Issue #137 S1 review gate remain in force.
-2. On an explicit adoption decision, amend **`AGENTS.md`** (one-window operating entrypoint), **`PROJECT_MASTER.md`** (one operator window, active dispatch lock, verified PR statuses and no stale child ownership), **`docs/chat-operations.md`** (replace mandatory physical S1–S4 chats with internal responsibilities and independent-session gates), **`docs/development-workflow.md`** (same release flow and review decision matrix), **`docs/decisions.md`** (durable decision), and **`docs/chatgpt-project-instructions.md`** / bootstrap/launch prompts (optional review session, not routine child prompts). Do **not** reorder `docs/roadmap.md`; user-approved backlog remains.
-3. Because PR #145 already carries pending governance changes, perform this as a **dependent/stacked** change or reconcile/rebase it after #145 is accepted, not as a competing direct-main governance rewrite. Audit exact changed files, run documentation checks, leave Draft, require explicit user merge approval.
+1. User **approved** single-window as the default operating model on 2026-10-21. GitHub canonical CONTROL-R4 changes are prepared in Draft PR #147, but neither GitHub merge nor actual ChatGPT Project Settings UI sync has occurred automatically; those require their existing approval/UI steps.
+2. The adoption branch updates **`AGENTS.md`** (one-window operating entrypoint), **`PROJECT_MASTER.md`** (one operator window, active dispatch lock, verified PR statuses and no stale child ownership), **`docs/chat-operations.md`** (replace mandatory physical S1–S4 chats with internal responsibilities and independent-session gates), **`docs/development-workflow.md`** (same release flow and review decision matrix), **`docs/decisions.md`** (durable decision), and **`docs/chatgpt-project-instructions.md`** / bootstrap/launch prompts (optional review session, not routine child prompts). It does **not** reorder `docs/roadmap.md`; user-approved backlog remains.
+3. Because PR #145 already carries pending governance changes, retarget consolidated PR #147 to `main` after verifying it includes prior approved #145 additions, and CLOSE #145 UNMERGED as superseded. Still require a separate explicit PR #147 merge authorization. Audit exact changed files, run documentation checks, leave Draft, require explicit user merge approval.
 4. Existing PR #146 **does not change owner or approval status**. S4 remains author and stopped. Separate S1 review must still happen before release; its documentation and result go to GitHub. Do not activate another Issue until parent issues an instruction.
-5. Conduct one controlled low-risk work item under the window after adoption to verify tools, checkpoint completeness, no duplicate commits/Preview churn, and graceful recovery. If performance or audit quality degrades, revert to the existing specialist-chat model by a separately approved governance change.
+5. Conduct one controlled low-risk work item under the window after governance alignment to verify tools, checkpoint completeness, no duplicate commits/Preview churn, and graceful recovery. If performance or audit quality degrades, revert to the existing specialist-chat model by a separately approved governance change.
 
 ## 8. Advantages, quality risks and cost boundary
 
