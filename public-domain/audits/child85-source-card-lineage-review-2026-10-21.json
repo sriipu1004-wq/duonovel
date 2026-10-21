@@ -383,5 +383,115 @@
       "release_impact": "Keep only 000692 as the source-prepared rights-pending record; 000691/045245 are distinct bibliographic editions, not cleared substitutes. Independent per-edition review and S1 formatting required."
     },
     "rights_or_import_permission_change": false
+  },
+  "automated_full_catalog_edition_collision_review": {
+    "evidence_date": "2026-10-21",
+    "catalog_url": "https://www.aozora.gr.jp/index_pages/list_person_all_extended_utf8.zip",
+    "official_catalog_zip_sha256": "a615fa6ddb6ef3e0ad598337f5d08f1570c3d2aa51cc5d43a62998ca904905be",
+    "catalog_rows": 19502,
+    "selected_source_manifest_count": 10,
+    "matching_id_card_url_title_author": 10,
+    "source_card_mismatches": 0,
+    "same_author_same_title_variant_groups": 1,
+    "other_author_same_title_cases": 0,
+    "manifest_checks": [
+      {
+        "manifest_id": "aozora-000022",
+        "card_record_matches": true,
+        "same_title_card_count": 1,
+        "same_author_same_title_cards": 1,
+        "other_edition_card_ids": [],
+        "other_author_card_ids": [],
+        "result": "UNIQUE"
+      },
+      {
+        "manifest_id": "aozora-000195",
+        "card_record_matches": true,
+        "same_title_card_count": 1,
+        "same_author_same_title_cards": 1,
+        "other_edition_card_ids": [],
+        "other_author_card_ids": [],
+        "result": "UNIQUE"
+      },
+      {
+        "manifest_id": "aozora-000198",
+        "card_record_matches": true,
+        "same_title_card_count": 1,
+        "same_author_same_title_cards": 1,
+        "other_edition_card_ids": [],
+        "other_author_card_ids": [],
+        "result": "UNIQUE"
+      },
+      {
+        "manifest_id": "aozora-000204",
+        "card_record_matches": true,
+        "same_title_card_count": 1,
+        "same_author_same_title_cards": 1,
+        "other_edition_card_ids": [],
+        "other_author_card_ids": [],
+        "result": "UNIQUE"
+      },
+      {
+        "manifest_id": "aozora-000321",
+        "card_record_matches": true,
+        "same_title_card_count": 1,
+        "same_author_same_title_cards": 1,
+        "other_edition_card_ids": [],
+        "other_author_card_ids": [],
+        "result": "UNIQUE"
+      },
+      {
+        "manifest_id": "aozora-057848",
+        "card_record_matches": true,
+        "same_title_card_count": 1,
+        "same_author_same_title_cards": 1,
+        "other_edition_card_ids": [],
+        "other_author_card_ids": [],
+        "result": "UNIQUE"
+      },
+      {
+        "manifest_id": "aozora-053520",
+        "card_record_matches": true,
+        "same_title_card_count": 1,
+        "same_author_same_title_cards": 1,
+        "other_edition_card_ids": [],
+        "other_author_card_ids": [],
+        "result": "UNIQUE"
+      },
+      {
+        "manifest_id": "aozora-000692",
+        "card_record_matches": true,
+        "same_title_card_count": 3,
+        "same_author_same_title_cards": 3,
+        "other_edition_card_ids": [
+          "000691",
+          "045245"
+        ],
+        "other_author_card_ids": [],
+        "result": "SAME_AUTHOR_MULTIPLE_EDITIONS"
+      },
+      {
+        "manifest_id": "aozora-004386",
+        "card_record_matches": true,
+        "same_title_card_count": 1,
+        "same_author_same_title_cards": 1,
+        "other_edition_card_ids": [],
+        "other_author_card_ids": [],
+        "result": "UNIQUE"
+      },
+      {
+        "manifest_id": "aozora-033200",
+        "card_record_matches": true,
+        "same_title_card_count": 1,
+        "same_author_same_title_cards": 1,
+        "other_edition_card_ids": [],
+        "other_author_card_ids": [],
+        "result": "UNIQUE"
+      }
+    ],
+    "method": "Official Aozora expanded catalog per work ID (not per contributor row); NFKC normalized title and author; exact official card URL; no raw literary text downloaded or committed.",
+    "legal_conclusion": "NONE; independent source edition, editorial rights, reader/content review remain mandatory",
+    "rights_approvals": 0,
+    "production_imports": 0
   }
 }

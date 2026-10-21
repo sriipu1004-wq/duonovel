@@ -40,6 +40,7 @@
     "public-domain:source-sync": "node --import tsx scripts/public-domain/source-sync.ts",
     "public-domain:annotation-audit": "node --import tsx scripts/public-domain/annotation-audit.ts",
     "public-domain:duplicate-probes": "node --import tsx scripts/public-domain/duplicate-probe-sql.ts",
+    "public-domain:edition-collision-audit": "node --import tsx scripts/public-domain/edition-collision-audit.ts",
     "public-domain:batch": "node --import tsx scripts/public-domain/batch.ts",
     "public-domain:audit-official": "node --import tsx scripts/public-domain/audit-official.ts",
     "public-domain:repartition-audit": "node --import tsx scripts/public-domain/repartition-audit.ts",

@@ -369,3 +369,7 @@ The Production audit found only eight ready cached episode translations across t
 ## Child72 deployment note
 
 After rights-approved Public Domain pilots are imported as private Drafts, deploy the verified runtime before publication. If Production runtime verification fails, keep the pilot series private and roll back any attempted publication before retrying the deployment.
+
+### Aozora 同名異版 preflight (Child85)
+
+After selecting candidate card IDs and **before** a person signs actual edition rights, run `npm run public-domain:edition-collision-audit -- --catalog=<OFFICIAL_AOZORA_CATALOG_ZIP>` (offline) or use explicit `--fetch-catalog` to retrieve **one official metadata ZIP only**. The tool scans card IDs, normalized titles, original authors, and exact source-card URLs; it emits warnings when another card of the same author/title exists, rather than silently treating different editions as interchangeable. Use `--ids=id1,id2` for newly researched manifests (up to 60). A manifest/card mismatch causes nonzero exit. Title collision by itself is an **individual-source and editorial-rights review task**, not proof the text differs or automatic denial/clearance. Do not change the existing candidate normalization or public read/reader behavior. This audit is metadata-only and does not fetch or commit literary bodies or write Supabase.

@@ -30,6 +30,7 @@ import {
 import { readPublicDomainMetadata } from "../src/lib/publicDomainMetadata";
 import { auditPreparedAozoraAnnotationFidelity, classifyAozoraAnnotation } from "./public-domain/aozora-annotation-fidelity";
 import { selectExactJapaneseProbes, publicJaExactProbeSql } from "./public-domain/prose-duplicate-probes";
+import { auditAozoraEditionCollisions } from "./public-domain/aozora-edition-collisions";
 
 function component(
   status: "approved" | "not_applicable" | "needs_review" | "rejected" = "approved"
@@ -377,6 +378,51 @@ function testVerbatimPublicDomainDuplicateProbes() {
     () => selectExactJapaneseProbes("aozora-000195", [{ body: "｜漢《かん》" }]),
     /EXACT_PROBE_TOO_FEW_RAW_CONTIGUOUS_SPANS/
   );
+}
+
+
+function testAozoraEditionCollisionPreflight() {
+  const mk = (id: string, title: string, author: string, role = "著者") => ({
+    "作品ID": id,
+    "作品名": title,
+    "図書カードURL": `https://www.aozora.gr.jp/cards/000129/card${Number(id)}.html`,
+    "役割フラグ": role,
+    "姓": author,
+    "名": "",
+  });
+  const rows = [
+    mk("000692", "高瀬舟", "森鴎外"),
+    mk("000691", "高瀬舟", "森鴎外"),
+    mk("045245", "高瀬舟", "森鴎外"),
+    mk("000692", "高瀬舟", "外部翻訳者", "翻訳者"),
+    mk("000321", "二老人", "国木田独歩"),
+    mk("009001", "同名の作品", "作家A"),
+    mk("009002", "同名の作品", "作家B"),
+  ];
+  const selected = [
+    { id: "aozora-000692", original_title: "高瀬舟", original_author: "森鴎外", source_url: "https://www.aozora.gr.jp/cards/000129/card692.html" },
+    { id: "aozora-000321", original_title: "二老人", original_author: "国木田独歩", source_url: "https://www.aozora.gr.jp/cards/000129/card321.html" },
+    { id: "aozora-009001", original_title: "同名の作品", original_author: "作家A", source_url: "https://www.aozora.gr.jp/cards/000129/card9001.html" },
+  ];
+  const findings = auditAozoraEditionCollisions(rows, selected);
+  assert.equal(findings.length, 3);
+  assert.equal(findings[0]?.status, "SAME_AUTHOR_MULTIPLE_EDITIONS");
+  assert.equal(findings[0]?.sameTitleCardCount, 3);
+  assert.equal(findings[0]?.sameAuthorSameTitleCardCount, 3);
+  assert.deepEqual(findings[0]?.otherEditionCardIds, ["000691", "045245"]);
+  assert.equal(findings[1]?.status, "UNIQUE");
+  assert.equal(findings[2]?.status, "SAME_TITLE_OTHER_AUTHOR");
+  assert.deepEqual(findings[2]?.distinctAuthorCardIds, ["009002"]);
+  assert.equal(
+    auditAozoraEditionCollisions(rows, [
+      { ...selected[0]!, source_url: "https://www.aozora.gr.jp/cards/000129/card999.html" }
+    ])[0]?.status, "SOURCE_CARD_MISMATCH"
+  );
+  assert.throws(() => auditAozoraEditionCollisions(rows, [selected[0]!, selected[0]!]),
+    /AOZORA_EDITION_DUPLICATE_MANIFEST/u);
+  assert.throws(() => auditAozoraEditionCollisions(rows, [
+    { ...selected[0]!, id: "aozora-not-numeric" }
+  ]), /AOZORA_EDITION_MANIFEST_INVALID/u);
 }
 
 function testAozoraAnnotationFidelityPreflight() {
@@ -844,6 +890,7 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
 }
 
 function main() {
+  testAozoraEditionCollisionPreflight();
   testVerbatimPublicDomainDuplicateProbes();
   testAozoraAnnotationFidelityPreflight();
   testAozoraReaderBodyOptIn();
