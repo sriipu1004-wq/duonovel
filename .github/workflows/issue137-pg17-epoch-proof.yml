@@ -1,0 +1,67 @@
+# Design-only candidate for Draft PR #150. NOT installed on GitHub.
+name: Issue137 isolated PostgreSQL epoch-fence proof
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/issue137-pg17-epoch-proof.yml'
+      - 'scripts/issue137-epoch-pg17-fixture.sql'
+permissions:
+  contents: read
+concurrency:
+  group: issue137-pg17-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  isolated-postgres:
+    if: github.event.pull_request.number == 150 && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: fixture_only_not_a_secret
+        options: >-
+          --health-cmd='pg_isready -U postgres'
+          --health-interval=3s
+          --health-timeout=2s
+          --health-retries=15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run synthetic epoch and RLS fixture in disposable PostgreSQL only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cid='${{ job.services.postgres.id }}'
+          test -n "$cid"
+          docker exec -i "$cid" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres < scripts/issue137-epoch-pg17-fixture.sql
+          before="$(docker exec "$cid" psql -X -At -U postgres -d postgres -c 'SELECT value FROM catalog_internal.generation')"
+          # Ensure writer A is active with its epoch-row UPDATE lock held.
+          docker exec "$cid" env PGAPPNAME=issue137_epoch_writer_a psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -c "BEGIN; UPDATE catalog_test.series SET title=title||'-a' WHERE id=100; SELECT pg_sleep(3); COMMIT;" &
+          a=$!
+          ready=0
+          for i in $(seq 1 40); do
+            active="$(docker exec "$cid" psql -X -At -U postgres -d postgres -c "SELECT count(*) FROM pg_stat_activity WHERE application_name='issue137_epoch_writer_a' AND state='active'")"
+            if [ "$active" -gt 0 ]; then ready=1; break; fi
+            sleep 0.05
+          done
+          test "$ready" -eq 1 || { echo 'Writer A did not become active'; exit 1; }
+
+          # Writer B modifies a different row but must wait on shared epoch key.
+          docker exec "$cid" env PGAPPNAME=issue137_epoch_writer_b psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -c "BEGIN; UPDATE catalog_test.users SET display_name=display_name||'-b' WHERE id=1; COMMIT;" &
+          b=$!
+          blocked=0
+          for i in $(seq 1 50); do
+            waiting="$(docker exec "$cid" psql -X -At -U postgres -d postgres -c "SELECT count(*) FROM pg_stat_activity WHERE application_name='issue137_epoch_writer_b' AND wait_event_type='Lock'")"
+            if [ "$waiting" -gt 0 ]; then blocked=1; break; fi
+            sleep 0.05
+          done
+          test "$blocked" -eq 1 || { echo 'No actual epoch-row contention observed'; exit 1; }
+          wait "$a"
+          wait "$b"
+          after="$(docker exec "$cid" psql -X -At -U postgres -d postgres -c 'SELECT value FROM catalog_internal.generation')"
+          test "$after" -eq "$((before + 2))"
+          echo "PASS: PostgreSQL concurrent writers incremented epoch twice without lost update"
