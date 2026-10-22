@@ -9,6 +9,13 @@ const section = src.slice(
   src.indexOf("function prioritizeForLocale(")
 );
 assert.ok(section.includes("const getCachedPublicBaseWorkCardsInternal = cache(buildPublicBaseWorkCards);"));
+assert.ok(src.includes("const [publicSeries, summariesBySeriesId] = await Promise.all(["), "fresh public series and summaries can run concurrently");
+assert.ok(src.includes('if (seriesIds) query = query.in("series_id", seriesIds);'), "single-work metadata query stays scoped");
+const summaryView = readFileSync("supabase/migrations/20261010013603_public_episode_work_summaries.sql", "utf8");
+assert.ok(summaryView.includes("with (security_invoker = true)"));
+assert.ok(summaryView.includes("s.publication_status = 'public'"));
+assert.ok(summaryView.includes("e.posting_status = 'posted'"));
+assert.ok(summaryView.includes("e.is_published = true"));
 assert.equal(section.includes("unstable_cache("), false, "public metadata cannot use shared unstable_cache");
 assert.ok(src.includes('import { cache } from "react";'));
 assert.ok(src.includes('.eq("publication_status", "public")'), "fresh source must check series publication");

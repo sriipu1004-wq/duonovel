@@ -295,20 +295,23 @@ function summarizeLegacyEpisodes(
 }
 
 async function fetchPublicEpisodeSummariesBySeriesIds(
-  seriesIds: string[]
+  seriesIds?: string[]
 ): Promise<Map<string, PublicEpisodeWorkSummary>> {
-  if (seriesIds.length === 0) return new Map();
+  if (seriesIds?.length === 0) return new Map();
   const supabase = createPublicServerClient();
   const PAGE_SIZE = 1000;
   const summaries = new Map<string, PublicEpisodeWorkSummary>();
 
   for (let start = 0; ; start += PAGE_SIZE) {
-    const { data, error } = await supabase
+    // The view itself requires public series plus posted, published episodes.
+    // Reading all rows lets the public series query run concurrently.
+    let query = supabase
       .from("public_episode_work_summaries")
       .select(
         "series_id, episode_count, first_episode_id, first_episode_number, first_posted_at, latest_posted_at, public_episode_numbers"
-      )
-      .in("series_id", seriesIds)
+      );
+    if (seriesIds) query = query.in("series_id", seriesIds);
+    const { data, error } = await query
       .order("series_id", { ascending: true })
       .range(start, start + PAGE_SIZE - 1);
 
@@ -316,14 +319,15 @@ async function fetchPublicEpisodeSummariesBySeriesIds(
       // Preview / rollout environments may not have the approved migration yet.
       // Do not fall back on transient DB timeouts or permission failures.
       if (start === 0 && isMissingEpisodeSummaryView(error)) {
-        return summarizeLegacyEpisodes(await fetchEpisodesBySeriesIds(seriesIds));
+        const fallbackIds = seriesIds ?? (await fetchPublicSeriesRows()).map((series) => series.id);
+        return summarizeLegacyEpisodes(await fetchEpisodesBySeriesIds(fallbackIds));
       }
       throw new Error(`public episode summaries の取得に失敗: ${error.message}`);
     }
 
     const rows = (data ?? []) as PublicEpisodeWorkSummary[];
     for (const summary of rows) {
-      if (seriesIds.includes(summary.series_id)) {
+      if (!seriesIds || seriesIds.includes(summary.series_id)) {
         summaries.set(summary.series_id, summary);
       }
     }
@@ -410,7 +414,12 @@ function makePublicBaseWorkCard(
 }
 
 async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
-  const publicSeries = await fetchPublicSeriesRows();
+  // Both read paths independently enforce current public/posted visibility.
+  // Run them together to avoid two sequential Supabase round trips per request.
+  const [publicSeries, summariesBySeriesId] = await Promise.all([
+    fetchPublicSeriesRows(),
+    fetchPublicEpisodeSummariesBySeriesIds(),
+  ]);
   if (publicSeries.length === 0) return [];
 
   const authorIds = Array.from(
@@ -421,10 +430,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
     )
   );
 
-  const [authorAccountMap, summariesBySeriesId] = await Promise.all([
-    fetchAuthorAccountMap(authorIds),
-    fetchPublicEpisodeSummariesBySeriesIds(publicSeries.map((series) => series.id)),
-  ]);
+  const authorAccountMap = await fetchAuthorAccountMap(authorIds);
 
   return publicSeries
     .map((series) => makePublicBaseWorkCard(series, summariesBySeriesId.get(series.id), authorAccountMap))
