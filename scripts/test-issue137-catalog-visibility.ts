@@ -23,6 +23,23 @@ assert.equal(section.includes("unstable_cache("), false, "public metadata cannot
 assert.ok(src.includes('import { cache } from "react";'));
 assert.ok(src.includes("getCachedPublicBaseWorkCardsInternal(options?.omitAuthorDisplayNames !== true)"));
 assert.ok(section.includes("if (!includeAuthorDisplayNames) return new Map<string, PublicAuthorAccount>();"));
+// #150 independent FIX: Ranking must use the per-viewer R18 gate.
+// These are source contracts; they do not substitute for signed-in browser E2E.
+const ranking = readFileSync("src/app/ranking/page.tsx", "utf8");
+const rankingCall = ranking.slice(
+  ranking.indexOf("getCachedPublicBaseWorkCards({"),
+  ranking.indexOf("}),", ranking.indexOf("getCachedPublicBaseWorkCards({")) + 3
+);
+assert.ok(rankingCall.includes('visibility: "viewer"'), "ranking must apply per-viewer R18 filtering");
+assert.equal(rankingCall.includes('visibility: "all"'), false, "ranking cannot bypass viewer R18 access");
+assert.ok(rankingCall.includes("ignoreContentLanguageFilter: true"), "ranking remains cross-language");
+assert.ok(rankingCall.includes("ignorePublicSearchLanguageFilter: true"), "ranking remains cross-search-language");
+assert.ok(src.includes('if (visibility === "all") return cards;'), "unrestricted helper is explicitly identifiable");
+assert.ok(src.includes('const preference = await getCurrentR18ViewerPreference();'), "viewer branch reads R18 preference");
+assert.ok(src.includes('cards.filter((card) => card.contentRating !== "r18")'), "disallowed R18 cards are filtered");
+const viewerPreference = readFileSync("src/lib/contentRatingServer.ts", "utf8");
+assert.ok(viewerPreference.includes("showR18Content: false,"), "anonymous/errors fail closed");
+assert.ok(viewerPreference.includes("preference.data.show_r18_content === true && ageConfirmed"), "R18 requires opt-in and age confirmation");
 const languageCounts = readFileSync("src/app/api/public/work-language-counts/route.ts", "utf8");
 assert.ok(languageCounts.includes("omitAuthorDisplayNames: true"), "counts-only API avoids author query");
 assert.ok(languageCounts.includes("getCachedPublicBaseWorkCards({"), "counts API retains canonical visibility pipeline");
