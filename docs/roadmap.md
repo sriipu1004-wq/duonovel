@@ -1,6 +1,6 @@
 # LIB read — Ordered Roadmap
 
-Last updated: **2026-10-21**
+Last updated: **2026-10-22**
 Product-state baseline: `63f340168da1725f9c147a8dba05ecc88898b532`
 
 This file is the canonical ordered backlog for the next workstreams. It exists specifically so parent-chat replacement or context compression does not reorder the planned site work.
@@ -11,7 +11,14 @@ This file is the canonical ordered backlog for the next workstreams. It exists s
 
 **Owner-approved 2026-10-21 priority insertion:** keep P5 Child85 rights/edition review and P6 Child86 scale gate; queue P7 Google OAuth sign-in and P8 publisher-side Google AdSense review/controlled ad placements. Displaced Acquisition and minimal analytics remain P9 and P10, not canceled. These priorities authorize planning only; OAuth provider activation, consent and ad scripts require their own evidence/review/approvals. This supersedes Draft PR #136 if this PR is approved.
 
-**Urgent R0 safety work is strictly serial, not a roadmap renumber:** [#137 public-cache AbortError](https://github.com/sriipu1004-wq/duonovel/issues/137) was investigated in S4 and resulted in frozen Draft PR #146, **independent review pending**. After that acceptance gate is resolved, [#138 Auth/RPC audit](https://github.com/sriipu1004-wq/duonovel/issues/138) is the next urgent queued issue unless a new critical incident changes authorization. S1–S4 are internal operator responsibilities; #139/#140 P5 work stays queued. [Live work registry](../PROJECT_MASTER.md) is separate from ordered Work IDs.
+**Owner-directed urgent override — 2026-10-22 (one active work item, NO automatic merge):**
+
+1. **R0-SEC FIRST — [Issue #148, October 2026 Next.js/Sharp emergency dependency hardening](https://github.com/sriipu1004-wq/duonovel/issues/148)**, S2 security + S4 release scope, current authorized preparation on dedicated security branch / Draft PR. Fixed Production/main at dispatch: `a5773a367faed2915b16391d0cdc01b7ead6f7c7`; vulnerable locked `next@16.3.3`, `sharp@0.35.4`, and Server Actions present. Vendor-patched minimum Next `16.4.1`, Sharp `0.35.5`. Urgency is **affected component/version exposure**, **not a confirmed exploit or user-data breach**. Produce exact vendor-verified lockfile, actual tests/build, matching-HEAD Preview, *genuine independent* security review; then obtain **explicit owner merge approval**. Production and DB/Auth changes are separately gated. No unattended auto-update or merging on CI green.
+2. **R0 reliability — [Issue #137](https://github.com/sriipu1004-wq/duonovel/issues/137) remains OPEN but PAUSED** under [2026-10-22 serial preemption checkpoint](https://github.com/sriipu1004-wq/duonovel/issues/137#issuecomment-6333990334). Late public Supabase/Next `unstable_cache` revalidation errors are **not fixed** by previous merged PR #146; timer root cause and request status/duration denominator remain unknown. Security version change must preserve and regression-test public cache/Reader/Search behavior; after #148 safety gate, #137 resume/priority is owner-directed, not automatic.
+3. **R0 Auth — [Issue #138](https://github.com/sriipu1004-wq/duonovel/issues/138) stays QUEUED**: inspect authenticated `SECURITY DEFINER` RPC and cross-user/RLS boundaries, leaked-password protection, secrets separation. 54/54 current public tables have RLS enabled, but this is not signed-in negative-case E2E. No Auth/RLS/provider write is permitted as part of #148.
+4. **Planned P5–P10 order preserved**, including Child85 rights/edition, Child86 scale/restore, Google OAuth, AdSense, acquisition and minimal analytics. Draft #131 (older metadata) and Draft #108 (Cron NO-GO) remain unapproved, unmerged, unmodified.
+
+**Approval boundary:** This urgent owner priority insertion authorizes only serial, scoped preparation and diagnostic work. The separately approved high-risk implementation/merge/Production gates in AGENTS.md and PROJECT_MASTER.md still apply.
 
 
 ### P0 — Project governance baseline
