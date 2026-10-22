@@ -413,24 +413,29 @@ function makePublicBaseWorkCard(
   } satisfies PublicBaseWorkCard;
 }
 
-async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
-  // Both read paths independently enforce current public/posted visibility.
-  // Run them together to avoid two sequential Supabase round trips per request.
-  const [publicSeries, summariesBySeriesId] = await Promise.all([
-    fetchPublicSeriesRows(),
-    fetchPublicEpisodeSummariesBySeriesIds(),
+async function buildPublicBaseWorkCards(includeAuthorDisplayNames = true): Promise<PublicBaseWorkCard[]> {
+  // Fresh public series and posted-only episode summaries begin concurrently.
+  // Start the author lookup as soon as series resolves, without waiting for summaries.
+  const publicSeriesPromise = fetchPublicSeriesRows();
+  const summariesPromise = fetchPublicEpisodeSummariesBySeriesIds();
+  const authorsPromise = publicSeriesPromise.then((publicSeries) => {
+    // Count-only consumers never render author names.
+    if (!includeAuthorDisplayNames) return new Map<string, PublicAuthorAccount>();
+    const authorIds = Array.from(
+      new Set(
+        publicSeries
+          .map((series) => pickText(series.author_id, series["user_id"], series["userId"]))
+          .filter((value): value is string => !!value)
+      )
+    );
+    return fetchAuthorAccountMap(authorIds);
+  });
+  const [publicSeries, summariesBySeriesId, authorAccountMap] = await Promise.all([
+    publicSeriesPromise,
+    summariesPromise,
+    authorsPromise,
   ]);
   if (publicSeries.length === 0) return [];
-
-  const authorIds = Array.from(
-    new Set(
-      publicSeries
-        .map((series) => pickText(series.author_id, series["user_id"], series["userId"]))
-        .filter((value): value is string => !!value)
-    )
-  );
-
-  const authorAccountMap = await fetchAuthorAccountMap(authorIds);
 
   return publicSeries
     .map((series) => makePublicBaseWorkCard(series, summariesBySeriesId.get(series.id), authorAccountMap))
@@ -525,8 +530,10 @@ export async function getCachedPublicBaseWorkCards(options?: {
   ignoreContentLanguageFilter?: boolean;
   ignorePublicSearchLanguageFilter?: boolean;
   prioritizeForUiLocale?: boolean;
+  /** Internal-only count API optimization; callers must not expose author names. */
+  omitAuthorDisplayNames?: boolean;
 }): Promise<PublicBaseWorkCard[]> {
-  const cards = await getCachedPublicBaseWorkCardsInternal();
+  const cards = await getCachedPublicBaseWorkCardsInternal(options?.omitAuthorDisplayNames !== true);
   const visibility = options?.visibility ?? "viewer";
 
   if (visibility === "all") return cards;

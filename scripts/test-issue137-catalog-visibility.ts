@@ -5,11 +5,14 @@ import { readFileSync } from "node:fs";
 // race was separately reproduced with synthetic public/private state.
 const src = readFileSync("src/lib/publicWorks.ts", "utf8");
 const section = src.slice(
-  src.indexOf("async function buildPublicBaseWorkCards():"),
+  src.indexOf("async function buildPublicBaseWorkCards("),
   src.indexOf("function prioritizeForLocale(")
 );
 assert.ok(section.includes("const getCachedPublicBaseWorkCardsInternal = cache(buildPublicBaseWorkCards);"));
-assert.ok(src.includes("const [publicSeries, summariesBySeriesId] = await Promise.all(["), "fresh public series and summaries can run concurrently");
+assert.ok(src.includes("const publicSeriesPromise = fetchPublicSeriesRows();"), "fresh series read starts");
+assert.ok(src.includes("const summariesPromise = fetchPublicEpisodeSummariesBySeriesIds();"), "fresh summaries read starts");
+assert.ok(section.includes("const authorsPromise = publicSeriesPromise.then((publicSeries) => {"), "authors can start before summaries complete");
+assert.ok(section.includes("const [publicSeries, summariesBySeriesId, authorAccountMap] = await Promise.all(["), "all three data sources must finish before card construction");
 assert.ok(src.includes('if (seriesIds) query = query.in("series_id", seriesIds);'), "single-work metadata query stays scoped");
 const summaryView = readFileSync("supabase/migrations/20261010013603_public_episode_work_summaries.sql", "utf8");
 assert.ok(summaryView.includes("with (security_invoker = true)"));
@@ -18,6 +21,13 @@ assert.ok(summaryView.includes("e.posting_status = 'posted'"));
 assert.ok(summaryView.includes("e.is_published = true"));
 assert.equal(section.includes("unstable_cache("), false, "public metadata cannot use shared unstable_cache");
 assert.ok(src.includes('import { cache } from "react";'));
+assert.ok(src.includes("getCachedPublicBaseWorkCardsInternal(options?.omitAuthorDisplayNames !== true)"));
+assert.ok(section.includes("if (!includeAuthorDisplayNames) return new Map<string, PublicAuthorAccount>();"));
+const languageCounts = readFileSync("src/app/api/public/work-language-counts/route.ts", "utf8");
+assert.ok(languageCounts.includes("omitAuthorDisplayNames: true"), "counts-only API avoids author query");
+assert.ok(languageCounts.includes("getCachedPublicBaseWorkCards({"), "counts API retains canonical visibility pipeline");
+assert.equal(languageCounts.includes('visibility: "all"'), false, "counts API must not bypass viewer R18 gate");
+assert.equal(languageCounts.includes("authorName"), false, "counts response must never expose author names");
 assert.ok(src.includes('.eq("publication_status", "public")'), "fresh source must check series publication");
 assert.ok(src.includes('.eq("posting_status", "posted")'), "episode fallback must reject drafts");
 assert.ok(src.includes('.eq("is_published", true)'), "episode fallback must reject unpublished");
