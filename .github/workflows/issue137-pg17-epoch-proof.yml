@@ -1,4 +1,4 @@
-# Design-only candidate for Draft PR #150. NOT installed on GitHub.
+# Isolated PostgreSQL test fixture only; never a Production migration.
 name: Issue137 isolated PostgreSQL epoch-fence proof
 on:
   pull_request:
@@ -23,7 +23,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: fixture_only_not_a_secret
         options: >-
-          --health-cmd='pg_isready -U postgres'
+          --health-cmd=pg_isready
           --health-interval=3s
           --health-timeout=2s
           --health-retries=15
