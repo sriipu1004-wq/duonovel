@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { cache } from "react";
 import { headers } from "next/headers";
 import { createPublicServerClient } from "@/lib/supabase/serverPublic";
 import {
@@ -494,11 +495,12 @@ export async function getPublicWorkMetadataCardById(seriesId: string): Promise<P
   return work;
 }
 
-const getCachedPublicBaseWorkCardsInternal = unstable_cache(
-  buildPublicBaseWorkCards,
-  ["public-base-work-cards-v12-canonical-source-language"],
-  { revalidate: 60, tags: ["public-base-work-cards"] }
-);
+// #137: Publication/R18-sensitive public work metadata must not outlive a
+// request. An in-flight stale unstable_cache revalidation can finish after
+// updateTag/revalidateTag and repopulate withdrawn or reclassified work cards.
+// React cache deduplicates callers in the same render without cross-request
+// stale public title, summary, episode, or content-rating exposure.
+const getCachedPublicBaseWorkCardsInternal = cache(buildPublicBaseWorkCards);
 
 function prioritizeForLocale(cards: PublicBaseWorkCard[], locale: "ja" | "en" | "ko"): PublicBaseWorkCard[] {
   return cards
