@@ -1,0 +1,58 @@
+# Issue #137 B1. Public repository STANDARD GitHub-hosted runner is free.
+# NO hosted Supabase credentials, production DB, users, data or Storage access.
+name: Issue137 B1 isolated Auth Data API Storage proof
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/issue137-b1-isolated-e2e.yml'
+      - 'scripts/issue137-b1/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue137-b1-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  local-supabase-auth-data-storage:
+    if: >-
+      github.event.pull_request.number == 152 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'test/issue137-b1-isolated-auth-storage-e2e'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Check disposable-only inputs and standard Docker runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.event.repository.private }}" = "false" ||
+            { echo 'BLOCKED: public repository required for zero-cost standard runner'; exit 3; }
+          test -f scripts/issue137-b1/fixture.sql
+          test -f scripts/issue137-b1/e2e.mjs
+          test -f scripts/issue137-b1/run-local.sh
+          node --check scripts/issue137-b1/e2e.mjs
+          bash -n scripts/issue137-b1/run-local.sh
+          docker info >/dev/null
+          echo 'PASS: standard public GitHub-hosted runner, Docker ready, B1 source syntax'
+
+      - name: Run isolated local Supabase GoTrue PostgREST Storage B1 assertions
+        shell: bash
+        env:
+          # No GitHub secrets, hosted Supabase endpoints, or account tokens.
+          CI: 'true'
+          DO_NOT_CONTACT_PRODUCTION: 'true'
+        run: |
+          set -euo pipefail
+          bash scripts/issue137-b1/run-local.sh
+          echo 'B1 execution completed: see asserted runtime output above'
