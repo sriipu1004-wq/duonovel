@@ -44,6 +44,12 @@ Read `AGENTS.md` → `PROJECT_MASTER.md` → canonical `docs/project-state.md`, 
 
 If user interface Project instructions are stale, supply the exact current text from `docs/chatgpt-project-instructions.md`; the user changes ChatGPT Project Settings. GitHub cannot synchronize them through this workflow. Do not assert done until user verifies UI. Codex is optional for an explicitly scoped unsupported local test; do not automatically use Codex or Work/always-on orchestration.
 
+## Mandatory single-answer status footer — response-status v1.1
+
+See [response-status-protocol.md](response-status-protocol.md) for **all 17 exact state names**, precedence, the no-priority-work condition, and separate reviewer session handoff; this linked document is the sole detailed reporting-spec source. Work reports **end** in exactly three final lines: `【現在】`, `【次の行動】`, `【状態】` (one state only; no text after). This does not replace the normal report evidence fields below or supply permissions.
+
+When real separate-session review is still **not requested**, use `独立監査依頼・作業継続/停止`; when a real request was issued to a distinct reviewer and its fixed-HEAD GO/FIX/NO-GO has not returned, use `独立監査待ち・作業継続/停止`. A reviewer who is actually unavailable is not claimed to be reviewing. The author provides the exact review packet and user steps, not a pretend automatic ChatGPT child dispatch. Without permitted same-Issue independent work, report `作業停止` and preserve HOLD. Never treat missing approval/blocked work as an exhausted roadmap.
+
 ## Default report
 
 Git/Production, Changed, DB/Data, Preserved, Validation (type + exact evidence), Remaining, Canonical docs updated, Next, and explicit approvals/outstanding gates. Retain the former specialist report fields as work reporting, not physical chat identities.

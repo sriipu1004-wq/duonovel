@@ -58,4 +58,8 @@ No Issue begins simply because it is on this table. One active Work ID; parent/u
 4. If missing independent review, approval or preserved data rights, STOP and request only that gate. A sudden context loss can lose uncommitted in-chat work, so recovery is **fail closed**, not perfect replay.
 5. Update durable accepted decisions only in [docs/decisions.md](docs/decisions.md) and appropriate project-state/roadmap files; ephemeral runs/HEAD belong to Issue/PR. Avoid shared-doc changes on unrelated work branches.
 
+## Mandatory footer and status recovery (response-status v1.1)
+
+At every new work phase and chat replacement read [docs/response-status-protocol.md](docs/response-status-protocol.md). The final three lines of every work report are **exactly** `【現在】`, `【次の行動】`, `【状態】`, with **one of 17 allowed labels**. In particular, `優先作業なし・作業停止` is only for a genuinely exhausted verified backlog, NOT any blocked/pending approval. When a separate-session audit is required, distinguish **not yet dispatched** (`独立監査依頼・...`) from **actually requested but awaiting evidence** (`独立監査待ち・...`). Provide a full fixed-HEAD review prompt if the user must operate a second chat; never claim an independent review occurred in the author chat. Docs/Project Settings alignment is a separate user action. This is a presentation contract, not work authorization. Dated SHA/status snapshots above are historic, and must be live rechecked.
+
 Completion report: **Git/Production; Changed; DB/Data; Preserved; Validation by type; Remaining; Canonical docs updated; Next; Explicit approvals consumed/outstanding.** No direct main commits or automatic background execution.

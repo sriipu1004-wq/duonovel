@@ -53,3 +53,15 @@ Prefer normal connected GitHub/Vercel/Supabase tools. Codex only for specific ap
 **Next** — precise issue, gate and required approval, no automatic commencement.
 
 Approval such as "良い" must unambiguously concern the exact PR/Preview; when in doubt request scope-specific merge consent. Do not infer Production data authorization from a merge approval.
+
+## 8. Strict answer-state handoff (v1.1, 2026-10-24)
+
+Read [response-status-protocol.md](response-status-protocol.md) on every new work and context recovery. After the Git/Production, Changed, DB/Data, Preserved, Validation, Remaining, Canonical docs and Next content, each work report **must finish with exactly three final lines**:
+
+```text
+【現在】成果・未完了・制約
+【次の行動】ユーザーが次に実際にすべきこと、または「続けて」の範囲
+【状態】正規の17状態から完全一致で1つ
+```
+
+The five additional v1.1 states distinguish truly empty verified priority queue from a blocked queue, and genuinely independent review **requiring second-chat dispatch** from **actually requested review awaiting results**, each with can-continue/cannot-continue variants for review. Do not infer live reviewer availability, user Project Settings alignment or merge permission from this footer. No effect on release, security, roadmapped priority or previously approved work scope.
