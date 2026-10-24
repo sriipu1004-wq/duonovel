@@ -19,7 +19,7 @@ cd "$WORK"
 npx --yes supabase@2.122.0 init --force >/dev/null
 mkdir -p supabase/migrations
 cp "$B1/fixture.sql" supabase/migrations/20261025000000_issue137_b1_fixture.sql
-npx --yes supabase@2.122.0 start
+npx --yes supabase@2.122.0 start >/dev/null
 STATUS="$(npx --yes supabase@2.122.0 status --output env)"
 get_value() {
  printf '%s\n' "$STATUS" | sed -n "s/^$1=//p" | head -n 1 | tr -d '"\r'
