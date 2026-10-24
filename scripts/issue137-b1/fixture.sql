@@ -21,6 +21,14 @@ CREATE TABLE public.issue137_b1_recordings (
  episode_id uuid NOT NULL REFERENCES public.issue137_b1_episodes(id),
  is_public boolean NOT NULL, bucket_id text NOT NULL, storage_path text NOT NULL
 );
+-- Supabase's local public-schema DEFAULT PRIVILEGES can grant UPDATE and
+-- INSERT to anon/authenticated on new tables. Strip them before our SELECT-
+-- only grants, otherwise the fixture does not model least-privilege access.
+REVOKE ALL ON public.issue137_b1_profiles,public.issue137_b1_series,
+ public.issue137_b1_episodes,public.issue137_b1_recordings
+ FROM PUBLIC,anon,authenticated;
+GRANT ALL ON public.issue137_b1_profiles,public.issue137_b1_series,
+ public.issue137_b1_episodes,public.issue137_b1_recordings TO service_role;
 GRANT SELECT ON public.issue137_b1_profiles TO authenticated;
 GRANT SELECT ON public.issue137_b1_series,public.issue137_b1_episodes,
  public.issue137_b1_recordings TO anon,authenticated;
