@@ -1,0 +1,70 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+// Issue #137 structural regression contract. The full Next.js late-write
+// race was separately reproduced with synthetic public/private state.
+const src = readFileSync("src/lib/publicWorks.ts", "utf8");
+const section = src.slice(
+  src.indexOf("async function buildPublicBaseWorkCards("),
+  src.indexOf("function prioritizeForLocale(")
+);
+assert.ok(section.includes("const getCachedPublicBaseWorkCardsInternal = cache(buildPublicBaseWorkCards);"));
+assert.ok(src.includes("const publicSeriesPromise = fetchPublicSeriesRows();"), "fresh series read starts");
+assert.ok(src.includes("const summariesPromise = fetchPublicEpisodeSummariesBySeriesIds();"), "fresh summaries read starts");
+assert.ok(section.includes("const authorsPromise = publicSeriesPromise.then((publicSeries) => {"), "authors can start before summaries complete");
+assert.ok(section.includes("const [publicSeries, summariesBySeriesId, authorAccountMap] = await Promise.all(["), "all three data sources must finish before card construction");
+assert.ok(src.includes('if (seriesIds) query = query.in("series_id", seriesIds);'), "single-work metadata query stays scoped");
+const summaryView = readFileSync("supabase/migrations/20261010013603_public_episode_work_summaries.sql", "utf8");
+assert.ok(summaryView.includes("with (security_invoker = true)"));
+assert.ok(summaryView.includes("s.publication_status = 'public'"));
+assert.ok(summaryView.includes("e.posting_status = 'posted'"));
+assert.ok(summaryView.includes("e.is_published = true"));
+assert.equal(section.includes("unstable_cache("), false, "public metadata cannot use shared unstable_cache");
+assert.ok(src.includes('import { cache } from "react";'));
+assert.ok(src.includes("getCachedPublicBaseWorkCardsInternal(options?.omitAuthorDisplayNames !== true)"));
+assert.ok(section.includes("if (!includeAuthorDisplayNames) return new Map<string, PublicAuthorAccount>();"));
+// #150 independent FIX: Ranking must use the per-viewer R18 gate.
+// These are source contracts; they do not substitute for signed-in browser E2E.
+const ranking = readFileSync("src/app/ranking/page.tsx", "utf8");
+const rankingCall = ranking.slice(
+  ranking.indexOf("getCachedPublicBaseWorkCards({"),
+  ranking.indexOf("}),", ranking.indexOf("getCachedPublicBaseWorkCards({")) + 3
+);
+assert.ok(rankingCall.includes('visibility: "viewer"'), "ranking must apply per-viewer R18 filtering");
+assert.equal(rankingCall.includes('visibility: "all"'), false, "ranking cannot bypass viewer R18 access");
+assert.ok(rankingCall.includes("ignoreContentLanguageFilter: true"), "ranking remains cross-language");
+assert.ok(rankingCall.includes("ignorePublicSearchLanguageFilter: true"), "ranking remains cross-search-language");
+assert.ok(src.includes('if (visibility === "all") return cards;'), "unrestricted helper is explicitly identifiable");
+assert.ok(src.includes('const preference = await getCurrentR18ViewerPreference();'), "viewer branch reads R18 preference");
+assert.ok(src.includes('cards.filter((card) => card.contentRating !== "r18")'), "disallowed R18 cards are filtered");
+const viewerPreference = readFileSync("src/lib/contentRatingServer.ts", "utf8");
+assert.ok(viewerPreference.includes("showR18Content: false,"), "anonymous/errors fail closed");
+assert.ok(viewerPreference.includes("preference.data.show_r18_content === true && ageConfirmed"), "R18 requires opt-in and age confirmation");
+const languageCounts = readFileSync("src/app/api/public/work-language-counts/route.ts", "utf8");
+assert.ok(languageCounts.includes("omitAuthorDisplayNames: true"), "counts-only API avoids author query");
+assert.ok(languageCounts.includes("getCachedPublicBaseWorkCards({"), "counts API retains canonical visibility pipeline");
+assert.equal(languageCounts.includes('visibility: "all"'), false, "counts API must not bypass viewer R18 gate");
+assert.equal(languageCounts.includes("authorName"), false, "counts response must never expose author names");
+assert.ok(src.includes('.eq("publication_status", "public")'), "fresh source must check series publication");
+assert.ok(src.includes('.eq("posting_status", "posted")'), "episode fallback must reject drafts");
+assert.ok(src.includes('.eq("is_published", true)'), "episode fallback must reject unpublished");
+assert.ok(src.includes("getSeriesContentRating(series)"), "R18 must derive from fresh series data");
+assert.ok(src.includes('if (visibility === "general") return cards.filter((card) => card.contentRating !== "r18");'));
+assert.ok(src.includes("getCurrentR18ViewerPreference()"), "viewer R18 preference must remain checked");
+assert.ok(src.includes("const getCachedPublicRecordingAggregatesInternal = unstable_cache("),
+  "out-of-scope non-catalog recording aggregate caching stays intact");
+
+const mutationPaths = [
+  "src/app/actions/saveOwnedSeriesWorkspace.ts",
+  "src/app/actions/createOwnedSeries.ts",
+  "src/app/actions/saveOwnedEpisode.ts",
+];
+for (const path of mutationPaths) {
+ const mutation=readFileSync(path,"utf8");
+ assert.ok(mutation.includes("updateTag(PUBLIC_WORKS_CACHE_TAG);"),
+   "existing immediate invalidation is kept for "+path);
+}
+const rating=readFileSync("src/app/api/series/[seriesId]/content-rating/route.ts","utf8");
+assert.ok(rating.includes('revalidateTag("public-base-work-cards", { expire: 0 })'),
+  "R18 rating mutation remains immediate (defense-in-depth)");
+console.log("PASS: #137 request-scoped public catalog and unchanged R18/publication checks");

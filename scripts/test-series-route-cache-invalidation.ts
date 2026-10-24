@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 
 const sourceRoute = readFileSync(
   "src/app/api/series/[seriesId]/source-language/route.ts", "utf8"
-);
+).replace(/\r\n/g, "\n");
 const ratingRoute = readFileSync(
   "src/app/api/series/[seriesId]/content-rating/route.ts", "utf8"
-);
+).replace(/\r\n/g, "\n");
 const works = readFileSync("src/lib/publicWorks.ts", "utf8");
 
 for (const route of [sourceRoute, ratingRoute]) {
@@ -22,7 +22,9 @@ for (const route of [sourceRoute, ratingRoute]) {
   const write = route.lastIndexOf(".update(");
   assert.ok(write >= 0 && write < invalidation);
 }
-assert.ok(works.includes('{ revalidate: 60, tags: ["public-base-work-cards"] }'));
+// #137: cached public metadata may not persist between requests even when tags expire.
+assert.ok(works.includes("const getCachedPublicBaseWorkCardsInternal = cache(buildPublicBaseWorkCards);"));
+assert.equal(works.includes('unstable_cache(\n  buildPublicBaseWorkCards,'), false);
 const sourceClient = readFileSync("src/features/write/SourceLanguageWorkspaceBridge.tsx", "utf8");
 const ratingClient = readFileSync("src/features/write/ContentRatingWorkspaceBridge.tsx", "utf8");
 const sourcePending = readFileSync("src/features/write/PendingSourceLanguageBridge.tsx", "utf8");

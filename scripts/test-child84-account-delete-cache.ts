@@ -109,7 +109,8 @@ assert.ok(privacy.includes("セルフサービス自動削除を一時停止"));
 assert.ok(privacy.includes("完全消去を保証していませんでした"));
 assert.ok(terms.includes("第13条 アカウント削除・公開停止の申請"));
 assert.ok(contact.includes("アカウント削除・データ消去の申請"));
-assert.ok(catalog.includes('{ revalidate: 60, tags: ["public-base-work-cards"] }'));
+// #137: account-deletion checks must not depend on a stale shared public catalog.
+assert.ok(catalog.includes("const getCachedPublicBaseWorkCardsInternal = cache(buildPublicBaseWorkCards);"));
 assert.ok(permission.includes('revalidateTag("public-base-work-cards", { expire: 0 })'));
 
 type Scenario = {

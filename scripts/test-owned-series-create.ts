@@ -25,8 +25,8 @@ assert.equal(isOwnedSeriesWorkspacePayload({ ...sample, effect_settings: { publi
 assert.equal(isOwnedSeriesWorkspacePayload({ ...sample, publication_status: "deleted" }), false);
 
 const action = readFileSync("src/app/actions/createOwnedSeries.ts", "utf8");
-const work = readFileSync("src/features/write/WriteSeriesForm.tsx", "utf8");
-const legacy = readFileSync("src/features/write/WriteSeriesCreateForm.tsx", "utf8");
+const work = readFileSync("src/features/write/WriteSeriesForm.tsx", "utf8").replace(/\r\n/g, "\n");
+const legacy = readFileSync("src/features/write/WriteSeriesCreateForm.tsx", "utf8").replace(/\r\n/g, "\n");
 const cards = readFileSync("src/lib/publicWorks.ts", "utf8");
 assert.ok(action.startsWith('"use server"'));
 assert.ok(action.includes("validateOwnedSeriesCreationPayload(candidate)"));
@@ -52,7 +52,9 @@ for (const form of [work, legacy]) {
   assert.equal(createSection.includes('.from("series")'), false);
   assert.ok(createSection.includes("result.seriesId"));
 }
-assert.ok(cards.includes('{ revalidate: 60, tags: ["public-base-work-cards"] }'));
+// #137: cached public metadata may not persist between requests even when tags expire.
+assert.ok(cards.includes("const getCachedPublicBaseWorkCardsInternal = cache(buildPublicBaseWorkCards);"));
+assert.equal(cards.includes('unstable_cache(\n  buildPublicBaseWorkCards,'), false);
 const r18 = { ...sample, publication_status: "public", source_language: "ja", content_warnings: ["sexual_r18", "violence"] };
 const safe = validateOwnedSeriesCreationPayload(r18);
 assert.ok(safe);
