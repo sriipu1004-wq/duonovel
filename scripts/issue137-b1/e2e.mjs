@@ -136,6 +136,29 @@ for(const name of ['ratingR18','warningR18']){
    'restricted audio must be accessible for '+actor);passed++;
  }
 }
+// Verify changing a REAL server-side viewer preference immediately revokes
+// direct PostgREST body access and private Storage (no JWT client claim change).
+check(await request('/rest/v1/issue137_b1_profiles?id=eq.'+people['reader-on'].id,
+ {method:'PATCH',key:adminKey,body:{show_r18_content:false}}),
+ 'synthetic confirmed viewer toggles OFF',[204]);
+await ids('issue137_b1_episodes','reader-on',e('general'),'id,body');
+await ids('issue137_b1_recordings','reader-on',m('general'),'id,storage_path');
+assert.notEqual(
+ (await download(recordings.find(r=>r.id===rows.ratingR18.recording),'reader-on')).status,
+ 200,'OFF must revoke direct R18 Storage reads');passed++;
+check(await request('/rest/v1/issue137_b1_profiles?id=eq.'+people['reader-on'].id,
+ {method:'PATCH',key:adminKey,body:{show_r18_content:true}}),
+ 'synthetic confirmed viewer toggles back ON',[204]);
+await ids('issue137_b1_episodes','reader-on',e('general','ratingR18','warningR18'),'id,body');
+assert.equal(
+ (await download(recordings.find(r=>r.id===rows.ratingR18.recording),'reader-on')).status,
+ 200,'ON must restore eligible private Storage access');passed++;
+const invalidStorage=await download(recordings.find(r=>r.id===rows.ratingR18.recording),'reader-on');
+assert.equal(invalidStorage.status,200,'local authenticated Storage positive control');passed++;
+assert.notEqual((await request('/storage/v1/object/authenticated/issue137-b1-private/'
+ +recordings.find(r=>r.id===rows.ratingR18.recording).storage_path,
+ {token:'invalid-JWT'})).status,200,'invalid JWT must not fetch private audio');passed++;
+
 // Publication transitions revoke direct SELECT and fresh download access.
 // Previously issued signed URLs may remain bearer-usable until expiry.
 check(await request('/rest/v1/issue137_b1_series?id=eq.'+rows.ratingR18.series,
@@ -148,5 +171,20 @@ check(await request('/rest/v1/issue137_b1_episodes?id=eq.'+rows.warningR18.episo
  'synthetic published -> unpublished',[204]);
 await ids('issue137_b1_episodes','reader-on',e('general'),'id,body');
 assert.notEqual((await download(recordings.find(r=>r.id===rows.warningR18.recording),'reader-on')).status,200);passed++;
-console.log('PASS: '+passed+' assertions against real LOCAL GoTrue JWT / PostgREST / Storage');
+// EXPECTED B2 DEFECT CONTROL: a public bucket URL does NOT become private
+// just because the linked series changes from general to R18 in Postgres.
+// This synthetic counterexample is NOT an accepted production state; B2 must
+// block unsafe rating transitions or re-home/revoke the public media first.
+check(await request('/rest/v1/issue137_b1_series?id=eq.'+rows.general.series,
+ {method:'PATCH',key:adminKey,body:{content_rating:'r18'}}),
+ 'synthetic general -> R18 without audio relocation',[204]);
+await ids('issue137_b1_episodes',null,[],'id,body');
+assert.equal((await download(recordings[0],null,'public')).status,200,
+ 'expected B2 gap: old general public media URL still anonymously accessible');
+console.log('EXPECTED_B2_GAP: rating change alone does not revoke existing public Storage URL');
+check(await request('/rest/v1/issue137_b1_series?id=eq.'+rows.general.series,
+ {method:'PATCH',key:adminKey,body:{content_rating:'general'}}),
+ 'restore local general fixture',[204]);
+console.log('PASS: '+passed+' positive/negative isolated integration assertions (if actually executed)');
+console.log('B2 GAP REMAINS: general->R18 media transition must be separately hardened');
 console.log('SOURCE SCOPE: synthetic B contract only, NOT Production/app HTML/RSC/E2E.');
