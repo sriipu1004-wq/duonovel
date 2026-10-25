@@ -110,7 +110,7 @@ for (const required of [
   'getSeriesPublicationStatus(series) !== "public"',
   "!isEpisodePubliclyVisible(episode)",
   "isR18Series(series)",
-  "createSignedUrl(objectPath, 60)",
+  "streamAuthorizedPrivateRecording(",
 ]) {
   assert.equal(
     audio.includes(required),
@@ -119,6 +119,19 @@ for (const required of [
   );
 }
 
+assert.equal(audio.includes("createSignedUrl("), false,
+  "Human playback must not return cached bearer signed URLs");
+const privateProxy = source("src/lib/recording/privateMediaProxy.ts");
+for (const required of [
+  "cache:\"no-store\"",
+  "private, no-store",
+  "Range: range",
+  "PRIVATE_AI_AUDIO_BUCKET",
+  "getHumanRecordingAudioBucketName()",
+]) {
+  assert.equal(privateProxy.includes(required), true,
+    "Private audio proxy must keep per-request authorization and no-store behavior: " + required);
+}
 const workPage = source("src/app/works/[seriesId]/page.tsx");
 assert.equal(
   workPage.includes("isPublishedHumanRecording"),

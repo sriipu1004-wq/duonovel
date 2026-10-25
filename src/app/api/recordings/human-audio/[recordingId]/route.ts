@@ -17,6 +17,7 @@ import { buildNemoTimingObjectPathFromAudioObjectPath } from "@/lib/recording/ne
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
+import { streamAuthorizedPrivateRecording } from "@/lib/recording/privateMediaProxy";
 
 export const runtime = "nodejs";
 
@@ -39,7 +40,7 @@ function resolveRequestedArtifact(rawValue: string): {
   return { recordingId: value, timing: false };
 }
 
-export async function GET(_request: Request, { params }: RouteProps) {
+export async function GET(request: Request, { params }: RouteProps) {
   const { recordingId: rawRecordingId } = await params;
   const requested = resolveRequestedArtifact(rawRecordingId);
 
@@ -120,15 +121,9 @@ export async function GET(_request: Request, { params }: RouteProps) {
     ? buildNemoTimingObjectPathFromAudioObjectPath(playbackObjectPath)
     : playbackObjectPath;
 
-  const { data: signedData, error: signedError } = await admin.storage
-    .from(getHumanRecordingAudioBucketName())
-    .createSignedUrl(objectPath, 60);
-
-  if (signedError || !signedData?.signedUrl) {
-    return new NextResponse(null, { status: 404 });
-  }
-
-  const response = NextResponse.redirect(signedData.signedUrl, 307);
-  response.headers.set("Cache-Control", "private, no-store");
-  return response;
+  return streamAuthorizedPrivateRecording(
+    request,
+    getHumanRecordingAudioBucketName(),
+    objectPath
+  );
 }
