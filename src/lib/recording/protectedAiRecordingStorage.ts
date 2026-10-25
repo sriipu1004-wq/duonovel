@@ -20,5 +20,11 @@ export async function mustUsePrivateAiAudio(seriesId: string): Promise<boolean> 
   const { data, error } = await admin.from("series")
     .select("content_rating, content_warnings").eq("id", seriesId).single();
   if (error || !data) throw new Error("recording_rating_check_failed");
+  // An unapproved custom public bucket cannot be covered by the fixed
+  // candidate SQL path guard. Block synthesis rather than silently using it.
+  const configuredPublicBucket = process.env.NEXT_PUBLIC_SUPABASE_RECORDING_BUCKET?.trim() || "recording-audio";
+  if (configuredPublicBucket !== "recording-audio") {
+    throw new Error("b2_unverified_public_audio_bucket");
+  }
   return isR18Series(data);
 }

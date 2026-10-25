@@ -124,6 +124,10 @@ assert.ok([401,403].includes(invalid.status));passed++;
 const restrictedStorage=await call("/storage/v1/object/authenticated/r18-recording-audio/"+storagePath("rated"),{token:people.on.token});
 assert.notEqual(restrictedStorage.status,200);passed++;
 assert.equal((await call("/storage/v1/object/public/recording-audio/"+storagePath("general"))).status,200);passed++;
+// A direct privileged episode-to-series reparent must be blocked even when
+// publication and rating columns remain unchanged.
+const orphanReparent = await patch("episodes",r.general2.ep,{series_id:r.general.id},admin,admin);
+assert.ok(orphanReparent.status >= 400,"privileged episode reassignment must be blocked");passed++;
 // Concurrent-path guard at SQL boundary: owner AND service_role cannot update
 // rating while any linked public recording or orphan public object exists.
 async function patch(table,id,fields,token=people.owner.token,key=anon){

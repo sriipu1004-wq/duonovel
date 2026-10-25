@@ -217,8 +217,15 @@ returns trigger language plpgsql security definer set search_path=''
 as $$
 declare sid uuid; eid uuid; s record; e record;
 begin
+ if tg_op='UPDATE' and old.bucket_id='recording-audio'
+    and (new.bucket_id is distinct from old.bucket_id
+         or new.name is distinct from old.name) then
+   raise exception using errcode='23514',message='B2_PUBLIC_AUDIO_RENAME_HOLD';
+ end if;
  if new.bucket_id <> 'recording-audio' then return new; end if;
- if split_part(new.name,'/',1) not in ('nemo','aivis','human') then return new; end if;
+ if split_part(new.name,'/',1) not in ('nemo','aivis','human') then
+   raise exception using errcode='23514',message='B2_UNCLASSIFIED_PUBLIC_AUDIO_PATH';
+ end if;
  if split_part(new.name,'/',2) !~* '^[a-f0-9-]{36}$'
     or split_part(new.name,'/',3) !~* '^[a-f0-9-]{36}$' then
    raise exception using errcode='23514', message='B2_UNKNOWN_MEDIA_PATH';
@@ -246,4 +253,23 @@ drop trigger if exists issue137_b2_public_audio_storage on storage.objects;
 create trigger issue137_b2_public_audio_storage
 before insert or update of bucket_id,name on storage.objects
 for each row execute function libread_internal.guard_public_storage_audio();
+
+-- The prior trigger only observes episode publication, not reassignment.
+-- Treat any reparenting as a HOLD until a separately audited transaction
+-- migrates all associated recording/media/timing references atomically.
+create or replace function libread_internal.guard_episode_reparenting()
+returns trigger language plpgsql security definer set search_path=''
+as $$
+begin
+  if new.series_id is distinct from old.series_id then
+    raise exception using errcode='23514',message='B2_EPISODE_REPARENT_HOLD';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function libread_internal.guard_episode_reparenting() from public,anon,authenticated;
+drop trigger if exists issue137_b2_episode_reparenting on public.episodes;
+create trigger issue137_b2_episode_reparenting before update of series_id
+on public.episodes for each row execute function libread_internal.guard_episode_reparenting();
+
 commit;
