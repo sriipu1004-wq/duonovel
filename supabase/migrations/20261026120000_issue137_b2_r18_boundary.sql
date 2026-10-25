@@ -49,8 +49,11 @@ using (exists (
  select 1 from public.series s where s.id=recordings.series_id
  and (
    s.author_id=(select auth.uid())
-   or recordings.reader_user_id=(select auth.uid())
-   or recordings.reader_id=(select auth.uid())
+   or (recordings.is_public is distinct from true
+     and (
+       recordings.reader_user_id=(select auth.uid())
+       or recordings.reader_id=(select auth.uid())
+     ))
    or (s.content_rating is distinct from 'r18'
      and not ('sexual_r18'=any(coalesce(s.content_warnings,'{}'::text[]))))
    or (select libread_internal.can_read_r18())
@@ -92,15 +95,15 @@ revoke all on function libread_internal.is_restricted_recording_path(text)
 -- Prevent unsafe direct PostgREST classification/publication change.
 -- Prevent orphaned PUBLIC Storage objects (no recordings row) from defeating
 -- a general->R18 transition. Canonical Nemo/Aivis/Human path includes series ID.
-create or replace function libread_internal.public_audio_exists_for_series(id uuid)
+create or replace function libread_internal.public_audio_exists_for_series(p_series_id uuid)
 returns boolean language sql stable security definer set search_path=''
 as $
  select exists (
   select 1 from storage.objects o where o.bucket_id='recording-audio'
   and (
-   o.name like 'nemo/'||id::text||'/%'
-   or o.name like 'aivis/'||id::text||'/%'
-   or o.name like 'human/'||id::text||'/%'
+   o.name like 'nemo/'||p_series_id::text||'/%'
+   or o.name like 'aivis/'||p_series_id::text||'/%'
+   or o.name like 'human/'||p_series_id::text||'/%'
   )
  );
 $;

@@ -62,7 +62,7 @@ const recordings=[
  {id:r.general2.rec,series_id:r.general2.id,episode_id:r.general2.ep,reader_id:author,reader_user_id:author,is_public:true,audio_storage_path:general2Ref},
  ...["rated","warned"].map(name=>({
   id:r[name].rec,series_id:r[name].id,episode_id:r[name].ep,
-  reader_id:author,reader_user_id:author,is_public:true,
+  reader_id:people.off.id,reader_user_id:people.off.id,is_public:true,
   audio_storage_path:"r18-private:"+storagePath(name)
  }))
 ];
