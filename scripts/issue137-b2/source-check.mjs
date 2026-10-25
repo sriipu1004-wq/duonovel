@@ -28,7 +28,8 @@ const required=[
  ['viewer-specific query',/getViewerR18Cards/],
  ['anonymous general cache',/const generalCards = cards\.filter/]
 ];
-assert.equal((migration.match(/\!~\* '\^\[a-f0-9-\]\{36\}\
+const expectedStorageUuidRegex = "!~* '^[a-f0-9-]{36}$'";
+assert.equal(migration.split(expectedStorageUuidRegex).length-1,2,"B2 SQL storage UUID path anchors must be intact");
 for(const [name,pattern] of required) {assert.match(
  name==='private streaming'||name==='full publication check'||name==='auth R18'?privateApi:
  name==='viewer-specific query'||name==='anonymous general cache'?catalog:migration,
