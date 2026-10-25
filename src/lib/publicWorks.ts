@@ -13,6 +13,8 @@ import {
   type SeriesRow,
 } from "@/features/write/writeShared";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getSeriesContentRating,
   withSystemContentRatingTag,
@@ -202,8 +204,7 @@ async function fetchPublicSeriesRows(): Promise<SeriesRow[]> {
   );
 }
 
-async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string, EpisodeRow[]>> {
-  const supabase = createPublicServerClient();
+async function fetchEpisodesBySeriesIds(seriesIds: string[], supabase: SupabaseClient = createPublicServerClient()): Promise<Map<string, EpisodeRow[]>> {
   if (seriesIds.length === 0) return new Map();
 
   const PAGE_SIZE = 1000;
@@ -294,10 +295,10 @@ function summarizeLegacyEpisodes(
 }
 
 async function fetchPublicEpisodeSummariesBySeriesIds(
-  seriesIds: string[]
+  seriesIds: string[],
+  supabase: SupabaseClient = createPublicServerClient()
 ): Promise<Map<string, PublicEpisodeWorkSummary>> {
   if (seriesIds.length === 0) return new Map();
-  const supabase = createPublicServerClient();
   const PAGE_SIZE = 1000;
   const summaries = new Map<string, PublicEpisodeWorkSummary>();
 
@@ -315,7 +316,7 @@ async function fetchPublicEpisodeSummariesBySeriesIds(
       // Preview / rollout environments may not have the approved migration yet.
       // Do not fall back on transient DB timeouts or permission failures.
       if (start === 0 && isMissingEpisodeSummaryView(error)) {
-        return summarizeLegacyEpisodes(await fetchEpisodesBySeriesIds(seriesIds));
+        return summarizeLegacyEpisodes(await fetchEpisodesBySeriesIds(seriesIds, supabase));
       }
       throw new Error(`public episode summaries の取得に失敗: ${error.message}`);
     }
@@ -435,6 +436,40 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
 }
 
 
+
+/**
+ * Request-scoped R18 discovery. Shared anonymous unstable_cache is general-only
+ * after RLS migration. Never place a viewer JWT or private R18 cards in a
+ * cross-request cache, and never let service-role reads power user visibility.
+ */
+async function getViewerR18Cards(): Promise<PublicBaseWorkCard[]> {
+  const viewer = await getCurrentR18ViewerPreference();
+  if (!viewer.showR18Content || !viewer.userId) return [];
+  const session = await createClient();
+  const { data: auth, error: authError } = await session.auth.getUser();
+  if (authError || !auth.user || auth.user.id !== viewer.userId) return [];
+  const rows: SeriesRow[] = [];
+  const pageSize = 500;
+  for (let start = 0; ; start += pageSize) {
+    const response = await session.from("series").select(PUBLIC_WORK_SERIES_SELECT)
+      .eq("publication_status", "public")
+      .order("created_at", { ascending: false })
+      .range(start, start + pageSize - 1);
+    if (response.error) throw new Error("viewer r18 work lookup failed");
+    const page = (response.data ?? []) as unknown as SeriesRow[];
+    rows.push(...page.filter((s) => getSeriesContentRating(s) === "r18"));
+    if (page.length < pageSize) break;
+  }
+  if (rows.length === 0) return [];
+  const authors = Array.from(new Set(rows.map((s) => String(s.author_id)).filter(Boolean)));
+  const [authorMap, summaries] = await Promise.all([
+    fetchAuthorAccountMap(authors),
+    fetchPublicEpisodeSummariesBySeriesIds(rows.map((s) => s.id), session),
+  ]);
+  return rows.map((s) => makePublicBaseWorkCard(s, summaries.get(s.id), authorMap))
+    .filter((v): v is PublicBaseWorkCard => v !== null);
+}
+
 /**
  * A single-work metadata lookup. Unlike the list/Search catalog, this
  * must not revalidate every public work just to render a localized Work
@@ -446,34 +481,37 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
  * prioritizeForUiLocale: false }).
  */
 export async function getPublicWorkMetadataCardById(seriesId: string): Promise<PublicBaseWorkCard | null> {
-  const supabase = createPublicServerClient();
-  const fetchSeries = (selectClause: string) =>
-    supabase
-      .from("series")
-      .select(selectClause)
-      .eq("id", seriesId)
-      .eq("publication_status", "public")
-      .maybeSingle();
+  const anon = createPublicServerClient();
+  const fetchSeries = (client: SupabaseClient, selectClause: string) =>
+    client.from("series").select(selectClause)
+      .eq("id", seriesId).eq("publication_status", "public").maybeSingle();
 
-  let result = await fetchSeries(PUBLIC_WORK_SERIES_SELECT);
+  let reader: SupabaseClient = anon;
+  let result = await fetchSeries(reader, PUBLIC_WORK_SERIES_SELECT);
   if (result.error && isSchemaCompatibilityReadFailure(result.error)) {
-    result = await fetchSeries("*");
+    result = await fetchSeries(reader, "*");
   }
-  if (result.error) {
-    throw new Error(`public work metadata lookup failed: ${result.error.message}`);
+  if (result.error) throw new Error("public work metadata lookup failed");
+  // A missing anon row might be R18, but only query using a verified signed-in
+  // session after DB-side confirmation and viewer opt-in.
+  const viewer = await getCurrentR18ViewerPreference();
+  if (!result.data && viewer.showR18Content && viewer.userId) {
+    const authed = await createClient();
+    const { data: auth, error } = await authed.auth.getUser();
+    if (!error && auth.user?.id === viewer.userId) {
+      reader = authed;
+      result = await fetchSeries(reader, PUBLIC_WORK_SERIES_SELECT);
+    }
   }
-  if (!result.data) return null;
-
+  if (result.error || !result.data) return null;
   const series = result.data as unknown as SeriesRow;
   if (getSeriesPublicationStatus(series) !== "public") return null;
   if (!readCanonicalSeriesSourceLanguage(series)) return null;
-
-  const viewer = await getCurrentR18ViewerPreference();
   if (!viewer.showR18Content && getSeriesContentRating(series) === "r18") return null;
 
   const authorId = pickText(series.author_id, series["user_id"], series["userId"]);
   const [summaries, authors] = await Promise.all([
-    fetchPublicEpisodeSummariesBySeriesIds([seriesId]),
+    fetchPublicEpisodeSummariesBySeriesIds([seriesId], reader),
     fetchAuthorAccountMap(authorId ? [authorId] : []),
   ]);
   if (!summaries.has(seriesId)) return null;
@@ -520,14 +558,23 @@ export async function getCachedPublicBaseWorkCards(options?: {
 }): Promise<PublicBaseWorkCard[]> {
   const cards = await getCachedPublicBaseWorkCardsInternal();
   const visibility = options?.visibility ?? "viewer";
+  // The shared anonymous cache must never serialize restricted R18 metadata,
+  // including on pre-migration previews where anon RLS is still permissive.
+  const generalCards = cards.filter((card) => card.contentRating !== "r18");
+  if (visibility === "general" || visibility === "all") return generalCards;
 
-  if (visibility === "all") return cards;
-  if (visibility === "general") return cards.filter((card) => card.contentRating !== "r18");
-
-  const preference = await getCurrentR18ViewerPreference();
-  let visibleCards = preference.showR18Content
-    ? cards
-    : cards.filter((card) => card.contentRating !== "r18");
+  let visibleCards = generalCards;
+  try {
+    const privateCards = await getViewerR18Cards();
+    const byId = new Map(generalCards.map((work) => [work.seriesId, work]));
+    for (const restricted of privateCards) byId.set(restricted.seriesId, restricted);
+    visibleCards = Array.from(byId.values()).sort((a, b) =>
+      b.latestPostedAtValue - a.latestPostedAtValue || b.createdAtValue - a.createdAtValue
+    );
+  } catch {
+    // Fail closed on R18 metadata, but keep general anonymous works available.
+    visibleCards = generalCards;
+  }
 
   const requestHeaders = await headers();
   const headerLocale = requestHeaders.get(UI_LOCALE_HEADER);
