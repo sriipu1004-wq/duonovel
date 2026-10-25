@@ -125,7 +125,7 @@ const privateProxy = source("src/lib/recording/privateMediaProxy.ts");
 for (const required of [
   "cache:\"no-store\"",
   "private, no-store",
-  "Range: range",
+  "Range:range",
   "PRIVATE_AI_AUDIO_BUCKET",
   "getHumanRecordingAudioBucketName()",
 ]) {
