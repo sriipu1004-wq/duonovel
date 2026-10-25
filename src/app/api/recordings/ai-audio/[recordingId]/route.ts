@@ -5,6 +5,7 @@ import { isR18Series } from "@/lib/contentRating";
 import { parsePrivateAiAudioReference, PRIVATE_AI_AUDIO_BUCKET } from "@/lib/recording/protectedAiRecordingStorage";
 import { isUuid } from "@/lib/uuid";
 import { streamAuthorizedPrivateRecording } from "@/lib/recording/privateMediaProxy";
+import { buildNemoTimingObjectPathFromAudioObjectPath } from "@/lib/recording/nemoTiming";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 /** Proxy private audio, including Range requests. Never hand out bearer URLs.
@@ -29,5 +30,7 @@ export async function GET(request: Request, context: { params: Promise<{ recordi
     return new NextResponse(null,{status:404});
   if(isR18Series(s) && !(await getCurrentR18ViewerPreference()).showR18Content)
     return new NextResponse(null,{status:404});
-  return streamAuthorizedPrivateRecording(request,PRIVATE_AI_AUDIO_BUCKET,objectPath);
+  const mediaPath=new URL(request.url).searchParams.get("timing")==="1"
+    ? buildNemoTimingObjectPathFromAudioObjectPath(objectPath) : objectPath;
+  return streamAuthorizedPrivateRecording(request,PRIVATE_AI_AUDIO_BUCKET,mediaPath);
 }

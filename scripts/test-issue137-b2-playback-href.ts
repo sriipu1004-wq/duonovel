@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import {recordingAudioPlaybackHref} from "../src/lib/recording/recordingAudioPlaybackHref";
+import {buildNemoTimingPublicUrlFromAudioPublicUrl} from "../src/lib/recording/nemoTiming";
+const id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const legacy="https://example.invalid/storage/v1/object/public/recording-audio/audio.wav";
+assert.equal(recordingAudioPlaybackHref(id,legacy),legacy);
+assert.equal(recordingAudioPlaybackHref(id,"r18-private:nemo/s/e/audio.wav"),"/api/recordings/ai-audio/"+id);
+assert.equal(recordingAudioPlaybackHref("not-uuid","r18-private:secret"),"");
+assert.equal(recordingAudioPlaybackHref(id,"r18-private:"),"");
+assert.equal(buildNemoTimingPublicUrlFromAudioPublicUrl("/api/recordings/ai-audio/"+id),"/api/recordings/ai-audio/"+id+"?timing=1");
+assert.equal(buildNemoTimingPublicUrlFromAudioPublicUrl(legacy),legacy.replace(".wav",".timing.json"));
+console.log("PASS: 6 B2 stored recording reference/timing URL compatibility checks");

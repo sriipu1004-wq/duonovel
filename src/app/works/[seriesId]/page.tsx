@@ -42,6 +42,7 @@ import { localizePath } from "@/i18n/navigation";
 import { isUuid } from "@/lib/uuid";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
+import { recordingAudioPlaybackHref } from "@/lib/recording/recordingAudioPlaybackHref";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 import { getSupportedLanguage, parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
@@ -613,7 +614,7 @@ function getRecordingReaderKey(recording: RecordingRow): string {
 }
 
 function getRecordingAudioStoragePath(recording: RecordingRow): string {
-  return pickText(recording.audio_storage_path, recording.audioStoragePath);
+  return recordingAudioPlaybackHref(recording.id,pickText(recording.audio_storage_path, recording.audioStoragePath));
 }
 
 function doesRecordingMatchRequestedReader(
