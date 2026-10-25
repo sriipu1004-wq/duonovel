@@ -21,6 +21,10 @@ import {
   normalizeRecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  PRIVATE_AI_AUDIO_BUCKET, makePrivateAiAudioReference,
+  mustUsePrivateAiAudio, buildPrivateAiAudioPlaybackHref,
+} from "@/lib/recording/protectedAiRecordingStorage";
 import { createClient } from "@/lib/supabase/server";
 
 type UserSupabase = Awaited<ReturnType<typeof createClient>>;
@@ -767,7 +771,8 @@ export async function generateNemoRecordingForEpisode({
   });
 
   const adminSupabase = createAdminClient();
-  const bucketName = getRecordingAudioBucketName();
+  const protectedR18 = await mustUsePrivateAiAudio(seriesId);
+  const bucketName = protectedR18 ? PRIVATE_AI_AUDIO_BUCKET : getRecordingAudioBucketName();
   const audioObjectPath = buildNemoRecordingObjectPath({
     seriesId,
     episodeId,
@@ -851,13 +856,13 @@ export async function generateNemoRecordingForEpisode({
       );
     }
 
-    const {
-      data: { publicUrl },
-    } = adminSupabase.storage.from(bucketName).getPublicUrl(audioObjectPath);
-
-    if (!publicUrl) {
-      throw new Error("storage_public_url_unavailable");
-    }
+    const publicUrl = protectedR18
+      ? null
+      : adminSupabase.storage.from(bucketName).getPublicUrl(audioObjectPath).data.publicUrl;
+    if (!protectedR18 && !publicUrl) throw new Error("storage_public_url_unavailable");
+    const storedAudioReference = protectedR18
+      ? makePrivateAiAudioReference(audioObjectPath)
+      : publicUrl!;
 
     const timingBytes = new TextEncoder().encode(
       JSON.stringify(timingManifest, null, 2)
@@ -885,7 +890,7 @@ export async function generateNemoRecordingForEpisode({
       episodeId,
       readerId: userId,
       readerName: narratorName,
-      audioStoragePath: publicUrl,
+      audioStoragePath: storedAudioReference,
     });
 
     try {
@@ -908,7 +913,7 @@ export async function generateNemoRecordingForEpisode({
 
     return {
       recordingId,
-      audioStoragePath: publicUrl,
+      audioStoragePath: protectedR18 ? buildPrivateAiAudioPlaybackHref(recordingId) : storedAudioReference,
       narratorName,
       episodeNumber: episode.episodeNumber,
       episodeTitle: episode.title,

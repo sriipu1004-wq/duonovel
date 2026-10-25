@@ -21,6 +21,10 @@ import {
   normalizeRecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  PRIVATE_AI_AUDIO_BUCKET, makePrivateAiAudioReference,
+  mustUsePrivateAiAudio, buildPrivateAiAudioPlaybackHref,
+} from "@/lib/recording/protectedAiRecordingStorage";
 import { createClient } from "@/lib/supabase/server";
 
 type UserSupabase = Awaited<ReturnType<typeof createClient>>;
@@ -415,7 +419,8 @@ export async function generateAivisRecordingForEpisode({
   }
 
   const adminSupabase = createAdminClient();
-  const bucketName = getRecordingAudioBucketName();
+  const protectedR18 = await mustUsePrivateAiAudio(seriesId);
+  const bucketName = protectedR18 ? PRIVATE_AI_AUDIO_BUCKET : getRecordingAudioBucketName();
   const audioObjectPath = buildAivisRecordingObjectPath({
     seriesId,
     episodeId,
@@ -473,26 +478,26 @@ export async function generateAivisRecordingForEpisode({
       throw new Error(`timing_upload_failed:${timingUploadError.message}`);
     }
 
-    const {
-      data: { publicUrl },
-    } = adminSupabase.storage.from(bucketName).getPublicUrl(audioObjectPath);
-
-    if (!publicUrl) {
-      throw new Error("storage_public_url_unavailable");
-    }
+    const publicUrl = protectedR18
+      ? null
+      : adminSupabase.storage.from(bucketName).getPublicUrl(audioObjectPath).data.publicUrl;
+    if (!protectedR18 && !publicUrl) throw new Error("storage_public_url_unavailable");
+    const storedAudioReference = protectedR18
+      ? makePrivateAiAudioReference(audioObjectPath)
+      : publicUrl!;
 
     const { recordingId } = await writeRecording(adminSupabase, {
       seriesId,
       episodeId,
       readerId: userId,
       readerName: narratorName,
-      audioStoragePath: publicUrl,
+      audioStoragePath: storedAudioReference,
       voiceModelId,
     });
 
     return {
       recordingId,
-      audioStoragePath: publicUrl,
+      audioStoragePath: protectedR18 ? buildPrivateAiAudioPlaybackHref(recordingId) : storedAudioReference,
       narratorName,
       episodeNumber: episode.episodeNumber,
       episodeTitle: episode.title,
