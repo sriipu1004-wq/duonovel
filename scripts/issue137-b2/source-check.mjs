@@ -45,6 +45,7 @@ assert.ok(!humanProxy.includes("createSignedUrl("), "Human playback must not iss
 must(proxy, "episode gate", 'e.posting_status!=="posted"');
 must(catalog, "request scoped R18 listing", "getViewerR18Cards");
 must(catalog, "anonymous general cards", 'const generalCards = cards.filter');
+must(catalog, "all cards still viewer gated", 'if (visibility === "all") return visibleCards;');
 must(generator, "Nemo private bucket", "mustUsePrivateAiAudio(seriesId)");
 must(aivis, "Aivis private bucket", "mustUsePrivateAiAudio(seriesId)");
 assert.ok(!sql.includes("update storage.buckets set public"), "do not flip existing buckets");

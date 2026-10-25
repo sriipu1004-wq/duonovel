@@ -563,7 +563,7 @@ export async function getCachedPublicBaseWorkCards(options?: {
   // The shared anonymous cache must never serialize restricted R18 metadata,
   // including on pre-migration previews where anon RLS is still permissive.
   const generalCards = cards.filter((card) => card.contentRating !== "r18");
-  if (visibility === "general" || visibility === "all") return generalCards;
+  if (visibility === "general") return generalCards;
 
   let visibleCards = generalCards;
   try {
@@ -577,6 +577,10 @@ export async function getCachedPublicBaseWorkCards(options?: {
     // Fail closed on R18 metadata, but keep general anonymous works available.
     visibleCards = generalCards;
   }
+
+  // "all" means all *authorized* public cards, without UI/source-language
+  // filters. It must never bypass the viewer-specific R18 permission.
+  if (visibility === "all") return visibleCards;
 
   const requestHeaders = await headers();
   const headerLocale = requestHeaders.get(UI_LOCALE_HEADER);
