@@ -3,7 +3,7 @@
 begin;
 create schema if not exists libread_internal;
 revoke all on schema libread_internal from public, anon, authenticated;
-grant usage on schema libread_internal to authenticated;
+grant usage on schema libread_internal to anon, authenticated;
 create or replace function libread_internal.can_read_r18()
 returns boolean language sql stable security definer set search_path = ''
 as $$
@@ -14,7 +14,7 @@ as $$
  );
 $$;
 revoke all on function libread_internal.can_read_r18() from public, anon, authenticated;
-grant execute on function libread_internal.can_read_r18() to authenticated;
+grant execute on function libread_internal.can_read_r18() to anon, authenticated;
 
 -- Restrictive SELECT policies are ANDed with existing permissive policies;
 -- preserve author workspace access even if consumer R18 display is OFF.
@@ -143,7 +143,7 @@ begin
  select publication_status,content_rating,content_warnings into s
  from public.series where id=new.series_id for share;
  select series_id,posting_status,is_published into e
- from public.episodes where id=new.episode_id;
+ from public.episodes where id=new.episode_id for share;
  if s is null or e is null or e.series_id is distinct from new.series_id then
    raise exception using errcode='23514',message='B2_INVALID_MEDIA_REFERENCE';
  end if;

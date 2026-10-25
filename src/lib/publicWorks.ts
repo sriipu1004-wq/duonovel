@@ -511,7 +511,9 @@ export async function getPublicWorkMetadataCardById(seriesId: string): Promise<P
 
   const authorId = pickText(series.author_id, series["user_id"], series["userId"]);
   const [summaries, authors] = await Promise.all([
-    fetchPublicEpisodeSummariesBySeriesIds([seriesId], reader),
+    reader === anon
+      ? fetchPublicEpisodeSummariesBySeriesIds([seriesId])
+      : fetchPublicEpisodeSummariesBySeriesIds([seriesId], reader),
     fetchAuthorAccountMap(authorId ? [authorId] : []),
   ]);
   if (!summaries.has(seriesId)) return null;
