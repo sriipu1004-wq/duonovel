@@ -90,7 +90,7 @@ async function visible(table,actor,expected,select="id"){
 }
 for(const actor of [null,"off","unconfirmed","noProfile"]){
  await visible("series",actor,["general","general2"]);
- 
+
 }
 // Episode ID differs from series ID. Verify with correct object projection.
 async function episodeIds(actor,expected){
