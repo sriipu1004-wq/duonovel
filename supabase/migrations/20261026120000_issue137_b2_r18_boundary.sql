@@ -97,7 +97,7 @@ revoke all on function libread_internal.is_restricted_recording_path(text)
 -- a general->R18 transition. Canonical Nemo/Aivis/Human path includes series ID.
 create or replace function libread_internal.public_audio_exists_for_series(p_series_id uuid)
 returns boolean language sql stable security definer set search_path=''
-as $
+as $$
  select exists (
   select 1 from storage.objects o where o.bucket_id='recording-audio'
   and (
@@ -106,12 +106,12 @@ as $
    or o.name like 'human/'||p_series_id::text||'/%'
   )
  );
-$;
+$$;
 revoke all on function libread_internal.public_audio_exists_for_series(uuid)
  from public,anon,authenticated;
 create or replace function libread_internal.public_audio_exists_for_episode(sid uuid, eid uuid)
 returns boolean language sql stable security definer set search_path=''
-as $
+as $$
  select exists (
   select 1 from storage.objects o where o.bucket_id='recording-audio'
   and (
@@ -120,7 +120,7 @@ as $
    or o.name like 'human/'||sid::text||'/'||eid::text||'/%'
   )
  );
-$;
+$$;
 revoke all on function libread_internal.public_audio_exists_for_episode(uuid,uuid)
  from public,anon,authenticated;
 create or replace function libread_internal.guard_series_media_transition()
@@ -214,7 +214,7 @@ on public.recordings for each row execute function libread_internal.guard_record
 -- races with a rating change, or never writes a recordings row.
 create or replace function libread_internal.guard_public_storage_audio()
 returns trigger language plpgsql security definer set search_path=''
-as $
+as $$
 declare sid uuid; eid uuid; s record; e record;
 begin
  if new.bucket_id <> 'recording-audio' then return new; end if;
@@ -239,7 +239,7 @@ begin
  end if;
  return new;
 end;
-$;
+$$;
 revoke all on function libread_internal.guard_public_storage_audio()
  from public,anon,authenticated;
 drop trigger if exists issue137_b2_public_audio_storage on storage.objects;
