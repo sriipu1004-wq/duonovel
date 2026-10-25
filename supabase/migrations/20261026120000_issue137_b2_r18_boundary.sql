@@ -219,8 +219,8 @@ declare sid uuid; eid uuid; s record; e record;
 begin
  if new.bucket_id <> 'recording-audio' then return new; end if;
  if split_part(new.name,'/',1) not in ('nemo','aivis','human') then return new; end if;
- if split_part(new.name,'/',2) !~* '^[a-f0-9-]{36}
-    or split_part(new.name,'/',3) !~* '^[a-f0-9-]{36} then
+ if split_part(new.name,'/',2) !~* '^[a-f0-9-]{36}$'
+    or split_part(new.name,'/',3) !~* '^[a-f0-9-]{36}$' then
    raise exception using errcode='23514', message='B2_UNKNOWN_MEDIA_PATH';
  end if;
  sid:=split_part(new.name,'/',2)::uuid;

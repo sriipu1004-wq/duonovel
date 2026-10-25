@@ -28,6 +28,15 @@ const required=[
  ['viewer-specific query',/getViewerR18Cards/],
  ['anonymous general cache',/const generalCards = cards\.filter/]
 ];
+assert.equal((migration.match(/\!~\* '\^\[a-f0-9-\]\{36\}\
+for(const [name,pattern] of required) {assert.match(
+ name==='private streaming'||name==='full publication check'||name==='auth R18'?privateApi:
+ name==='viewer-specific query'||name==='anonymous general cache'?catalog:migration,
+ pattern, name);checks++;}
+assert.ok(!migration.includes("update storage.buckets set public"),'no public bucket flip');
+assert.ok(!/delete\s+from\s+storage\.objects/i.test(migration),'no object deletion');
+console.log('PASS: '+checks+' bounded B2 SOURCE contracts; dynamic RLS/Storage needs CI');
+/g)||[]).length,2,'Storage UUID regex must include closing end-anchor and quote');
 let checks=0;
 for(const [name,pattern] of required) {assert.match(
  name==='private streaming'||name==='full publication check'||name==='auth R18'?privateApi:
