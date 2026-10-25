@@ -1,0 +1,46 @@
+name: Issue137 B2 ephemeral local Auth RLS Storage candidate
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/issue137-b2-isolated-e2e.yml'
+      - 'scripts/issue137-b2/**'
+      - 'supabase/migrations/20261026120000_issue137_b2_r18_boundary.sql'
+      - 'src/lib/publicWorks.ts'
+      - 'src/lib/recording/**'
+      - 'src/app/api/recordings/ai-audio/**'
+permissions:
+  contents: read
+concurrency:
+  group: issue137-b2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  isolated-b2-test:
+    if: >-
+      github.event.repository.private == false &&
+      github.event.pull_request.number == 153 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'fix/issue137-b2-r18-data-media-boundary'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: B2 source-only checks
+        run: |
+          set -euo pipefail
+          node scripts/issue137-b2/source-check.mjs
+          node --check scripts/issue137-b2/e2e.mjs
+          bash -n scripts/issue137-b2/run-local.sh
+          docker info >/dev/null
+      - name: B2 real ephemeral GoTrue PostgREST Storage regression
+        env:
+          DO_NOT_CONTACT_PRODUCTION: 'true'
+          CI: 'true'
+        run: |
+          set -euo pipefail
+          bash scripts/issue137-b2/run-local.sh
+          echo "B2 isolated synthetic execution completed"

@@ -90,6 +90,36 @@ $$;
 revoke all on function libread_internal.is_restricted_recording_path(text)
  from public, anon, authenticated;
 -- Prevent unsafe direct PostgREST classification/publication change.
+-- Prevent orphaned PUBLIC Storage objects (no recordings row) from defeating
+-- a general->R18 transition. Canonical Nemo/Aivis/Human path includes series ID.
+create or replace function libread_internal.public_audio_exists_for_series(id uuid)
+returns boolean language sql stable security definer set search_path=''
+as $
+ select exists (
+  select 1 from storage.objects o where o.bucket_id='recording-audio'
+  and (
+   o.name like 'nemo/'||id::text||'/%'
+   or o.name like 'aivis/'||id::text||'/%'
+   or o.name like 'human/'||id::text||'/%'
+  )
+ );
+$;
+revoke all on function libread_internal.public_audio_exists_for_series(uuid)
+ from public,anon,authenticated;
+create or replace function libread_internal.public_audio_exists_for_episode(sid uuid, eid uuid)
+returns boolean language sql stable security definer set search_path=''
+as $
+ select exists (
+  select 1 from storage.objects o where o.bucket_id='recording-audio'
+  and (
+   o.name like 'nemo/'||sid::text||'/'||eid::text||'/%'
+   or o.name like 'aivis/'||sid::text||'/'||eid::text||'/%'
+   or o.name like 'human/'||sid::text||'/'||eid::text||'/%'
+  )
+ );
+$;
+revoke all on function libread_internal.public_audio_exists_for_episode(uuid,uuid)
+ from public,anon,authenticated;
 create or replace function libread_internal.guard_series_media_transition()
 returns trigger language plpgsql security definer set search_path = ''
 as $$
@@ -102,6 +132,11 @@ begin
   select 1 from public.recordings r where r.series_id=new.id
     and r.audio_storage_path is not null
     and not libread_internal.is_restricted_recording_path(r.audio_storage_path)
+ ) or (
+   (new.publication_status is distinct from 'public'
+    or new.content_rating='r18'
+    or 'sexual_r18'=any(coalesce(new.content_warnings,'{}'::text[])))
+   and libread_internal.public_audio_exists_for_series(new.id)
  ) then
    raise exception using errcode='23514',message='B2_MEDIA_CONTAINMENT_REQUIRED';
  end if;
@@ -123,6 +158,8 @@ begin
    and exists (select 1 from public.recordings r where r.episode_id=new.id
      and r.audio_storage_path is not null
      and not libread_internal.is_restricted_recording_path(r.audio_storage_path))
+   or ((new.posting_status is distinct from 'posted' or new.is_published is distinct from true)
+     and libread_internal.public_audio_exists_for_episode(new.series_id,new.id))
  then raise exception using errcode='23514',message='B2_MEDIA_CONTAINMENT_REQUIRED';
  end if;
  return new;
@@ -167,4 +204,43 @@ drop trigger if exists issue137_b2_recording_media_reference on public.recording
 create trigger issue137_b2_recording_media_reference
 before insert or update of series_id,episode_id,audio_storage_path,is_public
 on public.recordings for each row execute function libread_internal.guard_recording_media_reference();
+
+-- Replace transition guards with orphan-media coverage.
+
+-- No new external public media even if the generator uses service_role,
+-- races with a rating change, or never writes a recordings row.
+create or replace function libread_internal.guard_public_storage_audio()
+returns trigger language plpgsql security definer set search_path=''
+as $
+declare sid uuid; eid uuid; s record; e record;
+begin
+ if new.bucket_id <> 'recording-audio' then return new; end if;
+ if split_part(new.name,'/',1) not in ('nemo','aivis','human') then return new; end if;
+ if split_part(new.name,'/',2) !~* '^[a-f0-9-]{36}
+    or split_part(new.name,'/',3) !~* '^[a-f0-9-]{36} then
+   raise exception using errcode='23514', message='B2_UNKNOWN_MEDIA_PATH';
+ end if;
+ sid:=split_part(new.name,'/',2)::uuid;
+ eid:=split_part(new.name,'/',3)::uuid;
+ select publication_status, content_rating, content_warnings into s
+   from public.series where id=sid for share;
+ select posting_status, is_published into e
+   from public.episodes where id=eid and series_id=sid for share;
+ if s is null or e is null
+    or s.publication_status is distinct from 'public'
+    or s.content_rating='r18'
+    or 'sexual_r18'=any(coalesce(s.content_warnings,'{}'::text[]))
+    or e.posting_status is distinct from 'posted'
+    or e.is_published is distinct from true then
+    raise exception using errcode='23514', message='B2_PUBLIC_MEDIA_WRITE_BLOCKED';
+ end if;
+ return new;
+end;
+$;
+revoke all on function libread_internal.guard_public_storage_audio()
+ from public,anon,authenticated;
+drop trigger if exists issue137_b2_public_audio_storage on storage.objects;
+create trigger issue137_b2_public_audio_storage
+before insert or update of bucket_id,name on storage.objects
+for each row execute function libread_internal.guard_public_storage_audio();
 commit;
