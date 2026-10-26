@@ -272,4 +272,52 @@ drop trigger if exists issue137_b2_episode_reparenting on public.episodes;
 create trigger issue137_b2_episode_reparenting before update of series_id
 on public.episodes for each row execute function libread_internal.guard_episode_reparenting();
 
+
+-- F1: cache invalidation is a transactional DB property, not a best-effort
+-- Next.js revalidateTag race. This SQL is SOURCE ONLY until separately approved.
+create table if not exists libread_internal.public_catalog_revision (
+ singleton boolean primary key default true check(singleton),
+ epoch bigint not null default 1 check(epoch > 0)
+);
+revoke all on libread_internal.public_catalog_revision from public,anon,authenticated;
+insert into libread_internal.public_catalog_revision(singleton,epoch)
+values(true,1) on conflict(singleton) do nothing;
+
+-- Only the trusted server's service_role may call this exposed, read-only RPC.
+-- Never grant anon/authenticated execute just to make Preview work.
+create or replace function public.libread_public_catalog_revision()
+returns bigint language sql stable security definer set search_path=''
+as $$
+ select epoch from libread_internal.public_catalog_revision where singleton=true;
+$$;
+revoke all on function public.libread_public_catalog_revision() from public,anon,authenticated;
+grant execute on function public.libread_public_catalog_revision() to service_role;
+
+create or replace function libread_internal.bump_public_catalog_revision()
+returns trigger language plpgsql security definer set search_path=''
+as $$
+begin
+ update libread_internal.public_catalog_revision
+ set epoch=epoch+1 where singleton=true;
+ return null; -- statement-level trigger; commit is atomic with the source mutation
+end;
+$$;
+revoke all on function libread_internal.bump_public_catalog_revision() from public,anon,authenticated;
+
+-- Statement-level triggers bound lock acquisition to one increment per DML
+-- statement instead of O(changed rows). INSERT/DELETE/unpublish and warnings
+-- all invalidate; Postgres rollback also rolls back the epoch increment.
+drop trigger if exists issue137_b2_series_catalog_revision on public.series;
+create trigger issue137_b2_series_catalog_revision
+after insert or update or delete on public.series
+for each statement execute function libread_internal.bump_public_catalog_revision();
+drop trigger if exists issue137_b2_episode_catalog_revision on public.episodes;
+create trigger issue137_b2_episode_catalog_revision
+after insert or update or delete on public.episodes
+for each statement execute function libread_internal.bump_public_catalog_revision();
+drop trigger if exists issue137_b2_author_catalog_revision on public.users;
+create trigger issue137_b2_author_catalog_revision
+after update of display_name on public.users
+for each statement execute function libread_internal.bump_public_catalog_revision();
+
 commit;
