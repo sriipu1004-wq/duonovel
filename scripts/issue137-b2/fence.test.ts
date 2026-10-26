@@ -17,6 +17,7 @@ const readRevision=async()=>revision;
 const direct=async()=>live.filter(x=>x.rating==="general"&&x.publication==="public").map(x=>({...x}));
 const read=()=>readEpochGuardedCatalog(readRevision,loadCached,direct);
 
+async function main() {
 assert.equal((await read())[0].title,"SYNTHETIC PUBLIC TITLE");
 assert.equal((await read())[0].title,"SYNTHETIC PUBLIC TITLE");
 assert.equal(builds,1,"unchanged revision retains hot cache");
@@ -53,4 +54,6 @@ await assert.rejects(
   readEpochGuardedCatalog(async()=>{throw Error("DB unavailable")},loadCached,direct),
   /DB unavailable/
 );
-console.log("PASS: 9 F1 SOURCE/runtime synthetic epoch, cache freshness, concurrent unpublish, missing RPC and failure probes");
+console.log("PASS: 13 F1 SOURCE/runtime assertions (epoch cache, R18 withdrawal, race and failures)");
+}
+main().catch(error => { console.error(error); process.exitCode = 1; });
