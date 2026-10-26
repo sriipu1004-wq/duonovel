@@ -36,6 +36,14 @@ jobs:
           node --check scripts/issue137-b2/e2e.mjs
           bash -n scripts/issue137-b2/run-local.sh
           docker info >/dev/null
+      - name: F1 epoch and F3 playback SOURCE runtime regressions
+        env:
+          DO_NOT_CONTACT_PRODUCTION: 'true'
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --import tsx scripts/issue137-b2/fence.test.ts
+          node --import tsx scripts/test-issue137-b2-playback-href.ts
       - name: B2 real ephemeral GoTrue PostgREST Storage regression
         env:
           DO_NOT_CONTACT_PRODUCTION: 'true'
