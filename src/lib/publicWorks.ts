@@ -13,6 +13,7 @@ import {
   type SeriesRow,
 } from "@/features/write/writeShared";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { readEpochGuardedCatalog } from "@/lib/publicCatalogEpochFence";
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -535,10 +536,38 @@ export async function getPublicWorkMetadataCardById(seriesId: string): Promise<P
 }
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
-  buildPublicBaseWorkCards,
-  ["public-base-work-cards-v12-canonical-source-language"],
+  async (_epoch: number) => buildPublicBaseWorkCards(),
+  ["public-base-work-cards-v13-db-epoch-bound"],
   { revalidate: 60, tags: ["public-base-work-cards"] }
 );
+
+// SECURITY: the epoch must be read from the transactionally incremented DB
+// value, NEVER from a cached JS/global variable or an unsigned client value.
+async function getDatabasePublicCatalogEpoch(): Promise<number | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("libread_public_catalog_revision");
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883") {
+      // During staged Preview before schema rollout, only DIRECT reads may be
+      // used: serving the older shared cache here recreates F1.
+      return null;
+    }
+    throw new Error("catalog_epoch_unavailable");
+  }
+  const epoch = typeof data === "number" ? data : typeof data === "string" ? Number(data) : NaN;
+  if (!Number.isSafeInteger(epoch) || epoch < 1) {
+    throw new Error("invalid_catalog_epoch");
+  }
+  return epoch;
+}
+
+async function fetchEpochFencedPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
+  return readEpochGuardedCatalog(
+    getDatabasePublicCatalogEpoch,
+    (epoch) => getCachedPublicBaseWorkCardsInternal(epoch),
+    buildPublicBaseWorkCards
+  );
+}
 
 function prioritizeForLocale(cards: PublicBaseWorkCard[], locale: "ja" | "en" | "ko"): PublicBaseWorkCard[] {
   return cards
@@ -558,7 +587,7 @@ export async function getCachedPublicBaseWorkCards(options?: {
   ignorePublicSearchLanguageFilter?: boolean;
   prioritizeForUiLocale?: boolean;
 }): Promise<PublicBaseWorkCard[]> {
-  const cards = await getCachedPublicBaseWorkCardsInternal();
+  const cards = await fetchEpochFencedPublicBaseWorkCards();
   const visibility = options?.visibility ?? "viewer";
   // The shared anonymous cache must never serialize restricted R18 metadata,
   // including on pre-migration previews where anon RLS is still permissive.
