@@ -1,7 +1,7 @@
 -- Issue #137 B2: disposable LOCAL Supabase schema approximation only.
 create table public.users (
  id uuid primary key references auth.users(id),
- show_r18_content boolean not null default false, r18_confirmed_at timestamptz
+ show_r18_content boolean not null default false, r18_confirmed_at timestamptz, display_name text not null default 'SYNTHETIC'
 );
 create table public.series (
  id uuid primary key, author_id uuid not null references auth.users(id),
@@ -10,7 +10,7 @@ create table public.series (
  content_warnings text[] not null default '{}'::text[]
 );
 create table public.episodes (
- id uuid primary key, series_id uuid not null references public.series(id),
+ id uuid primary key, series_id uuid references public.series(id),
  posting_status text not null default 'posted', is_published boolean not null default true,
  body text not null
 );

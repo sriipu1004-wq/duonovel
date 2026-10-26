@@ -54,6 +54,21 @@ ok(await call("/rest/v1/users",{method:"POST",key:admin,token:admin,body:[
 ]}),"seed synthetic profiles",[201]);
 for(const [table,data] of [["series",series],["episodes",episodes]])
  ok(await call("/rest/v1/"+table,{method:"POST",key:admin,token:admin,body:data}),"seed "+table,[201]);
+async function catalogRevision() {
+ const result=ok(await call("/rest/v1/rpc/libread_public_catalog_revision",{
+   method:"POST",key:admin,token:admin,body:{}
+ }),"private service-role catalog revision");
+ assert.ok(Number.isSafeInteger(Number(result)),"catalog epoch must be safe integer");
+ return Number(result);
+}
+const epochAfterSeed=await catalogRevision();
+assert.ok(epochAfterSeed>=1,"initial epoch must exist");
+// The RPC is not exposed to anonymous callers; no client may forge an epoch.
+const anonEpoch=await call("/rest/v1/rpc/libread_public_catalog_revision",{
+ method:"POST",body:{}
+});
+assert.ok(anonEpoch.status===401 || anonEpoch.status===403 || anonEpoch.status===404,
+ "anonymous caller must not invoke server-only revision RPC");
 const storagePath=(key)=>"nemo/"+r[key].id+"/"+r[key].ep+"/audio.wav";
 const generalRef=base+"/storage/v1/object/public/recording-audio/"+storagePath("general");
 const general2Ref=base+"/storage/v1/object/public/recording-audio/"+storagePath("general2");
@@ -69,7 +84,26 @@ const recordings=[
 ok(await call("/rest/v1/recordings",{method:"POST",key:admin,token:admin,body:recordings}),"seed recordings",[201]);
 ok(await call("/storage/v1/bucket",{method:"POST",key:admin,token:admin,
  body:{id:"recording-audio",name:"recording-audio",public:true}}),"create local general public bucket");
-let passed=0;
+let passed=2; // epoch starts with a committed revision; anon RPC denied
+// A source mutation must increment the same transactional catalog revision.
+const beforePublicationEdit=await catalogRevision();
+ok(await call("/rest/v1/series?id=eq."+r.general2.id,{
+ method:"PATCH",key:admin,token:admin,body:{content_warnings:["mystery"]}
+}),"synthetic general catalog metadata edit");
+assert.equal(await catalogRevision(),beforePublicationEdit+1,"series change advances revision");
+passed++;
+const beforeEpisodeEdit=await catalogRevision();
+ok(await call("/rest/v1/episodes?id=eq."+r.general2.ep,{
+ method:"PATCH",key:admin,token:admin,body:{body:"SYNTHETIC EDIT"}
+}),"synthetic episode edit");
+assert.equal(await catalogRevision(),beforeEpisodeEdit+1,"episode change advances revision");
+passed++;
+const beforeDisplayChange=await catalogRevision();
+ok(await call("/rest/v1/users?id=eq."+author,{
+ method:"PATCH",key:admin,token:admin,body:{display_name:"SYNTHETIC NEW"}
+}),"synthetic author display name change");
+assert.equal(await catalogRevision(),beforeDisplayChange+1,"author display changes revision");
+passed++;
 async function upload(path,bucket="recording-audio"){
  return call("/storage/v1/object/"+bucket+"/"+path,{
   method:"POST",key:admin,token:admin,body:"SYNTHETIC AUDIO",raw:true,type:"audio/wav"
@@ -133,7 +167,17 @@ assert.ok(orphanReparent.status >= 400,"privileged episode reassignment must be 
 async function patch(table,id,fields,token=people.owner.token,key=anon){
  return call("/rest/v1/"+table+"?id=eq."+id,{method:"PATCH",token,key,body:fields});
 }
+const beforeRejectedRating=await catalogRevision();
 assert.ok((await patch("series",r.general.id,{content_rating:"r18"})).status>=400);passed++;
+assert.equal(await catalogRevision(),beforeRejectedRating,
+ "rejected rating change must roll back epoch increment");passed++;
+// Production has nullable recordings.series_id, not the older NOT NULL fixture.
+const nullRelation=await call("/rest/v1/recordings",{
+ method:"POST",key:admin,token:admin,
+ body:{id:uuid(),series_id:null,episode_id:r.general2.ep,reader_id:author,
+ reader_user_id:author,is_public:true,audio_storage_path:"r18-private:dummy.wav"}
+});
+assert.ok(nullRelation.status>=400,"nullable relationship must fail closed in trigger");passed++;
 assert.ok((await patch("series",r.general.id,{content_warnings:["sexual_r18"]},admin,admin)).status>=400);passed++;
 assert.ok((await patch("series",r.general.id,{publication_status:"private"})).status>=400);passed++;
 assert.ok((await patch("episodes",r.general.ep,{is_published:false})).status>=400);passed++;

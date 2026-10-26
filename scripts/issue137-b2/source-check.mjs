@@ -49,6 +49,14 @@ must(proxy, "episode gate", 'e.posting_status!=="posted"');
 must(catalog, "request scoped R18 listing", "getViewerR18Cards");
 must(catalog, "anonymous general cards", 'const generalCards = cards.filter');
 must(catalog, "all cards still viewer gated", 'if (visibility === "all") return visibleCards;');
+must(sql, "F1 catalog epoch", "create table if not exists libread_internal.public_catalog_revision");
+must(sql, "F1 series epoch", "create trigger issue137_b2_series_catalog_revision");
+must(sql, "F1 episode epoch", "create trigger issue137_b2_episode_catalog_revision");
+must(sql, "F1 author epoch", "create trigger issue137_b2_author_catalog_revision");
+must(catalog, "F1 epoch double check", "readEpochGuardedCatalog(");
+must(catalog, "F1 epoch-bound cache", "public-base-work-cards-v13-db-epoch-bound");
+assert.ok(!catalog.includes('const cards = await getCachedPublicBaseWorkCardsInternal();'),
+  "Forbidden: unsafe unversioned shared catalog fetch");
 must(generator, "Nemo private bucket", "mustUsePrivateAiAudio(seriesId)");
 must(aivis, "Aivis private bucket", "mustUsePrivateAiAudio(seriesId)");
 assert.ok(!sql.includes("update storage.buckets set public"), "do not flip existing buckets");
