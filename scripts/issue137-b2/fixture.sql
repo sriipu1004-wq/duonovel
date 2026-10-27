@@ -10,7 +10,7 @@ create table public.series (
  content_warnings text[] not null default '{}'::text[]
 );
 create table public.episodes (
- id uuid primary key, series_id uuid references public.series(id),
+ id uuid primary key, series_id uuid not null references public.series(id),
  posting_status text not null default 'posted', is_published boolean not null default true,
  body text not null
 );
