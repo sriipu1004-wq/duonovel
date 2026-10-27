@@ -36,6 +36,9 @@ for (const [label, snippet] of [
   ["series update race", "where id=new.series_id for share"],
   ["episode update race", "where id=new.episode_id for share"]
 ]) must(sql, label, snippet);
+const fixture = read("scripts/issue137-b2/fixture.sql");
+must(fixture,"real recordings.series_id NULLABLE","id uuid primary key, series_id uuid references public.series(id)");
+assert.ok(!fixture.includes("id uuid primary key, series_id uuid not null references public.series(id)"),"fixture still diverges from Production");
 const expected = "!~* '^[a-f0-9-]{36}" + "$" + "'";
 assert.equal(sql.split(expected).length - 1, 2, "Storage UUID pattern lost SQL end-anchor");
 checked++;

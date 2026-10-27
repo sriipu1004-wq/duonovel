@@ -177,7 +177,9 @@ const nullRelation=await call("/rest/v1/recordings",{
  body:{id:uuid(),series_id:null,episode_id:r.general2.ep,reader_id:author,
  reader_user_id:author,is_public:true,audio_storage_path:"r18-private:dummy.wav"}
 });
-assert.ok(nullRelation.status>=400,"nullable relationship must fail closed in trigger");passed++;
+assert.equal(nullRelation.status,400,"nullable series_id fixture must defer rejection to trigger");
+assert.equal(nullRelation.data?.code,"23514","NOT NULL/FK error is NOT acceptable proof of media trigger");
+assert.equal(nullRelation.data?.message,"B2_INVALID_MEDIA_REFERENCE","wrong trigger caused rejection");passed++;
 assert.ok((await patch("series",r.general.id,{content_warnings:["sexual_r18"]},admin,admin)).status>=400);passed++;
 assert.ok((await patch("series",r.general.id,{publication_status:"private"})).status>=400);passed++;
 assert.ok((await patch("episodes",r.general.ep,{is_published:false})).status>=400);passed++;

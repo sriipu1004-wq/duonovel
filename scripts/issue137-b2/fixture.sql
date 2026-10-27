@@ -15,7 +15,7 @@ create table public.episodes (
  body text not null
 );
 create table public.recordings (
- id uuid primary key, series_id uuid not null references public.series(id),
+ id uuid primary key, series_id uuid references public.series(id),
  episode_id uuid not null references public.episodes(id),
  reader_id uuid, reader_user_id uuid,
  is_public boolean not null default true, audio_storage_path text
