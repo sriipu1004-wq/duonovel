@@ -561,14 +561,6 @@ async function getDatabasePublicCatalogEpoch(): Promise<number | null> {
   return epoch;
 }
 
-async function fetchEpochFencedPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
-  return readEpochGuardedCatalog(
-    getDatabasePublicCatalogEpoch,
-    (epoch) => getCachedPublicBaseWorkCardsInternal(epoch),
-    buildPublicBaseWorkCards
-  );
-}
-
 function prioritizeForLocale(cards: PublicBaseWorkCard[], locale: "ja" | "en" | "ko"): PublicBaseWorkCard[] {
   return cards
     .map((card, index) => ({ card, index }))
@@ -581,13 +573,14 @@ function prioritizeForLocale(cards: PublicBaseWorkCard[], locale: "ja" | "en" | 
     .map(({ card }) => card);
 }
 
-export async function getCachedPublicBaseWorkCards(options?: {
+async function filterPublicBaseWorkCardsForViewer(
+  cards: PublicBaseWorkCard[],
+  options?: {
   visibility?: PublicWorkVisibility;
   ignoreContentLanguageFilter?: boolean;
   ignorePublicSearchLanguageFilter?: boolean;
   prioritizeForUiLocale?: boolean;
 }): Promise<PublicBaseWorkCard[]> {
-  const cards = await fetchEpochFencedPublicBaseWorkCards();
   const visibility = options?.visibility ?? "viewer";
   // The shared anonymous cache must never serialize restricted R18 metadata,
   // including on pre-migration previews where anon RLS is still permissive.
@@ -641,6 +634,27 @@ export async function getCachedPublicBaseWorkCards(options?: {
   return options?.prioritizeForUiLocale === false
     ? visibleCards
     : prioritizeForLocale(visibleCards, locale);
+}
+
+// Keep the FINAL DB revision check after R18 viewer lookup, locale headers,
+// language filters and sort. The earlier implementation fenced only the base
+// cache, then awaited viewer enrichment; a publication change could commit
+// during that gap and cause stale general metadata to be serialized.
+export async function getCachedPublicBaseWorkCards(options?: {
+  visibility?: PublicWorkVisibility;
+  ignoreContentLanguageFilter?: boolean;
+  ignorePublicSearchLanguageFilter?: boolean;
+  prioritizeForUiLocale?: boolean;
+}): Promise<PublicBaseWorkCard[]> {
+  return readEpochGuardedCatalog(
+    getDatabasePublicCatalogEpoch,
+    async (epoch) => filterPublicBaseWorkCardsForViewer(
+      await getCachedPublicBaseWorkCardsInternal(epoch), options
+    ),
+    async () => filterPublicBaseWorkCardsForViewer(
+      await buildPublicBaseWorkCards(), options
+    )
+  );
 }
 
 type RecordingAggregateRow = Record<string, unknown> & {
