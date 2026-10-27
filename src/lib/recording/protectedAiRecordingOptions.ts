@@ -27,7 +27,7 @@ export function listProtectedAiRecordings(
     const id = row.id;
     const episodeId = row.episode_id ?? row.episodeId;
     const stored = row.audio_storage_path ?? row.audioStoragePath;
-    if (row.is_public !== true || !isUuid(id) || !isUuid(episodeId)
+    if (row.is_public !== true || typeof id !== "string" || typeof episodeId !== "string" || !isUuid(id) || !isUuid(episodeId)
       || (allowedEpisodeIds && !allowedEpisodeIds.has(episodeId))
       || typeof stored !== "string" || !stored.startsWith("r18-private:")) continue;
     const audioUrl = recordingAudioPlaybackHref(id, stored);

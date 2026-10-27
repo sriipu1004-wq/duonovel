@@ -607,6 +607,7 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
 
   return {
     recordings: [],
+    aiRecordings: [],
     fetchErrorMessage: `recordings の取得に失敗: ${fallback.error.message}`,
   };
 }
