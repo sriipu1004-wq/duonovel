@@ -36,6 +36,23 @@ const inFlight=await readEpochGuardedCatalog(readRevision,async e=>{
 assert.deepEqual(inFlight,[],"in-flight publication withdrawal must retry");
 assert.ok(revision>oldEpoch);
 assert.deepEqual(await read(),[],"later request must not restore withdrawn card");
+// Regression: epoch changes AFTER cached-card retrieval, while a delayed
+// viewer or HTML/RSC projection resolves. Final check must run AFTER projection.
+revision++;
+live=[{id:"work-1",title:"POST FENCE SYNTHETIC",rating:"general",publication:"public"}];
+let afterCacheDuringViewer=false;
+const finalViewerChecked=await readEpochGuardedCatalog(readRevision,async epoch=>{
+ const cards=await loadCached(epoch);
+ await Promise.resolve(); // simulate viewer/headers rendering async work
+ if(!afterCacheDuringViewer){
+   afterCacheDuringViewer=true;
+   live=[{...live[0],publication:"private",rating:"r18"}];
+   revision++;
+ }
+ return cards;
+},direct);
+assert.deepEqual(finalViewerChecked,[],"post-cache viewer work must be included inside epoch fence");
+assert.equal(afterCacheDuringViewer,true);
 // First deployment with unprovisioned revision RPC must bypass shared cache.
 let unversionedRead=false;
 const fallback=await readEpochGuardedCatalog(async()=>null,async()=>{throw Error("shared cache forbidden");},async()=>{unversionedRead=true;return []});

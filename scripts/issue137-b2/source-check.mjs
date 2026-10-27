@@ -10,6 +10,9 @@ const stream = read("src/lib/recording/privateMediaProxy.ts");
 const catalog = read("src/lib/publicWorks.ts");
 const generator = read("src/lib/recording/nemoGeneration.ts");
 const aivis = read("src/lib/recording/aivisGeneration.ts");
+const readerPage = read("src/app/read/[seriesId]/[episodeNumber]/page.tsx");
+const workPage = read("src/app/works/[seriesId]/page.tsx");
+const protectedOptions = read("src/lib/recording/protectedAiRecordingOptions.ts");
 let checked = 0;
 function must(source, label, snippet) {
   assert.ok(source.includes(snippet), label);
@@ -57,6 +60,15 @@ must(sql, "F1 series epoch", "create trigger issue137_b2_series_catalog_revision
 must(sql, "F1 episode epoch", "create trigger issue137_b2_episode_catalog_revision");
 must(sql, "F1 author epoch", "create trigger issue137_b2_author_catalog_revision");
 must(catalog, "F1 epoch double check", "readEpochGuardedCatalog(");
+must(catalog,"F1 final fence includes viewer filter","async (epoch) => filterPublicBaseWorkCardsForViewer(");
+must(catalog,"F1 failure-closed fallback","await buildPublicBaseWorkCards(), options");
+must(readerPage,"F3 Reader has AI narration options","listProtectedAiRecordings(");
+must(readerPage,"F3 Reader uses authorized audio URL","src={option.audioUrl}");
+must(workPage,"F3 Work has separate AI narration","aiRecordings: listProtectedAiRecordings(");
+must(workPage,"F3 Work preserves Human filter",".filter(isPublishedHumanRecording)");
+must(workPage,"F3 Work authorized player","src={option.audioUrl}");
+must(protectedOptions,"F3 AI-only private reference","stored.startsWith(\"r18-private:\")");
+
 must(catalog, "F1 epoch-bound cache", "public-base-work-cards-v13-db-epoch-bound");
 assert.ok(!catalog.includes('const cards = await getCachedPublicBaseWorkCardsInternal();'),
   "Forbidden: unsafe unversioned shared catalog fetch");
