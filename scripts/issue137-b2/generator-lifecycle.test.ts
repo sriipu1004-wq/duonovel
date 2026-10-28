@@ -83,9 +83,24 @@ for (const item of generators) {
   checked += 5;
 }
 
-const timing = read("src/lib/recording/nemoTiming.ts");
-assert.ok(timing.includes('return audioObjectPath.replace(/\.wav$/i, ".timing.json")'),
-  "WAV-to-timing companion URL mapping must remain source compatible");
+// Evaluate the real helper instead of asserting on regex spelling/escaping.
+const timingSrc = read("src/lib/recording/nemoTiming.ts");
+const timingTree = ts.createSourceFile("nemoTiming.ts", timingSrc, ts.ScriptTarget.Latest, true);
+const timingFn = timingTree.statements.find((n): n is ts.FunctionDeclaration =>
+  ts.isFunctionDeclaration(n) && n.name?.text === "buildNemoTimingObjectPathFromAudioObjectPath");
+assert.ok(timingFn, "timing helper not found");
+const timingCode = ts.transpileModule(
+  timingFn.getText(timingTree).replace(/^export\s+/, "") +
+    "\n" + "buildNemoTimingObjectPathFromAudioObjectPath;",
+  { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }
+).outputText;
+const timingPath = vm.runInNewContext(timingCode) as (path: string) => string;
+assert.equal(timingPath("nemo/" + seriesId + "/" + episodeId + "/new.wav"),
+  "nemo/" + seriesId + "/" + episodeId + "/new.timing.json",
+  "actual WAV timing pair preserved");
+assert.equal(timingPath("nemo/" + seriesId + "/" + episodeId + "/other.mp3"),
+  "nemo/" + seriesId + "/" + episodeId + "/other.mp3.timing.json",
+  "non-WAV fallback preserved");
+checked += 2;
 
-checked++;
 console.log("PASS: " + checked + " Nemo/Aivis SOURCE upload lifecycle and actual path-builder checks; no hosted storage");
