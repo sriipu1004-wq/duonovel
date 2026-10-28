@@ -9,7 +9,7 @@ const idA = "00000000-0000-4000-8000-000000000012";
 const idB = "00000000-0000-4000-8000-000000000013";
 const idHuman = "00000000-0000-4000-8000-000000000014";
 const ai = {id:idA,episode_id:seriesEpisode,is_public:true,reader_name:"Nemo",audio_storage_path:"r18-private:nemo/s/e.wav"};
-const human = {id:idHuman,episode_id:seriesEpisode,is_public:true,reader_name:"Human",reader_id:idHuman,audio_storage_path:"human-recording-private/path"};
+const human = {id:idHuman,episode_id:seriesEpisode,is_public:true,reader_name:"Human",reader_id:idHuman,audio_storage_path:"human/series/episode/reader/playback.m4a"};
 async function main(){
  const rows=[
   ai,
