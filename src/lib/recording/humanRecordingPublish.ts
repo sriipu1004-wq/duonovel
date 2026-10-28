@@ -361,7 +361,7 @@ function isCanonicalOwnedHumanPlaybackPath(
 ): boolean {
   const prefix = `human/${seriesId}/${episodeId}/${readerId}/`;
   if (!value.startsWith(prefix)) return false;
-  return /^[^/]+\/playback-from-[a-z0-9]+\.m4a$/u.test(
+  return /^[a-z0-9-]+\/playback-from-[a-z0-9]+\.m4a$/u.test(
     value.slice(prefix.length)
   );
 }
