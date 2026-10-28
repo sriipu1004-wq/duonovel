@@ -247,7 +247,7 @@ function isAivisRecordingReference(value: string, seriesId: string, episodeId: s
     }
   }
   if (!objectPath.startsWith(prefix)) return false;
-  return /^[^/]+\\.wav$/u.test(objectPath.slice(prefix.length));
+  return /^[^/]+\.wav$/u.test(objectPath.slice(prefix.length));
 }
 
 async function findExistingRecordings(
