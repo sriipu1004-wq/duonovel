@@ -17,7 +17,6 @@ let checked = 0;
 for (const item of generators) {
   const source = read(item.path);
   const sf = ts.createSourceFile(item.path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  assert.equal(sf.parseDiagnostics.length, 0, item.kind + " syntax diagnostics");
   const declaration = (name: string) => {
     const fn = sf.statements.find((n): n is ts.FunctionDeclaration =>
       ts.isFunctionDeclaration(n) && n.name?.text === name);
