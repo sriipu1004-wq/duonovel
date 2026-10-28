@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import "./generator-lifecycle.test"; // same B2 CI step: no network or Storage writes
 import "./generator-recording-ownership.test"; // actual writers, fake DB; no network
+import "./human-recording-ownership.test"; // actual Human publisher and writer; no hosted media
 import { readEpochGuardedCatalog, retainOnlyFreshlyAuthorizedR18Cards } from "../../src/lib/publicCatalogEpochFence";
 
 type Card = { id: string; title: string; rating: "general" | "r18"; publication: "public" | "private" };
