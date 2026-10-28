@@ -228,12 +228,35 @@ async function ensureReaderUserRow(
   throw new Error("reader_user_upsert_failed");
 }
 
+// A matching voice model or narrator label is NOT an ownership credential.
+// Reuse only the caller's own canonical Aivis artifact for this exact episode.
+function isAivisRecordingReference(value: string, seriesId: string, episodeId: string): boolean {
+  const prefix = `aivis/${seriesId}/${episodeId}/`;
+  let objectPath = "";
+  if (value.startsWith("r18-private:")) {
+    objectPath = value.slice("r18-private:".length);
+  } else {
+    try {
+      const url = new URL(value);
+      const publicPrefix = "/storage/v1/object/public/recording-audio/";
+      if (url.protocol !== "https:" || url.search || url.hash ||
+          !url.pathname.startsWith(publicPrefix)) return false;
+      objectPath = url.pathname.slice(publicPrefix.length);
+    } catch {
+      return false;
+    }
+  }
+  if (!objectPath.startsWith(prefix)) return false;
+  return /^[^/]+\\.wav$/u.test(objectPath.slice(prefix.length));
+}
+
 async function findExistingRecordings(
   supabase: AdminSupabase,
   episodeId: string
 ): Promise<
   Array<{
     id: string;
+    seriesId: string;
     audioStoragePath: string;
     readerId: string;
     readerName: string;
@@ -242,20 +265,17 @@ async function findExistingRecordings(
 > {
   const { data, error } = await supabase
     .from("recordings")
-    .select(
-      "id, audio_storage_path, reader_id, reader_name, voice_model_id"
-    )
+    .select("id, series_id, audio_storage_path, reader_id, reader_name, voice_model_id")
     .eq("episode_id", episodeId);
 
-  if (error) {
-    throw new Error(`recording_lookup_failed:${error.message}`);
-  }
+  if (error) throw new Error(`recording_lookup_failed:${error.message}`);
 
   return ((data ?? []) as RawRow[]).map((row) => ({
     id: String(row.id),
+    seriesId: pickText(row.series_id),
     audioStoragePath: pickText(row.audio_storage_path),
     readerId: pickText(row.reader_id),
-    readerName: pickText(row.reader_name) || "朗読者未設定",
+    readerName: pickText(row.reader_name),
     voiceModelId: pickText(row.voice_model_id),
   }));
 }
@@ -272,28 +292,14 @@ async function writeRecording(
   }
 ): Promise<{ recordingId: string }> {
   const allEpisodeRows = await findExistingRecordings(supabase, input.episodeId);
-  const isAivisNarrator = input.readerName.startsWith("Aivis ");
-
-  const inputVoiceModelId = pickText(input.voiceModelId);
-
-  const sameVoiceModelRows = input.voiceModelId
-    ? allEpisodeRows.filter((row) => row.voiceModelId === input.voiceModelId)
-    : [];
-
-  const sameReaderNameRows = allEpisodeRows.filter(
-    (row) => row.readerName === input.readerName
-  );
-
-  const sameReaderIdRows = input.readerName.startsWith("Aivis ")
-    ? []
-    : allEpisodeRows.filter((row) => row.readerId === input.readerId);
-
-  const existingRows = input.voiceModelId
-    ? sameVoiceModelRows
-    : sameReaderNameRows.length > 0
-      ? sameReaderNameRows
-      : sameReaderIdRows;
-  const primary = existingRows[0] ?? null;
+  const modelId = pickText(input.voiceModelId);
+  const primary = allEpisodeRows.find((row) =>
+    row.seriesId === input.seriesId &&
+    row.readerId === input.readerId &&
+    row.readerName === input.readerName &&
+    row.voiceModelId === modelId &&
+    isAivisRecordingReference(row.audioStoragePath, input.seriesId, input.episodeId)
+  ) ?? null;
 
   const payload = {
     series_id: input.seriesId,
@@ -307,22 +313,29 @@ async function writeRecording(
   };
 
   if (primary) {
-    const { data, error } = await supabase
+    let update = supabase
       .from("recordings")
       .update(payload)
       .eq("id", primary.id)
-      .select("id")
-      .single();
-
-    if (error || !data) {
-      throw new Error(`recording_update_failed:${error?.message ?? "unknown"}`);
-    }
-
-    return {
-      recordingId: String((data as RawRow).id),
-    };
+      .eq("series_id", input.seriesId)
+      .eq("episode_id", input.episodeId)
+      .eq("reader_id", input.readerId)
+      .eq("reader_name", input.readerName)
+      .eq("audio_storage_path", primary.audioStoragePath);
+    // Match the actual model column at commit time. A different user's
+    // shared model, Human row, Nemo row, or stale pointer must never be
+    // overwritten by an admin-client write.
+    update = modelId
+      ? update.eq("voice_model_id", modelId)
+      : update.is("voice_model_id", null);
+    const { data, error } = await update.select("id").maybeSingle();
+    if (error) throw new Error(`recording_update_failed:${error.message}`);
+    if (!data) throw new Error("recording_write_conflict");
+    return { recordingId: String((data as RawRow).id) };
   }
 
+  // No destructive cross-user re-use. Independent first-time generations may
+  // create distinct rows; they cannot silently overwrite another recording.
   const { data, error } = await supabase
     .from("recordings")
     .insert(payload)
@@ -332,12 +345,8 @@ async function writeRecording(
   if (error || !data) {
     throw new Error(`recording_insert_failed:${error?.message ?? "unknown"}`);
   }
-
-  return {
-    recordingId: String((data as RawRow).id),
-  };
+  return { recordingId: String((data as RawRow).id) };
 }
-
 export async function generateAivisRecordingForEpisode({
   supabase,
   userId,
