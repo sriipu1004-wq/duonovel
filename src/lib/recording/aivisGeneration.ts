@@ -338,20 +338,6 @@ async function writeRecording(
   };
 }
 
-async function removeStorageObjectPaths(
-  supabase: AdminSupabase,
-  bucketName: string,
-  objectPaths: string[]
-): Promise<void> {
-  const filtered = [...new Set(objectPaths.filter((path) => path.trim().length > 0))];
-
-  if (filtered.length === 0) {
-    return;
-  }
-
-  await supabase.storage.from(bucketName).remove(filtered);
-}
-
 export async function generateAivisRecordingForEpisode({
   supabase,
   userId,
@@ -428,8 +414,8 @@ export async function generateAivisRecordingForEpisode({
   });
   const timingObjectPath =
     buildNemoTimingObjectPathFromAudioObjectPath(audioObjectPath);
-  const currentObjectPaths = [audioObjectPath, timingObjectPath];
-
+  // Each upload path contains a fresh UUID; never overwrite an existing key.
+  // Preserve uncertain results rather than attempting destructive rollback.
   try {
     const mergedWavBytes = concatNemoWavs(renderedSegments);
     const timingManifest = buildNemoTimingManifest({
@@ -446,7 +432,7 @@ export async function generateAivisRecordingForEpisode({
         .from(bucketName)
         .upload(audioObjectPath, candidate.wavBytes, {
           contentType: "audio/wav",
-          upsert: true,
+          upsert: false,
         });
 
       if (!uploadError) {
@@ -471,7 +457,7 @@ export async function generateAivisRecordingForEpisode({
       .from(bucketName)
       .upload(timingObjectPath, JSON.stringify(timingManifest), {
         contentType: "application/json; charset=utf-8",
-        upsert: true,
+        upsert: false,
       });
 
     if (timingUploadError) {
@@ -504,8 +490,8 @@ export async function generateAivisRecordingForEpisode({
       speakerId,
     };
   } catch (error) {
-    await removeStorageObjectPaths(adminSupabase, bucketName, currentObjectPaths);
-
+    // A timeout or failed database response cannot establish that no object
+    // or recording pointer was committed. Do not delete any Storage key.
     if (error instanceof Error) {
       throw error;
     }
