@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./generator-lifecycle.test"; // same B2 CI step: no network or Storage writes
 import { readEpochGuardedCatalog, retainOnlyFreshlyAuthorizedR18Cards } from "../../src/lib/publicCatalogEpochFence";
 
 type Card = { id: string; title: string; rating: "general" | "r18"; publication: "public" | "private" };
