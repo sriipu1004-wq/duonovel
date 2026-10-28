@@ -146,9 +146,20 @@ assert.equal(
 
 const publicRead = source("src/lib/publicRead.ts");
 assert.equal(
-  publicRead.includes("buildHumanRecordingPlaybackHref(recording.id)"),
+  publicRead.includes("return projectReaderEpisodeRecordings("),
   true,
-  "Reader payload must expose authorization-proxy URLs instead of storage paths"
+  "Reader must invoke the shared Human/AI recording boundary"
+);
+const readerProjection = source("src/lib/recording/readerEpisodeRecordingProjection.ts");
+assert.equal(
+  readerProjection.includes("buildHumanRecordingPlaybackHref(row.id)"),
+  true,
+  "Published Human Reader rows must still be replaced with authorized Human proxy URLs"
+);
+assert.equal(
+  readerProjection.includes("isPublishedHumanRecording(row)"),
+  true,
+  "Human provenance checks must remain in the Reader producer"
 );
 
 const recordSearch = source("src/app/record/page.tsx");
