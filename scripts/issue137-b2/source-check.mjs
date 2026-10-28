@@ -65,6 +65,10 @@ must(sql, "F1 episode epoch", "create trigger issue137_b2_episode_catalog_revisi
 must(sql, "F1 author epoch", "create trigger issue137_b2_author_catalog_revision");
 must(catalog, "F1 epoch double check", "readEpochGuardedCatalog(");
 must(catalog,"F1 final fence includes viewer filter","async (epoch) => filterPublicBaseWorkCardsForViewer(");
+must(catalog,"F1 fresh viewer profile", "async function recheckR18CatalogCards(");
+must(catalog,"F1 fresh profile fields", '.select("show_r18_content, r18_confirmed_at")');
+must(catalog,"F1 list all fresh gated", 'if (visibility === "all") return recheckR18CatalogCards(visibleCards);');
+must(catalog,"F1 single work fresh gated", 'return (await recheckR18CatalogCards([work]))[0] ?? null;');
 must(catalog,"F1 failure-closed fallback","await buildPublicBaseWorkCards(), options");
 must(readerProducer,"F3 Reader producer calls mixed provenance projection","return projectReaderEpisodeRecordings(");
 const readerFetchSource = readerProducer.split("async function fetchPublicRecordings(")[1]

@@ -13,7 +13,7 @@ import {
   type SeriesRow,
 } from "@/features/write/writeShared";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { readEpochGuardedCatalog } from "@/lib/publicCatalogEpochFence";
+import { readEpochGuardedCatalog, retainOnlyFreshlyAuthorizedR18Cards } from "@/lib/publicCatalogEpochFence";
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -532,7 +532,7 @@ export async function getPublicWorkMetadataCardById(seriesId: string): Promise<P
     return null;
   }
 
-  return work;
+  return (await recheckR18CatalogCards([work]))[0] ?? null;
 }
 
 const getCachedPublicBaseWorkCardsInternal = unstable_cache(
@@ -573,6 +573,28 @@ function prioritizeForLocale(cards: PublicBaseWorkCard[], locale: "ja" | "en" | 
     .map(({ card }) => card);
 }
 
+// React request caching of the initial viewer decision cannot detect an
+// in-flight preference OFF/revocation. Re-query current DB profile only if
+// the response contains R18 cards. This narrows but does not eliminate TOCTOU.
+async function recheckR18CatalogCards(cards: PublicBaseWorkCard[]): Promise<PublicBaseWorkCard[]> {
+  if (!cards.some((card) => card.contentRating === "r18")) return cards;
+  const viewer = await getCurrentR18ViewerPreference();
+  return retainOnlyFreshlyAuthorizedR18Cards(
+    cards,
+    viewer.signedIn && viewer.showR18Content ? viewer.userId : null,
+    async (userId) => {
+      const { data, error } = await createAdminClient()
+        .from("users")
+        .select("show_r18_content, r18_confirmed_at")
+        .eq("id", userId)
+        .maybeSingle();
+      return !error && data?.show_r18_content === true &&
+        typeof data.r18_confirmed_at === "string" &&
+        data.r18_confirmed_at.trim().length > 0;
+    }
+  );
+}
+
 async function filterPublicBaseWorkCardsForViewer(
   cards: PublicBaseWorkCard[],
   options?: {
@@ -602,7 +624,7 @@ async function filterPublicBaseWorkCardsForViewer(
 
   // "all" means all *authorized* public cards, without UI/source-language
   // filters. It must never bypass the viewer-specific R18 permission.
-  if (visibility === "all") return visibleCards;
+  if (visibility === "all") return recheckR18CatalogCards(visibleCards);
 
   const requestHeaders = await headers();
   const headerLocale = requestHeaders.get(UI_LOCALE_HEADER);
@@ -631,9 +653,9 @@ async function filterPublicBaseWorkCardsForViewer(
     );
   }
 
-  return options?.prioritizeForUiLocale === false
+  return recheckR18CatalogCards(options?.prioritizeForUiLocale === false
     ? visibleCards
-    : prioritizeForLocale(visibleCards, locale);
+    : prioritizeForLocale(visibleCards, locale));
 }
 
 // Keep the FINAL DB revision check after R18 viewer lookup, locale headers,

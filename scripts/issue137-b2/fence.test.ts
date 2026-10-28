@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readEpochGuardedCatalog } from "../../src/lib/publicCatalogEpochFence";
+import { readEpochGuardedCatalog, retainOnlyFreshlyAuthorizedR18Cards } from "../../src/lib/publicCatalogEpochFence";
 
 type Card = { id: string; title: string; rating: "general" | "r18"; publication: "public" | "private" };
 let revision=1;
@@ -71,6 +71,17 @@ await assert.rejects(
   readEpochGuardedCatalog(async()=>{throw Error("DB unavailable")},loadCached,direct),
   /DB unavailable/
 );
-console.log("PASS: 13 F1 SOURCE/runtime assertions (epoch cache, R18 withdrawal, race and failures)");
+// Even when an earlier React-request viewer decision is ON, a DB revocation
+// completed before the final preference read must remove R18-only cards.
+const general={id:"g",contentRating:"general"};
+const restricted={id:"r",contentRating:"r18"};
+let preferenceReads=0;
+assert.deepEqual(await retainOnlyFreshlyAuthorizedR18Cards([general,restricted],"synthetic-user",async()=>{preferenceReads++;return false;}),[general]);
+assert.equal(preferenceReads,1,"revocation must be checked independently of earlier request cache");
+assert.deepEqual(await retainOnlyFreshlyAuthorizedR18Cards([general,restricted],"synthetic-user",async()=>true),[general,restricted]);
+assert.deepEqual(await retainOnlyFreshlyAuthorizedR18Cards([general,restricted],"synthetic-user",async()=>{throw Error("read failed");}),[general]);
+assert.deepEqual(await retainOnlyFreshlyAuthorizedR18Cards([general,restricted],null,async()=>{throw Error("should not read");}),[general]);
+assert.deepEqual(await retainOnlyFreshlyAuthorizedR18Cards([general],null,async()=>{throw Error("should not read");}),[general]);
+console.log("PASS: F1 epoch/race and fresh R18 preference negative paths (SOURCE only)");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

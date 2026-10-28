@@ -22,3 +22,21 @@ export async function readEpochGuardedCatalog<T>(
   // must not return an in-flight stale result.
   throw new Error("catalog_epoch_changed_during_read");
 }
+
+// A final DB preference lookup can detect a revocation committed before it.
+// It cannot undo bytes already streamed or close the DB-read-to-response race.
+export async function retainOnlyFreshlyAuthorizedR18Cards<T extends { contentRating: string }>(
+  cards: readonly T[],
+  verifiedUserId: string | null,
+  checkFreshPermission: (userId: string) => Promise<boolean>
+): Promise<T[]> {
+  const unrestricted = cards.filter((card) => card.contentRating !== "r18");
+  if (unrestricted.length === cards.length) return [...cards];
+  if (!verifiedUserId) return unrestricted;
+  try {
+    if (await checkFreshPermission(verifiedUserId)) return [...cards];
+  } catch {
+    // A failed fresh preference read always denies R18 metadata.
+  }
+  return unrestricted;
+}
