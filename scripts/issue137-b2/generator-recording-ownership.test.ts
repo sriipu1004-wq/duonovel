@@ -231,6 +231,9 @@ async function verify(kind:"nemo"|"aivis") {
     checks+=2;
   }
 }
-await verify("nemo");
-await verify("aivis");
-console.log("PASS: "+checks+" F2-A/B actual Nemo/Aivis DB-writer synthetic ownership, provenance and CAS checks; no hosted DB/Storage");
+async function main() {
+  await verify("nemo");
+  await verify("aivis");
+  console.log("PASS: "+checks+" F2-A/B actual Nemo/Aivis DB-writer synthetic ownership, provenance and CAS checks; no hosted DB/Storage");
+}
+main().catch((error) => { console.error(error); process.exitCode = 1; });
