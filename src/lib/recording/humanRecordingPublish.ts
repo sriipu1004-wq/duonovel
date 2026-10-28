@@ -60,6 +60,7 @@ type ExistingRecording = {
   readerId: string;
   readerName: string;
   voiceModelId: string;
+  isPublic: boolean | null;
 };
 
 function pickText(...values: unknown[]): string {
@@ -351,6 +352,7 @@ function mapRecordingRows(rows: RawRow[]): ExistingRecording[] {
     readerId: pickText(row.reader_id),
     readerName: pickText(row.reader_name),
     voiceModelId: pickText(row.voice_model_id),
+    isPublic: row.is_public === true ? true : row.is_public === false ? false : null,
   }));
 }
 
@@ -386,14 +388,80 @@ async function findExistingRecordings(
   );
 }
 
+
+type HumanPublishAuthorizationSnapshot = {
+  permissionMode: string;
+  seriesPublication: string;
+  rating: string;
+  warnings: string;
+  episodePublished: boolean | null;
+  episodePosting: string;
+};
+
+// This is a bounded SOURCE-level revoke/visibility fence. The first snapshot
+// is captured BEFORE file uploads and compared with a fresh server read just
+// BEFORE the privileged DB write. It is NOT an atomic lock/epoch across two
+// tables; a later permissions flip still requires a separately reviewed
+// transactional design.
+async function readHumanPublishAuthorizationSnapshot(
+  adminSupabase: AdminSupabase,
+  seriesId: string,
+  episodeId: string
+): Promise<HumanPublishAuthorizationSnapshot> {
+  const { data: seriesRow, error: seriesError } = await adminSupabase
+    .from("series")
+    .select("id, recording_permission_mode, publication_status, content_rating, content_warnings")
+    .eq("id", seriesId)
+    .maybeSingle();
+  if (seriesError || !seriesRow) throw new Error("human_recording_authorization_unavailable");
+  const seriesData = seriesRow as RawRow;
+  const permissionMode = normalizeRecordingPermissionMode(seriesData.recording_permission_mode);
+  if (!decideRecordingEntryAccess({ permissionMode, isLoggedIn: true }).canEnter) {
+    throw new Error("entry_denied:closed");
+  }
+
+  const { data: episodeRow, error: episodeError } = await adminSupabase
+    .from("episodes")
+    .select("id, series_id, posting_status, is_published")
+    .eq("id", episodeId)
+    .maybeSingle();
+  if (episodeError || !episodeRow || pickText((episodeRow as RawRow).series_id) !== seriesId) {
+    throw new Error("human_recording_episode_unavailable");
+  }
+  const episodeData = episodeRow as RawRow;
+  return {
+    permissionMode,
+    seriesPublication: pickText(seriesData.publication_status),
+    rating: pickText(seriesData.content_rating),
+    warnings: JSON.stringify(seriesData.content_warnings ?? null),
+    episodePublished: episodeData.is_published === true
+      ? true : episodeData.is_published === false ? false : null,
+    episodePosting: pickText(episodeData.posting_status),
+  };
+}
+
 async function writeRecording(
   adminSupabase: AdminSupabase,
-  input: RecordingWriteInput
+  input: RecordingWriteInput,
+  initialRows?: ExistingRecording[]
 ): Promise<{ recordingId: string }> {
-  const allEpisodeRows = await findExistingRecordings(
+  // The actual publisher supplies its PRE-UPLOAD rows. Never select the old
+  // public state only after conversion or a revoke could already have won.
+  const allEpisodeRows = initialRows ?? await findExistingRecordings(
     adminSupabase,
     input.episodeId
   );
+
+  if (input.isPublic && allEpisodeRows.some((row) =>
+    row.seriesId === input.seriesId &&
+    row.episodeId === input.episodeId &&
+    row.readerId === input.readerId &&
+    row.isPublic !== true
+  )) {
+    // A default isPublic=true upload is not explicit consent to restore
+    // a previously hidden Human recording or create a new public bypass row.
+    throw new Error("human_recording_republish_requires_explicit_consent");
+  }
 
   const primary = allEpisodeRows.find((row) =>
     row.seriesId === input.seriesId &&
@@ -427,6 +495,9 @@ async function writeRecording(
       .eq("reader_name", input.readerName)
       .is("voice_model_id", null)
       .eq("audio_storage_path", primary.audioStoragePath)
+      // CAS also includes the PRE-UPLOAD publication state. Concurrent
+      // is_public=false revocation must invalidate a pending public UPDATE.
+      .is("is_public", primary.isPublic)
       .select("id")
       .maybeSingle();
 
@@ -476,6 +547,13 @@ export async function publishHumanRecording({
   const episodeBody = await fetchEpisodeBodyForAlignment(
     adminSupabase,
     canonicalEpisodeId
+  );
+
+  const initialAuthorization = await readHumanPublishAuthorizationSnapshot(
+    adminSupabase, seriesId, canonicalEpisodeId
+  );
+  const initialHumanRows = await findExistingRecordings(
+    adminSupabase, canonicalEpisodeId
   );
 
   const fileBytes = new Uint8Array(await sourceFile.arrayBuffer());
@@ -554,6 +632,15 @@ export async function publishHumanRecording({
 
     await ensureReaderUserRow(adminSupabase, userId, readerName);
 
+    const freshAuthorization = await readHumanPublishAuthorizationSnapshot(
+      adminSupabase, seriesId, canonicalEpisodeId
+    );
+    if (JSON.stringify(freshAuthorization) !== JSON.stringify(initialAuthorization)) {
+      // Fail closed if permission, publication, content rating/warnings, or
+      // episode visibility changed while original/playback/timing uploaded.
+      throw new Error("human_recording_authorization_changed");
+    }
+
     const { recordingId } = await writeRecording(adminSupabase, {
       seriesId,
       episodeId: canonicalEpisodeId,
@@ -561,7 +648,7 @@ export async function publishHumanRecording({
       readerName,
       audioStoragePath: playbackObjectPath,
       isPublic,
-    });
+    }, initialHumanRows);
 
     // Do not delete older Human rows or any source/playback/timing objects:
     // an upload or DB response may have been lost after committing remotely.
