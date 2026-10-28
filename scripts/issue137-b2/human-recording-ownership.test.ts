@@ -184,7 +184,8 @@ async function writerCases(){
     "human/"+series+"/"+episode+"/"+other+"/old/playback-from-mp3.m4a",
     "human/"+series+"/"+episode+"/"+owner+"/old/original.mp3",
     "human/"+series+"/"+episode+"/"+owner+"/old/playback.m4a",
-    "human/"+series+"/"+episode+"/"+owner+"/old/playback-from-mp3.m4a/../../bad"
+    "human/"+series+"/"+episode+"/"+owner+"/old/playback-from-mp3.m4a/../../bad",
+    "human/"+series+"/"+episode+"/"+owner+"/../playback-from-mp3.m4a"
   ]){
     const old=seed(owner,"Human Reader",path),db=new FakeDB([old]);
     await code.writeRecording(db,input("next"));
