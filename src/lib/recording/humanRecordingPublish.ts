@@ -20,7 +20,6 @@ import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
 import {
   buildHumanRecordingPlaybackHref,
   getHumanRecordingAudioBucketName,
-  getHumanRecordingStorageObjectPath,
 } from "@/lib/recording/humanRecordingStorage";
 
 type AdminSupabase = ReturnType<typeof createAdminClient>;
@@ -55,9 +54,12 @@ type RecordingWriteInput = {
 
 type ExistingRecording = {
   id: string;
+  seriesId: string;
+  episodeId: string;
   audioStoragePath: string;
   readerId: string;
   readerName: string;
+  voiceModelId: string;
 };
 
 function pickText(...values: unknown[]): string {
@@ -166,52 +168,7 @@ function buildHumanRecordingObjectPaths({
   };
 }
 
-function buildRecordingArtifactObjectPaths(
-  storedAudioPath: string
-): string[] {
-  const objectPath = getHumanRecordingStorageObjectPath(storedAudioPath);
-
-  if (!objectPath) {
-    return [];
-  }
-
-  const results = [objectPath];
-
-  const normalizedPlaybackMatch = objectPath.match(
-    /^(.*\/)playback-from-([a-z0-9]+)\.m4a$/i
-  );
-  if (normalizedPlaybackMatch) {
-    results.push(`${normalizedPlaybackMatch[1]}original.${normalizedPlaybackMatch[2]}`);
-    results.push(buildNemoTimingObjectPathFromAudioObjectPath(objectPath));
-  }
-
-  const legacyPlaybackMatch = objectPath.match(/^(.*\/)playback\.([a-z0-9]+)$/i);
-  if (legacyPlaybackMatch) {
-    results.push(`${legacyPlaybackMatch[1]}original.${legacyPlaybackMatch[2]}`);
-    results.push(buildNemoTimingObjectPathFromAudioObjectPath(objectPath));
-  }
-
-  if (objectPath.startsWith("nemo/") || objectPath.includes("/nemo/")) {
-    results.push(buildNemoTimingObjectPathFromAudioObjectPath(objectPath));
-  }
-
-  return [...new Set(results)];
-}
-
-async function removeStorageObjectPaths(
-  adminSupabase: AdminSupabase,
-  bucketName: string,
-  objectPaths: string[]
-): Promise<void> {
-  const filtered = [...new Set(objectPaths.filter((value) => value.trim().length > 0))];
-
-  if (filtered.length === 0) {
-    return;
-  }
-
-  await adminSupabase.storage.from(bucketName).remove(filtered);
-}
-
+// No destructive Human recording cleanup on uncertain upload/DB results.
 
 async function loadPublishAccess(
   adminSupabase: AdminSupabase,
@@ -383,19 +340,30 @@ async function ensureReaderUserRow(
   throw new Error(`reader_user_upsert_failed:${errors.join(" | ")}`);
 }
 
+
 function mapRecordingRows(rows: RawRow[]): ExistingRecording[] {
   return rows.map((row) => ({
     id: String(row.id),
-    audioStoragePath: pickText(row.audio_storage_path, row.audioStoragePath),
-    readerId: pickText(row.reader_id, row.reader_user_id, row.readerUserId),
-    readerName:
-      pickText(
-        row.reader_name,
-        row.narrator_name,
-        row.display_name,
-        row.speaker_name
-      ) || "朗読者未設定",
+    seriesId: pickText(row.series_id),
+    episodeId: pickText(row.episode_id),
+    audioStoragePath: pickText(row.audio_storage_path),
+    // Never use alias/name fields to authorize privileged replacement.
+    readerId: pickText(row.reader_id),
+    readerName: pickText(row.reader_name),
+    voiceModelId: pickText(row.voice_model_id),
   }));
+}
+
+// Only a canonical playback file under THIS publisher's path may be reused.
+// Legacy media, other owners and arbitrary hosted URLs remain untouched.
+function isCanonicalOwnedHumanPlaybackPath(
+  value: string, seriesId: string, episodeId: string, readerId: string
+): boolean {
+  const prefix = `human/${seriesId}/${episodeId}/${readerId}/`;
+  if (!value.startsWith(prefix)) return false;
+  return /^[^/]+\\/playback-from-[a-z0-9]+\\.m4a$/u.test(
+    value.slice(prefix.length)
+  );
 }
 
 async function findExistingRecordings(
@@ -418,51 +386,25 @@ async function findExistingRecordings(
   );
 }
 
-async function deleteDuplicateRecordings(
-  adminSupabase: AdminSupabase,
-  duplicateIds: string[]
-): Promise<void> {
-  if (duplicateIds.length === 0) {
-    return;
-  }
-
-  const { error } = await adminSupabase
-    .from("recordings")
-    .delete()
-    .in("id", duplicateIds);
-
-  if (error) {
-    throw new Error(`recording_duplicate_cleanup_failed:${error.message}`);
-  }
-}
-
 async function writeRecording(
   adminSupabase: AdminSupabase,
   input: RecordingWriteInput
-): Promise<{
-  recordingId: string;
-  previousAudioStoragePath: string | null;
-  duplicateAudioStoragePaths: string[];
-}> {
+): Promise<{ recordingId: string }> {
   const allEpisodeRows = await findExistingRecordings(
     adminSupabase,
     input.episodeId
   );
 
-  const sameReaderIdRows = allEpisodeRows.filter(
-    (row) => row.readerId === input.readerId
-  );
-
-  const sameReaderNameRows =
-    sameReaderIdRows.length > 0
-      ? []
-      : allEpisodeRows.filter((row) => row.readerName === input.readerName);
-
-  const existingRows =
-    sameReaderIdRows.length > 0 ? sameReaderIdRows : sameReaderNameRows;
-
-  const primary = existingRows[0] ?? null;
-  const duplicates = existingRows.slice(1);
+  const primary = allEpisodeRows.find((row) =>
+    row.seriesId === input.seriesId &&
+    row.episodeId === input.episodeId &&
+    row.readerId === input.readerId &&
+    row.readerName === input.readerName &&
+    !row.voiceModelId &&
+    isCanonicalOwnedHumanPlaybackPath(
+      row.audioStoragePath, input.seriesId, input.episodeId, input.readerId
+    )
+  ) ?? null;
 
   const payload = {
     series_id: input.seriesId,
@@ -479,29 +421,22 @@ async function writeRecording(
       .from("recordings")
       .update(payload)
       .eq("id", primary.id)
+      .eq("series_id", input.seriesId)
+      .eq("episode_id", input.episodeId)
+      .eq("reader_id", input.readerId)
+      .eq("reader_name", input.readerName)
+      .is("voice_model_id", null)
+      .eq("audio_storage_path", primary.audioStoragePath)
       .select("id")
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
-      throw new Error(
-        `recording_update_failed:${error?.message ?? "unknown error"}`
-      );
-    }
-
-    await deleteDuplicateRecordings(
-      adminSupabase,
-      duplicates.map((row) => row.id)
-    );
-
-    return {
-      recordingId: String((data as RawRow).id),
-      previousAudioStoragePath: primary.audioStoragePath || null,
-      duplicateAudioStoragePaths: duplicates
-        .map((row) => row.audioStoragePath)
-        .filter((value) => value.length > 0),
-    };
+    if (error) throw new Error(`recording_update_failed:${error.message}`);
+    if (!data) throw new Error("human_recording_write_conflict");
+    return { recordingId: String((data as RawRow).id) };
   }
 
+  // First-time parallel submissions can create separate rows. Retain both
+  // without inventing a Production uniqueness guarantee or deleting media.
   const { data, error } = await adminSupabase
     .from("recordings")
     .insert(payload)
@@ -509,37 +444,9 @@ async function writeRecording(
     .single();
 
   if (error || !data) {
-    throw new Error(
-      `recording_insert_failed:${error?.message ?? "unknown error"}`
-    );
+    throw new Error(`recording_insert_failed:${error?.message ?? "unknown error"}`);
   }
-
-  return {
-    recordingId: String((data as RawRow).id),
-    previousAudioStoragePath: null,
-    duplicateAudioStoragePaths: [],
-  };
-}
-
-async function removeObsoleteRecordingArtifacts(
-  adminSupabase: AdminSupabase,
-  bucketName: string,
-  previousAudioStoragePath: string | null,
-  duplicateAudioStoragePaths: string[],
-  currentObjectPaths: string[]
-): Promise<void> {
-  const obsoleteFromPrimary = previousAudioStoragePath
-    ? buildRecordingArtifactObjectPaths(previousAudioStoragePath)
-    : [];
-
-  const obsoleteFromDuplicates = duplicateAudioStoragePaths.flatMap(
-    (storedAudioPath) => buildRecordingArtifactObjectPaths(storedAudioPath)
-  );
-
-  const obsoleteObjectPaths = [...new Set([...obsoleteFromPrimary, ...obsoleteFromDuplicates])]
-    .filter((path) => !currentObjectPaths.includes(path));
-
-  await removeStorageObjectPaths(adminSupabase, bucketName, obsoleteObjectPaths);
+  return { recordingId: String((data as RawRow).id) };
 }
 
 export async function publishHumanRecording({
@@ -589,12 +496,6 @@ export async function publishHumanRecording({
   });
   const timingObjectPath =
     buildNemoTimingObjectPathFromAudioObjectPath(playbackObjectPath);
-
-  const currentObjectPaths = [
-    originalObjectPath,
-    playbackObjectPath,
-    timingObjectPath,
-  ];
 
   try {
     const { error: originalUploadError } = await adminSupabase.storage
@@ -653,11 +554,7 @@ export async function publishHumanRecording({
 
     await ensureReaderUserRow(adminSupabase, userId, readerName);
 
-    const {
-      recordingId,
-      previousAudioStoragePath,
-      duplicateAudioStoragePaths,
-    } = await writeRecording(adminSupabase, {
+    const { recordingId } = await writeRecording(adminSupabase, {
       seriesId,
       episodeId: canonicalEpisodeId,
       readerId: userId,
@@ -666,18 +563,8 @@ export async function publishHumanRecording({
       isPublic,
     });
 
-    try {
-      await removeObsoleteRecordingArtifacts(
-        adminSupabase,
-        bucketName,
-        previousAudioStoragePath,
-        duplicateAudioStoragePaths,
-        currentObjectPaths
-      );
-    } catch (cleanupError) {
-      console.warn("[human recording artifact cleanup warning]", cleanupError);
-    }
-
+    // Do not delete older Human rows or any source/playback/timing objects:
+    // an upload or DB response may have been lost after committing remotely.
     return {
       recordingId,
       audioStoragePath: buildHumanRecordingPlaybackHref(recordingId),
@@ -686,8 +573,7 @@ export async function publishHumanRecording({
       readerName,
     };
   } catch (error) {
-    await removeStorageObjectPaths(adminSupabase, bucketName, currentObjectPaths);
-
+    // An ambiguous failure is never authority to delete uploaded objects.
     if (error instanceof Error) {
       throw error;
     }
