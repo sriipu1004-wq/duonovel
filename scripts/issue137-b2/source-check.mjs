@@ -13,6 +13,7 @@ const aivis = read("src/lib/recording/aivisGeneration.ts");
 const readerPage = read("src/app/read/[seriesId]/[episodeNumber]/page.tsx");
 const workPage = read("src/app/works/[seriesId]/page.tsx");
 const protectedOptions = read("src/lib/recording/protectedAiRecordingOptions.ts");
+const readerProducer = read("src/lib/publicRead.ts");
 let checked = 0;
 function must(source, label, snippet) {
   assert.ok(source.includes(snippet), label);
@@ -65,6 +66,11 @@ must(sql, "F1 author epoch", "create trigger issue137_b2_author_catalog_revision
 must(catalog, "F1 epoch double check", "readEpochGuardedCatalog(");
 must(catalog,"F1 final fence includes viewer filter","async (epoch) => filterPublicBaseWorkCardsForViewer(");
 must(catalog,"F1 failure-closed fallback","await buildPublicBaseWorkCards(), options");
+must(readerProducer,"F3 Reader producer calls mixed provenance projection","return projectReaderEpisodeRecordings(");
+const readerFetchSource = readerProducer.split("async function fetchPublicRecordings(")[1]
+  ?.split("type ReaderViewerState")[0] ?? "";
+assert.ok(!readerFetchSource.includes(".filter(isPublishedHumanRecording)"),
+  "Human-only Reader producer would drop all protected AI rows");
 must(readerPage,"F3 Reader has AI narration options","listProtectedAiRecordings(");
 must(readerPage,"F3 Reader uses authorized audio URL","src={option.audioUrl}");
 must(workPage,"F3 Work has separate AI narration","aiRecordings: listProtectedAiRecordings(");
