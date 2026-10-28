@@ -555,6 +555,14 @@ export async function publishHumanRecording({
   const initialHumanRows = await findExistingRecordings(
     adminSupabase, canonicalEpisodeId
   );
+  if (isPublic && initialHumanRows.some((row) =>
+    row.seriesId === seriesId && row.episodeId === canonicalEpisodeId &&
+    row.readerId === userId && row.isPublic !== true
+  )) {
+    // Private/unknown prior Human state is not implicit republication consent.
+    // Reject BEFORE any media upload, not just at the final DB write.
+    throw new Error("human_recording_republish_requires_explicit_consent");
+  }
 
   const fileBytes = new Uint8Array(await sourceFile.arrayBuffer());
 
