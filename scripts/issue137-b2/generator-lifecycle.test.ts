@@ -30,7 +30,7 @@ for (const item of generators) {
 
   let minted = 0;
   const snippets = [sanitizer, builder].map((node) =>
-    node.getText(sf).replace(/^export\\s+/, "")).join("\n");
+    node.getText(sf).replace(/^export\s+/, "")).join("\n");
   const resultJs = ts.transpileModule(
     snippets + "\n" + item.build + ";",
     { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }
@@ -49,8 +49,8 @@ for (const item of generators) {
   const first = build(input), second = build(input);
   assert.notEqual(first, second, item.kind + " successive runs must have distinct object names");
   assert.ok(first.startsWith(item.kind + "/" + seriesId + "/" + episodeId + "/"), item.kind + " canonical series/episode prefix");
-  assert.match(first, /\\.wav$/, item.kind + " WAV path extension");
-  assert.match(second, /\\.wav$/, item.kind + " second WAV path extension");
+  assert.match(first, /\.wav$/, item.kind + " WAV path extension");
+  assert.match(second, /\.wav$/, item.kind + " second WAV path extension");
   assert.equal(minted, 2, item.kind + " must mint a fresh UUID for every generation");
   checked += 5;
 
@@ -75,17 +75,18 @@ for (const item of generators) {
 
   // A Storage request can time out after its server-side commit. The catch path
   // must not delete a key, even when the result or DB pointer is uncertain.
-  assert.doesNotMatch(source, /upsert:\\s*true/, item.kind + " unexpected overwrite");
-  assert.doesNotMatch(source, /\\.remove\\s*\\(/, item.kind + " destructive Storage cleanup");
+  assert.doesNotMatch(source, /upsert:\s*true/, item.kind + " unexpected overwrite");
+  assert.doesNotMatch(source, /\.remove\s*\(/, item.kind + " destructive Storage cleanup");
   assert.doesNotMatch(source, /removeStorageObjectPaths|removePreviousRecordingArtifactsIfNeeded|removeRecordingArtifactUrls/,
     item.kind + " unsafe legacy-media deletion helper");
-  assert.match(source, /makePrivateAiAudioReference\\(audioObjectPath\\)/, item.kind + " keep private R18 storage reference");
-  assert.match(source, /getPublicUrl\\(audioObjectPath\\)/, item.kind + " preserve public playback URL shape");
+  assert.match(source, /makePrivateAiAudioReference\(audioObjectPath\)/, item.kind + " keep private R18 storage reference");
+  assert.match(source, /getPublicUrl\(audioObjectPath\)/, item.kind + " preserve public playback URL shape");
   checked += 5;
 }
 
 const timing = read("src/lib/recording/nemoTiming.ts");
-assert.match(timing, /return audioObjectPath\\.replace\\(\/\\\\.wav\\$\/i, "\\.timing\\.json"\\)/,
+assert.ok(timing.includes('return audioObjectPath.replace(/\.wav$/i, ".timing.json")'),
   "WAV-to-timing companion URL mapping must remain source compatible");
+
 checked++;
 console.log("PASS: " + checked + " Nemo/Aivis SOURCE upload lifecycle and actual path-builder checks; no hosted storage");
