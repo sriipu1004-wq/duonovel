@@ -198,5 +198,37 @@ assert.deepEqual(anonymousAfter.map(x=>x.id).sort(),[r.general2.id].sort());pass
 ok(await call("/rest/v1/users?id=eq."+people.on.id,{method:"PATCH",key:admin,token:admin,body:{show_r18_content:false}}),"disable ON");
 const offNow=ok(await call("/rest/v1/episodes?select=id",{token:people.on.token}),"same signed JWT after OFF");
 assert.deepEqual(offNow.map(x=>x.id).sort(),[r.general2.ep].sort());passed++;
+// F2-P isolated negative control: a different PUBLIC bucket is outside B2's
+// recording-audio-only storage trigger AND orphan detection. A historical
+// public URL can remain anonymously fetchable despite R18 RLS and unpublish.
+// No hosted bucket, user, URL or media bytes are accessed by this test.
+const legacyBucket="f2p-disposable-public-legacy";
+const legacyName="unknown/"+r.rated.id+"/"+r.rated.ep+"/recording.wav";
+ok(await call("/storage/v1/bucket",{method:"POST",key:admin,token:admin,
+ body:{id:legacyBucket,name:legacyBucket,public:true}}),
+ "create ONLY synthetic isolated alternate public bucket");
+const unknownCurrent=await upload(legacyName);
+assert.ok(unknownCurrent.status>=400&&unknownCurrent.status<500,
+ "B2 current known public bucket must reject unclassified path");
+passed++;
+ok(await upload(legacyName,legacyBucket),
+ "create synthetic legacy-public media in alternate bucket");
+const oldUrl="/storage/v1/object/public/"+legacyBucket+"/"+legacyName;
+assert.equal((await call(oldUrl)).status,200,
+ "anon must demonstrate current public URL exposure independently of RLS");
+passed++;
+const hiddenRating=ok(await call("/rest/v1/series?id=eq."+r.rated.id+"&select=id"),
+ "anon R18 row check");
+assert.equal(hiddenRating.length,0,"anon must not see R18 row");passed++;
+ok(await patch("series",r.rated.id,{publication_status:"private"},admin,admin),
+ "synthetic series unpublish succeeds despite untracked public media");
+const hiddenAfter=ok(await call("/rest/v1/recordings?id=eq."+r.rated.rec+"&select=id"),
+ "anon recording row after unpublish");
+assert.equal(hiddenAfter.length,0,"anon recording row must remain hidden");passed++;
+assert.equal((await call(oldUrl)).status,200,
+ "unpublishing DB row must NOT be mistaken for revoking direct public object URL");
+passed++;
+console.log("EXPECTED_RELEASE_HOLD: F2-P local alternate PUBLIC bucket URL survives R18 RLS and series unpublish");
+console.log("NOT PRODUCTION evidence: unknown legacy object families/links/CDN remain unenumerated");
 console.log("PASS: "+passed+" B2 locally signed GoTrue, restrictive RLS, transition, orphan and Storage assertions");
 console.log("SYNTHETIC ONLY: not Production policy parity, not Next.js signed-in HTML/RSC, not CDN revocation");
