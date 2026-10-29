@@ -60,6 +60,8 @@ type ExistingRecording = {
   readerId: string;
   readerName: string;
   voiceModelId: string;
+  // Null/unknown must never be treated as prior publication consent.
+  isPublic: boolean | null;
 };
 
 function pickText(...values: unknown[]): string {
@@ -351,6 +353,7 @@ function mapRecordingRows(rows: RawRow[]): ExistingRecording[] {
     readerId: pickText(row.reader_id),
     readerName: pickText(row.reader_name),
     voiceModelId: pickText(row.voice_model_id),
+    isPublic: row.is_public === true ? true : row.is_public === false ? false : null,
   }));
 }
 
@@ -388,12 +391,26 @@ async function findExistingRecordings(
 
 async function writeRecording(
   adminSupabase: AdminSupabase,
-  input: RecordingWriteInput
+  input: RecordingWriteInput,
+  preUploadRows?: ExistingRecording[]
 ): Promise<{ recordingId: string }> {
-  const allEpisodeRows = await findExistingRecordings(
+  // The publisher passes a snapshot taken BEFORE media uploads. Reading the
+  // old publication flag after uploads would miss a mid-upload withdrawal.
+  const allEpisodeRows = preUploadRows ?? await findExistingRecordings(
     adminSupabase,
     input.episodeId
   );
+
+  if (input.isPublic && allEpisodeRows.some((row) =>
+    row.seriesId === input.seriesId &&
+    row.episodeId === input.episodeId &&
+    row.readerId === input.readerId &&
+    row.isPublic !== true
+  )) {
+    // A default public upload is not consent to re-publish a private or
+    // unknown-state Human recording via UPDATE or a new public INSERT.
+    throw new Error("human_recording_republish_requires_explicit_consent");
+  }
 
   const primary = allEpisodeRows.find((row) =>
     row.seriesId === input.seriesId &&
@@ -427,6 +444,9 @@ async function writeRecording(
       .eq("reader_name", input.readerName)
       .is("voice_model_id", null)
       .eq("audio_storage_path", primary.audioStoragePath)
+      // H1: CAS the pre-upload publication state as well as owner/path.
+      // A mid-flight is_public=false withdrawal must invalidate the UPDATE.
+      .is("is_public", primary.isPublic)
       .select("id")
       .maybeSingle();
 
@@ -477,6 +497,20 @@ export async function publishHumanRecording({
     adminSupabase,
     canonicalEpisodeId
   );
+
+  const preUploadRows = await findExistingRecordings(
+    adminSupabase,
+    canonicalEpisodeId
+  );
+  if (isPublic && preUploadRows.some((row) =>
+    row.seriesId === seriesId &&
+    row.episodeId === canonicalEpisodeId &&
+    row.readerId === userId &&
+    row.isPublic !== true
+  )) {
+    // Reject before allocating any new media keys.
+    throw new Error("human_recording_republish_requires_explicit_consent");
+  }
 
   const fileBytes = new Uint8Array(await sourceFile.arrayBuffer());
 
@@ -561,7 +595,7 @@ export async function publishHumanRecording({
       readerName,
       audioStoragePath: playbackObjectPath,
       isPublic,
-    });
+    }, preUploadRows);
 
     // Do not delete older Human rows or any source/playback/timing objects:
     // an upload or DB response may have been lost after committing remotely.
