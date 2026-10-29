@@ -47,13 +47,13 @@ declare
 begin
   if TG_OP <> 'INSERT' then
     before_human := libread_internal.h1_known_human(
-      old.voice_model_id,old.reader_name,old.reader_id,old.reader_user_id,
+      old.voice_model_id::text,old.reader_name,old.reader_id,old.reader_user_id,
       old.audio_storage_path
     );
   end if;
   if TG_OP <> 'DELETE' then
     after_human := libread_internal.h1_known_human(
-      new.voice_model_id,new.reader_name,new.reader_id,new.reader_user_id,
+      new.voice_model_id::text,new.reader_name,new.reader_id,new.reader_user_id,
       new.audio_storage_path
     );
   end if;
@@ -132,7 +132,7 @@ begin
    where r.series_id=p_series_id and r.episode_id=p_episode_id
     and (r.reader_id=p_owner_id or r.reader_user_id=p_owner_id)
     and libread_internal.h1_known_human(
-     r.voice_model_id,r.reader_name,r.reader_id,r.reader_user_id,r.audio_storage_path)
+     r.voice_model_id::text,r.reader_name,r.reader_id,r.reader_user_id,r.audio_storage_path)
     and (r.reader_id is null or r.reader_id<>p_owner_id
       or (r.reader_user_id is not null and r.reader_user_id<>p_owner_id))
  ) then
@@ -155,7 +155,7 @@ begin
     where r.series_id=p_series_id and r.episode_id=p_episode_id
       and (r.reader_id=p_owner_id or r.reader_user_id=p_owner_id)
       and libread_internal.h1_known_human(
-       r.voice_model_id,r.reader_name,r.reader_id,r.reader_user_id,r.audio_storage_path)
+       r.voice_model_id::text,r.reader_name,r.reader_id,r.reader_user_id,r.audio_storage_path)
       and r.is_public is distinct from true
    ) then
    raise exception using errcode='P0001',message='H1_PRIVATE_REPUBLISH_DENIED';
@@ -181,7 +181,7 @@ begin
       and r.audio_storage_path=p_prior_audio_storage_path
       and r.is_public is not distinct from p_prior_is_public
       and libread_internal.h1_known_human(
-        r.voice_model_id,r.reader_name,r.reader_id,r.reader_user_id,r.audio_storage_path);
+        r.voice_model_id::text,r.reader_name,r.reader_id,r.reader_user_id,r.audio_storage_path);
    get diagnostics affected = row_count;
    result_id := p_recording_id;
  elsif p_action = 'visibility' then
@@ -193,7 +193,7 @@ begin
       and r.episode_id=p_episode_id and r.reader_id=p_owner_id
       and (r.reader_user_id is null or r.reader_user_id=p_owner_id)
       and libread_internal.h1_known_human(
-        r.voice_model_id,r.reader_name,r.reader_id,r.reader_user_id,r.audio_storage_path);
+        r.voice_model_id::text,r.reader_name,r.reader_id,r.reader_user_id,r.audio_storage_path);
    get diagnostics affected = row_count;
    result_id := p_recording_id;
  elsif p_action = 'delete_all' then
@@ -203,7 +203,7 @@ begin
       and r.reader_id=p_owner_id
       and (r.reader_user_id is null or r.reader_user_id=p_owner_id)
       and libread_internal.h1_known_human(
-        r.voice_model_id,r.reader_name,r.reader_id,r.reader_user_id,r.audio_storage_path);
+        r.voice_model_id::text,r.reader_name,r.reader_id,r.reader_user_id,r.audio_storage_path);
    delete from public.recordings r
     where r.id=any(ids) and r.series_id=p_series_id
       and r.episode_id=p_episode_id and r.reader_id=p_owner_id;
