@@ -2,7 +2,12 @@
 // DISPOSABLE synthetic users/rows only. No Production, media, hosted SQL or keys.
 import assert from "node:assert/strict";
 import {randomUUID} from "node:crypto";
-import {isHumanRecordingRow,isPublishedHumanRecording} from "../../src/lib/recording/humanRecordingState.ts";
+// tsx may expose the TypeScript module as CommonJS in this repo's package mode.
+const humanStateModule=await import("../../src/lib/recording/humanRecordingState.ts");
+const {isHumanRecordingRow,isPublishedHumanRecording}=
+  humanStateModule.default??humanStateModule;
+assert.equal(typeof isHumanRecordingRow,"function","real Human classifier loaded");
+assert.equal(typeof isPublishedHumanRecording,"function","real published Human classifier loaded");
 
 assert.equal(process.env.B2_EPHEMERAL_CONFIRM, "local-only");
 assert.equal(process.env.DO_NOT_CONTACT_PRODUCTION, "true");
