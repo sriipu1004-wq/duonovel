@@ -207,7 +207,49 @@ deny(await commit(adultReader,adultRev,"insert",entry(adultReader,uuid(),true)),
  "R18 authorized Human path still blocked by B2 media reference",
  "B2_MEDIA_CONTAINMENT_REQUIRED");
 assert.equal(await revision(adultReader),adultRev);assertions++;
-console.log("EXPECTED_RELEASE_HOLD: authorized R18 Human path conflicts with B2 reference guard; no public media fallback");
+console.log("PASS: bare Human path rejected without a physical PRIVATE object");
+ok(await call("/storage/v1/bucket",{method:"POST",body:{
+ id:"human-recording-audio",name:"human-recording-audio",public:false
+}}),"create local private Human bucket");
+const humanBucket=ok(await call("/storage/v1/bucket/human-recording-audio"),
+ "read local private Human bucket");
+assert.equal(humanBucket.public,false);assertions++;
+async function putLocal(bucket,path){
+ const result=await fetch(base+"/storage/v1/object/"+bucket+"/"+path,{
+  method:"POST",headers:{apikey:service,Authorization:"Bearer "+service,
+   "Content-Type":"audio/mp4","x-upsert":"false"},
+  body:new Uint8Array([0,0,0,12,109,100,97,116,0,0,0,0]),
+  signal:AbortSignal.timeout(12000)});
+ const raw=await result.text();let data;try{data=JSON.parse(raw)}catch{data=raw}
+ return {status:result.status,data};
+}
+const realId=uuid(),realPath=path(adultReader,realId);
+ok(await putLocal("human-recording-audio",realPath),"real local private Human upload");
+const r18Commit=ok(await commit(adultReader,adultRev,"insert",entry(adultReader,realId,true)),
+ "authorized R18 Human post to verified private object");
+assert.equal(r18Commit.recording_id,realId);assertions++;
+assert.equal((await getRow(realId))?.audio_storage_path,realPath);assertions++;
+assert.notEqual((await call("/storage/v1/object/public/human-recording-audio/"+realPath)).status,200);
+assertions++;
+assert.notEqual((await call("/storage/v1/object/authenticated/human-recording-audio/"+realPath,
+ {key:anon,token:anon})).status,200);assertions++;
+const collision=await work(u.id),collisionRev=await revision(collision);
+const collisionId=uuid(),collisionPath=path(collision,collisionId);
+ok(await putLocal("human-recording-audio",collisionPath),"local private legacy-counterpart");
+ok(await commit(collision,collisionRev,"insert",entry(collision,collisionId,true)),
+ "local general Human recording");
+ok(await putLocal("recording-audio",collisionPath),"local public same-name alias");
+deny(await call("/rest/v1/series?id=eq."+collision.series,{
+ method:"PATCH",body:{content_rating:"r18"}
+}),"public Human alias must prevent R18 transition","B2_MEDIA_CONTAINMENT_REQUIRED");
+ok(await call("/storage/v1/object/recording-audio",{
+ method:"DELETE",body:{prefixes:[collisionPath]}
+}),"delete ONLY synthetic local public alias");
+ok(await call("/rest/v1/series?id=eq."+collision.series,{
+ method:"PATCH",body:{content_rating:"r18"}
+}),"private-only Human reference permits contained R18 transition");
+assert.equal((await getRow(collisionId))?.audio_storage_path,collisionPath);assertions++;
+console.log("PASS: F2 private bucket custody, R18 Human write, public alias HOLD");
 // After permission is closed, the owner can still withdraw/delete existing
 // recordings, avoiding an accidental unremovable public recording.
 await setSeries(w,{recording_permission_mode:"closed"});

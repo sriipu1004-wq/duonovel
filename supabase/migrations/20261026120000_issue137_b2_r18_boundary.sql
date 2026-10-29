@@ -92,6 +92,28 @@ as $$
 $$;
 revoke all on function libread_internal.is_restricted_recording_path(text)
  from public, anon, authenticated;
+
+-- F2 PRIVATE HUMAN CUSTODY: path syntax alone does not confer containment.
+-- Do not permit legacy public URLs just because a private twin exists.
+create or replace function libread_internal.is_verified_private_human_recording(
+ p_path text,p_sid uuid,p_eid uuid,p_reader uuid,
+ p_name text,p_voice text,p_alias uuid
+) returns boolean language sql stable security definer set search_path=''
+as $$
+ select p_path is not null and p_sid is not null and p_eid is not null and p_reader is not null
+  and nullif(btrim(coalesce(p_voice,'')),'') is null
+  and nullif(btrim(coalesce(p_name,'')),'') is not null
+  and (p_alias is null or p_alias=p_reader)
+  and p_path like ('human/'||p_sid::text||'/'||p_eid::text||'/'||p_reader::text||'/%')
+  and p_path ~ '/[a-z0-9-]+/playback-from-[a-z0-9]+[.]m4a$'
+  and exists(select 1 from storage.objects o join storage.buckets b on b.id=o.bucket_id
+             where b.id='human-recording-audio' and b.public is false and o.name=p_path)
+  and not exists(select 1 from storage.objects o
+                 where o.bucket_id='recording-audio' and o.name=p_path);
+$$;
+revoke all on function libread_internal.is_verified_private_human_recording(
+ text,uuid,uuid,uuid,text,text,uuid
+) from public,anon,authenticated;
 -- Prevent unsafe direct PostgREST classification/publication change.
 -- Prevent orphaned PUBLIC Storage objects (no recordings row) from defeating
 -- a general->R18 transition. Canonical Nemo/Aivis/Human path includes series ID.
@@ -134,7 +156,10 @@ begin
  ) and exists (
   select 1 from public.recordings r where r.series_id=new.id
     and r.audio_storage_path is not null
-    and not libread_internal.is_restricted_recording_path(r.audio_storage_path)
+    and not (libread_internal.is_restricted_recording_path(r.audio_storage_path)
+     or libread_internal.is_verified_private_human_recording(
+       r.audio_storage_path,r.series_id,r.episode_id,r.reader_id,
+       r.reader_name,r.voice_model_id::text,r.reader_user_id))
  ) or (
    (new.publication_status is distinct from 'public'
     or new.content_rating='r18'
@@ -160,7 +185,10 @@ begin
      or new.is_published is distinct from true)
    and exists (select 1 from public.recordings r where r.episode_id=new.id
      and r.audio_storage_path is not null
-     and not libread_internal.is_restricted_recording_path(r.audio_storage_path))
+     and not (libread_internal.is_restricted_recording_path(r.audio_storage_path)
+     or libread_internal.is_verified_private_human_recording(
+       r.audio_storage_path,r.series_id,r.episode_id,r.reader_id,
+       r.reader_name,r.voice_model_id::text,r.reader_user_id)))
    or ((new.posting_status is distinct from 'posted' or new.is_published is distinct from true)
      and libread_internal.public_audio_exists_for_episode(new.series_id,new.id))
  then raise exception using errcode='23514',message='B2_MEDIA_CONTAINMENT_REQUIRED';
@@ -188,7 +216,10 @@ begin
    raise exception using errcode='23514',message='B2_INVALID_MEDIA_REFERENCE';
  end if;
  if new.audio_storage_path is not null
-    and not libread_internal.is_restricted_recording_path(new.audio_storage_path)
+    and not (libread_internal.is_restricted_recording_path(new.audio_storage_path)
+     or libread_internal.is_verified_private_human_recording(
+       new.audio_storage_path,new.series_id,new.episode_id,new.reader_id,
+       new.reader_name,new.voice_model_id::text,new.reader_user_id))
     and (
       s.publication_status is distinct from 'public'
       or e.posting_status is distinct from 'posted'

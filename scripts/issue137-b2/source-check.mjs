@@ -38,7 +38,11 @@ for (const [label, snippet] of [
   ["orphaned media", "public_audio_exists_for_series(new.id)"],
   ["narrator consumer restriction", "recordings.is_public is distinct from true"],
   ["series update race", "where id=new.series_id for share"],
-  ["episode update race", "where id=new.episode_id for share"]
+  ["episode update race", "where id=new.episode_id for share"],
+  ["F2 private Human proof", "create or replace function libread_internal.is_verified_private_human_recording("],
+  ["F2 private bucket", "b.id='human-recording-audio' and b.public is false"],
+  ["F2 storage-object match", "and o.name=p_path"],
+  ["F2 explicit public alias rejection", "o.bucket_id='recording-audio' and o.name=p_path"]
 ]) must(sql, label, snippet);
 const fixture = read("scripts/issue137-b2/fixture.sql");
 const episodesTable = fixture.split("create table public.episodes (")[1]?.split(");")[0] ?? "";
