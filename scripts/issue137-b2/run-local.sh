@@ -106,3 +106,22 @@ node "$B2/e2e.mjs"
 # Run from repository root so the CI-pinned tsx loader can import the
 # actual Human provenance classifier; local Supabase remains unlinked.
 (cd "$ROOT" && node --import tsx "$B2/atomic-race-e2e.mjs")
+# Apply the UNAPPLIED H1 candidate only inside the already verified disposable
+# local database, AFTER legacy negative controls which deliberately bypass it.
+# Resolve the PostgreSQL container by image in our exclusive Docker network;
+# never use local/host PostgreSQL settings, linked projects or hosted SQL.
+db_container=''
+while read -r id image_name; do
+  if [[ "$image_name" == *supabase/postgres* ]]; then
+    [[ -z "$db_container" ]] || { echo 'BLOCKED: ambiguous local database container'; exit 3; }
+    db_container="$id"
+  fi
+done < <(docker ps --filter "network=$NETWORK" --format '{{.ID}} {{.Image}}')
+[[ -n "$db_container" ]] || { echo 'BLOCKED: no PostgreSQL container on dedicated bridge'; exit 3; }
+docker cp "$ROOT/supabase/migrations/20261029190000_issue137_h1_human_atomic.sql" \
+  "$db_container:/tmp/issue137_h1_human_atomic.sql"
+docker exec "$db_container" psql -U postgres -d postgres \
+  -v ON_ERROR_STOP=1 -f /tmp/issue137_h1_human_atomic.sql >/dev/null
+echo 'PASS: H1 candidate installed only in disposable LOCAL PostgreSQL'
+node "$B2/h1-atomic-e2e.mjs"
+
