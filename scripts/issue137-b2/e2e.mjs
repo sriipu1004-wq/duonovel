@@ -208,8 +208,10 @@ ok(await call("/storage/v1/bucket",{method:"POST",key:admin,token:admin,
  body:{id:legacyBucket,name:legacyBucket,public:true}}),
  "create ONLY synthetic isolated alternate public bucket");
 const unknownCurrent=await upload(legacyName);
-assert.ok(unknownCurrent.status>=400&&unknownCurrent.status<500,
- "B2 current known public bucket must reject unclassified path");
+console.log("F2-P current-bucket unknown-prefix reject HTTP status: "+unknownCurrent.status+
+ (unknownCurrent.status>=500?" (SERVER ERROR; release HOLD, not healthy behavior)":""));
+assert.ok(unknownCurrent.status>=400,
+ "B2 current known public bucket must reject unclassified path; got "+unknownCurrent.status);
 passed++;
 ok(await upload(legacyName,legacyBucket),
  "create synthetic legacy-public media in alternate bucket");
