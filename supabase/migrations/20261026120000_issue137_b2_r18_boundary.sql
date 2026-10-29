@@ -253,9 +253,24 @@ begin
          or new.name is distinct from old.name) then
    raise exception using errcode='23514',message='B2_PUBLIC_AUDIO_RENAME_HOLD';
  end if;
- if new.bucket_id <> 'recording-audio' then return new; end if;
+ -- F2-P: all PUBLIC buckets are potential alternate audio URL origins.
+ -- Do not affect unrelated text/image assets or PRIVATE bucket writes.
+ -- An old public URL is not retractable; this guards future object metadata.
+ if new.bucket_id <> 'recording-audio' then
+   if exists (
+      select 1 from storage.buckets b
+      where b.id=new.bucket_id and b.public is true
+   ) and (
+      split_part(new.name,'/',1) in ('nemo','aivis','human')
+      or new.name ~* '[.](wav|mp3|m4a|aac|flac|ogg|opus|webm)$'
+      or coalesce(new.metadata->>'mimetype','') ~* '^audio/'
+   ) then
+     raise exception using errcode='42501',message='B2_UNMONITORED_PUBLIC_AUDIO_HOLD';
+   end if;
+   return new;
+ end if;
  if split_part(new.name,'/',1) not in ('nemo','aivis','human') then
-   raise exception using errcode='23514',message='B2_UNCLASSIFIED_PUBLIC_AUDIO_PATH';
+   raise exception using errcode='42501',message='B2_UNCLASSIFIED_PUBLIC_AUDIO_PATH';
  end if;
  if split_part(new.name,'/',2) !~* '^[a-f0-9-]{36}$'
     or split_part(new.name,'/',3) !~* '^[a-f0-9-]{36}$' then
@@ -282,7 +297,7 @@ revoke all on function libread_internal.guard_public_storage_audio()
  from public,anon,authenticated;
 drop trigger if exists issue137_b2_public_audio_storage on storage.objects;
 create trigger issue137_b2_public_audio_storage
-before insert or update of bucket_id,name on storage.objects
+before insert or update of bucket_id,name,metadata on storage.objects
 for each row execute function libread_internal.guard_public_storage_audio();
 
 -- The prior trigger only observes episode publication, not reassignment.

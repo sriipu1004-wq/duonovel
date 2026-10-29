@@ -213,24 +213,38 @@ console.log("F2-P current-bucket unknown-prefix reject HTTP status: "+unknownCur
 assert.ok(unknownCurrent.status>=400,
  "B2 current known public bucket must reject unclassified path; got "+unknownCurrent.status);
 passed++;
-ok(await upload(legacyName,legacyBucket),
- "create synthetic legacy-public media in alternate bucket");
-const oldUrl="/storage/v1/object/public/"+legacyBucket+"/"+legacyName;
-assert.equal((await call(oldUrl)).status,200,
- "anon must demonstrate current public URL exposure independently of RLS");
+const deniedAlt=await upload(legacyName,legacyBucket);
+assert.ok(deniedAlt.status>=400,
+ "F2-P unknown audio path in alternate PUBLIC bucket MUST be denied");
 passed++;
+console.log("F2-P cross-bucket audio denial HTTP status: "+deniedAlt.status+
+ (deniedAlt.status>=500?" (SERVER ERROR, not healthy 4xx)": ""));
+const deniedNamed=await upload(storagePath("rated"),legacyBucket);
+assert.ok(deniedNamed.status>=400,
+ "F2-P canonical Nemo path in alternate PUBLIC bucket MUST be denied");
+passed++;
+const legacyUrl="/storage/v1/object/public/"+legacyBucket+"/"+legacyName;
+assert.notEqual((await call(legacyUrl)).status,200,
+ "new forbidden audio must not be served anonymously from alternate public bucket");
+passed++;
+const nonAudio=ok(await call("/storage/v1/object/"+legacyBucket+"/docs/f2p-synthetic-note.txt",{
+ method:"POST",key:admin,token:admin,body:"SYNTHETIC NON-AUDIO",
+ raw:true,type:"text/plain"
+}),"F2-P ordinary public text object should not be blocked");
+assert.ok(nonAudio!==undefined,"public nonaudio upload response missing");passed++;
+assert.equal((await call("/storage/v1/object/public/"+legacyBucket+"/docs/f2p-synthetic-note.txt")).status,200,
+ "F2-P nonaudio public object can still be fetched");passed++;
 const hiddenRating=ok(await call("/rest/v1/series?id=eq."+r.rated.id+"&select=id"),
  "anon R18 row check");
 assert.equal(hiddenRating.length,0,"anon must not see R18 row");passed++;
 ok(await patch("series",r.rated.id,{publication_status:"private"},admin,admin),
- "synthetic series unpublish succeeds despite untracked public media");
+ "synthetic series unpublish under bounded future-upload guard");
 const hiddenAfter=ok(await call("/rest/v1/recordings?id=eq."+r.rated.rec+"&select=id"),
  "anon recording row after unpublish");
 assert.equal(hiddenAfter.length,0,"anon recording row must remain hidden");passed++;
-assert.equal((await call(oldUrl)).status,200,
- "unpublishing DB row must NOT be mistaken for revoking direct public object URL");
-passed++;
-console.log("EXPECTED_RELEASE_HOLD: F2-P local alternate PUBLIC bucket URL survives R18 RLS and series unpublish");
-console.log("NOT PRODUCTION evidence: unknown legacy object families/links/CDN remain unenumerated");
+assert.notEqual((await call(legacyUrl)).status,200,
+ "denied future audio must remain absent after series unpublish");passed++;
+console.log("PASS: F2-P NEW cross-bucket audio denied; unrelated public text preserved");
+console.log("LEGACY HOLD: preexisting public URLs/CDN and content-type disguises remain unverified");
 console.log("PASS: "+passed+" B2 locally signed GoTrue, restrictive RLS, transition, orphan and Storage assertions");
 console.log("SYNTHETIC ONLY: not Production policy parity, not Next.js signed-in HTML/RSC, not CDN revocation");

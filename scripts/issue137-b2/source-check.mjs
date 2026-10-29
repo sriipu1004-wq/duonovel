@@ -42,7 +42,12 @@ for (const [label, snippet] of [
   ["F2 private Human proof", "create or replace function libread_internal.is_verified_private_human_recording("],
   ["F2 private bucket", "b.id='human-recording-audio' and b.public is false"],
   ["F2 storage-object match", "and o.name=p_path"],
-  ["F2 explicit public alias rejection", "o.bucket_id='recording-audio' and o.name=p_path"]
+  ["F2 explicit public alias rejection", "o.bucket_id='recording-audio' and o.name=p_path"],
+  ["F2-P all public bucket audio detection", "B2_UNMONITORED_PUBLIC_AUDIO_HOLD"],
+  ["F2-P cross bucket public predicate", "b.id=new.bucket_id and b.public is true"],
+  ["F2-P MIME predicate", "new.metadata->>'mimetype'"],
+  ["F2-P monitored unknown path insufficient-privileges SQLSTATE", "errcode='42501',message='B2_UNCLASSIFIED_PUBLIC_AUDIO_PATH'"],
+  ["F2-P metadata update guard", "before insert or update of bucket_id,name,metadata on storage.objects"]
 ]) must(sql, label, snippet);
 const fixture = read("scripts/issue137-b2/fixture.sql");
 const episodesTable = fixture.split("create table public.episodes (")[1]?.split(");")[0] ?? "";
