@@ -66,6 +66,7 @@ cd "$WORK"
 npx --yes supabase@2.122.0 init --force >/dev/null
 mkdir -p supabase/migrations
 cp "$B2/fixture.sql" supabase/migrations/20261026115900_issue137_b2_fixture.sql
+cp "$B2/atomic-race-fixture.sql" supabase/migrations/20261026115910_issue137_b2_atomic_race_fixture.sql
 cp "$ROOT/supabase/migrations/20261026120000_issue137_b2_r18_boundary.sql" supabase/migrations/20261026120000_issue137_b2_r18_boundary.sql
 start_attempted=1
 npx --yes supabase@2.122.0 start --network-id "$NETWORK" >/dev/null
@@ -101,3 +102,5 @@ export B2_EPHEMERAL_CONFIRM=local-only
 # Local API URL and credentials are checked again inside e2e.mjs.
 # Never output local keys, JWTs, passwords, or signed URLs into a log.
 node "$B2/e2e.mjs"
+# Independent synthetic race tests use the same validated localhost-only stack.
+node "$B2/atomic-race-e2e.mjs"
