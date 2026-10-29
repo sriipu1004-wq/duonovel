@@ -124,4 +124,3 @@ docker exec "$db_container" psql -U postgres -d postgres \
   -v ON_ERROR_STOP=1 -f /tmp/issue137_h1_human_atomic.sql >/dev/null
 echo 'PASS: H1 candidate installed only in disposable LOCAL PostgreSQL'
 node "$B2/h1-atomic-e2e.mjs"
-
