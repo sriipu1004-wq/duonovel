@@ -3,6 +3,8 @@
 -- Required after 20261026120000_issue137_b2_r18_boundary.sql.
 begin;
 create schema if not exists libread_internal;
+-- The existing B2 candidate grants anon/authenticated scoped usage only.
+grant usage on schema libread_internal to service_role;
 create table if not exists libread_internal.h1_human_scope_revision (
   series_id uuid not null,
   episode_id uuid not null,
