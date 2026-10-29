@@ -44,7 +44,7 @@ for (const [label, snippet] of [
   ["F2 storage-object match", "and o.name=p_path"],
   ["F2 explicit public alias rejection", "o.bucket_id='recording-audio' and o.name=p_path"],
   ["F2-P all public bucket audio detection", "B2_UNMONITORED_PUBLIC_AUDIO_HOLD"],
-  ["F2-P cross bucket public predicate", "b.id=new.bucket_id and b.public is true"],
+  ["F2-P cross bucket public predicate", "if bucket_is_public is true and ("],
   ["F2-P MIME predicate", "new.metadata->>'mimetype'"],
   ["F2-P monitored unknown path insufficient-privileges SQLSTATE", "errcode='42501',message='B2_UNCLASSIFIED_PUBLIC_AUDIO_PATH'"],
   ["F2-P metadata update guard", "before insert or update of bucket_id,name,metadata on storage.objects"],
@@ -53,6 +53,11 @@ for (const [label, snippet] of [
   ["F2-P nonempty private bucket HOLD", "B2_NONEMPTY_BUCKET_PUBLIC_HOLD"],
   ["F2-P object writer SHARE lock", "where b.id=new.bucket_id for share"]
 ]) must(sql, label, snippet);
+const runLocal = read("scripts/issue137-b2/run-local.sh");
+const bucketRace = read("scripts/issue137-b2/bucket-publicity-race-local.sh");
+must(runLocal, "F2-P genuine DB lock race runner connected", 'bash "$B2/bucket-publicity-race-local.sh" "$db_container"');
+must(bucketRace, "F2-P first direction test SQLSTATE", "no 55P03 bucket-waits-for-writer evidence");
+must(bucketRace, "F2-P second direction test SQLSTATE", "no 55P03 writer-waits-for-bucket evidence");
 const fixture = read("scripts/issue137-b2/fixture.sql");
 const episodesTable = fixture.split("create table public.episodes (")[1]?.split(");")[0] ?? "";
 const recordingsTable = fixture.split("create table public.recordings (")[1]?.split(");")[0] ?? "";
