@@ -126,3 +126,5 @@ echo 'PASS: H1 candidate installed only in disposable LOCAL PostgreSQL'
 node "$B2/h1-atomic-e2e.mjs"
 # Deterministic lock contention on the same disposable PostgreSQL instance.
 B2_NETWORK="$NETWORK" bash "$B2/bucket-publicity-race-local.sh" "$db_container"
+# Real LOCAL Storage HTTP POST / x-upsert / bucket PUT concurrency negative tests.
+B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" node "$B2/storage-upload-publicity-e2e.mjs"
