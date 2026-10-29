@@ -18,6 +18,10 @@ import { buildNemoTimingObjectPathFromAudioObjectPath } from "@/lib/recording/ne
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
 import {
+  readHumanAtomicRevision,
+  commitHumanAtomicMutation,
+} from "@/lib/recording/humanRecordingAtomic";
+import {
   buildHumanRecordingPlaybackHref,
   getHumanRecordingAudioBucketName,
 } from "@/lib/recording/humanRecordingStorage";
@@ -411,7 +415,8 @@ async function findExistingRecordings(
 async function writeRecording(
   adminSupabase: AdminSupabase,
   input: RecordingWriteInput,
-  preUploadRows?: ExistingRecording[]
+  preUploadRows?: ExistingRecording[],
+  preUploadRevision?: string
 ): Promise<{ recordingId: string }> {
   // The publisher passes a snapshot taken BEFORE media uploads. Reading the
   // old publication flag after uploads would miss a mid-upload withdrawal.
@@ -444,50 +449,33 @@ async function writeRecording(
     )
   ) ?? null;
 
-  const payload = {
-    series_id: input.seriesId,
-    episode_id: input.episodeId,
-    reader_id: input.readerId,
-    reader_name: input.readerName,
-    audio_storage_path: input.audioStoragePath,
-    is_public: input.isPublic,
-    voice_model_id: null,
-  };
-
-  if (primary) {
-    const { data, error } = await adminSupabase
-      .from("recordings")
-      .update(payload)
-      .eq("id", primary.id)
-      .eq("series_id", input.seriesId)
-      .eq("episode_id", input.episodeId)
-      .eq("reader_id", input.readerId)
-      .eq("reader_name", input.readerName)
-      .is("voice_model_id", null)
-      .eq("audio_storage_path", primary.audioStoragePath)
-      // H1: CAS the pre-upload publication state as well as owner/path.
-      // A mid-flight is_public=false withdrawal must invalidate the UPDATE.
-      .is("is_public", primary.isPublic)
-      .select("id")
-      .maybeSingle();
-
-    if (error) throw new Error(`recording_update_failed:${error.message}`);
-    if (!data) throw new Error("human_recording_write_conflict");
-    return { recordingId: String((data as RawRow).id) };
+  // H1: all Human writes go through ONE durable scoped revision transaction.
+  // An absent or unreviewed RPC must fail closed, never use direct DB writes.
+  const revision = preUploadRevision ?? await readHumanAtomicRevision(
+    adminSupabase, {
+      seriesId: input.seriesId,
+      episodeId: input.episodeId,
+      ownerId: input.readerId,
+    }
+  );
+  const recordingId = primary?.id ?? crypto.randomUUID();
+  const result = await commitHumanAtomicMutation(adminSupabase, {
+    seriesId: input.seriesId,
+    episodeId: input.episodeId,
+    ownerId: input.readerId,
+    expectedRevision: revision,
+    action: primary ? "replace" : "insert",
+    recordingId,
+    readerName: input.readerName,
+    audioStoragePath: input.audioStoragePath,
+    isPublic: input.isPublic,
+    priorAudioStoragePath: primary?.audioStoragePath ?? null,
+    priorIsPublic: primary?.isPublic ?? null,
+  });
+  if (result.recordingId !== recordingId) {
+    throw new Error("human_atomic_recording_id_mismatch");
   }
-
-  // First-time parallel submissions can create separate rows. Retain both
-  // without inventing a Production uniqueness guarantee or deleting media.
-  const { data, error } = await adminSupabase
-    .from("recordings")
-    .insert(payload)
-    .select("id")
-    .single();
-
-  if (error || !data) {
-    throw new Error(`recording_insert_failed:${error?.message ?? "unknown error"}`);
-  }
-  return { recordingId: String((data as RawRow).id) };
+  return { recordingId };
 }
 
 export async function publishHumanRecording({
@@ -519,6 +507,14 @@ export async function publishHumanRecording({
     canonicalEpisodeId
   );
 
+  // Capture the generation BEFORE the snapshot and expensive media work.
+  // Reading a later generation after an ABA withdrawal would permit a stale
+  // upload to overwrite consent even when the boolean/path returned to old values.
+  const preUploadRevision = await readHumanAtomicRevision(adminSupabase, {
+    seriesId,
+    episodeId: canonicalEpisodeId,
+    ownerId: userId,
+  });
   const preUploadRows = await findExistingRecordings(
     adminSupabase,
     canonicalEpisodeId
@@ -616,7 +612,7 @@ export async function publishHumanRecording({
       readerName,
       audioStoragePath: playbackObjectPath,
       isPublic,
-    }, preUploadRows);
+    }, preUploadRows, preUploadRevision);
 
     // Do not delete older Human rows or any source/playback/timing objects:
     // an upload or DB response may have been lost after committing remotely.
