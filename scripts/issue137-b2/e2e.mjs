@@ -244,6 +244,37 @@ const hiddenAfter=ok(await call("/rest/v1/recordings?id=eq."+r.rated.rec+"&selec
 assert.equal(hiddenAfter.length,0,"anon recording row must remain hidden");passed++;
 assert.notEqual((await call(legacyUrl)).status,200,
  "denied future audio must remain absent after series unpublish");passed++;
+// Independent predicates: mime-only opaque name and a known audio family
+// whose extension/MIME are intentionally not audio must both fail closed.
+const opaqueAudio=await call("/storage/v1/object/"+legacyBucket+"/untyped/"+uuid(),{
+ method:"POST",key:admin,token:admin,body:"SYNTHETIC AUDIO",raw:true,type:"audio/wav"
+});
+assert.ok(opaqueAudio.status>=400,
+ "F2-P audio MIME alone must deny otherwise unknown public object");passed++;
+const disguisedKnown=await call("/storage/v1/object/"+legacyBucket+
+ "/nemo/"+r.rated.id+"/"+r.rated.ep+"/fake.txt",{
+ method:"POST",key:admin,token:admin,body:"SYNTHETIC CONTENT",raw:true,type:"text/plain"
+});
+assert.ok(disguisedKnown.status>=400,
+ "F2-P known narration path alone must deny public upload");passed++;
+// EXPECTED RELEASE HOLD: new-object guard cannot revoke public visibility
+// when a privileged operator promotes an existing PRIVATE bucket.
+const promotionBucket="f2p-disposable-promotion";
+ok(await call("/storage/v1/bucket",{method:"POST",key:admin,token:admin,
+ body:{id:promotionBucket,name:promotionBucket,public:false}}),
+ "create private synthetic promotion bucket");
+const promotedAudioName="unknown/"+r.rated.id+"/"+r.rated.ep+"/old.wav";
+ok(await upload(promotedAudioName,promotionBucket),
+ "seed private local audio before bucket publicity change");
+const promotedUrl="/storage/v1/object/public/"+promotionBucket+"/"+promotedAudioName;
+assert.notEqual((await call(promotedUrl)).status,200,
+ "private local audio must not be accessible anonymously");passed++;
+ok(await call("/storage/v1/bucket/"+promotionBucket,{
+ method:"PUT",key:admin,token:admin,body:{public:true}
+}),"synthetic PRIVATE bucket promotion to PUBLIC");
+assert.equal((await call(promotedUrl)).status,200,
+ "F2-P bucket publicity transition currently exposes historical private audio");passed++;
+console.log("EXPECTED_RELEASE_HOLD: F2-P local PRIVATE bucket promotion exposes old audio despite new-write guard");
 console.log("PASS: F2-P NEW cross-bucket audio denied; unrelated public text preserved");
 console.log("LEGACY HOLD: preexisting public URLs/CDN and content-type disguises remain unverified");
 console.log("PASS: "+passed+" B2 locally signed GoTrue, restrictive RLS, transition, orphan and Storage assertions");
