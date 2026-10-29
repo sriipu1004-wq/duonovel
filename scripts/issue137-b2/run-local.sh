@@ -112,7 +112,7 @@ node "$B2/e2e.mjs"
 # never use local/host PostgreSQL settings, linked projects or hosted SQL.
 db_container=''
 while read -r id image_name; do
-  if [[ "$image_name" == *supabase/postgres* ]]; then
+  if [[ "$image_name" == *supabase/postgres:* ]]; then
     [[ -z "$db_container" ]] || { echo 'BLOCKED: ambiguous local database container'; exit 3; }
     db_container="$id"
   fi
