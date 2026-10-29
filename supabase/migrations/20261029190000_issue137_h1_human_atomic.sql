@@ -12,6 +12,7 @@ create table if not exists libread_internal.h1_human_scope_revision (
   revision bigint not null default 0 check (revision >= 0),
   primary key (series_id, episode_id, owner_id)
 );
+alter table libread_internal.h1_human_scope_revision enable row level security;
 revoke all on libread_internal.h1_human_scope_revision from public, anon, authenticated;
 grant select, insert, update on libread_internal.h1_human_scope_revision to service_role;
 
@@ -225,4 +226,5 @@ revoke all on function public.issue137_h1_human_commit(
 grant execute on function public.issue137_h1_human_commit(
  uuid,uuid,uuid,bigint,text,uuid,text,text,boolean,text,boolean)
  to service_role;
+select pg_catalog.pg_notify('pgrst','reload schema');
 commit;
