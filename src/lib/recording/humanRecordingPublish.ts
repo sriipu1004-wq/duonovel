@@ -58,6 +58,11 @@ type ExistingRecording = {
   episodeId: string;
   audioStoragePath: string;
   readerId: string;
+  // Reader-owner aliases are evidence for private/unknown-row protection,
+  // not authority to overwrite an existing recording.
+  readerIds: string[];
+  hasCanonicalReaderId: boolean;
+  hasConflictingReaderIds: boolean;
   readerName: string;
   voiceModelId: string;
   // Null/unknown must never be treated as prior publication consent.
@@ -344,17 +349,31 @@ async function ensureReaderUserRow(
 
 
 function mapRecordingRows(rows: RawRow[]): ExistingRecording[] {
-  return rows.map((row) => ({
-    id: String(row.id),
-    seriesId: pickText(row.series_id),
-    episodeId: pickText(row.episode_id),
-    audioStoragePath: pickText(row.audio_storage_path),
-    // Never use alias/name fields to authorize privileged replacement.
-    readerId: pickText(row.reader_id),
-    readerName: pickText(row.reader_name),
-    voiceModelId: pickText(row.voice_model_id),
-    isPublic: row.is_public === true ? true : row.is_public === false ? false : null,
-  }));
+  return rows.map((row) => {
+    const canonicalReaderId = pickText(row.reader_id);
+    const readerIds = [...new Set([
+      canonicalReaderId,
+      pickText(row.reader_user_id),
+      pickText(row.readerUserId),
+    ].filter((id) => id.length > 0))];
+
+    return {
+      id: String(row.id),
+      seriesId: pickText(row.series_id),
+      episodeId: pickText(row.episode_id),
+      audioStoragePath: pickText(row.audio_storage_path),
+      // Legacy aliases may identify private Human rows for fail-closed
+      // publication checks. Only an unambiguous canonical reader_id can
+      // authorize the old-row replacement CAS below.
+      readerId: canonicalReaderId || readerIds[0] || "",
+      readerIds,
+      hasCanonicalReaderId: canonicalReaderId.length > 0,
+      hasConflictingReaderIds: readerIds.length > 1,
+      readerName: pickText(row.reader_name),
+      voiceModelId: pickText(row.voice_model_id),
+      isPublic: row.is_public === true ? true : row.is_public === false ? false : null,
+    };
+  });
 }
 
 // Only a canonical playback file under THIS publisher's path may be reused.
@@ -404,8 +423,8 @@ async function writeRecording(
   if (input.isPublic && allEpisodeRows.some((row) =>
     row.seriesId === input.seriesId &&
     row.episodeId === input.episodeId &&
-    row.readerId === input.readerId &&
-    row.isPublic !== true
+    row.readerIds.includes(input.readerId) &&
+    (row.isPublic !== true || row.hasConflictingReaderIds)
   )) {
     // A default public upload is not consent to re-publish a private or
     // unknown-state Human recording via UPDATE or a new public INSERT.
@@ -416,6 +435,8 @@ async function writeRecording(
     row.seriesId === input.seriesId &&
     row.episodeId === input.episodeId &&
     row.readerId === input.readerId &&
+    row.hasCanonicalReaderId &&
+    !row.hasConflictingReaderIds &&
     row.readerName === input.readerName &&
     !row.voiceModelId &&
     isCanonicalOwnedHumanPlaybackPath(
@@ -505,8 +526,8 @@ export async function publishHumanRecording({
   if (isPublic && preUploadRows.some((row) =>
     row.seriesId === seriesId &&
     row.episodeId === canonicalEpisodeId &&
-    row.readerId === userId &&
-    row.isPublic !== true
+    row.readerIds.includes(userId) &&
+    (row.isPublic !== true || row.hasConflictingReaderIds)
   )) {
     // Reject before allocating any new media keys.
     throw new Error("human_recording_republish_requires_explicit_consent");
