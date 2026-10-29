@@ -269,12 +269,36 @@ ok(await upload(promotedAudioName,promotionBucket),
 const promotedUrl="/storage/v1/object/public/"+promotionBucket+"/"+promotedAudioName;
 assert.notEqual((await call(promotedUrl)).status,200,
  "private local audio must not be accessible anonymously");passed++;
-ok(await call("/storage/v1/bucket/"+promotionBucket,{
+const deniedPromotion=await call("/storage/v1/bucket/"+promotionBucket,{
  method:"PUT",key:admin,token:admin,body:{public:true}
-}),"synthetic PRIVATE bucket promotion to PUBLIC");
-assert.equal((await call(promotedUrl)).status,200,
- "F2-P bucket publicity transition currently exposes historical private audio");passed++;
-console.log("EXPECTED_RELEASE_HOLD: F2-P local PRIVATE bucket promotion exposes old audio despite new-write guard");
+});
+assert.ok(deniedPromotion.status>=400&&deniedPromotion.status<500,
+ "nonempty PRIVATE bucket must deny public promotion with HTTP 4xx");passed++;
+assert.equal(ok(await call("/storage/v1/bucket/"+promotionBucket),
+ "private bucket after rejected promotion").public,false);passed++;
+assert.notEqual((await call(promotedUrl)).status,200,
+ "existing private audio must remain non-public");passed++;
+const emptyBucket="f2p-disposable-empty";
+ok(await call("/storage/v1/bucket",{method:"POST",key:admin,token:admin,
+ body:{id:emptyBucket,name:emptyBucket,public:false}}),
+ "create empty nonprotected private bucket");
+ok(await call("/storage/v1/bucket/"+emptyBucket,{
+ method:"PUT",key:admin,token:admin,body:{public:true}
+}),"empty unrelated bucket may be promoted");
+assert.equal(ok(await call("/storage/v1/bucket/"+emptyBucket),
+ "read promoted bucket").public,true);passed++;
+ok(await call("/storage/v1/object/"+emptyBucket+"/docs/synthetic.txt",{
+ method:"POST",key:admin,token:admin,body:"LOCAL NONAUDIO",raw:true,type:"text/plain"
+}),"public nonaudio text upload");
+assert.equal((await call("/storage/v1/object/public/"+emptyBucket+"/docs/synthetic.txt")).status,200);passed++;
+const protectedPromotion=await call("/storage/v1/bucket/r18-recording-audio",{
+ method:"PUT",key:admin,token:admin,body:{public:true}
+});
+assert.ok(protectedPromotion.status>=400&&protectedPromotion.status<500,
+ "reserved R18 private bucket must reject promotion");passed++;
+assert.equal(ok(await call("/storage/v1/bucket/r18-recording-audio"),
+ "read reserved R18 bucket").public,false);passed++;
+console.log("PASS: F2-P nonempty/protected bucket publicity HOLD; empty bucket and text preserved");
 console.log("PASS: F2-P NEW cross-bucket audio denied; unrelated public text preserved");
 console.log("LEGACY HOLD: preexisting public URLs/CDN and content-type disguises remain unverified");
 console.log("PASS: "+passed+" B2 locally signed GoTrue, restrictive RLS, transition, orphan and Storage assertions");

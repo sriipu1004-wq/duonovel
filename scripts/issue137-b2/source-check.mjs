@@ -47,7 +47,11 @@ for (const [label, snippet] of [
   ["F2-P cross bucket public predicate", "b.id=new.bucket_id and b.public is true"],
   ["F2-P MIME predicate", "new.metadata->>'mimetype'"],
   ["F2-P monitored unknown path insufficient-privileges SQLSTATE", "errcode='42501',message='B2_UNCLASSIFIED_PUBLIC_AUDIO_PATH'"],
-  ["F2-P metadata update guard", "before insert or update of bucket_id,name,metadata on storage.objects"]
+  ["F2-P metadata update guard", "before insert or update of bucket_id,name,metadata on storage.objects"],
+  ["F2-P private bucket trigger", "create trigger issue137_b2_bucket_publicity"],
+  ["F2-P protected audio privacy", "B2_PRIVATE_AUDIO_BUCKET_PUBLIC_HOLD"],
+  ["F2-P nonempty private bucket HOLD", "B2_NONEMPTY_BUCKET_PUBLIC_HOLD"],
+  ["F2-P object writer SHARE lock", "where b.id=new.bucket_id for share"]
 ]) must(sql, label, snippet);
 const fixture = read("scripts/issue137-b2/fixture.sql");
 const episodesTable = fixture.split("create table public.episodes (")[1]?.split(");")[0] ?? "";

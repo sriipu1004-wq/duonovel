@@ -241,13 +241,47 @@ on public.recordings for each row execute function libread_internal.guard_record
 
 -- Replace transition guards with orphan-media coverage.
 
+
+-- F2-P: private bucket publicity cannot race with its object metadata writers.
+-- Any existing PRIVATE object is unclassified until explicitly inventoried.
+create or replace function libread_internal.guard_storage_bucket_publicity()
+returns trigger language plpgsql security definer set search_path=''
+as $$
+begin
+ if tg_op='UPDATE' and old.id in ('r18-recording-audio','human-recording-audio')
+    and new.id is distinct from old.id then
+   raise exception using errcode='42501',message='B2_PROTECTED_BUCKET_RENAME_HOLD';
+ end if;
+ if new.public is true and new.id in ('r18-recording-audio','human-recording-audio') then
+   raise exception using errcode='42501',message='B2_PRIVATE_AUDIO_BUCKET_PUBLIC_HOLD';
+ end if;
+ if tg_op='UPDATE' and old.public is distinct from true and new.public is true
+    and exists(select 1 from storage.objects o where o.bucket_id=new.id) then
+   raise exception using errcode='42501',message='B2_NONEMPTY_BUCKET_PUBLIC_HOLD';
+ end if;
+ return new;
+end;
+$$;
+revoke all on function libread_internal.guard_storage_bucket_publicity()
+ from public,anon,authenticated;
+drop trigger if exists issue137_b2_bucket_publicity on storage.buckets;
+create trigger issue137_b2_bucket_publicity
+before insert or update of public,id on storage.buckets
+for each row execute function libread_internal.guard_storage_bucket_publicity();
+
 -- No new external public media even if the generator uses service_role,
 -- races with a rating change, or never writes a recordings row.
 create or replace function libread_internal.guard_public_storage_audio()
 returns trigger language plpgsql security definer set search_path=''
 as $$
-declare sid uuid; eid uuid; s record; e record;
+declare sid uuid; eid uuid; s record; e record; bucket_is_public boolean;
 begin
+ -- FOR SHARE serializes NEW object metadata with a concurrent bucket UPDATE.
+ select b.public into bucket_is_public from storage.buckets b
+ where b.id=new.bucket_id for share;
+ if not found then
+   raise exception using errcode='42501',message='B2_MEDIA_BUCKET_MISSING';
+ end if;
  if tg_op='UPDATE' and old.bucket_id='recording-audio'
     and (new.bucket_id is distinct from old.bucket_id
          or new.name is distinct from old.name) then
@@ -257,10 +291,7 @@ begin
  -- Do not affect unrelated text/image assets or PRIVATE bucket writes.
  -- An old public URL is not retractable; this guards future object metadata.
  if new.bucket_id <> 'recording-audio' then
-   if exists (
-      select 1 from storage.buckets b
-      where b.id=new.bucket_id and b.public is true
-   ) and (
+   if bucket_is_public is true and (
       split_part(new.name,'/',1) in ('nemo','aivis','human')
       or new.name ~* '[.](wav|mp3|m4a|aac|flac|ogg|opus|webm)$'
       or coalesce(new.metadata->>'mimetype','') ~* '^audio/'
