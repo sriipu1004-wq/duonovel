@@ -33,6 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/issue137-b2/source-check.mjs
+          node scripts/issue137-b2/h1-source-check.mjs
           node --check scripts/issue137-b2/e2e.mjs
           node --check scripts/issue137-b2/atomic-race-e2e.mjs
           node --check scripts/issue137-b2/h1-atomic-e2e.mjs
