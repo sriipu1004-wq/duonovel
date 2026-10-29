@@ -68,7 +68,7 @@ class Query {
   }
 }
 class FakeDB {
-  rows:Row[];nextId=0; failUpdate=false;failInsert=false;lookupError=false;
+  rows:Row[];nextId=0;revision=0; failUpdate=false;failInsert=false;lookupError=false;
   responseLostAfterCommit=false;
   uploads:string[]=[];removed=0;failUploadAt=0;
   onUpload:((step:number,db:FakeDB)=>void)|null=null;
@@ -134,7 +134,45 @@ const code=vm.runInNewContext(compiled,{
   transcribeHumanPlaybackAudio:async()=>({text:"SYNTHETIC PUBLIC DOMAIN TEXT"}),
   alignHumanRecordingToBodyOrThrow:()=>({manifest:{wordTimings:[]}}),
   ensureReaderUserRow:async()=>{},
-  buildHumanRecordingPlaybackHref:(id:string)=>"/api/recordings/human-audio/"+id
+  buildHumanRecordingPlaybackHref:(id:string)=>"/api/recordings/human-audio/"+id,
+  readHumanAtomicRevision:async(db:FakeDB)=>String(db.revision),
+  commitHumanAtomicMutation:async(db:FakeDB,m:{
+    seriesId:string;episodeId:string;ownerId:string;expectedRevision:string;
+    action:string;recordingId:string;readerName:string;audioStoragePath:string;
+    isPublic:boolean;priorAudioStoragePath?:string|null;priorIsPublic?:boolean|null;
+  })=>{
+    if(Number(m.expectedRevision)!==db.revision)throw Error("H1_STALE_REVISION");
+    const owned=db.rows.filter(r=>r.series_id===m.seriesId &&
+      r.episode_id===m.episodeId &&
+      (r.reader_id===m.ownerId||r.reader_user_id===m.ownerId||r.readerUserId===m.ownerId) &&
+      !r.voice_model_id && r.reader_name.trim() &&
+      r.audio_storage_path.includes("/human/"));
+    if(m.isPublic && owned.some(r=>r.is_public!==true))
+      throw Error("H1_PRIVATE_REPUBLISH_DENIED");
+    let found:Row|undefined;
+    if(m.action==="replace"){
+      if(db.failUpdate)throw Error("human_atomic_commit_failed:synthetic update failure");
+      found=db.rows.find(r=>r.id===m.recordingId && r.series_id===m.seriesId &&
+        r.episode_id===m.episodeId && r.reader_id===m.ownerId &&
+        (!r.reader_user_id||r.reader_user_id===m.ownerId) &&
+        r.reader_name===m.readerName && !r.voice_model_id &&
+        r.audio_storage_path===m.priorAudioStoragePath &&
+        r.is_public===m.priorIsPublic);
+      if(!found)throw Error("H1_OWNER_OR_ROW_CONFLICT");
+      found.audio_storage_path=m.audioStoragePath;
+      found.is_public=m.isPublic;
+    }else if(m.action==="insert"){
+      if(db.failInsert)throw Error("human_atomic_commit_failed:synthetic insert failure");
+      db.rows.push({
+        id:m.recordingId,series_id:m.seriesId,episode_id:m.episodeId,
+        reader_id:m.ownerId,reader_name:m.readerName,
+        audio_storage_path:m.audioStoragePath,voice_model_id:null,is_public:m.isPublic
+      });
+    }else throw Error("unsupported fake action");
+    db.revision++;
+    if(db.responseLostAfterCommit)throw Error("human_atomic_commit_failed:synthetic lost reply");
+    return {recordingId:m.recordingId,deletedCount:1,revision:String(db.revision)};
+  }
 }) as {
   writeRecording:(db:FakeDB,input:WriteInput)=>Promise<{recordingId:string}>;
   publishHumanRecording:(input:unknown)=>Promise<{
@@ -335,26 +373,26 @@ async function writerCases(){
     const settled=await Promise.allSettled([code.writeRecording(db,input("a")),code.writeRecording(db,input("b"))]);
     assert.equal(settled.filter(x=>x.status==="fulfilled").length,1);
     assert.equal(settled.filter(x=>x.status==="rejected").length,1);
-    assert.match(String((settled.find(x=>x.status==="rejected") as PromiseRejectedResult).reason),/human_recording_write_conflict/u);
+    assert.match(String((settled.find(x=>x.status==="rejected") as PromiseRejectedResult).reason),/H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT/u);
     assert.equal(db.rows.length,1);
     checks+=4;
   }
   {
     const db=new FakeDB();
     const results=await Promise.allSettled([code.writeRecording(db,input("a")),code.writeRecording(db,input("b"))]);
-    assert.ok(results.every(x=>x.status==="fulfilled"));
-    assert.equal(db.rows.length,2,"first simultaneous INSERTs must remain non-destructive");
+    assert.equal(results.filter(x=>x.status==="fulfilled").length,1);
+    assert.equal(db.rows.length,1,"first simultaneous INSERTs must serialize without overwrite");
     checks+=2;
   }
   {
     const db=new FakeDB([seed()]);db.failUpdate=true;
-    await assert.rejects(()=>code.writeRecording(db,input("next")),/recording_update_failed/u);
+    await assert.rejects(()=>code.writeRecording(db,input("next")),/human_atomic_commit_failed/u);
     assert.equal(db.rows[0].audio_storage_path,playback(owner,"old"));
     checks+=2;
   }
   {
     const db=new FakeDB();db.failInsert=true;
-    await assert.rejects(()=>code.writeRecording(db,input("next")),/recording_insert_failed/u);
+    await assert.rejects(()=>code.writeRecording(db,input("next")),/human_atomic_commit_failed/u);
     assert.equal(db.rows.length,0);
     checks+=2;
   }
@@ -410,7 +448,7 @@ async function publisherCases(){
     // pointer is unchanged, so only the prior-publication CAS can catch it.
     const old=seed(),db=new FakeDB([old]);
     db.onUpload=(step)=>{if(step===revokeAt)db.rows[0].is_public=false;};
-    await assert.rejects(()=>withDB(db,publish),/human_recording_write_conflict/u);
+    await assert.rejects(()=>withDB(db,publish),/H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT/u);
     assert.equal(db.rows.length,1,"no public bypass INSERT");
     assert.equal(db.rows[0].is_public,false,"withdrawal must remain private");
     assert.equal(db.rows[0].audio_storage_path,old.audio_storage_path);
@@ -427,7 +465,7 @@ async function publisherCases(){
   }
   {
     const old=seed(),db=new FakeDB([old]);db.responseLostAfterCommit=true;
-    await assert.rejects(()=>withDB(db,publish),/recording_update_failed/u);
+    await assert.rejects(()=>withDB(db,publish),/human_atomic_commit_failed/u);
     assert.equal(db.removed,0,"lost DB response cannot trigger Storage deletion");
     assert.equal(db.uploads.length,3);
     assert.notEqual(db.rows[0].audio_storage_path,old.audio_storage_path,
@@ -436,14 +474,14 @@ async function publisherCases(){
   }
   {
     const old=seed(),db=new FakeDB([old]);db.failUpdate=true;
-    await assert.rejects(()=>withDB(db,publish),/recording_update_failed/u);
+    await assert.rejects(()=>withDB(db,publish),/human_atomic_commit_failed/u);
     assert.equal(db.rows[0].audio_storage_path,old.audio_storage_path);
     assert.equal(db.removed,0);
     checks+=3;
   }
   {
     const db=new FakeDB();db.failInsert=true;
-    await assert.rejects(()=>withDB(db,publish),/recording_insert_failed/u);
+    await assert.rejects(()=>withDB(db,publish),/human_atomic_commit_failed/u);
     assert.equal(db.removed,0);
     assert.equal(db.uploads.length,3);
     checks+=3;
@@ -452,6 +490,6 @@ async function publisherCases(){
 async function main(){
   await writerCases();
   await publisherCases();
-  console.log("PASS: "+checks+" F2-H actual Human writer/publisher synthetic owner, CAS and no-delete checks; no hosted DB/Storage");
+  console.log("PASS: "+checks+" F2-H actual Human writer/publisher synthetic atomic revision and no-delete checks; FakeDB/FakeStorage only");
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
