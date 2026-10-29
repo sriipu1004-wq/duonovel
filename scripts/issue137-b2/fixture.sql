@@ -18,6 +18,8 @@ create table public.recordings (
  id uuid primary key, series_id uuid references public.series(id),
  episode_id uuid not null references public.episodes(id),
  reader_id uuid, reader_user_id uuid,
+ -- Nullable: pre-existing AI rows and unknown/legacy provenance remain distinct.
+ reader_name text, voice_model_id text,
  is_public boolean not null default true, audio_storage_path text
 );
 create table public.episode_human_translations (
