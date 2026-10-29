@@ -32,7 +32,12 @@ async function api(method,path,{body,type="application/json",token=admin,upsert=
   signal:AbortSignal.timeout(24000)});
  return {status:response.status,body:await response.text()};
 }
-function success(x,label){assert.ok([200,201,204].includes(x.status),label+": HTTP "+x.status);}
+function safeCode(x){
+ try{const j=JSON.parse(x.body);return String(j.errorCode??j.code??j.error??"none")
+  .replace(/[^A-Za-z0-9_-]/g,"").slice(0,48);}catch{return "unparsed";}
+}
+function success(x,label){assert.ok([200,201,204].includes(x.status),
+ label+": HTTP "+x.status+" code="+safeCode(x));}
 function denied(x,label){assert.ok(x.status>=400&&x.status<500,label+": expected 4xx, got "+x.status);}
 async function onSleep(label){
  for(let i=0;i<75;i++){
@@ -65,7 +70,7 @@ assert.equal(count(overwriteFirst),1);
 const testSql=[
  "create or replace function libread_internal.issue137_f2p_test_pause()",
  "returns trigger language plpgsql set search_path='' as $$",
- "begin perform pg_sleep(4); return new; end; $$;",
+ "begin perform pg_sleep(2.5); return new; end; $;",
  "create trigger zz_issue137_f2p_api_insert_pause",
  "after insert on storage.objects for each row",
  "when (new.bucket_id='f2p-api-upload-first')",
@@ -86,6 +91,9 @@ const inserting=upload(uploadFirst,"INSERTED-SYNTHETIC");
 await onSleep("Storage POST INSERT");
 const promotingAfterInsert=promote(uploadFirst);
 const [inserted,promotionDenied]=await Promise.all([inserting,promotingAfterInsert]);
+console.log("F2-P upload-first real Storage API statuses POST="+inserted.status+
+ " code="+safeCode(inserted)+" bucketPUT="+promotionDenied.status+
+ " code="+safeCode(promotionDenied));
 success(inserted,"actual private Storage POST");
 denied(promotionDenied,"concurrent publicity after Storage POST");
 assert.equal(flag(uploadFirst),"f");assert.equal(count(uploadFirst),1);
