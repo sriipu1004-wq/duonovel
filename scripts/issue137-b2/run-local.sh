@@ -103,4 +103,6 @@ export B2_EPHEMERAL_CONFIRM=local-only
 # Never output local keys, JWTs, passwords, or signed URLs into a log.
 node "$B2/e2e.mjs"
 # Independent synthetic race tests use the same validated localhost-only stack.
-node "$B2/atomic-race-e2e.mjs"
+# Run from repository root so the CI-pinned tsx loader can import the
+# actual Human provenance classifier; local Supabase remains unlinked.
+(cd "$ROOT" && node --import tsx "$B2/atomic-race-e2e.mjs")
