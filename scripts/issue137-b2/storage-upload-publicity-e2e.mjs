@@ -70,7 +70,7 @@ assert.equal(count(overwriteFirst),1);
 const testSql=[
  "create or replace function libread_internal.issue137_f2p_test_pause()",
  "returns trigger language plpgsql set search_path='' as $$",
- "begin perform pg_sleep(2.5); return new; end; $;",
+ "begin perform pg_sleep(2.5); return new; end; "+String.fromCharCode(36,36)+";",
  "create trigger zz_issue137_f2p_api_insert_pause",
  "after insert on storage.objects for each row",
  "when (new.bucket_id='f2p-api-upload-first')",
