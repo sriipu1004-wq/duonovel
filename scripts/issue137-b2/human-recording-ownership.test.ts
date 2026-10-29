@@ -447,7 +447,7 @@ async function publisherCases(){
     // Withdraw is_public while the publisher is uploading. The old audio
     // pointer is unchanged, so only the prior-publication CAS can catch it.
     const old=seed(),db=new FakeDB([old]);
-    db.onUpload=(step)=>{if(step===revokeAt)db.rows[0].is_public=false;};
+    db.onUpload=(step)=>{if(step===revokeAt){db.rows[0].is_public=false;db.revision++;}};
     await assert.rejects(()=>withDB(db,publish),/H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT/u);
     assert.equal(db.rows.length,1,"no public bypass INSERT");
     assert.equal(db.rows[0].is_public,false,"withdrawal must remain private");
