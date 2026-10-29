@@ -455,6 +455,42 @@ async function publisherCases(){
     assert.equal(db.removed,0,"no old media deletion");
     checks+=5;
   }
+  {
+    // H1-N3: explicit withdraw -> restore is still an intervening mutation.
+    const db=new FakeDB([seed()]);const oldPath=db.rows[0].audio_storage_path;
+    db.onUpload=(step)=>{if(step===1){
+      db.rows[0].is_public=false;db.revision++;
+      db.rows[0].is_public=true;db.revision++;
+    }};
+    await assert.rejects(()=>withDB(db,publish),/H1_STALE_REVISION/u);
+    assert.equal(db.rows[0].is_public,true);
+    assert.equal(db.rows[0].audio_storage_path,oldPath);
+    assert.equal(db.removed,0);checks+=4;
+  }
+  {
+    // H1-N1: empty original snapshot, later private insert, stale public
+    // upload cannot introduce an additional public row.
+    const db=new FakeDB();
+    db.onUpload=(step)=>{if(step===1){
+      db.rows.push({...seed(),is_public:false});db.revision++;
+    }};
+    await assert.rejects(()=>withDB(db,publish),/H1_STALE_REVISION/u);
+    assert.equal(db.rows.length,1);
+    assert.equal(db.rows[0].is_public,false);
+    assert.equal(db.removed,0);checks+=4;
+  }
+  {
+    // H1-N2-C1: owner alias mutation during the slow upload cannot pass
+    // a snapshot-based replacement, even if the canonical owner is unchanged.
+    const db=new FakeDB([seed()]);const oldPath=db.rows[0].audio_storage_path;
+    db.onUpload=(step)=>{if(step===1){
+      db.rows[0].reader_user_id=other;db.revision++;
+    }};
+    await assert.rejects(()=>withDB(db,publish),/H1_STALE_REVISION/u);
+    assert.equal(db.rows.length,1);
+    assert.equal(db.rows[0].reader_user_id,other);
+    assert.equal(db.rows[0].audio_storage_path,oldPath);checks+=4;
+  }
   for(const failureStep of [1,2,3]){
     const old=seed(),db=new FakeDB([old]);db.failUploadAt=failureStep;
     await assert.rejects(()=>withDB(db,publish),/storage_upload_failed|human_timing_upload_failed/u);
