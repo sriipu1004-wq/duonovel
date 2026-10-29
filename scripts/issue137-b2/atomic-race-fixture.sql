@@ -42,6 +42,17 @@ begin
  if p_hold_ms > 0 then
    perform pg_catalog.pg_sleep(p_hold_ms::double precision / 1000.0);
  end if;
+ -- A public-take replacement must not bypass a separate private take.
+ -- This is a conservative LOCAL experiment, not an adopted publication policy.
+ if p_action = 'replace' and exists (
+   select 1 from public.recordings r
+   where r.series_id=p_series_id and r.episode_id=p_episode_id
+     and (r.reader_id=p_owner_id or r.reader_user_id=p_owner_id)
+     and r.id<>p_recording_id
+     and r.is_public is distinct from true
+ ) then
+   raise exception using errcode='P0001',message='B2_RACE_PRIVATE_ROW';
+ end if;
  if p_action = 'insert' then
    if p_is_public is null then
      raise exception using errcode='P0001', message='B2_RACE_BAD_INPUT';
@@ -55,10 +66,13 @@ begin
      raise exception using errcode='P0001', message='B2_RACE_PRIVATE_ROW';
    end if;
    insert into public.recordings(
-     id,series_id,episode_id,reader_id,reader_user_id,is_public,audio_storage_path
+     id,series_id,episode_id,reader_id,reader_user_id,reader_name,
+     voice_model_id,is_public,audio_storage_path
    ) values (
-     p_recording_id,p_series_id,p_episode_id,p_owner_id,p_owner_id,p_is_public,
-     'r18-private:race/'||p_recording_id::text||'/playback.wav'
+     p_recording_id,p_series_id,p_episode_id,p_owner_id,p_owner_id,
+     'Synthetic Human Reader',null,p_is_public,
+     'human/'||p_series_id::text||'/'||p_episode_id::text||'/'||
+       p_owner_id::text||'/'||p_recording_id::text||'/playback-from-mp3.m4a'
    );
  else
    if p_action = 'visibility' then
@@ -78,7 +92,9 @@ begin
        and episode_id=p_episode_id and reader_id=p_owner_id;
    elsif p_action = 'replace' then
      update public.recordings
-       set audio_storage_path='r18-private:race/'||p_recording_id::text||'/replacement.wav'
+       set audio_storage_path='human/'||p_series_id::text||'/'||
+         p_episode_id::text||'/'||p_owner_id::text||'/'||
+         p_recording_id::text||'-replacement/playback-from-mp3.m4a'
       where id=p_recording_id and series_id=p_series_id
        and episode_id=p_episode_id and reader_id=p_owner_id
        and (reader_user_id is null or reader_user_id=p_owner_id)
