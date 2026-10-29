@@ -94,11 +94,22 @@ const [inserted,promotionDenied]=await Promise.all([inserting,promotingAfterInse
 console.log("F2-P upload-first real Storage API statuses POST="+inserted.status+
  " code="+safeCode(inserted)+" bucketPUT="+promotionDenied.status+
  " code="+safeCode(promotionDenied));
-success(inserted,"actual private Storage POST");
-denied(promotionDenied,"concurrent publicity after Storage POST");
-assert.equal(flag(uploadFirst),"f");assert.equal(count(uploadFirst),1);
-assert.notEqual((await api("GET",publicObject(uploadFirst),{token:anon})).status,200);
-console.log("PASS: F2-P actual LOCAL Storage POST first / concurrent bucket PUT denied, bytes private");
+const uploadCommitted=[200,201,204].includes(inserted.status);
+const bucketPromoted=[200,201,204].includes(promotionDenied.status);
+assert.notEqual(uploadCommitted,bucketPromoted,
+ "overlapping Storage requests must have exactly one allowed committed outcome");
+if(uploadCommitted){
+ denied(promotionDenied,"publicity must reject committed new private audio");
+ assert.equal(flag(uploadFirst),"f");assert.equal(count(uploadFirst),1);
+ console.log("PASS: F2-P actual LOCAL Storage POST first, bucket PUT denied; bytes PRIVATE");
+}else{
+ denied(inserted,"new audio must be denied if competing bucket publicity wins");
+ success(promotionDenied,"empty bucket allowed to become PUBLIC");
+ assert.equal(flag(uploadFirst),"t");assert.equal(count(uploadFirst),0);
+ console.log("PASS: F2-P actual LOCAL bucket publicity first, overlapping POST denied; zero objects");
+}
+assert.notEqual((await api("GET",publicObject(uploadFirst),{token:anon})).status,200,
+ "concurrent operations must never expose audio at public Storage URL");
 // Direction B: actual bucket PUT first, after bucket row update sleeps.
 // Subsequent actual Storage audio POST must see PUBLIC and reject.
 const promotingFirst=promote(bucketFirst);
