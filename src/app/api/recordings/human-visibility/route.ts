@@ -3,6 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
 import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
+import {
+  readHumanAtomicRevision,
+  commitHumanAtomicMutation,
+} from "@/lib/recording/humanRecordingAtomic";
 
 export const runtime = "nodejs";
 
@@ -136,6 +140,22 @@ export async function POST(request: Request) {
 
   const adminSupabase = createAdminClient();
 
+  // Observe the revision before reading the target/visibility state.
+  // All later mutations must prove this generation was unchanged.
+  let expectedRevision: string;
+  try {
+    expectedRevision = await readHumanAtomicRevision(adminSupabase, {
+      seriesId,
+      episodeId,
+      ownerId: user.id,
+    });
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "朗読の競合制御が利用できない。" },
+      { status: 503 }
+    );
+  }
+
   const { data: recordingRow, error: lookupError } = await adminSupabase
     .from("recordings")
     .select("*")
@@ -198,57 +218,32 @@ export async function POST(request: Request) {
       );
     }
 
-    const firstTry = await adminSupabase
-      .from("recordings")
-      .update({ is_public: isPublic })
-      .eq("id", recordingId)
-      .select("id, is_public")
-      .maybeSingle();
-
-    if (!firstTry.error) {
-      return NextResponse.json(
-        {
-          ok: true,
-          recordingId,
-          isPublic,
-        },
-        { status: 200 }
-      );
-    }
-
-    const secondTry = await adminSupabase
-      .from("recordings")
-      .update({ isPublic })
-      .eq("id", recordingId)
-      .select("id, isPublic")
-      .maybeSingle();
-
-    if (!secondTry.error) {
-      return NextResponse.json(
-        {
-          ok: true,
-          recordingId,
-          isPublic,
-        },
-        { status: 200 }
-      );
-    }
-
+    await commitHumanAtomicMutation(adminSupabase, {
+      seriesId,
+      episodeId,
+      ownerId: user.id,
+      expectedRevision,
+      action: "visibility",
+      recordingId,
+      isPublic,
+    });
     return NextResponse.json(
-      {
-        ok: false,
-        error: "公開範囲の更新に失敗した。",
-      },
-      { status: 500 }
+      { ok: true, recordingId, isPublic },
+      { status: 200 }
     );
   } catch (error) {
-    console.error("[human-visibility]", error);
+    // Contention, withdrawn consent and ambiguous owner must fail closed.
+    const conflict = error instanceof Error &&
+      /H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT|H1_AMBIGUOUS_OWNER/u.test(error.message);
+    if (!conflict) console.error("[human-visibility]", error);
     return NextResponse.json(
       {
         ok: false,
-        error: "公開範囲の確認または更新に失敗した。",
+        error: conflict
+          ? "朗読の状態または所有権が処理中に変更された。再確認が必要。"
+          : "公開範囲の確認または更新に失敗した。",
       },
-      { status: 500 }
+      { status: conflict ? 409 : 500 }
     );
   }
 }
