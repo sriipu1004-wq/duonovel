@@ -146,7 +146,7 @@ const code=vm.runInNewContext(compiled,{
       r.episode_id===m.episodeId &&
       (r.reader_id===m.ownerId||r.reader_user_id===m.ownerId||r.readerUserId===m.ownerId) &&
       !r.voice_model_id && r.reader_name.trim() &&
-      r.audio_storage_path.includes("/human/"));
+      (r.audio_storage_path.startsWith("human/") || r.audio_storage_path.includes("/human/")));
     if(m.isPublic && owned.some(r=>r.is_public!==true))
       throw Error("H1_PRIVATE_REPUBLISH_DENIED");
     let found:Row|undefined;
