@@ -114,6 +114,19 @@ function resolveErrorResponse(error: unknown): {
 } {
   const message = error instanceof Error ? error.message : "unknown_error";
 
+  if (/H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT|H1_AMBIGUOUS_OWNER|H1_PRIVATE_REPUBLISH_DENIED/u.test(message)) {
+    return {
+      status: 409,
+      body: { ok: false, error: "録音の公開状態または所有権が変更された。再確認してからやり直してください。" },
+    };
+  }
+  if (message.startsWith("human_atomic_revision_unavailable:") ||
+      message.startsWith("human_atomic_commit_failed:")) {
+    return {
+      status: 503,
+      body: { ok: false, error: "録音の原子的保存処理を確認できなかったため公開を停止した。" },
+    };
+  }
   if (message === "series_not_found") {
     return {
       status: 404,
