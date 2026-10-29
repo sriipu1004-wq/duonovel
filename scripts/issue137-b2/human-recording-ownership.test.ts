@@ -18,7 +18,7 @@ let checks=0;
 type Row = {
   id:string; series_id:string; episode_id:string; reader_id:string;
   reader_name:string; audio_storage_path:string; voice_model_id:string|null;
-  is_public:boolean;
+  is_public:boolean|null;
 };
 const playback=(who:string,version:string)=>"human/"+series+"/"+episode+"/"+who+"/"+version+"/playback-from-mp3.m4a";
 const seed=(who=owner,name="Human Reader",path=playback(who,"old")):Row=>({
@@ -70,6 +70,7 @@ class FakeDB {
   rows:Row[];nextId=0; failUpdate=false;failInsert=false;lookupError=false;
   responseLostAfterCommit=false;
   uploads:string[]=[];removed=0;failUploadAt=0;
+  onUpload:((step:number,db:FakeDB)=>void)|null=null;
   constructor(rows:Row[]=[]){this.rows=rows.map(x=>({...x}));}
   from(name:string){
     assert.equal(name,"recordings","only recordings DB table may be touched");
@@ -82,6 +83,7 @@ class FakeDB {
         upload:async(path:string,_bytes:unknown,opts:{upsert:boolean})=>{
           assert.equal(opts.upsert,false,"Human Storage writes must not overwrite prior keys");
           this.uploads.push(path);
+          this.onUpload?.(this.uploads.length,this);
           return {error:this.failUploadAt===this.uploads.length?{message:"synthetic Storage timeout"}:null};
         },
         remove:async(_paths:string[])=>{
@@ -201,6 +203,45 @@ async function writerCases(){
     checks+=2;
   }
   {
+    // H1: a previously withdrawn Human row must not be revived by the
+    // default public flag; neither overwrite it nor insert a public bypass.
+    const old={...seed(),is_public:false},db=new FakeDB([old]);
+    await assert.rejects(()=>code.writeRecording(db,input("next")),
+      /human_recording_republish_requires_explicit_consent/u);
+    assert.equal(db.rows.length,1);
+    assert.equal(db.rows[0].is_public,false);
+    assert.equal(db.rows[0].audio_storage_path,old.audio_storage_path);
+    checks+=4;
+  }
+  {
+    // H1: a deliberately private -> private update remains allowed.
+    const old={...seed(),is_public:false},db=new FakeDB([old]);
+    const result=await code.writeRecording(db,input("next",{isPublic:false}));
+    assert.equal(result.recordingId,old.id);
+    assert.equal(db.rows[0].is_public,false);
+    assert.equal(db.rows[0].audio_storage_path,playback(owner,"next"));
+    checks+=3;
+  }
+  {
+    // Unknown historical publication state also requires explicit consent.
+    const old={...seed(),is_public:null},db=new FakeDB([old]);
+    await assert.rejects(()=>code.writeRecording(db,input("next")),
+      /human_recording_republish_requires_explicit_consent/u);
+    assert.equal(db.rows.length,1);
+    checks+=2;
+  }
+  {
+    // A private Human legacy path cannot be bypassed with a new public row.
+    const old={...seed(),is_public:false,
+      audio_storage_path:"https://legacy.test/human/recording.m4a"};
+    const db=new FakeDB([old]);
+    await assert.rejects(()=>code.writeRecording(db,input("next")),
+      /human_recording_republish_requires_explicit_consent/u);
+    assert.equal(db.rows.length,1);
+    assert.equal(db.rows[0].is_public,false);
+    checks+=3;
+  }
+  {
     const db=new FakeDB([seed()]);
     const settled=await Promise.allSettled([code.writeRecording(db,input("a")),code.writeRecording(db,input("b"))]);
     assert.equal(settled.filter(x=>x.status==="fulfilled").length,1);
@@ -250,6 +291,29 @@ async function publisherCases(){
     assert.equal(db.removed,0,"never remove prior media");
     assert.ok(res.audioStoragePath.endsWith(old.id));
     checks+=4;
+  }
+  {
+    // Pre-upload private state: reject before creating any Storage objects.
+    const old={...seed(),is_public:false},db=new FakeDB([old]);
+    await assert.rejects(()=>withDB(db,publish),
+      /human_recording_republish_requires_explicit_consent/u);
+    assert.equal(db.uploads.length,0);
+    assert.equal(db.rows.length,1);
+    assert.equal(db.rows[0].is_public,false);
+    assert.equal(db.removed,0);
+    checks+=5;
+  }
+  for(const revokeAt of [1,2,3]){
+    // Withdraw is_public while the publisher is uploading. The old audio
+    // pointer is unchanged, so only the prior-publication CAS can catch it.
+    const old=seed(),db=new FakeDB([old]);
+    db.onUpload=(step)=>{if(step===revokeAt)db.rows[0].is_public=false;};
+    await assert.rejects(()=>withDB(db,publish),/human_recording_write_conflict/u);
+    assert.equal(db.rows.length,1,"no public bypass INSERT");
+    assert.equal(db.rows[0].is_public,false,"withdrawal must remain private");
+    assert.equal(db.rows[0].audio_storage_path,old.audio_storage_path);
+    assert.equal(db.removed,0,"no old media deletion");
+    checks+=5;
   }
   for(const failureStep of [1,2,3]){
     const old=seed(),db=new FakeDB([old]);db.failUploadAt=failureStep;
