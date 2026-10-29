@@ -110,6 +110,10 @@ create or replace function public.issue137_h1_human_commit(
 as $$
 declare
  current_revision bigint;
+ s record;
+ e record;
+ consent_version text;
+ r18_user uuid;
  affected integer := 0;
  result_id uuid;
  ids uuid[] := '{}'::uuid[];
@@ -118,6 +122,47 @@ begin
   or p_expected_revision is null or p_expected_revision < 0
   or p_action not in ('insert','replace','visibility','delete_all') then
    raise exception using errcode='P0001',message='H1_BAD_INPUT';
+ end if;
+ -- H2: serialize the *final* permission decision with author changes.
+ -- Locks are acquired BEFORE the per-owner revision row, and retained through
+ -- the recording mutation. Only new/replace/public-exposure needs consent;
+ -- hiding and owner deletion must remain possible after permission revocation.
+ if p_action in ('insert','replace') or
+    (p_action='visibility' and p_is_public is true) then
+   select id,author_id,publication_status,recording_permission_mode,
+          content_rating,content_warnings into s
+     from public.series where id=p_series_id for share;
+   select id,series_id,posting_status,is_published into e
+     from public.episodes where id=p_episode_id for share;
+   if s is null or e is null or e.series_id is distinct from p_series_id
+      or s.recording_permission_mode is distinct from 'open' then
+     raise exception using errcode='P0001',message='H2_PERMISSION_REVOKED';
+   end if;
+   -- A recorded reader cannot continue into newly private/draft content.
+   -- The series author may still save an explicitly private take to a draft.
+   if (s.publication_status is distinct from 'public'
+       or e.posting_status is distinct from 'posted'
+       or e.is_published is distinct from true)
+       and (p_is_public is true or s.author_id is distinct from p_owner_id) then
+     raise exception using errcode='P0001',message='H2_PUBLICATION_REVOKED';
+   end if;
+   select c.consent_version into consent_version
+     from public.user_recording_consents c
+     where c.user_id=p_owner_id and c.consent_key='recording_studio_global'
+     for share;
+   if consent_version is distinct from '2026-04-16' then
+     raise exception using errcode='P0001',message='H2_CONSENT_REVOKED';
+   end if;
+   if (s.content_rating='r18' or
+       'sexual_r18'=any(coalesce(s.content_warnings,'{}'::text[])))
+       and s.author_id is distinct from p_owner_id then
+     select u.id into r18_user from public.users u
+       where u.id=p_owner_id and u.show_r18_content is true
+         and u.r18_confirmed_at is not null for share;
+     if r18_user is null then
+       raise exception using errcode='P0001',message='H2_R18_REVOKED';
+     end if;
+   end if;
  end if;
  insert into libread_internal.h1_human_scope_revision(series_id,episode_id,owner_id)
  values(p_series_id,p_episode_id,p_owner_id) on conflict do nothing;

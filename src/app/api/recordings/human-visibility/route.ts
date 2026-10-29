@@ -234,7 +234,7 @@ export async function POST(request: Request) {
   } catch (error) {
     // Contention, withdrawn consent and ambiguous owner must fail closed.
     const conflict = error instanceof Error &&
-      /H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT|H1_AMBIGUOUS_OWNER/u.test(error.message);
+      /H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT|H1_AMBIGUOUS_OWNER|H2_PERMISSION_REVOKED|H2_PUBLICATION_REVOKED|H2_CONSENT_REVOKED|H2_R18_REVOKED/u.test(error.message);
     if (!conflict) console.error("[human-visibility]", error);
     return NextResponse.json(
       {

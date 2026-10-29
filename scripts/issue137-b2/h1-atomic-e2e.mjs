@@ -68,6 +68,9 @@ const u=ok(await call("/auth/v1/admin/users",{method:"POST",body:{
 const other=ok(await call("/auth/v1/admin/users",{method:"POST",body:{
  email:"h1-"+uuid()+"@example.invalid",password,email_confirm:true
 }}),"create synthetic GoTrue other owner");
+ok(await call("/rest/v1/user_recording_consents",{method:"POST",body:{
+ user_id:u.id,consent_key:"recording_studio_global",consent_version:"2026-04-16"
+}}),"seed local recorder consent");
 const w=await work(u.id),r0=await revision(w);
 assert.equal(r0,"0");assertions++;
 const id=uuid(),first=entry(w,id);
@@ -144,4 +147,63 @@ for(const fn of ["issue137_h1_human_revision","issue137_h1_human_commit"]){
    p_expected_revision:"0",p_action:"delete_all"}}),
   "anon forbidden "+fn);
 }
-console.log("PASS: "+assertions+" real LOCAL PostgreSQL/PostgREST H1 mutation assertions; no hosted DB/Storage");
+// H2: snapshot before a long upload is not authority to publish after
+// a permission, publication, consent or R18 preference change.
+async function setSeries(target,body){
+ ok(await call("/rest/v1/series?id=eq."+target.series,{method:"PATCH",body}),"local H2 series transition");
+}
+async function setEpisode(target,body){
+ ok(await call("/rest/v1/episodes?id=eq."+target.episode,{method:"PATCH",body}),"local H2 episode transition");
+}
+const permission=await work(u.id),permissionRev=await revision(permission);
+await setSeries(permission,{recording_permission_mode:"closed"});
+deny(await commit(permission,permissionRev,"insert",entry(permission,uuid(),true)),
+ "closed permission denies public publish","H2_PERMISSION_REVOKED");
+deny(await commit(permission,permissionRev,"insert",entry(permission,uuid(),false)),
+ "closed permission denies private upload","H2_PERMISSION_REVOKED");
+assert.equal(await revision(permission),permissionRev);assertions++;
+await setSeries(permission,{recording_permission_mode:"open"});
+ok(await commit(permission,permissionRev,"insert",entry(permission,uuid(),false)),
+ "permission restored permits private author take");
+const publication=await work(other.id);
+const publicReader={...publication,owner:u.id},publicationRev=await revision(publicReader);
+await setSeries(publication,{publication_status:"private"});
+deny(await commit(publicReader,publicationRev,"insert",entry(publicReader,uuid(),false)),
+ "other reader loses private work access","H2_PUBLICATION_REVOKED");
+deny(await commit(publicReader,publicationRev,"insert",entry(publicReader,uuid(),true)),
+ "withdrawn work blocks public publish","H2_PUBLICATION_REVOKED");
+await setSeries(publication,{publication_status:"public"});
+await setEpisode(publication,{posting_status:"draft",is_published:false});
+deny(await commit(publicReader,publicationRev,"insert",entry(publicReader,uuid(),true)),
+ "withdrawn episode blocks public publish","H2_PUBLICATION_REVOKED");
+await setEpisode(publication,{posting_status:"posted",is_published:true});
+const consent=await work(u.id),consentRev=await revision(consent);
+ok(await call("/rest/v1/user_recording_consents?user_id=eq."+u.id,
+ {method:"PATCH",body:{consent_version:"withdrawn"}}),"local consent withdrawn");
+deny(await commit(consent,consentRev,"insert",entry(consent,uuid(),false)),
+ "revoked consent denies new private take","H2_CONSENT_REVOKED");
+assert.equal(await revision(consent),consentRev);assertions++;
+ok(await call("/rest/v1/user_recording_consents?user_id=eq."+u.id,
+ {method:"PATCH",body:{consent_version:"2026-04-16"}}),"local consent restored");
+const adult=await work(other.id),adultReader={...adult,owner:u.id};
+const adultRev=await revision(adultReader);
+ok(await call("/rest/v1/users",{method:"POST",body:{
+ id:u.id,show_r18_content:true,r18_confirmed_at:"2026-10-01T00:00:00Z"
+}}),"seed local R18 opt-in");
+await setSeries(adult,{content_rating:"r18"});
+ok(await call("/rest/v1/users?id=eq."+u.id,
+ {method:"PATCH",body:{show_r18_content:false}}),"local R18 opt-out");
+deny(await commit(adultReader,adultRev,"insert",entry(adultReader,uuid(),true)),
+ "R18 opt-out during upload blocks commit","H2_R18_REVOKED");
+assert.equal(await revision(adultReader),adultRev);assertions++;
+// After permission is closed, the owner can still withdraw/delete existing
+// recordings, avoiding an accidental unremovable public recording.
+await setSeries(w,{recording_permission_mode:"closed"});
+const beforeHide=await revision(w);
+// Existing 'w' recordings were deleted above, so use a fresh safe take.
+// The permission test's private take can always be deleted under closed mode.
+const permissionDeleteRev=await revision(permission);
+await setSeries(permission,{recording_permission_mode:"closed"});
+ok(await commit(permission,permissionDeleteRev,"delete_all"),
+ "owner delete remains allowed after permission closure");
+console.log("PASS: "+assertions+" real LOCAL PostgreSQL/PostgREST H1/H2 mutation assertions; no hosted DB/Storage");

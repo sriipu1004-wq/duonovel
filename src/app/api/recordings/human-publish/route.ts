@@ -114,7 +114,7 @@ function resolveErrorResponse(error: unknown): {
 } {
   const message = error instanceof Error ? error.message : "unknown_error";
 
-  if (/H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT|H1_AMBIGUOUS_OWNER|H1_PRIVATE_REPUBLISH_DENIED/u.test(message)) {
+  if (/H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT|H1_AMBIGUOUS_OWNER|H1_PRIVATE_REPUBLISH_DENIED|H2_PERMISSION_REVOKED|H2_PUBLICATION_REVOKED|H2_CONSENT_REVOKED|H2_R18_REVOKED/u.test(message)) {
     return {
       status: 409,
       body: { ok: false, error: "録音の公開状態または所有権が変更された。再確認してからやり直してください。" },

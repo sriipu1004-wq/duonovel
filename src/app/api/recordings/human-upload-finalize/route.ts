@@ -278,7 +278,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ...result }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
-    const conflict = /H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT|H1_AMBIGUOUS_OWNER|H1_PRIVATE_REPUBLISH_DENIED/u.test(message);
+    const conflict = /H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT|H1_AMBIGUOUS_OWNER|H1_PRIVATE_REPUBLISH_DENIED|H2_PERMISSION_REVOKED|H2_PUBLICATION_REVOKED|H2_CONSENT_REVOKED|H2_R18_REVOKED/u.test(message);
     const unavailable = message.startsWith("human_atomic_revision_unavailable:") ||
       message.startsWith("human_atomic_commit_failed:");
     if (!conflict) console.error("[human-upload-finalize]", error);

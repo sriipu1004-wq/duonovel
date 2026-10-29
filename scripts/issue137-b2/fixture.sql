@@ -7,7 +7,13 @@ create table public.series (
  id uuid primary key, author_id uuid not null references auth.users(id),
  publication_status text not null default 'public',
  content_rating text not null default 'general',
- content_warnings text[] not null default '{}'::text[]
+ content_warnings text[] not null default '{}'::text[],
+ recording_permission_mode text not null default 'open'
+);
+-- Disposable consent approximation, never linked to a hosted user database.
+create table public.user_recording_consents (
+ user_id uuid not null references auth.users(id), consent_key text not null,
+ consent_version text not null, primary key(user_id,consent_key)
 );
 create table public.episodes (
  id uuid primary key, series_id uuid not null references public.series(id),
@@ -26,8 +32,8 @@ create table public.episode_human_translations (
  id uuid primary key, series_id uuid references public.series(id),
  translator_user_id uuid, episode_id uuid references public.episodes(id)
 );
-revoke all on public.users,public.series,public.episodes,public.recordings,public.episode_human_translations from public,anon,authenticated;
-grant all on public.users,public.series,public.episodes,public.recordings,public.episode_human_translations to service_role;
+revoke all on public.users,public.series,public.episodes,public.recordings,public.episode_human_translations,public.user_recording_consents from public,anon,authenticated;
+grant all on public.users,public.series,public.episodes,public.recordings,public.episode_human_translations,public.user_recording_consents to service_role;
 grant select on public.series,public.episodes,public.recordings to anon,authenticated;
 grant update on public.series,public.episodes to authenticated;
 alter table public.users enable row level security;
