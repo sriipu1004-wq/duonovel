@@ -16,7 +16,8 @@ const other = "44444444-4444-4444-8444-444444444444";
 let checks=0;
 
 type Row = {
-  id:string; series_id:string; episode_id:string; reader_id:string;
+  id:string; series_id:string; episode_id:string; reader_id:string|null;
+  reader_user_id?:string|null; readerUserId?:string|null;
   reader_name:string; audio_storage_path:string; voice_model_id:string|null;
   is_public:boolean|null;
 };
@@ -241,6 +242,94 @@ async function writerCases(){
     assert.equal(db.rows[0].is_public,false);
     checks+=3;
   }
+
+  {
+    // H1-N2: legacy Human owner is in reader_user_id only. The earlier
+    // classifier recognized it, but the mapped writer used to lose ownership.
+    const old={...seed(),reader_id:null,reader_user_id:owner,is_public:false};
+    const db=new FakeDB([old]);
+    await assert.rejects(()=>code.writeRecording(db,input("next")),
+      /human_recording_republish_requires_explicit_consent/u);
+    assert.equal(db.rows.length,1);
+    assert.equal(db.rows[0].audio_storage_path,old.audio_storage_path);
+    assert.equal(db.rows[0].is_public,false);
+    checks+=4;
+  }
+  {
+    // Also recognize readerUserId alias in legacy rows; no silent republish.
+    const old={...seed(),reader_id:null,readerUserId:owner,is_public:false};
+    const db=new FakeDB([old]);
+    await assert.rejects(()=>code.writeRecording(db,input("next")),
+      /human_recording_republish_requires_explicit_consent/u);
+    assert.equal(db.rows.length,1);
+    checks+=2;
+  }
+  {
+    // A legacy public row with alias-only ownership must never be updated
+    // via the modern reader_id CAS: keep it and create a distinct new take.
+    const old={...seed(),reader_id:null,reader_user_id:owner},db=new FakeDB([old]);
+    await code.writeRecording(db,input("next"));
+    assert.equal(db.rows.length,2);
+    assert.equal(db.rows[0].audio_storage_path,old.audio_storage_path);
+    assert.equal(db.rows[0].reader_id,null);
+    checks+=3;
+  }
+  for(const conflictingOwner of [owner,other]){
+    // Both columns populated but contradict each other: neither principal
+    // gets to use this row to authorize a public write or overwrite.
+    const old={
+      ...seed(),reader_id:conflictingOwner,
+      reader_user_id:conflictingOwner===owner?other:owner,
+      is_public:false
+    },db=new FakeDB([old]);
+    await assert.rejects(()=>code.writeRecording(db,input("next")),
+      /human_recording_republish_requires_explicit_consent/u);
+    assert.equal(db.rows.length,1);
+    assert.equal(db.rows[0].audio_storage_path,old.audio_storage_path);
+    checks+=3;
+  }
+  {
+    // Even when the conflicting old row is PUBLIC, its ambiguous owner
+    // fields must not grant replace authority.
+    const old={...seed(),reader_id:owner,reader_user_id:other},db=new FakeDB([old]);
+    await assert.rejects(()=>code.writeRecording(db,input("next")),
+      /human_recording_republish_requires_explicit_consent/u);
+    assert.equal(db.rows.length,1);
+    checks+=2;
+  }
+  {
+    // A private row owned by someone else through the legacy alias does
+    // not block the current user's legitimate distinct new recording.
+    const old={...seed(other),reader_id:null,reader_user_id:other,is_public:false};
+    const db=new FakeDB([old]);
+    await code.writeRecording(db,input("next"));
+    assert.equal(db.rows.length,2);
+    assert.equal(db.rows[0].is_public,false);
+    assert.equal(db.rows[0].audio_storage_path,old.audio_storage_path);
+    checks+=3;
+  }
+  {
+    // Proven AI recording may carry a legacy owner alias; it is not Human
+    // and must not become a privileged Human replacement or blocker.
+    const old={...seed(),reader_id:null,reader_user_id:owner,
+      voice_model_id:"aivis-model",is_public:false},db=new FakeDB([old]);
+    await code.writeRecording(db,input("next"));
+    assert.equal(db.rows.length,2);
+    assert.equal(db.rows[0].voice_model_id,"aivis-model");
+    assert.equal(db.rows[0].audio_storage_path,old.audio_storage_path);
+    checks+=3;
+  }
+  {
+    // Missing Human path provenance is UNKNOWN, not Human solely because
+    // reader_user_id and NULL voice_model_id happen to be populated.
+    const old={...seed(),reader_id:null,reader_user_id:owner,
+      audio_storage_path:"https://legacy.test/audio/unknown.m4a",is_public:false};
+    const db=new FakeDB([old]);
+    await code.writeRecording(db,input("next"));
+    assert.equal(db.rows.length,2);
+    assert.equal(db.rows[0].audio_storage_path,old.audio_storage_path);
+    checks+=2;
+  }
   {
     const db=new FakeDB([seed()]);
     const settled=await Promise.allSettled([code.writeRecording(db,input("a")),code.writeRecording(db,input("b"))]);
@@ -300,6 +389,19 @@ async function publisherCases(){
     assert.equal(db.uploads.length,0);
     assert.equal(db.rows.length,1);
     assert.equal(db.rows[0].is_public,false);
+    assert.equal(db.removed,0);
+    checks+=5;
+  }
+
+  for(const legacyKind of ["reader_user_id","readerUserId"] as const){
+    // Legacy alias-only private row is detected BEFORE all Storage uploads.
+    const old={...seed(),reader_id:null,is_public:false,
+      [legacyKind]:owner},db=new FakeDB([old]);
+    await assert.rejects(()=>withDB(db,publish),
+      /human_recording_republish_requires_explicit_consent/u);
+    assert.equal(db.uploads.length,0);
+    assert.equal(db.rows.length,1);
+    assert.equal(db.rows[0].audio_storage_path,old.audio_storage_path);
     assert.equal(db.removed,0);
     checks+=5;
   }
