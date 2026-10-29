@@ -196,6 +196,18 @@ ok(await call("/rest/v1/users?id=eq."+u.id,
 deny(await commit(adultReader,adultRev,"insert",entry(adultReader,uuid(),true)),
  "R18 opt-out during upload blocks commit","H2_R18_REVOKED");
 assert.equal(await revision(adultReader),adultRev);assertions++;
+// EXPECTED RELEASE HOLD: B2's recording-reference trigger still requires
+// "r18-private:" even though canonical Human audio uses a PRIVATE bucket
+// with an "human/" path. A valid R18 viewer must not silently be reported
+// as end-to-end publishable until this cross-layer conflict is resolved.
+ok(await call("/rest/v1/users?id=eq."+u.id,{
+ method:"PATCH",body:{show_r18_content:true}
+}),"local R18 opt-in restored");
+deny(await commit(adultReader,adultRev,"insert",entry(adultReader,uuid(),true)),
+ "R18 authorized Human path still blocked by B2 media reference",
+ "B2_MEDIA_CONTAINMENT_REQUIRED");
+assert.equal(await revision(adultReader),adultRev);assertions++;
+console.log("EXPECTED_RELEASE_HOLD: authorized R18 Human path conflicts with B2 reference guard; no public media fallback");
 // After permission is closed, the owner can still withdraw/delete existing
 // recordings, avoiding an accidental unremovable public recording.
 await setSeries(w,{recording_permission_mode:"closed"});
