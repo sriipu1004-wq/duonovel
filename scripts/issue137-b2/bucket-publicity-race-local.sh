@@ -14,6 +14,12 @@ sql() { docker exec "$DB_CONTAINER" psql -X -U postgres -d postgres -v ON_ERROR_
 [[ "$(sql -At -c "select public from storage.buckets where id='f2p-disposable-promotion'")" == "f" ]] || {
  echo 'FAIL: synthetic bucket is not PRIVATE'; exit 1;
 }
+[[ "$(sql -At -c "select public from storage.buckets where id='f2p-disposable-empty'")" == "t" ]] || {
+ echo 'FAIL: empty unprotected bucket promotion was not persisted'; exit 1;
+}
+[[ "$(sql -At -c "select public from storage.buckets where id='r18-recording-audio'")" == "f" ]] || {
+ echo 'FAIL: protected R18 bucket public flag changed'; exit 1;
+}
 holder=''
 finish() { if [[ -n "$holder" ]]; then wait "$holder" || true; fi; }
 trap finish EXIT
