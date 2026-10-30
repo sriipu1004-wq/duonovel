@@ -82,7 +82,8 @@ process.on("message",m=>{
   }else if(m?.kind==="stage"){
    reply("stage",await stage(m),m.seq);
   }else if(m?.kind==="stop"){
-   reply("stop","STOPPED",m.seq);process.exit(0);
+   if(process.connected)process.send({kind:"stop",status:"STOPPED",seq:m.seq},()=>process.exit(0));
+   else process.exit(0);
   }else reply("invalid","INVALID_REQUEST_HOLD",m?.seq);
  }).catch(()=>reply("error","INTERNAL_HOLD",m?.seq));
 });
