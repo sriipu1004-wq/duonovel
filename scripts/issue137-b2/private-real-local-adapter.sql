@@ -149,3 +149,53 @@ revoke all on function public.issue137_f2p_local_private_commit(
  from public,anon,authenticated;
 grant execute on function public.issue137_f2p_local_private_commit(
  uuid,uuid,uuid,bigint,uuid,text,text,uuid,text,boolean) to service_role;
+
+
+-- F2-P LOCAL ONLY: second half of the in-app read path. The response is
+-- private metadata for a trusted server, NEVER a signed PUBLIC URL. The
+-- caller must authenticate GoTrue AND then re-check immediately before bytes
+-- are delivered. This synthetic fixture currently permits owner-only reads.
+create or replace function public.issue137_f2p_local_private_playback(
+ p_id uuid, p_viewer_id uuid, p_session_id uuid
+) returns jsonb language plpgsql security invoker
+set search_path='' as $$
+declare
+ c libread_internal.issue137_f2p_private_candidates%rowtype;
+ o storage.objects%rowtype;
+ b storage.buckets%rowtype;
+begin
+ select * into c from libread_internal.issue137_f2p_private_candidates
+  where id=p_id for share;
+ if not found or c.private_audio_path is null then
+  raise exception using errcode='42501', message='F2P_PRIVATE_NOT_COMMITTED'; end if;
+ if c.actor_id is distinct from p_viewer_id or c.session_id is distinct from p_session_id
+  or not c.session_active or not c.writer_permission or not c.owner_verified then
+  raise exception using errcode='42501', message='F2P_PRIVATE_VIEWER_REVOKED'; end if;
+ if not c.rights_approved or c.rights_withdrawn or c.r18_effective then
+  raise exception using errcode='42501', message='F2P_PRIVATE_RIGHTS_REVOKED'; end if;
+ if (c.kind='human-recording' and not c.human_consent_current) or
+    (c.kind='ai-recording' and not c.ai_provenance_verified) or
+    (c.kind='site-bgm' and not c.bgm_catalog_verified) then
+  raise exception using errcode='42501', message='F2P_PRIVATE_PROVENANCE_REVOKED'; end if;
+ if c.kind <> 'site-bgm' and
+  (c.publication <> 'public' or not c.episode_posted or not c.episode_published
+   or not c.episode_matches) then
+  raise exception using errcode='42501', message='F2P_PRIVATE_PUBLICATION_REVOKED'; end if;
+ if c.stage_bucket <> 'f2p-local-private-stage' or
+    c.private_audio_path is distinct from c.stage_path then
+  raise exception using errcode='42501', message='F2P_PRIVATE_STAGE_CHANGED'; end if;
+ select * into b from storage.buckets where id=c.stage_bucket for share;
+ if not found or b.public is distinct from false then
+  raise exception using errcode='42501', message='F2P_PRIVATE_BUCKET_PUBLIC'; end if;
+ select * into o from storage.objects
+   where bucket_id=c.stage_bucket and name=c.stage_path and id=c.stage_object_id for share;
+ if not found then
+  raise exception using errcode='42501', message='F2P_PRIVATE_OBJECT_CHANGED'; end if;
+ return jsonb_build_object('bucket',c.stage_bucket,'path',c.stage_path,
+  'sha256',c.stage_sha256,'objectId',c.stage_object_id,'revision',c.pointer_revision);
+end
+$$;
+revoke all on function public.issue137_f2p_local_private_playback(uuid,uuid,uuid)
+ from public,anon,authenticated;
+grant execute on function public.issue137_f2p_local_private_playback(uuid,uuid,uuid)
+ to service_role;
