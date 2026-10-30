@@ -19,6 +19,9 @@ export type VerifiedPrivateStage = PublicMediaStage & Readonly<{
   // These fields MUST be authenticated against provider state, not request JSON.
   immutabilityVerified: boolean;
   bucketVisibilityVerified: boolean;
+  // Read from trusted DB authority alongside the immutable stage identity.
+  expectedPointerRevision: string;
+  releaseNonce: string;
 }>;
 
 export type PrivateReleaseActor = Readonly<{
@@ -45,6 +48,8 @@ export type LockedPrivateReleaseState = Readonly<{
   stageBucketPrivate: boolean;
   destinationBucketPrivate: boolean;
   destinationProxyGated: boolean;
+  pointerRevision: string;
+  releaseNonceAvailable: boolean;
   requestAlreadyCommitted: boolean;
 }>;
 
@@ -53,7 +58,7 @@ export type PrivateReleaseHold =
   | "PRECHECK_HOLD" | "LOCK_HOLD" | "REVOKED_HOLD"
   | "RIGHTS_HOLD" | "R18_HOLD" | "CONTENT_HOLD"
   | "CONSENT_HOLD" | "PROVENANCE_HOLD" | "BGM_HOLD"
-  | "PRIVATE_DESTINATION_HOLD" | "REPLAY_HOLD"
+  | "PRIVATE_DESTINATION_HOLD" | "REPLAY_HOLD" | "CAS_HOLD"
   | "COMMIT_HOLD" | "CONTRACT_HOLD";
 
 export type PrivateReleaseDecision =
@@ -78,7 +83,8 @@ export interface TrustedPrivateReleasePorts {
   atomicCommitPrivatePointer(args: Readonly<{
     intent: PrivateReleaseIntent;
     actor: PrivateReleaseActor;
-    stage: Readonly<{ bucket: string; path: string; version: string; sha256: string }>;
+    stage: Readonly<{ bucket: string; path: string; version: string; sha256: string;
+      expectedPointerRevision: string; releaseNonce: string }>;
     // Synchronous gate: must run inside DB lock, NOT before obtaining it.
     evaluateLocked: (state: LockedPrivateReleaseState) => FinalGate;
   }>): Promise<
@@ -129,12 +135,16 @@ export async function evaluatePrivateMediaReleaseCandidate(
   }
   if (!stage || !stage.bucketVisibilityVerified || !stage.immutabilityVerified ||
       !stage.bucketIsPrivate || !stage.bucket || !stage.objectPath ||
-      !stage.immutableVersion || !hex(stage.storedSha256))
+      !stage.immutableVersion || !hex(stage.storedSha256) ||
+      !/^(0|[1-9][0-9]{0,17})$/u.test(stage.expectedPointerRevision) ||
+      !goodId(stage.releaseNonce))
     return hold("STAGE_HOLD");
 
   const pinned = Object.freeze({
     bucket: stage.bucket, path: stage.objectPath,
     version: stage.immutableVersion, sha256: stage.storedSha256,
+    expectedPointerRevision: stage.expectedPointerRevision,
+    releaseNonce: stage.releaseNonce,
   });
   // This validation performs actual bytes+MIME+decoder checks, but the first
   // authorization snapshot is NEVER a grant or a substitute for locked recheck.
@@ -173,7 +183,10 @@ export async function evaluatePrivateMediaReleaseCandidate(
     if (s.evidence.immutableVersion !== pinned.version) return deny("STAGE_HOLD");
     if (!s.destinationBucketPrivate || !s.destinationProxyGated)
       return deny("PRIVATE_DESTINATION_HOLD");
-    if (s.requestAlreadyCommitted) return deny("REPLAY_HOLD");
+    if (s.pointerRevision !== pinned.expectedPointerRevision)
+      return deny("CAS_HOLD");
+    if (!s.releaseNonceAvailable || s.requestAlreadyCommitted)
+      return deny("REPLAY_HOLD");
     accepted = true;
     return { allowed:true };
   };
@@ -185,7 +198,8 @@ export async function evaluatePrivateMediaReleaseCandidate(
     // A forged adapter "committed" without invoking the gate cannot be treated
     // as a successful candidate. This does not prove real DB transactionality.
     if (result.status !== "committed" || !accepted || gated !== 1 ||
-        !/^[0-9]{1,18}$/u.test(result.revision))
+        !/^(0|[1-9][0-9]{0,17})$/u.test(result.revision) ||
+        BigInt(result.revision) <= BigInt(pinned.expectedPointerRevision))
       return hold("COMMIT_HOLD");
     return { status:"PRIVATE_POINTER_CANDIDATE_ONLY",revision:result.revision };
   } catch {
