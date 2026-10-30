@@ -97,6 +97,31 @@ const releaseRaceModel = read("scripts/issue137-b2/public-media-release-race-mod
 must(runLocal, "F2-P race-model runner", 'node "$B2/public-media-release-race-model.mjs"');
 must(releaseRaceModel, "F2-P private proxy only", "MODEL_PRIVATE_POINTER_CAS_NOT_PUBLIC_RELEASE");
 must(releaseRaceModel, "F2-P PUBLIC copy first hazard", "EXPECTED_RELEASE_HOLD: copy-first PUBLIC object survives failed DB CAS");
+
+const privateCore=read("src/lib/recording/publicMediaPrivateReleaseCore.ts");
+const privateFacade=read("src/lib/recording/publicMediaPrivateReleaseServer.ts");
+const privateAdapterTests=read("scripts/issue137-b2/public-media-private-adapter.test.ts");
+must(privateFacade, "F2-P server-only facade", 'import "server-only"');
+must(privateFacade, "F2-P private-only candidate exported", "evaluatePrivateMediaReleaseCandidate");
+must(privateCore, "F2-P private destination gate", "destinationBucketPrivate");
+must(privateCore, "F2-P atomically locked recheck contract", "atomicCommitPrivatePointer");
+must(privateCore, "F2-P revision CAS", "s.pointerRevision !== pinned.expectedPointerRevision");
+must(privateCore, "F2-P nonce replay", "releaseNonceAvailable");
+must(privateAdapterTests, "F2-P fake Storage plus fake DB tests", "synthetic candidate adapter assertions");
+must(privateAdapterTests, "F2-P S3 bypass explicitly held", "privileged S3 direct PUBLIC writes bypass");
+must(runLocal, "F2-P new isolated adapter test wiring", 'node --import tsx "$B2/public-media-private-adapter.test.ts"');
+for (const route of [
+ "src/lib/recording/nemoGeneration.ts",
+ "src/lib/recording/aivisGeneration.ts",
+ "src/lib/recording/humanRecordingPublish.ts",
+ "src/lib/bgm/bgmLibrary.ts",
+ "src/app/api/recordings/human-upload-finalize/route.ts"
+]) {
+ assert.ok(!read(route).includes("publicMediaPrivateRelease"),
+  "F2-P private release candidate MUST remain unwired: "+route);
+ checked++;
+}
+
 for(const route of [
  "src/lib/recording/nemoGeneration.ts",
  "src/lib/recording/aivisGeneration.ts",
