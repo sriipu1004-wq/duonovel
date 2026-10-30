@@ -267,6 +267,51 @@ assert.ok(!/supabase link|db push|db reset --linked/.test(humanSigned),
  "signed multipart test must NEVER use linked or hosted DB commands");
 checked++;
 
+// F2-P user approved NONPROD one-shot Human capability: source-only fences.
+const humanOneShotSql=read("scripts/issue137-b2/human-one-shot-broker-local.sql");
+const humanOneShot=read("scripts/issue137-b2/human-one-shot-broker-local.mjs");
+const humanOneShotReal=read("scripts/issue137-b2/human-one-shot-broker-e2e.mjs");
+must(humanOneShotSql,"local broker DB table no migration","issue137_human_broker_permits");
+must(humanOneShotSql,"local broker consent column","recording_consent boolean not null");
+must(humanOneShotSql,"broker binds the real GoTrue session","session_id uuid not null");
+must(humanOneShotSql,"broker one-use nonce","claimed_at timestamptz");
+must(humanOneShot,"broker strict localhost","HUMAN_BROKER_LOCAL_ONLY");
+must(humanOneShot,"broker never exposes signed Storage URL","return {capability:permitId+");
+must(humanOneShot,"broker compares actual SHA digest","bytesHash:digest(bytes)");
+must(humanOneShot,"broker reads GoTrue /auth user", '"/auth/v1/user"');
+must(humanOneShot,"broker nonce claim before Storage", "await config.store.claimAtomic");
+must(humanOneShotReal,"atomic real PostgreSQL claim","set claimed_at=clock_timestamp()");
+must(humanOneShotReal,"expiry strict at claim","c.expires_at > clock_timestamp()");
+must(humanOneShotReal,"session row checked at claim","from auth.sessions s where s.id=c.session_id");
+must(humanOneShotReal,"consent checked at claim","g.recording_consent");
+must(humanOneShotReal,"fresh GoTrue logout check","owner.client.auth.signOut({scope:\"global\"})");
+must(humanOneShotReal,"nonce race","concurrent same permit must commit exactly one write");
+must(humanOneShotReal,"direct JWT bypass negative",
+ "RISK: LOCAL direct owner JWT Storage INSERT bypasses one-shot broker");
+must(humanOneShotReal,"immutable replay rejected",
+ "cleanup cannot resurrect a consumed permit");
+must(runLocal,"broker fixture local-only install",
+ "human-one-shot-broker-local.sql");
+must(runLocal,"broker real local test executed",
+ 'node --import tsx "$B2/human-one-shot-broker-e2e.mjs"');
+const oneShotWorkflow=read(".github/workflows/issue137-b2-isolated-e2e.yml");
+must(oneShotWorkflow,"one-shot broker fixture early syntax",
+ "node --check scripts/issue137-b2/human-one-shot-broker-local.mjs");
+must(oneShotWorkflow,"one-shot broker E2E early syntax",
+ "node --check scripts/issue137-b2/human-one-shot-broker-e2e.mjs");
+assert.ok(!/(?:SUPABASE_SERVICE_ROLE_KEY|S3_ACCESS_KEY|AWS_SECRET_ACCESS_KEY|createSignedUploadUrl|uploadToSignedUrl)/u.test(humanOneShot),
+ "one-shot candidate MUST NOT import service-role/S3 credential or signed URL");
+checked++;
+for(const path of [
+ "src/app/api/recordings/human-upload-session/route.ts",
+ "src/app/api/recordings/human-upload-finalize/route.ts",
+ "src/lib/recording/humanRecordingPublish.ts",
+]){
+ assert.ok(!read(path).includes("createDisposableHumanOneShotBroker"),
+  "one-shot broker MUST remain UNWIRED to application: "+path);
+ checked++;
+}
+
 const s3WriterInventory=read("scripts/issue137-b2/s3-public-writer-inventory.mjs");
 const s3Containment=read("scripts/issue137-b2/s3-privileged-writer-containment-design.md");
 const s3RealE2E=read("scripts/issue137-b2/s3-byte-path-e2e.mjs");
