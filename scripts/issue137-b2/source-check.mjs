@@ -131,6 +131,44 @@ must(privateAdapterTests, "F2-P fake Storage plus fake DB tests", "synthetic can
 must(privateAdapterTests, "F2-P S3 bypass explicitly held", "privileged S3 direct PUBLIC writes bypass");
 must(runLocal, "F2-P new isolated adapter test wiring", 'node --import tsx "$B2/public-media-private-adapter.test.ts"');
 // F2-P S3 privilege inventory and real disposable cross-credential negative.
+// F2-P user-scoped PRIVATE media upload. This source must never receive
+// a service-role/S3 key and must be exercised only in disposable Docker.
+const rlsWriter=read("src/lib/recording/rlsScopedPrivateWriterLocal.ts");
+const rlsSql=read("scripts/issue137-b2/rls-user-private-writer-local.sql");
+const rlsE2E=read("scripts/issue137-b2/rls-user-private-writer-e2e.mjs");
+const rlsWorkflow=read(".github/workflows/issue137-b2-isolated-e2e.yml");
+for(const [label,needle] of [
+ ["anon API bearer split",'apikey:config.anonKey,Authorization:"Bearer "+token'],
+ ["verified signed-in GoTrue user",'/auth/v1/user'],
+ ["enforced authenticated principal",'parsed.role!=="authenticated"'],
+ ["enforced anonymous API key",'claims(config.anonKey).role!=="anon"'],
+ ["no production host", 'F2P_RLS_LOCAL_ONLY'],
+ ["owner prefix", '"owner/"+actorId+"/"+objectId+".wav"'],
+ ["digest byte proof",'sha(copied)!==sha(bytes)'],
+ ["new only POST",'userJwt,"POST",bytes'],
+]) must(rlsWriter,"F2-P user RLS "+label,needle);
+assert.ok(!/\b(?:serviceKey|serviceRoleKey|SUPABASE_SERVICE_ROLE_KEY|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|S3Client|createAdminClient|getPublicUrl|createSignedUploadUrl)\b/u.test(rlsWriter),
+ "F2-P RLS upload client must not have any privileged credential capability");
+checked++;
+must(rlsSql,"F2-P local-only bucket", "'f2p-rls-user-stage'");
+must(rlsSql,"F2-P authenticated-only INSERT", "for insert to authenticated");
+must(rlsSql,"F2-P RLS path bound to JWT", "(select auth.uid())::text");
+must(rlsSql,"F2-P restrictive INSERT", "as restrictive for insert to authenticated");
+must(rlsSql,"F2-P bucket public switch disabled", "F2P_RLS_BUCKET_PUBLIC_HOLD");
+must(rlsE2E,"F2-P user RLS cross-owner negative", "stranger writes owner prefix");
+must(rlsE2E,"F2-P service JWT rejected", "F2P_USER_JWT_REQUIRED");
+must(rlsE2E,"F2-P anonymous URL denial", "anonymous PUBLIC URL");
+must(rlsE2E,"F2-P same key denial", "same-key user JWT upsert blocked");
+must(runLocal,"F2-P restricted fixture install", 'docker cp "$B2/rls-user-private-writer-local.sql"');
+must(runLocal,"F2-P RLS dynamic e2e", 'node --import tsx "$B2/rls-user-private-writer-e2e.mjs"');
+must(rlsWorkflow,"F2-P early RLS test syntax", "node --check scripts/issue137-b2/rls-user-private-writer-e2e.mjs");
+for(const actualSource of [generator,aivis,read("src/lib/recording/humanRecordingPublish.ts"),
+  proxy,humanProxy,read("src/lib/recording/privateMediaLocalPipeline.ts")]){
+ assert.ok(!actualSource.includes("createDisposableRlsScopedPrivateWriter"),
+  "disposable RLS writer must NOT be wired into live routes");
+ checked++;
+}
+
 const s3WriterInventory=read("scripts/issue137-b2/s3-public-writer-inventory.mjs");
 const s3Containment=read("scripts/issue137-b2/s3-privileged-writer-containment-design.md");
 const s3RealE2E=read("scripts/issue137-b2/s3-byte-path-e2e.mjs");
