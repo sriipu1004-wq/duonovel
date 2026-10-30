@@ -72,6 +72,7 @@ async function expectCandidate(p:Patch){
    immutableVersion:p.stage?.immutableVersion??"synthetic-etag-1"});
  assert.equal(x.loaded,1);assert.equal(x.decoded,1);tested++;
 }
+async function runTests():Promise<void> {
 await expectCandidate({});
 await expectHold("BAD_STAGING",{stage:{bucketIsPrivate:false}},{load:0,decode:0});
 await expectHold("BAD_STAGING",{stage:{bucket:""}},{load:0});
@@ -116,3 +117,5 @@ assert.equal(publicMediaDeclarationMatches(wav,"synthetic.txt","audio/wav"),fals
 assert.equal(publicMediaDeclarationMatches(text,"synthetic.wav","audio/wav"),false);tested++;
 console.log("PASS: F2-P "+tested+
  " synthetic SERVER preflight regressions; BGM AI Human distinct; NON-WIRED, no PUBLIC authorization");
+}
+void runTests().catch((error:unknown)=>{ console.error(error); process.exitCode=1; });
