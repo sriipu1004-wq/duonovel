@@ -312,6 +312,58 @@ for(const path of [
  checked++;
 }
 
+// Issue #137 F2-P: provider-side PRIVATE broker-only RLS local fixture.
+const brokerFenceSql=read("scripts/issue137-b2/human-broker-private-rls-fence-local.sql");
+const brokerFenceE2E=read("scripts/issue137-b2/human-broker-private-rls-fence-e2e.mjs");
+must(brokerFenceSql,"dedicated PRIVATE bucket",
+ "'f2p-broker-private-stage',false");
+must(brokerFenceSql,"broker-only signed app metadata",
+ "app_metadata'->>'libread_local_broker'");
+must(brokerFenceSql,"actual user session checked", "join auth.sessions s");
+must(brokerFenceSql,"current consent check", "g.recording_consent");
+must(brokerFenceSql,"current owner rights check", "g.owner_allowed");
+must(brokerFenceSql,"one-use DB claim required", "p.claimed_at is not null");
+must(brokerFenceSql,"permit not expired", "p.expires_at>clock_timestamp()");
+must(brokerFenceSql,"separate restrictive INSERT policy",
+ "as restrictive for insert to authenticated");
+must(brokerFenceSql,"owner JWT cannot mutate broker object",
+ "issue137_human_broker_private_update_fence");
+must(brokerFenceSql,"PRIVATE bucket publicity guarded",
+ "F2P_BROKER_BUCKET_PUBLIC_HOLD");
+must(brokerFenceSql,"non-exposed restricted helper", "revoke all on function");
+must(brokerFenceE2E,"unprivileged direct owner JWT blocked",
+ "ordinary JWT direct INSERT without permit");
+must(brokerFenceE2E,"broker without claimed permit blocked",
+ "broker JWT cannot write until permit atomically claimed");
+must(brokerFenceE2E,"broker SHA first-write preservation",
+ "upsert attempts cannot alter original bytes");
+must(brokerFenceE2E,"revocation checked at Storage RLS",
+ "revoked consent denied at Storage INSERT");
+must(brokerFenceE2E,"session killed at Storage RLS",
+ "claimed permit cannot write after actor session logout at Storage RLS");
+must(brokerFenceE2E,"parallel real Storage writes",
+ "two simultaneous Storage POSTs to the same claimed permit");
+must(brokerFenceE2E,"no public switch",
+ "private bucket remains private");
+must(runLocal,"broker fence SQL installed inside disposable Docker",
+ "human-broker-private-rls-fence-local.sql");
+must(runLocal,"broker fence real Storage E2E executed",
+ 'node --import tsx "$B2/human-broker-private-rls-fence-e2e.mjs"');
+const brokerWorkflow=read(".github/workflows/issue137-b2-isolated-e2e.yml");
+must(brokerWorkflow,"broker fence E2E syntax checked",
+ "node --check scripts/issue137-b2/human-broker-private-rls-fence-e2e.mjs");
+for(const path of ["src/app/api/recordings/human-upload-session/route.ts",
+ "src/app/api/recordings/human-upload-finalize/route.ts",
+ "src/lib/recording/humanRecordingPublish.ts"]){
+ assert.ok(!read(path).includes("f2p-broker-private-stage"),
+  "local provider RLS fixture may NEVER be wired into runtime "+path);
+ checked++;
+}
+assert.ok(!/(?:create policy|grant .* on storage.objects)/iu.test(
+ read("scripts/issue137-b2/human-one-shot-broker-local.sql")),
+ "previous test broker remains isolated from Storage schema changes");
+checked++;
+
 const s3WriterInventory=read("scripts/issue137-b2/s3-public-writer-inventory.mjs");
 const s3Containment=read("scripts/issue137-b2/s3-privileged-writer-containment-design.md");
 const s3RealE2E=read("scripts/issue137-b2/s3-byte-path-e2e.mjs");
