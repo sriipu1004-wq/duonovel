@@ -216,6 +216,57 @@ assert.ok(!/supabase\.link|db push|db reset --linked|https:\/\/www\.syosetu-libr
  "writer simulation must not address Production or linked projects");
 checked++;
 
+// Human signed multipart session/cleanup: scoped test only, no runtime patch.
+const humanSigned=read("scripts/issue137-b2/human-signed-multipart-local-e2e.mjs");
+const multipartSession=read("src/lib/recording/humanMultipartUploadShared.ts");
+const humanSigningRoute=read("src/app/api/recordings/human-upload-session/route.ts");
+const humanFinalizeRoute=read("src/app/api/recordings/human-upload-finalize/route.ts");
+const humanClient=read("src/components/recording/RecordingStudioPage.tsx");
+must(multipartSession,"multipart session uses distinct per-user session path",
+  '"human-temp",');
+must(multipartSession,"multipart part size pinned", "HUMAN_MULTIPART_PART_SIZE_BYTES = 8 * 1024 * 1024");
+must(humanSigningRoute,"service-role signing uses upsert true", ".createSignedUploadUrl(part.objectPath, {");
+must(humanSigningRoute,"signed URL upsert true", "upsert: true");
+must(humanSigningRoute,"signed endpoint requires real GoTrue identity",
+  "supabase.auth.getUser()");
+must(humanClient,"browser uses temporary token not a service role",
+  ".uploadToSignedUrl(part.objectPath, part.token, blob, {");
+must(humanFinalizeRoute,"Human finalize rechecks consent",
+ "consentRow?.consent_version !== RECORDING_GLOBAL_CONSENT_VERSION");
+must(humanFinalizeRoute,"Human finalize cleanup in finally",
+ "finally {");
+must(humanFinalizeRoute,"Human finalize privileged removal",
+ "admin.storage.from(bucketName).remove(tempObjectPaths)");
+assert.ok(humanFinalizeRoute.indexOf("consentRow?.consent_version") <
+  humanFinalizeRoute.indexOf("try {\n    const fileParts"),
+ "Human consent denial runs before cleanup finally; unfinished temp parts remain possible");
+checked++;
+for(const [label,needle] of [
+ ["LOCAL guard",'B2_EPHEMERAL_CONFIRM'],
+ ["isolated exact bucket",'f2p-human-signed-temp'],
+ ["real app shared path builder",'humanMultipartUploadShared.ts'],
+ ["two real parts",'assert.equal(session.parts.length,2)'],
+ ["signed upsert real Storage",'createSignedUploadUrl(p1.objectPath,{upsert:true})'],
+ ["invalid bearer rejected",'tampered signed upload token must fail'],
+ ["cross path rejected",'signed token should not authorize a different object path'],
+ ["GoTrue global signout",'owner.auth.signOut({scope:"global"})'],
+ ["signout negative",'AFTER GoTrue global logout'],
+ ["same size replay",'equal-size byte replacement'],
+ ["finalize-style cleanup",'adminStore.remove(paths)'],
+ ["cleanup resurrection",'recreated deleted PRIVATE temp part AFTER cleanup'],
+ ["no production URL",'DO_NOT_CONTACT_PRODUCTION'],
+ ])must(humanSigned,"Human signed multipart "+label,needle);
+must(runLocal,"Human real LOCAL signed upload runner",
+ 'node --import tsx "$B2/human-signed-multipart-local-e2e.mjs"');
+must(runLocal,"Human dedicated fixture storage bucket",
+ 'SUPABASE_HUMAN_RECORDING_BUCKET=f2p-human-signed-temp');
+const humanWorkflow=read(".github/workflows/issue137-b2-isolated-e2e.yml");
+must(humanWorkflow,"Human signed test syntax early",
+ "node --check scripts/issue137-b2/human-signed-multipart-local-e2e.mjs");
+assert.ok(!/supabase link|db push|db reset --linked/.test(humanSigned),
+ "signed multipart test must NEVER use linked or hosted DB commands");
+checked++;
+
 const s3WriterInventory=read("scripts/issue137-b2/s3-public-writer-inventory.mjs");
 const s3Containment=read("scripts/issue137-b2/s3-privileged-writer-containment-design.md");
 const s3RealE2E=read("scripts/issue137-b2/s3-byte-path-e2e.mjs");
