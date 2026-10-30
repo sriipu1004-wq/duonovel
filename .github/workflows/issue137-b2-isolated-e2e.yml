@@ -41,6 +41,8 @@ jobs:
           node --check scripts/issue137-b2/rls-user-private-writer-e2e.mjs
           node --check scripts/issue137-b2/writer-path-private-preservation-e2e.mjs
           node --check scripts/issue137-b2/human-signed-multipart-local-e2e.mjs
+          node --check scripts/issue137-b2/human-one-shot-broker-local.mjs
+          node --check scripts/issue137-b2/human-one-shot-broker-e2e.mjs
           node scripts/issue137-b2/s3-public-writer-inventory.mjs
           node --check scripts/issue137-b2/private-real-local-adapter-e2e.mjs
           bash -n scripts/issue137-b2/run-local.sh
