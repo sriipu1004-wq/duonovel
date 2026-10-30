@@ -128,6 +128,8 @@ node "$B2/h1-atomic-e2e.mjs"
 B2_NETWORK="$NETWORK" bash "$B2/bucket-publicity-race-local.sh" "$db_container"
 # Real LOCAL Storage HTTP POST / x-upsert / bucket PUT concurrency negative tests.
 B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" node "$B2/storage-upload-publicity-e2e.mjs"
+# Local S3 protocol (SigV4), ephemeral S3 auth token and synthetic bytes ONLY.
+B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" node "$B2/s3-byte-path-e2e.mjs"
 # F2-P 168-cohort methodology: ONLY pg_temp synthetic tables in disposable DB.
 # The SQL runs in one transaction that always ends in ROLLBACK.
 docker cp "$B2/public-media-aggregate-local.sql" "$db_container:/tmp/issue137_f2p_aggregate_local.sql"
