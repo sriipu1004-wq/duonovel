@@ -23,7 +23,7 @@ assert.ok(service&&anon&&service!==anon);
 const bucket="f2p-rls-user-stage",id=()=>randomUUID(),hash=x=>createHash("sha256").update(x).digest("hex");
 let checks=0;
 async function http(method,path,body,token=anon,extra={}) {
- const headers={apikey:anon,Authorization:"Bearer "+token,...extra};
+ const headers={apikey:token===service?service:anon,Authorization:"Bearer "+token,...extra};
  if(body!==undefined)headers["Content-Type"]=
    typeof body==="string"?"application/json":"audio/wav";
  const resp=await fetch(u.origin+path,{method,headers,body,
