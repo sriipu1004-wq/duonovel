@@ -69,8 +69,16 @@ select k.*,(s.id is not null) has_series,(e.id is not null) has_episode,
 exists(select 1 from audit_bgm b where b.bucket_id=k.bucket_id and b.name=k.name) bgm_link
 from keys k left join audit_series s on s.id=k.sid
 left join audit_episodes e on e.id=k.eid;
-do $$
+do $
 begin
+ raise notice 'LOCAL synthetic cohort diagnostics total=%, published=%, effective_r18=%, warning_or_r18_published=%, valid_parent=%, series_exists=%, episode_exists=%',
+ (select count(*) from audit_result),
+ (select count(*) from audit_result where published_path),
+ (select count(*) from audit_result where effective_r18),
+ (select count(*) from audit_result where published_path and effective_r18),
+ (select count(*) from audit_result where parent_matches),
+ (select count(*) from audit_result where has_series),
+ (select count(*) from audit_result where has_episode);
  if (select count(*) from audit_result)<>11 then raise exception 'expected 11 candidates'; end if;
  if (select count(*) from audit_result where cohort='nemo')<>7 then raise exception 'Nemo cohort mismatch'; end if;
  if (select count(*) from audit_result where cohort='other_public')<>2 then raise exception 'other public MIME/extension mismatch'; end if;
