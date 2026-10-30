@@ -345,11 +345,11 @@ snapshotFor(killed.id,killed.path,false);
 const crashSource=[
  'const {execFileSync}=require("node:child_process");',
  'const [permit,pg]=process.argv.slice(1);',
- 'if(!/^[0-9a-f-]{36}$/.test(permit)||!/^[0-9a-f]{12,64}$/.test(pg))process.exit(3);',
- 'const statement="update libread_internal.issue137_human_broker_receipts r "+
-  "set attempted=true,version=version+1 where permit_id="+
-  "\x27"+permit+"\x27::uuid and state=\x27CLAIMED\x27 "+
-  "and not attempted and version=0 returning permit_id;";',
+ 'if(!/^[0-9a-f-]{36}$/.test(permit)||!/^[a-f0-9]{12,64}$/.test(pg))process.exit(3);',
+ 'const statement="update libread_internal.issue137_human_broker_receipts "+',
+ '"set attempted=true,version=version+1 where permit_id="+',
+ '"\u0027"+permit+"\u0027::uuid and state=\u0027CLAIMED\u0027 "+',
+ '"and not attempted and version=0 returning permit_id;";',
  'const done=execFileSync("docker",["exec",pg,"psql","-X","-Atq",'+
   '"-U","postgres","-d","postgres","-v","ON_ERROR_STOP=1","-c",statement],'+
   '{encoding:"utf8",timeout:15000}).trim();',
