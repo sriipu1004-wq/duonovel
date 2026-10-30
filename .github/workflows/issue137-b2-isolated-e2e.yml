@@ -44,6 +44,7 @@ jobs:
           node --check scripts/issue137-b2/human-one-shot-broker-local.mjs
           node --check scripts/issue137-b2/human-one-shot-broker-e2e.mjs
           node --check scripts/issue137-b2/human-broker-private-rls-fence-e2e.mjs
+          node --check scripts/issue137-b2/human-broker-process-writer-local.mjs
           node --check scripts/issue137-b2/human-broker-byte-recovery-local.mjs
           node --check scripts/issue137-b2/human-broker-byte-recovery.test.mjs
           node scripts/issue137-b2/human-broker-byte-recovery.test.mjs
