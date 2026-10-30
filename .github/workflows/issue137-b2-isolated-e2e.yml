@@ -37,6 +37,7 @@ jobs:
           node --check scripts/issue137-b2/e2e.mjs
           node --check scripts/issue137-b2/atomic-race-e2e.mjs
           node --check scripts/issue137-b2/h1-atomic-e2e.mjs
+          node --check scripts/issue137-b2/private-real-local-adapter-e2e.mjs
           bash -n scripts/issue137-b2/run-local.sh
           docker info >/dev/null
       - name: F1 epoch and F3 playback SOURCE runtime regressions
