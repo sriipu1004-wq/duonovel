@@ -19,7 +19,7 @@ revoke all on libread_internal.issue137_human_broker_local_identity
 -- Path scoped, returns only bool, never grants modification of any table.
 create function libread_internal.issue137_human_broker_can_insert(
  p_bucket text,p_name text
-) returns boolean language sql volatile security definer set search_path='' as $
+) returns boolean language sql volatile security definer set search_path='' as $f2p_broker$
  select p_bucket='f2p-broker-private-stage'
  and (select auth.jwt()->>'role')='authenticated'
  and (select auth.jwt()->'app_metadata'->>'libread_local_broker')='true'
@@ -38,7 +38,7 @@ create function libread_internal.issue137_human_broker_can_insert(
    and p.expires_at>clock_timestamp()
    and g.recording_consent and g.owner_allowed and g.rights_allowed
  )
-$$;
+$f2p_broker$;
 revoke all on function libread_internal.issue137_human_broker_can_insert(text,text)
  from public,anon,authenticated,service_role;
 grant usage on schema libread_internal to authenticated;
