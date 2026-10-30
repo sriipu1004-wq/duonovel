@@ -124,14 +124,19 @@ export async function evaluatePrivateMediaReleaseCandidate(
     return hold("INVALID_INTENT");
 
   let actor: PrivateReleaseActor | null;
-  let stage: VerifiedPrivateStage | null;
   try {
     actor = await ports.authenticate();
-    if (!actor || !goodId(actor.actorId) || !goodId(actor.sessionId) ||
-        !actor.sessionActive) return hold("AUTH_HOLD");
-    stage = await ports.readVerifiedPrivateStage(intent.candidateId);
   } catch {
     return hold("AUTH_HOLD");
+  }
+  if (!actor || !goodId(actor.actorId) || !goodId(actor.sessionId) ||
+      !actor.sessionActive) return hold("AUTH_HOLD");
+  const verifiedActor = actor;
+  let stage: VerifiedPrivateStage | null;
+  try {
+    stage = await ports.readVerifiedPrivateStage(intent.candidateId);
+  } catch {
+    return hold("STAGE_HOLD");
   }
   if (!stage || !stage.bucketVisibilityVerified || !stage.immutabilityVerified ||
       !stage.bucketIsPrivate || !stage.bucket || !stage.objectPath ||
@@ -152,7 +157,7 @@ export async function evaluatePrivateMediaReleaseCandidate(
   try {
     preflight = await checkPublicMediaReleaseCandidate({
       kind: intent.kind, stage,
-      loadFreshEvidence: () => ports.readCurrentEvidence(actor!,intent),
+      loadFreshEvidence: () => ports.readCurrentEvidence(verifiedActor,intent),
       decodeFully: (bytes,kind) => ports.decodeFully(bytes,kind),
     });
   } catch {
@@ -169,7 +174,7 @@ export async function evaluatePrivateMediaReleaseCandidate(
     gated++;
     const deny = (reason: PrivateReleaseHold): FinalGate => ({allowed:false,reason});
     if (gated !== 1) return deny("CONTRACT_HOLD");
-    if (!s || s.actorId !== actor.actorId || s.sessionId !== actor.sessionId ||
+    if (!s || s.actorId !== verifiedActor.actorId || s.sessionId !== verifiedActor.sessionId ||
         !s.sessionActive || !s.permissionCurrent)
       return deny("REVOKED_HOLD");
     if (!s.stageImmutable || !s.stageBucketPrivate ||
@@ -193,7 +198,7 @@ export async function evaluatePrivateMediaReleaseCandidate(
 
   try {
     const result = await ports.atomicCommitPrivatePointer({
-      intent, actor, stage:pinned, evaluateLocked,
+      intent, actor:verifiedActor, stage:pinned, evaluateLocked,
     });
     // A forged adapter "committed" without invoking the gate cannot be treated
     // as a successful candidate. This does not prove real DB transactionality.
