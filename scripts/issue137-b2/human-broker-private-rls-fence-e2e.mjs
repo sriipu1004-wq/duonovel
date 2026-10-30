@@ -337,6 +337,75 @@ console.log("PASS: F2-P REAL LOCAL PostgreSQL durable receipt CAS + PRIVATE prov
 const purge=await admin.storage.from(bucket).remove([tamper.path]);
 assert.equal(purge.error,null,"remove disposable substituted test object");n++;
 console.log("RISK: LOCAL leaked restricted broker JWT can insert altered bytes into a claimed path; RLS does not validate physical SHA");
+// REAL process death: the child performs a committed DB CAS, is SIGKILLed
+// BEFORE any Storage PUT, then a new parent-side module instance reopens PG.
+// No JWT/API/service-role secret is passed to child environment or argv.
+const killed=await createClaimed();
+snapshotFor(killed.id,killed.path,false);
+const crashSource=[
+ 'const {execFileSync}=require("node:child_process");',
+ 'const [permit,pg]=process.argv.slice(1);',
+ 'if(!/^[0-9a-f-]{36}$/.test(permit)||!/^[0-9a-f]{12,64}$/.test(pg))process.exit(3);',
+ 'const statement="update libread_internal.issue137_human_broker_receipts r "+
+  "set attempted=true,version=version+1 where permit_id="+
+  "\x27"+permit+"\x27::uuid and state=\x27CLAIMED\x27 "+
+  "and not attempted and version=0 returning permit_id;";',
+ 'const done=execFileSync("docker",["exec",pg,"psql","-X","-Atq",'+
+  '"-U","postgres","-d","postgres","-v","ON_ERROR_STOP=1","-c",statement],'+
+  '{encoding:"utf8",timeout:15000}).trim();',
+ 'if(done!==permit)process.exit(5);',
+ 'process.kill(process.pid,"SIGKILL");'
+].join("\n");
+const killedProcess=spawnSync(process.execPath,["-e",crashSource,killed.id,pg],{
+ encoding:"utf8",timeout:18000,
+ env:{PATH:process.env.PATH??"",HOME:process.env.HOME??""},
+ stdio:["ignore","pipe","pipe"]
+});
+yes(killedProcess.signal==="SIGKILL"&&killedProcess.status===null,
+ "isolated local worker must be forcibly terminated after durable claim CAS");
+const durable=getReceipt(killed.id);
+yes(durable?.attempted===true&&durable.version===1&&
+ durable.state==="CLAIMED","receipt must persist after OS SIGKILL");
+const restarted=recoveryFor(durable);
+const absent=await restarted.reconcile(killed.id);
+yes(absent.status==="MISSING_BYTES_HOLD",
+ "no post-crash Storage PUT means durable receipt must remain HOLD");
+const noCrashReplay=await restarted.stage(killed.id,bytes);
+yes(noCrashReplay.status==="ALREADY_ATTEMPTED_HOLD",
+ "restarted handler must not issue second upload after process death");
+console.log("PASS: F2-P real LOCAL PostgreSQL committed attempt survives SIGKILL and prevents auto-retry");
+// Isolating broker grant in a private server-only table gives an immediate
+// revocation mechanism even for an otherwise still-valid local GoTrue JWT.
+const revokedBroker=await createClaimed();
+sql("delete from libread_internal.issue137_human_broker_local_identity"+
+ " where user_id="+qid(brokerUser.id)+";");
+deny(await put(revokedBroker.path,brokerUser.jwt,bytes),
+ "revoked LOCAL broker identity must fail with previously valid JWT");
+deny(await put(revokedBroker.path,actor.jwt,bytes),
+ "ordinary user cannot substitute for revoked server-owned broker identity");
+sql("insert into libread_internal.issue137_human_broker_local_identity(user_id)"+
+ " values("+qid(brokerUser.id)+");");
+yes(sql("select count(*) from storage.objects where bucket_id='"+bucket+
+ "' and name='"+revokedBroker.path+"'")==="0",
+ "broker revocation produced zero PRIVATE writes");
+console.log("PASS: F2-P local server-owned broker allowlist revocation rejects stale JWT and user impersonation");
+// SQL CAS competition on one verified real Storage object. This proves
+// at-most-one receipt seal, not permanent Storage immutability.
+const compete=await createClaimed();
+const competeReceipt=snapshotFor(compete.id,compete.path,true);
+const uploaded=await put(compete.path,brokerUser.jwt,bytes);
+yes([200,201].includes(uploaded.status),"local claimed competing receipt first-write");
+const [one,two]=await Promise.all([
+ recoveryFor(competeReceipt).reconcile(compete.id),
+ recoveryFor(competeReceipt).reconcile(compete.id)
+]);
+yes([one,two].filter(x=>x.status==="PRIVATE_SNAPSHOT_VERIFIED_ONLY").length===1,
+ "exactly one concurrent local SQL receipt CAS seal can succeed");
+yes(getReceipt(compete.id)?.state==="SEALED_PRIVATE_SNAPSHOT"&&
+ getReceipt(compete.id)?.version===2,
+ "local receipt version increments exactly once on successful CAS");
+const removeCompete=await admin.storage.from(bucket).remove([compete.path]);
+assert.equal(removeCompete.error,null,"cleanup competing receipt object");n++;
 const sessionKill=await createClaimed();
 const loggedOut=await actor.client.auth.signOut({scope:"global"});
 assert.equal(loggedOut.error,null,"real local GoTrue global logout");n++;
