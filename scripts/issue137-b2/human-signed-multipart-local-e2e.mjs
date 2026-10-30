@@ -50,7 +50,14 @@ const created=await admin.storage.createBucket(bucket,{public:false,fileSizeLimi
 assert.equal(created.error,null,"create isolated PRIVATE bucket");checks++;
 const meta=await admin.storage.getBucket(bucket);
 assert.equal(meta.error,null);assert.equal(meta.data?.public,false);checks+=2;
-const who=id(),series=id(),episode=id();
+const email="f2p-human-"+id()+"@example.invalid",password="F2P-"+id()+"-A1!";
+const user=await admin.auth.admin.createUser({email,password,email_confirm:true});
+assert.equal(user.error,null,"create disposable GoTrue user");checks++;
+const owner=createClient(url.origin,anon,transport);
+const signIn=await owner.auth.signInWithPassword({email,password});
+assert.equal(signIn.error,null,"real local owner login");
+assert.ok(signIn.data.session?.access_token,"GoTrue login token required");checks+=2;
+const who=user.data.user.id,series=id(),episode=id();
 const session=buildHumanMultipartUploadSession({
  seriesId:series,episodeId:episode,userId:who,sourceExtension:"wav",
  totalSizeBytes:HUMAN_MULTIPART_PART_SIZE_BYTES+96,
@@ -100,16 +107,9 @@ const publicGet=await fetch(url.origin+"/storage/v1/object/public/"+bucket+"/"+
  p1.objectPath,{headers:{apikey:anon},redirect:"error",signal:AbortSignal.timeout(12000)});
 passed(publicGet.status>=400&&publicGet.status<500,
  "private signed part must not be anonymously downloadable by public URL");
-// Create a synthetic real GoTrue session, then revoke logout for the same owner UUID.
-// Issuer service-role signing is independent of this JWT by design; logout is
-// a security negative, NOT proof that actual route performed consent checks.
-const email="f2p-human-"+id()+"@example.invalid",password="F2P-"+id()+"-A1!";
-const user=await admin.auth.admin.createUser({email,password,email_confirm:true});
-assert.equal(user.error,null,"create disposable GoTrue user");checks++;
-const owner=createClient(url.origin,anon,transport);
-const signIn=await owner.auth.signInWithPassword({email,password});
-assert.equal(signIn.error,null,"real local owner login");
-assert.ok(signIn.data.session?.access_token,"GoTrue login token required");checks+=2;
+// End the real GoTrue session used to create this synthetic actor UUID.
+// Issuer service-role signing is independent of that JWT by design; logout is
+// a security negative, NOT proof that the actual API performed consent checks.
 const logout=await owner.auth.signOut({scope:"global"});
 assert.equal(logout.error,null,"GoTrue global logout");checks++;
 const afterSignOut=await owner.auth.getSession();
