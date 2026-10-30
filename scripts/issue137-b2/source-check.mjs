@@ -349,6 +349,9 @@ must(brokerFenceE2E,"compromised scoped broker JWT risk explicitly negative-test
  "RISK: LOCAL leaked restricted broker JWT can insert altered bytes");
 must(brokerFenceSql,"fresh time/consent role helper",
  "volatile security definer");
+assert.equal(brokerFenceSql.split("$f2p_broker$").length-1,2,
+ "LOCAL RLS helper requires matched PostgreSQL dollar-quote delimiters");
+checked++;
 must(runLocal,"broker fence SQL installed inside disposable Docker",
  "human-broker-private-rls-fence-local.sql");
 must(runLocal,"broker fence real Storage E2E executed",
