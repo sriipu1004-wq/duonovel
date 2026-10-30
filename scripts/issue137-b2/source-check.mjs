@@ -132,6 +132,41 @@ must(privateAdapterTests, "F2-P S3 bypass explicitly held", "privileged S3 direc
 must(runLocal, "F2-P new isolated adapter test wiring", 'node --import tsx "$B2/public-media-private-adapter.test.ts"');
 const realPrivateSql=read("scripts/issue137-b2/private-real-local-adapter.sql");
 const realPrivateE2E=read("scripts/issue137-b2/private-real-local-adapter-e2e.mjs");
+
+const localPrivateApp=read("src/lib/recording/privateMediaLocalPipeline.ts");
+must(runLocal,"F2-P real app-private pipeline tsx runner",
+ 'node --import tsx "$B2/private-real-local-adapter-e2e.mjs"');
+must(realPrivateE2E,"F2-P actual app pipeline import",
+ 'createDisposablePrivateMediaPipeline');
+must(realPrivateE2E,"F2-P app private byte delivery E2E",
+ 'authorizedPrivateBytes(app.id,login.access_token)');
+must(localPrivateApp,"F2-P exact localhost-only condition",
+ 'B2_EPHEMERAL_CONFIRM !== "local-only"');
+must(localPrivateApp,"F2-P verified client identity",
+ '"/auth/v1/user"');
+must(localPrivateApp,"F2-P PRIVATE stage upload",
+ '"/storage/v1/object/"+bucket+"/"+path');
+must(localPrivateApp,"F2-P private-only CAS",
+ '"issue137_f2p_local_private_commit"');
+must(localPrivateApp,"F2-P read-time authorization",
+ '"issue137_f2p_local_private_playback"');
+must(localPrivateApp,"F2-P second authorization fence",
+ 'const after=await lookup()');
+must(localPrivateApp,"F2-P no cached bytes",
+ '"Cache-Control":"private, no-store, max-age=0"');
+assert.ok(!localPrivateApp.includes("getPublicUrl(") &&
+ !localPrivateApp.includes("createSignedUrl(") &&
+ !localPrivateApp.includes("/storage/v1/object/public/") &&
+ !localPrivateApp.includes("upsert:true"),
+ "F2-P app-local PRIVATE pipeline must never grant public media or reusable URLs");
+for(const source of [generator,aivisWriter,humanPublisher,
+ read("src/app/api/recordings/ai-audio/[recordingId]/route.ts"),
+ read("src/app/api/recordings/human-audio/[recordingId]/route.ts")]){
+ assert.ok(!source.includes("createDisposablePrivateMediaPipeline"),
+ "F2-P disposable fixture must NOT wire into real publisher or playback routes");
+ checked++;
+}
+
 must(runLocal,"F2-P actual local DB/Storage adapter wired",'node "$B2/private-real-local-adapter-e2e.mjs"');
 must(runLocal,"F2-P local-only test SQL loaded",'docker cp "$B2/private-real-local-adapter.sql"');
 must(realPrivateSql,"F2-P row lock in actual Postgres","where id=p_id for update");
