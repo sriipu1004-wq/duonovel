@@ -345,6 +345,10 @@ must(brokerFenceE2E,"parallel real Storage writes",
  "two simultaneous Storage POSTs to the same claimed permit");
 must(brokerFenceE2E,"no public switch",
  "private bucket remains private");
+must(brokerFenceE2E,"compromised scoped broker JWT risk explicitly negative-tested",
+ "RISK: LOCAL leaked restricted broker JWT can insert altered bytes");
+must(brokerFenceSql,"fresh time/consent role helper",
+ "volatile security definer");
 must(runLocal,"broker fence SQL installed inside disposable Docker",
  "human-broker-private-rls-fence-local.sql");
 must(runLocal,"broker fence real Storage E2E executed",
