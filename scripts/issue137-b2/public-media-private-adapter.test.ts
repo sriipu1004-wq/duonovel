@@ -33,6 +33,7 @@ function make(kind:PublicMediaKind="ai-recording") {
     immutableVersion:"fixed-v1",storedSha256:sha(audio),bytes:Buffer.from(audio),
     claimedMime:"audio/wav",claimedFileName:"immutable-a.wav",
     immutabilityVerified:true,bucketVisibilityVerified:true,
+    expectedPointerRevision:"5",releaseNonce:"synthetic-once-1",
   };
   const locked:LockedPrivateReleaseState={
     actorId:actor.actorId,sessionId:actor.sessionId,sessionActive:true,
@@ -41,6 +42,7 @@ function make(kind:PublicMediaKind="ai-recording") {
     stageBucket:stage.bucket,stagePath:stage.objectPath,stageVersion:stage.immutableVersion,
     stageDigest:stage.storedSha256,stageImmutable:true,stageBucketPrivate:true,
     destinationBucketPrivate:true,destinationProxyGated:true,
+    pointerRevision:"5",releaseNonceAvailable:true,
     requestAlreadyCommitted:false,
   };
   const state={
@@ -82,7 +84,10 @@ function ports(s:Fixture):TrustedPrivateReleasePorts{
     const checked=evaluateLocked(s.locked);
     s.gateCalls++;
     s.lastGate=checked.allowed?"OK":checked.reason;
-    if(s.failAt==="double-gate")evaluateLocked(s.locked);
+    if(s.failAt==="double-gate"){
+      const second=evaluateLocked(s.locked);
+      if(!second.allowed) return {status:"rejected"};
+    }
     if(!checked.allowed || s.failAt==="commit") return {status:"rejected"};
     // Private pointer only; never upload/copy to a PUBLIC bucket.
     assert.equal(stage.bucket,s.stage.bucket);
@@ -110,12 +115,6 @@ async function hold(reason:string,mutate:(s:Fixture)=>void,phase:"pre"|"locked"=
  if(phase==="pre") assert.equal(s.commitAttempts,0);
  assertions++;
 }
-async function main(){
- for(const kind of ["ai-recording","human-recording","site-bgm"] as PublicMediaKind[])await success(kind);
- await hold("AUTH_HOLD",s=>{s.actor.sessionActive=false;},"pre");
- await hold("AUTH_HOLD",s=>{s.failAt="auth";},"pre");
- await hold("INVALID_INTENT",()=>{},"pre"); // overridden below
-}
 async function expectBadId(){
  const s=make(),p=ports(s);
  assert.deepEqual(await evaluatePrivateMediaReleaseCandidate({kind:"ai-recording",candidateId:"../escape"},p),
@@ -130,6 +129,8 @@ async function run(){
  await hold("STAGE_HOLD",s=>{s.stage.bucketVisibilityVerified=false;},"pre");
  await hold("STAGE_HOLD",s=>{s.stage.immutabilityVerified=false;},"pre");
  await hold("STAGE_HOLD",s=>{s.stage.bucketIsPrivate=false;},"pre");
+ await hold("STAGE_HOLD",s=>{s.stage.expectedPointerRevision="-1";},"pre");
+ await hold("STAGE_HOLD",s=>{s.stage.releaseNonce="../bad";},"pre");
  await hold("STAGE_HOLD",s=>{s.failAt="stage";},"pre");
  await hold("PRECHECK_HOLD",s=>{s.stage.bytes=Buffer.from("text-but-wav-mimetype");},"pre");
  await hold("PRECHECK_HOLD",s=>{s.stage.claimedMime="text/plain";},"pre");
@@ -158,6 +159,8 @@ async function run(){
  await hold("BGM_HOLD",s=>{s.beforeCommit=()=>{s.locked={...s.locked,evidence:{...s.fresh,siteManagedCatalogEntry:false}};};},"locked","site-bgm");
  await hold("PRIVATE_DESTINATION_HOLD",s=>{s.beforeCommit=()=>{s.locked={...s.locked,destinationBucketPrivate:false};};});
  await hold("PRIVATE_DESTINATION_HOLD",s=>{s.beforeCommit=()=>{s.locked={...s.locked,destinationProxyGated:false};};});
+ await hold("CAS_HOLD",s=>{s.beforeCommit=()=>{s.locked={...s.locked,pointerRevision:"6"};};});
+ await hold("REPLAY_HOLD",s=>{s.beforeCommit=()=>{s.locked={...s.locked,releaseNonceAvailable:false};};});
  await hold("REPLAY_HOLD",s=>{s.beforeCommit=()=>{s.locked={...s.locked,requestAlreadyCommitted:true};};});
  await hold("COMMIT_HOLD",s=>{s.failAt="throw-commit";});
  await hold("COMMIT_HOLD",s=>{s.failAt="commit";});
