@@ -91,6 +91,19 @@ function fixture(overrides={}) {
  assert.equal(f.row.attempted,false);checks++;
 }
 {
+ const mutable=Buffer.from(bytes);
+ const f=fixture();
+ const altered=createDisposablePrivateByteRecovery({
+  apiUrl:process.env.B2_LOCAL_URL,ledger:f.ledger,storage:f.storage,
+  freshAuthority:async()=>{mutable[0]^=1;return true;},
+  writerIsolated:async()=>true
+ });
+ result(await altered.stage(f.id,mutable),"PRIVATE_SNAPSHOT_VERIFIED_ONLY");
+ const saved=f.objects.get(f.row.bucket+"/"+f.row.path);
+ assert.equal(digest(saved),digest(bytes));checks++;
+ assert.notEqual(digest(mutable),digest(bytes));checks++;
+}
+{
  const f=fixture({onPut:async()=>{throw Error("ACK_LOST_AFTER_WRITE");}});
  result(await f.candidate.stage(f.id,bytes),"AMBIGUOUS_PUT_HOLD");
  assert.equal(f.row.attempted,true);checks++;
