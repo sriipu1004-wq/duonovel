@@ -93,6 +93,10 @@ must(serverPreflight,"F2-P R18 warning gate",'fresh.contentWarnings.includes("se
 must(serverPreflight,"F2-P Human consent","humanConsentCurrent");
 must(serverPreflight,"F2-P distinct site BGM","siteManagedCatalogEntry");
 must(serverPreflightTest,"F2-P no new runtime permission","NON-WIRED, no PUBLIC authorization");
+const releaseRaceModel = read("scripts/issue137-b2/public-media-release-race-model.mjs");
+must(runLocal, "F2-P race-model runner", 'node "$B2/public-media-release-race-model.mjs"');
+must(releaseRaceModel, "F2-P private proxy only", "MODEL_PRIVATE_POINTER_CAS_NOT_PUBLIC_RELEASE");
+must(releaseRaceModel, "F2-P PUBLIC copy first hazard", "EXPECTED_RELEASE_HOLD: copy-first PUBLIC object survives failed DB CAS");
 for(const route of [
  "src/lib/recording/nemoGeneration.ts",
  "src/lib/recording/aivisGeneration.ts",
