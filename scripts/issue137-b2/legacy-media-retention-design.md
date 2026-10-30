@@ -106,3 +106,12 @@ Owner-approved limited SOURCE and disposable test phase for Draft #153. The new 
 No new user identities, real media, hosted SQL (including SELECT), live bucket settings, Storage reads or writes, rights state/permission changes, merge or Production migration were authorized or performed.
 
 Initial real LOCAL Storage observation: HTTP POST returned 400 AccessDenied while concurrent bucket PUT returned 200. Request initiation order cannot be treated as commit order. Test accepts either safely serialized outcome only if exact DB object count and anonymous public URL remain fail-closed. This is not Production evidence.
+
+
+## F2-P blocked Production aggregate — root cause boundary and local synthetic tests (2026-10-30)
+
+The prior owner-approved Production **attribute** aggregate did not execute successfully: the tool-call response said the invocation was blocked by OpenAI safety checking, not by a PostgreSQL SQLSTATE or Supabase SQL error. Previous simpler metadata aggregates had succeeded. We cannot tell exactly which query characteristic triggered the safeguard or prove the blocked SQL ever reached PostgreSQL. Do not equate this with a database outage, missing permission, faulty query, or a verified Production R18 condition. The connection restriction MUST NOT be bypassed with alternate interfaces, rewritten hosted queries or unapproved data exports.
+
+While the live read remains on HOLD, the approved **nonproduction** phase creates only pg_temp synthetic tables inside an isolated disposable PostgreSQL transaction. The test checks the method (not the 168 real records): full public URL normalization, WAV/timing pairing, bucket public/private distinction, known/unknown prefix and MIME classification, missing/malformed UUIDs, wrong parent episode, posted/private/draft state, effective R18 including sexual_r18 warning, Human provenance and BGM cross-feature references. The negative case of false MIME plus opaque file extension is deliberately **not classified** and demonstrates why metadata-only scanning cannot prove content safety. Database assertions abort CI on incorrect totals. Transaction ends in ROLLBACK and the disposable Docker bridge is cleaned up.
+
+This does NOT clear the live attribute-count gate, actual user rights/consent, external BGM/JSON/archived URL references, byte-only mutation paths, CDN, independent audit, any Production migration or merge. No real user paths or bytes are used.
