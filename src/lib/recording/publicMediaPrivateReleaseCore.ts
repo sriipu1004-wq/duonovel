@@ -170,9 +170,13 @@ export async function evaluatePrivateMediaReleaseCandidate(
 
   let gated = 0;
   let accepted = false;
+  let deniedReason: PrivateReleaseHold | null = null;
   const evaluateLocked = (s: LockedPrivateReleaseState): FinalGate => {
     gated++;
-    const deny = (reason: PrivateReleaseHold): FinalGate => ({allowed:false,reason});
+    const deny = (reason: PrivateReleaseHold): FinalGate => {
+      deniedReason = reason;
+      return {allowed:false,reason};
+    };
     if (gated !== 1) return deny("CONTRACT_HOLD");
     if (!s || s.actorId !== verifiedActor.actorId || s.sessionId !== verifiedActor.sessionId ||
         !s.sessionActive || !s.permissionCurrent)
@@ -202,6 +206,8 @@ export async function evaluatePrivateMediaReleaseCandidate(
     });
     // A forged adapter "committed" without invoking the gate cannot be treated
     // as a successful candidate. This does not prove real DB transactionality.
+    if (result.status === "rejected")
+      return hold(gated === 1 && deniedReason ? deniedReason : "COMMIT_HOLD");
     if (result.status !== "committed" || !accepted || gated !== 1 ||
         !/^(0|[1-9][0-9]{0,17})$/u.test(result.revision) ||
         BigInt(result.revision) <= BigInt(pinned.expectedPointerRevision))
