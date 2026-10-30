@@ -1,3 +1,4 @@
+import { checkNonproductionMediaWriterBoundary } from "@/lib/recording/publicMediaWriterBoundary";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -415,6 +416,10 @@ export async function generateAivisRecordingForEpisode({
 
   const adminSupabase = createAdminClient();
   const protectedR18 = await mustUsePrivateAiAudio(seriesId);
+  // F2-P experimental Preview HOLD; this never authorizes PUBLIC release.
+  checkNonproductionMediaWriterBoundary({
+    kind: "ai-recording", isPublicCandidate: !protectedR18, env: process.env,
+  });
   const bucketName = protectedR18 ? PRIVATE_AI_AUDIO_BUCKET : getRecordingAudioBucketName();
   const audioObjectPath = buildAivisRecordingObjectPath({
     seriesId,
