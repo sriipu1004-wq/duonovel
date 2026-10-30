@@ -4,6 +4,7 @@ import {execFileSync} from "node:child_process";
 import {randomUUID,createHash} from "node:crypto";
 import {createClient} from "@supabase/supabase-js";
 import {createDisposableHumanOneShotBroker} from "./human-one-shot-broker-local.mjs";
+import {createDisposablePrivateByteRecovery} from "./human-broker-byte-recovery-local.mjs";
 assert.equal(process.env.DO_NOT_CONTACT_PRODUCTION,"true");
 assert.equal(process.env.B2_EPHEMERAL_CONFIRM,"local-only");
 const endpoint=process.env.B2_LOCAL_URL??"",url=new URL(endpoint);
@@ -220,6 +221,90 @@ const tamperedRead=await get(tamper.path,actor.jwt);
 yes(tamperedRead.status===200&&hash(tamperedRead.body)===hash(tampered)&&
  hash(tamperedRead.body)!==hash(bytes),
  "provider-side RLS alone cannot authenticate actual audio SHA");
+// Nonproduction mixed evidence: real LOCAL provider bytes + mock-only recovery
+// ledger. The provider RLS (above) allowed tampered content; recovery must HOLD.
+function snapshotFor(permitId,objectPath,attempted){
+ const objectId=sql("select object_id from "+permits+
+  " where permit_id="+qid(permitId));
+ const expectedSha256=sql("select expected_sha256 from "+permits+
+  " where permit_id="+qid(permitId));
+ assert.ok(uuid.test(objectId));
+ assert.match(expectedSha256,/^[0-9a-f]{64}$/u);
+ return {id:permitId,actorId:actor.id,sessionId:actor.sessionId,
+  objectId,bucket,path:objectPath,expectedSha256,
+  state:"CLAIMED",attempted,version:attempted?1:0};
+}
+function recoveryFor(receipt,{lostAcknowledgement=false}={}){
+ // Only this DB receipt mock has CAS; the actual SQL permit was claimed
+ // independently by the preceding disposable PostgreSQL E2E.
+ const ledger={
+  get:async key=>key===receipt.id?{...receipt}:null,
+  markAttempt:async(key,revision)=>{
+   if(key!==receipt.id||revision!==receipt.version||receipt.attempted)return false;
+   receipt.attempted=true;receipt.version++;return true;
+  },
+  seal:async(key,revision,digest)=>{
+   if(key!==receipt.id||revision!==receipt.version||
+      receipt.state!=="CLAIMED"||digest!==receipt.expectedSha256)return false;
+   receipt.version++;receipt.state="SEALED_PRIVATE_SNAPSHOT";return true;
+  }
+ };
+ const reader={
+  putNew:async(bucketId,p,raw)=>{
+   assert.equal(bucketId,bucket);assert.equal(p,receipt.path);
+   const written=await put(p,brokerUser.jwt,raw);
+   if(![200,201].includes(written.status))throw Error("LOCAL_STORAGE_PUT_DENIED");
+   if(lostAcknowledgement)throw Error("SYNTHETIC_ACK_LOST_AFTER_PROVIDER_ACCEPTED");
+  },
+  readPrivate:async(bucketId,p)=>{
+   assert.equal(bucketId,bucket);assert.equal(p,receipt.path);
+   const r=await get(p,actor.jwt);
+   return r.status===200?{objectId:receipt.objectId,bytes:r.body}:null;
+  }
+ };
+ return createDisposablePrivateByteRecovery({
+  apiUrl:endpoint,ledger,storage:reader,
+  freshAuthority:async()=>sql(
+   "select count(*) from "+grant+" g join auth.sessions s"+
+   " on s.user_id=g.actor_id where g.actor_id="+qid(actor.id)+
+   " and s.id="+qid(actor.sessionId)+
+   " and g.recording_consent and g.owner_allowed and g.rights_allowed"
+  )==="1",
+  writerIsolated:async()=>brokerUser.claims.app_metadata?.libread_local_broker===true&&
+   sql("select count(*) from libread_internal.issue137_human_broker_local_identity"+
+   " where user_id="+qid(brokerUser.id))==="1"
+ });
+}
+const corruptReceipt=snapshotFor(tamper.id,tamper.path,true);
+const corruptCheck=await recoveryFor(corruptReceipt).reconcile(tamper.id);
+yes(corruptCheck.status==="BYTE_MISMATCH_HOLD"&&
+ corruptReceipt.state==="CLAIMED",
+ "REAL LOCAL provider altered PRIVATE WAV must not obtain verified receipt");
+const goodReceipt=snapshotFor(permitId,permitPath,true);
+const goodCheck=await recoveryFor(goodReceipt).reconcile(permitId);
+yes(goodCheck.status==="PRIVATE_SNAPSHOT_VERIFIED_ONLY"&&
+ goodReceipt.state==="SEALED_PRIVATE_SNAPSHOT",
+ "REAL LOCAL provider exact PRIVATE WAV permits snapshot receipt only");
+// Simulate losing a successful PUT response; no second write is allowed.
+// Reconcile using actual localhost Storage GET and synthetic CAS ledger.
+// This is NOT a real process-kill/durable DB recovery proof.
+const interrupted=await createClaimed();
+const interruptedReceipt=snapshotFor(interrupted.id,interrupted.path,false);
+const recovery=recoveryFor(interruptedReceipt,{lostAcknowledgement:true});
+const held=await recovery.stage(interrupted.id,bytes);
+yes(held.status==="AMBIGUOUS_PUT_HOLD"&&interruptedReceipt.attempted,
+ "ambiguous LOCAL PUT must remain consumed and require fresh reconciliation");
+const dontRetry=await recovery.stage(interrupted.id,bytes);
+yes(dontRetry.status==="ALREADY_ATTEMPTED_HOLD",
+ "ambiguous LOCAL PUT must not retry at Storage");
+const retrieved=await recovery.reconcile(interrupted.id);
+yes(retrieved.status==="PRIVATE_SNAPSHOT_VERIFIED_ONLY",
+ "actual LOCAL PRIVATE byte GET + mock CAS reconciles lost acknowledgement");
+const noReplay=await put(interrupted.path,brokerUser.jwt,bytes);
+deny(noReplay,"RLS must deny replay after reconciled simulated ACK loss");
+const clearInterrupted=await admin.storage.from(bucket).remove([interrupted.path]);
+assert.equal(clearInterrupted.error,null,"cleanup synthetic recovered PRIVATE object");n++;
+console.log("PASS: F2-P 5 REAL LOCAL provider-byte readbacks and simulated ACK-loss recovery with mock-only receipt CAS");
 const purge=await admin.storage.from(bucket).remove([tamper.path]);
 assert.equal(purge.error,null,"remove disposable substituted test object");n++;
 console.log("RISK: LOCAL leaked restricted broker JWT can insert altered bytes into a claimed path; RLS does not validate physical SHA");
