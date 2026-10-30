@@ -418,7 +418,10 @@ export async function generateAivisRecordingForEpisode({
   const protectedR18 = await mustUsePrivateAiAudio(seriesId);
   // F2-P experimental Preview HOLD; this never authorizes PUBLIC release.
   checkNonproductionMediaWriterBoundary({
-    kind: "ai-recording", isPublicCandidate: !protectedR18, env: process.env,
+    kind: "ai-recording", isPublicCandidate: !protectedR18, env: {
+      LIBREAD_F2P_MEDIA_WRITER_MODE: process.env.LIBREAD_F2P_MEDIA_WRITER_MODE,
+      VERCEL_ENV: process.env.VERCEL_ENV,
+    },
   });
   const bucketName = protectedR18 ? PRIVATE_AI_AUDIO_BUCKET : getRecordingAudioBucketName();
   const audioObjectPath = buildAivisRecordingObjectPath({
