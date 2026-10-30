@@ -131,6 +131,6 @@ B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" node "$B2/storage-upload-p
 # F2-P 168-cohort methodology: ONLY pg_temp synthetic tables in disposable DB.
 # The SQL runs in one transaction that always ends in ROLLBACK.
 docker cp "$B2/public-media-aggregate-local.sql" "$db_container:/tmp/issue137_f2p_aggregate_local.sql"
+# Keep test-only PostgreSQL errors visible in CI (no private/hosted rows exist).
 docker exec "$db_container" psql -X -q -U postgres -d postgres \
-  -v ON_ERROR_STOP=1 -f /tmp/issue137_f2p_aggregate_local.sql 2>&1 \
-  | grep -F 'PASS: F2-P 11 synthetic candidate PostgreSQL cases'
+  -v ON_ERROR_STOP=1 -f /tmp/issue137_f2p_aggregate_local.sql
