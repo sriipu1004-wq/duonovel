@@ -138,6 +138,17 @@ node "$B2/public-media-admission-local.mjs"
 node "$B2/public-media-release-race-model.mjs"
 # Candidate-only trusted private Storage + fresh DB/CAS adapter; MOCK, no live write.
 (cd "$ROOT" && node --import tsx "$B2/public-media-private-adapter.test.ts")
+# Real LOCAL private-only publisher adapter: install a TEST-ONLY function and
+# immutable staging guard into the already verified, unlinked Docker database.
+# Never copy the SQL to application migrations or a linked project.
+docker cp "$B2/private-real-local-adapter.sql" "$db_container:/tmp/issue137_f2p_private_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -f /tmp/issue137_f2p_private_local.sql >/dev/null
+echo 'PASS: F2-P real PRIVATE adapter schema only in disposable LOCAL PostgreSQL'
+# Actual GoTrue + local Storage HTTP bytes + real service-role PostgREST RPC CAS/nonce
+# and concurrent requests; all credentials are throwaway localhost values.
+B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+  node "$B2/private-real-local-adapter-e2e.mjs"
 # F2-P 168-cohort methodology: ONLY pg_temp synthetic tables in disposable DB.
 # The SQL runs in one transaction that always ends in ROLLBACK.
 docker cp "$B2/public-media-aggregate-local.sql" "$db_container:/tmp/issue137_f2p_aggregate_local.sql"
