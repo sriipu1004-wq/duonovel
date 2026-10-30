@@ -149,8 +149,8 @@ must(s3RealE2E,"F2-P synthetic user JWT S3 negative",
  "signed user JWT wrote forbidden public bucket");
 must(s3RealE2E,"F2-P cross credential privileged S3 control",
  "privileged S3 can expose synthetic bytes");
-must(s3Containment,"F2-P no credential provider changes",
- "without provider changes");
+must(s3Containment,"F2-P Production remediation not approved",
+ "No Production remediation authorized.");
 assert.ok(!/createSignedUrl\(/u.test(s3WriterInventory),
  "inventory must never mint signed bearer URL");
 checked++;
