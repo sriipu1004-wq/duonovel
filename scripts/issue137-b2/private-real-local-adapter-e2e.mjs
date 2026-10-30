@@ -191,6 +191,7 @@ const bucketFlag=sql("select public::text from storage.buckets where id="+quote(
 assert.equal(bucketFlag,"false");checks++;
 for(const c of [ai,human,bgm]) assert.ok(state(c).path===c.path,"no public pointer");
 checks++;
+const beforeAppChecks=checks;
 // REAL app-library orchestration: stage -> DB CAS + unique nonce ->
 // GoTrue + per-request DB-authorized PRIVATE playback, no hosted services.
 const app=await candidate("human-recording",true);
@@ -227,7 +228,7 @@ assert.throws(()=>createDisposablePrivateMediaPipeline({
 }),/F2P_LOCAL_ONLY_REQUIRED/);checks++;
 const reissued=await appPipeline.authorizedPrivateBytes(app.id,login.access_token);
 assert.equal(reissued.status,200);checks++;
-console.log("PASS: F2-P 17 app-library local PRIVATE stage/CAS/authenticated playback controls");
-console.log("PASS: F2-P "+checks
+console.log("PASS: F2-P "+(checks-beforeAppChecks)+" app-library local PRIVATE stage/CAS/authenticated playback controls");
+console.log("PASS: F2-P "+checks+
  " real DISPOSABLE local GoTrue/PRIVATE Storage/PostgREST/PostgreSQL CAS+nonce checks");
 console.log("RELEASE HOLD: no production schema, no runtime wiring, privileged S3 public bypass persists");
