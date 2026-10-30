@@ -167,7 +167,7 @@ for(const source of [generator,aivisWriter,humanPublisher,
  checked++;
 }
 
-must(runLocal,"F2-P actual local DB/Storage adapter wired",'node "$B2/private-real-local-adapter-e2e.mjs"');
+must(runLocal,"F2-P actual local DB/Storage adapter wired",'node --import tsx "$B2/private-real-local-adapter-e2e.mjs"');
 must(runLocal,"F2-P local-only test SQL loaded",'docker cp "$B2/private-real-local-adapter.sql"');
 must(realPrivateSql,"F2-P row lock in actual Postgres","where id=p_id for update");
 must(realPrivateSql,"F2-P destination storage bucket live private check","b.public is distinct from false");
