@@ -169,6 +169,53 @@ for(const actualSource of [generator,aivis,read("src/lib/recording/humanRecordin
  checked++;
 }
 
+// 2026-10-31 F2-P S2/S4: CODE-SOURCE map and REAL LOCAL synthetic transport.
+const writerSim=read("scripts/issue137-b2/writer-path-private-preservation-e2e.mjs");
+for(const [name,relative,firstUpload,publicSignal] of [
+ ["Nemo","src/lib/recording/nemoGeneration.ts",".upload(audioObjectPath","isPublicCandidate: !protectedR18"],
+ ["Aivis","src/lib/recording/aivisGeneration.ts",".upload(audioObjectPath","isPublicCandidate: !protectedR18"],
+ ["Human","src/lib/recording/humanRecordingPublish.ts",".upload(originalObjectPath","isPublicCandidate: isPublic"],
+]){
+ const route=read(relative);
+ const guardAt=route.indexOf("checkNonproductionMediaWriterBoundary({");
+ const putAt=route.indexOf(firstUpload);
+ assert.ok(guardAt>=0&&putAt>guardAt,
+  name+" must check Preview HOLD before first FINAL Storage upload");
+ assert.ok(route.slice(guardAt,guardAt+360).includes(publicSignal),
+  name+" must send corresponding server-side public flag");
+ checked+=2;
+}
+const nemoAuto=read("src/lib/recording/nemoAutoGeneration.ts");
+const aivisAuto=read("src/lib/recording/aivisAutoGeneration.ts");
+const humanSession=read("src/app/api/recordings/human-upload-session/route.ts");
+const humanFinalize=read("src/app/api/recordings/human-upload-finalize/route.ts");
+const humanStudio=read("src/components/recording/RecordingStudioPage.tsx");
+must(nemoAuto,"Nemo automatic writer uses normal generator","generateNemoRecordingForEpisode(");
+must(aivisAuto,"Aivis automatic writer uses normal generator","generateAivisRecordingForEpisode(");
+must(aivisAuto,"Aivis privileged cleanup independent operation","removeStorageObjectPaths(");
+must(humanSession,"Human upload session creates privileged signed temporary URLs",
+  ".createSignedUploadUrl(part.objectPath");
+must(humanStudio,"Human browser signed temporary object upload",
+  ".uploadToSignedUrl(part.objectPath");
+must(humanFinalize,"Human finalize has independent privileged cleanup",
+  "admin.storage.from(bucketName).remove(tempObjectPaths)");
+must(writerSim,"real LOCAL app boundary imported",
+  'from "../../src/lib/recording/publicMediaWriterBoundary.ts"');
+must(writerSim,"Nemo Aivis Human coverage",
+  'label:"Human",kind:"human-recording"');
+must(writerSim,"PRIVATE bytes preserved",
+  "PUBLIC hold damaged already-saved PRIVATE bytes");
+must(writerSim,"no PUBLIC Storage PUT",
+  "ZERO PUBLIC Storage write calls");
+must(runLocal,"real LOCAL synthetic writer test connected",
+  'node --import tsx "$B2/writer-path-private-preservation-e2e.mjs"');
+const b2Yml=read(".github/workflows/issue137-b2-isolated-e2e.yml");
+must(b2Yml,"isolated writer test checked early",
+ "node --check scripts/issue137-b2/writer-path-private-preservation-e2e.mjs");
+assert.ok(!/supabase\.link|db push|db reset --linked|https:\/\/www\.syosetu-libread\.com/u.test(writerSim),
+ "writer simulation must not address Production or linked projects");
+checked++;
+
 const s3WriterInventory=read("scripts/issue137-b2/s3-public-writer-inventory.mjs");
 const s3Containment=read("scripts/issue137-b2/s3-privileged-writer-containment-design.md");
 const s3RealE2E=read("scripts/issue137-b2/s3-byte-path-e2e.mjs");
