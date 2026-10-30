@@ -130,6 +130,31 @@ must(privateCore, "F2-P nonce replay", "releaseNonceAvailable");
 must(privateAdapterTests, "F2-P fake Storage plus fake DB tests", "synthetic candidate adapter assertions");
 must(privateAdapterTests, "F2-P S3 bypass explicitly held", "privileged S3 direct PUBLIC writes bypass");
 must(runLocal, "F2-P new isolated adapter test wiring", 'node --import tsx "$B2/public-media-private-adapter.test.ts"');
+// F2-P S3 privilege inventory and real disposable cross-credential negative.
+const s3WriterInventory=read("scripts/issue137-b2/s3-public-writer-inventory.mjs");
+const s3Containment=read("scripts/issue137-b2/s3-privileged-writer-containment-design.md");
+const s3RealE2E=read("scripts/issue137-b2/s3-byte-path-e2e.mjs");
+const b2Workflow=read(".github/workflows/issue137-b2-isolated-e2e.yml");
+must(b2Workflow,"F2-P full tracked-source inventory in CI",
+ "node scripts/issue137-b2/s3-public-writer-inventory.mjs");
+must(b2Workflow,"F2-P syntax check real S3 negative",
+ "node --check scripts/issue137-b2/s3-byte-path-e2e.mjs");
+must(s3WriterInventory,"F2-P source scan git tracked files",
+ '["ls-files","-z","--cached"]');
+must(s3WriterInventory,"F2-P source scan flagged credential references",
+ '"s3_key_reference"');
+must(s3WriterInventory,"F2-P source scan PUBLIC url",
+ '"public_url"');
+must(s3RealE2E,"F2-P synthetic user JWT S3 negative",
+ "signed user JWT wrote forbidden public bucket");
+must(s3RealE2E,"F2-P cross credential privileged S3 control",
+ "privileged S3 can expose synthetic bytes");
+must(s3Containment,"F2-P no credential provider changes",
+ "without provider changes");
+assert.ok(!/createSignedUrl\(/u.test(s3WriterInventory),
+ "inventory must never mint signed bearer URL");
+checked++;
+
 const realPrivateSql=read("scripts/issue137-b2/private-real-local-adapter.sql");
 const realPrivateE2E=read("scripts/issue137-b2/private-real-local-adapter-e2e.mjs");
 
