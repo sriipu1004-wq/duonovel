@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import {createHash,randomUUID} from "node:crypto";
 import {execFileSync} from "node:child_process";
+import {createDisposablePrivateMediaPipeline} from "../../src/lib/recording/privateMediaLocalPipeline.ts";
 
 assert.equal(process.env.B2_EPHEMERAL_CONFIRM,"local-only");
 assert.equal(process.env.DO_NOT_CONTACT_PRODUCTION,"true");
@@ -55,6 +56,9 @@ function wave(){
  b.writeInt16LE(50,44);b.writeInt16LE(-50,46);return b;
 }
 const audio=wave(),bucket="f2p-local-private-stage";
+const appPipeline=createDisposablePrivateMediaPipeline({
+ apiUrl:process.env.B2_LOCAL_URL,serviceKey:service,anonKey:anon,
+});
 isOk(await http("POST","/storage/v1/bucket",{id:bucket,name:bucket,public:false}),
  "create exclusively local PRIVATE staging bucket");
 const password="F2P-local-"+uuid()+"-Aa1!";
@@ -78,10 +82,15 @@ function state(candidate){
  const [revision,path,nonces]=raw.split("|");
  return {revision:Number(revision),path,nonces:Number(nonces)};
 }
-async function candidate(kind){
+async function candidate(kind,useAppPipeline=false){
  const id=uuid(),path="stage/"+uuid()+".wav";
- const upload=await http("POST","/storage/v1/object/"+bucket+"/"+path,audio,service,"audio/wav");
- isOk(upload,"PRIVATE Storage real upload "+kind);
+ if(useAppPipeline) {
+  const staged=await appPipeline.privateStage(path,audio);
+  assert.equal(staged.sha256,sha(audio));checks++;
+ }else{
+  const upload=await http("POST","/storage/v1/object/"+bucket+"/"+path,audio,service,"audio/wav");
+  isOk(upload,"PRIVATE Storage real upload "+kind);
+ }
  const object=sql("select id::text from storage.objects where bucket_id="+quote(bucket)+
   " and name="+quote(path));
  assert.match(object,/^[0-9a-f-]{36}$/);checks++;
@@ -182,6 +191,6 @@ const bucketFlag=sql("select public::text from storage.buckets where id="+quote(
 assert.equal(bucketFlag,"false");checks++;
 for(const c of [ai,human,bgm]) assert.ok(state(c).path===c.path,"no public pointer");
 checks++;
-console.log("PASS: F2-P "+checks+
+// REAL app-library orchestration: stage -> DB CAS + unique nonce ->\n// GoTrue + per-request DB-authorized PRIVATE playback, no hosted services.\nconst app=await candidate("human-recording",true);\nconst appNonce=uuid();\nconst appArgs={candidateId:app.id,stagePath:app.path,stageObjectId:app.object,\n stageSha256:app.sha,expectedRevision:"0",nonce:appNonce};\nconst appCommit=await appPipeline.privateCommit(appArgs,login.access_token);\nassert.deepEqual(appCommit,{status:"PRIVATE_POINTER_ONLY",revision:"1"});\nassert.deepEqual(state(app),{revision:1,path:app.path,nonces:1});checks+=2;\nconst served=await appPipeline.authorizedPrivateBytes(app.id,login.access_token);\nassert.equal(served.status,200);checks++;\nassert.equal(served.headers.get("cache-control"),"private, no-store, max-age=0");checks++;\nassert.ok(Buffer.from(await served.arrayBuffer()).equals(audio));checks++;\nassert.equal((await appPipeline.authorizedPrivateBytes(app.id,anon)).status,404);checks++;\nconst failedBefore=state(app);\nawait assert.rejects(appPipeline.privateCommit(appArgs,login.access_token),\n /F2P_PRIVATE_DB_HOLD/);\nassert.deepEqual(state(app),failedBefore);checks+=2;\nmutate(app,"rights_withdrawn",true);\nassert.equal((await appPipeline.authorizedPrivateBytes(app.id,login.access_token)).status,404);\nassert.deepEqual(state(app),failedBefore);checks+=2;\nmutate(app,"rights_withdrawn",false);\nmutate(app,"r18_effective",true);\nassert.equal((await appPipeline.authorizedPrivateBytes(app.id,login.access_token)).status,404);checks++;\nmutate(app,"r18_effective",false);\nmutate(app,"session_active",false);\nassert.equal((await appPipeline.authorizedPrivateBytes(app.id,login.access_token)).status,404);checks++;\nmutate(app,"session_active",true);\nassert.equal((await appPipeline.authorizedPrivateBytes(uuid(),login.access_token)).status,404);checks++;\nawait assert.rejects(appPipeline.privateStage("stage/"+uuid()+".wav",Buffer.from("not-audio")),\n /F2P_PRIVATE_STAGE_HOLD/);checks++;\nassert.throws(()=>createDisposablePrivateMediaPipeline({\n apiUrl:"https://www.syosetu-libread.com",serviceKey:service,anonKey:anon,\n}),/F2P_LOCAL_ONLY_REQUIRED/);checks++;\nconst reissued=await appPipeline.authorizedPrivateBytes(app.id,login.access_token);\nassert.equal(reissued.status,200);checks++;\nconsole.log("PASS: F2-P 17 app-library local PRIVATE stage/CAS/authenticated playback controls");\nconsole.log("PASS: F2-P "+checks
  " real DISPOSABLE local GoTrue/PRIVATE Storage/PostgREST/PostgreSQL CAS+nonce checks");
 console.log("RELEASE HOLD: no production schema, no runtime wiring, privileged S3 public bypass persists");
