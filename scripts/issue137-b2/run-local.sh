@@ -132,6 +132,8 @@ B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" node "$B2/storage-upload-p
 B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" node "$B2/s3-byte-path-e2e.mjs"
 # Test-only fail-closed publishing contract; no site runtime/shared storage changes.
 node "$B2/public-media-admission-local.mjs"
+# Proposed non-wired server preflight, synthetic test only
+(cd "$ROOT" && node --import tsx "$B2/public-media-server-preflight.test.ts")
 # F2-P 168-cohort methodology: ONLY pg_temp synthetic tables in disposable DB.
 # The SQL runs in one transaction that always ends in ROLLBACK.
 docker cp "$B2/public-media-aggregate-local.sql" "$db_container:/tmp/issue137_f2p_aggregate_local.sql"

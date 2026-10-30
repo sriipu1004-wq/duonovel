@@ -82,6 +82,29 @@ must(policyModel,"F2-P private quarantine","STAGE_PRIVATE");
 must(policyModel,"F2-P proof digest bound","attestation.sha256!==hash(bytes)");
 must(policyModel,"F2-P Human consent R18 rights checks","humanConsentMissing");
 must(policyModel,"F2-P no runtime positive authorization","MODEL_RELEASE_ELIGIBLE_NOT_AUTHORIZED");
+const serverPreflight=read("src/lib/recording/publicMediaReleasePreflight.ts");
+const serverPreflightTest=read("scripts/issue137-b2/public-media-server-preflight.test.ts");
+must(runLocal,"F2-P server preflight test wired",'node --import tsx "$B2/public-media-server-preflight.test.ts"');
+must(serverPreflight,"F2-P no publish result","PRECHECK_ONLY_NOT_AUTHORIZED");
+must(serverPreflight,"F2-P staged bytes hash","createHash(\"sha256\").update(stage.bytes)");
+must(serverPreflight,"F2-P fresh authority callback","loadFreshEvidence");
+must(serverPreflight,"F2-P real decoder callback","decodeFully");
+must(serverPreflight,"F2-P R18 warning gate",'fresh.contentWarnings.includes("sexual_r18")');
+must(serverPreflight,"F2-P Human consent","humanConsentCurrent");
+must(serverPreflight,"F2-P distinct site BGM","siteManagedCatalogEntry");
+must(serverPreflightTest,"F2-P no new runtime permission","NON-WIRED, no PUBLIC authorization");
+for(const route of [
+ "src/lib/recording/nemoGeneration.ts",
+ "src/lib/recording/aivisGeneration.ts",
+ "src/lib/recording/humanRecordingPublish.ts",
+ "src/lib/bgm/bgmLibrary.ts",
+ "src/app/api/recordings/human-upload-finalize/route.ts"
+]) {
+ assert.ok(!read(route).includes("publicMediaReleasePreflight"),
+   "F2-P must remain unwired at release gate: "+route);
+ checked++;
+}
+
 
 const aggregateLocal = read("scripts/issue137-b2/public-media-aggregate-local.sql");
 must(runLocal, "F2-P synthetic aggregate runner wired", "public-media-aggregate-local.sql");

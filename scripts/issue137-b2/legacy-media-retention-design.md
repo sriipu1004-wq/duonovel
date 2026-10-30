@@ -146,3 +146,26 @@ It also puts a valid 48-byte **synthetic WAV** under a PUBLIC .txt name with a m
 - The model is a **candidate acceptance contract**, not proof that Supabase Storage can enforce it directly. Real enforcement, live compatibility, multipart/copy/resumable/provider-byte mutation, S3 credential control and signed-in app/CDN E2E require separate owner approval and independent fixed-HEAD review.
 
 **Release judgment:** Existing metadata-only trigger candidate is insufficient as a comprehensive media byte control. Treat any successful PUBLIC disguised WAV upload as unresolved **FIX/MERGE HOLD** even with green local CI and Preview. This phase adds tests and design text ONLY; no app/migration, DB, bucket settings, Production or rights changes.
+
+## F2-P server preflight candidate and legacy compatibility — NONPRODUCTION only (2026-10-30)
+
+**Approval:** investigate source impact for BGM, AI and Human recording; add an isolated non-wired server preflight with synthetic negative tests. No production endpoint, Storage writer, DB, auth, policies, migrations, rights, visibility, release or merge operation is authorized.
+
+### Existing SOURCE paths; real data counts not verified
+
+| Surface | Current SOURCE | Compatibility condition |
+| --- | --- | --- |
+| Nemo and Aivis AI recording | nemoGeneration.ts / aivisGeneration.ts write regular narration to public recording-audio, effective R18 narration to private r18-recording-audio; timing JSON and DB recording references coexist | Preserve normal narration, exact timing companion and DB pointer, never downgrade R18/warnings or trust file extension |
+| Human voice | human-upload-session and finalize use temporary multipart and server audio check; humanRecordingPublish uploads to private human-recording-audio and uses H1 consent/atomic write | Preserve Human consent, actual owner and private proxy; no implicit Human-to-AI treatment or public copy |
+| Site BGM | bgm_library.audio_path is a managed catalogue (20260329043000 migration seeds local /test-audio/demo-bgm.mp3); 20260915200000 hardened browser BGM Storage writes | BGM is not an episode narration; its server preflight uses separate site-managed catalogue and verified rights path |
+| Series/episode BGM references | bgmSettings.ts sceneCues.nextBgmAudioPath plus series.bgm_audio_path and episodes.bgm_storage_path / bgm_audio_path | No automatic URL rewrite or deletion. Later owner-approved reference, rights, old URL, byte rollback inventory needed |
+
+### Non-wired implementation
+
+The new src/lib/recording/publicMediaReleasePreflight.ts helper computes SHA-256 over supplied complete private-stage bytes, checks private staging and version, requires a matching declared MIME/extension for a limited detected container signature, calls an injected loadFreshEvidence callback, validates current rights/withdrawal, effective R18 including sexual_r18 warnings, distinct AI owner+provenance versus Human owner+current consent, and site-managed BGM rights independent of series/episode. A caller-supplied decodeFully callback MUST fully decode bytes. Missing/failing callbacks fail closed. Positive state PRECHECK_ONLY_NOT_AUTHORIZED is not a token, permission, publication write or public URL. Fake callback data is NOT an attestation; real integration must obtain trustworthy server-side facts, verify actual private Storage digest, reread under lock/CAS at commit, handle version/replay and direct S3 writer control.
+
+Source-check asserts the helper is NOT imported by the current Nemo/Aivis/Human/BGM runtime writers. The synthetic test intentionally supplies a fake successful decoder; it is not a real media decoder or E2E. WAV, MP3, Ogg, FLAC, ISO MP4/M4A, WebM signatures are limited sniffing; not full validation or safety/rights proof. Need actual codec/format verification before implementation.
+
+### Gaps / gate
+
+The reproduced LOCAL S3 PUBLIC .txt and new opaque .bin uploads with text/plain and valid synthetic WAV remain RISK. This preflight does not intercept direct S3 service-role PutObject, byte-only provider edits, multipart/CopyObject, external caches or old public URLs. Real 168 candidates, effective R18 per-object, Human consent and cross-BGM references remain unverified from Production; prior connector safety block not bypassed. Preserve all media/rights/visibility. App writers, migrations and Production unchanged. PR #153 FIX/MERGE HOLD, Production NO-GO, fixed-HEAD independent security review mandatory at release.
