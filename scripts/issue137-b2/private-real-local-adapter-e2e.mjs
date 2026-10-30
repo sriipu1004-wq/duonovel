@@ -4,7 +4,8 @@
 import assert from "node:assert/strict";
 import {createHash,randomUUID} from "node:crypto";
 import {execFileSync} from "node:child_process";
-import {createDisposablePrivateMediaPipeline} from "../../src/lib/recording/privateMediaLocalPipeline.ts";
+import * as localPipelineModule from "../../src/lib/recording/privateMediaLocalPipeline.ts";
+const {createDisposablePrivateMediaPipeline}=localPipelineModule.default??localPipelineModule;
 
 assert.equal(process.env.B2_EPHEMERAL_CONFIRM,"local-only");
 assert.equal(process.env.DO_NOT_CONTACT_PRODUCTION,"true");
