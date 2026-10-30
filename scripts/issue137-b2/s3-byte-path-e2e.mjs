@@ -107,4 +107,22 @@ if(ok(disguised)){
  "S3 public denial must preserve original bytes");
  console.log("PASS: F2-P LOCAL S3 public disguise PUT refused, original text retained");
 }
+
+// NEW OBJECT: content-type/extension deceptive MEDIA, not only same-key overwrite.
+const newlyDisguisedKey="misc/"+randomUUID()+"/new-opaque.bin";
+const newWav=await s3("PUT",publicBucket,newlyDisguisedKey,audio,"text/plain");
+if(ok(newWav)){
+ const live=await api("GET","/storage/v1/object/public/"+publicBucket+"/"+newlyDisguisedKey,
+  undefined,"application/json",false,anon);
+ assert.ok(ok(live)&&live.bytes.equals(audio),"S3 new disguised WAV not retrievable with exact bytes");
+ const meta=db("select coalesce(metadata->>'mimetype','') from storage.objects where bucket_id='f2p-s3-public' and name='"+newlyDisguisedKey+"'");
+ assert.ok(!meta.startsWith("audio/"),"unexpected audio MIME, test no longer a disguised write");
+ console.log("RISK: F2-P LOCAL S3 NEW opaque public key with text MIME serves exact synthetic WAV");
+}else{
+ assert.ok(newWav.status>=400,"S3 new audio reported non-error not success");
+ const noObject=await api("GET","/storage/v1/object/public/"+publicBucket+"/"+newlyDisguisedKey,
+  undefined,"application/json",false,anon);
+ assert.ok(noObject.status!==200,"S3 refused new upload but public URL is readable");
+ console.log("PASS: F2-P LOCAL S3 NEW opaque public media refused; no public bytes");
+}
 console.log("SYNTHETIC ONLY: provider-direct byte writes, external S3 backend, CDN and Production untested");

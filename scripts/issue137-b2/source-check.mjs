@@ -74,6 +74,15 @@ must(s3Probe, "F2-P byte-level overwrite evidence", "after.bytes.equals(audio)")
 must(s3Probe, "F2-P S3 same-key overwrite baseline", "S3 same-key overwrite works WITHOUT metadata guard");
 must(s3Probe, "F2-P public MIME disguise", "disguised");
 must(s3Probe, "F2-P exact local S3 credential key", "B2_ANON_KEY");
+must(s3Probe,"F2-P NEW public S3 opaque media regression","S3 NEW opaque public key");
+const policyModel=read("scripts/issue137-b2/public-media-admission-local.mjs");
+must(runLocal,"F2-P synthetic admission design model runner",'node "$B2/public-media-admission-local.mjs"');
+must(policyModel,"F2-P direct public held","HOLD_DIRECT_PUBLIC");
+must(policyModel,"F2-P private quarantine","STAGE_PRIVATE");
+must(policyModel,"F2-P proof digest bound","attestation.sha256!==hash(bytes)");
+must(policyModel,"F2-P Human consent R18 rights checks","humanConsentMissing");
+must(policyModel,"F2-P no runtime positive authorization","MODEL_RELEASE_ELIGIBLE_NOT_AUTHORIZED");
+
 const aggregateLocal = read("scripts/issue137-b2/public-media-aggregate-local.sql");
 must(runLocal, "F2-P synthetic aggregate runner wired", "public-media-aggregate-local.sql");
 must(aggregateLocal, "F2-P synthetic temp tables", "create temp table audit_result as");
