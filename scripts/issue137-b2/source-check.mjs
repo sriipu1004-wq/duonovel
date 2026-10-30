@@ -98,6 +98,26 @@ must(runLocal, "F2-P race-model runner", 'node "$B2/public-media-release-race-mo
 must(releaseRaceModel, "F2-P private proxy only", "MODEL_PRIVATE_POINTER_CAS_NOT_PUBLIC_RELEASE");
 must(releaseRaceModel, "F2-P PUBLIC copy first hazard", "EXPECTED_RELEASE_HOLD: copy-first PUBLIC object survives failed DB CAS");
 
+// F2-P application bridge: opt-in Preview refusal, never a PUBLIC release grant.
+const writerBoundary=read("src/lib/recording/publicMediaWriterBoundary.ts");
+const writerBoundaryTest=read("scripts/issue137-b2/public-media-writer-bridge.test.ts");
+const humanPublisher=read("src/lib/recording/humanRecordingPublish.ts");
+const aivisWriter=read("src/lib/recording/aivisGeneration.ts");
+const bridgeWorkflow=read(".github/workflows/issue137-b2-isolated-e2e.yml");
+for(const label of ["F2P_PREVIEW_PUBLIC_MEDIA_HOLD","F2P_PREVIEW_GUARD_WRONG_ENVIRONMENT",
+  "LEGACY_UNCHANGED_NOT_APPROVED","PRIVATE_ONLY_UNCHANGED","F2P_MEDIA_WRITER_MODE_UNVERIFIED"]){
+ must(writerBoundary,"F2-P bridge mode/"+label,label);
+}
+for(const [label,file] of [["Nemo",generator],["Aivis",aivisWriter],["Human",humanPublisher]]){
+ must(file,"F2-P "+label+" shared bridge", "checkNonproductionMediaWriterBoundary({");
+ must(file,"F2-P "+label+" uses server env", "env: process.env");
+}
+must(bridgeWorkflow,"F2-P preview bridge dynamic CI",
+ "node --import tsx scripts/issue137-b2/public-media-writer-bridge.test.ts");
+must(writerBoundaryTest,"F2-P early before upload source check","gate must run BEFORE FIRST final Storage write");
+assert.ok(!writerBoundary.includes("getPublicUrl(") && !writerBoundary.includes("createAdminClient("),
+ "F2-P bridge cannot itself publish or use privileged Storage");
+
 const privateCore=read("src/lib/recording/publicMediaPrivateReleaseCore.ts");
 const privateFacade=read("src/lib/recording/publicMediaPrivateReleaseServer.ts");
 const privateAdapterTests=read("scripts/issue137-b2/public-media-private-adapter.test.ts");
