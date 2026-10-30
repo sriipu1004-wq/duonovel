@@ -114,7 +114,7 @@ begin
    raise exception using errcode='42501',message='F2P_PUBLICATION'; end if;
  end if;
  if c.pointer_revision is distinct from p_expected_revision then
-  raise exception using errcode='40001',message='F2P_STALE_REVISION'; end if;
+  raise exception using errcode='PT409',message='F2P_STALE_REVISION'; end if;
  if c.stage_bucket <> 'f2p-local-private-stage' then
   raise exception using errcode='42501',message='F2P_UNGUARDED_STAGE_BUCKET'; end if;
  if c.stage_bucket is distinct from p_stage_bucket or c.stage_path is distinct from p_stage_path
