@@ -147,8 +147,8 @@ docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
 echo 'PASS: F2-P real PRIVATE adapter schema only in disposable LOCAL PostgreSQL'
 # Actual GoTrue + local Storage HTTP bytes + real service-role PostgREST RPC CAS/nonce
 # and concurrent requests; all credentials are throwaway localhost values.
-B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
-  (cd "$ROOT" && node --import tsx "$B2/private-real-local-adapter-e2e.mjs")
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+  node --import tsx "$B2/private-real-local-adapter-e2e.mjs")
 # F2-P 168-cohort methodology: ONLY pg_temp synthetic tables in disposable DB.
 # The SQL runs in one transaction that always ends in ROLLBACK.
 docker cp "$B2/public-media-aggregate-local.sql" "$db_container:/tmp/issue137_f2p_aggregate_local.sql"
