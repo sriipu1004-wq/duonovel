@@ -176,6 +176,16 @@ docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
 echo 'PASS: F2-P Human one-shot broker tables installed in disposable LOCAL PostgreSQL'
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
   node --import tsx "$B2/human-one-shot-broker-e2e.mjs")
+# Dedicated LOCAL ONLY provider RLS fence: install in disposable PostgreSQL.
+# No LIVE Storage schema/policy/ACL/migration changes; test signed-in user JWT
+# direct INSERT denial and restricted server-broker JWT first-write path.
+docker cp "$B2/human-broker-private-rls-fence-local.sql" \
+  "$db_container:/tmp/issue137_human_broker_private_rls_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+ -f /tmp/issue137_human_broker_private_rls_local.sql >/dev/null
+echo 'PASS: F2-P broker-only PRIVATE RLS fixture installed in disposable Docker PostgreSQL'
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node --import tsx "$B2/human-broker-private-rls-fence-e2e.mjs")
 # F2-P 168-cohort methodology: ONLY pg_temp synthetic tables in disposable DB.
 # The SQL runs in one transaction that always ends in ROLLBACK.
 docker cp "$B2/public-media-aggregate-local.sql" "$db_container:/tmp/issue137_f2p_aggregate_local.sql"
