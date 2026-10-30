@@ -36,6 +36,9 @@ create table libread_internal.issue137_f2p_consumed_nonces(
 );
 revoke all on libread_internal.issue137_f2p_private_candidates from public,anon,authenticated;
 revoke all on libread_internal.issue137_f2p_consumed_nonces from public,anon,authenticated;
+grant usage on schema libread_internal to service_role;
+grant select,update on libread_internal.issue137_f2p_private_candidates to service_role;
+grant select,insert on libread_internal.issue137_f2p_consumed_nonces to service_role;
 -- Synthetic staging bucket: block all same-key metadata replacement or delete,
 -- including privileged local S3/REST object row updates. This is LOCAL defense
 -- for this fixture only; it is NOT full proof of backend byte immutability.
@@ -112,6 +115,8 @@ begin
  end if;
  if c.pointer_revision is distinct from p_expected_revision then
   raise exception using errcode='40001',message='F2P_STALE_REVISION'; end if;
+ if c.stage_bucket <> 'f2p-local-private-stage' then
+  raise exception using errcode='42501',message='F2P_UNGUARDED_STAGE_BUCKET'; end if;
  if c.stage_bucket is distinct from p_stage_bucket or c.stage_path is distinct from p_stage_path
   or c.stage_object_id is distinct from p_stage_object_id
   or c.stage_sha256 is distinct from p_sha256 then
