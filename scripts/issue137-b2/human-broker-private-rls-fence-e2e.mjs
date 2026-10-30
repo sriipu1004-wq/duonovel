@@ -206,6 +206,23 @@ yes(outcomes.filter(r=>[200,201].includes(r.status)).length===1&&
 const concurrentSaved=await get(parallel.path,actor.jwt);
 yes(concurrentSaved.status===200&&hash(concurrentSaved.body)===hash(bytes),
  "parallel Storage uploads kept exact original bytes");
+// ADVERSARIAL CONTROL: the RLS helper can inspect permit metadata, NOT
+// physical bytes. A leaked broker-scoped JWT can substitute same-size WAV
+// bytes at a currently claimed path. Application broker digest controls only
+// requests it directly handles, not alternate holders of this principal.
+const tamper=await createClaimed();
+const tampered=Buffer.from(bytes);
+tampered.writeInt16LE(99,44);
+const bypass=await put(tamper.path,brokerUser.jwt,tampered);
+yes([200,201].includes(bypass.status),
+ "fixture must expose broker-principal SHA substitution risk");
+const tamperedRead=await get(tamper.path,actor.jwt);
+yes(tamperedRead.status===200&&hash(tamperedRead.body)===hash(tampered)&&
+ hash(tamperedRead.body)!==hash(bytes),
+ "provider-side RLS alone cannot authenticate actual audio SHA");
+const purge=await admin.storage.from(bucket).remove([tamper.path]);
+assert.equal(purge.error,null,"remove disposable substituted test object");n++;
+console.log("RISK: LOCAL leaked restricted broker JWT can insert altered bytes into a claimed path; RLS does not validate physical SHA");
 const sessionKill=await createClaimed();
 const loggedOut=await actor.client.auth.signOut({scope:"global"});
 assert.equal(loggedOut.error,null,"real local GoTrue global logout");n++;
