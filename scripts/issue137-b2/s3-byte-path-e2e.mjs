@@ -22,18 +22,18 @@ async function api(method,path,body,type="application/json",upsert=false,token=a
  return {status:res.status,bytes:Buffer.from(await res.arrayBuffer())};
 }
 const ok=r=>[200,201,204].includes(r.status),sha=x=>createHash("sha256").update(x).digest("hex"),hm=(k,x)=>createHmac("sha256",k).update(x).digest();
-async function s3(method,bucket,key,body,contentType){
+async function s3(method,bucket,key,body,contentType,sessionToken=admin){
  const bytes=body===undefined?Buffer.alloc(0):Buffer.from(body);
  const path="/storage/v1/s3/"+encodeURIComponent(bucket)+"/"+key.split("/").map(encodeURIComponent).join("/");
  const time=new Date().toISOString().replace(/[:-]|\.\d{3}/g,"");
  const day=time.slice(0,8),scope=day+"/local/s3/aws4_request",hash=sha(bytes);
  const signed="host;x-amz-content-sha256;x-amz-date;x-amz-security-token";
- const canon="host:"+ep.host+"\n"+"x-amz-content-sha256:"+hash+"\n"+"x-amz-date:"+time+"\n"+"x-amz-security-token:"+admin+"\n";
+ const canon="host:"+ep.host+"\n"+"x-amz-content-sha256:"+hash+"\n"+"x-amz-date:"+time+"\n"+"x-amz-security-token:"+sessionToken+"\n";
  const request=method+"\n"+path+"\n\n"+canon+"\n"+signed+"\n"+hash;
  const toSign="AWS4-HMAC-SHA256\n"+time+"\n"+scope+"\n"+sha(request);
  const signing=hm(hm(hm(hm("AWS4"+anon,day),"local"),"s3"),"aws4_request");
  const signature=createHmac("sha256",signing).update(toSign).digest("hex");
- const headers={"x-amz-content-sha256":hash,"x-amz-date":time,"x-amz-security-token":admin,
+ const headers={"x-amz-content-sha256":hash,"x-amz-date":time,"x-amz-security-token":sessionToken,
  Authorization:"AWS4-HMAC-SHA256 Credential=stub/"+scope+", SignedHeaders="+signed+", Signature="+signature};
  if(contentType)headers["content-type"]=contentType;
  const res=await fetch(ep.origin+path,{method,headers,body:method==="PUT"?bytes:undefined,signal:AbortSignal.timeout(20000)});
@@ -125,4 +125,39 @@ if(ok(newWav)){
  assert.ok(noObject.status!==200,"S3 refused new upload but public URL is readable");
  console.log("PASS: F2-P LOCAL S3 NEW opaque public media refused; no public bytes");
 }
-console.log("SYNTHETIC ONLY: provider-direct byte writes, external S3 backend, CDN and Production untested");
+// CROSS-CREDENTIAL NEGATIVE: real ephemeral GoTrue JWT under RLS must NOT
+// write an unowned public bucket, while the service-role S3 session still can.
+// This does not model Dashboard-generated unrestricted standalone S3 key pairs.
+const authEmail="f2p-s3-"+randomUUID()+"@example.invalid";
+const authPassword="F2P-"+randomUUID()+"-Aa1!";
+const created=await api("POST","/auth/v1/admin/users",{
+ email:authEmail,password:authPassword,email_confirm:true,
+});
+assert.ok(ok(created),"local synthetic S3 user must exist");
+const login=await api("POST","/auth/v1/token?grant_type=password",{
+ email:authEmail,password:authPassword,
+},"application/json",false,anon);
+assert.ok(ok(login),"local synthetic S3 user login must work");
+let session;try{session=JSON.parse(login.bytes.toString());}catch{}
+assert.ok(session?.access_token,"local JWT missing");
+// Verify token independently through GoTrue; unauthenticated tokens are not
+// a valid negative control for RLS-bounded S3 requests.
+const user=await api("GET","/auth/v1/user",undefined,"application/json",false,
+ session.access_token);
+assert.ok(ok(user),"real local GoTrue token verification must succeed");
+const userKey="session-denial/"+randomUUID()+"/opaque.bin";
+const unauthorized=await s3("PUT",publicBucket,userKey,audio,"text/plain",session.access_token);
+assert.ok(unauthorized.status>=400,
+ "SECURITY FAIL: signed user JWT wrote forbidden public bucket (RLS bypass)");
+const missing=await api("GET","/storage/v1/object/public/"+publicBucket+"/"+userKey,
+ undefined,"application/json",false,anon);
+assert.ok(missing.status!==200,"SECURITY FAIL: denied S3 user upload still leaked bytes");
+console.log("PASS: F2-P LOCAL user JWT session S3 obeys RLS; no PUBLIC object created");
+const privileged=await s3("PUT",publicBucket,userKey,audio,"text/plain");
+assert.ok(ok(privileged),"positive privileged S3 control must work");
+const exposed=await api("GET","/storage/v1/object/public/"+publicBucket+"/"+userKey,
+ undefined,"application/json",false,anon);
+assert.ok(ok(exposed)&&exposed.bytes.equals(audio),
+ "test control must prove privileged S3 can expose synthetic bytes");
+console.log("RISK: F2-P LOCAL service-role S3 JWT bypasses RLS and exposes synthetic WAV");
+console.log("SYNTHETIC ONLY: Dashboard S3 access keys, deployed key holders, CDN, Production untested");
