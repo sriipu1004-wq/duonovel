@@ -184,6 +184,12 @@ docker cp "$B2/human-broker-private-rls-fence-local.sql" \
 docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
  -f /tmp/issue137_human_broker_private_rls_local.sql >/dev/null
 echo 'PASS: F2-P broker-only PRIVATE RLS fixture installed in disposable Docker PostgreSQL'
+# Ephemeral PostgreSQL durable receipt table: deliberately NOT a migration.
+docker cp "$B2/human-broker-recovery-ledger-local.sql" \
+ "$db_container:/tmp/issue137_human_broker_recovery_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+ -f /tmp/issue137_human_broker_recovery_local.sql >/dev/null
+echo 'PASS: F2-P disposable PostgreSQL durable recovery ledger installed'
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node --import tsx "$B2/human-broker-private-rls-fence-e2e.mjs")
 # F2-P 168-cohort methodology: ONLY pg_temp synthetic tables in disposable DB.
