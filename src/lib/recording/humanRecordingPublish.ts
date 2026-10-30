@@ -534,7 +534,10 @@ export async function publishHumanRecording({
   // Multipart temporary uploads occur through a separate route; they are not
   // publication and retain their existing cleanup obligations.
   checkNonproductionMediaWriterBoundary({
-    kind: "human-recording", isPublicCandidate: isPublic, env: process.env,
+    kind: "human-recording", isPublicCandidate: isPublic, env: {
+      LIBREAD_F2P_MEDIA_WRITER_MODE: process.env.LIBREAD_F2P_MEDIA_WRITER_MODE,
+      VERCEL_ENV: process.env.VERCEL_ENV,
+    },
   });
 
   const fileBytes = new Uint8Array(await sourceFile.arrayBuffer());
