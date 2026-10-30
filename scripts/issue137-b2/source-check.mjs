@@ -110,6 +110,29 @@ must(privateCore, "F2-P nonce replay", "releaseNonceAvailable");
 must(privateAdapterTests, "F2-P fake Storage plus fake DB tests", "synthetic candidate adapter assertions");
 must(privateAdapterTests, "F2-P S3 bypass explicitly held", "privileged S3 direct PUBLIC writes bypass");
 must(runLocal, "F2-P new isolated adapter test wiring", 'node --import tsx "$B2/public-media-private-adapter.test.ts"');
+const realPrivateSql=read("scripts/issue137-b2/private-real-local-adapter.sql");
+const realPrivateE2E=read("scripts/issue137-b2/private-real-local-adapter-e2e.mjs");
+must(runLocal,"F2-P actual local DB/Storage adapter wired",'node "$B2/private-real-local-adapter-e2e.mjs"');
+must(runLocal,"F2-P local-only test SQL loaded",'docker cp "$B2/private-real-local-adapter.sql"');
+must(realPrivateSql,"F2-P row lock in actual Postgres","where id=p_id for update");
+must(realPrivateSql,"F2-P destination storage bucket live private check","b.public is distinct from false");
+must(realPrivateSql,"F2-P object identity lock","name=c.stage_path and id=c.stage_object_id for share");
+must(realPrivateSql,"F2-P nonce UNIQUE primary key","primary key(candidate_id,nonce)");
+must(realPrivateSql,"F2-P revision compare","c.pointer_revision is distinct from p_expected_revision");
+must(realPrivateSql,"F2-P SQL transaction rollback injection","F2P_LOCAL_INJECTED_ROLLBACK");
+must(realPrivateSql,"F2-P stage overwrite guard","F2P_LOCAL_STAGE_IMMUTABLE");
+must(realPrivateSql,"F2-P SQL SECURITY INVOKER","security invoker");
+must(realPrivateSql,"F2-P service-role-only RPC", "to service_role;");
+must(realPrivateE2E,"F2-P real localhost-only guard", 'B2_EPHEMERAL_CONFIRM,"local-only"');
+must(realPrivateE2E,"F2-P real local GoTrue user", "/auth/v1/user");
+must(realPrivateE2E,"F2-P real private byte GET", "/storage/v1/object/authenticated/");
+must(realPrivateE2E,"F2-P real HTTP concurrent CAS", "Promise.all([rpc(ai,uuid()),rpc(ai,uuid())])");
+must(realPrivateE2E,"F2-P direct Storage upsert denial", '"x-upsert":"true"');
+must(realPrivateE2E,"F2-P no public writes", "no PUBLIC Storage writes");
+assert.ok(!realPrivateSql.includes("security definer"),"test-only RPC may not run as definer");
+assert.ok(!/drop\s+table|delete\s+from\s+storage\.objects|update\s+storage\.buckets\s+set\s+public/iu.test(realPrivateSql),
+  "test-only local SQL must not delete or publish stored bytes");
+
 for (const route of [
  "src/lib/recording/nemoGeneration.ts",
  "src/lib/recording/aivisGeneration.ts",
