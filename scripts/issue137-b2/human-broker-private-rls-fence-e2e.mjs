@@ -1,6 +1,7 @@
 // Issue #137: exclusively disposable localhost GoTrue/PostgreSQL/Storage.
 import assert from "node:assert/strict";
-import {execFileSync,spawnSync} from "node:child_process";
+import {execFileSync,spawnSync,fork} from "node:child_process";
+import {fileURLToPath} from "node:url";
 import {randomUUID,createHash} from "node:crypto";
 import {createClient} from "@supabase/supabase-js";
 import {createDisposableHumanOneShotBroker} from "./human-one-shot-broker-local.mjs";
@@ -406,6 +407,98 @@ yes(getReceipt(compete.id)?.state==="SEALED_PRIVATE_SNAPSHOT"&&
  "local receipt version increments exactly once on successful CAS");
 const removeCompete=await admin.storage.from(bucket).remove([compete.path]);
 assert.equal(removeCompete.error,null,"cleanup competing receipt object");n++;
+// Dedicated process boundary: real disposable GoTrue broker JWT stays in the
+// worker after trusted harness bootstrap. Stage IPC has no JWT/destination.
+// Important: this test harness PROVISIONS the JWT and therefore can see it;
+// this is not proof of production secret custody or a hardened sandbox.
+const pathToWorker=fileURLToPath(new URL(
+ "./human-broker-process-writer-local.mjs",import.meta.url));
+function makeWorker(){
+ const env={DO_NOT_CONTACT_PRODUCTION:"true",
+  B2_EPHEMERAL_CONFIRM:"local-only",B2_LOCAL_URL:endpoint,
+  PATH:process.env.PATH??"",HOME:process.env.HOME??""};
+ assert.ok(!Object.values(env).includes(brokerUser.jwt),
+  "broker JWT must not be in worker environment");
+ const child=fork(pathToWorker,[],{
+  env,execArgv:[],stdio:["ignore","pipe","pipe","ipc"]
+ });
+ let output="";
+ child.stdout.on("data",chunk=>{output+=chunk.toString().slice(0,500);});
+ child.stderr.on("data",chunk=>{output+=chunk.toString().slice(0,500);});
+ return {child,output:()=>output};
+}
+async function callWorker(child,kind,args={}){
+ const seq=id();
+ return new Promise((resolve,reject)=>{
+  const done=m=>{if(m?.seq!==seq)return;clean();resolve(m.status);};
+  const crash=()=>{clean();reject(Error("ISOLATED_WORKER_TERMINATED"));};
+  const timeout=setTimeout(()=>{clean();reject(Error("ISOLATED_WORKER_TIMEOUT"));},18000);
+  function clean(){
+   clearTimeout(timeout);child.off("message",done);child.off("exit",crash);
+  }
+  child.on("message",done);child.once("exit",crash);
+  child.send({kind,seq,...args},err=>{if(err){clean();reject(Error("ISOLATED_WORKER_IPC_FAIL"));}});
+ });
+}
+const isolated=await createClaimed();
+const isolate=makeWorker();
+try{
+ const initialized=await callWorker(isolate.child,"bootstrap",{
+  config:{anonKey:anon,brokerJwt:brokerUser.jwt,
+   actorId:actor.id,objectId:sql("select object_id from "+permits+
+    " where permit_id="+qid(isolated.id)),expectedSha256:hash(bytes)}
+ });
+ yes(initialized==="READY_PRIVATE_ONLY","worker bootstrapped local restricted broker");
+ const invalidPath=await callWorker(isolate.child,"stage",{
+  bytesBase64:bytes.toString("base64"),path:"public/fake.wav"});
+ yes(invalidPath==="INVALID_REQUEST_HOLD",
+  "untrusted stage IPC cannot override immutable PRIVATE path");
+ const different=Buffer.from(bytes);different.writeInt16LE(77,44);
+ const mismatch=await callWorker(isolate.child,"stage",{
+  bytesBase64:different.toString("base64")});
+ yes(mismatch==="BYTE_MISMATCH_HOLD",
+  "actual worker rejects changed bytes before provider Storage PUT");
+ const before=await get(isolated.path,actor.jwt);
+ deny(before,"rejected bytes must leave PRIVATE target empty");
+ const allowed=await callWorker(isolate.child,"stage",{
+  bytesBase64:bytes.toString("base64")});
+ yes(allowed==="PRIVATE_PUT_ACCEPTED_UNVERIFIED",
+  "restricted child JWT performed real LOCAL PRIVATE first-write");
+ const finalBytes=await get(isolated.path,actor.jwt);
+ yes(finalBytes.status===200&&hash(finalBytes.body)===hash(bytes),
+  "independent owner JWT GET verifies exact worker-written physical bytes");
+ const repeated=await callWorker(isolate.child,"stage",{
+  bytesBase64:bytes.toString("base64")});
+ yes(repeated==="ONE_ATTEMPT_HOLD","worker must refuse replay in same process");
+ const stopped=await callWorker(isolate.child,"stop");
+ yes(stopped==="STOPPED","worker stops without returning token or signed URL");
+ yes(!isolate.output().includes(brokerUser.jwt)&&
+   !isolate.output().includes(adminKey),
+  "no broker/service JWT on worker stdout or stderr");
+}finally{
+ if(isolate.child.exitCode===null&&!isolate.child.killed)
+  isolate.child.kill("SIGTERM");
+}
+const wiped=await admin.storage.from(bucket).remove([isolated.path]);
+assert.equal(wiped.error,null,"cleanup worker fixture PRIVATE bytes");n++;
+const rejectedWorker=makeWorker();
+try{
+ const denied=await callWorker(rejectedWorker.child,"bootstrap",{
+  config:{anonKey:anon,brokerJwt:rogue.jwt,actorId:actor.id,
+   objectId:id(),expectedSha256:hash(bytes)}
+ });
+ yes(denied==="IDENTITY_HOLD",
+  "ordinary user identity cannot bootstrap dedicated writer process");
+ const uninit=await callWorker(rejectedWorker.child,"stage",{
+  bytesBase64:bytes.toString("base64")});
+ yes(uninit==="NOT_INITIALIZED_HOLD",
+  "untrusted principal must not stage any PRIVATE bytes");
+ await callWorker(rejectedWorker.child,"stop");
+}finally{
+ if(rejectedWorker.child.exitCode===null&&!rejectedWorker.child.killed)
+  rejectedWorker.child.kill("SIGTERM");
+}
+console.log("PASS: F2-P local restricted JWT single-use PROCESS worker: guarded bootstrap, byte digest, path lock, zero secret IPC replies and real PRIVATE Storage write");
 const sessionKill=await createClaimed();
 const loggedOut=await actor.client.auth.signOut({scope:"global"});
 assert.equal(loggedOut.error,null,"real local GoTrue global logout");n++;
