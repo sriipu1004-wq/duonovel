@@ -110,7 +110,7 @@ for(const label of ["F2P_PREVIEW_PUBLIC_MEDIA_HOLD","F2P_PREVIEW_GUARD_WRONG_ENV
 }
 for(const [label,file] of [["Nemo",generator],["Aivis",aivisWriter],["Human",humanPublisher]]){
  must(file,"F2-P "+label+" shared bridge", "checkNonproductionMediaWriterBoundary({");
- must(file,"F2-P "+label+" uses server env", "env: process.env");
+ must(file,"F2-P "+label+" uses only explicit server env fields", "VERCEL_ENV: process.env.VERCEL_ENV");
 }
 must(bridgeWorkflow,"F2-P preview bridge dynamic CI",
  "node --import tsx scripts/issue137-b2/public-media-writer-bridge.test.ts");
