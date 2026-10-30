@@ -36,7 +36,7 @@ async function call(method,path,body,token=admin,type="application/json"){
  const headers={apikey:token,Authorization:"Bearer "+token};
  if(body!==undefined)headers["Content-Type"]=type;
  const response=await fetch(ep.origin+path,{method,headers,
-  body:body===undefined?undefined:type==="application/json"?JSON.stringify(body):body,
+  body:body===undefined?undefined:(type==="application/json"&&!Buffer.isBuffer(body))?JSON.stringify(body):body,
   cache:"no-store",redirect:"error",signal:AbortSignal.timeout(15000)});
  return {status:response.status,bytes:Buffer.from(await response.arrayBuffer())};
 }
