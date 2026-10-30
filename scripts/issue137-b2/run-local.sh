@@ -149,6 +149,14 @@ echo 'PASS: F2-P real PRIVATE adapter schema only in disposable LOCAL PostgreSQL
 # and concurrent requests; all credentials are throwaway localhost values.
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
   node --import tsx "$B2/private-real-local-adapter-e2e.mjs")
+# RLS-only LOCAL private writer: strictly separate user JWT path from
+# service-role DB fixture, and install policies ONLY in isolated Docker Postgres.
+docker cp "$B2/rls-user-private-writer-local.sql" "$db_container:/tmp/issue137_f2p_rls_user_writer_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -f /tmp/issue137_f2p_rls_user_writer_local.sql >/dev/null
+echo 'PASS: F2-P RLS user-only PRIVATE upload policies installed in disposable Docker PostgreSQL'
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+  node --import tsx "$B2/rls-user-private-writer-e2e.mjs")
 # F2-P 168-cohort methodology: ONLY pg_temp synthetic tables in disposable DB.
 # The SQL runs in one transaction that always ends in ROLLBACK.
 docker cp "$B2/public-media-aggregate-local.sql" "$db_container:/tmp/issue137_f2p_aggregate_local.sql"
