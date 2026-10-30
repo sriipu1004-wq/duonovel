@@ -73,7 +73,7 @@ assert.match(actor,/^[0-9a-f-]{36}$/);
 assert.match(session,/^[0-9a-f-]{36}$/);checks++;
 function state(candidate){
  const raw=sql("select pointer_revision::text ||'|'||coalesce(private_audio_path,'')||'|'"+
-  "(select count(*) from libread_internal.issue137_f2p_consumed_nonces n where n.candidate_id=c.id)::text "+
+  "||(select count(*) from libread_internal.issue137_f2p_consumed_nonces n where n.candidate_id=c.id)::text "+
   "from libread_internal.issue137_f2p_private_candidates c where id="+quote(candidate.id)+"::uuid");
  const [revision,path,nonces]=raw.split("|");
  return {revision:Number(revision),path,nonces:Number(nonces)};
