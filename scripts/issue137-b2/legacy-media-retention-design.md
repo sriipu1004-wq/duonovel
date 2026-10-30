@@ -117,4 +117,3 @@ While the live read remains on HOLD, the approved **nonproduction** phase create
 This does NOT clear the live attribute-count gate, actual user rights/consent, external BGM/JSON/archived URL references, byte-only mutation paths, CDN, independent audit, any Production migration or merge. No real user paths or bytes are used.
 
 **Debug evidence (synthetic CI only):** initial aggregate regression failed. A locally instrumented PostgreSQL run found 11 modeled candidates and six parseable/existing series but **zero episode matches**. The test's episode UUID regular expression incorrectly used 8-4-4-12 instead of **8-4-4-4-12**, creating a false absence of episodes. This is a *test-only parser defect*, not a Production finding. Corrected the regex, added a SOURCE check for the exact grouping, and retained an aggregate-only diagnostic to guard future regressions. Earlier failed CI runs and their exact HEAD must remain recorded separately; do not call them PASS.
-
