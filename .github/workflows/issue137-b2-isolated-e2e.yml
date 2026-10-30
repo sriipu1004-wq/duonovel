@@ -38,6 +38,7 @@ jobs:
           node --check scripts/issue137-b2/atomic-race-e2e.mjs
           node --check scripts/issue137-b2/h1-atomic-e2e.mjs
           node --check scripts/issue137-b2/s3-byte-path-e2e.mjs
+          node --check scripts/issue137-b2/rls-user-private-writer-e2e.mjs
           node scripts/issue137-b2/s3-public-writer-inventory.mjs
           node --check scripts/issue137-b2/private-real-local-adapter-e2e.mjs
           bash -n scripts/issue137-b2/run-local.sh
