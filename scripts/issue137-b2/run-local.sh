@@ -166,6 +166,16 @@ echo 'PASS: F2-P RLS user-only PRIVATE upload policies installed in disposable D
 (cd "$ROOT" && SUPABASE_HUMAN_RECORDING_BUCKET=f2p-human-signed-temp \
  B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node --import tsx "$B2/human-signed-multipart-local-e2e.mjs")
+# F2-P Human one-shot broker candidate (NO signed upload URL): local-only
+# PostgreSQL consent/session/nonce tables, then real GoTrue PRIVATE RLS writes.
+# No hosted migrations or runtime authoring endpoint changes.
+docker cp "$B2/human-one-shot-broker-local.sql" \
+  "$db_container:/tmp/issue137_human_oneuse_broker_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -f /tmp/issue137_human_oneuse_broker_local.sql >/dev/null
+echo 'PASS: F2-P Human one-shot broker tables installed in disposable LOCAL PostgreSQL'
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+  node --import tsx "$B2/human-one-shot-broker-e2e.mjs")
 # F2-P 168-cohort methodology: ONLY pg_temp synthetic tables in disposable DB.
 # The SQL runs in one transaction that always ends in ROLLBACK.
 docker cp "$B2/public-media-aggregate-local.sql" "$db_container:/tmp/issue137_f2p_aggregate_local.sql"
