@@ -1,6 +1,6 @@
 // Issue #137: exclusively disposable localhost GoTrue/PostgreSQL/Storage.
 import assert from "node:assert/strict";
-import {execFileSync} from "node:child_process";
+import {execFileSync,spawnSync} from "node:child_process";
 import {randomUUID,createHash} from "node:crypto";
 import {createClient} from "@supabase/supabase-js";
 import {createDisposableHumanOneShotBroker} from "./human-one-shot-broker-local.mjs";
@@ -223,30 +223,59 @@ yes(tamperedRead.status===200&&hash(tamperedRead.body)===hash(tampered)&&
  "provider-side RLS alone cannot authenticate actual audio SHA");
 // Nonproduction mixed evidence: real LOCAL provider bytes + mock-only recovery
 // ledger. The provider RLS (above) allowed tampered content; recovery must HOLD.
+const receipts="libread_internal.issue137_human_broker_receipts";
+// DB-owned one-use ledger: PostgreSQL durability + version CAS, not mock memory.
+function getReceipt(key){
+ const text=sql("select json_build_object("+
+  "'id',r.permit_id,'actorId',p.actor_id,'sessionId',p.session_id,"+
+  "'objectId',p.object_id,'bucket','f2p-broker-private-stage',"+
+  "'path','owner/'||p.actor_id::text||'/'||p.object_id::text||'.wav',"+
+  "'expectedSha256',p.expected_sha256,'state',r.state,"+
+  "'attempted',r.attempted,'version',r.version)::text from "+
+  receipts+" r join "+permits+" p on p.permit_id=r.permit_id"+
+  " where r.permit_id="+qid(key));
+ return text?JSON.parse(text):null;
+}
 function snapshotFor(permitId,objectPath,attempted){
- const objectId=sql("select object_id from "+permits+
-  " where permit_id="+qid(permitId));
- const expectedSha256=sql("select expected_sha256 from "+permits+
-  " where permit_id="+qid(permitId));
- assert.ok(uuid.test(objectId));
- assert.match(expectedSha256,/^[0-9a-f]{64}$/u);
- return {id:permitId,actorId:actor.id,sessionId:actor.sessionId,
-  objectId,bucket,path:objectPath,expectedSha256,
-  state:"CLAIMED",attempted,version:attempted?1:0};
+ const result=sql("insert into "+receipts+"(permit_id,attempted,version)"+
+  " select p.permit_id,"+(attempted?"true,1":"false,0")+
+  " from "+permits+" p where p.permit_id="+qid(permitId)+
+  " and p.claimed_at is not null and p.actor_id="+qid(actor.id)+
+  " and p.session_id="+qid(actor.sessionId)+
+  " returning permit_id;");
+ assert.equal(result,permitId,"a claimed permit is required for durable recovery ledger");
+ const row=getReceipt(permitId);
+ assert.equal(row?.path,objectPath,"recovery path must match claimed private object");
+ return row;
 }
 function recoveryFor(receipt,{lostAcknowledgement=false}={}){
- // Only this DB receipt mock has CAS; the actual SQL permit was claimed
- // independently by the preceding disposable PostgreSQL E2E.
+ // All receipt reads, markAttempt and seal execute against real LOCAL PG.
+ // The GoTrue/Storage credentials remain in this trusted disposable test
+ // closure, never returned to the browser or to the recovery module config.
  const ledger={
-  get:async key=>key===receipt.id?{...receipt}:null,
+  get:async key=>getReceipt(key),
   markAttempt:async(key,revision)=>{
-   if(key!==receipt.id||revision!==receipt.version||receipt.attempted)return false;
-   receipt.attempted=true;receipt.version++;return true;
+   assert.ok(Number.isSafeInteger(revision)&&revision>=0);
+   return sql("update "+receipts+" r set attempted=true,version=version+1"+
+    " from "+permits+" p where r.permit_id="+qid(key)+
+    " and p.permit_id=r.permit_id and p.claimed_at is not null"+
+    " and p.expires_at>clock_timestamp() and r.state='CLAIMED'"+
+    " and not r.attempted and r.version="+revision+
+    " returning r.permit_id;")===key;
   },
   seal:async(key,revision,digest)=>{
-   if(key!==receipt.id||revision!==receipt.version||
-      receipt.state!=="CLAIMED"||digest!==receipt.expectedSha256)return false;
-   receipt.version++;receipt.state="SEALED_PRIVATE_SNAPSHOT";return true;
+   assert.ok(Number.isSafeInteger(revision)&&revision>=0);
+   return sql("update "+receipts+" r set"+
+    " state='SEALED_PRIVATE_SNAPSHOT',version=version+1,"+
+    " verified_sha256="+qhash(digest)+",verified_at=clock_timestamp()"+
+    " from "+permits+" p join "+grant+" g on g.actor_id=p.actor_id"+
+    " where r.permit_id="+qid(key)+
+    " and p.permit_id=r.permit_id and p.claimed_at is not null"+
+    " and r.attempted and r.state='CLAIMED'"+
+    " and r.version="+revision+" and p.expected_sha256="+qhash(digest)+
+    " and g.recording_consent and g.owner_allowed and g.rights_allowed"+
+    " and exists(select 1 from auth.sessions s where s.id=p.session_id"+
+    " and s.user_id=p.actor_id) returning r.permit_id;")===key;
   }
  };
  const reader={
@@ -283,7 +312,7 @@ yes(corruptCheck.status==="BYTE_MISMATCH_HOLD"&&
 const goodReceipt=snapshotFor(permitId,permitPath,true);
 const goodCheck=await recoveryFor(goodReceipt).reconcile(permitId);
 yes(goodCheck.status==="PRIVATE_SNAPSHOT_VERIFIED_ONLY"&&
- goodReceipt.state==="SEALED_PRIVATE_SNAPSHOT",
+ getReceipt(permitId)?.state==="SEALED_PRIVATE_SNAPSHOT",
  "REAL LOCAL provider exact PRIVATE WAV permits snapshot receipt only");
 // Simulate losing a successful PUT response; no second write is allowed.
 // Reconcile using actual localhost Storage GET and synthetic CAS ledger.
@@ -292,7 +321,7 @@ const interrupted=await createClaimed();
 const interruptedReceipt=snapshotFor(interrupted.id,interrupted.path,false);
 const recovery=recoveryFor(interruptedReceipt,{lostAcknowledgement:true});
 const held=await recovery.stage(interrupted.id,bytes);
-yes(held.status==="AMBIGUOUS_PUT_HOLD"&&interruptedReceipt.attempted,
+yes(held.status==="AMBIGUOUS_PUT_HOLD"&&getReceipt(interrupted.id)?.attempted,
  "ambiguous LOCAL PUT must remain consumed and require fresh reconciliation");
 const dontRetry=await recovery.stage(interrupted.id,bytes);
 yes(dontRetry.status==="ALREADY_ATTEMPTED_HOLD",
@@ -304,7 +333,7 @@ const noReplay=await put(interrupted.path,brokerUser.jwt,bytes);
 deny(noReplay,"RLS must deny replay after reconciled simulated ACK loss");
 const clearInterrupted=await admin.storage.from(bucket).remove([interrupted.path]);
 assert.equal(clearInterrupted.error,null,"cleanup synthetic recovered PRIVATE object");n++;
-console.log("PASS: F2-P real LOCAL provider-byte readbacks and simulated ACK-loss recovery; ledger CAS mock only");
+console.log("PASS: F2-P REAL LOCAL PostgreSQL durable receipt CAS + PRIVATE provider-byte readback and ACK-loss reconciliation");
 const purge=await admin.storage.from(bucket).remove([tamper.path]);
 assert.equal(purge.error,null,"remove disposable substituted test object");n++;
 console.log("RISK: LOCAL leaked restricted broker JWT can insert altered bytes into a claimed path; RLS does not validate physical SHA");
