@@ -128,7 +128,7 @@ must(realPrivateE2E,"F2-P real local GoTrue user", "/auth/v1/user");
 must(realPrivateE2E,"F2-P real private byte GET", "/storage/v1/object/authenticated/");
 must(realPrivateE2E,"F2-P real HTTP concurrent CAS", "Promise.all([rpc(ai,uuid()),rpc(ai,uuid())])");
 must(realPrivateE2E,"F2-P direct Storage upsert denial", '"x-upsert":"true"');
-must(realPrivateE2E,"F2-P no public writes", "no PUBLIC Storage writes");
+must(realPrivateE2E,"F2-P no public writes", "No PUBLIC Storage writes");
 assert.ok(!realPrivateSql.includes("security definer"),"test-only RPC may not run as definer");
 assert.ok(!/drop\s+table|delete\s+from\s+storage\.objects|update\s+storage\.buckets\s+set\s+public/iu.test(realPrivateSql),
   "test-only local SQL must not delete or publish stored bytes");
