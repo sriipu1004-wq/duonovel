@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
+import {checkNonproductionMediaWriterBoundary} from "../../src/lib/recording/publicMediaWriterBoundary";
 
 const root = new URL("../../", import.meta.url);
 const humanPath = "src/lib/recording/humanRecordingPublish.ts";
@@ -118,6 +119,7 @@ let unique=0;
 let active:FakeDB|null=null;
 const code=vm.runInNewContext(compiled,{
   URL,Error,Uint8Array,TextEncoder,
+  process:{env:{}}, checkNonproductionMediaWriterBoundary,
   Date:{now:()=>1700000000000},
   crypto:{randomUUID:()=>String(++unique).padStart(32,"0")},
   createAdminClient:()=>{assert.ok(active);return active;},
