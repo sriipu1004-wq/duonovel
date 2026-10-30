@@ -41,8 +41,8 @@ function fixture(overrides={}) {
   },
   readPrivate:async(bucket,path)=>{
    state.reads++;
-   if(state.readError)throw Error("READ_FAILURE");
    if(state.onRead)await state.onRead(state);
+   if(state.readError)throw Error("READ_FAILURE");
    const payload=state.objects.get(bucket+"/"+path);
    return payload?{bytes:Buffer.from(payload),objectId:row.objectId}:null;
   }
@@ -57,7 +57,7 @@ function fixture(overrides={}) {
 {
  const f=fixture();
  result(await f.candidate.stage(f.id,bytes),"PRIVATE_SNAPSHOT_VERIFIED_ONLY");
- assert.equal(f.puts,0); // plain numeric copy is not live; use ledger/object evidence
+ assert.equal(f.objects.size,1);checks++; // exactly one PRIVATE modeled object
  assert.equal(f.row.state,"SEALED_PRIVATE_SNAPSHOT");checks++;
  result(await f.candidate.reconcile(f.id),"NOT_RECONCILABLE_HOLD");
  result(await f.candidate.stage(f.id,bytes),"ALREADY_ATTEMPTED_HOLD");
@@ -76,8 +76,6 @@ function fixture(overrides={}) {
 }
 {
  const f=fixture();
- f.isolated=false; // mutation to fixture return isn't connected to internal state
- f.candidate; // replace with independent configuration using shared row callbacks below
  const blocked=createDisposablePrivateByteRecovery({
   apiUrl:process.env.B2_LOCAL_URL,ledger:f.ledger,storage:f.storage,
   freshAuthority:async()=>true,writerIsolated:async()=>false});
