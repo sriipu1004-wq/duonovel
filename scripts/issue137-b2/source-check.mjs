@@ -137,7 +137,7 @@ const localPrivateApp=read("src/lib/recording/privateMediaLocalPipeline.ts");
 must(runLocal,"F2-P real app-private pipeline tsx runner",
  'node --import tsx "$B2/private-real-local-adapter-e2e.mjs"');
 must(runLocal,"F2-P ensure loader module resolution from ROOT",
- '(cd "$ROOT" && node --import tsx');
+ '(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container"');
 must(realPrivateE2E,"F2-P actual app pipeline import",
  'createDisposablePrivateMediaPipeline');
 must(realPrivateE2E,"F2-P app private byte delivery E2E",
