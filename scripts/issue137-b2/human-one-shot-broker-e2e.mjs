@@ -160,6 +160,25 @@ const used=sql("select count(*) from "+permits+" where "+
  "permit_id="+quoteId(concurrent.capability.split(".")[0])+
  " and claimed_at is not null;");
 yes(used==="1","atomic nonce consumption lost race");
+// NEGATIVE CONTROL: the earlier user-scoped fixture still permits raw JWT
+// INSERT by owner without this broker. This PROVES a live route would need
+// provider-side bucket/RLS fencing; the broker alone is not global containment.
+const directPath="owner/"+owner.id+"/"+id()+".wav";
+const direct=await fetch(url.origin+"/storage/v1/object/f2p-rls-user-stage/"+
+ directPath,{method:"POST",
+ headers:{apikey:anon,Authorization:"Bearer "+owner.jwt,
+ "Content-Type":"audio/wav"},body:bytes,signal:AbortSignal.timeout(12000)});
+yes(direct.status===200||direct.status===201,
+ "baseline test invalid: current owner RLS directly permits bypassing broker");
+const outside=await adminDeleteDirect();
+async function adminDeleteDirect(){
+ const privilege=createClient(url.origin,service,{
+  auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+ return privilege.storage.from("f2p-rls-user-stage").remove([directPath]);
+}
+assert.equal(outside.error,null,"synthetic direct-bypass test cleanup");checks++;
+console.log("RISK: LOCAL direct owner JWT Storage INSERT bypasses one-shot broker under old RLS fixture");
+
 const duringConsent=await mint();
 setGrant("recording_consent",false);
 await deny(stage(duringConsent),/HUMAN_BROKER_CLAIM_DENIED/,
