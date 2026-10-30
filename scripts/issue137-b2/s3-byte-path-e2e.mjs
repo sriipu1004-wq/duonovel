@@ -59,6 +59,12 @@ const got=await s3("GET",privateBucket,probeKey);
 assert.ok(ok(got)&&got.bytes.equals(Buffer.from("S3-SYNTHETIC-PROBE")),
  "BLOCKED: local signed S3 GetObject unavailable HTTP "+got.status);
 console.log("PASS: F2-P actual LOCAL signed S3 PUT/GET roundtrip");
+const baselineWrite=await s3("PUT",privateBucket,probeKey,"S3-SYNTHETIC-OVERWRITE","text/plain");
+assert.ok(ok(baselineWrite),"TEST INVALID: S3 same-key overwrite unavailable without guard HTTP "+baselineWrite.status);
+const baselineGet=await s3("GET",privateBucket,probeKey);
+assert.ok(ok(baselineGet)&&baselineGet.bytes.equals(Buffer.from("S3-SYNTHETIC-OVERWRITE")),
+ "TEST INVALID: S3 same-key overwrite did not replace exact bytes without guard");
+console.log("PASS: F2-P LOCAL S3 same-key overwrite works WITHOUT metadata guard");
 const prior=Buffer.from("SYNTHETIC-PRIVATE-ORIGINAL");
 const seeded=await api("POST","/storage/v1/object/"+privateBucket+"/"+privateKey,prior,"audio/wav");
 assert.ok(ok(seeded),"seed private source "+seeded.status);
@@ -86,7 +92,7 @@ if(changed){
  console.log("RISK: F2-P LOCAL S3 replaced PRIVATE bytes despite metadata guard");
 }else{
  assert.ok(attempt.status>=400,"S3 claimed successful overwrite without byte change");
- console.log("PASS: F2-P LOCAL S3 refused guarded private overwrite with bytes unchanged");
+ console.log("PASS: F2-P LOCAL S3 refused guarded private overwrite with bytes unchanged HTTP="+attempt.status);
 }
 const plain=Buffer.from("SYNTHETIC-PUBLIC-TEXT");
 assert.ok(ok(await api("POST","/storage/v1/object/"+publicBucket+"/"+publicKey,plain,"text/plain")));

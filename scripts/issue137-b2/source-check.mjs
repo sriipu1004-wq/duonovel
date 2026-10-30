@@ -71,6 +71,7 @@ must(s3Probe, "F2-P local-only S3 guard", 'B2_EPHEMERAL_CONFIRM');
 must(s3Probe, "F2-P signed local S3", "AWS4-HMAC-SHA256 Credential=stub/");
 must(s3Probe, "F2-P metadata UPDATE trigger comparison", "before update of bucket_id,name,metadata");
 must(s3Probe, "F2-P byte-level overwrite evidence", "after.bytes.equals(audio)");
+must(s3Probe, "F2-P S3 same-key overwrite baseline", "S3 same-key overwrite works WITHOUT metadata guard");
 must(s3Probe, "F2-P public MIME disguise", "disguised");
 must(s3Probe, "F2-P exact local S3 credential key", "B2_ANON_KEY");
 const aggregateLocal = read("scripts/issue137-b2/public-media-aggregate-local.sql");
