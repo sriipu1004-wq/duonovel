@@ -304,7 +304,7 @@ const noReplay=await put(interrupted.path,brokerUser.jwt,bytes);
 deny(noReplay,"RLS must deny replay after reconciled simulated ACK loss");
 const clearInterrupted=await admin.storage.from(bucket).remove([interrupted.path]);
 assert.equal(clearInterrupted.error,null,"cleanup synthetic recovered PRIVATE object");n++;
-console.log("PASS: F2-P 5 REAL LOCAL provider-byte readbacks and simulated ACK-loss recovery with mock-only receipt CAS");
+console.log("PASS: F2-P real LOCAL provider-byte readbacks and simulated ACK-loss recovery; ledger CAS mock only");
 const purge=await admin.storage.from(bucket).remove([tamper.path]);
 assert.equal(purge.error,null,"remove disposable substituted test object");n++;
 console.log("RISK: LOCAL leaked restricted broker JWT can insert altered bytes into a claimed path; RLS does not validate physical SHA");
