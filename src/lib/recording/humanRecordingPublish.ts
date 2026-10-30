@@ -1,3 +1,4 @@
+import { checkNonproductionMediaWriterBoundary } from "@/lib/recording/publicMediaWriterBoundary";
 import {
   getEpisodeBody,
   type EpisodeRow,
@@ -528,6 +529,13 @@ export async function publishHumanRecording({
     // Reject before allocating any new media keys.
     throw new Error("human_recording_republish_requires_explicit_consent");
   }
+
+  // F2-P Preview-only admission HOLD before any FINAL Human media writes.
+  // Multipart temporary uploads occur through a separate route; they are not
+  // publication and retain their existing cleanup obligations.
+  checkNonproductionMediaWriterBoundary({
+    kind: "human-recording", isPublicCandidate: isPublic, env: process.env,
+  });
 
   const fileBytes = new Uint8Array(await sourceFile.arrayBuffer());
 
