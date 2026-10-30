@@ -3,6 +3,10 @@
 -- Applied manually only to disposable Docker PostgreSQL in run-local.sh.
 -- This is NOT a production migration and creates NO PUBLIC object/bucket.
 -- Do not broaden any other storage policy or grant UPDATE/DELETE rights.
+-- The fixture owns this freshly named local bucket and no Production one.
+insert into storage.buckets (id,name,public)
+values ('f2p-rls-user-stage','f2p-rls-user-stage',false)
+on conflict (id) do nothing;
 create policy issue137_f2p_rls_private_writer_insert
 on storage.objects as permissive for insert to authenticated
 with check (
