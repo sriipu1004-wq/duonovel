@@ -76,11 +76,14 @@ export function createDisposablePrivateByteRecovery(config) {
   return {status:"PRIVATE_SNAPSHOT_VERIFIED_ONLY"};
  }
  async function stage(id,bytes) {
+  // Copy before the first await: a mutable caller-owned Uint8Array must not
+  // be modified after digest validation but before the actual Storage write.
+  const bounded=bytes instanceof Uint8Array&&bytes.length>0&&bytes.length<=1024*1024;
+  const immutableSnapshot=bounded?Buffer.from(bytes):null;
   const r=await load(id);
   if(!r)return hold("UNKNOWN_CLAIM_HOLD");
   if(r.state!=="CLAIMED"||r.attempted!==false)return hold("ALREADY_ATTEMPTED_HOLD");
-  if(!(bytes instanceof Uint8Array)||bytes.length===0||
-     bytes.length>1024*1024||hash(bytes)!==r.expectedSha256)
+  if(!immutableSnapshot||hash(immutableSnapshot)!==r.expectedSha256)
    return hold("INPUT_BYTES_HOLD");
   const gate=await trusted(r);if(gate)return hold(gate);
   // Persist attempt BEFORE any network write. No automatic repeat even when
@@ -89,7 +92,7 @@ export function createDisposablePrivateByteRecovery(config) {
   try {marked=await config.ledger.markAttempt(id,r.version);}
   catch{return hold("ATTEMPT_LEDGER_HOLD");}
   if(marked!==true)return hold("ATTEMPT_CONFLICT_HOLD");
-  try {await config.storage.putNew(r.bucket,r.path,bytes);}
+  try {await config.storage.putNew(r.bucket,r.path,immutableSnapshot);}
   catch{return hold("AMBIGUOUS_PUT_HOLD");}
   return reconcile(id);
  }
