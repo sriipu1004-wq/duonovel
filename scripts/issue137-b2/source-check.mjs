@@ -73,6 +73,7 @@ must(aggregateLocal, "F2-P R18 warning classification", "'sexual_r18'=any");
 must(aggregateLocal, "F2-P BGM cross-reference", "audit_bgm");
 must(aggregateLocal, "F2-P false negative documented", "misc/disguised.bin");
 must(aggregateLocal, "F2-P explicit transaction rollback", "rollback;");
+must(aggregateLocal, "F2-P UUID episode regex exact 8-4-4-4-12", "and split_part(c.name,'/',3) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'");
 const fixture = read("scripts/issue137-b2/fixture.sql");
 const episodesTable = fixture.split("create table public.episodes (")[1]?.split(");")[0] ?? "";
 const recordingsTable = fixture.split("create table public.recordings (")[1]?.split(");")[0] ?? "";

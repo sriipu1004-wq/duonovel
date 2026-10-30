@@ -58,7 +58,7 @@ refs as (
  and split_part(c.name,'/',2) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
  then split_part(c.name,'/',2)::uuid end sid,
  case when split_part(c.name,'/',1) in ('nemo','aivis','human')
- and split_part(c.name,'/',3) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+ and split_part(c.name,'/',3) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
  then split_part(c.name,'/',3)::uuid end eid from candidates c
 )
 select k.*,(s.id is not null) has_series,(e.id is not null) has_episode,
