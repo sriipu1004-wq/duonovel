@@ -161,6 +161,11 @@ echo 'PASS: F2-P RLS user-only PRIVATE upload policies installed in disposable D
 # No real narrator synthesis or LIVE site endpoint is invoked; no PUBLIC PUT.
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
   node --import tsx "$B2/writer-path-private-preservation-e2e.mjs")
+# F2-P Human signed multipart: actual local GoTrue+Storage bearer-token expiry,
+# same-key overwrite and cleanup probe. App route/runtime settings unchanged.
+(cd "$ROOT" && SUPABASE_HUMAN_RECORDING_BUCKET=f2p-human-signed-temp \
+ B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node --import tsx "$B2/human-signed-multipart-local-e2e.mjs")
 # F2-P 168-cohort methodology: ONLY pg_temp synthetic tables in disposable DB.
 # The SQL runs in one transaction that always ends in ROLLBACK.
 docker cp "$B2/public-media-aggregate-local.sql" "$db_container:/tmp/issue137_f2p_aggregate_local.sql"
