@@ -2,7 +2,8 @@
 // ALL credentials ephemeral. Neither JWT, capability, passwords nor SQL secret
 // hashes are emitted. Never contact hosted Supabase or production.
 import assert from "node:assert/strict";
-import {execFileSync} from "node:child_process";
+import {execFile,execFileSync} from "node:child_process";
+import {promisify} from "node:util";
 import {randomUUID,createHash} from "node:crypto";
 import {createClient} from "@supabase/supabase-js";
 import {createDisposableHumanOneShotBroker} from "./human-one-shot-broker-local.mjs";
@@ -29,6 +30,13 @@ const quoteHash=s=>{assert.ok(hex.test(s),"invalid fixture digest");return "'"+s
 const sql=q=>execFileSync("docker",["exec",dbid,"psql","-X","-U","postgres",
  "-d","postgres","-v","ON_ERROR_STOP=1","-Atq","-c",q],{
  encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:18000}).trim();
+const sqlExecAsync=promisify(execFile);
+const sqlAsync=async q=>{
+ const {stdout}=await sqlExecAsync("docker",["exec",dbid,"psql","-X","-U","postgres",
+  "-d","postgres","-v","ON_ERROR_STOP=1","-Atq","-c",q],{
+  encoding:"utf8",timeout:18000,maxBuffer:1024*1024});
+ return stdout.trim();
+};
 const hash=b=>createHash("sha256").update(b).digest("hex");
 const id=()=>randomUUID();
 let checks=0;
@@ -85,7 +93,7 @@ const store={
  },
  claimAtomic:async p=>{
   const {permitId,tokenHash,actorId,sessionId,bytesHash}=p;
-  const got=sql("update "+permits+" c set claimed_at=clock_timestamp()"+
+  const got=await sqlAsync("update "+permits+" c set claimed_at=clock_timestamp()"+
    " from "+grantTable+" g where c.permit_id="+quoteId(permitId)+
    " and c.token_sha256="+quoteHash(tokenHash)+
    " and c.actor_id="+quoteId(actorId)+
