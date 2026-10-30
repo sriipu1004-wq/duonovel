@@ -27,7 +27,7 @@ const hex=/^[0-9a-f]{64}$/u;
 const quoteId=s=>{assert.ok(uuid.test(s),"invalid fixture UUID");return "'"+s+"'::uuid";};
 const quoteHash=s=>{assert.ok(hex.test(s),"invalid fixture digest");return "'"+s+"'";};
 const sql=q=>execFileSync("docker",["exec",dbid,"psql","-X","-U","postgres",
- "-d","postgres","-v","ON_ERROR_STOP=1","-At","-c",q],{
+ "-d","postgres","-v","ON_ERROR_STOP=1","-Atq","-c",q],{
  encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:18000}).trim();
 const hash=b=>createHash("sha256").update(b).digest("hex");
 const id=()=>randomUUID();
@@ -127,7 +127,7 @@ yes(typeof first.capability==="string"&&first.capability.length>60,
  "opaque one-time token exists");
 await deny(stage(first,stranger),/HUMAN_BROKER_CLAIM_DENIED/,"different actor claim must be rejected");
 yes(writeCount===0,"cross-actor attempt reached storage");
-await deny(stage({capability:first.capability.slice(0,-1)+"x"}),/HUMAN_BROKER_CLAIM_DENIED/,
+await deny(stage({capability:first.capability.slice(0,-1)+(first.capability.endsWith("0")?"1":"0")}),/HUMAN_BROKER_CLAIM_DENIED/,
  "tampered bearer must be rejected");
 await deny(stage(first,owner,different),/HUMAN_BROKER_CLAIM_DENIED/,
  "different same-length content must be rejected before storage");
