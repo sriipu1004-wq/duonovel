@@ -180,6 +180,15 @@ docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
 echo 'PASS: F2-P TUS local-only private bucket/RLS installed on disposable Docker DB'
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node "$B2/human-tus-revocation-local-e2e.mjs")
+# Real LIB read authority columns + server-owned stage lease, LOCAL ONLY.
+# No new hosted SQL, Storage bucket, service credential or frontend switch.
+docker cp "$B2/human-tus-app-authority-local.sql" \
+ "$db_container:/tmp/issue137_human_tus_app_authority_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+ -f /tmp/issue137_human_tus_app_authority_local.sql >/dev/null
+echo 'PASS: F2-P local real-field app-authority TUS fixture installed in disposable Docker DB'
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node "$B2/human-tus-app-authority-local-e2e.mjs")
 # F2-P Human one-shot broker candidate (NO signed upload URL): local-only
 # PostgreSQL consent/session/nonce tables, then real GoTrue PRIVATE RLS writes.
 # No hosted migrations or runtime authoring endpoint changes.
