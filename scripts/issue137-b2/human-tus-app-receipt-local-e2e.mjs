@@ -32,8 +32,8 @@ const admin=createClient(api,service,{auth:{
  persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
 const good=Buffer.alloc(6*1024*1024+96,0x45),bad=Buffer.alloc(good.length,0x4a);
 for(const b of [good,bad]){b.write("RIFF",0);b.write("WAVE",8);}
-const expected=hash(good),size=good.length,chunk=6*1024*1024;
 const hash=b=>createHash("sha256").update(b).digest("hex");
+const expected=hash(good),size=good.length,chunk=6*1024*1024;
 const sqlArgs=q=>["exec",database,"psql","-X","-q","-t","-A",
  "-v","ON_ERROR_STOP=1","-U","postgres","-d","postgres","-c",q];
 function sql(q){return execFileSync("docker",sqlArgs(q),
