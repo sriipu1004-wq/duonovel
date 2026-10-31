@@ -171,9 +171,22 @@ try{
  check(forged.status===400,"client cannot select PUBLIC bucket");
  const otherSeries=await issue(a,id(),episodeId);
  check(otherSeries.status===403,"nonexistent series not authorized");
+ const currentSession=JSON.parse(Buffer.from(a.jwt.split(".")[1],
+  "base64url").toString()).session_id;
+ check(sql("select count(*) from auth.sessions where id='"+currentSession+
+  "'::uuid and user_id='"+a.uid+"'::uuid")==="1",
+  "fresh owner session exists in actual local auth.sessions");
+ const rpcProbe=await admin.rpc("issue137_http_local_session_live",{
+  p_user_id:a.uid,p_session_id:currentSession});
+ check(rpcProbe.error===null&&rpcProbe.data===true,
+  "privileged session RPC should return true; code="+(rpcProbe.error?.code??"none")+
+   " active="+String(rpcProbe.data));
  const ticket=await issue(a,seriesId,episodeId);
  check(ticket.status===201&&ticket.body.ok&&
-  /^[a-f0-9-]{36}$/u.test(ticket.body.ticket),"fresh authorized ticket");
+  /^[a-f0-9-]{36}$/u.test(ticket.body.ticket),
+  "fresh authorized ticket; status="+ticket.status+
+  " reason="+String(ticket.body?.reason??"none")+
+  " pgCode="+String(ticket.body?.pgCode??"none"));
  const t=ticket.body.ticket;
  check((await receipt(t)).state==="ISSUED","ticket was durably committed");
  const deniedLedger=await a.client.from(ledger).select("ticket").eq("ticket",t);
