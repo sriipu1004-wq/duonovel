@@ -27,7 +27,7 @@ if(workerEndpoint)assert.ok(workerEndpoint.hostname==="127.0.0.1"&&
  Number(workerEndpoint.port)<=39999&&workerEndpoint.pathname==="/");
 const opts={auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}};
 const admin=role==="worker"?createClient(api.origin,service,opts):null;
-const bucket="f2p-http-privileged-worker-private",tickets=new Map();
+const bucket="f2p-http-privileged-worker-private",table="issue137_http_local_tickets";
 const hash=b=>createHash("sha256").update(b).digest("hex");
 const uid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu;
 const digest=/^[a-f0-9]{64}$/u;
@@ -60,12 +60,21 @@ async function authority(jwt){
   global:{headers:{Authorization:"Bearer "+jwt}}});
  const {data:{user},error:authError}=await client.auth.getUser(jwt);
  if(authError||!user||!uid.test(user.id))return null;
- // A *fresh* RLS read is used for every issue and stage.
+ // JWT signature/GetUser alone can outlive a logout. Independently check
+ // PostgreSQL auth.sessions using a LOCAL service-role-only SQL function.
+ let claims;
+ try{claims=JSON.parse(Buffer.from(jwt.split(".")[1],"base64url").toString());}
+ catch{return null;}
+ if(!uid.test(claims?.session_id??"")||claims.sub!==user.id)return null;
+ const alive=await admin.rpc("issue137_http_local_session_live",{
+  p_user_id:user.id,p_session_id:claims.session_id});
+ if(alive.error||alive.data!==true)return null;
+ // A *fresh* session-bound RLS read is used for every issue and stage.
  const c=await client.from("user_recording_consents")
   .select("consent_version").eq("user_id",user.id)
   .eq("consent_key","recording_studio_global").maybeSingle();
  if(c.error||c.data?.consent_version!=="2026-04-16")return null;
- return {user,client};
+ return {user,client,sessionId:claims.session_id};
 }
 async function authorizedFor(jwt,seriesId,episodeId){
  const auth=await authority(jwt);
@@ -81,60 +90,100 @@ async function authorizedFor(jwt,seriesId,episodeId){
   s.recording_permission_mode!=="open"||s.publication_status!=="public"||
   s.content_rating==="r18"||s.content_warnings?.includes("sexual_r18")||
   e.posting_status!=="posted"||e.is_published!==true)return null;
- return auth.user.id;
+ return {userId:auth.user.id,sessionId:auth.sessionId};
 }
 async function worker(req,request){
- if(!secretOk(req.headers["x-b2-internal-token"]))return {code:403,data:{ok:false,reason:"INTERNAL_HOLD"}};
+ if(!secretOk(req.headers["x-b2-internal-token"]))
+  return {code:403,data:{ok:false,reason:"INTERNAL_HOLD"}};
+ const jwt=req.headers.authorization?.replace(/^Bearer /u,"")??"";
  if(req.url==="/issue"){
   if(!shape(request,["seriesId","episodeId","expectedSha256"])||
-   !digest.test(request.expectedSha256??""))return {code:400,data:{ok:false,reason:"INPUT_HOLD"}};
-  const jwt=req.headers.authorization?.replace(/^Bearer /u,"")??"";
-  const userId=await authorizedFor(jwt,request.seriesId,request.episodeId);
-  if(!userId)return {code:403,data:{ok:false,reason:"AUTHORITY_HOLD"}};
-  const ticket=randomUUID();
-  tickets.set(ticket,{userId,seriesId:request.seriesId,episodeId:request.episodeId,
-   expectedSha256:request.expectedSha256,used:false,expires:Date.now()+60000,
-   path:"owner/"+userId+"/"+ticket+".wav"});
+   !digest.test(request.expectedSha256??""))
+   return {code:400,data:{ok:false,reason:"INPUT_HOLD"}};
+  const actor=await authorizedFor(jwt,request.seriesId,request.episodeId);
+  if(!actor)return {code:403,data:{ok:false,reason:"AUTHORITY_HOLD"}};
+  const ticket=randomUUID(),objectPath="owner/"+actor.userId+"/"+ticket+".wav";
+  const {error}=await admin.from(table).insert({
+   ticket,user_id:actor.userId,session_id:actor.sessionId,
+   series_id:request.seriesId,episode_id:request.episodeId,
+   expected_sha256:request.expectedSha256,object_path:objectPath,
+   expires_at:new Date(Date.now()+60000).toISOString(),state:"ISSUED"});
+  if(error)return {code:503,data:{ok:false,reason:"LEDGER_WRITE_HOLD",pgCode:error.code}};
   return {code:201,data:{ok:true,ticket}};
  }
+ if(!["/stage","/recover","/audit"].includes(req.url))
+  return {code:404,data:{ok:false,reason:"OP_HOLD"}};
+ if(!shape(request,req.url==="/stage"?["ticket","bytesBase64"]:["ticket"])||
+  !uid.test(request.ticket??"")||
+  (req.url==="/stage"&&(typeof request.bytesBase64!=="string"||
+   request.bytesBase64.length>1400000)))
+  return {code:400,data:{ok:false,reason:"INPUT_HOLD"}};
+ const {data:lease,error:readError}=await admin.from(table)
+  .select("*").eq("ticket",request.ticket).maybeSingle();
+ if(readError)return {code:503,data:{ok:false,reason:"LEDGER_READ_HOLD"}};
+ if(!lease)return {code:404,data:{ok:false,reason:"UNKNOWN_TICKET_HOLD"}};
+ const actor=await authorizedFor(jwt,lease.series_id,lease.episode_id);
+ if(!actor||actor.userId!==lease.user_id||actor.sessionId!==lease.session_id)
+  return {code:403,data:{ok:false,reason:"AUTHORITY_HOLD"}};
  if(req.url==="/stage"){
-  if(!shape(request,["ticket","bytesBase64"])||
-   !uid.test(request.ticket??"")||
-   typeof request.bytesBase64!=="string"||request.bytesBase64.length>1400000)
-   return {code:400,data:{ok:false,reason:"INPUT_HOLD"}};
-  const lease=tickets.get(request.ticket);
-  if(!lease)return {code:404,data:{ok:false,reason:"UNKNOWN_TICKET_HOLD"}};
-  if(lease.used||Date.now()>=lease.expires)
+  if(lease.state!=="ISSUED"||Date.now()>=Date.parse(lease.expires_at))
    return {code:409,data:{ok:false,reason:"EXPIRED_OR_USED_HOLD"}};
-  const jwt=req.headers.authorization?.replace(/^Bearer /u,"")??"";
-  const actor=await authorizedFor(jwt,lease.seriesId,lease.episodeId);
-  if(actor!==lease.userId)return {code:403,data:{ok:false,reason:"AUTHORITY_HOLD"}};
   const bytes=Buffer.from(request.bytesBase64,"base64");
   if(bytes.length===0||bytes.length>1024*1024||
    bytes.toString("base64")!==request.bytesBase64||
-   bytes.toString("ascii",0,4)!=="RIFF"||bytes.toString("ascii",8,12)!=="WAVE"||
-   hash(bytes)!==lease.expectedSha256)
+   bytes.toString("ascii",0,4)!=="RIFF"||
+   bytes.toString("ascii",8,12)!=="WAVE"||
+   hash(bytes)!==lease.expected_sha256)
    return {code:422,data:{ok:false,reason:"BYTE_HOLD"}};
-  // Exhaust the ticket synchronously before the first privileged network write.
-  if(lease.used)return {code:409,data:{ok:false,reason:"USED_HOLD"}};
-  lease.used=true;
+  // Real PostgreSQL CAS also checks auth.sessions, consent and permissions
+  // in the SAME UPDATE. Concurrent workers cannot claim twice.
+  const claim=await admin.rpc("issue137_http_local_claim",{
+   p_ticket:lease.ticket,p_user_id:actor.userId,
+   p_session_id:actor.sessionId});
+  if(claim.error)return {code:503,data:{ok:false,reason:"LEDGER_CLAIM_HOLD"}};
+  if(claim.data!==true)return {code:409,data:{ok:false,reason:"NOT_CLAIMABLE_HOLD"}};
   try{
-   const {error}=await admin.storage.from(bucket).upload(lease.path,bytes,{
+   const {error}=await admin.storage.from(bucket).upload(lease.object_path,bytes,{
     contentType:"audio/wav",upsert:false});
    if(error)return {code:503,data:{ok:false,reason:"PRIVATE_WRITE_HOLD"}};
-   return {code:201,data:{ok:true,status:"PRIVATE_STAGED_UNVERIFIED",ticket:request.ticket}};
+   // Simulate provider-accepted PUT but process gone before ACK/readback.
+   // The durable PostgreSQL row must survive a different worker process.
+   if(process.env.B2_HTTP_FAIL_AFTER_PUT_ONCE==="true")process.exit(86);
   }catch{return {code:503,data:{ok:false,reason:"PRIVATE_WRITE_HOLD"}};}
  }
- return {code:404,data:{ok:false,reason:"OP_HOLD"}};
+ // Fresh provider readback for initial stage, recovery, or sealed audit.
+ if(!["CLAIMED","SEALED_PRIVATE_SNAPSHOT"].includes(
+  req.url==="/stage"?"CLAIMED":lease.state))
+  return {code:409,data:{ok:false,reason:"RECEIPT_STATE_HOLD"}};
+ const read=await admin.storage.from(bucket).download(lease.object_path);
+ if(read.error)return {code:409,data:{ok:false,reason:"NO_PRIVATE_BYTES_HOLD"}};
+ const observed=hash(Buffer.from(await read.data.arrayBuffer()));
+ if(observed!==lease.expected_sha256){
+  await admin.from(table).update({state:"INTEGRITY_HOLD",
+   observed_sha256:observed}).eq("ticket",lease.ticket)
+   .in("state",["CLAIMED","SEALED_PRIVATE_SNAPSHOT"]);
+  return {code:409,data:{ok:false,reason:"PHYSICAL_SHA_MISMATCH_HOLD"}};
+ }
+ if(lease.state!=="SEALED_PRIVATE_SNAPSHOT"){
+  const {data:sealed,error}=await admin.from(table).update({
+   state:"SEALED_PRIVATE_SNAPSHOT",observed_sha256:observed,
+   sealed_at:new Date().toISOString()
+  }).eq("ticket",lease.ticket).eq("state","CLAIMED")
+   .select("ticket").maybeSingle();
+  if(error||!sealed)return {code:409,data:{ok:false,reason:"SEAL_CAS_HOLD"}};
+ }
+ return {code:req.url==="/stage"?201:200,data:{ok:true,
+  status:"PRIVATE_SEALED_SNAPSHOT",ticket:lease.ticket}};
 }
 async function ingress(req,request){
  // An ingress process has only public anon credentials and test-only
  // internal relay capability. Neither the Storage secret nor destination is
  // supplied by the HTTP caller. Worker validates actual auth/rights again.
- if(!["/issue","/stage"].includes(req.url))
+ if(!["/issue","/stage","/recover","/audit"].includes(req.url))
   return {code:404,data:{ok:false,reason:"OP_HOLD"}};
  if(!shape(request,req.url==="/issue"?
-  ["seriesId","episodeId","expectedSha256"]:["ticket","bytesBase64"]))
+  ["seriesId","episodeId","expectedSha256"]:
+  req.url==="/stage"?["ticket","bytesBase64"]:["ticket"]))
   return {code:400,data:{ok:false,reason:"INPUT_HOLD"}};
  const jwt=req.headers.authorization??"";
  if(!jwt.startsWith("Bearer ")||jwt.length<37)
