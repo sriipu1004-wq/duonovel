@@ -166,6 +166,10 @@ echo 'PASS: F2-P RLS user-only PRIVATE upload policies installed in disposable D
 (cd "$ROOT" && SUPABASE_HUMAN_RECORDING_BUCKET=f2p-human-signed-temp \
  B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node --import tsx "$B2/human-signed-multipart-local-e2e.mjs")
+# Actual LOCAL Next.js HTTP API / GoTrue / private Storage session negative tests.
+# Do not pass any hosted endpoint or credential.
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node "$B2/human-multipart-next-route-local-e2e.mjs")
 # F2-P Human one-shot broker candidate (NO signed upload URL): local-only
 # PostgreSQL consent/session/nonce tables, then real GoTrue PRIVATE RLS writes.
 # No hosted migrations or runtime authoring endpoint changes.
