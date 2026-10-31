@@ -24,7 +24,8 @@ grant select,insert,update on public.issue137_http_local_tickets to service_role
 create function public.issue137_http_local_session_live(
  p_user_id uuid,p_session_id uuid
 ) returns boolean language sql volatile security definer set search_path='' as $f$
- select coalesce(current_setting('request.jwt.claim.role',true),'')='service_role'
+ select coalesce(nullif(current_setting('request.jwt.claim.role',true),''),
+ nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'role','')='service_role'
  and exists(select 1 from auth.sessions s
             where s.id=p_session_id and s.user_id=p_user_id);
 $f$;
@@ -41,7 +42,8 @@ create function public.issue137_http_local_claim(
 ) returns boolean language plpgsql volatile security definer set search_path='' as $f$
 declare claimed uuid;
 begin
- if coalesce(current_setting('request.jwt.claim.role',true),'')<>'service_role'
+ if coalesce(nullif(current_setting('request.jwt.claim.role',true),''),
+ nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'role','')<>'service_role'
  then return false; end if;
  update public.issue137_http_local_tickets t
  set state='CLAIMED', claimed_at=clock_timestamp()
