@@ -131,9 +131,16 @@ const altered=Buffer.alloc(48,0x23);altered.write("RIFF",0);altered.write("WAVE"
 const deniedOverwrite=await auditor.client.storage.from(bucket)
  .upload(original.object_path,altered,{upsert:true});
 check(!!deniedOverwrite.error,"auditor JWT cannot UPDATE/upsert sealed PRIVATE bytes");
+const beforeDelete=await bytesAt(original.object_path);
 const deniedRemove=await auditor.client.storage.from(bucket)
  .remove([original.object_path]);
-check(!!deniedRemove.error,"auditor JWT cannot DELETE sealed PRIVATE bytes");
+// Storage REST may return HTTP 200 with an EMPTY deletion result for RLS
+// denial; never infer authorization from HTTP status alone.
+check(!!deniedRemove.error||
+ (Array.isArray(deniedRemove.data)&&deniedRemove.data.length===0),
+ "auditor delete must error or report zero deleted objects");
+check((await bytesAt(original.object_path)).equals(beforeDelete),
+ "auditor DELETE request must leave exact PRIVATE physical bytes intact");
 const match=isolatedAudit(auditor,original.ticket);
 check(match.status===0&&match.stdout.includes("READONLY_AUDIT_PRIVATE_PHYSICAL_SHA_MATCH"),
  "dedicated no-admin auditor process confirms original SHA after owner logout");
