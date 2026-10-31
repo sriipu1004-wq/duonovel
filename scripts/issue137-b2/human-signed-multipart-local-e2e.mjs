@@ -165,6 +165,44 @@ for(const path of paths){
  passed(response.status>=400&&response.status<500,
   "cleaned temp part must not be public");
 }
+// Candidate real Storage regression for NEW upsert:false tokens. Keep the above
+// legacy upsert:true evidence unchanged to demonstrate the security delta.
+const immutableSession=buildHumanMultipartUploadSession({
+ seriesId:id(),episodeId:id(),userId:who,sourceExtension:"wav",totalSizeBytes:96,
+});
+const immutablePath=immutableSession.parts[0].objectPath;
+const immutableBytes=Buffer.alloc(96,0x35);
+const immutableReplacement=Buffer.alloc(96,0x38);
+const immutableSign=await adminStore.createSignedUploadUrl(immutablePath,{upsert:false});
+assert.equal(immutableSign.error,null,"first-write-only signed token issuance");
+assert.ok(immutableSign.data?.token);checks+=2;
+const immutableFirst=await guestStore.uploadToSignedUrl(immutablePath,immutableSign.data.token,
+ immutableBytes,{contentType:"audio/wav"});
+assert.equal(immutableFirst.error,null,"first upload should accept immutable signed token");checks++;
+const immutableReplay=await guestStore.uploadToSignedUrl(immutablePath,immutableSign.data.token,
+ immutableReplacement,{contentType:"audio/wav"});
+assert.ok(immutableReplay.error,"upsert:false signed token MUST reject same-key replay");checks++;
+const immutableAfter=await downloaded(immutablePath,"immutable replay rejected");
+passed(sha(immutableAfter)===sha(immutableBytes),
+ "replay cannot replace first-write object bytes");
+const immutableCleanup=await adminStore.remove([immutablePath]);
+assert.equal(immutableCleanup.error,null,"remove test-only immutable object");checks++;
+await missing(immutablePath,"immutable object removed");
+const immutableResurrection=await guestStore.uploadToSignedUrl(immutablePath,
+ immutableSign.data.token,immutableReplacement,{contentType:"audio/wav"});
+if(immutableResurrection.error){
+ await missing(immutablePath,"first-write token post-removal rejected");
+ console.log("OBSERVED: LOCAL immutable signed token denied recreation after cleanup");
+}else{
+ const recreated=await downloaded(immutablePath,"immutable token recreation");
+ passed(sha(recreated)===sha(immutableReplacement),
+  "bearer token can still recreate removed key if not expired");
+ const removedAgain=await adminStore.remove([immutablePath]);
+ assert.equal(removedAgain.error,null,"final cleanup of recreated immutable part");checks++;
+ await missing(immutablePath,"recreated immutable part finally removed");
+ console.log("RISK: LOCAL upsert:false token still recreates deleted PRIVATE object");
+}
+console.log("PASS: F2-P real local immutable signed part: initial PUT accepted, same-path overwrite DENIED, original bytes retained");
 console.log("PASS: F2-P "+checks+
  " REAL LOCAL Human multipart signed bearer and wrong-token/path, logout, "+
  "equal-length replay, cleanup/recreation controls; PRIVATE bucket retained");
