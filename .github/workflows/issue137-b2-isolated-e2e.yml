@@ -8,6 +8,7 @@ on:
       - 'src/lib/publicWorks.ts'
       - 'src/lib/recording/**'
       - 'src/app/api/recordings/ai-audio/**'
+      - 'src/app/api/recordings/human-upload-session/**'
 permissions:
   contents: read
 concurrency:
@@ -62,6 +63,7 @@ jobs:
           node --import tsx scripts/test-issue137-b2-playback-href.ts
           node --import tsx scripts/issue137-b2/ai-recording-options.test.ts
           node --import tsx scripts/issue137-b2/public-media-writer-bridge.test.ts
+          node --import tsx scripts/issue137-b2/human-upload-session-consent.test.ts
           node --import tsx --input-type=module -e "const m=await import('./src/lib/recording/privateMediaLocalPipeline.ts'); const f=m.createDisposablePrivateMediaPipeline??m.default?.createDisposablePrivateMediaPipeline; if(typeof f!=='function') throw Error('F2P local pipeline module unavailable')"
       - name: B2 real ephemeral GoTrue PostgREST Storage regression
         env:
