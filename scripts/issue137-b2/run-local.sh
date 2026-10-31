@@ -178,6 +178,11 @@ echo 'PASS: F2-P RLS user-only PRIVATE upload policies installed in disposable D
 # Prove one legitimate PRIVATE write and real wrong-user/consent/replay negatives.
 # No Application runtime entrypoint or hosted Supabase keys are used.
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+# Install durable ticket + auth.sessions RPC ONLY inside the verified
+# disposable Docker PostgreSQL. These are NOT shipped SQL migrations.
+docker cp "$B2/privileged-http-durable-local.sql"  "$db_container:/tmp/issue137_http_durable_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres  -f /tmp/issue137_http_durable_local.sql >/dev/null
+echo 'PASS: F2-P durable HTTP ticket fixture installed only in disposable PostgreSQL'
  node "$B2/privileged-http-boundary-local-e2e.mjs")
 # Authenticated, non-signed Supabase TUS: isolate PRIVATE RLS and verify
 # resume/PATCH rights revocation and duplicate path with real localhost Storage.
