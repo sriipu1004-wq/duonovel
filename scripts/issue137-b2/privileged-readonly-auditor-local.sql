@@ -49,6 +49,17 @@ on storage.objects as restrictive for select to authenticated
 using (bucket_id<>'f2p-http-privileged-worker-private'
  or public.issue137_http_local_auditor_can_read(name));
 
+-- Explicit DENY of modifications for the local auditor PRIVATE bucket,
+-- even when other disposable fixtures have permissive write/delete policies.
+-- In Postgres restrictive policies apply together with any permissive policy.
+create policy issue137_http_auditor_private_update_fence
+on storage.objects as restrictive for update to authenticated
+using(bucket_id<>'f2p-http-privileged-worker-private')
+with check(bucket_id<>'f2p-http-privileged-worker-private');
+create policy issue137_http_auditor_private_delete_fence
+on storage.objects as restrictive for delete to authenticated
+using(bucket_id<>'f2p-http-privileged-worker-private');
+
 -- A narrowly scoped receipt view through a service-owned, LOCAL ONLY RPC.
 -- The private ledger stays unreadable via direct Data API table SELECT.
 create function public.issue137_http_local_auditor_receipt(p_ticket uuid)
