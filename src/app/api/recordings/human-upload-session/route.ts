@@ -211,7 +211,8 @@ export async function POST(request: Request) {
       const { data, error } = await adminSupabase.storage
         .from(session.bucketName)
         .createSignedUploadUrl(part.objectPath, {
-          upsert: true,
+          // A bearer token must never replace bytes at an existing part key.
+          upsert: false,
         });
 
       if (error || !data?.token) {
