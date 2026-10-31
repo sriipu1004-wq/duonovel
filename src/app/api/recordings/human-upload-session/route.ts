@@ -4,6 +4,10 @@ import {
   decideRecordingEntryAccess,
   normalizeRecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
+import {
+  RECORDING_GLOBAL_CONSENT_KEY,
+  isAcceptedRecordingConsentVersion,
+} from "@/lib/recording/recordingConsent";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -65,6 +69,14 @@ function resolveErrorResponse(message: string) {
 
   if (message === "episode_not_accessible") {
     return { status: 404, error: "対象話が見つからない。" };
+  }
+
+  if (message === "recording_consent_required") {
+    return { status: 403, error: "朗読投稿前の初回同意がまだ完了していない。" };
+  }
+
+  if (message === "recording_consent_check_failed") {
+    return { status: 503, error: "朗読同意状態を確認できなかった。" };
   }
 
   return {
@@ -164,6 +176,23 @@ export async function POST(request: Request) {
       String(episode.series_id) !== seriesId
     ) {
       throw new Error("episode_not_accessible");
+    }
+
+    // A signed Storage upload token remains usable without the user's session.
+    // Therefore refuse to mint it unless the CURRENT signed-in user has consented.
+    // This does not revoke tokens already issued by this or older deployments.
+    const { data: consentRow, error: consentError } = await supabase
+      .from("user_recording_consents")
+      .select("consent_version")
+      .eq("user_id", user.id)
+      .eq("consent_key", RECORDING_GLOBAL_CONSENT_KEY)
+      .maybeSingle();
+
+    if (consentError) {
+      throw new Error("recording_consent_check_failed");
+    }
+    if (!isAcceptedRecordingConsentVersion(consentRow?.consent_version)) {
+      throw new Error("recording_consent_required");
     }
 
     const sourceExtension = getAudioFileExtension(fileName) || "bin";
