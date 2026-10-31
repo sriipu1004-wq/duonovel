@@ -56,6 +56,8 @@ jobs:
           node --check scripts/issue137-b2/human-broker-byte-recovery.test.mjs
           node scripts/issue137-b2/human-broker-byte-recovery.test.mjs
           node scripts/issue137-b2/s3-public-writer-inventory.mjs
+          node --check scripts/issue137-b2/recording-credential-route-dependencies.mjs
+          node scripts/issue137-b2/recording-credential-route-dependencies.mjs
           node --check scripts/issue137-b2/private-real-local-adapter-e2e.mjs
           bash -n scripts/issue137-b2/run-local.sh
           docker info >/dev/null
