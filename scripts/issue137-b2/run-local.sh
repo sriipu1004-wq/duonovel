@@ -170,6 +170,16 @@ echo 'PASS: F2-P RLS user-only PRIVATE upload policies installed in disposable D
 # Do not pass any hosted endpoint or credential.
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node "$B2/human-multipart-next-route-local-e2e.mjs")
+# Authenticated, non-signed Supabase TUS: isolate PRIVATE RLS and verify
+# resume/PATCH rights revocation and duplicate path with real localhost Storage.
+# NEVER copy this policy to hosted migrations or production buckets.
+docker cp "$B2/human-tus-revocation-local.sql" \
+ "$db_container:/tmp/issue137_human_tus_revocation_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+ -f /tmp/issue137_human_tus_revocation_local.sql >/dev/null
+echo 'PASS: F2-P TUS local-only private bucket/RLS installed on disposable Docker DB'
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node "$B2/human-tus-revocation-local-e2e.mjs")
 # F2-P Human one-shot broker candidate (NO signed upload URL): local-only
 # PostgreSQL consent/session/nonce tables, then real GoTrue PRIVATE RLS writes.
 # No hosted migrations or runtime authoring endpoint changes.
