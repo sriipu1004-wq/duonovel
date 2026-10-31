@@ -63,8 +63,11 @@ verified writers; it can miss dynamic external callers.
 independent of final Human, AI, public and BGM buckets. Enforce PRIVATE at provider;
 path `owner/<verified-uid>/<server-issued-upload-id>.<extension>`,
 unique immutable key, no `x-upsert`; no anonymous/public reads.
-No client-supplied bucket/path/owner; service must generate an opaque owner-bound
-upload ID and record an idempotency key. Ordinary user cannot UPDATE, DELETE or
+TUS metadata necessarily carries a bucket and path from the browser, but those
+values must be **treated as untrusted**: the server first allocates an opaque
+owner-bound upload ID and canonical bucket/path in a private ledger, and provider
+RLS rejects a request with any unregistered or foreign target. Retain an
+idempotency key. Ordinary user cannot UPDATE, DELETE or
 write published media. No presigned upload capability or service key delivered.
 
 **T2 — Fresh RLS using real authority.** On TUS creation and every sensitive PATCH /
