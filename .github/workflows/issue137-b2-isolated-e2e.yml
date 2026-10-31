@@ -44,6 +44,7 @@ jobs:
           node --check scripts/issue137-b2/human-signed-multipart-local-e2e.mjs
           node --check scripts/issue137-b2/human-multipart-next-route-local-e2e.mjs
           node --check scripts/issue137-b2/human-tus-revocation-local-e2e.mjs
+          node --check scripts/issue137-b2/human-tus-app-authority-local-e2e.mjs
           node --check scripts/issue137-b2/human-one-shot-broker-local.mjs
           node --check scripts/issue137-b2/human-one-shot-broker-e2e.mjs
           node --check scripts/issue137-b2/human-broker-private-rls-fence-e2e.mjs
