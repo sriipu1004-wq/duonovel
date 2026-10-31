@@ -189,6 +189,15 @@ docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
 echo 'PASS: F2-P local real-field app-authority TUS fixture installed in disposable Docker DB'
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node "$B2/human-tus-app-authority-local-e2e.mjs")
+# TUS stage receipt/CAS: durable server-only row + real PRIVATE object readback.
+# Local disposable Postgres ONLY; no deployed SQL or publisher changes.
+docker cp "$B2/human-tus-app-receipt-local.sql" \
+ "$db_container:/tmp/issue137_human_tus_app_receipt_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+ -f /tmp/issue137_human_tus_app_receipt_local.sql >/dev/null
+echo 'PASS: F2-P local TUS receipt table installed in disposable Docker PostgreSQL'
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node "$B2/human-tus-app-receipt-local-e2e.mjs")
 # F2-P Human one-shot broker candidate (NO signed upload URL): local-only
 # PostgreSQL consent/session/nonce tables, then real GoTrue PRIVATE RLS writes.
 # No hosted migrations or runtime authoring endpoint changes.
