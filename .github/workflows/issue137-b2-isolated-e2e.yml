@@ -47,6 +47,9 @@ jobs:
           node --check scripts/issue137-b2/privileged-http-boundary-process-local.mjs
           node --check scripts/issue137-b2/privileged-http-boundary-local-e2e.mjs
           test -f scripts/issue137-b2/privileged-http-durable-local.sql
+          node --check scripts/issue137-b2/privileged-readonly-audit-process-local.mjs
+          node --check scripts/issue137-b2/privileged-readonly-auditor-local-e2e.mjs
+          test -f scripts/issue137-b2/privileged-readonly-auditor-local.sql
           node --check scripts/issue137-b2/human-tus-revocation-local-e2e.mjs
           node --check scripts/issue137-b2/human-tus-app-authority-local-e2e.mjs
           node --check scripts/issue137-b2/human-tus-app-receipt-local-e2e.mjs
