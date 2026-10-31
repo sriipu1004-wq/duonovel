@@ -174,6 +174,11 @@ echo 'PASS: F2-P RLS user-only PRIVATE upload policies installed in disposable D
 # Authenticated user-only preflight must survive; legacy signer must fail closed.
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node "$B2/human-no-admin-next-boundary-local-e2e.mjs")
+# Separate LOCAL HTTP ingress without admin credentials -> private privileged worker.
+# Prove one legitimate PRIVATE write and real wrong-user/consent/replay negatives.
+# No Application runtime entrypoint or hosted Supabase keys are used.
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node "$B2/privileged-http-boundary-local-e2e.mjs")
 # Authenticated, non-signed Supabase TUS: isolate PRIVATE RLS and verify
 # resume/PATCH rights revocation and duplicate path with real localhost Storage.
 # NEVER copy this policy to hosted migrations or production buckets.
