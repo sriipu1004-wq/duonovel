@@ -216,7 +216,7 @@ assert.ok(!/supabase\.link|db push|db reset --linked|https:\/\/www\.syosetu-libr
  "writer simulation must not address Production or linked projects");
 checked++;
 
-// Human signed multipart session/cleanup: scoped test only, no runtime patch.
+// Human signed multipart session/cleanup: fail-closed first-write-only signer.
 const humanSigned=read("scripts/issue137-b2/human-signed-multipart-local-e2e.mjs");
 const multipartSession=read("src/lib/recording/humanMultipartUploadShared.ts");
 const humanSigningRoute=read("src/app/api/recordings/human-upload-session/route.ts");
@@ -225,8 +225,10 @@ const humanClient=read("src/components/recording/RecordingStudioPage.tsx");
 must(multipartSession,"multipart session uses distinct per-user session path",
   '"human-temp",');
 must(multipartSession,"multipart part size pinned", "HUMAN_MULTIPART_PART_SIZE_BYTES = 8 * 1024 * 1024");
-must(humanSigningRoute,"service-role signing uses upsert true", ".createSignedUploadUrl(part.objectPath, {");
-must(humanSigningRoute,"signed URL upsert true", "upsert: true");
+must(humanSigningRoute,"service-role signing explicitly scoped", ".createSignedUploadUrl(part.objectPath, {");
+must(humanSigningRoute,"new signed tokens forbid same-key overwrite", "upsert: false");
+assert.ok(!/createSignedUploadUrl\(part\.objectPath,\s*\{\s*upsert:\s*true/.test(humanSigningRoute),
+ "Human signer must never authorize mutable same-key tokens");checked++;
 must(humanSigningRoute,"signed endpoint requires real GoTrue identity",
   "supabase.auth.getUser()");
 must(humanClient,"browser uses temporary token not a service role",
