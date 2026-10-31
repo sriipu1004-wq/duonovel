@@ -145,7 +145,7 @@ function safeReplies(proc){
 {
  const owned=lease(),proc=createChild();
  try{
-  const wrongIdentity=await call(proc,"bootstrap",{config:config(other,owned)});
+  const wrongIdentity=await call(proc,"bootstrap",{config:{...config(person,owned),jwt:other.jwt}});
   check(wrongIdentity.status==="IDENTITY_HOLD","wrong actor bootstrap rejected");
   const ok=await call(proc,"bootstrap",{config:config(person,owned)});
   check(ok.status==="READY_USER_ONLY","signed in user, no admin env");
