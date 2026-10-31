@@ -53,8 +53,11 @@ function check(value,label){assert.ok(value,label);checks++;}
 function start(role,extra={}){
  const env={...common,B2_HTTP_BOUNDARY_ROLE:role,
   B2_HTTP_BOUNDARY_PORT:String(role==="worker"?workerPort:ingressPort),...extra};
- if(role==="ingress")assert.equal(env.B2_SERVICE_KEY,undefined);
- else assert.equal(env.B2_SERVICE_KEY,service);
+ if(role==="ingress"){
+  // The poisoned child must reject startup; do not short-circuit here.
+  if(extra.B2_SERVICE_KEY)assert.equal(extra.B2_SERVICE_KEY,"SYNTHETIC_FORBIDDEN");
+  else assert.equal(env.B2_SERVICE_KEY,undefined);
+ }else assert.equal(env.B2_SERVICE_KEY,service);
  const child=spawn(process.execPath,[script],{cwd:root,env,detached:true,
   stdio:["ignore","pipe","pipe"]});
  let output="";
