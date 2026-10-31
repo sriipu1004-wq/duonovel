@@ -304,6 +304,47 @@ yes(await reconcile(changed)==="HOLD_PHYSICAL_DRIFT",
  "post-seal privileged write detected on independent readback");
 console.log("RISK: F2-P LOCAL privileged service-role writer can replace sealed PRIVATE bytes; CAS is NOT provider immutability");
 await remove(changed);
+// CASE 7: verify-to-CAS TOCTOU. A privileged writer changes exactly the
+// same PRIVATE key AFTER independent physical SHA readback, BEFORE PG CAS.
+// Observe if Storage preserves object ID on upsert or rotates it. If the
+// object ID is unchanged and CAS seals stale SHA, that is an explicit RISK.
+// No SQL policy/trigger or app route can assert provider byte immutability.
+const raced=mint(actor);
+await upload(actor,raced);
+yes(sql(claimQuery(raced))==="1","preseal race claimed");
+const preRace=await preseal(raced);
+yes(preRace?.sha===expected,"preseal race real physical SHA matched");
+const overwrite=await admin.storage.from(bucket)
+ .upload(raced.path,bad,{upsert:true,contentType:"audio/wav"});
+const afterRace=await verifiedBytes(raced);
+if(overwrite.error){
+ yes(afterRace?.sha===expected,"rejected privileged upsert must preserve exact bytes");
+ console.log("PASS: F2-P LOCAL privileged in-place upsert was refused; unchanged bytes; provider behavior only");
+ hold(raced,"PRIVILEGED_UPSERT_DENIED");
+}else{
+ yes(afterRace?.sha===hash(bad),"privileged in-place upsert really changed physical bytes");
+ const sealed=sql(sealQuery(raced,preRace.sha,preRace.id));
+ if(afterRace.id===preRace.id){
+  // Neither PG CAS nor the Storage object ID can detect the overwritten
+  // bytes at the moment of seal if provider preserves that object's ID.
+  if(sealed==="2"){
+   yes(receipt(raced).verified_sha256===expected,
+    "stale verified SHA was sealed despite changed physical bytes");
+   yes(await reconcile(raced)==="HOLD_PHYSICAL_DRIFT",
+    "a second provider read detects the stale seal");
+   console.log("RISK: F2-P LOCAL privileged in-place overwrite preserved object ID; stale digest SEALED by CAS");
+  }else{
+   yes(sealed==="","unexpected new provider fence omitted from evidence");
+   hold(raced,"STALE_SHA_SEAL_DENIED");
+   console.log("PASS: F2-P LOCAL in-place rewrite did not permit stale CAS; identify extra provider fence");
+  }
+ }else{
+  yes(sealed==="","different provider object ID must block stale CAS");
+  hold(raced,"PROVIDER_OBJECT_CHANGED");
+  console.log("PASS: F2-P LOCAL privileged overwrite rotated provider object ID; stale CAS rejected, privileged bypass still exists");
+ }
+}
+await remove(raced);
 console.log("PASS: F2-P REAL LOCAL TUS durable receipt "+checks+
  " checks; physical SHA, duplicate claim/seal CAS, mismatch, ACK-loss, revocation, "+
  "post-seal tamper detection; PRIVATE snapshot ONLY, never PUBLIC_READY");
