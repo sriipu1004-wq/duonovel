@@ -198,6 +198,11 @@ docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
 echo 'PASS: F2-P local TUS receipt table installed in disposable Docker PostgreSQL'
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node "$B2/human-tus-app-receipt-local-e2e.mjs")
+# Issue #137 user-only process boundary: real LOCAL authenticated TUS via
+# a distinct child with no inherited service-role/S3 env; test harness owns
+# synthetic fixture setup and cleanup. This is NOT deployed secret custody.
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node "$B2/human-tus-user-ingress-isolation-e2e.mjs")
 # F2-P Human one-shot broker candidate (NO signed upload URL): local-only
 # PostgreSQL consent/session/nonce tables, then real GoTrue PRIVATE RLS writes.
 # No hosted migrations or runtime authoring endpoint changes.
