@@ -212,6 +212,25 @@ let totalObjects=0;
  await setGate(actorA,"consent_ok",true);
  if(await getObject(path))await clear(path);
 }
+// Real global recording-consent TABLE version withdrawal, independent of
+// the synthetic grants switch. This tests the exact version used by Human API.
+{
+ const path=pathOf(actorA),uri=await initial(path,actorA.jwt);
+ const revoked=await admin.from("user_recording_consents")
+  .update({consent_version:"2026-04-15"}).eq("user_id",actorA.id)
+  .eq("consent_key","recording_studio_global");
+ assert.equal(revoked.error,null,"revoke actual LOCAL consent row");
+ const row=await admin.from("user_recording_consents").select("consent_version")
+  .eq("user_id",actorA.id).eq("consent_key","recording_studio_global").single();
+ verified(row.error===null&&row.data?.consent_version==="2026-04-15",
+  "synthetic DB consent row really changed before TUS PATCH");
+ await finalAttempt("real consent_version revoked",uri,actorA.jwt,path);
+ const restored=await admin.from("user_recording_consents")
+  .update({consent_version:"2026-04-16"}).eq("user_id",actorA.id)
+  .eq("consent_key","recording_studio_global");
+ assert.equal(restored.error,null,"restore synthetic consent for remaining cases");
+ if(await getObject(path))await clear(path);
+}
 // Owner/right/R18 withdrawal after partial commit; no false assumption of RLS.
 for(const flag of ["owner_ok","rights_ok","r18_ok"]){
  const path=pathOf(actorA),uri=await initial(path,actorA.jwt);
