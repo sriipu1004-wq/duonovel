@@ -32,4 +32,8 @@ assert.ok(auth<check && check<error && error<denied && denied<fail &&
 assert.ok(route.includes('message === "recording_consent_required"'));count++;
 assert.ok(route.includes('message === "recording_consent_check_failed"'));count++;
 assert.ok(route.includes('.select("consent_version")'));count++;
-console.log("PASS: "+count+" Human signed multipart consent-version and SOURCE-before-token negatives (no API E2E)");
+assert.match(route,/\.createSignedUploadUrl\(part\.objectPath,\s*\{[\s\S]*?upsert:\s*false\s*,?[\s\S]*?\}\)/,
+  "New bearer upload tokens must be limited to first-write only");count++;
+assert.ok(!/\.createSignedUploadUrl\(part\.objectPath,\s*\{[\s\S]*?upsert:\s*true/.test(route),
+  "No same-key upsert may be authorized by the Human mint route");count++;
+console.log("PASS: "+count+" Human consent and immutable first-write signed-token SOURCE negatives (no API E2E)");
