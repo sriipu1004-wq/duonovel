@@ -186,6 +186,16 @@ docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
 echo 'PASS: F2-P durable HTTP ticket fixture installed only in disposable PostgreSQL'
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node "$B2/privileged-http-boundary-local-e2e.mjs")
+# Read-only, separately provisioned synthetic GoTrue auditor with no
+# service_role or S3 key. Only after real HTTP worker sealed local receipts.
+# Never copy test policy to hosted Supabase migrations.
+docker cp "$B2/privileged-readonly-auditor-local.sql" \
+ "$db_container:/tmp/issue137_readonly_auditor_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+ -f /tmp/issue137_readonly_auditor_local.sql >/dev/null
+echo 'PASS: F2-P disposable read-only auditor RLS fixture installed'
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node "$B2/privileged-readonly-auditor-local-e2e.mjs")
 # Authenticated, non-signed Supabase TUS: isolate PRIVATE RLS and verify
 # resume/PATCH rights revocation and duplicate path with real localhost Storage.
 # NEVER copy this policy to hosted migrations or production buckets.
