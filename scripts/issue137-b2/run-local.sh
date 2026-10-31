@@ -170,6 +170,10 @@ echo 'PASS: F2-P RLS user-only PRIVATE upload policies installed in disposable D
 # Do not pass any hosted endpoint or credential.
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node "$B2/human-multipart-next-route-local-e2e.mjs")
+# Contrast: real LOCAL Next API in a separate no-service-role runtime.
+# Authenticated user-only preflight must survive; legacy signer must fail closed.
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node "$B2/human-no-admin-next-boundary-local-e2e.mjs")
 # Authenticated, non-signed Supabase TUS: isolate PRIVATE RLS and verify
 # resume/PATCH rights revocation and duplicate path with real localhost Storage.
 # NEVER copy this policy to hosted migrations or production buckets.
