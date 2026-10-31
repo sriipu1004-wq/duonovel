@@ -30,6 +30,7 @@ import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguag
 import { getSupportedLanguage } from "@/lib/translation/languageRegistry";
 import { isUuid } from "@/lib/uuid";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
+import { listProtectedAiRecordings } from "@/lib/recording/protectedAiRecordingOptions";
 import { buildRecordingEntryPath } from "@/lib/recording/recordingEntry";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
@@ -438,6 +439,12 @@ export default async function ReadEpisodePage({
   const availableHumanRecordings = payload.allEpisodeRecordings.filter(
     isPublishedHumanRecording
   );
+  // AI media is not Human narration. Its recordingId becomes an authenticated
+  // private playback URL after the same Reader-level R18 gate above.
+  const aiNarrationOptions = listProtectedAiRecordings(
+    payload.allEpisodeRecordings,
+    new Set([episode.id])
+  );
   const humanNarrationOptions = availableHumanRecordings
     .map((recording) => {
       const recordingId = recording.id;
@@ -581,7 +588,22 @@ export default async function ReadEpisodePage({
   );
 
   return (
-    <WebSpeechEpisodePlayback
+    <>
+      {aiNarrationOptions.length > 0 ? (
+        <section aria-label="AI朗読" className="mx-auto max-w-4xl px-4 py-3">
+          <h2 className="mb-2 text-sm font-semibold">AI朗読音声</h2>
+          <p className="mb-2 text-xs text-neutral-600">
+            AIによる録音済み音声。Human朗読とブラウザTTSとは別の再生経路。
+          </p>
+          {aiNarrationOptions.slice(0, 8).map((option) => (
+            <div key={option.recordingId} className="mb-3">
+              <p className="mb-1 text-xs">{option.name}</p>
+              <audio controls preload="none" src={option.audioUrl} className="w-full" />
+            </div>
+          ))}
+        </section>
+      ) : null}
+      <WebSpeechEpisodePlayback
       seriesId={seriesId}
       episodeId={episode.id}
       episodeNumber={currentEpisodeNumber}
@@ -624,5 +646,6 @@ export default async function ReadEpisodePage({
         ) : null
       }
     />
+    </>
   );
 }

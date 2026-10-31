@@ -1,3 +1,4 @@
+import { checkNonproductionMediaWriterBoundary } from "@/lib/recording/publicMediaWriterBoundary";
 import {
   getEpisodeBody,
   type EpisodeRow,
@@ -18,9 +19,12 @@ import { buildNemoTimingObjectPathFromAudioObjectPath } from "@/lib/recording/ne
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
 import {
+  readHumanAtomicRevision,
+  commitHumanAtomicMutation,
+} from "@/lib/recording/humanRecordingAtomic";
+import {
   buildHumanRecordingPlaybackHref,
   getHumanRecordingAudioBucketName,
-  getHumanRecordingStorageObjectPath,
 } from "@/lib/recording/humanRecordingStorage";
 
 type AdminSupabase = ReturnType<typeof createAdminClient>;
@@ -55,9 +59,19 @@ type RecordingWriteInput = {
 
 type ExistingRecording = {
   id: string;
+  seriesId: string;
+  episodeId: string;
   audioStoragePath: string;
   readerId: string;
+  // Reader-owner aliases are evidence for private/unknown-row protection,
+  // not authority to overwrite an existing recording.
+  readerIds: string[];
+  hasCanonicalReaderId: boolean;
+  hasConflictingReaderIds: boolean;
   readerName: string;
+  voiceModelId: string;
+  // Null/unknown must never be treated as prior publication consent.
+  isPublic: boolean | null;
 };
 
 function pickText(...values: unknown[]): string {
@@ -166,52 +180,7 @@ function buildHumanRecordingObjectPaths({
   };
 }
 
-function buildRecordingArtifactObjectPaths(
-  storedAudioPath: string
-): string[] {
-  const objectPath = getHumanRecordingStorageObjectPath(storedAudioPath);
-
-  if (!objectPath) {
-    return [];
-  }
-
-  const results = [objectPath];
-
-  const normalizedPlaybackMatch = objectPath.match(
-    /^(.*\/)playback-from-([a-z0-9]+)\.m4a$/i
-  );
-  if (normalizedPlaybackMatch) {
-    results.push(`${normalizedPlaybackMatch[1]}original.${normalizedPlaybackMatch[2]}`);
-    results.push(buildNemoTimingObjectPathFromAudioObjectPath(objectPath));
-  }
-
-  const legacyPlaybackMatch = objectPath.match(/^(.*\/)playback\.([a-z0-9]+)$/i);
-  if (legacyPlaybackMatch) {
-    results.push(`${legacyPlaybackMatch[1]}original.${legacyPlaybackMatch[2]}`);
-    results.push(buildNemoTimingObjectPathFromAudioObjectPath(objectPath));
-  }
-
-  if (objectPath.startsWith("nemo/") || objectPath.includes("/nemo/")) {
-    results.push(buildNemoTimingObjectPathFromAudioObjectPath(objectPath));
-  }
-
-  return [...new Set(results)];
-}
-
-async function removeStorageObjectPaths(
-  adminSupabase: AdminSupabase,
-  bucketName: string,
-  objectPaths: string[]
-): Promise<void> {
-  const filtered = [...new Set(objectPaths.filter((value) => value.trim().length > 0))];
-
-  if (filtered.length === 0) {
-    return;
-  }
-
-  await adminSupabase.storage.from(bucketName).remove(filtered);
-}
-
+// No destructive Human recording cleanup on uncertain upload/DB results.
 
 async function loadPublishAccess(
   adminSupabase: AdminSupabase,
@@ -383,19 +352,45 @@ async function ensureReaderUserRow(
   throw new Error(`reader_user_upsert_failed:${errors.join(" | ")}`);
 }
 
+
 function mapRecordingRows(rows: RawRow[]): ExistingRecording[] {
-  return rows.map((row) => ({
-    id: String(row.id),
-    audioStoragePath: pickText(row.audio_storage_path, row.audioStoragePath),
-    readerId: pickText(row.reader_id, row.reader_user_id, row.readerUserId),
-    readerName:
-      pickText(
-        row.reader_name,
-        row.narrator_name,
-        row.display_name,
-        row.speaker_name
-      ) || "朗読者未設定",
-  }));
+  return rows.map((row) => {
+    const canonicalReaderId = pickText(row.reader_id);
+    const readerIds = [...new Set([
+      canonicalReaderId,
+      pickText(row.reader_user_id),
+      pickText(row.readerUserId),
+    ].filter((id) => id.length > 0))];
+
+    return {
+      id: String(row.id),
+      seriesId: pickText(row.series_id),
+      episodeId: pickText(row.episode_id),
+      audioStoragePath: pickText(row.audio_storage_path),
+      // Legacy aliases may identify private Human rows for fail-closed
+      // publication checks. Only an unambiguous canonical reader_id can
+      // authorize the old-row replacement CAS below.
+      readerId: canonicalReaderId || readerIds[0] || "",
+      readerIds,
+      hasCanonicalReaderId: canonicalReaderId.length > 0,
+      hasConflictingReaderIds: readerIds.length > 1,
+      readerName: pickText(row.reader_name),
+      voiceModelId: pickText(row.voice_model_id),
+      isPublic: row.is_public === true ? true : row.is_public === false ? false : null,
+    };
+  });
+}
+
+// Only a canonical playback file under THIS publisher's path may be reused.
+// Legacy media, other owners and arbitrary hosted URLs remain untouched.
+function isCanonicalOwnedHumanPlaybackPath(
+  value: string, seriesId: string, episodeId: string, readerId: string
+): boolean {
+  const prefix = `human/${seriesId}/${episodeId}/${readerId}/`;
+  if (!value.startsWith(prefix)) return false;
+  return /^[a-z0-9-]+\/playback-from-[a-z0-9]+\.m4a$/u.test(
+    value.slice(prefix.length)
+  );
 }
 
 async function findExistingRecordings(
@@ -418,128 +413,70 @@ async function findExistingRecordings(
   );
 }
 
-async function deleteDuplicateRecordings(
-  adminSupabase: AdminSupabase,
-  duplicateIds: string[]
-): Promise<void> {
-  if (duplicateIds.length === 0) {
-    return;
-  }
-
-  const { error } = await adminSupabase
-    .from("recordings")
-    .delete()
-    .in("id", duplicateIds);
-
-  if (error) {
-    throw new Error(`recording_duplicate_cleanup_failed:${error.message}`);
-  }
-}
-
 async function writeRecording(
   adminSupabase: AdminSupabase,
-  input: RecordingWriteInput
-): Promise<{
-  recordingId: string;
-  previousAudioStoragePath: string | null;
-  duplicateAudioStoragePaths: string[];
-}> {
-  const allEpisodeRows = await findExistingRecordings(
+  input: RecordingWriteInput,
+  preUploadRows?: ExistingRecording[],
+  preUploadRevision?: string
+): Promise<{ recordingId: string }> {
+  // The publisher passes a snapshot taken BEFORE media uploads. Reading the
+  // old publication flag after uploads would miss a mid-upload withdrawal.
+  const allEpisodeRows = preUploadRows ?? await findExistingRecordings(
     adminSupabase,
     input.episodeId
   );
 
-  const sameReaderIdRows = allEpisodeRows.filter(
-    (row) => row.readerId === input.readerId
-  );
+  if (input.isPublic && allEpisodeRows.some((row) =>
+    row.seriesId === input.seriesId &&
+    row.episodeId === input.episodeId &&
+    row.readerIds.includes(input.readerId) &&
+    (row.isPublic !== true || row.hasConflictingReaderIds)
+  )) {
+    // A default public upload is not consent to re-publish a private or
+    // unknown-state Human recording via UPDATE or a new public INSERT.
+    throw new Error("human_recording_republish_requires_explicit_consent");
+  }
 
-  const sameReaderNameRows =
-    sameReaderIdRows.length > 0
-      ? []
-      : allEpisodeRows.filter((row) => row.readerName === input.readerName);
+  const primary = allEpisodeRows.find((row) =>
+    row.seriesId === input.seriesId &&
+    row.episodeId === input.episodeId &&
+    row.readerId === input.readerId &&
+    row.hasCanonicalReaderId &&
+    !row.hasConflictingReaderIds &&
+    row.readerName === input.readerName &&
+    !row.voiceModelId &&
+    isCanonicalOwnedHumanPlaybackPath(
+      row.audioStoragePath, input.seriesId, input.episodeId, input.readerId
+    )
+  ) ?? null;
 
-  const existingRows =
-    sameReaderIdRows.length > 0 ? sameReaderIdRows : sameReaderNameRows;
-
-  const primary = existingRows[0] ?? null;
-  const duplicates = existingRows.slice(1);
-
-  const payload = {
-    series_id: input.seriesId,
-    episode_id: input.episodeId,
-    reader_id: input.readerId,
-    reader_name: input.readerName,
-    audio_storage_path: input.audioStoragePath,
-    is_public: input.isPublic,
-    voice_model_id: null,
-  };
-
-  if (primary) {
-    const { data, error } = await adminSupabase
-      .from("recordings")
-      .update(payload)
-      .eq("id", primary.id)
-      .select("id")
-      .single();
-
-    if (error || !data) {
-      throw new Error(
-        `recording_update_failed:${error?.message ?? "unknown error"}`
-      );
+  // H1: all Human writes go through ONE durable scoped revision transaction.
+  // An absent or unreviewed RPC must fail closed, never use direct DB writes.
+  const revision = preUploadRevision ?? await readHumanAtomicRevision(
+    adminSupabase, {
+      seriesId: input.seriesId,
+      episodeId: input.episodeId,
+      ownerId: input.readerId,
     }
-
-    await deleteDuplicateRecordings(
-      adminSupabase,
-      duplicates.map((row) => row.id)
-    );
-
-    return {
-      recordingId: String((data as RawRow).id),
-      previousAudioStoragePath: primary.audioStoragePath || null,
-      duplicateAudioStoragePaths: duplicates
-        .map((row) => row.audioStoragePath)
-        .filter((value) => value.length > 0),
-    };
-  }
-
-  const { data, error } = await adminSupabase
-    .from("recordings")
-    .insert(payload)
-    .select("id")
-    .single();
-
-  if (error || !data) {
-    throw new Error(
-      `recording_insert_failed:${error?.message ?? "unknown error"}`
-    );
-  }
-
-  return {
-    recordingId: String((data as RawRow).id),
-    previousAudioStoragePath: null,
-    duplicateAudioStoragePaths: [],
-  };
-}
-
-async function removeObsoleteRecordingArtifacts(
-  adminSupabase: AdminSupabase,
-  bucketName: string,
-  previousAudioStoragePath: string | null,
-  duplicateAudioStoragePaths: string[],
-  currentObjectPaths: string[]
-): Promise<void> {
-  const obsoleteFromPrimary = previousAudioStoragePath
-    ? buildRecordingArtifactObjectPaths(previousAudioStoragePath)
-    : [];
-
-  const obsoleteFromDuplicates = duplicateAudioStoragePaths.flatMap(
-    (storedAudioPath) => buildRecordingArtifactObjectPaths(storedAudioPath)
   );
-
-  const obsoleteObjectPaths = [...new Set([...obsoleteFromPrimary, ...obsoleteFromDuplicates])]
-    .filter((path) => !currentObjectPaths.includes(path));
-
-  await removeStorageObjectPaths(adminSupabase, bucketName, obsoleteObjectPaths);
+  const recordingId = primary?.id ?? crypto.randomUUID();
+  const result = await commitHumanAtomicMutation(adminSupabase, {
+    seriesId: input.seriesId,
+    episodeId: input.episodeId,
+    ownerId: input.readerId,
+    expectedRevision: revision,
+    action: primary ? "replace" : "insert",
+    recordingId,
+    readerName: input.readerName,
+    audioStoragePath: input.audioStoragePath,
+    isPublic: input.isPublic,
+    priorAudioStoragePath: primary?.audioStoragePath ?? null,
+    priorIsPublic: primary?.isPublic ?? null,
+  });
+  if (result.recordingId !== recordingId) {
+    throw new Error("human_atomic_recording_id_mismatch");
+  }
+  return { recordingId };
 }
 
 export async function publishHumanRecording({
@@ -571,6 +508,38 @@ export async function publishHumanRecording({
     canonicalEpisodeId
   );
 
+  // Capture the generation BEFORE the snapshot and expensive media work.
+  // Reading a later generation after an ABA withdrawal would permit a stale
+  // upload to overwrite consent even when the boolean/path returned to old values.
+  const preUploadRevision = await readHumanAtomicRevision(adminSupabase, {
+    seriesId,
+    episodeId: canonicalEpisodeId,
+    ownerId: userId,
+  });
+  const preUploadRows = await findExistingRecordings(
+    adminSupabase,
+    canonicalEpisodeId
+  );
+  if (isPublic && preUploadRows.some((row) =>
+    row.seriesId === seriesId &&
+    row.episodeId === canonicalEpisodeId &&
+    row.readerIds.includes(userId) &&
+    (row.isPublic !== true || row.hasConflictingReaderIds)
+  )) {
+    // Reject before allocating any new media keys.
+    throw new Error("human_recording_republish_requires_explicit_consent");
+  }
+
+  // F2-P Preview-only admission HOLD before any FINAL Human media writes.
+  // Multipart temporary uploads occur through a separate route; they are not
+  // publication and retain their existing cleanup obligations.
+  checkNonproductionMediaWriterBoundary({
+    kind: "human-recording", isPublicCandidate: isPublic, env: {
+      LIBREAD_F2P_MEDIA_WRITER_MODE: process.env.LIBREAD_F2P_MEDIA_WRITER_MODE,
+      VERCEL_ENV: process.env.VERCEL_ENV,
+    },
+  });
+
   const fileBytes = new Uint8Array(await sourceFile.arrayBuffer());
 
   if (fileBytes.byteLength <= 0) {
@@ -589,12 +558,6 @@ export async function publishHumanRecording({
   });
   const timingObjectPath =
     buildNemoTimingObjectPathFromAudioObjectPath(playbackObjectPath);
-
-  const currentObjectPaths = [
-    originalObjectPath,
-    playbackObjectPath,
-    timingObjectPath,
-  ];
 
   try {
     const { error: originalUploadError } = await adminSupabase.storage
@@ -653,31 +616,17 @@ export async function publishHumanRecording({
 
     await ensureReaderUserRow(adminSupabase, userId, readerName);
 
-    const {
-      recordingId,
-      previousAudioStoragePath,
-      duplicateAudioStoragePaths,
-    } = await writeRecording(adminSupabase, {
+    const { recordingId } = await writeRecording(adminSupabase, {
       seriesId,
       episodeId: canonicalEpisodeId,
       readerId: userId,
       readerName,
       audioStoragePath: playbackObjectPath,
       isPublic,
-    });
+    }, preUploadRows, preUploadRevision);
 
-    try {
-      await removeObsoleteRecordingArtifacts(
-        adminSupabase,
-        bucketName,
-        previousAudioStoragePath,
-        duplicateAudioStoragePaths,
-        currentObjectPaths
-      );
-    } catch (cleanupError) {
-      console.warn("[human recording artifact cleanup warning]", cleanupError);
-    }
-
+    // Do not delete older Human rows or any source/playback/timing objects:
+    // an upload or DB response may have been lost after committing remotely.
     return {
       recordingId,
       audioStoragePath: buildHumanRecordingPlaybackHref(recordingId),
@@ -686,8 +635,7 @@ export async function publishHumanRecording({
       readerName,
     };
   } catch (error) {
-    await removeStorageObjectPaths(adminSupabase, bucketName, currentObjectPaths);
-
+    // An ambiguous failure is never authority to delete uploaded objects.
     if (error instanceof Error) {
       throw error;
     }

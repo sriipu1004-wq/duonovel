@@ -1,3 +1,4 @@
+import { checkNonproductionMediaWriterBoundary } from "@/lib/recording/publicMediaWriterBoundary";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -21,6 +22,10 @@ import {
   normalizeRecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  PRIVATE_AI_AUDIO_BUCKET, makePrivateAiAudioReference,
+  mustUsePrivateAiAudio, buildPrivateAiAudioPlaybackHref,
+} from "@/lib/recording/protectedAiRecordingStorage";
 import { createClient } from "@/lib/supabase/server";
 
 type UserSupabase = Awaited<ReturnType<typeof createClient>>;
@@ -67,10 +72,11 @@ type RecordingWriteInput = {
 
 type ExistingRecording = {
   id: string;
+  seriesId: string;
   audioStoragePath: string;
-  createdAt: string;
   readerId: string;
   readerName: string;
+  voiceModelId: string;
 };
 
 function parseEpisodeNumber(row: RawRow): number {
@@ -304,51 +310,6 @@ function buildNemoUploadPartPlans(
   return parts;
 }
 
-function extractBucketObjectPathFromPublicUrl(
-  publicUrl: string,
-  bucketName: string
-): string | null {
-  const marker = `/storage/v1/object/public/${bucketName}/`;
-  const markerIndex = publicUrl.indexOf(marker);
-
-  if (markerIndex === -1) {
-    return null;
-  }
-
-  const path = publicUrl.slice(markerIndex + marker.length).trim();
-  return path.length > 0 ? decodeURIComponent(path) : null;
-}
-
-function buildRecordingArtifactObjectPathsFromPublicUrl(
-  publicUrl: string,
-  bucketName: string
-): string[] {
-  const audioObjectPath = extractBucketObjectPathFromPublicUrl(publicUrl, bucketName);
-
-  if (!audioObjectPath) {
-    return [];
-  }
-
-  return [
-    audioObjectPath,
-    buildNemoTimingObjectPathFromAudioObjectPath(audioObjectPath),
-  ];
-}
-
-async function removeStorageObjectPaths(
-  supabase: AdminSupabase,
-  bucketName: string,
-  objectPaths: string[]
-): Promise<void> {
-  const filtered = [...new Set(objectPaths.filter((path) => path.trim().length > 0))];
-
-  if (filtered.length === 0) {
-    return;
-  }
-
-  await supabase.storage.from(bucketName).remove(filtered);
-}
-
 async function loadNemoGenerationAccess(
   supabase: GenerationSupabase,
   seriesId: string,
@@ -487,6 +448,29 @@ async function ensureReaderUserRow(
   );
 }
 
+// Only a canonical Nemo artifact of THIS series and episode is eligible for
+// reuse. Human or Aivis paths, arbitrary public URLs, and legacy unknown
+// provenance are not safe to update with an admin client.
+function isNemoRecordingReference(value: string, seriesId: string, episodeId: string): boolean {
+  const prefix = `nemo/${seriesId}/${episodeId}/`;
+  let objectPath = "";
+  if (value.startsWith("r18-private:")) {
+    objectPath = value.slice("r18-private:".length);
+  } else {
+    try {
+      const url = new URL(value);
+      const publicPrefix = "/storage/v1/object/public/recording-audio/";
+      if (url.protocol !== "https:" || url.search || url.hash ||
+          !url.pathname.startsWith(publicPrefix)) return false;
+      objectPath = url.pathname.slice(publicPrefix.length);
+    } catch {
+      return false;
+    }
+  }
+  if (!objectPath.startsWith(prefix)) return false;
+  return /^[^/]+\.wav$/u.test(objectPath.slice(prefix.length));
+}
+
 async function findExistingRecordings(
   supabase: AdminSupabase,
   episodeId: string
@@ -502,74 +486,35 @@ async function findExistingRecordings(
     throw new Error(`recording_lookup_failed:${error.message}`);
   }
 
-  const rows = (data ?? []) as RawRow[];
-
-  return rows.map((row) => ({
+  return ((data ?? []) as RawRow[]).map((row) => ({
     id: String(row.id),
+    seriesId: pickText(row.series_id),
     audioStoragePath: pickText(row.audio_storage_path),
-    createdAt: pickText(row.created_at) || "",
-    readerId: pickText(
-      row.reader_id,
-      row.reader_user_id,
-      row.readerUserId
-    ),
-    readerName:
-      pickText(
-        row.reader_name,
-        row.narrator_name,
-        row.display_name,
-        row.speaker_name
-      ) || "朗読者未設定",
+    // Do not fall back to a display name or a nullable legacy reader_user_id:
+    // the CAS below must match the actual owner column being updated.
+    readerId: pickText(row.reader_id),
+    readerName: pickText(row.reader_name),
+    voiceModelId: pickText(row.voice_model_id),
   }));
-}
-
-async function deleteDuplicateRecordings(
-  supabase: AdminSupabase,
-  duplicateIds: string[]
-): Promise<void> {
-  if (duplicateIds.length === 0) {
-    return;
-  }
-
-  const { error } = await supabase
-    .from("recordings")
-    .delete()
-    .in("id", duplicateIds);
-
-  if (error) {
-    throw new Error(`recording_duplicate_cleanup_failed:${error.message}`);
-  }
 }
 
 async function writeRecording(
   supabase: AdminSupabase,
   input: RecordingWriteInput
-): Promise<{
-  recordingId: string;
-  previousAudioStoragePath: string | null;
-  duplicateAudioStoragePaths: string[];
-}> {
-  const allEpisodeRows = await findExistingRecordings(
-    supabase,
-    input.episodeId
+): Promise<{ recordingId: string }> {
+  const allEpisodeRows = await findExistingRecordings(supabase, input.episodeId);
+  const eligibleRows = allEpisodeRows.filter((row) =>
+    row.seriesId === input.seriesId &&
+    row.readerId === input.readerId &&
+    row.readerName === input.readerName &&
+    !row.voiceModelId &&
+    isNemoRecordingReference(row.audioStoragePath, input.seriesId, input.episodeId)
   );
-
-  const sameReaderIdRows = allEpisodeRows.filter(
-    (row) => row.readerId === input.readerId
-  );
-
-  const sameReaderNameRows =
-    sameReaderIdRows.length > 0
-      ? []
-      : allEpisodeRows.filter((row) => row.readerName === input.readerName);
-
-  const existingRows =
-    sameReaderIdRows.length > 0 ? sameReaderIdRows : sameReaderNameRows;
-
-  const primary = existingRows[0] ?? null;
-  const duplicates = existingRows.slice(1);
-  const isNemoNarrator = isNemoNarratorName(input.readerName);
-
+  // No name-only fallback, cross-reader/model reuse, or DB duplicate deletion.
+  // Multiple existing Nemo versions remain preserved; update only the newest
+  // eligible row. A concurrent change to its pointer makes the CAS return no
+  // rows, and MUST fail instead of updating a different row.
+  const primary = eligibleRows[0] ?? null;
   const payload = {
     series_id: input.seriesId,
     episode_id: input.episodeId,
@@ -577,11 +522,7 @@ async function writeRecording(
     reader_name: input.readerName,
     audio_storage_path: input.audioStoragePath,
     is_public: true,
-    ...(isNemoNarrator
-      ? {
-          tags: null,
-        }
-      : {}),
+    ...(isNemoNarratorName(input.readerName) ? { tags: null } : {}),
   };
 
   if (primary) {
@@ -589,31 +530,24 @@ async function writeRecording(
       .from("recordings")
       .update(payload)
       .eq("id", primary.id)
+      .eq("series_id", input.seriesId)
+      .eq("episode_id", input.episodeId)
+      .eq("reader_id", input.readerId)
+      .eq("reader_name", input.readerName)
+      .is("voice_model_id", null)
+      .eq("audio_storage_path", primary.audioStoragePath)
       .select("id")
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
-      throw new Error(
-        `recording_update_failed:${error?.message ?? "unknown error"}`
-      );
-    }
+    if (error) throw new Error(`recording_update_failed:${error.message}`);
+    if (!data) throw new Error("recording_write_conflict");
 
-    await deleteDuplicateRecordings(
-      supabase,
-      duplicates.map((row) => row.id)
-    );
-
-    const row = data as RawRow;
-
-    return {
-      recordingId: String(row.id),
-      previousAudioStoragePath: primary.audioStoragePath || null,
-      duplicateAudioStoragePaths: duplicates
-        .map((row) => row.audioStoragePath)
-        .filter((value) => value.length > 0),
-    };
+    return { recordingId: String((data as RawRow).id) };
   }
 
+  // First-time simultaneous generations can insert separate rows without a
+  // Production unique constraint. This intentionally preserves both versions,
+  // rather than allowing a last-writer-wins overwrite or deleting a row.
   const { data, error } = await supabase
     .from("recordings")
     .insert(payload)
@@ -621,53 +555,10 @@ async function writeRecording(
     .single();
 
   if (error || !data) {
-    throw new Error(
-      `recording_insert_failed:${error?.message ?? "unknown error"}`
-    );
+    throw new Error(`recording_insert_failed:${error?.message ?? "unknown error"}`);
   }
-
-  const row = data as RawRow;
-
-  return {
-    recordingId: String(row.id),
-    previousAudioStoragePath: null,
-    duplicateAudioStoragePaths: [],
-  };
+  return { recordingId: String((data as RawRow).id) };
 }
-
-async function removePreviousRecordingArtifactsIfNeeded(
-  supabase: AdminSupabase,
-  bucketName: string,
-  previousAudioStoragePath: string | null,
-  currentObjectPaths: string[]
-): Promise<void> {
-  if (!previousAudioStoragePath) {
-    return;
-  }
-
-  const previousObjectPaths = buildRecordingArtifactObjectPathsFromPublicUrl(
-    previousAudioStoragePath,
-    bucketName
-  ).filter((path) => !currentObjectPaths.includes(path));
-
-  await removeStorageObjectPaths(supabase, bucketName, previousObjectPaths);
-}
-
-async function removeRecordingArtifactUrls(
-  supabase: AdminSupabase,
-  bucketName: string,
-  audioStoragePaths: string[],
-  currentObjectPaths: string[]
-): Promise<void> {
-  const objectPaths = audioStoragePaths
-    .flatMap((publicUrl) =>
-      buildRecordingArtifactObjectPathsFromPublicUrl(publicUrl, bucketName)
-    )
-    .filter((path) => !currentObjectPaths.includes(path));
-
-  await removeStorageObjectPaths(supabase, bucketName, objectPaths);
-}
-
 export async function generateNemoRecordingForEpisode({
   supabase,
   userId,
@@ -767,7 +658,15 @@ export async function generateNemoRecordingForEpisode({
   });
 
   const adminSupabase = createAdminClient();
-  const bucketName = getRecordingAudioBucketName();
+  const protectedR18 = await mustUsePrivateAiAudio(seriesId);
+  // F2-P experimental Preview HOLD; this never authorizes PUBLIC release.
+  checkNonproductionMediaWriterBoundary({
+    kind: "ai-recording", isPublicCandidate: !protectedR18, env: {
+      LIBREAD_F2P_MEDIA_WRITER_MODE: process.env.LIBREAD_F2P_MEDIA_WRITER_MODE,
+      VERCEL_ENV: process.env.VERCEL_ENV,
+    },
+  });
+  const bucketName = protectedR18 ? PRIVATE_AI_AUDIO_BUCKET : getRecordingAudioBucketName();
   const audioObjectPath = buildNemoRecordingObjectPath({
     seriesId,
     episodeId,
@@ -775,8 +674,8 @@ export async function generateNemoRecordingForEpisode({
   });
   const timingObjectPath =
     buildNemoTimingObjectPathFromAudioObjectPath(audioObjectPath);
-  const currentObjectPaths = [audioObjectPath, timingObjectPath];
-
+  // Never remove an uncertain or already referenced Storage key on failure.
+  // A failed DB write may have committed before its response was lost.
   try {
     const mergedWavBytes = concatNemoWavs(renderedSegments);
     const uploadCandidates = buildNemoUploadCandidates(mergedWavBytes);
@@ -798,7 +697,7 @@ export async function generateNemoRecordingForEpisode({
         .from(bucketName)
         .upload(audioObjectPath, candidate.wavBytes, {
           contentType: "audio/wav",
-          upsert: true,
+          upsert: false,
         });
 
       if (!uploadError) {
@@ -851,13 +750,13 @@ export async function generateNemoRecordingForEpisode({
       );
     }
 
-    const {
-      data: { publicUrl },
-    } = adminSupabase.storage.from(bucketName).getPublicUrl(audioObjectPath);
-
-    if (!publicUrl) {
-      throw new Error("storage_public_url_unavailable");
-    }
+    const publicUrl = protectedR18
+      ? null
+      : adminSupabase.storage.from(bucketName).getPublicUrl(audioObjectPath).data.publicUrl;
+    if (!protectedR18 && !publicUrl) throw new Error("storage_public_url_unavailable");
+    const storedAudioReference = protectedR18
+      ? makePrivateAiAudioReference(audioObjectPath)
+      : publicUrl!;
 
     const timingBytes = new TextEncoder().encode(
       JSON.stringify(timingManifest, null, 2)
@@ -867,7 +766,7 @@ export async function generateNemoRecordingForEpisode({
       .from(bucketName)
       .upload(timingObjectPath, timingBytes, {
         contentType: "application/json",
-        upsert: true,
+        upsert: false,
       });
 
     if (timingUploadError) {
@@ -876,47 +775,28 @@ export async function generateNemoRecordingForEpisode({
 
     await ensureReaderUserRow(adminSupabase, userId, narratorName);
 
-    const {
-      recordingId,
-      previousAudioStoragePath,
-      duplicateAudioStoragePaths,
-    } = await writeRecording(adminSupabase, {
+    const { recordingId } = await writeRecording(adminSupabase, {
       seriesId,
       episodeId,
       readerId: userId,
       readerName: narratorName,
-      audioStoragePath: publicUrl,
+      audioStoragePath: storedAudioReference,
     });
 
-    try {
-      await removePreviousRecordingArtifactsIfNeeded(
-        adminSupabase,
-        bucketName,
-        previousAudioStoragePath,
-        currentObjectPaths
-      );
-
-      await removeRecordingArtifactUrls(
-        adminSupabase,
-        bucketName,
-        duplicateAudioStoragePaths,
-        currentObjectPaths
-      );
-    } catch (cleanupError) {
-      console.warn("[nemo artifact cleanup warning]", cleanupError);
-    }
+    // Keep prior media versions: a superseded URL may still be in a client,
+    // historical timing manifest, or pending independent rights review.
 
     return {
       recordingId,
-      audioStoragePath: publicUrl,
+      audioStoragePath: protectedR18 ? buildPrivateAiAudioPlaybackHref(recordingId) : storedAudioReference,
       narratorName,
       episodeNumber: episode.episodeNumber,
       episodeTitle: episode.title,
       speakerId,
     };
   } catch (error) {
-    await removeStorageObjectPaths(adminSupabase, bucketName, currentObjectPaths);
-
+    // Fail closed without deleting objects. Upload success or a database commit
+    // can be uncertain after a timeout; preserve bytes for explicit recovery.
     if (error instanceof Error) {
       throw error;
     }

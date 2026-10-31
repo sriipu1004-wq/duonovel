@@ -182,6 +182,9 @@ export function buildNemoTimingPublicUrlFromAudioPublicUrl(
     return null;
   }
 
+  if (/^\/api\/recordings\/ai-audio\/[a-f0-9-]{36}$/i.test(trimmed)) {
+    return trimmed+"?timing=1";
+  }
   if (/\.wav$/i.test(trimmed)) {
     return trimmed.replace(/\.wav$/i, ".timing.json");
   }

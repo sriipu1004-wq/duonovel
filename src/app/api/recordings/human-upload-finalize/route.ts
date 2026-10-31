@@ -277,16 +277,21 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, ...result }, { status: 200 });
   } catch (error) {
-    console.error("[human-upload-finalize]", error);
+    const message = error instanceof Error ? error.message : "unknown_error";
+    const conflict = /H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT|H1_AMBIGUOUS_OWNER|H1_PRIVATE_REPUBLISH_DENIED|H2_PERMISSION_REVOKED|H2_PUBLICATION_REVOKED|H2_CONSENT_REVOKED|H2_R18_REVOKED/u.test(message);
+    const unavailable = message.startsWith("human_atomic_revision_unavailable:") ||
+      message.startsWith("human_atomic_commit_failed:");
+    if (!conflict) console.error("[human-upload-finalize]", error);
     return NextResponse.json(
       {
         ok: false,
-        error:
-          error instanceof Error
-            ? error.message
+        error: conflict
+          ? "録音の状態または所有権が変更された。再確認してください。"
+          : unavailable
+            ? "録音の原子的保存処理を確認できなかったため公開を停止した。"
             : "multipart Human narration finalize 中に想定外エラーが出た。",
       },
-      { status: 500 }
+      { status: conflict ? 409 : unavailable ? 503 : 500 }
     );
   } finally {
     if (tempObjectPaths.length > 0) {

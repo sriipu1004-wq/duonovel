@@ -110,7 +110,7 @@ for (const required of [
   'getSeriesPublicationStatus(series) !== "public"',
   "!isEpisodePubliclyVisible(episode)",
   "isR18Series(series)",
-  "createSignedUrl(objectPath, 60)",
+  "streamAuthorizedPrivateRecording(",
 ]) {
   assert.equal(
     audio.includes(required),
@@ -119,6 +119,19 @@ for (const required of [
   );
 }
 
+assert.equal(audio.includes("createSignedUrl("), false,
+  "Human playback must not return cached bearer signed URLs");
+const privateProxy = source("src/lib/recording/privateMediaProxy.ts");
+for (const required of [
+  "cache:\"no-store\"",
+  "private, no-store",
+  "Range:range",
+  "PRIVATE_AI_AUDIO_BUCKET",
+  "getHumanRecordingAudioBucketName()",
+]) {
+  assert.equal(privateProxy.includes(required), true,
+    "Private audio proxy must keep per-request authorization and no-store behavior: " + required);
+}
 const workPage = source("src/app/works/[seriesId]/page.tsx");
 assert.equal(
   workPage.includes("isPublishedHumanRecording"),
@@ -133,9 +146,20 @@ assert.equal(
 
 const publicRead = source("src/lib/publicRead.ts");
 assert.equal(
-  publicRead.includes("buildHumanRecordingPlaybackHref(recording.id)"),
+  publicRead.includes("return projectReaderEpisodeRecordings("),
   true,
-  "Reader payload must expose authorization-proxy URLs instead of storage paths"
+  "Reader must invoke the shared Human/AI recording boundary"
+);
+const readerProjection = source("src/lib/recording/readerEpisodeRecordingProjection.ts");
+assert.equal(
+  readerProjection.includes("buildHumanRecordingPlaybackHref(row.id)"),
+  true,
+  "Published Human Reader rows must still be replaced with authorized Human proxy URLs"
+);
+assert.equal(
+  readerProjection.includes("isPublishedHumanRecording(row)"),
+  true,
+  "Human provenance checks must remain in the Reader producer"
 );
 
 const recordSearch = source("src/app/record/page.tsx");

@@ -129,6 +129,14 @@ export async function POST(request: Request, context: RouteContext) {
     .select("content_rating, content_warnings, content_warning_locks")
     .single();
 
+  if (update.error?.code === "23514") {
+    // The trigger stopped an unsafe general -> R18 / withdrawal transition
+    // before persistence. Never expose old public media paths in the response.
+    return NextResponse.json(
+      { ok: false, error: "media_containment_required", persisted: false },
+      { status: 409 }
+    );
+  }
   if (update.error || !update.data) {
     return NextResponse.json(
       {
