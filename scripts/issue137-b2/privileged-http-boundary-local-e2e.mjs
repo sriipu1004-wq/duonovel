@@ -36,6 +36,7 @@ const workerPort=39800+Math.floor(Math.random()*90),
 const workerUrl="http://127.0.0.1:"+workerPort,
  ingressUrl="http://127.0.0.1:"+ingressPort;
 const internal=id()+id(),children=[];
+const ledger="issue137_http_local_tickets";
 const wav=Buffer.alloc(48);
 wav.write("RIFF",0);wav.writeUInt32LE(40,4);wav.write("WAVEfmt ",8);
 wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);
@@ -96,7 +97,7 @@ async function actor(){
  assert.equal(login.error,null,"real local actor login");
  const uid=created.data.user.id,jwt=login.data.session?.access_token;
  check(typeof jwt==="string"&&jwt.length>30,"GoTrue access token");
- return {uid,jwt,client};
+ return {uid,jwt,client,email,password};
 }
 async function physical(path){
  const r=await admin.storage.from(bucket).download(path);
@@ -109,6 +110,28 @@ async function stage(a,ticket,bytes=wav,more={}){
  return post(ingressUrl,"/stage",a.jwt,{ticket,bytesBase64:bytes.toString("base64"),...more});
 }
 function path(a,ticket){return "owner/"+a.uid+"/"+ticket+".wav";}
+function sql(query){
+ return execFileSync("docker",["exec",db,"psql","-X","-q","-t","-A",
+  "-v","ON_ERROR_STOP=1","-U","postgres","-d","postgres","-c",query],
+ {encoding:"utf8",timeout:12000,stdio:["ignore","pipe","pipe"]}).trim();
+}
+async function receipt(ticket){
+ const {data,error}=await admin.from(ledger).select("*").eq("ticket",ticket).single();
+ assert.equal(error,null,"LOCAL PostgreSQL durable receipt fetch");
+ return data;
+}
+async function restartWorker(old,extra={}){
+ if(old?.pid){
+  try{process.kill(-old.pid,"SIGTERM");}catch{}
+  await sleep(500);
+  try{process.kill(-old.pid,"SIGKILL");}catch{}
+ }
+ const replacement=start("worker",{B2_SERVICE_KEY:service,...extra});
+ await healthy(workerUrl,"worker",replacement);
+ return replacement;
+}
+const recover=(a,ticket)=>post(ingressUrl,"/recover",a.jwt,{ticket});
+const audit=(a,ticket)=>post(ingressUrl,"/audit",a.jwt,{ticket});
 try{
  // The actual child environment is allowlisted, no admin key for ingress.
  // Poisoned ingress must fail before binding its HTTP listener.
@@ -133,7 +156,7 @@ try{
   consent_version:version},{onConflict:"user_id,consent_key"});
  assert.equal((await consent(a,"2026-04-16")).error,null);
  assert.equal((await consent(b,"2026-04-16")).error,null);
- const worker=start("worker",{B2_SERVICE_KEY:service});
+ let worker=start("worker",{B2_SERVICE_KEY:service});
  await healthy(workerUrl,"worker",worker);
  const ingress=start("ingress",{B2_HTTP_WORKER_URL:workerUrl+"/"});
  await healthy(ingressUrl,"ingress",ingress);
@@ -152,6 +175,16 @@ try{
  check(ticket.status===201&&ticket.body.ok&&
   /^[a-f0-9-]{36}$/u.test(ticket.body.ticket),"fresh authorized ticket");
  const t=ticket.body.ticket;
+ check((await receipt(t)).state==="ISSUED","ticket was durably committed");
+ const deniedLedger=await a.client.from(ledger).select("ticket").eq("ticket",t);
+ check(!!deniedLedger.error,"ordinary GoTrue user cannot read ticket ledger");
+ const deniedRpc=await a.client.rpc("issue137_http_local_session_live",{
+  p_user_id:a.uid,p_session_id:JSON.parse(
+   Buffer.from(a.jwt.split(".")[1],"base64url").toString()).session_id});
+ check(!!deniedRpc.error,"ordinary user cannot execute privileged session RPC");
+ worker=await restartWorker(worker);
+ check((await receipt(t)).state==="ISSUED",
+  "ticket ISSUED state survives independent worker process restart");
  const stolen=await stage(b,t);
  check(stolen.status===403,"other user cannot spend ticket");
  const spoof=await stage(a,t,wav,{path:"public/file.wav"});
@@ -163,10 +196,13 @@ try{
   contentType:"audio/wav",upsert:false});
  check(!!direct.error,"ordinary user JWT cannot insert directly into privileged bucket");
  const successful=await stage(a,t);
- check(successful.status===201&&successful.body.status==="PRIVATE_STAGED_UNVERIFIED",
+ check(successful.status===201&&successful.body.status==="PRIVATE_SEALED_SNAPSHOT",
   "separate worker writes PRIVATE for authorized user");
  const stored=await physical(path(a,t));
  check(stored?.equals(wav),"trusted test harness verifies physical bytes");
+ check((await receipt(t)).state==="SEALED_PRIVATE_SNAPSHOT",
+  "real Postgres receipt sealed after readback");
+ check((await audit(a,t)).status===200,"sealed private bytes pass fresh audit");
  const replay=await stage(a,t,changed);
  check(replay.status===409,"ticket reuse cannot overwrite");
  check((await physical(path(a,t)))?.equals(wav),"replay preserved original");
@@ -191,7 +227,66 @@ try{
   "concurrent duplicate ticket has one winner");
  check((await physical(path(a,parallel.body.ticket)))?.equals(wav),
   "parallel requests left original bytes");
- const observed=await admin.storage.getBucket(bucket);
+ // Inject ACK-loss *after provider PUT* using a distinct short-lived worker.
+ // Reconciliation must read physical bytes and seal without re-uploading.
+ const lost=await issue(a,seriesId,episodeId);
+ check(lost.status===201,"ACK-loss candidate issued");
+ worker=await restartWorker(worker,{B2_HTTP_FAIL_AFTER_PUT_ONCE:"true"});
+ const noAck=await stage(a,lost.body.ticket);
+ check(noAck.status===503,"worker death after real Storage accept yields 503");
+ check((await physical(path(a,lost.body.ticket)))?.equals(wav),
+  "exact PRIVATE bytes exist despite lost acknowledgement");
+ check((await receipt(lost.body.ticket)).state==="CLAIMED",
+  "durable PostgreSQL claim persists after worker SIGEXIT");
+ worker=await restartWorker(worker);
+ const recovered=await recover(a,lost.body.ticket);
+ check(recovered.status===200&&recovered.body.status==="PRIVATE_SEALED_SNAPSHOT",
+  "new worker reconciles lost ACK without duplicate PUT");
+ check((await receipt(lost.body.ticket)).state==="SEALED_PRIVATE_SNAPSHOT",
+  "recover commits a sealed durable receipt");
+ check((await stage(a,lost.body.ticket)).status===409,
+  "claimed/recovered ticket never becomes reusable after restart");
+ // Global GoTrue logout must invalidate an already issued bearer/token.
+ const logoutTicket=await issue(a,seriesId,episodeId);
+ check(logoutTicket.status===201,"active session issued before global logout");
+ const sessionId=JSON.parse(Buffer.from(a.jwt.split(".")[1],"base64url").toString()).session_id;
+ check(sql("select count(*) from auth.sessions where id='"+sessionId+
+  "'::uuid and user_id='"+a.uid+"'::uuid")==="1","session exists before logout");
+ const signedOut=await a.client.auth.signOut({scope:"global"});
+ assert.equal(signedOut.error,null,"real local GoTrue global logout");
+ check(sql("select count(*) from auth.sessions where id='"+sessionId+
+  "'::uuid and user_id='"+a.uid+"'::uuid")==="0",
+  "global logout deleted actual auth.sessions row");
+ check((await stage(a,logoutTicket.body.ticket)).status===403,
+  "previously signed JWT denied by fresh auth.sessions lookup");
+ check((await physical(path(a,logoutTicket.body.ticket)))===null,
+  "post-logout signed ticket never wrote bytes");
+ // An independent holder of the SAME unrestricted service-role credential
+ // bypasses all worker gates. This must remain an explicit RISK, not PASS.
+ const alternate=createClient(ep.origin,service,{auth:{
+  persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+ const up=await alternate.storage.from(bucket).upload(path(a,t),changed,{
+  contentType:"audio/wav",upsert:true});
+ assert.equal(up.error,null,"local bypass control: service-role overwrite actually works");
+ check((await physical(path(a,t)))?.equals(changed),
+  "alternate privileged holder physically mutated a SEALED object");
+ // The original actor has logged out, so use a fresh real session belonging
+ // to the same user for an audit; strict scope checks remain active.
+ const relog=await a.client.auth.signInWithPassword({
+  email:a.email,password:a.password});
+ assert.equal(relog.error,null,"local owner re-login for integrity audit");
+ a.jwt=relog.data.session.access_token;
+ // Receipt is tied to the original session, so this must fail CLOSED:
+ // independent Postgres/Storage audit below records byte drift directly.
+ check((await audit(a,t)).status===403,
+  "different session cannot take over a prior-session receipt");
+ const drift=(await receipt(t));
+ check(drift.state==="SEALED_PRIVATE_SNAPSHOT"&&
+  (await physical(path(a,t)))?.equals(changed),
+  "privileged physical drift remains undetected by receipt alone");
+ console.log("RISK: local alternate service-role holder changed SEALED PRIVATE bytes; "+
+  "session-scoped worker audit refused re-login; out-of-band trusted drift check required");
+  const observed=await admin.storage.getBucket(bucket);
  check(observed.data?.public===false,"bucket remains PRIVATE");
  const outputs=children.map(c=>c.getLogs()).join("\n");
  check(!outputs.includes(service)&&!outputs.includes(a.jwt)&&
@@ -202,7 +297,7 @@ try{
  console.log("PASS: F2-P REAL LOCAL separate HTTP ingress/privileged worker "+
   checks+" checks; 2 processes, owner GoTrue, fresh consent, PRIVATE first-write, "+
   "wrong-user/replay/revocation/parallel negatives and zero PUBLIC media");
- console.log("HOLD: ingress has test-only internal relay secret; trusted worker remains "+
+ console.log("HOLD: test-only ingress relay; durable LOCAL PostgreSQL only, worker retains "+
   "project-wide service_role and a separate holder still bypasses Storage RLS. "+
   "No deployed per-route custody, durable ticket ledger, 1GiB streaming, authenticated "+
   "Reader/AI/Human production compatibility, or physical immutability.");
