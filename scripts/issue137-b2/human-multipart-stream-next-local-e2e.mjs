@@ -203,6 +203,55 @@ try{
   "final logical part is exact remainder, no phantom 8MiB");
  yes((await put(p1.body.partId,tail,owner.session.cookie())).status===201,
   "partial final part uploaded with streaming path");
+ // Invoke the actual UI's development-only client adapter against this real
+ // Next+worker+Storage stack (no browser automation claimed). Simulate lost ACK
+ // after a real PRIVATE PUT and require server-reconciled SHA receipt.
+ const {stageHumanMultipartLocally}=await import(
+  "../../src/lib/recording/localHumanMultipartClient.ts");
+ const originalWindow=globalThis.window;
+ const formerNodeEnv=process.env.NODE_ENV;
+ globalThis.window={location:{hostname:"127.0.0.1"}};
+ process.env.NODE_ENV="development";
+ try{
+  const localFile=new File([bytes,tail],"local-studio-probe.wav",{
+   type:"audio/wav",lastModified:123456789});
+  let adapterLease=null,adapterProgress=[],lostAck=false,uploads=0;
+  const browserFetch=async (input,init={})=>{
+   const response=await fetch(nextBase+input,{
+    ...init,headers:{...init.headers,cookie:owner.session.cookie()},
+    signal:AbortSignal.timeout(40000),redirect:"error"});
+   if(init.method==="PUT"){
+    uploads++;
+    if(!lostAck&&response.status===201){
+     lostAck=true; // Response was accepted but not delivered to caller.
+     throw new Error("SIMULATED_ACK_LOST_AFTER_PRIVATE_STORAGE_PUT");
+    }
+   }
+   return response;
+  };
+  const result=await stageHumanMultipartLocally({
+   file:localFile,seriesId,episodeId,fetcher:browserFetch,
+   onLease:lease=>{adapterLease=lease;},
+   onProgress:progress=>{adapterProgress.push(progress);}
+  });
+  yes(lostAck,"studio client simulated ACK loss after actual accepted 8MiB PUT");
+  yes(uploads===2,"studio client performs one PUT per part, no duplicate after ACK loss");
+  yes(result.sessionId===adapterLease?.sessionId&&
+   adapterProgress.at(-1)?.completedParts===2,
+   "studio client adapter preserves durable session and reports real progress");
+  yes((await physical(result.sessionId,0))?.equals(bytes)&&
+   (await physical(result.sessionId,1))?.equals(tail),
+   "studio adapter actual Storage PRIVATE part bytes unchanged by ACK loss");
+  const noPublish=await admin.from("recordings").select("id")
+   .eq("episode_id",episodeId);
+  yes(!noPublish.error&&noPublish.data?.length===0,
+   "development Studio staging must not publish or insert recording row");
+ }finally{
+  if(originalWindow===undefined)delete globalThis.window;
+  else globalThis.window=originalWindow;
+  if(formerNodeEnv===undefined)delete process.env.NODE_ENV;
+  else process.env.NODE_ENV=formerNodeEnv;
+ }
  const finished=await post({action:"finish",sessionId:sid},owner.session.cookie());
  yes(finished.status===200&&finished.body.reason===
   "PRIVATE_PARTS_SEALED_NOT_PUBLISHED","two sealed parts produce receipt only, not published audio");
