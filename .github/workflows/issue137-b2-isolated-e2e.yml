@@ -44,6 +44,9 @@ jobs:
           node --check scripts/issue137-b2/human-signed-multipart-local-e2e.mjs
           node --check scripts/issue137-b2/human-multipart-next-route-local-e2e.mjs
           node --check scripts/issue137-b2/human-no-admin-next-boundary-local-e2e.mjs
+          node --check scripts/issue137-b2/human-multipart-worker-process-local.mjs
+          node --check scripts/issue137-b2/human-multipart-stream-next-local-e2e.mjs
+          test -f scripts/issue137-b2/human-multipart-worker-local.sql
           node --check scripts/issue137-b2/privileged-http-boundary-process-local.mjs
           node --check scripts/issue137-b2/privileged-http-boundary-local-e2e.mjs
           test -f scripts/issue137-b2/privileged-http-durable-local.sql
