@@ -206,7 +206,7 @@ docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
  -f /tmp/issue137_b2_multipart_worker.sql >/dev/null
 echo 'PASS: F2-P isolated multipart ledger installed in disposable PostgreSQL'
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
- node "$B2/human-multipart-stream-next-local-e2e.mjs")
+ node --import tsx "$B2/human-multipart-stream-next-local-e2e.mjs")
 # Authenticated, non-signed Supabase TUS: isolate PRIVATE RLS and verify
 # resume/PATCH rights revocation and duplicate path with real localhost Storage.
 # NEVER copy this policy to hosted migrations or production buckets.
