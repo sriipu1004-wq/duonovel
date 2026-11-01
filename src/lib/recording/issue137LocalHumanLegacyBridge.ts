@@ -14,16 +14,21 @@ function exact(input:JsonData,keys:string[]):boolean {
 }
 function active(request:Request):boolean {
  try{
-  const url=new URL(request.url);
+  // Next may normalize Request.url internally. Bind to the explicit
+  // loopback test-server origin AND the unmodified HTTP Host header.
+  const site=new URL(process.env.NEXT_PUBLIC_SITE_URL??"");
   const api=new URL(process.env.NEXT_PUBLIC_SUPABASE_URL??"");
   return process.env.NODE_ENV==="development"&&
    process.env.DO_NOT_CONTACT_PRODUCTION==="true"&&
    process.env.B2_EPHEMERAL_CONFIRM==="local-only"&&
    process.env.B2_LOCAL_HUMAN_MULTIPART_MODE==="enabled"&&
-   url.protocol==="http:"&&url.hostname==="127.0.0.1"&&
-   Number(url.port)>=39675&&Number(url.port)<=39686&&
+   site.protocol==="http:"&&site.hostname==="127.0.0.1"&&
+   Number(site.port)>=39675&&Number(site.port)<=39686&&
+   site.pathname==="/"&&!site.search&&!site.hash&&
+   request.headers.get("host")===site.host&&
    api.protocol==="http:"&&["127.0.0.1","localhost"].includes(api.hostname)&&
-   ["54321","54331"].includes(api.port);
+   ["54321","54331"].includes(api.port)&&api.pathname==="/"&&
+   !api.search&&!api.hash;
  }catch{return false;}
 }
 export function hasIssue137ProbeMarker(data:JsonData):boolean {
