@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import {
   hasIssue137ProbeMarker,
   handleIssue137LocalLegacyProbe,
+  handleIssue137LocalNormalHumanRoute,
+  isIssue137LocalNormalHumanModeSelected,
 } from "@/lib/recording/issue137LocalHumanLegacyBridge";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import {
@@ -94,6 +96,10 @@ export async function POST(request: Request) {
     const payload = (await request.json()) as Record<string, unknown>;
     if(hasIssue137ProbeMarker(payload))
       return handleIssue137LocalLegacyProbe(request,payload,"open");
+    // Dedicated disposable localhost tests exercise the real normal JSON
+    // contract with no privileged signer or publication; never auto-fallback.
+    if(isIssue137LocalNormalHumanModeSelected())
+      return handleIssue137LocalNormalHumanRoute(request,payload,"open");
 
     const seriesId = readText(payload.seriesId);
     const episodeId = readText(payload.episodeId);
