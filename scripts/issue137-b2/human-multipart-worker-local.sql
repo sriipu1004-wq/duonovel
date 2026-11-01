@@ -63,4 +63,44 @@ revoke all on function public.issue137_http_local_multipart_claim(uuid,uuid,uuid
  from public,anon,authenticated;
 grant execute on function public.issue137_http_local_multipart_claim(uuid,uuid,uuid)
  to service_role;
+-- Do not upgrade OPEN->SEALED_PARTS after a permission or session race.
+-- This is only a PRIVATE receipt, not a publication/public audio pointer.
+create function public.issue137_http_local_multipart_finalize(
+ p_multipart uuid,p_user uuid,p_auth_session uuid)
+returns boolean language plpgsql volatile security definer set search_path='' as $f$
+declare finished uuid;
+begin
+ if coalesce(nullif(current_setting('request.jwt.claim.role',true),''),
+  nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'role','')<>'service_role'
+ then return false; end if;
+ update public.issue137_http_local_multipart_sessions m
+ set state='SEALED_PARTS'
+ from auth.sessions a,public.user_recording_consents c,
+      public.series s,public.episodes e
+ where m.id=p_multipart and m.user_id=p_user
+ and m.auth_session_id=p_auth_session and m.state='OPEN'
+ and m.expires_at>clock_timestamp()
+ and a.id=m.auth_session_id and a.user_id=m.user_id
+ and c.user_id=m.user_id and c.consent_key='recording_studio_global'
+ and c.consent_version='2026-04-16'
+ and s.id=m.series_id and s.publication_status='public'
+ and s.recording_permission_mode='open' and s.content_rating<>'r18'
+ and not('sexual_r18'=any(coalesce(s.content_warnings,'{}'::text[])))
+ and e.id=m.episode_id and e.series_id=s.id
+ and e.posting_status='posted' and e.is_published=true
+ and not exists(
+   select 1 from generate_series(0,m.part_count-1) i
+   where not exists(
+    select 1 from public.issue137_http_local_multipart_parts p
+    where p.multipart_id=m.id and p.part_index=i
+    and p.state='SEALED'
+    and p.byte_count=least(8388608,(m.total_bytes-i*8388608)::integer)
+    and p.observed_sha256=p.expected_sha256))
+ returning m.id into finished;
+ return finished is not null;
+end $f$;
+revoke all on function public.issue137_http_local_multipart_finalize(uuid,uuid,uuid)
+ from public,anon,authenticated;
+grant execute on function public.issue137_http_local_multipart_finalize(uuid,uuid,uuid)
+ to service_role;
 notify pgrst,'reload schema';
