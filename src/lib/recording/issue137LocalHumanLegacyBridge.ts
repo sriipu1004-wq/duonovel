@@ -31,6 +31,80 @@ function active(request:Request):boolean {
    !api.search&&!api.hash;
  }catch{return false;}
 }
+
+/**
+ * Exercise the NORMAL Human API request shapes without minting a signed
+ * Storage bearer or enabling publication. This is NOT a release switch:
+ * if someone accidentally enables the mode outside the dedicated loopback
+ * fixture, the route returns HOLD instead of falling back to legacy signing.
+ */
+export function isIssue137LocalNormalHumanModeSelected():boolean {
+ return process.env.B2_LOCAL_HUMAN_NORMAL_ROUTE_MODE==="enabled";
+}
+export async function handleIssue137LocalNormalHumanRoute(
+ request:Request,payload:JsonData,op:LocalLegacyProbeOperation
+):Promise<NextResponse>{
+ const deny=(status:number)=>NextResponse.json(
+  {ok:false,error:"ISSUE137_NORMAL_HUMAN_PUBLICATION_HOLD"},
+  {status,headers:{"Cache-Control":"no-store"}});
+ if(!isIssue137LocalNormalHumanModeSelected()||!active(request))
+  return deny(404);
+ if(op==="open"){
+  // Same five fields that the current RecordingStudioPage sends today.
+  if(!exact(payload,["seriesId","episodeId","fileName","mimeType",
+   "totalSizeBytes"]))return deny(400);
+  const result=await handleIssue137LocalLegacyProbe(request,
+   {...payload,issue137LocalProbe:"open"},"open");
+  if(!result.ok)return result;
+  let reply:JsonData;
+  try{reply=await result.json() as JsonData;}catch{return deny(503);}
+  if(reply.ok!==true||!uuid.test(String(reply.sessionId??""))||
+   !Number.isSafeInteger(reply.partCount)||Number(reply.partCount)<1||
+   Number(reply.partCount)>128)return deny(503);
+  return NextResponse.json({
+   ok:true,uploadMode:"local-private-staging-only",
+   uploadSessionId:reply.sessionId,partCount:reply.partCount,
+   reason:"NO_SIGNED_URL_NO_PUBLICATION"
+  },{status:201,headers:{"Cache-Control":"no-store"}});
+ }
+ // The current Studio sends these eight fields to the NORMAL finalize API.
+ // Public request intent is NOT authorization to publish; always return HOLD.
+ if(!exact(payload,["seriesId","episodeId","episodeNumber","isPublic",
+  "fileName","mimeType","totalSizeBytes","uploadSessionId"])||
+  !uuid.test(String(payload.seriesId??""))||
+  !uuid.test(String(payload.episodeId??""))||
+  !uuid.test(String(payload.uploadSessionId??""))||
+  !Number.isSafeInteger(payload.episodeNumber)||
+  Number(payload.episodeNumber)<1||payload.isPublic!==true||
+  !Number.isSafeInteger(payload.totalSizeBytes)||
+  Number(payload.totalSizeBytes)<=4*1024*1024||
+  Number(payload.totalSizeBytes)>1024*1024*1024||
+  typeof payload.fileName!=="string"||
+  typeof payload.mimeType!=="string"||
+  !isSupportedAudioFile({
+   name:payload.fileName,size:Number(payload.totalSizeBytes),
+   type:payload.mimeType
+  }))return deny(400);
+ // Unlike the original legacy marker, NORMAL finalize binds the client-sent
+ // series, episode and total bytes to the existing worker's durable ticket.
+ const command={action:"finish",sessionId:payload.uploadSessionId,
+  seriesId:payload.seriesId,episodeId:payload.episodeId,
+  totalBytes:payload.totalSizeBytes};
+ const forwarded=new Request(request.url,{method:"POST",
+  headers:{"content-type":"application/json"},
+  body:JSON.stringify(command)});
+ const result=await localMultipartPost(forwarded);
+ if(!result.ok)return result;
+ let reply:JsonData;
+ try{reply=await result.json() as JsonData;}catch{return deny(503);}
+ if(reply.ok!==true||reply.reason!=="PRIVATE_PARTS_SEALED_NOT_PUBLISHED"||
+  reply.sessionId!==payload.uploadSessionId)return deny(503);
+ return NextResponse.json({
+  ok:false,error:"ISSUE137_NORMAL_HUMAN_PUBLICATION_HOLD",
+  reason:"PRIVATE_PARTS_SEALED_NOT_PUBLISHED"
+ },{status:409,headers:{"Cache-Control":"no-store"}});
+}
+
 export function hasIssue137ProbeMarker(data:JsonData):boolean {
  return Object.prototype.hasOwnProperty.call(data,"issue137LocalProbe");
 }
