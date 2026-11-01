@@ -147,6 +147,34 @@ async function post(body,cookie=""){
   throw e;
  }
 }
+// This ONE conflict-replay diagnostic must traverse the SAME localhost Next
+// route and SSR cookie, but use a new non-pooled TCP connection. It is never
+// used for PUT, finish, abort, authorization, publication or Production.
+async function postConflictFreshConnection(body,cookie){
+ const raw=JSON.stringify(body);
+ return new Promise((resolve,reject)=>{
+  const req=httpRequest(nextBase+api,{method:"POST",agent:false,timeout:30000,
+   headers:{"content-type":"application/json","connection":"close",
+    "content-length":Buffer.byteLength(raw),cookie}
+  },res=>{
+   const chunks=[];let received=0;
+   res.on("data",chunk=>{
+    received+=chunk.length;
+    if(received>4096)req.destroy(Error("CONFLICT_RESPONSE_TOO_LARGE_HOLD"));
+    else chunks.push(chunk);
+   });
+   res.on("error",reject);
+   res.on("end",()=>{
+    const rawReply=Buffer.concat(chunks).toString("utf8");
+    let body={};try{body=JSON.parse(rawReply);}catch{}
+    resolve({status:res.statusCode??0,body,raw:rawReply});
+   });
+  });
+  req.on("timeout",()=>req.destroy(Error("FRESH_HTTP_CONFLICT_TIMEOUT")));
+  req.on("error",reject);
+  req.end(raw);
+ });
+}
 async function postLegacy(which,body,cookie="",extraHeaders={}){
  assert.ok(["human-upload-session","human-upload-finalize"].includes(which));
  return parse(await fetch(nextBase+"/api/recordings/"+which,{method:"POST",
@@ -719,7 +747,10 @@ try{
    "original SQL/Storage preserved; ONE guarded 409 replay, not a global retry; "+
    (syntheticConflictAckLost?"SYNTHETIC_ACK_LOSS":"REAL_TRANSPORT_RESET"));
   guardedConflictReplays++;
-  conflict=await post(conflictingPartRequest,owner.session.cookie());
+  // New socket rules out an undici keep-alive reuse problem without
+  // masking a real Next/worker failure. Only ONE fresh-connection replay.
+  conflict=await postConflictFreshConnection(
+   conflictingPartRequest,owner.session.cookie());
  }
  yes(conflict.status===409,"same index cannot change expected digest");
  yes(guardedConflictReplays===1,
