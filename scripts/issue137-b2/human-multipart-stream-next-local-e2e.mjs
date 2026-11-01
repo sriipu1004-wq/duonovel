@@ -114,6 +114,12 @@ async function post(body,cookie=""){
   headers:{"content-type":"application/json",...(cookie?{cookie}:{})},
   body:JSON.stringify(body),signal:AbortSignal.timeout(30000),redirect:"error"}));
 }
+async function postLegacy(which,body,cookie=""){
+ assert.ok(["human-upload-session","human-upload-finalize"].includes(which));
+ return parse(await fetch(nextBase+"/api/recordings/"+which,{method:"POST",
+  headers:{"content-type":"application/json",...(cookie?{cookie}:{})},
+  body:JSON.stringify(body),signal:AbortSignal.timeout(30000),redirect:"error"}));
+}
 async function put(ticket,data,cookie="",headers={}){
  return parse(await fetch(nextBase+api,{method:"PUT",
   headers:{"x-part-id":ticket,"content-type":"application/octet-stream",
@@ -165,6 +171,64 @@ try{
  yes((await post(create,officialSession.cookie())).status===401,
   "Official account cannot open Human multipart staging despite valid consent");
  yes((await post(create)).status===401,"anonymous Next POST forbidden");
+ // Exercise ACTUAL preexisting Human API route handlers through an opt-in
+ // development-only branch, never create signed-upload bearer or recordings.
+ const bridgeRequest={issue137LocalProbe:"open",seriesId,episodeId,
+  fileName:"synthetic-local.wav",mimeType:"audio/wav",totalSizeBytes:total};
+ const newAnon=await postLegacy("human-upload-session",bridgeRequest);
+ yes(newAnon.status===401,
+  "legacy session dev bridge requires real authenticated SSR cookie");
+ const wrongLocal=await postLegacy("human-upload-session",
+  {...bridgeRequest,issue137LocalProbe:"not-enabled"},owner.session.cookie());
+ yes(wrongLocal.status===400,"unknown local bridge mode fail closed");
+ const tooLargeBridge=await postLegacy("human-upload-session",
+  {...bridgeRequest,totalSizeBytes:1024*1024*1024+1},owner.session.cookie());
+ yes(tooLargeBridge.status===400,"legacy dev bridge rejects >1GiB");
+ const openedLegacy=await postLegacy("human-upload-session",
+  bridgeRequest,owner.session.cookie());
+ yes(openedLegacy.status===201&&
+  openedLegacy.body.reason==="MULTIPART_OPEN"&&
+  openedLegacy.body.partCount===2&&
+  !("parts" in openedLegacy.body)&&!("token" in openedLegacy.body),
+  "actual Human session route dev branch issued scoped local ticket, never signed URL");
+ const legacyId=openedLegacy.body.sessionId;
+ const firstLegacy=await post({action:"part",sessionId:legacyId,
+  index:0,expectedSha256:sha(bytes)},owner.session.cookie());
+ yes(firstLegacy.status===201,"legacy session dev ticket authorizes isolated PRIVATE part");
+ yes((await put(firstLegacy.body.partId,bytes,owner.session.cookie())).status===201,
+  "real legacy session dev stage stored first PRIVATE 8MiB");
+ const earlyLegacy=await postLegacy("human-upload-finalize",
+  {issue137LocalProbe:"finish",sessionId:legacyId},owner.session.cookie());
+ yes(earlyLegacy.status===409,
+  "actual Human finalize dev branch refuses partial staged audio");
+ const otherFinal=await postLegacy("human-upload-finalize",
+  {issue137LocalProbe:"finish",sessionId:legacyId},other.session.cookie());
+ yes(otherFinal.status===403,
+  "legacy finalize dev branch refuses other consenting user's ticket");
+ const lastLegacy=await post({action:"part",sessionId:legacyId,index:1,
+  expectedSha256:sha(tail)},owner.session.cookie());
+ yes(lastLegacy.status===201&&
+  (await put(lastLegacy.body.partId,tail,owner.session.cookie())).status===201,
+  "legacy session dev path preserves exact final 256B PRIVATE remainder");
+ const finishedLegacy=await postLegacy("human-upload-finalize",
+  {issue137LocalProbe:"finish",sessionId:legacyId},owner.session.cookie());
+ yes(finishedLegacy.status===200&&
+  finishedLegacy.body.reason==="PRIVATE_PARTS_SEALED_NOT_PUBLISHED"&&
+  !("recordingId" in finishedLegacy.body),
+  "actual Human finalize route sealed PRIVATE receipt, no publication response");
+ const legacyRecording=await admin.from("recordings").select("id")
+  .eq("episode_id",episodeId);
+ yes(!legacyRecording.error&&legacyRecording.data?.length===0,
+  "actual Human dev session/finalize integration never inserted recordings");
+ const legacyBytes=await admin.storage.from(bucket).download(
+  "owner/"+owner.uid+"/"+legacyId+"/part-0001.bin");
+ yes(!legacyBytes.error&&
+  sha(Buffer.from(await legacyBytes.data.arrayBuffer()))===sha(bytes),
+  "legacy session/finalize uses same actual PRIVATE bytes and verified SHA");
+ const legacyLeak=JSON.stringify([openedLegacy,finishedLegacy]);
+ yes(!legacyLeak.includes(service)&&!legacyLeak.includes(secret)&&
+  !legacyLeak.includes(owner.jwt),
+  "existing Human endpoints did not leak privileged or bearer credentials");
  const huge=await post({...create,totalBytes:1024*1024*1024+1},owner.session.cookie());
  yes(huge.status===400,"greater-than-1GiB rejected before allocation");
  const billion=await post({...create,totalBytes:1024*1024*1024},owner.session.cookie());
