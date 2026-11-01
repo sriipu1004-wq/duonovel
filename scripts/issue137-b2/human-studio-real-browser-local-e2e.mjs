@@ -286,7 +286,7 @@ export async function runLocalStudioChromium(args){
   check(forgedTicketReply.uploadMode==="local-private-staging-only"&&
    typeof forgedTicketReply.uploadSessionId==="string",
    "forged-finalize negative created an original LOCAL-only ticket");
-  await page.getByText("LOCAL_FINALIZE_PUBLICATION_UNPROVEN_HOLD")
+  await page.getByRole("heading",{name:"LOCAL_FINALIZE_PUBLICATION_UNPROVEN_HOLD"})
    .waitFor({state:"visible",timeout:90000});
   check(forgedSuccessReplies===1,
    "forged HTTP 200 was rejected without a second finalize or PUBLIC fallback");
@@ -300,6 +300,10 @@ export async function runLocalStudioChromium(args){
   check(!fakeSuccessRow.error&&fakeSuccessRow.data.state==="HOLD",
    "forged success cannot leave a LIVE staging ticket");
   await page.unroute("**/api/recordings/human-upload-finalize");
+  // The expected LOCAL failure calls console.error, which triggers Next's
+  // development error overlay. Dismiss that dev-only overlay to exercise
+  // the next genuine Studio click; production/error code remains unchanged.
+  await page.keyboard.press("Escape");
 
   // NEGATIVE 2: report cleanup as UNPROVEN when owner abort is unavailable.
   // This test will explicitly delete its OWN fixture via a live owner request
@@ -323,7 +327,7 @@ export async function runLocalStudioChromium(args){
   check(blockedReply.uploadMode==="local-private-staging-only"&&
    typeof blockedReply.uploadSessionId==="string",
    "cleanup-failure negative had a distinct original LOCAL ticket");
-  await page.getByText("LOCAL_PRIVATE_CLEANUP_UNPROVEN_HOLD")
+  await page.getByRole("heading",{name:"LOCAL_PRIVATE_CLEANUP_UNPROVEN_HOLD"})
    .waitFor({state:"visible",timeout:90000});
   check(blockedOwnerAbort===1,
    "studio attempted exactly one owner abort and refused to claim cleanup");
