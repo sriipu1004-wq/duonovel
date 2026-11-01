@@ -160,6 +160,9 @@ try{
   consent_version:"2026-04-16"
  });
  assert.equal(otherConsent.error,null,"other real actor also has current consent");
+ const otherEligible=await request(issueBody,other.session.cookie());
+ check(otherEligible.status===201&&otherEligible.data.ok===true,
+  "other user independently authorized for the public/open series and episode");
  const wrong=await request({action:"stage",ticket:t,
   bytesBase64:wav.toString("base64")},other.session.cookie());
  check(wrong.status===403&&!(await readPath(objectPath)),
