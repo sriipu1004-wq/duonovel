@@ -267,10 +267,91 @@ export async function runLocalStudioChromium(args){
    .select("state").eq("id",sessionReply.uploadSessionId).single();
   check(!deadTicket.error&&deadTicket.data.state==="HOLD",
    "normal session cannot resume after studio trial cleanup");
+  // NEGATIVE 1 (LOCAL interception only): an unexpected HTTP 200 with a
+  // forged recordingId is NOT authority to publish. The studio must issue
+  // an owner-scoped cleanup after receiving this false positive.
+  let forgedSuccessReplies=0;
+  await page.route("**/api/recordings/human-upload-finalize",async route=>{
+   forgedSuccessReplies++;
+   await route.fulfill({status:200,contentType:"application/json",
+    body:JSON.stringify({ok:true,
+     recordingId:"00000000-0000-4000-8000-000000000001"})});
+  });
+  const forgedTicketPromise=page.waitForResponse(response=>
+   new URL(response.url()).pathname==="/api/recordings/human-upload-session"&&
+   response.request().method()==="POST",{timeout:45000});
+  check(await realSubmit.isEnabled(),"same Studio upload file remains actionable");
+  await realSubmit.click();
+  const forgedTicketReply=await (await forgedTicketPromise).json();
+  check(forgedTicketReply.uploadMode==="local-private-staging-only"&&
+   typeof forgedTicketReply.uploadSessionId==="string",
+   "forged-finalize negative created an original LOCAL-only ticket");
+  await page.getByText("LOCAL_FINALIZE_PUBLICATION_UNPROVEN_HOLD")
+   .waitFor({state:"visible",timeout:90000});
+  check(forgedSuccessReplies===1,
+   "forged HTTP 200 was rejected without a second finalize or PUBLIC fallback");
+  const fakeSuccessPath="owner/"+owner.uid+"/"+
+   forgedTicketReply.uploadSessionId+"/part-0001.bin";
+  const fakeSuccessAbsent=await admin.storage.from(bucket).download(fakeSuccessPath);
+  check(!!fakeSuccessAbsent.error,
+   "unexpected 200 still triggers owner-only PRIVATE byte cleanup");
+  const fakeSuccessRow=await admin.from("issue137_http_local_multipart_sessions")
+   .select("state").eq("id",forgedTicketReply.uploadSessionId).single();
+  check(!fakeSuccessRow.error&&fakeSuccessRow.data.state==="HOLD",
+   "forged success cannot leave a LIVE staging ticket");
+  await page.unroute("**/api/recordings/human-upload-finalize");
+
+  // NEGATIVE 2: report cleanup as UNPROVEN when owner abort is unavailable.
+  // This test will explicitly delete its OWN fixture via a live owner request
+  // afterwards. No privileged fallback or other user's bytes are touched.
+  let blockedOwnerAbort=0;
+  await page.route("**/api/recordings/human-local-multipart",async route=>{
+   if(route.request().method()==="POST"&&
+      route.request().postDataJSON()?.action==="abort"){
+    blockedOwnerAbort++;
+    return route.fulfill({status:503,contentType:"application/json",
+     body:JSON.stringify({ok:false,error:"SYNTHETIC_ABORT_UNAVAILABLE"})});
+   }
+   await route.continue();
+  });
+  const blockedTicketPromise=page.waitForResponse(response=>
+   new URL(response.url()).pathname==="/api/recordings/human-upload-session"&&
+   response.request().method()==="POST",{timeout:45000});
+  check(await realSubmit.isEnabled(),"normal Studio can run isolated cleanup failure negative");
+  await realSubmit.click();
+  const blockedReply=await (await blockedTicketPromise).json();
+  check(blockedReply.uploadMode==="local-private-staging-only"&&
+   typeof blockedReply.uploadSessionId==="string",
+   "cleanup-failure negative had a distinct original LOCAL ticket");
+  await page.getByText("LOCAL_PRIVATE_CLEANUP_UNPROVEN_HOLD")
+   .waitFor({state:"visible",timeout:90000});
+  check(blockedOwnerAbort===1,
+   "studio attempted exactly one owner abort and refused to claim cleanup");
+  const heldPath="owner/"+owner.uid+"/"+blockedReply.uploadSessionId+
+   "/part-0001.bin";
+  const heldBytes=await admin.storage.from(bucket).download(heldPath);
+  check(!heldBytes.error&&
+   sha(Buffer.from(await heldBytes.data.arrayBuffer()))===sha(speechWav),
+   "blocked cleanup preserves exact PRIVATE bytes and reports HOLD, not success");
+  const heldBeforeManual=await admin.from("issue137_http_local_multipart_sessions")
+   .select("state").eq("id",blockedReply.uploadSessionId).single();
+  check(!heldBeforeManual.error&&heldBeforeManual.data.state==="SEALED_PARTS",
+   "abort injection left durable LOCAL receipt awaiting explicit cleanup");
+  await page.unroute("**/api/recordings/human-local-multipart");
+  const manualOwnerAbort=await post({
+   action:"abort",sessionId:blockedReply.uploadSessionId},owner.session.cookie());
+  check(manualOwnerAbort.status===200,
+   "real original owner may explicitly dispose its test-only held ticket");
+  const afterManual=await admin.storage.from(bucket).download(heldPath);
+  check(!!afterManual.error,"owner manual recovery physically removes held PRIVATE bytes");
+  const otherProtected=await admin.storage.from(bucket).download(otherPath);
+  check(!otherProtected.error&&
+   sha(Buffer.from(await otherProtected.data.arrayBuffer()))===sha(bytes),
+   "cleanup failure tests never delete foreign owner's PRIVATE media");
   const noSubmitRecording=await admin.from("recordings")
    .select("id").eq("episode_id",episodeId);
   check(!noSubmitRecording.error&&noSubmitRecording.data?.length===0,
-   "real Studio publish click created zero Human recording metadata");
+   "real Studio positive and two negative trials create zero Human recording metadata");
   check(browserConsole.length===0,
    "no uncaught page errors during actual Chromium Studio flow");
   console.log("PASS: F2-P REAL CHROMIUM Human Studio "+checks+

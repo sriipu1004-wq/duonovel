@@ -691,9 +691,17 @@ try{
  // of PUT, finish, abort, or privilege-changing requests.
  const conflictingPartRequest={action:"part",sessionId:sid,index:0,
   expectedSha256:sha(wrong)};
- let conflict;
+ let conflict,syntheticConflictAckLost=false,guardedConflictReplays=0;
  try{
+  // Deterministic lost-ACK fault: the actual LOCAL worker returns a 409,
+  // but the test discards that already-sent response exactly once.
+  // Genuine TCP ECONNRESET still takes this same conditional path.
   conflict=await post(conflictingPartRequest,owner.session.cookie());
+  yes(conflict.status===409,"first real conflicting-SHA request is denied");
+  syntheticConflictAckLost=true;
+  const discardedAck=new TypeError("SYNTHETIC_CONFLICT_ACK_LOST");
+  discardedAck.cause={code:"ECONNRESET"};
+  throw discardedAck;
  }catch(error){
   if(error?.cause?.code!=="ECONNRESET")throw error;
   const receipt=await admin.from("issue137_http_local_multipart_parts")
@@ -708,10 +716,16 @@ try{
   yes(originalAfterReset!==null&&sha(originalAfterReset)===sha(bytes),
    "ECONNRESET recovery requires unchanged PRIVATE physical bytes");
   console.log("HOLD: LOCAL Next part-conflict ECONNRESET; "+
-   "original SQL/Storage preserved; ONE guarded 409 replay, not a global retry");
+   "original SQL/Storage preserved; ONE guarded 409 replay, not a global retry; "+
+   (syntheticConflictAckLost?"SYNTHETIC_ACK_LOSS":"REAL_TRANSPORT_RESET"));
+  guardedConflictReplays++;
   conflict=await post(conflictingPartRequest,owner.session.cookie());
  }
  yes(conflict.status===409,"same index cannot change expected digest");
+ yes(guardedConflictReplays===1,
+  "real 409 retry occurs only once after verified SQL/PRIVATE SHA");
+ if(syntheticConflictAckLost)
+  yes(conflict.status===409,"deterministic lost-ACK injection exercised guarded recovery");
  const p1=await post({action:"part",sessionId:sid,index:1,
   expectedSha256:sha(tail)},owner.session.cookie());
  yes(p1.status===201&&p1.body.byteCount===tail.length,
