@@ -76,6 +76,31 @@ async function status(partId: string, fetcher: LocalFetch) {
   return stageState(reply);
 }
 
+// Bind the normal Human signer reply to its already-opened disposable ticket.
+// Never open a second ticket or accept a signed Storage token as a fallback.
+// This binding is only callable from the loopback-only development runtime.
+export function bindLocalNormalHumanLease(args: {
+  file: File;
+  seriesId: string;
+  episodeId: string;
+  sessionId: string;
+  partCount: number;
+  reason: string;
+}): LocalHumanStageLease {
+  requireLocalRuntime();
+  const { file, seriesId, episodeId, sessionId, partCount, reason } = args;
+  if (!UUID.test(seriesId) || !UUID.test(episodeId) ||
+      !UUID.test(sessionId) ||
+      !Number.isSafeInteger(file.size) || file.size <= MIN_BYTES ||
+      file.size > MAX_BYTES ||
+      partCount !== Math.ceil(file.size / PART_BYTES) ||
+      reason !== "NO_SIGNED_URL_NO_PUBLICATION") {
+    throw new Error("LOCAL_NORMAL_SIGNER_CONTRACT_HOLD");
+  }
+  return { sessionId, fileFingerprint: fingerprint(file),
+    seriesId, episodeId, totalBytes: file.size };
+}
+
 export async function stageHumanMultipartLocally(args: {
   file: File;
   seriesId: string;

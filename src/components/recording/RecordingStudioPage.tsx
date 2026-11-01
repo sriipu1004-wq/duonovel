@@ -18,6 +18,11 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
 import { LocalHumanMultipartProbe } from "@/components/recording/LocalHumanMultipartProbe";
+import {
+  bindLocalNormalHumanLease,
+  stageHumanMultipartLocally,
+  abortHumanMultipartLocally,
+} from "@/lib/recording/localHumanMultipartClient";
 
 type EpisodeItem = {
   id: string;
@@ -87,7 +92,9 @@ type HumanMultipartSignedPart = {
 
 type HumanUploadSessionResponse = {
   ok: boolean;
-  uploadMode?: "single" | "multipart";
+  uploadMode?: "single" | "multipart" | "local-private-staging-only";
+  partCount?: number;
+  reason?: string;
   uploadSessionId?: string;
   bucketName?: string;
   sourceExtension?: string;
@@ -928,9 +935,78 @@ export function RecordingStudioPage({
         file,
       });
 
-      // A development-only PRIVATE-stage receipt (or any unknown mode)
-      // must NEVER fall through to the one-shot publication endpoint.
-      // A staged part is not a published Human recording.
+      // One allowed LOCAL test-only reply from the NORMAL Human signer:
+      // reuse its ORIGINAL ticket to stage through the bounded Next/worker
+      // route, then deliberately require finalize to refuse publication.
+      // Both server handlers and the client are independently loopback-gated.
+      if (uploadSession.uploadMode === "local-private-staging-only") {
+        if (uploadSession.parts || uploadSession.bucketName ||
+            !uploadSession.uploadSessionId ||
+            !Number.isSafeInteger(uploadSession.partCount)) {
+          throw new Error("LOCAL_SIGNED_TOKEN_OR_TICKET_HOLD");
+        }
+        const lease = bindLocalNormalHumanLease({
+          file, seriesId, episodeId: selectedEpisode.id,
+          sessionId: uploadSession.uploadSessionId,
+          partCount: uploadSession.partCount!,
+          reason: uploadSession.reason || "",
+        });
+        let trialError: unknown = null;
+        try {
+          setPublishMessage(
+            "ローカル専用PRIVATE分割転送を検証中。投稿・公開は行わない。"
+          );
+          await stageHumanMultipartLocally({
+            file, seriesId, episodeId: selectedEpisode.id,
+            previousLease: lease,
+            onProgress: ({ completedParts, totalParts }) =>
+              setPublishMessage(
+                `開発用PRIVATE転送 ${completedParts}/${totalParts}。投稿・公開は行わない。`
+              ),
+          });
+          const finalized = await fetch("/api/recordings/human-upload-finalize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              seriesId,
+              episodeId: selectedEpisode.id,
+              episodeNumber: selectedEpisode.episodeNumber,
+              isPublic: recordingVisibility === "public",
+              fileName: file.name,
+              mimeType: file.type,
+              totalSizeBytes: file.size,
+              uploadSessionId: lease.sessionId,
+            }),
+          });
+          const answer: unknown = await finalized.json().catch(() => null);
+          if (finalized.status !== 409 || !answer ||
+              typeof answer !== "object" || Array.isArray(answer) ||
+              (answer as { ok?: unknown }).ok !== false ||
+              (answer as { reason?: unknown }).reason !==
+                "PRIVATE_PARTS_SEALED_NOT_PUBLISHED" ||
+              "recordingId" in answer) {
+            throw new Error("LOCAL_FINALIZE_PUBLICATION_UNPROVEN_HOLD");
+          }
+        } catch (error) {
+          trialError = error;
+        }
+        // Fail closed even on lost ACK / partially CLAIMED upload. A failed
+        // owner abort must never be described as verified physical cleanup.
+        try {
+          await abortHumanMultipartLocally({ lease });
+        } catch {
+          throw new Error("LOCAL_PRIVATE_CLEANUP_UNPROVEN_HOLD");
+        }
+        if (trialError) throw trialError;
+        setPublishStatus("error");
+        setPublishResult(null);
+        setPublishMessage(
+          "開発用PRIVATE分割転送とfinalize公開拒否を確認し、検証パートを破棄した。朗読は未投稿・未公開。"
+        );
+        return;
+      }
+
+      // Unknown modes never fall back to single-file publish/signed upload.
       if (uploadSession.uploadMode !== "single" &&
           uploadSession.uploadMode !== "multipart") {
         throw new Error(

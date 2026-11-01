@@ -190,9 +190,10 @@ export async function runLocalStudioChromium(args){
    {method:"POST",headers:{"content-type":"application/json"},
     body:JSON.stringify(issue),redirect:"error"});
   check(noPublic.status===401,"no SSR cookie cannot open stage through browser route");
-  // A genuine enabled Studio publish button must stop at the normal
-  // localhost-only upload-session reply: no signed parts, no finalize,
-  // no one-shot human-publish fallback, and no PUBLIC recording rows.
+  // A genuine enabled Studio publish button must use the NORMAL
+  // signer -> bounded LOCAL PRIVATE staging -> NORMAL finalize 409 refusal
+  // -> owner-only cleanup. It must never use signed Storage bearer,
+  // one-shot human-publish, or public/recording mutation.
   // Unlike the older probe, this uses valid PCM with a client-side
   // "passed" result, not direct page.evaluate/faked precheck state.
   const speechWav=syntheticSpeechLikeWav();
@@ -218,27 +219,46 @@ export async function runLocalStudioChromium(args){
   const responsePromise=page.waitForResponse(response=>
    new URL(response.url()).pathname==="/api/recordings/human-upload-session"&&
    response.request().method()==="POST",{timeout:30000});
+  const finalizePromise=page.waitForResponse(response=>
+   new URL(response.url()).pathname==="/api/recordings/human-upload-finalize"&&
+   response.request().method()==="POST",{timeout:90000});
   await realSubmit.click();
   const guardedResponse=await responsePromise;
   const sessionReply=await guardedResponse.json();
   check(guardedResponse.status()===201&&sessionReply.ok===true&&
    sessionReply.uploadMode==="local-private-staging-only"&&
+   sessionReply.partCount===1&&
+   sessionReply.reason==="NO_SIGNED_URL_NO_PUBLICATION"&&
    typeof sessionReply.uploadSessionId==="string"&&
    !("parts" in sessionReply)&&!("token" in sessionReply)&&
    !("bucketName" in sessionReply),
-   "enabled Studio button reached normal API but no signed Storage bearer");
-  await page.getByText(/未対応のアップロード方式。PRIVATE検証データは投稿・公開されていない。/u)
-   .waitFor({state:"visible",timeout:30000});
-  check(!paths.some(x=>/\/human-(?:publish|upload-finalize)(?:$|\/)/u.test(x)),
-   "actual Studio did not fall through to human-publish or normal finalize");
-  check(!paths.some(x=>x.startsWith("PUT "))&&
-   !paths.some(x=>/\/human-local-multipart/u.test(x)),
-   "actual Studio did not write any PRIVATE/PUBLIC part after HOLD reply");
+   "enabled Studio button received local-only signer receipt, no signed bearer");
+  const refusedFinalize=await finalizePromise;
+  const finalizeBody=await refusedFinalize.json();
+  check(refusedFinalize.status()===409&&finalizeBody.ok===false&&
+   finalizeBody.reason==="PRIVATE_PARTS_SEALED_NOT_PUBLISHED"&&
+   !("recordingId" in finalizeBody),
+   "normal Human finalize rejects publishing fully staged PRIVATE bytes");
+  await page.getByText(
+   "開発用PRIVATE分割転送とfinalize公開拒否を確認し、検証パートを破棄した。朗読は未投稿・未公開。"
+  ).waitFor({state:"visible",timeout:60000});
+  check(!paths.some(x=>/\/human-publish(?:$|\/)/u.test(x)),
+   "actual Studio never falls back to one-shot PUBLIC Human publisher");
+  check(paths.filter(x=>x==="POST /api/recordings/human-upload-session").length===1&&
+   paths.filter(x=>x==="POST /api/recordings/human-upload-finalize").length===1&&
+   paths.some(x=>x==="PUT /api/recordings/human-local-multipart")&&
+   paths.filter(x=>x==="POST /api/recordings/human-local-multipart").length>=3,
+   "normal Studio signed-once -> raw PRIVATE PUT -> guarded finish/abort; no second open");
   page.off("request",track);
-  const emptyTicket=await post({action:"abort",
-   sessionId:sessionReply.uploadSessionId},owner.session.cookie());
-  check(emptyTicket.status===200&&emptyTicket.body.deletedParts===0,
-   "owner cleaned empty PRIVATE ticket created by normal Studio click");
+  const normalPath="owner/"+owner.uid+"/"+sessionReply.uploadSessionId+
+   "/part-0001.bin";
+  const afterNormalCleanup=await admin.storage.from(bucket).download(normalPath);
+  check(!!afterNormalCleanup.error,
+   "actual normal Studio staged full >4MiB and owner abort left no PRIVATE object");
+  const deadTicket=await admin.from("issue137_http_local_multipart_sessions")
+   .select("state").eq("id",sessionReply.uploadSessionId).single();
+  check(!deadTicket.error&&deadTicket.data.state==="HOLD",
+   "normal session cannot resume after studio trial cleanup");
   const noSubmitRecording=await admin.from("recordings")
    .select("id").eq("episode_id",episodeId);
   check(!noSubmitRecording.error&&noSubmitRecording.data?.length===0,
