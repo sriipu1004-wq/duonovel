@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import {randomUUID,createHash} from "node:crypto";
 import {request as httpRequest} from "node:http";
+import diagnosticsChannel from "node:diagnostics_channel";
 import {execFileSync,spawn} from "node:child_process";
 import {readdirSync} from "node:fs";
 import {fileURLToPath} from "node:url";
@@ -56,6 +57,90 @@ const bytes=Buffer.alloc(partSize,0x34),tail=Buffer.alloc(256,0x4f),
  wrong=Buffer.alloc(partSize,0x17); // 8MiB, not the entire 1GiB.
 for(const item of [bytes,wrong]){item.write("RIFF",0);item.write("WAVE",8);}
 let checks=0,logs="";
+// LOCAL test-only, failure-only reporting. Never inspect raw Undici headers,
+// body, cookie, JWT, socket IP, process argv, or process environment.
+const requestStates=new WeakMap(),socketIds=new WeakMap();
+const trace={requests:0,sockets:0,recent:[]};
+let preConflictTree=null;
+const safeErrorCode=x=>/^[A-Z0-9_]{1,32}$/u.test(String(x??""))?
+ String(x):"unknown";
+const tracedRequest=request=>request?.method==="POST"&&
+ String(request.origin)===nextBase&&String(request.path)===api;
+diagnosticsChannel.channel("undici:request:create").subscribe(({request})=>{
+ try{
+  if(!tracedRequest(request))return;
+  const state={requestNo:++trace.requests,socketId:null,reused:false,
+   status:null,errorCode:null};
+  requestStates.set(request,state);
+  trace.recent.push(state);
+  if(trace.recent.length>12)trace.recent.shift();
+ }catch{}
+});
+diagnosticsChannel.channel("undici:client:sendHeaders").subscribe(({request,socket})=>{
+ try{
+  const state=requestStates.get(request);
+  if(!state||!socket)return;
+  const known=socketIds.get(socket);
+  state.reused=known!==undefined;
+  state.socketId=known??(++trace.sockets);
+  if(known===undefined)socketIds.set(socket,state.socketId);
+ }catch{}
+});
+diagnosticsChannel.channel("undici:request:headers").subscribe(({request,response})=>{
+ try{
+  const state=requestStates.get(request);
+  if(state&&Number.isInteger(response?.statusCode))
+   state.status=response.statusCode;
+ }catch{}
+});
+diagnosticsChannel.channel("undici:request:error").subscribe(({request,error})=>{
+ try{
+  const state=requestStates.get(request);
+  if(state)state.errorCode=safeErrorCode(error?.code);
+ }catch{}
+});
+const traceSnapshot=()=>({node:process.version,
+ undici:typeof process.versions.undici==="string"?
+  process.versions.undici:"unavailable",
+ requests:trace.requests,uniqueSockets:trace.sockets,
+ recent:trace.recent.slice(-6).map(r=>({...r}))});
+// Collect only numeric PID/PPID/elapsed seconds/RSS and a 1-character state.
+function nextProcessTree(p){
+ if(!p?.pid)return {available:false,descendants:[]};
+ try{
+  const raw=execFileSync("ps",["-eo","pid=,ppid=,etimes=,rss=,stat="],
+   {encoding:"utf8",timeout:2000,maxBuffer:512*1024});
+  const rows=raw.split("\n").map(line=>line.trim().split(/\s+/u))
+   .filter(parts=>parts.length===5&&
+    parts.slice(0,4).every(v=>/^\d+$/u.test(v)))
+   .map(parts=>({pid:Number(parts[0]),ppid:Number(parts[1]),
+    ageSec:Number(parts[2]),rssKiB:Number(parts[3]),
+    state:/^[RSDTZI]$/u.test(parts[4][0])?parts[4][0]:"other"}));
+  const byParent=new Map();
+  for(const row of rows){
+   const children=byParent.get(row.ppid)??[];
+   children.push(row);byParent.set(row.ppid,children);
+  }
+  const root=rows.find(x=>x.pid===p.pid);
+  if(!root)return {available:false,descendants:[]};
+  const descendants=[],queue=[root],seen=new Set();
+  while(queue.length&&descendants.length<24){
+   const row=queue.shift();
+   if(seen.has(row.pid))continue;
+   seen.add(row.pid);
+   descendants.push(row);
+   queue.push(...(byParent.get(row.pid)??[]));
+  }
+  return {available:true,descendants};
+ }catch{return {available:false,descendants:[]};}
+}
+function processDelta(before,after){
+ if(!before?.available||!after?.available)return null;
+ const old=new Set(before.descendants.map(x=>x.pid));
+ const latest=new Set(after.descendants.map(x=>x.pid));
+ return {added:[...latest].filter(pid=>!old.has(pid)),
+  removed:[...old].filter(pid=>!latest.has(pid))};
+}
 function yes(value,label){assert.ok(value,label);checks++;}
 function start(script,args,env){
  const p=spawn(process.execPath,[script,...args],{cwd:root,env,detached:true,
@@ -135,10 +220,13 @@ async function post(body,cookie=""){
    const x=await fetch(workerBase+"/health",{signal:AbortSignal.timeout(1200)});
    workerHealth=x.status===200?"healthy":"non200";
   }catch{}
+  const nextTree=nextProcessTree(next);
   const diagnosis={action:["open","part","put","status","finish","abort"].includes(
     body?.action)?body.action:"other",
    errorCode:String(e?.cause?.code??e?.code??"unknown").slice(0,24),
    next:processProbe(next),worker:processProbe(worker),workerHealth,
+   processTree:nextTree,processDelta:processDelta(preConflictTree,nextTree),
+   undiciTransport:traceSnapshot(),
    runnerRssKiB:Math.round(process.memoryUsage().rss/1024),
    childLogFlags:{oom:/heap out of memory|allocation failed|out of memory/iu.test(logs),
     fatal:/FATAL ERROR/iu.test(logs),killed:/SIGKILL|Killed process/iu.test(logs)}};
@@ -719,6 +807,9 @@ try{
  // of PUT, finish, abort, or privilege-changing requests.
  const conflictingPartRequest={action:"part",sessionId:sid,index:0,
   expectedSha256:sha(wrong)};
+ // Single baseline after real 8MiB PUT; parent PID liveness cannot rule
+ // out internal Next dev child replacement during the 409 conflict.
+ preConflictTree=nextProcessTree(next);
  let conflict,syntheticConflictAckLost=false,guardedConflictReplays=0;
  try{
   // Deterministic lost-ACK fault: the actual LOCAL worker returns a 409,
@@ -757,6 +848,7 @@ try{
   "real 409 retry occurs only once after verified SQL/PRIVATE SHA");
  if(syntheticConflictAckLost)
   yes(conflict.status===409,"deterministic lost-ACK injection exercised guarded recovery");
+ preConflictTree=null;
  const p1=await post({action:"part",sessionId:sid,index:1,
   expectedSha256:sha(tail)},owner.session.cookie());
  yes(p1.status===201&&p1.body.byteCount===tail.length,
