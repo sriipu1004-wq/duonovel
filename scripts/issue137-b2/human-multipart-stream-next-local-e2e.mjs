@@ -446,6 +446,10 @@ try{
   .update({consent_version:"2026-04-15"}).eq("user_id",owner.uid)
   .eq("consent_key","recording_studio_global");
  assert.equal(revokeNormalConsent.error,null,"local-only normal consent revoke");
+ const heldNormalRow=await admin.from("issue137_http_local_multipart_sessions")
+  .select("state").eq("id",normalId).single();
+ yes(!heldNormalRow.error&&heldNormalRow.data.state==="HOLD",
+  "normal JSON multipart receipt becomes HOLD on consent withdrawal");
  const deniedNormalConsent=await postLegacy("human-upload-finalize",
   normalFinalize,owner.session.cookie());
  yes(deniedNormalConsent.status===403&&!deniedNormalConsent.body.recordingId,
@@ -454,6 +458,9 @@ try{
   .update({consent_version:"2026-04-16"}).eq("user_id",owner.uid)
   .eq("consent_key","recording_studio_global")).error,null,
   "local-only normal consent restore");
+ yes((await postLegacy("human-upload-finalize",
+  normalFinalize,owner.session.cookie())).status===409,
+  "normal JSON stale ticket does not revive after consent regrant");
  assert.equal((await admin.from("series").update({
   recording_permission_mode:"closed"}).eq("id",seriesId)).error,null,
   "local-only normal author permission closed");
@@ -493,8 +500,27 @@ try{
   .eq("episode_id",episodeId);
  yes(!noRevokedNormalRows.error&&noRevokedNormalRows.data?.length===0,
   "normal JSON revoked attempts created zero recordings");
- const normalSealed=await postLegacy("human-upload-finalize",
+ const oldNormalHeld=await postLegacy("human-upload-finalize",
   normalFinalize,owner.session.cookie());
+ yes(oldNormalHeld.status===409&&!oldNormalHeld.body.recordingId,
+  "old normal JSON receipt remains HOLD after all rights restored");
+ const newNormalTicket=await postLegacy("human-upload-session",
+  normalRequest,owner.session.cookie());
+ yes(newNormalTicket.status===201&&!newNormalTicket.body.token,
+  "new recording consent allows new PRIVATE-only normal JSON ticket");
+ const freshNormalId=newNormalTicket.body.uploadSessionId;
+ const firstFresh=await post({action:"part",sessionId:freshNormalId,
+  index:0,expectedSha256:sha(bytes)},owner.session.cookie());
+ yes(firstFresh.status===201&&
+  (await put(firstFresh.body.partId,bytes,owner.session.cookie())).status===201,
+  "fresh normal JSON ticket stores real first PRIVATE 8MiB");
+ const lastFresh=await post({action:"part",sessionId:freshNormalId,
+  index:1,expectedSha256:sha(tail)},owner.session.cookie());
+ yes(lastFresh.status===201&&
+  (await put(lastFresh.body.partId,tail,owner.session.cookie())).status===201,
+  "fresh normal JSON ticket stores exact last PRIVATE 256 bytes");
+ const normalSealed=await postLegacy("human-upload-finalize",
+  {...normalFinalize,uploadSessionId:freshNormalId},owner.session.cookie());
  yes(normalSealed.status===409&&normalSealed.body.ok===false&&
   normalSealed.body.reason==="PRIVATE_PARTS_SEALED_NOT_PUBLISHED"&&
   !("recordingId" in normalSealed.body),
@@ -504,10 +530,14 @@ try{
  yes(!noNormalRecord.error&&noNormalRecord.data?.length===0,
   "normal Human session and finalize inserted no recording or public pointer");
  const normalPhysical=await admin.storage.from(bucket).download("owner/"+
-  owner.uid+"/"+normalId+"/part-0001.bin");
+  owner.uid+"/"+freshNormalId+"/part-0001.bin");
  yes(!normalPhysical.error&&
   sha(Buffer.from(await normalPhysical.data.arrayBuffer()))===sha(bytes),
   "normal Human API staged bytes privately with correct physical SHA");
+ const oldNormalCleanup=await post({action:"abort",sessionId:normalId},
+  owner.session.cookie());
+ yes(oldNormalCleanup.status===200&&oldNormalCleanup.body.deletedParts===2,
+  "stale normal JSON PRIVATE bytes can be removed after consent regrant");
  const normalNoSecret=JSON.stringify([normalOpened,normalSealed]);
  yes(!normalNoSecret.includes(service)&&!normalNoSecret.includes(secret)&&
   !normalNoSecret.includes(owner.jwt),
@@ -785,6 +815,9 @@ try{
   .update({consent_version:"2026-04-16"}).eq("user_id",owner.uid)
   .eq("consent_key","recording_studio_global")).error,null,
   "restore disposable local consent for remaining tests");
+ yes((await post({action:"part",sessionId:afterClaimId,
+  index:1,expectedSha256:sha(tail)},owner.session.cookie())).status===409,
+  "late revoked ticket cannot resume even after consent regrant");
  console.log("RISK: F2-P LOCAL post-CLAIM consent withdrawal accepts PRIVATE PUT; "+
   "finalize denies and owner cleanup succeeds, no atomic provider revocation");
  await stop(worker);
