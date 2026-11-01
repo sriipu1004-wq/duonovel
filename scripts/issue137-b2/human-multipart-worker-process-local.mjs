@@ -228,11 +228,21 @@ async function command(req,res,jwt){
   return reply(res,200,"STATUS",{state,byteCount:got.part.byte_count});
  }
  if(req.url==="/multipart/finish"){
-  if(!shape(x,["sessionId"])||!uuid.test(x.sessionId??""))
-   return reply(res,400,"FINISH_SHAPE_HOLD");
+  const context=shape(x,["sessionId","seriesId","episodeId","totalBytes"]);
+  if((!shape(x,["sessionId"])&&!context)||!uuid.test(x.sessionId??"")||
+   (context&&(!uuid.test(x.seriesId??"")||!uuid.test(x.episodeId??"")||
+    !Number.isSafeInteger(x.totalBytes)||x.totalBytes<=4*1024*1024||
+    x.totalBytes>max)))return reply(res,400,"FINISH_SHAPE_HOLD");
   const got=await sessionFor(jwt,x.sessionId);
   if(!got)return reply(res,403,"AUTHORITY_HOLD");
   const {session}=got;
+  // One owner may have many upload sessions. The ordinary Human request
+  // may never finalize an unrelated work/episode, even inside a disposable
+  // environment. A mismatch cannot seal or publish any audio.
+  if(context&&(session.series_id!==x.seriesId||
+   session.episode_id!==x.episodeId||
+   Number(session.total_bytes)!==x.totalBytes))
+   return reply(res,403,"FINISH_SESSION_CONTEXT_HOLD");
   if(session.state!=="OPEN")return reply(res,409,"SESSION_STATE_HOLD");
   const {data:parts,error}=await admin.from(partTable).select(
    "part_index,byte_count,state").eq("multipart_id",session.id);
