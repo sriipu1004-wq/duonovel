@@ -1479,6 +1479,13 @@ export function RecordingStudioPage({
                 <h3 className="mt-2 text-lg font-semibold">
                   保存前最終判定: {getDecisionLabel(finalDecision)}
                 </h3>
+                {process.env.NODE_ENV === "development" &&
+                process.env.NEXT_PUBLIC_B2_LOCAL_HUMAN_PROCESSING_CAP_BYTES &&
+                currentStatusMessage.startsWith("LOCAL_DRAFT_PROCESSING_CAP_") ? (
+                  <p className="mt-2 text-xs font-medium" role="status">
+                    {currentStatusMessage}
+                  </p>
+                ) : null}
               </div>
 
               <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">
