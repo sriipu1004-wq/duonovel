@@ -3,6 +3,7 @@
 // TUS provider transport's 6MiB chunks are separate from these logical parts.
 import {NextResponse} from "next/server";
 import {createClient} from "@/lib/supabase/server";
+import {isOfficialAccountEmail} from "@/lib/auth/officialAccount";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const partSize=8*1024*1024,maxTotal=1024*1024*1024;
@@ -32,7 +33,7 @@ async function actorJwt():Promise<string|null>{
  try{
   const client=await createClient();
   const {data:{user},error}=await client.auth.getUser();
-  if(error||!user)return null;
+  if(error||!user||isOfficialAccountEmail(user.email))return null;
   const {data,error:sessionError}=await client.auth.getSession();
   if(sessionError||!data.session?.access_token||
    data.session.user.id!==user.id)return null;
