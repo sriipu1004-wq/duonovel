@@ -128,4 +128,30 @@ revoke all on function public.issue137_http_local_multipart_abort(uuid,uuid,uuid
  from public,anon,authenticated;
 grant execute on function public.issue137_http_local_multipart_abort(uuid,uuid,uuid)
  to service_role;
+-- LOCAL-ONLY revocation epoch fence: withdrawing a recording consent must
+-- permanently quarantine its old sessions even if the actor later re-consents.
+-- The original public consent table only stores a CURRENT version; re-grant
+-- must not accidentally resurrect a stale upload ticket/PRIVATE receipt.
+-- This is an app-owned SQL session fence, NOT atomic provider PUT revocation,
+-- immutable Storage, hosted schema migration, or cleanup automation.
+create function public.issue137_http_local_consent_withdrawal_hold()
+returns trigger language plpgsql volatile security definer
+set search_path='' as $f$
+begin
+ if old.consent_key='recording_studio_global'
+  and old.consent_version='2026-04-16'
+  and (tg_op='DELETE' or new.consent_version is distinct from '2026-04-16')
+ then
+  update public.issue137_http_local_multipart_sessions
+  set state='HOLD'
+  where user_id=old.user_id and state in ('OPEN','SEALED_PARTS');
+ end if;
+ if tg_op='DELETE' then return old; end if;
+ return new;
+end $f$;
+revoke all on function public.issue137_http_local_consent_withdrawal_hold()
+ from public,anon,authenticated;
+create trigger issue137_http_local_consent_withdrawal_hold
+after update of consent_version or delete on public.user_recording_consents
+for each row execute function public.issue137_http_local_consent_withdrawal_hold();
 notify pgrst,'reload schema';
