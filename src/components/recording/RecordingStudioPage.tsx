@@ -959,6 +959,7 @@ export function RecordingStudioPage({
           await stageHumanMultipartLocally({
             file, seriesId, episodeId: selectedEpisode.id,
             previousLease: lease,
+            normalFinalizeOwnsFinish: true,
             onProgress: ({ completedParts, totalParts }) =>
               setPublishMessage(
                 `開発用PRIVATE転送 ${completedParts}/${totalParts}。投稿・公開は行わない。`

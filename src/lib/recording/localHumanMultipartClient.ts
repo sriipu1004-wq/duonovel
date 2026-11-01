@@ -106,6 +106,9 @@ export async function stageHumanMultipartLocally(args: {
   seriesId: string;
   episodeId: string;
   previousLease?: LocalHumanStageLease | null;
+  // NORMAL Human finalize is the only authority to seal a Studio trial.
+  // The independent development probe still finishes here by default.
+  normalFinalizeOwnsFinish?: boolean;
   onLease?: (lease: LocalHumanStageLease) => void;
   onProgress?: (progress: LocalHumanStageProgress) => void;
   fetcher?: LocalFetch;
@@ -115,6 +118,9 @@ export async function stageHumanMultipartLocally(args: {
   if (!UUID.test(seriesId) || !UUID.test(episodeId) ||
       !Number.isSafeInteger(file.size) || file.size <= MIN_BYTES ||
       file.size > MAX_BYTES) throw new Error("LOCAL_SIZE_OR_SCOPE_HOLD");
+  if (args.normalFinalizeOwnsFinish === true && !args.previousLease) {
+    throw new Error("LOCAL_NORMAL_ORIGINAL_TICKET_REQUIRED_HOLD");
+  }
   const identity = fingerprint(file);
   const count = Math.ceil(file.size / PART_BYTES);
   const fetcher = args.fetcher ?? fetch;
@@ -188,6 +194,10 @@ export async function stageHumanMultipartLocally(args: {
     args.onProgress?.({ completedParts: completed, totalParts: count,
       bytesCompleted, totalBytes: file.size });
   }
+  // Every part was independently sealed and SHA-checked. For the NORMAL
+  // Studio flow, do not pre-finalize: the real Human finalize route must
+  // perform the first and only server-side atomic finish.
+  if (args.normalFinalizeOwnsFinish === true) return lease;
   const done = await jsonRequest({ action: "finish", sessionId: lease.sessionId }, fetcher);
   if (done.reason !== "PRIVATE_PARTS_SEALED_NOT_PUBLISHED" ||
       done.partCount !== count) {

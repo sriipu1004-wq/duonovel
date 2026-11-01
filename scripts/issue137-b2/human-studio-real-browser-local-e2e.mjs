@@ -209,11 +209,17 @@ export async function runLocalStudioChromium(args){
    await page.waitForTimeout(250);
   }
   check(enabled,"actual Studio client audio preflight enabled normal publish button");
-  const paths=[];
+  const paths=[],localActions=[];
   const track=request=>{
    const u=new URL(request.url());
-   if(u.pathname.startsWith("/api/recordings/"))
+   if(u.pathname.startsWith("/api/recordings/")){
     paths.push(request.method()+" "+u.pathname);
+    if(u.pathname==="/api/recordings/human-local-multipart"&&
+     request.method()==="POST"){
+     const action=request.postDataJSON()?.action;
+     if(typeof action==="string")localActions.push(action);
+    }
+   }
   };
   page.on("request",track);
   const responsePromise=page.waitForResponse(response=>
@@ -247,8 +253,10 @@ export async function runLocalStudioChromium(args){
   check(paths.filter(x=>x==="POST /api/recordings/human-upload-session").length===1&&
    paths.filter(x=>x==="POST /api/recordings/human-upload-finalize").length===1&&
    paths.some(x=>x==="PUT /api/recordings/human-local-multipart")&&
-   paths.filter(x=>x==="POST /api/recordings/human-local-multipart").length>=3,
-   "normal Studio signed-once -> raw PRIVATE PUT -> guarded finish/abort; no second open");
+   localActions.filter(x=>x==="part").length===1&&
+   localActions.includes("status")&&localActions.includes("abort")&&
+   !localActions.includes("open")&&!localActions.includes("finish"),
+   "normal Studio reuses signer ticket, verifies raw PRIVATE PUT, does not pre-finish; normal finalize seals once");
   page.off("request",track);
   const normalPath="owner/"+owner.uid+"/"+sessionReply.uploadSessionId+
    "/part-0001.bin";
