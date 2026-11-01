@@ -170,3 +170,20 @@ export async function stageHumanMultipartLocally(args: {
   }
   return lease;
 }
+
+export async function abortHumanMultipartLocally(args: {
+  lease: LocalHumanStageLease;
+  fetcher?: LocalFetch;
+}): Promise<number> {
+  requireLocalRuntime();
+  const id = args.lease.sessionId;
+  if (!UUID.test(id)) throw new Error("LOCAL_ABORT_INVALID_ID_HOLD");
+  const data = await jsonRequest({ action: "abort", sessionId: id },
+    args.fetcher ?? fetch);
+  if (data.reason !== "PRIVATE_ABORTED_AND_PHYSICAL_ABSENT" ||
+      !Number.isInteger(data.deletedParts) ||
+      Number(data.deletedParts) < 0 || Number(data.deletedParts) > 128) {
+    throw new Error("LOCAL_ABORT_UNVERIFIED_HOLD");
+  }
+  return Number(data.deletedParts);
+}
