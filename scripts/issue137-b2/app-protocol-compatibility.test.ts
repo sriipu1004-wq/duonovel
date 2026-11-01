@@ -72,7 +72,7 @@ ordered(signer,[
  ".createSignedUploadUrl(part.objectPath",
  "token: data.token",
 ],"legacy Human signer still mints reusable Storage bearer after user consent");
-yes(/\.createSignedUploadUrl\(part\.objectPath,\s*\{[^}]*upsert:\s*false/s.test(signer),
+yes(/\.createSignedUploadUrl\(part\.objectPath,\s*\{[^}]*upsert:\s*false/u.test(signer),
  "legacy bearer is first-write only (not revocable after issue)");
 yes(!signer.includes("issue137_http_local_tickets"),
  "real signer is NOT wired to disposable durable ticket prototype");
