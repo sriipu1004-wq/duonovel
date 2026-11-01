@@ -23,6 +23,8 @@ const paths={
  humanReader:"src/app/api/recordings/human-audio/[recordingId]/route.ts",
  proxy:"src/lib/recording/privateMediaProxy.ts",
  worker:"scripts/issue137-b2/privileged-http-boundary-process-local.mjs",
+ normalBridge:"src/lib/recording/issue137LocalHumanLegacyBridge.ts",
+ studio:"src/components/recording/RecordingStudioPage.tsx",
 };
 const src=Object.fromEntries(Object.entries(paths).map(([k,p])=>[k,read(p)]));
 let checked=0;
@@ -64,6 +66,33 @@ for(const bytes of cases){
  if(bytes===HUMAN_MULTIPART_MAX_TOTAL_BYTES)
   yes(session.parts.length===128,"1GiB requires 128 pre-minted 8MiB parts");
 }
+// The temporary normal JSON mode must fail closed in both API routes and in
+// the actual Studio. These are SOURCE controls, not an authenticated UI E2E.
+yes(src.normalBridge.includes('process.env.NODE_ENV==="development"')&&
+ src.normalBridge.includes('request.headers.get("host")===site.host')&&
+ src.normalBridge.includes('B2_LOCAL_HUMAN_NORMAL_ROUTE_MODE==="enabled"'),
+ "normal Human local-only mode requires explicit flag, dev runtime and exact Host");
+yes(src.normalBridge.includes('uploadMode:"local-private-staging-only"')&&
+ src.normalBridge.includes('reason:"PRIVATE_PARTS_SEALED_NOT_PUBLISHED"')&&
+ src.normalBridge.includes('ok:false,error:"ISSUE137_NORMAL_HUMAN_PUBLICATION_HOLD"'),
+ "normal JSON branch cannot claim a published Human recording");
+ordered(src.signer,[
+ "if(isIssue137LocalNormalHumanModeSelected())",
+ "const adminSupabase = createAdminClient()",
+ ".createSignedUploadUrl(part.objectPath",
+],"normal mode diversion precedes old signed bearer minting");
+ordered(src.finalize,[
+ "if(isIssue137LocalNormalHumanModeSelected())",
+ "const admin = createAdminClient()",
+ "publishHumanRecording({",
+],"normal mode diversion precedes privileged legacy finalize/publication");
+ordered(src.studio,[
+ 'uploadSession.uploadMode !== "single"',
+ 'uploadSession.uploadMode !== "multipart"',
+ 'if (uploadSession.uploadMode === "multipart")',
+ 'fetch("/api/recordings/human-publish"',
+],"unknown PRIVATE-only upload mode is rejected before one-shot Human publish");
+
 const signer=src.signer,finalize=src.finalize,publish=src.publish;
 ordered(signer,[
  "supabase.auth.getUser()",
