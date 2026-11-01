@@ -48,6 +48,45 @@ export async function runLocalStudioChromium(args){
   await page.locator('section[aria-label="ローカル分割アップロード検証"][data-hydrated="true"]')
    .waitFor({state:"visible",timeout:30000});
   check(await card.isVisible(),"actual Studio dev-only PRIVATE stage card rendered");
+  // Real Chromium, not Node fetch: normal Human JSON route must use the
+  // browser's SSR Cookie to open LOCAL PRIVATE stage without signed tokens.
+  const browserNormal=await page.evaluate(async ({seriesId,episodeId,totalBytes})=>{
+   const response=await fetch("/api/recordings/human-upload-session",{
+    method:"POST",credentials:"same-origin",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({seriesId,episodeId,fileName:"local-human-chromium.wav",
+     mimeType:"audio/wav",totalSizeBytes})
+   });
+   return {status:response.status,body:await response.json()};
+  },{seriesId,episodeId,totalBytes:bytes.length+tail.length});
+  check(browserNormal.status===201&&
+   browserNormal.body.uploadMode==="local-private-staging-only"&&
+   !!browserNormal.body.uploadSessionId&&
+   !("parts" in browserNormal.body)&&!("token" in browserNormal.body),
+   "Chromium SSR Cookie reached normal Human session without bearer or public output");
+  const browserEarlyFinish=await page.evaluate(async ({seriesId,episodeId,totalBytes,uploadSessionId})=>{
+   const response=await fetch("/api/recordings/human-upload-finalize",{
+    method:"POST",credentials:"same-origin",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({seriesId,episodeId,episodeNumber:1,isPublic:true,
+     fileName:"local-human-chromium.wav",mimeType:"audio/wav",
+     totalSizeBytes,uploadSessionId})
+   });
+   return {status:response.status,body:await response.json()};
+  },{seriesId,episodeId,totalBytes:bytes.length+tail.length,
+    uploadSessionId:browserNormal.body.uploadSessionId});
+  check(browserEarlyFinish.status===409&&
+   !("recordingId" in browserEarlyFinish.body),
+   "Chromium normal Human finalize cannot publish an incomplete PRIVATE session");
+  const discardedNormal=await post({
+   action:"abort",sessionId:browserNormal.body.uploadSessionId},
+   owner.session.cookie());
+  check(discardedNormal.status===200&&discardedNormal.body.deletedParts===0,
+   "browser-origin normal Human empty PRIVATE session is owner-disposable");
+  const noBrowserRecord=await admin.from("recordings")
+   .select("id").eq("episode_id",episodeId);
+  check(!noBrowserRecord.error&&noBrowserRecord.data?.length===0,
+   "browser-origin normal Human API created no recording or public metadata");
   const action=card.getByRole("button",{name:"開発用PRIVATE転送を試す"});
   check(await action.isDisabled(),"cannot stage without selected file");
   const payload=Buffer.concat([bytes,tail]);
