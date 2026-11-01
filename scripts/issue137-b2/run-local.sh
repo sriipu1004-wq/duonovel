@@ -240,6 +240,15 @@ echo 'PASS: F2-P local TUS receipt table installed in disposable Docker PostgreS
 # synthetic fixture setup and cleanup. This is NOT deployed secret custody.
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node "$B2/human-tus-user-ingress-isolation-e2e.mjs")
+# Self-service PRIVATE JWT/TUS ticket issuer with real actor/session and
+# app authority fields. TEST ONLY: never a hosted migration or public route.
+docker cp "$B2/human-tus-session-issuer-local.sql" \
+ "$db_container:/tmp/issue137_human_tus_issuer_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+ -f /tmp/issue137_human_tus_issuer_local.sql >/dev/null
+echo 'PASS: #137 disposable authenticated PRIVATE issuer SQL loaded'
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node "$B2/human-tus-session-issuer-local-e2e.mjs")
 # F2-P Human one-shot broker candidate (NO signed upload URL): local-only
 # PostgreSQL consent/session/nonce tables, then real GoTrue PRIVATE RLS writes.
 # No hosted migrations or runtime authoring endpoint changes.
