@@ -152,6 +152,13 @@ try{
  const billion=await post({...create,totalBytes:1024*1024*1024},owner.session.cookie());
  yes(billion.status===201&&billion.body.partCount===128&&
   billion.body.partSizeBytes===partSize,"1GiB logical session 128×8MiB, no bytes allocated");
+ const atEnd=await post({action:"part",sessionId:billion.body.sessionId,
+  index:127,expectedSha256:sha(bytes)},owner.session.cookie());
+ yes(atEnd.status===201&&atEnd.body.byteCount===partSize,
+  "1GiB logical final index127 is 8MiB and server allocated");
+ yes((await post({action:"finish",sessionId:billion.body.sessionId},
+  owner.session.cookie())).status===409,
+  "1GiB metadata session refuses finish until all 128 part receipts SEALED");
  const live=await post(create,owner.session.cookie());
  yes(live.status===201&&live.body.partCount===2,"real two-part session issued");
  const sid=live.body.sessionId;
@@ -162,6 +169,11 @@ try{
  const p0=await post({action:"part",sessionId:sid,index:0,
   expectedSha256:sha(bytes)},owner.session.cookie());
  yes(p0.status===201&&p0.body.byteCount===partSize,"8MiB exact part lease allocated");
+ const tooShort=await put(p0.body.partId,Buffer.alloc(512),owner.session.cookie());
+ yes(tooShort.status===413,"declared raw byte count cannot mismatch 8MiB lease");
+ const tooLarge=await put(p0.body.partId,Buffer.alloc(partSize+1),
+  owner.session.cookie());
+ yes(tooLarge.status===413,"Next rejects >8MiB HTTP PUT before worker");
  const p0Other=await post({action:"status",partId:p0.body.partId},other.session.cookie());
  yes(p0Other.status===403,"other consenting actor denied owner part status");
  const otherPut=await put(p0.body.partId,bytes,other.session.cookie());
@@ -198,23 +210,67 @@ try{
  yes(retained?.equals(bytes),"final PRIVATE part preserved without combining 1GiB");
  const r18=await post(create,owner.session.cookie());
  yes(r18.status===201,"pre-restriction open allowed");
+ const r18Part=await post({action:"part",sessionId:r18.body.sessionId,
+  index:0,expectedSha256:sha(bytes)},owner.session.cookie());
+ yes(r18Part.status===201,"part issued before R18 transition");
  const afterRating=await admin.from("series").update({content_rating:"r18"})
   .eq("id",seriesId);
  assert.equal(afterRating.error,null);
  const forbidden=await post({action:"part",sessionId:r18.body.sessionId,
   index:0,expectedSha256:sha(bytes)},owner.session.cookie());
  yes(forbidden.status===403,"R18 transition prevents issuing new part");
+ yes((await put(r18Part.body.partId,bytes,owner.session.cookie())).status===403,
+  "real 8MiB PUT refused after preissued part becomes R18");
+ yes((await admin.storage.from(bucket).download("owner/"+owner.uid+"/"+
+  r18.body.sessionId+"/part-0001.bin")).error!==null,
+  "R18 transition leaves absent physical PRIVATE part");
  const restore=await admin.from("series").update({content_rating:"general"}).eq("id",seriesId);
  assert.equal(restore.error,null);
  const consent=await post(create,owner.session.cookie());
  yes(consent.status===201,"pre-consent-revocation session issued");
+ const consentPart=await post({action:"part",sessionId:consent.body.sessionId,
+  index:0,expectedSha256:sha(bytes)},owner.session.cookie());
+ yes(consentPart.status===201,"prewithdrawal part issued with valid consent");
  const withdrawn=await admin.from("user_recording_consents")
   .update({consent_version:"2026-04-15"}).eq("user_id",owner.uid)
   .eq("consent_key","recording_studio_global");
  assert.equal(withdrawn.error,null);
+ yes((await put(consentPart.body.partId,bytes,owner.session.cookie())).status===403,
+  "consent withdrawn stops real PUT despite preissued part");
+ yes((await admin.storage.from(bucket).download("owner/"+owner.uid+"/"+
+  consent.body.sessionId+"/part-0001.bin")).error!==null,
+  "withdrawn consent left zero PRIVATE physical bytes");
  yes((await post({action:"part",sessionId:consent.body.sessionId,
-  index:0,expectedSha256:sha(bytes)},owner.session.cookie())).status===403,
-  "consent withdrawn stops part allocation");
+  index:1,expectedSha256:sha(tail)},owner.session.cookie())).status===403,
+  "withdrawn consent stops new part allocation");
+ const restored=await admin.from("user_recording_consents")
+  .update({consent_version:"2026-04-16"}).eq("user_id",owner.uid)
+  .eq("consent_key","recording_studio_global");
+ assert.equal(restored.error,null,"restore test-local consent for recovery probe");
+ const crashSession=await post(create,owner.session.cookie());
+ yes(crashSession.status===201,"separate synthetic ACK-loss session issued");
+ const crashPart=await post({action:"part",sessionId:crashSession.body.sessionId,
+  index:0,expectedSha256:sha(bytes)},owner.session.cookie());
+ yes(crashPart.status===201,"crash test lease allocated");
+ await stop(worker);
+ worker=start(workerScript,[],{...workerEnv,B2_MULTIPART_EXIT_AFTER_PUT_ONCE:"true"});
+ await readyWorker(worker);
+ const lostAck=await put(crashPart.body.partId,bytes,owner.session.cookie());
+ yes(lostAck.status===503,"worker exit after physical PRIVATE accept loses HTTP ACK");
+ await stop(worker);
+ worker=start(workerScript,[],workerEnv);
+ await readyWorker(worker);
+ const reconciled=await post({action:"status",partId:crashPart.body.partId},
+  owner.session.cookie());
+ yes(reconciled.status===200&&reconciled.body.state==="SEALED",
+  "fresh worker seals accepted 8MiB bytes after lost ACK, no duplicate PUT");
+ yes((await put(crashPart.body.partId,bytes,owner.session.cookie())).status===409,
+  "claimed-after-crash part never becomes reusable");
+ const retainedAfterCrash=await admin.storage.from(bucket).download("owner/"+
+  owner.uid+"/"+crashSession.body.sessionId+"/part-0001.bin");
+ yes(!retainedAfterCrash.error&&
+  sha(Buffer.from(await retainedAfterCrash.data.arrayBuffer()))===sha(bytes),
+  "ack-loss recovery verifies real PRIVATE 8MiB physical bytes");
  const privatePublic=await fetch(ep.origin+"/storage/v1/object/public/"+bucket+"/"+
   "owner/"+owner.uid+"/"+sid+"/part-0001.bin",{headers:{apikey:anon},
   redirect:"error",signal:AbortSignal.timeout(12000)});
