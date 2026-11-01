@@ -270,10 +270,6 @@ try{
   if(formerNodeEnv===undefined)delete process.env.NODE_ENV;
   else process.env.NODE_ENV=formerNodeEnv;
  }
- // Actual headless Chromium controls the real Studio UI, not jsdom.
- const {runLocalStudioChromium}=await import("./human-studio-real-browser-local-e2e.mjs");
- await runLocalStudioChromium({nextBase,owner,other,seriesId,episodeId,
-  bytes,tail,admin,bucket,post,put});
   const finished=await post({action:"finish",sessionId:sid},owner.session.cookie());
  yes(finished.status===200&&finished.body.reason===
   "PRIVATE_PARTS_SEALED_NOT_PUBLISHED","two sealed parts produce receipt only, not published audio");
@@ -349,6 +345,14 @@ try{
  const output=logs+JSON.stringify([live,p0,p0ok,finished]);
  yes(!output.includes(service)&&!output.includes(owner.jwt)&&
   !output.includes(secret),"neither process log nor API contains privileged key");
+ // Run graphical integration LAST so Chromium/Next dev memory and
+ // worker teardown cannot interfere with independent preexisting HTTP negatives.
+ // Actual headless Chromium controls the real Studio UI, not jsdom.
+ const {runLocalStudioChromium}=await import("./human-studio-real-browser-local-e2e.mjs");
+ await runLocalStudioChromium({nextBase,owner,other,seriesId,episodeId,
+  bytes,tail,admin,bucket,post,put});
+ yes(next?.exitCode===null && next?.signalCode===null,
+  "Next process stayed alive throughout real Chromium UI probe");
  console.log("PASS: F2-P REAL LOCAL Next 8MiB streamed multipart "+
   checks+" checks; 1GiB/128-part metadata only, PRIVATE 8MiB+256 actual bytes, "+
   "resume, replay, owner, consent, R18, integrity and no public writes");
