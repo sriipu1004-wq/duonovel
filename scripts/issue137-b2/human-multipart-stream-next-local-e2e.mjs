@@ -913,12 +913,16 @@ try{
   "select count(*) from auth.sessions where id='"+authSessionId+"'::uuid"+
   " and user_id='"+orphan.uid+"'::uuid"],{encoding:"utf8",timeout:15000}).trim();
  yes(authRows==="0","old orphan auth.sessions row genuinely absent after logout");
- yes((await post({action:"abort",sessionId:orphanId},oldOrphanCookie)).status===403,
-  "logged-out actor cannot abort via old SSR-cookie/JWT");
+ const staleAbort=await post({action:"abort",sessionId:orphanId},oldOrphanCookie);
+ yes([401,403].includes(staleAbort.status)&&staleAbort.body.ok===false&&
+  staleAbort.body.deletedParts===undefined,
+  "logged-out actor cannot abort via old SSR-cookie/JWT (401 or 403)");
  yes((await post({action:"abort",sessionId:orphanId},other.session.cookie()))
   .status===403,"unrelated consenting actor cannot clean orphan's ticket");
- yes((await post({action:"finish",sessionId:orphanId},oldOrphanCookie)).status===403,
-  "logged-out actor cannot finalize orphan PRIVATE ticket");
+ const staleFinish=await post({action:"finish",sessionId:orphanId},oldOrphanCookie);
+ yes([401,403].includes(staleFinish.status)&&staleFinish.body.ok===false&&
+  !staleFinish.body.recordingId,
+  "logged-out actor cannot finalize orphan PRIVATE ticket (401 or 403)");
  const orphanFound=await admin.storage.from(bucket).download(orphanPath);
  yes(!orphanFound.error&&
   sha(Buffer.from(await orphanFound.data.arrayBuffer()))===sha(bytes),
