@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import {
+  hasIssue137ProbeMarker,
+  handleIssue137LocalLegacyProbe,
+} from "@/lib/recording/issue137LocalHumanLegacyBridge";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import {
   decideRecordingEntryAccess,
@@ -88,6 +92,8 @@ function resolveErrorResponse(message: string) {
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as Record<string, unknown>;
+    if(hasIssue137ProbeMarker(payload))
+      return handleIssue137LocalLegacyProbe(request,payload,"open");
 
     const seriesId = readText(payload.seriesId);
     const episodeId = readText(payload.episodeId);
