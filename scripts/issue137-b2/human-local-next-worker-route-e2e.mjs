@@ -194,6 +194,27 @@ try{
  check(rejected.status===403&&
   !(await readPath("owner/"+owner.id+"/"+oldTicket.data.ticket+".wav")),
   "freshly withdrawn consent rejects pre-issued ticket, no PRIVATE write");
+ // Confirm that eligibility is rechecked at the moment of STAGE:
+ // a previously valid owner/consent ticket must fail after R18 transition.
+ const restored=await admin.from("user_recording_consents")
+  .update({consent_version:"2026-04-16"}).eq("user_id",owner.id)
+  .eq("consent_key","recording_studio_global");
+ assert.equal(restored.error,null,"restore local consent for isolated R18 transition");
+ const beforeR18=await request(issueBody,owner.session.cookie());
+ check(beforeR18.status===201,"owner can issue before R18 reclassification");
+ const rating=await admin.from("series").update({content_rating:"r18"})
+  .eq("id",seriesId);
+ assert.equal(rating.error,null,"local series becomes R18");
+ const blockedR18=await request({action:"stage",ticket:beforeR18.data.ticket,
+  bytesBase64:wav.toString("base64")},owner.session.cookie());
+ check(blockedR18.status===403&&
+  !(await readPath("owner/"+owner.id+"/"+beforeR18.data.ticket+".wav")),
+  "R18 transition rejects pre-issued owner ticket without PRIVATE write");
+ const ratedIssue=await request(issueBody,owner.session.cookie());
+ check(ratedIssue.status===403,"R18 series cannot obtain new local stage ticket");
+ const resetRating=await admin.from("series").update({content_rating:"general"})
+  .eq("id",seriesId);
+ assert.equal(resetRating.error,null,"restore synthetic general rating");
  const staleCookie=owner.session.cookie();
  const signOut=await owner.session.auth.auth.signOut({scope:"global"});
  assert.equal(signOut.error,null,"real GoTrue logout");
