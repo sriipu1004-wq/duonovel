@@ -251,3 +251,48 @@ Official specifications checked for this addendum:
 [Storage RLS and service-key bypass](https://supabase.com/docs/guides/storage/security/access-control),
 [S3 access-key versus JWT session-token permissions](https://supabase.com/docs/guides/storage/s3/authentication),
 [TUS 6MiB and 24h upload URL](https://supabase.com/docs/guides/storage/uploads/resumable-uploads).
+
+
+## Addendum — 2026-11-01: LOCAL consent-revocation monotonic HOLD and cleanup
+
+**Author-side NONPRODUCTION fixture only:** `scripts/issue137-b2/human-multipart-worker-local.sql`
+creates a trigger on the existing **disposable** `user_recording_consents` table. It
+moves every affected local `OPEN` / `SEALED_PARTS` Human multipart ticket to
+irreversible `HOLD` when an accepted `recording_studio_global` row is changed to
+a different version, **renamed to another consent key**, or deleted. No
+trigger, table or policy was deployed under `supabase/migrations` or on the
+hosted project. Re-consent issues a new ticket; it never revives the old one.
+
+**Falsifiable negative cases:** a prior ticket is refused after
+withdrawal→re-grant of the same consent version; an already SEALED PRIVATE receipt
+is refused even when the key is renamed back; a deleted/reinserted consent row
+cannot reactivate the old ticket; unrelated consent keys do not quarantine
+recording sessions. A fresh ticket under restored consent can stage 8MiB+256
+bytes, produce only PRIVATE receipt, and never publish. Owner-only
+`abort` continues to delete physically verified PRIVATE bytes after
+withdrawal/re-grant. The local SQL trigger is user-scoped
+(`m.user_id=old.user_id`) and fires only when the *previous* key was an
+accepted global recording consent. It does not imply irrevocable revocation
+of ordinary non-recording consents, permission toggles or hosted tokens.
+
+**Critical split between revocation and physical write:** even with this
+SQL HOLD, the previously measured post-CLAIM window still permits an
+in-flight service-role Storage PUT **after** withdrawal. SQL/postgres session
+state and Storage provider byte commit are not one transaction; a
+same-project privileged `service_role` or S3 writer can still bypass
+this cooperative worker entirely. An irreversible app ticket fence is useful
+for **no stale finalize/replay after re-consent**, not for instant
+provider-wide token revocation, physical WORM or elimination of the window.
+A racing abort returns HOLD while the writer is CLAIMED; retry only when
+the in-flight writer settles, then compare actual PRIVATE byte absence.
+Logout/expired auth sessions prevent the current owner-only `abort`
+path, and require a separately controlled operator/expiry reconciler;
+**no Cron, background cleanup, hosted deletion, or privileged recovery
+API is authorized or implemented**.
+
+Before deployable approval define a persistent consent/rights epoch (not merely
+the mutable current version string), SQL transactionally fenced ticket
+states, an authorized operator reconciliation protocol for abandoned
+CLAIMED/SEALED bytes, service-role/S3 credential ownership and a complete
+end-to-end nonpublication/provenance/rights safety proof. Keep PR #153 Draft /
+MERGE HOLD and Production B2 NO-GO even on successful disposable tests.
