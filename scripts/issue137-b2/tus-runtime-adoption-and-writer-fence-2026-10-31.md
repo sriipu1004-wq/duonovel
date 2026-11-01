@@ -155,3 +155,99 @@ probably avoids an additional 1GiB server relay, but the final media ingestion,
 safe rollback, provider access separation and evidence costs have not been
 measured. No new provider paid resources or credential actions are justified
 by this document.
+
+---
+
+## Addendum — 2026-11-01: precise NORMAL Human route cutover (SOURCE decision only)
+
+This addendum **corrects dated legacy assumptions and defines a bounded next
+candidate**, without revisiting the completed TUS/worker/privileged-writer
+comparisons above. Evidence point: #153 branch at
+`2f92341b1cc809b506dfb26a5bc25351bbd8e18b` (not a perpetual
+"current HEAD"). It was subsequently reinforced by source-regression assertions.
+This is **not authority to create/deploy keys, buckets, RLS, migrations, paid
+projects, an active worker, real media or a public release**.
+
+### Verified actual route contracts, not inferred from old PR notes
+
+| Exact source/ingress | Existing implementation | Cutover consequence |
+| --- | --- | --- |
+| `human-upload-session/route.ts` | For >4MiB, user `getUser()`, readable series/episode and **current global recording consent** are checked **before** admin `createSignedUploadUrl(...,{upsert:false})`; each part returns a signed bearer. For smaller input the API returns `single` before this multipart-specific check; the separate `human-publish` route is responsible for final authorization. | **Do not claim consent was missing at signer issuance or that it currently signs with `upsert:true`.** These mitigations are already present. Nevertheless a previously issued signed upload bearer is independent of the originating SSR Cookie and cannot be considered revoked by a later consent/logout event. Never re-enable these bearer mints as a fallback for a migrated cohort. |
+| `RecordingStudioPage.tsx` | A >4MiB client file is fully read and cloned by `analyzeAudioUploadClient` / `AudioContext.decodeAudioData`. At that threshold its result is locally marked `serverResult.decision="passed"` with real server validation deferred. The default multipart branch still uploads each 8MiB part through `uploadToSignedUrl`; unknown `uploadMode` is now explicitly rejected before one-shot `human-publish`. | The new **dev-only** `local-private-staging-only` response is deliberately non-publishable. An eligible release path must have separate user-facing stage/resume/cancel and verified completion UI; the existing button cannot simply reinterpret staging as publish. No default-mode fallback to signed multipart or one-shot publish after 4xx/409. |
+| `human-upload-finalize/route.ts` | Validates current auth/series/episode/consent, but reconstructs N temp parts with privileged `.download`, `new File(fileParts)`, and `analyzeAudioUploadServer`; it calls the legacy privileged publisher. `finally` removes temp paths even on certain ambiguous failures. | A new session must be bound by a **durable server-owned** (actor, GoTrue session, series, episode, file-size, digest, rights revision) record. Finalize needs fresh current-domain decisions, byte-complete receipts and crash/ACK-loss reconciliation **before** any public pointer. Never treat arbitrary client-provided session ID as a durable proof. |
+| `humanRecordingPublish.ts` + normalization + transcription | Publisher calls `sourceFile.arrayBuffer()`; FFmpeg helper buffers entire input and reads entire output into memory; the transcription helper rejects **normalized output** above 25MiB, copying the input into another buffer. Three privileged final Storage PUTs plus H1/CAS remain. | **1GiB upload-size allowance is not an end-to-end publish SLA.** Any large-file solution needs bounded input/output, per-request duration/CPU/heap/egress, audio validation and transcription segmentation/alignment policy with measured failure handling. Do not silently introduce a "chunked transcription" service dependency or remove the 25MiB guard. |
+
+### Minimal implementation ordering for a separately approved deployable phase
+
+1. **Freeze security objective and cost choice first.** Compare (A) no
+   additional release and retain existing HOLD (**$0 new fixed infra**),
+   (B) a strictly PRIVATE RLS-scoped user/TUS upload with durable app-owned
+   tickets and no signed bearers (**no new provider fixed project expected,
+   but extra requests/bytes/functions and maintenance**), and (C) a separately
+   controlled provider credential/storage boundary (**possible additional
+   compute/transfer/restore charges and operational complexity**). The
+   previously tested same-project RLS + service-role design **cannot prove
+   WORM or exclusive writer custody**. Recommend (B) only as the next
+   **non-publishing prototype**; do not recommend buying (C) until actual
+   need, writer inventory, costs and feasible isolation are established.
+2. **Issue/replace cohort-specific ingress, not every route at once.**
+   Keep small-file Human, AI synthesis, TTS, Human translation and Reader
+   unchanged. For a specifically identified large-Human test cohort, issue
+   no legacy signed Storage URLs; use a PRIVATE ticket and restricted
+   provider-side ingress only. Negative test stolen preexisting bearer,
+   POST after consent/logout, wrong session/series/episode, R18 warning,
+   same-length changed payload, deletion/recreation, stale browser, two
+   concurrent clients and server restart. **Previously minted two-hour
+   tokens cannot be made retroactively revocable by this application
+   switch; explicitly plan expiry/fencing and no PUBLIC promotion.**
+3. **Separate three states with durable recovery:** `PRIVATE_STAGED`,
+   `PRIVATE_VERIFIED`, and `PUBLIC_ELIGIBLE` are not interchangeable.
+   Missing/changed bytes, orphaned CLAIMED, expired leases, ACK loss,
+   worker crash, authority withdrawal and PostgreSQL/Storage version
+   disagreement mean **HOLD**, not retry-by-upsert or automatic deletion.
+   A verified digest by one process is a **point-in-time check**, not a
+   provider-enforced immutable object. If an independent service-role/S3
+   path can overwrite between readback and DB CAS, only
+   **detect-and-quarantine/HOLD** may be claimed—not "unmodifiable media".
+4. **Solve processing capacity before claiming 1GiB.** Establish a
+   validated *processable* source duration/byte limit independently of
+   the current 1GiB metadata cap; measure Browser WebAudio peak heap,
+   server bounded streams/FFmpeg input+output, normalized transcription
+   25MiB ceiling, concurrent users, timeouts and partial failure. Preserve
+   the existing limit and current release HOLD until a compatible
+   product-facing cap/segmentation decision is separately approved. The
+   complete source-byte hash, segment timing, author provenance and
+   episode-text alignment must survive any processing split.
+5. **Only after the above, make publication a separate authorized
+   transaction.** Recheck current consent, owner/series/episode, actual
+   R18 rating + warnings, rights, private/public visibility and
+   prior-recorder publication consent; enforce canonical H1/H2 revision
+   and single-commit pointer semantics. Keep PUBLIC/CDN, AI/Human/TTS
+   media and read-only authenticated Reader paths distinct. Test old app +
+   new DB, new app + old DB, rollback while old bearers exist, full
+   DB+Storage-byte restore and Production performance/AbortError thresholds.
+   This is a later release gate, NOT a consequence of staging CI PASS.
+
+### Falsifiable stop/go record for this addendum
+
+- **Already demonstrated LOCAL:** normal JSON dev-only no-signer PRIVATE
+  session + fresh finalize denial, browser SSR Cookie, owner/context,
+  actual enabled Studio button failing closed, physical 8MiB+256B
+  checksum, late consent/R18/episode denial; #153 CI/Preview at the
+  recorded checkpoint. Production has **none of this mode enabled**.
+- **Still NOT evidenced:** safe revocation/fencing of existing bearer
+  across the provider, separate credential custody for alternate
+  `service_role`/S3 writers, normal-mode 1GiB payload with bounded
+  memory/transcription, release-safe publication/proxy and legacy media,
+  independent provider/DB+Storage recovery.
+- **Gate:** #153 FIX / MERGE HOLD; Production B2 NO-GO. The next
+  runnable development work remains **nonproduction only** until a
+  separately scoped deployable-phase approval. A new fixed-head high-risk
+  independent review belongs at a stable release candidate, not at each
+  source-only intermediary change.
+
+Official specifications checked for this addendum:
+[Supabase signed upload URL, 2h bearer](https://supabase.com/docs/reference/javascript/file-buckets-createsigneduploadurl),
+[Storage RLS and service-key bypass](https://supabase.com/docs/guides/storage/security/access-control),
+[S3 access-key versus JWT session-token permissions](https://supabase.com/docs/guides/storage/s3/authentication),
+[TUS 6MiB and 24h upload URL](https://supabase.com/docs/guides/storage/uploads/resumable-uploads).
