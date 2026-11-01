@@ -196,6 +196,9 @@ docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
 echo 'PASS: F2-P disposable read-only auditor RLS fixture installed'
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node "$B2/privileged-readonly-auditor-local-e2e.mjs")
+# Development-only Next.js SSR HTTP API, disposable localhost worker.
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node "$B2/human-local-next-worker-route-e2e.mjs")
 # Authenticated, non-signed Supabase TUS: isolate PRIVATE RLS and verify
 # resume/PATCH rights revocation and duplicate path with real localhost Storage.
 # NEVER copy this policy to hosted migrations or production buckets.
