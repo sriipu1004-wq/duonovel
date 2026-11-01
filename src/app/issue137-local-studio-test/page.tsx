@@ -21,6 +21,6 @@ export default async function LocalStudioTestPage(){
    episodes={[{id:episodeId,episodeNumber:1,title:"合成テスト",body:"LOCAL ONLY",
      preview:"LOCAL ONLY",readHref:"/issue137-local-studio-test"}]}
    existingRecordings={[]}
-   fixedReaderName=""
+   fixedReaderName="LOCAL SYNTHETIC HUMAN READER"
   />;
 }
