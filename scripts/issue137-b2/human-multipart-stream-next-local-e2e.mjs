@@ -114,10 +114,10 @@ async function post(body,cookie=""){
   headers:{"content-type":"application/json",...(cookie?{cookie}:{})},
   body:JSON.stringify(body),signal:AbortSignal.timeout(30000),redirect:"error"}));
 }
-async function postLegacy(which,body,cookie=""){
+async function postLegacy(which,body,cookie="",extraHeaders={}){
  assert.ok(["human-upload-session","human-upload-finalize"].includes(which));
  return parse(await fetch(nextBase+"/api/recordings/"+which,{method:"POST",
-  headers:{"content-type":"application/json",...(cookie?{cookie}:{})},
+  headers:{"content-type":"application/json",...(cookie?{cookie}:{}),...extraHeaders},
   body:JSON.stringify(body),signal:AbortSignal.timeout(30000),redirect:"error"}));
 }
 async function put(ticket,data,cookie="",headers={}){
@@ -179,6 +179,27 @@ try{
  yes(newAnon.status===401,
   "legacy session dev bridge requires real authenticated SSR cookie; status="+
   newAnon.status+" reason="+String(newAnon.body?.reason??newAnon.body?.error??"NONE").slice(0,85));
+ // Only an HttpOnly SSR cookie backed by GoTrue can authorize the legacy
+ // bridge. A valid JWT sent as an arbitrary Authorization header is not an
+ // alternative credential for this development-only route.
+ const bearerOnly=await postLegacy("human-upload-session",bridgeRequest,"",
+  {authorization:"Bearer "+owner.jwt});
+ yes(bearerOnly.status===401&&!bearerOnly.body.sessionId&&
+  !bearerOnly.body.token,
+  "legacy dev bridge ignores bearer-only auth and creates no upload ticket");
+ // Local opt-in must not become reachable through a spoofed Host even with
+ // a valid owner's SSR session. The runtime and worker are still localhost-only.
+ const forgedHost=await postLegacy("human-upload-session",bridgeRequest,
+  owner.session.cookie(),{host:"localhost:"+portNext});
+ yes(forgedHost.status===404&&
+  forgedHost.body.error==="ISSUE137_LOCAL_LEGACY_PROBE_HOLD"&&
+  !forgedHost.body.sessionId,
+  "legacy dev bridge rejects spoofed Host despite valid owner SSR cookie");
+ // Extra caller-selected path fields must not be forwarded to the worker.
+ const pathInjection=await postLegacy("human-upload-session",
+  {...bridgeRequest,objectPath:"public/forged.wav"},owner.session.cookie());
+ yes(pathInjection.status===400&&!pathInjection.body.sessionId,
+  "legacy dev bridge refuses caller-controlled Storage object path");
  const wrongLocal=await postLegacy("human-upload-session",
   {...bridgeRequest,issue137LocalProbe:"not-enabled"},owner.session.cookie());
  yes(wrongLocal.status===400,"unknown local bridge mode fail closed");
@@ -206,6 +227,13 @@ try{
   {issue137LocalProbe:"finish",sessionId:legacyId},other.session.cookie());
  yes(otherFinal.status===403,
   "legacy finalize dev branch refuses other consenting user's ticket");
+ // Conflicting credentials must never let another owner finalize a ticket.
+ // The server's SSR cookie identity has precedence over caller-supplied bearer.
+ const mixedIdentity=await postLegacy("human-upload-finalize",
+  {issue137LocalProbe:"finish",sessionId:legacyId},
+  other.session.cookie(),{authorization:"Bearer "+owner.jwt});
+ yes(mixedIdentity.status===403&&!mixedIdentity.body.recordingId,
+  "other-owner SSR cookie cannot borrow owner's bearer to finalize");
  const lastLegacy=await post({action:"part",sessionId:legacyId,index:1,
   expectedSha256:sha(tail)},owner.session.cookie());
  yes(lastLegacy.status===201&&
