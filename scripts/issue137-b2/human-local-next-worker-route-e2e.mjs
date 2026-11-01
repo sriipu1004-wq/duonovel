@@ -132,9 +132,9 @@ try{
   id:episodeId,series_id:seriesId,body:"LOCAL TEST ONLY",
   posting_status:"posted",is_published:true
  })).error,null,"synthetic posted episode");
- const signedConsent=await admin.from("user_recording_consents").upsert({
+ const signedConsent=await admin.from("user_recording_consents").insert({
   user_id:owner.id,consent_key:"recording_studio_global",
-  consent_version:"2026-04-16"},{onConflict:"user_id,consent_key"});
+  consent_version:"2026-04-16"});
  assert.equal(signedConsent.error,null,"local owner consent");
  worker=spawnChild(workerScript,[],workerEnv,"worker");
  await ready(workerBase,"worker",worker);
@@ -210,10 +210,6 @@ try{
   .update({consent_version:"2026-04-16"}).eq("user_id",owner.id)
   .eq("consent_key","recording_studio_global");
  assert.equal(reAccepted.error,null);
- const fresh=jar(); // a separate post-logout GoTrue session is required.
- // Prior cookie-based client has no session, so sign in using another
- // fresh synthetic user that has current consent and eligible work.
- const ownerEmail="next-local-worker-relog-"+uid()+"@example.invalid";
  // No need to create an additional account: the prior logout test already
  // covers live-session revocation. Worker-unavailable is checked via another
  // actually authenticated user with accepted consent and the same public work.
