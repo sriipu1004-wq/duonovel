@@ -266,6 +266,49 @@ try{
  yes(lastLegacy.status===201&&
   (await put(lastLegacy.body.partId,tail,owner.session.cookie())).status===201,
   "legacy session dev path preserves exact final 256B PRIVATE remainder");
+ // All PRIVATE parts have been sealed. The actual legacy finalize
+ // handler's opt-in LOCAL bridge must recheck live authority at FINISH.
+ const consentRevokeLegacy=await admin.from("user_recording_consents")
+  .update({consent_version:"2026-04-15"}).eq("user_id",owner.uid)
+  .eq("consent_key","recording_studio_global");
+ assert.equal(consentRevokeLegacy.error,null,"local-only consent withdrawal");
+ const deniedConsentLegacy=await postLegacy("human-upload-finalize",
+  {issue137LocalProbe:"finish",sessionId:legacyId},owner.session.cookie());
+ yes(deniedConsentLegacy.status===403&&!deniedConsentLegacy.body.recordingId,
+  "legacy finalize refuses sealed parts after consent withdrawal");
+ const consentRestoreLegacy=await admin.from("user_recording_consents")
+  .update({consent_version:"2026-04-16"}).eq("user_id",owner.uid)
+  .eq("consent_key","recording_studio_global");
+ assert.equal(consentRestoreLegacy.error,null,"local-only consent restore");
+ const markR18Legacy=await admin.from("series").update({content_rating:"r18"})
+  .eq("id",seriesId);
+ assert.equal(markR18Legacy.error,null,"local-only R18 transition");
+ const deniedR18Legacy=await postLegacy("human-upload-finalize",
+  {issue137LocalProbe:"finish",sessionId:legacyId},owner.session.cookie());
+ yes(deniedR18Legacy.status===403&&!deniedR18Legacy.body.recordingId,
+  "legacy finalize refuses sealed parts after R18 reclassification");
+ const restoreR18Legacy=await admin.from("series").update({content_rating:"general"})
+  .eq("id",seriesId);
+ assert.equal(restoreR18Legacy.error,null,"local-only general rating restore");
+ const makePrivateLegacy=await admin.from("series")
+  .update({publication_status:"private"}).eq("id",seriesId);
+ assert.equal(makePrivateLegacy.error,null,"local-only unpublish series");
+ const deniedPrivateLegacy=await postLegacy("human-upload-finalize",
+  {issue137LocalProbe:"finish",sessionId:legacyId},owner.session.cookie());
+ yes(deniedPrivateLegacy.status===403&&!deniedPrivateLegacy.body.recordingId,
+  "legacy finalize refuses sealed parts after source series unpublishes");
+ const restorePublicLegacy=await admin.from("series")
+  .update({publication_status:"public"}).eq("id",seriesId);
+ assert.equal(restorePublicLegacy.error,null,"local-only public status restore");
+ const deniedRowsLegacy=await admin.from("recordings").select("id")
+  .eq("episode_id",episodeId);
+ yes(!deniedRowsLegacy.error&&deniedRowsLegacy.data?.length===0,
+  "revoked legacy finalize created no recording metadata");
+ const retainedLegacyPart=await admin.storage.from(bucket).download(
+  "owner/"+owner.uid+"/"+legacyId+"/part-0001.bin");
+ yes(!retainedLegacyPart.error&&
+  sha(Buffer.from(await retainedLegacyPart.data.arrayBuffer()))===sha(bytes),
+  "denied legacy finalize preserved physically verified PRIVATE bytes");
  const finishedLegacy=await postLegacy("human-upload-finalize",
   {issue137LocalProbe:"finish",sessionId:legacyId},owner.session.cookie());
  yes(finishedLegacy.status===200&&
