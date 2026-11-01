@@ -1081,6 +1081,53 @@ try{
   orphanParts[0].state==="SEALED"&&
   orphanParts[0].observed_sha256===sha(bytes),
   "one settled SEALED part is physically verified before scoped cleanup");
+
+ // LOCAL-ONLY durable DELETE_INTENT: actual provider verification is
+ // point-in-time; no provider-enforced revocation or DELETE_CONFIRMED.
+ const deleteOp=id(),intentCall=operation=>admin.rpc(
+  "issue137_http_local_delete_intent",{
+   p_part:orphanPart.body.partId,p_user:orphan.uid,
+   p_auth_session:authSessionId,p_operation:operation,p_epoch:1
+  });
+ const two=await Promise.all([intentCall(deleteOp),intentCall(deleteOp)]);
+ yes(two.every(x=>!x.error)&&
+  two.map(x=>x.data).sort().join(",")==="DELETE_INTENT,INTENT_REPLAY",
+  "concurrent same-operation requests create one durable intent");
+ const {data:intents,error:intentsError}=await admin.from(
+  "issue137_http_local_delete_intents").select("*")
+  .eq("part_id",orphanPart.body.partId);
+ yes(!intentsError&&intents?.length===1&&
+  intents[0].operation_id===deleteOp&&
+  intents[0].owner_id===orphan.uid&&
+  intents[0].original_auth_session_id===authSessionId&&
+  intents[0].canonical_path===orphanPath&&
+  intents[0].expected_sha256===sha(bytes)&&
+  intents[0].expected_bytes===bytes.length&&
+  intents[0].phase==="DELETE_INTENT",
+  "SQL journal exactly binds original owner/session/path/SHA/bytes");
+ const conflict=await intentCall(id());
+ yes(!conflict.error&&conflict.data==="EPOCH_OR_OPERATOR_CONFLICT_HOLD",
+  "a second operator cannot replace original DELETE_INTENT");
+ const invalidEpoch=await admin.rpc("issue137_http_local_delete_intent",{
+  p_part:orphanPart.body.partId,p_user:orphan.uid,
+  p_auth_session:authSessionId,p_operation:id(),p_epoch:2});
+ yes(!invalidEpoch.error&&invalidEpoch.data==="EPOCH_OR_OPERATION_HOLD",
+  "a different epoch cannot reuse the same original part");
+ const otherOwnerAttempt=await admin.rpc("issue137_http_local_delete_intent",{
+  p_part:orphanPart.body.partId,p_user:other.uid,
+  p_auth_session:authSessionId,p_operation:id(),p_epoch:1});
+ yes(!otherOwnerAttempt.error&&
+  otherOwnerAttempt.data==="LEDGER_OR_OWNER_HOLD",
+  "SQL transaction refuses wrong original owner");
+ const anonymous=createClient(ep.origin,anon,opts);
+ const anonRpc=await anonymous.rpc("issue137_http_local_delete_intent",{
+  p_part:orphanPart.body.partId,p_user:orphan.uid,
+  p_auth_session:authSessionId,p_operation:id(),p_epoch:1});
+ yes(!!anonRpc.error,"anon cannot invoke delete-intent RPC");
+ const anonJournal=await anonymous.from(
+  "issue137_http_local_delete_intents").select("operation_id");
+ yes(!!anonJournal.error||anonJournal.data?.length===0,
+  "anon has no access to owner/session deletion-journal data");
  const beforeCleanup=await admin.storage.from(bucket).download(orphanPath);
  yes(!beforeCleanup.error&&
   sha(Buffer.from(await beforeCleanup.data.arrayBuffer()))===
@@ -1109,6 +1156,16 @@ try{
   heldReceipt.data.expected_sha256===sha(bytes)&&
   heldReceipt.data.observed_sha256===sha(bytes),
   "post-delete receipt still SEALED; no durable DELETE tombstone exists");
+
+ const retryAfterDelete=await intentCall(deleteOp);
+ yes(!retryAfterDelete.error&&retryAfterDelete.data==="INTENT_REPLAY",
+  "after physical DELETE and 404, retry reads existing intent only");
+ const journalAtAbsent=await admin.from("issue137_http_local_delete_intents")
+  .select("phase,delete_epoch").eq("part_id",orphanPart.body.partId).single();
+ yes(!journalAtAbsent.error&&
+  journalAtAbsent.data.phase==="DELETE_INTENT"&&
+  journalAtAbsent.data.delete_epoch===1,
+  "point-in-time absence does not become DELETED_DURABLE");
  // Simulate an INDEPENDENT privileged Storage writer after cleanup.
  // upsert:false cannot prevent a first write once the path is absent.
  const revivedDifferent=await admin.storage.from(bucket).upload(orphanPath,wrong,{
@@ -1141,6 +1198,14 @@ try{
  yes(indistinguishable.reason==="VERIFIED"&&
   indistinguishable.paths?.[0]===orphanPath,
   "RISK: no tombstone or provider generation fence; re-created exact bytes pass old receipt");
+
+ const stillIntent=await admin.from("issue137_http_local_delete_intents")
+  .select("phase,operation_id").eq("part_id",orphanPart.body.partId).single();
+ yes(!stillIntent.error&&stillIntent.data.phase==="DELETE_INTENT"&&
+  stillIntent.data.operation_id===deleteOp,
+  "identical SHA privileged re-creation cannot erase stored intent");
+ console.log("PASS: F2-P LOCAL one-shot SQL DELETE_INTENT concurrency/owner "+
+  "fence; same-SHA re-creation remains a physical custody HOLD");
  console.log("RISK: LOCAL verified DELETE is point-in-time only; "+
   "post-delete privileged PUT revives different or identical bytes. "+
   "SEALED receipt is not a deletion tombstone");
@@ -1214,6 +1279,17 @@ try{
  yes(claimSnap.parts[0].state==="CLAIMED"&&
   claimVerdict.reason==="LEDGER_OR_CLAIM_HOLD",
   "real SQL CLAIMED plus provider bytes: offline DELETE refused");
+
+ const unsettledIntent=await admin.rpc("issue137_http_local_delete_intent",{
+  p_part:claimedCase.partId,p_user:orphan.uid,
+  p_auth_session:authSessionId,p_operation:id(),p_epoch:1});
+ yes(!unsettledIntent.error&&
+  unsettledIntent.data==="LEDGER_OR_CLAIM_HOLD",
+  "SQL CLAIMED part cannot receive delete-intent receipt");
+ const claimedIntents=await admin.from("issue137_http_local_delete_intents")
+  .select("operation_id").eq("part_id",claimedCase.partId);
+ yes(!claimedIntents.error&&claimedIntents.data?.length===0,
+  "CLAIMED path is not marked for irreversible DELETE");
  const claimedRemains=await admin.storage.from(bucket).download(claimedCase.path);
  yes(!claimedRemains.error&&
   sha(Buffer.from(await claimedRemains.data.arrayBuffer()))===sha(bytes),

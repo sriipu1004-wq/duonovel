@@ -163,3 +163,68 @@ create trigger issue137_http_local_consent_withdrawal_hold
 after update of consent_version,consent_key or delete on public.user_recording_consents
 for each row execute function public.issue137_http_local_consent_withdrawal_hold();
 notify pgrst,'reload schema';
+-- LOCAL-only one-shot DELETE_INTENT; never a Production migration, operator,
+-- confirmed physical delete, provider no-write fence or immutable Storage.
+create table public.issue137_http_local_delete_intents(
+ operation_id uuid primary key,
+ part_id uuid not null unique references public.issue137_http_local_multipart_parts(id),
+ delete_epoch bigint not null check(delete_epoch=1),
+ multipart_id uuid not null references public.issue137_http_local_multipart_sessions(id),
+ owner_id uuid not null,
+ original_auth_session_id uuid not null,
+ canonical_path text not null,
+ expected_sha256 text not null check(expected_sha256 ~ '^[a-f0-9]{64}$'),
+ expected_bytes int not null check(expected_bytes between 1 and 8388608),
+ phase text not null default 'DELETE_INTENT' check(phase='DELETE_INTENT'),
+ created_at timestamptz not null default clock_timestamp(),
+ unique(part_id,delete_epoch)
+);
+alter table public.issue137_http_local_delete_intents enable row level security;
+revoke all on public.issue137_http_local_delete_intents from public,anon,authenticated;
+grant select on public.issue137_http_local_delete_intents to service_role;
+-- Lock the original actor's part+session. This function only journals intent.
+-- Physical SHA is independently checked by LOCAL test before invocation;
+-- this RPC alone cannot verify bytes or prevent a service_role/S3 re-PUT.
+create function public.issue137_http_local_delete_intent(
+ p_part uuid,p_user uuid,p_auth_session uuid,p_operation uuid,p_epoch bigint)
+returns text language plpgsql volatile security definer set search_path='' as $f$
+declare receipt record; previous record;
+begin
+ if coalesce(nullif(current_setting('request.jwt.claim.role',true),''),
+  nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'role','')<>'service_role'
+ then return 'UNAUTHORIZED_HOLD'; end if;
+ if p_operation is null or p_epoch is distinct from 1
+ then return 'EPOCH_OR_OPERATION_HOLD'; end if;
+ select p.id as part_id,p.multipart_id,p.object_path,p.byte_count,
+        p.expected_sha256,p.observed_sha256,p.state as part_state,
+        m.user_id,m.auth_session_id,m.state as ticket_state
+ into receipt
+ from public.issue137_http_local_multipart_parts p
+ join public.issue137_http_local_multipart_sessions m on m.id=p.multipart_id
+ where p.id=p_part and m.user_id=p_user and m.auth_session_id=p_auth_session
+ for update of p,m;
+ if not found then return 'LEDGER_OR_OWNER_HOLD'; end if;
+ select j.operation_id,j.delete_epoch into previous
+ from public.issue137_http_local_delete_intents j where j.part_id=p_part;
+ if found then
+  if previous.operation_id=p_operation and previous.delete_epoch=p_epoch
+  then return 'INTENT_REPLAY'; end if;
+  return 'EPOCH_OR_OPERATOR_CONFLICT_HOLD';
+ end if;
+ if receipt.ticket_state<>'HOLD' or receipt.part_state<>'SEALED'
+  or receipt.expected_sha256 is distinct from receipt.observed_sha256
+  or receipt.byte_count<1 or receipt.byte_count>8388608
+ then return 'LEDGER_OR_CLAIM_HOLD'; end if;
+ insert into public.issue137_http_local_delete_intents(
+  operation_id,part_id,delete_epoch,multipart_id,owner_id,
+  original_auth_session_id,canonical_path,expected_sha256,expected_bytes)
+ values(p_operation,receipt.part_id,p_epoch,receipt.multipart_id,
+  receipt.user_id,receipt.auth_session_id,receipt.object_path,
+  receipt.expected_sha256,receipt.byte_count);
+ return 'DELETE_INTENT';
+end $f$;
+revoke all on function public.issue137_http_local_delete_intent(
+ uuid,uuid,uuid,uuid,bigint) from public,anon,authenticated;
+grant execute on function public.issue137_http_local_delete_intent(
+ uuid,uuid,uuid,uuid,bigint) to service_role;
+notify pgrst,'reload schema';
