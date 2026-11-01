@@ -882,6 +882,158 @@ try{
   "late revoked ticket cannot resume even after consent regrant");
  console.log("RISK: F2-P LOCAL post-CLAIM consent withdrawal accepts PRIVATE PUT; "+
   "finalize denies and owner cleanup succeeds, no atomic provider revocation");
+ // Orphan PRIVATE data after ORIGINAL GoTrue session logout: the ordinary
+ // user abort is correctly unavailable even if the obsolete JWT still has
+ // unexpired exp. The following is a test-harness-only offline operator
+ // recovery proof, NOT a callable API/Cron/deployed cleanup implementation.
+ const orphan=await actor("orphan");
+ assert.equal((await admin.from("user_recording_consents").insert({
+  user_id:orphan.uid,consent_key:"recording_studio_global",
+  consent_version:"2026-04-16"})).error,null,
+  "synthetic orphan actor is consented before PRIVATE upload");
+ const orphanOpen=await post(create,orphan.session.cookie());
+ yes(orphanOpen.status===201,"isolated orphan actor opens new PRIVATE ticket");
+ const orphanId=orphanOpen.body.sessionId;
+ const orphanPart=await post({action:"part",sessionId:orphanId,
+  index:0,expectedSha256:sha(bytes)},orphan.session.cookie());
+ yes(orphanPart.status===201&&
+  (await put(orphanPart.body.partId,bytes,orphan.session.cookie())).status===201,
+  "real orphan owner stored first PRIVATE 8MiB before logout");
+ const orphanPath="owner/"+orphan.uid+"/"+orphanId+"/part-0001.bin";
+ const oldOrphanCookie=orphan.session.cookie();
+ const authSessionId=JSON.parse(
+  Buffer.from(orphan.jwt.split(".")[1],"base64url").toString()).session_id;
+ assert.match(authSessionId,/^[0-9a-f-]{36}$/iu);
+ const logout=await orphan.session.auth.auth.signOut({scope:"global"});
+ assert.equal(logout.error,null,"original synthetic GoTrue session signed out");
+ // This direct PostgreSQL probe is allowed only for the verified ephemeral
+ // Docker container and proves the session was really removed.
+ const authRows=execFileSync("docker",["exec",db,"psql","-X","-q","-t","-A",
+  "-v","ON_ERROR_STOP=1","-U","postgres","-d","postgres","-c",
+  "select count(*) from auth.sessions where id='"+authSessionId+"'::uuid"+
+  " and user_id='"+orphan.uid+"'::uuid"],{encoding:"utf8",timeout:15000}).trim();
+ yes(authRows==="0","old orphan auth.sessions row genuinely absent after logout");
+ yes((await post({action:"abort",sessionId:orphanId},oldOrphanCookie)).status===403,
+  "logged-out actor cannot abort via old SSR-cookie/JWT");
+ yes((await post({action:"abort",sessionId:orphanId},other.session.cookie()))
+  .status===403,"unrelated consenting actor cannot clean orphan's ticket");
+ yes((await post({action:"finish",sessionId:orphanId},oldOrphanCookie)).status===403,
+  "logged-out actor cannot finalize orphan PRIVATE ticket");
+ const orphanFound=await admin.storage.from(bucket).download(orphanPath);
+ yes(!orphanFound.error&&
+  sha(Buffer.from(await orphanFound.data.arrayBuffer()))===sha(bytes),
+  "logout strands actual intact PRIVATE bytes; never public/published");
+ // Shut down the ONLY cooperative worker BEFORE the operator phase.
+ // No user-facing delete endpoint, timers or new privileged credentials.
+ await stop(worker);
+ // A local operator must independently verify: original session revoked,
+ // matching DB ticket owner, PRIVATE path exact, no pending CLAIMED writer,
+ // observed SHA equals SEALED receipt; otherwise HOLD without deletion.
+ const {data:orphanTicket,error:ticketError}=await admin
+  .from("issue137_http_local_multipart_sessions").select("*")
+  .eq("id",orphanId).single();
+ assert.equal(ticketError,null,"test-only offline operator ticket read");
+ const {data:orphanParts,error:partsError}=await admin
+  .from("issue137_http_local_multipart_parts").select("*")
+  .eq("multipart_id",orphanId).order("part_index");
+ assert.equal(partsError,null,"test-only offline operator part receipt read");
+ // Only privileged test harness may set HOLD; not a deployable DB migration.
+ const {data:quarantined,error:quarantineError}=await admin
+  .from("issue137_http_local_multipart_sessions").update({state:"HOLD"})
+  .eq("id",orphanId).eq("user_id",orphan.uid)
+  .eq("auth_session_id",authSessionId).eq("state","OPEN")
+  .select("id").single();
+ yes(!quarantineError&&quarantined?.id===orphanId,
+  "offline test operator CAS quarantines only revoked exact owner ticket");
+ orphanTicket.state="HOLD";
+ function localRecoveryPaths(ticket,parts,ownerId){
+  if(ticket?.state!=="HOLD"||ticket.user_id!==ownerId||
+   !Array.isArray(parts)||parts.length>128||!parts.length||
+   parts.some(p=>p.state==="CLAIMED"||p.state==="INTEGRITY_HOLD"))
+   return null;
+  const expectedPrefix="owner/"+ownerId+"/"+ticket.id+"/";
+  const ids=new Set();
+  for(const part of parts){
+   if(!Number.isInteger(part.part_index)||part.part_index<0||
+    part.part_index>=ticket.part_count||ids.has(part.part_index)||
+    !["ISSUED","SEALED"].includes(part.state)||
+    part.object_path!==expectedPrefix+"part-"+
+     String(part.part_index+1).padStart(4,"0")+".bin"||
+    !/^[a-f0-9]{64}$/u.test(part.expected_sha256))return null;
+   ids.add(part.part_index);
+  }
+  return parts.map(p=>p.object_path);
+ }
+ yes(localRecoveryPaths(orphanTicket,orphanParts,other.uid)===null,
+  "operator plan rejects foreign-owner cleanup request");
+ yes(localRecoveryPaths({...orphanTicket,state:"OPEN"},orphanParts,
+  orphan.uid)===null,"operator plan rejects unfenced OPEN ticket");
+ yes(localRecoveryPaths(orphanTicket,
+  orphanParts.map(p=>({...p,state:"CLAIMED"})),orphan.uid)===null,
+  "operator plan refuses unacknowledged in-flight CLAIMED part");
+ yes(localRecoveryPaths(orphanTicket,
+  orphanParts.map(p=>({...p,object_path:"owner/"+other.uid+"/foreign.bin"})),
+  orphan.uid)===null,"operator plan rejects foreign/out-of-scope object path");
+ const scopedPaths=localRecoveryPaths(orphanTicket,orphanParts,orphan.uid);
+ yes(scopedPaths?.length===1&&scopedPaths[0]===orphanPath&&
+  orphanParts[0].state==="SEALED"&&
+  orphanParts[0].observed_sha256===sha(bytes),
+  "one settled SEALED part is eligible for scoped offline recovery");
+ const beforeCleanup=await admin.storage.from(bucket).download(orphanPath);
+ yes(!beforeCleanup.error&&
+  sha(Buffer.from(await beforeCleanup.data.arrayBuffer()))===
+   orphanParts[0].expected_sha256,
+  "operator verified exact original physical PRIVATE SHA before remove");
+ const unrelatedPath="owner/"+owner.uid+"/"+freshNormalId+"/part-0001.bin";
+ const unrelatedBefore=await admin.storage.from(bucket).download(unrelatedPath);
+ yes(!unrelatedBefore.error&&
+  sha(Buffer.from(await unrelatedBefore.data.arrayBuffer()))===sha(bytes),
+  "separate owner's PRIVATE object exists before scoped recovery");
+ const deletedOrphan=await admin.storage.from(bucket).remove(scopedPaths);
+ assert.equal(deletedOrphan.error,null,"operator removed scoped local orphan only");
+ const noOrphan=await admin.storage.from(bucket).download(orphanPath);
+ yes(!!noOrphan.error,"offline operator physical readback confirms absence NOW");
+ const untouched=await admin.storage.from(bucket).download(unrelatedPath);
+ yes(!untouched.error&&
+  sha(Buffer.from(await untouched.data.arrayBuffer()))===sha(bytes),
+  "scoped orphan recovery did not delete another owner's PRIVATE bytes");
+ worker=start(workerScript,[],workerEnv);await readyWorker(worker);
+ yes((await post({action:"part",sessionId:orphanId,index:1,
+  expectedSha256:sha(tail)},other.session.cookie())).status===403,
+  "restart does not permit unrelated actor to reuse quarantined orphan");
+ // Different case: an expired upload ticket with LIVE original auth session
+ // remains owner-cleanable without privileged operator access.
+ const expiresTicket=await post(create,owner.session.cookie());
+ yes(expiresTicket.status===201,"live owner starts separately expirable ticket");
+ const expiresPart=await post({action:"part",sessionId:expiresTicket.body.sessionId,
+  index:0,expectedSha256:sha(bytes)},owner.session.cookie());
+ yes(expiresPart.status===201&&
+  (await put(expiresPart.body.partId,bytes,owner.session.cookie())).status===201,
+  "expired-ticket fixture contains physical PRIVATE 8MiB");
+ assert.equal((await admin.from("issue137_http_local_multipart_sessions")
+  .update({expires_at:new Date(Date.now()-30000).toISOString()})
+  .eq("id",expiresTicket.body.sessionId)).error,null,
+  "only disposable multipart expiry moved into the past");
+ yes((await post({action:"finish",sessionId:expiresTicket.body.sessionId},
+  owner.session.cookie())).status===403,
+  "expired ticket cannot finalize despite still-live auth session");
+ yes((await post({action:"abort",sessionId:expiresTicket.body.sessionId},
+  other.session.cookie())).status===403,
+  "other owner denied abort of expired PRIVATE ticket");
+ const expiresCleanup=await post({action:"abort",
+  sessionId:expiresTicket.body.sessionId},owner.session.cookie());
+ yes(expiresCleanup.status===200&&expiresCleanup.body.deletedParts===1,
+  "live original owner safely aborts expired multipart ticket");
+ yes((await admin.storage.from(bucket).download("owner/"+owner.uid+"/"+
+  expiresTicket.body.sessionId+"/part-0001.bin")).error!==null,
+  "expired ticket owner cleanup physically removed PRIVATE bytes");
+ const orphanRows=await admin.from("recordings").select("id")
+  .eq("episode_id",episodeId);
+ yes(!orphanRows.error&&orphanRows.data?.length===0,
+  "offline orphan cleanup neither published nor created recording metadata");
+ console.log("PASS: F2-P LOCAL logout-orphan recovery with STOPPED worker "+
+  "and strict owner/session/path/digest gates; expired ticket owner aborts. "+
+  "HOLD: no running operator, outside-writer revocation, or durable DELETE proof");
  await stop(worker);
  worker=start(workerScript,[],workerEnv);
  await readyWorker(worker);
