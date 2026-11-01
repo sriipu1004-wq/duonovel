@@ -2,7 +2,7 @@
 
 // Issue #137: manual NONPRODUCTION Studio staging probe, NOT a publish control.
 // Existing Human publish flow remains unchanged and is deliberately separate.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   stageHumanMultipartLocally,
   abortHumanMultipartLocally,
@@ -19,6 +19,8 @@ export function LocalHumanMultipartProbe({
 }) {
   const lease = useRef<LocalHumanStageLease | null>(null);
   const [running, setRunning] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   const key = `issue137-b2-local:${seriesId}:${episodeId}`;
   function loadLease(): LocalHumanStageLease | null {
     try {
@@ -97,6 +99,7 @@ export function LocalHumanMultipartProbe({
   }
   return (
     <section aria-label="ローカル分割アップロード検証"
+      data-hydrated={hydrated ? "true" : "false"}
       className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-neutral-800">
       <p className="font-semibold">開発専用：Human PRIVATE分割転送の検証</p>
       <p className="mt-2 leading-6">
