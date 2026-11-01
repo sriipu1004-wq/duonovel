@@ -117,8 +117,12 @@ async function abortAndClean(jwt,id){
   p_auth_session:owner.authSessionId});
  if(hold.error||hold.data!==true)return {code:409,reason:"ABORT_FENCE_HOLD"};
  const {data:rows,error}=await admin.from(partTable).select(
-  "id,object_path,part_index").eq("multipart_id",id).order("part_index");
+  "id,object_path,part_index,state").eq("multipart_id",id).order("part_index");
  if(error||!rows||rows.length>128)return {code:503,reason:"ABORT_LEDGER_HOLD"};
+ // An already claimed PUT can still reach Storage after HOLD was set.
+ // Never return verified cleanup while an unresolved writer may commit bytes.
+ if(rows.some(row=>row.state==="CLAIMED"))
+  return {code:409,reason:"ABORT_INFLIGHT_WRITER_PENDING_HOLD"};
  const prefix="owner/"+owner.user.id+"/"+id+"/";
  if(rows.some(p=>!p.object_path.startsWith(prefix)||
    p.object_path!==prefix+"part-"+String(p.part_index+1).padStart(4,"0")+".bin"))
@@ -274,7 +278,10 @@ async function rawPut(req,res,jwt){
   p_part:part.id,p_user:who.userId,p_auth_session:who.authSessionId});
  if(claimed.error)return reply(res,503,"PART_CLAIM_DB_HOLD");
  if(claimed.data!==true)return reply(res,409,"PART_CLAIM_RACE_OR_REVOKED_HOLD");
- const bytes=Buffer.concat(chunks,received); // <=8MiB, NEVER whole 1GiB.
+ const delay=Number(process.env.B2_LOCAL_TEST_PAUSE_AFTER_CLAIM_MS??"0");
+ if(Number.isSafeInteger(delay)&&delay>0&&delay<=5000)
+  await new Promise(resolve=>setTimeout(resolve,delay));
+  const bytes=Buffer.concat(chunks,received); // <=8MiB, NEVER whole 1GiB.
  const uploaded=await admin.storage.from(bucket).upload(part.object_path,bytes,{
   contentType:"application/octet-stream",upsert:false});
  if(uploaded.error)return reply(res,503,"PRIVATE_PART_WRITE_HOLD");
