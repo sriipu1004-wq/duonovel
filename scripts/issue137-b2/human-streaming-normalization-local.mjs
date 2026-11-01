@@ -7,7 +7,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, createWriteStream } from 'node:fs';
 import { mkdtemp, open, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, isAbsolute } from 'node:path';
+import { join, isAbsolute, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { performance } from 'node:perf_hooks';
@@ -17,8 +18,7 @@ const command=process.env.FFMPEG_PATH;
 assert.ok(command&&isAbsolute(command)&&existsSync(command), 'FFMPEG_PINNED_PATH_MISSING_HOLD');
 // CI provides the existing lockfile-pinned ffmpeg-static. No API or remote IO.
 assert.equal(process.env.DO_NOT_CONTACT_PRODUCTION,'true');
-const oldFetch=globalThis.fetch;
-globalThis.fetch=()=>{throw Error('NO_NETWORK_ALLOWED_HOLD');};
+// Network is disabled by standalone tests, not by module imports.
 const rss=()=>Math.round(process.memoryUsage().rss/mib*10)/10;
 function childRss(pid){
  try {
@@ -37,7 +37,7 @@ function hdr(duration){
  b.writeUInt32LE(frames*2,40);
  return{b,frames,bytes};
 }
-async function exercise({seconds, outputBudget=MAX_OUTPUT, abortInput=false}){
+export async function exercise({seconds, outputBudget=MAX_OUTPUT, abortInput=false, inspectOutput=null}){
  const {b:header,frames,bytes}=hdr(seconds);
  if(!Number.isSafeInteger(outputBudget)||outputBudget<1||outputBudget>MAX_OUTPUT)
   throw Error('OUTPUT_BUDGET_CONFIG_HOLD');
@@ -111,6 +111,7 @@ async function exercise({seconds, outputBudget=MAX_OUTPUT, abortInput=false}){
    {stdio:['ignore','ignore','ignore']});
   const valid=await new Promise(resolve=>check.once('close',code=>resolve(code===0)));
   assert.ok(valid,'ffmpeg must decode fragmented MP4');
+  if(inspectOutput)await inspectOutput(out,{seconds,outputBytes});
   return {seconds,inputBytes,outputBytes,inputChunks:chunks,maxInputChunk,
    maxOutputChunk,wallMs:Math.round(performance.now()-start),parentRssStart,
    parentRssEnd:rss(),sampledParentHighMiB:parentHigh,
@@ -124,7 +125,10 @@ async function exercise({seconds, outputBudget=MAX_OUTPUT, abortInput=false}){
   assert.ok(!existsSync(temp),'TEMP_CLEANUP_HOLD');
  }
 }
-try{
+if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+ const oldFetch=globalThis.fetch;
+ globalThis.fetch=()=>{throw Error('NO_NETWORK_ALLOWED_HOLD');};
+ try{
  for(const seconds of [8,44])
   console.log('LOCAL_STREAM_FFMPEG',JSON.stringify(await exercise({seconds})));
  await assert.rejects(exercise({seconds:120}),/INPUT_BUDGET_HOLD/);
@@ -134,4 +138,5 @@ try{
  await assert.rejects(exercise({seconds:8,abortInput:true}),/SYNTHETIC_SOURCE_ABORT_HOLD/);
  console.log('PASS: stream input interruption closes FFmpeg and cleans its tempfile');
  console.log('PASS: #137 bounded experimental FFmpeg stdin/stdout stream, fail-closed and cleanup');
-}finally{globalThis.fetch=oldFetch;}
+ }finally{globalThis.fetch=oldFetch;}
+}
