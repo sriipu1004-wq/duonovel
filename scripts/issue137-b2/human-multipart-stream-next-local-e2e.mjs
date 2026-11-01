@@ -105,7 +105,7 @@ async function actor(label){
   email,password:pass});
  assert.equal(signed.error,null,"real local cookie sign-in");
  yes(session.cookie().length>20,"real SSR cookie");
- return {uid:created.data.user.id,session,jwt:signed.data.session.access_token};
+ return {uid:created.data.user.id,session,jwt:signed.data.session.access_token,email,pass};
 }
 async function parse(r){
  const txt=await r.text();let body={};try{body=JSON.parse(txt);}catch{}
@@ -899,6 +899,23 @@ try{
  yes(orphanPart.status===201&&
   (await put(orphanPart.body.partId,bytes,orphan.session.cookie())).status===201,
   "real orphan owner stored first PRIVATE 8MiB before logout");
+ // Three distinct orphan states are prepared while the original auth is
+ // genuinely live. The later offline test alone mutates the fixtures.
+ async function orphanFixture(label,uploaded){
+  const opened=await post(create,orphan.session.cookie());
+  yes(opened.status===201,label+": session opened under original GoTrue login");
+  const part=await post({action:"part",sessionId:opened.body.sessionId,
+   index:0,expectedSha256:sha(bytes)},orphan.session.cookie());
+  yes(part.status===201,label+": first PRIVATE part issued");
+  if(uploaded)yes((await put(part.body.partId,bytes,
+   orphan.session.cookie())).status===201,
+   label+": physically SEALED 8MiB before logout");
+  return {id:opened.body.sessionId,partId:part.body.partId,
+   path:"owner/"+orphan.uid+"/"+opened.body.sessionId+"/part-0001.bin"};
+ }
+ const claimedCase=await orphanFixture("CLAIMED",false);
+ const missingCase=await orphanFixture("MISSING",true);
+ const changedCase=await orphanFixture("SHA_MISMATCH",true);
  const orphanPath="owner/"+orphan.uid+"/"+orphanId+"/part-0001.bin";
  const oldOrphanCookie=orphan.session.cookie();
  const authSessionId=JSON.parse(
@@ -923,6 +940,30 @@ try{
  yes([401,403].includes(staleFinish.status)&&staleFinish.body.ok===false&&
   !staleFinish.body.recordingId,
   "logged-out actor cannot finalize orphan PRIVATE ticket (401 or 403)");
+ // New GoTrue login by the SAME user is a different auth.sessions binding.
+ // The original upload must remain inaccessible; a fresh ticket must work.
+ const reloginJar=jar();
+ const relogin=await reloginJar.auth.auth.signInWithPassword({
+  email:orphan.email,password:orphan.pass});
+ assert.equal(relogin.error,null,"same synthetic user can log in again");
+ const reloginSessionId=JSON.parse(Buffer.from(
+  relogin.data.session.access_token.split(".")[1],"base64url").toString()).session_id;
+ yes(relogin.data.user.id===orphan.uid&&reloginSessionId!==authSessionId,
+  "same owner re-login has a NEW live GoTrue session ID");
+ const staleNewLoginAbort=await post({action:"abort",sessionId:orphanId},
+  reloginJar.cookie());
+ yes(staleNewLoginAbort.status===403&&staleNewLoginAbort.body.ok===false&&
+  staleNewLoginAbort.body.deletedParts===undefined,
+  "same user NEW auth session cannot abort ORIGINAL-session PRIVATE receipt");
+ yes((await post({action:"finish",sessionId:orphanId},
+  reloginJar.cookie())).status===403,
+  "same user NEW session cannot finalize OLD original-session ticket");
+ const freshReLogin=await post(create,reloginJar.cookie());
+ yes(freshReLogin.status===201,"same owner fresh login can open NEW PRIVATE ticket");
+ const freshReLoginAbort=await post({action:"abort",
+  sessionId:freshReLogin.body.sessionId},reloginJar.cookie());
+ yes(freshReLoginAbort.status===200&&freshReLoginAbort.body.deletedParts===0,
+  "new login can safely abandon its OWN new empty PRIVATE ticket");
  const orphanFound=await admin.storage.from(bucket).download(orphanPath);
  yes(!orphanFound.error&&
   sha(Buffer.from(await orphanFound.data.arrayBuffer()))===sha(bytes),
@@ -968,6 +1009,30 @@ try{
   }
   return parts.map(p=>p.object_path);
  }
+ // One offline verdict per exact ticket. No Storage DELETE is attempted
+ // until every settled part's receipt and physical bytes are independently
+ // reconciled. A failed GET is not treated as proof of safe deletion.
+ async function offlineByteVerdict(ticket,parts,ownerId){
+  const paths=localRecoveryPaths(ticket,parts,ownerId);
+  if(!paths)return {reason:"LEDGER_OR_CLAIM_HOLD"};
+  for(const part of parts){
+   const obj=await admin.storage.from(bucket).download(part.object_path);
+   if(part.state==="ISSUED"){
+    if(!obj.error)return {reason:"UNEXPECTED_UNSEALED_BYTES_HOLD"};
+    continue;
+   }
+   if(part.state!=="SEALED"||
+    part.observed_sha256!==part.expected_sha256||
+    !Number.isInteger(part.byte_count)||part.byte_count<1||
+    part.byte_count>partSize)return {reason:"RECEIPT_INTEGRITY_HOLD"};
+   if(obj.error)return {reason:"PRIVATE_BYTES_MISSING_HOLD"};
+   const observed=Buffer.from(await obj.data.arrayBuffer());
+   if(observed.length!==part.byte_count||
+    sha(observed)!==part.expected_sha256)
+    return {reason:"PHYSICAL_SHA_MISMATCH_HOLD"};
+  }
+  return {reason:"VERIFIED",paths};
+ }
  yes(localRecoveryPaths(orphanTicket,orphanParts,other.uid)===null,
   "operator plan rejects foreign-owner cleanup request");
  yes(localRecoveryPaths({...orphanTicket,state:"OPEN"},orphanParts,
@@ -978,11 +1043,13 @@ try{
  yes(localRecoveryPaths(orphanTicket,
   orphanParts.map(p=>({...p,object_path:"owner/"+other.uid+"/foreign.bin"})),
   orphan.uid)===null,"operator plan rejects foreign/out-of-scope object path");
- const scopedPaths=localRecoveryPaths(orphanTicket,orphanParts,orphan.uid);
- yes(scopedPaths?.length===1&&scopedPaths[0]===orphanPath&&
+ const safeVerdict=await offlineByteVerdict(orphanTicket,orphanParts,orphan.uid);
+ const scopedPaths=safeVerdict.paths;
+ yes(safeVerdict.reason==="VERIFIED"&&
+  scopedPaths?.length===1&&scopedPaths[0]===orphanPath&&
   orphanParts[0].state==="SEALED"&&
   orphanParts[0].observed_sha256===sha(bytes),
-  "one settled SEALED part is eligible for scoped offline recovery");
+  "one settled SEALED part is physically verified before scoped cleanup");
  const beforeCleanup=await admin.storage.from(bucket).download(orphanPath);
  yes(!beforeCleanup.error&&
   sha(Buffer.from(await beforeCleanup.data.arrayBuffer()))===
@@ -1001,6 +1068,93 @@ try{
  yes(!untouched.error&&
   sha(Buffer.from(await untouched.data.arrayBuffer()))===sha(bytes),
   "scoped orphan recovery did not delete another owner's PRIVATE bytes");
+ // SOURCE + REAL DB + REAL PRIVATE Storage negative: never reclassify an
+ // unsettled, unknown or tampered orphan as an authorized operator DELETE.
+ // All synthetic fixtures belong to the same original logged-out actor.
+ const fixtures=[
+  {label:"CLAIMED",item:claimedCase},
+  {label:"MISSING",item:missingCase},
+  {label:"SHA_MISMATCH",item:changedCase}
+ ];
+ for(const {label,item} of fixtures){
+  const {data:held,error:holdError}=await admin.from(
+   "issue137_http_local_multipart_sessions").update({state:"HOLD"})
+   .eq("id",item.id).eq("user_id",orphan.uid)
+   .eq("auth_session_id",authSessionId).eq("state","OPEN")
+   .select("*").single();
+  yes(!holdError&&held?.state==="HOLD",
+   label+": offline CAS fenced exact original session");
+ }
+ const claimedState=await admin.from("issue137_http_local_multipart_parts")
+  .update({state:"CLAIMED"}).eq("id",claimedCase.partId)
+  .eq("state","ISSUED").select("*").single();
+ assert.equal(claimedState.error,null,"test-only unsettled CLAIMED SQL state");
+ const claimedPut=await admin.storage.from(bucket).upload(
+  claimedCase.path,bytes,{contentType:"application/octet-stream",upsert:false});
+ assert.equal(claimedPut.error,null,
+  "test-only alternate privileged writer staged actual bytes under CLAIMED");
+ const missingRemove=await admin.storage.from(bucket).remove([missingCase.path]);
+ assert.equal(missingRemove.error,null,
+  "test-only privileged writer removed exact SEALED physical bytes");
+ const missingPhysical=await admin.storage.from(bucket).download(missingCase.path);
+ yes(!!missingPhysical.error,
+  "real missing-byte fixture absent despite SEALED DB receipt");
+ assert.equal((await admin.storage.from(bucket).remove(
+  [changedCase.path])).error,null,
+  "test-only privileged writer removed original SEALED bytes for same-length drift");
+ assert.equal((await admin.storage.from(bucket).upload(
+  changedCase.path,wrong,{contentType:"application/octet-stream",
+  upsert:false})).error,null,
+  "test-only privileged writer replaced exactly same-length PRIVATE bytes");
+ const changedPhysical=await admin.storage.from(bucket).download(changedCase.path);
+ yes(!changedPhysical.error&&
+  sha(Buffer.from(await changedPhysical.data.arrayBuffer()))===sha(wrong)&&
+  sha(wrong)!==sha(bytes),
+  "actual provider now stores wrong same-length PRIVATE SHA");
+ async function offlineSnapshot(sessionId){
+  const {data:ticket,error:e1}=await admin.from(
+   "issue137_http_local_multipart_sessions").select("*")
+   .eq("id",sessionId).single();
+  const {data:parts,error:e2}=await admin.from(
+   "issue137_http_local_multipart_parts").select("*")
+   .eq("multipart_id",sessionId).order("part_index");
+  assert.equal(e1,null,"offline negative ticket state");
+  assert.equal(e2,null,"offline negative part receipt state");
+  return {ticket,parts};
+ }
+ const claimSnap=await offlineSnapshot(claimedCase.id);
+ const claimVerdict=await offlineByteVerdict(
+  claimSnap.ticket,claimSnap.parts,orphan.uid);
+ yes(claimSnap.parts[0].state==="CLAIMED"&&
+  claimVerdict.reason==="LEDGER_OR_CLAIM_HOLD",
+  "real SQL CLAIMED plus provider bytes: offline DELETE refused");
+ const claimedRemains=await admin.storage.from(bucket).download(claimedCase.path);
+ yes(!claimedRemains.error&&
+  sha(Buffer.from(await claimedRemains.data.arrayBuffer()))===sha(bytes),
+  "unsettled CLAIMED physical PRIVATE 8MiB preserved under HOLD");
+ const missingSnap=await offlineSnapshot(missingCase.id);
+ const missingVerdict=await offlineByteVerdict(
+  missingSnap.ticket,missingSnap.parts,orphan.uid);
+ yes(missingSnap.parts[0].state==="SEALED"&&
+  missingVerdict.reason==="PRIVATE_BYTES_MISSING_HOLD",
+  "real SEALED DB/absent provider object discrepancy is HOLD, not cleanup PASS");
+ const changedSnap=await offlineSnapshot(changedCase.id);
+ const changedVerdict=await offlineByteVerdict(
+  changedSnap.ticket,changedSnap.parts,orphan.uid);
+ yes(changedSnap.parts[0].state==="SEALED"&&
+  changedVerdict.reason==="PHYSICAL_SHA_MISMATCH_HOLD",
+  "same-length provider tamper is HOLD, not authorized DELETE");
+ const changedStillThere=await admin.storage.from(bucket).download(changedCase.path);
+ yes(!changedStillThere.error&&
+  sha(Buffer.from(await changedStillThere.data.arrayBuffer()))===sha(wrong),
+  "tampered PRIVATE 8MiB retained for further reconciliation, never deleted");
+ const foreignAfterNegatives=await admin.storage.from(bucket).download(unrelatedPath);
+ yes(!foreignAfterNegatives.error&&
+  sha(Buffer.from(await foreignAfterNegatives.data.arrayBuffer()))===sha(bytes),
+  "CLAIMED/missing/changed operator negatives never touch unrelated user's audio");
+ console.log("PASS: F2-P REAL LOCAL offline logout orphan CLAIMED/MISSING/SHA "+
+  "mismatch HOLD with provider bytes preserved where present; "+
+  "same-user new-session replay denied, fresh PRIVATE ticket allowed");
  worker=start(workerScript,[],workerEnv);await readyWorker(worker);
  yes((await post({action:"part",sessionId:orphanId,index:1,
   expectedSha256:sha(tail)},other.session.cookie())).status===403,
