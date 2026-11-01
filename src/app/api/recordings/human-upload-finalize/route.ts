@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import {
   hasIssue137ProbeMarker,
   handleIssue137LocalLegacyProbe,
+  handleIssue137LocalNormalHumanRoute,
+  isIssue137LocalNormalHumanModeSelected,
 } from "@/lib/recording/issue137LocalHumanLegacyBridge";
 import {
   getSeriesPublicationStatus,
@@ -95,6 +97,10 @@ export async function POST(request: Request) {
     payload = (await request.json()) as RawRow;
     if(hasIssue137ProbeMarker(payload))
       return handleIssue137LocalLegacyProbe(request,payload,"finish");
+    // Dedicated disposable localhost tests exercise the real normal JSON
+    // contract with no privileged signer or publication; never auto-fallback.
+    if(isIssue137LocalNormalHumanModeSelected())
+      return handleIssue137LocalNormalHumanRoute(request,payload,"finish");
   } catch {
     return NextResponse.json(
       { ok: false, error: "JSONを読めなかった。" },
