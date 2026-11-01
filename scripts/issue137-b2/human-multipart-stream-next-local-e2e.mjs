@@ -45,7 +45,8 @@ const nextEnv={...common,NEXT_TELEMETRY_DISABLED:"1",CI:"true",
  NEXT_PUBLIC_SUPABASE_URL:ep.origin,NEXT_PUBLIC_SUPABASE_ANON_KEY:anon,
  NEXT_PUBLIC_SITE_URL:nextBase,B2_LOCAL_WORKER_INNER_TOKEN:secret,
  B2_LOCAL_HUMAN_MULTIPART_URL:workerBase+"/",
- B2_LOCAL_HUMAN_MULTIPART_MODE:"enabled"};
+ B2_LOCAL_HUMAN_MULTIPART_MODE:"enabled",
+ B2_LOCAL_HUMAN_NORMAL_ROUTE_MODE:"enabled"};
 assert.equal(nextEnv.B2_SERVICE_KEY,undefined);
 assert.equal(nextEnv.SUPABASE_SERVICE_ROLE_KEY,undefined);
 const opts={auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}};
@@ -362,6 +363,92 @@ try{
  yes(!legacyLeak.includes(service)&&!legacyLeak.includes(secret)&&
   !legacyLeak.includes(owner.jwt),
   "existing Human endpoints did not leak privileged or bearer credentials");
+ // NORMAL Human JSON session/finalize contract, NOT the probe marker.
+ // The Next process has no service-role key: successful opening proves the
+ // local-only branch did not use the legacy signed-upload URL factory.
+ const normalRequest={seriesId,episodeId,fileName:"synthetic-local.wav",
+  mimeType:"audio/wav",totalSizeBytes:total};
+ const normalAnon=await postLegacy("human-upload-session",normalRequest);
+ yes(normalAnon.status===401&&!normalAnon.body.uploadSessionId,
+  "normal Human session JSON needs authenticated SSR cookie");
+ const normalBearerOnly=await postLegacy("human-upload-session",
+  normalRequest,"",{authorization:"Bearer "+owner.jwt});
+ yes(normalBearerOnly.status===401&&!normalBearerOnly.body.uploadSessionId,
+  "normal Human session cannot be authorized by arbitrary JWT header");
+ const normalSpoof=await postLegacySpoofHost("human-upload-session",
+  normalRequest,owner.session.cookie(),"localhost:"+portNext);
+ yes(normalSpoof.status===404&&!normalSpoof.body.uploadSessionId,
+  "normal Human session denies mismatched actual HTTP Host, no signer fallback");
+ const normalObjectOverride=await postLegacy("human-upload-session",
+  {...normalRequest,objectPath:"public/forged.wav"},owner.session.cookie());
+ yes(normalObjectOverride.status===400&&!normalObjectOverride.body.uploadSessionId,
+  "normal Human session refuses caller-chosen object path or extra fields");
+ const normalOpened=await postLegacy("human-upload-session",
+  normalRequest,owner.session.cookie());
+ yes(normalOpened.status===201&&normalOpened.body.ok===true&&
+  normalOpened.body.uploadMode==="local-private-staging-only"&&
+  normalOpened.body.partCount===2&&
+  typeof normalOpened.body.uploadSessionId==="string"&&
+  !("token" in normalOpened.body)&&!("parts" in normalOpened.body)&&
+  !("bucketName" in normalOpened.body),
+  "normal Human session dev-only mode opens scoped PRIVATE ticket, no bearer");
+ const normalId=normalOpened.body.uploadSessionId;
+ const normalFinalize={...normalRequest,episodeNumber:1,isPublic:true,
+  uploadSessionId:normalId};
+ const normalTooEarly=await postLegacy("human-upload-finalize",
+  normalFinalize,owner.session.cookie());
+ yes(normalTooEarly.status===409&&!normalTooEarly.body.recordingId,
+  "normal Human finalize refuses missing PRIVATE parts, no publication");
+ const normalFirst=await post({action:"part",sessionId:normalId,index:0,
+  expectedSha256:sha(bytes)},owner.session.cookie());
+ yes(normalFirst.status===201,"normal Human ticket can allocate first PRIVATE part");
+ yes((await put(normalFirst.body.partId,bytes,owner.session.cookie())).status===201,
+  "normal Human ticket stored 8MiB PRIVATE bytes without signed bearer");
+ const normalLast=await post({action:"part",sessionId:normalId,index:1,
+  expectedSha256:sha(tail)},owner.session.cookie());
+ yes(normalLast.status===201&&
+  (await put(normalLast.body.partId,tail,owner.session.cookie())).status===201,
+  "normal Human ticket stored exact final PRIVATE 256B part");
+ const otherSessionContext=await postLegacy("human-upload-finalize",
+  {...normalFinalize,seriesId:id()},owner.session.cookie());
+ yes(otherSessionContext.status===403&&!otherSessionContext.body.recordingId,
+  "normal Human finalize binds session to original series");
+ const otherEpisodeContext=await postLegacy("human-upload-finalize",
+  {...normalFinalize,episodeId:id()},owner.session.cookie());
+ yes(otherEpisodeContext.status===403&&!otherEpisodeContext.body.recordingId,
+  "normal Human finalize binds session to original episode");
+ const alteredTotalContext=await postLegacy("human-upload-finalize",
+  {...normalFinalize,totalSizeBytes:total+1},owner.session.cookie());
+ yes(alteredTotalContext.status===403&&!alteredTotalContext.body.recordingId,
+  "normal Human finalize rejects otherwise-valid wrong total byte count");
+ const foreignNormalFinalize=await postLegacy("human-upload-finalize",
+  normalFinalize,other.session.cookie());
+ yes(foreignNormalFinalize.status===403&&!foreignNormalFinalize.body.recordingId,
+  "normal Human finalize denies other consenting user");
+ const privateNormalIntent=await postLegacy("human-upload-finalize",
+  {...normalFinalize,isPublic:false},owner.session.cookie());
+ yes(privateNormalIntent.status===400&&!privateNormalIntent.body.recordingId,
+  "normal staging-only demonstration does not imply PRIVATE publication support");
+ const normalSealed=await postLegacy("human-upload-finalize",
+  normalFinalize,owner.session.cookie());
+ yes(normalSealed.status===409&&normalSealed.body.ok===false&&
+  normalSealed.body.reason==="PRIVATE_PARTS_SEALED_NOT_PUBLISHED"&&
+  !("recordingId" in normalSealed.body),
+  "normal Human finalize returns explicit publication HOLD after PRIVATE sealing");
+ const noNormalRecord=await admin.from("recordings").select("id")
+  .eq("episode_id",episodeId);
+ yes(!noNormalRecord.error&&noNormalRecord.data?.length===0,
+  "normal Human session and finalize inserted no recording or public pointer");
+ const normalPhysical=await admin.storage.from(bucket).download("owner/"+
+  owner.uid+"/"+normalId+"/part-0001.bin");
+ yes(!normalPhysical.error&&
+  sha(Buffer.from(await normalPhysical.data.arrayBuffer()))===sha(bytes),
+  "normal Human API staged bytes privately with correct physical SHA");
+ const normalNoSecret=JSON.stringify([normalOpened,normalSealed]);
+ yes(!normalNoSecret.includes(service)&&!normalNoSecret.includes(secret)&&
+  !normalNoSecret.includes(owner.jwt),
+  "normal Human API did not return service key or session bearer");
+
  const huge=await post({...create,totalBytes:1024*1024*1024+1},owner.session.cookie());
  yes(huge.status===400,"greater-than-1GiB rejected before allocation");
  const billion=await post({...create,totalBytes:1024*1024*1024},owner.session.cookie());
