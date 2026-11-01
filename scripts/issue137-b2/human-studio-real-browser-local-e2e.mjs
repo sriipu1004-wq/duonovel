@@ -4,12 +4,15 @@
 import assert from "node:assert/strict";
 import {createHash} from "node:crypto";
 import {chromium} from "playwright";
+import {mkdtemp,writeFile,rm} from "node:fs/promises";
+import {join} from "node:path";
 const sha=b=>createHash("sha256").update(b).digest("hex");
 const yes=(x,label)=>assert.ok(x,label);
 export async function runLocalStudioChromium(args){
  const {nextBase,owner,other,seriesId,episodeId,bytes,tail,
   admin,bucket,post,put}=args;
  let browser;
+ const ephemeralFileDir=await mkdtemp("/tmp/libread-b2-browser-file-");
  let checks=0;
  const check=(value,label)=>{yes(value,label);checks++;};
  const issue={action:"open",seriesId,episodeId,totalBytes:bytes.length+tail.length};
@@ -46,7 +49,8 @@ export async function runLocalStudioChromium(args){
   const action=card.getByRole("button",{name:"開発用PRIVATE転送を試す"});
   check(await action.isDisabled(),"cannot stage without selected file");
   const payload=Buffer.concat([bytes,tail]);
-  const file={name:"local-human-chromium.wav",mimeType:"audio/wav",buffer:payload};
+  const file=join(ephemeralFileDir,"local-human-chromium.wav");
+  await writeFile(file,payload,{mode:0o600});
   await page.locator('input[type="file"]').first().setInputFiles(file);
   await action.waitFor({state:"visible"});
   for(let i=0;i<120&&await action.isDisabled();i++)
@@ -126,5 +130,8 @@ export async function runLocalStudioChromium(args){
   console.log("PASS: F2-P REAL CHROMIUM Human Studio "+checks+
    " browser controls; interrupt/reload/reselect/resume, owner-only verified "+
    "PRIVATE cleanup, foreign bytes preserved, no recordings/publish");
- }finally{await browser?.close();}
+ }finally{
+  await browser?.close();
+  await rm(ephemeralFileDir,{recursive:true,force:true});
+}
 }
