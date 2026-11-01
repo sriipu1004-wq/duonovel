@@ -731,6 +731,53 @@ try{
  const afterRetry=await admin.storage.from(bucket).download("owner/"+owner.uid+
   "/"+raceOpen.body.sessionId+"/part-0001.bin");
  yes(!!afterRetry.error,"no orphan PRIVATE bytes after verified abort retry");
+ // Distinct TOCTOU control: withdrawal AFTER durable CLAIM but BEFORE PUT.
+ // It records a LOCAL PRIVATE leak-window RISK, not effective revocation.
+ const afterClaimOpen=await post(create,owner.session.cookie());
+ yes(afterClaimOpen.status===201,"pre-withdrawal session for post-CLAIM race");
+ const afterClaimId=afterClaimOpen.body.sessionId;
+ const afterClaimPart=await post({action:"part",sessionId:afterClaimId,
+  index:0,expectedSha256:sha(bytes)},owner.session.cookie());
+ yes(afterClaimPart.status===201,"pre-withdrawal part for post-CLAIM race");
+ const afterClaimWrite=put(afterClaimPart.body.partId,bytes,owner.session.cookie());
+ let claimVisible=false;
+ for(let count=0;count<100;count++){
+  const q=await admin.from("issue137_http_local_multipart_parts")
+   .select("state").eq("id",afterClaimPart.body.partId).maybeSingle();
+  if(q.error)throw Error("CONSENT_RACE_CLAIM_QUERY_HOLD");
+  if(q.data?.state==="CLAIMED"){claimVisible=true;break;}
+  await sleep(25);
+ }
+ yes(claimVisible,"real SQL CLAIM completed while provider PRIVATE PUT paused");
+ const revokeAfterClaim=await admin.from("user_recording_consents")
+  .update({consent_version:"2026-04-15"}).eq("user_id",owner.uid)
+  .eq("consent_key","recording_studio_global");
+ assert.equal(revokeAfterClaim.error,null,"local consent withdrawal during paused PUT");
+ const postWithdrawalWrite=await afterClaimWrite;
+ yes(postWithdrawalWrite.status===201,
+  "RISK: after-CLAIM worker accepts PRIVATE bytes even after consent withdrawal");
+ const revokedPhysical=await admin.storage.from(bucket).download(
+  "owner/"+owner.uid+"/"+afterClaimId+"/part-0001.bin");
+ yes(!revokedPhysical.error&&
+  sha(Buffer.from(await revokedPhysical.data.arrayBuffer()))===sha(bytes),
+  "RISK: actual LOCAL PRIVATE bytes stored after consent withdrawal");
+ const rejectFinish=await post({action:"finish",sessionId:afterClaimId},
+  owner.session.cookie());
+ yes(rejectFinish.status===403&&!rejectFinish.body.recordingId,
+  "late withdrawal still blocks finalize/publication");
+ const ownerAbort=await post({action:"abort",sessionId:afterClaimId},
+  owner.session.cookie());
+ yes(ownerAbort.status===200&&ownerAbort.body.deletedParts===1,
+  "owner cleans late-accepted PRIVATE bytes despite withdrawn consent");
+ const gone=await admin.storage.from(bucket).download(
+  "owner/"+owner.uid+"/"+afterClaimId+"/part-0001.bin");
+ yes(!!gone.error,"post-withdrawal cleanup leaves zero PRIVATE bytes");
+ assert.equal((await admin.from("user_recording_consents")
+  .update({consent_version:"2026-04-16"}).eq("user_id",owner.uid)
+  .eq("consent_key","recording_studio_global")).error,null,
+  "restore disposable local consent for remaining tests");
+ console.log("RISK: F2-P LOCAL post-CLAIM consent withdrawal accepts PRIVATE PUT; "+
+  "finalize denies and owner cleanup succeeds, no atomic provider revocation");
  await stop(worker);
  worker=start(workerScript,[],workerEnv);
  await readyWorker(worker);
