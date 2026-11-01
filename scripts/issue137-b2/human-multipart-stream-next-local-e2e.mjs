@@ -118,7 +118,7 @@ function processProbe(child){
  if(alive)try{
   const raw=execFileSync("ps",["-o","rss=","-p",String(child.pid)],
    {encoding:"utf8",timeout:1500}).trim();
-  if(/^\\d+$/u.test(raw))rssKiB=Number(raw);
+  if(/^[0-9]+$/u.test(raw))rssKiB=Number(raw);
  }catch{}
  return {alive,rssKiB,exitCode:child.exitCode,signal:child.signalCode};
 }
