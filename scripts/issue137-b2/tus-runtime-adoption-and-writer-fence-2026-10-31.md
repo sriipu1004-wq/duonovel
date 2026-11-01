@@ -350,3 +350,92 @@ mass-deleted or silently repaired. A deployment would require another
 scoped approval, a stable-head independent security review, and measured
 DB+Storage byte restoration. Existing #153 MERGE HOLD / Production B2
 NO-GO remain unaffected.
+
+## Addendum — 2026-11-01: proposed durable deletion epoch / tombstone contract
+
+**DESIGN ONLY; NOT IMPLEMENTED.** This is the smallest falsifiable follow-up
+to the real LOCAL HEAD 809b11b3e8552c5c99382dec82416b70671447da
+post-delete replay test. It proved (a) a SEALED receipt with a
+missing object does not record deletion, (b) an alternate privileged writer
+can re-create the same path with **different or identical SHA** after
+verified DELETE, and (c) repeated owner abort's deletedParts counts
+ledger paths, not newly removed physical objects. None is an observed
+hosted attack. The proposal is NOT a claim that a SQL tombstone
+prevents a project-wide service_role/S3 writer from rewriting bytes.
+
+### Contract: durable intent, physical result, and provider custody are distinct
+
+- **Identity and monotonicity:** bind a server-issued upload/part UUID,
+  original owner UUID, **original** GoTrue session UUID, canonical PRIVATE
+  bucket/path, expected byte count/SHA, and a monotonically increasing
+  per-object **deletion epoch**. A new upload uses a new UUID/path; no
+  reuse of the old path or reactivation after consent withdrawal.
+  Do not derive epoch solely from mutable consent version/timestamps.
+- **Append-only receipt:** a *proposed*, protected deletion journal stores
+  (operation_id, part_id, epoch, owner_id, original_session_id,
+  path, expected_sha256, expected_bytes, state, evidence, actor, occurred_at).
+  Unique (part_id, epoch) and an immutable original receipt prevent
+  duplicate effects or forged client paths. The client cannot write,
+  delete, reset or enumerate the journal. Exact schema, retention,
+  privacy access and migration need **separate approval**.
+- **Pre-delete fence:** an authorized, isolated operator first CAS-es the
+  exact ticket into irreversible HOLD and commits one DELETE_INTENT
+  **before** calling Storage DELETE. Deny while a part is CLAIMED, a
+  writer lease is unresolved, a signed bearer could still PUT, original
+  owner/session/path/SHA mismatches, or provider/DB status is ambiguous.
+  Auth-session expiry, object listing and prefix sweeps are not authority.
+- **Physical phase:** establish a *provider-enforced* no-write fence and,
+  if supported, independently bound object generation/version. Verify
+  original bytes and SHA against server receipt, request DELETE for
+  exact key/generation, and re-read physical presence. Record response
+  and observed generation. PostgreSQL and Storage are NOT one transaction;
+  absence on a single GET is point-in-time only. Without custody or
+  generation enforcement mark PROVIDER_FENCE_UNPROVEN/HOLD, not
+  DELETED_DURABLE.
+- **Terminal evidence:** DELETE_CONFIRMED requires durable DELETE_INTENT
+  **and** a still-effective independently enforced writer/generation
+  fence. Retain an append-only tombstone for (part_id, epoch, path).
+  Never re-activate old tickets or paths after reconsent, user login
+  or retries. A DB-only tombstone is cooperative application refusal,
+  not physical WORM against service_role/S3/storage-admin actors.
+- **Ambiguous outcome:** on crash, DELETE timeout/5xx, lost ACK, missing
+  object with a still-SEALED receipt, same-size substituted bytes or
+  unexpected generation, persist RECONCILE_HOLD with evidence. A 404
+  **without committed intent and custody proof** is missing evidence,
+  not a successful idempotent deletion. Replay of the same operation
+  ID reads the journal before any physical action and never blindly
+  deletes an object that may have been replaced.
+
+### Falsifiable future LOCAL acceptance matrix (no new runtime authorized)
+
+| Synthetic case | Required result; opposite outcome is STOP |
+| --- | --- |
+| Crash before intent transaction commit | No Storage DELETE; old bytes remain or explicit HOLD |
+| Crash after intent before provider call | Same operation ID resumes journal epoch; no new owner/path |
+| DELETE succeeds but ACK lost / 5xx | No inferred success from 404; generation/fence/journal recheck or RECONCILE_HOLD |
+| CLAIMED writer, prior bearer, consent withdrawn during delete | No durable confirmation until in-flight authority is fenced; HOLD |
+| Privileged post-delete re-PUT with **different SHA** | Detect physical mismatch, HOLD, never silently delete replacement |
+| Privileged post-delete re-PUT with **identical SHA** | SHA cannot prove non-recreation; require generation/no-write enforcement or HOLD |
+| Concurrent operators / duplicate HTTP retry | One immutable (part, epoch) intent; no second destructive action |
+| Same user in new login after original logout | No takeover of old original-session ticket; operator review only |
+| Other owner, sibling part, wrong bucket/path | Reject before provider DELETE; preserve foreign actual bytes |
+| New upload after withdrawal/regrant | Fresh UUID/path only; old ticket irreversible HOLD |
+| Old app / DB backup restored | Tombstone and provider no-write fence must survive; no old path replay or publish |
+
+**Rollback and cost:** rollback does NOT remove a tombstone or restore
+deleted private media. Disable the proposed operator, leave uncertain
+intents in HOLD, require actual independent DB+Storage byte restore and
+fresh owner-authorized upload on a new path. Compare zero-additional-
+fixed-cost current nonpublishing HOLD with an isolated audited provider/
+credential boundary; no paid project, new key, Cron or gateway approved.
+
+**Outstanding architecture choice:** (A) proven provider-enforced exclusive
+path/generation custody plus isolated deletion actor may eventually permit
+a testable terminal deletion guarantee; (B) current same-project privileged
+writers provide at most best-effort detection/HOLD. **Do not silently
+promote B into A.** Before deployment resolve actual provider capabilities,
+old bearer expiry, alternate REST/S3/service-role writer inventory,
+retention/privacy policy, operating cost, independent restore/rollback
+and meaningful negative tests. No hosted DB/Storage/Auth/RLS,
+Production, merger or publication changes authorized.
+Draft PR #153 remains **FIX / MERGE HOLD; Production B2 NO-GO**.
