@@ -1105,8 +1105,9 @@ try{
   intents[0].expected_bytes===bytes.length&&
   intents[0].phase==="DELETE_INTENT",
   "SQL journal exactly binds original owner/session/path/SHA/bytes");
- const conflict=await intentCall(id());
- yes(!conflict.error&&conflict.data==="EPOCH_OR_OPERATOR_CONFLICT_HOLD",
+ const conflictingDeleteOperation=await intentCall(id());
+ yes(!conflictingDeleteOperation.error&&
+  conflictingDeleteOperation.data==="EPOCH_OR_OPERATOR_CONFLICT_HOLD",
   "a second operator cannot replace original DELETE_INTENT");
  const invalidEpoch=await admin.rpc("issue137_http_local_delete_intent",{
   p_part:orphanPart.body.partId,p_user:orphan.uid,
