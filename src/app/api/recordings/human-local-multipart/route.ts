@@ -83,6 +83,8 @@ function params(x:Record<string,unknown>):{
   return {path:"status",data:{partId:String(x.partId)}};
  if(action==="finish"&&shape(["action","sessionId"])&&uuid.test(String(x.sessionId??"")))
   return {path:"finish",data:{sessionId:String(x.sessionId)}};
+ if(action==="abort"&&shape(["action","sessionId"])&&uuid.test(String(x.sessionId??"")))
+  return {path:"abort",data:{sessionId:String(x.sessionId)}};
  return null;
 }
 const allow=[200,201,400,401,403,404,409,413,422,503];
