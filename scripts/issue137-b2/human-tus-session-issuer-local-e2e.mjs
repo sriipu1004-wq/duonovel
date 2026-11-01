@@ -152,8 +152,19 @@ yes(lease.objectPath.startsWith("owner/"+narrator.id+"/series/"+sid+
 yes(SQL("select issued_session_id is not null and expected_bytes="+size+
  " from libread_internal.issue137_tus_app_leases where lease_id="+
  uuid(lease.leaseId))==="t","lease binds real GoTrue session and byte count");
-const fromForeign=await begin(lease,foreign.jwt);
-yes(fromForeign.status!==201,"foreign JWT cannot open owner stage");
+async function deniedStorageCommit(label,ticket,jwt){
+ const opened=await begin(ticket,jwt);
+ if(opened.url){
+  const first=await send(opened.url,jwt,0,bytes.subarray(0,part));
+  if(first.status===204){
+   const final=await send(opened.url,jwt,part,bytes.subarray(part));
+   yes(final.status!==204,label+" must reject final PATCH");
+  }else yes(first.status!==204,label+" must reject first PATCH");
+ }else yes(opened.status!==201,label+" must reject initiation");
+ yes((await physical(ticket.objectPath))===null,
+  label+" must leave no complete PRIVATE object");
+}
+await deniedStorageCommit("foreign JWT on issued lease",lease,foreign.jwt);
 const start=await begin(lease,narrator.jwt);
 yes(start.status===201&&!!start.url,"owner JWT starts PRIVATE TUS without signed URL");
 const first=await send(start.url,narrator.jwt,0,bytes.subarray(0,part));
@@ -179,15 +190,13 @@ const loggedOut=await narrator.client.auth.signOut({scope:"global"});
 assert.equal(loggedOut.error,null);
 yes(SQL("select count(*) from auth.sessions where user_id="+uuid(narrator.id))==="0",
  "GoTrue original session invalidated");
-const oldLogin=await begin(stale,narrator.jwt);
-yes(oldLogin.status!==201,"expired session cannot begin TUS");
+await deniedStorageCommit("logged-out JWT",stale,narrator.jwt);
 const clientAgain=createClient(origin,anon,config);
 const relogin=await clientAgain.auth.signInWithPassword({
  email:narrator.email,password:narrator.password});
 assert.equal(relogin.error,null);
-const newSession=await begin(stale,relogin.data.session.access_token);
-yes(newSession.status!==201,"fresh session cannot revive OLD ticket");
-yes((await physical(stale.objectPath))===null,"stale lease never produced bytes");
+await deniedStorageCommit("new session on old lease",stale,
+ relogin.data.session.access_token);
 console.log("PASS: #137 REAL LOCAL self-issued PRIVATE JWT TUS "+checks+
  " checks: no signed URL, true owner/session/consent/R18/permission, "+
  "revocation monotonic, logout/relogin and no PUBLIC release");
