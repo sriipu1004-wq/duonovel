@@ -93,6 +93,7 @@ jobs:
           npm rebuild ffmpeg-static --foreground-scripts --no-audit --no-fund
           test -x "$(node -p "require('ffmpeg-static')")" || { echo "HOLD: pinned ffmpeg-static binary unavailable"; exit 1; }
           FFMPEG_PATH="$(node -p "require('ffmpeg-static')")" node --import tsx scripts/issue137-b2/human-real-playback-capacity-local.mjs
+          FFMPEG_PATH="$(node -p "require('ffmpeg-static')")" node scripts/issue137-b2/human-streaming-normalization-local.mjs
           node --import tsx scripts/issue137-b2/human-upload-session-consent.test.ts
           node --import tsx --input-type=module -e "const m=await import('./src/lib/recording/privateMediaLocalPipeline.ts'); const f=m.createDisposablePrivateMediaPipeline??m.default?.createDisposablePrivateMediaPipeline; if(typeof f!=='function') throw Error('F2P local pipeline module unavailable')"
       - name: Install disposable headless Chromium for localhost Studio E2E
