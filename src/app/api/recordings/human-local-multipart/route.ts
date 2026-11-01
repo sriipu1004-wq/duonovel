@@ -109,7 +109,7 @@ async function relay(endpoint:URL,secret:string,jwt:string,path:string,
   if(!res.ok||value.ok!==true)return deny(res.status);
   const reply:Record<string,unknown>={ok:true};
   for(const k of ["sessionId","partId","partCount","partSizeBytes",
-   "byteCount","state","reason"]){
+   "byteCount","state","reason","deletedParts"]){
    if(typeof value[k]==="string"||typeof value[k]==="number")
     reply[k]=value[k];
   }
