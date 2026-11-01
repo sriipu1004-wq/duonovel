@@ -928,6 +928,16 @@ export function RecordingStudioPage({
         file,
       });
 
+      // A development-only PRIVATE-stage receipt (or any unknown mode)
+      // must NEVER fall through to the one-shot publication endpoint.
+      // A staged part is not a published Human recording.
+      if (uploadSession.uploadMode !== "single" &&
+          uploadSession.uploadMode !== "multipart") {
+        throw new Error(
+          "未対応のアップロード方式。PRIVATE検証データは投稿・公開されていない。"
+        );
+      }
+
       let response: Response;
 
       if (uploadSession.uploadMode === "multipart") {
