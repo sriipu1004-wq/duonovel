@@ -155,6 +155,11 @@ try{
  check(Object.keys(issued.data).sort().join(",")==="ok,ticket",
   "no signed URL, privileged token or actual private object path exposed");
  const t=issued.data.ticket,objectPath="owner/"+owner.id+"/"+t+".wav";
+ const otherConsent=await admin.from("user_recording_consents").insert({
+  user_id:other.id,consent_key:"recording_studio_global",
+  consent_version:"2026-04-16"
+ });
+ assert.equal(otherConsent.error,null,"other real actor also has current consent");
  const wrong=await request({action:"stage",ticket:t,
   bytesBase64:wav.toString("base64")},other.session.cookie());
  check(wrong.status===403&&!(await readPath(objectPath)),
@@ -213,10 +218,6 @@ try{
  // No need to create an additional account: the prior logout test already
  // covers live-session revocation. Worker-unavailable is checked via another
  // actually authenticated user with accepted consent and the same public work.
- assert.equal((await admin.from("user_recording_consents").insert({
-  user_id:other.id,consent_key:"recording_studio_global",
-  consent_version:"2026-04-16"
- })).error,null,"independent actor consent for worker-unavailable");
  if(worker?.pid){try{process.kill(-worker.pid,"SIGTERM");}catch{}
   await sleep(400);try{process.kill(-worker.pid,"SIGKILL");}catch{}}
  const unavailable=await request(issueBody,other.session.cookie());
