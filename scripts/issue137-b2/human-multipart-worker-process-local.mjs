@@ -183,10 +183,11 @@ async function command(req,res,jwt){
    parts.reduce((n,p)=>n+p.byte_count,0)!==session.total_bytes||
    new Set(parts.map(p=>p.part_index)).size!==session.part_count)
    return reply(res,409,"PARTS_INCOMPLETE_HOLD");
-  const {data:sealed,error:writeError}=await admin.from(sessionTable)
-   .update({state:"SEALED_PARTS"}).eq("id",session.id).eq("state","OPEN")
-   .select("id").maybeSingle();
-  if(writeError||!sealed)return reply(res,409,"FINISH_CAS_HOLD");
+  const finished=await admin.rpc("issue137_http_local_multipart_finalize",{
+   p_multipart:session.id,p_user:got.who.userId,
+   p_auth_session:got.who.authSessionId});
+  if(finished.error||finished.data!==true)
+   return reply(res,409,"FINISH_ATOMIC_AUTHORITY_OR_PARTS_HOLD");
   return reply(res,200,"PRIVATE_PARTS_SEALED_NOT_PUBLISHED",{
    sessionId:session.id,partCount:session.part_count});
  }
