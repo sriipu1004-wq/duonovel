@@ -409,6 +409,56 @@ try{
  const output=logs+JSON.stringify([live,p0,p0ok,finished]);
  yes(!output.includes(service)&&!output.includes(owner.jwt)&&
   !output.includes(secret),"neither process log nor API contains privileged key");
+ // Real deterministic claim-vs-abort race. A claimed first-write can
+ // arrive after HOLD; first abort MUST NOT claim cleanup success.
+ await stop(worker);
+ worker=start(workerScript,[],{...workerEnv,
+  B2_LOCAL_TEST_PAUSE_AFTER_CLAIM_MS:"2500"});
+ await readyWorker(worker);
+ const raceOpen=await post(create,owner.session.cookie());
+ yes(raceOpen.status===201,"race session opened with real GoTrue identity");
+ const racePart=await post({action:"part",sessionId:raceOpen.body.sessionId,
+  index:0,expectedSha256:sha(bytes)},owner.session.cookie());
+ yes(racePart.status===201,"race part issued before abort");
+ const raceWrite=put(racePart.body.partId,bytes,owner.session.cookie());
+ let observedClaim=false;
+ for(let count=0;count<100;count++){
+  const q=await admin.from("issue137_http_local_multipart_parts")
+   .select("state").eq("id",racePart.body.partId).maybeSingle();
+  if(q.error)throw Error("RACE_CLAIM_QUERY_HOLD");
+  if(q.data?.state==="CLAIMED"){observedClaim=true;break;}
+  await sleep(25);
+ }
+ yes(observedClaim,"real SQL CLAIMED observed while raw Storage PUT is paused");
+ const firstAbort=await post({action:"abort",sessionId:raceOpen.body.sessionId},
+  owner.session.cookie());
+ yes(firstAbort.status===409,"abort while claimed never declares cleanup complete");
+ const partAfterAbort=await post({action:"part",sessionId:raceOpen.body.sessionId,
+  index:1,expectedSha256:sha(tail)},owner.session.cookie());
+ yes(partAfterAbort.status===409,
+  "HOLD prevents new writes while earlier claim is still in-flight");
+ const raceWriteResult=await raceWrite;
+ yes(raceWriteResult.status===201,
+  "already-claimed writer can physically commit after HOLD, demonstrating race");
+ const afterRace=await admin.storage.from(bucket).download("owner/"+owner.uid+
+  "/"+raceOpen.body.sessionId+"/part-0001.bin");
+ yes(!afterRace.error&&
+  sha(Buffer.from(await afterRace.data.arrayBuffer()))===sha(bytes),
+  "race creates real PRIVATE bytes AFTER first abort HOLD");
+ const wrongAbort=await post({action:"abort",sessionId:raceOpen.body.sessionId},
+  other.session.cookie());
+ yes(wrongAbort.status===403,
+  "other valid user cannot perform cleanup of racing owner's session");
+ const retryAbort=await post({action:"abort",sessionId:raceOpen.body.sessionId},
+  owner.session.cookie());
+ yes(retryAbort.status===200&&retryAbort.body.deletedParts===1,
+  "owner retries after claim settled; physically verified cleanup");
+ const afterRetry=await admin.storage.from(bucket).download("owner/"+owner.uid+
+  "/"+raceOpen.body.sessionId+"/part-0001.bin");
+ yes(!!afterRetry.error,"no orphan PRIVATE bytes after verified abort retry");
+ await stop(worker);
+ worker=start(workerScript,[],workerEnv);
+ await readyWorker(worker);
  // Run graphical integration LAST so Chromium/Next dev memory and
  // worker teardown cannot interfere with independent preexisting HTTP negatives.
  // Actual headless Chromium controls the real Studio UI, not jsdom.
