@@ -69,6 +69,8 @@ jobs:
           node scripts/issue137-b2/s3-public-writer-inventory.mjs
           node --check scripts/issue137-b2/recording-credential-route-dependencies.mjs
           node scripts/issue137-b2/recording-credential-route-dependencies.mjs
+          node --check scripts/issue137-b2/human-processing-capacity-local.mjs
+          node scripts/issue137-b2/human-processing-capacity-local.mjs
           node --check scripts/issue137-b2/private-real-local-adapter-e2e.mjs
           bash -n scripts/issue137-b2/run-local.sh
           docker info >/dev/null
@@ -83,6 +85,7 @@ jobs:
           node --import tsx scripts/issue137-b2/ai-recording-options.test.ts
           node --import tsx scripts/issue137-b2/public-media-writer-bridge.test.ts
           node --import tsx scripts/issue137-b2/app-protocol-compatibility.test.ts
+          node --import tsx scripts/issue137-b2/human-processing-capacity-draft.test.mjs
           node --import tsx scripts/issue137-b2/human-upload-session-consent.test.ts
           node --import tsx --input-type=module -e "const m=await import('./src/lib/recording/privateMediaLocalPipeline.ts'); const f=m.createDisposablePrivateMediaPipeline??m.default?.createDisposablePrivateMediaPipeline; if(typeof f!=='function') throw Error('F2P local pipeline module unavailable')"
       - name: Install disposable headless Chromium for localhost Studio E2E

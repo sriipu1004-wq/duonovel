@@ -4,6 +4,7 @@
 import {NextResponse} from "next/server";
 import {POST as localMultipartPost} from "@/app/api/recordings/human-local-multipart/route";
 import {isSupportedAudioFile} from "@/lib/recording/audioUploadPolicy";
+import {decideHumanProcessingTrialCapacity} from "@/lib/recording/humanProcessingCapacityDraft";
 
 type JsonData = Record<string,unknown>;
 export type LocalLegacyProbeOperation = "open"|"finish";
@@ -49,6 +50,18 @@ export async function handleIssue137LocalNormalHumanRoute(
   {status,headers:{"Cache-Control":"no-store"}});
  if(!isIssue137LocalNormalHumanModeSelected()||!active(request))
   return deny(404);
+ // Evaluated only AFTER the already-active isolated loopback boundary.
+ // This cap has no effect on Preview or Production and is not a release cap.
+ const capacity=decideHumanProcessingTrialCapacity(
+  Number(payload.totalSizeBytes),
+  process.env.B2_LOCAL_HUMAN_PROCESSING_CAP_BYTES,true);
+ if(capacity.status==="invalid")
+  return NextResponse.json({ok:false,error:"LOCAL_DRAFT_PROCESSING_CAP_CONFIG_HOLD"},
+   {status:503,headers:{"Cache-Control":"no-store"}});
+ if(capacity.status==="exceeded")
+  return NextResponse.json({ok:false,error:"LOCAL_DRAFT_PROCESSING_CAP_HOLD",
+   maxTrialBytes:capacity.capBytes},
+   {status:413,headers:{"Cache-Control":"no-store"}});
  if(op==="open"){
   // Same five fields that the current RecordingStudioPage sends today.
   if(!exact(payload,["seriesId","episodeId","fileName","mimeType",

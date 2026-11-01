@@ -18,6 +18,8 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
 import { LocalHumanMultipartProbe } from "@/components/recording/LocalHumanMultipartProbe";
+import { decideHumanProcessingTrialCapacity } from "@/lib/recording/humanProcessingCapacityDraft";
+import { buildRejectedAudioUploadResult } from "@/lib/recording/audioUploadPolicy";
 import {
   bindLocalNormalHumanLease,
   stageHumanMultipartLocally,
@@ -640,6 +642,15 @@ export function RecordingStudioPage({
     );
   }
 
+  function localTrialCapacity(bytes: number) {
+    return decideHumanProcessingTrialCapacity(
+      bytes, process.env.NEXT_PUBLIC_B2_LOCAL_HUMAN_PROCESSING_CAP_BYTES,
+      process.env.NODE_ENV === "development" &&
+        typeof window !== "undefined" &&
+        window.location.hostname === "127.0.0.1"
+    );
+  }
+
   async function prepareFileForPublish(
     file: File,
     source: "browser_recording" | "file_upload"
@@ -658,7 +669,18 @@ export function RecordingStudioPage({
     let statusMessage = "保存前チェックを実行中。";
 
     try {
-      clientResult = await analyzeAudioUploadClient(file);
+      const draftCap = localTrialCapacity(file.size);
+      if (draftCap.status === "exceeded" || draftCap.status === "invalid") {
+        // Fail before allocating the full file or invoking WebAudio decode.
+        clientResult = {
+          ...buildRejectedAudioUploadResult(file, "file_too_large"),
+          message: draftCap.status === "invalid"
+            ? "LOCAL_DRAFT_PROCESSING_CAP_CONFIG_HOLD"
+            : "LOCAL_DRAFT_PROCESSING_CAP_HOLD",
+        };
+      } else {
+        clientResult = await analyzeAudioUploadClient(file);
+      }
       clientDecision = clientResult.decision;
       statusMessage = clientResult.message;
 
@@ -929,6 +951,12 @@ export function RecordingStudioPage({
 
     try {
       const file = currentPreviewItem.file;
+      const draftCap = localTrialCapacity(file.size);
+      if (draftCap.status === "invalid" || draftCap.status === "exceeded") {
+        throw new Error(draftCap.status === "invalid"
+          ? "LOCAL_DRAFT_PROCESSING_CAP_CONFIG_HOLD"
+          : "LOCAL_DRAFT_PROCESSING_CAP_HOLD");
+      }
       const uploadSession = await createHumanUploadSession({
         seriesId,
         episodeId: selectedEpisode.id,

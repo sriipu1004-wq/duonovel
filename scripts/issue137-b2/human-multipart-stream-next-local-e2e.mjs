@@ -47,7 +47,9 @@ const nextEnv={...common,NEXT_TELEMETRY_DISABLED:"1",CI:"true",
  NEXT_PUBLIC_SITE_URL:nextBase,B2_LOCAL_WORKER_INNER_TOKEN:secret,
  B2_LOCAL_HUMAN_MULTIPART_URL:workerBase+"/",
  B2_LOCAL_HUMAN_MULTIPART_MODE:"enabled",
- B2_LOCAL_HUMAN_NORMAL_ROUTE_MODE:"enabled"};
+ B2_LOCAL_HUMAN_NORMAL_ROUTE_MODE:"enabled",
+ B2_LOCAL_HUMAN_PROCESSING_CAP_BYTES:String(total),
+ NEXT_PUBLIC_B2_LOCAL_HUMAN_PROCESSING_CAP_BYTES:String(total)};
 assert.equal(nextEnv.B2_SERVICE_KEY,undefined);
 assert.equal(nextEnv.SUPABASE_SERVICE_ROLE_KEY,undefined);
 const opts={auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}};
@@ -524,6 +526,13 @@ try{
  // local-only branch did not use the legacy signed-upload URL factory.
  const normalRequest={seriesId,episodeId,fileName:"synthetic-local.wav",
   mimeType:"audio/wav",totalSizeBytes:total};
+ const trialDenied=await postLegacy("human-upload-session",
+  {...normalRequest,totalSizeBytes:total+1},owner.session.cookie());
+ yes(trialDenied.status===413&&
+  trialDenied.body.error==="LOCAL_DRAFT_PROCESSING_CAP_HOLD"&&
+  trialDenied.body.maxTrialBytes===total&&
+  !trialDenied.body.uploadSessionId&&!trialDenied.body.token,
+  "LOCAL processing trial signer blocks +1B before creating a ticket");
  const normalAnon=await postLegacy("human-upload-session",normalRequest);
  yes(normalAnon.status===401&&!normalAnon.body.uploadSessionId,
   "normal Human session JSON needs authenticated SSR cookie");
@@ -574,9 +583,15 @@ try{
  yes(otherEpisodeContext.status===403&&!otherEpisodeContext.body.recordingId,
   "normal Human finalize binds session to original episode");
  const alteredTotalContext=await postLegacy("human-upload-finalize",
-  {...normalFinalize,totalSizeBytes:total+1},owner.session.cookie());
+  {...normalFinalize,totalSizeBytes:total-1},owner.session.cookie());
  yes(alteredTotalContext.status===403&&!alteredTotalContext.body.recordingId,
   "normal Human finalize rejects otherwise-valid wrong total byte count");
+ const deniedOversizeFinalize=await postLegacy("human-upload-finalize",
+  {...normalFinalize,totalSizeBytes:total+1},owner.session.cookie());
+ yes(deniedOversizeFinalize.status===413&&
+  deniedOversizeFinalize.body.error==="LOCAL_DRAFT_PROCESSING_CAP_HOLD"&&
+  !deniedOversizeFinalize.body.recordingId,
+  "LOCAL processing trial finalize rejects +1B before worker commit");
  const foreignNormalFinalize=await postLegacy("human-upload-finalize",
   normalFinalize,other.session.cookie());
  yes(foreignNormalFinalize.status===403&&!foreignNormalFinalize.body.recordingId,
