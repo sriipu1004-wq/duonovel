@@ -103,4 +103,29 @@ revoke all on function public.issue137_http_local_multipart_finalize(uuid,uuid,u
  from public,anon,authenticated;
 grant execute on function public.issue137_http_local_multipart_finalize(uuid,uuid,uuid)
  to service_role;
+-- Nonproduction disposal fence. Owner can abort with live session even
+-- after consent is withdrawn; never permit an unrelated owner to abort.
+-- Does NOT assert provider-wide WORM or cleanup of an in-flight Storage PUT.
+create function public.issue137_http_local_multipart_abort(
+ p_multipart uuid,p_user uuid,p_auth_session uuid)
+returns boolean language plpgsql volatile security definer set search_path='' as $f$
+declare held uuid;
+begin
+ if coalesce(nullif(current_setting('request.jwt.claim.role',true),''),
+  nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'role','')<>'service_role'
+ then return false; end if;
+ update public.issue137_http_local_multipart_sessions m
+ set state='HOLD'
+ from auth.sessions a
+ where m.id=p_multipart and m.user_id=p_user
+ and m.auth_session_id=p_auth_session
+ and m.state in ('OPEN','SEALED_PARTS','HOLD')
+ and a.id=m.auth_session_id and a.user_id=m.user_id
+ returning m.id into held;
+ return held is not null;
+end $f$;
+revoke all on function public.issue137_http_local_multipart_abort(uuid,uuid,uuid)
+ from public,anon,authenticated;
+grant execute on function public.issue137_http_local_multipart_abort(uuid,uuid,uuid)
+ to service_role;
 notify pgrst,'reload schema';
