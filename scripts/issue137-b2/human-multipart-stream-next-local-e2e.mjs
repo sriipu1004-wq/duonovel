@@ -1064,6 +1064,61 @@ try{
  assert.equal(deletedOrphan.error,null,"operator removed scoped local orphan only");
  const noOrphan=await admin.storage.from(bucket).download(orphanPath);
  yes(!!noOrphan.error,"offline operator physical readback confirms absence NOW");
+ // A repeat attempt must not infer safe deletion from a 404. The LOCAL
+ // ledger has no durable DELETED tombstone: the sealed receipt still exists.
+ const retryWithoutTombstone=await offlineByteVerdict(
+  orphanTicket,orphanParts,orphan.uid);
+ yes(retryWithoutTombstone.reason==="PRIVATE_BYTES_MISSING_HOLD"&&
+  !retryWithoutTombstone.paths,
+  "repeat offline cleanup is HOLD, not a second claimed successful delete");
+ const heldReceipt=await admin.from("issue137_http_local_multipart_parts")
+  .select("state,expected_sha256,observed_sha256")
+  .eq("id",orphanPart.body.partId).single();
+ yes(!heldReceipt.error&&heldReceipt.data.state==="SEALED"&&
+  heldReceipt.data.expected_sha256===sha(bytes)&&
+  heldReceipt.data.observed_sha256===sha(bytes),
+  "post-delete receipt still SEALED; no durable DELETE tombstone exists");
+ // Simulate an INDEPENDENT privileged Storage writer after cleanup.
+ // upsert:false cannot prevent a first write once the path is absent.
+ const revivedDifferent=await admin.storage.from(bucket).upload(orphanPath,wrong,{
+  contentType:"application/octet-stream",upsert:false});
+ assert.equal(revivedDifferent.error,null,
+  "disposable alternate service_role can re-create missing PRIVATE path");
+ const wrongRecreated=await admin.storage.from(bucket).download(orphanPath);
+ yes(!wrongRecreated.error&&
+  sha(Buffer.from(await wrongRecreated.data.arrayBuffer()))===sha(wrong),
+  "different SHA PRIVATE bytes physically reappear AFTER verified delete");
+ const mismatchAfterDelete=await offlineByteVerdict(
+  orphanTicket,orphanParts,orphan.uid);
+ yes(mismatchAfterDelete.reason==="PHYSICAL_SHA_MISMATCH_HOLD"&&
+  !mismatchAfterDelete.paths,
+  "late different-byte re-creation is detected and never called cleaned");
+ // A privileged writer can also reproduce the exact original bytes.
+ // Original-SHA readback alone CANNOT distinguish fresh unauthorized
+ // re-creation from the pre-delete object without generation/fence proof.
+ assert.equal((await admin.storage.from(bucket).remove([orphanPath])).error,null,
+  "disposable fixture removes re-created incorrect bytes");
+ assert.equal((await admin.storage.from(bucket).upload(orphanPath,bytes,{
+  contentType:"application/octet-stream",upsert:false})).error,null,
+  "independent local privileged writer can re-create original SHA after delete");
+ const originalRecreated=await admin.storage.from(bucket).download(orphanPath);
+ yes(!originalRecreated.error&&
+  sha(Buffer.from(await originalRecreated.data.arrayBuffer()))===sha(bytes),
+  "exact original-SHA PRIVATE content physically reappears after cleanup");
+ const indistinguishable=await offlineByteVerdict(
+  orphanTicket,orphanParts,orphan.uid);
+ yes(indistinguishable.reason==="VERIFIED"&&
+  indistinguishable.paths?.[0]===orphanPath,
+  "RISK: no tombstone or provider generation fence; re-created exact bytes pass old receipt");
+ console.log("RISK: LOCAL verified DELETE is point-in-time only; "+
+  "post-delete privileged PUT revives different or identical bytes. "+
+  "SEALED receipt is not a deletion tombstone");
+ // Fixture teardown ONLY: never confuse this with a production cleanup
+ // guarantee or an operator retry. Keep a separate other-owner SHA control.
+ assert.equal((await admin.storage.from(bucket).remove([orphanPath])).error,null,
+  "remove synthetic re-created object for isolated test teardown");
+ yes(!!(await admin.storage.from(bucket).download(orphanPath)).error,
+  "disposable post-recreation teardown restored observed PRIVATE absence");
  const untouched=await admin.storage.from(bucket).download(unrelatedPath);
  yes(!untouched.error&&
   sha(Buffer.from(await untouched.data.arrayBuffer()))===sha(bytes),
@@ -1182,6 +1237,17 @@ try{
   sessionId:expiresTicket.body.sessionId},owner.session.cookie());
  yes(expiresCleanup.status===200&&expiresCleanup.body.deletedParts===1,
   "live original owner safely aborts expired multipart ticket");
+ const duplicateOwnerAbort=await post({action:"abort",
+  sessionId:expiresTicket.body.sessionId},owner.session.cookie());
+ yes(duplicateOwnerAbort.status===200&&
+  duplicateOwnerAbort.body.reason==="PRIVATE_ABORTED_AND_PHYSICAL_ABSENT"&&
+  duplicateOwnerAbort.body.deletedParts===1,
+  "repeat owner abort returns verified physical absence without re-authorizing upload");
+ yes((await post({action:"part",sessionId:expiresTicket.body.sessionId,
+  index:1,expectedSha256:sha(tail)},owner.session.cookie())).status===403,
+  "replayed abort leaves expired ticket unable to stage new PRIVATE part");
+ console.log("RISK: LOCAL repeated abort deletedParts reflects scoped ledger paths, "+
+  "not number of newly deleted physical objects");
  yes((await admin.storage.from(bucket).download("owner/"+owner.uid+"/"+
   expiresTicket.body.sessionId+"/part-0001.bin")).error!==null,
   "expired ticket owner cleanup physically removed PRIVATE bytes");
