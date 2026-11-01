@@ -111,10 +111,41 @@ async function parse(r){
  const txt=await r.text();let body={};try{body=JSON.parse(txt);}catch{}
  return {status:r.status,body,raw:txt};
 }
+function processProbe(child){
+ if(!child?.pid)return {alive:false,rssKiB:null,exitCode:null,signal:null};
+ let alive=false,rssKiB=null;
+ try{process.kill(child.pid,0);alive=true;}catch{}
+ if(alive)try{
+  const raw=execFileSync("ps",["-o","rss=","-p",String(child.pid)],
+   {encoding:"utf8",timeout:1500}).trim();
+  if(/^\\d+$/u.test(raw))rssKiB=Number(raw);
+ }catch{}
+ return {alive,rssKiB,exitCode:child.exitCode,signal:child.signalCode};
+}
 async function post(body,cookie=""){
- return parse(await fetch(nextBase+api,{method:"POST",
-  headers:{"content-type":"application/json",...(cookie?{cookie}:{})},
-  body:JSON.stringify(body),signal:AbortSignal.timeout(30000),redirect:"error"}));
+ try{
+  return await parse(await fetch(nextBase+api,{method:"POST",
+   headers:{"content-type":"application/json",...(cookie?{cookie}:{})},
+   body:JSON.stringify(body),signal:AbortSignal.timeout(30000),redirect:"error"}));
+ }catch(e){
+  // Failure-only diagnostics. Do NOT print cookies, JWT, env, object paths,
+  // Next stack traces, process arguments or raw child stdout/stderr.
+  let workerHealth="unavailable";
+  try{
+   const x=await fetch(workerBase+"/health",{signal:AbortSignal.timeout(1200)});
+   workerHealth=x.status===200?"healthy":"non200";
+  }catch{}
+  const diagnosis={action:["open","part","put","status","finish","abort"].includes(
+    body?.action)?body.action:"other",
+   errorCode:String(e?.cause?.code??e?.code??"unknown").slice(0,24),
+   next:processProbe(next),worker:processProbe(worker),workerHealth,
+   runnerRssKiB:Math.round(process.memoryUsage().rss/1024),
+   childLogFlags:{oom:/heap out of memory|allocation failed|out of memory/iu.test(logs),
+    fatal:/FATAL ERROR/iu.test(logs),killed:/SIGKILL|Killed process/iu.test(logs)}};
+  console.error("HOLD: F2-P LOCAL Next POST transport diagnostics "+
+   JSON.stringify(diagnosis));
+  throw e;
+ }
 }
 async function postLegacy(which,body,cookie="",extraHeaders={}){
  assert.ok(["human-upload-session","human-upload-finalize"].includes(which));
