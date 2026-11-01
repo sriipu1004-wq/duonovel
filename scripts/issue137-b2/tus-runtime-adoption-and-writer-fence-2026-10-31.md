@@ -296,3 +296,57 @@ states, an authorized operator reconciliation protocol for abandoned
 CLAIMED/SEALED bytes, service-role/S3 credential ownership and a complete
 end-to-end nonpublication/provenance/rights safety proof. Keep PR #153 Draft /
 MERGE HOLD and Production B2 NO-GO even on successful disposable tests.
+
+
+## Addendum — 2026-11-01: logout-orphan and expired-ticket operator boundary
+
+**Classification:** test-only real disposable GoTrue/PostgreSQL/PRIVATE Storage probe, not a
+deployed operator, retention policy, Cron, RPC, hosted worker, or guarantee of
+provider-wide immutable deletion. It extends the previous monotonic consent
+HOLD work without changing Production routes, Supabase migrations or keys.
+
+The current local multipart worker requires the **original live GoTrue
+`auth.sessions` row** for owner-only `abort`. This is desirable for access
+control but intentionally means that **logout/global session revocation can
+strand already accepted PRIVATE part bytes**, even if a stale JWT is not yet
+expired. A multipart ticket's own `expires_at` is a different condition:
+while the original auth session is still live, the owner may still call
+`abort` after ticket expiry, but cannot stage/finalize new parts. Neither
+case grants other consenting users cleanup rights.
+
+For **quarantined, logout-orphan PRIVATE data only**, the existing
+`human-multipart-stream-next-local-e2e.mjs` now exercises an explicit
+**offline test-harness operator** procedure, with the sole cooperating
+local worker stopped before any metadata reconciliation or Storage DELETE:
+1. Confirm the original GoTrue session is **actually absent** from the
+   disposable PostgreSQL `auth.sessions`; do not infer revocation merely
+   from SSR cookie appearance. Verify old cookie, unrelated user and
+   finalize are denied, while the physical PRIVATE byte SHA remains.
+2. Fetch the server-owned (upload UUID, user UUID, auth-session UUID,
+   object path, part receipt, SHA and state). CAS that specific OPEN ticket
+   to HOLD only for the verified original owner/session; reject a foreign
+   user, unheld ticket, out-of-prefix object, duplicate index, bad checksum
+   or any `CLAIMED` / `INTEGRITY_HOLD` part. Do not list/delete an
+   arbitrary owner prefix or accept a client-selected object path.
+3. Before removal verify exact physical SHA against the receipt; remove
+   the exact scoped object only, then GET the same path to check absence.
+   Independently verify another owner's PRIVATE bytes are unchanged and
+   no `recordings` publication row was created. Restarting the worker
+   cannot reactivate this HOLD; a legitimate still-authenticated owner
+   may abort their *expired* multipart ticket without the operator.
+
+**Safety qualifications:** This is a test-harness replay with project-wide
+local service-role custody. Stopping the cooperating local worker is NOT
+proof that all independent privileged S3/REST holders or old signed URLs
+are fenced; another holder can re-create/modify objects after verification.
+SQL CAS and Storage DELETE are distinct operations, so the observed byte
+absence is point-in-time only; do not claim atomic wipe or zero late
+writes. Expired user authentication and lost owner-only access require a
+separately approved actor/session/consent/right-independent *operator*
+process with explicit scope, audit trail, grace period and provider-writer
+custody; none exists in the deployed application. Unlisted orphan objects,
+in-flight CLAIMED or ambiguous provider errors must remain HOLD, not be
+mass-deleted or silently repaired. A deployment would require another
+scoped approval, a stable-head independent security review, and measured
+DB+Storage byte restoration. Existing #153 MERGE HOLD / Production B2
+NO-GO remain unaffected.
