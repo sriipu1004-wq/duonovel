@@ -137,13 +137,19 @@ grant execute on function public.issue137_http_local_multipart_abort(uuid,uuid,u
 create function public.issue137_http_local_consent_withdrawal_hold()
 returns trigger language plpgsql volatile security definer
 set search_path='' as $f$
+declare revoked boolean := false;
 begin
+ -- On DELETE, NEW is unavailable; branch before accessing its fields.
  if old.consent_key='recording_studio_global'
-  and old.consent_version='2026-04-16'
-  and (tg_op='DELETE'
-   or new.consent_key is distinct from 'recording_studio_global'
-   or new.consent_version is distinct from '2026-04-16')
- then
+  and old.consent_version='2026-04-16' then
+  if tg_op='DELETE' then
+   revoked:=true;
+  elsif new.consent_key is distinct from 'recording_studio_global'
+   or new.consent_version is distinct from '2026-04-16' then
+   revoked:=true;
+  end if;
+ end if;
+ if revoked then
   update public.issue137_http_local_multipart_sessions
   set state='HOLD'
   where user_id=old.user_id and state in ('OPEN','SEALED_PARTS');
