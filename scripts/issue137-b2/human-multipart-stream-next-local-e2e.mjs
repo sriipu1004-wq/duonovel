@@ -146,6 +146,22 @@ try{
  next=start(nextCli,["dev","--hostname","127.0.0.1",
   "--port",String(portNext)],nextEnv);await readyNext(next);
  const create={action:"open",seriesId,episodeId,totalBytes:total};
+ // Legacy Human signer already denies the Official account. New local route
+ // must preserve that separate product restriction, not just RLS/consent.
+ const officialEmail="libread08@gmail.com",officialPassword="Local-"+id()+"Aa!1";
+ const officialAccount=await admin.auth.admin.createUser({
+  email:officialEmail,password:officialPassword,email_confirm:true});
+ assert.equal(officialAccount.error,null,"local-only synthetic Official account");
+ const officialSession=jar();
+ const officialLogin=await officialSession.auth.auth.signInWithPassword({
+  email:officialEmail,password:officialPassword});
+ assert.equal(officialLogin.error,null,"synthetic Official login");
+ assert.equal((await admin.from("user_recording_consents").insert({
+  user_id:officialAccount.data.user.id,
+  consent_key:"recording_studio_global",consent_version:"2026-04-16"
+ })).error,null,"synthetic Official has current consent");
+ yes((await post(create,officialSession.cookie())).status===401,
+  "Official account cannot open Human multipart staging despite valid consent");
  yes((await post(create)).status===401,"anonymous Next POST forbidden");
  const huge=await post({...create,totalBytes:1024*1024*1024+1},owner.session.cookie());
  yes(huge.status===400,"greater-than-1GiB rejected before allocation");
