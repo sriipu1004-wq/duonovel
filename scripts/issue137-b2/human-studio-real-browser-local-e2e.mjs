@@ -368,8 +368,10 @@ export async function runLocalStudioChromium(args){
   await writeFile(oversizedPath,oversizedBytes,{mode:0o600});
   let unexpectedNormalPosts=0;
   const preventNetwork=request=>{
-   if(/\\/api\\/recordings\\/human-(upload-session|upload-finalize|publish)/u
-      .test(new URL(request.url()).pathname)&&request.method()==="POST")
+   if(["/api/recordings/human-upload-session",
+       "/api/recordings/human-upload-finalize",
+       "/api/recordings/human-publish"].includes(
+        new URL(request.url()).pathname)&&request.method()==="POST")
     unexpectedNormalPosts++;
   };
   page.on("request",preventNetwork);
