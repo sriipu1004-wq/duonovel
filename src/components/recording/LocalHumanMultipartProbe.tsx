@@ -5,6 +5,7 @@
 import { useRef, useState } from "react";
 import {
   stageHumanMultipartLocally,
+  abortHumanMultipartLocally,
   type LocalHumanStageLease,
   type LocalHumanStageProgress,
 } from "@/lib/recording/localHumanMultipartClient";
@@ -18,6 +19,24 @@ export function LocalHumanMultipartProbe({
 }) {
   const lease = useRef<LocalHumanStageLease | null>(null);
   const [running, setRunning] = useState(false);
+  const key = `issue137-b2-local:${seriesId}:${episodeId}`;
+  function loadLease(): LocalHumanStageLease | null {
+    try {
+      const raw = window.sessionStorage.getItem(key);
+      if (!raw) return null;
+      const parsed: unknown = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      const p = parsed as LocalHumanStageLease;
+      if (typeof p.sessionId !== "string" ||
+          typeof p.fileFingerprint !== "string" ||
+          p.seriesId !== seriesId || p.episodeId !== episodeId) return null;
+      return p;
+    } catch { return null; }
+  }
+  function clearLease() {
+    lease.current = null;
+    try { window.sessionStorage.removeItem(key); } catch {}
+  }
   const [finished, setFinished] = useState(false);
   const [message, setMessage] = useState("未実施");
   const [progress, setProgress] = useState<LocalHumanStageProgress | null>(null);
@@ -33,12 +52,16 @@ export function LocalHumanMultipartProbe({
     if (!file || !supported || running) return;
     setRunning(true);
     setFinished(false);
+    if (!lease.current) lease.current = loadLease();
     setMessage("開発環境のPRIVATE分割転送を確認中。投稿・公開は行わない。");
     try {
       await stageHumanMultipartLocally({
         file, seriesId, episodeId,
         previousLease: lease.current,
-        onLease: (value) => { lease.current = value; },
+        onLease: (value) => {
+          lease.current = value;
+          try { window.sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
+        },
         onProgress: setProgress,
       });
       setFinished(true);
@@ -54,6 +77,24 @@ export function LocalHumanMultipartProbe({
     }
   }
 
+  async function discard() {
+    if (running) return;
+    const active = lease.current ?? loadLease();
+    if (!active) {
+      setMessage("削除対象のローカルチケットがない。");
+      return;
+    }
+    setRunning(true);
+    try {
+      const n = await abortHumanMultipartLocally({ lease: active });
+      clearLease();
+      setFinished(false);
+      setProgress(null);
+      setMessage(`検証用PRIVATEパート${n}件を物理確認して破棄した。`);
+    } catch {
+      setMessage("削除状態を保証できないためHOLD。再試行が必要。");
+    } finally { setRunning(false); }
+  }
   return (
     <section aria-label="ローカル分割アップロード検証"
       className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-neutral-800">
@@ -66,6 +107,10 @@ export function LocalHumanMultipartProbe({
         disabled={!supported || running || finished}
         className="mt-3 rounded-full border border-amber-400 bg-white px-4 py-2 font-semibold disabled:opacity-40">
         {running ? "検証中..." : finished ? "PRIVATE保存検証済み" : "開発用PRIVATE転送を試す"}
+      </button>
+      <button type="button" onClick={discard} disabled={running}
+        className="ml-2 mt-3 rounded-full border border-rose-300 bg-white px-4 py-2 font-semibold disabled:opacity-40">
+        PRIVATE検証パートを破棄
       </button>
       {progress && (
         <p role="status" className="mt-3">
