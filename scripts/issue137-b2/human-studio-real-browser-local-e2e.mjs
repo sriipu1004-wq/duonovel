@@ -8,6 +8,26 @@ import {mkdtemp,writeFile,rm} from "node:fs/promises";
 import {join} from "node:path";
 const sha=b=>createHash("sha256").update(b).digest("hex");
 const yes=(x,label)=>assert.ok(x,label);
+// Valid >4MiB synthetic PCM WAV with alternating voiced/quiet windows.
+// Required to exercise the ACTUAL enabled Studio submit button, not a
+// programmatic disabled-button click or an intercepted/mocked upload check.
+function syntheticSpeechLikeWav(){
+ const rate=48000,frames=2110000,header=44;
+ const buf=Buffer.alloc(header+frames*2);
+ buf.write("RIFF",0);buf.writeUInt32LE(buf.length-8,4);
+ buf.write("WAVEfmt ",8);buf.writeUInt32LE(16,16);
+ buf.writeUInt16LE(1,20);buf.writeUInt16LE(1,22);
+ buf.writeUInt32LE(rate,24);buf.writeUInt32LE(rate*2,28);
+ buf.writeUInt16LE(2,32);buf.writeUInt16LE(16,34);
+ buf.write("data",36);buf.writeUInt32LE(frames*2,40);
+ const amps=[0,.90,.15,.80,.22,0,.85,.17,.92,.27,.70,0];
+ for(let i=0;i<frames;i++){
+  const amp=amps[Math.floor(i/9600)%amps.length];
+  const sample=Math.round(Math.sin(2*Math.PI*(i%50)/50)*amp*25000);
+  buf.writeInt16LE(sample,header+i*2);
+ }
+ return buf;
+}
 export async function runLocalStudioChromium(args){
  const {nextBase,owner,other,seriesId,episodeId,bytes,tail,
   admin,bucket,post,put}=args;
@@ -170,6 +190,59 @@ export async function runLocalStudioChromium(args){
    {method:"POST",headers:{"content-type":"application/json"},
     body:JSON.stringify(issue),redirect:"error"});
   check(noPublic.status===401,"no SSR cookie cannot open stage through browser route");
+  // A genuine enabled Studio publish button must stop at the normal
+  // localhost-only upload-session reply: no signed parts, no finalize,
+  // no one-shot human-publish fallback, and no PUBLIC recording rows.
+  // Unlike the older probe, this uses valid PCM with a client-side
+  // "passed" result, not direct page.evaluate/faked precheck state.
+  const speechWav=syntheticSpeechLikeWav();
+  check(speechWav.length>4*1024*1024&&speechWav.length<8*1024*1024,
+   "actual Studio safety test uses a valid >4MiB local synthetic WAV");
+  const speechPath=join(ephemeralFileDir,"local-human-publish-guard.wav");
+  await writeFile(speechPath,speechWav,{mode:0o600});
+  await page.locator('input[type="file"]').first().setInputFiles(speechPath);
+  const realSubmit=page.getByRole("button",{name:"保存して作品へ接続"});
+  let enabled=false;
+  for(let i=0;i<120;i++){
+   if(await realSubmit.isEnabled()){enabled=true;break;}
+   await page.waitForTimeout(250);
+  }
+  check(enabled,"actual Studio client audio preflight enabled normal publish button");
+  const paths=[];
+  const track=request=>{
+   const u=new URL(request.url());
+   if(u.pathname.startsWith("/api/recordings/"))
+    paths.push(request.method()+" "+u.pathname);
+  };
+  page.on("request",track);
+  const responsePromise=page.waitForResponse(response=>
+   new URL(response.url()).pathname==="/api/recordings/human-upload-session"&&
+   response.request().method()==="POST",{timeout:30000});
+  await realSubmit.click();
+  const guardedResponse=await responsePromise;
+  const sessionReply=await guardedResponse.json();
+  check(guardedResponse.status()===201&&sessionReply.ok===true&&
+   sessionReply.uploadMode==="local-private-staging-only"&&
+   typeof sessionReply.uploadSessionId==="string"&&
+   !("parts" in sessionReply)&&!("token" in sessionReply)&&
+   !("bucketName" in sessionReply),
+   "enabled Studio button reached normal API but no signed Storage bearer");
+  await page.getByText(/未対応のアップロード方式。PRIVATE検証データは投稿・公開されていない。/u)
+   .waitFor({state:"visible",timeout:30000});
+  check(!paths.some(x=>/\/human-(?:publish|upload-finalize)(?:$|\/)/u.test(x)),
+   "actual Studio did not fall through to human-publish or normal finalize");
+  check(!paths.some(x=>x.startsWith("PUT "))&&
+   !paths.some(x=>/\/human-local-multipart/u.test(x)),
+   "actual Studio did not write any PRIVATE/PUBLIC part after HOLD reply");
+  page.off("request",track);
+  const emptyTicket=await post({action:"abort",
+   sessionId:sessionReply.uploadSessionId},owner.session.cookie());
+  check(emptyTicket.status===200&&emptyTicket.body.deletedParts===0,
+   "owner cleaned empty PRIVATE ticket created by normal Studio click");
+  const noSubmitRecording=await admin.from("recordings")
+   .select("id").eq("episode_id",episodeId);
+  check(!noSubmitRecording.error&&noSubmitRecording.data?.length===0,
+   "real Studio publish click created zero Human recording metadata");
   check(browserConsole.length===0,
    "no uncaught page errors during actual Chromium Studio flow");
   console.log("PASS: F2-P REAL CHROMIUM Human Studio "+checks+
