@@ -543,6 +543,68 @@ try{
   !normalNoSecret.includes(owner.jwt),
   "normal Human API did not return service key or session bearer");
 
+ // Consent key itself is user-updatable: rename and back or DELETE/INSERT
+ // must not revive a stale PRIVATE session, while unrelated consent keys
+ // must never HOLD a recording ticket. Disposable database fixtures only.
+ assert.equal((await admin.from("user_recording_consents").update({
+  consent_key:"issue137_nonrecording_fixture"}).eq("user_id",owner.uid)
+  .eq("consent_key","recording_studio_global")).error,null,
+  "local consent key rename");
+ const keyHeld=await admin.from("issue137_http_local_multipart_sessions")
+  .select("state").eq("id",freshNormalId).single();
+ yes(!keyHeld.error&&keyHeld.data.state==="HOLD",
+  "renaming global consent key irrevocably HOLDS old sealed PRIVATE receipt");
+ assert.equal((await admin.from("user_recording_consents").update({
+  consent_key:"recording_studio_global"}).eq("user_id",owner.uid)
+  .eq("consent_key","issue137_nonrecording_fixture")).error,null,
+  "restore local global consent key");
+ yes((await post({action:"finish",sessionId:freshNormalId},
+  owner.session.cookie())).status===409,
+  "consent key roundtrip cannot resurrect prior sealed upload");
+ const oldKeyCleanup=await post({action:"abort",sessionId:freshNormalId},
+  owner.session.cookie());
+ yes(oldKeyCleanup.status===200&&oldKeyCleanup.body.deletedParts===2,
+  "owner removes private audio after consent-key revocation");
+ const keyDeletedTicket=await post(create,owner.session.cookie());
+ yes(keyDeletedTicket.status===201,"new session issued before consent row deletion");
+ assert.equal((await admin.from("user_recording_consents").delete()
+  .eq("user_id",owner.uid)
+  .eq("consent_key","recording_studio_global")).error,null,
+  "local global consent row deleted");
+ const deleteHeld=await admin.from("issue137_http_local_multipart_sessions")
+  .select("state").eq("id",keyDeletedTicket.body.sessionId).single();
+ yes(!deleteHeld.error&&deleteHeld.data.state==="HOLD",
+  "deleting global consent row irrevocably HOLDS old ticket");
+ assert.equal((await admin.from("user_recording_consents").insert({
+  user_id:owner.uid,consent_key:"recording_studio_global",
+  consent_version:"2026-04-16"})).error,null,
+  "reinsert local global consent row");
+ yes((await post({action:"part",sessionId:keyDeletedTicket.body.sessionId,
+  index:0,expectedSha256:sha(bytes)},owner.session.cookie())).status===409,
+  "delete/reinsert cannot reactivate stale upload part");
+ const deletedAbort=await post({action:"abort",
+  sessionId:keyDeletedTicket.body.sessionId},owner.session.cookie());
+ yes(deletedAbort.status===200&&deletedAbort.body.deletedParts===0,
+  "held deleted-consent ticket cleans without physical bytes");
+ const unrelatedTicket=await post(create,owner.session.cookie());
+ yes(unrelatedTicket.status===201,"current global consent permits fresh ticket");
+ assert.equal((await admin.from("user_recording_consents").insert({
+  user_id:owner.uid,consent_key:"issue137_other_consent",
+  consent_version:"2026-04-16"})).error,null,"seed unrelated consent");
+ assert.equal((await admin.from("user_recording_consents").update({
+  consent_version:"2026-04-15"}).eq("user_id",owner.uid)
+  .eq("consent_key","issue137_other_consent")).error,null,
+  "withdraw unrelated consent");
+ const otherKeyState=await admin.from("issue137_http_local_multipart_sessions")
+  .select("state").eq("id",unrelatedTicket.body.sessionId).single();
+ yes(!otherKeyState.error&&otherKeyState.data.state==="OPEN",
+  "unrelated consent withdrawal leaves recording session OPEN");
+ assert.equal((await admin.from("user_recording_consents").delete()
+  .eq("user_id",owner.uid).eq("consent_key","issue137_other_consent")).error,null,
+  "remove unrelated disposable row");
+ yes((await post({action:"abort",sessionId:unrelatedTicket.body.sessionId},
+  owner.session.cookie())).status===200,
+  "owner can cleanup independent-key ticket");
  const huge=await post({...create,totalBytes:1024*1024*1024+1},owner.session.cookie());
  yes(huge.status===400,"greater-than-1GiB rejected before allocation");
  const billion=await post({...create,totalBytes:1024*1024*1024},owner.session.cookie());
