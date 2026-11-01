@@ -988,7 +988,7 @@ try{
   sha(Buffer.from(await beforeCleanup.data.arrayBuffer()))===
    orphanParts[0].expected_sha256,
   "operator verified exact original physical PRIVATE SHA before remove");
- const unrelatedPath="owner/"+owner.uid+"/"+freshNormalId+"/part-0001.bin";
+ const unrelatedPath="owner/"+owner.uid+"/"+sid+"/part-0001.bin";
  const unrelatedBefore=await admin.storage.from(bucket).download(unrelatedPath);
  yes(!unrelatedBefore.error&&
   sha(Buffer.from(await unrelatedBefore.data.arrayBuffer()))===sha(bytes),
