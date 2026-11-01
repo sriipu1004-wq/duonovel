@@ -300,6 +300,40 @@ try{
  const restorePublicLegacy=await admin.from("series")
   .update({publication_status:"public"}).eq("id",seriesId);
  assert.equal(restorePublicLegacy.error,null,"local-only public status restore");
+ // Negative transitions after both actual PRIVATE parts were sealed.
+ // Neither a previously granted session nor stable bytes permit a stale
+ // Human finalize when author permission, R18 warning or episode visibility
+ // is withdrawn. Each write is solely to disposable Docker fixtures.
+ const closeNarrationLegacy=await admin.from("series")
+  .update({recording_permission_mode:"closed"}).eq("id",seriesId);
+ assert.equal(closeNarrationLegacy.error,null,"local-only recording permission stop");
+ const deniedClosedLegacy=await postLegacy("human-upload-finalize",
+  {issue137LocalProbe:"finish",sessionId:legacyId},owner.session.cookie());
+ yes(deniedClosedLegacy.status===403&&!deniedClosedLegacy.body.recordingId,
+  "legacy finalize denies sealed parts after author closes narration permission");
+ const reopenNarrationLegacy=await admin.from("series")
+  .update({recording_permission_mode:"open"}).eq("id",seriesId);
+ assert.equal(reopenNarrationLegacy.error,null,"local-only recording permission restore");
+ const addR18WarningLegacy=await admin.from("series")
+  .update({content_warnings:["sexual_r18"]}).eq("id",seriesId);
+ assert.equal(addR18WarningLegacy.error,null,"local-only sexual_r18 warning");
+ const deniedWarningLegacy=await postLegacy("human-upload-finalize",
+  {issue137LocalProbe:"finish",sessionId:legacyId},owner.session.cookie());
+ yes(deniedWarningLegacy.status===403&&!deniedWarningLegacy.body.recordingId,
+  "legacy finalize rejects R18 warning even with general content_rating");
+ const clearR18WarningLegacy=await admin.from("series")
+  .update({content_warnings:[]}).eq("id",seriesId);
+ assert.equal(clearR18WarningLegacy.error,null,"local-only warning restore");
+ const hideEpisodeLegacy=await admin.from("episodes")
+  .update({is_published:false}).eq("id",episodeId);
+ assert.equal(hideEpisodeLegacy.error,null,"local-only episode unpublish");
+ const deniedEpisodeLegacy=await postLegacy("human-upload-finalize",
+  {issue137LocalProbe:"finish",sessionId:legacyId},owner.session.cookie());
+ yes(deniedEpisodeLegacy.status===403&&!deniedEpisodeLegacy.body.recordingId,
+  "legacy finalize refuses sealed audio after episode publication withdrawn");
+ const republishEpisodeLegacy=await admin.from("episodes")
+  .update({is_published:true}).eq("id",episodeId);
+ assert.equal(republishEpisodeLegacy.error,null,"local-only episode visibility restore");
  const deniedRowsLegacy=await admin.from("recordings").select("id")
   .eq("episode_id",episodeId);
  yes(!deniedRowsLegacy.error&&deniedRowsLegacy.data?.length===0,
