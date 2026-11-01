@@ -143,6 +143,8 @@ try{
  assert.equal((await admin.storage.createBucket(bucket,{public:false,
   fileSizeLimit:16*1024*1024})).error,null,"PRIVATE multipart bucket");
  worker=start(workerScript,[],workerEnv);await readyWorker(worker);
+ nextEnv.B2_LOCAL_BROWSER_SERIES_ID=seriesId;
+ nextEnv.B2_LOCAL_BROWSER_EPISODE_ID=episodeId;
  next=start(nextCli,["dev","--hostname","127.0.0.1",
   "--port",String(portNext)],nextEnv);await readyNext(next);
  const create={action:"open",seriesId,episodeId,totalBytes:total};
@@ -268,7 +270,11 @@ try{
   if(formerNodeEnv===undefined)delete process.env.NODE_ENV;
   else process.env.NODE_ENV=formerNodeEnv;
  }
- const finished=await post({action:"finish",sessionId:sid},owner.session.cookie());
+ // Actual headless Chromium controls the real Studio UI, not jsdom.
+ const {runLocalStudioChromium}=await import("./human-studio-real-browser-local-e2e.mjs");
+ await runLocalStudioChromium({nextBase,owner,other,seriesId,episodeId,
+  bytes,tail,admin,bucket,post,put});
+  const finished=await post({action:"finish",sessionId:sid},owner.session.cookie());
  yes(finished.status===200&&finished.body.reason===
   "PRIVATE_PARTS_SEALED_NOT_PUBLISHED","two sealed parts produce receipt only, not published audio");
  const retained=await physical(sid,0);
