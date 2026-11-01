@@ -140,7 +140,9 @@ set search_path='' as $f$
 begin
  if old.consent_key='recording_studio_global'
   and old.consent_version='2026-04-16'
-  and (tg_op='DELETE' or new.consent_version is distinct from '2026-04-16')
+  and (tg_op='DELETE'
+   or new.consent_key is distinct from 'recording_studio_global'
+   or new.consent_version is distinct from '2026-04-16')
  then
   update public.issue137_http_local_multipart_sessions
   set state='HOLD'
@@ -152,6 +154,6 @@ end $f$;
 revoke all on function public.issue137_http_local_consent_withdrawal_hold()
  from public,anon,authenticated;
 create trigger issue137_http_local_consent_withdrawal_hold
-after update of consent_version or delete on public.user_recording_consents
+after update of consent_version,consent_key or delete on public.user_recording_consents
 for each row execute function public.issue137_http_local_consent_withdrawal_hold();
 notify pgrst,'reload schema';
