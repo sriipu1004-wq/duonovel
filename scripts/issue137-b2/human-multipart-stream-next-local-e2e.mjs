@@ -3,6 +3,7 @@
 // only, NEVER a 1GiB memory allocation, PUBLIC write, Production or paid host.
 import assert from "node:assert/strict";
 import {randomUUID,createHash} from "node:crypto";
+import {request as httpRequest} from "node:http";
 import {execFileSync,spawn} from "node:child_process";
 import {readdirSync} from "node:fs";
 import {fileURLToPath} from "node:url";
@@ -120,6 +121,31 @@ async function postLegacy(which,body,cookie="",extraHeaders={}){
   headers:{"content-type":"application/json",...(cookie?{cookie}:{}),...extraHeaders},
   body:JSON.stringify(body),signal:AbortSignal.timeout(30000),redirect:"error"}));
 }
+// Node fetch normalizes a caller-provided Host to the URL authority. Use the
+// raw Node HTTP client here so the negative test actually transmits the spoof.
+async function postLegacySpoofHost(which,body,cookie,host){
+ assert.ok(["human-upload-session","human-upload-finalize"].includes(which));
+ const raw=JSON.stringify(body);
+ return new Promise((resolve,reject)=>{
+  const req=httpRequest(nextBase+"/api/recordings/"+which,{
+   method:"POST",timeout:30000,
+   headers:{host,"content-type":"application/json",
+    "content-length":Buffer.byteLength(raw),cookie}
+  },res=>{
+   const chunks=[];
+   res.on("data",chunk=>chunks.push(chunk));
+   res.on("error",reject);
+   res.on("end",()=>{
+    const txt=Buffer.concat(chunks).toString("utf8");
+    let parsed={};try{parsed=JSON.parse(txt);}catch{}
+    resolve({status:res.statusCode??0,body:parsed,raw:txt});
+   });
+  });
+  req.on("timeout",()=>req.destroy(Error("SPOOF_HOST_TIMEOUT")));
+  req.on("error",reject);
+  req.end(raw);
+ });
+}
 async function put(ticket,data,cookie="",headers={}){
  return parse(await fetch(nextBase+api,{method:"PUT",
   headers:{"x-part-id":ticket,"content-type":"application/octet-stream",
@@ -189,12 +215,13 @@ try{
   "legacy dev bridge ignores bearer-only auth and creates no upload ticket");
  // Local opt-in must not become reachable through a spoofed Host even with
  // a valid owner's SSR session. The runtime and worker are still localhost-only.
- const forgedHost=await postLegacy("human-upload-session",bridgeRequest,
-  owner.session.cookie(),{host:"localhost:"+portNext});
+ const forgedHost=await postLegacySpoofHost("human-upload-session",
+  bridgeRequest,owner.session.cookie(),"localhost:"+portNext);
  yes(forgedHost.status===404&&
   forgedHost.body.error==="ISSUE137_LOCAL_LEGACY_PROBE_HOLD"&&
   !forgedHost.body.sessionId,
-  "legacy dev bridge rejects spoofed Host despite valid owner SSR cookie");
+  "legacy dev bridge rejects REAL spoofed Host; status="+forgedHost.status+
+  " reason="+String(forgedHost.body.reason??forgedHost.body.error??"NONE").slice(0,80));
  // Extra caller-selected path fields must not be forwarded to the worker.
  const pathInjection=await postLegacy("human-upload-session",
   {...bridgeRequest,objectPath:"public/forged.wav"},owner.session.cookie());
