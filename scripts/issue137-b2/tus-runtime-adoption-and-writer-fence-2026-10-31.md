@@ -439,3 +439,36 @@ retention/privacy policy, operating cost, independent restore/rollback
 and meaningful negative tests. No hosted DB/Storage/Auth/RLS,
 Production, merger or publication changes authorized.
 Draft PR #153 remains **FIX / MERGE HOLD; Production B2 NO-GO**.
+
+## Addendum — 2026-11-01: actual privileged-custody deployment decision (READ-ONLY/SOURCE)
+
+**Evidence type:** GitHub source at PR HEAD `2e646eb2049a6e4cf8abf53f03a24066f636817b`, Vercel project **environment-variable NAME/TARGET metadata only**, and Supabase project Edge Function **source**. No key values, production media, customer auth sessions or hosted DB/Storage mutations were accessed. This is the next architecture decision after the already-verified LOCAL one-shot deletion-intent tests; no repeat transport/receipt fixture is needed.
+
+| Surface | Independently observed boundary | Implication |
+| --- | --- | --- |
+| `src/lib/supabase/admin.ts` | `createAdminClient()` reads `SUPABASE_SERVICE_ROLE_KEY` from the server environment for the selected Supabase URL | `server-only` prevents ordinary client bundling but is **not** a credential restriction on sibling server functions |
+| `human-upload-session/route.ts` | Current user, public series/episode and accepted consent are checked **before** privileged `createSignedUploadUrl({ upsert:false })` | Ordinary login/consent withdrawal does **not** revoke the previously issued signed Storage bearer; default normal route is still active |
+| `human-upload-finalize/route.ts` | Privileged downloads reassemble all parts into `new File(...)` and delegate to `publishHumanRecording`; `finally` attempts privileged temp-part removal | A PRIVATE byte receipt is **not** bounded-memory 1GiB media processing, durable cleanup or an atomically published recording |
+| `humanRecordingPublish.ts` | `createAdminClient` uploads original, playback and timing media; `sourceFile.arrayBuffer()` buffers input | Migrating only Human temporary staging leaves a separate privileged **final** writer and memory/FFmpeg/transcription constraints |
+| `nemoGeneration.ts` / `aivisGeneration.ts` | Both create privileged clients and write AI audio/timing into public or R18-private destinations | AI/TTS path must remain functional and separated; path-string allowlists or user-JWT staging RLS cannot fence unrelated `service_role` holders |
+| Vercel project `prj_LzTKVBlhE2poWZ1HOWu6IAmKXjis` | Metadata lists `SUPABASE_SERVICE_ROLE_KEY` targeted at **preview and production**. No `LIBREAD_F2P_MEDIA_WRITER_MODE` name appeared in the retrieved metadata. Values and destination equality were **not** read. | A same-project route-only TypeScript guard/Next process import graph is **not evidence of independently enforced per-route credential custody**; Preview must not be assumed isolated from Production |
+| Supabase `nyxbnccuvmlzffgtdadi` Edge Functions | One ACTIVE registration, `child73-draft-import-once` version 2; retrieved function source only returns HTTP 410 `{"error":"disabled"}` and contains **no** provider writer | This registered function is **not an observed active media writer**, but checking one function does **not** exclude dashboard, external S3/REST scripts, preissued signed URLs or leaked/reused service credentials |
+
+Provider semantics independently rechecked in official documentation:
+- Supabase Storage RLS gates ordinary authenticated writes; a request **authorized as service_role** bypasses RLS. A local SQL deletion journal is cooperative/audit evidence, not an independent byte-generation fence.
+- Supabase JavaScript `createSignedUploadUrl` yields a capability usable without further authentication for **two hours**; `upsert:false` does not prevent a **first** write after a file has been deleted.
+- Vercel project/environment variables are scoped to the deployment environment and available to server functions; project-level Preview/Production targeting does **not** itself establish function-by-function secret isolation.
+- Documentation: https://supabase.com/docs/guides/storage/security/access-control ; https://supabase.com/docs/reference/javascript/file-buckets-createsigneduploadurl ; https://supabase.com/kb/troubleshooting/why-is-my-service-role-key-client-getting-rls-errors-or-not-returning-data-7_1K9z ; https://vercel.com/docs/environment-variables
+
+### Decision — no extra provider or deployable cleanup yet
+
+**Current adoption decision: HOLD at no new fixed recurring service cost.** The successful LOCAL SQL DELETE_INTENT experiment prevents a second *cooperating* intent, but the same project's privileged writers can still create the original path/bytes after physical removal, defeating any claimed durable delete. A second TypeScript wrapper, Storage RLS policy, old-path SHA equality or sole-worker shutdown cannot meet the stronger provider-wide guarantee. Conversely, separate projects/credentials/storage or a paid broker are **not** justified without quantifying legitimate Human publishing demand, incident exposure, required exact 1GiB size/bounded decoding, credentials, data migration and backup/restore cost.
+
+**Evidence required to change that decision (not authorizations):**
+1. Define the required security outcome explicitly: **(A)** provider-enforced no-new-writes/object-generation isolation and measurable deletion durability versus **(B)** best-effort detection with fail-closed, indefinite RECONCILE_HOLD; do not label B as A.
+2. Enumerate and independently control all privileged Storage writes/deletes: old Human signed bearer issuance and two-hour expiry, Human final writes, Nemo/Aivis public/R18-private writes, privileged cleanup/read, dashboard/CLI/REST/S3 and any non-repo actor. Verify deployment/secret separation by provider behavior, **not** source imports or env variable names.
+3. Confirm actual signed-in owner/reader/recording-consent/R18/rights checks, old PUBLIC/CDN handling, recovery of abandoned parts, physical generation/tombstones and full DB+Storage restore/rollback; distinguish missing original auth session from expired multipart ticket.
+4. Resolve maximum publishable size and process limits (client decoding, full-buffer finalizer, FFmpeg and 25MiB normalized transcription cap) before claiming a 1GiB safe end-to-end service.
+5. Compare current HOLD (zero new fixed infrastructure), least-privileged user-JWT/TUS path with explicit weaker security semantics, and separately deployed trusted custody boundary using **actual** setup/runtime cost, test burden, operational failure modes and rollback. Start no paid resource, key rotation, hosted table, operator, cron or new service without scope-specific approval.
+
+**Preserved gates:** PR #153 remains OPEN/Draft / **FIX / MERGE HOLD**. Production B2 **NO-GO**; F1/F3/F4, actual authenticated R18/Human/AI/Reader, historical media/CDN, #150 AbortError/p95, independent restore, fixed-release-HEAD review, and exact owner approvals are unchanged. This addendum is SOURCE/PROVIDER-METADATA evidence only—not verified production credential containment or a deployable plan.
