@@ -17,6 +17,7 @@ import {
 } from "@/lib/recording/audioUploadValidation";
 import { supabase } from "@/lib/supabaseClient";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
+import { LocalHumanMultipartProbe } from "@/components/recording/LocalHumanMultipartProbe";
 
 type EpisodeItem = {
   id: string;
@@ -1267,6 +1268,14 @@ export function RecordingStudioPage({
           <p className="mt-3 text-xs leading-6 text-neutral-500">
             対応想定: {AUDIO_UPLOAD_ALLOWED_EXTENSIONS.join(" / ")}
           </p>
+          {process.env.NODE_ENV === "development" && (
+            <LocalHumanMultipartProbe
+              key={`${selectedEpisode?.id ?? "none"}:${currentPreviewItem?.id ?? "none"}`}
+              file={currentPreviewItem?.file ?? null}
+              seriesId={seriesId}
+              episodeId={selectedEpisode?.id ?? ""}
+            />
+          )}
 
           <div className="mt-4 w-full min-w-0 rounded-[20px] border border-black/10 bg-neutral-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
