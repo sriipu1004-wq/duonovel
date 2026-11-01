@@ -89,6 +89,54 @@ async function partFor(jwt,id){
  const session=await sessionFor(jwt,data.multipart_id);
  return session?{...session,part:data}:null;
 }
+// Abort authorization deliberately does not require current recording
+// consent: withdrawal must not strand a user's already-staged PRIVATE bytes.
+async function ownedSessionForAbort(jwt,id){
+ if(!uuid.test(id??""))return null;
+ const {data:session,error}=await admin.from(sessionTable).select("*")
+  .eq("id",id).maybeSingle();
+ if(error||!session)return null;
+ const client=createClient(api.origin,anon,{...opts,
+  global:{headers:{Authorization:"Bearer "+jwt}}});
+ const {data:{user},error:userError}=await client.auth.getUser(jwt);
+ if(userError||!user||user.id!==session.user_id)return null;
+ let claims;try{claims=JSON.parse(Buffer.from(jwt.split(".")[1],"base64url").toString());}
+ catch{return null;}
+ if(!uuid.test(claims?.session_id??"")||
+   claims.session_id!==session.auth_session_id||claims.sub!==user.id)return null;
+ const active=await admin.rpc("issue137_http_local_session_live",{
+  p_user_id:user.id,p_session_id:claims.session_id});
+ if(active.error||active.data!==true)return null;
+ return {session,user,authSessionId:claims.session_id};
+}
+async function abortAndClean(jwt,id){
+ const owner=await ownedSessionForAbort(jwt,id);
+ if(!owner)return {code:403,reason:"OWNER_OR_SESSION_HOLD"};
+ const hold=await admin.rpc("issue137_http_local_multipart_abort",{
+  p_multipart:id,p_user:owner.user.id,
+  p_auth_session:owner.authSessionId});
+ if(hold.error||hold.data!==true)return {code:409,reason:"ABORT_FENCE_HOLD"};
+ const {data:rows,error}=await admin.from(partTable).select(
+  "id,object_path,part_index").eq("multipart_id",id).order("part_index");
+ if(error||!rows||rows.length>128)return {code:503,reason:"ABORT_LEDGER_HOLD"};
+ const prefix="owner/"+owner.user.id+"/"+id+"/";
+ if(rows.some(p=>!p.object_path.startsWith(prefix)||
+   p.object_path!==prefix+"part-"+String(p.part_index+1).padStart(4,"0")+".bin"))
+  return {code:409,reason:"ABORT_OBJECT_SCOPE_HOLD"};
+ const paths=rows.map(p=>p.object_path);
+ if(paths.length){
+  const removed=await admin.storage.from(bucket).remove(paths);
+  if(removed.error)return {code:503,reason:"ABORT_STORAGE_DELETE_HOLD"};
+ }
+ // Storage remove may return 2xx while RLS denies deletion. Real physical
+ // readback, not SDK response alone, is the cleanup success condition.
+ for(const path of paths){
+  const probe=await admin.storage.from(bucket).download(path);
+  if(!probe.error)return {code:503,reason:"ABORT_PHYSICAL_BYTES_REMAIN_HOLD"};
+ }
+ return {code:200,reason:"PRIVATE_ABORTED_AND_PHYSICAL_ABSENT",
+  deletedParts:paths.length};
+}
 async function seal(part){
  const fromStorage=await admin.storage.from(bucket).download(part.object_path);
  if(fromStorage.error)return {status:"CLAIMED_NO_BYTES",code:409};
@@ -111,6 +159,13 @@ async function seal(part){
 async function command(req,res,jwt){
  const x=await readJson(req);
  if(!x)return reply(res,400,"INVALID_JSON_HOLD");
+ if(req.url==="/multipart/abort"){
+  if(!shape(x,["sessionId"])||!uuid.test(x.sessionId??""))
+   return reply(res,400,"ABORT_SHAPE_HOLD");
+  const outcome=await abortAndClean(jwt,x.sessionId);
+  return reply(res,outcome.code,outcome.reason,
+   outcome.deletedParts===undefined?{}:{deletedParts:outcome.deletedParts});
+ }
  if(req.url==="/multipart/open"){
   if(!shape(x,["seriesId","episodeId","totalBytes"])||
    !Number.isSafeInteger(x.totalBytes)||
