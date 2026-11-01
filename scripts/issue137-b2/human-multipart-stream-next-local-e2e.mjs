@@ -177,7 +177,8 @@ try{
   fileName:"synthetic-local.wav",mimeType:"audio/wav",totalSizeBytes:total};
  const newAnon=await postLegacy("human-upload-session",bridgeRequest);
  yes(newAnon.status===401,
-  "legacy session dev bridge requires real authenticated SSR cookie");
+  "legacy session dev bridge requires real authenticated SSR cookie; status="+
+  newAnon.status+" reason="+String(newAnon.body?.reason??newAnon.body?.error??"NONE").slice(0,85));
  const wrongLocal=await postLegacy("human-upload-session",
   {...bridgeRequest,issue137LocalProbe:"not-enabled"},owner.session.cookie());
  yes(wrongLocal.status===400,"unknown local bridge mode fail closed");
