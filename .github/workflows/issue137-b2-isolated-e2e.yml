@@ -46,6 +46,7 @@ jobs:
           node --check scripts/issue137-b2/human-no-admin-next-boundary-local-e2e.mjs
           node --check scripts/issue137-b2/human-multipart-worker-process-local.mjs
           node --check scripts/issue137-b2/human-multipart-stream-next-local-e2e.mjs
+          node --check scripts/issue137-b2/human-studio-real-browser-local-e2e.mjs
           test -f scripts/issue137-b2/human-multipart-worker-local.sql
           node --check scripts/issue137-b2/privileged-http-boundary-process-local.mjs
           node --check scripts/issue137-b2/privileged-http-boundary-local-e2e.mjs
@@ -84,6 +85,13 @@ jobs:
           node --import tsx scripts/issue137-b2/app-protocol-compatibility.test.ts
           node --import tsx scripts/issue137-b2/human-upload-session-consent.test.ts
           node --import tsx --input-type=module -e "const m=await import('./src/lib/recording/privateMediaLocalPipeline.ts'); const f=m.createDisposablePrivateMediaPipeline??m.default?.createDisposablePrivateMediaPipeline; if(typeof f!=='function') throw Error('F2P local pipeline module unavailable')"
+      - name: Install disposable headless Chromium for localhost Studio E2E
+        env:
+          DO_NOT_CONTACT_PRODUCTION: 'true'
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx --no-install playwright install --with-deps --only-shell chromium
       - name: B2 real ephemeral GoTrue PostgREST Storage regression
         env:
           DO_NOT_CONTACT_PRODUCTION: 'true'
