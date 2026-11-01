@@ -45,6 +45,8 @@ export async function runLocalStudioChromium(args){
   check(firstPage?.status()===200,"ACTUAL Human Studio mounted in real browser localhost");
   const card=page.getByRole("region",{name:"ローカル分割アップロード検証"});
   await card.waitFor({state:"visible"});
+  await page.locator('section[aria-label="ローカル分割アップロード検証"][data-hydrated="true"]')
+   .waitFor({state:"visible",timeout:30000});
   check(await card.isVisible(),"actual Studio dev-only PRIVATE stage card rendered");
   const action=card.getByRole("button",{name:"開発用PRIVATE転送を試す"});
   check(await action.isDisabled(),"cannot stage without selected file");
@@ -78,9 +80,13 @@ export async function runLocalStudioChromium(args){
   await page.unrouteAll({behavior:"wait"});
   await page.reload({waitUntil:"domcontentloaded",timeout:70000});
   const againCard=page.getByRole("region",{name:"ローカル分割アップロード検証"});
+  await page.locator('section[aria-label="ローカル分割アップロード検証"][data-hydrated="true"]')
+   .waitFor({state:"visible",timeout:30000});
   await page.locator('input[type="file"]').first().setInputFiles(file);
   const retry=againCard.getByRole("button",{name:"開発用PRIVATE転送を試す"});
   for(let i=0;i<120&&await retry.isDisabled();i++)await page.waitForTimeout(150);
+  check(await retry.isEnabled(),
+   "hydrated Studio accepted same file selection after reload");
   await retry.click();
   await againCard.getByText("検証用PRIVATE分割保存完了。朗読は未投稿・未公開。")
    .waitFor({state:"visible",timeout:90000});
