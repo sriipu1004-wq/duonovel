@@ -70,7 +70,7 @@ export async function runLocalStudioChromium(args){
     headers:{"content-type":"application/json"},
     body:JSON.stringify({seriesId,episodeId,episodeNumber:1,isPublic:true,
      fileName:"local-human-chromium.wav",mimeType:"audio/wav",
-     totalSizeBytes,uploadSessionId})
+     totalSizeBytes:totalBytes,uploadSessionId})
    });
    return {status:response.status,body:await response.json()};
   },{seriesId,episodeId,totalBytes:bytes.length+tail.length,
