@@ -25,6 +25,10 @@ const paths={
  worker:"scripts/issue137-b2/privileged-http-boundary-process-local.mjs",
  normalBridge:"src/lib/recording/issue137LocalHumanLegacyBridge.ts",
  studio:"src/components/recording/RecordingStudioPage.tsx",
+ audioPolicy:"src/lib/recording/audioUploadPolicy.ts",
+ clientAudio:"src/lib/recording/audioUploadValidation.ts",
+ playbackNormalization:"src/lib/recording/audioPlaybackNormalization.ts",
+ humanTranscription:"src/lib/recording/humanRecordingTranscription.ts",
 };
 const src=Object.fromEntries(Object.entries(paths).map(([k,p])=>[k,read(p)]));
 let checked=0;
@@ -92,6 +96,34 @@ ordered(src.studio,[
  'if (uploadSession.uploadMode === "multipart")',
  'fetch("/api/recordings/human-publish"',
 ],"unknown PRIVATE-only upload mode is rejected before one-shot Human publish");
+
+// Current 1GiB cap is an upload-size policy, NOT validated end-to-end
+// processing/publishing capacity. Keep every limiting stage explicit while
+// designing a bounded-memory Human cutover; source-only negative gates.
+yes(src.audioPolicy.includes("AUDIO_UPLOAD_MAX_FILE_BYTES = 1024 * 1024 * 1024"),
+ "1GiB source-size policy still exceeds bounded production evidence");
+yes(src.clientAudio.includes("const arrayBuffer = await file.arrayBuffer();")&&
+ src.clientAudio.includes("context.decodeAudioData(arrayBuffer.slice(0))")&&
+ src.clientAudio.includes("new Float32Array(buffer.length)"),
+ "client WebAudio copies/decodes full input, not a bounded 1GiB stream");
+ordered(src.studio,[
+ "if (file.size >= LARGE_HUMAN_UPLOAD_THRESHOLD_BYTES)",
+ "serverResult = {",
+ 'decision: "passed"',
+],"large Studio upload currently defers real server validation until after stage");
+yes(src.playbackNormalization.includes("await writeFile(inputPath, sourceBytes)")&&
+ src.playbackNormalization.includes("new Uint8Array(await readFile(outputPath))"),
+ "FFmpeg normalization has whole-buffer file input/output at current HEAD");
+yes(src.humanTranscription.includes(
+ "const MAX_TRANSCRIPTION_FILE_BYTES = 25 * 1024 * 1024")&&
+ src.humanTranscription.includes('throw new Error("transcription_input_too_large")'),
+ "transcription normalized-input 25MiB ceiling blocks generic 1GiB release");
+ordered(src.publish,[
+ "new Uint8Array(await sourceFile.arrayBuffer())",
+ "normalizeAudioForPlayback({",
+ "transcribeHumanPlaybackAudio({",
+ "writeRecording(adminSupabase",
+],"normal Human publish still requires full-buffer normalization/transcription before DB commit");
 
 const signer=src.signer,finalize=src.finalize,publish=src.publish;
 ordered(signer,[
