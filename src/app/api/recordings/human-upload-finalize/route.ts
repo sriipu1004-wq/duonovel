@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import {
+  hasIssue137ProbeMarker,
+  handleIssue137LocalLegacyProbe,
+} from "@/lib/recording/issue137LocalHumanLegacyBridge";
+import {
   getSeriesPublicationStatus,
   isEpisodePubliclyVisible,
   type EpisodeRow,
@@ -89,6 +93,8 @@ export async function POST(request: Request) {
   let payload: RawRow;
   try {
     payload = (await request.json()) as RawRow;
+    if(hasIssue137ProbeMarker(payload))
+      return handleIssue137LocalLegacyProbe(request,payload,"finish");
   } catch {
     return NextResponse.json(
       { ok: false, error: "JSONを読めなかった。" },
