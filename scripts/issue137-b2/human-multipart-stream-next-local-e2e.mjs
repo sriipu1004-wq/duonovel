@@ -429,6 +429,61 @@ try{
   {...normalFinalize,isPublic:false},owner.session.cookie());
  yes(privateNormalIntent.status===400&&!privateNormalIntent.body.recordingId,
   "normal staging-only demonstration does not imply PRIVATE publication support");
+ // NORMAL Studio JSON finalize must not inherit a stale pre-authorized
+ // ticket after consent, author permission, R18 warning or episode visibility
+ // is withdrawn. The older marker-only bridge had equivalent negatives, but
+ // these prove the newly wired no-marker JSON path checks fresh authority too.
+ const revokeNormalConsent=await admin.from("user_recording_consents")
+  .update({consent_version:"2026-04-15"}).eq("user_id",owner.uid)
+  .eq("consent_key","recording_studio_global");
+ assert.equal(revokeNormalConsent.error,null,"local-only normal consent revoke");
+ const deniedNormalConsent=await postLegacy("human-upload-finalize",
+  normalFinalize,owner.session.cookie());
+ yes(deniedNormalConsent.status===403&&!deniedNormalConsent.body.recordingId,
+  "normal JSON finalize refuses PRIVATE parts after recording consent withdrawal");
+ assert.equal((await admin.from("user_recording_consents")
+  .update({consent_version:"2026-04-16"}).eq("user_id",owner.uid)
+  .eq("consent_key","recording_studio_global")).error,null,
+  "local-only normal consent restore");
+ assert.equal((await admin.from("series").update({
+  recording_permission_mode:"closed"}).eq("id",seriesId)).error,null,
+  "local-only normal author permission closed");
+ const deniedNormalClosed=await postLegacy("human-upload-finalize",
+  normalFinalize,owner.session.cookie());
+ yes(deniedNormalClosed.status===403&&!deniedNormalClosed.body.recordingId,
+  "normal JSON finalize rejects sealed PRIVATE audio after author closes permission");
+ assert.equal((await admin.from("series").update({
+  recording_permission_mode:"open"}).eq("id",seriesId)).error,null,
+  "local-only normal author permission restored");
+ assert.equal((await admin.from("series").update({
+  content_warnings:["sexual_r18"]}).eq("id",seriesId)).error,null,
+  "local-only normal R18 warning raised");
+ const deniedNormalWarning=await postLegacy("human-upload-finalize",
+  normalFinalize,owner.session.cookie());
+ yes(deniedNormalWarning.status===403&&!deniedNormalWarning.body.recordingId,
+  "normal JSON finalize refuses new sexual_r18 warning despite general rating");
+ assert.equal((await admin.from("series").update({
+  content_warnings:[]}).eq("id",seriesId)).error,null,
+  "local-only normal R18 warning restored");
+ assert.equal((await admin.from("episodes").update({
+  is_published:false}).eq("id",episodeId)).error,null,
+  "local-only normal episode visibility revoked");
+ const deniedNormalEpisode=await postLegacy("human-upload-finalize",
+  normalFinalize,owner.session.cookie());
+ yes(deniedNormalEpisode.status===403&&!deniedNormalEpisode.body.recordingId,
+  "normal JSON finalize refuses session after episode unpublished");
+ assert.equal((await admin.from("episodes").update({
+  is_published:true}).eq("id",episodeId)).error,null,
+  "local-only normal episode restored");
+ const intactNormal=await admin.storage.from(bucket).download("owner/"+
+  owner.uid+"/"+normalId+"/part-0001.bin");
+ yes(!intactNormal.error&&
+  sha(Buffer.from(await intactNormal.data.arrayBuffer()))===sha(bytes),
+  "normal JSON stale-authority denials preserved the original PRIVATE SHA");
+ const noRevokedNormalRows=await admin.from("recordings").select("id")
+  .eq("episode_id",episodeId);
+ yes(!noRevokedNormalRows.error&&noRevokedNormalRows.data?.length===0,
+  "normal JSON revoked attempts created zero recordings");
  const normalSealed=await postLegacy("human-upload-finalize",
   normalFinalize,owner.session.cookie());
  yes(normalSealed.status===409&&normalSealed.body.ok===false&&
