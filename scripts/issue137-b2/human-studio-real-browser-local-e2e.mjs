@@ -201,6 +201,14 @@ export async function runLocalStudioChromium(args){
    "actual Studio safety test uses a valid >4MiB local synthetic WAV");
   const speechPath=join(ephemeralFileDir,"local-human-publish-guard.wav");
   await writeFile(speechPath,speechWav,{mode:0o600});
+  // This measures the ACTUAL Studio client upload precheck, including
+  // file.arrayBuffer(), WebAudio decodeAudioData() and mono/RMS analysis.
+  // JS heap snapshots do NOT include all native AudioBuffer allocations.
+  const preflightBefore=await page.evaluate(()=>({
+   at:performance.now(),
+   usedJsHeapBytes:typeof performance.memory?.usedJSHeapSize==="number"?
+    performance.memory.usedJSHeapSize:null,
+  }));
   await page.locator('input[type="file"]').first().setInputFiles(speechPath);
   const realSubmit=page.getByRole("button",{name:"保存して作品へ接続"});
   let enabled=false;
@@ -209,6 +217,26 @@ export async function runLocalStudioChromium(args){
    await page.waitForTimeout(250);
   }
   check(enabled,"actual Studio client audio preflight enabled normal publish button");
+  const preflightAfter=await page.evaluate(()=>({
+   at:performance.now(),
+   usedJsHeapBytes:typeof performance.memory?.usedJSHeapSize==="number"?
+    performance.memory.usedJSHeapSize:null,
+  }));
+  const preflightWallMs=preflightAfter.at-preflightBefore.at;
+  check(preflightWallMs>=0&&Number.isFinite(preflightWallMs),
+   "real Chromium Studio WebAudio preflight wall timing is finite");
+  console.log("LOCAL_REAL_CHROMIUM_WEBAUDIO_PREFLIGHT "+
+   JSON.stringify({
+    actualStudioCode:true,validSyntheticMonoPcmWav:true,
+    sourceBytes:speechWav.length,sourceDurationSeconds:2110000/48000,
+    wallMs:Math.round(preflightWallMs),
+    usedJsHeapBeforeMiB:preflightBefore.usedJsHeapBytes===null?null:
+     Math.round(preflightBefore.usedJsHeapBytes/(1024*1024)),
+    usedJsHeapAfterMiB:preflightAfter.usedJsHeapBytes===null?null:
+     Math.round(preflightAfter.usedJsHeapBytes/(1024*1024)),
+    notPeakRss:true,nativeAudioBufferMemoryUnmeasured:true,
+    benchmarkSafeCapSelected:false,
+   }));
   const paths=[],localActions=[];
   const track=request=>{
    const u=new URL(request.url());

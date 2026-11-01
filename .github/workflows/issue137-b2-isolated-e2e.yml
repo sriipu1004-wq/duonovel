@@ -87,6 +87,8 @@ jobs:
           node --import tsx scripts/issue137-b2/app-protocol-compatibility.test.ts
           node --import tsx scripts/issue137-b2/human-processing-capacity-draft.test.mjs
           node --import tsx scripts/issue137-b2/human-transcription-contract-mock.test.mjs
+          test -x "$(command -v ffmpeg)" || { echo "HOLD: runner ffmpeg unavailable"; exit 1; }
+          FFMPEG_PATH="$(command -v ffmpeg)" node --import tsx scripts/issue137-b2/human-real-playback-capacity-local.mjs
           node --import tsx scripts/issue137-b2/human-upload-session-consent.test.ts
           node --import tsx --input-type=module -e "const m=await import('./src/lib/recording/privateMediaLocalPipeline.ts'); const f=m.createDisposablePrivateMediaPipeline??m.default?.createDisposablePrivateMediaPipeline; if(typeof f!=='function') throw Error('F2P local pipeline module unavailable')"
       - name: Install disposable headless Chromium for localhost Studio E2E
