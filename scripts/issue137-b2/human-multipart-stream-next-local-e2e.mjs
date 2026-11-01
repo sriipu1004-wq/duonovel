@@ -683,8 +683,34 @@ try{
  const p0status=await post({action:"status",partId:p0.body.partId},owner.session.cookie());
  yes(p0status.status===200&&p0status.body.state==="SEALED",
   "durable SHA readback resumes after worker HTTP response");
- const conflict=await post({action:"part",sessionId:sid,index:0,
-  expectedSha256:sha(wrong)},owner.session.cookie());
+ // This particular request is a non-mutating conflict negative:
+ // part 0 is already SEALED under the original digest. Next dev may reset
+ // a reused TCP connection while the worker and origin both stay alive.
+ // On EXACT ECONNRESET only, reconcile original SQL + PRIVATE bytes
+ // before ONE replay of this idempotent 409 assertion; no generic retries
+ // of PUT, finish, abort, or privilege-changing requests.
+ const conflictingPartRequest={action:"part",sessionId:sid,index:0,
+  expectedSha256:sha(wrong)};
+ let conflict;
+ try{
+  conflict=await post(conflictingPartRequest,owner.session.cookie());
+ }catch(error){
+  if(error?.cause?.code!=="ECONNRESET")throw error;
+  const receipt=await admin.from("issue137_http_local_multipart_parts")
+   .select("id,part_index,state,expected_sha256,observed_sha256")
+   .eq("id",p0.body.partId).single();
+  yes(!receipt.error&&receipt.data?.id===p0.body.partId&&
+   receipt.data.part_index===0&&receipt.data.state==="SEALED"&&
+   receipt.data.expected_sha256===sha(bytes)&&
+   receipt.data.observed_sha256===sha(bytes),
+   "ECONNRESET recovery requires unchanged original SEALED SQL receipt");
+  const originalAfterReset=await physical(sid,0);
+  yes(originalAfterReset!==null&&sha(originalAfterReset)===sha(bytes),
+   "ECONNRESET recovery requires unchanged PRIVATE physical bytes");
+  console.log("HOLD: LOCAL Next part-conflict ECONNRESET; "+
+   "original SQL/Storage preserved; ONE guarded 409 replay, not a global retry");
+  conflict=await post(conflictingPartRequest,owner.session.cookie());
+ }
  yes(conflict.status===409,"same index cannot change expected digest");
  const p1=await post({action:"part",sessionId:sid,index:1,
   expectedSha256:sha(tail)},owner.session.cookie());
