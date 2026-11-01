@@ -81,8 +81,19 @@ function params(x:Record<string,unknown>):{
    index:Number(x.index),expectedSha256:String(x.expectedSha256)}};
  if(action==="status"&&shape(["action","partId"])&&uuid.test(String(x.partId??"")))
   return {path:"status",data:{partId:String(x.partId)}};
- if(action==="finish"&&shape(["action","sessionId"])&&uuid.test(String(x.sessionId??"")))
-  return {path:"finish",data:{sessionId:String(x.sessionId)}};
+ if(action==="finish"&&uuid.test(String(x.sessionId??""))){
+  if(shape(["action","sessionId"]))
+   return {path:"finish",data:{sessionId:String(x.sessionId)}};
+  // Only the ordinary Human JSON fixture supplies a bound original context.
+  // Never accept caller-selected bucket, object path, JWT or output mode.
+  if(shape(["action","sessionId","seriesId","episodeId","totalBytes"])&&
+   uuid.test(String(x.seriesId??""))&&uuid.test(String(x.episodeId??""))&&
+   Number.isSafeInteger(x.totalBytes)&&Number(x.totalBytes)>4*1024*1024&&
+   Number(x.totalBytes)<=maxTotal)
+   return {path:"finish",data:{sessionId:String(x.sessionId),
+    seriesId:String(x.seriesId),episodeId:String(x.episodeId),
+    totalBytes:Number(x.totalBytes)}};
+ }
  if(action==="abort"&&shape(["action","sessionId"])&&uuid.test(String(x.sessionId??"")))
   return {path:"abort",data:{sessionId:String(x.sessionId)}};
  return null;
