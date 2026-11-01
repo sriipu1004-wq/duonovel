@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
-import {decideHumanProcessingTrialCapacity as decide} from
- "../../src/lib/recording/humanProcessingCapacityDraft.ts";
+// In this CJS-package repository, tsx exposes a .ts module imported
+// from .mjs as a namespace/default depending on the Node loader.
+const imported=await import("../../src/lib/recording/humanProcessingCapacityDraft.ts");
+const decide=imported.decideHumanProcessingTrialCapacity ??
+ imported.default?.decideHumanProcessingTrialCapacity;
+assert.equal(typeof decide,"function","tsx imported real trial policy");
 const cap=8*1024*1024+256;
 const check=(size,raw,local,status)=>assert.equal(decide(size,raw,local).status,status);
 check(cap,String(cap),true,"allowed");

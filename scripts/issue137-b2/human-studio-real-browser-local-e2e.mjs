@@ -356,6 +356,34 @@ export async function runLocalStudioChromium(args){
    .select("id").eq("episode_id",episodeId);
   check(!noSubmitRecording.error&&noSubmitRecording.data?.length===0,
    "real Studio positive and two negative trials create zero Human recording metadata");
+
+  // A file exactly 1B above the LOCAL experimental threshold is rejected
+  // BEFORE the browser's eager arrayBuffer()+decodeAudioData preflight.
+  // Do not issue any signer/finalize/PRIVATE request for this file.
+  const oversizedPath=join(ephemeralFileDir,"local-human-oversized.wav");
+  const oversizedBytes=Buffer.alloc(bytes.length+tail.length+1);
+  speechWav.copy(oversizedBytes);
+  oversizedBytes.writeUInt32LE(oversizedBytes.length-8,4);
+  oversizedBytes.writeUInt32LE(oversizedBytes.length-44,40);
+  await writeFile(oversizedPath,oversizedBytes,{mode:0o600});
+  let unexpectedNormalPosts=0;
+  const preventNetwork=request=>{
+   if(/\\/api\\/recordings\\/human-(upload-session|upload-finalize|publish)/u
+      .test(new URL(request.url()).pathname)&&request.method()==="POST")
+    unexpectedNormalPosts++;
+  };
+  page.on("request",preventNetwork);
+  await page.locator('input[type="file"]').first().setInputFiles(oversizedPath);
+  await page.getByText("LOCAL_DRAFT_PROCESSING_CAP_HOLD").first()
+   .waitFor({state:"visible",timeout:30000});
+  check(await realSubmit.isDisabled()&&unexpectedNormalPosts===0,
+   "normal Studio rejects +1B trial before decoding or any Human POST");
+  page.off("request",preventNetwork);
+  const afterOversizedRows=await admin.from("recordings")
+   .select("id").eq("episode_id",episodeId);
+  check(!afterOversizedRows.error&&afterOversizedRows.data?.length===0,
+   "over-budget Human trial creates no recording row or publication");
+
   check(browserConsole.length===0,
    "no uncaught page errors during actual Chromium Studio flow");
   console.log("PASS: F2-P REAL CHROMIUM Human Studio "+checks+
