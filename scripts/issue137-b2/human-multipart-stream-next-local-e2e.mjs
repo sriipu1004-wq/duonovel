@@ -277,10 +277,17 @@ try{
   {issue137LocalProbe:"finish",sessionId:legacyId},owner.session.cookie());
  yes(deniedConsentLegacy.status===403&&!deniedConsentLegacy.body.recordingId,
   "legacy finalize refuses sealed parts after consent withdrawal");
+ const legacyHeldRow=await admin.from("issue137_http_local_multipart_sessions")
+  .select("state").eq("id",legacyId).single();
+ yes(!legacyHeldRow.error&&legacyHeldRow.data.state==="HOLD",
+  "SQL withdrawal quarantines existing legacy multipart session");
  const consentRestoreLegacy=await admin.from("user_recording_consents")
   .update({consent_version:"2026-04-16"}).eq("user_id",owner.uid)
   .eq("consent_key","recording_studio_global");
  assert.equal(consentRestoreLegacy.error,null,"local-only consent restore");
+ yes((await postLegacy("human-upload-finalize",
+  {issue137LocalProbe:"finish",sessionId:legacyId},owner.session.cookie())).status===409,
+  "same-version regrant cannot resurrect withdrawn legacy session");
  const markR18Legacy=await admin.from("series").update({content_rating:"r18"})
   .eq("id",seriesId);
  assert.equal(markR18Legacy.error,null,"local-only R18 transition");
@@ -346,10 +353,8 @@ try{
   "denied legacy finalize preserved physically verified PRIVATE bytes");
  const finishedLegacy=await postLegacy("human-upload-finalize",
   {issue137LocalProbe:"finish",sessionId:legacyId},owner.session.cookie());
- yes(finishedLegacy.status===200&&
-  finishedLegacy.body.reason==="PRIVATE_PARTS_SEALED_NOT_PUBLISHED"&&
-  !("recordingId" in finishedLegacy.body),
-  "actual Human finalize route sealed PRIVATE receipt, no publication response");
+ yes(finishedLegacy.status===409&&!finishedLegacy.body.recordingId,
+  "old legacy receipt remains HOLD after consent and rights regranted");
  const legacyRecording=await admin.from("recordings").select("id")
   .eq("episode_id",episodeId);
  yes(!legacyRecording.error&&legacyRecording.data?.length===0,
@@ -359,6 +364,10 @@ try{
  yes(!legacyBytes.error&&
   sha(Buffer.from(await legacyBytes.data.arrayBuffer()))===sha(bytes),
   "legacy session/finalize uses same actual PRIVATE bytes and verified SHA");
+ const staleLegacyAbort=await post({action:"abort",sessionId:legacyId},
+  owner.session.cookie());
+ yes(staleLegacyAbort.status===200&&staleLegacyAbort.body.deletedParts===2,
+  "old legacy PRIVATE bytes are owner-cleanable after renewed consent");
  const legacyLeak=JSON.stringify([openedLegacy,finishedLegacy]);
  yes(!legacyLeak.includes(service)&&!legacyLeak.includes(secret)&&
   !legacyLeak.includes(owner.jwt),
