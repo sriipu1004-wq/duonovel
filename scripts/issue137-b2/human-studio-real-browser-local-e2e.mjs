@@ -55,7 +55,7 @@ export async function runLocalStudioChromium(args){
     method:"POST",credentials:"same-origin",
     headers:{"content-type":"application/json"},
     body:JSON.stringify({seriesId,episodeId,fileName:"local-human-chromium.wav",
-     mimeType:"audio/wav",totalSizeBytes})
+     mimeType:"audio/wav",totalSizeBytes:totalBytes})
    });
    return {status:response.status,body:await response.json()};
   },{seriesId,episodeId,totalBytes:bytes.length+tail.length});
