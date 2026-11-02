@@ -197,3 +197,43 @@ revoke all on function public.issue137_g1_local_http_preflight(uuid,uuid,uuid)
 grant execute on function public.issue137_g1_local_http_preflight(uuid,uuid,uuid)
  to service_role;
 select pg_catalog.pg_notify('pgrst','reload schema');
+
+
+-- G2: LOCAL-ONLY reader credential isolation for existing G1 HTTP GET.
+-- The app's physical Storage download MUST carry the original user JWT and
+-- only the PUBLIC local anon API key. This policy cannot grant INSERT/UPDATE
+-- or DELETE to the same actor and does not affect any hosted bucket.
+-- SECURITY DEFINER is confined to a boolean nonexposed-schema helper with
+-- explicit live actor+session+sealed-pointer checks; it returns no object path.
+create function libread_internal.issue137_g2_local_owner_can_read(
+ p_bucket text,p_path text
+) returns boolean language sql volatile security definer set search_path=''
+as $$
+ select p_bucket='f2p-tus-app-authority-local'
+  and (select auth.uid()) is not null
+  and (select auth.jwt()->>'role')='authenticated'
+  and exists (
+   select 1 from libread_internal.issue137_tus_private_pointers p
+   where p.stage_bucket=p_bucket and p.stage_path=p_path
+    and p.owner_id=(select auth.uid())
+    and p.issued_session_id=
+      nullif((select auth.jwt())->>'session_id','')::uuid
+    and p.pointer_state='PRIVATE_POINTER_ONLY'
+    and libread_internal.issue137_tus_private_read(
+      p.lease_id,p.owner_id,p.issued_session_id)=p_path
+  )
+$$;
+revoke all on function libread_internal.issue137_g2_local_owner_can_read(text,text)
+ from public,anon,authenticated,service_role;
+grant execute on function libread_internal.issue137_g2_local_owner_can_read(text,text)
+ to authenticated;
+create policy issue137_g2_local_private_owner_read
+on storage.objects as permissive for select to authenticated
+using (libread_internal.issue137_g2_local_owner_can_read(bucket_id,name));
+-- Even an unrelated permissive SELECT cannot widen this bucket's read scope.
+create policy issue137_g2_local_private_owner_read_fence
+on storage.objects as restrictive for select to authenticated
+using (bucket_id<>'f2p-tus-app-authority-local'
+ or libread_internal.issue137_g2_local_owner_can_read(bucket_id,name));
+-- READ-ONLY isolation is deliberately NOT a claim of full provider custody:
+-- project-wide service_role and generated S3 keys still bypass this RLS.
