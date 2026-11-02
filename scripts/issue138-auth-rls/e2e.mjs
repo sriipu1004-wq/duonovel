@@ -117,10 +117,21 @@ yes([400,401,403,404].includes(nestedQuota.status),
 
 // The suspected bypass: owner A can mark 0/2 chapters READY via direct UPDATE.
 // Import quota trigger still counts it; this is NOT a free-action bypass claim.
+// Service JWT exists ONLY inside disposable test harness: independently
+// establish whether the direct READY transition charged the quota, not
+// infer a free-action bypass from incomplete-import acceptance.
+const countQuota=async()=>api(path("libread_daily_ai_action_logs",
+ "user_id=eq."+a.id+"&action_type=eq.library_import&select=id"),"GET",service);
+const beforeReadyCharge=await countQuota();
+yes(beforeReadyCharge.status===200&&Array.isArray(beforeReadyCharge.body)&&
+ beforeReadyCharge.body.length===0,"pre-ready quota has zero test events");
 const directReady=await api(path(works,"id=eq."+aWork+"&select=id,import_status"),
  "PATCH",a.jwt,{import_status:"ready"},patchHeader);
 yes(directReady.status===200&&directReady.body?.[0]?.import_status==="ready",
  "RISK PROVED IN LOCAL FIXTURE: direct self UPDATE completes zero-chapter work");
+const afterReadyCharge=await countQuota();
+yes(afterReadyCharge.status===200&&afterReadyCharge.body.length===1,
+ "direct READY charged exactly one daily library-import action");
 const count=await api(path(works,query(aWork)),"GET",a.jwt);
 yes(count.status===200&&count.body.length===1&&
  count.body[0].import_status==="ready"&&count.body[0].chapter_count===2,
@@ -179,6 +190,9 @@ const complete=await api(path("rpc/complete_private_library_import"),"POST",a.jw
  {p_work_id:start.body});
 yes(complete.status===200&&complete.body===start.body,
  "legitimate RPC complete persists fully validated work");
+const afterValidCharge=await countQuota();
+yes(afterValidCharge.status===200&&afterValidCharge.body.length===2,
+ "normal complete RPC charged second action; direct-ready was NOT free");
 const bDelete=await api(path(works,"id=eq."+aWork+"&select=id"),"DELETE",b.jwt,
  undefined,{"Prefer":"return=representation"});
 deniedOrEmpty(bDelete,"foreign DELETE");
