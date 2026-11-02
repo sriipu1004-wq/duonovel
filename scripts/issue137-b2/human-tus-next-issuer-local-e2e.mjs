@@ -388,6 +388,133 @@ try{
  const newLease=await issue(payload(series,episode),reader.cookie);
  yes(leaseState(newLease)==="active","new lease permitted after rights revalidation");
  yes(newLease.objectPath!==fresh.objectPath,"fresh lease path never reuses old path");
+
+ // CONNECTED LOCAL PRIVATE lifecycle using the SAME actual HTTP-issued TUS
+ // lease throughout. Next's finalize has no service_role; a separately
+ // trusted disposable test worker verifies physical bytes/object metadata
+ // BEFORE a locked one-use CAS, then the existing Human GET rechecks the
+ // sealed private pointer. This never creates a PUBLIC recording or URL.
+ const newStart=await start(newLease,reader.login.access_token);
+ yes(newStart.status===201&&!!newStart.url,
+  "connected G2 to G1 owner JWT begins exact independent TUS lease");
+ const newFirst=await patch(newStart.url,reader.login.access_token,0,bytes.subarray(0,part));
+ yes(newFirst.status===204&&newFirst.offset===part,
+  "connected TUS first 6MiB owner-scoped PATCH");
+ const newDone=await patch(newStart.url,reader.login.access_token,part,bytes.subarray(part));
+ yes(newDone.status===204&&newDone.offset===bytes.length,
+  "connected TUS final owner-scoped PATCH");
+ const newCandidate={seriesId:series,episodeId:episode,episodeNumber:1,
+  isPublic:false,fileName:"local.wav",mimeType:"audio/wav",
+  totalSizeBytes:bytes.length,uploadSessionId:newLease.leaseId};
+ const newStage=await finalize(newCandidate);
+ yes(newStage.status===202&&newStage.body.ok===false&&
+  newStage.body.reason==="PRIVATE_BYTES_VERIFIED_PENDING_TRUSTED_COMMIT",
+  "same-lease real Human finalize confirms PRIVATE bytes only, no publish");
+ const pendingBefore=sql("select count(*) from libread_internal.issue137_tus_private_pointers"+
+  " where lease_id='"+newLease.leaseId+"'");
+ yes(pendingBefore==="0","client-side 202 cannot auto-seal trusted PRIVATE pointer");
+ // External TEST HARNESS trust boundary. The Next issuer/finalizer never sees
+ // this synthetic admin key; do NOT promote these DB superuser calls to app.
+ const readback=await physical(newLease.objectPath);
+ const objectId=sql("select id from storage.objects where bucket_id='"+bucket+
+  "' and name='"+newLease.objectPath+"'");
+ yes(readback?.length===bytes.length&&sha(readback)===hash&&
+  /^[a-f0-9-]{36}$/u.test(objectId),
+  "independent trusted worker fully attests provider SHA, byte count, object UUID");
+ const claimSeed=sql("insert into libread_internal.issue137_tus_app_receipts"+
+  "(lease_id,expected_bytes) values ('"+newLease.leaseId+"',"+bytes.length+")"+
+  " returning state");
+ yes(claimSeed==="STAGED","durable PRIVATE receipt initialized only by worker");
+ const claimed=sql("update libread_internal.issue137_tus_app_receipts set "+
+  "state='VERIFYING',attempted=true,version=1 where lease_id='"+
+  newLease.leaseId+"' and state='STAGED' and version=0 returning version");
+ yes(claimed==="1","worker claimed one-use CAS before sealing");
+ const readerSession=JSON.parse(Buffer.from(reader.login.access_token.split(".")[1],
+  "base64url").toString("utf8")).session_id;
+ assert.match(readerSession,/^[a-f0-9-]{36}$/iu);
+ const nonce=id();
+ const commitSql=(actor,session,nonceValue)=>"select "+
+  "libread_internal.issue137_tus_private_commit('"+newLease.leaseId+
+  "','"+actor+"','"+session+"','"+nonceValue+"','"+hash+"',"+
+  bytes.length+",'"+objectId+"')";
+ yes(sql(commitSql(owner.id,readerSession,id()))==="f",
+  "even trusted test worker cannot seal a forged work-author owner");
+ yes(sql(commitSql(reader.id,readerSession,nonce))==="t",
+  "trusted SHA/object attested CAS seals only exact original narrator lease");
+ yes(sql(commitSql(reader.id,readerSession,id()))==="f",
+  "duplicate trusted CAS cannot overwrite first sealed receipt");
+ const sealedState=sql("select state from libread_internal.issue137_tus_app_receipts"+
+  " where lease_id='"+newLease.leaseId+"'");
+ yes(sealedState==="SEALED_PRIVATE_SNAPSHOT",
+  "durable receipt is sealed PRIVATE, never PUBLIC_READY");
+ const sealedCount=sql("select count(*) from libread_internal.issue137_tus_private_pointers"+
+  " where lease_id='"+newLease.leaseId+"'");
+ yes(sealedCount==="1","one immutable PRIVATE pointer for same G2 verified lease");
+ // Stop the no-admin uploader before using a separate existing GET process.
+ // Next dev's exclusive build lock must not be shared between both servers.
+ if(child?.pid){
+  try{process.kill(-child.pid,"SIGTERM");}catch{}
+  await sleep(550);
+  try{process.kill(-child.pid,"SIGKILL");}catch{}
+  child=null;
+ }
+ const readerPort=39710+Math.floor(Math.random()*60);
+ const readerBase="http://127.0.0.1:"+readerPort;
+ const readerEnv={...nextEnv,
+  NEXT_PUBLIC_SITE_URL:readerBase,
+  SUPABASE_SERVICE_ROLE_KEY:service,
+  B2_G1_HTTP_GET_MODE:"enabled",
+  B2_LOCAL_HUMAN_TUS_ISSUER_MODE:"disabled"};
+ child=spawn(process.execPath,[cli,"dev","--hostname","127.0.0.1",
+  "--port",String(readerPort)],{
+  cwd:root,env:readerEnv,detached:true,stdio:["ignore","pipe","pipe"]});
+ for(const stream of [child.stdout,child.stderr])
+  stream.on("data",v=>{log=(log+String(v)).slice(-2500);});
+ async function readPrivate(lease,cookie=null,range=""){
+  const result=await fetch(readerBase+"/api/recordings/human-audio/"+lease,{
+   headers:{...(cookie?{cookie:cookie.header()}:{}),
+    ...(range?{range}:{})},redirect:"manual",
+   signal:AbortSignal.timeout(18000),cache:"no-store"});
+  return {status:result.status,headers:result.headers,
+   bytes:Buffer.from(await result.arrayBuffer())};
+ }
+ let readerReady=false;
+ for(let n=0;n<130;n++){
+  if(child.exitCode!==null)throw Error("LOCAL_SEALED_READER_NEXT_EXITED:"+log);
+  try{
+   const probe=await readPrivate(newLease.leaseId);
+   if(probe.status===404){readerReady=true;break;}
+  }catch{}
+  await sleep(400);
+ }
+ yes(readerReady,"existing PRIVATE Reader GET started in separate local process");
+ const ownerListen=await readPrivate(newLease.leaseId,reader.cookie);
+ yes(ownerListen.status===200&&ownerListen.bytes.equals(bytes),
+  "same TUS lease PRIVATE Reader GET returns exact sealed 6MiB to narrator");
+ yes(!ownerListen.headers.has("location")&&
+  ownerListen.headers.get("cache-control")?.includes("no-store"),
+  "sealed Reader sends no signed bearer URL and forbids cache");
+ const authorListen=await readPrivate(newLease.leaseId,owner.cookie);
+ yes(authorListen.status===404&&authorListen.bytes.length===0,
+  "work author cannot read different narrator's sealed PRIVATE audio");
+ const anonymousListen=await readPrivate(newLease.leaseId);
+ yes(anonymousListen.status===404&&anonymousListen.bytes.length===0,
+  "anonymous cannot read newly sealed PRIVATE audio");
+ const rangeListen=await readPrivate(newLease.leaseId,reader.cookie,"bytes=0-3");
+ yes(rangeListen.status===404&&rangeListen.bytes.length===0,
+  "unverified Range is refused, not emitted from sealed PRIVATE stage");
+ const published=await admin.from("recordings").select("id",{count:"exact",head:true});
+ yes(!published.error&&published.count===initialCount.count,
+  "trusted CAS/Reader created zero PUBLIC or PRIVATE recordings rows");
+ assert.equal((await admin.from("user_recording_consents").update({
+  consent_version:"2026-04-15"}).eq("user_id",reader.id)).error,null);
+ const revokedReader=await readPrivate(newLease.leaseId,reader.cookie);
+ yes(revokedReader.status===404&&revokedReader.bytes.length===0,
+  "same-lease PRIVATE Reader GET denies withdrawal after trusted seal");
+ console.log("PASS: G2_G1_CONNECTED_LOCAL actual Human TUS -> no-admin "+
+  "finalize 202 -> independent full-byte trusted CAS -> same lease "+
+  "PRIVATE Reader GET; author/anon/Range/withdrawal denied, zero publication");
+
  console.log("PASS: #137 REAL LOCAL Next SSR -> self-issued PRIVATE JWT/TUS "+checks+
   " assertions, ownership/consent/R18/official/origin negatives, physical SHA, no PUBLIC record");
  console.log("HOLD: test-only SQL is not real rights attestation, no provider-exclusive privileged writer, no deployed Studio/finalizer, no legacy bearer revocation");
