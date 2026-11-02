@@ -5,6 +5,10 @@ import {NextResponse} from "next/server";
 import {POST as localMultipartPost} from "@/app/api/recordings/human-local-multipart/route";
 import {isSupportedAudioFile} from "@/lib/recording/audioUploadPolicy";
 import {decideHumanProcessingTrialCapacity} from "@/lib/recording/humanProcessingCapacityDraft";
+import {createClient} from "@/lib/supabase/server";
+import {isOfficialAccountEmail} from "@/lib/auth/officialAccount";
+import {decideRecordingEntryAccess,normalizeRecordingPermissionMode} from "@/lib/recording/recordingEntry";
+import {RECORDING_GLOBAL_CONSENT_KEY,isAcceptedRecordingConsentVersion} from "@/lib/recording/recordingConsent";
 
 type JsonData = Record<string,unknown>;
 export type LocalLegacyProbeOperation = "open"|"finish";
@@ -161,4 +165,89 @@ export async function handleIssue137LocalLegacyProbe(
  const result=await localMultipartPost(forward);
  const h=new Headers(result.headers);h.set("cache-control","no-store");
  return new NextResponse(result.body,{status:result.status,headers:h});
+}
+
+
+/**
+ * Issue #137 NONPRODUCTION experiment: invoke the real Next cookie-session
+ * read-side authorization before calling the disposable self-issued PRIVATE
+ * JWT/TUS RPC. Not a publisher, normal Studio switch or hosted migration.
+ * No signed Storage bearer or privileged key is minted or returned.
+ */
+export function isIssue137LocalTusIssuerModeSelected():boolean {
+ return process.env.B2_LOCAL_HUMAN_TUS_ISSUER_MODE==="enabled";
+}
+export async function handleIssue137LocalTusIssuerRoute(
+ request:Request,payload:JsonData
+):Promise<NextResponse>{
+ const deny=(status:number)=>NextResponse.json(
+  {ok:false,error:"ISSUE137_LOCAL_TUS_ISSUER_HOLD"},
+  {status,headers:{"Cache-Control":"no-store"}});
+ // Enabling this env in Preview/Production must NEVER switch the live signer.
+ if(!isIssue137LocalTusIssuerModeSelected()||!active(request)||
+  process.env.SUPABASE_SERVICE_ROLE_KEY!==undefined||
+  process.env.B2_SERVICE_KEY!==undefined)return deny(404);
+ let site:URL;
+ try{site=new URL(process.env.NEXT_PUBLIC_SITE_URL??"");}
+ catch{return deny(404);}
+ const origin=request.headers.get("origin");
+ if(origin&&origin!==site.origin)return deny(403);
+ if(!exact(payload,["seriesId","episodeId","fileName","mimeType",
+  "totalSizeBytes","expectedSha256"]))return deny(400);
+ const seriesId=payload.seriesId,episodeId=payload.episodeId;
+ const bytes=payload.totalSizeBytes,hash=payload.expectedSha256;
+ if(typeof seriesId!=="string"||!uuid.test(seriesId)||
+  typeof episodeId!=="string"||!uuid.test(episodeId)||
+  !Number.isSafeInteger(bytes)||Number(bytes)<=4*1024*1024||
+  Number(bytes)>16*1024*1024||
+  typeof hash!=="string"||!/^[a-f0-9]{64}$/u.test(hash)||
+  typeof payload.fileName!=="string"||typeof payload.mimeType!=="string"||
+  !isSupportedAudioFile({name:payload.fileName,size:Number(bytes),
+   type:payload.mimeType}))return deny(400);
+ try{
+  // This uses the actual SSR HttpOnly-cookie session and public RLS SELECT
+  // predicates. The disposable RPC separately checks GoTrue session_id,
+  // current consent/ownership/R18/episode state and binds the ticket.
+  const supabase=await createClient();
+  const {data:{user},error:authError}=await supabase.auth.getUser();
+  if(authError||!user)return deny(401);
+  if(isOfficialAccountEmail(user.email))return deny(403);
+  const {data:series,error:seriesError}=await supabase.from("series")
+   .select("id,recording_permission_mode").eq("id",seriesId).maybeSingle();
+  if(seriesError||!series||
+   !decideRecordingEntryAccess({
+    permissionMode:normalizeRecordingPermissionMode(series.recording_permission_mode),
+    isLoggedIn:true,
+   }).canEnter)return deny(403);
+  const {data:episode,error:episodeError}=await supabase.from("episodes")
+   .select("id,series_id").eq("id",episodeId).maybeSingle();
+  if(episodeError||!episode||episode.series_id!==seriesId)return deny(404);
+  const {data:consent,error:consentError}=await supabase
+   .from("user_recording_consents").select("consent_version")
+   .eq("user_id",user.id).eq("consent_key",RECORDING_GLOBAL_CONSENT_KEY)
+   .maybeSingle();
+  if(consentError)return deny(503);
+  if(!isAcceptedRecordingConsentVersion(consent?.consent_version))return deny(403);
+  const {data:lease,error:issueError}=await supabase.rpc(
+   "issue137_tus_local_issue",{
+    p_series_id:seriesId,p_episode_id:episodeId,
+    p_expected_sha256:hash,p_size_bytes:Number(bytes),
+   });
+  if(issueError||!lease||typeof lease!=="object"||Array.isArray(lease))
+   return deny(403);
+  const l=lease as Record<string,unknown>;
+  if(Object.keys(l).sort().join(",")!=="expiresAt,leaseId,mode,objectPath"||
+   l.mode!=="PRIVATE_JWT_TUS_LOCAL_ONLY"||
+   typeof l.leaseId!=="string"||!uuid.test(l.leaseId)||
+   typeof l.objectPath!=="string"||
+   !l.objectPath.startsWith(
+    "owner/"+user.id+"/series/"+seriesId+"/episode/"+episodeId+"/")||
+   !l.objectPath.endsWith("/"+l.leaseId+".wav")||
+   typeof l.expiresAt!=="string"||!Number.isFinite(Date.parse(l.expiresAt)))
+   return deny(503);
+  return NextResponse.json({
+   ok:true,uploadMode:"private-jwt-tus-local-only",
+   leaseId:l.leaseId,objectPath:l.objectPath,expiresAt:l.expiresAt,
+  },{status:201,headers:{"Cache-Control":"no-store"}});
+ }catch{return deny(503);}
 }
