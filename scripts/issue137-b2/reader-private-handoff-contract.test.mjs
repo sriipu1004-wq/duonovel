@@ -72,7 +72,8 @@ async function candidatePrivateHandoff(ctx,storage,afterRead=async()=>{}){
  if(ctx.method!=="GET"||ctx.range!==null||
   ctx.wantPublic||ctx.wantSignedUrl||ctx.wantTimingArtifact)
   return denied("UNSUPPORTED_MEDIA_REQUEST_HOLD");
- const initial=ctx.live();
+ // Snapshot each preflight field, never alias mutable server authority rows.
+ const initial={...ctx.live()};
  if(!ownerPermitted(initial))return denied("AUTHORITY_HOLD");
  // In production use a trusted READ of the exact private object and a
  // measured bounded algorithm; this pure mock is not a provider abstraction.
