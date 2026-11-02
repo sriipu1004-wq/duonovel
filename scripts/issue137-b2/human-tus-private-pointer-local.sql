@@ -159,3 +159,41 @@ create function libread_internal.issue137_tus_private_read(
 $$;
 revoke all on function libread_internal.issue137_tus_private_read(uuid,uuid,uuid)
  from public,anon,authenticated,service_role;
+
+
+-- HTTP bridge preflight is strictly for the disposable localhost test.
+-- No hosted migration; the existing Next HUMAN AUDIO GET only uses this
+-- when its independent loopback-only runtime guard is satisfied.
+-- The API is invisible to anon/authenticated; postgres-owned definer verifies
+-- the *original* GoTrue session, live lease, sealed receipt, object ID,
+-- current work/R18/consent and owner before returning any object coordinates.
+create function public.issue137_g1_local_http_preflight(
+ p_lease uuid, p_actor uuid, p_session uuid
+) returns jsonb language plpgsql volatile security definer set search_path=''
+as $$
+declare p record;
+begin
+ if p_lease is null or p_actor is null or p_session is null then return null; end if;
+ select p0.lease_id,p0.owner_id,p0.issued_session_id,p0.stage_bucket,
+   p0.stage_path,p0.provider_object_id,p0.verified_sha256,
+   p0.verified_bytes,p0.pointer_version
+ into p from libread_internal.issue137_tus_private_pointers p0
+ where p0.lease_id=p_lease
+  and p0.owner_id=p_actor and p0.issued_session_id=p_session
+  and p0.pointer_state='PRIVATE_POINTER_ONLY'
+  and libread_internal.issue137_tus_private_read(
+    p_lease,p_actor,p_session)=p0.stage_path;
+ if not found or p.stage_bucket is distinct from 'f2p-tus-app-authority-local'
+  or p.verified_bytes<44 or p.verified_bytes>16777216 then return null; end if;
+ return pg_catalog.jsonb_build_object(
+  'leaseId',p.lease_id,'ownerId',p.owner_id,'sessionId',p.issued_session_id,
+  'bucket',p.stage_bucket,'path',p.stage_path,'objectId',p.provider_object_id,
+  'sha256',p.verified_sha256,'size',p.verified_bytes,
+  'version',p.pointer_version,'state','PRIVATE_POINTER_ONLY');
+end
+$$;
+revoke all on function public.issue137_g1_local_http_preflight(uuid,uuid,uuid)
+ from public,anon,authenticated,service_role;
+grant execute on function public.issue137_g1_local_http_preflight(uuid,uuid,uuid)
+ to service_role;
+select pg_catalog.pg_notify('pgrst','reload schema');
