@@ -181,7 +181,7 @@ begin
 
   return query select true, v_used + 1, v_limit, v_plan_type, v_reset_at, v_log_id;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.enforce_private_library_work_limit()
  RETURNS trigger
@@ -228,7 +228,7 @@ begin
 
   return new;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.enforce_private_library_unit_cost_limit()
  RETURNS trigger
@@ -243,7 +243,7 @@ begin
 
   return new;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.count_private_library_import_usage()
  RETURNS trigger
@@ -281,7 +281,7 @@ begin
   end if;
   return new;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.abort_private_library_import(p_work_id uuid)
  RETURNS boolean
@@ -305,7 +305,7 @@ begin
   get diagnostics v_deleted = row_count;
   return v_deleted > 0;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.begin_private_library_import(p_title text, p_author_name text, p_source_type text, p_source_language text, p_original_file_name text, p_source_char_count integer, p_unit_count integer, p_section_count integer)
  RETURNS uuid
@@ -402,7 +402,7 @@ begin
 
   return v_work_id;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.append_private_library_import_units(p_work_id uuid, p_start_unit_number integer, p_units jsonb)
  RETURNS integer
@@ -515,7 +515,7 @@ begin
 
   return v_batch_count;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.complete_private_library_import(p_work_id uuid)
  RETURNS uuid
@@ -580,7 +580,7 @@ begin
 
   return p_work_id;
 end;
-$function$
+$function$;
 
 
 -- Exact observed trigger attachments: count runs AFTER INSERT or UPDATE OF
