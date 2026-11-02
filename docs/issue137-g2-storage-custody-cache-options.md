@@ -94,3 +94,61 @@ This is an **extension of the existing F2-P disposable broker fixture**, not a n
 **Cost/ops:** Reusing the current provider with broker custody avoids adopting a second paid platform and reduces new-provider operational complexity, but incurs broker lifecycle, worker availability/timeout, restricted credentials and auditing obligations. Separate object-lock/WORM service may impose storage/PUT/GET/egress/retention and deletion-compliance costs. No amounts or provider-specific retention guarantee have been verified. The present safest course remains no PUBLIC release until that evidence exists.
 
 The prototype must run only in dedicated Docker PostgreSQL + local Storage fixture under `DO_NOT_CONTACT_PRODUCTION=true` and `B2_EPHEMERAL_CONFIRM=local-only`. It must leave no provider credentials or audio objects outside that ephemeral workspace. Results are to be added only after exact-HEAD CI logs have been examined.
+
+## 7. Managed Supabase full custody feasibility vs provider lock (2026-11-02 primary-source check)
+
+**Outcome: provider-level full writer immutability is not obtainable from the existing Supabase service_role/RLS + generated S3 key combination as currently deployed.** This is a scoped impossibility conclusion for those credential and Storage features, **not** a claim that every future Supabase product or every possible custom external storage architecture is impossible. Proof strength: current vendor docs, tracked source, and disposable local overwrite negatives. No live S3 credential holder or production object was read.
+
+Primary vendor source matrix:
+
+| Candidate | Verified published capability | What prevents a production GO |
+| --- | --- | --- |
+| Current Supabase Storage + restricted JWT broker | Storage RLS can deny broker/owner UPDATE and DELETE, and a unique objectId can prevent accidental aliasing. An S3 *session token* using a user JWT also follows RLS. | A service key in Authorization entirely bypasses RLS. Generated S3 access key/secret give **full access to all buckets/operations**, also bypass RLS. `src/lib/supabase/admin.ts`, the Human media proxy and other privileged routes still depend on the global service role. No complete credential exclusion. |
+| Current Supabase Storage S3 protocol + object version IDs | S3 interface interoperates with REST/resumable Storage. | **S3 object versioning is explicitly not supported** as of this vendor documentation check, so S3 VersionId is NOT a provider-enforced immutable predecessor. No equivalent object-lock/retention capability was verified. A new path is a convention, not a retention control. |
+| Cloudflare R2 Standard (external, not connected) | Supports bucket locks protecting existing and subsequent objects against overwrite/delete while a rule applies; bucket-scoped Object Read/Write API tokens are supported; S3 `PutObject If-None-Match: *` is atomic create-once. | **R2 bucket-lock administrator can edit/remove lock rules**, so separate its configuration credential from the runtime writer; R2 S3 `x-amz-object-lock-*` headers are NOT supported (different feature). Does not revoke already issued URLs, cached copies, originals/rights or guarantee permanent unchangeability against all account administrators. Deletion and preservation policy need explicit design. |
+| Amazon S3 Object Lock compliance mode (external, not connected) | Locked object VERSION protected during retention, including root account, stronger than alterable bucket rules. | Cannot remove/delete protected object versions before retention expires; potential conflict with user account/data erasure, rights takedowns and legal obligations. Versioning, migration, recovery, IAM and operational overhead; exact regional cost not calculated. Governance mode is bypassable by privileged permission, so is not equivalent. |
+
+Sources (vendor primary):
+- https://supabase.com/docs/guides/storage/security/access-control
+- https://supabase.com/docs/guides/storage/s3/authentication
+- https://supabase.com/docs/guides/storage/s3/compatibility
+- https://developers.cloudflare.com/r2/api/tokens/
+- https://developers.cloudflare.com/r2/api/s3/extensions/
+- https://developers.cloudflare.com/r2/buckets/bucket-locks/
+- https://developers.cloudflare.com/r2/api/s3/api/
+- https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html
+- https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock-managing.html
+
+**Scope distinction:** Keeping code in a separate Next.js process does NOT provide independent provider credentials when it still inherits the same `service_role` or global S3 key. Nor can a permissive new rule override existing privileged bypass; the old app/API/backup writers remain capable until their real deployed privileges change. The isolated broker test permits updating the file only with service_role as a deliberate negative. Restricted local broker + separate versioned key is technically useful, but **not security-certified append-only storage**.
+
+### Price and operational comparison (USD; published rates, not a user-account quote)
+
+Prices and quotas may vary by account, billing date, location, and workload. We did **not** inspect the user's billing plan or make purchases.
+
+| Provider/plan | Published storage basis | Illustrative *additional* charge for 30 GB held for one full month, before operation/other fees |
+| --- | --- | --- |
+| Supabase current account | Pro/Team includes 100 GB **organization-level** Storage allowance; overage USD 0.0213/GB-month. Free 1 GB has different limits. | **Unknown incremental amount**: depends on user's actual plan, all project usage and quotas; no double counting the existing roughly 30 GB snapshot |
+| Cloudflare R2 Standard separate service | Free monthly 10 GB-month, first 1M Class A and 10M Class B requests, then storage USD 0.015/GB-month, Class A USD 4.50/M and Class B USD 0.36/M, zero R2 Internet egress | 30 GB-month minus 10 GB-month allowance = 20 GB-month × 0.015 = **USD 0.30/month**, assuming standard tier eligible for free quota and no excess operations |
+| AWS S3 Object Lock | Region-specific storage/requests/transfer, storage class and lifecycle/retention charges | **Not determined** without region, requests, audio size, retention period and egress |
+
+Provider price references:
+- https://supabase.com/docs/guides/platform/manage-your-usage/storage-size
+- https://supabase.com/docs/guides/platform/manage-your-usage/egress
+- https://developers.cloudflare.com/r2/pricing/
+- https://aws.amazon.com/s3/pricing/
+
+The 30 GB is **only a comparison scenario**; the historical total site Storage snapshot is not known to be 30 GB of Human narration. Object-request/read patterns, user streaming traffic, Cloudflare Workers/Next proxy costs, retries, storage duplication, provider availability, legal deletion and backup recovery will dominate real cost/risk decisions. R2's free tier must not be mistaken for zero cost of an independently deployed proxy and migration.
+
+### Decision based on necessity, not just possibility
+
+**Now:** no implementation change to hosted Storage. Preserve existing Studio behavior for third-party narrators on eligible `open` works; new private/public Reader release remains HOLD. Retain existing Supabase as canonical storage for current production and do not migrate 30 GB for a narrowly unproven future audio feature.
+
+**Reasonable next decision point, not automatically authorized:** first specify the actual threat tolerance. If preventing accidental/ordinary broker overwrite and detecting unauthorized privileged modifications is sufficient, current RLS broker + content digest + append-only naming could be simpler, while privileged write attacks remain an explicitly accepted **risk** (cannot be labeled full G2). If protection from compromised service_role/global S3 credentials is a release requirement, **R2 bucket-lock plus separate configuration and bucket writer principals** is a candidate to validate within a tightly bounded separate, disposable provider account; AWS S3 compliance mode only where retention/deletion rules make it acceptable. Neither external service has been activated or E2E tested.
+
+Before a genuine prod candidate: (i) enumerate LIVE privileged holders **without reading secret values**, (ii) prove owner/narrator/R18/rights + signed bearer invalidation at actual Reader HTTP boundary, (iii) decide reversible deletion/rights takedown behavior under lock rules, (iv) prove exact object bytes and concurrent restore/signed URL controls, (v) measure 1 GiB uploads and memory/p95/egress, (vi) obtain independent fixed-HEAD rights and security assessment, then exact owner merge and separate Production changes approval. Even a vendor WORM claim cannot revoke copies already downloaded by users.
+
+### CI guard for this decision
+
+`scripts/issue137-b2/g2-custody-feasibility-source-model.mjs` checks source-level privileged routes, the existing isolated broker write-once negative path, and explicit FAIL-CLOSED custody/retention scenario assumptions. This is **SOURCE+MODEL**, not a supplier integration or real R2/AWS test. Only an external service E2E on an expressly approved disposable account could provide that evidence.
+
+**Final gate remains: PR #153 Draft / FIX / MERGE HOLD.**
