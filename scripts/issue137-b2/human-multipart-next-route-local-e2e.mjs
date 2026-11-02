@@ -157,6 +157,85 @@ try{
  const clean=await admin.storage.from(bucket).remove([part.objectPath]);
  assert.equal(clean.error,null);
  checks++;
+ // G1_REAL_HTTP_AUDIO_TEST: reuse this exact LOCAL Next/GoTrue/Storage stack.
+ // Different creator and narrator: OPEN permission is not author-only.
+ const creatorEmail="human-audio-author-"+uuid()+"@example.invalid";
+ const creatorPassword="Local-"+uuid()+"aA1!";
+ const creatorRes=await admin.auth.admin.createUser({
+  email:creatorEmail,password:creatorPassword,email_confirm:true});
+ assert.equal(creatorRes.error,null,"create second GoTrue actor: original author");
+ const creatorId=creatorRes.data.user.id;
+ const creatorJar=new Map();
+ const creatorClient=createServerClient(api,anon,{cookies:{
+  getAll:()=>[...creatorJar].map(([name,value])=>({name,value})),
+  setAll:(entries)=>{for(const item of entries){
+   if(item.value)creatorJar.set(item.name,item.value);else creatorJar.delete(item.name);
+  }},
+ }});
+ assert.equal((await creatorClient.auth.signInWithPassword({
+  email:creatorEmail,password:creatorPassword})).error,null,
+  "login real original-author GoTrue session");
+ const creatorCookie=[...creatorJar].map(([k,v])=>k+"="+v).join("; ");
+ const audioSeries=uuid(),audioEpisode=uuid(),privateId=uuid(),publicId=uuid();
+ const audioPath="human/"+audioSeries+"/"+audioEpisode+"/"+userId+"/"+
+  uuid()+"/playback-from-wav.m4a";
+ assert.equal((await admin.from("series").insert({
+  id:audioSeries,author_id:creatorId,publication_status:"public",
+  content_rating:"general",content_warnings:[],recording_permission_mode:"open"
+ })).error,null,"local third-party narrator public OPEN series");
+ assert.equal((await admin.from("episodes").insert({
+  id:audioEpisode,series_id:audioSeries,body:"LOCAL AUDIO ONLY",
+  posting_status:"posted",is_published:true
+ })).error,null,"local posted episode for third-party narration");
+ const audioBytes=Buffer.from("RIFF____WAVEsynthetic-PRIVATE-audio-bytes");
+ assert.equal((await admin.storage.from(bucket).upload(audioPath,audioBytes,{
+  contentType:"audio/wav",upsert:false
+ })).error,null,"local private physical audio upload");
+ assert.equal((await admin.from("recordings").insert([
+  {id:privateId,series_id:audioSeries,episode_id:audioEpisode,
+   reader_id:userId,reader_name:"NARRATOR_LOCAL",is_public:false,
+   audio_storage_path:audioPath},
+  {id:publicId,series_id:audioSeries,episode_id:audioEpisode,
+   reader_id:userId,reader_name:"NARRATOR_LOCAL",is_public:true,
+   audio_storage_path:audioPath}
+ ])).error,null,"local PRIVATE/public recording fixture");
+ async function getAudio(id,cookie="",range=""){
+  const res=await fetch(base+"/api/recordings/human-audio/"+id,{
+   method:"GET",headers:{...(cookie?{cookie}:{}),...(range?{range}:{})},
+   redirect:"manual",signal:AbortSignal.timeout(15000),cache:"no-store"
+  });
+  return {status:res.status,headers:res.headers,
+   bytes:Buffer.from(await res.arrayBuffer())};
+ }
+ const denyAnon=await getAudio(privateId);
+ check(denyAnon.status===404&&denyAnon.bytes.length===0,
+  "real HTTP PRIVATE audio denies anonymous before any Storage bytes");
+ const denyAuthor=await getAudio(privateId,creatorCookie);
+ check(denyAuthor.status===404&&denyAuthor.bytes.length===0,
+  "original author cannot read different narrator's PRIVATE bytes");
+ const allowedNarrator=await getAudio(privateId,cookieHeader());
+ check(allowedNarrator.status===200&&allowedNarrator.bytes.equals(audioBytes),
+  "distinct third-party narrator receives exact PRIVATE audio through Next proxy");
+ check(!allowedNarrator.headers.has("location")&&
+  allowedNarrator.headers.get("cache-control")?.includes("no-store"),
+  "PRIVATE HTTP body not redirected to signed Storage bearer or cached");
+ const privateRange=await getAudio(privateId,cookieHeader(),"bytes=0-3");
+ check(privateRange.status===206&&privateRange.bytes.equals(audioBytes.subarray(0,4)),
+  "real PRIVATE HTTP byte range returns exact four provider bytes");
+ const deniedRange=await getAudio(privateId,creatorCookie,"bytes=0-3");
+ check(deniedRange.status===404&&deniedRange.bytes.length===0,
+  "foreign owner Range cannot retrieve PRIVATE bytes");
+ const invalidRange=await getAudio(privateId,cookieHeader(),"bytes=0-3,5-7");
+ check(invalidRange.status===416&&invalidRange.bytes.length===0,
+  "real proxy rejects unsupported multipart HTTP Range");
+ const anonPublic=await getAudio(publicId);
+ check(anonPublic.status===200&&anonPublic.bytes.equals(audioBytes)&&
+  !anonPublic.headers.has("location"),
+  "PUBLIC posted general recording returns verified synthetic bytes via Next, not signed URL");
+ console.log("PASS: G1_REAL_HTTP_AUDIO_TEST real LOCAL Next/GoTrue/Storage owner/author/"+
+  "anonymous/PUBLIC/private bytes/Range and no bearer redirect");
+ // The real route is NOT wired to G1 temporary receipt/session/consent/revoke.
+ // Do not claim these HTTP checks constitute a protected new G1 staging flow.
  // Test a provider-side DB read failure without granting new tokens.
  sql("revoke select on public.user_recording_consents from authenticated;");
  const consentDbError=await makeRequest(payload,cookieHeader());
