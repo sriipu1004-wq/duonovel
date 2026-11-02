@@ -256,9 +256,9 @@ yes(read(a,t)===t.path,"owner original live GoTrue session can find PRIVATE poin
   {"x-upsert":"true"});
  yes(ownerOverwrite.status>=400,
   "real LOCAL owner JWT cannot overwrite sealed G1 object");
- const ownerDelete=await scopedStorage("DELETE",a.jwt,t.path);
- yes(ownerDelete.status>=400,
-  "real LOCAL owner JWT cannot DELETE sealed G1 object");
+ const ownerDelete=await a.client.storage.from(bucket).remove([t.path]);
+ yes(!!ownerDelete.error,
+  "real LOCAL owner JWT cannot DELETE sealed G1 object via Storage DELETE API");
  yes((await actual(t))?.equals(data),
   "RLS denied owner mutation keeps physical PRIVATE bytes unchanged");
 
