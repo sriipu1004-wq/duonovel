@@ -230,6 +230,38 @@ yes(read(a,t)===t.path,"owner original live GoTrue session can find PRIVATE poin
  yes(!ownerHttp.headers.has("location")&&
   ownerHttp.headers.get("cache-control")?.includes("no-store"),
   "G1 HTTP returns no signed URL, no redirect and no cross-user cache");
+
+ // G2 actual Storage GET does not receive a service_role or generated S3 key:
+ // it uses the REAL owner JWT + local anon apikey through a restricted RLS
+ // SELECT policy. A standalone Storage GET does NOT attest SHA/size, so users
+ // must use the checked Human GET to validate staged bytes.
+ async function scopedStorage(method,actorToken,object=t.path,body,extra={}){
+  const response=await fetch(api+"/storage/v1/object/"+
+   (method==="GET"?"authenticated/":"")+bucket+"/"+object,{
+   method,headers:{apikey:anon,Authorization:"Bearer "+actorToken,
+    ...(body?{"content-type":"audio/wav"}:{}),...extra},
+   ...(body?{body}:{}),redirect:"error",cache:"no-store",
+   signal:AbortSignal.timeout(16000)});
+  return {status:response.status,bytes:Buffer.from(await response.arrayBuffer())};
+ }
+ const directOwner=await scopedStorage("GET",a.jwt);
+ yes(directOwner.status===200&&directOwner.bytes.equals(data),
+  "real LOCAL RLS-scoped OWNER JWT GET of sealed G1 bytes, no service key");
+ const directOther=await scopedStorage("GET",b.jwt);
+ yes(directOther.status>=400&&directOther.bytes.length!==data.length,
+  "real LOCAL RLS refuses foreign narrator Storage GET");
+ const directAnon=await scopedStorage("GET",anon);
+ yes(directAnon.status>=400,"real LOCAL RLS refuses anonymous G1 object GET");
+ const ownerOverwrite=await scopedStorage("POST",a.jwt,t.path,alternate,
+  {"x-upsert":"true"});
+ yes(ownerOverwrite.status>=400,
+  "real LOCAL owner JWT cannot overwrite sealed G1 object");
+ const ownerDelete=await scopedStorage("DELETE",a.jwt,t.path);
+ yes(ownerDelete.status>=400,
+  "real LOCAL owner JWT cannot DELETE sealed G1 object");
+ yes((await actual(t))?.equals(data),
+  "RLS denied owner mutation keeps physical PRIVATE bytes unchanged");
+
  const anonymousHttp=await getAudio(t.lid);
  yes(anonymousHttp.status===404&&anonymousHttp.bytes.length===0,
   "anonymous cannot retrieve G1 PRIVATE pointer bytes");
@@ -287,6 +319,9 @@ if(tamper.error){
 assert.equal((await admin.from("user_recording_consents").update({
  consent_version:"2026-04-15"}).eq("user_id",a.actorId)).error,null);
 yes(read(a,t)==="","consent withdrawal hides sealed PRIVATE pointer");
+const revokedDirect=await scopedStorage("GET",a.jwt);
+yes(revokedDirect.status>=400,
+ "real LOCAL RLS Storage GET denies owner JWT after consent withdrawal");
 const revokedHttp=await getAudio(t.lid,a.cookie());
 yes(revokedHttp.status===404&&revokedHttp.bytes.length===0,
  "real G1 HTTP denies revoked consent even with existing physical bytes");
@@ -508,6 +543,34 @@ yes(afterRevoke.status===200&&digest(afterRevoke.bytes)===sha,
  "G2 NEGATIVE: old signed bearer still retrieves bytes after DB revoke");
 console.log("RISK: #137 G2 LOCAL signed Storage bearer outlives consent revoke; "+
  "DB guard no longer authorizes but old URL still works (NO CDN involved)");
+
+// LOCAL ONLY: deleting the exact object path retires the current bearer
+// origin response, but service_role can re-create it and make the very same
+// unexpired token useful again. This cannot establish CDN/browser eviction.
+const retired=await admin.storage.from(bucket).remove([afterConsent.path]);
+assert.equal(retired.error,null,"LOCAL privileged retirement of synthetic old object");
+const retiredBearer=await bearerFetch();
+yes(retiredBearer.status>=400,
+ "deleting LOCAL object makes old signed bearer fail at origin");
+const newContent=Buffer.from(data);newContent[4096]^=1;
+const revived=await admin.storage.from(bucket).upload(afterConsent.path,newContent,{
+ contentType:"audio/wav",upsert:false
+});
+assert.equal(revived.error,null,
+ "LOCAL privileged re-create of retired SAME key remains possible");
+const revivedBearer=await bearerFetch();
+yes(revivedBearer.status===200&&
+ digest(revivedBearer.bytes)===digest(newContent),
+ "G2 NEGATIVE: unexpired signed bearer revives on SAME-PATH privileged recreation");
+const oldPointerHttp=await getAudio(afterConsent.lid,narrator.cookie());
+yes(oldPointerHttp.status===404&&oldPointerHttp.bytes.length===0,
+ "checked G1 route rejects old pointer even if signed Storage origin key revives");
+yes(third.path!==afterConsent.path && beforeConsent.path!==afterConsent.path,
+ "new lease uses distinct nonce path, never reuses retired signed URL key");
+console.log("RISK: G2 REAL LOCAL delete stops old bearer at origin but SAME-PATH "+
+ "service-role re-create revives access; requires no-path-reuse, old CDN "+
+ "retirement and independent privileged writer exclusion");
+
 
 for(const t of [third,r18,beforeConsent,afterConsent]){
  const clean=await admin.storage.from(bucket).remove([t.path]);
