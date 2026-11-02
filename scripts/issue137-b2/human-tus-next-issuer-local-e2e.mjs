@@ -421,28 +421,48 @@ try{
  yes(readback?.length===bytes.length&&sha(readback)===hash&&
   /^[a-f0-9-]{36}$/u.test(objectId),
   "independent trusted worker fully attests provider SHA, byte count, object UUID");
- const claimSeed=sql("insert into libread_internal.issue137_tus_app_receipts"+
-  "(lease_id,expected_bytes) values ('"+newLease.leaseId+"',"+bytes.length+")"+
-  " returning state");
- yes(claimSeed==="STAGED","durable PRIVATE receipt initialized only by worker");
- const claimed=sql("update libread_internal.issue137_tus_app_receipts set "+
-  "state='VERIFYING',attempted=true,version=1 where lease_id='"+
-  newLease.leaseId+"' and state='STAGED' and version=0 returning version");
- yes(claimed==="1","worker claimed one-use CAS before sealing");
+ // The Next uploader/finalizer never gets a global privileged credential.
+ // The external physical hash attestor is still this disposable test parent.
+ // Enter a synthetic NOLOGIN role to prove ONLY narrow DB CAS EXECUTE is
+ // allowed, not arbitrary SELECT/UPDATE/INSERT into private receipts.
+ const roleSql=statement=>sql("begin; set local role issue137_g1_local_cas_attestor; "+statement+"; commit;");
+ yes(sql("select rolcanlogin from pg_roles where rolname='issue137_g1_local_cas_attestor'")==="f",
+  "disposable CAS attestor cannot authenticate independently");
+ yes(roleSql("select current_user")==="issue137_g1_local_cas_attestor",
+  "real PostgreSQL SET ROLE invokes SQL as restricted attestor");
+ yes(roleSql("select has_table_privilege(current_user,'libread_internal.issue137_tus_app_receipts','INSERT')")==="f",
+  "limited attestor cannot INSERT arbitrary receipt rows");
+ yes(roleSql("select has_table_privilege(current_user,'libread_internal.issue137_tus_app_receipts','UPDATE')")==="f",
+  "limited attestor cannot UPDATE arbitrary receipt rows");
+ yes(roleSql("select has_table_privilege(current_user,'libread_internal.issue137_tus_private_pointers','SELECT')")==="f",
+  "limited attestor cannot enumerate private pointers");
+ yes(roleSql("select has_function_privilege(current_user,'libread_internal.issue137_g1_limited_attestor_commit(uuid,uuid,uuid,uuid,text,bigint,uuid)','EXECUTE')")==="t",
+  "attestor has explicit grant for ONLY scoped CAS function");
+ let directSelectDenied=false;
+ try {roleSql("select count(*) from libread_internal.issue137_tus_app_receipts");}
+ catch{directSelectDenied=true;}
+ yes(directSelectDenied,"actual private receipt SELECT is forbidden to attestor role");
  const readerSession=JSON.parse(Buffer.from(reader.login.access_token.split(".")[1],
   "base64url").toString("utf8")).session_id;
  assert.match(readerSession,/^[a-f0-9-]{36}$/iu);
  const nonce=id();
- const commitSql=(actor,session,nonceValue)=>"select "+
-  "libread_internal.issue137_tus_private_commit('"+newLease.leaseId+
-  "','"+actor+"','"+session+"','"+nonceValue+"','"+hash+"',"+
-  bytes.length+",'"+objectId+"')";
- yes(sql(commitSql(owner.id,readerSession,id()))==="f",
-  "even trusted test worker cannot seal a forged work-author owner");
- yes(sql(commitSql(reader.id,readerSession,nonce))==="t",
-  "trusted SHA/object attested CAS seals only exact original narrator lease");
- yes(sql(commitSql(reader.id,readerSession,id()))==="f",
-  "duplicate trusted CAS cannot overwrite first sealed receipt");
+ const limitedCommit=(actor,session,nonceValue,digest=hash,oid=objectId)=>roleSql("select "+
+  "libread_internal.issue137_g1_limited_attestor_commit('"+newLease.leaseId+
+  "','"+actor+"','"+session+"','"+nonceValue+"','"+digest+"',"+
+  bytes.length+",'"+oid+"')");
+ yes(limitedCommit(owner.id,readerSession,id())==="f",
+  "restricted CAS rejects a forged original work author");
+ yes(limitedCommit(reader.id,readerSession,id(),sha(Buffer.from("tampered")))==="f",
+  "restricted CAS rejects a forged digest even before receipt claim");
+ yes(limitedCommit(reader.id,readerSession,id(),hash,id())==="f",
+  "restricted CAS rejects wrong provider object UUID");
+ const beforeSealCount=sql("select count(*) from libread_internal.issue137_tus_app_receipts"+
+  " where lease_id='"+newLease.leaseId+"'");
+ yes(beforeSealCount==="0","failed restricted CAS did not create receipt");
+ yes(limitedCommit(reader.id,readerSession,nonce)==="t",
+  "restricted CAS atomically claims and seals actual attested owner PRIVATE bytes");
+ yes(limitedCommit(reader.id,readerSession,id())==="f",
+  "duplicate restricted CAS cannot overwrite sealed receipt");
  const sealedState=sql("select state from libread_internal.issue137_tus_app_receipts"+
   " where lease_id='"+newLease.leaseId+"'");
  yes(sealedState==="SEALED_PRIVATE_SNAPSHOT",
