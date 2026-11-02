@@ -188,12 +188,12 @@ ok(cBefore.title==="SYNTHETIC GENERAL",
 // summaries, 120 public-author rows; actual historical 3284 episodes are NOT
 // all fetched when a published-only summary view is available.
 const workloads={
- freshFull:{reads:3,series:120,summaries:120,authors:120,epochs:0},
- idRatingOnly:{reads:1,series:120,summaries:0,authors:0,epochs:0},
- strictProjection:{reads:3,series:120,summaries:120,authors:120,epochs:0},
- epochWarm:{reads:2,series:0,summaries:0,authors:0,epochs:2},
- epochCold:{reads:5,series:120,summaries:120,authors:120,epochs:2},
- epochUnprovisioned:{reads:4,series:120,summaries:120,authors:120,epochs:1},
+ freshFull:{reads:3,waves:[1,2],series:120,summaries:120,authors:120,epochs:0},
+ idRatingOnly:{reads:1,waves:[1],series:120,summaries:0,authors:0,epochs:0},
+ strictProjection:{reads:3,waves:[1,2],series:120,summaries:120,authors:120,epochs:0},
+ epochWarm:{reads:2,waves:[1,1],series:0,summaries:0,authors:0,epochs:2},
+ epochCold:{reads:5,waves:[1,1,2,1],series:120,summaries:120,authors:120,epochs:2},
+ epochUnprovisioned:{reads:4,waves:[1,1,2],series:120,summaries:120,authors:120,epochs:1},
 };
 eq(workloads.epochWarm.series,0,"hot versioned cache no card rows");
 ok(workloads.strictProjection.reads===workloads.freshFull.reads,
@@ -207,12 +207,15 @@ for(const name of ["freshFull","idRatingOnly","strictProjection","epochWarm","ep
  for(let i=0;i<16;i++){
   const start=performance.now();
   const work=workloads[name];
-  // Simulated fixed 2ms per network round trip. Bulk cost is NOT modeled.
-  for(let j=0;j<work.reads;j++)await syntheticDelay(2);
+  // Simulate 2ms/roundtrip with documented parallel query waves.
+  // Bulk serialization/DB contention and actual network latency are NOT modeled.
+  for(const wave of work.waves)
+   await Promise.all(Array.from({length:wave},()=>syntheticDelay(2)));
   times.push(performance.now()-start);
  }
  times.sort((a,b)=>a-b);
- sample.push({name,dbRoundtrips:workloads[name].reads,
+ sample.push({name,dbCalls:workloads[name].reads,
+  sequentialWaves:workloads[name].waves.length,
   authoritativeRows:workloads[name].series+workloads[name].summaries+
    workloads[name].authors,
   mockP50Ms:+times[7].toFixed(2),mockP95Ms:+times[15].toFixed(2)});
