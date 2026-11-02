@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 // Issue #137 TEST-ONLY adapter for the ACTUAL legacy Human session/finalize
 // handlers. Guarded twice (here and target local route); NEVER a publisher.
 // No privileged key or S3 token is used or returned from this adapter.
@@ -120,6 +121,88 @@ export async function handleIssue137LocalNormalHumanRoute(
   ok:false,error:"ISSUE137_NORMAL_HUMAN_PUBLICATION_HOLD",
   reason:"PRIVATE_PARTS_SEALED_NOT_PUBLISHED"
  },{status:409,headers:{"Cache-Control":"no-store"}});
+}
+
+
+// Existing Human finalize endpoint, LOCAL-ONLY G2 stage receipt observation.
+// It CANNOT finalize a trusted G1 receipt or create a recordings row: a
+// separate trusted independent byte attestor/CAS remains required.
+// In particular: no service_role, S3 credential, signed bearer or PUBLIC PUT.
+export async function handleIssue137LocalTusFinalizeRoute(
+ request:Request,payload:JsonData
+):Promise<NextResponse>{
+ const hold=(status=409)=>NextResponse.json({
+  ok:false,error:"ISSUE137_LOCAL_G2_PENDING_TRUSTED_COMMIT"
+ },{status,headers:{"Cache-Control":"private, no-store"}});
+ if(!isIssue137LocalTusIssuerModeSelected()||!active(request)||
+    process.env.SUPABASE_SERVICE_ROLE_KEY!==undefined||
+    process.env.B2_SERVICE_KEY!==undefined)return hold(404);
+ let origin:URL;
+ try{origin=new URL(process.env.NEXT_PUBLIC_SITE_URL??"");}
+ catch{return hold(404);}
+ if(request.headers.get("origin")&&request.headers.get("origin")!==origin.origin)
+  return hold(403);
+ if(!exact(payload,["seriesId","episodeId","episodeNumber","isPublic",
+    "fileName","mimeType","totalSizeBytes","uploadSessionId"])||
+   typeof payload.seriesId!=="string"||!uuid.test(payload.seriesId)||
+   typeof payload.episodeId!=="string"||!uuid.test(payload.episodeId)||
+   typeof payload.uploadSessionId!=="string"||!uuid.test(payload.uploadSessionId)||
+   payload.isPublic!==false||
+   !Number.isSafeInteger(payload.episodeNumber)||Number(payload.episodeNumber)<1||
+   !Number.isSafeInteger(payload.totalSizeBytes)||
+   Number(payload.totalSizeBytes)<44||Number(payload.totalSizeBytes)>16*1024*1024||
+   typeof payload.fileName!=="string"||typeof payload.mimeType!=="string"||
+   !isSupportedAudioFile({name:payload.fileName,
+    size:Number(payload.totalSizeBytes),type:payload.mimeType}))return hold(400);
+ const supabase=await createClient();
+ const {data:{user},error:userError}=await supabase.auth.getUser();
+ if(userError||!user)return hold(401);
+ if(isOfficialAccountEmail(user.email))return hold(403);
+ // Trusted SQL evaluates the live original session, rights, consent,
+ // series/episode, R18 and physical provider object identity. It returns
+ // only this actor's originally issued PRIVATE staging coordinates.
+ type P={leaseId:string;actorId:string;seriesId:string;episodeId:string;
+  sessionId:string;objectId:string;bucket:string;path:string;
+  size:number;sha256:string;state:string};
+ async function preflight():Promise<P|null>{
+  const {data,error}=await supabase.rpc("issue137_g2_local_uploaded_preflight",{
+   p_lease:payload.uploadSessionId
+  });
+  if(error||!data||typeof data!=="object"||Array.isArray(data))return null;
+  const p=data as P;
+  const expected="owner/"+user!.id+"/series/"+payload.seriesId+
+   "/episode/"+payload.episodeId+"/"+payload.uploadSessionId+".wav";
+  if(p.leaseId!==payload.uploadSessionId||p.actorId!==user!.id||
+   p.seriesId!==payload.seriesId||p.episodeId!==payload.episodeId||
+   p.bucket!=="f2p-tus-app-authority-local"||
+   p.path!==expected||p.state!=="STAGED_NOT_SEALED"||
+   !uuid.test(p.objectId)||!uuid.test(p.sessionId)||
+   !Number.isSafeInteger(p.size)||p.size!==payload.totalSizeBytes||
+   typeof p.sha256!=="string"||!/^[a-f0-9]{64}$/u.test(p.sha256))
+   return null;
+  return p;
+ }
+ const before=await preflight();
+ if(!before)return hold();
+ // User-JWT RLS physical byte read, NOT admin or S3 signer. Bounded to
+ // 16 MiB in the verified synthetic LOCAL fixture; no size claim from client.
+ let bytes:Uint8Array;
+ try{
+  const r=await supabase.storage.from(before.bucket).download(before.path);
+  if(r.error||!r.data)return hold();
+  bytes=new Uint8Array(await r.data.arrayBuffer());
+ }catch{return hold();}
+ if(bytes.length!==before.size||
+  createHash("sha256").update(bytes).digest("hex")!==before.sha256)
+  return hold();
+ const after=await preflight();
+ if(!after||JSON.stringify(after)!==JSON.stringify(before))return hold();
+ // Observational proof only. No receipt claim, DB mutation, PUBLIC URL,
+ // audio body, privileged cleanup or automatic conversion to publication.
+ return NextResponse.json({
+  ok:false,reason:"PRIVATE_BYTES_VERIFIED_PENDING_TRUSTED_COMMIT",
+  leaseId:before.leaseId
+ },{status:202,headers:{"Cache-Control":"private, no-store"}});
 }
 
 export function hasIssue137ProbeMarker(data:JsonData):boolean {
