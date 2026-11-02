@@ -2,11 +2,18 @@
  // This script DOES NOT provide audio, a token, an API, or release clearance.
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {getSeriesContentRating} from "../../src/lib/contentRating.ts";
-import {getSeriesPublicationStatus,isEpisodePubliclyVisible}
- from "../../src/features/write/writeShared.ts";
-import {isAcceptedRecordingConsentVersion}
- from "../../src/lib/recording/recordingConsent.ts";
+import * as contentRatingModule from "../../src/lib/contentRating.ts";
+import * as writeSharedModule from "../../src/features/write/writeShared.ts";
+import * as recordingConsentModule from "../../src/lib/recording/recordingConsent.ts";
+const rating=contentRatingModule.default??contentRatingModule;
+const writing=writeSharedModule.default??writeSharedModule;
+const consent=recordingConsentModule.default??recordingConsentModule;
+const {getSeriesContentRating}=rating;
+const {getSeriesPublicationStatus,isEpisodePubliclyVisible}=writing;
+const {isAcceptedRecordingConsentVersion}=consent;
+for(const fn of [getSeriesContentRating,getSeriesPublicationStatus,
+ isEpisodePubliclyVisible,isAcceptedRecordingConsentVersion])
+ assert.equal(typeof fn,"function","actual project source predicate must be importable");
 
 assert.equal(process.env.DO_NOT_CONTACT_PRODUCTION,"true");
 const load=p=>readFileSync(new URL("../../"+p,import.meta.url),"utf8");
