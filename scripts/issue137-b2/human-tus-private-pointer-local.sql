@@ -137,6 +137,55 @@ $$;
 revoke all on function libread_internal.issue137_tus_private_commit(
  uuid,uuid,uuid,uuid,text,bigint,uuid) from public,anon,authenticated,service_role;
 
+-- Issue #137: disposable-only scoped attestor DB role; never deploy.
+-- NOLOGIN test role verifies DB grants, NOT independent credential custody.
+-- A stolen EXECUTE grant could submit expected SHA without physical readback.
+create role issue137_g1_local_cas_attestor nologin nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls;
+grant usage on schema libread_internal to issue137_g1_local_cas_attestor;
+create function libread_internal.issue137_g1_limited_attestor_commit(
+ p_lease uuid,p_actor uuid,p_session uuid,p_nonce uuid,p_sha text,p_size bigint,p_object uuid
+) returns boolean language plpgsql volatile security definer set search_path='' as '
+declare l record; r record;
+begin
+ if p_lease is null or p_actor is null or p_session is null
+  or p_nonce is null or p_object is null
+  or coalesce(p_sha,'''') !~ ''^[a-f0-9]{64}$''
+  or p_size is null or p_size<44 or p_size>16777216 then return false; end if;
+ select * into l from libread_internal.issue137_tus_app_leases
+  where lease_id=p_lease for update;
+ if not found or l.actor_id is distinct from p_actor
+  or l.issued_session_id is distinct from p_session
+  or l.expected_sha256 is distinct from p_sha
+  or l.expected_bytes is distinct from p_size
+  or l.state is distinct from ''active''
+  or l.expires_at<=pg_catalog.clock_timestamp() then return false; end if;
+ perform 1 from storage.objects o
+  where o.bucket_id=''f2p-tus-app-authority-local''
+   and o.name=l.object_path and o.id=p_object for share;
+ if not found then return false; end if;
+ insert into libread_internal.issue137_tus_app_receipts(lease_id,expected_bytes)
+  values(p_lease,p_size) on conflict do nothing;
+ select * into r from libread_internal.issue137_tus_app_receipts
+  where lease_id=p_lease for update;
+ if not found or r.state is distinct from ''STAGED''
+  or r.attempted or r.version<>0 or r.expected_bytes<>p_size then return false; end if;
+ update libread_internal.issue137_tus_app_receipts
+  set state=''VERIFYING'',attempted=true,version=1
+  where lease_id=p_lease and state=''STAGED'' and version=0 and not attempted;
+ if not found then return false; end if;
+ if not libread_internal.issue137_tus_private_commit(
+   p_lease,p_actor,p_session,p_nonce,p_sha,p_size,p_object) then
+  update libread_internal.issue137_tus_app_receipts
+   set state=''STAGED'',attempted=false,version=0
+   where lease_id=p_lease and state=''VERIFYING'' and version=1;
+  return false;
+ end if;
+ return true;
+end';
+revoke all on function libread_internal.issue137_g1_limited_attestor_commit(uuid,uuid,uuid,uuid,text,bigint,uuid)
+ from public,anon,authenticated,service_role;
+grant execute on function libread_internal.issue137_g1_limited_attestor_commit(uuid,uuid,uuid,uuid,text,bigint,uuid) to issue137_g1_local_cas_attestor;
+
 -- G1 durable LOCAL PRIVATE Reader entitlement, NOT a lasting TUS upload.
 -- CAS retains ORIGINAL 10-minute lease and issuer session. Only after sealed
 -- CAS can a newly signed-in session of the SAME narrator read the PRIVATE
