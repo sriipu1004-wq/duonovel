@@ -270,6 +270,60 @@ try{
   "no new recording publication relative to existing local fixture");
  assert.equal((await admin.storage.from(bucket).remove([fresh.objectPath])).error,null);
  yes((await physical(fresh.objectPath))===null,"test object removed");
+ // G1 revocation ABA negatives: a live lease must stay revoked even AFTER
+ // authority is restored. Same actor/session and real 6MiB partial TUS.
+ const leaseState=t=>sql("select state from libread_internal.issue137_tus_app_leases"+
+  " where lease_id='"+t.leaseId+"'");
+ async function epochRevoked(label,withdraw,regrant){
+  const ticket=await issue(payload(series,episode),reader.cookie);
+  const opened=await start(ticket,reader.login.access_token);
+  yes(opened.status===201&&!!opened.url,label+" starts PRIVATE TUS");
+  const first=await patch(opened.url,reader.login.access_token,0,bytes.subarray(0,part));
+  yes(first.status===204&&first.offset===part,label+" first partial PATCH");
+  await withdraw();
+  yes(leaseState(ticket)==="revoked",label+" terminal DB revocation");
+  await regrant();
+  yes(leaseState(ticket)==="revoked",label+" old lease stays revoked after regrant");
+  const result=await patch(opened.url,reader.login.access_token,part,bytes.subarray(part));
+  yes(result.status===403,label+" final Storage PATCH denied after regrant");
+  yes((await physical(ticket.objectPath))===null,label+" no complete PRIVATE object");
+ }
+ const mutate=(table,data,column,value)=>admin.from(table).update(data).eq(column,value);
+ const consentKey="recording_studio_global";
+ await epochRevoked("consent DELETE -> reinsert",
+  async()=>{
+   const r=await admin.from("user_recording_consents").delete()
+    .eq("user_id",reader.id).eq("consent_key",consentKey);
+   assert.equal(r.error,null);
+  },
+  async()=>{
+   const r=await admin.from("user_recording_consents").insert({
+    user_id:reader.id,consent_key:consentKey,consent_version:"2026-04-16"});
+   assert.equal(r.error,null);
+  });
+ await epochRevoked("R18 show OFF -> ON",
+  async()=>{assert.equal((await mutate("users",{show_r18_content:false},"id",reader.id)).error,null);},
+  async()=>{assert.equal((await mutate("users",{show_r18_content:true},"id",reader.id)).error,null);});
+ await epochRevoked("R18 age-confirmation withdraw -> restore",
+  async()=>{assert.equal((await mutate("users",{r18_confirmed_at:null},"id",reader.id)).error,null);},
+  async()=>{assert.equal((await mutate("users",{r18_confirmed_at:new Date().toISOString()},"id",reader.id)).error,null);});
+ await epochRevoked("recording permission close -> reopen",
+  async()=>{assert.equal((await mutate("series",{recording_permission_mode:"closed"},"id",series)).error,null);},
+  async()=>{assert.equal((await mutate("series",{recording_permission_mode:"open"},"id",series)).error,null);});
+ await epochRevoked("R18 rating withdraw -> restore",
+  async()=>{assert.equal((await mutate("series",{content_rating:"general"},"id",series)).error,null);},
+  async()=>{assert.equal((await mutate("series",{content_rating:"r18"},"id",series)).error,null);});
+ await epochRevoked("episode unpublish -> repost",
+  async()=>{assert.equal((await mutate("episodes",{is_published:false},"id",episode)).error,null);},
+  async()=>{assert.equal((await mutate("episodes",{is_published:true},"id",episode)).error,null);});
+ await epochRevoked("episode body edit -> restore",
+  async()=>{assert.equal((await mutate("episodes",{body:"LOCAL EDIT"},"id",episode)).error,null);},
+  async()=>{assert.equal((await mutate("episodes",{body:"SYNTHETIC"},"id",episode)).error,null);});
+ // A new authorized lease after the above withdrawals is allowed; old ones
+ // stay revoked and cannot share immutable object paths.
+ const newLease=await issue(payload(series,episode),reader.cookie);
+ yes(leaseState(newLease)==="active","new lease permitted after rights revalidation");
+ yes(newLease.objectPath!==fresh.objectPath,"fresh lease path never reuses old path");
  console.log("PASS: #137 REAL LOCAL Next SSR -> self-issued PRIVATE JWT/TUS "+checks+
   " assertions, ownership/consent/R18/official/origin negatives, physical SHA, no PUBLIC record");
  console.log("HOLD: test-only SQL is not real rights attestation, no provider-exclusive privileged writer, no deployed Studio/finalizer, no legacy bearer revocation");
