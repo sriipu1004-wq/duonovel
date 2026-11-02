@@ -282,3 +282,17 @@ using (bucket_id<>'f2p-tus-app-authority-local'
  or libread_internal.issue137_g2_local_staged_owner_read(bucket_id,name));
 -- READ-ONLY isolation is deliberately NOT a claim of full provider custody:
 -- project-wide service_role and generated S3 keys still bypass this RLS.
+
+-- G1/2 LOCAL integration: this earlier restrictive SELECT policy was
+-- installed during TUS issuer setup, BEFORE the G1 sealed function existed.
+-- PostgreSQL combines restrictive policies with AND: without this ALTER,
+-- the original STAGED-only predicate denies every PRIVATE read once the
+-- 10-minute TUS lease expires, even though a sealed durable receipt exists.
+-- Keep the same original owner/session and live revoked/rights checks for
+-- either branch; DO NOT broaden anonymous, write or PUBLIC access.
+alter policy issue137_g2_local_staged_owner_read_fence
+ on storage.objects using (
+  bucket_id<>'f2p-tus-app-authority-local'
+  or libread_internal.issue137_g2_local_staged_owner_read(bucket_id,name)
+  or libread_internal.issue137_g2_local_owner_can_read(bucket_id,name)
+ );
