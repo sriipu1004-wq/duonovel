@@ -96,12 +96,12 @@ function resolveErrorResponse(message: string) {
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as Record<string, unknown>;
-    if(hasIssue137ProbeMarker(payload))
-      return handleIssue137LocalLegacyProbe(request,payload,"open");
-    // Strictly loopback/local-only PRIVATE JWT TUS experiment; always HOLD
-    // rather than using the production legacy bearer signer on mismatch.
+    // When the isolated JWT/TUS experiment is selected, never fall through
+    // to the old local marker or production signed-upload bearer path.
     if(isIssue137LocalTusIssuerModeSelected())
       return handleIssue137LocalTusIssuerRoute(request,payload);
+    if(hasIssue137ProbeMarker(payload))
+      return handleIssue137LocalLegacyProbe(request,payload,"open");
     // Dedicated disposable localhost tests exercise the real normal JSON
     // contract with no privileged signer or publication; never auto-fallback.
     if(isIssue137LocalNormalHumanModeSelected())
