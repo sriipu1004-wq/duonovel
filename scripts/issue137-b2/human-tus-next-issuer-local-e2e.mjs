@@ -228,10 +228,10 @@ try{
  const rated=await issue(payload(series,episode),reader.cookie);
  // An issuer ticket must NEVER be accepted as a finalized recording. Check
  // both ordinary finalize shape and legacy probe marker for bypass.
- async function finalize(body){
+ async function finalize(body,cookie=reader.cookie,extraHeaders={}){
   const r=await fetch(base+"/api/recordings/human-upload-finalize",{
    method:"POST",headers:{"content-type":"application/json",
-    cookie:reader.cookie.header()},body:JSON.stringify(body),redirect:"error",
+    cookie:cookie.header(),...extraHeaders},body:JSON.stringify(body),redirect:"error",
    signal:AbortSignal.timeout(15000)});
   return {status:r.status,body:await r.json()};
  }
@@ -240,10 +240,10 @@ try{
   fileName:"local.wav",mimeType:"audio/wav",totalSizeBytes:bytes.length,
   uploadSessionId:rated.leaseId,
  });
- yes(normalFinal.status===409&&normalFinal.body.error==="ISSUE137_LOCAL_TUS_FINALIZE_HOLD",
+ yes(normalFinal.status===400&&normalFinal.body.error==="ISSUE137_LOCAL_G2_PENDING_TRUSTED_COMMIT",
   "TUS local issuer mode denies normal Human finalize before privileged worker");
  const legacyFinal=await finalize({issue137LocalProbe:"finish",sessionId:rated.leaseId});
- yes(legacyFinal.status===409&&legacyFinal.body.error==="ISSUE137_LOCAL_TUS_FINALIZE_HOLD",
+ yes(legacyFinal.status===400&&legacyFinal.body.error==="ISSUE137_LOCAL_G2_PENDING_TRUSTED_COMMIT",
   "TUS issuer mode blocks legacy finalize marker bypass");
  const probe=await post({...payload(series,episode),issue137LocalProbe:"open"},reader.cookie);
  yes(probe.status===400,"TUS issuer blocks old local signer marker bypass");
@@ -276,6 +276,56 @@ try{
  yes(fin.status===204&&fin.offset===bytes.length,"fresh PRIVATE commit");
  const saved=await physical(fresh.objectPath);
  yes(saved?.length===bytes.length&&sha(saved)===hash,"PRIVATE full physical SHA readback");
+
+ // SAME existing Human finalize endpoint and normal Studio request fields.
+ // LOCAL Next has no project-wide service role; it never publishes rows.
+ const candidate={seriesId:series,episodeId:episode,episodeNumber:1,
+  isPublic:false,fileName:"local.wav",mimeType:"audio/wav",
+  totalSizeBytes:bytes.length,uploadSessionId:fresh.leaseId};
+ const verified=await finalize(candidate);
+ yes(verified.status===202&&verified.body.ok===false&&
+  verified.body.reason==="PRIVATE_BYTES_VERIFIED_PENDING_TRUSTED_COMMIT"&&
+  verified.body.leaseId===fresh.leaseId,
+  "real G2 Human finalize verifies owner-JWT physical bytes only, never publishes");
+ const authorFinish=await finalize(candidate,owner.cookie);
+ yes(authorFinish.status===409,
+  "work author cannot finalize separate narrator's PRIVATE stage");
+ const foreignFinish=await finalize({...candidate,seriesId:foreignSeries});
+ yes(foreignFinish.status===409,
+  "client cannot retarget original stage lease to foreign work");
+ const publicFinish=await finalize({...candidate,isPublic:true});
+ yes(publicFinish.status===400,
+  "TUS stage cannot be promoted to PUBLIC by finalize");
+ const wrongOrigin=await finalize(candidate,reader.cookie,
+  {origin:"https://attacker.invalid"});
+ yes(wrongOrigin.status===403,"cross-site origin G2 finalize rejected");
+ const direct=await reader.cookie.session.rpc("issue137_g2_local_uploaded_preflight",
+  {p_lease:fresh.leaseId});
+ yes(!direct.error&&direct.data?.leaseId===fresh.leaseId,
+  "real local SQL returns original actor's exact TUS object");
+ const steal=await owner.cookie.session.rpc("issue137_g2_local_uploaded_preflight",
+  {p_lease:fresh.leaseId});
+ yes(!steal.error&&steal.data===null,
+  "original author direct RPC cannot borrow narrator's staged object");
+ const exactUser=await reader.cookie.session.storage.from(bucket).download(fresh.objectPath);
+ yes(!exactUser.error&&sha(Buffer.from(await exactUser.data.arrayBuffer()))===hash,
+  "real LOCAL RLS-only owner JWT physical read works without admin in Next");
+ assert.equal((await admin.from("user_recording_consents").update({
+  consent_version:"2026-04-15"
+ }).eq("user_id",reader.id)).error,null);
+ const revoked=await finalize(candidate);
+ yes(revoked.status===409,"G2 finalize denies already-staged bytes after revoke");
+ assert.equal((await admin.from("user_recording_consents").update({
+  consent_version:"2026-04-16"
+ }).eq("user_id",reader.id)).error,null);
+ const aba=await finalize(candidate);
+ yes(aba.status===409,"revoked lease cannot revive after renewed consent");
+ const unchanged=await admin.from("recordings").select("id",{count:"exact",head:true});
+ yes(unchanged.error===null&&unchanged.count===initialCount.count,
+  "G2 finalize creates zero recordings rows and never PUBLIC audio");
+ console.log("PASS: G2_LOCAL_HUMAN_FINALIZE real Next/GoTrue/TUS owner-JWT "+
+  "physical SHA and nonauthor/revoke/ABA/public/origin negatives; NO PUBLIC");
+
  const publicGet=await fetch(api.origin+"/storage/v1/object/public/"+bucket+"/"+fresh.objectPath,{
   headers:{apikey:anon},redirect:"error",signal:AbortSignal.timeout(10000)});
  yes(publicGet.status>=400&&publicGet.status<500,"no PUBLIC object URL");
