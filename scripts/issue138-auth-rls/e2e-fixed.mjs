@@ -60,7 +60,8 @@ const foreign=await http(q("private_library_works","id=eq."+work+"&select=id"),"
 check(foreign.status===200&&Array.isArray(foreign.data)&&foreign.data.length===0,
  "owner B cannot read owner A work");
 const anonRead=await http(q("private_library_works","id=eq."+work+"&select=id"));
-check([200,401,403].includes(anonRead.status)&&!Array.isArray(anonRead.data?.[0]),
+check([200,401,403].includes(anonRead.status)&&
+ !(Array.isArray(anonRead.data)&&anonRead.data.length>0),
  "anonymous cannot read private work");
 const bComplete=await http(q("rpc/complete_private_library_import"),"POST",b.jwt,
  {p_work_id:work});
