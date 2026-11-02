@@ -617,4 +617,132 @@ grant execute on function public.append_private_library_import_units(uuid,intege
  to authenticated,service_role;
 revoke execute on function public.complete_private_library_import(uuid) from public,anon;
 grant execute on function public.complete_private_library_import(uuid) to authenticated,service_role;
+CREATE OR REPLACE FUNCTION public.complete_private_library_import_with_usage(p_work_id uuid)
+ RETURNS uuid
+ LANGUAGE sql
+ SET search_path TO 'public'
+AS $function$
+  select public.complete_private_library_import(p_work_id);
+$function$;
+
+CREATE OR REPLACE FUNCTION public.import_private_library_txt(p_title text, p_author_name text, p_source_language text, p_original_file_name text, p_chapters jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_user_id uuid := auth.uid();
+  v_work_id uuid;
+  v_chapter_count integer;
+  v_total_chars integer;
+  v_existing_works integer;
+  v_existing_chars bigint;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+
+  if p_title is null or char_length(btrim(p_title)) not between 1 and 200 then
+    raise exception 'Invalid title' using errcode = '22023';
+  end if;
+
+  if p_author_name is not null and char_length(btrim(p_author_name)) > 200 then
+    raise exception 'Invalid author name' using errcode = '22023';
+  end if;
+
+  if p_source_language not in ('ja', 'en', 'ko', 'fr', 'de', 'es', 'zh-Hans', 'zh-Hant') then
+    raise exception 'Unsupported source language' using errcode = '22023';
+  end if;
+
+  if p_original_file_name is not null and char_length(p_original_file_name) > 255 then
+    raise exception 'Invalid file name' using errcode = '22023';
+  end if;
+
+  if p_chapters is null or jsonb_typeof(p_chapters) <> 'array' then
+    raise exception 'Invalid chapters' using errcode = '22023';
+  end if;
+
+  v_chapter_count := jsonb_array_length(p_chapters);
+  if v_chapter_count not between 1 and 500 then
+    raise exception 'Chapter count exceeds limit' using errcode = '22023';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_array_elements(p_chapters) as chapter(value)
+    where jsonb_typeof(chapter.value) <> 'object'
+      or char_length(btrim(coalesce(chapter.value ->> 'title', ''))) not between 1 and 200
+      or char_length(btrim(coalesce(chapter.value ->> 'body', ''))) not between 1 and 7500
+  ) then
+    raise exception 'Invalid chapter content' using errcode = '22023';
+  end if;
+
+  select coalesce(sum(char_length(btrim(chapter.value ->> 'body'))), 0)::integer
+  into v_total_chars
+  from jsonb_array_elements(p_chapters) as chapter(value);
+
+  if v_total_chars not between 1 and 1000000 then
+    raise exception 'Text size exceeds limit' using errcode = '22023';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(v_user_id::text, 0));
+
+  select count(*), coalesce(sum(source_char_count), 0)
+  into v_existing_works, v_existing_chars
+  from public.private_library_works
+  where owner_user_id = v_user_id;
+
+  if v_existing_works >= 20 then
+    raise exception 'Private library work limit reached' using errcode = '54000';
+  end if;
+
+  if v_existing_chars + v_total_chars > 5000000 then
+    raise exception 'Private library text limit reached' using errcode = '54000';
+  end if;
+
+  insert into public.private_library_works (
+    owner_user_id,
+    title,
+    author_name,
+    source_type,
+    source_language,
+    original_file_name,
+    source_char_count,
+    chapter_count
+  ) values (
+    v_user_id,
+    btrim(p_title),
+    nullif(btrim(coalesce(p_author_name, '')), ''),
+    'txt',
+    p_source_language,
+    nullif(btrim(coalesce(p_original_file_name, '')), ''),
+    v_total_chars,
+    v_chapter_count
+  )
+  returning id into v_work_id;
+
+  insert into public.private_library_chapters (
+    work_id,
+    chapter_number,
+    title,
+    body,
+    source_char_count
+  )
+  select
+    v_work_id,
+    ordinality::integer,
+    btrim(chapter.value ->> 'title'),
+    btrim(chapter.value ->> 'body'),
+    char_length(btrim(chapter.value ->> 'body'))
+  from jsonb_array_elements(p_chapters) with ordinality as chapter(value, ordinality);
+
+  return v_work_id;
+end;
+$function$;
+revoke execute on function public.import_private_library_txt(text,text,text,text,jsonb) from public,anon;
+grant execute on function public.import_private_library_txt(text,text,text,text,jsonb) to authenticated,service_role;
+revoke execute on function public.complete_private_library_import_with_usage(uuid) from public,anon;
+grant execute on function public.complete_private_library_import_with_usage(uuid) to authenticated,service_role;
+
 notify pgrst,'reload schema';
