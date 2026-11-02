@@ -146,8 +146,7 @@ revoke all on function libread_internal.issue137_tus_private_commit(
 -- the lifetime of an already sealed PRIVATE entitlement.
 create function libread_internal.issue137_g1_sealed_current_owner(
  p_lease uuid,p_actor uuid,p_current_session uuid
-) returns boolean language sql volatile security invoker set search_path='' as $
- select exists (
+) returns boolean language sql volatile security invoker set search_path='' as ' select exists (
   select 1 from libread_internal.issue137_tus_private_pointers p
   join libread_internal.issue137_tus_app_leases l on l.lease_id=p.lease_id
   join libread_internal.issue137_tus_app_receipts r on r.lease_id=p.lease_id
@@ -157,28 +156,27 @@ create function libread_internal.issue137_g1_sealed_current_owner(
   join public.series s on s.id=p.series_id
   join public.episodes e on e.id=p.episode_id and e.series_id=s.id
   join public.user_recording_consents c on c.user_id=p.owner_id
-   and c.consent_key='recording_studio_global'
-   and c.consent_version='2026-04-16'
+   and c.consent_key=''recording_studio_global''
+   and c.consent_version=''2026-04-16''
   join public.users u on u.id=p.owner_id
   join storage.objects o on o.bucket_id=p.stage_bucket and o.name=p.stage_path
    and o.id=p.provider_object_id
   where p.lease_id=p_lease and p.owner_id=p_actor
    and l.actor_id=p.owner_id and l.issued_session_id=p.issued_session_id
    and l.series_id=p.series_id and l.episode_id=p.episode_id
-   and l.object_path=p.stage_path and l.state='active'
-   and p.pointer_state='PRIVATE_POINTER_ONLY'
-   and r.state='SEALED_PRIVATE_SNAPSHOT'
+   and l.object_path=p.stage_path and l.state=''active''
+   and p.pointer_state=''PRIVATE_POINTER_ONLY''
+   and r.state=''SEALED_PRIVATE_SNAPSHOT''
    and r.verified_sha256=p.verified_sha256
    and r.verified_bytes=p.verified_bytes
    and r.provider_object_id=p.provider_object_id
-   and lower(btrim(au.email))<>'libread08@gmail.com'
-   and s.recording_permission_mode='open' and s.publication_status='public'
-   and e.posting_status='posted' and e.is_published is true
-   and ((s.content_rating is distinct from 'r18'
-     and not ('sexual_r18'=any(coalesce(s.content_warnings,'{}'::text[]))))
+   and lower(btrim(au.email))<>''libread08@gmail.com''
+   and s.recording_permission_mode=''open'' and s.publication_status=''public''
+   and e.posting_status=''posted'' and e.is_published is true
+   and ((s.content_rating is distinct from ''r18''
+     and not (''sexual_r18''=any(coalesce(s.content_warnings,''{}''::text[]))))
      or (u.show_r18_content is true and u.r18_confirmed_at is not null))
- )
-$;
+ )';
 revoke all on function
  libread_internal.issue137_g1_sealed_current_owner(uuid,uuid,uuid)
  from public,anon,authenticated,service_role;
