@@ -212,6 +212,27 @@ try{
  assert.equal((await admin.from("users").update({
   r18_confirmed_at:new Date().toISOString()}).eq("id",reader.id)).error,null);
  const rated=await issue(payload(series,episode),reader.cookie);
+ // An issuer ticket must NEVER be accepted as a finalized recording. Check
+ // both ordinary finalize shape and legacy probe marker for bypass.
+ async function finalize(body){
+  const r=await fetch(base+"/api/recordings/human-upload-finalize",{
+   method:"POST",headers:{"content-type":"application/json",
+    cookie:reader.cookie.header()},body:JSON.stringify(body),redirect:"error",
+   signal:AbortSignal.timeout(15000)});
+  return {status:r.status,body:await r.json()};
+ }
+ const normalFinal=await finalize({
+  seriesId:series,episodeId:episode,episodeNumber:1,isPublic:true,
+  fileName:"local.wav",mimeType:"audio/wav",totalSizeBytes:bytes.length,
+  uploadSessionId:rated.leaseId,
+ });
+ yes(normalFinal.status===409&&normalFinal.body.error==="ISSUE137_LOCAL_TUS_FINALIZE_HOLD",
+  "TUS local issuer mode denies normal Human finalize before privileged worker");
+ const legacyFinal=await finalize({issue137LocalProbe:"finish",sessionId:rated.leaseId});
+ yes(legacyFinal.status===409&&legacyFinal.body.error==="ISSUE137_LOCAL_TUS_FINALIZE_HOLD",
+  "TUS issuer mode blocks legacy finalize marker bypass");
+ const probe=await post({...payload(series,episode),issue137LocalProbe:"open"},reader.cookie);
+ yes(probe.status===400,"TUS issuer blocks old local signer marker bypass");
  // Physical access remains PRIVATE, and a foreign JWT cannot use the issued path.
  const foreign=await start(rated,outsider.login.access_token);
  if(foreign.url){
