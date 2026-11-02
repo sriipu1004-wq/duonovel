@@ -28,7 +28,7 @@ The README/older public URLs may already exist independently of the new private 
 
 | Failure scenario | Precondition and current expectation | Evidence level |
 | --- | --- | --- |
-| Consent OFF / R18 OFF / narration CLOSED | Current DB private pointer denies immediately; prior signed download/upload bearer can remain valid | G1 real local revoke; G2 local signed URL test added at this checkpoint; no CDN |
+| Consent OFF / R18 OFF / narration CLOSED | Current DB private pointer denies immediately; prior signed download/upload bearer can remain valid | G1 real local revoke; **G2 real disposable Storage positive/negative evidence: old signed bearer still returns correct PRIVATE bytes after consent is revoked**; no CDN |
 | Privileged storage overwrite after CAS | Same path bytes can change and full readback must HOLD | Real disposable Storage test; **physical exclusion FAIL** |
 | Signed URL expires but CDN/browser cache has bytes | Token expiration alone is not cache eviction | Supabase official docs, **not measured** on user's production CDN |
 | Revoke auth/JWT secret | Does not by itself invalidate dedicated Storage signed-URL signing key | Supabase official docs, not a key operation test |
@@ -37,7 +37,7 @@ The README/older public URLs may already exist independently of the new private 
 | Revalidated HTTP Range / streaming after auth is revoked | A preflight+digest check does not guarantee no stale already-in-flight bytes | G1 SOURCE/MODEL only; **no real Reader HTTP E2E** |
 | Large audio / CDN purge | 16 MiB local G1 fixture is NOT 1 GiB throughput, cost, latency or cache purge evidence | Not tested |
 
-**Supabase sources checked 2026-11-02:** 
+**Supabase sources checked 2026-11-02:**
 - https://supabase.com/docs/guides/storage/security/access-control
 - https://supabase.com/docs/guides/storage/serving/downloads
 - https://supabase.com/docs/guides/storage/cdn/smart-cdn
@@ -73,8 +73,8 @@ The user forbids unrequested extra charges. **No supplier price is asserted here
 
 - Existing broad scanner: `scripts/issue137-b2/s3-public-writer-inventory.mjs`.
 - Existing transitive dependency scanner: `scripts/issue137-b2/recording-credential-route-dependencies.mjs`.
-- New SOURCE+MODEL: `scripts/issue137-b2/g2-credential-cache-boundary-model.mjs`. A modeled cache is **not** CDN evidence.
-- New local signed bearer revocation negative in `scripts/issue137-b2/human-tus-private-pointer-local-e2e.mjs`. Must explicitly PASS in real isolated runner; no hosted token is ever issued.
+- New SOURCE+MODEL: `scripts/issue137-b2/g2-credential-cache-boundary-model.mjs`. A modeled cache is **not** CDN evidence. G2 SOURCE+MODEL **37 assertions PASS** in run 41401658590.
+- New local signed bearer revocation negative in `scripts/issue137-b2/human-tus-private-pointer-local-e2e.mjs`. **PASS on isolated run 41401658590 / job 125134599309**: 102 PRIVATE pointer checks, standalone signed bearer remained usable after DB consent revocation, zero public records. No hosted token was issued, and no actual CDN cache was involved.
 - Prior real local G1 physical overwrite evidence is retained.
 
 **STOP:** PR #153 stays Draft / MERGE HOLD. Production Supabase/Vercel/account data and rights are untouched. New G2 work is nonproduction evidence only.
