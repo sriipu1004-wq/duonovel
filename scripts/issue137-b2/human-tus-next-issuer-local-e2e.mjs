@@ -194,6 +194,20 @@ try{
  assert.equal((await admin.from("user_recording_consents").update({
   consent_version:"2026-04-16"}).eq("user_id",reader.id)).error,null);
  await denied("official account",403,payload(series,episode),official.cookie);
+ // Direct Data API RPC bypasses the Next handler: it must independently
+ // reject Official even with a valid GoTrue cookie and current consent.
+ const beforeOfficial=sql("select count(*) from libread_internal.issue137_tus_app_leases"+
+  " where issued_session_id is not null");
+ const directOfficial=await official.cookie.session.rpc("issue137_tus_local_issue",{
+  p_series_id:series,p_episode_id:episode,
+  p_expected_sha256:hash,p_size_bytes:bytes.length,
+ });
+ yes(directOfficial.error!==null&&directOfficial.data===null,
+  "Official direct PostgREST RPC must fail, not only Next UI");
+ yes(sql("select count(*) from libread_internal.issue137_tus_app_leases"+
+  " where issued_session_id is not null")===beforeOfficial,
+  "Official direct RPC created no private lease");
+
  await denied("wrong episode",404,payload(series,id()),reader.cookie);
  await denied("nonowner private work",403,payload(foreignSeries,episode),reader.cookie);
  await denied("invalid digest",400,{...payload(series,episode),expectedSha256:"x".repeat(64)},reader.cookie);
