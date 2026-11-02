@@ -258,6 +258,13 @@ docker cp "$B2/human-tus-private-pointer-local.sql" \
 docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
  -f /tmp/issue137_human_tus_private_pointer_local.sql >/dev/null
 echo 'PASS: #137 local-only server-private TUS pointer/CAS schema installed'
+# Reuse the preexisting LOCAL auditor's server-provisioned identity registry.
+# Install before the original same-lease Human TUS integration test.
+docker cp "$B2/g2-independent-attestor-local.sql" \
+ "$db_container:/tmp/issue137_g2_independent_attestor_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+ -f /tmp/issue137_g2_independent_attestor_local.sql >/dev/null
+echo 'PASS: #137 local independent GoTrue attestor scope/RLS installed'
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node "$B2/human-tus-next-issuer-local-e2e.mjs")
 # Standalone G1 revocation/ABA/privileged tampering negatives remain separate.
