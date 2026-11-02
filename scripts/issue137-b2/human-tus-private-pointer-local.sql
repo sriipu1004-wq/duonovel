@@ -234,6 +234,9 @@ using (libread_internal.issue137_g2_local_owner_can_read(bucket_id,name));
 create policy issue137_g2_local_private_owner_read_fence
 on storage.objects as restrictive for select to authenticated
 using (bucket_id<>'f2p-tus-app-authority-local'
- or libread_internal.issue137_g2_local_owner_can_read(bucket_id,name));
+ or libread_internal.issue137_g2_local_owner_can_read(bucket_id,name)
+ -- Prior to sealing, only the same live GoTrue actor/session may read the
+ -- STAGED object. Both restrictive guards still deny revoked and foreign.
+ or libread_internal.issue137_g2_local_staged_owner_read(bucket_id,name));
 -- READ-ONLY isolation is deliberately NOT a claim of full provider custody:
 -- project-wide service_role and generated S3 keys still bypass this RLS.
