@@ -253,6 +253,15 @@ echo 'PASS: #137 disposable authenticated PRIVATE issuer SQL loaded'
 # PRIVATE JWT/TUS contract. Runtime Next has no service-role/S3 key.
 (cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
  node "$B2/human-tus-next-issuer-local-e2e.mjs")
+# G1 one-use PRIVATE pointer from true TUS full-byte readback and fresh rights.
+# Separate disposable-only SQL; MUST NOT be a hosted schema or PUBLIC API.
+docker cp "$B2/human-tus-private-pointer-local.sql" \
+ "$db_container:/tmp/issue137_human_tus_private_pointer_local.sql"
+docker exec "$db_container" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+ -f /tmp/issue137_human_tus_private_pointer_local.sql >/dev/null
+echo 'PASS: #137 local-only server-private TUS pointer/CAS schema installed'
+(cd "$ROOT" && B2_NETWORK="$NETWORK" B2_DB_CONTAINER="$db_container" \
+ node "$B2/human-tus-private-pointer-local-e2e.mjs")
 # F2-P Human one-shot broker candidate (NO signed upload URL): local-only
 # PostgreSQL consent/session/nonce tables, then real GoTrue PRIVATE RLS writes.
 # No hosted migrations or runtime authoring endpoint changes.
