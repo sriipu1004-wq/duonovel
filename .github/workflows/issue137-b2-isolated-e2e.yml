@@ -62,6 +62,8 @@ jobs:
           node --check scripts/issue137-b2/human-tus-user-ingress-isolation-e2e.mjs
           node --check scripts/issue137-b2/human-tus-session-issuer-local-e2e.mjs
           node --check scripts/issue137-b2/human-tus-next-issuer-local-e2e.mjs
+          node --check scripts/issue137-b2/human-tus-private-pointer-local-e2e.mjs
+          test -f scripts/issue137-b2/human-tus-private-pointer-local.sql
           test -f scripts/issue137-b2/human-tus-session-issuer-local.sql
           node --check scripts/issue137-b2/human-one-shot-broker-local.mjs
           node --check scripts/issue137-b2/human-one-shot-broker-e2e.mjs
