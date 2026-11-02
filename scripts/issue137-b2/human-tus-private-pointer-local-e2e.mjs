@@ -3,9 +3,11 @@
 // synthetic ledger, not a deployed Reader, Studio, publisher or credential holder.
 import assert from "node:assert/strict";
 import {randomUUID,createHash} from "node:crypto";
-import {execFileSync,execFile} from "node:child_process";
+import {execFileSync,execFile,spawn} from "node:child_process";
 import {promisify} from "node:util";
 import {createClient} from "@supabase/supabase-js";
+import {createServerClient} from "@supabase/ssr";
+import {setTimeout as sleep} from "node:timers/promises";
 const asyncExecFile=promisify(execFile);
 assert.equal(process.env.DO_NOT_CONTACT_PRODUCTION,"true");
 assert.equal(process.env.B2_EPHEMERAL_CONFIRM,"local-only");
@@ -51,8 +53,13 @@ async function createActor(){
  const email="pointer-"+id()+"@example.invalid",password="Local-"+id()+"Aa1!";
  const u=await admin.auth.admin.createUser({email,password,email_confirm:true});
  assert.equal(u.error,null);
- const client=createClient(api,anon,{auth:{persistSession:false,
-  autoRefreshToken:false,detectSessionInUrl:false}});
+ const jar=new Map();
+ const client=createServerClient(api,anon,{cookies:{
+  getAll:()=>[...jar].map(([name,value])=>({name,value})),
+  setAll:entries=>{for(const entry of entries){
+   if(entry.value)jar.set(entry.name,entry.value);else jar.delete(entry.name);
+  }},
+ }});
  const login=await client.auth.signInWithPassword({email,password});
  assert.equal(login.error,null);
  const actorId=u.data.user.id,jwt=login.data.session.access_token;
@@ -76,7 +83,8 @@ async function createActor(){
   id:episode,series_id:series,body:"SYNTHETIC",posting_status:"posted",
   is_published:true
  })).error,null);
- return {actorId,series,episode,session,jwt,client,email,password};
+ return {actorId,series,episode,session,jwt,client,email,password,
+  cookie:()=>[...jar].map(([name,value])=>name+"="+value).join("; ")};
 }
 async function issue(a,seriesId=a.series,episodeId=a.episode){
  const r=await a.client.rpc("issue137_tus_local_issue",{
@@ -155,6 +163,7 @@ async function verifyRead(a,t){
  return bytes&&oid===row.provider_object_id&&bytes.length===row.verified_bytes
   &&digest(bytes)===row.verified_sha256?"PRIVATE_BYTES_VERIFIED":"HOLD_BYTE_DRIFT";
 }
+let nextProcess,nextLog="";
 const priorCount=await recordCount(),a=await createActor();
 const b=await createActor();
 yes(sql("select has_table_privilege('authenticated',"+
@@ -179,6 +188,79 @@ yes(candidates.filter(v=>v==="t").length===1&&
  candidates.filter(v=>v==="f").length===1,"concurrent finalizers single CAS winner");
 yes(rows()===1,"only one immutable PRIVATE pointer row");
 yes(read(a,t)===t.path,"owner original live GoTrue session can find PRIVATE pointer");
+
+ // Nonproduction G1 actual HTTP proof on the EXISTING Human GET; the
+ // disposable receipt remains PRIVATE and does not create recordings rows.
+ const port=39710+Math.floor(Math.random()*70);
+ const base="http://127.0.0.1:"+port;
+ const root=new URL("../../",import.meta.url).pathname;
+ const cli=new URL("../../node_modules/next/dist/bin/next",import.meta.url).pathname;
+ const appEnv={...process.env,NODE_ENV:"development",NEXT_TELEMETRY_DISABLED:"1",
+  DO_NOT_CONTACT_PRODUCTION:"true",B2_EPHEMERAL_CONFIRM:"local-only",
+  B2_G1_HTTP_GET_MODE:"enabled",NEXT_PUBLIC_SITE_URL:base,
+  NEXT_PUBLIC_SUPABASE_URL:api,NEXT_PUBLIC_SUPABASE_ANON_KEY:anon,
+  SUPABASE_SERVICE_ROLE_KEY:service};
+ assert.equal(appEnv.VERCEL_ENV,undefined,"no Vercel deployment env in disposable test");
+ nextProcess=spawn(process.execPath,[cli,"dev","--hostname","127.0.0.1",
+  "--port",String(port)],{cwd:root,env:appEnv,detached:true,
+  stdio:["ignore","pipe","pipe"]});
+ for(const stream of [nextProcess.stdout,nextProcess.stderr]){
+  stream.on("data",v=>{nextLog=(nextLog+String(v)).slice(-2500);});
+ }
+ async function getAudio(lease,cookie="",range="",suffix=""){
+  const r=await fetch(base+"/api/recordings/human-audio/"+lease+suffix,{
+   headers:{...(cookie?{cookie}:{}),...(range?{range}:{})},
+   redirect:"manual",signal:AbortSignal.timeout(18000),cache:"no-store"});
+  return {status:r.status,headers:r.headers,bytes:Buffer.from(await r.arrayBuffer())};
+ }
+ let ready=false;
+ for(let n=0;n<130;n++){
+  if(nextProcess.exitCode!==null)throw Error("LOCAL_G1_NEXT_EXITED");
+  try{
+   const ping=await getAudio(t.lid);
+   if(ping.status===404){ready=true;break;}
+  }catch{}
+  await sleep(400);
+ }
+ yes(ready,"real existing Next GET localhost ready with anonymous denied");
+ const ownerHttp=await getAudio(t.lid,a.cookie());
+ yes(ownerHttp.status===200&&ownerHttp.bytes.equals(data),
+  "real G1 sealed receipt serves exactly SHA-verified PRIVATE owner bytes");
+ yes(!ownerHttp.headers.has("location")&&
+  ownerHttp.headers.get("cache-control")?.includes("no-store"),
+  "G1 HTTP returns no signed URL, no redirect and no cross-user cache");
+ const anonymousHttp=await getAudio(t.lid);
+ yes(anonymousHttp.status===404&&anonymousHttp.bytes.length===0,
+  "anonymous cannot retrieve G1 PRIVATE pointer bytes");
+ const foreignHttp=await getAudio(t.lid,b.cookie());
+ yes(foreignHttp.status===404&&foreignHttp.bytes.length===0,
+  "foreign GoTrue actor cannot read G1 PRIVATE pointer");
+ const rangeHttp=await getAudio(t.lid,a.cookie(),"bytes=0-5");
+ yes(rangeHttp.status===404&&rangeHttp.bytes.length===0,
+  "G1 unverified Range never leaks partial bytes");
+ const sidecar=await getAudio(t.lid,a.cookie(),"",".timing.json");
+ yes(sidecar.status===404&&sidecar.bytes.length===0,
+  "G1 staging receipt cannot serve a timing sidecar");
+ const jwtDirect=await a.client.rpc("issue137_g1_local_http_preflight",{
+  p_lease:t.lid,p_actor:a.actorId,p_session:a.session});
+ yes(!!jwtDirect.error,"authenticated user cannot invoke service-only G1 preflight");
+ const foreignSessionJar=new Map();
+ const sameActorDifferentSession=createServerClient(api,anon,{cookies:{
+  getAll:()=>[...foreignSessionJar].map(([name,value])=>({name,value})),
+  setAll:entries=>{for(const e of entries){
+   if(e.value)foreignSessionJar.set(e.name,e.value);else foreignSessionJar.delete(e.name);
+  }}
+ }});
+ assert.equal((await sameActorDifferentSession.auth.signInWithPassword({
+  email:a.email,password:a.password
+ })).error,null,"fresh real GoTrue session for same narrator");
+ const freshCookie=[...foreignSessionJar].map(([name,value])=>name+"="+value).join("; ");
+ const crossSession=await getAudio(t.lid,freshCookie);
+ yes(crossSession.status===404&&crossSession.bytes.length===0,
+  "same user DIFFERENT GoTrue session cannot reuse G1 lease");
+ console.log("PASS: G1_LOCAL_HTTP existing Human GET, GoTrue exact-session and "+
+  "service-only pointer, 6MiB SHA/owner/non-owner/no-URL/no-Range negatives");
+
 yes(read(b,t)==="","foreign owner cannot obtain pointer path");
 yes(read(a,t,a.actorId,b.session)==="","foreign session cannot obtain pointer path");
 yes(await verifyRead(a,t)==="PRIVATE_BYTES_VERIFIED",
@@ -195,15 +277,24 @@ if(tamper.error){
   "privileged rewrite changed actual PRIVATE bytes");
  yes(await verifyRead(a,t)==="HOLD_BYTE_DRIFT",
   "server readback DENIES stale pointer even if metadata object ID unchanged");
+ const driftHttp=await getAudio(t.lid,a.cookie());
+ yes(driftHttp.status===404&&driftHttp.bytes.length===0,
+  "G1 actual HTTP denies physically overwritten same-object PRIVATE bytes");
  console.log("RISK: privileged service_role can overwrite PRIVATE snapshot; readback detects, G2 NOT proven");
 }
 // Revocation after sealing leaves row durable but unusable to the read gate.
 assert.equal((await admin.from("user_recording_consents").update({
  consent_version:"2026-04-15"}).eq("user_id",a.actorId)).error,null);
 yes(read(a,t)==="","consent withdrawal hides sealed PRIVATE pointer");
+const revokedHttp=await getAudio(t.lid,a.cookie());
+yes(revokedHttp.status===404&&revokedHttp.bytes.length===0,
+ "real G1 HTTP denies revoked consent even with existing physical bytes");
 assert.equal((await admin.from("user_recording_consents").update({
  consent_version:"2026-04-16"}).eq("user_id",a.actorId)).error,null);
 yes(read(a,t)==="","consent regrant cannot revive old sealed lease");
+const abaHttp=await getAudio(t.lid,a.cookie());
+yes(abaHttp.status===404&&abaHttp.bytes.length===0,
+ "G1 HTTP does not revive old lease after consent restoration");
 
 // A second stage can pass physical verification, then be revoked BEFORE CAS.
 const stale=await issue(a);await upload(a,stale);
@@ -260,6 +351,12 @@ yes(sql(commit(narrator,third,thirdProof,id(),narrator.actorId,author.session))=
 yes(commitIfFull(narrator,third,thirdProof)==="t",
  "third-party legitimate Human narrator can seal PRIVATE pointer");
 yes(read(narrator,third)===third.path,"narrator owns resulting PRIVATE pointer");
+const thirdHttp=await getAudio(third.lid,narrator.cookie());
+yes(thirdHttp.status===200&&thirdHttp.bytes.equals(data),
+ "third-party narrator != work author real HTTP PRIVATE G1 positive");
+const authorHttp=await getAudio(third.lid,author.cookie());
+yes(authorHttp.status===404&&authorHttp.bytes.length===0,
+ "original work author cannot read separate narrator G1 PRIVATE bytes");
 yes(read(author,third)==="","author cannot read narrator's PRIVATE pointer");
 yes(await verifyRead(narrator,third)==="PRIVATE_BYTES_VERIFIED",
  "third-party full physical bytes remain verifiable");
@@ -320,10 +417,16 @@ const r18Proof=await trustedReadback(r18);
 yes(commitIfFull(narrator,r18,r18Proof)==="t",
  "non-author with opt-in plus age confirmation seals warning-R18 PRIVATE pointer");
 yes(read(narrator,r18)===r18.path,"R18-qualified non-author PRIVATE pointer visible");
+const r18Http=await getAudio(r18.lid,narrator.cookie());
+yes(r18Http.status===200&&r18Http.bytes.equals(data),
+ "actual G1 HTTP allows age-confirmed R18-eligible nonauthor narrator");
 assert.equal((await admin.from("users").update({
  show_r18_content:false
 }).eq("id",narrator.actorId)).error,null);
 yes(read(narrator,r18)==="","turning R18 OFF revokes old non-author pointer");
+const r18OffHttp=await getAudio(r18.lid,narrator.cookie());
+yes(r18OffHttp.status===404&&r18OffHttp.bytes.length===0,
+ "actual G1 HTTP rejects R18 OFF even if byte object remains");
 assert.equal((await admin.from("users").update({
  show_r18_content:true
 }).eq("id",narrator.actorId)).error,null);
@@ -396,6 +499,9 @@ assert.equal((await admin.from("user_recording_consents").update({
 }).eq("user_id",narrator.actorId)).error,null);
 yes(read(narrator,afterConsent)==="",
  "live PRIVATE DB pointer denied immediately after consent revoke");
+const revokeThirdHttp=await getAudio(afterConsent.lid,narrator.cookie());
+yes(revokeThirdHttp.status===404&&revokeThirdHttp.bytes.length===0,
+ "real G1 HTTP declines revoked signed-in narrator despite old bearer");
 const afterRevoke=await bearerFetch();
 yes(afterRevoke.status===200&&digest(afterRevoke.bytes)===sha,
  "G2 NEGATIVE: old signed bearer still retrieves bytes after DB revoke");
@@ -415,5 +521,11 @@ console.log("PASS: #137 REAL LOCAL third-party narrator != author, OPEN positive
 console.log("PASS: #137 REAL LOCAL stage -> full SHA readback -> PRIVATE pointer "+
  checks+" checks; concurrent CAS, revocation ABA, ownership/session/R18 authority, "+
  " post-seal tamper detection and no PUBLIC recording");
-console.log("HOLD: trusted server-only SQL + readback in disposable fixture, no LIVE reader, "+
- "no transactionally immutable provider bytes, no rights-provenance or service-role/S3 exclusion");
+console.log("HOLD: G1 actual HTTP is LOCAL development-only, <=16MiB full buffer; "+
+ "NOT deployed Reader, no physically immutable provider bytes, legal rights, "+
+ "concurrent stream revoke, old signed bearer/CDN, >=1GiB streaming or global S3 exclusion");
+if(nextProcess?.pid){
+ try{process.kill(-nextProcess.pid,"SIGTERM");}catch{}
+ await sleep(350);
+ try{process.kill(-nextProcess.pid,"SIGKILL");}catch{}
+}
