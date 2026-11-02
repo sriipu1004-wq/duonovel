@@ -78,9 +78,9 @@ async function createActor(){
  })).error,null);
  return {actorId,series,episode,session,jwt,client,email,password};
 }
-async function issue(a){
+async function issue(a,seriesId=a.series,episodeId=a.episode){
  const r=await a.client.rpc("issue137_tus_local_issue",{
-  p_series_id:a.series,p_episode_id:a.episode,
+  p_series_id:seriesId,p_episode_id:episodeId,
   p_expected_sha256:sha,p_size_bytes:size});
  assert.equal(r.error,null,"real local JWT issuer");
  yes(r.data?.mode==="PRIVATE_JWT_TUS_LOCAL_ONLY","no signed bearer or public URL");
@@ -241,6 +241,147 @@ for(const x of [t,fresh]){
  assert.equal(clean.error,null,"private synthetic cleanup");
 }
 yes((await actual(fresh))===null,"no synthetic PRIVATE bytes remain");
+
+// Cross-account Human narration: narrator A is NOT author B.  Publicly
+// published open-licensed (site permission, not copyright clearance) series
+// allows A to stage/claim A's own PRIVATE recording, without B's credentials.
+const author=b,narrator=a;
+yes(author.actorId!==narrator.actorId,"narrator and author are distinct GoTrue accounts");
+const third=await issue(narrator,author.series,author.episode);
+await upload(narrator,third);
+yes(claim(third)==="1","non-author TUS receipt claimed once");
+const thirdProof=await trustedReadback(third);
+yes(thirdProof?.sha===sha&&thirdProof.size===size,
+ "non-author full provider SHA matches actor-owned PRIVATE recording");
+yes(sql(commit(author,third,thirdProof))==="f",
+ "work author cannot finalize another narrator's private audio");
+yes(sql(commit(narrator,third,thirdProof,id(),narrator.actorId,author.session))==="f",
+ "foreign session cannot claim non-author's pointer");
+yes(commitIfFull(narrator,third,thirdProof)==="t",
+ "third-party legitimate Human narrator can seal PRIVATE pointer");
+yes(read(narrator,third)===third.path,"narrator owns resulting PRIVATE pointer");
+yes(read(author,third)==="","author cannot read narrator's PRIVATE pointer");
+yes(await verifyRead(narrator,third)==="PRIVATE_BYTES_VERIFIED",
+ "third-party full physical bytes remain verifiable");
+yes(await recordCount()===priorCount,"third-party private stage never publishes recording");
+
+// Changing the AUTHOR's recording permission must revoke narrator's old
+// ticket even if the author later restores OPEN (ABA).
+assert.equal((await admin.from("series").update({
+ recording_permission_mode:"closed"}).eq("id",author.series)).error,null);
+yes(read(narrator,third)==="","author CLOSED revokes third-party private pointer");
+const closedIssue=await narrator.client.rpc("issue137_tus_local_issue",{
+ p_series_id:author.series,p_episode_id:author.episode,
+ p_expected_sha256:sha,p_size_bytes:size});
+yes(!!closedIssue.error,"third party cannot mint when author set CLOSED");
+assert.equal((await admin.from("series").update({
+ recording_permission_mode:"open"}).eq("id",author.series)).error,null);
+yes(read(narrator,third)==="","OPEN restore cannot revive old pointer");
+
+assert.equal((await admin.from("episodes").update({
+ posting_status:"draft",is_published:false
+}).eq("id",author.episode)).error,null);
+const draftIssue=await narrator.client.rpc("issue137_tus_local_issue",{
+ p_series_id:author.series,p_episode_id:author.episode,
+ p_expected_sha256:sha,p_size_bytes:size});
+yes(!!draftIssue.error,"non-author cannot stage author's unpublished episode");
+assert.equal((await admin.from("episodes").update({
+ posting_status:"posted",is_published:true
+}).eq("id",author.episode)).error,null);
+assert.equal((await admin.from("series").update({
+ publication_status:"private"}).eq("id",author.series)).error,null);
+const privateIssue=await narrator.client.rpc("issue137_tus_local_issue",{
+ p_series_id:author.series,p_episode_id:author.episode,
+ p_expected_sha256:sha,p_size_bytes:size});
+yes(!!privateIssue.error,"non-author cannot stage private series");
+assert.equal((await admin.from("series").update({
+ publication_status:"public",content_rating:"general",
+ content_warnings:["sexual_r18"]
+}).eq("id",author.series)).error,null);
+// R18 warnings must protect actors who are NOT the original author.
+const warningIssue=await narrator.client.rpc("issue137_tus_local_issue",{
+ p_series_id:author.series,p_episode_id:author.episode,
+ p_expected_sha256:sha,p_size_bytes:size});
+yes(!!warningIssue.error,"sexual_r18 warning blocks non-opt-in narrator");
+assert.equal((await admin.from("users").update({
+ show_r18_content:true,r18_confirmed_at:null
+}).eq("id",narrator.actorId)).error,null);
+const noAge=await narrator.client.rpc("issue137_tus_local_issue",{
+ p_series_id:author.series,p_episode_id:author.episode,
+ p_expected_sha256:sha,p_size_bytes:size});
+yes(!!noAge.error,"R18 ON without age confirmation still denied");
+assert.equal((await admin.from("users").update({
+ r18_confirmed_at:new Date().toISOString()
+}).eq("id",narrator.actorId)).error,null);
+const r18=await issue(narrator,author.series,author.episode);
+await upload(narrator,r18);
+yes(claim(r18)==="1","R18 accepted stage has one receipt");
+const r18Proof=await trustedReadback(r18);
+yes(commitIfFull(narrator,r18,r18Proof)==="t",
+ "non-author with opt-in plus age confirmation seals warning-R18 PRIVATE pointer");
+yes(read(narrator,r18)===r18.path,"R18-qualified non-author PRIVATE pointer visible");
+assert.equal((await admin.from("users").update({
+ show_r18_content:false
+}).eq("id",narrator.actorId)).error,null);
+yes(read(narrator,r18)==="","turning R18 OFF revokes old non-author pointer");
+assert.equal((await admin.from("users").update({
+ show_r18_content:true
+}).eq("id",narrator.actorId)).error,null);
+yes(read(narrator,r18)==="","turning R18 back ON cannot revive old pointer");
+
+// Source must also guard rating=R18 without a sexual_r18 warning.
+assert.equal((await admin.from("series").update({
+ content_rating:"r18",content_warnings:[]
+}).eq("id",author.series)).error,null);
+assert.equal((await admin.from("users").update({
+ r18_confirmed_at:null
+}).eq("id",narrator.actorId)).error,null);
+const ratingNoAge=await narrator.client.rpc("issue137_tus_local_issue",{
+ p_series_id:author.series,p_episode_id:author.episode,
+ p_expected_sha256:sha,p_size_bytes:size});
+yes(!!ratingNoAge.error,"R18 rating alone requires age confirmation");
+// Restore to normal work and no R18 preference, then verify consent
+// withdrawal BETWEEN physical readback and DB CAS fails permanently.
+assert.equal((await admin.from("series").update({
+ content_rating:"general",content_warnings:[]
+}).eq("id",author.series)).error,null);
+const beforeConsent=await issue(narrator,author.series,author.episode);
+await upload(narrator,beforeConsent);
+yes(claim(beforeConsent)==="1","non-author before-consent-revoke stage");
+const beforeProof=await trustedReadback(beforeConsent);
+yes(beforeProof?.sha===sha,"real non-author physical bytes exist before consent revoke");
+assert.equal((await admin.from("user_recording_consents").delete()
+ .eq("user_id",narrator.actorId).eq("consent_key","recording_studio_global")).error,null);
+yes(sql(commit(narrator,beforeConsent,beforeProof))==="f",
+ "narrator consent DELETE between SHA and CAS denies claim");
+const noConsent=await narrator.client.rpc("issue137_tus_local_issue",{
+ p_series_id:author.series,p_episode_id:author.episode,
+ p_expected_sha256:sha,p_size_bytes:size});
+yes(!!noConsent.error,"consent missing denies fresh third-party TUS issuer");
+assert.equal((await admin.from("user_recording_consents").insert({
+ user_id:narrator.actorId,consent_key:"recording_studio_global",
+ consent_version:"2026-04-16"
+})).error,null);
+yes(sql(commit(narrator,beforeConsent,beforeProof))==="f",
+ "consent DELETE and reaccept cannot revive old non-author lease");
+const afterConsent=await issue(narrator,author.series,author.episode);
+await upload(narrator,afterConsent);
+yes(claim(afterConsent)==="1","new lease after fresh consent");
+const afterProof=await trustedReadback(afterConsent);
+yes(commitIfFull(narrator,afterConsent,afterProof)==="t",
+ "third-party author-open flow resumes with a freshly issued lease");
+yes(await verifyRead(narrator,afterConsent)==="PRIVATE_BYTES_VERIFIED",
+ "restored legitimate non-author PRIVATE bytes verified");
+for(const t of [third,r18,beforeConsent,afterConsent]){
+ const clean=await admin.storage.from(bucket).remove([t.path]);
+ assert.equal(clean.error,null,"remove synthetic non-author PRIVATE stage");
+}
+yes((await actual(afterConsent))===null,"non-author local PRIVATE bytes cleaned");
+yes(await recordCount()===priorCount,
+ "non-author stage/rights/consent/R18 tests never create published recordings");
+console.log("PASS: #137 REAL LOCAL third-party narrator != author, OPEN positive, "+
+ "CLOSED/private/draft/R18/no-consent/foreign-session negatives and revoke ABA");
+
 console.log("PASS: #137 REAL LOCAL stage -> full SHA readback -> PRIVATE pointer "+
  checks+" checks; concurrent CAS, revocation ABA, ownership/session/R18 authority, "+
  " post-seal tamper detection and no PUBLIC recording");
