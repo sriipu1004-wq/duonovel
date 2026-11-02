@@ -137,6 +137,238 @@ $$;
 revoke all on function libread_internal.issue137_tus_private_commit(
  uuid,uuid,uuid,uuid,text,bigint,uuid) from public,anon,authenticated,service_role;
 
+-- G2 LOCAL-ONLY least-privilege CAS *database invocation* experiment.
+-- This synthetic NOLOGIN role cannot connect, SELECT private rows or access
+-- Storage. Local harness enters it with SET LOCAL ROLE only to exercise DB
+-- privilege boundaries. This DOES NOT establish independent worker credentials:
+-- the harness still holds privileged DB/Storage access for physical SHA.
+-- A compromised holder of this EXECUTE privilege could submit an expected
+-- digest without reading physical bytes, so never equate it with attestation.
+create role issue137_g1_local_cas_attestor nologin nosuperuser
+ nocreatedb nocreaterole noreplication noinherit nobypassrls;
+grant usage on schema libread_internal to issue137_g1_local_cas_attestor;
+
+-- Single scoped primitive for the disposable attestor after its independent
+-- physical full-byte read and provider UUID check. The privileged function
+-- checks expected metadata and invokes the existing locked, fresh-rights,
+-- one-use CAS in the same transaction. It grants NO general table writes.
+create function libread_internal.issue137_g1_limited_attestor_commit(
+ p_lease uuid,p_actor uuid,p_session uuid,p_nonce uuid,
+ p_sha text,p_size bigint,p_object uuid
+) returns boolean language plpgsql volatile security definer
+ set search_path='' as $
+declare l record; r record; ok boolean;
+begin
+ if p_lease is null or p_actor is null or p_session is null or
+    p_nonce is null or p_object is null or
+    coalesce(p_sha,'') !~ '^[a-f0-9]{64}
+-- CAS retains ORIGINAL 10-minute lease and issuer session. Only after sealed
+-- CAS can a newly signed-in session of the SAME narrator read the PRIVATE
+-- pointer: current GoTrue auth.sessions, current consent/rights/R18, existing
+-- object identity and permanently nonrevoked lease are all mandatory.
+-- Initial upload lease expiry and its first auth session do not determine
+-- the lifetime of an already sealed PRIVATE entitlement.
+create function libread_internal.issue137_g1_sealed_current_owner(
+ p_lease uuid,p_actor uuid,p_current_session uuid
+) returns boolean language sql volatile security invoker set search_path='' as ' select exists (
+  select 1 from libread_internal.issue137_tus_private_pointers p
+  join libread_internal.issue137_tus_app_leases l on l.lease_id=p.lease_id
+  join libread_internal.issue137_tus_app_receipts r on r.lease_id=p.lease_id
+  join auth.users au on au.id=p.owner_id
+  join auth.sessions live on live.id=p_current_session
+   and live.user_id=p.owner_id
+  join public.series s on s.id=p.series_id
+  join public.episodes e on e.id=p.episode_id and e.series_id=s.id
+  join public.user_recording_consents c on c.user_id=p.owner_id
+   and c.consent_key=''recording_studio_global''
+   and c.consent_version=''2026-04-16''
+  join public.users u on u.id=p.owner_id
+  join storage.objects o on o.bucket_id=p.stage_bucket and o.name=p.stage_path
+   and o.id=p.provider_object_id
+  where p.lease_id=p_lease and p.owner_id=p_actor
+   and l.actor_id=p.owner_id and l.issued_session_id=p.issued_session_id
+   and l.series_id=p.series_id and l.episode_id=p.episode_id
+   and l.object_path=p.stage_path and l.state=''active''
+   and p.pointer_state=''PRIVATE_POINTER_ONLY''
+   and r.state=''SEALED_PRIVATE_SNAPSHOT''
+   and r.verified_sha256=p.verified_sha256
+   and r.verified_bytes=p.verified_bytes
+   and r.provider_object_id=p.provider_object_id
+   and lower(btrim(au.email))<>''libread08@gmail.com''
+   and s.recording_permission_mode=''open'' and s.publication_status=''public''
+   and e.posting_status=''posted'' and e.is_published is true
+   and ((s.content_rating is distinct from ''r18''
+     and not (''sexual_r18''=any(coalesce(s.content_warnings,''{}''::text[]))))
+     or (u.show_r18_content is true and u.r18_confirmed_at is not null))
+ )';
+revoke all on function
+ libread_internal.issue137_g1_sealed_current_owner(uuid,uuid,uuid)
+ from public,anon,authenticated,service_role;
+
+-- This is a SERVER-ONLY *authorization preflight* for a PRIVATE pointer:
+-- it returns no PUBLIC URL. A worker must independently re-read provider
+-- bytes and compare exact SHA + object ID before serving even private bytes.
+create function libread_internal.issue137_tus_private_read(
+ p_lease uuid,p_actor uuid,p_session uuid
+) returns text language sql volatile security invoker set search_path='' as $$
+ select p.stage_path from libread_internal.issue137_tus_private_pointers p
+ join libread_internal.issue137_tus_app_receipts r on r.lease_id=p.lease_id
+ join storage.objects o on o.bucket_id=p.stage_bucket
+  and o.name=p.stage_path and o.id=p.provider_object_id
+ where p.lease_id=p_lease and p.owner_id=p_actor
+  and p.pointer_state='PRIVATE_POINTER_ONLY'
+  and r.state='SEALED_PRIVATE_SNAPSHOT'
+  and r.verified_sha256=p.verified_sha256
+  and r.verified_bytes=p.verified_bytes
+  and r.provider_object_id=p.provider_object_id
+  and libread_internal.issue137_g1_sealed_current_owner(
+    p_lease,p_actor,p_session)
+$$;
+revoke all on function libread_internal.issue137_tus_private_read(uuid,uuid,uuid)
+ from public,anon,authenticated,service_role;
+
+
+-- HTTP bridge preflight is strictly for the disposable localhost test.
+-- No hosted migration; the existing Next HUMAN AUDIO GET only uses this
+-- when its independent loopback-only runtime guard is satisfied.
+-- The API is invisible to anon/authenticated; postgres-owned definer verifies
+-- the *original* GoTrue session, live lease, sealed receipt, object ID,
+-- current work/R18/consent and owner before returning any object coordinates.
+create function public.issue137_g1_local_http_preflight(
+ p_lease uuid, p_actor uuid, p_session uuid
+) returns jsonb language plpgsql volatile security definer set search_path=''
+as $$
+declare p record;
+begin
+ if p_lease is null or p_actor is null or p_session is null then return null; end if;
+ select p0.lease_id,p0.owner_id,p0.issued_session_id,p0.stage_bucket,
+   p0.stage_path,p0.provider_object_id,p0.verified_sha256,
+   p0.verified_bytes,p0.pointer_version
+ into p from libread_internal.issue137_tus_private_pointers p0
+ where p0.lease_id=p_lease
+  and p0.owner_id=p_actor
+  and p0.pointer_state='PRIVATE_POINTER_ONLY'
+  and libread_internal.issue137_tus_private_read(
+    p_lease,p_actor,p_session)=p0.stage_path;
+ if not found or p.stage_bucket is distinct from 'f2p-tus-app-authority-local'
+  or p.verified_bytes<44 or p.verified_bytes>16777216 then return null; end if;
+ return pg_catalog.jsonb_build_object(
+  'leaseId',p.lease_id,'ownerId',p.owner_id,'sessionId',p_session,
+  'bucket',p.stage_bucket,'path',p.stage_path,'objectId',p.provider_object_id,
+  'sha256',p.verified_sha256,'size',p.verified_bytes,
+  'version',p.pointer_version,'state','PRIVATE_POINTER_ONLY');
+end
+$$;
+revoke all on function public.issue137_g1_local_http_preflight(uuid,uuid,uuid)
+ from public,anon,authenticated,service_role;
+grant execute on function public.issue137_g1_local_http_preflight(uuid,uuid,uuid)
+ to service_role;
+select pg_catalog.pg_notify('pgrst','reload schema');
+
+
+-- G2: LOCAL-ONLY reader credential isolation for existing G1 HTTP GET.
+-- The app's physical Storage download MUST carry the original user JWT and
+-- only the PUBLIC local anon API key. This policy cannot grant INSERT/UPDATE
+-- or DELETE to the same actor and does not affect any hosted bucket.
+-- SECURITY DEFINER is confined to a boolean nonexposed-schema helper with
+-- explicit live actor+session+sealed-pointer checks; it returns no object path.
+create function libread_internal.issue137_g2_local_owner_can_read(
+ p_bucket text,p_path text
+) returns boolean language sql volatile security definer set search_path=''
+as $$
+ select p_bucket='f2p-tus-app-authority-local'
+  and (select auth.uid()) is not null
+  and (select auth.jwt()->>'role')='authenticated'
+  and exists (
+   select 1 from libread_internal.issue137_tus_private_pointers p
+   where p.stage_bucket=p_bucket and p.stage_path=p_path
+    and p.owner_id=(select auth.uid())
+    and p.pointer_state='PRIVATE_POINTER_ONLY'
+    and libread_internal.issue137_tus_private_read(
+      p.lease_id,p.owner_id,
+      nullif((select auth.jwt())->>'session_id','')::uuid)=p_path
+  )
+$$;
+revoke all on function libread_internal.issue137_g2_local_owner_can_read(text,text)
+ from public,anon,authenticated,service_role;
+grant execute on function libread_internal.issue137_g2_local_owner_can_read(text,text)
+ to authenticated;
+create policy issue137_g2_local_private_owner_read
+on storage.objects as permissive for select to authenticated
+using (libread_internal.issue137_g2_local_owner_can_read(bucket_id,name));
+-- Even an unrelated permissive SELECT cannot widen this bucket's read scope.
+create policy issue137_g2_local_private_owner_read_fence
+on storage.objects as restrictive for select to authenticated
+using (bucket_id<>'f2p-tus-app-authority-local'
+ or libread_internal.issue137_g2_local_owner_can_read(bucket_id,name)
+ -- Prior to sealing, only the same live GoTrue actor/session may read the
+ -- STAGED object. Both restrictive guards still deny revoked and foreign.
+ or libread_internal.issue137_g2_local_staged_owner_read(bucket_id,name));
+-- READ-ONLY isolation is deliberately NOT a claim of full provider custody:
+-- project-wide service_role and generated S3 keys still bypass this RLS.
+
+-- G1/2 LOCAL integration: this earlier restrictive SELECT policy was
+-- installed during TUS issuer setup, BEFORE the G1 sealed function existed.
+-- PostgreSQL combines restrictive policies with AND: without this ALTER,
+-- the original STAGED-only predicate denies every PRIVATE read once the
+-- 10-minute TUS lease expires, even though a sealed durable receipt exists.
+-- Keep the same original owner/session and live revoked/rights checks for
+-- either branch; DO NOT broaden anonymous, write or PUBLIC access.
+alter policy issue137_g2_local_staged_owner_read_fence
+ on storage.objects using (
+  bucket_id<>'f2p-tus-app-authority-local'
+  or libread_internal.issue137_g2_local_staged_owner_read(bucket_id,name)
+  or libread_internal.issue137_g2_local_owner_can_read(bucket_id,name)
+ );
+ or
+    p_size is null or p_size<44 or p_size>16777216 then
+   return false;
+ end if;
+ select * into l from libread_internal.issue137_tus_app_leases
+ where lease_id=p_lease for update;
+ if not found or l.actor_id is distinct from p_actor or
+    l.issued_session_id is distinct from p_session or
+    l.expected_sha256 is distinct from p_sha or
+    l.expected_bytes is distinct from p_size or
+    l.state is distinct from 'active' or
+    l.expires_at<=pg_catalog.clock_timestamp() then return false; end if;
+ -- A trusted worker must have verified this exact provider UUID on actual
+ -- downloaded bytes before calling; postgres cannot attest physical SHA.
+ perform 1 from storage.objects o
+  where o.bucket_id='f2p-tus-app-authority-local'
+    and o.name=l.object_path and o.id=p_object for share;
+ if not found then return false; end if;
+ insert into libread_internal.issue137_tus_app_receipts
+  (lease_id,expected_bytes) values(p_lease,p_size) on conflict do nothing;
+ select * into r from libread_internal.issue137_tus_app_receipts
+  where lease_id=p_lease for update;
+ if not found or r.state is distinct from 'STAGED' or
+    r.attempted or r.version<>0 or r.expected_bytes<>p_size then
+  return false;
+ end if;
+ update libread_internal.issue137_tus_app_receipts
+ set state='VERIFYING',attempted=true,version=1
+ where lease_id=p_lease and state='STAGED' and version=0 and not attempted;
+ if not found then return false; end if;
+ ok:=libread_internal.issue137_tus_private_commit(
+  p_lease,p_actor,p_session,p_nonce,p_sha,p_size,p_object);
+ if not ok then
+  -- Keep the receipt unclaimed if a negative case was rejected. A true
+  -- CAS function exception rolls the entire statement back automatically.
+  update libread_internal.issue137_tus_app_receipts
+  set state='STAGED',attempted=false,version=0
+  where lease_id=p_lease and state='VERIFYING' and version=1;
+ end if;
+ return ok;
+end
+$;
+revoke all on function libread_internal.issue137_g1_limited_attestor_commit(
+ uuid,uuid,uuid,uuid,text,bigint,uuid)
+ from public,anon,authenticated,service_role;
+grant execute on function libread_internal.issue137_g1_limited_attestor_commit(
+ uuid,uuid,uuid,uuid,text,bigint,uuid)
+ to issue137_g1_local_cas_attestor;
+
 -- G1 durable LOCAL PRIVATE Reader entitlement, NOT a lasting TUS upload.
 -- CAS retains ORIGINAL 10-minute lease and issuer session. Only after sealed
 -- CAS can a newly signed-in session of the SAME narrator read the PRIVATE
