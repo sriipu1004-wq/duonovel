@@ -4,6 +4,7 @@ import {
   handleIssue137LocalLegacyProbe,
   handleIssue137LocalNormalHumanRoute,
   isIssue137LocalNormalHumanModeSelected,
+  isIssue137LocalTusIssuerModeSelected,
 } from "@/lib/recording/issue137LocalHumanLegacyBridge";
 import {
   getSeriesPublicationStatus,
@@ -95,6 +96,11 @@ export async function POST(request: Request) {
   let payload: RawRow;
   try {
     payload = (await request.json()) as RawRow;
+    // The test-only JWT/TUS issuer has NO publish/finalize route. Never fall
+    // through to the old privileged signer or a legacy probe in this mode.
+    if(isIssue137LocalTusIssuerModeSelected())
+      return NextResponse.json({ok:false,error:"ISSUE137_LOCAL_TUS_FINALIZE_HOLD"},
+       {status:409,headers:{"Cache-Control":"no-store"}});
     if(hasIssue137ProbeMarker(payload))
       return handleIssue137LocalLegacyProbe(request,payload,"finish");
     // Dedicated disposable localhost tests exercise the real normal JSON
