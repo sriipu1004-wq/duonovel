@@ -1,0 +1,51 @@
+# Issue #138: isolated signed-in A/B/anon private-library ownership/quota check.
+# NO Supabase hosted credentials, no Production DB/Auth/Storage connections.
+name: Issue138 isolated private-library Auth RLS negative E2E
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue138-private-library-isolated-e2e.yml"
+      - "scripts/issue138-auth-rls/**"
+      - "supabase/migrations/20261103010000_restrict_private_library_direct_import_mutations.sql"
+permissions:
+  contents: read
+concurrency:
+  group: issue138-local-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  signed-jwt-owner-boundary:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'test/issue138-private-library-rls-e2e'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify disposable-only source and free public runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.event.repository.private }}" = "false" ||
+            { echo 'BLOCKED: standard free public runner required'; exit 3; }
+          test -f scripts/issue138-auth-rls/fixture.sql
+          test -f scripts/issue138-auth-rls/run-local.sh
+          test -f scripts/issue138-auth-rls/e2e.mjs
+          node --check scripts/issue138-auth-rls/e2e.mjs
+          node --check scripts/issue138-auth-rls/e2e-fixed.mjs
+          test -f supabase/migrations/20261103010000_restrict_private_library_direct_import_mutations.sql
+          bash -n scripts/issue138-auth-rls/run-local.sh
+          docker info >/dev/null
+      - name: Actual isolated GoTrue A/B/anon and PostgREST negative E2E
+        shell: bash
+        env:
+          CI: "true"
+          DO_NOT_CONTACT_PRODUCTION: "true"
+        run: |
+          set -euo pipefail
+          bash scripts/issue138-auth-rls/run-local.sh
+          echo 'I138 isolated signed-JWT E2E complete, see assertions above'
