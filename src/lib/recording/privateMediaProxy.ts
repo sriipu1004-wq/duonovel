@@ -27,11 +27,19 @@ export async function streamAuthorizedPrivateRecording(
     upstream=await fetch(`${endpoint}/storage/v1/object/authenticated/${encodeURIComponent(bucket)}/${path}`,{
       headers:{apikey:key,Authorization:`Bearer ${key}`,...(range?{Range:range}:{})},
       cache:"no-store",
+      // A privileged Storage fetch must never follow an unexpected redirect.
+      redirect:"error",
       signal:AbortSignal.timeout(15000),
     });
   }catch{return new NextResponse(null,{status:503});}
   if(!upstream.ok || !upstream.body)
     return new NextResponse(null,{status:upstream.status===416?416:404});
+  // A Range request may never degrade into an unrequested full-object 200.
+  // Conversely, an unsolicited 206 is not a valid non-Range response.
+  if(range ? (upstream.status!==206 ||
+      !/^bytes \d+-\d+\/\d+$/u.test(upstream.headers.get("content-range")??""))
+    : upstream.status!==200)
+    return new NextResponse(null,{status:502});
   const headers=new Headers({
     "Cache-Control":"private, no-store, max-age=0",
     "X-Content-Type-Options":"nosniff",
