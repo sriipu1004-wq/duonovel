@@ -62,10 +62,27 @@ function jar(){
 async function actor(email="local-"+id()+"@example.invalid",consent=true){
  const password="OnlyLocal-"+id()+"Aa1!";
  const x=await admin.auth.admin.createUser({email,password,email_confirm:true});
- assert.equal(x.error,null,"fixture GoTrue create");
- const uid=x.data.user.id;
- assert.equal((await admin.from("users").insert({id:uid,display_name:"LOCAL"})).error,null);
- if(consent)assert.equal((await admin.from("user_recording_consents").insert({
+ let uid;
+ if(x.error?.code==="email_exists"&&email==="libread08@gmail.com"){
+  // Previous tests in this SAME disposable DB already seed the Official
+  // identity. Reuse that local fixture, never touch a hosted user or project.
+  const listed=await admin.auth.admin.listUsers({page:1,perPage:1000});
+  assert.equal(listed.error,null,"list disposable GoTrue users");
+  const existing=listed.data.users.find(u=>u.email?.toLowerCase()===email);
+  assert.ok(existing,"previous disposable Official fixture exists");
+  uid=existing.id;
+  const changed=await admin.auth.admin.updateUserById(uid,{
+   password,email_confirm:true,
+  });
+  assert.equal(changed.error,null,"refresh synthetic Official password");
+ }else{
+  assert.equal(x.error,null,"create new synthetic GoTrue user");
+  uid=x.data.user.id;
+ }
+ assert.equal((await admin.from("users").upsert({
+  id:uid,display_name:"LOCAL",
+ })).error,null);
+ if(consent)assert.equal((await admin.from("user_recording_consents").upsert({
   user_id:uid,consent_key:"recording_studio_global",consent_version:"2026-04-16"
  })).error,null);
  const cookie=jar();
