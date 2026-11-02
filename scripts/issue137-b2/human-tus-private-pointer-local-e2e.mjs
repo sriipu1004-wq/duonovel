@@ -372,6 +372,36 @@ yes(commitIfFull(narrator,afterConsent,afterProof)==="t",
  "third-party author-open flow resumes with a freshly issued lease");
 yes(await verifyRead(narrator,afterConsent)==="PRIVATE_BYTES_VERIFIED",
  "restored legitimate non-author PRIVATE bytes verified");
+
+// G2 negative: a privileged signer can mint a PRIVATE Storage bearer that
+// remains independently usable after the narrator's consent is revoked.
+// All actors and bytes belong to this disposable local GoTrue/Storage only;
+// the URL token must NEVER be printed, sent off host or reused for deployment.
+const signed=await admin.storage.from(bucket).createSignedUrl(afterConsent.path,60);
+assert.equal(signed.error,null,"disposable privileged signed URL created");
+const signedUrl=new URL(signed.data.signedUrl,api);
+yes(signedUrl.origin===api&&
+ signedUrl.pathname.startsWith("/storage/v1/object/sign/"+bucket+"/"),
+ "signed URL scoped to private disposable provider, not public/prod");
+const bearerFetch=async()=>{
+ const response=await fetch(signedUrl,{method:"GET",redirect:"error",
+  signal:AbortSignal.timeout(15000)});
+ return {status:response.status,bytes:Buffer.from(await response.arrayBuffer())};
+};
+const beforeRevoke=await bearerFetch();
+yes(beforeRevoke.status===200&&digest(beforeRevoke.bytes)===sha,
+ "privileged signed Storage URL is a standalone bearer on PRIVATE bytes");
+assert.equal((await admin.from("user_recording_consents").update({
+ consent_version:"2026-04-15"
+}).eq("user_id",narrator.actorId)).error,null);
+yes(read(narrator,afterConsent)==="",
+ "live PRIVATE DB pointer denied immediately after consent revoke");
+const afterRevoke=await bearerFetch();
+yes(afterRevoke.status===200&&digest(afterRevoke.bytes)===sha,
+ "G2 NEGATIVE: old signed bearer still retrieves bytes after DB revoke");
+console.log("RISK: #137 G2 LOCAL signed Storage bearer outlives consent revoke; "+
+ "DB guard no longer authorizes but old URL still works (NO CDN involved)");
+
 for(const t of [third,r18,beforeConsent,afterConsent]){
  const clean=await admin.storage.from(bucket).remove([t.path]);
  assert.equal(clean.error,null,"remove synthetic non-author PRIVATE stage");
