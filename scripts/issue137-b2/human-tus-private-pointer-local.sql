@@ -43,10 +43,11 @@ create function libread_internal.issue137_tus_private_authorized(
    and l.issued_session_id=p_session and l.state='active'
    and l.expires_at>clock_timestamp()
    and lower(btrim(au.email))<>'libread08@gmail.com'
-   -- SAFE LOCAL OWNER-ONLY reading: "open" only permits entering
-   -- the studio, NOT re-licensing another author's copyrighted edition.
-   -- Authorship itself is not a full legal rights attestation.
-   and s.author_id=l.actor_id
+   -- Human narration is NOT author-only: a different signed-in narrator
+   -- may stage/claim a publicly posted work when recording is OPEN.
+   -- The narrator owns the private lease/audio; the series author is a
+   -- separate actor. OPEN is product permission, NOT independent evidence
+   -- of original-text, edition, translation or third-party legal rights.
    and s.recording_permission_mode='open'
    and s.publication_status='public'
    and e.posting_status='posted' and e.is_published is true
