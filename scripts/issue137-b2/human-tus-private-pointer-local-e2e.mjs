@@ -165,6 +165,7 @@ async function verifyRead(a,t){
 }
 let nextProcess,nextLog="";
 try {
+const initialPointerRows=rows();
 const priorCount=await recordCount(),a=await createActor();
 const b=await createActor();
 yes(sql("select has_table_privilege('authenticated',"+
@@ -187,7 +188,7 @@ yes(sql(commit(a,t,{...proof,sha:digest(alternate)}))==="f",
 const candidates=await Promise.all([parallel(commit(a,t,proof)),parallel(commit(a,t,proof))]);
 yes(candidates.filter(v=>v==="t").length===1&&
  candidates.filter(v=>v==="f").length===1,"concurrent finalizers single CAS winner");
-yes(rows()===1,"only one immutable PRIVATE pointer row");
+yes(rows()===initialPointerRows+1,"exactly one NEW immutable PRIVATE pointer row");
 yes(read(a,t)===t.path,"owner original live GoTrue session can find PRIVATE pointer");
 
  // Nonproduction G1 actual HTTP proof on the EXISTING Human GET; the
@@ -348,7 +349,7 @@ yes(sql(commit(a,stale,staleProof))==="f","rights withdrawal between SHA and CAS
 assert.equal((await admin.from("series").update({
  recording_permission_mode:"open"}).eq("id",a.series)).error,null);
 yes(sql(commit(a,stale,staleProof))==="f","regrant ABA cannot reuse revoked lease");
-yes(rows()===1,"denied seal did not create pointer");
+yes(rows()===initialPointerRows+1,"denied seal added no extra pointer");
 const noBytes=await admin.storage.from(bucket).remove([stale.path]);
 assert.equal(noBytes.error,null);
 
