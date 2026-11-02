@@ -109,7 +109,7 @@ const audio = source(
 for (const required of [
   "isHumanRecordingRow(recordingData)",
   'getSeriesPublicationStatus(series) === "public"',
-  "!isEpisodePubliclyVisible(episode)",
+  "isEpisodePubliclyVisible(episode)",
   "isR18Series(series)",
   "canServeHumanRecordingAudio({",
   'db.from("user_recording_consents")',
