@@ -78,3 +78,19 @@ The user forbids unrequested extra charges. **No supplier price is asserted here
 - Prior real local G1 physical overwrite evidence is retained.
 
 **STOP:** PR #153 stays Draft / MERGE HOLD. Production Supabase/Vercel/account data and rights are untouched. New G2 work is nonproduction evidence only.
+
+
+## 6. G2 isolated append-only prototype — boundary and deployment decision
+
+This is an **extension of the existing F2-P disposable broker fixture**, not a new Storage provider, production migration, or a rewritten user-facing app. Exact source: `scripts/issue137-b2/human-broker-private-rls-fence-local.sql` and `human-broker-private-rls-fence-e2e.mjs`.
+
+- Three authentic local GoTrue principals are distinct: normal Human narrator, unrelated account and an app-metadata-marked broker. Only the broker has a claimed one-time permit that permits **INSERT** to its PRIVATE unique object path. Ordinary narrator cannot direct-upload; unrelated account cannot read/write.
+- The broker cannot `upsert` or delete a stored predecessor. A revised WAV should use a **new one-shot permit + distinct objectId/path** while prior path and prior bytes remain unchanged. A separate test checks fresh upload and old-byte preservation. Any token that can create NEW objects in a claimed path also remains a pre-seal forgery risk: Storage RLS cannot itself verify a physical SHA.
+- The local SQL has restrictive UPDATE/DELETE Storage RLS policies and private-bucket-publicity trigger, but a **service_role key bypasses RLS**. An explicit negative control must attempt a privileged overwrite of a broker-sealed path and compare actual bytes. If it succeeds, G2 physical immutable storage is **not proved** despite a successful restricted-JWT fence.
+- Even an append-only naming scheme is not a trust boundary if a privileged holder can delete, replace, sign old objects, recreate a name, or restore provider bytes. Protecting the DB pointer with hashes and unique names prevents accidental aliasing and detects later drift, but does **not** repair a capability leak or already distributed bytes.
+
+**Acceptance distinction:** Local restricted-broker first-write and old-object preservation **may PASS** while privileged-rewrite exclusion **FAILS**. That outcome is not a CI failure: it is an expected negative confirming the actual unmitigated threat. A release proposal must demonstrate two independently configured principals (writer vs recovery/reader), enumerate every legacy `service_role`/S3/backup writer, constrain production secret scope and include a meaningful physical immutability mechanism, not merely reusing the same full-permission service key in an isolated process. Existing Supabase's service key has full Storage RLS-bypass scope; therefore complete write-once semantics cannot be claimed from RLS policy alone.
+
+**Cost/ops:** Reusing the current provider with broker custody avoids adopting a second paid platform and reduces new-provider operational complexity, but incurs broker lifecycle, worker availability/timeout, restricted credentials and auditing obligations. Separate object-lock/WORM service may impose storage/PUT/GET/egress/retention and deletion-compliance costs. No amounts or provider-specific retention guarantee have been verified. The present safest course remains no PUBLIC release until that evidence exists.
+
+The prototype must run only in dedicated Docker PostgreSQL + local Storage fixture under `DO_NOT_CONTACT_PRODUCTION=true` and `B2_EPHEMERAL_CONFIRM=local-only`. It must leave no provider credentials or audio objects outside that ephemeral workspace. Results are to be added only after exact-HEAD CI logs have been examined.
