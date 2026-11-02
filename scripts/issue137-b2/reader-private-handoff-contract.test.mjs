@@ -47,13 +47,13 @@ function base(){
 }
 const ownerPermitted=s=>{
  if(!s.lease||s.actor!==s.narrator||
-  s.session!==s.issuedSession||!s.activeSession||
+  !s.activeSession||
   !isAcceptedRecordingConsentVersion(s.consentVersion)||
   s.permission!=="open"||
   getSeriesPublicationStatus({publication_status:s.seriesStatus})!=="public"||
   !isEpisodePubliclyVisible({posting_status:s.episodeStatus,
     is_published:s.episodePublished})||
-  s.leaseState!=="active"||s.expiresAt<=s.now||
+  s.leaseState!=="active"||
   s.receiptState!=="SEALED_PRIVATE_SNAPSHOT"||
   s.pointerState!=="PRIVATE_POINTER_ONLY"||s.recordingPublic||
   s.revision!==s.expectedRevision||
@@ -91,7 +91,8 @@ async function candidatePrivateHandoff(ctx,storage,afterRead=async()=>{}){
   current.lease!==initial.lease||
   current.bucket!==initial.bucket||current.path!==initial.path||
   current.objectId!==initial.objectId||current.sha!==initial.sha||
-  current.size!==initial.size||current.issuedSession!==initial.issuedSession||
+  current.size!==initial.size||current.session!==initial.session||
+   current.issuedSession!==initial.issuedSession||
   current.revision!==initial.revision)
   return denied("POST_READ_AUTHORITY_HOLD");
  return {allowed:true,reason:"PRIVATE_OWNER_BOUNDED_MODEL",bytes:result.bytes,
@@ -121,7 +122,8 @@ await expect(true,"distinct narrator != work author PRIVATE owner succeeds");
 await expect(false,"foreign author does not own narrator stage",s=>s.actor=author);
 await expect(false,"anonymous does not own stage",s=>s.actor=null);
 await expect(false,"stale GoTrue session",s=>s.activeSession=false);
-await expect(false,"different sign-in session",s=>s.session="other-session");
+await expect(true,"same owner fresh GoTrue session after sealing",
+ s=>s.session="other-session");
 await expect(false,"consent revoked",s=>s.consentVersion=null);
 await expect(false,"stale consent version",s=>s.consentVersion="2026-04-15");
 await expect(false,"work permission CLOSED",s=>s.permission="closed");
@@ -129,7 +131,7 @@ await expect(false,"unpublished series",s=>s.seriesStatus="private");
 await expect(false,"scheduled episode",s=>s.episodeStatus="scheduled");
 await expect(false,"unpublished episode",s=>s.episodePublished=false);
 await expect(false,"lease revoked",s=>s.leaseState="revoked");
-await expect(false,"expired lease",s=>s.now=200);
+await expect(true,"sealed PRIVATE entitlement survives upload TTL",s=>s.now=200);
 await expect(false,"unsealed receipt",s=>s.receiptState="STAGED");
 await expect(false,"public recording flag cannot inherit PRIVATE authority",
  s=>s.recordingPublic=true);
@@ -174,7 +176,7 @@ for(const [name,alter] of [
  ["series made private during full read",s=>s.seriesStatus="private"],
  ["episode draft during full read",s=>s.episodePublished=false],
  ["lease revoked during full read",s=>s.leaseState="revoked"],
- ["different session during full read",s=>s.activeSession=false],
+ ["different session during full read",s=>s.session="new-session"],
  ["object changed without digest update",s=>s.objectId="other-object"],
  ["pointer revision changed during full read",s=>s.revision=8],
  ["receipt SHA changed during full read",s=>s.sha=sha(Buffer.from("other"))],
@@ -209,8 +211,14 @@ eq(proxy.includes("verified_sha256"),false,
  "existing proxy has no G1 full-byte digest attestation");
 eq(pointer.includes("p.pointer_state='PRIVATE_POINTER_ONLY'"),true,
  "local pointer cannot be promoted to public implicitly");
-eq(pointer.includes("p.issued_session_id=p_session"),true,
- "local G1 pointer binds issued session");
+eq(pointer.includes("l.issued_session_id=p.issued_session_id"),true,
+ "G1 sealed pointer still binds original issued session metadata");
+eq(pointer.includes("join auth.sessions live on live.id=p_current_session"),true,
+ "G1 sealed read requires a genuine current GoTrue session");
+eq(pointer.includes("l.state='active'"),true,
+ "G1 durable PRIVATE read denies terminally revoked leases");
+eq(pointer.includes("l.expires_at<=clock_timestamp()"),true,
+ "G1 one-use CAS still validates upload-lease expiry");
 eq(pointer.includes("s.author_id=l.actor_id"),false,
  "third-party narrator must remain permitted when OPEN");
 console.log("PASS: #137 Reader G1 PRIVATE bounded-handoff SOURCE+MODEL "+
