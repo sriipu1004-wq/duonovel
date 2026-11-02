@@ -49,6 +49,38 @@ Each simulated DB call waits ~2 ms via local in-memory timer and respects depend
 
 This is a **query-shape and synthetic latency envelope**, not an empirical statement that version E is faster or safer than main in Production. Real warm-cache hit rate, RPC/DB regional latency, invalidation rate, shared Fluid compute, R18 user-specific reads, PostgREST timeout, cache topology and request-level 5xx/p95 must be measured before any rollout.
 
+## F1 SQL/source coverage follow-up (2026-11-02; READ-ONLY, no new PG run)
+
+**Operation boundary:** A proposed new isolated PostgreSQL fixture creation was refused by the safety check on the GitHub write action. **That action was not retried through another path or tool.** This section is independent READ-ONLY code audit and PostgreSQL 17 reference comparison, not a substitute claim of real DB E2E.
+
+### Independently checked existing evidence
+
+- The existing real **disposable** GoTrue/PostgREST/PostgreSQL E2E in `scripts/issue137-b2/e2e.mjs` verifies the revision RPC using the service role, anon denial, **+1** after a series UPDATE, episode UPDATE and `users.display_name` UPDATE, and **unchanged revision after a rejected R18 mutation**. Prior B2 run `41422942017`, job `125202885043` completed SUCCESS and its raw log reported 63 B2 real LOCAL auth/RLS/Storage assertions. It did **not** demonstrate every arbitrary rollback/savepoint, concurrent writer ordering, profile INSERT/DELETE or schema parity with hosted Production.
+- The F1 `fence.test.ts` race proof and 80-case strategy test are SOURCE+MODEL, **not** concurrent Postgres tests. Do not treat shared-memory revision increments as SQL transaction results.
+
+### Display dependency → database trigger inventory (source)
+
+| Catalog field / dependency | Source of truth | Triggered in draft F1 SQL? | Confidence and gap |
+| --- | --- | --- | --- |
+| Work title, summary, status, genres, tags, effective content rating+warnings, canonical source language, translation permission | `public.series` | Statement-level INSERT/UPDATE/DELETE | **SOURCE yes**; covers row mutations, not independently proven against all runtime publication/rights paths |
+| Public episode counts/numbers/posted dates and membership | `public.episodes` via public episode summary view | Statement-level INSERT/UPDATE/DELETE | **SOURCE yes**, view definition/source schema and any external maintenance not fully verified |
+| Public Domain original title, original author, provider, source URL, rightsChecked and edition metadata | `public.series.effect_settings.publicDomain` | Series INSERT/UPDATE/DELETE | **SOURCE yes** for updates stored in this series JSON; no proof all copyright/edition status always comes from this column |
+| Visible author display name | `public.users.display_name` after author lookup | Only **AFTER UPDATE OF display_name** | **COVERAGE GAP:** `public.users` INSERT or DELETE is not covered. A created/deleted profile may change fallback/actual author display while series and episodes remain unchanged. Actual production ability and impact require separate trace |
+| Viewer-specific R18 preference/age confirmation | `public.users.show_r18_content`, `r18_confirmed_at` | Not included in shared catalog revision | **Intentional separate entitlement** checked by viewer-specific fresh read and R18 recheck; MUST NOT put viewer-specific restricted metadata in anonymous shared cache |
+| Third-party cached output beyond these tables (e.g. new rights, translations, author aliases or materialized metadata) | Future/unknown | Not established | **UNVERIFIED**; source dependency inventory must expand before declaring completeness |
+
+### Additional confirmed trigger semantics and unresolved performance risks
+
+1. PostgreSQL 17 documentation states a **FOR EACH STATEMENT trigger fires even when a statement affects zero rows**. Draft F1 triggers on any series/episode INSERT/UPDATE/DELETE therefore bump the singleton revision even on valid no-op/zero-match updates; an `UPDATE OF display_name` trigger also fires when that column is named in an UPDATE statement, without requiring changed display contents. This can cause unnecessary cache misses, but the actual frequency and impact are **unmeasured**.
+2. All three statement-level bump triggers execute `UPDATE libread_internal.public_catalog_revision SET epoch=epoch+1 WHERE singleton=true`. An update to the same singleton row by concurrent transactions requires competing writer locks. This **may serialize otherwise independent series/episode/author commits** and can contribute to lock wait/deadlock risk depending on transaction ordering. No concurrent real-PG timing, deadlock or p95 result was obtained; do not claim it actually caused Production `AbortError`.
+3. SQL triggers are transaction-scoped, so a failing triggering transaction rolls back its epoch update (PostgreSQL 17 reference and the existing narrower rejected-transition E2E). That is **not** proof of correct commit visibility under all parallel interleavings, savepoints, or a cache read immediately before an update commits.
+4. These triggers do not handle `TRUNCATE`; whether TRUNCATE can occur in approved operations is **not established** and would require strict privileged administrative controls. No justification for broadening trigger scope or any Production schema change is included here.
+5. Real application use of `public.users` profile INSERT/DELETE and their independent FK lifecycle needs confirmation before labeling the coverage gap a real Production leak. No Production data was inspected for this research.
+
+**Primary PostgreSQL 17 references:** [Trigger behavior](https://www.postgresql.org/docs/17/trigger-definition.html) (per-statement triggers even with zero affected rows, transaction rollback semantics), [Explicit locking](https://www.postgresql.org/docs/17/explicit-locking.html) (same-row writer lock conflicts, deadlocks). No vendor documentation converts this SOURCE audit into measured performance.
+
+**Decision:** With current author-profile INSERT/DELETE omission and unmeasured singleton-row contention, F1 versioned caching **still cannot be declared complete or Production ready**. Existing narrower local PG positive tests stand; a real independent, explicitly allowed PG concurrency/coverage test and fixed-HEAD security/performance audit remain unmet. The refused fixture action stays refused. Keep PR #153 Draft/MERGE HOLD and #150 PERFORMANCE_GATE_FAIL.
+
 ## Decision / stopping conditions
 
 **Prefer E for further nonproduction investigation**, because it addresses the unsafe stale refresh without unconditional full catalog rebuilds and uses a concrete already drafted trigger/revision mechanism. Do not adopt B from #150 while its performance gate fails. Do not deploy C just because its projection appears cheap: publication/R18 correctness plus every cached metadata dependency matters.
