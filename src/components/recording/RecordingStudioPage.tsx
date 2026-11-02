@@ -17,6 +17,14 @@ import {
 } from "@/lib/recording/audioUploadValidation";
 import { supabase } from "@/lib/supabaseClient";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
+import { LocalHumanMultipartProbe } from "@/components/recording/LocalHumanMultipartProbe";
+import { decideHumanProcessingTrialCapacity } from "@/lib/recording/humanProcessingCapacityDraft";
+import { buildRejectedAudioUploadResult } from "@/lib/recording/audioUploadPolicy";
+import {
+  bindLocalNormalHumanLease,
+  stageHumanMultipartLocally,
+  abortHumanMultipartLocally,
+} from "@/lib/recording/localHumanMultipartClient";
 
 type EpisodeItem = {
   id: string;
@@ -86,7 +94,9 @@ type HumanMultipartSignedPart = {
 
 type HumanUploadSessionResponse = {
   ok: boolean;
-  uploadMode?: "single" | "multipart";
+  uploadMode?: "single" | "multipart" | "local-private-staging-only";
+  partCount?: number;
+  reason?: string;
   uploadSessionId?: string;
   bucketName?: string;
   sourceExtension?: string;
@@ -632,6 +642,15 @@ export function RecordingStudioPage({
     );
   }
 
+  function localTrialCapacity(bytes: number) {
+    return decideHumanProcessingTrialCapacity(
+      bytes, process.env.NEXT_PUBLIC_B2_LOCAL_HUMAN_PROCESSING_CAP_BYTES,
+      process.env.NODE_ENV === "development" &&
+        typeof window !== "undefined" &&
+        window.location.hostname === "127.0.0.1"
+    );
+  }
+
   async function prepareFileForPublish(
     file: File,
     source: "browser_recording" | "file_upload"
@@ -650,7 +669,18 @@ export function RecordingStudioPage({
     let statusMessage = "保存前チェックを実行中。";
 
     try {
-      clientResult = await analyzeAudioUploadClient(file);
+      const draftCap = localTrialCapacity(file.size);
+      if (draftCap.status === "exceeded" || draftCap.status === "invalid") {
+        // Fail before allocating the full file or invoking WebAudio decode.
+        clientResult = {
+          ...buildRejectedAudioUploadResult(file, "file_too_large"),
+          message: draftCap.status === "invalid"
+            ? "LOCAL_DRAFT_PROCESSING_CAP_CONFIG_HOLD"
+            : "LOCAL_DRAFT_PROCESSING_CAP_HOLD",
+        };
+      } else {
+        clientResult = await analyzeAudioUploadClient(file);
+      }
       clientDecision = clientResult.decision;
       statusMessage = clientResult.message;
 
@@ -921,11 +951,97 @@ export function RecordingStudioPage({
 
     try {
       const file = currentPreviewItem.file;
+      const draftCap = localTrialCapacity(file.size);
+      if (draftCap.status === "invalid" || draftCap.status === "exceeded") {
+        throw new Error(draftCap.status === "invalid"
+          ? "LOCAL_DRAFT_PROCESSING_CAP_CONFIG_HOLD"
+          : "LOCAL_DRAFT_PROCESSING_CAP_HOLD");
+      }
       const uploadSession = await createHumanUploadSession({
         seriesId,
         episodeId: selectedEpisode.id,
         file,
       });
+
+      // One allowed LOCAL test-only reply from the NORMAL Human signer:
+      // reuse its ORIGINAL ticket to stage through the bounded Next/worker
+      // route, then deliberately require finalize to refuse publication.
+      // Both server handlers and the client are independently loopback-gated.
+      if (uploadSession.uploadMode === "local-private-staging-only") {
+        if (uploadSession.parts || uploadSession.bucketName ||
+            !uploadSession.uploadSessionId ||
+            !Number.isSafeInteger(uploadSession.partCount)) {
+          throw new Error("LOCAL_SIGNED_TOKEN_OR_TICKET_HOLD");
+        }
+        const lease = bindLocalNormalHumanLease({
+          file, seriesId, episodeId: selectedEpisode.id,
+          sessionId: uploadSession.uploadSessionId,
+          partCount: uploadSession.partCount!,
+          reason: uploadSession.reason || "",
+        });
+        let trialError: unknown = null;
+        try {
+          setPublishMessage(
+            "ローカル専用PRIVATE分割転送を検証中。投稿・公開は行わない。"
+          );
+          await stageHumanMultipartLocally({
+            file, seriesId, episodeId: selectedEpisode.id,
+            previousLease: lease,
+            normalFinalizeOwnsFinish: true,
+            onProgress: ({ completedParts, totalParts }) =>
+              setPublishMessage(
+                `開発用PRIVATE転送 ${completedParts}/${totalParts}。投稿・公開は行わない。`
+              ),
+          });
+          const finalized = await fetch("/api/recordings/human-upload-finalize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              seriesId,
+              episodeId: selectedEpisode.id,
+              episodeNumber: selectedEpisode.episodeNumber,
+              isPublic: recordingVisibility === "public",
+              fileName: file.name,
+              mimeType: file.type,
+              totalSizeBytes: file.size,
+              uploadSessionId: lease.sessionId,
+            }),
+          });
+          const answer: unknown = await finalized.json().catch(() => null);
+          if (finalized.status !== 409 || !answer ||
+              typeof answer !== "object" || Array.isArray(answer) ||
+              (answer as { ok?: unknown }).ok !== false ||
+              (answer as { reason?: unknown }).reason !==
+                "PRIVATE_PARTS_SEALED_NOT_PUBLISHED" ||
+              "recordingId" in answer) {
+            throw new Error("LOCAL_FINALIZE_PUBLICATION_UNPROVEN_HOLD");
+          }
+        } catch (error) {
+          trialError = error;
+        }
+        // Fail closed even on lost ACK / partially CLAIMED upload. A failed
+        // owner abort must never be described as verified physical cleanup.
+        try {
+          await abortHumanMultipartLocally({ lease });
+        } catch {
+          throw new Error("LOCAL_PRIVATE_CLEANUP_UNPROVEN_HOLD");
+        }
+        if (trialError) throw trialError;
+        setPublishStatus("error");
+        setPublishResult(null);
+        setPublishMessage(
+          "開発用PRIVATE分割転送とfinalize公開拒否を確認し、検証パートを破棄した。朗読は未投稿・未公開。"
+        );
+        return;
+      }
+
+      // Unknown modes never fall back to single-file publish/signed upload.
+      if (uploadSession.uploadMode !== "single" &&
+          uploadSession.uploadMode !== "multipart") {
+        throw new Error(
+          "未対応のアップロード方式。PRIVATE検証データは投稿・公開されていない。"
+        );
+      }
 
       let response: Response;
 
@@ -1267,6 +1383,14 @@ export function RecordingStudioPage({
           <p className="mt-3 text-xs leading-6 text-neutral-500">
             対応想定: {AUDIO_UPLOAD_ALLOWED_EXTENSIONS.join(" / ")}
           </p>
+          {process.env.NODE_ENV === "development" && (
+            <LocalHumanMultipartProbe
+              key={`${selectedEpisode?.id ?? "none"}:${currentPreviewItem?.id ?? "none"}`}
+              file={currentPreviewItem?.file ?? null}
+              seriesId={seriesId}
+              episodeId={selectedEpisode?.id ?? ""}
+            />
+          )}
 
           <div className="mt-4 w-full min-w-0 rounded-[20px] border border-black/10 bg-neutral-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1355,6 +1479,13 @@ export function RecordingStudioPage({
                 <h3 className="mt-2 text-lg font-semibold">
                   保存前最終判定: {getDecisionLabel(finalDecision)}
                 </h3>
+                {process.env.NODE_ENV === "development" &&
+                process.env.NEXT_PUBLIC_B2_LOCAL_HUMAN_PROCESSING_CAP_BYTES &&
+                currentStatusMessage.startsWith("LOCAL_DRAFT_PROCESSING_CAP_") ? (
+                  <p className="mt-2 text-xs font-medium" role="status">
+                    {currentStatusMessage}
+                  </p>
+                ) : null}
               </div>
 
               <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-500">

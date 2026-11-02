@@ -1,0 +1,131 @@
+name: Issue137 B2 ephemeral local Auth RLS Storage candidate
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/issue137-b2-isolated-e2e.yml'
+      - 'scripts/issue137-b2/**'
+      - 'supabase/migrations/20261026120000_issue137_b2_r18_boundary.sql'
+      - 'src/lib/publicWorks.ts'
+      - 'src/lib/recording/**'
+      - 'src/app/api/recordings/ai-audio/**'
+      - 'src/app/api/recordings/human-upload-session/**'
+      - 'src/app/api/recordings/human-upload-finalize/**'
+permissions:
+  contents: read
+concurrency:
+  group: issue137-b2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  isolated-b2-test:
+    if: >-
+      github.event.repository.private == false &&
+      github.event.pull_request.number == 153 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'fix/issue137-b2-r18-data-media-boundary'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: B2 source-only checks
+        run: |
+          set -euo pipefail
+          node scripts/issue137-b2/source-check.mjs
+          node scripts/issue137-b2/h1-source-check.mjs
+          node --check scripts/issue137-b2/e2e.mjs
+          node --check scripts/issue137-b2/atomic-race-e2e.mjs
+          node --check scripts/issue137-b2/h1-atomic-e2e.mjs
+          node --check scripts/issue137-b2/s3-byte-path-e2e.mjs
+          node --check scripts/issue137-b2/rls-user-private-writer-e2e.mjs
+          node --check scripts/issue137-b2/writer-path-private-preservation-e2e.mjs
+          node --check scripts/issue137-b2/human-signed-multipart-local-e2e.mjs
+          node --check scripts/issue137-b2/human-multipart-next-route-local-e2e.mjs
+          node --check scripts/issue137-b2/human-no-admin-next-boundary-local-e2e.mjs
+          node --check scripts/issue137-b2/human-multipart-worker-process-local.mjs
+          node --check scripts/issue137-b2/human-multipart-stream-next-local-e2e.mjs
+          node --check scripts/issue137-b2/human-studio-real-browser-local-e2e.mjs
+          test -f scripts/issue137-b2/human-multipart-worker-local.sql
+          node --check scripts/issue137-b2/privileged-http-boundary-process-local.mjs
+          node --check scripts/issue137-b2/privileged-http-boundary-local-e2e.mjs
+          test -f scripts/issue137-b2/privileged-http-durable-local.sql
+          node --check scripts/issue137-b2/privileged-readonly-audit-process-local.mjs
+          node --check scripts/issue137-b2/privileged-readonly-auditor-local-e2e.mjs
+          test -f scripts/issue137-b2/privileged-readonly-auditor-local.sql
+          node --check scripts/issue137-b2/human-tus-revocation-local-e2e.mjs
+          node --check scripts/issue137-b2/human-tus-app-authority-local-e2e.mjs
+          node --check scripts/issue137-b2/human-tus-app-receipt-local-e2e.mjs
+          node --check scripts/issue137-b2/human-tus-user-ingress-process-local.mjs
+          node --check scripts/issue137-b2/human-tus-user-ingress-isolation-e2e.mjs
+          node --check scripts/issue137-b2/human-tus-session-issuer-local-e2e.mjs
+          node --check scripts/issue137-b2/human-tus-next-issuer-local-e2e.mjs
+          node --check scripts/issue137-b2/human-tus-private-pointer-local-e2e.mjs
+          node --check scripts/issue137-b2/g2-credential-cache-boundary-model.mjs
+          node --check scripts/issue137-b2/g2-custody-feasibility-source-model.mjs
+          node --check scripts/issue137-b2/reader-private-handoff-contract.test.mjs
+          node --check scripts/issue137-b2/public-abort-vs-transport-local.test.mjs
+          node --check scripts/issue137-b2/f1-catalog-strategies-offline.test.mjs
+          test -f scripts/issue137-b2/human-tus-private-pointer-local.sql
+          test -f scripts/issue137-b2/human-tus-session-issuer-local.sql
+          node --check scripts/issue137-b2/human-one-shot-broker-local.mjs
+          node --check scripts/issue137-b2/human-one-shot-broker-e2e.mjs
+          node --check scripts/issue137-b2/human-broker-private-rls-fence-e2e.mjs
+          node --check scripts/issue137-b2/human-broker-process-writer-local.mjs
+          node --check scripts/issue137-b2/human-broker-byte-recovery-local.mjs
+          node --check scripts/issue137-b2/human-broker-byte-recovery.test.mjs
+          node scripts/issue137-b2/human-broker-byte-recovery.test.mjs
+          node scripts/issue137-b2/s3-public-writer-inventory.mjs
+          node --check scripts/issue137-b2/recording-credential-route-dependencies.mjs
+          node scripts/issue137-b2/recording-credential-route-dependencies.mjs
+          node --check scripts/issue137-b2/human-processing-capacity-local.mjs
+          node scripts/issue137-b2/human-processing-capacity-local.mjs
+          node --check scripts/issue137-b2/private-real-local-adapter-e2e.mjs
+          bash -n scripts/issue137-b2/run-local.sh
+          docker info >/dev/null
+      - name: F1 epoch and F3 playback SOURCE runtime regressions
+        env:
+          DO_NOT_CONTACT_PRODUCTION: 'true'
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --import tsx scripts/issue137-b2/fence.test.ts
+          DO_NOT_CONTACT_PRODUCTION=true node --import tsx scripts/issue137-b2/private-reader-boundary-contract.test.mjs
+          DO_NOT_CONTACT_PRODUCTION=true node --import tsx scripts/issue137-b2/reader-private-handoff-contract.test.mjs
+          DO_NOT_CONTACT_PRODUCTION=true node --import tsx scripts/issue137-b2/public-abort-vs-transport-local.test.mjs
+          DO_NOT_CONTACT_PRODUCTION=true node --import tsx scripts/issue137-b2/f1-catalog-strategies-offline.test.mjs
+          DO_NOT_CONTACT_PRODUCTION=true node scripts/issue137-b2/g2-credential-cache-boundary-model.mjs
+          DO_NOT_CONTACT_PRODUCTION=true node scripts/issue137-b2/g2-custody-feasibility-source-model.mjs
+          node --import tsx scripts/test-human-recording-boundaries.ts
+          node --import tsx scripts/test-issue137-b2-playback-href.ts
+          node --import tsx scripts/issue137-b2/ai-recording-options.test.ts
+          node --import tsx scripts/issue137-b2/public-media-writer-bridge.test.ts
+          node --import tsx scripts/issue137-b2/app-protocol-compatibility.test.ts
+          node --import tsx scripts/issue137-b2/human-processing-capacity-draft.test.mjs
+          node --import tsx scripts/issue137-b2/human-transcription-contract-mock.test.mjs
+          # The runner does not ship ffmpeg; npm ci --ignore-scripts intentionally
+          # skipped the exact locked ffmpeg-static 5.2.0 binary installation.
+          # Rebuild ONLY that already-pinned dependency for this disposable job.
+          npm rebuild ffmpeg-static --foreground-scripts --no-audit --no-fund
+          test -x "$(node -p "require('ffmpeg-static')")" || { echo "HOLD: pinned ffmpeg-static binary unavailable"; exit 1; }
+          FFMPEG_PATH="$(node -p "require('ffmpeg-static')")" node --import tsx scripts/issue137-b2/human-real-playback-capacity-local.mjs
+          FFMPEG_PATH="$(node -p "require('ffmpeg-static')")" node scripts/issue137-b2/human-streaming-normalization-local.mjs
+          node --import tsx scripts/issue137-b2/human-upload-session-consent.test.ts
+          node --import tsx --input-type=module -e "const m=await import('./src/lib/recording/privateMediaLocalPipeline.ts'); const f=m.createDisposablePrivateMediaPipeline??m.default?.createDisposablePrivateMediaPipeline; if(typeof f!=='function') throw Error('F2P local pipeline module unavailable')"
+      - name: Install disposable headless Chromium for localhost Studio E2E
+        env:
+          DO_NOT_CONTACT_PRODUCTION: 'true'
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx --no-install playwright install --with-deps --only-shell chromium
+      - name: B2 real ephemeral GoTrue PostgREST Storage regression
+        env:
+          DO_NOT_CONTACT_PRODUCTION: 'true'
+          CI: 'true'
+        run: |
+          set -euo pipefail
+          bash scripts/issue137-b2/run-local.sh
+          echo "B2 isolated synthetic execution completed"

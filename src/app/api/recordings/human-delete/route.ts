@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { buildNemoTimingObjectPathFromAudioObjectPath } from "@/lib/recording/nemoTiming";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
 import {
-  getHumanRecordingAudioBucketName,
-  getHumanRecordingStorageObjectPath,
-} from "@/lib/recording/humanRecordingStorage";
+  readHumanAtomicRevision,
+  commitHumanAtomicMutation,
+} from "@/lib/recording/humanRecordingAtomic";
 
 export const runtime = "nodejs";
 
@@ -32,62 +31,6 @@ function pickText(row: RawRow, keys: string[]): string {
   }
 
   return "";
-}
-
-function buildRecordingArtifactObjectPaths(
-  storedAudioPath: string
-): string[] {
-  const objectPath = getHumanRecordingStorageObjectPath(storedAudioPath);
-
-  if (!objectPath) {
-    return [];
-  }
-
-  const results = [objectPath];
-
-  const normalizedPlaybackMatch = objectPath.match(
-    /^(.*\/)playback-from-([a-z0-9]+)\.m4a$/i
-  );
-
-  if (normalizedPlaybackMatch) {
-    results.push(
-      `${normalizedPlaybackMatch[1]}original.${normalizedPlaybackMatch[2]}`
-    );
-    results.push(buildNemoTimingObjectPathFromAudioObjectPath(objectPath));
-  }
-
-  const legacyPlaybackMatch = objectPath.match(/^(.*\/)playback\.([a-z0-9]+)$/i);
-
-  if (legacyPlaybackMatch) {
-    results.push(`${legacyPlaybackMatch[1]}original.${legacyPlaybackMatch[2]}`);
-    results.push(buildNemoTimingObjectPathFromAudioObjectPath(objectPath));
-  }
-
-  if (objectPath.startsWith("nemo/") || objectPath.includes("/nemo/")) {
-    results.push(buildNemoTimingObjectPathFromAudioObjectPath(objectPath));
-  }
-
-  return [...new Set(results)];
-}
-
-async function removeStorageObjectPaths(
-  adminSupabase: ReturnType<typeof createAdminClient>,
-  bucketName: string,
-  objectPaths: string[]
-): Promise<void> {
-  const filtered = [
-    ...new Set(objectPaths.map((value) => value.trim()).filter(Boolean)),
-  ];
-
-  if (filtered.length === 0) {
-    return;
-  }
-
-  const { error } = await adminSupabase.storage.from(bucketName).remove(filtered);
-
-  if (error) {
-    throw new Error(error.message);
-  }
 }
 
 async function findExistingRecordingsForSeriesUserEpisode(args: {
@@ -185,6 +128,11 @@ export async function POST(request: Request) {
   const adminSupabase = createAdminClient();
 
   try {
+    const expectedRevision = await readHumanAtomicRevision(adminSupabase, {
+      seriesId,
+      episodeId,
+      ownerId: user.id,
+    });
     const existingRecordings = await findExistingRecordingsForSeriesUserEpisode({
       adminSupabase,
       seriesId,
@@ -202,56 +150,33 @@ export async function POST(request: Request) {
       );
     }
 
-    const recordingIds = existingRecordings.map((row) => String(row.id));
-    const audioStoragePaths = existingRecordings
-      .map((row) => pickText(row, ["audio_storage_path", "audioStoragePath"]))
-      .filter((value) => value.length > 0);
-
-    const { error: deleteError } = await adminSupabase
-      .from("recordings")
-      .delete()
-      .in("id", recordingIds);
-
-    if (deleteError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: `recordings 削除に失敗した: ${deleteError.message}`,
-        },
-        { status: 500 }
-      );
-    }
-
-    try {
-      const bucketName = getHumanRecordingAudioBucketName();
-      const objectPaths = audioStoragePaths.flatMap((storedAudioPath) =>
-        buildRecordingArtifactObjectPaths(storedAudioPath)
-      );
-
-      await removeStorageObjectPaths(adminSupabase, bucketName, objectPaths);
-    } catch (storageError) {
-      console.warn("[human-delete storage cleanup warning]", storageError);
-    }
-
+    // H1: never delete by a stale client-assembled ID list.
+    // The scoped RPC serializes delete against publish and visibility writes.
+    const result = await commitHumanAtomicMutation(adminSupabase, {
+      seriesId,
+      episodeId,
+      ownerId: user.id,
+      expectedRevision,
+      action: "delete_all",
+    });
+    // Preserve Storage bytes; a lost DB reply cannot authorize destructive
+    // cleanup, and a separate storage lifecycle audit remains pending.
     return NextResponse.json(
-      {
-        ok: true,
-        deletedCount: recordingIds.length,
-      },
+      { ok: true, deletedCount: result.deletedCount },
       { status: 200 }
     );
   } catch (error) {
-    console.error("[human-delete]", error);
-
+    const conflict = error instanceof Error &&
+      /H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT|H1_AMBIGUOUS_OWNER/u.test(error.message);
+    if (!conflict) console.error("[human-delete]", error);
     return NextResponse.json(
       {
         ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "朗読削除中に想定外エラーが出た。",
+        error: conflict
+          ? "朗読の状態または所有権が処理中に変更された。再確認が必要。"
+          : "朗読削除中に想定外エラーが出た。",
       },
-      { status: 500 }
+      { status: conflict ? 409 : 500 }
     );
   }
 }

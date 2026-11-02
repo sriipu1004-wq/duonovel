@@ -9,8 +9,7 @@ import {
 } from "@/features/write/writeShared";
 import { isR18Series } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
-import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
-import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
+import { projectReaderEpisodeRecordings } from "@/lib/recording/readerEpisodeRecordingProjection";
 import {
   isSchemaCompatibilityReadFailure,
   runReadOnlyWithRetry,
@@ -197,12 +196,10 @@ async function fetchPublicRecordings(
     }
 
     if (!firstTry.error) {
-      return ((firstTry.data ?? []) as unknown as PublicReadRecordingRow[])
-        .filter(isPublishedHumanRecording)
-        .map((recording) => ({
-          ...recording,
-          audio_storage_path: buildHumanRecordingPlaybackHref(recording.id),
-        }));
+      return projectReaderEpisodeRecordings(
+        (firstTry.data ?? []) as unknown as PublicReadRecordingRow[],
+        episodeId
+      );
     }
   } catch {
     console.warn("[reader] recordings unavailable");

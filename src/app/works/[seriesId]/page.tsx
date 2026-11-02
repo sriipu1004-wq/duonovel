@@ -42,6 +42,10 @@ import { localizePath } from "@/i18n/navigation";
 import { isUuid } from "@/lib/uuid";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
+import {
+  listProtectedAiRecordings,
+  type ProtectedAiRecordingOption,
+} from "@/lib/recording/protectedAiRecordingOptions";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 import { getSupportedLanguage, parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
@@ -510,11 +514,13 @@ async function WorkSubscriptionNotice({
 
 async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
   recordings: RecordingRow[];
+  aiRecordings: ProtectedAiRecordingOption[];
   fetchErrorMessage: string | null;
 }> {
   if (episodeIds.length === 0) {
     return {
       recordings: [],
+      aiRecordings: [],
       fetchErrorMessage: null,
     };
   }
@@ -535,12 +541,16 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
   } catch {
     return {
       recordings: [],
+      aiRecordings: [],
       fetchErrorMessage: "朗読情報を一時的に取得できない。",
     };
   }
 
   if (!firstTry.error) {
     return {
+      aiRecordings: listProtectedAiRecordings(
+        (firstTry.data ?? []) as RecordingRow[], new Set(episodeIds)
+      ),
       recordings: ((firstTry.data ?? []) as RecordingRow[])
         .filter(isPublishedHumanRecording)
         .map((recording) => ({
@@ -554,6 +564,7 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
   if (!isSchemaCompatibilityReadFailure(firstTry.error)) {
     return {
       recordings: [],
+      aiRecordings: [],
       fetchErrorMessage: "朗読情報を一時的に取得できない。",
     };
   }
@@ -574,12 +585,16 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
   } catch {
     return {
       recordings: [],
+      aiRecordings: [],
       fetchErrorMessage: "朗読情報を一時的に取得できない。",
     };
   }
 
   if (!fallback.error) {
     return {
+      aiRecordings: listProtectedAiRecordings(
+        (fallback.data ?? []) as RecordingRow[], new Set(episodeIds)
+      ),
       recordings: ((fallback.data ?? []) as RecordingRow[])
         .filter(isPublishedHumanRecording)
         .map((recording) => ({
@@ -592,6 +607,7 @@ async function fetchRecordingsByEpisodeIds(episodeIds: string[]): Promise<{
 
   return {
     recordings: [],
+    aiRecordings: [],
     fetchErrorMessage: `recordings の取得に失敗: ${fallback.error.message}`,
   };
 }
@@ -1047,7 +1063,7 @@ async function ReaderTabContent({
   recordingResultPromise?: ReturnType<typeof fetchRecordingsByEpisodeIds> | null;
 }) {
   const episodeIds = episodes.map((episode) => episode.id);
-  const { recordings, fetchErrorMessage } =
+  const { recordings, aiRecordings, fetchErrorMessage } =
     await (recordingResultPromise ?? fetchRecordingsByEpisodeIds(episodeIds));
   const episodeNumberById = new Map(
     episodes.map((episode) => [episode.id, getEpisodeNumber(episode)])
@@ -1084,6 +1100,26 @@ async function ReaderTabContent({
         </div>
       ) : null}
 
+      {aiRecordings.length > 0 ? (
+        <section aria-label="AI朗読" className="mb-5 rounded-[20px] border border-black/10 p-4">
+          <h3 className="text-sm font-semibold">録音済みAI朗読</h3>
+          <p className="mt-1 text-xs text-neutral-600">Human朗読とは別。再生の都度権限を確認。</p>
+          {aiRecordings.slice(0, 12).map((option) => {
+            const episodeNumber = episodeNumberById.get(option.episodeId);
+            return (
+              <div key={option.recordingId} className="mt-3 border-t border-black/10 pt-3">
+                <p className="mb-1 text-sm">{option.name}</p>
+                <audio controls preload="none" src={option.audioUrl} className="w-full" />
+                {episodeNumber ? (
+                  <Link className="text-xs underline" href={workHref(buildReadHref(seriesId, episodeNumber))}>
+                    本文Readerへ
+                  </Link>
+                ) : null}
+              </div>
+            );
+          })}
+        </section>
+      ) : null}
       {displayedReaderCards.length === 0 ? (
         <div className="rounded-[20px] border border-dashed border-black/15 bg-neutral-50 p-5 text-sm leading-7 text-neutral-600">
           まだ公開中の朗読がない。

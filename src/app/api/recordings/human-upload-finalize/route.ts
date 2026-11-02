@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import {
+  hasIssue137ProbeMarker,
+  handleIssue137LocalLegacyProbe,
+  handleIssue137LocalNormalHumanRoute,
+  isIssue137LocalNormalHumanModeSelected,
+  isIssue137LocalTusIssuerModeSelected,
+  handleIssue137LocalTusFinalizeRoute,
+} from "@/lib/recording/issue137LocalHumanLegacyBridge";
+import {
   getSeriesPublicationStatus,
   isEpisodePubliclyVisible,
   type EpisodeRow,
@@ -89,6 +97,17 @@ export async function POST(request: Request) {
   let payload: RawRow;
   try {
     payload = (await request.json()) as RawRow;
+    // The JWT/TUS disposable finalize only verifies PRIVATE staged bytes.
+    // No privileged Storage token, G1 receipt sealing or PUBLIC publish.
+    // In non-local environments this selected mode returns HOLD, no fallback.
+    if(isIssue137LocalTusIssuerModeSelected())
+      return handleIssue137LocalTusFinalizeRoute(request,payload);
+    if(hasIssue137ProbeMarker(payload))
+      return handleIssue137LocalLegacyProbe(request,payload,"finish");
+    // Dedicated disposable localhost tests exercise the real normal JSON
+    // contract with no privileged signer or publication; never auto-fallback.
+    if(isIssue137LocalNormalHumanModeSelected())
+      return handleIssue137LocalNormalHumanRoute(request,payload,"finish");
   } catch {
     return NextResponse.json(
       { ok: false, error: "JSONを読めなかった。" },
@@ -277,16 +296,21 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, ...result }, { status: 200 });
   } catch (error) {
-    console.error("[human-upload-finalize]", error);
+    const message = error instanceof Error ? error.message : "unknown_error";
+    const conflict = /H1_STALE_REVISION|H1_OWNER_OR_ROW_CONFLICT|H1_AMBIGUOUS_OWNER|H1_PRIVATE_REPUBLISH_DENIED|H2_PERMISSION_REVOKED|H2_PUBLICATION_REVOKED|H2_CONSENT_REVOKED|H2_R18_REVOKED/u.test(message);
+    const unavailable = message.startsWith("human_atomic_revision_unavailable:") ||
+      message.startsWith("human_atomic_commit_failed:");
+    if (!conflict) console.error("[human-upload-finalize]", error);
     return NextResponse.json(
       {
         ok: false,
-        error:
-          error instanceof Error
-            ? error.message
+        error: conflict
+          ? "録音の状態または所有権が変更された。再確認してください。"
+          : unavailable
+            ? "録音の原子的保存処理を確認できなかったため公開を停止した。"
             : "multipart Human narration finalize 中に想定外エラーが出た。",
       },
-      { status: 500 }
+      { status: conflict ? 409 : unavailable ? 503 : 500 }
     );
   } finally {
     if (tempObjectPaths.length > 0) {
