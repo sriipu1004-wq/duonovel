@@ -89,7 +89,7 @@ async function actor(email="local-"+id()+"@example.invalid",consent=true){
  const login=await cookie.session.auth.signInWithPassword({email,password});
  assert.equal(login.error,null,"real SSR actor login");
  yes(cookie.header().length>0,"real SSR cookies");
- return {id:uid,login:login.data.session,cookie};
+ return {id:uid,login:login.data.session,cookie,email,password};
 }
 const payload=(seriesId,episodeId)=>({
  seriesId,episodeId,fileName:"local.wav",mimeType:"audio/wav",
@@ -494,6 +494,25 @@ try{
  yes(!ownerListen.headers.has("location")&&
   ownerListen.headers.get("cache-control")?.includes("no-store"),
   "sealed Reader sends no signed bearer URL and forbids cache");
+
+ // Distinct READ entitlement: after CAS, the temporary upload lease may
+ // expire and owner may sign in on a new GoTrue session. The PRIVATE Reader
+ // must still verify current ownership, R18/consent and object SHA each time.
+ sql("update libread_internal.issue137_tus_app_leases set "+
+  "expires_at=clock_timestamp()-interval '1 second' where lease_id='"+
+  newLease.leaseId+"'");
+ const expiredUploaderLease=await readPrivate(newLease.leaseId,reader.cookie);
+ yes(expiredUploaderLease.status===200&&expiredUploaderLease.bytes.equals(bytes),
+  "same G2→G1 PRIVATE recording remains available after temporary TUS TTL");
+ const newReaderLogin=jar();
+ const relog=await newReaderLogin.session.auth.signInWithPassword({
+  email:reader.email,password:reader.password
+ });
+ assert.equal(relog.error,null,"same narrator new GoTrue login after stage expiry");
+ const relogReader=await readPrivate(newLease.leaseId,newReaderLogin);
+ yes(relogReader.status===200&&relogReader.bytes.equals(bytes),
+  "durable PRIVATE entitlement admits legitimate new GoTrue owner session");
+
  const authorListen=await readPrivate(newLease.leaseId,owner.cookie);
  yes(authorListen.status===404&&authorListen.bytes.length===0,
   "work author cannot read different narrator's sealed PRIVATE audio");
