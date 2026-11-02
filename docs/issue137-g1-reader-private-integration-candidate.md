@@ -1,7 +1,7 @@
 # Issue #137 — G1 PRIVATE Reader integration: source-backed nonproduction candidate
 
-Status: **DESIGN ONLY / Draft PR #153 / MERGE HOLD**, written 2026-11-02.  
-Authorized: source review, offline model, isolated tests, candidate design.  
+Status: **DESIGN ONLY / Draft PR #153 / MERGE HOLD**, written 2026-11-02.
+Authorized: source review, offline model, isolated tests, candidate design.
 **Not authorized:** hosted DB/Storage, real rights changes, deployed/production Reader, permissions, credentials, billing, merge.
 
 ## 1. Actual baseline — do not confuse these gates
@@ -32,16 +32,16 @@ TTS/AI narration must remain a separate provenance and authorization track. Read
 ### A. PRIVATE staging and narrator preview
 
 1. Real SSR `getUser` and server-verifiable current GoTrue session are necessary; bind lease to the **narrator**, exact series/episode, consent version and current authority epoch. Do not use JWT user metadata as permission.
-2. Check current `recording_permission_mode=open`, public work and posted/published episode **for non-authors**. Apply rating OR `sexual_r18` warning plus current R18 preference and age confirmation. Do not add `author_id=actor_id`.
+2. Check current `recording_permission_mode=open`, public work and posted/published episode **for all actors in this local fixture**. Actual site author-only draft visibility is a separate case not implemented by this conservative fixture; it must not be silently dropped from the eventual product. Apply rating OR `sexual_r18` warning plus current R18 preference and age confirmation. Do not add `author_id=actor_id`.
 3. Use PRIVATE-only TUS staging under a canonical unguessable object path and bounded TTL. The existing 16 MiB fixture is **not** proof that 1 GiB multipart/prod capacity works.
 4. Trusted worker reads all physical object bytes; compare size/SHA-256 and provider object identity to server-issued expected values; CAS a single receipt and PRIVATE pointer. A pointer is not a `recordings.is_public` state.
 5. A prospective private preview endpoint must re-check current narrator/session/consent/rights/R18/lease epoch and verify bytes. No public URL, signed-bearer escape, cross-user source, shared cache, unverified range responses or redirect to a privileged Storage key. No actual HTTP endpoint is implemented yet.
 
 ### B. PRIVATE persistence versus PUBLIC promotion
 
-The ephemeral upload lease expires in approximately ten minutes; do **not** make it a permanent Reader entitlement. A later durable record must have separate owner+publication+revocation version and an authoritative exact source/edition rights assessment. The author OPEN flag is a *site participation preference*, not a full copyright-license or Public Domain proof. Decide valid source-rights/edition schema separately; do not infer it from an Official label.
+The ephemeral upload lease expires in approximately ten minutes; do **not** make it a permanent Reader entitlement. A later durable record must have separate owner+publication+revocation version and an authoritative applicable rights assessment: an original user-authored work requires the relevant creator/permission basis, whereas Public Domain or translated/edited sources require independently verified exact source, edition and components. The author OPEN flag is a *site participation preference*, not a full copyright-license or Public Domain proof. Decide valid source-rights/edition schema separately; do not infer it from an Official label.
 
-A PUBLIC promotion requires fresh narrator consent, current work permission, public work/episode, legally applicable exact source/edition rights, content-rating/warnings, the verified audio's stable identity, and an atomic committed publish decision. The reader route must check the committed state + all current revocation epochs before returning **any** byte; unknown/conflicting data fail closed. Do not expose `PRIVATE_POINTER_ONLY` as `PUBLIC_READY`.
+A PUBLIC promotion requires fresh narrator consent, current work permission, public work/episode, legally applicable, source-specific rights (exact source/edition evidence where relevant), content-rating/warnings, the verified audio's stable identity, and an atomic committed publish decision. The reader route must check the committed state + all current revocation epochs before returning **any** byte; unknown/conflicting data fail closed. Do not expose `PRIVATE_POINTER_ONLY` as `PUBLIC_READY`.
 
 ### C. Privileged writer, cache and retry exclusion (G2; NOT yet solved)
 
