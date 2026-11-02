@@ -138,6 +138,9 @@ try{
  // The earlier legacy local Next test revokes consent SELECT at its end.
  // Restore that grant on the disposable DB only; retain self-only RLS.
  sql("grant select on public.user_recording_consents to authenticated");
+ const baseline=await admin.from("recordings").select("id",{count:"exact",head:true});
+ assert.equal(baseline.error,null,"local baseline recording count");
+ const initialCount=baseline;
  const owner=await actor(),reader=await actor(undefined,false);
  const outsider=await actor(),official=await actor("libread08@gmail.com");
  const series=id(),episode=id(),foreignSeries=id();
@@ -225,7 +228,8 @@ try{
   headers:{apikey:anon},redirect:"error",signal:AbortSignal.timeout(10000)});
  yes(publicGet.status>=400&&publicGet.status<500,"no PUBLIC object URL");
  const count=await admin.from("recordings").select("id",{count:"exact",head:true});
- yes(count.error===null&&count.count===0,"no recording publication");
+ yes(count.error===null&&count.count===initialCount.count,
+  "no new recording publication relative to existing local fixture");
  assert.equal((await admin.storage.from(bucket).remove([fresh.objectPath])).error,null);
  yes((await physical(fresh.objectPath))===null,"test object removed");
  console.log("PASS: #137 REAL LOCAL Next SSR -> self-issued PRIVATE JWT/TUS "+checks+
