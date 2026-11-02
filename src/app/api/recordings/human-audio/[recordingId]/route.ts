@@ -118,15 +118,18 @@ async function readIssue137G1LocalPrivateAudio(request: Request, leaseId: string
   // No signed URL, no Range, no early streaming. The LOCAL <=16 MiB bound
   // permits complete verification BEFORE a single byte is returned.
   const db = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!);
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) return denied();
+  // G2 local isolation: the Storage byte reader has NO privileged credential.
+  // The separately checked G1 SQL preflight still uses admin; this does NOT
+  // eliminate all project-wide service-role holders or the old signed URLs.
+  const localAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!localAnon) return denied();
   const path = before.path.split("/").map(encodeURIComponent).join("/");
   let bytes: Buffer;
   try {
     const upstream = await fetch(
       db.origin + "/storage/v1/object/authenticated/" +
       encodeURIComponent(before.bucket) + "/" + path,
-      { headers: { apikey: serviceKey, Authorization: "Bearer " + serviceKey },
+      { headers: { apikey: localAnon, Authorization: "Bearer " + token },
         redirect: "error", cache: "no-store", signal: AbortSignal.timeout(15000) }
     );
     const length = upstream.headers.get("content-length");
