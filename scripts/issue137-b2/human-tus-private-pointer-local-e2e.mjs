@@ -257,8 +257,13 @@ yes(read(a,t)===t.path,"owner original live GoTrue session can find PRIVATE poin
  yes(ownerOverwrite.status>=400,
   "real LOCAL owner JWT cannot overwrite sealed G1 object");
  const ownerDelete=await a.client.storage.from(bucket).remove([t.path]);
- yes(!!ownerDelete.error,
-  "real LOCAL owner JWT cannot DELETE sealed G1 object via Storage DELETE API");
+ // Storage remove may return 2xx/no error for zero affected rows under RLS.
+ // HTTP/API status is NOT proof of deletion or of policy authorization.
+ const actualAfterOwnerDelete=await actual(t);
+ yes(actualAfterOwnerDelete?.equals(data),
+  "real LOCAL owner JWT remove MUST leave sealed bytes physically untouched");
+ console.log("OBSERVED: LOCAL owner remove API returned "+(ownerDelete.error?"error":"no error")+
+  "; trusted physical byte readback "+(actualAfterOwnerDelete?.equals(data)?"preserved":"CHANGED"));
  yes((await actual(t))?.equals(data),
   "RLS denied owner mutation keeps physical PRIVATE bytes unchanged");
 
