@@ -10,8 +10,8 @@ create table public.private_library_works(
  source_language text not null default 'ja', original_file_name text,
  source_char_count integer not null check(source_char_count between 1 and 5000000),
  chapter_count integer not null check(chapter_count between 1 and 4000),
- section_count integer not null default 1 check(section_count between 1 and 1500),
- import_status text not null default 'uploading'
+ section_count integer not null check(section_count between 1 and 1500),
+ import_status text not null default 'ready'
   check(import_status in ('uploading','ready')),
  updated_at timestamptz not null default now(),
  last_opened_at timestamptz, last_opened_chapter_number integer
@@ -22,10 +22,10 @@ create table public.private_library_chapters(
  chapter_number integer not null check(chapter_number between 1 and 4000),
  title text not null, body text not null check(char_length(body) between 1 and 7500),
  source_char_count integer not null check(source_char_count between 1 and 7500),
- section_number integer not null default 1 check(section_number between 1 and 1500),
- section_title text not null default 'SECTION',
- part_number integer not null default 1 check(part_number between 1 and 1000),
- part_count integer not null default 1 check(part_count between 1 and 1000),
+ section_number integer not null check(section_number between 1 and 1500),
+ section_title text not null,
+ part_number integer not null check(part_number between 1 and 1000),
+ part_count integer not null check(part_count between 1 and 1000),
  unique(work_id,chapter_number),check(part_number<=part_count)
 );
 create table public.libread_user_entitlements(
@@ -582,6 +582,50 @@ begin
 end;
 $function$;
 
+
+CREATE OR REPLACE FUNCTION public.fill_private_library_chapter_section_fields()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.section_number is null then
+    new.section_number := new.chapter_number;
+  end if;
+  if new.section_title is null then
+    new.section_title := new.title;
+  end if;
+  if new.part_number is null then
+    new.part_number := 1;
+  end if;
+  if new.part_count is null then
+    new.part_count := 1;
+  end if;
+  return new;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.fill_private_library_work_section_count()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.section_count is null then
+    new.section_count := new.chapter_count;
+  end if;
+  return new;
+end;
+$function$;
+
+-- Source-equivalent BEFORE INSERT/UPDATE fill triggers required by live legacy
+-- import_private_library_txt; preserve actual ready/default quota behavior.
+create trigger issue138_fill_work_section before insert or update
+ on public.private_library_works for each row
+ execute function public.fill_private_library_work_section_count();
+create trigger issue138_fill_chapter_section before insert or update
+ on public.private_library_chapters for each row
+ execute function public.fill_private_library_chapter_section_fields();
 
 -- Exact observed trigger attachments: count runs AFTER INSERT or UPDATE OF
 -- import_status (not total-size/chapters completeness). Limiter BEFORE INSERT.
