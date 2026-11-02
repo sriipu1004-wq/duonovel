@@ -1,0 +1,48 @@
+# Issue #137: validate a candidate against disposable Postgres only.
+# No Production or Supabase secrets; NEVER perform migration deployment here.
+name: Issue137 minimal public media transition SQL (isolated)
+on:
+  pull_request:
+    paths:
+      - "scripts/issue137-b2/r0-public-media-transition-candidate.sql"
+      - "scripts/issue137-b2/r0-public-media-transition-local-test.sql"
+      - ".github/workflows/issue137-r0-public-media-transition.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres17-synthetic-negative:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: local-fixture-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify public-media candidate using synthetic PostgreSQL 17 fixture
+        env:
+          PGPASSWORD: local-fixture-only
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGDATABASE: postgres
+          DO_NOT_CONTACT_PRODUCTION: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${DO_NOT_CONTACT_PRODUCTION}" != "true" ]; then exit 1; fi
+          test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
+          test -z "${SUPABASE_DB_PASSWORD:-}"
+          test -z "${SUPABASE_ACCESS_TOKEN:-}"
+          psql -X -v ON_ERROR_STOP=1 -f scripts/issue137-b2/r0-public-media-transition-local-test.sql
+      - name: Diff whitespace check
+        run: git diff --check
