@@ -1,0 +1,156 @@
+-- Issue #137 G1 PRIVATE staging -> receipt -> POINTER, disposable TEST ONLY.
+-- Never apply to hosted Supabase, migrations or a production schema.
+-- This is an app-visible pointer snapshot; service_role/S3 can still change
+-- physical Storage bytes later. No PUBLIC path or recordings publication.
+create table libread_internal.issue137_tus_private_pointers (
+ lease_id uuid primary key references libread_internal.issue137_tus_app_leases(lease_id),
+ owner_id uuid not null,
+ issued_session_id uuid not null,
+ series_id uuid not null,
+ episode_id uuid not null,
+ stage_bucket text not null check(stage_bucket='f2p-tus-app-authority-local'),
+ stage_path text not null unique,
+ provider_object_id uuid not null,
+ verified_sha256 text not null check(verified_sha256 ~ '^[a-f0-9]{64}$'),
+ verified_bytes bigint not null check(verified_bytes>0 and verified_bytes<=16777216),
+ claim_nonce uuid not null unique,
+ pointer_state text not null default 'PRIVATE_POINTER_ONLY'
+   check(pointer_state='PRIVATE_POINTER_ONLY'),
+ pointer_version bigint not null default 1 check(pointer_version=1),
+ created_at timestamptz not null default clock_timestamp()
+);
+revoke all on libread_internal.issue137_tus_private_pointers
+ from public,anon,authenticated,service_role;
+
+-- Server-side read and commit use the SAME canonical authority graph.
+-- Caller is the trusted disposable PostgreSQL harness, never user REST.
+-- A live GoTrue session must match the one that issued the ticket;
+-- the original actor cannot borrow a second session or foreign pointer.
+create function libread_internal.issue137_tus_private_authorized(
+ p_lease uuid,p_actor uuid,p_session uuid
+) returns boolean language sql volatile security invoker set search_path='' as $$
+ select exists(
+  select 1 from libread_internal.issue137_tus_app_leases l
+  join auth.sessions a on a.id=l.issued_session_id and a.user_id=l.actor_id
+  join auth.users au on au.id=l.actor_id
+  join public.series s on s.id=l.series_id
+  join public.episodes e on e.id=l.episode_id and e.series_id=s.id
+  join public.user_recording_consents c on c.user_id=l.actor_id
+   and c.consent_key='recording_studio_global'
+   and c.consent_version='2026-04-16'
+  join public.users u on u.id=l.actor_id
+  where l.lease_id=p_lease and l.actor_id=p_actor
+   and l.issued_session_id=p_session and l.state='active'
+   and l.expires_at>clock_timestamp()
+   and lower(btrim(au.email))<>'libread08@gmail.com'
+   and s.recording_permission_mode='open'
+   and (s.author_id=l.actor_id or
+    (s.publication_status='public' and e.posting_status='posted'
+     and e.is_published is true))
+   and (s.author_id=l.actor_id or
+    (s.content_rating is distinct from 'r18'
+     and not ('sexual_r18'=any(coalesce(s.content_warnings,'{}'::text[]))))
+     or (u.show_r18_content is true and u.r18_confirmed_at is not null))
+ )
+$$;
+revoke all on function libread_internal.issue137_tus_private_authorized(uuid,uuid,uuid)
+ from public,anon,authenticated,service_role;
+
+-- CAS is server-only and must run AFTER an independently acquired full
+-- Storage download and exact SHA-256/size/object identity verification.
+-- Even this PostgreSQL commit cannot atomically freeze provider bytes.
+create function libread_internal.issue137_tus_private_commit(
+ p_lease uuid,p_actor uuid,p_session uuid,p_nonce uuid,
+ p_sha text,p_size bigint,p_object uuid
+) returns boolean language plpgsql volatile security invoker set search_path='' as $$
+declare l record; r record;
+begin
+ if p_lease is null or p_actor is null or p_session is null or
+    p_nonce is null or p_object is null or
+    coalesce(p_sha,'') !~ '^[a-f0-9]{64}$' or
+    p_size is null or p_size<44 or p_size>16777216 then
+  return false;
+ end if;
+ -- Lock the lease and receipt against multiple concurrent finalizers. A
+ -- prior durable STAGED -> VERIFYING claim (version=1) is mandatory.
+ select * into l from libread_internal.issue137_tus_app_leases
+  where lease_id=p_lease for update;
+ select * into r from libread_internal.issue137_tus_app_receipts
+  where lease_id=p_lease for update;
+ if not found or r.state is distinct from 'VERIFYING' or
+    r.attempted is distinct from true or r.version is distinct from 1 or
+    l.lease_id is null or l.state is distinct from 'active' or
+    l.actor_id is distinct from p_actor or
+    l.issued_session_id is distinct from p_session or
+    l.expected_sha256 is distinct from p_sha or
+    l.expected_bytes is distinct from p_size or
+    r.expected_bytes is distinct from p_size or
+    l.expires_at<=clock_timestamp() then
+  return false;
+ end if;
+ -- Lock all mutable authority rows until pointer commit. An already-waiting
+ -- revocation must execute before a delayed finalizer is allowed to commit.
+ perform 1
+ from public.series s
+ join public.episodes e on e.series_id=s.id and e.id=l.episode_id
+ join public.user_recording_consents c on c.user_id=l.actor_id
+  and c.consent_key='recording_studio_global'
+ join public.users u on u.id=l.actor_id
+ join auth.sessions a on a.id=l.issued_session_id and a.user_id=l.actor_id
+ join auth.users au on au.id=l.actor_id
+ where s.id=l.series_id
+ for share of s,e,c,u,a,au;
+ if not found or not libread_internal.issue137_tus_private_authorized(
+    p_lease,p_actor,p_session) then return false; end if;
+ -- A real provider object must be present under the single server-minted
+ -- canonical PRIVATE path with the same identity seen during readback.
+ perform 1 from storage.objects o
+ where o.bucket_id='f2p-tus-app-authority-local'
+  and o.name=l.object_path and o.id=p_object
+ for share;
+ if not found then return false; end if;
+ update libread_internal.issue137_tus_app_receipts
+ set state='SEALED_PRIVATE_SNAPSHOT',verified_sha256=p_sha,
+  verified_bytes=p_size,provider_object_id=p_object,
+  verified_at=clock_timestamp(),version=version+1
+ where lease_id=p_lease and state='VERIFYING' and attempted
+  and version=1;
+ if not found then return false; end if;
+ insert into libread_internal.issue137_tus_private_pointers (
+  lease_id,owner_id,issued_session_id,series_id,episode_id,stage_bucket,
+  stage_path,provider_object_id,verified_sha256,verified_bytes,claim_nonce
+ ) values(p_lease,p_actor,p_session,l.series_id,l.episode_id,
+  'f2p-tus-app-authority-local',l.object_path,p_object,p_sha,p_size,p_nonce)
+ on conflict do nothing;
+ if not found then
+  raise exception using errcode='23505',
+   message='ISSUE137_LOCAL_PRIVATE_POINTER_DUPLICATE_HOLD';
+ end if;
+ return true;
+end
+$$;
+revoke all on function libread_internal.issue137_tus_private_commit(
+ uuid,uuid,uuid,uuid,text,bigint,uuid) from public,anon,authenticated,service_role;
+
+-- This is a SERVER-ONLY *authorization preflight* for a PRIVATE pointer:
+-- it returns no PUBLIC URL. A worker must independently re-read provider
+-- bytes and compare exact SHA + object ID before serving even private bytes.
+create function libread_internal.issue137_tus_private_read(
+ p_lease uuid,p_actor uuid,p_session uuid
+) returns text language sql volatile security invoker set search_path='' as $$
+ select p.stage_path from libread_internal.issue137_tus_private_pointers p
+ join libread_internal.issue137_tus_app_receipts r on r.lease_id=p.lease_id
+ join storage.objects o on o.bucket_id=p.stage_bucket
+  and o.name=p.stage_path and o.id=p.provider_object_id
+ where p.lease_id=p_lease and p.owner_id=p_actor
+  and p.issued_session_id=p_session
+  and p.pointer_state='PRIVATE_POINTER_ONLY'
+  and r.state='SEALED_PRIVATE_SNAPSHOT'
+  and r.verified_sha256=p.verified_sha256
+  and r.verified_bytes=p.verified_bytes
+  and r.provider_object_id=p.provider_object_id
+  and libread_internal.issue137_tus_private_authorized(
+    p_lease,p_actor,p_session)
+$$;
+revoke all on function libread_internal.issue137_tus_private_read(uuid,uuid,uuid)
+ from public,anon,authenticated,service_role;
