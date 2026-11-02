@@ -295,9 +295,26 @@ yes(read(a,t)===t.path,"owner original live GoTrue session can find PRIVATE poin
  })).error,null,"fresh real GoTrue session for same narrator");
  const freshCookie=[...foreignSessionJar].map(([name,value])=>name+"="+value).join("; ");
  const crossSession=await getAudio(t.lid,freshCookie);
- yes(crossSession.status===404&&crossSession.bytes.length===0,
-  "same user DIFFERENT GoTrue session cannot reuse G1 lease");
- console.log("PASS: G1_LOCAL_HTTP existing Human GET, GoTrue exact-session and "+
+ yes(crossSession.status===200&&crossSession.bytes.equals(data),
+  "sealed PRIVATE audio allows SAME owner after a fresh valid GoTrue login");
+ const foreignIssued=await getAudio(t.lid,b.cookie());
+ yes(foreignIssued.status===404&&foreignIssued.bytes.length===0,
+  "fresh owner access never grants another user the same sealed pointer");
+ // The upload lease's 10-minute TTL cannot silently destroy an already
+ // sealed PRIVATE narration. Only a new upload/commit remains time-bound.
+ sql("update libread_internal.issue137_tus_app_leases set "+
+  "expires_at=clock_timestamp()-interval '1 second' where lease_id="+uuid(t.lid));
+ const afterUploadExpiry=await getAudio(t.lid,a.cookie());
+ yes(afterUploadExpiry.status===200&&afterUploadExpiry.bytes.equals(data),
+  "sealed PRIVATE Reader survives original upload TTL expiry");
+ const reloginAfterExpiry=await getAudio(t.lid,freshCookie);
+ yes(reloginAfterExpiry.status===200&&reloginAfterExpiry.bytes.equals(data),
+  "current same-owner session survives expired upload TTL with SHA checked");
+ const directFresh=await scopedStorage("GET",
+  (await sameActorDifferentSession.auth.getSession()).data.session.access_token);
+ yes(directFresh.status===200&&directFresh.bytes.equals(data),
+  "separate valid owner JWT obtains sealed PRIVATE bytes through RLS after TTL");
+ console.log("PASS: G1_LOCAL_HTTP existing Human GET, durable same-owner re-login after TTL, "+
   "service-only pointer, 6MiB SHA/owner/non-owner/no-URL/no-Range negatives");
 
 yes(read(b,t)==="","foreign owner cannot obtain pointer path");
