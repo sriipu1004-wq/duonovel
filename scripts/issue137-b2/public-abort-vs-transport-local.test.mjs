@@ -5,7 +5,9 @@ import assert from "node:assert/strict";
 import {createServer} from "node:http";
 import {performance} from "node:perf_hooks";
 import {setTimeout as delay} from "node:timers/promises";
-import {publicReadFetch,classifyPublicReadEndpoint} from "../../src/lib/supabase/serverPublic.ts";
+import * as publicModule from "../../src/lib/supabase/serverPublic.ts";
+const {publicReadFetch,classifyPublicReadEndpoint} =
+ publicModule.default ?? publicModule;
 
 assert.equal(process.env.DO_NOT_CONTACT_PRODUCTION,"true");
 for(const key of ["SUPABASE_SERVICE_ROLE_KEY","SUPABASE_S3_ACCESS_KEY",
