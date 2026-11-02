@@ -129,6 +129,17 @@ export async function POST(request: Request, context: RouteContext) {
     .select("content_rating, content_warnings, content_warning_locks")
     .single();
 
+  if (update.error?.code === "23514" &&
+      update.error.message?.includes("ISSUE137_PUBLIC_MEDIA_CONTAINMENT_REQUIRED")) {
+    // A public Storage URL is not revoked by RLS or changing the content rating.
+    // The candidate DB guard rejected the entire transaction: do not claim a
+    // new rating was saved, and never include audio paths in the response.
+    return NextResponse.json(
+      { ok: false, error: "media_containment_required", persisted: false },
+      { status: 409 }
+    );
+  }
+
   if (update.error || !update.data) {
     return NextResponse.json(
       {
