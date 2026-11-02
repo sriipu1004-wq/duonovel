@@ -208,4 +208,4 @@ console.log("PASS: I138 REAL LOCAL GoTrue/PostgREST "+checks+
  " checks: A/B/anon denied; real RPC completeness/size checks; "+
  "owner direct READY/oversize bypass replicated; valid title/delete preserved.");
 console.log("RISK: isolated exact-function-body replica, NOT a real hosted exploitation test; "+
- "direct quota-event count remains unmeasured by user JWT.");
+ "direct READY and normal import each charged one local quota event (service-only observation).");
