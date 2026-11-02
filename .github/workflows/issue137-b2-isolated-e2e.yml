@@ -9,6 +9,7 @@ on:
       - 'src/lib/recording/**'
       - 'src/app/api/recordings/ai-audio/**'
       - 'src/app/api/recordings/human-upload-session/**'
+      - 'src/app/api/recordings/human-upload-finalize/**'
 permissions:
   contents: read
 concurrency:
