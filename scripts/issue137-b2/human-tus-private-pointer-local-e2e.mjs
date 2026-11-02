@@ -164,6 +164,7 @@ async function verifyRead(a,t){
   &&digest(bytes)===row.verified_sha256?"PRIVATE_BYTES_VERIFIED":"HOLD_BYTE_DRIFT";
 }
 let nextProcess,nextLog="";
+try {
 const priorCount=await recordCount(),a=await createActor();
 const b=await createActor();
 yes(sql("select has_table_privilege('authenticated',"+
@@ -524,8 +525,10 @@ console.log("PASS: #137 REAL LOCAL stage -> full SHA readback -> PRIVATE pointer
 console.log("HOLD: G1 actual HTTP is LOCAL development-only, <=16MiB full buffer; "+
  "NOT deployed Reader, no physically immutable provider bytes, legal rights, "+
  "concurrent stream revoke, old signed bearer/CDN, >=1GiB streaming or global S3 exclusion");
+} finally {
 if(nextProcess?.pid){
  try{process.kill(-nextProcess.pid,"SIGTERM");}catch{}
  await sleep(350);
  try{process.kill(-nextProcess.pid,"SIGKILL");}catch{}
+}
 }
