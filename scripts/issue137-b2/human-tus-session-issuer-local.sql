@@ -71,19 +71,91 @@ revoke all on function public.issue137_tus_local_issue(uuid,uuid,text,bigint)
 grant execute on function public.issue137_tus_local_issue(uuid,uuid,text,bigint)
  to authenticated;
 
--- Consent version withdrawal marks already-issued tickets terminal. This
--- simulates atomic app invalidation only in this disposable database.
+-- G1 candidate LOCAL ONLY: preserve revocation across temporary withdrawals.
+-- These are test-scoped event invalidations; they do NOT revoke privileged
+-- service_role/S3 writers or prove cross-transaction writer exclusion.
+-- An old ticket is never revived by reaccepting consent or reopening a work.
 create function libread_internal.issue137_tus_local_consent_epoch()
 returns trigger language plpgsql security definer set search_path='' as $$
 begin
- if old.consent_version is distinct from new.consent_version then
+ if old.consent_key='recording_studio_global' and
+    (tg_op='DELETE' or old.consent_version is distinct from new.consent_version) then
   update libread_internal.issue137_tus_app_leases
-   set state='revoked' where actor_id=new.user_id
+   set state='revoked' where actor_id=old.user_id
+   and issued_session_id is not null and state='active';
+ end if;
+ if tg_op='DELETE' then return old; end if;
+ return new;
+end
+$$;
+revoke all on function libread_internal.issue137_tus_local_consent_epoch()
+ from public,anon,authenticated,service_role;
+create trigger issue137_tus_local_consent_epoch
+after update of consent_version or delete on public.user_recording_consents
+for each row execute function libread_internal.issue137_tus_local_consent_epoch();
+
+-- A profile change affecting R18 viewing may toggle OFF and ON again before
+-- the next PATCH. Tie the original ticket to the old authority epoch.
+create function libread_internal.issue137_tus_local_profile_epoch()
+returns trigger language plpgsql security definer set search_path='' as $$
+begin
+ if old.show_r18_content is distinct from new.show_r18_content or
+    old.r18_confirmed_at is distinct from new.r18_confirmed_at then
+  update libread_internal.issue137_tus_app_leases
+   set state='revoked' where actor_id=old.id
    and issued_session_id is not null and state='active';
  end if;
  return new;
 end
 $$;
-create trigger issue137_tus_local_consent_epoch
-after update of consent_version on public.user_recording_consents
-for each row execute function libread_internal.issue137_tus_local_consent_epoch();
+revoke all on function libread_internal.issue137_tus_local_profile_epoch()
+ from public,anon,authenticated,service_role;
+create trigger issue137_tus_local_profile_epoch
+after update of show_r18_content,r18_confirmed_at on public.users
+for each row execute function libread_internal.issue137_tus_local_profile_epoch();
+
+-- A changed author, work visibility, permission, or rating/warnings alters
+-- upload authorization. An unrelated work's leases must remain unaffected.
+create function libread_internal.issue137_tus_local_series_epoch()
+returns trigger language plpgsql security definer set search_path='' as $$
+begin
+ if old.author_id is distinct from new.author_id or
+    old.publication_status is distinct from new.publication_status or
+    old.recording_permission_mode is distinct from new.recording_permission_mode or
+    old.content_rating is distinct from new.content_rating or
+    old.content_warnings is distinct from new.content_warnings then
+  update libread_internal.issue137_tus_app_leases
+   set state='revoked' where series_id=old.id
+   and issued_session_id is not null and state='active';
+ end if;
+ return new;
+end
+$$;
+revoke all on function libread_internal.issue137_tus_local_series_epoch()
+ from public,anon,authenticated,service_role;
+create trigger issue137_tus_local_series_epoch
+after update of author_id,publication_status,recording_permission_mode,
+ content_rating,content_warnings on public.series
+for each row execute function libread_internal.issue137_tus_local_series_epoch();
+
+-- Publication/episode reassignment/body edits can invalidate a stage's
+-- eligibility or transcription alignment; never reuse its prior lease.
+create function libread_internal.issue137_tus_local_episode_epoch()
+returns trigger language plpgsql security definer set search_path='' as $$
+begin
+ if old.series_id is distinct from new.series_id or
+    old.posting_status is distinct from new.posting_status or
+    old.is_published is distinct from new.is_published or
+    old.body is distinct from new.body then
+  update libread_internal.issue137_tus_app_leases
+   set state='revoked' where episode_id=old.id
+   and issued_session_id is not null and state='active';
+ end if;
+ return new;
+end
+$$;
+revoke all on function libread_internal.issue137_tus_local_episode_epoch()
+ from public,anon,authenticated,service_role;
+create trigger issue137_tus_local_episode_epoch
+after update of series_id,posting_status,is_published,body on public.episodes
+for each row execute function libread_internal.issue137_tus_local_episode_epoch();
