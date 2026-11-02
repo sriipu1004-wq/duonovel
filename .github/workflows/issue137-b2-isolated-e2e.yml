@@ -98,6 +98,7 @@ jobs:
           DO_NOT_CONTACT_PRODUCTION=true node --import tsx scripts/issue137-b2/f1-catalog-strategies-offline.test.mjs
           DO_NOT_CONTACT_PRODUCTION=true node scripts/issue137-b2/g2-credential-cache-boundary-model.mjs
           DO_NOT_CONTACT_PRODUCTION=true node scripts/issue137-b2/g2-custody-feasibility-source-model.mjs
+          node --import tsx scripts/test-human-recording-boundaries.ts
           node --import tsx scripts/test-issue137-b2-playback-href.ts
           node --import tsx scripts/issue137-b2/ai-recording-options.test.ts
           node --import tsx scripts/issue137-b2/public-media-writer-bridge.test.ts
