@@ -55,10 +55,10 @@ function privatePreviewEligible(s){
   s.bytesMatch&&s.objectIdMatches&&!s.recordingPublic;
 }
 // A possible future PUBLIC reader gate. This cannot be rolled out until a
-// trusted exact-source/edition rights attestation exists and has been audited.
+// independently verified, applicable source rights (and edition evidence where relevant) exist and have been audited.
 function futurePublicEligible(s){
  return s.recordingPublic&&s.permission==="open"&&
-  s.rightsProvenance==="verified-exact-edition"&&
+  s.rightsProvenance==="verified-applicable-rights"&&
   getSeriesPublicationStatus({publication_status:s.publication})==="public"&&
   isEpisodePubliclyVisible({
    posting_status:s.episodeStatus,is_published:s.episodePublished,
@@ -96,21 +96,21 @@ check(privatePreviewEligible({...base,pointerOwner:author}),false,"pointer misbo
 check(privatePreviewEligible({...base,recordingPublic:true}),false,
  "private-stage gate must not be used as public serving permission");
 check(futurePublicEligible({...base,recordingPublic:true,
- rightsProvenance:"unverified"}),false,"public publish without exact edition proof");
+ rightsProvenance:"unverified"}),false,"public publish without verified applicable rights");
 check(futurePublicEligible({...base,recordingPublic:true,
- rightsProvenance:"verified-exact-edition"}),true,
- "model only: published, exact rights, normal public visitor");
+ rightsProvenance:"verified-applicable-rights"}),true,
+ "model only: published, applicable source rights, normal public visitor");
 check(futurePublicEligible({...base,recordingPublic:true,
- rightsProvenance:"verified-exact-edition",rating:"r18"}),false,
+ rightsProvenance:"verified-applicable-rights",rating:"r18"}),false,
  "future public reader R18 OFF");
 check(futurePublicEligible({...base,recordingPublic:true,
- rightsProvenance:"verified-exact-edition",rating:"r18",
+ rightsProvenance:"verified-applicable-rights",rating:"r18",
  showR18:true,ageConfirmed:true}),true,"future public reader R18 ON+age");
 check(futurePublicEligible({...base,recordingPublic:true,
- rightsProvenance:"verified-exact-edition",permission:"closed"}),false,
+ rightsProvenance:"verified-applicable-rights",permission:"closed"}),false,
  "future permission withdrawal must block PUBLIC access");
 check(futurePublicEligible({...base,recordingPublic:true,
- rightsProvenance:"verified-exact-edition",publication:"private"}),false,
+ rightsProvenance:"verified-applicable-rights",publication:"private"}),false,
  "future work withdrawal must block PUBLIC access");
 
 // Independent SOURCE checks of existing app boundaries. These establish
