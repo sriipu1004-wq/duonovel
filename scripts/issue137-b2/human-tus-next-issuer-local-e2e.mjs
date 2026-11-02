@@ -2,7 +2,7 @@
 // Never import hosted secrets, install SQL on a linked project, publish or merge.
 import assert from "node:assert/strict";
 import {randomUUID,createHash} from "node:crypto";
-import {execFileSync,spawn} from "node:child_process";
+import {execFileSync,spawn,spawnSync} from "node:child_process";
 import {fileURLToPath} from "node:url";
 import {readdirSync} from "node:fs";
 import {setTimeout as sleep} from "node:timers/promises";
@@ -413,14 +413,49 @@ try{
  const pendingBefore=sql("select count(*) from libread_internal.issue137_tus_private_pointers"+
   " where lease_id='"+newLease.leaseId+"'");
  yes(pendingBefore==="0","client-side 202 cannot auto-seal trusted PRIVATE pointer");
- // External TEST HARNESS trust boundary. The Next issuer/finalizer never sees
- // this synthetic admin key; do NOT promote these DB superuser calls to app.
- const readback=await physical(newLease.objectPath);
+ // Local byte validation now runs in a separate NO-ADMIN process whose
+ // explicit environment contains only the narrator's JWT + anon key.
+ // This is NOT a truly independent attestor identity: the test harness
+ // still owns privileged PostgreSQL credentials for the object UUID/CAS,
+ // and a malicious caller could assert a digest without reading bytes.
+ const attestorScript=fileURLToPath(
+  new URL("./g1-owner-jwt-byte-attestor-child-local.mjs",import.meta.url));
+ function attestUser(jwt,expectedHash=hash){
+  const env={PATH:process.env.PATH,HOME:process.env.HOME,
+   DO_NOT_CONTACT_PRODUCTION:"true",B2_EPHEMERAL_CONFIRM:"local-only",
+   B2_LOCAL_URL:api.origin+"/",B2_ANON_KEY:anon,
+   B2_G1_ATTESTOR_JWT:jwt,B2_G1_ATTESTOR_PATH:newLease.objectPath,
+   B2_G1_ATTESTOR_SHA256:expectedHash,
+   B2_G1_ATTESTOR_BYTES:String(bytes.length)};
+  yes(env.B2_SERVICE_KEY===undefined&&
+   env.SUPABASE_SERVICE_ROLE_KEY===undefined&&
+   env.B2_DB_CONTAINER===undefined,
+   "physical attestor child cannot receive any project-wide DB/Storage key");
+  const childResult=spawnSync(process.execPath,[attestorScript],{
+   cwd:root,env,encoding:"utf8",timeout:22000,maxBuffer:8192});
+  yes(!childResult.error,"real NO-ADMIN attestor child started");
+  yes(!(childResult.stdout??"").includes(jwt)&&
+   !(childResult.stderr??"").includes(jwt)&&
+   !(childResult.stdout??"").includes(service),
+   "physical attestor returns no JWT or service-role secret");
+  const parsed=JSON.parse((childResult.stdout??"").trim());
+  return {status:childResult.status,result:parsed};
+ }
+ const foreignAttest=attestUser(owner.login.access_token);
+ yes(foreignAttest.status===4&&foreignAttest.result.ok===false,
+  "work author cannot attest a different narrator's private TUS bytes");
+ const physicalAttest=attestUser(reader.login.access_token);
+ yes(physicalAttest.status===0&&physicalAttest.result.ok===true&&
+  physicalAttest.result.bytes===bytes.length&&
+  physicalAttest.result.sha256===hash,
+  "NO-ADMIN child independently downloads and hashes exact 6MiB under owner RLS");
  const objectId=sql("select id from storage.objects where bucket_id='"+bucket+
   "' and name='"+newLease.objectPath+"'");
- yes(readback?.length===bytes.length&&sha(readback)===hash&&
-  /^[a-f0-9-]{36}$/u.test(objectId),
-  "independent trusted worker fully attests provider SHA, byte count, object UUID");
+ yes(/^[a-f0-9-]{36}$/u.test(objectId),
+  "separately privileged local DB source verifies provider object UUID");
+ console.log("PASS: G2_LOCAL_SEPARATE_BYTE_ATTESTOR real child process "+
+  "owner-JWT-only physical SHA; foreign narrator denied; "+
+  "parent DB metadata/CAS still privileged");
  // The Next uploader/finalizer never gets a global privileged credential.
  // The external physical hash attestor is still this disposable test parent.
  // Enter a synthetic NOLOGIN role to prove ONLY narrow DB CAS EXECUTE is
@@ -550,6 +585,9 @@ try{
  const revokedReader=await readPrivate(newLease.leaseId,reader.cookie);
  yes(revokedReader.status===404&&revokedReader.bytes.length===0,
   "same-lease PRIVATE Reader GET denies withdrawal after trusted seal");
+ const revokedChild=attestUser(reader.login.access_token);
+ yes(revokedChild.status===4&&revokedChild.result.ok===false,
+  "NO-ADMIN attestor cannot read PRIVATE bytes after consent withdrawal");
  console.log("PASS: G2_G1_CONNECTED_LOCAL actual Human TUS -> no-admin "+
   "finalize 202 -> independent full-byte trusted CAS -> same lease "+
   "PRIVATE Reader GET; author/anon/Range/withdrawal denied, zero publication");
