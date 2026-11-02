@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/issue138-private-library-isolated-e2e.yml"
       - "scripts/issue138-auth-rls/**"
+      - "supabase/migrations/20261103010000_restrict_private_library_direct_import_mutations.sql"
 permissions:
   contents: read
 concurrency:
@@ -35,6 +36,8 @@ jobs:
           test -f scripts/issue138-auth-rls/run-local.sh
           test -f scripts/issue138-auth-rls/e2e.mjs
           node --check scripts/issue138-auth-rls/e2e.mjs
+          node --check scripts/issue138-auth-rls/e2e-fixed.mjs
+          test -f supabase/migrations/20261103010000_restrict_private_library_direct_import_mutations.sql
           bash -n scripts/issue138-auth-rls/run-local.sh
           docker info >/dev/null
       - name: Actual isolated GoTrue A/B/anon and PostgREST negative E2E
