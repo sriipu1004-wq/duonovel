@@ -64,6 +64,7 @@ jobs:
           node --check scripts/issue137-b2/human-tus-next-issuer-local-e2e.mjs
           node --check scripts/issue137-b2/human-tus-private-pointer-local-e2e.mjs
           node --check scripts/issue137-b2/g2-credential-cache-boundary-model.mjs
+          node --check scripts/issue137-b2/g2-custody-feasibility-source-model.mjs
           test -f scripts/issue137-b2/human-tus-private-pointer-local.sql
           test -f scripts/issue137-b2/human-tus-session-issuer-local.sql
           node --check scripts/issue137-b2/human-one-shot-broker-local.mjs
@@ -90,6 +91,7 @@ jobs:
           node --import tsx scripts/issue137-b2/fence.test.ts
           DO_NOT_CONTACT_PRODUCTION=true node --import tsx scripts/issue137-b2/private-reader-boundary-contract.test.mjs
           DO_NOT_CONTACT_PRODUCTION=true node scripts/issue137-b2/g2-credential-cache-boundary-model.mjs
+          DO_NOT_CONTACT_PRODUCTION=true node scripts/issue137-b2/g2-custody-feasibility-source-model.mjs
           node --import tsx scripts/test-issue137-b2-playback-href.ts
           node --import tsx scripts/issue137-b2/ai-recording-options.test.ts
           node --import tsx scripts/issue137-b2/public-media-writer-bridge.test.ts
