@@ -4,6 +4,8 @@ import {
   handleIssue137LocalLegacyProbe,
   handleIssue137LocalNormalHumanRoute,
   isIssue137LocalNormalHumanModeSelected,
+  isIssue137LocalTusIssuerModeSelected,
+  handleIssue137LocalTusIssuerRoute,
 } from "@/lib/recording/issue137LocalHumanLegacyBridge";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import {
@@ -96,6 +98,10 @@ export async function POST(request: Request) {
     const payload = (await request.json()) as Record<string, unknown>;
     if(hasIssue137ProbeMarker(payload))
       return handleIssue137LocalLegacyProbe(request,payload,"open");
+    // Strictly loopback/local-only PRIVATE JWT TUS experiment; always HOLD
+    // rather than using the production legacy bearer signer on mismatch.
+    if(isIssue137LocalTusIssuerModeSelected())
+      return handleIssue137LocalTusIssuerRoute(request,payload);
     // Dedicated disposable localhost tests exercise the real normal JSON
     // contract with no privileged signer or publication; never auto-fallback.
     if(isIssue137LocalNormalHumanModeSelected())
