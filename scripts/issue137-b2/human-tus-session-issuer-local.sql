@@ -168,3 +168,69 @@ revoke all on function libread_internal.issue137_tus_local_episode_epoch()
 create trigger issue137_tus_local_episode_epoch
 after update of series_id,posting_status,is_published,body on public.episodes
 for each row execute function libread_internal.issue137_tus_local_episode_epoch();
+
+
+-- G2 LOCAL-ONLY: existing Human finalize may inspect an authenticated
+-- uploaded PRIVATE TUS object, but cannot publish or seal it as trusted.
+-- This is installed only in disposable PostgreSQL, NOT a hosted migration.
+-- Authorization comes from real auth.uid()/jwt session and the ORIGINAL
+-- live lease/consent/permission/R18 authority. Never accept client-supplied
+-- object paths, actor UUIDs, size or digest as authorization.
+create function libread_internal.issue137_g2_local_staged_owner_read(
+ p_bucket text,p_path text
+) returns boolean language sql volatile security definer set search_path='' as $$
+ select p_bucket='f2p-tus-app-authority-local'
+  and (select auth.uid()) is not null
+  and (select auth.jwt()->>'role')='authenticated'
+  and exists (
+   select 1 from libread_internal.issue137_tus_app_leases l
+   where l.object_path=p_path and l.actor_id=(select auth.uid())
+    and l.issued_session_id=
+      nullif((select auth.jwt())->>'session_id','')::uuid
+    and libread_internal.issue137_tus_app_can_insert(p_bucket,p_path)
+  )
+$$;
+revoke all on function libread_internal.issue137_g2_local_staged_owner_read(text,text)
+ from public,anon,authenticated,service_role;
+grant execute on function libread_internal.issue137_g2_local_staged_owner_read(text,text)
+ to authenticated;
+create policy issue137_g2_local_staged_owner_read
+on storage.objects as permissive for select to authenticated
+using (libread_internal.issue137_g2_local_staged_owner_read(bucket_id,name));
+create policy issue137_g2_local_staged_owner_read_fence
+on storage.objects as restrictive for select to authenticated
+using (bucket_id<>'f2p-tus-app-authority-local'
+ or libread_internal.issue137_g2_local_staged_owner_read(bucket_id,name));
+
+create function public.issue137_g2_local_uploaded_preflight(p_lease uuid)
+returns jsonb language plpgsql volatile security definer set search_path=''
+as $$
+declare l record; obj uuid;
+begin
+ if p_lease is null or (select auth.uid()) is null or
+  (select auth.jwt()->>'role') is distinct from 'authenticated'
+ then return null; end if;
+ select * into l from libread_internal.issue137_tus_app_leases
+ where lease_id=p_lease and actor_id=(select auth.uid())
+  and issued_session_id=nullif((select auth.jwt())->>'session_id','')::uuid
+  and state='active' and expires_at>pg_catalog.clock_timestamp();
+ if not found or not libread_internal.issue137_tus_app_can_insert(
+    'f2p-tus-app-authority-local',l.object_path) then return null; end if;
+ select o.id into obj from storage.objects o
+ where o.bucket_id='f2p-tus-app-authority-local'
+   and o.name=l.object_path;
+ if not found or obj is null then return null; end if;
+ return pg_catalog.jsonb_build_object(
+   'leaseId',l.lease_id,'actorId',l.actor_id,
+   'seriesId',l.series_id,'episodeId',l.episode_id,
+   'sessionId',l.issued_session_id,'objectId',obj,
+   'bucket','f2p-tus-app-authority-local','path',l.object_path,
+   'size',l.expected_bytes,'sha256',l.expected_sha256,
+   'state','STAGED_NOT_SEALED');
+end
+$$;
+revoke all on function public.issue137_g2_local_uploaded_preflight(uuid)
+ from public,anon,authenticated,service_role;
+grant execute on function public.issue137_g2_local_uploaded_preflight(uuid)
+ to authenticated;
+select pg_catalog.pg_notify('pgrst','reload schema');
