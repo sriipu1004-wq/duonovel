@@ -100,3 +100,21 @@ export I138_EPHEMERAL_CONFIRM=local-only
 # Local API URL and credentials are checked again inside e2e.mjs.
 # Never output local keys, JWTs, passwords, or signed URLs into a log.
 node "$I138/e2e.mjs"
+echo 'PASS: #138 pre-fix red-case A/B/anon behavior replicated locally'
+
+# The approved source migration is applied ONLY to this temporary local Docker
+# PostgreSQL, never to Supabase hosted/project-bound resources.
+mapfile -t db_containers < <(docker ps -q --filter "network=$NETWORK" --filter "name=supabase_db_")
+if (( ${#db_containers[@]} != 1 )); then
+ echo 'BLOCKED: cannot uniquely identify disposable local Postgres' >&2; exit 3
+fi
+docker cp "$ROOT/supabase/migrations/20261103010000_restrict_private_library_direct_import_mutations.sql" \
+ "${db_containers[0]}:/tmp/issue138_restrict_private_library.sql"
+docker exec "${db_containers[0]}" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+ -f /tmp/issue138_restrict_private_library.sql >/dev/null
+# PostgREST schema cache does not need refresh for a GRANT change, but notify
+# explicitly; isolated test reuses the same live GoTrue / PostgREST stack.
+docker exec "${db_containers[0]}" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+ -c "NOTIFY pgrst, 'reload schema';" >/dev/null
+echo 'PASS: #138 candidate column privileges applied to disposable LOCAL DB only'
+node "$I138/e2e-fixed.mjs"
