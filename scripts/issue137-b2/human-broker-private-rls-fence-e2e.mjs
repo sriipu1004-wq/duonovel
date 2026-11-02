@@ -208,6 +208,39 @@ yes(outcomes.filter(r=>[200,201].includes(r.status)).length===1&&
 const concurrentSaved=await get(parallel.path,actor.jwt);
 yes(concurrentSaved.status===200&&hash(concurrentSaved.body)===hash(bytes),
  "parallel Storage uploads kept exact original bytes");
+
+// G2 write-once version proposal: only a NEW permit and NEW object ID/path
+// can hold the narrator's updated bytes. RLS must keep the sealed predecessor
+// unchanged for an ordinary/broker writer; this is not an admin/WORM guarantee.
+const versionTwo=Buffer.from(bytes);
+versionTwo.writeInt16LE(123,44);
+const changedMint=await issue(versionTwo);
+const changed=await stage(changedMint,versionTwo);
+yes(changed.path!==permitPath&&changed.bucket===bucket,
+ "new edition of PRIVATE audio uses distinct server-minted object path");
+const freshVersionRead=await get(changed.path,actor.jwt);
+yes(freshVersionRead.status===200&&hash(freshVersionRead.body)===hash(versionTwo),
+ "new PRIVATE version stores its own exact changed audio bytes");
+const oldVersionRead=await get(permitPath,actor.jwt);
+yes(oldVersionRead.status===200&&hash(oldVersionRead.body)===hash(bytes),
+ "new version cannot overwrite existing first-write path");
+deny(await put(permitPath,brokerUser.jwt,versionTwo,{"x-upsert":"true"}),
+ "broker cannot mutate older version after new version is created");
+deny(await put(changed.path,actor.jwt,bytes,{"x-upsert":"true"}),
+ "narrator cannot overwrite new version either");
+const deleteAttempt=await actor.client.storage.from(bucket).remove([permitPath]);
+yes(!!deleteAttempt.error||!deleteAttempt.data?.length,
+ "narrator deletion is denied or returns zero removed rows");
+const deleteBroker=await brokerUser.client.storage.from(bucket).remove([permitPath]);
+yes(!!deleteBroker.error||!deleteBroker.data?.length,
+ "broker deletion is denied or returns zero removed rows");
+const stillOld=await get(permitPath,actor.jwt);
+yes(stillOld.status===200&&hash(stillOld.body)===hash(bytes),
+ "old predecessor bytes survive unprivileged delete attempts");
+assert.equal((await admin.storage.from(bucket).remove([changed.path])).error,null,
+ "remove ONLY disposable candidate new-version bytes for old object count");
+n++;
+
 // ADVERSARIAL CONTROL: the RLS helper can inspect permit metadata, NOT
 // physical bytes. A leaked broker-scoped JWT can substitute same-size WAV
 // bytes at a currently claimed path. Application broker digest controls only
@@ -512,6 +545,24 @@ const publicFlip=await admin.storage.updateBucket(bucket,{public:true});
 yes(!!publicFlip.error,"even privileged local bucket flag flip must fail");
 const last=await admin.storage.getBucket(bucket);
 yes(last.data?.public===false,"private bucket remains private");
+
+// Explicit hostile control: DB-level RLS fencing is insufficient when any
+// surviving application/S3/service-role credential can rewrite an old path.
+// Do not interpret success of the broker fencing above as immutable Storage.
+const privilegedChange=Buffer.from(bytes);
+privilegedChange.writeInt16LE(321,44);
+const privilegedOverwrite=await admin.storage.from(bucket).upload(
+ permitPath,privilegedChange,{upsert:true,contentType:"audio/wav"});
+yes(!privilegedOverwrite.error,
+ "G2 negative: privileged service-role still overwrites a sealed broker object");
+const privilegedAfter=await get(permitPath,actor.jwt);
+yes(privilegedAfter.status===200&&
+ hash(privilegedAfter.body)===hash(privilegedChange)&&
+ hash(privilegedAfter.body)!==hash(bytes),
+ "G2 negative: postseal privileged overwrite is physically visible");
+console.log("RISK: G2 real local broker JWT INSERT-only denies UPDATE/DELETE, "+
+ "but surviving service_role still rewrites original object; no provider immutability");
+
 console.log("PASS: F2-P "+n+
  " REAL LOCAL provider-side broker-only PRIVATE RLS, direct-JWT denies, "+
  "real session/consent/rights revocation, expiry, parallel first-write");
