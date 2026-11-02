@@ -98,12 +98,12 @@ async function candidatePrivateHandoff(ctx,storage,afterRead=async()=>{}){
 }
 let assertions=0;
 function eq(a,b,message){assert.equal(a,b,message);assertions++;}
-let state=base(),readCount=0;
+let state=base(),readCount=0,remoteBytes=Buffer.from(sample);
 const ctx=(o={})=>({method:"GET",range:null,wantPublic:false,
  wantSignedUrl:false,wantTimingArtifact:false,live:()=>state,...o});
 const storage={
  async readPrivate(bucket,path){readCount++;
-  return {id:state.objectId,bytes:Buffer.from(sample)};
+  return {id:state.objectId,bytes:Buffer.from(remoteBytes)};
  },
 };
 async function expect(want,why,alter=null,request={}){
@@ -184,13 +184,14 @@ for(const [name,alter] of [
  eq(r.bytes,null,name+": no stale audio bytes escaped");
 }
 state=base();
-const staleBytes=Buffer.from(sample);
 const afterFetchOverwrite=await candidatePrivateHandoff(ctx(),storage,
- async()=>{staleBytes[10]^=1;});
+ async()=>{remoteBytes[10]^=1;});
 eq(afterFetchOverwrite.allowed,true,
  "LIMIT: external physical overwrite AFTER snapshot read is unprevented here");
 eq(sha(afterFetchOverwrite.bytes),sha(sample),
- "LIMIT: returned snapshot differs from newly changed privileged object");
+ "LIMIT: prior readback can return the original exact snapshot");
+eq(sha(remoteBytes)===sha(sample),false,
+ "LIMIT: later privileged provider object now has different bytes");
 
 // Current deployed route is unchanged; the modeled handoff is NOT wired.
 eq(route.includes("issue137_tus_private_read"),false,
