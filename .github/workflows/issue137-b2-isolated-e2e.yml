@@ -67,6 +67,7 @@ jobs:
           node --check scripts/issue137-b2/g2-custody-feasibility-source-model.mjs
           node --check scripts/issue137-b2/reader-private-handoff-contract.test.mjs
           node --check scripts/issue137-b2/public-abort-vs-transport-local.test.mjs
+          node --check scripts/issue137-b2/f1-catalog-strategies-offline.test.mjs
           test -f scripts/issue137-b2/human-tus-private-pointer-local.sql
           test -f scripts/issue137-b2/human-tus-session-issuer-local.sql
           node --check scripts/issue137-b2/human-one-shot-broker-local.mjs
@@ -94,6 +95,7 @@ jobs:
           DO_NOT_CONTACT_PRODUCTION=true node --import tsx scripts/issue137-b2/private-reader-boundary-contract.test.mjs
           DO_NOT_CONTACT_PRODUCTION=true node --import tsx scripts/issue137-b2/reader-private-handoff-contract.test.mjs
           DO_NOT_CONTACT_PRODUCTION=true node --import tsx scripts/issue137-b2/public-abort-vs-transport-local.test.mjs
+          DO_NOT_CONTACT_PRODUCTION=true node --import tsx scripts/issue137-b2/f1-catalog-strategies-offline.test.mjs
           DO_NOT_CONTACT_PRODUCTION=true node scripts/issue137-b2/g2-credential-cache-boundary-model.mjs
           DO_NOT_CONTACT_PRODUCTION=true node scripts/issue137-b2/g2-custody-feasibility-source-model.mjs
           node --import tsx scripts/test-issue137-b2-playback-href.ts
