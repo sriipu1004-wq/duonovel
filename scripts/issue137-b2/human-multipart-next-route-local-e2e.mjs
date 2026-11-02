@@ -202,8 +202,8 @@ try{
    contentType:"audio/wav",upsert:false
   })).error,null,"local PRIVATE physical audio upload");
  }
- async function insertHumanViaH1(episodeId,recordingId,objectPath,isPublic){
-  const scope={p_series_id:audioSeries,p_episode_id:episodeId,p_owner_id:userId};
+ async function insertHumanViaH1(seriesId,episodeId,recordingId,objectPath,isPublic){
+  const scope={p_series_id:seriesId,p_episode_id:episodeId,p_owner_id:userId};
   const read=await admin.rpc("issue137_h1_human_revision",scope);
   assert.equal(read.error,null,"H1 revision read in isolated PG");
   const commit=await admin.rpc("issue137_h1_human_commit",{
@@ -216,8 +216,8 @@ try{
   check(commit.data?.recording_id===recordingId,
    "H1 isolated owner/episode record committed with intended ID");
  }
- await insertHumanViaH1(audioEpisode,privateId,privatePath,false);
- await insertHumanViaH1(publicEpisode,publicId,publicPath,true);
+ await insertHumanViaH1(audioSeries,audioEpisode,privateId,privatePath,false);
+ await insertHumanViaH1(audioSeries,publicEpisode,publicId,publicPath,true);
  // Direct service-role INSERT of Human bytes is explicitly forbidden by H1.
  // Never weaken the H1 trigger to seed a test fixture.
  async function getAudio(id,cookie="",range=""){
@@ -253,6 +253,59 @@ try{
  check(anonPublic.status===200&&anonPublic.bytes.equals(audioBytes)&&
   !anonPublic.headers.has("location"),
   "PUBLIC posted general recording returns verified synthetic bytes via Next, not signed URL");
+ // LOCAL R18 playback proof on a separate PUBLIC recording. Draft B2 SQL
+ // requires physical private-canonical-bucket custody for such a row.
+ // Synthetic bytes are mirrored into the test proxy bucket only; this
+ // tests the real route/HTTP, NOT Production cross-bucket custody.
+ const r18Series=uuid(),r18Episode=uuid(),r18Id=uuid();
+ const r18Path="human/"+r18Series+"/"+r18Episode+"/"+userId+"/"+
+  uuid()+"/playback-from-wav.m4a";
+ const canon="human-recording-audio";
+ const knownBucket=await admin.storage.getBucket(canon);
+ if(knownBucket.error){
+  assert.equal((await admin.storage.createBucket(canon,{
+   public:false,fileSizeLimit:16*1024*1024
+  })).error,null,"create only canonical LOCAL private Human bucket");
+ }else{
+  check(knownBucket.data?.public===false,"existing LOCAL canonical Human bucket is private");
+ }
+ assert.equal((await admin.from("users").upsert({
+  id:userId,display_name:"NARRATOR_LOCAL",show_r18_content:true,
+  r18_confirmed_at:new Date().toISOString()
+ })).error,null,"local narrator age-confirmed opt-in to seed H1 R18");
+ assert.equal((await admin.from("series").insert({
+  id:r18Series,author_id:creatorId,publication_status:"public",
+  content_rating:"general",content_warnings:["sexual_r18"],
+  recording_permission_mode:"open"
+ })).error,null,"synthetic effective R18 warning-only work");
+ assert.equal((await admin.from("episodes").insert({
+  id:r18Episode,series_id:r18Series,body:"SYNTHETIC R18 TEST ONLY",
+  posting_status:"posted",is_published:true
+ })).error,null,"synthetic posted R18 episode");
+ for(const bkt of [canon,bucket]){
+  assert.equal((await admin.storage.from(bkt).upload(r18Path,audioBytes,{
+   contentType:"audio/wav",upsert:false
+  })).error,null,"synthetic R18 physical byte in LOCAL fixture bucket");
+ }
+ await insertHumanViaH1(r18Series,r18Episode,r18Id,r18Path,true);
+ const denyR18Anon=await getAudio(r18Id);
+ check(denyR18Anon.status===404&&denyR18Anon.bytes.length===0,
+  "real Next PUBLIC effective R18 denies anonymous");
+ const allowR18=await getAudio(r18Id,cookieHeader());
+ check(allowR18.status===200&&allowR18.bytes.equals(audioBytes),
+  "real Next PUBLIC effective R18 allows age-confirmed opt-in viewer bytes");
+ assert.equal((await admin.from("users").update({
+  show_r18_content:false
+ }).eq("id",userId)).error,null,"LOCAL R18 OFF");
+ const denyR18Off=await getAudio(r18Id,cookieHeader());
+ check(denyR18Off.status===404&&denyR18Off.bytes.length===0,
+  "real Next PUBLIC R18 opt-out denies audio bytes");
+ assert.equal((await admin.from("users").update({
+  show_r18_content:true,r18_confirmed_at:null
+ }).eq("id",userId)).error,null,"LOCAL R18 age confirmation cleared");
+ const denyR18Age=await getAudio(r18Id,cookieHeader());
+ check(denyR18Age.status===404&&denyR18Age.bytes.length===0,
+  "real Next PUBLIC R18 ON without age denies audio bytes");
  console.log("PASS: G1_REAL_HTTP_AUDIO_TEST real LOCAL Next/GoTrue/Storage owner/author/"+
   "anonymous/PUBLIC/private bytes/Range and no bearer redirect");
  // The real route is NOT wired to G1 temporary receipt/session/consent/revoke.
