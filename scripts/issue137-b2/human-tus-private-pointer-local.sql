@@ -141,6 +141,10 @@ revoke all on function libread_internal.issue137_tus_private_commit(
 -- NOLOGIN test role verifies DB grants, NOT independent credential custody.
 -- A stolen EXECUTE grant could submit expected SHA without physical readback.
 create role issue137_g1_local_cas_attestor nologin nosuperuser nocreatedb nocreaterole noinherit noreplication nobypassrls;
+-- Supabase disposable postgres login is not SUPERUSER: explicitly allow
+-- only the local test harness to impersonate the NOLOGIN attestor, without
+-- inheriting its permissions outside SET LOCAL ROLE. No API user grant.
+grant issue137_g1_local_cas_attestor to postgres with inherit false, set true;
 grant usage on schema libread_internal to issue137_g1_local_cas_attestor;
 create function libread_internal.issue137_g1_limited_attestor_commit(
  p_lease uuid,p_actor uuid,p_session uuid,p_nonce uuid,p_sha text,p_size bigint,p_object uuid
