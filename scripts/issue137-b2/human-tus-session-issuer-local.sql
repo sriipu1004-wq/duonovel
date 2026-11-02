@@ -42,6 +42,15 @@ begin
     or p_series_id is null or p_episode_id is null then
   raise exception using errcode='42501',message='LOCAL_ISSUE137_LEASE_HOLD';
  end if;
+ -- Next.js alone is not an authorization boundary for a directly callable
+ -- PostgREST RPC: mirror the current Official-account prohibition HERE.
+ -- This uses trusted GoTrue account email, not user-editable JWT metadata.
+ if exists (
+   select 1 from auth.users a where a.id=actor
+   and pg_catalog.lower(pg_catalog.btrim(a.email))='libread08@gmail.com'
+ ) then
+   raise exception using errcode='42501',message='LOCAL_ISSUE137_OFFICIAL_HOLD';
+ end if;
  session_id=nullif((select auth.jwt())->>'session_id','')::uuid;
  if session_id is null or not exists (
     select 1 from auth.sessions s where s.id=session_id and s.user_id=actor
