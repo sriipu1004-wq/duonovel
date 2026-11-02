@@ -43,12 +43,16 @@ create function libread_internal.issue137_tus_private_authorized(
    and l.issued_session_id=p_session and l.state='active'
    and l.expires_at>clock_timestamp()
    and lower(btrim(au.email))<>'libread08@gmail.com'
+   -- SAFE LOCAL OWNER-ONLY reading: "open" only permits entering
+   -- the studio, NOT re-licensing another author's copyrighted edition.
+   -- Authorship itself is not a full legal rights attestation.
+   and s.author_id=l.actor_id
    and s.recording_permission_mode='open'
-   and (s.author_id=l.actor_id or
-    (s.publication_status='public' and e.posting_status='posted'
-     and e.is_published is true))
-   and (s.author_id=l.actor_id or
-    (s.content_rating is distinct from 'r18'
+   and s.publication_status='public'
+   and e.posting_status='posted' and e.is_published is true
+   -- Match application getSeriesContentRating warning escalation. Even
+   -- the author cannot bypass the R18 viewer opt-in+age gate here.
+   and ((s.content_rating is distinct from 'r18'
      and not ('sexual_r18'=any(coalesce(s.content_warnings,'{}'::text[]))))
      or (u.show_r18_content is true and u.r18_confirmed_at is not null))
  )
