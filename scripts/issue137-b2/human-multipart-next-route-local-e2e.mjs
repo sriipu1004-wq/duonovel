@@ -176,29 +176,50 @@ try{
   email:creatorEmail,password:creatorPassword})).error,null,
   "login real original-author GoTrue session");
  const creatorCookie=[...creatorJar].map(([k,v])=>k+"="+v).join("; ");
- const audioSeries=uuid(),audioEpisode=uuid(),privateId=uuid(),publicId=uuid();
- const audioPath="human/"+audioSeries+"/"+audioEpisode+"/"+userId+"/"+
+ const audioSeries=uuid(),audioEpisode=uuid(),publicEpisode=uuid();
+ const privateId=uuid(),publicId=uuid();
+ const privatePath="human/"+audioSeries+"/"+audioEpisode+"/"+userId+"/"+
+  uuid()+"/playback-from-wav.m4a";
+ const publicPath="human/"+audioSeries+"/"+publicEpisode+"/"+userId+"/"+
   uuid()+"/playback-from-wav.m4a";
  assert.equal((await admin.from("series").insert({
   id:audioSeries,author_id:creatorId,publication_status:"public",
   content_rating:"general",content_warnings:[],recording_permission_mode:"open"
  })).error,null,"local third-party narrator public OPEN series");
- assert.equal((await admin.from("episodes").insert({
-  id:audioEpisode,series_id:audioSeries,body:"LOCAL AUDIO ONLY",
-  posting_status:"posted",is_published:true
- })).error,null,"local posted episode for third-party narration");
+ assert.equal((await admin.from("episodes").insert([
+  {id:audioEpisode,series_id:audioSeries,body:"LOCAL PRIVATE AUDIO ONLY",
+   posting_status:"posted",is_published:true},
+  {id:publicEpisode,series_id:audioSeries,body:"LOCAL PUBLIC AUDIO ONLY",
+   posting_status:"posted",is_published:true}
+ ])).error,null,"local posted episodes for third-party narration");
  const audioBytes=Buffer.from("RIFF____WAVEsynthetic-PRIVATE-audio-bytes");
- assert.equal((await admin.storage.from(bucket).upload(audioPath,audioBytes,{
-  contentType:"audio/wav",upsert:false
- })).error,null,"local private physical audio upload");
- assert.equal((await admin.from("recordings").insert([
-  {id:privateId,series_id:audioSeries,episode_id:audioEpisode,
-   reader_id:userId,reader_name:"NARRATOR_LOCAL",is_public:false,
-   audio_storage_path:audioPath},
-  {id:publicId,series_id:audioSeries,episode_id:audioEpisode,
-   reader_id:userId,reader_name:"NARRATOR_LOCAL",is_public:true,
-   audio_storage_path:audioPath}
- ])).error,null,"local PRIVATE/public recording fixture");
+ const restored=await admin.from("user_recording_consents")
+  .update({consent_version:"2026-04-16"}).eq("user_id",userId)
+  .eq("consent_key","recording_studio_global");
+ assert.equal(restored.error,null,"restore LOCAL consent for H1 signed-in mutation");
+ for(const path of [privatePath,publicPath]){
+  assert.equal((await admin.storage.from(bucket).upload(path,audioBytes,{
+   contentType:"audio/wav",upsert:false
+  })).error,null,"local PRIVATE physical audio upload");
+ }
+ async function insertHumanViaH1(episodeId,recordingId,objectPath,isPublic){
+  const scope={p_series_id:audioSeries,p_episode_id:episodeId,p_owner_id:userId};
+  const read=await admin.rpc("issue137_h1_human_revision",scope);
+  assert.equal(read.error,null,"H1 revision read in isolated PG");
+  const commit=await admin.rpc("issue137_h1_human_commit",{
+   ...scope,p_expected_revision:Number(read.data),p_action:"insert",
+   p_recording_id:recordingId,p_reader_name:"NARRATOR_LOCAL",
+   p_audio_storage_path:objectPath,p_is_public:isPublic,
+   p_prior_audio_storage_path:null,p_prior_is_public:null
+  });
+  assert.equal(commit.error,null,"H1 CAS must authorize synthetic Human recording");
+  check(commit.data?.recording_id===recordingId,
+   "H1 isolated owner/episode record committed with intended ID");
+ }
+ await insertHumanViaH1(audioEpisode,privateId,privatePath,false);
+ await insertHumanViaH1(publicEpisode,publicId,publicPath,true);
+ // Direct service-role INSERT of Human bytes is explicitly forbidden by H1.
+ // Never weaken the H1 trigger to seed a test fixture.
  async function getAudio(id,cookie="",range=""){
   const res=await fetch(base+"/api/recordings/human-audio/"+id,{
    method:"GET",headers:{...(cookie?{cookie}:{}),...(range?{range}:{})},
