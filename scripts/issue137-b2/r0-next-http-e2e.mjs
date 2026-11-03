@@ -231,12 +231,29 @@ try {
   const still=await oldUrl();
   pass(still.status===200&&still.digest===sha(bytes),
     "physical Public WAV still reachable after Next logical withdrawal");
+  // Next App Router can emit HTTP 200 for a STREAMED notFound() response;
+  // the 404 UI and its robots noindex marker are the actual fail-closed
+  // evidence. Both serialized HTML and RSC payload must omit private text.
+  // See https://nextjs.org/docs/app/api-reference/file-conventions/not-found
+  function noindexNotFound(page,secretMarker){
+    const robotsNoindex=/<meta[^>]*name=["']robots["'][^>]*content=["']noindex["'][^>]*>/i
+      .test(page.body);
+    const streamed404=page.status===200&&robotsNoindex;
+    const plain404=page.status===404;
+    return (plain404||streamed404)&&!page.body.includes(secretMarker);
+  }
   const withdrawnWork=await getPage(workPath);
-  deny(withdrawnWork.status===404&&!withdrawnWork.body.includes(syntheticTitle),
-    "Work HTTP must fail closed after atomic withdrawal");
+  console.log("EVIDENCE: post-withdraw Work status="+withdrawnWork.status+
+    " noindex="+/name=["']robots["']/.test(withdrawnWork.body)+
+    " containsSyntheticTitle="+withdrawnWork.body.includes(syntheticTitle));
+  deny(noindexNotFound(withdrawnWork,syntheticTitle),
+    "Work HTTP must fail closed (404 or streamed 200+noindex), with no private title");
   const withdrawnReader=await getPage(readerPath);
-  deny(withdrawnReader.status===404&&!withdrawnReader.body.includes(syntheticBody),
-    "Reader HTTP must fail closed after atomic withdrawal");
+  console.log("EVIDENCE: post-withdraw Reader status="+withdrawnReader.status+
+    " noindex="+/name=["']robots["']/.test(withdrawnReader.body)+
+    " containsSyntheticBody="+withdrawnReader.body.includes(syntheticBody));
+  deny(noindexNotFound(withdrawnReader,syntheticBody),
+    "Reader HTTP must fail closed (404 or streamed 200+noindex), no private episode");
   const withdrawnSearch=await getPage(searchPath);
   deny(withdrawnSearch.status===200&&!withdrawnSearch.body.includes(syntheticTitle),
     "same Search HTML request must no longer show cached unpublished work");
