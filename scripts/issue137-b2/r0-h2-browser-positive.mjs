@@ -7,10 +7,21 @@ export async function readyWav(page,audio){
  await file.waitFor({state:"attached",timeout:45000});
  await file.setInputFiles({name:"h2-synthetic-8mib.wav",
   mimeType:"audio/wav",buffer:audio});
- await page.waitForFunction(()=>
-  [...document.querySelectorAll("button")].some(b=>
-   b.textContent?.includes("保存して作品へ接続")&&!b.disabled),
-  null,{timeout:110000});
+ try {
+  await page.waitForFunction(()=>
+   [...document.querySelectorAll("button")].some(b=>
+    b.textContent?.includes("保存して作品へ接続")&&!b.disabled),
+   null,{timeout:24000});
+ } catch {
+  const snapshot=await page.locator("[data-recording-studio]").innerText();
+  const visible=snapshot.split("\n").filter(x=>
+   /判定|保存|検査|朗読|音|声|無音|停止|失敗|エラー|ファイル|MB/u.test(x))
+   .slice(0,42).map(x=>x.slice(0,110));
+  const b=page.getByRole("button",{name:"保存して作品へ接続"});
+  const meta={path:new URL(page.url()).pathname,
+   disabled:await b.isDisabled(),visible};
+  throw Error("H2_REAL_BROWSER_NOT_READY_DIAGNOSTIC:"+JSON.stringify(meta));
+ }
  const button=page.getByRole("button",{name:"保存して作品へ接続"});
  assert.ok(await button.isEnabled(),"real browser decoded/accepted PCM");
  return button;
