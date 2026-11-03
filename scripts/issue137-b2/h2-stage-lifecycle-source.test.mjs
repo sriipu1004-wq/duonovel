@@ -43,6 +43,10 @@ has(helper,/human_staging_\$\{context\}_unavailable/u,"unavailable RPC fails clo
 lacks(helper,/\.from\("storage\.objects"\)/u,"no unsafe direct fallback");
 has(sql,/issue137_h2_stage_storage_guard/u,
  "Storage trigger mandatory to block already-minted token");
+has(sql,/H2_PREEXISTING_R18_SCHEMA_USAGE_MISSING/u,
+ "H2 preflight must preserve existing B2 R18 schema privileges");
+lacks(sql,/revoke all on schema libread_internal from public,anon,authenticated;/iu,
+ "H2 must not strip B2's anon/auth R18 helper schema usage");
 has(sql,/l\.expires_at<=clock_timestamp\(\)/u,"server time enforces expiry");
 has(sql,/l\.state<>'active'/u,"closed bearer can no longer stage");
 has(sql,/h2_source_is_staging_eligible\(sid,eid,aid\)/u,
