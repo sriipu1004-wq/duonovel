@@ -17,7 +17,7 @@ function unwrap(sql,label){
 }
 const b2body=unwrap(b2,"B2/R0");
 const h1body=unwrap(h1,"H1");
-assert.match(b2body,/issue137_b2_recording_guard/u);
+assert.match(b2body,/issue137_b2_recording_media_reference/u);
 assert.match(h1body,/issue137_h1_human_atomic_guard/u);
 assert.ok(!fixture.includes("issue137_h1_human_atomic_guard"),"fixture must not preinstall H1");
 const sql="begin;\n"+fixture+"\n"+b2body+"\n"+h1body+"\ncommit;\n";

@@ -82,12 +82,26 @@ assert.ok(action.includes('import { updateTag } from "next/cache";'));
 assert.ok(action.includes("await supabase.auth.getUser()"));
 assert.ok(action.includes('.eq("author_id", auth.user.id)'));
 assert.ok(action.includes('.select("id")'));
-assert.ok(action.includes('.select("id, effect_settings")'));
+assert.ok(action.includes('.select("id, effect_settings, publication_status")'));
 assert.ok(action.includes("preserveSeriesPublicDomainMetadata("));
 assert.ok(action.includes(".update(safeFields)"));
-assert.ok(action.indexOf('.select("id, effect_settings")') < action.indexOf(".update(safeFields)"));
+assert.ok(action.indexOf('.select("id, effect_settings, publication_status")') < action.indexOf(".update(safeFields)"));
 assert.ok(action.includes(".maybeSingle()"));
 assert.ok(action.includes("if (!data)"));
+// A stale workspace from before an emergency PRIVATE update must never
+// re-publicize the work through a later generic edit.
+assert.ok(action.includes('previous.publication_status !== expectedPublicationStatus'),
+  "preflight rejects stale publication snapshots");
+assert.ok(action.includes('.eq("publication_status", expectedPublicationStatus)'),
+  "DB update must use publication CAS, not only a stale preflight");
+assert.ok(action.includes('code: "stale_publication_state"'),
+  "conflicted writer must surface an explicit result");
+assert.ok(updateForm.includes("expectedPublicationStatusRef.current"),
+  "client must supply persisted snapshot, not an unsaved radio choice");
+assert.ok(form.includes("handleEmergencyWithdraw()"),
+  "owner workspace needs emergency PRIVATE+R18 control");
+assert.ok(form.includes("publicMediaStatus === \"unverified\""),
+  "owner feedback must never claim old PUBLIC media is revoked");
 assert.ok(action.includes("updateTag(PUBLIC_WORKS_CACHE_TAG);"));
 assert.ok(action.includes('code: "cache_invalidation_failed", persisted: true'));
 assert.equal(action.includes("service_role"), false);
