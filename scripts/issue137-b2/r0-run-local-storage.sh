@@ -103,3 +103,6 @@ export R0_EPHEMERAL_CONFIRM=local-only
 # NEVER echo these values.
 cd "$ROOT"
 node scripts/issue137-b2/r0-local-storage-e2e.mjs
+# Actual Next.js route over local HTTP + real SSR-cookie sessions.
+# Never pass R0_SERVICE_KEY (or any privileged key) into the spawned app.
+node scripts/issue137-b2/r0-next-http-e2e.mjs
