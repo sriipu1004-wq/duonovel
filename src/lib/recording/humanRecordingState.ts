@@ -65,3 +65,30 @@ export function isPublishedHumanRecording(
 ): boolean {
   return recording.is_public === true && isHumanRecordingRow(recording);
 }
+
+/**
+ * Request-time Human audio authorization, backed by fresh server-side reads.
+ * A PRIVATE recording is never authorized by its narrator ID alone. For
+ * PRIVATE reads, sourceVisible must come from a signed-in RLS-scoped read;
+ * for PUBLIC reads, sourcePublic must be verified on current DB state.
+ * This pure gate is not a Storage immutability or signed-URL revocation proof.
+ */
+export type HumanAudioAccessSnapshot = Readonly<{
+  isPublic: boolean;
+  narratorIsViewer: boolean;
+  sourceVisible: boolean;
+  sourcePublic: boolean;
+  currentPermissionOpen: boolean;
+  currentConsent: boolean;
+  isR18: boolean;
+  currentR18Permission: boolean;
+}>;
+
+export function canServeHumanRecordingAudio(s: HumanAudioAccessSnapshot): boolean {
+  return s.sourceVisible === true &&
+    s.currentPermissionOpen === true &&
+    s.currentConsent === true &&
+    (s.isR18 === false || s.currentR18Permission === true) &&
+    (s.isPublic === true ? s.sourcePublic === true :
+      s.isPublic === false && s.narratorIsViewer === true);
+}
