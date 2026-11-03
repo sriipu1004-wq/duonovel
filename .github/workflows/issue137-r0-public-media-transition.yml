@@ -20,6 +20,11 @@ on:
       - "scripts/issue137-b2/r0-next-http-e2e.mjs"
       - "scripts/issue137-b2/r0-run-local-storage.sh"
       - "src/app/api/series/[seriesId]/content-rating/route.ts"
+      - "src/app/works/[seriesId]/page.tsx"
+      - "src/lib/publicWorks.ts"
+      - "src/lib/publicCatalogEpochFence.ts"
+      - "scripts/test-issue137-work-metadata-visibility.ts"
+      - "scripts/test-public-search-language-filters.ts"
       - ".github/workflows/issue137-r0-public-media-transition.yml"
   workflow_dispatch:
 permissions:
