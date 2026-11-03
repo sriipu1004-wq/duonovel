@@ -1,0 +1,68 @@
+# Issue #137 R0 — emergency logical takedown and old PUBLIC audio retirement
+Status: **NONPRODUCTION PROPOSAL ONLY**, 2026-11-03. Canonical backlog remains `docs/roadmap.md` R0-1. This is a design/acceptance plan for [Draft PR #160](https://github.com/sriipu1004-wq/duonovel/pull/160), not authorization to touch Production.
+
+## The unsolved problem and two distinct guarantees
+
+- **Logical withdrawal (DB/app):** An owner must be able to set `series.publication_status='private'` (and, if required, `content_rating='r18'`/`content_warnings`) **in one authorized DB UPDATE**, despite existing PUBLIC media. The public Work and Reader read paths must stop advertising or serving the withdrawn series after current-source checks and cache invalidation. The new route flag `emergencyUnpublish:true` is explicit, validated as a boolean, owner-bound, and reports `publicationStatus:'private'`, `publicMediaStatus:'unverified'`; it does **not** perform Storage actions or claim media recall.
+- **Physical URL retirement:** A `storage.buckets.public=true` URL bypasses app/RLS; prior URLs remain usable until all corresponding public objects are physically retired and CDN changes propagate. Signed URL expiry alone is not a revocation guarantee, and previously downloaded/browser-cached bytes cannot be erased. `POST /api/series/[seriesId]/content-rating` cannot establish physical revocation. **Do not mark a takedown closed on DB status alone.**
+- Proposed SQL transition guard allows emergency `public→private` and simultaneous rating correction, and episode `posted→draft` / `is_published=false`. New public object writes, public recording references and **re-publication while unresolved old PUBLIC objects/references exist** are denied. This avoids blocking an urgent correction. The SQL is a fixture/candidate under `scripts/`, **not a migration** and **never executed on hosted Supabase**.
+
+## Decision against alternatives
+
+| Alternative | Benefit | Disqualifying limitation / decision |
+| --- | --- | --- |
+| Only change R18/DB status and Reader proxy | Quick app-level withdrawal | Old public bucket URL persists. **Partial emergency step only; never call it completed revocation.** |
+| Make entire `recording-audio` bucket PRIVATE | May stop public-origin access broadly | Would affect 2,277 currently indexed audio references/37 works/436 episodes plus sidecars; unacceptable without a separately approved full migration; browser/CDN copies still possible. **Not chosen.** |
+| Copy only affected files to a verified private bucket, then remove each old object using Supabase Storage API | Bounded scope, recoverability, does not disable unrelated published audio | Requires individual rights/ownership decision, byte integrity/restore evidence, operational coordination, CDN and browser caveats, approval for object-specific writes. **Preferred controlled physical phase if required and proven.** |
+| Purge CDN only, rename URL, expire signed link, direct SQL delete from `storage.objects` | Appears faster | Not sufficient: origin file remains or object bytes become orphaned; manual CDN purge may require Pro plan + secret. **Not acceptable as revocation.** |
+
+Current hosted **metadata-only** snapshot (2026-11-03): 2,277 public recording URL rows are linked to 37 works/436 episodes, all currently general/public; 4,720 public-bucket objects, 2,443 not exact `recordings.audio_storage_path` matches (many JSON sidecars; do not treat as deletable). Six legacy Human-prefixed public bucket objects have no current recording/source rows or `storage.objects.owner(_id)`; one current auth user matches path actor but historic rights/publication consent remain unproven. No current R18 source/media leak proven. Recount in any future operation; these are **not** a pre-approved cohort.
+
+## P0 emergency logical withdrawal (requires deployed, audited endpoint/DB guards first)
+
+1. **Owner and source:** authenticate the current owner; validate the existing series, role, current warning locks, requested rating and episode scope. Fail closed on ambiguous ownership and stale version. The request contains a strict boolean `emergencyUnpublish:true`; no automatic public→private promotion from ordinary rating edits.
+2. **Single DB write:** set `publication_status='private'` and requested rating/warnings in **one** owner-scoped UPDATE. Existing PUBLIC objects cannot block this database correction. On DB error, report failure and re-read current state; never say it persisted. Note that other authorized source-update routes also need review against this guard and caching.
+3. **Site/cache:** invalidate `public-base-work-cards` and the specific Work page path; verify direct anonymous public Work/Search/Reader, API and cache behavior against fresh DB authority. Cache errors after persistence must respond `persisted:true` (a failed cache purge does not roll back DB), flag for incident response and **keep work PRIVATE**. The candidate route has no UI entry yet; availability to actual owners is **unverified**.
+4. **Record a separate open media-retirement incident:** `publicMediaStatus='unverified'`, exact prospective object cohort *not yet authorized*, reversible after approval. Warn responders that existing public URLs can remain reachable. Do not log object paths, URLs, ownership secrets or audio contents into broad public comments.
+5. **No new PUBLIC uploads:** DB and Storage proposal checks fresh series+episode while holding locks. A denied new write does not prove old object bytes vanished. Existing signed upload tokens, service-role/S3 writers, alternate buckets and global cache must still be separately tested.
+
+### P0 negative conditions (nonproduction)
+
+- Anonymous, non-owner, invalid payload flag, withdrawn consent, stale version or unknown series cannot use emergency mode.
+- A public source with old media can be withdrawn and simultaneously R18-corrected, without deleting an object; an episode can be unpublished. Re-publish/restore and new PUBLIC media fail while any legacy origin or recording URL reference remains.
+- A failed DB UPDATE cannot report success; an invalidated-cache failure with a committed UPDATE cannot report `persisted:false`.
+- A successful private DB state must never be presented as a successful CDN/media erasure.
+
+## P1 bounded PRIVATE backup and physical retirement — **NOT AUTHORIZED IN THIS PR**
+
+Preconditions: separate user approval listing exact bucket/path objects and **count**, owning work/episode, identified narrator/rights/license basis, security reviewer GO on the *final design*, accepted temporary access risks, data-protection plan, recovery test, and acceptable downtime. Never infer rights from path IDs or current consent. Owner, independent security and rights reviewer must resolve the six Human objects separately before touching them.
+
+1. **Create a canonical manifest, using read-only metadata:** enumerate **ALL** per-work PUBLIC objects (audio, WEBM, M4A, WAV, JSON timing, historical versions, orphan paths), related DB references, bucket and cache domains. Compare object count/bytes/checksums where available. `recordings` equality alone is insufficient. Unknown/unmatched object = **HOLD**, not delete.
+2. **Freeze new writers:** ensure guarded public object writes and all legitimate writer routes are halted/serialized before evacuation. Explicitly account for `service_role`, S3 clients, signed-upload-token reuse, alternate buckets and potential previous CDN origins. Database triggers alone are not proof against privileged provider operations.
+3. **Backup to an access-restricted destination:** preferably use Supabase Storage **copy** into an approved private bucket for each approved object (API supports inter-bucket copy up to 5 GiB per file; verify actual object size/feature availability); preserve immutable manifest and independently check full byte digests and exact names. The copy operation does not itself revoke the original URL. Restore test must use only an isolated/private destination and verify denial to anon/other users. An unverified copy/restore is a STOP.
+4. **Retire exact public objects:** after object-level approval and verified private backup, use the authenticated **Supabase Storage API** (`remove`, or separately reviewed move workflow), not direct SQL `DELETE FROM storage.objects`. Recheck count after every bounded batch; handle partial error without assuming rollback across Storage/DB. Never use bucket-wide emptying, wildcard deletion or bulk old-recordings deletion. Keep normal Public AI audio unrelated to the affected source working.
+5. **Verify origin/CDN and browser caveat:** check public-origin URL (HEAD or bounded GET only under specific authorization) is no longer retrievable, with expected 404/403 and independently cross-region/cache rechecks; verify any old signed URL/token paths and alternate origin aliases as scoped. On Smart CDN, delete invalidation can take up to **60 seconds**; cache purge is available **Pro+ only** and requires server secret. Do not add a paid plan solely for purge by default. Browser-cached or previously downloaded copies remain out of reach. No absolute claim of worldwide revocation.
+6. **Retire stale DB public audio references:** do not make a published work replay stale PUBLIC URL. Privately preserve prior recording provenance/authorization evidence if required. Exact reference changes/deletion require their own user/data and rights approval; failure keeps work private. Do **not** simply set `is_public=false` with a PUBLIC audio path or erase narrator attribution.
+7. **Re-evaluate publication:** re-publication must remain blocked until actual public objects **and** old direct URL references are reconciled, rights/edition decisions are documented and a fresh independent review approves that public media path. A retired asset may instead stay private indefinitely.
+
+### Recovery/STOP matrix
+
+| Failure | Required safe state | Next action |
+| --- | --- | --- |
+| Owner/R18/rights ambiguity | No write permitted | Retain private HOLD; resolve evidence |
+| DB update failed | Prior state unknown until fresh read | Recheck; never report rollback/success without evidence |
+| DB succeeded, cache invalidation failed | DB remains private; old cached pages/media possible | Incident escalation, fresh read and repeat invalidation if authorized; no automatic re-publication |
+| Copy failed or digest differs | Public object unchanged, source logically private | Stop deletion; verify isolated backup and retry scoped copy |
+| Partial Storage removal | Source remains private and publication blocked | Reconcile object-by-object; restore only PRIVATE copies where authorized |
+| CDN origin still serves after verified removal | Revocation INCOMPLETE | Investigate old origin, CDN/TTL/signed URLs; no closure |
+| All origin objects gone but old URL references remain | Republish blocked | Independently approved reference cleanup and rights review |
+| Browser or client already cached prior bytes | Cannot guarantee recall | Record residual risk and incident/legal handling |
+
+## Verification and release gates
+
+- **Performed in Draft:** isolated disposable `postgres:17` fixture + source-level build/CI/Preview. These confirm modeled trigger behavior, not actual Supabase Storage/CDN or real user authorization.
+- **Outstanding:** exact owner/non-owner signed-in HTTP E2E; actual cache race; Storage API copy/move/remove with zero unauthorized media access; legacy signed bearer tests; protected file-byte restore; actual hosted `storage.objects` trigger compatibility, lock contention, p95, and rights/retention validation. Review actual #153 overlapping migration; only ONE controlled migration path may be approved.
+- **Before any merge or hosted SQL/media:** stable fixed HEAD + separate independent security/rights GO, exact Preview/CI, explicit user merge approval. Hosted DB DDL/rights/Storage deletion/keys require their own distinct target/count/impact approval and safe rollback. Historical Supabase migration-name mismatch forbids generic `db push`.
+- This runbook **does not authorize** a manual emergency change in Production today. Actual current main and hosted DB lack these candidate triggers and endpoint.
+
+Primary references: [Supabase delete objects](https://supabase.com/docs/guides/storage/management/delete-objects), [copy/move objects](https://supabase.com/docs/guides/storage/management/copy-move-objects), [Smart CDN](https://supabase.com/docs/guides/storage/cdn/smart-cdn), [CDN purge](https://supabase.com/docs/guides/storage/cdn/purge-cdn-cache).
