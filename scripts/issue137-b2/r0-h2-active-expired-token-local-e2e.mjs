@@ -49,11 +49,12 @@ const put=await anon.storage.from("human-recording-audio")
 assert.ok(put.error,"expired ACTIVE lease must reject unexpired bearer");
 assert.ok((await admin.storage.from("human-recording-audio").download(key)).error,
  "expired bearer did not persist bytes");
-const seal=await admin.rpc("issue137_h2_stage_close",{...lease,
- p_total_bytes:4194304,p_mode:"seal"});
+const {p_part_count:unusedPartCount,...closeScope}=lease;
+const seal=await admin.rpc("issue137_h2_stage_close",{
+ ...closeScope,p_mode:"seal"});
 assert.ok(seal.error,"expired lease cannot seal");
-const abort=await admin.rpc("issue137_h2_stage_close",{...lease,
- p_total_bytes:4194304,p_mode:"abort"});
+const abort=await admin.rpc("issue137_h2_stage_close",{
+ ...closeScope,p_mode:"abort"});
 assert.equal(abort.error,null);
 console.log("PASS: #137 real local still-signed bearer denied after simulated 90m"+
  " active lease expiry; no object persisted, seal denied, abort allowed");
