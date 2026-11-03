@@ -24,6 +24,9 @@ on:
       - "scripts/issue137-b2/r0-b2-h1-render-single-local.mjs"
       - "scripts/issue137-b2/r0-h1-atomic-local-extension.sql"
       - "scripts/issue137-b2/r0-h2-signed-staging-lease-extension.sql"
+      - "scripts/issue137-b2/r0-h2-local-advance-expiry-only.sql"
+      - "scripts/issue137-b2/r0-h2-local-retirement-e2e.mjs"
+      - "src/app/api/recordings/human-upload-abort/route.ts"
       - "src/lib/recording/humanStagingLease.ts"
       - "src/app/api/recordings/human-upload-session/route.ts"
       - "src/app/api/recordings/human-upload-finalize/route.ts"
@@ -151,6 +154,9 @@ jobs:
           node --check scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs
           node --check scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs
           node --check scripts/issue137-b2/r0-signed-upload-revocation-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-h2-local-retirement-e2e.mjs
+          grep -Fq "ISSUE137_H2_DISPOSABLE_EXPIRY_SIMULATED" scripts/issue137-b2/r0-h2-local-advance-expiry-only.sql
+          grep -Fq "issue137_h2_stage_finish_retirement" scripts/issue137-b2/r0-h2-signed-staging-lease-extension.sql
           grep -Fq "issue137_h2_stage_storage_guard" scripts/issue137-b2/r0-h2-signed-staging-lease-extension.sql
           grep -Fq "H2_STAGE_LEASE_REVOKED" scripts/issue137-b2/r0-h2-signed-staging-lease-extension.sql
           grep -Fq "set local role service_role;" scripts/issue137-b2/r0-direct-service-role-storage-local.sql

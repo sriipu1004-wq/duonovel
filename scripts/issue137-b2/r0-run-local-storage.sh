@@ -140,6 +140,12 @@ grep -Fq "ISSUE137_DIRECT_SQL_ROLE_BOUNDARY_AND_ROLLBACK_PASS" "$WORK/direct-sql
 }
 echo "PASS: local service_role direct SQL B2 PUBLIC denial and PRIVATE metadata risk / transaction rollback"
 node scripts/issue137-b2/r0-signed-upload-revocation-local-e2e.mjs
+# Claim and retire ONLY test-scoped PRIVATE stage parts after a simulated
+# token-expiry/grace interval (never run the clock change against hosted SQL).
+psql -X "$R0_DB_URL" -v ON_ERROR_STOP=1 \
+  -f "$R0/r0-h2-local-advance-expiry-only.sql" \
+ | grep -F "ISSUE137_H2_DISPOSABLE_EXPIRY_SIMULATED" >/dev/null
+node scripts/issue137-b2/r0-h2-local-retirement-e2e.mjs
 # Actual Next.js route over local HTTP + real SSR-cookie sessions.
 # Never pass R0_SERVICE_KEY (or any privileged key) into the spawned app.
 node scripts/issue137-b2/r0-next-http-e2e.mjs
