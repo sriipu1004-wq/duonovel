@@ -25,6 +25,7 @@ on:
       - "src/lib/publicCatalogEpochFence.ts"
       - "scripts/test-issue137-work-metadata-visibility.ts"
       - "scripts/test-public-search-language-filters.ts"
+      - "docs/issue137-r18-reader-catalog-integration-slice.md"
       - ".github/workflows/issue137-r0-public-media-transition.yml"
   workflow_dispatch:
 permissions:
