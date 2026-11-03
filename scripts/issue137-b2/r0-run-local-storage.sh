@@ -143,3 +143,23 @@ grep -Fq "ISSUE137_ALREADY_INSTALLED_TRIGGER_HOLD" "$WORK/reapply.out" || {
  echo "FAIL: duplicate candidate installation rejected for unexpected reason" >&2; exit 1
 }
 echo "PASS: unified SQL candidate refuses duplicate installation in real local PostgreSQL"
+
+# Rehearse an ACTUAL single-migration B2/R0+H1 installation on the SAME
+# disposable local environment after the baseline checks. No hosted link,
+# remote repair or additional persistent stack. This local reset destroys ONLY
+# the mktemp fixture owned by this runner, never a real project.
+[[ "$WORK" == */libread-r0-* ]] && [[ -f "${local_migrations[0]}" ]] || {
+ echo "BLOCKED: local-only migration/reset provenance missing" >&2; exit 3
+}
+cd "$WORK"
+export R0_EPHEMERAL_CONFIRM=local-only
+node "$R0/r0-b2-h1-render-single-local.mjs" --emit-local > "${local_migrations[0]}"
+# Hard fail if the generated migration has nested transactions or wrong scope.
+[[ "$(grep -Eic '^[[:space:]]*begin;[[:space:]]*$' "${local_migrations[0]}")" == 1 ]] || exit 3
+[[ "$(grep -Eic '^[[:space:]]*commit;[[:space:]]*$' "${local_migrations[0]}")" == 1 ]] || exit 3
+# --local is mandatory: the workspace was created unlinked under mktemp.
+npx --yes supabase@2.122.0 db reset --local --yes >/dev/null
+cd "$ROOT"
+node scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs
+echo "PASS: exact one-file B2/R0+H1 isolated SQL migration and owner/Human CAS E2E"
+
