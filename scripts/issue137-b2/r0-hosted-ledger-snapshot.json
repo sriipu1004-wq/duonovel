@@ -1,0 +1,93 @@
+{
+  "schema": "issue137-hosted-ledger-name-version-snapshot-v1",
+  "pinnedMain": "848f8419c64b2954ae004397b5292edf0cb75236",
+  "project": "nyxbnccuvmlzffgtdadi",
+  "recordedDate": "2026-11-03",
+  "meaning": "READ ONLY name/version metadata snapshot only. Not a migration-history authorization, not proof deployed objects match SQL.",
+  "migrations": [
+    {
+      "version": "20260915065058",
+      "name": "ensure_series_translation_permission_mode"
+    },
+    {
+      "version": "20260916074446",
+      "name": "index_display_name_uniqueness"
+    },
+    {
+      "version": "20260916074738",
+      "name": "security_harden_rls_and_internal_rpcs"
+    },
+    {
+      "version": "20260916074749",
+      "name": "harden_shared_asset_storage"
+    },
+    {
+      "version": "20260916074758",
+      "name": "restrict_user_profile_column_updates"
+    },
+    {
+      "version": "20260916074807",
+      "name": "harden_popularity_event_ingest"
+    },
+    {
+      "version": "20260916074822",
+      "name": "enforce_private_library_import_actual_size"
+    },
+    {
+      "version": "20260916074829",
+      "name": "harden_legacy_recording_requests"
+    },
+    {
+      "version": "20260916074838",
+      "name": "harden_series_reactions"
+    },
+    {
+      "version": "20260916074854",
+      "name": "harden_social_visibility"
+    },
+    {
+      "version": "20260916074903",
+      "name": "harden_series_bookmark_mutations"
+    },
+    {
+      "version": "20260916074910",
+      "name": "harden_recording_visibility"
+    },
+    {
+      "version": "20260916074919",
+      "name": "security_author_social_target_integrity"
+    },
+    {
+      "version": "20260916074927",
+      "name": "security_fix_function_search_paths"
+    },
+    {
+      "version": "20260916093250",
+      "name": "child65_postdeploy_cleanup"
+    },
+    {
+      "version": "20260921095817",
+      "name": "create_private_human_recording_audio_bucket"
+    },
+    {
+      "version": "20260925094337",
+      "name": "retire_story_generation_quota"
+    },
+    {
+      "version": "20260926003521",
+      "name": "add_human_translation_foundation"
+    },
+    {
+      "version": "20261010013603",
+      "name": "public_episode_work_summaries"
+    },
+    {
+      "version": "20261010013642",
+      "name": "restrict_public_episode_summary_grants"
+    },
+    {
+      "version": "20261103010000",
+      "name": "restrict_private_library_direct_import_mutations"
+    }
+  ]
+}
