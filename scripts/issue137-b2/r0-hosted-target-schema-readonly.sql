@@ -38,7 +38,7 @@ WITH expected_cols(schema_name,table_name,column_name,udt_name,nullable) AS (
  ('storage','buckets','public','bool','YES')
 ), checked_columns AS (
  select 'COLUMN'::text as area,
-  schema_name||'.'||table_name||'.'||column_name as check_id,
+  e.schema_name||'.'||e.table_name||'.'||e.column_name as check_id,
   (c.udt_name=e.udt_name and c.is_nullable=e.nullable) as pass,
   e.udt_name||' / nullable='||e.nullable as expected,
   coalesce(c.udt_name||' / nullable='||c.is_nullable,'MISSING') as observed
