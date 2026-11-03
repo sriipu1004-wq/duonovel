@@ -162,4 +162,3 @@ npx --yes supabase@2.122.0 db reset --local --yes >/dev/null
 cd "$ROOT"
 node scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs
 echo "PASS: exact one-file B2/R0+H1 isolated SQL migration and owner/Human CAS E2E"
-

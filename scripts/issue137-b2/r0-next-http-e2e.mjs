@@ -69,7 +69,7 @@ async function actor(label) {
   assert.equal(verified.data?.user?.id,result.data.user.id);
   pass(cookieStore.size>0,"real Supabase SSR cookies issued");
   const cookie=()=>[...cookieStore].map(([k,v])=>k+"="+v).join("; ");
-  return {id:result.data.user.id,cookie};
+  return {id:result.data.user.id,cookie,db:client};
 }
 
 const owner=await actor("owner"),other=await actor("other");
@@ -390,6 +390,24 @@ try {
   pass(after.publication_status==="private"&&after.content_rating==="r18"&&
     after.content_warnings.includes("sexual_r18"),
     "one real PostgREST DB update atomically persisted PRIVATE + R18");
+  // Exercise the SAME owner-user PostgREST CAS filters as the workspace
+  // Server Action, against the actual changed database state. The old form
+  // snapshot must not overwrite an emergency PRIVATE withdrawal.
+  const staleWorkspaceSave=await owner.db.from("series")
+    .update({description:"STALE OLD WORKSPACE MUST NOT SAVE"})
+    .eq("id",seriesId).eq("author_id",owner.id)
+    .eq("publication_status","public").select("id");
+  deny(!staleWorkspaceSave.error&&(staleWorkspaceSave.data??[]).length===0,
+    "owner's stale PUBLIC workspace CAS must affect zero rows after emergency hide");
+  const actualPrivate=await owner.db.from("series")
+    .update({description:"SAFE OWNER PRIVATE EDIT"})
+    .eq("id",seriesId).eq("author_id",owner.id)
+    .eq("publication_status","private").select("id");
+  pass(!actualPrivate.error&&(actualPrivate.data??[]).length===1,
+    "current PRIVATE owner workspace CAS can save legitimate private metadata");
+  const afterWorkspace=await state();
+  pass(afterWorkspace.publication_status==="private"&&afterWorkspace.content_rating==="r18",
+    "current owner edit never downgrades emergency PRIVATE+R18");
   const still=await oldUrl();
   pass(still.status===200&&still.digest===sha(bytes),
     "physical Public WAV still reachable after Next logical withdrawal");
