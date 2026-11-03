@@ -127,7 +127,14 @@ export async function GET(request: Request, { params }: RouteProps) {
 
   const storedPath = pickText(row.audio_storage_path, row.audioStoragePath);
   const playbackObjectPath = getHumanRecordingStorageObjectPath(storedPath);
-  if (!playbackObjectPath) {
+  // Do not trust a row's stored Human URL or a narrator UUID as sole
+  // proof: the current object must belong to the same work, episode,
+  // narrator and canonical PRIVATE Human asset path.
+  const exactPath = new RegExp(
+    "^human/" + seriesId + "/" + episodeId + "/" + readerId +
+    "/[a-z0-9-]+/playback-from-[a-z0-9]+[.]m4a$", "u"
+  );
+  if (!playbackObjectPath || !exactPath.test(playbackObjectPath)) {
     return new NextResponse(null, { status: 404 });
   }
 

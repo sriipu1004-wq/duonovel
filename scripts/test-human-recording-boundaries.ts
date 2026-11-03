@@ -102,23 +102,32 @@ assert.equal(
   "delete API must reject synthetic recording rows"
 );
 
-const audio = source(
-  "src/app/api/recordings/human-audio/[recordingId]/route.ts"
-);
+const audio = source("src/app/api/recordings/human-audio/[recordingId]/route.ts");
 for (const required of [
   "isHumanRecordingRow(recordingData)",
-  'getSeriesPublicationStatus(series) !== "public"',
-  "!isEpisodePubliclyVisible(episode)",
+  "canServeHumanRecordingAudio({",
+  "sourceVisible,",
+  "sourcePublic,",
+  "currentPermissionOpen:",
+  "currentConsent: isAcceptedRecordingConsentVersion(",
   "isR18Series(series)",
-  "createSignedUrl(objectPath, 60)",
+  "getCurrentR18ViewerPreference()",
+  "streamAuthorizedPrivateRecording(",
+  "playback-from-[a-z0-9]+[.]m4a",
 ]) {
-  assert.equal(
-    audio.includes(required),
-    true,
-    `Human audio proxy must keep access boundary: ${required}`
-  );
+  assert.equal(audio.includes(required), true,
+    `Human playback must fail closed on active source/narrator/consent/R18: ${required}`);
 }
-
+for (const forbidden of ["createSignedUrl(", "NextResponse.redirect(", "B2_G1_HTTP_GET_MODE"]) {
+  assert.equal(audio.includes(forbidden), false,
+    `Human playback must never mint a bearer URL or enable local test-mode bypass: ${forbidden}`);
+}
+const aiAudio = source("src/app/api/recordings/ai-audio/[recordingId]/route.ts");
+for (const required of ["voice_model_id", "!recording.reader_id", "isUuid(recording.series_id)",
+  "getCurrentR18ViewerPreference()", "streamAuthorizedPrivateRecording(", "exactPath.test(objectPath)"]) {
+  assert.equal(aiAudio.includes(required), true,
+    `AI private audio must verify source/provenance/R18: ${required}`);
+}
 const workPage = source("src/app/works/[seriesId]/page.tsx");
 assert.equal(
   workPage.includes("isPublishedHumanRecording"),
@@ -133,10 +142,23 @@ assert.equal(
 
 const publicRead = source("src/lib/publicRead.ts");
 assert.equal(
-  publicRead.includes("buildHumanRecordingPlaybackHref(recording.id)"),
+  publicRead.includes("projectReaderEpisodeRecordings("),
   true,
-  "Reader payload must expose authorization-proxy URLs instead of storage paths"
+  "Reader payload must run the server-side Human/AI projection before any client props"
 );
+
+const recordingProjection = source("src/lib/recording/readerEpisodeRecordingProjection.ts");
+for (const required of [
+  "isPublishedHumanRecording(row)",
+  "buildHumanRecordingPlaybackHref(row.id)",
+  "listProtectedAiRecordings(rows",
+]) {
+  assert.equal(recordingProjection.includes(required), true,
+    `Recording projection must keep AI and Human provenance distinct: ${required}`);
+}
+const readerPage = source("src/app/read/[seriesId]/[episodeNumber]/page.tsx");
+assert.equal(readerPage.includes("recording.audio_storage_path === buildHumanRecordingPlaybackHref(recording.id)"), true,
+  "Reader must not filter projected Human proxy URLs through the raw Storage path predicate");
 
 const recordSearch = source("src/app/record/page.tsx");
 for (const required of [

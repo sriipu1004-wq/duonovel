@@ -24,7 +24,15 @@ export async function GET(request: Request, context: { params: Promise<{ recordi
   if (error || !recording || recording.is_public !== true || !isAi)
     return new NextResponse(null,{status:404,headers:{"Cache-Control":"private, no-store"}});
   const objectPath = parsePrivateAiAudioReference(recording.audio_storage_path);
-  if (!objectPath || !recording.series_id || !recording.episode_id) return new NextResponse(null,{status:404});
+  if (!objectPath || !isUuid(recording.series_id) || !isUuid(recording.episode_id))
+    return new NextResponse(null,{status:404});
+  // Defense-in-depth when older rows or SQL writers bypass the candidate
+  // database trigger: a recording must not alias another episode's bytes.
+  const exactPath = new RegExp(
+    "^(?:nemo|aivis)/" + recording.series_id + "/" +
+    recording.episode_id + "/[^/]+[.]wav$", "u"
+  );
+  if (!exactPath.test(objectPath)) return new NextResponse(null,{status:404});
   const [sq,eq]=await Promise.all([
     admin.from("series").select("id,publication_status,content_rating,content_warnings").eq("id",recording.series_id).maybeSingle(),
     admin.from("episodes").select("id,series_id,posting_status,is_published").eq("id",recording.episode_id).maybeSingle(),
