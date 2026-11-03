@@ -8,6 +8,7 @@ on:
       - "scripts/issue137-b2/r0-public-media-transition-local-test.sql"
       - "scripts/issue137-b2/r0-local-storage-fixture.sql"
       - "scripts/issue137-b2/r0-local-storage-e2e.mjs"
+      - "scripts/issue137-b2/r0-next-http-e2e.mjs"
       - "scripts/issue137-b2/r0-run-local-storage.sh"
       - "src/app/api/series/[seriesId]/content-rating/route.ts"
       - ".github/workflows/issue137-r0-public-media-transition.yml"
@@ -79,15 +80,16 @@ jobs:
           set -euo pipefail
           bash -n scripts/issue137-b2/r0-run-local-storage.sh
           node --check scripts/issue137-b2/r0-local-storage-e2e.mjs
+          node --check scripts/issue137-b2/r0-next-http-e2e.mjs
           docker info >/dev/null
           test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
           test -z "${SUPABASE_DB_PASSWORD:-}"
           test -z "${SUPABASE_ACCESS_TOKEN:-}"
       - name: Install exact locked app SDK for REAL LOCAL Storage HTTP
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Disposable GoTrue + PostgREST + Storage API E2E
+      - name: Disposable GoTrue + PostgREST + Storage API + Next SSR HTTP E2E
         shell: bash
         run: |
           set -euo pipefail
           bash scripts/issue137-b2/r0-run-local-storage.sh
-          echo "PASS: real LOCAL-only Storage HTTP positive/negative checks completed"
+          echo "PASS: real LOCAL-only Storage and Next HTTP positive/negative checks completed"
