@@ -13,10 +13,10 @@ const files=readdirSync(join(root,"supabase/migrations"))
  .filter(x=>x.endsWith(".sql")).sort();
 const manifest=JSON.parse(readFileSync(join(local,"r0-legacy-catalog-probes.json"),"utf8"));
 const hosted=JSON.parse(readFileSync(join(local,"r0-hosted-ledger-snapshot.json"),"utf8"));
-const filenameVersion=x=>/^(\\d{14})_/.exec(x)?.[1]??null;
-const filenameName=x=>x.replace(/^\\d{14}_/,"").replace(/\\.sql$/,"");
+const filenameVersion=x=>/^(\d{14})_/.exec(x)?.[1]??null;
+const filenameName=x=>x.replace(/^\d{14}_/,"").replace(/\.sql$/,"");
 function isCalendarVersion(version){
- if(!/^\\d{14}$/.test(version))return false;
+ if(!/^\d{14}$/.test(version))return false;
  const yy=+version.slice(0,4),mm=+version.slice(4,6),dd=+version.slice(6,8),
  hh=+version.slice(8,10),mi=+version.slice(10,12),ss=+version.slice(12,14);
  const d=new Date(Date.UTC(yy,mm-1,dd,hh,mi,ss));
@@ -67,7 +67,7 @@ function validate(sourceFiles, remoteSnapshot, localManifest){
  const allowedTypes=new Set(["relation","column","function","policy","trigger"]);
  for(const r of rows){
   assert.ok(allowedTypes.has(r.probe.kind));
-  assert.ok(/^public\\.[a-z_]+(?:(?:\\.|:)[a-z_]+)?$/.test(r.probe.target),
+  assert.ok(/^public\.[a-z_]+(?:(?:\.|:)[a-z_]+)?$/.test(r.probe.target),
     "Source-anchored catalog identifiers only, no SQL injection.");
   assert.equal(typeof r.probe.present,"boolean");
   assert.equal(r.provenance,"UNVERIFIED","Catalog presence never equals migration provenance");
