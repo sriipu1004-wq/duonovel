@@ -65,13 +65,21 @@ cd "$WORK"
 # NEVER link to hosted project, NEVER pass any service credentials from Production.
 npx --yes supabase@2.122.0 init --force >/dev/null
 mkdir -p supabase/migrations
-# The file is assembled ONLY in this temp project; the candidate under
-# scripts/ is not an application migration and is NOT suitable for db push.
-# Single B2/R0 candidate with R18 RLS and private bucket boundary. Only
-# the ephemeral temp project sees this SQL, not hosted Supabase.
+# Generate an authentic migration filename using the PINNED local CLI;
+# do not invent a Production timestamp or link/push/repair remote history.
+# Only the mktemp disposable project can receive this candidate and fixture.
+npx --yes supabase@2.122.0 migration new issue137_b2_r0_local_candidate >/dev/null
+mapfile -t local_migrations < <(
+ find "$WORK/supabase/migrations" -maxdepth 1 -type f \
+  -name '*_issue137_b2_r0_local_candidate.sql' -print
+)
+(( ${#local_migrations[@]} == 1 )) || {
+ echo "BLOCKED: CLI did not create exactly one local migration" >&2; exit 3;
+}
 cat "$R0/r0-local-storage-fixture.sql" \
  "$R0/r0-b2-unified-local-candidate.sql" \
- > supabase/migrations/20261103000000_issue137_r0_local_only.sql
+ > "${local_migrations[0]}"
+echo "PASS: CLI generated exactly one disposable candidate migration; no remote history touched"
 started=1
 npx --yes supabase@2.122.0 start --network-id "$NETWORK" >/dev/null
 mapfile -t containers < <(docker ps -q --filter "network=$NETWORK")
@@ -108,3 +116,25 @@ node scripts/issue137-b2/r0-local-storage-e2e.mjs
 # Actual Next.js route over local HTTP + real SSR-cookie sessions.
 # Never pass R0_SERVICE_KEY (or any privileged key) into the spawned app.
 node scripts/issue137-b2/r0-next-http-e2e.mjs
+node scripts/issue137-b2/r0-b2-auth-storage-negative-e2e.mjs
+# The following DDL rollback rehearsal is sentinel-gated and transaction-only.
+# It deliberately does NOT uninstall security on a deployed database.
+command -v psql >/dev/null || { echo "BLOCKED: psql unavailable"; exit 3; }
+R0_DB_URL="$(read_env DB_URL)"
+[[ "$R0_DB_URL" =~ ^postgresql://postgres:[^@]+@127[.]0[.]0[.]1:54322/postgres$ ]] || {
+ echo "BLOCKED: Postgres DSN is not precisely the local Supabase default" >&2; exit 3;
+}
+psql -X "$R0_DB_URL" -v ON_ERROR_STOP=1 \
+ -f "$R0/r0-b2-local-transactional-revert-smoke.sql" \
+ | grep -F "ISSUE137_LOCAL_TRANSACTIONAL_ROLLBACK_PASS" >/dev/null
+echo "PASS: local transactional DDL rollback restored the tested R18 policy and series trigger"
+# A second application must STOP rather than overwrite any existing release
+# guards. No hosted keys, project link or remote repair call exists here.
+if psql -X "$R0_DB_URL" -v ON_ERROR_STOP=1 \
+ -f "$R0/r0-b2-unified-local-candidate.sql" > "$WORK/reapply.out" 2>&1; then
+ echo "FAIL: duplicate candidate install was accepted" >&2; exit 1
+fi
+grep -Fq "ISSUE137_ALREADY_INSTALLED_TRIGGER_HOLD" "$WORK/reapply.out" || {
+ echo "FAIL: duplicate candidate installation rejected for unexpected reason" >&2; exit 1
+}
+echo "PASS: unified SQL candidate refuses duplicate installation in real local PostgreSQL"
