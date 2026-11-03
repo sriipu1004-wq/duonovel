@@ -38,7 +38,9 @@ let passed=0,denied=0;
 function yes(ok,label){assert.ok(ok,label);passed++;}
 function no(ok,label){assert.ok(ok,label);denied++;}
 function signer(token){
- assert.ok([serviceKey,anon].includes(token));
+ // Null session: documented LOCAL static S3 access key stub, anonKey secret.
+ // No hosted static keys are imported or exercised.
+ assert.ok(token===null||[serviceKey,anon].includes(token));
  return async (method,bucket,objectKey,bytes=wave)=>{
   assert.ok(/^[a-z0-9_-]+$/u.test(bucket));
   assert.ok(/^(?:[a-z0-9-]+\/)*[a-z0-9-]+[.](?:wav|m4a)$/u.test(objectKey));
@@ -51,9 +53,9 @@ function signer(token){
    "content-type":"audio/wav",
    "host":endpoint.host,
    "x-amz-content-sha256":payloadHash,
-   "x-amz-date":time,
-   "x-amz-security-token":token
+   "x-amz-date":time
   };
+  if(token!==null)headers["x-amz-security-token"]=token;
   const keys=Object.keys(headers).sort();
   const canon=keys.map(k=>k+":"+headers[k].trim()+"\n").join("");
   const signed=keys.join(";");
@@ -76,7 +78,8 @@ function signer(token){
   return {status:response.status,code};
  };
 }
-const putPrivileged=signer(serviceKey),putAnonymous=signer(anon);
+const putPrivileged=signer(serviceKey),putAnonymous=signer(anon),
+  putLocalStatic=signer(null);
 async function insert(table,row,label){
  const {error}=await service.from(table).insert(row);
  assert.equal(error,null,label+": "+String(error?.code||""));
@@ -105,12 +108,30 @@ yes([200,201].includes(control.status),
 const controlRead=await service.storage.from(controlBucket).download(controlKey);
 yes(!controlRead.error&&hash(Buffer.from(await controlRead.data.arrayBuffer()))===hash(wave),
   "S3->REST interop preserved real local bytes");
+// Positive static-key control is required to rule out a misleading 403 due
+// to a broken S3 signature instead of the database media guard.
+const staticControlKey="static-control/"+id()+".wav";
+const staticControl=await putLocalStatic("PUT",controlBucket,staticControlKey);
+yes([200,201].includes(staticControl.status),
+ "actual LOCAL static S3 key must authenticate before security negatives, "+
+ staticControl.status+" code="+staticControl.code);
+const staticControlRead=await service.storage.from(controlBucket).download(staticControlKey);
+yes(!staticControlRead.error&&
+ hash(Buffer.from(await staticControlRead.data.arrayBuffer()))===hash(wave),
+ "local STATIC S3 positive control persists byte-exact private object");
 const r18=await work("r18"),r18Path="nemo/"+r18.series+"/"+r18.episode+"/forbidden.wav";
 const r18Put=await putPrivileged("PUT","recording-audio",r18Path);
 no(r18Put.status>=400,
   "SERVICE_ROLE_S3_BYPASS: protected R18 public audio MUST be denied");
 const r18Absent=await service.storage.from("recording-audio").download(r18Path);
 no(Boolean(r18Absent.error),"denied privileged S3 PUT must not persist public bytes");
+const staticR18="nemo/"+r18.series+"/"+r18.episode+"/static-denied.wav";
+const staticR18Result=await putLocalStatic("PUT","recording-audio",staticR18);
+no(staticR18Result.status>=400,
+ "LOCAL STATIC S3 RLS BYPASS must hit B2 guard for R18 public audio");
+const staticR18Read=await service.storage.from("recording-audio").download(staticR18);
+no(Boolean(staticR18Read.error),
+ "denied STATIC S3 R18 PUT must not leave PUBLIC bytes");
 const anonPrivate=await putAnonymous("PUT","r18-recording-audio",
  "nemo/"+r18.series+"/"+r18.episode+"/anon.wav");
 no(anonPrivate.status>=400,"anonymous S3 must not write R18 private audio");
@@ -127,10 +148,17 @@ assert.equal(created.error,null,"create synthetic local alternative public bucke
 const altPut=await putPrivileged("PUT",altBucket,"misplaced/"+id()+".wav");
 no(altPut.status>=400,
  "SERVICE_ROLE S3 cannot evade R18 guard through alternative public audio bucket");
+const staticAlt=await putLocalStatic("PUT",altBucket,"misplaced/static-"+id()+".wav");
+no(staticAlt.status>=400,
+ "STATIC S3 key cannot use alternate PUBLIC bucket for audio");
 const general=await work("general"),original="nemo/"+general.series+"/"+general.episode+"/original.wav";
 const generalPut=await putPrivileged("PUT","recording-audio",original);
 yes([200,201].includes(generalPut.status),
   "signed S3 must permit ordinary general-public audio before withdrawal");
+const staticGeneral="nemo/"+general.series+"/"+general.episode+"/static-before.wav";
+const staticGeneralPut=await putLocalStatic("PUT","recording-audio",staticGeneral);
+yes([200,201].includes(staticGeneralPut.status),
+ "local STATIC S3 permits general source before withdrawal");
 const old=await fetch(api+"/storage/v1/object/public/recording-audio/"+original,
  {cache:"no-store",redirect:"error",signal:AbortSignal.timeout(12000)});
 yes(old.status===200&&hash(Buffer.from(await old.arrayBuffer()))===hash(wave),
@@ -147,6 +175,13 @@ const [replayA,replayB]=await Promise.all([
 ]);
 no(replayA.status>=400&&replayB.status>=400,
  "parallel privileged S3 overwrite attempts after withdrawal MUST both fail");
+const [staticRewrite,staticNew]=await Promise.all([
+ putLocalStatic("PUT","recording-audio",staticGeneral,changed),
+ putLocalStatic("PUT","recording-audio",
+ "nemo/"+general.series+"/"+general.episode+"/static-late.wav",changed)
+]);
+no(staticRewrite.status>=400&&staticNew.status>=400,
+ "STATIC S3 new PUBLIC and overwrite both denied after PRIVATE");
 const oldAfter=await fetch(api+"/storage/v1/object/public/recording-audio/"+original,
  {cache:"no-store",redirect:"error",signal:AbortSignal.timeout(12000)});
 yes(oldAfter.status===200&&hash(Buffer.from(await oldAfter.arrayBuffer()))===hash(wave),
@@ -155,6 +190,6 @@ const newPublic=await putPrivileged("PUT","recording-audio",
  "nemo/"+general.series+"/"+general.episode+"/new.wav",changed);
 no(newPublic.status>=400,
  "privileged S3 cannot insert another public object for withdrawn PRIVATE work");
-console.log("PASS: #137 ACTUAL local SigV4 S3 service-role session, "+
+console.log("PASS: #137 REAL local SigV4 S3 service-role SESSION and LOCAL STATIC key, "+
  passed+" positive / "+denied+" denied; private/public provenance, alternate bucket, parallel overwrite");
-console.log("HOLD: service_role S3 bypasses RLS; this proves only local DB-trigger fencing, not remote keys, direct backend, multipart/TUS, CDN, WORM or rights");
+console.log("HOLD: local STATIC key is disposable stub/anon, NOT a hosted permanent S3 key; direct backend, multipart/TUS, CDN, WORM and rights unverified");
