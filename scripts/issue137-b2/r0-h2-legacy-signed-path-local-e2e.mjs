@@ -1,5 +1,5 @@
-// #137 REAL LOCAL legacy human/ signed path is OUTSIDE new H2 namespace.
-// This deliberately documents a retained capability, not approved publishing.
+// #137 disposable LOCAL legacy issuance CUTOVER, without ever disabling
+// a protection trigger or issuing a real/hosted historical bearer.
 import assert from "node:assert/strict";
 import {randomUUID,createHash} from "node:crypto";
 import {createClient} from "@supabase/supabase-js";
@@ -22,16 +22,15 @@ for(const [table,row] of [
 ])assert.equal((await admin.from(table).insert(row)).error,null,table);
 const key="human/"+sid+"/"+eid+"/"+actor+"/"+id()+"/part-0001.webm";
 const sign=await admin.storage.from("human-recording-audio").createSignedUploadUrl(key,{upsert:false});
-assert.equal(sign.error,null,"legacy bearer before withdrawal");
-assert.ok(sign.data.token.length>15);
+assert.ok(sign.error && String(sign.error.message).includes("H2_LEGACY_MULTIPART_NEW_WRITE_HOLD"),
+ "H2 must prevent new canonical legacy signed bearer issuance");
 assert.equal((await admin.from("user_recording_consents")
  .update({consent_version:"withdrawn"}).eq("user_id",actor)).error,null);
 assert.equal((await admin.from("series").update({publication_status:"private",
  content_rating:"r18",content_warnings:["sexual_r18"]}).eq("id",sid)).error,null);
 const original=Buffer.from("synthetic legacy old signer still accepted "+id());
-const sent=await anon.storage.from("human-recording-audio")
- .uploadToSignedUrl(key,sign.data.token,original,{contentType:"audio/webm"});
-assert.ok(sent.error,"pre-H2 canonical multipart token must fail at upload-time DB guard");
+// A bearer issued before H2 was installed cannot be minted safely while the
+// guard is active. Its future PUT behavior remains NOT VERIFIED by this test.
 const stored=await admin.storage.from("human-recording-audio").download(key);
 assert.ok(stored.error,"denied legacy token created no PRIVATE multipart bytes");
 // Legitimate final Human original media must remain writable by the server:
@@ -47,7 +46,8 @@ assert.ok((await anon.storage.from("human-recording-audio").download(finalPath))
  "legitimate PRIVATE final source remains unreadable to anon");
 const noPublished=await admin.from("recordings").select("id").eq("audio_storage_path",key);
 assert.equal(noPublished.error,null);assert.equal(noPublished.data?.length,0);
-console.log("PASS: pre-H2 signed canonical part-0001.webm denied on disposable"+
- " Storage; final original.webm still private/writeable for server");
-console.log("HOLD: noncanonical old bearer names, real hosted token expiry,"+
- " object inventory/CDN and rights are still unverified; no live revocation claim");
+console.log("PASS: current H2 blocks NEW canonical legacy part-0001.webm"+
+ " signed URL issuance, with zero staged bytes; legitimate final source"+
+ " remains PRIVATE and server-writeable");
+console.log("HOLD: PRE-ISSUED old bearer PUT not tested; noncanonical names,"+
+ " hosted token expiry, object inventory/CDN and rights remain unverified");
