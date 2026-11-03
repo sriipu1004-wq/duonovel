@@ -22,6 +22,7 @@ on:
       - "scripts/issue137-b2/r0-b2-local-transactional-revert-smoke.sql"
       - "scripts/issue137-b2/r0-next-http-e2e.mjs"
       - "scripts/issue137-b2/r0-h2-browser-runner.mjs"
+      - "scripts/issue137-b2/r0-h1-browser-only.mjs"
       - "scripts/issue137-b2/r0-h2-browser-pcm-fixture.mjs"
       - "scripts/issue137-b2/r0-h2-browser-positive.mjs"
       - "scripts/issue137-b2/r0-h2-browser-interrupt.mjs"

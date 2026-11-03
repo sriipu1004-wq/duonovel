@@ -247,7 +247,7 @@ echo "PASS: single-file B2/R0+H1+H2 with selected hosted CHECK/FK shape in fresh
 # Re-use the same second stack, with H1 installed and H2 active, for actual
 # Chromium >8MiB multipart finalize. The isolated Next child is configured
 # with preview-hold so it MUST stop before any normalizing/paid ASR/media write.
-R0_H1_BROWSER_PHASE=preview-hold node scripts/issue137-b2/r0-next-http-e2e.mjs
+R0_H1_BROWSER_PHASE=preview-hold node scripts/issue137-b2/r0-h1-browser-only.mjs
 echo "PASS: H1-enabled real Chromium multipart reached F2P pre-ASR HOLD; no Human publication"
 R0_DB_URL="$(read_env DB_URL)"
 [[ "$R0_DB_URL" =~ ^postgresql://postgres:[^@]+@127[.]0[.]0[.]1:54322/postgres$ ]] || {
