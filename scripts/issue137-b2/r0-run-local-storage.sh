@@ -157,8 +157,40 @@ node "$R0/r0-b2-h1-render-single-local.mjs" --emit-local > "${local_migrations[0
 # Hard fail if the generated migration has nested transactions or wrong scope.
 [[ "$(grep -Eic '^[[:space:]]*begin;[[:space:]]*$' "${local_migrations[0]}")" == 1 ]] || exit 3
 [[ "$(grep -Eic '^[[:space:]]*commit;[[:space:]]*$' "${local_migrations[0]}")" == 1 ]] || exit 3
-# --local is mandatory: the workspace was created unlinked under mktemp.
-npx --yes supabase@2.122.0 db reset --local --yes >/dev/null
+# A live 'db reset --local' left the existing Storage process pointing
+# at a restarting Postgres container (CI 41610029545, unhealthy). Rebuild the
+# WHOLE same disposable stack instead; NEVER run remote db reset/push/repair.
+# --no-backup discards only this runner's isolated local stack data.
+npx --yes supabase@2.122.0 stop --no-backup >/dev/null
+started=0
+[[ -z "$(docker ps -q --filter "network=$NETWORK")" ]] || {
+ echo "BLOCKED: stopped local stack retains running containers" >&2; exit 3
+}
+[[ "$(docker network inspect --format '{{index .Options "com.docker.network.bridge.host_binding_ipv4"}}' "$NETWORK")" == "127.0.0.1" ]] || {
+ echo "BLOCKED: local bridge changed during restart" >&2; exit 3
+}
+started=1
+npx --yes supabase@2.122.0 start --network-id "$NETWORK" >/dev/null
+# Revalidate network confinement and new ephemeral credentials post restart.
+mapfile -t second_containers < <(docker ps -q --filter "network=$NETWORK")
+(( ${#second_containers[@]} > 0 )) || {
+ echo "BLOCKED: restarted local stack absent" >&2; exit 3
+}
+for container in "${second_containers[@]}"; do
+ bindings="$(docker inspect --format '{{range $port, $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{println .HostIp}}{{end}}{{end}}' "$container")"
+ while IFS= read -r ip; do
+  [[ -z "$ip" || "$ip" == "127.0.0.1" ]] || {
+   echo "BLOCKED: restarted local stack exposed non-loopback binding" >&2; exit 3
+  }
+ done <<< "$bindings"
+done
+STATUS="$(npx --yes supabase@2.122.0 status --output env)"
+export R0_LOCAL_URL="$(read_env API_URL)"
+export R0_ANON_KEY="$(read_env ANON_KEY)"
+export R0_SERVICE_KEY="$(read_env SERVICE_ROLE_KEY)"
+[[ "${R0_LOCAL_URL}" == "http://127.0.0.1:54321" ]] || {
+ echo "BLOCKED: local API origin changed on restart" >&2; exit 3
+}
 cd "$ROOT"
 node scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs
-echo "PASS: exact one-file B2/R0+H1 isolated SQL migration and owner/Human CAS E2E"
+echo "PASS: single-file B2/R0+H1 fresh local stack and owner/Human CAS E2E"
