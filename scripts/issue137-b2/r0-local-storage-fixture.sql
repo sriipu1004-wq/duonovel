@@ -1,3 +1,15 @@
+-- An isolated fixture sentinel. The rollback rehearsal absolutely refuses any
+-- database lacking this schema+row; NEVER add this sentinel to hosted Supabase.
+create schema libread_r0_disposable;
+revoke all on schema libread_r0_disposable from public,anon,authenticated;
+create table libread_r0_disposable.sentinel (
+ id boolean primary key default true check (id = true),
+ purpose text not null check (purpose='SYNTHETIC-R0-ONLY')
+);
+revoke all on libread_r0_disposable.sentinel from public,anon,authenticated;
+insert into libread_r0_disposable.sentinel(id,purpose)
+values(true,'SYNTHETIC-R0-ONLY');
+
 -- Issue #137 R0: disposable Supabase GoTrue/PostgREST/Storage fixture only.
 -- NOT an application migration. NO hosted Supabase access/identities/files.
 create table public.series (
