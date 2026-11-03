@@ -15,7 +15,7 @@ create table libread_internal.h2_human_stage_lease(
  total_bytes bigint not null check(total_bytes >= 4194304 and total_bytes <= 1073741824),
  part_count integer not null check(part_count between 1 and 128),
  state text not null default 'active'
-   check(state in ('active','sealed','aborted','retired')),
+   check(state in ('active','sealed','aborted','retiring','retired')),
  created_at timestamptz not null default clock_timestamp(),
  expires_at timestamptz not null default clock_timestamp()+interval '90 minutes',
  retire_after timestamptz not null default clock_timestamp()+interval '3 hours',
@@ -175,12 +175,72 @@ as $candidates$
  select l.session_id,l.series_id,l.episode_id,l.actor_id,l.source_extension,
  l.part_count,l.retire_after from libread_internal.h2_human_stage_lease l
  where l.retire_after<clock_timestamp()
-   and (l.state in ('sealed','aborted') or
+   and (l.state in ('sealed','aborted','retiring') or
      (l.state='active' and l.expires_at<clock_timestamp()))
  order by l.retire_after,l.session_id limit least(greatest(coalesce(p_limit,20),1),100)
 $candidates$;
 revoke all on function public.issue137_h2_stage_retire_candidates(integer)
  from public,anon,authenticated;
 grant execute on function public.issue137_h2_stage_retire_candidates(integer)
+ to service_role;
+
+-- A separate authorized cleanup worker may claim a stale session only once
+-- it outlives all bearer tokens. Merely marking 'retiring' blocks future
+-- metadata uploads by the H2 Storage guard. No rows or bytes are deleted here.
+create or replace function public.issue137_h2_stage_claim_retirement(p_session uuid)
+returns boolean language plpgsql volatile security invoker set search_path=''
+as $claim$
+declare l record; temp_path text;
+begin
+ select * into l from libread_internal.h2_human_stage_lease
+ where session_id=p_session for update;
+ if not found or l.retire_after>=clock_timestamp() or
+   not (l.state in ('sealed','aborted','retiring') or
+     (l.state='active' and l.expires_at<clock_timestamp())) then
+  raise exception using errcode='42501',message='H2_STAGE_RETIRE_TOO_EARLY_OR_NOT_OWNED';
+ end if;
+ temp_path:='human-temp/'||l.series_id||'/'||l.episode_id||'/'||
+   l.actor_id||'/'||l.session_id||'/';
+ if exists(select 1 from public.recordings r
+   where r.audio_storage_path like temp_path||'%') then
+  raise exception using errcode='42501',message='H2_STAGE_RECORDING_REFERENCE_HOLD';
+ end if;
+ update libread_internal.h2_human_stage_lease set state='retiring'
+ where session_id=p_session;
+ return true;
+end $claim$;
+revoke all on function public.issue137_h2_stage_claim_retirement(uuid)
+ from public,anon,authenticated;
+grant execute on function public.issue137_h2_stage_claim_retirement(uuid)
+ to service_role;
+
+-- The caller must have verified the exact Storage API deletion. This function
+-- rechecks the actual public Storage catalog for ANY leftover object or DB ref;
+-- it never fabricates or claims a physical deletion was performed.
+create or replace function public.issue137_h2_stage_finish_retirement(p_session uuid)
+returns boolean language plpgsql volatile security invoker set search_path=''
+as $finish$
+declare l record; temp_path text;
+begin
+ select * into l from libread_internal.h2_human_stage_lease
+ where session_id=p_session for update;
+ if not found or l.state<>'retiring' or l.retire_after>=clock_timestamp() then
+  raise exception using errcode='42501',message='H2_STAGE_NOT_RETIRING';
+ end if;
+ temp_path:='human-temp/'||l.series_id||'/'||l.episode_id||'/'||
+   l.actor_id||'/'||l.session_id||'/';
+ if exists(select 1 from storage.objects o where
+   o.bucket_id='human-recording-audio' and o.name like temp_path||'%')
+   or exists(select 1 from public.recordings r where
+    r.audio_storage_path like temp_path||'%') then
+  raise exception using errcode='42501',message='H2_STAGE_PHYSICAL_OR_REFERENCE_REMAINS';
+ end if;
+ update libread_internal.h2_human_stage_lease set state='retired'
+ where session_id=p_session;
+ return true;
+end $finish$;
+revoke all on function public.issue137_h2_stage_finish_retirement(uuid)
+ from public,anon,authenticated;
+grant execute on function public.issue137_h2_stage_finish_retirement(uuid)
  to service_role;
 commit;
