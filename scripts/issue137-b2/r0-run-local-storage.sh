@@ -121,6 +121,23 @@ node scripts/issue137-b2/r0-batch-retirement-local-e2e.mjs
 # Exercise signed S3 privileged writes against the FIRST isolated B2 stack,
 # independently from browser hydration and the later combined H1 stage.
 node scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs
+# Separate directly privileged service_role SQL, NOT the S3 or REST API.
+# Forbid anything except the runner's disposable Supabase Postgres literal DSN.
+command -v psql >/dev/null || { echo "BLOCKED: psql unavailable" >&2; exit 3; }
+R0_DB_URL="$(read_env DB_URL)"
+[[ "$R0_DB_URL" =~ ^postgresql://postgres:[^@]+@127[.]0[.]1:54322/postgres$ ]] || {
+ echo "BLOCKED: direct service-role test requires exact local Postgres" >&2; exit 3
+}
+psql -X "$R0_DB_URL" -v ON_ERROR_STOP=1 \
+  -f "$R0/r0-direct-service-role-storage-local.sql" > "$WORK/direct-sql-probe.out" 2>&1 || {
+ echo "FAIL: isolated direct-SQL negative test failed" >&2
+ sed -E 's#postgresql://[^ ]+#<local-dsn-redacted>#g' "$WORK/direct-sql-probe.out" | tail -25 >&2
+ exit 1
+}
+grep -Fq "ISSUE137_DIRECT_SQL_ROLE_BOUNDARY_AND_ROLLBACK_PASS" "$WORK/direct-sql-probe.out" || {
+ echo "FAIL: direct SQL test did not attest rollback" >&2; exit 1
+}
+echo "PASS: local service_role direct SQL B2 PUBLIC denial and PRIVATE metadata risk / transaction rollback"
 # Actual Next.js route over local HTTP + real SSR-cookie sessions.
 # Never pass R0_SERVICE_KEY (or any privileged key) into the spawned app.
 node scripts/issue137-b2/r0-next-http-e2e.mjs
