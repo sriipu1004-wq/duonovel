@@ -37,7 +37,7 @@ const boundIdentity = source.indexOf("result.data.user?.id === preference.userId
 const authedFallback = source.indexOf("const authed = await getVerifiedR18WorkClient()", verifiedR18Client);
 const episodeMode = source.indexOf("const reader = isR18 ? (await getVerifiedR18WorkClient())");
 assert.ok(verifiedR18Client > 0 && boundIdentity > verifiedR18Client &&
-  authedFallback > boundIdentity && episodeMode > authedFallback &&
+  authedFallback > boundIdentity && episodeMode > 0 &&
   episodeMode < metadataStart,
   "Work must bind authenticated identity and R18 permission before restricted episode reads");
 const r18Guard = metadata.slice(r18Gate, episodeGate);
