@@ -65,18 +65,6 @@ select pg_temp.expect_rejected($q$
  where id='00000000-0000-4000-8000-000000000101'
 $q$,'sexual warning while PUBLIC file exists');
 select pg_temp.expect_rejected($q$
- update public.series set publication_status='private'
- where id='00000000-0000-4000-8000-000000000101'
-$q$,'unpublish while PUBLIC file exists');
-select pg_temp.expect_rejected($q$
- update public.episodes set is_published=false
- where id='00000000-0000-4000-8000-000000000201'
-$q$,'unpublish episode while PUBLIC file exists');
-select pg_temp.expect_rejected($q$
- update public.episodes set posting_status='draft'
- where id='00000000-0000-4000-8000-000000000201'
-$q$,'draft episode while PUBLIC file exists');
-select pg_temp.expect_rejected($q$
  update public.episodes set series_id='00000000-0000-4000-8000-000000000102'
  where id='00000000-0000-4000-8000-000000000201'
 $q$,'reparent episode with old PUBLIC file');
@@ -97,6 +85,84 @@ update public.series set publication_status='public'
 select pg_temp.assert_true((select publication_status='public' from public.series
  where id='00000000-0000-4000-8000-000000000101'),
  'unrelated existing PUBLIC metadata remains editable');
+
+-- EMERGENCY: logical withdrawal and rating correction occur together as
+-- ONE DB write even though old public media continues to exist.
+-- This is NOT physical revocation, nor an HTTP/CDN integration test.
+update public.series set publication_status='private',content_rating='r18',
+ content_warnings=array['sexual_r18']
+where id='00000000-0000-4000-8000-000000000101';
+select pg_temp.assert_true(
+ (select publication_status='private' and content_rating='r18'
+    and 'sexual_r18'=any(content_warnings) from public.series
+    where id='00000000-0000-4000-8000-000000000101'),
+ 'emergency atomic unpublished and R18 classification succeeds');
+
+-- Episode takedown must not be blocked by existing PUBLIC audio.
+update public.episodes set is_published=false,posting_status='draft'
+where id='00000000-0000-4000-8000-000000000201';
+select pg_temp.assert_true(
+ (select posting_status='draft' and is_published=false from public.episodes
+  where id='00000000-0000-4000-8000-000000000201'),
+ 'emergency episode draft/hide succeeds without deleting physical media');
+
+-- Verified preexisting URLs are still represented as objects/references, so
+-- neither the series nor episode may silently reappear as PUBLIC.
+select pg_temp.assert_true(
+ libread_internal.issue137_r0_has_public_audio(
+  '00000000-0000-4000-8000-000000000101',null),
+ 'emergency DB takedown leaves PUBLIC origin asset UNREVOKED');
+select pg_temp.expect_rejected($q$
+ update public.series set publication_status='public',content_rating='general',
+ content_warnings='{}'::text[]
+ where id='00000000-0000-4000-8000-000000000101'
+$q$,'republication blocked while unresolved PUBLIC origin exists');
+select pg_temp.expect_rejected($q$
+ update public.episodes set is_published=true,posting_status='posted'
+ where id='00000000-0000-4000-8000-000000000201'
+$q$,'episode republish blocked until legacy media resolved');
+select pg_temp.expect_rejected($q$
+ insert into storage.objects(bucket_id,name)
+ values('recording-audio','nemo/00000000-0000-4000-8000-000000000101/00000000-0000-4000-8000-000000000201/new.wav')
+$q$,'new PUBLIC object upload rejected after emergency withdrawal');
+
+-- Repeated or follow-up private classification does not re-expose source.
+update public.series set content_rating='general' where
+ id='00000000-0000-4000-8000-000000000101';
+select pg_temp.assert_true(
+ (select publication_status='private' from public.series
+  where id='00000000-0000-4000-8000-000000000101'),
+ 'subsequent private-only rating adjustment does not republish');
+
+-- LOCAL SYNTHETIC RETIREMENT ONLY. Real Supabase files MUST be removed through
+-- a separately approved Storage API operation; deleting storage.objects rows
+-- directly in hosted Postgres does not safely remove provider bytes/CDN.
+delete from storage.objects where bucket_id='recording-audio'
+ and name='nemo/00000000-0000-4000-8000-000000000101/00000000-0000-4000-8000-000000000201/audio.wav';
+select pg_temp.assert_true(
+ libread_internal.issue137_r0_has_public_audio(
+  '00000000-0000-4000-8000-000000000101',null),
+ 'DB recording URL reference still blocks republish after object metadata deletion');
+select pg_temp.expect_rejected($q$
+ update public.series set publication_status='public'
+ where id='00000000-0000-4000-8000-000000000101'
+$q$,'retirement not proven while legacy DB URL reference persists');
+delete from public.recordings
+ where id='00000000-0000-4000-8000-000000000301';
+select pg_temp.assert_true(
+ not libread_internal.issue137_r0_has_public_audio(
+  '00000000-0000-4000-8000-000000000101',null),
+ 'fixture origin and reference metadata both cleared');
+update public.episodes set posting_status='posted',is_published=true
+ where id='00000000-0000-4000-8000-000000000201';
+update public.series set publication_status='public',content_rating='general',
+ content_warnings='{}'::text[]
+ where id='00000000-0000-4000-8000-000000000101';
+select pg_temp.assert_true(
+ (select publication_status='public' and content_rating='general'
+  from public.series where id='00000000-0000-4000-8000-000000000101'),
+ 'synthetic source may republish only after both legacies are retired');
+-- Real release still requires human rights approval; the fixture is not proof.
 
 -- A no-media source can change to R18 without exposure; future public PUT must deny.
 update public.series set content_rating='r18'
