@@ -410,11 +410,32 @@ try {
     state:"visible",timeout:25000
   });
   const publicationCard=activePage.getByRole("button",{name:/公開状態/u}).first();
-  await publicationCard.click();
+  const ownerStatusBefore=await publicationCard.innerText();
+  pass(ownerStatusBefore.includes("公開状態") && ownerStatusBefore.includes("公開"),
+    "real owner browser must initially render current PUBLIC state");
+  // In Next.js dev, server HTML is interactive only AFTER client hydration.
+  // An eager automation click can hit the SSR node before React attached its
+  // handler. Require an actual aria-expanded state change, not click() success.
+  let expanded=await publicationCard.getAttribute("aria-expanded");
+  for(let retry=0;retry<7&&expanded!=="true";retry++){
+    await publicationCard.click();
+    await activePage.waitForTimeout(600);
+    expanded=await publicationCard.getAttribute("aria-expanded");
+  }
+  if(expanded!=="true"){
+    throw Error("OWNER_UI_HYDRATION_OR_PANEL_FAILURE: current PUBLIC status card did not expand;"+
+      " aria="+expanded+" browserPath="+new URL(activePage.url()).pathname+
+      " statusText="+JSON.stringify(ownerStatusBefore.slice(0,100)));
+  }
   const emergencyButton=activePage.getByRole("button",{
     name:"緊急非公開＋R18訂正"
   });
-  await emergencyButton.waitFor({state:"visible",timeout:25000});
+  const emergencyCount=await emergencyButton.count();
+  if(emergencyCount!==1 || !(await emergencyButton.isVisible())){
+    const sibling=await activePage.locator("button").allTextContents();
+    throw Error("OWNER_UI_EMERGENCY_MISSING_AFTER_EXPANSION: DOM="+emergencyCount+
+      " buttons="+JSON.stringify(sibling.filter(x=>/公開|非公開|R18/u.test(x)).slice(0,14)));
+  }
   pass((await emergencyButton.isEnabled())===true,
     "real author UI exposes enabled emergency PRIVATE+R18 action");
   const stalePage=await ownerBrowser.newPage();

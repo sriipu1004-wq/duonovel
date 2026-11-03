@@ -118,6 +118,9 @@ cd "$ROOT"
 node scripts/issue137-b2/r0-local-storage-e2e.mjs
 # NEW: 3-object scoped manifest, partial batch stop/resume, PRIVATE restore.
 node scripts/issue137-b2/r0-batch-retirement-local-e2e.mjs
+# Exercise signed S3 privileged writes against the FIRST isolated B2 stack,
+# independently from browser hydration and the later combined H1 stage.
+node scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs
 # Actual Next.js route over local HTTP + real SSR-cookie sessions.
 # Never pass R0_SERVICE_KEY (or any privileged key) into the spawned app.
 node scripts/issue137-b2/r0-next-http-e2e.mjs
@@ -193,5 +196,4 @@ export R0_SERVICE_KEY="$(read_env SERVICE_ROLE_KEY)"
 }
 cd "$ROOT"
 node scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs
-node scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs
 echo "PASS: single-file B2/R0+H1 fresh local stack and owner/Human CAS E2E"
