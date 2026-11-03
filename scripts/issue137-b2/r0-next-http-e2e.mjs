@@ -239,10 +239,16 @@ try {
   // evidence. Both serialized HTML and RSC payload must omit private text.
   // See https://nextjs.org/docs/app/api-reference/file-conventions/not-found
   function noindexNotFound(page,secretMarker){
-    const robotsNoindex=/<meta[^>]*name=["']robots["'][^>]*content=["']noindex["'][^>]*>/i
-      .test(page.body);
+    // Next may reorder HTML attributes or use "noindex,nofollow"; select
+    // a SINGLE robots meta and independently inspect its content attribute.
+    const metaTags=page.body.match(/<meta\b[^>]*>/gi)||[];
+    const robotsTags=metaTags.filter(tag=>/\bname\s*=\s*["']robots["']/i.test(tag));
+    const robotsNoindex=robotsTags.some(tag=>
+      /\bcontent\s*=\s*["'][^"']*\bnoindex\b/i.test(tag));
     const streamed404=page.status===200&&robotsNoindex;
     const plain404=page.status===404;
+    console.log("EVIDENCE: robotsMeta="+robotsTags.length+
+      " noindex="+robotsNoindex+" status="+page.status);
     return (plain404||streamed404)&&!page.body.includes(secretMarker);
   }
   const withdrawnWork=await getPage(workPath);
