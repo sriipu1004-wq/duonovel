@@ -31,8 +31,11 @@ export async function browserSuccess({context,base,service,audio,work}){
    r.request().method()==="POST",{timeout:170000});
   await button.click();
   const reply=await finalized,body=await reply.json();
-  assert.equal(reply.status(),200,"actual finalize error:"+String(body?.error));
-  assert.equal(body.ok,true);
+  // NO OpenAI key is passed to ephemeral Next. Real multipart reaches
+  // normalizer/ASR and must stop before any paid provider or publication.
+  assert.equal(reply.status(),500,"unpaid finalization must fail closed");
+  assert.equal(body.ok,false);
+  assert.equal(body.error,"openai_api_key_missing");
   assert.equal(session?.parts?.length,2,">8MiB must create two parts");
   assert.equal(session.parts[0].expectedSizeBytes,8*1024*1024);
   for(const part of session.parts){
@@ -44,11 +47,12 @@ export async function browserSuccess({context,base,service,audio,work}){
    assert.equal(sha(bytes),sha(audio.subarray(
     part.byteOffsetStart,part.byteOffsetEndExclusive)));
   }
-  const linked=await service.from("recordings").select("id,episode_id")
-   .eq("id",body.recordingId).maybeSingle();
+  const linked=await service.from("recordings").select("id")
+   .eq("series_id",work.series).eq("episode_id",work.episode);
   assert.equal(linked.error,null);
-  assert.equal(linked.data?.episode_id,work.episode);
-  console.log("PASS: H2 real browser UI >8MiB two-part synthetic PCM,"+
-   " actual Next finalize, 2/2 PRIVATE Storage byte SHA256, recording row");
+  assert.equal(linked.data?.length,0,"no transcription means no Human publication");
+  console.log("PASS: H2 real Chromium >8MiB two-part synthetic PCM, "+
+   "2/2 PRIVATE SHA256, fail-closed before unpaid ASR");
+  console.log("HOLD: no actual Human transcription/lyrics alignment/publication");
  }finally{await page.close();}
 }
