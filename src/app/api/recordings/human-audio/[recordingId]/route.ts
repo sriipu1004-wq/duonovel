@@ -8,7 +8,8 @@ import {
 } from "@/features/write/writeShared";
 import { isR18Series } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
-import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
+import { isAcceptedRecordingConsentVersion, RECORDING_GLOBAL_CONSENT_KEY } from "@/lib/recording/recordingConsent";
+import { canServeHumanRecordingAudio, isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
 import {
   getHumanRecordingAudioBucketName,
   getHumanRecordingStorageObjectPath,
@@ -17,6 +18,7 @@ import { buildNemoTimingObjectPathFromAudioObjectPath } from "@/lib/recording/ne
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
+import { streamAuthorizedPrivateRecording } from "@/lib/recording/privateMediaProxy";
 
 export const runtime = "nodejs";
 
@@ -39,14 +41,13 @@ function resolveRequestedArtifact(rawValue: string): {
   return { recordingId: value, timing: false };
 }
 
-export async function GET(_request: Request, { params }: RouteProps) {
+export async function GET(request: Request, { params }: RouteProps) {
   const { recordingId: rawRecordingId } = await params;
   const requested = resolveRequestedArtifact(rawRecordingId);
 
   if (!isUuid(requested.recordingId)) {
     return new NextResponse(null, { status: 404 });
   }
-
   const admin = createAdminClient();
   const { data: recordingData, error: recordingError } = await admin
     .from("recordings")
@@ -68,46 +69,60 @@ export async function GET(_request: Request, { params }: RouteProps) {
     return new NextResponse(null, { status: 404 });
   }
 
-  if (isPublic) {
-    const [seriesResult, episodeResult] = await Promise.all([
-      admin.from("series").select("*").eq("id", seriesId).maybeSingle(),
-      admin.from("episodes").select("*").eq("id", episodeId).maybeSingle(),
-    ]);
-
-    if (
-      seriesResult.error ||
-      episodeResult.error ||
-      !seriesResult.data ||
-      !episodeResult.data
-    ) {
+  // PUBLIC source visibility uses the trusted server read. PRIVATE source
+  // visibility uses the narrator's current RLS-scoped session, including
+  // legitimately owned draft episodes. A narrator ID alone is insufficient.
+  let narratorIsViewer = false;
+  const db = isPublic ? admin : await createClient();
+  if (!isPublic) {
+    const { data: { user }, error: authError } = await db.auth.getUser();
+    if (authError || !user || user.id !== readerId) {
       return new NextResponse(null, { status: 404 });
     }
+    narratorIsViewer = true;
+  }
 
-    const series = seriesResult.data as SeriesRow;
-    const episode = episodeResult.data as EpisodeRow;
-    if (
-      getSeriesPublicationStatus(series) !== "public" ||
-      pickText(episode.series_id, episode["seriesId"]) !== seriesId ||
-      !isEpisodePubliclyVisible(episode)
-    ) {
-      return new NextResponse(null, { status: 404 });
-    }
+  const [seriesResult, episodeResult, consentResult] = await Promise.all([
+    db.from("series")
+      .select("id, publication_status, content_rating, content_warnings, recording_permission_mode")
+      .eq("id", seriesId).maybeSingle(),
+    db.from("episodes")
+      .select("id, series_id, posting_status, is_published")
+      .eq("id", episodeId).maybeSingle(),
+    db.from("user_recording_consents")
+      .select("consent_version")
+      .eq("user_id", readerId)
+      .eq("consent_key", RECORDING_GLOBAL_CONSENT_KEY).maybeSingle(),
+  ]);
+  if (seriesResult.error || episodeResult.error || consentResult.error ||
+      !seriesResult.data || !episodeResult.data) {
+    return new NextResponse(null, { status: 404 });
+  }
 
-    if (isR18Series(series)) {
-      const preference = await getCurrentR18ViewerPreference();
-      if (!preference.showR18Content) {
-        return new NextResponse(null, { status: 404 });
-      }
-    }
-  } else {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || user.id !== readerId) {
-      return new NextResponse(null, { status: 404 });
-    }
+  const series = seriesResult.data as SeriesRow;
+  const episode = episodeResult.data as EpisodeRow;
+  const sourceVisible =
+    pickText(series.id) === seriesId &&
+    pickText(episode.series_id, episode["seriesId"]) === seriesId;
+  const sourcePublic =
+    getSeriesPublicationStatus(series) === "public" &&
+    isEpisodePubliclyVisible(episode);
+  const r18 = isR18Series(series);
+  const r18Preference = r18
+    ? await getCurrentR18ViewerPreference()
+    : null;
+  if (!canServeHumanRecordingAudio({
+    isPublic,
+    narratorIsViewer,
+    sourceVisible,
+    sourcePublic,
+    currentPermissionOpen: series.recording_permission_mode === "open",
+    currentConsent: isAcceptedRecordingConsentVersion(consentResult.data?.consent_version),
+    isR18: r18,
+    currentR18Permission: r18Preference?.showR18Content === true &&
+      (isPublic || r18Preference.userId === readerId),
+  })) {
+    return new NextResponse(null, { status: 404 });
   }
 
   const storedPath = pickText(row.audio_storage_path, row.audioStoragePath);
@@ -120,15 +135,9 @@ export async function GET(_request: Request, { params }: RouteProps) {
     ? buildNemoTimingObjectPathFromAudioObjectPath(playbackObjectPath)
     : playbackObjectPath;
 
-  const { data: signedData, error: signedError } = await admin.storage
-    .from(getHumanRecordingAudioBucketName())
-    .createSignedUrl(objectPath, 60);
-
-  if (signedError || !signedData?.signedUrl) {
-    return new NextResponse(null, { status: 404 });
-  }
-
-  const response = NextResponse.redirect(signedData.signedUrl, 307);
-  response.headers.set("Cache-Control", "private, no-store");
-  return response;
+  return streamAuthorizedPrivateRecording(
+    request,
+    getHumanRecordingAudioBucketName(),
+    objectPath
+  );
 }
