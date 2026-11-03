@@ -17,11 +17,9 @@ export async function GET(request: Request, context: { params: Promise<{ recordi
   if (range && !/^bytes=(?:\d+-\d*|-\d+)$/u.test(range)) return new NextResponse(null,{status:416});
   const admin = createAdminClient();
   const {data: recording, error} = await admin.from("recordings").select("*").eq("id",recordingId).maybeSingle();
-  // A Human/narrator row cannot be relabelled as private AI audio.
-  const isAi = typeof recording?.voice_model_id === "string" &&
-    recording.voice_model_id.trim().length > 0 &&
-    !recording.reader_id && !recording.reader_user_id;
-  if (error || !recording || recording.is_public !== true || !isAi)
+  // Nemo often has no voice_model_id; both AI engines may set reader_id.
+  // Restrict by PRIVATE AI reference, source/episode path and published state.
+  if (error || !recording || recording.is_public !== true)
     return new NextResponse(null,{status:404,headers:{"Cache-Control":"private, no-store"}});
   const objectPath = parsePrivateAiAudioReference(recording.audio_storage_path);
   if (!objectPath || !isUuid(recording.series_id) || !isUuid(recording.episode_id))

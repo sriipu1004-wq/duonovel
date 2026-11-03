@@ -127,7 +127,8 @@ assert.equal((await service.storage.from("r18-recording-audio").upload(aiPath,by
 })).error,null,"seed private AI media bytes");
 assert.equal((await service.from("recordings").insert({
  id:aiMediaId,series_id:r18SeriesId,episode_id:r18EpisodeId,
- voice_model_id:"nemo",is_public:true,audio_storage_path:"r18-private:"+aiPath
+ reader_id:other.id,reader_name:"Nemo generated AI",voice_model_id:null,
+ is_public:true,audio_storage_path:"r18-private:"+aiPath
 })).error,null,"seed AI-only recording pointer");
 const humanMediaId=id();
 const humanPath="human/"+r18SeriesId+"/"+r18EpisodeId+"/"+other.id+

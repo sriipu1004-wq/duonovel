@@ -124,7 +124,7 @@ for (const forbidden of ["createSignedUrl(", "NextResponse.redirect(", "B2_G1_HT
     `Human playback must never mint a bearer URL or enable local test-mode bypass: ${forbidden}`);
 }
 const aiAudio = source("src/app/api/recordings/ai-audio/[recordingId]/route.ts");
-for (const required of ["voice_model_id", "!recording.reader_id", "isUuid(recording.series_id)",
+for (const required of ["isUuid(recording.series_id)",
   "getCurrentR18ViewerPreference()", "streamAuthorizedPrivateRecording(", "exactPath.test(objectPath)"]) {
   assert.equal(aiAudio.includes(required), true,
     `AI private audio must verify source/provenance/R18: ${required}`);

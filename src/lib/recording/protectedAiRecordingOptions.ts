@@ -32,9 +32,11 @@ export function listProtectedAiRecordings(
     const id = row.id;
     const episodeId = row.episode_id ?? row.episodeId;
     const stored = row.audio_storage_path ?? row.audioStoragePath;
-    const model = row.voice_model_id ?? row.voiceModelId;
-    const aiProvenance = typeof model === "string" && model.trim().length > 0 &&
-      !row.reader_id && !row.reader_user_id && !row.readerUserId;
+    // The only valid private AI recording provenance is a Nemo/Aivis PRIVATE
+    // object path. Model IDs can be absent and narrator IDs can be present.
+    const aiProvenance = typeof stored === "string" &&
+      /^r18-private:(?:nemo|aivis)\/[a-f0-9-]{36}\/[a-f0-9-]{36}\/[^/?#]+[.]wav$/u.test(stored) &&
+      !stored.includes("..");
     if (!aiProvenance || row.is_public !== true || typeof id !== "string" || typeof episodeId !== "string" || !isUuid(id) || !isUuid(episodeId)
       || (allowedEpisodeIds && !allowedEpisodeIds.has(episodeId))
       || typeof stored !== "string" || !stored.startsWith("r18-private:")) continue;
