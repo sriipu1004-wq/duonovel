@@ -5,7 +5,9 @@ create table public.series (
   author_id uuid not null references auth.users(id),
   publication_status text not null default 'public',
   content_rating text not null default 'general',
-  content_warnings text[] not null default '{}'::text[]
+  content_warnings text[] not null default '{}'::text[],
+  content_warning_locks text[] not null default '{}'::text[],
+  created_at timestamptz not null default now()
 );
 create table public.episodes (
   id uuid primary key,
