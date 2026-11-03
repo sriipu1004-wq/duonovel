@@ -8,6 +8,7 @@ import {fileURLToPath} from "node:url";
 import {setTimeout as sleep} from "node:timers/promises";
 import {createClient} from "@supabase/supabase-js";
 import {createServerClient} from "@supabase/ssr";
+import {runH2BrowserMultipart} from "./r0-h2-browser-runner.mjs";
 
 assert.equal(process.env.DO_NOT_CONTACT_PRODUCTION,"true");
 assert.equal(process.env.R0_EPHEMERAL_CONFIRM,"local-only");
@@ -398,6 +399,8 @@ try {
     return context;
   }
   const ownerBrowser=await newContextFor(owner);
+  await runH2BrowserMultipart({context:ownerBrowser,owner,base,api,
+    anonKey,service});
   const otherBrowser=await newContextFor(other);
   const workspace="/write/series/"+seriesId;
   const activePage=await ownerBrowser.newPage();
