@@ -9,6 +9,9 @@ on:
       - "scripts/issue137-b2/r0-public-media-transition-local-test.sql"
       - "scripts/issue137-b2/r0-legacy-history-preflight.mjs"
       - "scripts/issue137-b2/r0-high-risk-live-semantic-readonly.sql"
+      - "scripts/issue137-b2/r0-hosted-target-schema-readonly.sql"
+      - "docs/issue137-b2-r0-migration-rollout-rollback.md"
+      - "docs/issue137-r0-emergency-public-media-retirement.md"
       - "scripts/issue137-b2/r0-current-schema-release-source.test.mjs"
       - "scripts/issue137-b2/r0-legacy-catalog-probes.json"
       - "scripts/issue137-b2/r0-hosted-ledger-snapshot.json"
@@ -89,6 +92,12 @@ jobs:
           node scripts/issue137-b2/r0-legacy-history-preflight.mjs --emit-readonly-sql > /tmp/issue137-legacy-catalog-preflight.sql
           grep -Fq 'BEGIN READ ONLY;' /tmp/issue137-legacy-catalog-preflight.sql
           grep -Fq 'ROLLBACK;' /tmp/issue137-legacy-catalog-preflight.sql
+          grep -Fq 'BEGIN READ ONLY;' scripts/issue137-b2/r0-hosted-target-schema-readonly.sql
+          grep -Fq 'ROLLBACK;' scripts/issue137-b2/r0-hosted-target-schema-readonly.sql
+          grep -Fq "'public','recordings','reader_id','uuid','NO'" scripts/issue137-b2/r0-hosted-target-schema-readonly.sql
+          grep -Fq "'public','recordings','voice_model_id','uuid','YES'" scripts/issue137-b2/r0-hosted-target-schema-readonly.sql
+          grep -Fq "reader_id uuid not null" scripts/issue137-b2/r0-local-storage-fixture.sql
+          grep -Fq "voice_model_id uuid" scripts/issue137-b2/r0-local-storage-fixture.sql
           echo "PASS: legacy preflight generated READ-ONLY SQL without accessing hosted database"
       - name: Diff whitespace check
         run: git diff --check
