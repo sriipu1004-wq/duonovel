@@ -33,7 +33,7 @@ begin
 end $gate$;
 create temporary table issue137_test_guard_digest as
 select
- (select md5(string_agg(t.tgname||t.tgenabled||pg_get_triggerdef(t.oid),
+ (select md5(string_agg(t.tgname::text||t.tgenabled::text||pg_get_triggerdef(t.oid),
     E'\n' order by t.tgname))
   from pg_trigger t where not t.tgisinternal and
    (t.tgname like 'issue137_b2_%' or t.tgname like 'issue137_h1_%')) as triggers_sha,
@@ -88,7 +88,7 @@ begin
  end if;
  if exists (select 1 from issue137_test_guard_digest g where
     g.triggers_sha is distinct from
-     (select md5(string_agg(t.tgname||t.tgenabled||pg_get_triggerdef(t.oid),
+     (select md5(string_agg(t.tgname::text||t.tgenabled::text||pg_get_triggerdef(t.oid),
         E'\n' order by t.tgname))
       from pg_trigger t where not t.tgisinternal and
        (t.tgname like 'issue137_b2_%' or t.tgname like 'issue137_h1_%'))
