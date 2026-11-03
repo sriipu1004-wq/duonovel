@@ -28,6 +28,8 @@ on:
       - "scripts/issue137-b2/r0-h2-local-retirement-e2e.mjs"
       - "scripts/issue137-b2/h2-stage-lifecycle-source.test.mjs"
       - "src/app/api/recordings/human-upload-abort/route.ts"
+      - "src/components/recording/RecordingStudioPage.tsx"
+      - "docs/issue137-h2-human-temp-staging-leases.md"
       - "src/lib/recording/humanStagingLease.ts"
       - "src/app/api/recordings/human-upload-session/route.ts"
       - "src/app/api/recordings/human-upload-finalize/route.ts"

@@ -26,6 +26,9 @@ export async function POST(request: Request) {
   try { raw=(await request.json()) as Record<string,unknown>; } catch {
     return NextResponse.json({ok:false,error:"不正なJSON。"}, {status:400});
   }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return NextResponse.json({ok:false,error:"セッション情報が不正。"}, {status:400});
+  }
   const text=(v:unknown)=>typeof v==="string"?v.trim():"";
   const seriesId=text(raw.seriesId),episodeId=text(raw.episodeId),
     uploadSessionId=text(raw.uploadSessionId),fileName=text(raw.fileName),

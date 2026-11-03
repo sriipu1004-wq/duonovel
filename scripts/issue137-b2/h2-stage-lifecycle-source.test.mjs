@@ -6,6 +6,7 @@ const load=p=>readFileSync(new URL("../../"+p,import.meta.url),"utf8");
 const issued=load("src/app/api/recordings/human-upload-session/route.ts");
 const finished=load("src/app/api/recordings/human-upload-finalize/route.ts");
 const aborted=load("src/app/api/recordings/human-upload-abort/route.ts");
+const studio=load("src/components/recording/RecordingStudioPage.tsx");
 const helper=load("src/lib/recording/humanStagingLease.ts");
 const sql=load("scripts/issue137-b2/r0-h2-signed-staging-lease-extension.sql");
 let pass=0;
@@ -32,6 +33,10 @@ lacks(finished,/\.remove\(tempObjectPaths\)/u,
 has(aborted,/supabase\.auth\.getUser\(\)/u,"abort requires current owner auth");
 has(aborted,/closeHumanStagingLease\(createAdminClient\(\)/u,
  "abort only through server-scoped lease RPC");
+has(studio,/abortHumanMultipartLease\(unfinishedMultipart\)/u,
+ "UI attempts to close an issued lease after a failed multipart save");
+has(studio,/uploadSessionId: args\.sessionId/u,
+ "UI abort request uses exact server-minted session identifier");
 lacks(aborted,/\.storage\.from[\s\S]*?\.remove\(/u,
  "abort never destroys still-in-flight private media");
 has(helper,/human_staging_\$\{context\}_unavailable/u,"unavailable RPC fails closed");
