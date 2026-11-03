@@ -8,6 +8,8 @@ on:
       - "scripts/issue137-b2/r0-b2-unified-local-candidate.sql"
       - "scripts/issue137-b2/r0-public-media-transition-local-test.sql"
       - "scripts/issue137-b2/r0-legacy-history-preflight.mjs"
+      - "scripts/issue137-b2/r0-high-risk-live-semantic-readonly.sql"
+      - "scripts/issue137-b2/r0-current-schema-release-source.test.mjs"
       - "scripts/issue137-b2/r0-legacy-catalog-probes.json"
       - "scripts/issue137-b2/r0-hosted-ledger-snapshot.json"
       - "scripts/issue137-b2/r0-local-storage-fixture.sql"
@@ -63,6 +65,8 @@ jobs:
           set -euo pipefail
           node --check scripts/issue137-b2/r0-legacy-history-preflight.mjs
           node scripts/issue137-b2/r0-legacy-history-preflight.mjs --self-test
+          node --check scripts/issue137-b2/r0-current-schema-release-source.test.mjs
+          node scripts/issue137-b2/r0-current-schema-release-source.test.mjs
           node scripts/issue137-b2/r0-legacy-history-preflight.mjs --emit-readonly-sql > /tmp/issue137-legacy-catalog-preflight.sql
           grep -Fq 'BEGIN READ ONLY;' /tmp/issue137-legacy-catalog-preflight.sql
           grep -Fq 'ROLLBACK;' /tmp/issue137-legacy-catalog-preflight.sql
