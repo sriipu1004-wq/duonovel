@@ -40,13 +40,13 @@ begin
  from public.episodes where id=p_episode for share;
  select consent_version into c from public.user_recording_consents
  where user_id=p_actor and consent_key='recording_studio_global' for share;
- return found and s.publication_status='public'
+ return coalesce(s.publication_status='public'
    and s.content_rating='general'
    and not ('sexual_r18'=any(coalesce(s.content_warnings,'{}'::text[])))
    and s.recording_permission_mode='open'
    and e.series_id=p_series and e.posting_status='posted'
    and e.is_published is true
-   and c.consent_version='2026-04-16';
+   and c.consent_version='2026-04-16',false);
 end
 $eligible$;
 revoke all on function libread_internal.h2_source_is_staging_eligible(uuid,uuid,uuid)
