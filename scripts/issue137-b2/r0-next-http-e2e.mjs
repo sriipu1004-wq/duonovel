@@ -220,7 +220,7 @@ const nextEnv={
 assert.equal(nextEnv.SUPABASE_SERVICE_ROLE_KEY,serviceKey);
 assert.ok(["127.0.0.1","localhost","[::1]"].includes(new URL(nextEnv.NEXT_PUBLIC_SUPABASE_URL).hostname));
 assert.equal(nextEnv.R0_SERVICE_KEY,undefined);
-let next,log="";
+let next,log="",browser=null;
 try {
   next=spawn(process.execPath,[cli,"dev","--hostname","127.0.0.1",
     "--port",String(port)],{
@@ -372,6 +372,106 @@ try {
   assert.equal((await state()).publication_status,"public");
   assert.equal((await state()).content_rating,"general");
   pass(true,"rejected rating mutation leaves DB unchanged");
+  // REAL Chromium with genuine local GoTrue SSR cookies; no external page
+  // destinations and no mock DOM/fake click. Two same-owner tabs reproduce
+  // the stale-publication-save race after the emergency PRIVATE+R18 click.
+  const {chromium}=await import("playwright");
+  assert.equal(process.env.R0_OWNER_UI_BROWSER,"enabled",
+    "real Chromium E2E may not be silently skipped");
+  browser=await chromium.launch({headless:true,args:["--no-sandbox"],
+    timeout:45000});
+  const allow=new Set([base,api]);
+  async function newContextFor(actorRecord) {
+    const context=await browser.newContext({serviceWorkers:"block"});
+    await context.route("**/*",route=>{
+      const destination=new URL(route.request().url());
+      if(allow.has(destination.origin))return route.continue();
+      return route.abort("blockedbyclient");
+    });
+    const cookies=actorRecord.cookie().split("; ").map(piece=>{
+      const pos=piece.indexOf("=");
+      assert.ok(pos>0,"actual SSR cookie must have a name");
+      return {name:piece.slice(0,pos),value:piece.slice(pos+1),url:base};
+    });
+    assert.ok(cookies.length>0);
+    await context.addCookies(cookies);
+    return context;
+  }
+  const ownerBrowser=await newContextFor(owner);
+  const otherBrowser=await newContextFor(other);
+  const workspace="/write/series/"+seriesId;
+  const activePage=await ownerBrowser.newPage();
+  const opened=await activePage.goto(base+workspace,{
+    waitUntil:"domcontentloaded",timeout:45000
+  });
+  pass([200,304].includes(opened?.status()),
+    "actual owner Chromium navigates to own Write workspace");
+  await activePage.getByRole("heading",{name:"作品ワークスペース"}).waitFor({
+    state:"visible",timeout:25000
+  });
+  const publicationCard=activePage.getByRole("button",{name:/公開状態/u}).first();
+  await publicationCard.click();
+  const emergencyButton=activePage.getByRole("button",{
+    name:"緊急非公開＋R18訂正"
+  });
+  await emergencyButton.waitFor({state:"visible",timeout:25000});
+  pass((await emergencyButton.isEnabled())===true,
+    "real author UI exposes enabled emergency PRIVATE+R18 action");
+  const stalePage=await ownerBrowser.newPage();
+  await stalePage.goto(base+workspace,{waitUntil:"domcontentloaded",timeout:45000});
+  await stalePage.getByRole("button",{
+    name:"作品ワークスペースを保存"
+  }).waitFor({state:"visible",timeout:25000});
+  const otherPage=await otherBrowser.newPage();
+  await otherPage.goto(base+workspace,{waitUntil:"domcontentloaded",timeout:45000});
+  deny((await otherPage.getByRole("button",{
+    name:"緊急非公開＋R18訂正"
+  }).count())===0 &&
+    !(await otherPage.content()).includes("STALE OLD WORKSPACE MUST NOT SAVE"),
+    "real nonowner browser cannot operate owner's publication controls");
+  activePage.once("dialog",dialog=>dialog.accept());
+  const emergencyResponse=activePage.waitForResponse(response=>
+    response.url()===base+"/api/series/"+seriesId+"/content-rating" &&
+    response.request().method()==="POST",{timeout:25000});
+  await emergencyButton.click();
+  const clicked=await emergencyResponse,clickedPayload=await clicked.json();
+  pass(clicked.status()===200&&clickedPayload.ok===true&&
+    clickedPayload.publicationStatus==="private"&&
+    clickedPayload.publicMediaStatus==="unverified"&&
+    clickedPayload.warnings?.includes("sexual_r18"),
+    "real browser confirm triggered owner-only Next POST and truthful media HOLD");
+  const afterClick=await state();
+  pass(afterClick.publication_status==="private"&&afterClick.content_rating==="r18",
+    "real browser click committed PRIVATE+R18 via GoTrue/PostgREST");
+  // The second owner tab loaded while the DB still said PUBLIC. Its form
+  // must reject (not silently re-publish) even though it has a valid session.
+  await stalePage.getByRole("button",{
+    name:"作品ワークスペースを保存"
+  }).click();
+  await stalePage.getByText(
+    "作品の公開状態が別の操作で変更された。古い状態を上書きしないため保存を停止した。画面を再読み込みして確認してください。",
+    {exact:true}
+  ).waitFor({state:"visible",timeout:30000});
+  deny((await state()).publication_status==="private",
+    "old owner browser tab received actual publication CAS conflict without republish");
+  await activePage.reload({waitUntil:"domcontentloaded",timeout:45000});
+  await activePage.getByRole("heading",{
+    name:"作品ワークスペース"
+  }).waitFor({state:"visible",timeout:25000});
+  const refreshedCard=activePage.getByRole("button",{name:/公開状態/u}).first();
+  pass((await refreshedCard.innerText()).includes("非公開"),
+    "fresh author browser UI reflects PRIVATE work state");
+  await refreshedCard.click();
+  deny((await activePage.getByRole("button",{
+    name:"緊急非公開＋R18訂正"
+  }).count())===0,
+    "no second emergency-public action remains on freshly PRIVATE workspace");
+  await ownerBrowser.close();
+  await otherBrowser.close();
+  await browser.close();
+  browser=null;
+  console.log("PASS: #137 actual LOCAL Chromium 2-owner-tab and other-owner Write UI, "+
+    "dialog-confirm emergency, true SSR cookies, publication CAS rejection, refreshed PRIVATE UI");
   const emergency=await post({...standard,emergencyUnpublish:true},owner.cookie());
   assert.equal(emergency.status,200,
     "real Next owner HTTP emergency must succeed, status="+emergency.status+
@@ -457,6 +557,7 @@ try {
   console.log("RISK: successfully withdrawn DB source does NOT revoke old Public Storage URL");
   console.log("LIMIT: LOCAL Next Reader/Search HTML fail-close is NOT hosted CDN/browser, p95 or cache consistency across pods");
 } finally {
+  if(browser){try{await browser.close()}catch{}}
   if(next?.pid){
     try{process.kill(-next.pid,"SIGTERM")}catch{}
     for(let i=0;i<18;i++){

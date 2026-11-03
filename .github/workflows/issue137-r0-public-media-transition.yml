@@ -104,9 +104,10 @@ jobs:
       github.event.pull_request.head.ref == 'fix/issue137-r18-public-media-transition-minimal'
     needs: postgres17-synthetic-negative
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       DO_NOT_CONTACT_PRODUCTION: 'true'
+      R0_OWNER_UI_BROWSER: 'enabled'
       CI: 'true'
     steps:
       - uses: actions/checkout@v4
@@ -134,6 +135,13 @@ jobs:
           test -z "${SUPABASE_ACCESS_TOKEN:-}"
       - name: Install exact locked app SDK for REAL LOCAL Storage HTTP
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install temporary pinned Chromium test runner (non-shipped, no lockfile mutation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node -e "require('playwright').chromium || process.exit(1)"
       - name: Exercise genuine AI writer CAS, Human owner fence and preview publication guard (isolated SOURCE)
         shell: bash
         run: |
