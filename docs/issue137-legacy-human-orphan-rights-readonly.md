@@ -1,0 +1,36 @@
+# Issue #137 — six legacy public Human-prefixed Storage objects (READ-ONLY evidence)
+
+**Status:** RIGHTS_UNKNOWN / OWNERSHIP_UNPROVEN / NO_REPUBLICATION / NO_AUTOMATIC_DELETE. Snapshot **2026-11-03**. Scope is metadata-only investigation under the owner's permission for Issue #137 / Draft PR #160. No original audio, timing JSON payload, user emails, raw object paths, auth tokens, object bytes, publication state, rights flags, Storage or database rows were read or changed beyond selected metadata.
+
+Repeatable source: \`scripts/issue137-b2/r0-legacy-human-orphans-readonly.sql\`, run against the **already connected** hosted project using \`BEGIN READ ONLY\`/ \`ROLLBACK\`. It emits only 12-char *path-derived* grouping aliases, structural counts and provenance booleans. The aliases are for local correlation, **not** content SHA-256, private identifiers, author signatures or rights attestations. Recalculate before any authorized later action, never use an old snapshot as an object-level deletion manifest.
+
+## Grounded current metadata
+
+| Group alias (not private identifier) | First/last Storage metadata date | Asset shapes | Metadata-reported total | Existing Storage owner or user_metadata rights |
+| --- | --- | --- | ---: | --- |
+| \`2696577da1c4\` | 2026-04-10 | 1 .webm / 1 .m4a / 1 .json | 2,106,163 bytes | None |
+| \`47af80bf2787\` | 2026-04-15 | 1 .webm / 1 .m4a / 1 .json | 4,568,844 bytes | None |
+
+- **6 objects / 2 upload groupings** in bucket \`recording-audio\`, which is **PUBLIC**. All 6 paths structurally contain UUID-formatted series/episode/actor segments. The two scopes name **one distinct series UUID, two distinct episode UUIDs and the same actor UUID**, but **no live \`public.series\` nor \`public.episodes\` row matches**. This prevents validation of work ownership, episode rights or original publication approval. All six \`storage.objects.owner\` and \`owner_id\` are null; \`user_metadata\` is empty. Storage system metadata contains transfer fields such as size, MIME type, ETag and cache control, **not a proven license/rights/consent declaration**.
+- The actor UUID currently resolves to one \`auth.users\` row and one \`public.users\` row with role \`author\`. **This only establishes current account continuity**, not authorship of the deleted/missing series, ownership of the sound recordings, any explicit audio license or right to distribute them.
+- The retained consent table has **one** \`recording_studio_global\` row for that actor with current version \`2026-04-16\` and a recorded consent timestamp **2026-04-22**. This is **after both** assets' Storage creation dates (April 10 and 15). **No contemporaneous consent is proven by the current row.** The existence of a later consent does not prove the actor lacked earlier permission: lost earlier revisions, paper agreements and historical logs were **not** inspected. Both conclusions (“consented at the time” and “had no consent”) remain unjustified.
+- No current \`recordings.audio_storage_path\` reference, \`series_recording_requests\` record for either series/actor scope, or recording row from the scoped episode is available as provenance. Missing live records are **absence of evidence, not proof of unlawful use**. No user messages or account data were collected, and no contact was initiated.
+- No media bytes or JSON body, cryptographic object-content hash, waveform or narration identity were examined. **Metadata size is not an independently checked file length/byte checksum.** A public Storage bucket means objects are potentially directly addressable even if no app recording row references them; no attempt was made to fetch their public URLs or purge a CDN.
+
+## Risk assessment and custody gate
+
+**Observed evidence:** historic physical objects survive in the public bucket; current series/episode rows absent; owner metadata null; one matching actor profile and post-dated recorded consent; two orphaned three-file groups.
+
+**Not established:** creator/narrator identity; rights to underlying text/edition, performance, recording, transcription and timing manifest; source episode ownership; historical consent and its terms at upload; intended publication audience; whether an earlier notice/takedown was issued; current CDN caches and signed links.
+
+**Conclusion:** \`RIGHTS_UNKNOWN\`, \`PUBLIC_ORIGIN_POTENTIALLY_REACHABLE\`, \`NO_AUTO_DELETE\`, \`NO_AUTO_REPUBLISH\`. Do not treat a username/UUID in an object path, later consent, or the “Human” label as an ownership or copyright declaration. Keep the six objects on a **separate two-scope rights HOLD** rather than categorizing the 2,443 unreferenced public-bucket objects as deletable.
+
+**Only after separately authorized evidence collection / decisions:** identify approved original author and narration rights holders and original record of consent/permissions; review contemporaneous per-episode source and recorded rights terms (without exposing personal data in a public issue); decide exact object-level retention, restricted backup, takedown and notification under appropriate independent rights/security review; record exact cohort/bytes/approval in restricted audit evidence; verify DB+Storage/CDN consequences and private restore. Do not infer the right to delete from ownership uncertainty. Do not use mass delete, rename history, move the whole bucket PRIVATE or contact the actor without a separately approved process.
+
+## Parallel privileged-media path findings / release HOLD
+
+Supabase's current [S3 authentication documentation](https://supabase.com/docs/guides/storage/s3/authentication) states that **permanent S3 access keys bypass RLS**, and [Storage access control](https://supabase.com/docs/guides/storage/security/access-control) says a service-role key bypasses RLS for Storage APIs. The Draft B2/R0 DB guard on \`storage.objects\` is intended to stop unsafe public audio **INSERT / UPDATE** even through privileged Storage metadata writes; it does **not** revoke existing public media bytes, guarantee static S3 provider parity, prevent every privileged DELETE, or prove full physical-byte custody.
+
+The existing authoring routes include AI privileged uploads and Human \`createSignedUploadUrl(...,{upsert:true})\` for temporary part paths. A capability token may outlive a source/consent change and cannot be assumed revoked by a separate app-level emergency PRIVATE update. These routes and static S3/direct SQL remain distinct release surfaces; no automatic writer cutover, credential rotation, RLS relaxation, or Production mutation is authorized by this read-only report.
+
+**Required release conditions remain:** static-key authentication positive control plus R18/public/alternate-bucket denial on isolated Storage; separate actual PostgreSQL \`service_role\` direct metadata write/rollback checks; provider/static S3 & multipart/TUS and privileged DELETE/metadata-only-write risks; explicit author/rights decisions; old Public URL/CDN retirement; full real DB+physical bytes restore; independent security/DB/rights GO and exact owner merge/Production approvals.
