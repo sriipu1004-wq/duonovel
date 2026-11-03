@@ -119,6 +119,52 @@ assert.equal((await service.from("episodes").insert({
  body:r18Body,posting_status:"posted",is_published:true
 })).error,null,"seed posted age-gated R18 episode");
 
+// Protected media, actors and object names are disposable LOCAL-only fixtures.
+const aiMediaId=id();
+const aiPath="nemo/"+r18SeriesId+"/"+r18EpisodeId+"/"+id()+".wav";
+assert.equal((await service.storage.from("r18-recording-audio").upload(aiPath,bytes,{
+ contentType:"audio/wav",upsert:false,cacheControl:"0"
+})).error,null,"seed private AI media bytes");
+assert.equal((await service.from("recordings").insert({
+ id:aiMediaId,series_id:r18SeriesId,episode_id:r18EpisodeId,
+ voice_model_id:"nemo",is_public:true,audio_storage_path:"r18-private:"+aiPath
+})).error,null,"seed AI-only recording pointer");
+const humanMediaId=id();
+const humanPath="human/"+r18SeriesId+"/"+r18EpisodeId+"/"+other.id+
+ "/"+id()+"/playback-from-nemo.m4a";
+assert.equal((await service.storage.from("human-recording-audio").upload(humanPath,bytes,{
+ contentType:"audio/mp4",upsert:false,cacheControl:"0"
+})).error,null,"seed private Human media bytes");
+assert.equal((await service.from("user_recording_consents").insert({
+ user_id:other.id,consent_key:"recording_studio_global",consent_version:"2026-04-16"
+})).error,null,"seed narrator's current consent");
+assert.equal((await service.from("recordings").insert({
+ id:humanMediaId,series_id:r18SeriesId,episode_id:r18EpisodeId,
+ is_public:true,reader_id:other.id,reader_user_id:other.id,
+ reader_name:"Synthetic Human",audio_storage_path:humanPath
+})).error,null,"seed Human-only recording pointer");
+
+// Narrator identity is not a substitute for author-owned PRIVATE source RLS.
+const privateSeriesId=id(),privateEpisodeId=id(),privateHumanId=id();
+const privateHumanPath="human/"+privateSeriesId+"/"+privateEpisodeId+
+ "/"+other.id+"/"+id()+"/playback-from-nemo.m4a";
+assert.equal((await service.from("series").insert({
+ id:privateSeriesId,author_id:owner.id,title:"R0 PRIVATE SYNTHETIC",
+ publication_status:"private",recording_permission_mode:"open"
+})).error,null,"seed PRIVATE work of another author");
+assert.equal((await service.from("episodes").insert({
+ id:privateEpisodeId,series_id:privateSeriesId,episode_number:1,
+ posting_status:"draft",is_published:false
+})).error,null,"seed nonpublished PRIVATE episode");
+assert.equal((await service.storage.from("human-recording-audio").upload(privateHumanPath,bytes,{
+ contentType:"audio/mp4",upsert:false,cacheControl:"0"
+})).error,null,"seed private narrator bytes");
+assert.equal((await service.from("recordings").insert({
+ id:privateHumanId,series_id:privateSeriesId,episode_id:privateEpisodeId,
+ is_public:false,reader_id:other.id,reader_user_id:other.id,
+ reader_name:"Synthetic Human",audio_storage_path:privateHumanPath
+})).error,null,"seed draft private Human pointer");
+
 // These are direct authority reads by the test harness only.
 async function state(){
   const r=await service.from("series")
@@ -138,6 +184,13 @@ async function getPage(path,cookie=""){
     headers:{"cache-control":"no-cache",...(cookie?{cookie}:{})},
     signal:AbortSignal.timeout(20000)});
   return {status:r.status,body:await r.text()};
+}
+async function getMedia(path,cookie="",range=""){
+ const response=await fetch(base+path,{redirect:"error",cache:"no-store",
+ headers:{"cache-control":"no-store",...(cookie?{cookie}:{}),
+ ...(range?{range}:{})},signal:AbortSignal.timeout(20000)});
+ return {status:response.status,headers:response.headers,
+ bytes:Buffer.from(await response.arrayBuffer())};
 }
 async function post(payload,cookie){
   const r=await fetch(base+"/api/series/"+seriesId+"/content-rating",{
@@ -221,6 +274,48 @@ try {
   pass(r18AuthorizedReader.status===200&&
     r18AuthorizedReader.body.includes(r18Body),
     "authenticated opted-in R18 reader sees actual Reader body");
+  pass(r18AuthorizedReader.body.includes("/api/recordings/ai-audio/"+aiMediaId),
+    "actual signed-in Reader exposes only the protected AI endpoint");
+  pass(r18AuthorizedReader.body.includes("/api/recordings/human-audio/"+humanMediaId),
+    "Human playback remains offered after raw-path projection");
+  deny(!r18AuthorizedReader.body.includes("r18-private:"+aiPath) &&
+    !r18AuthorizedReader.body.includes(humanPath),
+    "Reader HTML/RSC does not expose private Storage object paths");
+  const aiHref="/api/recordings/ai-audio/"+aiMediaId;
+  const humanHref="/api/recordings/human-audio/"+humanMediaId;
+  const aiAnon=await getMedia(aiHref);
+  deny(aiAnon.status===404&&aiAnon.bytes.length===0,
+    "anonymous cannot read R18 AI private bytes");
+  const humanAnon=await getMedia(humanHref);
+  deny(humanAnon.status===404&&humanAnon.bytes.length===0,
+    "anonymous cannot read R18 Human private bytes");
+  const aiAllowed=await getMedia(aiHref,other.cookie());
+  pass(aiAllowed.status===200&&sha(aiAllowed.bytes)===sha(bytes)&&
+    !aiAllowed.headers.has("location") &&
+    (aiAllowed.headers.get("cache-control")||"").includes("no-store"),
+    "current age-confirmed opted-in reader streams PRIVATE AI bytes without a bearer URL");
+  const humanAllowed=await getMedia(humanHref,other.cookie());
+  pass(humanAllowed.status===200&&sha(humanAllowed.bytes)===sha(bytes)&&
+    !humanAllowed.headers.has("location") &&
+    (humanAllowed.headers.get("cache-control")||"").includes("no-store"),
+    "current-consent narrator streams PRIVATE Human bytes without a bearer URL");
+  const aiRange=await getMedia(aiHref,other.cookie(),"bytes=0-15");
+  pass(aiRange.status===206&&aiRange.bytes.equals(bytes.subarray(0,16))&&
+    /^bytes 0-15\/64$/.test(aiRange.headers.get("content-range")||""),
+    "PRIVATE AI Range returns only requested bytes");
+  const humanRange=await getMedia(humanHref,other.cookie(),"bytes=0-15");
+  pass(humanRange.status===206&&humanRange.bytes.equals(bytes.subarray(0,16)),
+    "PRIVATE Human Range returns only requested bytes");
+  const narratorOnly=await getMedia(
+    "/api/recordings/human-audio/"+privateHumanId,other.cookie());
+  deny(narratorOnly.status===404&&narratorOnly.bytes.length===0,
+    "narrator UUID and consent cannot bypass a different author's PRIVATE draft RLS");
+  deny((await getMedia("/api/recordings/human-audio/"+aiMediaId,other.cookie())).status===404,
+    "AI row cannot cross to Human route");
+  deny((await getMedia("/api/recordings/ai-audio/"+humanMediaId,other.cookie())).status===404,
+    "Human row cannot cross to AI route");
+  deny((await getMedia(aiHref,other.cookie(),"bytes=0-1,4-5")).status===416,
+    "multipart Range is rejected, never degraded to full-object streaming");
   // Revoke only R18 opt-in; use SAME cookie, SAME Next process and the
   // previously warmed Search to catch stale session/profile/cache results.
   assert.equal((await service.from("users").update({
@@ -235,6 +330,10 @@ try {
   const r18RevokedReader=await getPage(r18ReaderPath,other.cookie());
   deny(!r18RevokedReader.body.includes(r18Body),
     "R18 preference revocation hides Reader body");
+  deny((await getMedia("/api/recordings/ai-audio/"+aiMediaId,other.cookie())).status===404,
+    "same-cookie R18 opt-out denies private AI on next request");
+  deny((await getMedia("/api/recordings/human-audio/"+humanMediaId,other.cookie())).status===404,
+    "same-cookie R18 opt-out denies private Human on next request");
   const initialSearch=await getPage(searchPath);
   pass(initialSearch.status===200&&initialSearch.body.includes(syntheticTitle),
     "Search actual HTTP must show the synthetic published work before withdrawal; HTTP "+

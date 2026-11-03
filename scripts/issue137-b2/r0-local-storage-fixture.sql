@@ -22,6 +22,7 @@ create table public.series (
   effect_settings jsonb not null default '{}'::jsonb,
   source_language text not null default 'ja',
   translation_permission_mode text not null default 'open',
+  recording_permission_mode text not null default 'open',
   publication_status text not null default 'public',
   content_rating text not null default 'general',
   content_warnings text[] not null default '{}'::text[],
@@ -55,6 +56,22 @@ create table public.users (
   show_r18_content boolean not null default false,
   r18_confirmed_at timestamptz
 );
+-- Test-only current narrator consent; no hosted user or token.
+create table public.user_recording_consents (
+ user_id uuid not null references auth.users(id),
+ consent_key text not null,
+ consent_version text not null,
+ primary key (user_id,consent_key)
+);
+grant all on public.user_recording_consents to service_role;
+grant select on public.user_recording_consents to authenticated;
+alter table public.user_recording_consents enable row level security;
+create policy r0_narrator_current_consent on public.user_recording_consents
+ for select to authenticated using (user_id=(select auth.uid()));
+insert into storage.buckets(id,name,public)
+ values('human-recording-audio','human-recording-audio',false)
+ on conflict(id) do nothing;
+
 create table public.episode_human_translations (
   id uuid primary key,
   series_id uuid not null references public.series(id),
