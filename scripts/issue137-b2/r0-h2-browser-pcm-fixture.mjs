@@ -10,9 +10,9 @@ export function makeWav(){
  b.writeUInt32LE(32000,24);b.writeUInt32LE(128000,28);
  b.writeUInt16LE(4,32);b.writeUInt16LE(16,34);
  b.write("data",36);b.writeUInt32LE(n,40);
- const amp=[0,.4,.13,.45,.08,.38,0,.42,.15,.36];
+ const amp=[0,0,0,.45,.12,.40,.08,.35,.28,.44,0,0,0,.38,.11,.41,.09,.37,.21,.42];
  for(let i=0;i<n/4;i++){
-  const v=Math.round(Math.sin(2*Math.PI*610*i/32000)*amp[Math.floor(i/3200)%10]*32767);
+  const v=Math.round(Math.sin(2*Math.PI*610*i/32000)*amp[Math.floor(i/3200)%amp.length]*32767);
   b.writeInt16LE(v,44+i*4);b.writeInt16LE(v,46+i*4);
  }
  assert.ok(b.length>8*1024*1024);
