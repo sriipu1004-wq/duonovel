@@ -49,6 +49,7 @@ on:
       - "scripts/issue137-b2/r0-legacy-human-orphans-readonly.sql"
       - "docs/issue137-legacy-human-orphan-rights-readonly.md"
       - "scripts/issue137-b2/r0-public-origin-cohorts-readonly.sql"
+      - "scripts/issue137-b2/r0-detached-rights-provenance-readonly.sql"
       - "docs/issue137-public-origin-containment-cohorts.md"
       - "src/lib/recording/humanRecordingAtomic.ts"
       - "src/app/actions/saveOwnedSeriesWorkspace.ts"
@@ -186,6 +187,9 @@ jobs:
           grep -Fq 'begin read only;' scripts/issue137-b2/r0-public-origin-cohorts-readonly.sql
           grep -Fq 'rollback;' scripts/issue137-b2/r0-public-origin-cohorts-readonly.sql
           grep -Fq 'RIGHTS_UNKNOWN_METADATA_ONLY_HOLD' scripts/issue137-b2/r0-public-origin-cohorts-readonly.sql
+          grep -Fq 'BEGIN READ ONLY;' scripts/issue137-b2/r0-detached-rights-provenance-readonly.sql
+          grep -Fq 'ROLLBACK;' scripts/issue137-b2/r0-detached-rights-provenance-readonly.sql
+          grep -Fq 'RIGHTS_UNKNOWN_NO_PUBLICATION_NO_MOVE_NO_DELETE' scripts/issue137-b2/r0-detached-rights-provenance-readonly.sql
           node scripts/issue137-b2/r0-b2-h1-render-single-local.mjs --self-test
           docker info >/dev/null
           test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
