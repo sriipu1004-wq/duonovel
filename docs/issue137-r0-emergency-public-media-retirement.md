@@ -20,7 +20,7 @@ Current hosted **metadata-only** snapshot (2026-11-03): 2,277 public recording U
 
 ## P0 emergency logical withdrawal (requires deployed, audited endpoint/DB guards first)
 
-1. **Owner and source:** authenticate the current owner; validate the existing series, role, current warning locks, requested rating and episode scope. Fail closed on ambiguous ownership and stale version. The request contains a strict boolean `emergencyUnpublish:true`; no automatic public→private promotion from ordinary rating edits.
+1. **Owner and source:** authenticate the current owner; validate the existing series, role, current warning locks, requested rating and episode scope. Fail closed on ambiguous ownership. A reliable stale-version/optimistic lock is NOT implemented in this candidate and remains a pre-release acceptance gap. The request contains a strict boolean `emergencyUnpublish:true`; no automatic public→private promotion from ordinary rating edits.
 2. **Single DB write:** set `publication_status='private'` and requested rating/warnings in **one** owner-scoped UPDATE. Existing PUBLIC objects cannot block this database correction. On DB error, report failure and re-read current state; never say it persisted. Note that other authorized source-update routes also need review against this guard and caching.
 3. **Site/cache:** invalidate `public-base-work-cards` and the specific Work page path; verify direct anonymous public Work/Search/Reader, API and cache behavior against fresh DB authority. Cache errors after persistence must respond `persisted:true` (a failed cache purge does not roll back DB), flag for incident response and **keep work PRIVATE**. The candidate route has no UI entry yet; availability to actual owners is **unverified**.
 4. **Record a separate open media-retirement incident:** `publicMediaStatus='unverified'`, exact prospective object cohort *not yet authorized*, reversible after approval. Warn responders that existing public URLs can remain reachable. Do not log object paths, URLs, ownership secrets or audio contents into broad public comments.
@@ -28,7 +28,7 @@ Current hosted **metadata-only** snapshot (2026-11-03): 2,277 public recording U
 
 ### P0 negative conditions (nonproduction)
 
-- Anonymous, non-owner, invalid payload flag, withdrawn consent, stale version or unknown series cannot use emergency mode.
+- Anonymous, non-owner, invalid payload flag or unknown series cannot use emergency mode. **Current narration consent must NOT be a condition for the work owner to stop publication.** A stale-concurrent-author-update negative still requires implementation and integrated testing.
 - A public source with old media can be withdrawn and simultaneously R18-corrected, without deleting an object; an episode can be unpublished. Re-publish/restore and new PUBLIC media fail while any legacy origin or recording URL reference remains.
 - A failed DB UPDATE cannot report success; an invalidated-cache failure with a committed UPDATE cannot report `persisted:false`.
 - A successful private DB state must never be presented as a successful CDN/media erasure.
