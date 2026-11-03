@@ -48,6 +48,8 @@ on:
       - "scripts/issue137-b2/r0-signed-upload-revocation-local-e2e.mjs"
       - "scripts/issue137-b2/r0-legacy-human-orphans-readonly.sql"
       - "docs/issue137-legacy-human-orphan-rights-readonly.md"
+      - "scripts/issue137-b2/r0-public-origin-cohorts-readonly.sql"
+      - "docs/issue137-public-origin-containment-cohorts.md"
       - "src/lib/recording/humanRecordingAtomic.ts"
       - "src/app/actions/saveOwnedSeriesWorkspace.ts"
       - "src/features/write/WriteSeriesForm.tsx"
@@ -181,6 +183,9 @@ jobs:
           grep -Fq 'begin read only;' scripts/issue137-b2/r0-legacy-human-orphans-readonly.sql
           grep -Fq 'rollback;' scripts/issue137-b2/r0-legacy-human-orphans-readonly.sql
           grep -Fq 'RIGHTS_AND_CONSENT_UNPROVEN_NO_PUBLICATION_NO_DELETION' scripts/issue137-b2/r0-legacy-human-orphans-readonly.sql
+          grep -Fq 'begin read only;' scripts/issue137-b2/r0-public-origin-cohorts-readonly.sql
+          grep -Fq 'rollback;' scripts/issue137-b2/r0-public-origin-cohorts-readonly.sql
+          grep -Fq 'RIGHTS_UNKNOWN_METADATA_ONLY_HOLD' scripts/issue137-b2/r0-public-origin-cohorts-readonly.sql
           node scripts/issue137-b2/r0-b2-h1-render-single-local.mjs --self-test
           docker info >/dev/null
           test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
