@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - "scripts/issue137-b2/r0-public-media-transition-candidate.sql"
+      - "scripts/issue137-b2/r0-b2-unified-local-candidate.sql"
       - "scripts/issue137-b2/r0-public-media-transition-local-test.sql"
       - "scripts/issue137-b2/r0-local-storage-fixture.sql"
       - "scripts/issue137-b2/r0-local-storage-e2e.mjs"
