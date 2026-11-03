@@ -9,6 +9,52 @@
 -- Issue #137 B2 DRAFT candidate. Not authorized for hosted/Production execution.
 -- Requires independent live policy review, data inventory and explicit release consent.
 begin;
+-- All-or-nothing prototype. Short lock timeout avoids silently pinning
+-- Production traffic if this were ever adapted into an approved migration.
+-- It has NOT been approved or adapted for live execution.
+set local lock_timeout = '5s';
+set local statement_timeout = '120s';
+
+-- Never overwrite an older B2/R0 installation or arbitrary security policy.
+-- A failed preflight rolls the entire candidate transaction back. These checks
+-- do NOT attest to media rights, CDN recall, data migrations or live schema parity.
+do $issue137_preflight$
+begin
+ if exists (
+  select 1 from pg_catalog.pg_trigger t
+  join pg_catalog.pg_class c on c.oid=t.tgrelid
+  join pg_catalog.pg_namespace n on n.oid=c.relnamespace
+  where not t.tgisinternal
+    and (t.tgname like 'issue137_b2_%' or t.tgname like 'issue137_r0_%')
+    and (n.nspname='public' or n.nspname='storage')
+ ) then
+  raise exception using errcode='23514',
+    message='ISSUE137_ALREADY_INSTALLED_TRIGGER_HOLD';
+ end if;
+ if exists (
+  select 1 from pg_catalog.pg_policies
+  where policyname like 'issue137_b2_%'
+ ) then
+  raise exception using errcode='23514',
+    message='ISSUE137_ALREADY_INSTALLED_RLS_HOLD';
+ end if;
+ if pg_catalog.to_regprocedure('public.libread_public_catalog_revision()') is not null
+    or pg_catalog.to_regprocedure('libread_internal.guard_series_media_transition()') is not null
+ then
+  raise exception using errcode='23514',
+    message='ISSUE137_EXISTING_FUNCTION_COLLISION_HOLD';
+ end if;
+ if exists (
+  select 1 from storage.buckets b
+  where b.id in ('r18-recording-audio','human-recording-audio')
+    and b.public is true
+ ) then
+  raise exception using errcode='23514',
+    message='ISSUE137_PROTECTED_BUCKET_ALREADY_PUBLIC_HOLD';
+ end if;
+end
+$issue137_preflight$;
+
 create schema if not exists libread_internal;
 revoke all on schema libread_internal from public, anon, authenticated;
 grant usage on schema libread_internal to anon, authenticated;
