@@ -146,6 +146,11 @@ psql -X "$R0_DB_URL" -v ON_ERROR_STOP=1 \
   -f "$R0/r0-h2-local-advance-expiry-only.sql" \
  | grep -F "ISSUE137_H2_DISPOSABLE_EXPIRY_SIMULATED" >/dev/null
 node scripts/issue137-b2/r0-h2-local-retirement-e2e.mjs
+# Explicit residual legacy namespace risk; never silently label it H2-safe.
+node scripts/issue137-b2/r0-h2-legacy-signed-path-local-e2e.mjs
+# Expiration simulation is constrained to a disposable local DB URL.
+R0_LOCAL_DB_URL="$R0_DB_URL" \
+  node scripts/issue137-b2/r0-h2-active-expired-token-local-e2e.mjs
 # Actual Next.js route over local HTTP + real SSR-cookie sessions.
 # Never pass R0_SERVICE_KEY (or any privileged key) into the spawned app.
 node scripts/issue137-b2/r0-next-http-e2e.mjs
