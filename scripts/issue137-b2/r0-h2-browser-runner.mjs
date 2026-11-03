@@ -1,5 +1,6 @@
 // H2 full Chromium multipart+failure flow, ephemeral only.
 import assert from "node:assert/strict";
+import {createClient} from "@supabase/supabase-js";
 import {makeWav,makeWork} from "./r0-h2-browser-pcm-fixture.mjs";
 import {browserSuccess} from "./r0-h2-browser-positive.mjs";
 import {browserInterrupt} from "./r0-h2-browser-interrupt.mjs";
@@ -13,16 +14,22 @@ export async function runH2BrowserMultipart(args){
   consent_version:"2026-04-16"
  });
  assert.equal(accepted.error,null,"local owner consent fixture");
- // The disposable R0 candidate deliberately denies authenticated SELECT
- // on users.display_name (42501). The real Studio supports the independent
- // GoTrue user_metadata display_name fallback. Populate ONLY this synthetic
- // local account; do not loosen RLS or impersonate a production narrator.
- const updated=await args.service.auth.admin.updateUserById(args.owner.id,{
-  user_metadata:{display_name:"H2 SYNTHETIC LOCAL NARRATOR"}
- });
- assert.equal(updated.error,null,"local GoTrue test narrator metadata");
- assert.equal(updated.data?.user?.user_metadata?.display_name,
-  "H2 SYNTHETIC LOCAL NARRATOR");
+ // Real signed JWT with hosted-shaped SELECT grant + owner-only RLS:
+ // do not rescue the fixture with synthetic GoTrue user_metadata.
+ const own=await args.owner.db.from("users")
+  .select("id,display_name").eq("id",args.owner.id).single();
+ assert.equal(own.error,null,"owner JWT can SELECT their own profile");
+ assert.equal(own.data?.id,args.owner.id);
+ assert.ok(own.data?.display_name?.trim(),"owner name must come from RLS row");
+ const foreign=await args.other.db.from("users")
+  .select("id,display_name").eq("id",args.owner.id);
+ assert.equal(foreign.error,null,"other JWT query succeeds with zero owner rows");
+ assert.equal(foreign.data?.length,0,"other JWT cannot read owner's profile");
+ const anonymous=createClient(args.api,args.anonKey,{
+  auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+ const denied=await anonymous.from("users").select("id").eq("id",args.owner.id);
+ assert.ok(denied.error||denied.data?.length===0,
+  "anonymous must never read signed-in owner's profile");
  const audio=makeWav();
  const full=await makeWork(args.service,args.owner.id,"FULL");
  // Test fixture MUST be visible through the same signed-in owner RLS client
@@ -37,9 +44,9 @@ export async function runH2BrowserMultipart(args){
    ownerEpisodePosted:episodeRows.data?.[0]?.posting_status??null,
    ownerReaderNamePresent:Boolean(author.data?.display_name?.trim()),
    ownerReaderNameError:author.error?.code??null,
-   syntheticGoTrueDisplayNamePresent:Boolean(
-    updated.data?.user?.user_metadata?.display_name?.trim())
+   otherCannotSelectOwner:true,anonymousCannotSelectOwner:true
  }));
+ assert.ok([undefined,"preview-hold"].includes(process.env.R0_H1_BROWSER_PHASE));
  await browserSuccess({...args,audio,work:full});
  await browserInterrupt({...args,audio,
   work:await makeWork(args.service,args.owner.id,"CUT")});

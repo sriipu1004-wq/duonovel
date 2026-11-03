@@ -86,6 +86,9 @@ grant all on public.series,public.episodes,public.recordings,
 grant select on public.series,public.episodes,public.recordings to anon;
 grant select,update on public.series,public.episodes to authenticated;
 grant select on public.recordings to authenticated;
+-- Mirror observed hosted metadata: signed-in users have SELECT but RLS
+-- users_select_own limits actual rows to id=auth.uid(). Anon is not granted.
+grant select on public.users to authenticated;
 
 alter table public.series enable row level security;
 alter table public.episodes enable row level security;

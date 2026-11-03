@@ -142,6 +142,16 @@ begin
         new.name is distinct from old.name) then
   raise exception using errcode='42501',message='H2_STAGE_PATH_IMMUTABLE';
  end if;
+ -- Previously minted signed bearer tokens on the legacy /human/ multipart
+ -- namespace would otherwise write after consent or source withdrawal.
+ -- Deny ONLY the former canonical multipart part naming shape. Legitimate
+ -- original/playback/timing final media names are outside this pattern.
+ -- This is not a cryptographic token revocation or a deny of arbitrary
+ -- historical /human/ names. Existing objects are never deleted here.
+ if new.bucket_id='human-recording-audio' and
+    new.name ~ '^human/[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}/part-[0-9]{4}\.[a-z0-9]{2,8}$' then
+  raise exception using errcode='42501',message='H2_LEGACY_MULTIPART_NEW_WRITE_HOLD';
+ end if;
  if new.bucket_id<>'human-recording-audio'
     or new.name not like 'human-temp/%' then return new; end if;
  if new.name !~ '^human-temp/[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}/part-[0-9]{4}\.[a-z0-9]{2,8}$' then

@@ -53,12 +53,18 @@ export async function browserSuccess({context,base,service,audio,work}){
   // recording revision MUST fail closed without publishing any row. This
   // does NOT validate final normalization, paid ASR or publication.
   assert.equal(reply.status(),500,
-   "no first-stage H1 RPC: finalize must fail closed, HTTP "+reply.status());
+   "finalize must fail closed without approved ASR, HTTP "+reply.status());
   assert.equal(body.ok,false);
-  assert.ok(typeof body.error==="string" &&
-    body.error.startsWith("human_atomic_revision_unavailable:") &&
-    body.error.includes("issue137_h1_human_revision"),
-    "the exact missing-H1 RPC safety gate must block publication");
+  const h1Enabled=process.env.R0_H1_BROWSER_PHASE==="preview-hold";
+  if(h1Enabled){
+   assert.equal(body.error,"F2P_PREVIEW_PUBLIC_MEDIA_HOLD",
+    "installed H1 must advance to explicit pre-ASR media-write HOLD");
+  }else{
+   assert.ok(typeof body.error==="string" &&
+     body.error.startsWith("human_atomic_revision_unavailable:") &&
+     body.error.includes("issue137_h1_human_revision"),
+     "without H1, the exact missing-RPC safety gate must block publication");
+  }
   assert.equal(session?.parts?.length,2,">8MiB must create two parts");
   assert.equal(session.parts[0].expectedSizeBytes,8*1024*1024);
   for(const part of session.parts){
@@ -74,9 +80,10 @@ export async function browserSuccess({context,base,service,audio,work}){
    .eq("series_id",work.series).eq("episode_id",work.episode);
   assert.equal(linked.error,null);
   assert.equal(linked.data?.length,0,"no transcription means no Human publication");
-  console.log("PASS: H2 REAL Chromium >8MiB 2-part signed PUT, "+
-   "2/2 PRIVATE SHA256, no Human row when stage-one H1 RPC unavailable");
-  console.log("HOLD: first-stage lacks H1; B2/H1/H2 forward SQL separately"+
-   " validated in stage two, not an end-to-end published/ASR success");
+  console.log("PASS: H2 real Chromium >8MiB 2-part signed PUT, 2/2 PRIVATE SHA256; "+
+   (h1Enabled?"H1 installed, explicit F2P pre-ASR hold":"missing H1 RPC fail-closed")+
+   "; zero Human recording rows");
+  console.log("HOLD: no paid ASR, transcription, alignment or publication;"+
+   " local fixtures cannot prove hosted rights/old Public URL revocation");
  }finally{await page.close();}
 }

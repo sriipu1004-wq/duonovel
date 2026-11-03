@@ -20,7 +20,7 @@ for(const [table,row] of [
  ["episodes",{id:eid,series_id:sid,episode_number:1,posting_status:"posted",is_published:true}],
  ["user_recording_consents",{user_id:actor,consent_key:"recording_studio_global",consent_version:"2026-04-16"}]
 ])assert.equal((await admin.from(table).insert(row)).error,null,table);
-const key="human/"+sid+"/"+eid+"/"+actor+"/"+id()+"/stale-part.webm";
+const key="human/"+sid+"/"+eid+"/"+actor+"/"+id()+"/part-0001.webm";
 const sign=await admin.storage.from("human-recording-audio").createSignedUploadUrl(key,{upsert:false});
 assert.equal(sign.error,null,"legacy bearer before withdrawal");
 assert.ok(sign.data.token.length>15);
@@ -31,14 +31,23 @@ assert.equal((await admin.from("series").update({publication_status:"private",
 const original=Buffer.from("synthetic legacy old signer still accepted "+id());
 const sent=await anon.storage.from("human-recording-audio")
  .uploadToSignedUrl(key,sign.data.token,original,{contentType:"audio/webm"});
-assert.equal(sent.error,null,"old untracked human/ bearer still stages PRIVATE after revoke");
+assert.ok(sent.error,"pre-H2 canonical multipart token must fail at upload-time DB guard");
 const stored=await admin.storage.from("human-recording-audio").download(key);
-assert.equal(stored.error,null);
-assert.equal(hash(Buffer.from(await stored.data.arrayBuffer())),hash(original));
-assert.ok((await anon.storage.from("human-recording-audio").download(key)).error,
- "legacy PRIVATE object must not be anonymous readable");
+assert.ok(stored.error,"denied legacy token created no PRIVATE multipart bytes");
+// Legitimate final Human original media must remain writable by the server:
+// the legacy HOLD is exact to /part-NNNN.ext only.
+const finalPath="human/"+sid+"/"+eid+"/"+actor+"/"+id()+"/original.webm";
+const finalPut=await admin.storage.from("human-recording-audio").upload(
+ finalPath,original,{contentType:"audio/webm",upsert:false});
+assert.equal(finalPut.error,null,"nonmultipart final original remains writeable");
+const actual=await admin.storage.from("human-recording-audio").download(finalPath);
+assert.equal(actual.error,null);
+assert.equal(hash(Buffer.from(await actual.data.arrayBuffer())),hash(original));
+assert.ok((await anon.storage.from("human-recording-audio").download(finalPath)).error,
+ "legitimate PRIVATE final source remains unreadable to anon");
 const noPublished=await admin.from("recordings").select("id").eq("audio_storage_path",key);
 assert.equal(noPublished.error,null);assert.equal(noPublished.data?.length,0);
-console.log("RISK_LEGACY_SIGNED_HUMAN: pre-H2 human/ bearer survives withdrawal"+
- " for PRIVATE stage, with no publication and no anonymous download");
-console.log("HOLD: old signed token family needs exact runtime inventory/expiry strategy");
+console.log("PASS: pre-H2 signed canonical part-0001.webm denied on disposable"+
+ " Storage; final original.webm still private/writeable for server");
+console.log("HOLD: noncanonical old bearer names, real hosted token expiry,"+
+ " object inventory/CDN and rights are still unverified; no live revocation claim");
