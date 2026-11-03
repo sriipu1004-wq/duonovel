@@ -584,6 +584,32 @@ export function RecordingStudioPage({
     return payload;
   }
 
+  async function abortHumanMultipartLease(args: {
+    sessionId: string;
+    episodeId: string;
+    file: File;
+  }): Promise<boolean> {
+    try {
+      const response = await fetch("/api/recordings/human-upload-abort", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          seriesId,
+          episodeId: args.episodeId,
+          uploadSessionId: args.sessionId,
+          fileName: args.file.name,
+          mimeType: args.file.type,
+          totalSizeBytes: args.file.size,
+        }),
+      });
+      return response.ok;
+    } catch {
+      // A connection loss is not evidence that the lease was canceled.
+      // H2 Storage guard + short expiry must fail-closed independently.
+      return false;
+    }
+  }
+
   async function uploadHumanFileMultipartDirect(args: {
     bucketName: string;
     file: File;
@@ -918,6 +944,11 @@ export function RecordingStudioPage({
     setPublishStatus("publishing");
     setPublishResult(null);
     setPublishMessage("audio 保存 → recordings 接続 → 既存 row 上書き確認を実行中。");
+    // Exactly the server-minted lease for the current file/episode.
+    // Never use this client snapshot as authority to delete Storage objects.
+    let unfinishedMultipart: {
+      sessionId: string; episodeId: string; file: File;
+    } | null = null;
 
     try {
       const file = currentPreviewItem.file;
@@ -934,6 +965,11 @@ export function RecordingStudioPage({
           throw new Error("multipart upload session 情報が足りない。");
         }
 
+        unfinishedMultipart = {
+          sessionId: uploadSession.uploadSessionId,
+          episodeId: selectedEpisode.id,
+          file,
+        };
         setPublishMessage(
           "大きい音源なので、private storageへ分割アップロード中。"
         );
@@ -987,6 +1023,9 @@ export function RecordingStudioPage({
         | null;
 
       if (!response.ok || !payload?.ok) {
+        if (unfinishedMultipart) {
+          await abortHumanMultipartLease(unfinishedMultipart);
+        }
         setPublishStatus("error");
         setPublishResult(payload);
         setPublishMessage(
@@ -997,6 +1036,7 @@ export function RecordingStudioPage({
         return;
       }
 
+      unfinishedMultipart = null;
       const nextReaderName = payload.readerName?.trim() || safeFixedReaderName;
 
       setPublishStatus("success");
@@ -1016,6 +1056,9 @@ export function RecordingStudioPage({
         },
       }));
     } catch (error) {
+      if (unfinishedMultipart) {
+        await abortHumanMultipartLease(unfinishedMultipart);
+      }
       console.error("human publish failed", error);
       setPublishStatus("error");
       setPublishResult(null);
