@@ -196,4 +196,12 @@ export R0_SERVICE_KEY="$(read_env SERVICE_ROLE_KEY)"
 }
 cd "$ROOT"
 node scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs
-echo "PASS: single-file B2/R0+H1 fresh local stack and owner/Human CAS E2E"
+echo "PASS: single-file B2/R0+H1 with selected hosted CHECK/FK shape in fresh local stack"
+R0_DB_URL="$(read_env DB_URL)"
+[[ "$R0_DB_URL" =~ ^postgresql://postgres:[^@]+@127[.]0[.]0[.]1:54322/postgres$ ]] || {
+ echo "BLOCKED: forward repair test may only use fresh local PG" >&2; exit 3
+}
+psql -X "$R0_DB_URL" -v ON_ERROR_STOP=1 \
+ -f "$R0/r0-forward-repair-rehearsal-local.sql" \
+ | grep -F "ISSUE137_LOCAL_FORWARD_REPAIR_SECURITY_PRESERVED" >/dev/null
+echo "PASS: post-COMMIT incident recovered with a narrow forward fix, B2/H1 trigger/policy digests identical"

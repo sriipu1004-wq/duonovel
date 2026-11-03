@@ -26,6 +26,12 @@ async function person(label) {
   email,password:"R0-H1-"+id()+"aA9!",email_confirm:true
  });
  assert.equal(error,null,label);
+ // Hosted series.author_id / recordings.reader_id FKs reference public.users
+ // rather than auth.users. Seed the genuine LOCAL public profile first.
+ const {error:profileError}=await service.from("users").insert({
+  id:data.user.id,display_name:"Synthetic "+label
+ });
+ assert.equal(profileError,null,"seed synthetic FK-backed public.users profile");
  return data.user.id;
 }
 async function insert(table,row,label) {
