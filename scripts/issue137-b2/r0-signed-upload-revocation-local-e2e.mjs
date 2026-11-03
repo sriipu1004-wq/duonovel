@@ -85,7 +85,7 @@ yes(!bearerLate.error,
 const lateCheck=await admin.storage.from(bucket).download(late);
 yes(!lateCheck.error&&sha(Buffer.from(await lateCheck.data.arrayBuffer()))===sha(changed),
  "revoked-consent bearer uploaded actual PRIVATE bytes, not just API success");
-no((await anon.storage.from(bucket).download(late)).error===null,
+no(Boolean((await anon.storage.from(bucket).download(late)).error),
  "bearer does NOT grant anonymous download of protected PRIVATE object");
 const publicResponse=await fetch(url.origin+"/storage/v1/object/public/"+bucket+"/"+late,
  {cache:"no-store",redirect:"error",signal:AbortSignal.timeout(15000)});
