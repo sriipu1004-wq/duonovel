@@ -110,9 +110,14 @@ export R0_LOCAL_URL="$(read_env API_URL)"
 export R0_ANON_KEY="$(read_env ANON_KEY)"
 export R0_SERVICE_KEY="$(read_env SERVICE_ROLE_KEY)"
 export R0_EPHEMERAL_CONFIRM=local-only
+# The synthetic crash/restart journal is local, private and deleted with WORK.
+export R0_WORKSPACE="$WORK"
 # NEVER echo these values.
 cd "$ROOT"
+# Existing single-asset baseline stays intact.
 node scripts/issue137-b2/r0-local-storage-e2e.mjs
+# NEW: 3-object scoped manifest, partial batch stop/resume, PRIVATE restore.
+node scripts/issue137-b2/r0-batch-retirement-local-e2e.mjs
 # Actual Next.js route over local HTTP + real SSR-cookie sessions.
 # Never pass R0_SERVICE_KEY (or any privileged key) into the spawned app.
 node scripts/issue137-b2/r0-next-http-e2e.mjs
