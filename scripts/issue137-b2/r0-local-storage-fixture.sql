@@ -3,6 +3,13 @@
 create table public.series (
   id uuid primary key,
   author_id uuid not null references auth.users(id),
+  title text not null default 'Synthetic title',
+  description text not null default 'synthetic summary',
+  tags text[] not null default '{}'::text[],
+  genres text[] not null default '{}'::text[],
+  effect_settings jsonb not null default '{}'::jsonb,
+  source_language text not null default 'ja',
+  translation_permission_mode text not null default 'open',
   publication_status text not null default 'public',
   content_rating text not null default 'general',
   content_warnings text[] not null default '{}'::text[],
@@ -12,6 +19,10 @@ create table public.series (
 create table public.episodes (
   id uuid primary key,
   series_id uuid not null references public.series(id),
+  episode_number integer not null default 1,
+  body text not null default 'SYNTHETIC READER CONTENT',
+  scheduled_for timestamptz,
+  posted_at timestamptz not null default now(),
   posting_status text not null default 'posted',
   is_published boolean not null default true
 );
@@ -19,12 +30,29 @@ create table public.recordings (
   id uuid primary key,
   series_id uuid references public.series(id),
   episode_id uuid not null references public.episodes(id),
+  reader_id uuid,
+  reader_user_id uuid,
+  reader_name text,
+  voice_model_id text,
   is_public boolean not null default true,
   audio_storage_path text
 );
-revoke all on public.series,public.episodes,public.recordings
-  from public,anon,authenticated;
-grant all on public.series,public.episodes,public.recordings to service_role;
+create table public.users (
+  id uuid primary key references auth.users(id),
+  display_name text not null default 'SYNTHETIC AUTHOR',
+  show_r18_content boolean not null default false,
+  r18_confirmed_at timestamptz
+);
+create table public.episode_human_translations (
+  id uuid primary key,
+  series_id uuid not null references public.series(id),
+  episode_id uuid not null references public.episodes(id),
+  translator_user_id uuid
+);
+revoke all on public.series,public.episodes,public.recordings,
+ public.users,public.episode_human_translations from public,anon,authenticated;
+grant all on public.series,public.episodes,public.recordings,
+ public.users,public.episode_human_translations to service_role;
 grant select on public.series,public.episodes,public.recordings to anon;
 grant select,update on public.series,public.episodes to authenticated;
 grant select on public.recordings to authenticated;
@@ -32,6 +60,10 @@ grant select on public.recordings to authenticated;
 alter table public.series enable row level security;
 alter table public.episodes enable row level security;
 alter table public.recordings enable row level security;
+alter table public.users enable row level security;
+alter table public.episode_human_translations enable row level security;
+create policy r0_users_self on public.users for select to authenticated
+  using (id=(select auth.uid()));
 
 create policy r0_series_view on public.series for select to anon,authenticated
   using (publication_status='public' or author_id=(select auth.uid()));
@@ -69,3 +101,17 @@ create policy r0_backup_owner_select on storage.objects
     bucket_id='r0-private-backup' and
     name like 'owner/' || (select auth.uid())::text || '/%'
   );
+
+-- Genuine PostgREST public search summary view, no security-definer bypass.
+-- Return only episodes whose current source and publication flags are visible.
+create view public.public_episode_work_summaries with (security_invoker=true) as
+select e.series_id, count(*)::integer as episode_count,
+  min(e.id::text)::uuid as first_episode_id,
+  min(e.episode_number)::integer as first_episode_number,
+  min(e.posted_at) as first_posted_at,
+  max(e.posted_at) as latest_posted_at,
+  array_agg(e.episode_number order by e.episode_number)::integer[] as public_episode_numbers
+from public.episodes e join public.series s on s.id=e.series_id
+where s.publication_status='public' and e.posting_status='posted' and e.is_published=true
+group by e.series_id;
+grant select on public.public_episode_work_summaries to anon,authenticated;
