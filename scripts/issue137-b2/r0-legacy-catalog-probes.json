@@ -1,0 +1,615 @@
+{
+  "schema": "issue137-legacy-source-catalog-probes-v1",
+  "pinnedMain": "848f8419c64b2954ae004397b5292edf0cb75236",
+  "hostedProject": "nyxbnccuvmlzffgtdadi",
+  "date": "2026-11-03",
+  "meaning": "Each entry proves only a representative catalog object is or is not present. It does not prove the historical migration executed or that every operation/current RLS is correct.",
+  "readOnly": true,
+  "rows": [
+    {
+      "file": "20260322120000_add_series_tags_canonical_source.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.series.tags",
+        "present": true
+      },
+      "area": "data",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260326000100_add_series_recording_permission_mode.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.series.recording_permission_mode",
+        "present": true
+      },
+      "area": "rights",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260326000200_create_series_recording_requests.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.series_recording_requests",
+        "present": true
+      },
+      "area": "rights",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260326_manage_rls_series_episodes.sql",
+      "probe": {
+        "kind": "policy",
+        "target": "public.series:series_public_or_owner_select",
+        "present": false
+      },
+      "area": "rls",
+      "provenance": "UNVERIFIED",
+      "interpretation": "LEGACY_POLICY_SUPERSEDED_CANDIDATE"
+    },
+    {
+      "file": "20260327_add_bgm_settings_json.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.series.bgm_settings",
+        "present": true
+      },
+      "area": "data",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260328230000_add_episode_rls.sql",
+      "probe": {
+        "kind": "policy",
+        "target": "public.episodes:episodes_select_own_series",
+        "present": true
+      },
+      "area": "rls",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260329043000_create_bgm_library.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.bgm_library",
+        "present": true
+      },
+      "area": "data",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260329043000_create_user_series_bookmarks.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.user_series_bookmarks",
+        "present": true
+      },
+      "area": "ownership",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "202603290730_create_user_series_reactions.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.user_series_reactions",
+        "present": true
+      },
+      "area": "ownership",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260330090000_add_user_series_reviews.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.user_series_reviews",
+        "present": true
+      },
+      "area": "ownership",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260331143000_add_bgm_library_favorites.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.bgm_library_favorites",
+        "present": true
+      },
+      "area": "ownership",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260331_001_effect_foundation.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.series.effect_settings",
+        "present": true
+      },
+      "area": "data",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260401110000_add_episode_is_published.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.episodes.is_published",
+        "present": true
+      },
+      "area": "visibility",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260401183000_add_series_publication_and_episode_posting_status.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.series.publication_status",
+        "present": true
+      },
+      "area": "visibility",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260401195000_add_series_rls_policies.sql",
+      "probe": {
+        "kind": "policy",
+        "target": "public.series:series_select_public_or_owner",
+        "present": true
+      },
+      "area": "rls",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260401213000_create_user_series_review_likes.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.user_series_review_likes",
+        "present": true
+      },
+      "area": "ownership",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260401223000_add_episode_post_dates.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.episodes.posted_at",
+        "present": true
+      },
+      "area": "visibility",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260401223000_create_episode_comments_and_likes.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.user_episode_comments",
+        "present": true
+      },
+      "area": "ownership",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260401235000_add_series_reaction_visibility_flags.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.series.reviews_enabled",
+        "present": true
+      },
+      "area": "visibility",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260404113000_create_popularity_event_tables.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.series_view_events",
+        "present": true
+      },
+      "area": "analytics",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260404120000_add_series_genres_canonical_source.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.series.genres",
+        "present": true
+      },
+      "area": "data",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260416190000_create_user_recording_consents.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.user_recording_consents",
+        "present": true
+      },
+      "area": "rights",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260419000000_add_series_popularity_daily.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.series_popularity_daily",
+        "present": true
+      },
+      "area": "analytics",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260421183000_add_nemo_generation_queue.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.nemo_generation_queue",
+        "present": true
+      },
+      "area": "audio",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260422013000_add_profile_links_and_social_relations.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.author_follows",
+        "present": true
+      },
+      "area": "ownership",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260707143000_add_time_fit_global_generation_limits.sql",
+      "probe": {
+        "kind": "function",
+        "target": "public.reserve_time_fit_story_generation",
+        "present": true
+      },
+      "area": "retired-ai",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260805150000_add_ai_story_continuations.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.time_fit_story_continuation_reservations",
+        "present": true
+      },
+      "area": "retired-ai",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260809070000_add_time_fit_prompt_tag_usage.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.time_fit_story_prompt_tag_usage",
+        "present": true
+      },
+      "area": "retired-ai",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260809170000_add_episode_translations.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.episode_translations",
+        "present": true
+      },
+      "area": "translation",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260809175500_add_series_translation_permission.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.series.translation_permission_mode",
+        "present": true
+      },
+      "area": "rights",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260810204500_add_generated_story_translations.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.generated_story_translations",
+        "present": true
+      },
+      "area": "retired-ai",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260811193000_add_r18_content_controls.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.series.content_rating",
+        "present": true
+      },
+      "area": "r18",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260811195500_add_series_content_warnings.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.series.content_warnings",
+        "present": true
+      },
+      "area": "r18",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260821120000_generalize_translation_languages.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.episode_translations.source_language",
+        "present": true
+      },
+      "area": "translation",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260824123000_create_private_library_txt_import.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.private_library_works",
+        "present": true
+      },
+      "area": "private",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260826123000_add_private_library_chapter_translations.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.private_library_chapter_translations",
+        "present": true
+      },
+      "area": "private",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260827120000_expand_private_library_long_form_import.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.private_library_works.section_count",
+        "present": true
+      },
+      "area": "private",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260827121000_add_private_library_reading_progress.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.private_library_reading_progress",
+        "present": true
+      },
+      "area": "private",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260827122000_add_private_library_glossary.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.private_library_glossary_terms",
+        "present": true
+      },
+      "area": "private",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260827123000_add_ai_action_quotas_and_entitlements.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.libread_user_entitlements",
+        "present": true
+      },
+      "area": "billing",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260827124000_add_private_library_word_explanations.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.private_library_word_explanations",
+        "present": true
+      },
+      "area": "private",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260827125000_share_free_generation_translation_quota.sql",
+      "probe": {
+        "kind": "function",
+        "target": "public.reserve_libread_daily_ai_action",
+        "present": true
+      },
+      "area": "billing",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260827126000_track_word_explanation_actual_cost.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.private_library_word_explanations.actual_cost_jpy",
+        "present": true
+      },
+      "area": "private",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260828120000_create_bilingual_word_explanations.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.bilingual_word_explanations",
+        "present": true
+      },
+      "area": "private",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260829120000_add_stripe_subscriptions.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.libread_billing_customers",
+        "present": true
+      },
+      "area": "billing",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260829130000_limit_free_private_library_works.sql",
+      "probe": {
+        "kind": "trigger",
+        "target": "public.private_library_works:trg_enforce_private_library_work_limit",
+        "present": true
+      },
+      "area": "private",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260911120000_count_private_library_import_usage.sql",
+      "probe": {
+        "kind": "trigger",
+        "target": "public.private_library_works:count_private_library_import_usage",
+        "present": true
+      },
+      "area": "private",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260912100000_add_public_translation_unlocks_credit_ledger.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.credit_ledger",
+        "present": true
+      },
+      "area": "billing",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260912103000_harden_translation_credit_rpc_privileges.sql",
+      "probe": {
+        "kind": "function",
+        "target": "public.get_credit_balance",
+        "present": true
+      },
+      "area": "billing",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260912153000_add_series_source_language.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.series.source_language",
+        "present": true
+      },
+      "area": "translation",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260913113000_add_series_translation_glossary.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.series_translation_glossary_entries",
+        "present": true
+      },
+      "area": "translation",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260914070000_add_public_translation_credit_runtime.sql",
+      "probe": {
+        "kind": "relation",
+        "target": "public.credit_purchase_lots",
+        "present": true
+      },
+      "area": "billing",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260914071000_enforce_credit_purchase_expiration.sql",
+      "probe": {
+        "kind": "column",
+        "target": "public.credit_purchase_lots.expired_at",
+        "present": true
+      },
+      "area": "billing",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260914072000_fix_credit_unlock_append_only.sql",
+      "probe": {
+        "kind": "function",
+        "target": "public.unlock_public_episode_translation",
+        "present": true
+      },
+      "area": "billing",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    },
+    {
+      "file": "20260914073000_reconcile_credit_purchase_debt.sql",
+      "probe": {
+        "kind": "function",
+        "target": "public.grant_credit_purchase",
+        "present": true
+      },
+      "area": "billing",
+      "provenance": "UNVERIFIED",
+      "interpretation": "REPRESENTATIVE_OBJECT_PRESENT"
+    }
+  ]
+}
