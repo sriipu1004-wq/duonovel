@@ -18,18 +18,28 @@ for (const field of ["id", "episode_number", "posting_status", "is_published"]) 
 const metadataStart = source.indexOf("export async function generateMetadata(");
 const metadataEnd = source.indexOf("function TocEpisodeListFallback()", metadataStart);
 const metadata = source.slice(metadataStart, metadataEnd);
-assert.ok(metadata.includes("fetchFirstPublicEpisode(seriesId)"));
+assert.ok(metadata.includes('fetchFirstPublicEpisode(seriesId, getSeriesContentRating(series) === "r18")'),
+  "metadata must use authenticated R18 episode mode after viewer validation");
 assert.ok(metadata.includes("isEpisodePubliclyVisible(firstPublicEpisode)"));
 assert.ok(metadata.includes("robots:"));
 
 const seriesPublicationGate = metadata.indexOf('getSeriesPublicationStatus(series) !== "public"');
 const r18Gate = metadata.indexOf('if (getSeriesContentRating(series) === "r18")');
-const episodeGate = metadata.indexOf("fetchFirstPublicEpisode(seriesId)");
+const episodeGate = metadata.indexOf("fetchFirstPublicEpisode(seriesId, getSeriesContentRating(series)");
 const titleExposure = metadata.indexOf("const seriesTitle = pickText(series.title)");
 assert.ok(seriesPublicationGate >= 0 && seriesPublicationGate < r18Gate,
   "Private series must be denied before any R18 metadata processing");
 assert.ok(r18Gate > seriesPublicationGate && r18Gate < episodeGate && episodeGate < titleExposure,
   "R18 preference must be checked before episode/index/title metadata is exposed");
+// R18-approved SSR viewers use verified identities + RLS, not admin bypass.
+const verifiedR18Client = source.indexOf("const getVerifiedR18WorkClient = cache(");
+const boundIdentity = source.indexOf("result.data.user?.id === preference.userId");
+const authedFallback = source.indexOf("const authed = await getVerifiedR18WorkClient()", verifiedR18Client);
+const episodeMode = source.indexOf("const reader = isR18 ? (await getVerifiedR18WorkClient())");
+assert.ok(verifiedR18Client > 0 && boundIdentity > verifiedR18Client &&
+  authedFallback > boundIdentity && episodeMode > authedFallback &&
+  episodeMode < metadataStart,
+  "Work must bind authenticated identity and R18 permission before restricted episode reads");
 const r18Guard = metadata.slice(r18Gate, episodeGate);
 assert.ok(r18Guard.includes("await getCurrentR18ViewerPreference()"),
   "JA Work metadata must use the authenticated server-side R18 preference");
