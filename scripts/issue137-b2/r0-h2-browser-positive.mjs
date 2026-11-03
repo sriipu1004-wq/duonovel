@@ -18,8 +18,13 @@ export async function readyWav(page,audio){
    /判定|保存|検査|朗読|音|声|無音|停止|失敗|エラー|ファイル|MB/u.test(x))
    .slice(0,42).map(x=>x.slice(0,110));
   const b=page.getByRole("button",{name:"保存して作品へ接続"});
+  const pageText=await page.locator("[data-recording-studio]").innerText();
   const meta={path:new URL(page.url()).pathname,
-   disabled:await b.isDisabled(),visible};
+   disabled:await b.isDisabled(),
+   episodeCount:await page.locator("[data-recording-studio] section:first-child button").count(),
+   selectedEpisodeLabel:pageText.match(/接続先:[^\n]*/u)?.[0]??null,
+   titleOrMissing:pageText.includes("制作対象の話を選ぶと、ここにプレビューが表示される。"),
+   visible};
   throw Error("H2_REAL_BROWSER_NOT_READY_DIAGNOSTIC:"+JSON.stringify(meta));
  }
  const button=page.getByRole("button",{name:"保存して作品へ接続"});

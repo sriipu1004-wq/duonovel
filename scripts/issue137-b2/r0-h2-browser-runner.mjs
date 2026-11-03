@@ -14,8 +14,21 @@ export async function runH2BrowserMultipart(args){
  });
  assert.equal(accepted.error,null,"local owner consent fixture");
  const audio=makeWav();
- await browserSuccess({...args,audio,
-  work:await makeWork(args.service,args.owner.id,"FULL")});
+ const full=await makeWork(args.service,args.owner.id,"FULL");
+ // Test fixture MUST be visible through the same signed-in owner RLS client
+ // that the real Studio page uses. Never bypass a failed RLS condition.
+ const episodeRows=await args.owner.db.from("episodes")
+  .select("id,posting_status,is_published").eq("series_id",full.series);
+ const author=await args.owner.db.from("users")
+  .select("display_name").eq("id",args.owner.id).maybeSingle();
+ console.log("EVIDENCE_H2_STUDIO_PREFLIGHT:"+JSON.stringify({
+   ownerEpisodeError:episodeRows.error?.code??null,
+   ownerEpisodeCount:episodeRows.data?.length??null,
+   ownerEpisodePosted:episodeRows.data?.[0]?.posting_status??null,
+   ownerReaderNamePresent:Boolean(author.data?.display_name?.trim()),
+   ownerReaderNameError:author.error?.code??null
+ }));
+ await browserSuccess({...args,audio,work:full});
  await browserInterrupt({...args,audio,
   work:await makeWork(args.service,args.owner.id,"CUT")});
  console.log("PASS: #137 REAL Chromium two workflows, >=4MiB and >8MiB,"+
