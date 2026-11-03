@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { revalidateTag } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
   getSeriesContentWarningLocks,
@@ -52,6 +52,15 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
+  // An explicit emergency request atomically hides the work AND persists the
+  // corrected rating. No claim is made that old PUBLIC Storage URLs are gone.
+  if (payload.emergencyUnpublish !== undefined &&
+      typeof payload.emergencyUnpublish !== "boolean") {
+    return NextResponse.json(
+      { ok: false, error: "invalid_emergency_unpublish" }, { status: 400 }
+    );
+  }
+  const emergencyUnpublish = payload.emergencyUnpublish === true;
   const requestedWarnings = readRequestedWarnings(payload);
   if (!requestedWarnings) {
     return NextResponse.json(
@@ -123,10 +132,11 @@ export async function POST(request: Request, context: RouteContext) {
     .update({
       content_warnings: warnings,
       content_rating: rating,
+      ...(emergencyUnpublish ? { publication_status: "private" } : {}),
     })
     .eq("id", cleanSeriesId)
     .eq("author_id", user.id)
-    .select("content_rating, content_warnings, content_warning_locks")
+    .select("publication_status, content_rating, content_warnings, content_warning_locks")
     .single();
 
   if (update.error?.code === "23514" &&
@@ -156,6 +166,10 @@ export async function POST(request: Request, context: RouteContext) {
     // expire: 0 forces blocking refresh instead of stale-while-revalidate,
     // which must not expose pre-change general/public catalog metadata.
     revalidateTag("public-base-work-cards", { expire: 0 });
+    if (emergencyUnpublish) {
+      revalidatePath(`/works/${cleanSeriesId}`);
+      // App/Next cache invalidation is NOT proof of old CDN/Storage URL recall.
+    }
   } catch {
     // Database mutation has already committed. Do not report that it did not.
     return NextResponse.json(
@@ -164,6 +178,10 @@ export async function POST(request: Request, context: RouteContext) {
         error: "cache_invalidation_failed",
         persisted: true,
         rating,
+        ...(emergencyUnpublish ? {
+          publicationStatus: update.data.publication_status,
+          publicMediaStatus: "unverified",
+        } : {}),
         warnings: normalizeSeriesContentWarnings(update.data.content_warnings),
         lockedWarnings: getSeriesContentWarningLocks(update.data),
       },
@@ -174,6 +192,10 @@ export async function POST(request: Request, context: RouteContext) {
   return NextResponse.json({
     ok: true,
     rating,
+    ...(emergencyUnpublish ? {
+      publicationStatus: update.data.publication_status,
+      publicMediaStatus: "unverified",
+    } : {}),
     warnings: normalizeSeriesContentWarnings(update.data.content_warnings),
     lockedWarnings: getSeriesContentWarningLocks(update.data),
   });
