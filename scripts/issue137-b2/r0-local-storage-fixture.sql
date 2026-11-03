@@ -48,7 +48,8 @@ create table public.recordings (
   reader_name text,
   voice_model_id text,
   is_public boolean not null default true,
-  audio_storage_path text
+  audio_storage_path text,
+  created_at timestamptz not null default now()
 );
 create table public.users (
   id uuid primary key references auth.users(id),

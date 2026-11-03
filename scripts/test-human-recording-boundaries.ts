@@ -4,6 +4,7 @@ import {
   buildHumanRecordingPlaybackHref,
   getHumanRecordingStorageObjectPath,
 } from "../src/lib/recording/humanRecordingStorage";
+import { canServeHumanRecordingAudio } from "../src/lib/recording/humanRecordingState";
 
 function source(path: string): string {
   return readFileSync(path, "utf8");
@@ -128,6 +129,42 @@ for (const required of ["voice_model_id", "!recording.reader_id", "isUuid(record
   assert.equal(aiAudio.includes(required), true,
     `AI private audio must verify source/provenance/R18: ${required}`);
 }
+// Actual pure authorization gate negatives, not only source-string checks.
+const publicBase = {
+  isPublic: true, narratorIsViewer: false, sourceVisible: true,
+  sourcePublic: true, currentPermissionOpen: true, currentConsent: true,
+  isR18: false, currentR18Permission: false,
+};
+assert.equal(canServeHumanRecordingAudio(publicBase), true,
+  "public, currently open, consenting, published Human narration remains accessible");
+for (const [override,label] of [
+  [{ sourceVisible: false }, "not visible"],
+  [{ sourcePublic: false }, "source unpublished"],
+  [{ currentPermissionOpen: false }, "recording permission withdrawn"],
+  [{ currentConsent: false }, "narrator consent withdrawn"],
+  [{ isR18: true }, "R18 not opted in"],
+] as const) {
+  assert.equal(canServeHumanRecordingAudio({ ...publicBase, ...override }), false,
+    `Human public streaming must reject ${label}`);
+}
+assert.equal(canServeHumanRecordingAudio({
+  ...publicBase, isR18: true, currentR18Permission: true,
+}), true, "verified R18 viewer may access a currently public consenting Human row");
+const privateBase = {
+  ...publicBase, isPublic: false, narratorIsViewer: true, sourcePublic: false,
+};
+assert.equal(canServeHumanRecordingAudio(privateBase), true,
+  "private narrator may access a source that is actually visible under their RLS");
+for (const [override,label] of [
+  [{ narratorIsViewer: false }, "not narrator"],
+  [{ sourceVisible: false }, "private source denied under current RLS"],
+  [{ currentPermissionOpen: false }, "owner revoked recording permission"],
+  [{ currentConsent: false }, "narrator withdrew consent"],
+] as const) {
+  assert.equal(canServeHumanRecordingAudio({ ...privateBase, ...override }), false,
+    `Human private streaming must reject ${label}`);
+}
+
 const workPage = source("src/app/works/[seriesId]/page.tsx");
 assert.equal(
   workPage.includes("isPublishedHumanRecording"),
