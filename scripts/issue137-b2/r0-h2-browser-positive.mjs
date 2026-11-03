@@ -47,11 +47,18 @@ export async function browserSuccess({context,base,service,audio,work}){
    r.request().method()==="POST",{timeout:170000});
   await button.click();
   const reply=await finalized,body=await reply.json();
-  // NO OpenAI key is passed to ephemeral Next. Real multipart reaches
-  // normalizer/ASR and must stop before any paid provider or publication.
-  assert.equal(reply.status(),500,"unpaid finalization must fail closed");
+  // The FIRST disposable local stack deliberately installs B2 + H2 but
+  // NOT H1; the runner tests the B2/H1/H2 forward migration in its SECOND
+  // isolated stack. Thus a real 2-part upload can reach finalize, but H1
+  // recording revision MUST fail closed without publishing any row. This
+  // does NOT validate final normalization, paid ASR or publication.
+  assert.equal(reply.status(),500,
+   "no first-stage H1 RPC: finalize must fail closed, HTTP "+reply.status());
   assert.equal(body.ok,false);
-  assert.equal(body.error,"openai_api_key_missing");
+  assert.ok(typeof body.error==="string" &&
+    body.error.startsWith("human_atomic_revision_unavailable:") &&
+    body.error.includes("issue137_h1_human_revision"),
+    "the exact missing-H1 RPC safety gate must block publication");
   assert.equal(session?.parts?.length,2,">8MiB must create two parts");
   assert.equal(session.parts[0].expectedSizeBytes,8*1024*1024);
   for(const part of session.parts){
@@ -67,8 +74,9 @@ export async function browserSuccess({context,base,service,audio,work}){
    .eq("series_id",work.series).eq("episode_id",work.episode);
   assert.equal(linked.error,null);
   assert.equal(linked.data?.length,0,"no transcription means no Human publication");
-  console.log("PASS: H2 real Chromium >8MiB two-part synthetic PCM, "+
-   "2/2 PRIVATE SHA256, fail-closed before unpaid ASR");
-  console.log("HOLD: no actual Human transcription/lyrics alignment/publication");
+  console.log("PASS: H2 REAL Chromium >8MiB 2-part signed PUT, "+
+   "2/2 PRIVATE SHA256, no Human row when stage-one H1 RPC unavailable");
+  console.log("HOLD: first-stage lacks H1; B2/H1/H2 forward SQL separately"+
+   " validated in stage two, not an end-to-end published/ASR success");
  }finally{await page.close();}
 }
