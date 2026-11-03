@@ -15,6 +15,7 @@ import {
 } from "@/lib/recording/humanMultipartUploadShared";
 import { publishHumanRecording } from "@/lib/recording/humanRecordingPublish";
 import { getHumanRecordingAudioBucketName } from "@/lib/recording/humanRecordingStorage";
+import { closeHumanStagingLease } from "@/lib/recording/humanStagingLease";
 import {
   decideRecordingEntryAccess,
   normalizeRecordingPermissionMode,
@@ -225,7 +226,24 @@ export async function POST(request: Request) {
   });
   const admin = createAdminClient();
   const bucketName = getHumanRecordingAudioBucketName();
-  const tempObjectPaths = session.parts.map((part) => part.objectPath);
+  // A server-side seal precedes any part read or publication. The DB trigger
+  // stops all later bearer uploads, even if old signed URLs were issued.
+  // Missing, expired, foreign, reused or revoked H2 leases fail closed.
+  try {
+    await closeHumanStagingLease(admin, {
+      sessionId: session.uploadSessionId,
+      seriesId,
+      episodeId,
+      actorId: user.id,
+      sourceExtension: session.sourceExtension,
+      totalSizeBytes: session.totalSizeBytes,
+    }, "seal");
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "アップロード権限が失効したか、既に確定処理済み。" },
+      { status: 409 }
+    );
+  }
 
   try {
     const fileParts: Blob[] = [];
@@ -289,11 +307,10 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   } finally {
-    if (tempObjectPaths.length > 0) {
-      const { error } = await admin.storage.from(bucketName).remove(tempObjectPaths);
-      if (error) {
-        console.warn("[human-upload-finalize cleanup warning]", error.message);
-      }
-    }
+    // Do NOT immediately delete/re-upload temp parts under an unexpired
+    // signed bearer. Keep them private/quarantined until the H2 lease's
+    // 3-hour retire_after, then require exact-scope, rights-safe inventory
+    // and byte-custody checks before any Storage API removal.
+    // No background Cron or production deletion is activated here.
   }
 }
