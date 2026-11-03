@@ -6,6 +6,10 @@ on:
     paths:
       - "scripts/issue137-b2/r0-public-media-transition-candidate.sql"
       - "scripts/issue137-b2/r0-public-media-transition-local-test.sql"
+      - "scripts/issue137-b2/r0-local-storage-fixture.sql"
+      - "scripts/issue137-b2/r0-local-storage-e2e.mjs"
+      - "scripts/issue137-b2/r0-run-local-storage.sh"
+      - "src/app/api/series/[seriesId]/content-rating/route.ts"
       - ".github/workflows/issue137-r0-public-media-transition.yml"
   workflow_dispatch:
 permissions:
@@ -46,3 +50,44 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f scripts/issue137-b2/r0-public-media-transition-local-test.sql
       - name: Diff whitespace check
         run: git diff --check
+
+  local-supabase-storage-auth-e2e:
+    # Public same-repo PR only. Forked/untrusted PR code must NEVER run Docker E2E
+    # with runner credentials; no hosted secrets are supplied to this job.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.repository.private == false &&
+      github.event.pull_request.number == 160 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'fix/issue137-r18-public-media-transition-minimal'
+    needs: postgres17-synthetic-negative
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      DO_NOT_CONTACT_PRODUCTION: 'true'
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate disposable-only script guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/issue137-b2/r0-run-local-storage.sh
+          node --check scripts/issue137-b2/r0-local-storage-e2e.mjs
+          docker info >/dev/null
+          test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
+          test -z "${SUPABASE_DB_PASSWORD:-}"
+          test -z "${SUPABASE_ACCESS_TOKEN:-}"
+      - name: Install exact locked app SDK for REAL LOCAL Storage HTTP
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Disposable GoTrue + PostgREST + Storage API E2E
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/issue137-b2/r0-run-local-storage.sh
+          echo "PASS: real LOCAL-only Storage HTTP positive/negative checks completed"
