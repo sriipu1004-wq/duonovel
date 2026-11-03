@@ -67,8 +67,10 @@ npx --yes supabase@2.122.0 init --force >/dev/null
 mkdir -p supabase/migrations
 # The file is assembled ONLY in this temp project; the candidate under
 # scripts/ is not an application migration and is NOT suitable for db push.
+# Single B2/R0 candidate with R18 RLS and private bucket boundary. Only
+# the ephemeral temp project sees this SQL, not hosted Supabase.
 cat "$R0/r0-local-storage-fixture.sql" \
- "$R0/r0-public-media-transition-candidate.sql" \
+ "$R0/r0-b2-unified-local-candidate.sql" \
  > supabase/migrations/20261103000000_issue137_r0_local_only.sql
 started=1
 npx --yes supabase@2.122.0 start --network-id "$NETWORK" >/dev/null
