@@ -21,6 +21,7 @@ on:
       - "scripts/issue137-b2/r0-b2-h1-render-single-local.mjs"
       - "scripts/issue137-b2/r0-h1-atomic-local-extension.sql"
       - "scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs"
+      - "scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs"
       - "src/lib/recording/humanRecordingAtomic.ts"
       - "src/app/actions/saveOwnedSeriesWorkspace.ts"
       - "src/features/write/WriteSeriesForm.tsx"
@@ -125,6 +126,7 @@ jobs:
           node --check scripts/issue137-b2/r0-next-http-e2e.mjs
           node --check scripts/issue137-b2/r0-b2-h1-render-single-local.mjs
           node --check scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs
           node scripts/issue137-b2/r0-b2-h1-render-single-local.mjs --self-test
           docker info >/dev/null
           test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"

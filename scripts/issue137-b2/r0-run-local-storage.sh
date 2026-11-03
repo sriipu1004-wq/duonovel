@@ -193,4 +193,5 @@ export R0_SERVICE_KEY="$(read_env SERVICE_ROLE_KEY)"
 }
 cd "$ROOT"
 node scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs
+node scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs
 echo "PASS: single-file B2/R0+H1 fresh local stack and owner/Human CAS E2E"
