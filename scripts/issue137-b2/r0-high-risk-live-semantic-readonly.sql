@@ -67,7 +67,7 @@ WITH checks(area,check_id,observed) AS (
  ('BILLING','credit_append_only_trigger',
  EXISTS(SELECT 1 FROM pg_trigger t WHERE NOT t.tgisinternal AND t.tgrelid='public.credit_ledger'::regclass AND t.tgname='credit_ledger_append_only' AND t.tgenabled IN ('O','A'))),
  ('BILLING','grant_debt_reconciliation_in_function',
- (SELECT pg_get_functiondef(p.oid) LIKE '%v_debt_offset%' AND pg_get_functiondef(p.oid) LIKE '%v_remaining := p_credits - v_debt_offset%'
+ (SELECT pg_get_functiondef(p.oid) LIKE '%v_debt_offset%' AND regexp_replace(pg_get_functiondef(p.oid), E'[[:space:]]+', ' ', 'g') LIKE '%v_remaining := p_credits - v_debt_offset%'
  FROM pg_proc p WHERE p.oid=to_regprocedure('public.grant_credit_purchase(uuid,text,text,text,integer,timestamptz,text,jsonb)'))),
  ('BILLING','unlock_append_only_body',
  (SELECT pg_get_functiondef(p.oid) LIKE '%insert into public.credit_ledger%'
