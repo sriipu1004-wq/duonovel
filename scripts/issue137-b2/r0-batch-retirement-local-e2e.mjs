@@ -69,6 +69,30 @@ const localFetch=async uri=>{
 };
 const bucket=service.storage.from("recording-audio");
 const privateBucket=service.storage.from("r0-private-backup");
+async function inventoryExactPrefix(){
+  // A full listing, not only recordings.audio_storage_path. Sidecars and
+  // orphan files remain separate rights-bearing public objects.
+  const found=[];
+  for(let offset=0;offset<=1000;offset+=100){
+    const listed=success(await bucket.list(prefix.slice(0,-1),{
+      limit:100,offset,sortBy:{column:"name",order:"asc"}
+    }),"list ALL public objects in exact series+episode prefix");
+    const batch=listed.data??[];
+    for(const entry of batch){
+      assert.ok(typeof entry.name==="string"&&entry.name.length>0&&
+        !entry.name.includes("/")&&!entry.name.includes("..")&&entry.id,
+        "nested/unrecognized public object requires separate inventory; HOLD");
+      found.push(prefix+entry.name);
+    }
+    if(batch.length<100)return found.sort();
+  }
+  throw Error("ISSUE137_MANIFEST_TOO_LARGE_HOLD: pagination cap must be reviewed");
+}
+function fullScopeMatchesManifest(actual){
+  const expectedPaths=journal.assets.map(x=>x.path).sort();
+  return actual.length===expectedPaths.length&&
+    expectedPaths.every((name,i)=>name===actual[i]);
+}
 const expected=plan.map((item,i)=>({
  kind:item.kind,path:item.path,bytes:item.bytes.length,sha256:digest(item.bytes),
  backupPath:"owner/"+owner.id+"/"+backupNonce+"/backup/"+i+"-"+item.kind,
@@ -117,6 +141,23 @@ const indexed=success(await service.from("recordings").select("id,audio_storage_
  "read synthetic indexed references");
 yes(indexed.data.length===1&&indexed.data[0].audio_storage_path===publicUrl(plan[0].path),
  "sidecar and orphan have NO indexed recordings reference");
+// Simulate an unreferenced object arriving AFTER the exact approved manifest
+// was fixed. Never remove the manifest's three files with an unknown fourth
+// PUBLIC object under the same source/episode prefix.
+const unplannedPath=prefix+"unplanned.wav";
+success(await bucket.upload(unplannedPath,noise,{
+ contentType:"audio/wav",upsert:false
+}),"seed an unexpected PUBLIC object under the approved synthetic scope");
+const withUnknown=await inventoryExactPrefix();
+no(withUnknown.length===4&&!fullScopeMatchesManifest(withUnknown),
+ "unlisted extra public object forces a closed-world manifest HOLD");
+yes((await localFetch(publicUrl(plan[0].path))).status===200,
+ "manifest HOLD did not delete any planned origin");
+success(await bucket.remove([unplannedPath]),
+ "remove ONLY the explicitly synthetic, test-authorized extra object");
+const observedApproved=await inventoryExactPrefix();
+yes(fullScopeMatchesManifest(observedApproved),
+ "ALL source-prefix objects including orphan and sidecar equal exact manifest");
 
 // Owner can hide the work even before physical retirement; others cannot.
 const foreign=await other.client.from("series").update({publication_status:"private"})
@@ -155,6 +196,15 @@ for(const item of journal.assets){
  yes((await localFetch(publicUrl(item.path))).status===200,
   "private copy does not revoke original");
 }
+yes(fullScopeMatchesManifest(await inventoryExactPrefix()),
+ "immediately before delete, public prefix still equals verified full manifest");
+const lateAttempt=await bucket.upload(prefix+"late-after-private.wav",noise,{
+ contentType:"audio/wav",upsert:false
+});
+no(Boolean(lateAttempt.error),
+ "B2 trigger must deny privileged late PUBLIC write after emergency PRIVATE+R18");
+yes(fullScopeMatchesManifest(await inventoryExactPrefix()),
+ "failed late Storage write must not expand or replace full manifest");
 
 // Controlled deletion is an exact object manifest operation. No wildcard/bucket
 // delete or direct SQL storage.objects DELETE. Simulate a crash AFTER first
@@ -208,6 +258,9 @@ for(const item of journal.assets){
 journal=readJournal();
 validate(journal,["retired"]);
 yes(journal.assets.every(x=>x.status==="retired"),"resume completes exact 3 synthetic assets");
+const afterRetirement=await inventoryExactPrefix();
+yes(afterRetirement.length===0,
+ "only after all three approved files are removed, exact PUBLIC source prefix is empty");
 for(const item of journal.assets){
  no((await localFetch(publicUrl(item.path))).status!==200,
   "public source absent after complete batch");
