@@ -10,11 +10,25 @@ begin
    raise exception 'ISSUE137_NO_LOCAL_SENTINEL' using errcode='42501';
  end if;
 end $local_gate$;
--- Actual hosted series.author_id and recordings.reader_id/reader_user_id
--- reference PUBLIC user profiles (not merely auth.users).
+-- The first-stage synthetic fixture *already* created an automatically
+-- named series_author_id_fkey referencing auth.users. Require exactly that
+-- disposable-only mismatch, and correct it to the LIVE public.users FK.
+-- Never run this fixture overlay against a real or linked Supabase project.
+do $assert_synthetic_old_fk$
+declare fk text;
+begin
+ select pg_get_constraintdef(oid) into fk from pg_constraint
+ where conrelid='public.series'::regclass
+   and conname='series_author_id_fkey';
+ if fk is null or fk not like '%REFERENCES auth.users(id)%' then
+  raise exception 'ISSUE137_NOT_THE_EXPECTED_LOCAL_FK' using errcode='42501';
+ end if;
+end $assert_synthetic_old_fk$;
+alter table public.series drop constraint series_author_id_fkey;
 alter table public.series
  add constraint series_author_id_fkey
  foreign key(author_id) references public.users(id);
+-- Actual hosted recordings.reader_id / reader_user_id refer to public.users.
 create table public.voice_models(id uuid primary key);
 alter table public.voice_models enable row level security;
 revoke all on public.voice_models from public, anon, authenticated;
