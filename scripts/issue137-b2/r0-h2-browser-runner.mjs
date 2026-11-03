@@ -13,6 +13,16 @@ export async function runH2BrowserMultipart(args){
   consent_version:"2026-04-16"
  });
  assert.equal(accepted.error,null,"local owner consent fixture");
+ // The disposable R0 candidate deliberately denies authenticated SELECT
+ // on users.display_name (42501). The real Studio supports the independent
+ // GoTrue user_metadata display_name fallback. Populate ONLY this synthetic
+ // local account; do not loosen RLS or impersonate a production narrator.
+ const updated=await args.service.auth.admin.updateUserById(args.owner.id,{
+  user_metadata:{display_name:"H2 SYNTHETIC LOCAL NARRATOR"}
+ });
+ assert.equal(updated.error,null,"local GoTrue test narrator metadata");
+ assert.equal(updated.data?.user?.user_metadata?.display_name,
+  "H2 SYNTHETIC LOCAL NARRATOR");
  const audio=makeWav();
  const full=await makeWork(args.service,args.owner.id,"FULL");
  // Test fixture MUST be visible through the same signed-in owner RLS client
@@ -26,7 +36,9 @@ export async function runH2BrowserMultipart(args){
    ownerEpisodeCount:episodeRows.data?.length??null,
    ownerEpisodePosted:episodeRows.data?.[0]?.posting_status??null,
    ownerReaderNamePresent:Boolean(author.data?.display_name?.trim()),
-   ownerReaderNameError:author.error?.code??null
+   ownerReaderNameError:author.error?.code??null,
+   syntheticGoTrueDisplayNamePresent:Boolean(
+    updated.data?.user?.user_metadata?.display_name?.trim())
  }));
  await browserSuccess({...args,audio,work:full});
  await browserInterrupt({...args,audio,
