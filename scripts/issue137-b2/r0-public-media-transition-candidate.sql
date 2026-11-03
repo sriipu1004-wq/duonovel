@@ -2,7 +2,9 @@
 -- Do not apply to hosted Supabase without frozen-head independent security/rights
 -- review, complete legacy-media containment plan and separate owner approval.
 -- Existing PUBLIC URLs and cached copies are NOT revoked by this SQL.
--- Model: fail-closed source transitions, new PUBLIC object and DB references.
+-- Model: emergency logical withdrawal FIRST; no unverified physical recall claim.
+-- Explicitly block republishing with unresolved old public objects/references.
+-- Source updates and Storage operations are separate and NOT atomically coupled.
 begin;
 create schema if not exists libread_internal;
 revoke all on schema libread_internal from public, anon, authenticated;
@@ -39,16 +41,30 @@ create or replace function libread_internal.issue137_r0_guard_series_transition(
 returns trigger language plpgsql security definer set search_path = ''
 as $fn$
 begin
- if (
-   new.publication_status is distinct from old.publication_status or
-   new.content_rating is distinct from old.content_rating or
-   new.content_warnings is distinct from old.content_warnings
- ) and (
-   new.publication_status is distinct from 'public' or
-   new.content_rating is distinct from 'general' or
-   'sexual_r18' = any(coalesce(new.content_warnings,'{}'::text[]))
- ) and libread_internal.issue137_r0_has_public_audio(new.id, null)
- then
+ -- EMERGENCY PRIORITY: preserve an author's ability to unpublish immediately
+ -- (including a simultaneous rating correction), even if an old PUBLIC object
+ -- cannot yet be retired. This only hides the app/DB source. Previously issued
+ -- URLs remain playable until Storage/CDN retirement is independently verified.
+ if new.publication_status is distinct from 'public' then
+   return new;
+ end if;
+
+ -- Do not silently RE-PUBLISH a withdrawn work while historical PUBLIC
+ -- media references/objects still exist, even if rating is changed back.
+ if old.publication_status is distinct from 'public'
+    and libread_internal.issue137_r0_has_public_audio(new.id, null) then
+   raise exception using errcode='23514',
+     message='ISSUE137_PUBLIC_MEDIA_CONTAINMENT_REQUIRED';
+ end if;
+
+ -- A PUBLIC work may not transition to R18 while old PUBLIC media is live.
+ -- Use an atomic (publication_status='private', rating='r18') author update
+ -- for urgent classification; follow through with physical media retirement.
+ if (new.content_rating is distinct from 'general' or
+     'sexual_r18'=any(coalesce(new.content_warnings,'{}'::text[])))
+    and (new.content_rating is distinct from old.content_rating or
+         new.content_warnings is distinct from old.content_warnings)
+    and libread_internal.issue137_r0_has_public_audio(new.id, null) then
    raise exception using errcode='23514',
      message='ISSUE137_PUBLIC_MEDIA_CONTAINMENT_REQUIRED';
  end if;
@@ -66,16 +82,20 @@ create or replace function libread_internal.issue137_r0_guard_episode_transition
 returns trigger language plpgsql security definer set search_path = ''
 as $fn$
 begin
- if (
-   new.posting_status is distinct from old.posting_status or
-   new.is_published is distinct from old.is_published or
-   new.series_id is distinct from old.series_id
- ) and (
-   new.posting_status is distinct from 'posted' or
-   new.is_published is distinct from true or
-   new.series_id is distinct from old.series_id
- ) and libread_internal.issue137_r0_has_public_audio(old.series_id, old.id)
- then
+ -- Emergency unpublish/draft transition MUST remain available while old
+ -- PUBLIC URLs are retired later. Reparenting still cannot silently transfer
+ -- any old media lineage to another series.
+ if new.series_id is distinct from old.series_id
+    and libread_internal.issue137_r0_has_public_audio(old.series_id, old.id) then
+   raise exception using errcode='23514',
+     message='ISSUE137_PUBLIC_MEDIA_CONTAINMENT_REQUIRED';
+ end if;
+ -- A withdrawn episode cannot be republished using unresolved old PUBLIC
+ -- objects/references. This does not block first publication with no media.
+ if new.posting_status='posted' and new.is_published=true
+    and (old.posting_status is distinct from 'posted' or
+         old.is_published is distinct from true)
+    and libread_internal.issue137_r0_has_public_audio(new.series_id, new.id) then
    raise exception using errcode='23514',
      message='ISSUE137_PUBLIC_MEDIA_CONTAINMENT_REQUIRED';
  end if;
