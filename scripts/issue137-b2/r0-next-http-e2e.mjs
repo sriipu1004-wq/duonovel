@@ -99,6 +99,26 @@ assert.equal((await service.from("recordings").insert({
   audio_storage_path:publicUrl
 })).error,null,"seed legacy local PUBLIC recording reference");
 
+// A SECOND real public R18 work exercises viewer JWT, opted-in RLS and
+// Work/Reader/Search without ever putting restricted cards in an anon cache.
+const r18SeriesId=id(),r18EpisodeId=id();
+const r18Title="R0-R18-SIGNED-READER-"+id().slice(0,8).toUpperCase();
+const r18Body="R0 R18 AUTHORIZED READER ONLY "+id().slice(0,8);
+assert.equal((await service.from("users").insert({
+ id:other.id,display_name:"R0 SYNTHETIC OPTED IN READER",
+ show_r18_content:true,r18_confirmed_at:new Date().toISOString()
+})).error,null,"synthetic opted in reader profile");
+assert.equal((await service.from("series").insert({
+ id:r18SeriesId,author_id:owner.id,title:r18Title,
+ publication_status:"public",content_rating:"r18",
+ content_warnings:["sexual_r18"],content_warning_locks:[],
+ source_language:"ja",translation_permission_mode:"open"
+})).error,null,"seed public R18 source without old PUBLIC media");
+assert.equal((await service.from("episodes").insert({
+ id:r18EpisodeId,series_id:r18SeriesId,episode_number:1,
+ body:r18Body,posting_status:"posted",is_published:true
+})).error,null,"seed posted age-gated R18 episode");
+
 // These are direct authority reads by the test harness only.
 async function state(){
   const r=await service.from("series")
@@ -111,11 +131,11 @@ async function oldUrl(){
     signal:AbortSignal.timeout(15000)});
   return {status:r.status,digest:sha(Buffer.from(await r.arrayBuffer()))};
 }
-async function getPage(path){
+async function getPage(path,cookie=""){
   const u=new URL(path,base);
   assert.equal(u.origin,base,"site page must only use local Next origin");
   const r=await fetch(u,{cache:"no-store",redirect:"error",
-    headers:{"cache-control":"no-cache"},
+    headers:{"cache-control":"no-cache",...(cookie?{cookie}:{})},
     signal:AbortSignal.timeout(20000)});
   return {status:r.status,body:await r.text()};
 }
@@ -176,6 +196,45 @@ try {
   const searchPath="/search?q="+encodeURIComponent("R0-ISOLATED-READER");
   const workPath="/works/"+seriesId;
   const readerPath="/read/"+seriesId+"/1";
+  // One ACTUAL GoTrue SSR authenticated R18 viewer versus anonymous reader.
+  const r18SearchPath="/search?q="+encodeURIComponent("R0-R18-SIGNED");
+  const r18WorkPath="/works/"+r18SeriesId;
+  const r18ReaderPath="/read/"+r18SeriesId+"/1";
+  const r18AnonSearch=await getPage(r18SearchPath);
+  deny(r18AnonSearch.status===200&&!r18AnonSearch.body.includes(r18Title),
+    "anonymous Search must not serialize R18 title");
+  const r18AnonWork=await getPage(r18WorkPath);
+  deny(!r18AnonWork.body.includes(r18Title),
+    "anonymous Work must not serialize R18 title");
+  const r18AnonReader=await getPage(r18ReaderPath);
+  deny(!r18AnonReader.body.includes(r18Body),
+    "anonymous Reader must not serialize restricted R18 body");
+  const r18AuthorizedSearch=await getPage(r18SearchPath,other.cookie());
+  pass(r18AuthorizedSearch.status===200&&
+    r18AuthorizedSearch.body.includes(r18Title),
+    "authenticated age-confirmed opted-in R18 reader sees Search result");
+  const r18AuthorizedWork=await getPage(r18WorkPath,other.cookie());
+  pass(r18AuthorizedWork.status===200&&
+    r18AuthorizedWork.body.includes(r18Title),
+    "authenticated opted-in R18 reader sees Work detail");
+  const r18AuthorizedReader=await getPage(r18ReaderPath,other.cookie());
+  pass(r18AuthorizedReader.status===200&&
+    r18AuthorizedReader.body.includes(r18Body),
+    "authenticated opted-in R18 reader sees actual Reader body");
+  // Revoke only R18 opt-in; use SAME cookie, SAME Next process and the
+  // previously warmed Search to catch stale session/profile/cache results.
+  assert.equal((await service.from("users").update({
+    show_r18_content:false
+  }).eq("id",other.id)).error,null,"revoke synthetic R18 preference");
+  const r18RevokedSearch=await getPage(r18SearchPath,other.cookie());
+  deny(r18RevokedSearch.status===200&&!r18RevokedSearch.body.includes(r18Title),
+    "R18 preference revocation removes warmed Search title");
+  const r18RevokedWork=await getPage(r18WorkPath,other.cookie());
+  deny(!r18RevokedWork.body.includes(r18Title),
+    "R18 preference revocation hides Work detail");
+  const r18RevokedReader=await getPage(r18ReaderPath,other.cookie());
+  deny(!r18RevokedReader.body.includes(r18Body),
+    "R18 preference revocation hides Reader body");
   const initialSearch=await getPage(searchPath);
   pass(initialSearch.status===200&&initialSearch.body.includes(syntheticTitle),
     "Search actual HTTP must show the synthetic published work before withdrawal; HTTP "+
