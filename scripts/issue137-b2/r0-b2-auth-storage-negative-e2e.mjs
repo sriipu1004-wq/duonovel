@@ -138,8 +138,19 @@ const humanRef={
  reader_user_id:reader.id,reader_name:"ISOLATED HUMAN",
  voice_model_id:null,is_public:false,audio_storage_path:humanPath
 };
-noError(await service.from("recordings").insert({...humanRef,id:id()}),
+const persistedHumanId=id();
+noError(await service.from("recordings").insert({...humanRef,id:persistedHumanId}),
  "backed private Human reference accepted");
+// All narrator/voice provenance fields must be revalidated on UPDATE, not
+// only on insertion or changes to audio_storage_path.
+denied(await service.from("recordings").update({reader_id:owner.id}).eq("id",persistedHumanId),
+ "post-insert Human narrator reader_id reassignment denied");
+denied(await service.from("recordings").update({reader_user_id:owner.id}).eq("id",persistedHumanId),
+ "post-insert Human narrator reader_user_id reassignment denied");
+denied(await service.from("recordings").update({reader_name:""}).eq("id",persistedHumanId),
+ "post-insert Human narrator display-name removal denied");
+denied(await service.from("recordings").update({voice_model_id:"fake-ai-model"}).eq("id",persistedHumanId),
+ "post-insert Human voice provenance conversion denied");
 denied(await service.from("recordings").insert({
  ...humanRef,id:id(),reader_id:owner.id,reader_user_id:owner.id}),
  "wrong Human narrator reference refused on R18");
@@ -152,6 +163,30 @@ denied(await service.from("recordings").insert({
 denied(await service.from("recordings").insert({
  ...humanRef,id:id(),audio_storage_path:localUrl("nemo/"+seriesId+"/"+episodeId+"/old.wav")}),
  "PUBLIC audio URL cannot authorize R18 recording");
+
+// An AI R18 path prefix must resolve to physical private WAV bytes,
+// bound to the same source and episode. A fake string must fail closed.
+const aiPath="nemo/"+seriesId+"/"+episodeId+"/isolated-"+id()+".wav";
+const privateAiRef="r18-private:"+aiPath;
+denied(await service.from("recordings").insert({
+ id:id(),series_id:seriesId,episode_id:episodeId,is_public:true,
+ audio_storage_path:privateAiRef
+}),"PRIVATE AI pointer without object bytes rejected");
+noError(await service.storage.from("r18-recording-audio").upload(
+ aiPath,wave,{contentType:"audio/wav",upsert:false}),
+ "stage isolated AI WAV bytes in PRIVATE bucket");
+const privateAiId=id();
+noError(await service.from("recordings").insert({
+ id:privateAiId,series_id:seriesId,episode_id:episodeId,
+ is_public:true,audio_storage_path:privateAiRef
+}),"correct source/episode physical PRIVATE AI recording accepted");
+denied(await service.from("recordings").insert({
+ id:id(),series_id:seriesId,episode_id:episodeId,is_public:true,
+ audio_storage_path:"r18-private:nemo/"+seriesId+"/"+id()+"/different.wav"
+}),"AI private path with wrong episode ID rejected");
+denied(await service.from("recordings").update({
+ audio_storage_path:"r18-private:aivis/"+seriesId+"/"+episodeId+"/not-present.wav"
+}).eq("id",privateAiId),"AI private pointer changed to missing object rejected");
 
 // Distinct test: privileged upsert into a previously recorded Public origin
 // after emergency PRIVATE must not change origin bytes on failed DB update.
