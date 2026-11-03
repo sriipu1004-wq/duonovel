@@ -138,6 +138,7 @@ grep -Fq "ISSUE137_DIRECT_SQL_ROLE_BOUNDARY_AND_ROLLBACK_PASS" "$WORK/direct-sql
  echo "FAIL: direct SQL test did not attest rollback" >&2; exit 1
 }
 echo "PASS: local service_role direct SQL B2 PUBLIC denial and PRIVATE metadata risk / transaction rollback"
+node scripts/issue137-b2/r0-signed-upload-revocation-local-e2e.mjs
 # Actual Next.js route over local HTTP + real SSR-cookie sessions.
 # Never pass R0_SERVICE_KEY (or any privileged key) into the spawned app.
 node scripts/issue137-b2/r0-next-http-e2e.mjs

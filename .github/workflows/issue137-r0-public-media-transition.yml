@@ -28,6 +28,7 @@ on:
       - "scripts/issue137-b2/r0-forward-repair-rehearsal-local.sql"
       - "scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs"
       - "scripts/issue137-b2/r0-direct-service-role-storage-local.sql"
+      - "scripts/issue137-b2/r0-signed-upload-revocation-local-e2e.mjs"
       - "scripts/issue137-b2/r0-legacy-human-orphans-readonly.sql"
       - "docs/issue137-legacy-human-orphan-rights-readonly.md"
       - "src/lib/recording/humanRecordingAtomic.ts"
@@ -145,6 +146,7 @@ jobs:
           grep -Fq "recordings_voice_model_id_fkey" scripts/issue137-b2/r0-hosted-constraint-overlay-local.sql
           node --check scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs
           node --check scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-signed-upload-revocation-local-e2e.mjs
           grep -Fq "set local role service_role;" scripts/issue137-b2/r0-direct-service-role-storage-local.sql
           grep -Fq "rollback;" scripts/issue137-b2/r0-direct-service-role-storage-local.sql
           grep -Fq "ISSUE137_DIRECT_SQL_ROLE_BOUNDARY_AND_ROLLBACK_PASS" scripts/issue137-b2/r0-direct-service-role-storage-local.sql
