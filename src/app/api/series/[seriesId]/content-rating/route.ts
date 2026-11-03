@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
   getSeriesContentWarningLocks,
+  getSeriesContentWarnings,
   normalizeSeriesContentWarnings,
   type SeriesContentWarning,
 } from "@/lib/contentRating";
@@ -123,8 +124,13 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const lockedWarnings = getSeriesContentWarningLocks(series);
+  // Emergency withdrawal corrects the work to R18, but must never drop a
+  // recently added violence or other existing warning from another editor.
   const warnings = Array.from(
-    new Set<SeriesContentWarning>([...requestedWarnings, ...lockedWarnings])
+    new Set<SeriesContentWarning>([
+      ...requestedWarnings, ...lockedWarnings,
+      ...(emergencyUnpublish ? getSeriesContentWarnings(series) : []),
+    ])
   );
   const rating = warnings.includes("sexual_r18") ? "r18" : "general";
 
