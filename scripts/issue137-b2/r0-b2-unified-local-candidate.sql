@@ -147,6 +147,22 @@ $$;
 revoke all on function libread_internal.is_restricted_recording_path(text)
  from public, anon, authenticated;
 
+-- PRIVATE AI CUSTODY: prefix alone is not proof of a PRIVATE WAV.
+create or replace function libread_internal.is_verified_private_ai_recording(p text,s uuid,e uuid)
+returns boolean language sql stable security definer set search_path=''
+as $ai$
+ select p is not null and s is not null and e is not null and p like 'r18-private:%'
+ and p !~ '[?#]' and p not like '%..%'
+ and substring(p from length('r18-private:')+1)
+     ~ ('^(nemo|aivis)/'||s::text||'/'||e::text||'/[^/]+[.]wav$')
+ and exists (select 1 from storage.objects o join storage.buckets b on b.id=o.bucket_id
+  where b.id='r18-recording-audio' and b.public is false
+  and o.name=substring(p from length('r18-private:')+1))
+ and not exists (select 1 from storage.objects o where o.bucket_id='recording-audio'
+  and o.name=substring(p from length('r18-private:')+1));
+$ai$;
+revoke all on function libread_internal.is_verified_private_ai_recording(text,uuid,uuid) from public,anon,authenticated;
+
 -- F2 PRIVATE HUMAN CUSTODY: path syntax alone does not confer containment.
 -- Do not permit legacy public URLs just because a private twin exists.
 create or replace function libread_internal.is_verified_private_human_recording(
@@ -310,8 +326,12 @@ begin
  if s is null or e is null or e.series_id is distinct from new.series_id then
    raise exception using errcode='23514',message='B2_INVALID_MEDIA_REFERENCE';
  end if;
+ if new.audio_storage_path like 'r18-private:%'
+   and not libread_internal.is_verified_private_ai_recording(new.audio_storage_path,new.series_id,new.episode_id) then
+    raise exception using errcode='23514',message='B2_PRIVATE_AI_AUDIO_MISSING';
+ end if;
  if new.audio_storage_path is not null
-    and not (libread_internal.is_restricted_recording_path(new.audio_storage_path)
+    and not (libread_internal.is_verified_private_ai_recording(new.audio_storage_path,new.series_id,new.episode_id)
      or libread_internal.is_verified_private_human_recording(
        new.audio_storage_path,new.series_id,new.episode_id,new.reader_id,
        new.reader_name,new.voice_model_id::text,new.reader_user_id))
@@ -331,7 +351,8 @@ revoke all on function libread_internal.guard_recording_media_reference()
  from public,anon,authenticated;
 drop trigger if exists issue137_b2_recording_media_reference on public.recordings;
 create trigger issue137_b2_recording_media_reference
-before insert or update of series_id,episode_id,audio_storage_path,is_public
+before insert or update of series_id,episode_id,audio_storage_path,is_public,
+ reader_id,reader_user_id,reader_name,voice_model_id
 on public.recordings for each row execute function libread_internal.guard_recording_media_reference();
 
 -- Replace transition guards with orphan-media coverage.
