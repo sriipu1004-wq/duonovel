@@ -149,7 +149,7 @@ denied(await service.from("recordings").update({reader_user_id:owner.id}).eq("id
  "post-insert Human narrator reader_user_id reassignment denied");
 denied(await service.from("recordings").update({reader_name:""}).eq("id",persistedHumanId),
  "post-insert Human narrator display-name removal denied");
-denied(await service.from("recordings").update({voice_model_id:"fake-ai-model"}).eq("id",persistedHumanId),
+denied(await service.from("recordings").update({voice_model_id:id()}).eq("id",persistedHumanId),
  "post-insert Human voice provenance conversion denied");
 denied(await service.from("recordings").insert({
  ...humanRef,id:id(),reader_id:owner.id,reader_user_id:owner.id}),
@@ -158,7 +158,7 @@ denied(await service.from("recordings").insert({
  ...humanRef,id:id(),audio_storage_path:humanPath.replace("test.m4a","missing.m4a")}),
  "missing Human PRIVATE object cannot authorize R18 recording");
 denied(await service.from("recordings").insert({
- ...humanRef,id:id(),voice_model_id:"not-a-human-voice"}),
+ ...humanRef,id:id(),voice_model_id:id()}),
  "AI voice_model_id cannot spoof PRIVATE Human narration");
 denied(await service.from("recordings").insert({
  ...humanRef,id:id(),audio_storage_path:localUrl("nemo/"+seriesId+"/"+episodeId+"/old.wav")}),
@@ -169,7 +169,7 @@ denied(await service.from("recordings").insert({
 const aiPath="nemo/"+seriesId+"/"+episodeId+"/isolated-"+id()+".wav";
 const privateAiRef="r18-private:"+aiPath;
 denied(await service.from("recordings").insert({
- id:id(),series_id:seriesId,episode_id:episodeId,is_public:true,
+ id:id(),series_id:seriesId,episode_id:episodeId,reader_id:reader.id,is_public:true,
  audio_storage_path:privateAiRef
 }),"PRIVATE AI pointer without object bytes rejected");
 noError(await service.storage.from("r18-recording-audio").upload(
@@ -177,11 +177,11 @@ noError(await service.storage.from("r18-recording-audio").upload(
  "stage isolated AI WAV bytes in PRIVATE bucket");
 const privateAiId=id();
 noError(await service.from("recordings").insert({
- id:privateAiId,series_id:seriesId,episode_id:episodeId,
+ id:privateAiId,series_id:seriesId,episode_id:episodeId,reader_id:reader.id,
  is_public:true,audio_storage_path:privateAiRef
 }),"correct source/episode physical PRIVATE AI recording accepted");
 denied(await service.from("recordings").insert({
- id:id(),series_id:seriesId,episode_id:episodeId,is_public:true,
+ id:id(),series_id:seriesId,episode_id:episodeId,reader_id:reader.id,is_public:true,
  audio_storage_path:"r18-private:nemo/"+seriesId+"/"+id()+"/different.wav"
 }),"AI private path with wrong episode ID rejected");
 denied(await service.from("recordings").update({

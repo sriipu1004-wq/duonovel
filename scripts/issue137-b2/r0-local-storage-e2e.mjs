@@ -92,8 +92,8 @@ ok((await service.storage.from("recording-audio").upload(objectPath,wave,{
   contentType:"audio/wav",upsert:false,cacheControl:"0"
 })).error,"actual local PUBLIC Storage upload");
 ok((await service.from("recordings").insert({
-  id:recordingId,series_id:seriesId,episode_id:episodeId,is_public:true,
-  audio_storage_path:publicUrl
+  id:recordingId,series_id:seriesId,episode_id:episodeId,reader_id:owner.id,
+  is_public:true,audio_storage_path:publicUrl
 })).error,"seed PUBLIC DB recording reference");
 assert.equal((await row(anon)).length,1);checks.pass++;
 assert.equal((await row(other.client)).length,1);checks.pass++;

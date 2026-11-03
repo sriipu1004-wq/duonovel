@@ -95,8 +95,8 @@ assert.equal((await service.storage.from("recording-audio").upload(publicPath,by
   contentType:"audio/wav",upsert:false,cacheControl:"0"
 })).error,null,"seed one local PUBLIC WAV");
 assert.equal((await service.from("recordings").insert({
-  id:recordingId,series_id:seriesId,episode_id:episodeId,is_public:true,
-  audio_storage_path:publicUrl
+  id:recordingId,series_id:seriesId,episode_id:episodeId,reader_id:owner.id,
+  is_public:true,audio_storage_path:publicUrl
 })).error,null,"seed legacy local PUBLIC recording reference");
 
 // A SECOND real public R18 work exercises viewer JWT, opted-in RLS and

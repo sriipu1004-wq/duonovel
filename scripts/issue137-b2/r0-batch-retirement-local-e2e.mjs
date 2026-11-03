@@ -110,8 +110,8 @@ for(const item of plan){
 success(await bucket.upload(untouchedPath,unaffected,{contentType:"audio/wav",upsert:false}),
  "unrelated public work seed");
 success(await service.from("recordings").insert({
- id:recordingId,series_id:seriesId,episode_id:episodeId,is_public:true,
- audio_storage_path:publicUrl(plan[0].path)
+ id:recordingId,series_id:seriesId,episode_id:episodeId,reader_id:owner.id,
+ is_public:true,audio_storage_path:publicUrl(plan[0].path)
 }),"exact one indexed WAV reference");
 const indexed=success(await service.from("recordings").select("id,audio_storage_path").eq("series_id",seriesId),
  "read synthetic indexed references");

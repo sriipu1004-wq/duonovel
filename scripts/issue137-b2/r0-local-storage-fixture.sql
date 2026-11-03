@@ -43,12 +43,12 @@ create table public.recordings (
   id uuid primary key,
   series_id uuid references public.series(id),
   episode_id uuid not null references public.episodes(id),
-  reader_id uuid,
+  reader_id uuid not null,
   reader_user_id uuid,
   reader_name text,
-  voice_model_id text,
-  is_public boolean not null default true,
-  audio_storage_path text,
+  voice_model_id uuid,
+  is_public boolean default true,
+  audio_storage_path text not null,
   created_at timestamptz not null default now()
 );
 create table public.users (
