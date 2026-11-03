@@ -125,7 +125,7 @@ node scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs
 # Forbid anything except the runner's disposable Supabase Postgres literal DSN.
 command -v psql >/dev/null || { echo "BLOCKED: psql unavailable" >&2; exit 3; }
 R0_DB_URL="$(read_env DB_URL)"
-[[ "$R0_DB_URL" =~ ^postgresql://postgres:[^@]+@127[.]0[.]1:54322/postgres$ ]] || {
+[[ "$R0_DB_URL" =~ ^postgresql://postgres:[^@]+@127[.]0[.]0[.]1:54322/postgres$ ]] || {
  echo "BLOCKED: direct service-role test requires exact local Postgres" >&2; exit 3
 }
 psql -X "$R0_DB_URL" -v ON_ERROR_STOP=1 \
