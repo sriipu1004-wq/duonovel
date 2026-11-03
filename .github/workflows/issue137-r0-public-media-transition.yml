@@ -23,6 +23,10 @@ on:
       - "scripts/issue137-b2/r0-next-http-e2e.mjs"
       - "scripts/issue137-b2/r0-b2-h1-render-single-local.mjs"
       - "scripts/issue137-b2/r0-h1-atomic-local-extension.sql"
+      - "scripts/issue137-b2/r0-h2-signed-staging-lease-extension.sql"
+      - "src/lib/recording/humanStagingLease.ts"
+      - "src/app/api/recordings/human-upload-session/route.ts"
+      - "src/app/api/recordings/human-upload-finalize/route.ts"
       - "scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs"
       - "scripts/issue137-b2/r0-hosted-constraint-overlay-local.sql"
       - "scripts/issue137-b2/r0-forward-repair-rehearsal-local.sql"
@@ -147,6 +151,8 @@ jobs:
           node --check scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs
           node --check scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs
           node --check scripts/issue137-b2/r0-signed-upload-revocation-local-e2e.mjs
+          grep -Fq "issue137_h2_stage_storage_guard" scripts/issue137-b2/r0-h2-signed-staging-lease-extension.sql
+          grep -Fq "H2_STAGE_LEASE_REVOKED" scripts/issue137-b2/r0-h2-signed-staging-lease-extension.sql
           grep -Fq "set local role service_role;" scripts/issue137-b2/r0-direct-service-role-storage-local.sql
           grep -Fq "rollback;" scripts/issue137-b2/r0-direct-service-role-storage-local.sql
           grep -Fq "ISSUE137_DIRECT_SQL_ROLE_BOUNDARY_AND_ROLLBACK_PASS" scripts/issue137-b2/r0-direct-service-role-storage-local.sql

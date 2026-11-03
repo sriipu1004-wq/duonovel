@@ -78,6 +78,7 @@ mapfile -t local_migrations < <(
 }
 cat "$R0/r0-local-storage-fixture.sql" \
  "$R0/r0-b2-unified-local-candidate.sql" \
+ "$R0/r0-h2-signed-staging-lease-extension.sql" \
  > "${local_migrations[0]}"
 echo "PASS: CLI generated exactly one disposable candidate migration; no remote history touched"
 started=1
