@@ -51,6 +51,10 @@ end
 $eligible$;
 revoke all on function libread_internal.h2_source_is_staging_eligible(uuid,uuid,uuid)
  from public,anon,authenticated;
+-- The open/close invoker RPCs run as service_role and require this narrowly
+-- scoped helper; denying it would make every valid signed session unavailable.
+grant execute on function libread_internal.h2_source_is_staging_eligible(uuid,uuid,uuid)
+ to service_role;
 
 create or replace function public.issue137_h2_stage_open(
  p_session uuid,p_series uuid,p_episode uuid,p_actor uuid,
