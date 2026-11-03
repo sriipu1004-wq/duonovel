@@ -14,6 +14,7 @@ on:
       - "scripts/issue137-b2/r0-hosted-ledger-snapshot.json"
       - "scripts/issue137-b2/r0-local-storage-fixture.sql"
       - "scripts/issue137-b2/r0-local-storage-e2e.mjs"
+      - "scripts/issue137-b2/r0-batch-retirement-local-e2e.mjs"
       - "scripts/issue137-b2/r0-b2-auth-storage-negative-e2e.mjs"
       - "scripts/issue137-b2/r0-b2-local-transactional-revert-smoke.sql"
       - "scripts/issue137-b2/r0-next-http-e2e.mjs"
@@ -102,6 +103,7 @@ jobs:
           set -euo pipefail
           bash -n scripts/issue137-b2/r0-run-local-storage.sh
           node --check scripts/issue137-b2/r0-local-storage-e2e.mjs
+          node --check scripts/issue137-b2/r0-batch-retirement-local-e2e.mjs
           node --check scripts/issue137-b2/r0-b2-auth-storage-negative-e2e.mjs
           node --check scripts/issue137-b2/r0-next-http-e2e.mjs
           docker info >/dev/null
@@ -110,7 +112,7 @@ jobs:
           test -z "${SUPABASE_ACCESS_TOKEN:-}"
       - name: Install exact locked app SDK for REAL LOCAL Storage HTTP
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Disposable CLI migration, Auth/R18/Storage/Next HTTP, rollback E2E
+      - name: Disposable CLI, Storage 3-object retirement/recovery, Auth/R18/Next HTTP and rollback E2E
         shell: bash
         run: |
           set -euo pipefail
