@@ -4,7 +4,16 @@
 -- No Cron, no automatic deletion, no public bucket/permission changes.
 begin;
 create schema if not exists libread_internal;
-revoke all on schema libread_internal from public,anon,authenticated;
+-- PRESERVE B2's explicit anon/authenticated schema USAGE for
+-- libread_internal.can_read_r18() in RLS. H2 only adds the service role.
+-- Revoking B2 schema USAGE here could invalidate existing R18 read policies.
+do $preserve_b2_usage$
+begin
+ if not has_schema_privilege('anon','libread_internal','USAGE')
+   or not has_schema_privilege('authenticated','libread_internal','USAGE') then
+  raise exception 'H2_PREEXISTING_R18_SCHEMA_USAGE_MISSING' using errcode='42501';
+ end if;
+end $preserve_b2_usage$;
 grant usage on schema libread_internal to service_role;
 create table libread_internal.h2_human_stage_lease(
  session_id uuid primary key,
