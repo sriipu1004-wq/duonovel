@@ -40,19 +40,19 @@ declare
  if sid is null or eid is null then
   raise exception 'ISSUE137_R18_LOCAL_FIXTURE_MISSING' using errcode='42501';
  end if;
- select s.id,e.id into private_sid,private_eid
- from public.series s join public.episodes e on e.series_id=s.id
+ -- Select ONLY the tested withdrawal that still has an actual PUBLIC
+ -- origin; other synthetic PRIVATE works may already have retired theirs.
+ -- The join prevents a flaky selection by UUID ordering, and refuses any
+ -- provenance mismatch between stored path and current source/episode.
+ select s.id,e.id,o.id into private_sid,private_eid,original_object
+ from public.series s
+ join public.episodes e on e.series_id=s.id
+ join storage.objects o on o.bucket_id='recording-audio'
+  and o.name like 'nemo/'||s.id::text||'/'||e.id::text||'/%'
  where s.publication_status='private' and s.content_rating='r18'
    and e.posting_status='posted' and e.is_published is true
- order by s.id,e.id limit 1;
- if private_sid is null then
-  raise exception 'ISSUE137_PRIVATE_LOCAL_FIXTURE_MISSING' using errcode='42501';
- end if;
- select o.id into original_object from storage.objects o
- where o.bucket_id='recording-audio'
- and o.name like 'nemo/'||private_sid::text||'/'||private_eid::text||'/%'
  order by o.id limit 1;
- if original_object is null then
+ if private_sid is null or private_eid is null or original_object is null then
   raise exception 'ISSUE137_WITHDRAWN_PUBLIC_ORIGIN_MISSING' using errcode='42501';
  end if;
  -- Unlike a REST/S3 403, these are actual SQL executed as service_role,
