@@ -26,17 +26,30 @@ const h1body=unwrap(h1,"H1");
 assert.match(b2body,/issue137_b2_recording_media_reference/u);
 assert.match(h1body,/issue137_h1_human_atomic_guard/u);
 assert.ok(!fixture.includes("issue137_h1_human_atomic_guard"),"fixture must not preinstall H1");
-const sql="begin;\n"+fixture+"\n"+hostedShape+"\n"+b2body+"\n"+h1body+"\ncommit;\n";
+// The local baseline fixture is a SEPARATE, earlier CLI-named migration.
+// The single candidate migration below only contains the real B2/R0+H1
+// source DDL, applied to a schema that already exists.
+const localBaseline="begin;\n"+fixture+"\n"+hostedShape+"\ncommit;\n";
+const sql="begin;\n"+b2body+"\n"+h1body+"\ncommit;\n";
+assert.ok(!/create table public\.(series|episodes|recordings|users)/iu.test(sql),
+ "feature migration may not create dummy application tables");
+assert.match(localBaseline,/recordings_reader_id_fkey/u);
+assert.equal((localBaseline.match(/^\s*begin;\s*$/gmi)||[]).length,1);
+assert.equal((localBaseline.match(/^\s*commit;\s*$/gmi)||[]).length,1);
 assert.equal((sql.match(/^\s*begin;\s*$/gmi)||[]).length,1);
 assert.equal((sql.match(/^\s*commit;\s*$/gmi)||[]).length,1);
 const switches=sql.match(/create trigger issue137_(?:b2|h1)_[a-z0-9_]+/giu)||[];
 assert.equal(switches.length,10,"one B2 nine-trigger set plus one H1 guard");
 if(process.argv[2]==="--self-test"){
- console.log("PASS: B2/R0+H1+hosted-shape overlay single-transaction renderer; 10 guard triggers, no remote operation");
+ console.log("PASS: one B2/R0+H1 forward feature migration against separate hosted-shape local baseline; 10 guard triggers; no remote operation");
 }else if(process.argv[2]==="--emit-local"&&
   process.env.DO_NOT_CONTACT_PRODUCTION==="true"&&
   process.env.R0_EPHEMERAL_CONFIRM==="local-only"){
  process.stdout.write(sql);
+}else if(process.argv[2]==="--emit-fixture-local"&&
+  process.env.DO_NOT_CONTACT_PRODUCTION==="true"&&
+  process.env.R0_EPHEMERAL_CONFIRM==="local-only"){
+ process.stdout.write(localBaseline);
 }else{
  throw Error("RENDER_HOLD: require --self-test or isolated --emit-local");
 }

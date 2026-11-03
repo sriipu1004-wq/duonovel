@@ -156,10 +156,27 @@ echo "PASS: unified SQL candidate refuses duplicate installation in real local P
 }
 cd "$WORK"
 export R0_EPHEMERAL_CONFIRM=local-only
-node "$R0/r0-b2-h1-render-single-local.mjs" --emit-local > "${local_migrations[0]}"
-# Hard fail if the generated migration has nested transactions or wrong scope.
-[[ "$(grep -Eic '^[[:space:]]*begin;[[:space:]]*$' "${local_migrations[0]}")" == 1 ]] || exit 3
-[[ "$(grep -Eic '^[[:space:]]*commit;[[:space:]]*$' "${local_migrations[0]}")" == 1 ]] || exit 3
+# Replace ONLY the local first-stage fixture migration with the selected
+# hosted-shape legacy schema. Its B2/R0+H1 guards remain ABSENT at this point.
+# Create ONE subsequent forward-only B2/R0+H1 migration via pinned CLI.
+node "$R0/r0-b2-h1-render-single-local.mjs" --emit-fixture-local > "${local_migrations[0]}"
+npx --yes supabase@2.122.0 migration new issue137_b2_h1_existing_schema_candidate >/dev/null
+mapfile -t forward_migrations < <(
+ find "$WORK/supabase/migrations" -maxdepth 1 -type f \
+  -name '*_issue137_b2_h1_existing_schema_candidate.sql' -print
+)
+(( ${#forward_migrations[@]} == 1 )) || {
+ echo "BLOCKED: exactly one LOCAL forward candidate expected" >&2; exit 3
+}
+node "$R0/r0-b2-h1-render-single-local.mjs" --emit-local > "${forward_migrations[0]}"
+for sql_file in "${local_migrations[0]}" "${forward_migrations[0]}"; do
+ [[ "$(grep -Eic '^[[:space:]]*begin;[[:space:]]*$' "$sql_file")" == 1 ]] || exit 3
+ [[ "$(grep -Eic '^[[:space:]]*commit;[[:space:]]*$' "$sql_file")" == 1 ]] || exit 3
+done
+if grep -Eqi 'create table public\.(series|episodes|recordings|users)' "${forward_migrations[0]}"; then
+ echo "BLOCKED: forward migration secretly contains local fixture" >&2; exit 3
+fi
+echo "PASS: isolated existing-schema fixture precedes exactly ONE B2/R0+H1 feature migration"
 # A live 'db reset --local' left the existing Storage process pointing
 # at a restarting Postgres container (CI 41610029545, unhealthy). Rebuild the
 # WHOLE same disposable stack instead; NEVER run remote db reset/push/repair.

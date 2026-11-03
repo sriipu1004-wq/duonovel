@@ -10,6 +10,19 @@ begin
      where id and purpose='SYNTHETIC-R0-ONLY') then
    raise exception 'ISSUE137_NONLOCAL_RECOVERY_REJECTED' using errcode='42501';
  end if;
+ if (select count(*) from supabase_migrations.schema_migrations
+     where name='issue137_b2_h1_existing_schema_candidate') <> 1 then
+   raise exception 'ISSUE137_FORWARD_MIGRATION_NOT_RECORDED_ON_LOCAL' using errcode='42501';
+ end if;
+ if (select count(*) from pg_constraint con join pg_class c on c.oid=con.conrelid
+    join pg_namespace n on n.oid=c.relnamespace
+    where n.nspname='public' and con.convalidated
+      and con.conname in ('series_author_id_fkey','recordings_reader_id_fkey',
+      'recordings_voice_model_id_fkey','series_content_warnings_check',
+      'episodes_scheduled_for_consistency_check',
+      'episodes_series_id_episode_number_key')) <> 6 then
+   raise exception 'ISSUE137_HOSTED_SHAPE_CONSTRAINTS_NOT_VALIDATED' using errcode='42501';
+ end if;
  if (select count(*) from pg_trigger
     where not tgisinternal and
       (tgname like 'issue137_b2_%' or tgname like 'issue137_h1_%')) <> 10
