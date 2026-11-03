@@ -5,6 +5,23 @@ import {sha} from "./r0-h2-browser-pcm-fixture.mjs";
 export async function readyWav(page,audio){
  const file=page.locator("[data-recording-studio] input[type=file]");
  await file.waitFor({state:"attached",timeout:45000});
+ // Next dev streams the SSR form before React hydration. Setting the file
+ // on that inert DOM node can silently lose the onChange event: the page
+ // remains at "未選択" until our timeout, despite valid owner/episode RLS.
+ // Wait for the actual hydrated React onChange prop, not load/DOM attachment
+ // or an arbitrary sleep. This is test-only observation, no app bypass.
+ try {
+  await page.waitForFunction(() => {
+   const input=document.querySelector("[data-recording-studio] input[type=file]");
+   return !!input && Object.keys(input).some(k =>
+    k.startsWith("__reactProps$") &&
+    typeof input[k]?.onChange==="function");
+  },null,{timeout:45000});
+ } catch {
+  throw Error("H2_REAL_BROWSER_HYDRATION_MISSING:"+
+   JSON.stringify({path:new URL(page.url()).pathname,
+    inputAttached:await file.count()===1}));
+ }
  await file.setInputFiles({name:"h2-synthetic-8mib.wav",
   mimeType:"audio/wav",buffer:audio});
  try {
