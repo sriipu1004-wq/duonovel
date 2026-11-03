@@ -170,7 +170,10 @@ try {
   pass(ready,"real local Next.js HTTP route ready and anonymous 401");
   // Populate the SAME Next server cache before the atomic mutation.
   // Do not satisfy this contract with PostgREST-only or mocked HTML.
-  const searchPath="/search?q="+encodeURIComponent(syntheticTitle);
+  // Search inputs echo q into their HTML; never use the FULL private marker
+  // as q, or the post-withdrawal assertion would report a false data leak.
+  // Query a broad synthetic prefix and check only the full unique result title.
+  const searchPath="/search?q="+encodeURIComponent("R0-ISOLATED-READER");
   const workPath="/works/"+seriesId;
   const readerPath="/read/"+seriesId+"/1";
   const initialSearch=await getPage(searchPath);
