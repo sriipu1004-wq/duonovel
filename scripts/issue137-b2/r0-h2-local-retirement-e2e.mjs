@@ -34,13 +34,27 @@ for(const lease of candidates){
  assert.equal(lease.part_count,1);
  const prefix="human-temp/"+lease.series_id+"/"+lease.episode_id+"/"+
    lease.actor_id+"/"+lease.session_id;
+ const allowed=new Set(Array.from({length:lease.part_count},(_,i)=>
+   "part-"+String(i+1).padStart(4,"0")+"."+lease.source_extension));
  const list=async()=>{
-  const res=await store.list(prefix,{limit:100,offset:0});
-  assert.equal(res.error,null,"full session namespace listing failed");
-  const files=res.data??[];
-  if(files.some(x=>x.name!=="part-0001.webm"||!x.id))
-   throw Error("H2_MANIFEST_DRIFT_HOLD: unapproved part, folder or sidecar");
-  return files;
+  const found=[];
+  for(let offset=0;offset<=400;offset+=100){
+    const res=await store.list(prefix,{limit:100,offset,
+      sortBy:{column:"name",order:"asc"}});
+    assert.equal(res.error,null,"complete session prefix listing failed");
+    const batch=res.data??[];
+    for(const item of batch){
+      if(!item.id||!allowed.has(item.name)||item.name.includes("/")||
+         found.some(x=>x.name===item.name)){
+        throw Error("H2_MANIFEST_DRIFT_HOLD: unlisted, nested or duplicated object");
+      }
+      found.push(item);
+    }
+    if(found.length>lease.part_count)
+      throw Error("H2_MANIFEST_DRIFT_HOLD: more objects than recorded parts");
+    if(batch.length<100)return found.sort((x,y)=>x.name.localeCompare(y.name));
+  }
+  throw Error("H2_MANIFEST_OVERFLOW_HOLD: bounded pagination exhausted");
  };
  const initial=await list();
  const premature=await admin.rpc("issue137_h2_stage_finish_retirement",{
