@@ -64,3 +64,16 @@ When real separate-session review is still **not requested**, use `独立監査�
 ## Default report
 
 Git/Production, Changed, DB/Data, Preserved, Validation (type + exact evidence), Remaining, Canonical docs updated, Next, and explicit approvals/outstanding gates. Retain the former specialist report fields as work reporting, not physical chat identities.
+
+
+## Execution throughput policy — owner direction 2026-11-03 (Draft #160; not merged into main)
+
+The default objective for an approved phase is **more completed, user-usable critical-path integration per conversation**, not more commits, tests or PRs. This is an execution discipline, not a new automation or authorization mechanism.
+
+- Within the **same explicitly approved Issue and one writer phase**, batch dependent inspection, changes, focused tests, root-cause fixes, same-HEAD CI/Preview verification and checkpoint evidence into one chat response where feasible. Avoid repetitive requests for approval of intermediate author-side corrections already inside the permitted scope.
+- Reuse the current Issue/PR and prior validated evidence; perform fresh checks where the HEAD, real environment, risk boundary or test outcome has changed. Do not expand into unrelated backlog, change roadmap order, start a second writer or run unneeded low-value test cycles just to increase activity.
+- Optimize for **verified integrated functionality against roadmap completion criteria**. When two consecutive cycles do not move a primary completion condition, explicitly reassess the blocker, dependency and implementation path rather than continuing superficial fixes.
+- Keep exactly the same safety gates: independent fixed-HEAD reviewer for material high-risk release, separate exact owner approval for merge and for Production Auth/RLS/schema/Storage/rights/publication/ads/Cron, no unsupported PASS claims and no exposure/ownership weakening. Failure of a gated step may legitimately stop further work.
+- This mode can be **consistently applied as a practice**, but a fixed quantity of work per chat is not guaranteed: dependencies, tooling, validation failures, time and context length vary. Work is performed **only during the active response**, not asynchronously after the chat ends. Document actual completion and constraints rather than claiming a throughput guarantee.
+- For long work, retain substantive progress and checkpoints in the authorized Issue/PR so a replacement chat can recover promptly, and make independent evidence/approval status explicit. This text does **not** update ChatGPT Project Settings UI; that requires separate manual user action.
+
