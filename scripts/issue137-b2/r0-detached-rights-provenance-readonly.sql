@@ -37,6 +37,10 @@ WITH a AS (
   count(*) FILTER(WHERE user_metadata IS NOT NULL
    AND user_metadata<>'{}'::jsonb)::integer AS nonempty_user_metadata_rows
  FROM a GROUP BY family,sid,actor,upload_segment,alias
+), structural_scopes AS (
+ SELECT sid,eid,bool_or(family='human') AS human_scope,
+  bool_or(family='nemo') AS nemo_scope
+ FROM a GROUP BY sid,eid
 ), related_logs AS (
  SELECT pl.id,bool_or(a.family='human') AS human_scope,
   bool_or(a.family='nemo') AS nemo_scope
@@ -92,6 +96,16 @@ SELECT c.family,c.alias AS cohort_alias,c.object_count,c.episode_segments,
  (SELECT count(*) FROM related_logs) AS all_scopes_unique_progress_log_rows,
  (SELECT count(*) FROM related_logs WHERE human_scope AND nemo_scope)
   AS overlapping_human_nemo_progress_log_rows,
+ (SELECT count(DISTINCT sid) FROM a) AS distinct_series_across_families,
+ (SELECT count(*) FROM structural_scopes) AS distinct_episode_scopes_across_families,
+ (SELECT count(*) FROM structural_scopes
+  WHERE human_scope AND nemo_scope) AS episodes_with_both_families,
+ (SELECT count(*) FROM a JOIN structural_scopes s USING(sid,eid)
+  WHERE s.human_scope AND s.nemo_scope AND a.family='nemo')
+  AS nemo_objects_in_shared_episodes,
+ (SELECT count(*) FROM a JOIN structural_scopes s USING(sid,eid)
+  WHERE s.human_scope AND s.nemo_scope AND a.family='human')
+  AS human_objects_in_shared_episodes,
  'RIGHTS_UNKNOWN_NO_PUBLICATION_NO_MOVE_NO_DELETE'::text AS decision
 FROM cohorts c ORDER BY c.family,c.alias;
 ROLLBACK;
