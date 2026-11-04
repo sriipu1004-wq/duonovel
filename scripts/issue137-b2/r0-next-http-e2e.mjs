@@ -609,6 +609,75 @@ try {
     .update({publication_status:"public"}).eq("id",seriesId).select("id");
   deny(republish.error?.code==="23514",
     "DB candidate denies re-publication with old Public file+reference");
+  // R0-1 RELEASE FEASIBILITY: exercise the *installed* catalog revision RPC
+  // on a public-work cohort comparable in item count to current Production.
+  // This is real local GoTrue/PostgREST/Next HTTP, not Production traffic or
+  // a p95 guarantee. Do not shortcut by using an unversioned shared cache.
+  const catalogPrefix="R0-CATALOG-EPOCH-"+id().slice(0,8).toUpperCase();
+  const workCount=120;
+  const catalogWorks=Array.from({length:workCount},(_,i)=>({
+    id:id(),author_id:owner.id,
+    publication_status:"public",content_rating:"general",
+    content_warnings:[],content_warning_locks:[],
+    title:catalogPrefix+"-WORK-"+String(i).padStart(3,"0"),
+    description:"SYNTHETIC EPOCH WORK "+i,
+    source_language:"ja",translation_permission_mode:"open",
+    recording_permission_mode:"closed"
+  }));
+  const catalogFirst=catalogWorks[0];
+  const beforeTitle=catalogPrefix+"-VERSION-OLD";
+  const afterTitle=catalogPrefix+"-VERSION-NEW";
+  catalogFirst.title=beforeTitle;
+  assert.equal((await service.from("series").insert(catalogWorks)).error,null,
+    "insert 120 LOCAL synthetic published works");
+  const catalogEpisodes=catalogWorks.map((work,i)=>({
+    id:id(),series_id:work.id,episode_number:1,
+    body:"SYNTHETIC CATALOG EPISODE "+i,
+    posting_status:"posted",is_published:true
+  }));
+  assert.equal((await service.from("episodes").insert(catalogEpisodes)).error,null,
+    "insert 120 LOCAL synthetic posted episodes");
+  const epochRead=async()=>{
+    const result=await service.rpc("libread_public_catalog_revision");
+    assert.equal(result.error,null,"installed catalog revision RPC must be callable by local service role");
+    const value=Number(result.data);
+    assert.ok(Number.isSafeInteger(value)&&value>0,"valid committed catalog epoch");
+    return value;
+  };
+  const epochBefore=await epochRead();
+  const versionSearch="/search?q="+encodeURIComponent(catalogPrefix+"-VERSION");
+  const firstSearch=await getPage(versionSearch);
+  pass(firstSearch.status===200&&firstSearch.body.includes(beforeTitle)&&
+    !firstSearch.body.includes(afterTitle),
+    "real Next/Search returns first version using installed epoch RPC");
+  const timedCatalog=async(path)=>{
+    const start=performance.now();
+    const page=await getPage(path);
+    assert.equal(page.status,200,"real local public catalog HTTP must succeed");
+    return Math.round(performance.now()-start);
+  };
+  await timedCatalog("/ranking");
+  const warmMs=[];
+  for(let i=0;i<3;i++)warmMs.push(await timedCatalog("/ranking"));
+  assert.equal((await service.from("series").update({
+    title:afterTitle,description:"SYNTHETIC EPOCH COMMITTED REVISION"
+  }).eq("id",catalogFirst.id)).error,null,"synthetic catalog update");
+  const epochAfter=await epochRead();
+  pass(epochAfter>epochBefore,"actual Postgres trigger advances transactional catalog revision");
+  const coldAfterCommitMs=await timedCatalog("/ranking");
+  const afterSearch=await getPage(versionSearch);
+  deny(afterSearch.status===200&&afterSearch.body.includes(afterTitle)&&
+    !afterSearch.body.includes(beforeTitle),
+    "same Next server cannot return stale old title after committed epoch change");
+  const warmAfterMs=await timedCatalog("/ranking");
+  console.log("EVIDENCE: R0-CATALOG-EPOCH LOCAL ONLY workCount="+workCount+
+    " epochBefore="+epochBefore+" epochAfter="+epochAfter+
+    " rankingWarmMs="+warmMs.join(",")+
+    " rankingFirstAfterCommitMs="+coldAfterCommitMs+
+    " rankingWarmAfterMs="+warmAfterMs+
+    " (Next dev+local Postgres; NOT hosted Preview p95)");
+  console.log("PASS: LOCAL 120-work catalog revision monotonicity, warmed-cache"+
+    " invalidation and public Search title freshness after actual DB commit");
   console.log("PASS: #137 REAL LOCAL Next SSR-cookie POST + local RLS, "+
     n.positive+" positive / "+n.denied+" denied checks");
   console.log("RISK: successfully withdrawn DB source does NOT revoke old Public Storage URL");
