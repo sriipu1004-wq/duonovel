@@ -89,6 +89,74 @@ jobs:
           --health-retries 12
     steps:
       - uses: actions/checkout@v4
+      # This is an intentionally failing historical source migration on a fresh
+      # LOCAL PostgreSQL service. It is NOT a schema baseline or a remote replay.
+      # The second transaction proves the missing *first-table prerequisite*
+      # only; it rolls back before any other job's synthetic fixtures run.
+      - name: Prove missing historical empty-DB bootstrap on local PostgreSQL 17
+        env:
+          PGPASSWORD: local-fixture-only
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGDATABASE: postgres
+          DO_NOT_CONTACT_PRODUCTION: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${DO_NOT_CONTACT_PRODUCTION}" = "true"
+          test "${PGHOST}" = "127.0.0.1"
+          test "${PGPORT}" = "5432"
+          test "${PGDATABASE}" = "postgres"
+          test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
+          test -z "${SUPABASE_DB_PASSWORD:-}"
+          test -z "${SUPABASE_ACCESS_TOKEN:-}"
+          earliest="supabase/migrations/20260322120000_add_series_tags_canonical_source.sql"
+          recorded_paired="supabase/migrations/20260914130000_ensure_series_translation_permission_mode.sql"
+          test -f "$earliest"
+          test -f "$recorded_paired"
+          test "$(find supabase/migrations -maxdepth 1 -name '*.sql' -printf '%f\n' | sort | head -n 1)" = "${earliest##*/}"
+          test "$(psql -X -Atqc "SELECT to_regclass('public.series') IS NULL")" = "t"
+          failure_log="$(mktemp)"
+          trap 'rm -f "$failure_log"' EXIT
+          if psql -X -v ON_ERROR_STOP=1 -1 -f "$earliest" >"$failure_log" 2>&1; then
+            echo "BOOTSTRAP_UNEXPECTED_SUCCESS_HOLD: empty local DB must not be treated as replayable" >&2
+            exit 1
+          fi
+          if ! grep -Fq 'relation "public.series" does not exist' "$failure_log"; then
+            echo "BOOTSTRAP_UNEXPECTED_FAILURE_HOLD: not the established missing series prerequisite" >&2
+            tail -n 8 "$failure_log" >&2
+            exit 1
+          fi
+          test "$(psql -X -Atqc "SELECT to_regclass('public.series') IS NULL")" = "t"
+          echo "PASS: first tracked legacy migration fails on genuinely empty LOCAL PG17: missing public.series"
+          # A one-table shim demonstrates the precise prerequisite, NOT an
+          # original production schema, 21 hosted migrations or RLS completeness.
+          psql -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          CREATE TABLE public.series(id uuid PRIMARY KEY);
+          \i supabase/migrations/20260322120000_add_series_tags_canonical_source.sql
+          \i supabase/migrations/20260914130000_ensure_series_translation_permission_mode.sql
+          DO $bootstrap_probe$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='series'
+                AND column_name='tags' AND is_nullable='NO'
+            ) OR NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='series'
+                AND column_name='translation_permission_mode' AND is_nullable='NO'
+            ) THEN
+              RAISE EXCEPTION 'ISSUE137_MINIMAL_BOOTSTRAP_PREREQUISITE_HOLD';
+            END IF;
+          END;
+          $bootstrap_probe$;
+          ROLLBACK;
+          SQL
+          test "$(psql -X -Atqc "SELECT to_regclass('public.series') IS NULL")" = "t"
+          echo "PASS: local one-table prerequisite permits two historical SQL files; transaction ROLLBACK verified"
+          echo "RELEASE_HOLD: this is NOT a complete replayable baseline or a migration-history repair"
       - name: Verify public-media candidate using synthetic PostgreSQL 17 fixture
         env:
           PGPASSWORD: local-fixture-only
