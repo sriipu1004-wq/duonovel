@@ -34,6 +34,19 @@ function readRequestedWarnings(payload: Record<string, unknown>): SeriesContentW
   return null;
 }
 
+// PostgREST's eq operator accepts a PostgreSQL text[] literal. Use the
+// exact raw DB snapshot, not a normalized subset: otherwise another editor's
+// newly added warning/lock can be silently lost between SELECT and UPDATE.
+// Only canonical enum values are admitted; no string interpolation of
+// arbitrary user- or DB-supplied text into an array literal.
+function exactWarningArrayPredicate(value: unknown): string | null {
+  if (!Array.isArray(value) ||
+      value.some(item => item !== "sexual_r18" && item !== "violence")) {
+    return null;
+  }
+  return `{${value.join(",")}}`;
+}
+
 export async function POST(request: Request, context: RouteContext) {
   const { seriesId } = await context.params;
   const cleanSeriesId = seriesId.trim();
@@ -123,6 +136,19 @@ export async function POST(request: Request, context: RouteContext) {
     }
   }
 
+  const previousPublication = series.publication_status;
+  const previousRating = series.content_rating;
+  const previousWarnings = exactWarningArrayPredicate(series.content_warnings);
+  const previousLocks = exactWarningArrayPredicate(series.content_warning_locks);
+  if ((previousPublication !== "public" && previousPublication !== "private") ||
+      (previousRating !== "general" && previousRating !== "r18") ||
+      previousWarnings === null || previousLocks === null) {
+    return NextResponse.json(
+      { ok: false, error: "stale_content_warning_state", persisted: false },
+      { status: 409 }
+    );
+  }
+
   const lockedWarnings = getSeriesContentWarningLocks(series);
   // Emergency withdrawal corrects the work to R18, but must never drop a
   // recently added violence or other existing warning from another editor.
@@ -143,8 +169,15 @@ export async function POST(request: Request, context: RouteContext) {
     })
     .eq("id", cleanSeriesId)
     .eq("author_id", user.id)
+    // Atomic optimistic compare-and-swap on every field that determines the
+    // rating/warning merge. A concurrent author edit or emergency withdrawal
+    // must affect zero rows rather than resurrect stale warnings or visibility.
+    .eq("publication_status", previousPublication)
+    .eq("content_rating", previousRating)
+    .eq("content_warnings", previousWarnings)
+    .eq("content_warning_locks", previousLocks)
     .select("publication_status, content_rating, content_warnings, content_warning_locks")
-    .single();
+    .maybeSingle();
 
   if (update.error?.code === "23514" &&
       update.error.message?.includes("ISSUE137_PUBLIC_MEDIA_CONTAINMENT_REQUIRED")) {
@@ -153,6 +186,13 @@ export async function POST(request: Request, context: RouteContext) {
     // new rating was saved, and never include audio paths in the response.
     return NextResponse.json(
       { ok: false, error: "media_containment_required", persisted: false },
+      { status: 409 }
+    );
+  }
+
+  if (!update.error && !update.data) {
+    return NextResponse.json(
+      { ok: false, error: "stale_content_warning_state", persisted: false },
       { status: 409 }
     );
   }
