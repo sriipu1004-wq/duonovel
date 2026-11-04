@@ -373,6 +373,37 @@ try {
   assert.equal((await state()).publication_status,"public");
   assert.equal((await state()).content_rating,"general");
   pass(true,"rejected rating mutation leaves DB unchanged");
+  // A second actor-side change can add a locked warning after an earlier
+  // rating snapshot, without changing publication_status or content_rating.
+  // Exercise the same EXACT text[] CAS filters as the route on genuine local
+  // PostgREST; stale warning arrays must not silently overwrite the new lock.
+  const concurrentWarning = await service.from("series").update({
+    content_warnings:["violence"],content_warning_locks:["violence"]
+  }).eq("id",seriesId).select("publication_status,content_rating,content_warnings,content_warning_locks").single();
+  assert.equal(concurrentWarning.error,null,"inject LOCAL synthetic concurrent warning+lock edit");
+  pass(concurrentWarning.data.publication_status==="public"&&
+    concurrentWarning.data.content_rating==="general"&&
+    concurrentWarning.data.content_warnings.includes("violence")&&
+    concurrentWarning.data.content_warning_locks.includes("violence"),
+    "another editor added a protected warning without publication/rating changes");
+  const staleRatingCas = await owner.db.from("series").update({
+    publication_status:"private",content_rating:"r18",
+    content_warnings:["sexual_r18"]
+  }).eq("id",seriesId).eq("author_id",owner.id)
+    .eq("publication_status","public").eq("content_rating","general")
+    .eq("content_warnings","{}").eq("content_warning_locks","{}")
+    .select("id").maybeSingle();
+  deny(!staleRatingCas.error && staleRatingCas.data===null,
+    "real PostgREST text[] CAS denies old warning snapshot even when rating/publication match");
+  const postConflict = await service.from("series")
+    .select("publication_status,content_rating,content_warnings,content_warning_locks")
+    .eq("id",seriesId).single();
+  assert.equal(postConflict.error,null);
+  pass(postConflict.data.publication_status==="public"&&
+    postConflict.data.content_rating==="general"&&
+    postConflict.data.content_warnings.includes("violence")&&
+    postConflict.data.content_warning_locks.includes("violence"),
+    "stale competing correction did not erase newly locked violence warning");
   // REAL Chromium with genuine local GoTrue SSR cookies; no external page
   // destinations and no mock DOM/fake click. Two same-owner tabs reproduce
   // the stale-publication-save race after the emergency PRIVATE+R18 click.
@@ -465,8 +496,10 @@ try {
     clickedPayload.warnings?.includes("sexual_r18"),
     "real browser confirm triggered owner-only Next POST and truthful media HOLD");
   const afterClick=await state();
-  pass(afterClick.publication_status==="private"&&afterClick.content_rating==="r18",
-    "real browser click committed PRIVATE+R18 via GoTrue/PostgREST");
+  pass(afterClick.publication_status==="private"&&afterClick.content_rating==="r18"&&
+    afterClick.content_warnings.includes("violence")&&
+    afterClick.content_warnings.includes("sexual_r18"),
+    "real browser correction merged recently locked violence with R18, no lost warning");
   // The second owner tab loaded while the DB still said PUBLIC. Its form
   // must reject (not silently re-publish) even though it has a valid session.
   await stalePage.getByRole("button",{
