@@ -404,17 +404,17 @@ begin
    raise exception using errcode='23514',message='B2_PUBLIC_AUDIO_RENAME_HOLD';
  end if;
  -- A Human PRIVATE original, playback or timing object must never be
- -- newly created under any PUBLIC origin, even for a GENERAL public source.
- -- Preserve historic PUBLIC Human objects; no automatic move or deletion.
- -- Same-key legacy metadata updates retain the previous B2 source checks.
+ -- newly created, overwritten, moved or metadata-repointed at a PUBLIC origin.
+ -- Historical PUBLIC Human objects remain SELECT/DELETE-only; no byte-changing
+ -- upserts (even to the same name) until separately approved retirement.
+ -- The provider may alter version/owner/user_metadata without changing
+ -- bucket_id/name/metadata; therefore check ALL UPDATE columns below.
  if bucket_is_public is true
     and split_part(new.name,'/',1) in ('human','human-temp') then
    if tg_op='INSERT' then
      raise exception using errcode='42501',message='B2_PUBLIC_HUMAN_NEW_WRITE_HOLD';
-   elsif new.bucket_id is distinct from old.bucket_id
-      or new.name is distinct from old.name then
-     raise exception using errcode='42501',message='B2_PUBLIC_HUMAN_NEW_WRITE_HOLD';
    end if;
+   raise exception using errcode='42501',message='B2_PUBLIC_HUMAN_LEGACY_UPDATE_HOLD';
  end if;
  -- F2-P: all PUBLIC buckets are potential alternate audio URL origins.
  -- Do not affect unrelated text/image assets or PRIVATE bucket writes.
@@ -457,7 +457,7 @@ revoke all on function libread_internal.guard_public_storage_audio()
  from public,anon,authenticated;
 drop trigger if exists issue137_b2_public_audio_storage on storage.objects;
 create trigger issue137_b2_public_audio_storage
-before insert or update of bucket_id,name,metadata on storage.objects
+before insert or update on storage.objects
 for each row execute function libread_internal.guard_public_storage_audio();
 
 -- The prior trigger only observes episode publication, not reassignment.

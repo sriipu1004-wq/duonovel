@@ -145,6 +145,19 @@ grep -Fq "ISSUE137_DIRECT_SQL_ROLE_BOUNDARY_AND_ROLLBACK_PASS" "$WORK/direct-sql
  echo "FAIL: direct SQL test did not attest rollback" >&2; exit 1
 }
 echo "PASS: local service_role direct SQL B2 PUBLIC denial and PRIVATE metadata risk / transaction rollback"
+# True preexisting PUBLIC Human provenance is synthetic-only: implant one local
+# legacy metadata row inside ROLLBACK, then test guarded service_role rewrites.
+psql -X "$R0_DB_URL" -v ON_ERROR_STOP=1 \
+  -f "$R0/r0-legacy-human-version-direct-local.sql" > "$WORK/legacy-human-guard.out" 2>&1 || {
+  echo "FAIL: local legacy PUBLIC Human/version-only direct SQL guard" >&2
+  tail -18 "$WORK/legacy-human-guard.out" >&2
+  exit 1
+}
+grep -Fq "ISSUE137_DIRECT_LEGACY_HUMAN_VERSION_ROLLBACK_PASS" "$WORK/legacy-human-guard.out" || {
+  echo "FAIL: local direct Human test did not confirm ROLLBACK" >&2
+  exit 1
+}
+echo "PASS: local legacy PUBLIC Human same-key, version-only updates denied and transaction rolled back"
 node scripts/issue137-b2/r0-signed-upload-revocation-local-e2e.mjs
 # Claim and retire ONLY test-scoped PRIVATE stage parts after a simulated
 # token-expiry/grace interval (never run the clock change against hosted SQL).
