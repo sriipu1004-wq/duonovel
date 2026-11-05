@@ -58,10 +58,18 @@ docker run -d --name "$name" --pull never \
  --env RUN_MIGRATIONS=false \
  --publish 127.0.0.1:54333:5000 "$image" >/dev/null
 started=1
-mapfile -t ips < <(docker inspect \
- --format '{{range $p,$bindings := .NetworkSettings.Ports}}{{range $bindings}}{{println .HostIp}}{{end}}{{end}}' "$name")
-(( ${#ips[@]} == 1 )) && [[ "${ips[0]}" == "127.0.0.1" ]] || {
- echo "BLOCKED: sibling port not exclusively loopback" >&2; exit 3; }
+# Docker may render empty lines for unbound exposed ports.
+# Require at least one real binding and reject EVERY non-loopback HostIp.
+bindings=0
+while IFS= read -r ip; do
+ [[ -z "$ip" ]] && continue
+ [[ "$ip" == "127.0.0.1" ]] || {
+   echo "BLOCKED: sibling published a non-loopback HostIp" >&2; exit 3; }
+ bindings=$((bindings+1))
+done < <(docker inspect \
+ --format '{{range $p,$ports := .NetworkSettings.Ports}}{{range $ports}}{{println .HostIp}}{{end}}{{end}}' "$name")
+(( bindings > 0 )) || {
+ echo "BLOCKED: sibling has no verified loopback binding" >&2; exit 3; }
 ready=0
 for _ in $(seq 1 70); do
   [[ "$(docker inspect --format '{{.State.Running}}' "$name")" == true ]] || break
