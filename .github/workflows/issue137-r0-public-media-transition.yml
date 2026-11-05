@@ -245,6 +245,13 @@ jobs:
           node --check scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs
           node --check scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs
           node --check scripts/issue137-b2/r0-privileged-tus-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-full-public-freeze-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-full-public-freeze-tus-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-static-s3-authenticated-local-e2e.mjs
+          grep -Fq "libread_r0_disposable.sentinel" scripts/issue137-b2/r0-full-public-write-freeze-local.sql
+          grep -Fq "BEFORE INSERT OR UPDATE OR DELETE ON storage.objects" scripts/issue137-b2/r0-full-public-write-freeze-local.sql
+          grep -Fq "ISSUE137_LOCAL_FULL_PUBLIC_WRITE_FREEZE_INSTALLED" scripts/issue137-b2/r0-full-public-write-freeze-local.sql
+          grep -Fq "R0_FULL_PUBLIC_FREEZE_PROBE=local-only" scripts/issue137-b2/r0-run-local-storage.sh
           node --check scripts/issue137-b2/r0-signed-upload-revocation-local-e2e.mjs
           node --check scripts/issue137-b2/r0-h2-local-retirement-e2e.mjs
           node scripts/issue137-b2/h2-stage-lifecycle-source.test.mjs

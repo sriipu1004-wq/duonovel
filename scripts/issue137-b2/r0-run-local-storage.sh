@@ -279,3 +279,25 @@ psql -X "$R0_DB_URL" -v ON_ERROR_STOP=1 \
  -f "$R0/r0-forward-repair-rehearsal-local.sql" \
  | grep -F "ISSUE137_LOCAL_FORWARD_REPAIR_SECURITY_PRESERVED" >/dev/null
 echo "PASS: post-COMMIT incident recovered with a narrow forward fix, B2/H1 trigger/policy digests identical"
+
+# LAST PHASE ONLY: inspect a strict ALL-PUBLIC Storage write freeze in
+# this exact disposable stack. Because it blocks BGM/illustration writes,
+# it must NEVER be deployed as a hosted migration or run against Production.
+# The local stack is destroyed by the existing cleanup trap, including its
+# provider-managed Storage triggers. No DROP TRIGGER on a real DB.
+R0_DB_URL="$(read_env DB_URL)"
+[[ "$R0_DB_URL" =~ ^postgresql://postgres:[^@]+@127[.]0[.]0[.]1:54322/postgres$ ]] || {
+ echo "BLOCKED: full PUBLIC freeze requires exact disposable local PG" >&2
+ exit 3
+}
+R0_LOCAL_DB_URL="$R0_DB_URL" \
+ node scripts/issue137-b2/r0-full-public-freeze-local-e2e.mjs
+# Keep privileged TUS separate from REST and signed-URL tests.
+node scripts/issue137-b2/r0-full-public-freeze-tus-local-e2e.mjs
+# Reuse the existing sibling Storage API harness with genuine randomly
+# minted, disposable full-access STATIC S3 credentials; require a byte-backed
+# PRIVATE positive control before any PUBLIC negative may count.
+R0_FULL_PUBLIC_FREEZE_PROBE=local-only R0_WORKSPACE="$WORK" \
+ bash "$R0/r0-static-s3-storage-local.sh"
+echo "PASS: #137 LOCAL full PUBLIC freeze REST/signed/TUS/STATIC S3 completed; entire stack will be discarded"
+

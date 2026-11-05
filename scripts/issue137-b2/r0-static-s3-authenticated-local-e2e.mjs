@@ -43,7 +43,7 @@ function denied(condition,label){assert.ok(condition,label);negative++}
 function good(result,label){assert.equal(result.error,null,label)}
 async function staticPut(bucket,key,bytes=wave,mime="audio/wav"){
  assert.match(bucket,/^[a-z0-9-]+$/u);
- assert.match(key,/^(?:[a-z0-9-]+\/)*[a-z0-9-]+\.(?:wav|webm|m4a|json)$/u);
+ assert.match(key,/^(?:[a-z0-9-]+\/)*[a-z0-9-]+\.(?:wav|webm|m4a|json|bin|png)$/u);
  const endpoint=new URL("/s3/"+bucket+"/"+key,base);
  assert.equal(endpoint.origin,base);
  const stamp=new Date().toISOString().replace(/[:-]|\.\d{3}/gu,"");
@@ -90,6 +90,31 @@ yes([200,201].includes(allowed),
  "REAL static S3 authenticated PRIVATE positive PUT failed, status="+allowed);
 await byteMatch("r0-private-backup",control,wave,
  "static S3 positive control preserved exact bytes through REST");
+
+// F2-P disposable local ALL-PUBLIC freeze, after real positive static SigV4.
+const freezeProbe=process.env.R0_FULL_PUBLIC_FREEZE_PROBE||"";
+assert.ok(["","local-only"].includes(freezeProbe),"unapproved S3 mode");
+if(freezeProbe==="local-only"){
+ const synthetic=Buffer.from("LOCAL-SYNTHETIC-WAV-DISGUISED-MIME");
+ for(const [bucket,name,mime] of [
+  ["r0-freeze-public-alt","misc/"+uuid()+".bin","application/octet-stream"],
+  ["bgm-library","catalog/"+uuid()+".bin","application/octet-stream"],
+  ["illustrations","asset/"+uuid()+".png","image/png"]
+ ]){
+  const status=await staticPut(bucket,name,synthetic,mime);
+  denied(status>=400,"full-access STATIC S3 must not write PUBLIC: "+bucket);
+  await unreadable(bucket,name,"denied STATIC S3 PUBLIC bytes absent: "+bucket);
+ }
+ const privateName="static-control/"+uuid()+".wav";
+ yes([200,201].includes(await staticPut("r0-private-backup",privateName)),
+  "authenticated STATIC S3 retains PRIVATE write capability");
+ await byteMatch("r0-private-backup",privateName,wave,
+  "static S3 private control byte-backed after global freeze");
+ console.log("PASS: #137 local fully authenticated STATIC S3 full PUBLIC "+
+  "freeze "+positive+" positive / "+negative+" denied assertions");
+ console.log("HOLD: managed Storage trigger local-only; BGM and image writes frozen");
+ process.exit(0);
+}
 
 const owner=await service.auth.admin.createUser({
  email:"issue137-static-"+uuid()+"@example.invalid",
