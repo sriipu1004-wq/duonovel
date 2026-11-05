@@ -249,6 +249,9 @@ echo "PASS: single-file B2/R0+H1+H2 with selected hosted CHECK/FK shape in fresh
 # with preview-hold so it MUST stop before any normalizing/paid ASR/media write.
 R0_H1_BROWSER_PHASE=preview-hold node scripts/issue137-b2/r0-h1-browser-only.mjs
 echo "PASS: H1-enabled real Chromium multipart reached F2P pre-ASR HOLD; no Human publication"
+# Author FIX for independent HIGH: spawn a separate misconfigured Next on this
+# already loopback-validated ephemeral H1/H2 stack; no signed tokens or bytes.
+node scripts/issue137-b2/r0-human-private-bucket-http-negative.mjs
 R0_DB_URL="$(read_env DB_URL)"
 [[ "$R0_DB_URL" =~ ^postgresql://postgres:[^@]+@127[.]0[.]0[.]1:54322/postgres$ ]] || {
  echo "BLOCKED: forward repair test may only use fresh local PG" >&2; exit 3

@@ -200,6 +200,34 @@ noError(await service.from("episodes").insert({
  id:generalEpisode,series_id:generalId,posting_status:"posted",
  is_published:true,episode_number:1
 }),"seed general episode");
+// HIGH conditional leak: a GENERAL published source is NOT consent to place
+// a PRIVATE Human original, playback or timing file on a PUBLIC origin.
+// Verify with actual local service-role Storage API before any H1 DB row.
+const publicHumanPrefix="human/"+generalId+"/"+generalEpisode+"/"+reader.id+"/session-guard";
+for(const [name,contentType] of [
+ ["original.webm","audio/webm"],
+ ["playback.m4a","audio/mp4"],
+ ["timing.json","application/json"],
+]){
+ const key=publicHumanPrefix+"/"+name;
+ denied(await service.storage.from("recording-audio").upload(
+  key,Buffer.from("SYNTHETIC-NO-PUBLIC-HUMAN"),{contentType,upsert:false}),
+  "B2 blocks PUBLIC Human "+name+" even on GENERAL posted source");
+ blocked(Boolean((await service.storage.from("recording-audio").download(key)).error),
+  "rejected PUBLIC Human "+name+" leaves zero physical readable bytes");
+}
+denied(await service.storage.from(alternate).upload(
+ publicHumanPrefix+"/timing.json",Buffer.from("{}"),
+ {contentType:"application/json",upsert:false}),
+ "alternate PUBLIC bucket cannot receive Human timing JSON");
+const approvedHumanPrivateKey=publicHumanPrefix+"/original.webm";
+noError(await service.storage.from("human-recording-audio").upload(
+ approvedHumanPrivateKey,Buffer.from("SYNTHETIC-PRIVATE-CONTROL"),
+ {contentType:"audio/webm",upsert:false}),
+ "canonical PRIVATE Human original stays supported");
+blocked(Boolean((await anon.storage.from("human-recording-audio")
+ .download(approvedHumanPrivateKey)).error),
+ "anonymous cannot read allowed PRIVATE Human original");
 noError(await service.storage.from("recording-audio").upload(originalPath,wave,{
  contentType:"audio/wav",upsert:false}),"public general audio allowed before withdrawal");
 noError(await owner.client.from("series").update({

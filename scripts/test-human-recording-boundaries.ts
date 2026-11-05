@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  assertApprovedPrivateHumanRecordingBucket,
   buildHumanRecordingPlaybackHref,
+  DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET,
+  getHumanRecordingAudioBucketName,
   getHumanRecordingStorageObjectPath,
 } from "../src/lib/recording/humanRecordingStorage";
 import { canServeHumanRecordingAudio } from "../src/lib/recording/humanRecordingState";
@@ -211,6 +214,101 @@ for (const required of [
   );
 }
 
-console.log(
-  "PASS: Human narration identity, access, storage, search, Official, and TTS separation boundaries are present"
-);
+// #137 independent HIGH FIX: pure+provider metadata checks. The exact
+// private bucket is mandatory before any byte write or signed token issuance.
+async function checkHumanPrivateBucketBoundary() {
+  const prior = process.env.SUPABASE_HUMAN_RECORDING_BUCKET;
+  let providerCalls = 0;
+  const client = (publicity: boolean | null, id = DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET) => ({
+    storage: {
+      async getBucket(requested: string) {
+        assert.equal(requested, DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET);
+        providerCalls++;
+        return {
+          data: publicity === null ? null : { id, name: id, public: publicity },
+          error: null,
+        };
+      },
+    },
+  });
+  try {
+    delete process.env.SUPABASE_HUMAN_RECORDING_BUCKET;
+    assert.equal(getHumanRecordingAudioBucketName(), DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET);
+    assert.equal(
+      await assertApprovedPrivateHumanRecordingBucket(client(false)),
+      DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET,
+      "canonical PRIVATE provider bucket remains allowed"
+    );
+    process.env.SUPABASE_HUMAN_RECORDING_BUCKET = "human-recording-audio";
+    assert.equal(
+      await assertApprovedPrivateHumanRecordingBucket(client(false)),
+      DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET
+    );
+    const before = providerCalls;
+    for (const disallowed of ["recording-audio", "r0-alt-public", "r0-alt-private"]) {
+      process.env.SUPABASE_HUMAN_RECORDING_BUCKET = disallowed;
+      await assert.rejects(
+        () => assertApprovedPrivateHumanRecordingBucket(client(false)),
+        /human_private_bucket_name_unapproved/
+      );
+      assert.equal(providerCalls, before,
+        "reject unapproved bucket before even querying provider");
+    }
+    delete process.env.SUPABASE_HUMAN_RECORDING_BUCKET;
+    await assert.rejects(
+      () => assertApprovedPrivateHumanRecordingBucket(client(true)),
+      /human_private_bucket_not_verified/,
+      "canonical bucket unexpectedly PUBLIC must fail before writes"
+    );
+    await assert.rejects(
+      () => assertApprovedPrivateHumanRecordingBucket(client(null)),
+      /human_private_bucket_not_verified/,
+      "missing provider bucket must fail before writes"
+    );
+    await assert.rejects(
+      () => assertApprovedPrivateHumanRecordingBucket(client(false, "unexpected-alias")),
+      /human_private_bucket_not_verified/,
+      "provider bucket ID/name must match exact expected destination"
+    );
+    const publish = source("src/lib/recording/humanRecordingPublish.ts");
+    assert.ok(
+      publish.indexOf("await assertApprovedPrivateHumanRecordingBucket(adminSupabase)") >= 0 &&
+      publish.indexOf("await assertApprovedPrivateHumanRecordingBucket(adminSupabase)") <
+      publish.indexOf(".upload(originalObjectPath, fileBytes"),
+      "single upload checks provider PRIVATE bucket before first byte"
+    );
+    const session = source("src/app/api/recordings/human-upload-session/route.ts");
+    assert.ok(
+      session.indexOf("await assertApprovedPrivateHumanRecordingBucket(adminSupabase)") >= 0 &&
+      session.indexOf("await assertApprovedPrivateHumanRecordingBucket(adminSupabase)") <
+      session.indexOf("await openHumanStagingLease(") &&
+      session.indexOf("await assertApprovedPrivateHumanRecordingBucket(adminSupabase)") <
+      session.indexOf(".createSignedUploadUrl("),
+      "multipart session verifies PRIVATE bucket before lease or any bearer"
+    );
+    const finalize = source("src/app/api/recordings/human-upload-finalize/route.ts");
+    assert.ok(
+      finalize.indexOf("await assertApprovedPrivateHumanRecordingBucket(admin)") >= 0 &&
+      finalize.indexOf("await assertApprovedPrivateHumanRecordingBucket(admin)") <
+      finalize.indexOf("await closeHumanStagingLease(") &&
+      finalize.indexOf("await assertApprovedPrivateHumanRecordingBucket(admin)") <
+      finalize.indexOf("await publishHumanRecording("),
+      "multipart finalize rechecks PRIVATE bucket before sealing or publication"
+    );
+    const sql = source("scripts/issue137-b2/r0-b2-unified-local-candidate.sql");
+    assert.ok(sql.includes("B2_PUBLIC_HUMAN_NEW_WRITE_HOLD"),
+      "future PUBLIC human bytes blocked independently of source publication");
+  } finally {
+    if (prior === undefined) delete process.env.SUPABASE_HUMAN_RECORDING_BUCKET;
+    else process.env.SUPABASE_HUMAN_RECORDING_BUCKET = prior;
+  }
+}
+
+void checkHumanPrivateBucketBoundary().then(() => {
+  console.log(
+    "PASS: Human identity, access, exact PRIVATE bucket, signed uploads, storage, search, Official, and TTS boundaries"
+  );
+}).catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

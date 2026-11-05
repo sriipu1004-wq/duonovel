@@ -24,7 +24,7 @@ import {
 } from "@/lib/recording/humanRecordingAtomic";
 import {
   buildHumanRecordingPlaybackHref,
-  getHumanRecordingAudioBucketName,
+  assertApprovedPrivateHumanRecordingBucket,
 } from "@/lib/recording/humanRecordingStorage";
 
 type AdminSupabase = ReturnType<typeof createAdminClient>;
@@ -540,13 +540,15 @@ export async function publishHumanRecording({
     },
   });
 
+  // Fail before any media bytes are processed/uploaded. A later H1/DB failure
+  // cannot retract media bytes that landed in a PUBLIC Storage bucket.
+  const bucketName = await assertApprovedPrivateHumanRecordingBucket(adminSupabase);
   const fileBytes = new Uint8Array(await sourceFile.arrayBuffer());
 
   if (fileBytes.byteLength <= 0) {
     throw new Error("empty_file");
   }
 
-  const bucketName = getHumanRecordingAudioBucketName();
   const sourceExtension = guessExtension(sourceFile);
   const originalContentType = sourceFile.type || getAudioContentType(sourceExtension);
 

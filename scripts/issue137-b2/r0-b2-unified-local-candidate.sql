@@ -403,12 +403,25 @@ begin
          or new.name is distinct from old.name) then
    raise exception using errcode='23514',message='B2_PUBLIC_AUDIO_RENAME_HOLD';
  end if;
+ -- A Human PRIVATE original, playback or timing object must never be
+ -- newly created under any PUBLIC origin, even for a GENERAL public source.
+ -- Preserve historic PUBLIC Human objects; no automatic move or deletion.
+ -- Same-key legacy metadata updates retain the previous B2 source checks.
+ if bucket_is_public is true
+    and split_part(new.name,'/',1) in ('human','human-temp') then
+   if tg_op='INSERT' then
+     raise exception using errcode='42501',message='B2_PUBLIC_HUMAN_NEW_WRITE_HOLD';
+   elsif new.bucket_id is distinct from old.bucket_id
+      or new.name is distinct from old.name then
+     raise exception using errcode='42501',message='B2_PUBLIC_HUMAN_NEW_WRITE_HOLD';
+   end if;
+ end if;
  -- F2-P: all PUBLIC buckets are potential alternate audio URL origins.
  -- Do not affect unrelated text/image assets or PRIVATE bucket writes.
  -- An old public URL is not retractable; this guards future object metadata.
  if new.bucket_id <> 'recording-audio' then
    if bucket_is_public is true and (
-      split_part(new.name,'/',1) in ('nemo','aivis','human')
+      split_part(new.name,'/',1) in ('nemo','aivis','human','human-temp')
       or new.name ~* '[.](wav|mp3|m4a|aac|flac|ogg|opus|webm)$'
       or coalesce(new.metadata->>'mimetype','') ~* '^audio/'
    ) then

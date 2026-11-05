@@ -14,7 +14,7 @@ import {
   HUMAN_MULTIPART_MIN_TRIGGER_BYTES,
 } from "@/lib/recording/humanMultipartUploadShared";
 import { publishHumanRecording } from "@/lib/recording/humanRecordingPublish";
-import { getHumanRecordingAudioBucketName } from "@/lib/recording/humanRecordingStorage";
+import { assertApprovedPrivateHumanRecordingBucket } from "@/lib/recording/humanRecordingStorage";
 import { closeHumanStagingLease } from "@/lib/recording/humanStagingLease";
 import {
   decideRecordingEntryAccess,
@@ -215,6 +215,18 @@ export async function POST(request: Request) {
     );
   }
 
+  const admin = createAdminClient();
+  let bucketName: string;
+  try {
+    // Recheck before sealing/reading parts: bucket visibility or server
+    // configuration may have changed since the signed session was issued.
+    bucketName = await assertApprovedPrivateHumanRecordingBucket(admin);
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "Human PRIVATE保存先を確認できない。" },
+      { status: 503 }
+    );
+  }
   const sourceExtension = getAudioFileExtension(fileName) || "bin";
   const session = buildHumanMultipartUploadSession({
     seriesId,
@@ -224,8 +236,6 @@ export async function POST(request: Request) {
     totalSizeBytes,
     uploadSessionId,
   });
-  const admin = createAdminClient();
-  const bucketName = getHumanRecordingAudioBucketName();
   // A server-side seal precedes any part read or publication. The DB trigger
   // stops all later bearer uploads, even if old signed URLs were issued.
   // Missing, expired, foreign, reused or revoked H2 leases fail closed.

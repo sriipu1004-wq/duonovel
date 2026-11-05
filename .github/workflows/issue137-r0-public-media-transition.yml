@@ -19,6 +19,7 @@ on:
       - "scripts/issue137-b2/r0-local-storage-e2e.mjs"
       - "scripts/issue137-b2/r0-batch-retirement-local-e2e.mjs"
       - "scripts/issue137-b2/r0-b2-auth-storage-negative-e2e.mjs"
+      - "scripts/issue137-b2/r0-human-private-bucket-http-negative.mjs"
       - "scripts/issue137-b2/r0-b2-local-transactional-revert-smoke.sql"
       - "scripts/issue137-b2/r0-next-http-e2e.mjs"
       - "scripts/issue137-b2/r0-h2-browser-runner.mjs"

@@ -6,6 +6,7 @@ import {
 } from "@/lib/recording/recordingEntry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { openHumanStagingLease, closeHumanStagingLease } from "@/lib/recording/humanStagingLease";
+import { assertApprovedPrivateHumanRecordingBucket } from "@/lib/recording/humanRecordingStorage";
 import { RECORDING_GLOBAL_CONSENT_KEY, RECORDING_GLOBAL_CONSENT_VERSION } from "@/lib/recording/recordingConsent";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -183,6 +184,10 @@ export async function POST(request: Request) {
       throw new Error("recording_entry_denied");
     }
 
+    // Provider-side PRIVATE visibility must be verified before opening a
+    // staging lease or minting any signed multipart upload token.
+    const adminSupabase = createAdminClient();
+    await assertApprovedPrivateHumanRecordingBucket(adminSupabase);
     const sourceExtension = getAudioFileExtension(fileName) || "bin";
     const session = buildHumanMultipartUploadSession({
       seriesId,
@@ -192,7 +197,6 @@ export async function POST(request: Request) {
       totalSizeBytes,
     });
 
-    const adminSupabase = createAdminClient();
     const signedParts: SignedPart[] = [];
     // Commit the server-only lease BEFORE minting any bearer token.
     // An absent H2 migration fails closed. Abort on partial issuance failure;
