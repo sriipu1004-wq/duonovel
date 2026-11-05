@@ -130,6 +130,7 @@ for(const [key,value,reason] of [
  }),new RegExp(reason),key+" must fail closed");
  checks++;
 }
+async function verifyPrivateBucketNegatives():Promise<void> {
 const bucket=(data:unknown,error:unknown=null)=>({
  storage:{getBucket:async (name:string)=>{
   assert.equal(name,"r18-recording-audio");
@@ -156,3 +157,8 @@ assert.ok(helperSource.includes("return isR18Series(data) || localPrivateFirst")
  "ordinary R18 protection must not require the experiment flag");
 checks++;
 console.log("PASS: F2-P local PRIVATE-first selector and bucket visibility negatives");
+}
+void verifyPrivateBucketNegatives().catch(error=>{
+ console.error(error);
+ process.exitCode=1;
+});
