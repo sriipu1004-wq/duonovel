@@ -63,7 +63,13 @@ async function staticPut(bucket,key,bytes=wave,mime="audio/wav"){
  const response=await fetch(endpoint,{method:"PUT",
   headers:{...headers,authorization},body:bytes,redirect:"error",
   cache:"no-store",signal:AbortSignal.timeout(15000)});
- // Never print the raw XML response, keys, authorization or object paths.
+ // For failed PRIVATE positive control ONLY: print the bounded S3 error
+ // code (not the raw XML, request path, headers, signature or credentials).
+ if(response.status>=400 && bucket==="r0-private-backup"){
+  const raw=await response.text();
+  const safeCode=/<Code>([A-Za-z0-9]{1,64})<\/Code>/u.exec(raw)?.[1]||"unknown";
+  console.error("STATIC_S3_PRIVATE_CONTROL_REJECTED: status="+response.status+" code="+safeCode);
+ }
  return response.status;
 }
 async function unreadable(bucket,key,label){

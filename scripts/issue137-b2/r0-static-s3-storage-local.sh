@@ -55,6 +55,8 @@ docker run -d --name "$name" --pull never \
  --volumes-from "$origin" --env-file "$env_file" \
  --env "S3_PROTOCOL_ACCESS_KEY_ID=$static_access" \
  --env "S3_PROTOCOL_ACCESS_KEY_SECRET=$static_secret" \
+ --env "STORAGE_PUBLIC_URL=http://127.0.0.1:54333" \
+ --env "S3_PROTOCOL_PREFIX=" \
  --env RUN_MIGRATIONS=false \
  --publish 127.0.0.1:54333:5000 "$image" >/dev/null
 started=1
