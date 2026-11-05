@@ -10,7 +10,7 @@ for(const name of ["SUPABASE_SERVICE_ROLE_KEY","SUPABASE_ACCESS_TOKEN",
  "AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","S3_SECRET_ACCESS_KEY"]){
  assert.equal(process.env[name],undefined,"hosted credential prohibited");
 }
-const base=process.env.R0_LOCAL_URL.slice(0,-1),key=process.env.R0_SERVICE_KEY||"";
+const base=new URL(process.env.R0_LOCAL_URL).origin,key=process.env.R0_SERVICE_KEY||"";
 const anon=process.env.R0_ANON_KEY||"";
 assert.ok(key.length>30&&anon.length>30&&key!==anon);
 const s=createClient(base,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});

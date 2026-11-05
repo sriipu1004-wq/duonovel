@@ -300,4 +300,3 @@ node scripts/issue137-b2/r0-full-public-freeze-tus-local-e2e.mjs
 R0_FULL_PUBLIC_FREEZE_PROBE=local-only R0_WORKSPACE="$WORK" \
  bash "$R0/r0-static-s3-storage-local.sh"
 echo "PASS: #137 LOCAL full PUBLIC freeze REST/signed/TUS/STATIC S3 completed; entire stack will be discarded"
-

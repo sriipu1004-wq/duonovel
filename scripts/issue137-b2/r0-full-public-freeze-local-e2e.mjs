@@ -15,7 +15,7 @@ const db=process.env.R0_LOCAL_DB_URL||"";
 assert.match(db,/^postgresql:\/\/postgres:[^@]+@127[.]0[.]0[.]1:54322\/postgres$/u);
 const key=process.env.R0_SERVICE_KEY||"",anon=process.env.R0_ANON_KEY||"";
 assert.ok(key.length>30&&anon.length>30&&key!==anon);
-const api=process.env.R0_LOCAL_URL.slice(0,-1);
+const api=new URL(process.env.R0_LOCAL_URL).origin;
 const s=createClient(api,key,{auth:{autoRefreshToken:false,persistSession:false,detectSessionInUrl:false}});
 const id=()=>randomUUID(),body=Buffer.from("LOCAL-SYNTHETIC-NONPRODUCTION-AUDIO");
 const digest=b=>createHash("sha256").update(b).digest("hex");
