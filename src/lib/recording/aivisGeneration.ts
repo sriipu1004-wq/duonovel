@@ -24,7 +24,8 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   PRIVATE_AI_AUDIO_BUCKET, makePrivateAiAudioReference,
-  mustUsePrivateAiAudio, buildPrivateAiAudioPlaybackHref,
+  mustUsePrivateAiAudio, assertApprovedPrivateAiAudioBucket,
+  buildPrivateAiAudioPlaybackHref,
 } from "@/lib/recording/protectedAiRecordingStorage";
 import { createClient } from "@/lib/supabase/server";
 
@@ -415,15 +416,16 @@ export async function generateAivisRecordingForEpisode({
   }
 
   const adminSupabase = createAdminClient();
-  const protectedR18 = await mustUsePrivateAiAudio(seriesId);
-  // F2-P experimental Preview HOLD; this never authorizes PUBLIC release.
+  const usePrivateAiAudio = await mustUsePrivateAiAudio(seriesId);
+  // Local PRIVATE-first is opt-in; preserve the independent Preview HOLD.
   checkNonproductionMediaWriterBoundary({
-    kind: "ai-recording", isPublicCandidate: !protectedR18, env: {
+    kind: "ai-recording", isPublicCandidate: !usePrivateAiAudio, env: {
       LIBREAD_F2P_MEDIA_WRITER_MODE: process.env.LIBREAD_F2P_MEDIA_WRITER_MODE,
       VERCEL_ENV: process.env.VERCEL_ENV,
     },
   });
-  const bucketName = protectedR18 ? PRIVATE_AI_AUDIO_BUCKET : getRecordingAudioBucketName();
+  if (usePrivateAiAudio) await assertApprovedPrivateAiAudioBucket(adminSupabase);
+  const bucketName = usePrivateAiAudio ? PRIVATE_AI_AUDIO_BUCKET : getRecordingAudioBucketName();
   const audioObjectPath = buildAivisRecordingObjectPath({
     seriesId,
     episodeId,
@@ -481,11 +483,11 @@ export async function generateAivisRecordingForEpisode({
       throw new Error(`timing_upload_failed:${timingUploadError.message}`);
     }
 
-    const publicUrl = protectedR18
+    const publicUrl = usePrivateAiAudio
       ? null
       : adminSupabase.storage.from(bucketName).getPublicUrl(audioObjectPath).data.publicUrl;
-    if (!protectedR18 && !publicUrl) throw new Error("storage_public_url_unavailable");
-    const storedAudioReference = protectedR18
+    if (!usePrivateAiAudio && !publicUrl) throw new Error("storage_public_url_unavailable");
+    const storedAudioReference = usePrivateAiAudio
       ? makePrivateAiAudioReference(audioObjectPath)
       : publicUrl!;
 
@@ -500,7 +502,7 @@ export async function generateAivisRecordingForEpisode({
 
     return {
       recordingId,
-      audioStoragePath: protectedR18 ? buildPrivateAiAudioPlaybackHref(recordingId) : storedAudioReference,
+      audioStoragePath: usePrivateAiAudio ? buildPrivateAiAudioPlaybackHref(recordingId) : storedAudioReference,
       narratorName,
       episodeNumber: episode.episodeNumber,
       episodeTitle: episode.title,
