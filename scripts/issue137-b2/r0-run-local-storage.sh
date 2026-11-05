@@ -122,6 +122,9 @@ node scripts/issue137-b2/r0-batch-retirement-local-e2e.mjs
 # Exercise signed S3 privileged writes against the FIRST isolated B2 stack,
 # independently from browser hydration and the later combined H1 stage.
 node scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs
+# Positive authenticated STATIC S3 vs protected PUBLIC bytes on same disposable
+# database; sibling server uses loopback-only port and isolated local keys.
+R0_WORKSPACE="$WORK" bash "$R0/r0-static-s3-storage-local.sh"
 # Separate directly privileged service_role SQL, NOT the S3 or REST API.
 # Forbid anything except the runner's disposable Supabase Postgres literal DSN.
 command -v psql >/dev/null || { echo "BLOCKED: psql unavailable" >&2; exit 3; }

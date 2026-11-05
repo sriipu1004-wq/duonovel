@@ -45,6 +45,8 @@ on:
       - "scripts/issue137-b2/r0-hosted-constraint-overlay-local.sql"
       - "scripts/issue137-b2/r0-forward-repair-rehearsal-local.sql"
       - "scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs"
+      - "scripts/issue137-b2/r0-static-s3-authenticated-local-e2e.mjs"
+      - "scripts/issue137-b2/r0-static-s3-storage-local.sh"
       - "scripts/issue137-b2/r0-direct-service-role-storage-local.sql"
       - "scripts/issue137-b2/r0-signed-upload-revocation-local-e2e.mjs"
       - "scripts/issue137-b2/r0-legacy-human-orphans-readonly.sql"
