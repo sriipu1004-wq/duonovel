@@ -69,6 +69,11 @@ grant select on public.user_recording_consents to authenticated;
 alter table public.user_recording_consents enable row level security;
 create policy r0_narrator_current_consent on public.user_recording_consents
  for select to authenticated using (user_id=(select auth.uid()));
+-- LOCAL FIXTURE ONLY: emulate a previously approved PRIVATE bucket.
+-- Production must provision it through the Storage API outside of B2 DDL.
+insert into storage.buckets(id,name,public)
+ values('r18-recording-audio','r18-recording-audio',false)
+ on conflict(id) do nothing;
 insert into storage.buckets(id,name,public)
  values('human-recording-audio','human-recording-audio',false)
  on conflict(id) do nothing;

@@ -52,6 +52,13 @@ begin
   raise exception using errcode='23514',
     message='ISSUE137_PROTECTED_BUCKET_ALREADY_PUBLIC_HOLD';
  end if;
+ if not exists (
+  select 1 from storage.buckets b
+  where b.id='r18-recording-audio' and b.public is false
+ ) then
+  raise exception using errcode='23514',
+    message='B2_PRIVATE_BUCKET_PREPROVISION_REQUIRED';
+ end if;
 end
 $issue137_preflight$;
 
@@ -128,15 +135,10 @@ using (exists (
    or (select libread_internal.can_read_r18())
  )
 ));
--- Never modify the existing public recording-audio bucket.
-insert into storage.buckets (id, name, public)
-values ('r18-recording-audio','r18-recording-audio',false)
-on conflict (id) do nothing;
-do $$ begin
- if not exists (select 1 from storage.buckets
-   where id='r18-recording-audio' and public is false)
- then raise exception 'B2_PRIVATE_BUCKET_REQUIRED'; end if;
-end $$;
+-- Never write to Storage-managed bucket tables from a production
+-- application migration. The PRIVATE R18 bucket must be provisioned and
+-- verified via an explicitly approved Storage API operation before this SQL.
+-- This assertion runs before any feature DDL in the preflight above.
 create or replace function libread_internal.is_restricted_recording_path(value text)
 returns boolean language sql immutable set search_path = ''
 as $$

@@ -51,7 +51,7 @@ WITH required_columns(schema_name,table_name,column_name,impact) AS (
   FROM storage.buckets WHERE id IN ('recording-audio','human-recording-audio','r18-recording-audio')) AS bucket_metadata,
  (SELECT coalesce(bool_or(b.public),false) FROM storage.buckets b WHERE b.id='recording-audio') AS public_audio_bucket_is_public,
  (SELECT coalesce(bool_and(b.public IS FALSE),false) FROM storage.buckets b WHERE b.id='human-recording-audio') AS human_bucket_private,
- (SELECT coalesce(bool_and(b.public IS FALSE),true) FROM storage.buckets b WHERE b.id='r18-recording-audio') AS r18_bucket_not_public,
+ (SELECT exists(SELECT 1 FROM storage.buckets b WHERE b.id='r18-recording-audio' AND b.public IS FALSE)) AS r18_bucket_preprovisioned_private,
  (SELECT coalesce(bool_or(c.relrowsecurity),false) FROM pg_class c WHERE c.oid='public.series'::regclass) AS series_rls,
  (SELECT coalesce(bool_or(c.relrowsecurity),false) FROM pg_class c WHERE c.oid='public.episodes'::regclass) AS episode_rls,
  (SELECT coalesce(bool_or(c.relrowsecurity),false) FROM pg_class c WHERE c.oid='public.recordings'::regclass) AS recording_rls,
@@ -63,7 +63,7 @@ SELECT *,
    AND issue137_trigger_count=0 AND issue137_policy_count=0
    AND series_rls AND episode_rls AND recording_rls
    AND public_summary_security_invoker
-   AND public_audio_bucket_is_public AND human_bucket_private AND r18_bucket_not_public
+   AND public_audio_bucket_is_public AND human_bucket_private AND r18_bucket_preprovisioned_private
  THEN 'BASELINE_METADATA_COMPATIBLE_RELEASE_STILL_HOLD'
  ELSE 'METADATA_DRIFT_RELEASE_HOLD' END AS preflight_result,
  'RELEASE_HOLD_UNTIL_HISTORY_RECONCILIATION_RIGHTS_BACKUP_INDEPENDENT_AUDIT_EXPLICIT_APPROVAL'::text

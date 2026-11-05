@@ -39,6 +39,14 @@ function checkCandidate(sql){
    sql.includes("as restrictive for select"),"R18 restrictive policy");
  must(sql.includes("set local lock_timeout = '5s'"),"bounded lock");
  must(sql.includes("set local statement_timeout = '120s'"),"bounded statement");
+ must(sql.includes("B2_PRIVATE_BUCKET_PREPROVISION_REQUIRED"),
+  "missing API-preprovisioned PRIVATE R18 bucket must hold before DDL");
+ must(!/insert\s+into\s+storage\.buckets/iu.test(sql),
+  "deployable candidate must not write managed Storage buckets");
+ must(sql.includes("before insert or update on storage.objects"),
+  "all Storage object UPDATE columns must remain guarded");
+ must(sql.includes("B2_PUBLIC_HUMAN_LEGACY_UPDATE_HOLD"),
+  "legacy PUBLIC Human byte/metadata rewrite must remain prohibited");
  must(sql.trimEnd().endsWith("commit;"),"explicit transaction");
 }
 checkSemantic(semantic);
