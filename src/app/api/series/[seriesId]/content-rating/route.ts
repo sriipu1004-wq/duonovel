@@ -155,6 +155,10 @@ export async function POST(request: Request, context: RouteContext) {
   const warnings = Array.from(
     new Set<SeriesContentWarning>([
       ...requestedWarnings, ...lockedWarnings,
+      // The emergency operation is always PRIVATE + R18, even when an
+      // authenticated direct API caller supplies [] or rating: "general".
+      // Preserve existing and locked warnings; do not weaken ordinary edits.
+      ...(emergencyUnpublish ? ["sexual_r18" as const] : []),
       ...(emergencyUnpublish ? getSeriesContentWarnings(series) : []),
     ])
   );

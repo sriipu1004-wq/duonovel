@@ -194,8 +194,8 @@ async function getMedia(path,cookie="",range=""){
  return {status:response.status,headers:response.headers,
  bytes:Buffer.from(await response.arrayBuffer())};
 }
-async function post(payload,cookie){
-  const r=await fetch(base+"/api/series/"+seriesId+"/content-rating",{
+async function post(payload,cookie,targetSeriesId=seriesId){
+  const r=await fetch(base+"/api/series/"+targetSeriesId+"/content-rating",{
     method:"POST",headers:{"content-type":"application/json",
       ...(cookie?{cookie}:{}), "cache-control":"no-store"},
     body:JSON.stringify(payload),redirect:"error",cache:"no-store",
@@ -605,6 +605,69 @@ try {
   const afterOther=await post({...standard,emergencyUnpublish:true},other.cookie());
   deny([403,404].includes(afterOther.status),
     "other never gains access to owner's now-private source");
+
+  // Emergency classification is a SERVER contract, not an assumption that
+  // every direct owner API caller uses the Write UI's sexual_r18 payload.
+  // Separate LOCAL GENERAL works prove the correct starting state for each
+  // alternate request shape; they are never sent to hosted Supabase.
+  for(const [caseName,directPayload] of [
+    ["empty-warnings",{emergencyUnpublish:true,warnings:[]}],
+    ["general-rating",{emergencyUnpublish:true,rating:"general"}],
+  ]){
+    const directSeriesId=id();
+    const seeded=await service.from("series").insert({
+      id:directSeriesId,author_id:owner.id,
+      publication_status:"public",content_rating:"general",
+      content_warnings:[],content_warning_locks:[],
+      title:"R0-DIRECT-EMERGENCY-"+caseName+"-"+id().slice(0,8),
+      source_language:"ja",translation_permission_mode:"open"
+    });
+    assert.equal(seeded.error,null,"seed LOCAL direct emergency "+caseName);
+    const initially=await service.from("series")
+      .select("publication_status,content_rating,content_warnings")
+      .eq("id",directSeriesId).single();
+    assert.equal(initially.error,null);
+    pass(initially.data.publication_status==="public"&&
+      initially.data.content_rating==="general"&&
+      initially.data.content_warnings.length===0,
+      "direct emergency fixture starts GENERAL/PUBLIC with no sexual warning");
+
+    const deniedActor=await post(directPayload,other.cookie(),directSeriesId);
+    deny(deniedActor.status===403&&deniedActor.body?.error==="forbidden",
+      "other user cannot force "+caseName+" emergency reclassification");
+    const stillGeneral=await service.from("series")
+      .select("publication_status,content_rating,content_warnings")
+      .eq("id",directSeriesId).single();
+    assert.equal(stillGeneral.error,null);
+    deny(stillGeneral.data.publication_status==="public"&&
+      stillGeneral.data.content_rating==="general"&&
+      stillGeneral.data.content_warnings.length===0,
+      "foreign request leaves direct emergency fixture unchanged");
+
+    if(caseName==="empty-warnings"){
+      const ordinary=await post({warnings:[],emergencyUnpublish:false},
+        owner.cookie(),directSeriesId);
+      pass(ordinary.status===200&&ordinary.body?.ok===true&&
+        ordinary.body.rating==="general"&&
+        !ordinary.body.warnings?.includes("sexual_r18"),
+        "ordinary owner empty warnings remains GENERAL (not emergency)");
+    }
+    const emergencyDirect=await post(directPayload,owner.cookie(),directSeriesId);
+    pass(emergencyDirect.status===200&&emergencyDirect.body?.ok===true&&
+      emergencyDirect.body.publicationStatus==="private"&&
+      emergencyDirect.body.rating==="r18"&&
+      emergencyDirect.body.warnings?.includes("sexual_r18")&&
+      emergencyDirect.body.publicMediaStatus==="unverified",
+      "owner "+caseName+" emergency HTTP truthfully returns PRIVATE + R18");
+    const committed=await service.from("series")
+      .select("publication_status,content_rating,content_warnings")
+      .eq("id",directSeriesId).single();
+    assert.equal(committed.error,null);
+    pass(committed.data.publication_status==="private"&&
+      committed.data.content_rating==="r18"&&
+      committed.data.content_warnings.includes("sexual_r18"),
+      "owner "+caseName+" emergency atomically persists PRIVATE + R18");
+  }
   const republish=await service.from("series")
     .update({publication_status:"public"}).eq("id",seriesId).select("id");
   deny(republish.error?.code==="23514",
