@@ -169,10 +169,10 @@ assert.equal((await service.from("recordings").insert({
  assert.equal(privateAiBucket.error,null,"read LOCAL PRIVATE AI bucket");
  assert.equal(privateAiBucket.data?.public,false,"PRIVATE AI origin must be nonpublic");
  assert.equal((await service.storage.from("r18-recording-audio").upload(
-  generalPrivatePath,bytes,{contentType:"audio/wav",upsert:false,cacheControl:"0"
+  generalPrivatePath,bytes,{contentType:"audio/wav",upsert:false,cacheControl:"0"}
  )).error,null,"seed real LOCAL GENERAL PRIVATE AI WAV");
  assert.equal((await service.storage.from("r18-recording-audio").upload(
-  generalPrivateTiming,generalTiming,{contentType:"application/json",upsert:false,cacheControl:"0"
+  generalPrivateTiming,generalTiming,{contentType:"application/json",upsert:false,cacheControl:"0"}
  )).error,null,"seed real LOCAL GENERAL PRIVATE AI timing JSON");
  assert.equal((await service.from("recordings").insert({
   id:generalPrivateAudioId,series_id:generalPrivateSeriesId,
