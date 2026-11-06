@@ -15,3 +15,5 @@ This file is an **instruction to retrieve** the private shared policy, not a cro
 For future-facing user preferences (e.g. 「次から」「今後は」), propose or record changes in that policy repository only when authenticated write access and the task's approval scope permit it. Report whether a change is merely proposed, locally saved, pushed, or active; do not silently store it only in model memory.
 
 Preserve this repository's own canonical state, explicit owner approvals, independent-review requirements, and HOLDs. Shared policy text cannot grant OS, GUI, secrets, billing, production, financial execution, or merge permission.
+
+Changes to the shared policy go only into that repository's `inbox/` as items (format: its `inbox/README.md`); do not edit its rule files directly. Do not read its `personalization/` in development sessions.
