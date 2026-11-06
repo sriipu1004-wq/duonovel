@@ -58,6 +58,12 @@ export default function LoginPageClient() {
   }, [nextPath, locale]);
 
   const confirmed = searchParams.get("confirmed") === "1";
+  // /auth/callback sends this when the PKCE code exchange fails (most often:
+  // the confirmation link was opened >5 min after signup). The email itself is
+  // normally already confirmed; tell the user what to do instead of a silent
+  // plain login page (Issue #138, 2026-11-07).
+  const confirmCallbackFailed =
+    searchParams.get("error") === "email_confirm_callback_failed";
 
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
@@ -99,11 +105,13 @@ export default function LoginPageClient() {
     };
   }, [dictionary.authStateFailed]);
 
-  useEffect(() => {
-    if (confirmed) {
-      setMessage(dictionary.confirmed);
-    }
-  }, [confirmed, dictionary.confirmed]);
+  // URL-derived notice; an explicit action message (setMessage) takes precedence.
+  const urlNotice = confirmed
+    ? dictionary.confirmed
+    : confirmCallbackFailed
+      ? dictionary.confirmCallbackFailed
+      : "";
+  const displayedMessage = message || urlNotice;
 
   async function handleSignIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -357,9 +365,9 @@ export default function LoginPageClient() {
               </form>
             )}
 
-            {message ? (
+            {displayedMessage ? (
               <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {message}
+                {displayedMessage}
               </div>
             ) : null}
 
