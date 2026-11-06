@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { LEGACY_AUTO_NARRATION_SUSPENDED } from "@/lib/recording/legacyAutoNarration";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -112,7 +113,7 @@ export type NemoAutoGenerationStepResult = {
 
 export type NemoAutogenBackfillSeedResult = {
   ok: boolean;
-  status: "seeded" | "config_missing";
+  status: "seeded" | "config_missing" | "suspended";
   seriesCount: number;
   scannedEpisodeCount: number;
   seededPendingCount: number;
@@ -702,6 +703,18 @@ async function upsertQueueRows(
 export async function seedNemoAutogenBackfillQueue(args?: {
   limitEpisodes?: number;
 }): Promise<NemoAutogenBackfillSeedResult> {
+  if (LEGACY_AUTO_NARRATION_SUSPENDED) {
+    return {
+      ok: true,
+      status: "suspended",
+      seriesCount: 0,
+      scannedEpisodeCount: 0,
+      seededPendingCount: 0,
+      seededCompletedCount: 0,
+      skippedCount: 0,
+    };
+  }
+
   const config = resolveNemoAutoGenerationConfig();
 
   if (!config) {
@@ -1045,6 +1058,14 @@ async function markQueueJobFailed(
 }
 
 export async function runNextPendingNemoAutogenJob(): Promise<NemoAutoGenerationStepResult> {
+  if (LEGACY_AUTO_NARRATION_SUSPENDED) {
+    return {
+      ok: true,
+      status: "skipped",
+      reason: "legacy_auto_narration_suspended",
+    };
+  }
+
   const config = resolveNemoAutoGenerationConfig();
 
   if (!config) {
@@ -1162,6 +1183,14 @@ export async function runNemoAutoGenerationStep(args: {
   seriesId: string;
   episodeIds: string[];
 }): Promise<NemoAutoGenerationStepResult> {
+  if (LEGACY_AUTO_NARRATION_SUSPENDED) {
+    return {
+      ok: true,
+      status: "skipped",
+      reason: "legacy_auto_narration_suspended",
+    };
+  }
+
   const { seriesId, episodeIds } = args;
   const config = resolveNemoAutoGenerationConfig();
 

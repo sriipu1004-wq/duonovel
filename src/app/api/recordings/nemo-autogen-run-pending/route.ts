@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
+import {
+  LEGACY_AUTO_NARRATION_SUSPENDED,
+  LEGACY_AUTO_NARRATION_SUSPENDED_REASON,
+} from "@/lib/recording/legacyAutoNarration";
 import { runNextPendingNemoAutogenJob } from "@/lib/recording/nemoAutoGeneration";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,6 +37,18 @@ export async function POST(request: Request) {
         error: "この操作は公式朗読アカウントのみ実行できる。",
       },
       { status: 403 }
+    );
+  }
+
+  if (LEGACY_AUTO_NARRATION_SUSPENDED) {
+    return NextResponse.json(
+      {
+        ok: true,
+        status: "skipped",
+        reason: "legacy_auto_narration_suspended",
+        message: LEGACY_AUTO_NARRATION_SUSPENDED_REASON,
+      },
+      { status: 200 }
     );
   }
 
