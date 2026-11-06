@@ -406,6 +406,12 @@ export default function WriteSeriesForm({
   const [summary, setSummary] = useState(getSummary(series));
   const [publicationStatus, setPublicationStatus] =
     useState<SeriesPublicationStatus>(getSeriesPublicationStatus(series));
+  // The server mutation CAS uses the persisted state observed by this form,
+  // not the user's unsaved radio selection. Emergency withdrawal updates it.
+  const expectedPublicationStatusRef = useRef<SeriesPublicationStatus>(
+    getSeriesPublicationStatus(series)
+  );
+  const [emergencyPending, setEmergencyPending] = useState(false);
   const [reviewsEnabled, setReviewsEnabled] = useState(
     isSeriesReviewVisible(series)
   );
@@ -888,9 +894,10 @@ const publicVisibleCount = sortedEpisodes.filter(
         title: trimmedTitle,
         description: summary.trim(),
         ...workspaceFields,
-      });
+      }, expectedPublicationStatusRef.current);
 
       if (result.ok) {
+        expectedPublicationStatusRef.current = publicationStatus;
         setSavedGenres(nextGenres);
         setGenreEditorValue(toEditorValue(nextGenres));
         setSavedTags(nextTags);
@@ -912,7 +919,9 @@ const publicVisibleCount = sortedEpisodes.filter(
             ? "ログイン状態を確認してから、もう一度保存してください。"
             : result.code === "not_found_or_forbidden"
               ? "作品の編集権限を確認できませんでした。"
-              : "作品を保存できませんでした。入力内容を確認して、もう一度お試しください。"
+              : result.code === "stale_publication_state"
+                ? "作品の公開状態が別の操作で変更された。古い状態を上書きしないため保存を停止した。画面を再読み込みして確認してください。"
+                : "作品を保存できませんでした。入力内容を確認して、もう一度お試しください。"
       );
     } catch {
       setSaveState("error");
@@ -920,6 +929,68 @@ const publicVisibleCount = sortedEpisodes.filter(
     } finally {
       submittingRef.current = false;
       hideGlobalLoadingFeedback();
+    }
+  }
+
+
+  async function handleEmergencyWithdraw() {
+    if (mode !== "edit" || !series?.id ||
+        expectedPublicationStatusRef.current !== "public" ||
+        submittingRef.current) return;
+    const confirmed = window.confirm(
+      "作品を直ちに非公開にし、R18警告を追加する。既存の公開音声URLやダウンロード済みデータは削除・失効しない。操作を実行する？"
+    );
+    if (!confirmed) return;
+    submittingRef.current = true;
+    setEmergencyPending(true);
+    setSaveState("saving");
+    setErrorMessage("");
+    setSuccessMessage("");
+    try {
+      const response = await fetch(
+        "/api/series/" + encodeURIComponent(series.id) + "/content-rating",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+          body: JSON.stringify({
+            emergencyUnpublish: true,
+            warnings: ["sexual_r18"],
+          }),
+        }
+      );
+      const data = await response.json() as {
+        ok?: boolean; persisted?: boolean; publicationStatus?: string;
+        publicMediaStatus?: string; warnings?: string[]; error?: string;
+      };
+      // A committed DB change with failed cache invalidation is still PRIVATE.
+      const persistedPrivate = data.publicationStatus === "private" &&
+        data.publicMediaStatus === "unverified" &&
+        (data.ok === true || data.persisted === true);
+      if (!persistedPrivate || !Array.isArray(data.warnings) ||
+          !data.warnings.includes("sexual_r18")) {
+        setSaveState("error");
+        setErrorMessage("緊急非公開化を確認できなかった。作品の現在状態を再読み込みして確認してください。");
+        return;
+      }
+      expectedPublicationStatusRef.current = "private";
+      setPublicationStatus("private");
+      setSaveState(data.ok ? "success" : "error");
+      setSuccessMessage(data.ok
+        ? "作品を非公開・R18に変更した。旧公開音声URLは別途対応が必要。"
+        : "");
+      setErrorMessage(data.ok ? "" :
+        "作品は非公開・R18に保存されたがキャッシュ更新に失敗した。旧公開音声URLも残る。");
+      window.dispatchEvent(new CustomEvent("libread:content-rating-applied", {
+        detail: { warnings: data.warnings, cacheInvalidationFailed: !data.ok },
+      }));
+      router.refresh();
+    } catch {
+      setSaveState("error");
+      setErrorMessage("通信結果を確認できない。再操作する前に作品の公開状態を確認してください。");
+    } finally {
+      submittingRef.current = false;
+      setEmergencyPending(false);
     }
   }
 
@@ -1206,6 +1277,24 @@ const publicVisibleCount = sortedEpisodes.filter(
                               }
                             )}
                           </div>
+                          {mode === "edit" && series?.id &&
+                            expectedPublicationStatusRef.current === "public" ? (
+                            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3">
+                              <p className="text-sm font-semibold text-red-900">緊急非公開・R18訂正</p>
+                              <p className="mt-2 text-xs leading-6 text-red-800">
+                                作品を直ちに非公開にし、既存の警告を保持してR18を追加する。
+                                旧公開音声URLや配布済み音声は失効しない。再公開は別途確認が必要。
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => void handleEmergencyWithdraw()}
+                                disabled={saveState === "saving" || emergencyPending}
+                                className="mt-3 rounded-full border border-red-500 bg-red-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                              >
+                                {emergencyPending ? "非公開化を確認中..." : "緊急非公開＋R18訂正"}
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
 
                         <div className={activeSeriesStatusPanel === "reactions" ? "rounded-2xl border border-black/10 bg-white p-3" : "hidden"}>
