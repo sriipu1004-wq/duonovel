@@ -9,6 +9,8 @@ export async function GET() {
   const works = await getCachedPublicBaseWorkCards({
     ignoreContentLanguageFilter: true,
     prioritizeForUiLocale: false,
+    // The response contains language counts only; author names are not used.
+    omitAuthorDisplayNames: true,
   });
 
   const counts = Object.fromEntries(

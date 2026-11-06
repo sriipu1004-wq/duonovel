@@ -316,7 +316,7 @@ function verifyPublicEpisodeSummaryReadBoundary(): void {
   assert.ok(summaryRead.includes("throw new Error("));
   assert.ok(works.includes('code === "PGRST205" || code === "42P01"'));
   const build = works.slice(
-    works.indexOf("async function buildPublicBaseWorkCards()"),
+    works.indexOf("async function buildPublicBaseWorkCards("),
     works.indexOf("const getCachedPublicBaseWorkCardsInternal")
   );
   assert.ok(build.includes("fetchPublicEpisodeSummariesBySeriesIds("));

@@ -1,0 +1,54 @@
+# Issue #137: isolated synthetic PostgreSQL 17; NEVER Production Supabase.
+name: Issue137 isolated R18 row-access proof
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/issue137-r18-access-proof.yml'
+      - 'scripts/issue137-r18-access-fixture.sql'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue137-r18-access-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  r18-postgres17-only:
+    if: github.event.pull_request.number == 150 && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic_fixture_only_no_credentials
+        options: >-
+          --health-cmd=pg_isready
+          --health-interval=3s
+          --health-timeout=2s
+          --health-retries=15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Assert isolated PostgreSQL service and fixture-only inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n '${{ job.services.postgres.id }}'
+          test -f scripts/issue137-r18-access-fixture.sql
+          grep -q 'disposable PostgreSQL 17 SQL fixture' scripts/issue137-r18-access-fixture.sql
+          echo 'Isolated synthetic fixture only; no Supabase/Production DB connection'
+
+      - name: Run baseline and stricter R18 row-visibility matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          cid='${{ job.services.postgres.id }}'
+          test -n "$cid"
+          docker exec -i "$cid" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres             < scripts/issue137-r18-access-fixture.sql
+          echo 'PASS: PostgreSQL 17 synthetic R18 negative controls and direct-body RLS matrix'
