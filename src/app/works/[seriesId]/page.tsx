@@ -303,15 +303,17 @@ const WORK_PAGE_EPISODE_RANGE_SELECT = `
 
 async function fetchEpisodeNavigationBySeriesId(
   seriesId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  isR18 = false
 ): Promise<EpisodeRow[]> {
+  const reader = isR18 ? (await getVerifiedR18WorkClient()) ?? supabase : supabase;
   const PAGE_SIZE = 1000;
 
   async function fetchPaged(selectClause: string) {
     const rows: EpisodeRow[] = [];
 
     for (let start = 0; ; start += PAGE_SIZE) {
-      let query = supabase
+      let query = reader
         .from("episodes")
         .select(selectClause)
         .eq("series_id", seriesId)
@@ -348,12 +350,14 @@ async function fetchEpisodeNavigationBySeriesId(
 async function fetchEpisodeRangeBySeriesId(
   seriesId: string,
   start: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  isR18 = false
 ): Promise<EpisodeRow[]> {
+  const reader = isR18 ? (await getVerifiedR18WorkClient()) ?? supabase : supabase;
   const from = Math.max(0, start - 1);
   const to = from + 49;
   const run = (selectClause: string) => {
-    let query = supabase
+    let query = reader
       .from("episodes")
       .select(selectClause)
       .eq("series_id", seriesId)
@@ -381,6 +385,25 @@ async function fetchEpisodeRangeBySeriesId(
   throw new Error(`episode range の取得に失敗: ${fallback.error.message}`);
 }
 
+// #137: public R18 works are hidden by restrictive anon RLS. Resolve
+// their Work/episode reads with a VERIFIED, opted-in SSR user session only.
+// General anonymous traffic continues to use the previous public client.
+const getVerifiedR18WorkClient = cache(async () => {
+  const preference = await getCurrentR18ViewerPreference();
+  if (!preference.signedIn || !preference.showR18Content || !preference.userId) {
+    return null;
+  }
+  try {
+    const client = await createServerClient();
+    const result = await client.auth.getUser();
+    return !result.error && result.data.user?.id === preference.userId
+      ? client
+      : null;
+  } catch {
+    return null;
+  }
+});
+
 const fetchSeriesResult = cache(async (seriesId: string) =>
   runReadOnlyWithRetry(
     async (signal) => {
@@ -393,16 +416,32 @@ const fetchSeriesResult = cache(async (seriesId: string) =>
       if (result.error) {
         throw new Error(`series read failed: ${result.error.message}`);
       }
-      return result;
+      if (result.data) return result;
+      // Under R18-restrictive RLS an anonymous read yields zero rows, even
+      // for a permitted viewer. Never use service_role to bypass this.
+      const authed = await getVerifiedR18WorkClient();
+      if (!authed) return result;
+      const allowed = await authed
+        .from("series")
+        .select("*")
+        .eq("id", seriesId)
+        .eq("publication_status", "public")
+        .abortSignal(signal)
+        .maybeSingle();
+      if (allowed.error) {
+        throw new Error(`authenticated work read failed: ${allowed.error.message}`);
+      }
+      return allowed;
     },
     { operation: "work series", timeoutMs: 2500, retries: 1 }
   )
 );
 
-const fetchFirstPublicEpisode = cache(async (seriesId: string) =>
+const fetchFirstPublicEpisode = cache(async (seriesId: string, isR18: boolean) =>
   runReadOnlyWithRetry(
     async (signal) => {
-      const result = await supabase
+      const reader = isR18 ? (await getVerifiedR18WorkClient()) ?? supabase : supabase;
+      const result = await reader
         .from("episodes")
         .select(WORK_PAGE_EPISODE_NAV_SELECT)
         .eq("series_id", seriesId)
@@ -841,7 +880,7 @@ export async function generateMetadata({
       }
     }
 
-    const firstPublicEpisode = await fetchFirstPublicEpisode(seriesId);
+    const firstPublicEpisode = await fetchFirstPublicEpisode(seriesId, getSeriesContentRating(series) === "r18");
 
     if (!firstPublicEpisode || !isEpisodePubliclyVisible(firstPublicEpisode)) {
       return {
@@ -1442,7 +1481,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     [author, rawEpisodeNavigation] = await Promise.all([
       loadOptionalAuthor(authorId),
       runReadOnlyWithRetry(
-        (signal) => fetchEpisodeNavigationBySeriesId(seriesId, signal),
+        (signal) => fetchEpisodeNavigationBySeriesId(seriesId, signal, getSeriesContentRating(series) === "r18"),
         { operation: "work episode navigation", timeoutMs: 2500, retries: 1 }
       ),
     ]);
@@ -1498,7 +1537,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       (
         await runReadOnlyWithRetry(
           (signal) =>
-            fetchEpisodeRangeBySeriesId(seriesId, currentRangeStart, signal),
+            fetchEpisodeRangeBySeriesId(seriesId, currentRangeStart, signal, getSeriesContentRating(series) === "r18"),
           { operation: "work episode range", timeoutMs: 2500, retries: 1 }
         )
       ).filter((episode) => isEpisodePubliclyVisible(episode))

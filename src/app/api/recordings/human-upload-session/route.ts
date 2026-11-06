@@ -5,6 +5,9 @@ import {
   normalizeRecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { openHumanStagingLease, closeHumanStagingLease } from "@/lib/recording/humanStagingLease";
+import { assertApprovedPrivateHumanRecordingBucket } from "@/lib/recording/humanRecordingStorage";
+import { RECORDING_GLOBAL_CONSENT_KEY, RECORDING_GLOBAL_CONSENT_VERSION } from "@/lib/recording/recordingConsent";
 import { createClient } from "@/lib/supabase/server";
 import {
   buildHumanMultipartUploadSession,
@@ -134,7 +137,7 @@ export async function POST(request: Request) {
     // only see publicly posted works/episodes.
     const { data: series, error: seriesError } = await supabase
       .from("series")
-      .select("id, recording_permission_mode")
+      .select("id, publication_status, content_rating, content_warnings, recording_permission_mode")
       .eq("id", seriesId)
       .maybeSingle();
 
@@ -148,24 +151,43 @@ export async function POST(request: Request) {
       ),
       isLoggedIn: true,
     });
-    if (!decision.canEnter) {
+    if (!decision.canEnter ||
+        series.publication_status !== "public" ||
+        series.content_rating !== "general" ||
+        (series.content_warnings ?? []).includes("sexual_r18")) {
       throw new Error("recording_entry_denied");
     }
 
     const { data: episode, error: episodeError } = await supabase
       .from("episodes")
-      .select("id, series_id")
+      .select("id, series_id, posting_status, is_published")
       .eq("id", episodeId)
       .maybeSingle();
 
     if (
       episodeError ||
       !episode ||
-      String(episode.series_id) !== seriesId
+      String(episode.series_id) !== seriesId ||
+      episode.posting_status !== "posted" ||
+      episode.is_published !== true
     ) {
       throw new Error("episode_not_accessible");
     }
 
+    const { data: consent, error: consentError } = await supabase
+      .from("user_recording_consents")
+      .select("consent_version")
+      .eq("user_id", user.id)
+      .eq("consent_key", RECORDING_GLOBAL_CONSENT_KEY)
+      .maybeSingle();
+    if (consentError || consent?.consent_version !== RECORDING_GLOBAL_CONSENT_VERSION) {
+      throw new Error("recording_entry_denied");
+    }
+
+    // Provider-side PRIVATE visibility must be verified before opening a
+    // staging lease or minting any signed multipart upload token.
+    const adminSupabase = createAdminClient();
+    await assertApprovedPrivateHumanRecordingBucket(adminSupabase);
     const sourceExtension = getAudioFileExtension(fileName) || "bin";
     const session = buildHumanMultipartUploadSession({
       seriesId,
@@ -175,14 +197,25 @@ export async function POST(request: Request) {
       totalSizeBytes,
     });
 
-    const adminSupabase = createAdminClient();
     const signedParts: SignedPart[] = [];
-
+    // Commit the server-only lease BEFORE minting any bearer token.
+    // An absent H2 migration fails closed. Abort on partial issuance failure;
+    // no physical deletion is performed while a bearer might still be live.
+    const lease = {
+      sessionId: session.uploadSessionId,
+      seriesId,
+      episodeId,
+      actorId: user.id,
+      sourceExtension: session.sourceExtension,
+      totalSizeBytes: session.totalSizeBytes,
+    };
+    await openHumanStagingLease(adminSupabase, lease, session.parts.length);
+    try {
     for (const part of session.parts) {
       const { data, error } = await adminSupabase.storage
         .from(session.bucketName)
         .createSignedUploadUrl(part.objectPath, {
-          upsert: true,
+          upsert: false,
         });
 
       if (error || !data?.token) {
@@ -212,6 +245,15 @@ export async function POST(request: Request) {
       tempPrefix: session.tempPrefix,
       parts: signedParts,
     });
+    } catch (error) {
+      // Token issuance may have partly succeeded. Closing the server-side
+      // lease makes those bearer tokens fail the DB Storage trigger.
+      // No deletion here: an in-flight physical upload may still be active.
+      await closeHumanStagingLease(adminSupabase, lease, "abort").catch(() => {
+        throw new Error("human_staging_abort_unavailable");
+      });
+      throw error;
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
     const resolved = resolveErrorResponse(message);

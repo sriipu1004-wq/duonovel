@@ -6,7 +6,7 @@ import { isValidSeriesId, isOwnedSeriesWorkspacePayload, preserveSeriesPublicDom
 
 type SaveResult =
   | { ok: true }
-  | { ok: false; code: "invalid_request" | "authentication_required" | "not_found_or_forbidden" | "save_failed" | "cache_invalidation_failed"; persisted: boolean };
+  | { ok: false; code: "invalid_request" | "authentication_required" | "not_found_or_forbidden" | "save_failed" | "cache_invalidation_failed" | "stale_publication_state"; persisted: boolean };
 
 const PUBLIC_WORKS_CACHE_TAG = "public-base-work-cards";
 /**
@@ -19,9 +19,12 @@ const PUBLIC_WORKS_CACHE_TAG = "public-base-work-cards";
  */
 export async function saveOwnedSeriesWorkspace(
   seriesId: string,
-  candidate: unknown
+  candidate: unknown,
+  expectedPublicationStatus: "public" | "private"
 ): Promise<SaveResult> {
-  if (typeof seriesId !== "string" || !isValidSeriesId(seriesId) || !isOwnedSeriesWorkspacePayload(candidate)) {
+  if (typeof seriesId !== "string" || !isValidSeriesId(seriesId) ||
+      !isOwnedSeriesWorkspacePayload(candidate) ||
+      !["public", "private"].includes(expectedPublicationStatus)) {
     return { ok: false, code: "invalid_request", persisted: false };
   }
 
@@ -35,12 +38,15 @@ export async function saveOwnedSeriesWorkspace(
   // The editor serializes presentation settings without this metadata.
   const { data: previous, error: previousError } = await supabase
     .from("series")
-    .select("id, effect_settings")
+    .select("id, effect_settings, publication_status")
     .eq("id", seriesId)
     .eq("author_id", auth.user.id)
     .maybeSingle();
   if (previousError) return { ok: false, code: "save_failed", persisted: false };
   if (!previous) return { ok: false, code: "not_found_or_forbidden", persisted: false };
+  if (previous.publication_status !== expectedPublicationStatus) {
+    return { ok: false, code: "stale_publication_state", persisted: false };
+  }
 
   const safeFields = {
     ...candidate,
@@ -55,11 +61,14 @@ export async function saveOwnedSeriesWorkspace(
     .update(safeFields)
     .eq("id", seriesId)
     .eq("author_id", auth.user.id)
+    // A concurrent emergency hide or another-tab publication change
+    // must make this update affect zero rows, not re-publish stale state.
+    .eq("publication_status", expectedPublicationStatus)
     .select("id")
     .maybeSingle();
 
   if (error) return { ok: false, code: "save_failed", persisted: false };
-  if (!data) return { ok: false, code: "not_found_or_forbidden", persisted: false };
+  if (!data) return { ok: false, code: "stale_publication_state", persisted: false };
 
   try {
     // Next 16 Server Actions: force an immediate expiration, not 'max'

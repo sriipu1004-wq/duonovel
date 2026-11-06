@@ -143,7 +143,15 @@ function verifySearchLocaleCopy() {
   assert.equal(legacySearchSource.includes("likeCount={work.likeCount}"), false);
 
   const publicWorksSource = readFileSync("src/lib/publicWorks.ts", "utf8");
-  assert.ok(publicWorksSource.includes('["public-base-work-cards-v12-canonical-source-language"]'));
+  assert.ok(publicWorksSource.includes('["public-base-work-cards-v13-db-epoch-bound"]'),
+    "source-language Search cache uses DB revision-keyed entries");
+  assert.ok(publicWorksSource.includes("readEpochGuardedCatalog(") &&
+    publicWorksSource.includes("getDatabasePublicCatalogEpoch") &&
+    publicWorksSource.includes("return readEpochGuardedCatalog("),
+    "Search result must recheck the transactional catalog epoch");
+  assert.ok(publicWorksSource.includes("getViewerR18Cards") &&
+    publicWorksSource.includes("recheckR18CatalogCards"),
+    "R18 Search results must remain per-viewer and reauthorized");
   assert.equal(publicWorksSource.includes(".limit(120)"), false);
   assert.ok(publicWorksSource.includes(".range(start, start + PAGE_SIZE - 1)"));
   assert.ok(publicWorksSource.includes('.order("series_id", { ascending: true })'));

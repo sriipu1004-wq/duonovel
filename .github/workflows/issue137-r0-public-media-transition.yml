@@ -1,0 +1,299 @@
+# Issue #137: validate a candidate against disposable Postgres only.
+# No Production or Supabase secrets; NEVER perform migration deployment here.
+name: Issue137 minimal public media transition SQL (isolated)
+on:
+  pull_request:
+    paths:
+      - "scripts/issue137-b2/r0-public-media-transition-candidate.sql"
+      - "scripts/issue137-b2/r0-b2-unified-local-candidate.sql"
+      - "scripts/issue137-b2/r0-public-media-transition-local-test.sql"
+      - "scripts/issue137-b2/r0-legacy-history-preflight.mjs"
+      - "scripts/issue137-b2/r0-high-risk-live-semantic-readonly.sql"
+      - "scripts/issue137-b2/r0-hosted-target-schema-readonly.sql"
+      - "docs/issue137-b2-r0-migration-rollout-rollback.md"
+      - "docs/issue137-r0-emergency-public-media-retirement.md"
+      - "scripts/issue137-b2/r0-current-schema-release-source.test.mjs"
+      - "scripts/issue137-b2/r0-legacy-catalog-probes.json"
+      - "scripts/issue137-b2/r0-hosted-ledger-snapshot.json"
+      - "scripts/issue137-b2/r0-local-storage-fixture.sql"
+      - "scripts/issue137-b2/r0-local-storage-e2e.mjs"
+      - "scripts/issue137-b2/r0-batch-retirement-local-e2e.mjs"
+      - "scripts/issue137-b2/r0-b2-auth-storage-negative-e2e.mjs"
+      - "scripts/issue137-b2/r0-human-private-bucket-http-negative.mjs"
+      - "scripts/issue137-b2/r0-b2-local-transactional-revert-smoke.sql"
+      - "scripts/issue137-b2/r0-next-http-e2e.mjs"
+      - "scripts/issue137-b2/r0-h2-browser-runner.mjs"
+      - "scripts/issue137-b2/r0-h1-browser-only.mjs"
+      - "scripts/issue137-b2/r0-h2-browser-pcm-fixture.mjs"
+      - "scripts/issue137-b2/r0-h2-browser-positive.mjs"
+      - "scripts/issue137-b2/r0-h2-browser-interrupt.mjs"
+      - "scripts/issue137-b2/r0-h2-legacy-signed-path-local-e2e.mjs"
+      - "scripts/issue137-b2/r0-h2-active-expired-token-local-e2e.mjs"
+      - "scripts/issue137-b2/r0-b2-h1-render-single-local.mjs"
+      - "scripts/issue137-b2/r0-h1-atomic-local-extension.sql"
+      - "scripts/issue137-b2/r0-h2-signed-staging-lease-extension.sql"
+      - "scripts/issue137-b2/r0-h2-local-advance-expiry-only.sql"
+      - "scripts/issue137-b2/r0-h2-local-retirement-e2e.mjs"
+      - "scripts/issue137-b2/h2-stage-lifecycle-source.test.mjs"
+      - "src/app/api/recordings/human-upload-abort/route.ts"
+      - "src/components/recording/RecordingStudioPage.tsx"
+      - "docs/issue137-h2-human-temp-staging-leases.md"
+      - "src/lib/recording/humanStagingLease.ts"
+      - "src/app/api/recordings/human-upload-session/route.ts"
+      - "src/app/api/recordings/human-upload-finalize/route.ts"
+      - "scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs"
+      - "scripts/issue137-b2/r0-hosted-constraint-overlay-local.sql"
+      - "scripts/issue137-b2/r0-forward-repair-rehearsal-local.sql"
+      - "scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs"
+      - "scripts/issue137-b2/r0-static-s3-authenticated-local-e2e.mjs"
+      - "scripts/issue137-b2/r0-static-s3-storage-local.sh"
+      - "scripts/issue137-b2/r0-privileged-tus-local-e2e.mjs"
+      - "scripts/issue137-b2/r0-direct-service-role-storage-local.sql"
+      - "scripts/issue137-b2/r0-legacy-human-version-direct-local.sql"
+      - "scripts/issue137-b2/r0-signed-upload-revocation-local-e2e.mjs"
+      - "scripts/issue137-b2/r0-legacy-human-orphans-readonly.sql"
+      - "docs/issue137-legacy-human-orphan-rights-readonly.md"
+      - "scripts/issue137-b2/r0-public-origin-cohorts-readonly.sql"
+      - "scripts/issue137-b2/r0-detached-rights-provenance-readonly.sql"
+      - "docs/issue137-public-origin-containment-cohorts.md"
+      - "src/lib/recording/humanRecordingAtomic.ts"
+      - "src/app/actions/saveOwnedSeriesWorkspace.ts"
+      - "src/features/write/WriteSeriesForm.tsx"
+      - "scripts/issue137-b2/r0-run-local-storage.sh"
+      - "src/app/api/series/[seriesId]/content-rating/route.ts"
+      - "src/app/works/[seriesId]/page.tsx"
+      - "src/lib/publicWorks.ts"
+      - "src/lib/publicRead.ts"
+      - "src/lib/recording/**"
+      - "src/app/api/recordings/ai-audio/**"
+      - "src/app/api/recordings/human-audio/**"
+      - "src/app/read/**"
+      - "src/lib/publicCatalogEpochFence.ts"
+      - "scripts/test-issue137-work-metadata-visibility.ts"
+      - "scripts/test-public-search-language-filters.ts"
+      - "docs/issue137-r18-reader-catalog-integration-slice.md"
+      - ".github/workflows/issue137-r0-public-media-transition.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres17-synthetic-negative:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: local-fixture-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      # This is an intentionally failing historical source migration on a fresh
+      # LOCAL PostgreSQL service. It is NOT a schema baseline or a remote replay.
+      # The second transaction proves the missing *first-table prerequisite*
+      # only; it rolls back before any other job's synthetic fixtures run.
+      - name: Prove missing historical empty-DB bootstrap on local PostgreSQL 17
+        env:
+          PGPASSWORD: local-fixture-only
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGDATABASE: postgres
+          DO_NOT_CONTACT_PRODUCTION: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${DO_NOT_CONTACT_PRODUCTION}" = "true"
+          test "${PGHOST}" = "127.0.0.1"
+          test "${PGPORT}" = "5432"
+          test "${PGDATABASE}" = "postgres"
+          test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
+          test -z "${SUPABASE_DB_PASSWORD:-}"
+          test -z "${SUPABASE_ACCESS_TOKEN:-}"
+          earliest="supabase/migrations/20260322120000_add_series_tags_canonical_source.sql"
+          recorded_paired="supabase/migrations/20260914130000_ensure_series_translation_permission_mode.sql"
+          test -f "$earliest"
+          test -f "$recorded_paired"
+          test "$(find supabase/migrations -maxdepth 1 -name '*.sql' -printf '%f\n' | sort | head -n 1)" = "${earliest##*/}"
+          test "$(psql -X -Atqc "SELECT to_regclass('public.series') IS NULL")" = "t"
+          failure_log="$(mktemp)"
+          trap 'rm -f "$failure_log"' EXIT
+          if psql -X -v ON_ERROR_STOP=1 -1 -f "$earliest" >"$failure_log" 2>&1; then
+            echo "BOOTSTRAP_UNEXPECTED_SUCCESS_HOLD: empty local DB must not be treated as replayable" >&2
+            exit 1
+          fi
+          if ! grep -Fq 'relation "public.series" does not exist' "$failure_log"; then
+            echo "BOOTSTRAP_UNEXPECTED_FAILURE_HOLD: not the established missing series prerequisite" >&2
+            tail -n 8 "$failure_log" >&2
+            exit 1
+          fi
+          test "$(psql -X -Atqc "SELECT to_regclass('public.series') IS NULL")" = "t"
+          echo "PASS: first tracked legacy migration fails on genuinely empty LOCAL PG17: missing public.series"
+          # A one-table shim demonstrates the precise prerequisite, NOT an
+          # original production schema, 21 hosted migrations or RLS completeness.
+          psql -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          CREATE TABLE public.series(id uuid PRIMARY KEY);
+          \i supabase/migrations/20260322120000_add_series_tags_canonical_source.sql
+          \i supabase/migrations/20260914130000_ensure_series_translation_permission_mode.sql
+          DO $bootstrap_probe$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='series'
+                AND column_name='tags' AND is_nullable='NO'
+            ) OR NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='series'
+                AND column_name='translation_permission_mode' AND is_nullable='NO'
+            ) THEN
+              RAISE EXCEPTION 'ISSUE137_MINIMAL_BOOTSTRAP_PREREQUISITE_HOLD';
+            END IF;
+          END;
+          $bootstrap_probe$;
+          ROLLBACK;
+          SQL
+          test "$(psql -X -Atqc "SELECT to_regclass('public.series') IS NULL")" = "t"
+          echo "PASS: local one-table prerequisite permits two historical SQL files; transaction ROLLBACK verified"
+          echo "RELEASE_HOLD: this is NOT a complete replayable baseline or a migration-history repair"
+      - name: Verify public-media candidate using synthetic PostgreSQL 17 fixture
+        env:
+          PGPASSWORD: local-fixture-only
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGDATABASE: postgres
+          DO_NOT_CONTACT_PRODUCTION: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${DO_NOT_CONTACT_PRODUCTION}" != "true" ]; then exit 1; fi
+          test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
+          test -z "${SUPABASE_DB_PASSWORD:-}"
+          test -z "${SUPABASE_ACCESS_TOKEN:-}"
+          psql -X -v ON_ERROR_STOP=1 -f scripts/issue137-b2/r0-public-media-transition-local-test.sql
+      - name: Verify 55 legacy-source snapshot and unsafe migration filename HOLD
+        env:
+          DO_NOT_CONTACT_PRODUCTION: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/issue137-b2/r0-legacy-history-preflight.mjs
+          node scripts/issue137-b2/r0-legacy-history-preflight.mjs --self-test
+          node --check scripts/issue137-b2/r0-current-schema-release-source.test.mjs
+          node scripts/issue137-b2/r0-current-schema-release-source.test.mjs
+          node scripts/issue137-b2/r0-legacy-history-preflight.mjs --emit-readonly-sql > /tmp/issue137-legacy-catalog-preflight.sql
+          grep -Fq 'BEGIN READ ONLY;' /tmp/issue137-legacy-catalog-preflight.sql
+          grep -Fq 'ROLLBACK;' /tmp/issue137-legacy-catalog-preflight.sql
+          grep -Fq 'BEGIN READ ONLY;' scripts/issue137-b2/r0-hosted-target-schema-readonly.sql
+          grep -Fq 'ROLLBACK;' scripts/issue137-b2/r0-hosted-target-schema-readonly.sql
+          grep -Fq "'public','recordings','reader_id','uuid','NO'" scripts/issue137-b2/r0-hosted-target-schema-readonly.sql
+          grep -Fq "'public','recordings','voice_model_id','uuid','YES'" scripts/issue137-b2/r0-hosted-target-schema-readonly.sql
+          grep -Fq "reader_id uuid not null" scripts/issue137-b2/r0-local-storage-fixture.sql
+          grep -Fq "voice_model_id uuid" scripts/issue137-b2/r0-local-storage-fixture.sql
+          echo "PASS: legacy preflight generated READ-ONLY SQL without accessing hosted database"
+      - name: Diff whitespace check
+        run: git diff --check
+
+  local-supabase-storage-auth-e2e:
+    # Public same-repo PR only. Forked/untrusted PR code must NEVER run Docker E2E
+    # with runner credentials; no hosted secrets are supplied to this job.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.repository.private == false &&
+      github.event.pull_request.number == 160 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'fix/issue137-r18-public-media-transition-minimal'
+    needs: postgres17-synthetic-negative
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      DO_NOT_CONTACT_PRODUCTION: 'true'
+      R0_OWNER_UI_BROWSER: 'enabled'
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate disposable-only script guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/issue137-b2/r0-run-local-storage.sh
+          node --check scripts/issue137-b2/r0-local-storage-e2e.mjs
+          node --check scripts/issue137-b2/r0-batch-retirement-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-b2-auth-storage-negative-e2e.mjs
+          node --check scripts/issue137-b2/r0-next-http-e2e.mjs
+          node --check scripts/issue137-b2/r0-h2-browser-runner.mjs
+          node --check scripts/issue137-b2/r0-h2-browser-positive.mjs
+          node --check scripts/issue137-b2/r0-h2-browser-interrupt.mjs
+          node --check scripts/issue137-b2/r0-h2-legacy-signed-path-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-h2-active-expired-token-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-b2-h1-render-single-local.mjs
+          grep -Fq "ISSUE137_LOCAL_FORWARD_REPAIR_SECURITY_PRESERVED" scripts/issue137-b2/r0-forward-repair-rehearsal-local.sql
+          grep -Fq "series_author_id_fkey" scripts/issue137-b2/r0-hosted-constraint-overlay-local.sql
+          grep -Fq "recordings_voice_model_id_fkey" scripts/issue137-b2/r0-hosted-constraint-overlay-local.sql
+          node --check scripts/issue137-b2/r0-h1-atomic-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-privileged-s3-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-privileged-tus-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-full-public-freeze-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-full-public-freeze-tus-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-static-s3-authenticated-local-e2e.mjs
+          grep -Fq "libread_r0_disposable.sentinel" scripts/issue137-b2/r0-full-public-write-freeze-local.sql
+          grep -Fq "BEFORE INSERT OR UPDATE OR DELETE ON storage.objects" scripts/issue137-b2/r0-full-public-write-freeze-local.sql
+          grep -Fq "ISSUE137_LOCAL_FULL_PUBLIC_WRITE_FREEZE_INSTALLED" scripts/issue137-b2/r0-full-public-write-freeze-local.sql
+          grep -Fq "R0_FULL_PUBLIC_FREEZE_PROBE=local-only" scripts/issue137-b2/r0-run-local-storage.sh
+          node --check scripts/issue137-b2/r0-signed-upload-revocation-local-e2e.mjs
+          node --check scripts/issue137-b2/r0-h2-local-retirement-e2e.mjs
+          node scripts/issue137-b2/h2-stage-lifecycle-source.test.mjs
+          grep -Fq "ISSUE137_H2_DISPOSABLE_EXPIRY_SIMULATED" scripts/issue137-b2/r0-h2-local-advance-expiry-only.sql
+          grep -Fq "issue137_h2_stage_finish_retirement" scripts/issue137-b2/r0-h2-signed-staging-lease-extension.sql
+          grep -Fq "issue137_h2_stage_storage_guard" scripts/issue137-b2/r0-h2-signed-staging-lease-extension.sql
+          grep -Fq "H2_STAGE_LEASE_REVOKED" scripts/issue137-b2/r0-h2-signed-staging-lease-extension.sql
+          grep -Fq "set local role service_role;" scripts/issue137-b2/r0-direct-service-role-storage-local.sql
+          grep -Fq "rollback;" scripts/issue137-b2/r0-direct-service-role-storage-local.sql
+          grep -Fq "ISSUE137_DIRECT_SQL_ROLE_BOUNDARY_AND_ROLLBACK_PASS" scripts/issue137-b2/r0-direct-service-role-storage-local.sql
+          grep -Fq 'begin read only;' scripts/issue137-b2/r0-legacy-human-orphans-readonly.sql
+          grep -Fq 'rollback;' scripts/issue137-b2/r0-legacy-human-orphans-readonly.sql
+          grep -Fq 'RIGHTS_AND_CONSENT_UNPROVEN_NO_PUBLICATION_NO_DELETION' scripts/issue137-b2/r0-legacy-human-orphans-readonly.sql
+          grep -Fq 'begin read only;' scripts/issue137-b2/r0-public-origin-cohorts-readonly.sql
+          grep -Fq 'rollback;' scripts/issue137-b2/r0-public-origin-cohorts-readonly.sql
+          grep -Fq 'RIGHTS_UNKNOWN_METADATA_ONLY_HOLD' scripts/issue137-b2/r0-public-origin-cohorts-readonly.sql
+          grep -Fq 'BEGIN READ ONLY;' scripts/issue137-b2/r0-detached-rights-provenance-readonly.sql
+          grep -Fq 'ROLLBACK;' scripts/issue137-b2/r0-detached-rights-provenance-readonly.sql
+          grep -Fq 'RIGHTS_UNKNOWN_NO_PUBLICATION_NO_MOVE_NO_DELETE' scripts/issue137-b2/r0-detached-rights-provenance-readonly.sql
+          node scripts/issue137-b2/r0-b2-h1-render-single-local.mjs --self-test
+          docker info >/dev/null
+          test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
+          test -z "${SUPABASE_DB_PASSWORD:-}"
+          test -z "${SUPABASE_ACCESS_TOKEN:-}"
+      - name: Install exact locked app SDK for REAL LOCAL Storage HTTP
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install temporary pinned Chromium test runner (non-shipped, no lockfile mutation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node -e "require('playwright').chromium || process.exit(1)"
+      - name: Exercise genuine AI writer CAS, Human owner fence and preview publication guard (isolated SOURCE)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/issue137-b2/generator-recording-ownership.test.ts
+          node --import tsx scripts/issue137-b2/public-media-writer-bridge.test.ts
+      - name: Disposable CLI, Storage 3-object retirement/recovery, Auth/R18/Next HTTP and rollback E2E
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/issue137-b2/r0-run-local-storage.sh
+          echo "PASS: real LOCAL-only Storage and Next HTTP positive/negative checks completed"

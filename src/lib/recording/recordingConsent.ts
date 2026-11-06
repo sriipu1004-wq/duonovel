@@ -1,5 +1,10 @@
 export const RECORDING_GLOBAL_CONSENT_KEY = "recording_studio_global";
 export const RECORDING_GLOBAL_CONSENT_VERSION = "2026-04-16";
+
+// Pure predicate; a server-authorized, current user row must be fetched separately.
+export function isAcceptedRecordingConsentVersion(value: unknown): boolean {
+  return value === RECORDING_GLOBAL_CONSENT_VERSION;
+}
 export const RECORDING_CONSENT_HREF = "/record/consent";
 export const RECORDING_TERMS_HREF = "/record/terms";
 
