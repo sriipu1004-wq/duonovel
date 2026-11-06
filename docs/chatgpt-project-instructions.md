@@ -1,5 +1,7 @@
 # ChatGPT Project instructions — LIB read
 
+> **LEGACY (2026-11-07):** day-to-day operation moved to Claude Code (`docs/decisions.md` D025). Claude sessions follow `CLAUDE.md` and the shared policy repo instead of this text. Kept for history and in case the ChatGPT window is used again; its gates still match the canonical docs.
+
 **CONTROL-R4 adopted 2026-10-21; response-status v1.1 proposed 2026-10-24.** This GitHub file is the **canonical copyable content**, but it **does not automatically edit the actual ChatGPT Project Settings UI**. The user must paste the text below into the LIB read project's Instructions field and verify it has saved. Do not claim UI alignment until that occurs. Don't paste current PR SHAs or secrets in Project settings.
 
 ## Exact replacement text (copy entire block)

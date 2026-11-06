@@ -1,65 +1,53 @@
-# LIB read — durable recovery / single operator control
+# LIB read — durable recovery / operator overview
 
-**CONTROL-R4 (accepted single-window operating design, 2026-10-21).** Root entrypoint for an unexpectedly ended operator conversation. Status values here are dated snapshots: **ALWAYS independently recheck live GitHub/Production/Supabase before taking action.** User approval to *adopt an operating method* does not authorize merging any pending PR or performing Production changes.
+**Root entrypoint for a new or recovered work session.** Status values here are dated snapshots: **always re-check live GitHub / Vercel / Supabase before acting.** This file never grants merge, Production, data, rights, Auth, billing or ads permission.
 
 - Repo: https://github.com/sriipu1004-wq/duonovel
 - Production: https://www.syosetu-libread.com
-- Read: [AGENTS.md](AGENTS.md), [project-state](docs/project-state.md), [ordered roadmap](docs/roadmap.md), [decisions](docs/decisions.md), [development workflow](docs/development-workflow.md), [chat operations](docs/chat-operations.md).
-- Stable product and safety boundaries are in AGENTS and canonical docs; prefer live evidence to old chat claims.
+- Read: [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md), [project-state](docs/project-state.md), [ordered roadmap](docs/roadmap.md), [decisions](docs/decisions.md), [development workflow](docs/development-workflow.md), [chat operations](docs/chat-operations.md), [response-status protocol](docs/response-status-protocol.md).
 
-## Live-verified snapshot (2026-10-21, update only after external checks)
+## Operating model (since 2026-11-07: Claude Code; CONTROL-R4 rules unchanged)
 
-- GitHub main `37650ac9b391c1a76f597751ea44c6110541a697` and Vercel Production `dpl_3Zhkw9WLfYmdzChM2LRRQDNLpXCL` READY on that same commit. No governance Draft or Issue #137 fix is yet Production.
-- Supabase `nyxbnccuvmlzffgtdadi`: ACTIVE_HEALTHY as last checked. Last READ-ONLY database checkpoint: 123 series, 120 public, 3 private; 84 public rightsChecked and 36 JA legacy unverified; 3,284 episodes, zero Human-translation rows, zero active/trialing subscriptions; Storage ~30 GB snapshot. These are not unique-user or real-audio claims and not proof of restore/E2E.
-- PR #135 **MERGED** into current main, source-prepared 10 Aozora manifests / 39 chapters; all `rights_status=pending` / `approved=false`; zero new rights approvals, Production Draft imports or publications. P5 Child85 remains open.
-- Production cache revalidation `AbortError` and unusually late timer callbacks still not root-caused; an `ACTIVE_HEALTHY` DB doesn't prove 5xx-free application operation.
-- Accepted historical deferrals: real signed-in Owner/Reader/R18/Human E2E; full independent DB and ~30 GB Storage bytes restore; Search SQL >1000 full parity (NO CUTOVER); timer root cause; deletion process; scheduled Cron PR #108 **NO-GO**.
+The owner moved day-to-day operation from a ChatGPT window to **Claude Code** sessions (2026-11-07). The CONTROL-R4 rules carry over unchanged; only the tooling words change:
 
-## CURRENT WORK LOCK — STOP at independent-review gate
+| CONTROL-R4 wording | Claude Code meaning |
+| --- | --- |
+| single ChatGPT operator window | **one writer session per project at a time**, titled `【LIB read】…` |
+| separate chat for independent review | a **separate, new Claude Code session** given only the fixed PR HEAD; it posts GO/FIX/NO-GO on the PR and never pushes. Same-model separate session is weaker than a human reviewer — say so. |
+| ChatGPT Project Settings | repository `CLAUDE.md` + the shared policy repo `sriipu1004-wq/ai-operator-policy` (`AGENTS.md`, inbox for changes) |
+| Codex / Work | not used by default |
 
-**User-approved operating method is now ONE ordinary ChatGPT operator window with internal S1–S4 scope labels.** Old pre-reset child conversations are historical references. S4 completed a **physical legacy-author phase** for Issue #137 and STOPPED. No new Issue authoring/implementation has been authorized on the basis of this switch.
+S1–S4 remain internal responsibility labels. Serial work, Draft PR → same-HEAD CI/Preview → required independent review → explicit owner merge approval, and separate scope-specific approvals for Production DB/Storage/Auth/RLS/rights/publication/billing/ads/Cron all stay in force.
 
-- Active Work ID: [Issue #137](https://github.com/sriipu1004-wq/duonovel/issues/137), authored/frozen S4 [Draft PR #146](https://github.com/sriipu1004-wq/duonovel/pull/146), base main `37650ac9b391c1a76f597751ea44c6110541a697`, exact HEAD `2d8cae74edea88e3425011d9a7b3950260e8aea6`.
-- PR #146 exact-head GitHub workflow checks 3/3 SUCCESS; Vercel Preview `dpl_GUCibV6ZNM6zBZAqP6BqfDChRaid` READY. Scope: EN/KO one-ID Work metadata and JA episode-public SEO predicate; **not a fix for the global AbortError/timer root cause**. No Production data/DB/config writes.
-- **Next required gate: genuinely independent Reader/Search/rights/visibility review of PR #146's frozen HEAD.** Same-window switching to “S1” does NOT count. Until separate reviewer evidence is recorded, REVIEW_PENDING, no merge or release; other Issues still queued. Reviewer must not push author's branch. On FIX, return the task to operator for bounded implementation/new-HEAD review; on GO, seek explicit user merge approval and verify Production after approved merge.
-- Old [Draft #131](https://github.com/sriipu1004-wq/duonovel/pull/131) is candidate reference only, not automatically merged.
+## Live-verified snapshot — 2026-11-07 (re-check before use)
 
-## Governance / Draft PR resolution (not yet merged)
+- **main / Production:** main `c27a2fa` (PR #164, dev tooling only). Last runtime change: PR #163 → `4faa9f9`, Production READY and HTTP-verified (anonymous GET on 8 routes = 200; deployment id matched).
+- **Supabase** `nyxbnccuvmlzffgtdadi`: ACTIVE_HEALTHY, PG 17.6.1. Hosted migration history 21 rows (latest `20261103010000`); repository has 76 SQL files → **no blanket `db push`** (Issue #137).
+- **API keys:** Production and Preview now use the new `sb_publishable_…` / `sb_secret_…` keys (2026-11-07, owner-approved; Issue #138). Legacy `anon` / `service_role` keys are still **enabled as rollback**; disable them only after a few days of normal operation (owner action, reversible). Legacy keys are retired by Supabase in early 2027.
+- **Storage S3 protocol:** owner turned the connection **OFF**; 0 S3 access keys existed.
+- **Test account:** one Production account `LIBreadE2E` (owner's Gmail plus-address) for signed-in checks only. No password stored; sign in via email link fetched through the owner's Gmail connector (link valid ~5 min). Never use it to post, buy, change R18, or touch others' data.
+- **Tooling:** `scripts/dev/local-supabase.sh` starts a disposable local Supabase stack (see `docs/local-supabase-dev.md`). Cloud environment **"LIB read (duonovel)"** allows `www.syosetu-libread.com`, `syosetu-libread.com`, `nyxbnccuvmlzffgtdadi.supabase.co`; the Default environment does not.
 
-- [PR #147](https://github.com/sriipu1004-wq/duonovel/pull/147): **OPEN/DRAFT, targeted directly at main**; single-window CONTROL-R4 governance and Project Settings copy, 13 documentation files, pending user-specific explicit merge approval. Project Settings UI is **not automatically synchronized**.
-- [PR #145](https://github.com/sriipu1004-wq/duonovel/pull/145): **CLOSED UNMERGED**, superseded by #147 after exact changed-file coverage check.
-- [PR #136](https://github.com/sriipu1004-wq/duonovel/pull/136): **CLOSED UNMERGED**, Google OAuth/AdSense plan carried forward into #147's roadmap/decisions; no provider/ad activation authorized.
-- [PR #108](https://github.com/sriipu1004-wq/duonovel/pull/108): Cron Draft NO-GO. Never activate without separate security/release decision.
-- Issue #144 tracks outstanding ChatGPT Project UI instruction alignment and legacy chat archival; a GitHub commit cannot change the actual Project Settings text.
-- Approved *planning* order: P5 Child85 rights/edition, P6 Child86 scale, P7 Google OAuth, P8 publisher AdSense, P9 acquisition, P10 minimal analytics; R0 incident/security safety triage may precede but **not execute concurrently**. `docs/roadmap.md` is canonical and not changed by one-window adoption.
+## Current priority (canonical order: [roadmap](docs/roadmap.md))
 
-## Internal specialist responsibility register
+1. **R0-1 #137** — Production public-cache **AbortError** (≈780 events / 308 users since 2026-10-22, still recurring); PRIVATE AI narration writes without `service_role` (design recorded 2026-11-07); split Draft **#160** into shippable units; legacy PUBLIC audio (4,720 objects; rights decisions are the owner's); migration-ledger reconciliation.
+2. **R0-2 #138** — legacy key disable; leaked-password protection (dashboard toggle); 10 `SECURITY DEFINER` functions executable by `authenticated`; account deletion; signup confirm-link expiry UX (S2, recorded 2026-11-07).
+3. **HIGH #154** — traffic / ranking integrity (GI-P1 → P3).
+4. **P5–P10** unchanged.
 
-| Role label (not a separate ordinary chat) | Area | Queued issue |
-| --- | --- | --- |
-| S1 | Reader, AI/Human translation fidelity, Search/source-language, SEO UX | #140; independent PR #146 review is **separate reviewer SESSION**, not self-review |
-| S2 | Supabase Auth, author/user permissions, account data, R18, billing boundaries | #138 urgent security audit; #142 Google OAuth after P6 |
-| S3 | Public Domain rights, exact sources/editions, manifests and controlled Draft cohort | #139, Child85 P5 |
-| S4 | Vercel/DB performance, caching, infra, release | #137 review pending; #141 after expansion; #143 AdSense after P7 |
+Open Drafts: **#160** (#137 B2/R0 integration, MERGE HOLD), **#153** (older overlapping B2, superseded in practice by #160), **#150** (PERFORMANCE_GATE_FAIL), **#157** (docs), **#131** (old metadata), **#108** (Cron, NO-GO). None is approved for merge.
 
-No Issue begins simply because it is on this table. One active Work ID; parent/user authorization and a stored checkpoint before any next action. No parallel writers.
+## Independent reviews and approvals
 
-## Independent reviews and user approvals
+- High-risk changes (Auth, RLS, ownership, R18, private/public, Human/AI entitlements, credits/payments, rights, publication, Production data/schema/Storage, ads/privacy/Cron, visibility-affecting cache/Search) need a **separate-session review at a fixed HEAD** before merge. Self-check must be labelled self-check.
+- The owner approves each merge for the exact PR/HEAD, and separately approves each Production data/config action. Approval of one step does not carry to the next.
 
-- A separate review session or genuinely independent human **must** retrieve the fixed source PR/HEAD and test failure, private/public, R18, owner and locale semantics. It writes GO/FIX/NO-GO to that PR/Issue directly. Do not invent a review if none was executed.
-- User explicitly approves the **actual change and Preview** for each merge; for high-risk Production DB/Storage, Auth/RLS/provider, rights approval, publication, payment or advertising activation, require **separate** authorization of exact scope/cohort. Green CI alone is insufficient.
-- Routine lower-risk docs/UI changes can pass source self-checks/tests/Preview and user merge approval; self-check must be labeled as self-check, not independent review.
+## Recovery bootstrap
 
-## Crash or context-limit bootstrap
+1. Read this file, `AGENTS.md`, `CLAUDE.md`, the canonical docs above.
+2. Fetch the shared policy repo `AGENTS.md` (report `POLICY_UNVERIFIED` if unavailable).
+3. Verify live main, all open PRs (HEAD / CI / Preview), Production deployment SHA + READY, Supabase health.
+4. Read the active Issue / PR checkpoints; recover phase, scope, HEAD, approvals, pending reviews.
+5. If an approval or review is missing, stop and ask for exactly that. Checkpoints live in Issues/PRs; durable decisions in `docs/decisions.md`.
 
-1. Read this file, AGENTS and all four canonical files plus chat-operations; this replaces asking prior operator/child for a handoff.
-2. Verify latest main and every Open PR HEAD/status/CI/Preview, Production deployment SHA/READY and relevant Supabase read-only counts; check if any external reviewer/action is actually pending. A snapshot here is not a live dashboard.
-3. Read active Issue and PR comment/checkpoint. Recover Work ID, phase, allowed actions, branch/base/HEAD, test evidence, exact pending reviewer, user approval evidence and exclusions.
-4. If missing independent review, approval or preserved data rights, STOP and request only that gate. A sudden context loss can lose uncommitted in-chat work, so recovery is **fail closed**, not perfect replay.
-5. Update durable accepted decisions only in [docs/decisions.md](docs/decisions.md) and appropriate project-state/roadmap files; ephemeral runs/HEAD belong to Issue/PR. Avoid shared-doc changes on unrelated work branches.
-
-## Mandatory footer and status recovery (response-status v1.1)
-
-At every new work phase and chat replacement read [docs/response-status-protocol.md](docs/response-status-protocol.md). The final three lines of every work report are **exactly** `【現在】`, `【次の行動】`, `【状態】`, with **one of 17 allowed labels**. In particular, `優先作業なし・作業停止` is only for a genuinely exhausted verified backlog, NOT any blocked/pending approval. When a separate-session audit is required, distinguish **not yet dispatched** (`独立監査依頼・...`) from **actually requested but awaiting evidence** (`独立監査待ち・...`). Provide a full fixed-HEAD review prompt if the user must operate a second chat; never claim an independent review occurred in the author chat. Docs/Project Settings alignment is a separate user action. This is a presentation contract, not work authorization. Dated SHA/status snapshots above are historic, and must be live rechecked.
-
-Completion report: **Git/Production; Changed; DB/Data; Preserved; Validation by type; Remaining; Canonical docs updated; Next; Explicit approvals consumed/outstanding.** No direct main commits or automatic background execution.
+Every work report ends with the three lines `【現在】` / `【次の行動】` / `【状態】` (one of the 17 states in `docs/response-status-protocol.md`).

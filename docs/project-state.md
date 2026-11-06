@@ -1,21 +1,32 @@
 # LIB read — Project State
 
-Last updated: **2026-10-21**
-Last merged main with code changes: `37650ac9b391c1a76f597751ea44c6110541a697` (Child85 PR #135: source/preflight safeguards and bounded Work provenance presentation; **no new Public Domain DB import**). Earlier Child84i PR #123 account-deletion suspension remains in force.
+Last updated: **2026-11-07**
+Last merged main with runtime code changes: `4faa9f920ca3751aa0d12356c985d4230e40dbeb` (PR #163: legacy auto-narration suspension enforced on all autogen entrypoints). Latest main: `c27a2fa` (PR #164, dev tooling only).
 Production: https://www.syosetu-libread.com
 Repository: `sriipu1004-wq/duonovel`
 
-This document is the compact canonical state for future parent/child chats. It should describe the current product, not the full history. Historical rationale belongs in `docs/decisions.md`.
+This document is the compact canonical product state. Dated sections are snapshots; re-verify live state before acting. Operations moved to Claude Code sessions on 2026-11-07 (see [PROJECT_MASTER.md](../PROJECT_MASTER.md)); all release, review and data gates are unchanged.
 
-> **CURRENT SINGLE-WINDOW ENTRYPOINT (CONTROL-R4):** [PROJECT_MASTER.md](../PROJECT_MASTER.md) is the fixed, independently recoverable operator overview; S1–S4 are internal specialist responsibility labels, not mandatory child chats. The user approved one-window operation on 2026-10-21; independent PR #146 review and release gates remain pending. [docs/chat-operations.md](chat-operations.md) specifies long-lived roles. Always independently verify GitHub main/Production because the last-reviewed SHA may become stale. Older Child84 NOT DONE and Child85 BLOCKED notes below are explicitly historical; [Child84 operational closure](child84-operational-closure.md) and the roadmap P5 NEXT status take precedence for workstream state. Missing signed-in E2E/Storage restoration/timer-cause/Search SQL parity tests remain unverified.
+## Latest verified snapshot — 2026-11-07
 
-## Latest independently verified Production snapshot — 2026-10-21 (after PR #135 merge)
+- **Production:** Vercel Production READY on `4faa9f9` and rebuilt with the new Supabase keys; anonymous GET on `/`, `/search`, `/ranking`, `/en`, `/ko`, `/robots.txt`, `/sitemap.xml`, `/api/public/work-language-counts`, and a Work page = 200. Public catalog: 40 works each for ja/en/ko source language; sitemap 10,227 URLs.
+- **First signed-in Production check:** test account `LIBreadE2E` signed up through `/register`, confirmed, signed in via email link; `/mypage` shows the display name. No content, billing or R18 action was performed with it.
+- **Known live defect (R0-1 #137):** public-cache revalidation `AbortError` on `public-base-work-cards` (≈780 events / 308 users from 2026-10-22 to 2026-11-06) and occasional `recordings` `fetch failed`. Root cause not established.
+- **Closed gap (PR #163):** two Nemo autogen routes ignored the suspension flag; Production had autogen env configured and 338 pending queue rows. Now fail closed at route and library level; independent GO recorded on the PR.
+- **Supabase keys:** Production/Preview use `sb_publishable_…` / `sb_secret_…`; legacy keys kept enabled as rollback. Storage S3 protocol OFF, 0 S3 keys.
+- **Accounts:** 15 non-test Auth users; 0 confirmed-but-never-signed-in (checked when the signup confirm-link expiry issue was found, Issue #138).
+- **Hosted DB:** ACTIVE_HEALTHY PG 17.6.1; migration history 21 rows vs 76 repository files (no blanket `db push`).
+- Local disposable Supabase stack available for development: `scripts/dev/local-supabase.sh` (`docs/local-supabase-dev.md`); results are LOCAL evidence.
+
+> Everything below this line is an older dated snapshot or durable product description. Where an older paragraph conflicts with the 2026-11-07 snapshot, the newer snapshot wins for status; product boundaries and rules below remain in force.
+
+## Historical snapshot — 2026-10-21 (after PR #135 merge)
 
 Main `37650ac9b391c1a76f597751ea44c6110541a697` and matching Vercel Production `dpl_3Zhkw9WLfYmdzChM2LRRQDNLpXCL` READY. PR #135 is **merged**, containing 10 rights-pending Aozora manifests and source/annotation/import integrity checks, NOT any new Production Public Domain work. All 10 still `approved=false` / `rights_status=pending`; human rights and Reader review required. **Old Child85 ChatGPT conversation retired** by user reset, but P5 Child85 work continues as internal S3 responsibility [#139](https://github.com/sriipu1004-wq/duonovel/issues/139); S1 annotation [#140](https://github.com/sriipu1004-wq/duonovel/issues/140) remains queued.
 
 Connected Supabase read-only count: 123 total works, 120 public, 3 private; 84 rightsChecked and 36 legacy JA unverified, 3,284 public posted episodes, 0 Human translations, 0 active/trialing billing subscriptions; 4,728 Storage objects (~30.19GB). Vercel public-cache revalidation AbortErrors are under S4 [#137](https://github.com/sriipu1004-wq/duonovel/issues/137), and Auth/RPC advisor findings under S2 [#138](https://github.com/sriipu1004-wq/duonovel/issues/138). No Production DB/Data write in this documentation update. See [operator audit](parent-ops-audit-2026-10-21.md) and [single-window operations](chat-operations.md). **S4 Issue #137 PR #146 is frozen at HEAD `2d8cae74edea88e3425011d9a7b3950260e8aea6` (Draft, CI success, Preview READY), pending a genuinely independent Reader/Search/visibility review before any merge; its broader AbortError root cause is unresolved.** All status text below here describing PR #135 as unmerged is an earlier dated historical checkpoint, not current state.
 
-## Current operational status — 2026-10-21
+## Historical operational status — 2026-10-21
 
 Child84 is operationally CLOSED with user-accepted deferrals, not fully verified. Child85 is NEXT for staged rights/provenance-verified Public Domain expansion; do not bulk-ingest or waive rights evidence. Source: docs/child84-operational-closure.md. Main 208c09beb1c28d6c71d4a5c101827c05ac4f8151 and matching Production READY were confirmed before this documentation workstream. Earlier Child84 NOT DONE / Child85 BLOCKED entries below are historical snapshots, superseded only as workflow status, not as evidence of completed tests.
 

@@ -64,3 +64,14 @@ When real separate-session review is still **not requested**, use `独立監査�
 ## Default report
 
 Git/Production, Changed, DB/Data, Preserved, Validation (type + exact evidence), Remaining, Canonical docs updated, Next, and explicit approvals/outstanding gates. Retain the former specialist report fields as work reporting, not physical chat identities.
+
+## Claude Code mapping (2026-11-07, owner-directed; no gate changes)
+
+Operations now run in Claude Code (see `docs/decisions.md` D025). Read the ChatGPT-era wording in this file as follows:
+- "single ChatGPT operator window" → one writer Claude Code session per project, titled `【LIB read】…`.
+- "separate chat / second chat for independent review" → a separate, **new** Claude Code session given only the fixed PR HEAD; it posts GO/FIX/NO-GO on the PR and never pushes. Same-model separation is weaker than a human reviewer; say so in the review record.
+- "ChatGPT Project Settings" → repository `CLAUDE.md` + shared policy repo `sriipu1004-wq/ai-operator-policy`.
+- Evidence labels gain **LOCAL** (disposable local Supabase stack, `docs/local-supabase-dev.md`) between MOCK and CI/Preview.
+- Signed-in Production checks use only the D027 test account.
+
+Every review, approval and data gate above stays exactly as written.

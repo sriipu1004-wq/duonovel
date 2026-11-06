@@ -1,6 +1,6 @@
 # LIB read — Ordered Roadmap
 
-Last updated: **2026-10-29**
+Last updated: **2026-11-07** (status snapshot only; priority order unchanged)
 Product-state baseline: `63f340168da1725f9c147a8dba05ecc88898b532`
 
 This file is the canonical ordered backlog for the next workstreams. It exists specifically so parent-chat replacement or context compression does not reorder the planned site work.
@@ -12,6 +12,8 @@ This file is the canonical ordered backlog for the next workstreams. It exists s
 ## Integrated execution queue — 2026-10-29 (owner-requested single ranked view)
 
 **Status:** This section is the **integrated priority and dependency map**, not a grant to begin the next Issue. Read together with the established 2026-10-21 product sequence P5→P6→P7→P8→P9→P10, which remains intact. The existing P1–P4 Child81–84 milestones are historical completed/operationally closed tasks, **not** the four new GI-P1–P4 internal steps. Current authorized work is strictly serial; each Issue phase and every merge/Production change still needs its own safety and owner approval.
+
+**Live snapshot 2026-11-07 (priority order unchanged; re-verify before use):** main `c27a2fa`; Production READY on runtime SHA `4faa9f9`. Since 2026-10-29: #159 (#138 private-library ACL) merged and its hosted migration applied; #163 (#137 R0: legacy autogen suspension enforced on all entrypoints) merged after independent GO and HTTP-verified in Production; #164 added a disposable local Supabase stack for sessions. Supabase API keys migrated to publishable/secret in Preview and Production (legacy kept as rollback; #138). First signed-in Production check passed with test account `LIBreadE2E`. Open Drafts: #160 (#137 B2/R0, MERGE HOLD), #153, #150 (PERF FAIL), #157, #131, #108 (NO-GO). New S2 recorded under #138: signup confirm link opened >5 min after signup fails the PKCE session exchange and lands on an unexplained login page (no user currently affected). **Next R0-1 focus:** Production public-cache `AbortError` root cause, then PRIVATE AI narration writes without `service_role` (nonproduction), then splitting #160.
 
 **Live snapshot verified 2026-10-29:** GitHub main `74c816edf22446bf0668d01d1164e1780d7f6899`, Production www Vercel deployment `dpl_3pqrySDQaK7fsDPpSaKQccmMcQjB` READY on old/main SHA, Supabase ACTIVE_HEALTHY PG17.6. Open Issues **#137, #138, #139, #140, #141, #142, #143, #144, #154** and Draft PRs **#108, #131, #150, #153, #155**. The Next.js/Sharp emergency Issue #148 and PR #149 are closed/merged: do **not** leave them as the active security task. Any SHA/count here is a snapshot and must be re-fetched prior to execution.
 

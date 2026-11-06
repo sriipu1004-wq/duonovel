@@ -68,3 +68,14 @@ Read [response-status-protocol.md](response-status-protocol.md) on every new wor
 ```
 
 The five additional v1.1 states distinguish truly empty verified priority queue from a blocked queue, and genuinely independent review **requiring second-chat dispatch** from **actually requested review awaiting results**, each with can-continue/cannot-continue variants for review. Do not infer live reviewer availability, user Project Settings alignment or merge permission from this footer. No effect on release, security, roadmapped priority or previously approved work scope.
+
+## Claude Code mapping (2026-11-07, owner-directed; no gate changes)
+
+Operations now run in Claude Code (see `docs/decisions.md` D025). Read the ChatGPT-era wording in this file as follows:
+- "single ChatGPT operator window" → one writer Claude Code session per project, titled `【LIB read】…`.
+- "separate chat / second chat for independent review" → a separate, **new** Claude Code session given only the fixed PR HEAD; it posts GO/FIX/NO-GO on the PR and never pushes. Same-model separation is weaker than a human reviewer; say so in the review record.
+- "ChatGPT Project Settings" → repository `CLAUDE.md` + shared policy repo `sriipu1004-wq/ai-operator-policy`.
+- Evidence labels gain **LOCAL** (disposable local Supabase stack, `docs/local-supabase-dev.md`) between MOCK and CI/Preview.
+- Signed-in Production checks use only the D027 test account.
+
+Every review, approval and data gate above stays exactly as written.
