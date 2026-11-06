@@ -30,6 +30,7 @@
     "test:pricing-copy": "node --import tsx scripts/test-final-pricing-copy.ts",
     "test:human-recording-state": "node --import tsx scripts/test-human-recording-state.ts",
     "test:human-recording-boundaries": "node --import tsx scripts/test-human-recording-boundaries.ts",
+    "test:legacy-auto-narration-suspension": "node --import tsx scripts/test-legacy-auto-narration-suspension.ts",
     "test:author-workspace-ux": "node --import tsx scripts/test-author-workspace-ux.ts",
     "test:human-translation": "node --import tsx scripts/test-human-translation.ts",
     "public-domain:validate": "node --import tsx scripts/public-domain/validate.ts",

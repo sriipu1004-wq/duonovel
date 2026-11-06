@@ -1,3 +1,4 @@
+import { LEGACY_AUTO_NARRATION_SUSPENDED } from "@/lib/recording/legacyAutoNarration";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -461,6 +462,14 @@ async function regenerateNextStaleAivisRecording(args: {
 export async function runNextPendingAivisAutogenJob(args: {
   officialUserId: string;
 }): Promise<AivisAutoGenerationStepResult> {
+  if (LEGACY_AUTO_NARRATION_SUSPENDED) {
+    return {
+      ok: true,
+      status: "skipped",
+      reason: "legacy_auto_narration_suspended",
+    };
+  }
+
   if (globalThis.__libreadAivisAutogenRunning) {
     return {
       ok: false,

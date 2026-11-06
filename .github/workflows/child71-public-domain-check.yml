@@ -23,6 +23,14 @@ on:
       - "src/app/search/SearchPageLegacy.tsx"
       - "src/features/playback/WebSpeechEpisodePlayback.tsx"
       - "src/lib/recording/humanTimingShared.ts"
+      - "src/lib/recording/legacyAutoNarration.ts"
+      - "src/lib/recording/nemoAutoGeneration.ts"
+      - "src/lib/recording/aivisAutoGeneration.ts"
+      - "src/app/api/recordings/nemo-autogen/route.ts"
+      - "src/app/api/recordings/nemo-autogen-backfill/route.ts"
+      - "src/app/api/recordings/nemo-autogen-run-pending/route.ts"
+      - "src/app/api/recordings/aivis-autogen-run-pending/route.ts"
+      - "scripts/test-legacy-auto-narration-suspension.ts"
       - "src/lib/translation/segmentSourceDocument.ts"
       - "src/i18n/tagLabels.ts"
       - "src/i18n/genreLabels.ts"
@@ -71,6 +79,7 @@ jobs:
           npm run test:pricing-copy
           npm run test:human-recording-state
           npm run test:human-recording-boundaries
+          npm run test:legacy-auto-narration-suspension
           npm run test:author-workspace-ux
 
       - name: TypeScript
@@ -110,6 +119,9 @@ jobs:
           src/i18n/genreLabels.ts
           src/i18n/AuthoringGenreLocalePortal.tsx
           src/i18n/UiLocaleProvider.tsx
+          scripts/test-legacy-auto-narration-suspension.ts
+          src/app/api/recordings/nemo-autogen-backfill/route.ts
+          src/app/api/recordings/nemo-autogen-run-pending/route.ts
 
       - name: Production build
         env:
