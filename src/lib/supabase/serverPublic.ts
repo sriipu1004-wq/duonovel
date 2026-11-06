@@ -3,6 +3,15 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 let client: SupabaseClient | null = null;
 
 const PUBLIC_READ_FETCH_TIMEOUT_MS = 2500;
+// Production evidence (Issue #137, 2026-11-07): background cache revalidation
+// continues after the response is sent, the function instance is suspended,
+// and on thaw the overdue deadline timer fires 10-186 s late with only tens of
+// ms of CPU used. Aborting at that moment kills a request that never had a
+// fair chance to run. When the deadline callback itself is this late, treat it
+// as suspension evidence and allow one bounded grace window before aborting.
+// An on-time deadline (slow database) still aborts at 2500 ms (D023).
+const PUBLIC_READ_SUSPENSION_EVIDENCE_MS = 1000;
+const PUBLIC_READ_SUSPENSION_GRACE_MS = 2500;
 
 /**
  * Only expose a fixed endpoint category to server logs. Never include URLs,
@@ -43,6 +52,8 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
   let timerFiredMonotonicAtMs: number | null = null;
   let deadlineTimerCpuUserMs = 0;
   let deadlineTimerCpuSystemMs = 0;
+  let suspensionGraceGranted = false;
+  let suspensionDetectedDelayMs = 0;
 
   const abortFromUpstream = () => controller.abort();
   if (upstreamSignal?.aborted) {
@@ -51,21 +62,45 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
     upstreamSignal?.addEventListener("abort", abortFromUpstream, { once: true });
   }
 
-  const timer = setTimeout(() => {
+  const onDeadline = () => {
+    const nowMonotonic = performance.now();
+    const deadlineLateByMs =
+      nowMonotonic - monotonicStartedAtMs - PUBLIC_READ_FETCH_TIMEOUT_MS;
+    if (
+      !suspensionGraceGranted &&
+      deadlineLateByMs >= PUBLIC_READ_SUSPENSION_EVIDENCE_MS
+    ) {
+      // The process did not run on schedule (suspended or blocked); the
+      // request has not really been waiting 2500 ms of live time.
+      suspensionGraceGranted = true;
+      suspensionDetectedDelayMs = Math.max(0, Math.round(deadlineLateByMs));
+      timer = setTimeout(onDeadline, PUBLIC_READ_SUSPENSION_GRACE_MS);
+      return;
+    }
     timerFiredAtMs = Date.now();
-    timerFiredMonotonicAtMs = performance.now();
+    timerFiredMonotonicAtMs = nowMonotonic;
     const cpuAtDeadline = process.cpuUsage(cpuStartedAt);
     deadlineTimerCpuUserMs = Math.max(0, Math.round(cpuAtDeadline.user / 1000));
     deadlineTimerCpuSystemMs = Math.max(0, Math.round(cpuAtDeadline.system / 1000));
     didReachLocalDeadline = true;
     controller.abort();
-  }, PUBLIC_READ_FETCH_TIMEOUT_MS);
+  };
+  let timer = setTimeout(onDeadline, PUBLIC_READ_FETCH_TIMEOUT_MS);
 
   try {
-    return await globalThis.fetch(input, {
+    const response = await globalThis.fetch(input, {
       ...init,
       signal: controller.signal,
     });
+    if (suspensionGraceGranted) {
+      // Bounded numeric timings and an allowlisted endpoint only.
+      console.info("[public-db-suspension-grace-recovered]", {
+        endpoint: classifyPublicReadEndpoint(input),
+        suspensionDetectedDelayMs,
+        elapsedMonotonicMs: Math.max(0, Math.round(performance.now() - monotonicStartedAtMs)),
+      });
+    }
+    return response;
   } catch (error) {
     // Record only local-deadline failures. Upstream cancellation and all
     // other network failures keep their previous propagation semantics.
@@ -96,6 +131,8 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
         // Process-wide CPU time during the pending timer; not per-request attribution.
         deadlineTimerCpuUserMs,
         deadlineTimerCpuSystemMs,
+        suspensionGraceGranted,
+        suspensionDetectedDelayMs,
       });
     }
     throw error;

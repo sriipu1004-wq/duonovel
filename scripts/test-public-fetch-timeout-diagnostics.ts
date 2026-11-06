@@ -87,7 +87,68 @@ async function main(): Promise<void> {
     assert.equal(ok.status, 200);
     assert.equal(warnings.length, 0);
 
-    console.log("PASS: real 2500ms local AbortSignal, wall/monotonic/process-CPU diagnostics and endpoint allowlist; caller abort/network/success semantics unchanged");
+    // Suspension simulation (Issue #137): block the event loop past the
+    // deadline so the deadline timer fires late, the same signature as a
+    // suspended Vercel instance thawing. A response that is due right after the
+    // deadline must now succeed instead of being aborted.
+    const blockEventLoop = (ms: number) => {
+      const until = performance.now() + ms;
+      while (performance.now() < until) {
+        // busy wait: nothing else may run, exactly like a frozen process
+      }
+    };
+    const realInfo = console.info;
+    const infos: unknown[][] = [];
+    console.info = (...args: unknown[]) => { infos.push(args); };
+    try {
+      warnings.length = 0;
+      globalThis.fetch = async (_input, init) =>
+        new Promise<Response>((resolve, reject) => {
+          const done = setTimeout(() => resolve(new Response(null, { status: 200 })), 2600);
+          init?.signal?.addEventListener("abort", () => {
+            clearTimeout(done);
+            reject(new DOMException("The operation was aborted", "AbortError"));
+          }, { once: true });
+        });
+      const suspended = publicReadFetch(requestUrl);
+      blockEventLoop(4200);
+      const recovered = await suspended;
+      assert.equal(recovered.status, 200, "a late (suspended) deadline must grant one grace window");
+      assert.equal(warnings.length, 0, "recovered request is not a local timeout");
+      assert.equal(infos.length, 1);
+      assert.equal(infos[0][0], "[public-db-suspension-grace-recovered]");
+      const graceMeta = infos[0][1] as Record<string, unknown>;
+      assert.equal(graceMeta.endpoint, "series");
+      assert.ok((graceMeta.suspensionDetectedDelayMs as number) >= 1000);
+      assert.equal(JSON.stringify(infos).includes("never-log-this"), false);
+
+      // Still pending after the grace window: abort, with grace recorded.
+      warnings.length = 0;
+      infos.length = 0;
+      globalThis.fetch = mockPending;
+      const stillSlow = publicReadFetch(requestUrl);
+      blockEventLoop(4200);
+      const graceStart = performance.now();
+      await assert.rejects(stillSlow, { name: "AbortError" });
+      const graceWaited = performance.now() - graceStart;
+      assert.ok(graceWaited >= 2000 && graceWaited < 4500, "grace window is bounded (~2500ms)");
+      assert.equal(warnings.length, 1);
+      const abortMeta = warnings[0][1] as Record<string, unknown>;
+      assert.equal(abortMeta.suspensionGraceGranted, true);
+      assert.ok((abortMeta.suspensionDetectedDelayMs as number) >= 1000);
+      assert.equal(infos.length, 0);
+
+      // An on-time deadline (slow database, process running) gets no grace.
+      warnings.length = 0;
+      const onTimeStart = Date.now();
+      await assert.rejects(publicReadFetch(requestUrl), { name: "AbortError" });
+      assert.ok(Date.now() - onTimeStart < 3500, "slow DB still aborts at ~2500ms");
+      assert.equal((warnings[0][1] as Record<string, unknown>).suspensionGraceGranted, false);
+    } finally {
+      console.info = realInfo;
+    }
+
+    console.log("PASS: real 2500ms local AbortSignal, wall/monotonic/process-CPU diagnostics and endpoint allowlist; caller abort/network/success semantics unchanged; suspension grace recovers late-deadline requests once and stays bounded");
   } finally {
     globalThis.fetch = realFetch;
     console.warn = realWarn;
