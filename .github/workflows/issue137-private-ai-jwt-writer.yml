@@ -1,0 +1,36 @@
+name: Issue137 private AI narration JWT writer (local Supabase)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue137-private-ai-jwt-writer.yml"
+      - "scripts/issue137-private-ai/**"
+      - "scripts/dev/local-supabase.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-storage-rls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DO_NOT_CONTACT_PRODUCTION: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Start disposable local Supabase (loopback only)
+        run: scripts/dev/local-supabase.sh start
+      - name: Official-JWT private AI narration writer (positive and negative)
+        run: |
+          node scripts/issue137-private-ai/local-jwt-writer.test.mjs
+          # second run proves the candidate SQL is idempotent
+          node scripts/issue137-private-ai/local-jwt-writer.test.mjs
+      - name: Stop local Supabase
+        if: always()
+        run: scripts/dev/local-supabase.sh stop

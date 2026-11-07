@@ -3,7 +3,7 @@
 # development and E2E checks inside a Claude Code cloud session or any Linux box.
 #
 #   scripts/dev/local-supabase.sh start   # start Docker if needed, then the stack
-#   scripts/dev/local-supabase.sh status  # print local URLs and demo keys
+#   scripts/dev/local-supabase.sh status  # print local URLs and demo keys (JSON)
 #   scripts/dev/local-supabase.sh stop    # stop the stack and delete its data
 #
 # Safety: this stack is local-only (127.0.0.1) and uses Supabase's public demo
@@ -48,7 +48,7 @@ case "${1:-}" in
     supabase start -x "$EXCLUDE"
     ;;
   status)
-    cd "$WORKDIR" && supabase status
+    cd "$WORKDIR" && supabase status -o json
     ;;
   stop)
     cd "$WORKDIR" && supabase stop --no-backup
