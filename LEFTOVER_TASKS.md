@@ -1,68 +1,56 @@
 # 余り枠用の作業一覧
 条件（すべて満たすものだけ）：途中で切れても壊れない／オーナーの承認が要らない／確実にこのプロジェクトのためになる／公開・投稿・外部サービスへの書き込み・支払いを含まない。このリポジトリの AGENTS.md・承認範囲・HOLD が優先する。
 
+この一覧の4件は、オーナーがボタンで選んだもの（2026-11-08）。
+
 LIB read 固有の制約（全項目共通）:
-- 本番（Vercel・Supabase `nyxbnccuvmlzffgtdadi`・本番ドメイン）には、読み取りを含めて触れない。
-- merge、PR 作成、Issue・PR へのコメントはしない。
+- 本番（Vercel・Supabase `nyxbnccuvmlzffgtdadi`・本番ドメイン）には、読み取りも含めて触れない。
+- merge、PR の作成、Issue や PR へのコメントはしない。
 - 権利・R18・公開範囲・Auth・課金の挙動を変えるコードは書かない。
-- ローカルの使い捨て Supabase（`scripts/dev/local-supabase.sh`）を使う場合、結果は `LOCAL` と表記する。終わったら `stop` し、何も残っていないことを `docker ps -a` で確かめる。
+- ローカルの使い捨て Supabase（`scripts/dev/local-supabase.sh`）を使ったときは、結果に `LOCAL` と書く。終わったら `stop` し、`docker ps -a` で何も残っていないことを確かめる。
+- 繰り返し型（LT-001〜003）は、毎週前回の記録を読んでから続きをやる。
 
 ## LT-001｜未着手
-- 種類: テスト追加
-- 内容: `supabase/migrations` のファイル名を検査するスクリプトを作る。検査するのは次の3点。2026-11-07 に同じ version が2組見つかり、#171 で直した問題の再発を防ぐ。
-  - version が重複していないこと
-  - `^[0-9]+_[a-z0-9_]+\.sql$` の形に合っていること
-  - 新しく足すファイルの version が14桁であること（14桁でない既存の4件は例外として明記する）
-- 触ってよい範囲: `scripts/check-migration-versions.mjs`（新規）、`package.json` の scripts への1行追加
-- 完了条件: 今の main で PASS し、重複を作ると FAIL することを、一時ファイルで確かめた結果をコミットメッセージに書く
-- 1コミットの単位: スクリプト本体 → package.json → 確認結果
+- 種類: 整理（繰り返し型）
+- 内容: 週次の健全性点検。main の最新で `npm ci` の後に次を実行し、成否と警告の数を記録する。前の週の記録との差（新しく増えた失敗・警告と、その原因になったコミットの候補）も書く。
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - `package.json` の `test:*` すべて
+  - `npm run build`
+  - 環境変数が無くて実行できないものは「実行不可（未検証）」と書き、PASS とは書かない。
+- 触ってよい範囲: `reports/health/YYYY-MM-DD.md`（新規。1週1ファイル）
+- 完了条件: その週のファイルに、全コマンドの結果と前週との差がそろっている。コードは変えない。
+- 1コミットの単位: コマンドの種類ごと
 - 追加: 2026-11-08
 
 ## LT-002｜未着手
-- 種類: 調査
-- 内容: Supabase の診断で WARN が出ている SECURITY DEFINER 関数11件を棚卸しする（`abort_private_library_import`、`append_private_library_import_units`、`begin_private_library_import`、`complete_private_library_import`、`count_private_library_import_usage`、`get_credit_balance`、`has_public_episode_translation_unlock`、`import_private_library_txt`、`is_ai_narration_official_writer`、`list_private_library_sections`、`update_private_library_reading_progress`）。リポジトリの migration と `scripts/issue137-private-ai/policy-candidate.sql` だけを読む。関数ごとに次を表にまとめる。
-  - `auth.uid()` での所有者確認の有無
-  - search_path の設定
-  - 呼び出し元のコード
-  - authenticated が実行できる必要があるか
-  - 最小権限にする案
-- 触ってよい範囲: `docs/security-definer-inventory.md`（新規）
-- 完了条件: 11件すべてに行があり、各判断の根拠（ファイルと行）が付いている
-- 1コミットの単位: 関数3件ずつ
+- 種類: テスト追加（繰り返し型）
+- 内容: テストの無いモジュールを1つずつ選び、今の挙動を固定するテストを足す。
+  - 優先する対象: `src/lib/` の純粋な関数（入力から出力が決まるもの）
+  - 実装は変えない。テストが今の実装で落ちたら、テストは足さずに「不具合の疑い」として記録する。
+  - 対象と進み具合は `scripts/tests/COVERAGE_PLAN.md` で管理する。
+- 触ってよい範囲: `scripts/test-*.ts` の新規追加、`package.json` の scripts への行追加、`scripts/tests/COVERAGE_PLAN.md`
+- 完了条件: 1モジュールごとに、テストが PASS し、`npx tsc --noEmit` も通る。
+- 1コミットの単位: 1モジュール（テストと package.json の1行）
 - 追加: 2026-11-08
 
 ## LT-003｜未着手
-- 種類: 調査
-- 内容: RLS が有効でポリシーが無いテーブル（2026-11-07 時点で28件。診断の INFO）が、意図して閉じているのか（service-role だけで使う）、ポリシーの付け忘れなのかを、リポジトリのコードと migration から仕分ける。
-- 触ってよい範囲: `docs/rls-no-policy-inventory.md`（新規）
-- 完了条件: 各テーブルについて、読み書きしているコードの場所と、使っているクライアント（admin / user）、判定（意図どおり / 要確認）が書かれている
-- 1コミットの単位: テーブル5件ずつ
+- 種類: 調査（繰り返し型）
+- 内容: セキュリティの棚卸し。リポジトリだけを読み、次の3つについて意図と根拠を表にする。
+  - RLS が有効でポリシーが無いテーブル（意図して閉じているのか、付け忘れか）
+  - SECURITY DEFINER 関数（`auth.uid()` での所有者確認、search_path、authenticated が実行できる必要があるか）
+  - `src/app/api` の各 route の認証・所有者確認
+  - 初回は全体を見る。2回目からは、前回の記録以降に増えた・変わった migration と route だけを見る。
+  - 問題の疑いがあっても直さず、「要確認」として記録する。
+- 触ってよい範囲: `docs/security-inventory.md`（新規）
+- 完了条件: その回の対象すべてに行があり、根拠（ファイルと行）が付いている
+- 1コミットの単位: テーブル・関数・route を5件ずつ
 - 追加: 2026-11-08
 
 ## LT-004｜未着手
-- 種類: 下書き
-- 内容: AI 朗読を再開するときの設計案を書く。
-  - 保存: 本番に作った非公開バケット `ai-narration-private` に、公式アカウントの JWT で書き込む。
-  - 再生: 権限を確かめてから音声を返すプロキシを用意する。
-  - 前提の状態: 生成は #173 で止めてあり、旧音声は削除する予定。
-  - 参照するもの: `scripts/issue137-private-ai/`、Draft #160 のブランチ、`src/lib/recording/` の現状のコード。
-- 触ってよい範囲: `docs/ai-narration-private-redesign.md`（新規）
-- 完了条件: 書き込み経路、再生経路、権限の確認、R18 と非公開作品の扱い、移行手順、テスト計画がそろっている
-- 1コミットの単位: 節ごと
-- 追加: 2026-11-08
-
-## LT-005｜未着手
-- 種類: 下書き
-- 内容: `docs/account-deletion-design.md` の §6 にある検証計画を、ローカル用の fixture SQL とテスト手順の下書きにする。合成ユーザーに作品・人間翻訳・課金記録・Storage オブジェクトを持たせ、削除の前後で残る行と消える行を照合する。本番には流さない。
-- 触ってよい範囲: `scripts/account-deletion/`（新規。README・fixture SQL・テストの雛形）
-- 完了条件: ローカルの使い捨て Supabase で fixture が入ることを確かめた（`LOCAL`）。削除処理そのものは実装しない。
+- 種類: 下書き（一度で済む作業）
+- 内容: `docs/account-deletion-design.md` の §6 にある検証計画を、ローカル用の fixture SQL とテスト手順の下書きにする。合成ユーザーに、作品・人間翻訳・課金記録・Storage オブジェクトを持たせる。削除の前後で、残るべき行と消えるべき行を照合する手順を書く。削除処理そのものは実装しない。
+- 触ってよい範囲: `scripts/account-deletion/`（新規。README、fixture SQL、テストの雛形）
+- 完了条件: ローカルの使い捨て Supabase で fixture が入ることを確かめ、その結果を `LOCAL` と書いて記録する
 - 1コミットの単位: README → fixture → テストの雛形
-- 追加: 2026-11-08
-
-## LT-006｜未着手
-- 種類: 整理
-- 内容: eslint の未使用変数・未使用関数の警告を、挙動を変えない範囲で消す。対象は `src/lib/recording/nemoGeneration.ts` と `aivisGeneration.ts` で、2026-11-07 時点で9件ある。生成の停止フラグ（`AI_NARRATION_GENERATION_SUSPENDED`）とその検査には触れない。
-- 触ってよい範囲: 上の2ファイル
-- 完了条件: 両ファイルの eslint 警告が0件になり、`npx tsc --noEmit` と `npm run test:legacy-auto-narration-suspension` が PASS する
-- 1コミットの単位: 1ファイルずつ
 - 追加: 2026-11-08
