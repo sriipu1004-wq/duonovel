@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__.*__(execute_sql|create_deployment)",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/auto-approve.mjs\"" }
+        ]
+      }
+    ]
+  }
+}
