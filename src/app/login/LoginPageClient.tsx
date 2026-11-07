@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeNextPath } from "@/lib/auth/accountSignupConsent";
+import { stripUiLocalePrefix } from "@/i18n/config";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { authDictionaries } from "@/i18n/dictionaries/auth";
 import { localizePath } from "@/i18n/navigation";
@@ -58,6 +59,18 @@ export default function LoginPageClient() {
   }, [nextPath, locale]);
 
   const confirmed = searchParams.get("confirmed") === "1";
+  // /auth/callback sends this when the PKCE code exchange fails for ANY email
+  // link (signup confirmation, password reset, email-link login): typically an
+  // expired flow state or a link opened in another browser. Password-reset
+  // links are recognisable by their `next` (same test as /auth/callback) and
+  // get their own guidance; the rest get wording valid for signup and email
+  // link alike (Issue #138, 2026-11-07).
+  const confirmCallbackFailed =
+    searchParams.get("error") === "email_confirm_callback_failed";
+  const normalizedNext = stripUiLocalePrefix(nextPath);
+  const failedLinkWasPasswordReset =
+    normalizedNext === "/reset-password" ||
+    normalizedNext.startsWith("/reset-password?");
 
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
@@ -99,11 +112,17 @@ export default function LoginPageClient() {
     };
   }, [dictionary.authStateFailed]);
 
-  useEffect(() => {
-    if (confirmed) {
-      setMessage(dictionary.confirmed);
-    }
-  }, [confirmed, dictionary.confirmed]);
+  // URL-derived notice; an explicit action message (setMessage) takes precedence.
+  const urlNotice = confirmed
+    ? dictionary.confirmed
+    : confirmCallbackFailed
+      ? failedLinkWasPasswordReset
+        ? dictionary.resetCallbackFailed
+        : dictionary.confirmCallbackFailed
+      : "";
+  const displayedMessage = message || urlNotice;
+  // A failed email link is a warning, not a success notice.
+  const displayedMessageIsWarning = !message && !confirmed && confirmCallbackFailed;
 
   async function handleSignIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -357,9 +376,15 @@ export default function LoginPageClient() {
               </form>
             )}
 
-            {message ? (
-              <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {message}
+            {displayedMessage ? (
+              <div
+                className={
+                  displayedMessageIsWarning
+                    ? "mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                    : "mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+                }
+              >
+                {displayedMessage}
               </div>
             ) : null}
 
