@@ -1,6 +1,6 @@
 # LIB read — Durable Decision Log
 
-Last updated: **2026-10-07**
+Last updated: **2026-11-07**
 
 This log records decisions that future chats must not casually reverse. It is not a chronological implementation diary. Add an entry only when the decision has lasting product/architecture consequences.
 
@@ -424,3 +424,28 @@ This is a reporting/coordination decision, **not a new approval, source code per
 **Controls and acceptance:** Start with existing first-party capabilities, READ-ONLY provider/source evidence and non-personal aggregate metrics. Compare raw/excluded/undecided counts and report classification confidence, not a fabricated "human" series-view count. Verify proper Googlebot/crawler access and normal long-form binge-reading before any threshold, 429 or firewall action. Prevent direct-POST rankings manipulation with independently assessed controls; respect the origin of client/request IP headers. No new paid APIs, services, blanket CAPTCHA, unauthorized User-Agent/IP retention or privacy changes. Production DB event deletion/backfill/ranking re-score, Vercel Firewall setting, new tracking or AdSense/ad-code activation require separate exact-scope user authorization and test/rollback. Material changes to visibility/ranking/auth/privacy require actual isolated negative cases and separate author-independent fixed-HEAD review. For ordinary planning docs, a separate Draft PR is required and **must not merge merely because the user approved the priority request**; exact-HEAD PR and Preview merge approval remains distinct.
 
 **Canonical:** `docs/roadmap.md` R1-GI and Issue #154 are the implementation backlog; this decision records why the user inserted it and what was **not** authorized. The user instruction does not lift ongoing PR #153 independent FIX / MERGE HOLD or any Production permissions.
+
+## D025 — Day-to-day operation runs in Claude Code sessions (2026-11-07)
+
+Decision (owner-directed 2026-11-07):
+- One writer Claude Code session per project at a time, titled `【LIB read】…`.
+- Independent review = a separate, new Claude Code session given only the fixed PR HEAD; it posts GO/FIX/NO-GO on the PR and never pushes to the author branch. A same-model separate session is weaker than a human reviewer and must be described that way.
+- Repository `CLAUDE.md` plus the shared policy repo `sriipu1004-wq/ai-operator-policy` replace ChatGPT Project Settings. `docs/chatgpt-project-instructions.md` is legacy.
+
+Unchanged: every CONTROL-R4 gate (serial work, Draft PR, same-HEAD CI/Preview, required independent review, explicit owner merge approval, separate approvals for Production data/config/rights/Auth/billing/ads/Cron).
+
+Do not:
+- treat role-switching inside one session as independent review;
+- read this mapping as relaxing any approval or review requirement.
+
+## D026 — Supabase publishable/secret API keys (2026-11-07)
+
+Decision: Preview and Production use `sb_publishable_…` and `sb_secret_…` keys (owner-approved and owner-assisted; secret values were entered by the owner, never seen by the assistant). Legacy `anon` / `service_role` stay enabled only as rollback until the owner disables them after a few days of normal operation. Secret keys still bypass RLS: they reduce rotation and leak-containment cost, not privilege.
+
+## D027 — One Production test account for signed-in checks (2026-11-07)
+
+Decision: exactly one account, `LIBreadE2E` (owner's Gmail plus-address), created through the real `/register` flow. No stored password; sign-in uses an email link read through the owner's Gmail connector. It may only read and sign in. It must not post content, buy, change R18 or settings beyond its own profile, or touch other users' data. Creating more accounts needs new owner approval.
+
+## D028 — Local disposable Supabase stack is LOCAL evidence (2026-11-07)
+
+Decision: `scripts/dev/local-supabase.sh` may be used for fast Auth/RLS/Storage iteration. Results are labelled LOCAL — stronger than mocks, weaker than hosted Preview/Production — and never replace required hosted checks or independent review. Repository migrations are not replayed into it (they cannot bootstrap an empty DB).
