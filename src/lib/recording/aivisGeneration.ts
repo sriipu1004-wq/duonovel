@@ -1,3 +1,4 @@
+import { AI_NARRATION_GENERATION_SUSPENDED } from "@/lib/recording/legacyAutoNarration";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -361,6 +362,9 @@ export async function generateAivisRecordingForEpisode({
   intonationScale,
   volumeScale,
 }: GenerateAivisRecordingInput): Promise<GenerateAivisRecordingResult> {
+  if (AI_NARRATION_GENERATION_SUSPENDED) {
+    throw new Error("ai_narration_generation_suspended");
+  }
   await loadAivisGenerationAccess(supabase, seriesId, userId);
 
   const episode = await fetchAivisEpisodeSource(supabase, seriesId, episodeId);
