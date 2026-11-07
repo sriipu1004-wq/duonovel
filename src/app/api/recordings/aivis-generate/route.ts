@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import {
+  AI_NARRATION_GENERATION_SUSPENDED,
+  AI_NARRATION_GENERATION_SUSPENDED_REASON,
+} from "@/lib/recording/legacyAutoNarration";
 import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
 import { generateAivisRecordingForEpisode } from "@/lib/recording/aivisGeneration";
 import { createClient } from "@/lib/supabase/server";
@@ -266,6 +270,17 @@ export async function POST(request: Request) {
         error: "この操作は公式朗読アカウントのみ実行できる。",
       },
       { status: 403 }
+    );
+  }
+
+  if (AI_NARRATION_GENERATION_SUSPENDED) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: AI_NARRATION_GENERATION_SUSPENDED_REASON,
+        reason: "ai_narration_generation_suspended",
+      },
+      { status: 503 }
     );
   }
 

@@ -84,6 +84,31 @@ async function main() {
     "suspended Nemo autogen must not take the in-process run lock"
   );
 
+  // Manual Nemo/Aivis generation is suspended too (owner decision 2026-11-07):
+  // the library entrypoints must throw before any Supabase or TTS access.
+  const { AI_NARRATION_GENERATION_SUSPENDED } = await import(
+    "../src/lib/recording/legacyAutoNarration"
+  );
+  assert.equal(AI_NARRATION_GENERATION_SUSPENDED, true);
+  const nemoManual = await import("../src/lib/recording/nemoGeneration");
+  const aivisManual = await import("../src/lib/recording/aivisGeneration");
+  const manualInput = {
+    supabase: {} as never,
+    userId: "00000000-0000-4000-8000-000000000001",
+    seriesId: "series-1",
+    episodeId: "episode-1",
+    narratorName: "test",
+    speakerId: 1,
+  };
+  await assert.rejects(
+    () => nemoManual.generateNemoRecordingForEpisode(manualInput as never),
+    /ai_narration_generation_suspended/
+  );
+  await assert.rejects(
+    () => aivisManual.generateAivisRecordingForEpisode(manualInput as never),
+    /ai_narration_generation_suspended/
+  );
+
   assert.equal(networkCalls, 0, "suspended autogen must not contact Supabase or TTS");
 
   // Route-level contract: every API route that imports a legacy autogen entry
@@ -118,6 +143,22 @@ async function main() {
       guardedRoutes += 1;
     }
   }
+  // Manual generation routes: the suspension guard must precede the call.
+  const MANUAL_ROUTES: Array<[string, string]> = [
+    ["src/app/api/recordings/nemo-generate/route.ts", "generateNemoRecordingForEpisode("],
+    ["src/app/api/recordings/aivis-generate/route.ts", "generateAivisRecordingForEpisode("],
+  ];
+  for (const [file, call] of MANUAL_ROUTES) {
+    const text = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+    const guardIndex = text.indexOf("if (AI_NARRATION_GENERATION_SUSPENDED)");
+    const callIndex = text.indexOf(call);
+    assert.ok(callIndex >= 0, `${file} no longer calls ${call}; update this test`);
+    assert.ok(
+      guardIndex >= 0 && guardIndex < callIndex,
+      `${file} calls ${call} without a preceding AI_NARRATION_GENERATION_SUSPENDED guard`
+    );
+  }
+
   assert.equal(
     guardedRoutes,
     4,
@@ -126,7 +167,7 @@ async function main() {
 
   globalThis.fetch = originalFetch;
   console.log(
-    `PASS: legacy auto narration suspension — 4 library entrypoints fail closed with 0 network calls; ${guardedRoutes} routes guarded`
+    `PASS: legacy auto narration suspension — 4 library entrypoints fail closed with 0 network calls; ${guardedRoutes} routes guarded; manual Nemo/Aivis generation suspended (2 library entrypoints, 2 routes)`
   );
 }
 

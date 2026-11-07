@@ -1,3 +1,4 @@
+import { AI_NARRATION_GENERATION_SUSPENDED } from "@/lib/recording/legacyAutoNarration";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -680,6 +681,9 @@ export async function generateNemoRecordingForEpisode({
   intonationScale,
   volumeScale,
 }: GenerateNemoRecordingInput): Promise<GenerateNemoRecordingResult> {
+  if (AI_NARRATION_GENERATION_SUSPENDED) {
+    throw new Error("ai_narration_generation_suspended");
+  }
   await loadNemoGenerationAccess(supabase, seriesId, userId);
 
   const episode = await fetchNemoEpisodeSource(supabase, seriesId, episodeId);
