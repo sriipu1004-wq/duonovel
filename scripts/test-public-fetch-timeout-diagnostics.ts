@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { publicReadFetch } from "../src/lib/supabase/serverPublic";
 
 /** Exercise real AbortSignal propagation with no external network calls. */
@@ -176,7 +176,16 @@ async function main(): Promise<void> {
         blockEventLoop(4000); // each pending timer fires >= 1000 ms late
         await yieldToTimers();
       }
-      assert.equal(await neverDoneResult, "AbortError");
+      // Guard: a regression that removes the cap must fail here, not hang CI.
+      let hangGuard: ReturnType<typeof setTimeout> | undefined;
+      const cappedOutcome = await Promise.race([
+        neverDoneResult,
+        new Promise<string>((resolve) => {
+          hangGuard = setTimeout(() => resolve("still pending (grace cap missing?)"), 5000);
+        }),
+      ]);
+      clearTimeout(hangGuard);
+      assert.equal(cappedOutcome, "AbortError");
       assert.equal(warnings.length, 1);
       const cappedMeta = warnings[0][1] as Record<string, unknown>;
       assert.equal(cappedMeta.suspensionGraceCount, 3, "grace count is capped at 3");
