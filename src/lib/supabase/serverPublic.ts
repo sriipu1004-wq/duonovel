@@ -12,6 +12,12 @@ const PUBLIC_READ_FETCH_TIMEOUT_MS = 2500;
 // An on-time deadline (slow database) still aborts at 2500 ms (D023).
 const PUBLIC_READ_SUSPENSION_EVIDENCE_MS = 1000;
 const PUBLIC_READ_SUSPENSION_GRACE_MS = 2500;
+// Production evidence (Issue #137, 2026-11-08): the grace timer itself can be
+// frozen again by a second suspension and then fire 50-130 s late, which the
+// single-grace version treated as a real timeout. Each timer's lateness is now
+// judged against its own schedule, and a late grace timer may re-arm, at most
+// this many times in total, so live waiting stays bounded (2500 ms + 3 x 2500 ms).
+const PUBLIC_READ_SUSPENSION_MAX_GRACES = 3;
 
 /**
  * Only expose a fixed endpoint category to server logs. Never include URLs,
@@ -52,8 +58,10 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
   let timerFiredMonotonicAtMs: number | null = null;
   let deadlineTimerCpuUserMs = 0;
   let deadlineTimerCpuSystemMs = 0;
-  let suspensionGraceGranted = false;
+  let suspensionGraceCount = 0;
   let suspensionDetectedDelayMs = 0;
+  let timerScheduledAtMs = monotonicStartedAtMs;
+  let timerDelayMs = PUBLIC_READ_FETCH_TIMEOUT_MS;
 
   const abortFromUpstream = () => controller.abort();
   if (upstreamSignal?.aborted) {
@@ -64,16 +72,21 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
 
   const onDeadline = () => {
     const nowMonotonic = performance.now();
-    const deadlineLateByMs =
-      nowMonotonic - monotonicStartedAtMs - PUBLIC_READ_FETCH_TIMEOUT_MS;
+    // Lateness of the timer that just fired, measured against its own schedule.
+    const deadlineLateByMs = nowMonotonic - timerScheduledAtMs - timerDelayMs;
     if (
-      !suspensionGraceGranted &&
+      suspensionGraceCount < PUBLIC_READ_SUSPENSION_MAX_GRACES &&
       deadlineLateByMs >= PUBLIC_READ_SUSPENSION_EVIDENCE_MS
     ) {
       // The process did not run on schedule (suspended or blocked); the
-      // request has not really been waiting 2500 ms of live time.
-      suspensionGraceGranted = true;
-      suspensionDetectedDelayMs = Math.max(0, Math.round(deadlineLateByMs));
+      // request has not really been waiting this timer's live time.
+      suspensionGraceCount += 1;
+      suspensionDetectedDelayMs = Math.max(
+        suspensionDetectedDelayMs,
+        Math.round(deadlineLateByMs)
+      );
+      timerScheduledAtMs = nowMonotonic;
+      timerDelayMs = PUBLIC_READ_SUSPENSION_GRACE_MS;
       timer = setTimeout(onDeadline, PUBLIC_READ_SUSPENSION_GRACE_MS);
       return;
     }
@@ -92,11 +105,12 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
       ...init,
       signal: controller.signal,
     });
-    if (suspensionGraceGranted) {
+    if (suspensionGraceCount > 0) {
       // Bounded numeric timings and an allowlisted endpoint only.
       console.info("[public-db-suspension-grace-recovered]", {
         endpoint: classifyPublicReadEndpoint(input),
         suspensionDetectedDelayMs,
+        suspensionGraceCount,
         elapsedMonotonicMs: Math.max(0, Math.round(performance.now() - monotonicStartedAtMs)),
       });
     }
@@ -131,7 +145,8 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
         // Process-wide CPU time during the pending timer; not per-request attribution.
         deadlineTimerCpuUserMs,
         deadlineTimerCpuSystemMs,
-        suspensionGraceGranted,
+        suspensionGraceGranted: suspensionGraceCount > 0,
+        suspensionGraceCount,
         suspensionDetectedDelayMs,
       });
     }
