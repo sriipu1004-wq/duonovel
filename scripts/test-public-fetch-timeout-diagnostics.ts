@@ -137,6 +137,60 @@ async function main(): Promise<void> {
       assert.equal(abortMeta.suspensionGraceGranted, true);
       assert.ok((abortMeta.suspensionDetectedDelayMs as number) >= 1000);
       assert.equal(infos.length, 0);
+      assert.equal(abortMeta.suspensionGraceCount, 1);
+
+      // A second suspension while the grace timer is pending (seen in
+      // Production 2026-11-08): the late grace timer must re-arm, not abort.
+      // A 0 ms timer runs in the timers phase after every already-expired timer.
+      const yieldToTimers = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+      warnings.length = 0;
+      infos.length = 0;
+      globalThis.fetch = async (_input, init) =>
+        new Promise<Response>((resolve, reject) => {
+          const done = setTimeout(() => resolve(new Response(null, { status: 200 })), 8000);
+          init?.signal?.addEventListener("abort", () => {
+            clearTimeout(done);
+            reject(new DOMException("The operation was aborted", "AbortError"));
+          }, { once: true });
+        });
+      const twiceSuspended = publicReadFetch(requestUrl);
+      blockEventLoop(4200);
+      await yieldToTimers(); // deadline fires late -> first grace (due ~6700)
+      blockEventLoop(5000); // frozen again past the grace due time (~6700) and the response (8000)
+      const twiceRecovered = await twiceSuspended;
+      assert.equal(twiceRecovered.status, 200, "a late grace timer must re-arm instead of aborting");
+      assert.equal(warnings.length, 0);
+      assert.equal(infos.length, 1);
+      assert.equal((infos[0][1] as Record<string, unknown>).suspensionGraceCount, 2);
+
+      // Repeated suspensions stay bounded: after 3 graces a late timer aborts.
+      warnings.length = 0;
+      infos.length = 0;
+      globalThis.fetch = mockPending;
+      const neverDone = publicReadFetch(requestUrl);
+      const neverDoneResult = neverDone.then(
+        () => "resolved",
+        (error: unknown) => (error as { name?: string }).name
+      );
+      for (let i = 0; i < 4; i += 1) {
+        blockEventLoop(4000); // each pending timer fires >= 1000 ms late
+        await yieldToTimers();
+      }
+      // Guard: a regression that removes the cap must fail here, not hang CI.
+      let hangGuard: ReturnType<typeof setTimeout> | undefined;
+      const cappedOutcome = await Promise.race([
+        neverDoneResult,
+        new Promise<string>((resolve) => {
+          hangGuard = setTimeout(() => resolve("still pending (grace cap missing?)"), 5000);
+        }),
+      ]);
+      clearTimeout(hangGuard);
+      assert.equal(cappedOutcome, "AbortError");
+      assert.equal(warnings.length, 1);
+      const cappedMeta = warnings[0][1] as Record<string, unknown>;
+      assert.equal(cappedMeta.suspensionGraceCount, 3, "grace count is capped at 3");
+      assert.equal(cappedMeta.suspensionGraceGranted, true);
+      assert.equal(infos.length, 0);
 
       // An on-time deadline (slow database, process running) gets no grace.
       warnings.length = 0;
@@ -148,7 +202,7 @@ async function main(): Promise<void> {
       console.info = realInfo;
     }
 
-    console.log("PASS: real 2500ms local AbortSignal, wall/monotonic/process-CPU diagnostics and endpoint allowlist; caller abort/network/success semantics unchanged; suspension grace recovers late-deadline requests once and stays bounded");
+    console.log("PASS: real 2500ms local AbortSignal, wall/monotonic/process-CPU diagnostics and endpoint allowlist; caller abort/network/success semantics unchanged; suspension grace recovers late-deadline requests, re-arms after a second suspension and stays capped at 3");
   } finally {
     globalThis.fetch = realFetch;
     console.warn = realWarn;
