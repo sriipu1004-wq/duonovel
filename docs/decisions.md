@@ -449,3 +449,15 @@ Decision: exactly one account, `LIBreadE2E` (owner's Gmail plus-address), create
 ## D028 — Local disposable Supabase stack is LOCAL evidence (2026-11-07)
 
 Decision: `scripts/dev/local-supabase.sh` may be used for fast Auth/RLS/Storage iteration. Results are labelled LOCAL — stronger than mocks, weaker than hosted Preview/Production — and never replace required hosted checks or independent review. Repository migrations are not replayed into it (they cannot bootstrap an empty DB).
+
+## D029 — Run Vercel Functions in `sin1` for steady-state latency (2026-11-15, #141)
+
+Decision: `vercel.json` sets `"regions": ["sin1"]` so functions run next to the Supabase database (ap-southeast-1). The owner chose this by button on 2026-11-15 (「sin1 に移す PR を作る (推奨)」 and then 「sin1 で進める (推奨)」), after reviewing reader geography: most non-bot readers appear to be in Japan and Europe, and SG/CN/US traffic is largely bots.
+
+Scope: this addresses everyday latency, not outage failover. It does not override the Child84b conclusion above that region relocation *alone* is not an outage fix (the earlier `sin1` Preview still reproduced the timeout failure). That item stays rejected as a failover measure.
+
+Evidence (P6, PR #200), measured with a valid Preview service key, curl from Tokyo, 5 runs each, total time: Work page 2.56–4.21 s (iad1) → 0.45–0.81 s (sin1); Reader 2.62–3.88 s → 0.46–0.82 s; Home and /search were unchanged, because /search's bottleneck is the full-catalog fetch, not region. Only Tokyo was measured.
+
+Cost: the sin1 regional price for Fluid CPU and memory is about 25% higher than iad1, and Fast Origin Transfer costs $0.27/GB in sin1 versus $0.06/GB in iad1. At the current daily usage this is estimated at about +$0.075/day (≈ +$2.3/month). This is an estimate, and shorter run time may offset part of it.
+
+Rollback: delete `vercel.json` and redeploy, or use Instant Rollback to the last iad1 Production deployment.
