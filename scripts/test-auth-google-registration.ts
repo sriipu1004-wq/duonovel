@@ -1,7 +1,10 @@
-// Issue #142 PR2 regression: "Continue with Google" behind a default-off
+// Issue #142 PR2/PR3 regression: "Continue with Google" behind a default-off
 // flag, /auth/callback branching for Google accounts (complete / needs STEP 2
-// / first link with stale metadata), the server-side write gate and the
-// official-account grant check.
+// / first link with stale metadata), the server-side write gate, the
+// official-account grant check, and (PR3) the consent recorded only by the
+// server in app_metadata + account_consents, the RLS migration source and the
+// before-user-created hook function (the SQL itself is exercised by
+// scripts/issue142-google-consent/check.sql on a disposable PostgreSQL).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
@@ -11,8 +14,8 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://example.invalid";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-only-placeholder";
 
 import {
+  EMAIL_CONFIRMATION_BEFORE_GOOGLE_MARGIN_MS,
   GOOGLE_CONSENT_IDENTITY_KEY,
-  buildGoogleConsentMetadata,
   decideAuthCallbackDestination,
   hasConfirmedEmailIdentity,
   isBlockedFromWritesUntilRegistered,
@@ -28,7 +31,12 @@ import {
   resolveAuthCallbackNoticeKey,
   resolveExchangeFailureCode,
 } from "../src/lib/auth/authCallbackError";
-import { buildCompletedAccountRegistrationMetadata } from "../src/lib/auth/accountSignupConsent";
+import {
+  ACCOUNT_PRIVACY_VERSION,
+  ACCOUNT_TERMS_VERSION,
+  buildCompletedAccountRegistrationMetadata,
+} from "../src/lib/auth/accountSignupConsent";
+import { decideGoogleConsent } from "../src/lib/auth/googleConsent";
 import { OFFICIAL_ACCOUNT_EMAIL, isOfficialAccountUser } from "../src/lib/auth/officialAccount";
 import { isOfficialNarrationAccountUser } from "../src/lib/auth/officialNarrationAccount";
 import { authDictionaries } from "../src/i18n/dictionaries/auth";
@@ -89,54 +97,190 @@ function testCallbackBranches() {
   assert.equal(decideAuthCallbackDestination(firstLink, false), "register");
   assert.equal(isBlockedFromWritesUntilRegistered(firstLink), true);
 
-  // Even a guessed/wrong identity id in metadata does not count.
+  // Even a guessed/wrong identity id in app_metadata does not count.
   const wrongId = user({
     identities: [googleIdentity],
-    user_metadata: { ...completedMetadata, [GOOGLE_CONSENT_IDENTITY_KEY]: OTHER_GOOGLE_ID },
+    user_metadata: { ...completedMetadata },
+    app_metadata: { provider: "email", providers: ["email", "google"], [GOOGLE_CONSENT_IDENTITY_KEY]: OTHER_GOOGLE_ID },
   });
   assert.equal(decideAuthCallbackDestination(wrongId, false), "register");
 
-  // STEP 2 completed for the current Google identity -> straight to next.
+  // PR3 (PR #204 review S1): a consent the user wrote into user_metadata
+  // themself (supabase.auth.updateUser) never counts, under the old PR2 key
+  // or the new key.
+  const selfWritten = user({
+    identities: [googleIdentity],
+    user_metadata: {
+      ...completedMetadata,
+      account_google_consent_identity_id: GOOGLE_ID,
+      [GOOGLE_CONSENT_IDENTITY_KEY]: GOOGLE_ID,
+    },
+    app_metadata: { provider: "email", providers: ["email", "google"] },
+  });
+  assert.equal(resolveGoogleRegistrationState(selfWritten), "google_needs_profile");
+  assert.equal(isBlockedFromWritesUntilRegistered(selfWritten), true);
+
+  // Consent recorded by the server for the current Google identity -> next.
   const done = user({
     identities: [emailIdentity, googleIdentity],
-    user_metadata: { ...completedMetadata, ...buildGoogleConsentMetadata({ identities: [googleIdentity] }) },
+    app_metadata: { provider: "email", providers: ["email", "google"], [GOOGLE_CONSENT_IDENTITY_KEY]: GOOGLE_ID },
   });
   assert.equal(resolveGoogleRegistrationState(done), "google_complete");
   assert.equal(decideAuthCallbackDestination(done, false), "next");
   assert.equal(isBlockedFromWritesUntilRegistered(done), false);
 
-  // Bound identity id but a consent flag missing -> still STEP 2.
-  const missingConsent = user({
-    identities: [googleIdentity],
-    user_metadata: {
-      ...completedMetadata,
-      account_enforcement_ack: false,
-      [GOOGLE_CONSENT_IDENTITY_KEY]: GOOGLE_ID,
-    },
-  });
-  assert.equal(decideAuthCallbackDestination(missingConsent, false), "register");
-  const missingName = user({
-    identities: [googleIdentity],
-    user_metadata: {
-      ...completedMetadata,
-      display_name: "",
-      display_name_candidate: "",
-      [GOOGLE_CONSENT_IDENTITY_KEY]: GOOGLE_ID,
-    },
-  });
-  assert.equal(decideAuthCallbackDestination(missingName, false), "register");
-
   // Re-linked Google identity (new identity id) -> consent again.
   const relinked = user({
     identities: [{ ...googleIdentity, identity_id: OTHER_GOOGLE_ID, created_at: "2026-12-01T00:00:00Z" }],
-    user_metadata: { ...completedMetadata, [GOOGLE_CONSENT_IDENTITY_KEY]: GOOGLE_ID },
+    app_metadata: { [GOOGLE_CONSENT_IDENTITY_KEY]: GOOGLE_ID },
   });
   assert.equal(decideAuthCallbackDestination(relinked, false), "register");
 
+  // A Google identity without an identity_id never completes.
+  const noId = user({
+    identities: [{ ...googleIdentity, identity_id: null }],
+    app_metadata: { [GOOGLE_CONSENT_IDENTITY_KEY]: "" },
+  });
+  assert.equal(resolveGoogleRegistrationState(noId), "google_needs_profile");
+
   // A password-reset link is honoured even before STEP 2.
   assert.equal(decideAuthCallbackDestination(fresh, true), "next");
+}
 
-  assert.deepEqual(buildGoogleConsentMetadata({ identities: [emailIdentity] }), {});
+function testConsentApiDecision() {
+  const now = new Date("2026-11-15T12:00:00Z");
+  const google = {
+    id: "00000000-0000-4000-8000-00000000000a",
+    email: "someone@example.com",
+    identities: [emailIdentity, googleIdentity],
+    app_metadata: { provider: "email", providers: ["email", "google"] },
+  };
+  const body = {
+    displayName: "PenName",
+    agreedToTerms: true,
+    agreedToPrivacy: true,
+    acknowledgedPublicSurface: true,
+  };
+
+  const ok = decideGoogleConsent({ user: google, payload: body, storedDisplayName: "PenName", now });
+  assert.equal(ok.ok, true);
+  if (ok.ok) {
+    assert.equal(ok.alreadyRecorded, false);
+    assert.equal(ok.identityId, GOOGLE_ID);
+    assert.deepEqual(ok.row, {
+      user_id: google.id,
+      identity_id: GOOGLE_ID,
+      provider: "google",
+      terms_version: ACCOUNT_TERMS_VERSION,
+      privacy_version: ACCOUNT_PRIVACY_VERSION,
+      agreed_to_terms: true,
+      agreed_to_privacy: true,
+      acknowledged_public_surface: true,
+      consented_at: now.toISOString(),
+    });
+    assert.equal(ok.appMetadata[GOOGLE_CONSENT_IDENTITY_KEY], GOOGLE_ID);
+    assert.equal(ok.appMetadata.google_consent_terms_version, ACCOUNT_TERMS_VERSION);
+    assert.equal(ok.appMetadata.google_consent_privacy_version, ACCOUNT_PRIVACY_VERSION);
+    // The recorded app_metadata is exactly what the gate accepts.
+    assert.equal(
+      resolveGoogleRegistrationState({ ...google, app_metadata: { ...google.app_metadata, ...ok.appMetadata } }),
+      "google_complete"
+    );
+  }
+
+  const already = decideGoogleConsent({
+    user: { ...google, app_metadata: { ...google.app_metadata, [GOOGLE_CONSENT_IDENTITY_KEY]: GOOGLE_ID } },
+    payload: body,
+    storedDisplayName: "PenName",
+    now,
+  });
+  assert.equal(already.ok && already.alreadyRecorded, true);
+
+  const refusals: Array<[string, Parameters<typeof decideGoogleConsent>[0], string, number]> = [
+    ["no user", { user: null, payload: body, storedDisplayName: "PenName", now }, "invalid_request", 400],
+    ["array body", { user: google, payload: [], storedDisplayName: "PenName", now }, "invalid_request", 400],
+    ["terms missing", { user: google, payload: { ...body, agreedToTerms: false }, storedDisplayName: "PenName", now }, "consent_missing", 400],
+    ["privacy as string", { user: google, payload: { ...body, agreedToPrivacy: "true" }, storedDisplayName: "PenName", now }, "consent_missing", 400],
+    ["public ack missing", { user: google, payload: { ...body, acknowledgedPublicSurface: undefined }, storedDisplayName: "PenName", now }, "consent_missing", 400],
+    ["empty name", { user: google, payload: { ...body, displayName: " " }, storedDisplayName: "", now }, "display_name_invalid", 400],
+    ["url name", { user: google, payload: { ...body, displayName: "https://x.example" }, storedDisplayName: "https://x.example", now }, "display_name_invalid", 400],
+    ["profile not saved", { user: google, payload: body, storedDisplayName: null, now }, "display_name_not_saved", 409],
+    ["other saved name", { user: google, payload: body, storedDisplayName: "Other", now }, "display_name_not_saved", 409],
+    ["email only", { user: { ...google, identities: [emailIdentity] }, payload: body, storedDisplayName: "PenName", now }, "no_google_identity", 409],
+    ["google without id", { user: { ...google, identities: [{ ...googleIdentity, identity_id: "" }] }, payload: body, storedDisplayName: "PenName", now }, "no_google_identity", 409],
+  ];
+  for (const [label, input, error, status] of refusals) {
+    const result = decideGoogleConsent(input);
+    assert.equal(result.ok, false, label);
+    if (!result.ok) {
+      assert.equal(result.error, error, label);
+      assert.equal(result.status, status, label);
+    }
+  }
+
+  // Route wiring: verified user, service role writes, no user_metadata.
+  const route = readFileSync("src/app/api/account/google-consent/route.ts", "utf8");
+  assert.ok(route.includes("supabase.auth.getUser()"), "route must verify the session with the Auth server");
+  assert.ok(route.includes("admin.auth.admin.getUserById(user.id)"), "route must re-read the user with the service role");
+  assert.ok(route.includes('admin.from("account_consents").insert(decision.row)'));
+  assert.ok(route.includes("app_metadata: { ...currentAppMetadata, ...decision.appMetadata }"));
+  assert.equal(route.includes("user_metadata"), false, "consent is never written to user_metadata");
+  assert.ok(
+    route.indexOf('from("account_consents").insert') < route.indexOf("updateUserById"),
+    "the consent row is appended before app_metadata marks the account complete"
+  );
+
+  // STEP 2 calls the API and refreshes the JWT; it no longer writes the
+  // consent key itself.
+  const register = readFileSync("src/app/register/page.tsx", "utf8");
+  assert.ok(register.includes('fetch("/api/account/google-consent"'));
+  assert.ok(register.includes("supabase.auth.refreshSession()"));
+  assert.ok(register.includes("await recordGoogleConsent(availableDisplayName)"));
+  assert.equal(register.includes("buildGoogleConsentMetadata"), false);
+  assert.equal(register.includes("GOOGLE_CONSENT_IDENTITY_KEY"), false);
+  assert.ok(
+    register.indexOf("await syncPublicUserProfile(availableDisplayName)") <
+      register.indexOf("await recordGoogleConsent(availableDisplayName)"),
+    "the public display name is saved before the consent (the API checks it)"
+  );
+  const gate = readFileSync("src/lib/auth/registrationGate.ts", "utf8");
+  assert.ok(gate.includes("user?.app_metadata"));
+  assert.equal(gate.includes("user?.user_metadata"), false, "the gate does not read user_metadata");
+}
+
+function testMigrationSource() {
+  const migration = readFileSync(
+    "supabase/migrations/20261115120000_issue142_google_consent_rls.sql",
+    "utf8"
+  );
+  const code = migration.replace(/^\s*--.*$/gm, "");
+  for (const table of [
+    "series",
+    "episodes",
+    "user_episode_comments",
+    "user_series_reviews",
+    "series_translation_glossary_entries",
+    "series_translation_glossary_targets",
+    "series_translation_profiles",
+    "users",
+  ]) {
+    assert.ok(code.includes(`('${table}', `), `${table} must be guarded`);
+  }
+  assert.ok(code.includes("as restrictive for insert to public"));
+  assert.ok(code.includes("as restrictive for update to public"));
+  assert.ok(code.includes("auth.jwt() -> 'app_metadata'"));
+  assert.ok(code.includes("google_consent_identity_id"));
+  assert.equal(code.includes("user_metadata"), false, "RLS never reads user_metadata");
+  assert.equal(/alter policy|drop policy if exists (?!%I|account_consents_select_own)/i.test(code), false, "existing policies are not altered or dropped");
+  assert.ok(code.includes("revoke all on table public.account_consents from public, anon, authenticated, service_role"));
+  assert.ok(code.includes("grant select on table public.account_consents to authenticated"));
+  assert.ok(code.includes("grant select, insert on table public.account_consents to service_role"));
+  assert.ok(code.includes("to supabase_auth_admin"));
+  assert.ok(code.includes("from authenticated, anon, public"));
+
+  const workflow = readFileSync(".github/workflows/issue142-google-consent-rls.yml", "utf8");
+  assert.ok(workflow.includes("scripts/issue142-google-consent/check.sql"));
+  assert.ok(workflow.includes("postgres:17"));
 }
 
 function testCallbackRouteWiring() {
@@ -258,6 +402,24 @@ function testOfficialAccount() {
     }),
     true
   );
+  // PR #204 review S3: the confirmation must precede the Google identity by
+  // at least the margin (60 s), so a confirmation written by the same Google
+  // sign-in a moment earlier does not count.
+  assert.equal(EMAIL_CONFIRMATION_BEFORE_GOOGLE_MARGIN_MS, 60_000);
+  const googleAt = Date.parse(googleIdentity.created_at);
+  const confirmedSecondsBefore = (seconds: number) => ({
+    ...official,
+    email_confirmed_at: new Date(googleAt - seconds * 1000).toISOString(),
+    identities: [officialEmailIdentity, googleIdentity],
+  });
+  assert.equal(isOfficialAccountUser(confirmedSecondsBefore(0.005)), false, "5 ms before");
+  assert.equal(isOfficialAccountUser(confirmedSecondsBefore(30)), false, "30 s before");
+  assert.equal(isOfficialAccountUser(confirmedSecondsBefore(59.999)), false, "just inside the margin");
+  assert.equal(isOfficialAccountUser(confirmedSecondsBefore(60)), true, "exactly the margin");
+  assert.equal(isOfficialAccountUser(confirmedSecondsBefore(3600)), true, "an hour before");
+  assert.equal(isOfficialNarrationAccountUser(confirmedSecondsBefore(30)), false);
+  assert.equal(isOfficialNarrationAccountUser(confirmedSecondsBefore(3600)), true);
+
   // A Google identity whose creation time is unknown cannot be ordered.
   assert.equal(
     isOfficialAccountUser({
@@ -338,8 +500,12 @@ function testWriteGateCoverage() {
   );
   // The register page does not trust pre-existing flags for Google accounts.
   const register = readFileSync("src/app/register/page.tsx", "utf8");
-  assert.ok(register.includes("buildGoogleConsentMetadata(freshUser.user)"));
   assert.ok(register.includes('resolveGoogleRegistrationState(user) === "google_complete"'));
+  // The consent API is STEP 2 itself and must stay reachable.
+  assert.equal(
+    readFileSync("src/app/api/account/google-consent/route.ts", "utf8").includes("registrationRequiredResponse"),
+    false
+  );
 }
 
 function testLocalizedGuidance() {
@@ -382,6 +548,8 @@ function testLocalizedGuidance() {
     ["src/features/playback/BilingualEpisodePlayback.tsx", "readRegistrationRequiredNotice(payload, locale)"],
     ["src/features/playback/TranslationOnlyEpisodePlayback.tsx", "readRegistrationRequiredNotice(payload, uiLocaleForNotice)"],
     ["src/features/library/PrivateLibraryBilingualPlayback.tsx", "readRegistrationRequiredNotice(payload, uiLocaleForNotice)"],
+    // PR #204 review S3: word explanations show it in en and ko too.
+    ["src/features/playback/useBilingualWordExplanation.ts", "readRegistrationRequiredNotice(payload, locale)"],
   ] as const) {
     assert.ok(readFileSync(file, "utf8").includes(needle), `${file} must include ${needle}`);
   }
@@ -397,6 +565,8 @@ function testLocalizedGuidance() {
 
 async function main() {
   testCallbackBranches();
+  testConsentApiDecision();
+  testMigrationSource();
   testCallbackRouteWiring();
   testResetNoticeWins();
   await testFlagAndButton();
@@ -404,7 +574,7 @@ async function main() {
   testWriteGateCoverage();
   testLocalizedGuidance();
   console.log(
-    "PASS: Google button is flag-gated; callback sends unregistered Google accounts to STEP 2; write gate and official-account grant checks hold"
+    "PASS: Google button is flag-gated; callback sends unregistered Google accounts to STEP 2; consent is server-recorded in app_metadata; write gate, RLS migration source and official-account grant checks hold"
   );
 }
 

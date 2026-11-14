@@ -14,12 +14,11 @@ import { buildRegisterPath, registrationRequiredMessage } from "@/lib/auth/regis
 // not completed STEP 2 (display name + 3 consents) for that identity.
 // Email-only accounts are unaffected.
 //
-// Limitations (see the PR body; fixed in PR3 before the provider is enabled):
-// - This only covers the app's API routes / server actions. series, episodes,
-//   comments and reviews can also be written by an authenticated user through
-//   PostgREST directly, where only RLS applies.
-// - The consent record lives in user_metadata, which the user can rewrite
-//   themself (supabase.auth.updateUser) without going through STEP 2.
+// PR3: the consent is read from app_metadata (written only by
+// POST /api/account/google-consent with the service role), and the same
+// condition is enforced by RLS for direct PostgREST writes to series,
+// episodes, comments, reviews, translation settings and public.users
+// (migration 20261115120000_issue142_google_consent_rls.sql).
 
 /**
  * The UI locale for an API request. The proxy (which sets UI_LOCALE_HEADER)

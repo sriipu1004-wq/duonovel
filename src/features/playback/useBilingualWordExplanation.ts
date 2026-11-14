@@ -8,6 +8,7 @@ import type {
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { readerDictionaries } from "@/i18n/dictionaries/reader";
+import { readRegistrationRequiredNotice } from "@/lib/auth/registrationGateMessage";
 
 type WordExplanationResponse = {
   ok?: boolean;
@@ -121,13 +122,17 @@ export function useBilingualWordExplanation({
               !(payload.contextualMeaning || payload.oppositeText) ||
               !payload.partOfSpeech
             ) {
+              // Issue #142 PR3 (PR #204 review S3): the "finish STEP 2"
+              // guidance is shown in every UI locale, not only ja.
+              const registrationNotice = readRegistrationRequiredNotice(payload, locale);
               return {
                 ...selection,
                 status: "error",
                 message:
-                  locale === "ja" && payload.message?.trim()
+                  registrationNotice ??
+                  (locale === "ja" && payload.message?.trim()
                     ? payload.message
-                    : dictionary.meaningFailed,
+                    : dictionary.meaningFailed),
               };
             }
             const insight: BilingualWordInsight = {
