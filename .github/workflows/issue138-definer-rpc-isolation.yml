@@ -1,0 +1,34 @@
+# Issue #138: A/B/anon owner isolation for the authenticated SECURITY DEFINER
+# RPCs not covered by the private-library E2E. Disposable PostgreSQL only.
+name: Issue138 definer RPC owner isolation
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue138-definer-rpc-isolation.yml"
+      - "scripts/issue138-definer-rpc-isolation/**"
+permissions:
+  contents: read
+jobs:
+  owner-isolation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: A/B/anon isolation in a disposable DB
+        env:
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: psql -X -v ON_ERROR_STOP=1 -f scripts/issue138-definer-rpc-isolation/check.sql
