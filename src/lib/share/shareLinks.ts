@@ -10,7 +10,7 @@
  *   split inbound visits by channel.
  * - Buttons are shown only for public, non-R18 pages.
  */
-import { PUBLIC_SITE_URL } from "@/lib/seo/publicWorkSeo";
+import { PUBLIC_SITE_URL, stripAuthorSuffixFromTitle } from "@/lib/seo/publicWorkSeo";
 
 export const SHARE_CHANNELS = ["x", "line", "facebook", "copy", "native"] as const;
 export type ShareChannel = (typeof SHARE_CHANNELS)[number];
@@ -111,7 +111,8 @@ export function buildShareText(input: {
   authorName?: string | null;
   quote: (title: string) => string;
 }): string {
-  const title = input.quote(input.title.trim());
   const author = (input.authorName ?? "").trim();
+  // 「修道院の秋・南部修太郎」+ 南部修太郎 -> 「修道院の秋」 南部修太郎
+  const title = input.quote(stripAuthorSuffixFromTitle(input.title, author));
   return [title, author, "| LIB read"].filter(Boolean).join(" ");
 }

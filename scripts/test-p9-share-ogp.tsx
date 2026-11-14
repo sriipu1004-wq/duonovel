@@ -118,6 +118,11 @@ assert.equal(shouldShowShareButtons({ isPublic: false, isR18: true }), false);
     "「題」 作者 | LIB read"
   );
   assert.equal(
+    buildShareText({ title: "修道院の秋・南部修太郎", authorName: "南部修太郎", quote: shareDictionaries.ja.quoteTitle }),
+    "「修道院の秋」 南部修太郎 | LIB read",
+    "author suffix is not repeated"
+  );
+  assert.equal(
     buildShareText({ title: "Title", authorName: "", quote: shareDictionaries.en.quoteTitle }),
     '"Title" | LIB read'
   );
@@ -198,6 +203,7 @@ assert.equal(isWorkOpenGraphImagePath(`/works/${SERIES}/translations`), false);
   assert.ok(layout.includes("isEpisodePubliclyVisible(input.episode)"));
   assert.ok(layout.includes('getSeriesPublicationStatus(input.series) === "public"'));
   assert.ok(layout.includes("readerCanonicalPath("), "Reader shares its canonical copy");
+  assert.ok(layout.includes("pb-56"), "clear of the fixed Reader player bar (~174px)");
   // Outside the translation shell, so Bilingual / Translation modes keep it.
   const shellEnd = layout.indexOf("</ReadBilingualShell>");
   assert.ok(shellEnd > 0 && layout.indexOf("shareSectionFor(shareAuthorName)", shellEnd) > shellEnd);

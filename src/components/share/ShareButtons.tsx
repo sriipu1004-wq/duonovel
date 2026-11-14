@@ -153,6 +153,17 @@ export default function ShareButtons({
               : ""}
         </span>
       </div>
+      {copyState === "failed" ? (
+        // Clipboard permission denied: let the viewer copy by hand.
+        <input
+          type="text"
+          readOnly
+          aria-label={dictionary.copyLink}
+          value={buildShareTargetUrl(path, "copy", placement)}
+          onFocus={(event) => event.currentTarget.select()}
+          className="mt-2 w-full rounded-lg border border-black/10 bg-neutral-50 px-3 py-2 text-xs text-neutral-700"
+        />
+      ) : null}
     </section>
   );
 }
