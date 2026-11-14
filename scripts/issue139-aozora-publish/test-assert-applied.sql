@@ -36,7 +36,7 @@ do $$ begin
      except
      select id, series_id, episode_number, title, body, created_at, scheduled_for, last_edited_at from ci.episodes_before)
   ) then raise exception 'CI_EPISODE_OTHER_COLUMN_CHANGED'; end if;
-  if (select count(distinct posted_at) from public.episodes e join ci.episodes_before b using (id)
+  if (select count(distinct e.posted_at) from public.episodes e join ci.episodes_before b using (id)
       where b.posting_status = 'draft' and e.posting_status = 'posted') <> 1
   then raise exception 'CI_POSTED_AT_NOT_SINGLE'; end if;
 
