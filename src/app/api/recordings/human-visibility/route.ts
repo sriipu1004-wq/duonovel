@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { registrationRequiredResponse } from "@/lib/auth/registrationGate.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
@@ -136,6 +137,13 @@ export async function POST(request: Request) {
       },
       { status: 401 }
     );
+  }
+
+  // Issue #142 PR3b: making a recording public needs STEP 2 for a Google
+  // identity. Hiding it (isPublic = false) stays open, like the rule below.
+  if (isPublic) {
+    const registrationBlocked = await registrationRequiredResponse(user, "text");
+    if (registrationBlocked) return registrationBlocked;
   }
 
   const adminSupabase = createAdminClient();

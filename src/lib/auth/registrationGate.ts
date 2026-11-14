@@ -182,6 +182,26 @@ export function isBlockedFromWritesUntilRegistered(
 export const REGISTRATION_REQUIRED_ERROR = "registration_required";
 
 /**
+ * Issue #142 PR3b: POST /api/account/profile is also how STEP 2 saves the
+ * public display name, so an account still in STEP 2 may write the display
+ * name only. Any other public profile field (bio, x_url, note_url) is refused
+ * until STEP 2 is complete. Email-only accounts are never blocked here.
+ */
+export type ProfileWriteFields = {
+  bio: boolean;
+  xUrl: boolean;
+  noteUrl: boolean;
+};
+
+export function isProfileWriteBlockedUntilRegistered(
+  user: RegistrationUserLike | null | undefined,
+  fields: ProfileWriteFields
+): boolean {
+  if (!isBlockedFromWritesUntilRegistered(user)) return false;
+  return fields.bio || fields.xUrl || fields.noteUrl;
+}
+
+/**
  * Where /auth/callback sends a signed-in user (after a successful code
  * exchange):
  * - "email_flow": no Google identity; the existing email handling runs
