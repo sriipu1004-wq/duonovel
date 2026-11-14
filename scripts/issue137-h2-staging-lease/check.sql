@@ -88,7 +88,9 @@ language plpgsql as $$
 begin
   if p_cond is distinct from true then raise exception 'FAIL: %', p_msg; end if;
 end $$;
--- Shorthands (9 MiB -> 2 parts of 8 MiB).
+-- Shorthands (9 MiB -> 2 parts of 8 MiB). Bodies reference objects the
+-- migrations create below, so body validation is deferred to call time.
+set check_function_bodies = off;
 create function public.t_open(l text, s text, e text, a text, total bigint default 9437184,
   parts int default 2, ext text default 'webm') returns boolean language sql as $$
   select public.issue137_h2_stage_open(public.i(l), public.i(s), public.i(e), public.i(a), ext, total, parts) $$;
@@ -99,6 +101,7 @@ create function public.t_put(path text, bucket text default 'human-recording-aud
   returns void language sql as $$
   insert into storage.objects(bucket_id, name, metadata) values (bucket, path, '{}'::jsonb) $$;
 
+reset check_function_bodies;
 insert into public.users(id, show_r18_content, r18_confirmed_at)
   select public.i(k), false, null from unnest(array['A','B','C','D']) k;
 insert into public.series(id, author_id) values (public.i('S1'), public.i('C'));
