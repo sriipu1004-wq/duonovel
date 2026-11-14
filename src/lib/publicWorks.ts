@@ -635,7 +635,11 @@ function normalizeSeriesIds(seriesIds?: string[]): string[] {
 const PUBLIC_HUMAN_RECORDING_PAGE_SIZE = 1000;
 
 async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<PublicRecordingAggregate[]> {
-  const supabase = createAdminClient();
+  // Public aggregates are read with the anon client (#137): RLS
+  // `recordings_select_public_visible` returns only public recordings on
+  // posted, published episodes of public series, so this fails closed and
+  // shares the public read deadline. No service_role for public counts.
+  const supabase = createPublicServerClient();
   const normalizedSeriesIds = normalizeSeriesIds(seriesIds);
   const data: RecordingAggregateRow[] = [];
 

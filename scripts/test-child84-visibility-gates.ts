@@ -67,6 +67,14 @@ for (const current of [reader, work, catalog]) {
   assert.ok(current.includes('.eq("is_published", true)'));
 }
 assert.ok(reader.includes("if (!isOwner && !isEpisodePubliclyVisible(episode)) return null"));
+// #137: public recording aggregates must be read under anon RLS, never service_role.
+const aggregateBody = catalog.slice(
+  catalog.indexOf("async function buildPublicRecordingAggregates("),
+  catalog.indexOf("const getCachedPublicRecordingAggregatesInternal")
+);
+assert.ok(aggregateBody.length > 0, "buildPublicRecordingAggregates must exist");
+assert.ok(aggregateBody.includes("createPublicServerClient()"));
+assert.equal(aggregateBody.includes("createAdminClient("), false);
 assert.ok(work.includes('getSeriesPublicationStatus(series) !== "public"'));
 const seriesEdit = source("app/actions/saveOwnedSeriesWorkspace.ts");
 const episodeEdit = source("app/actions/saveOwnedEpisode.ts");
