@@ -335,6 +335,8 @@ Validate:
 
 Only if this gate passes should further staged Public Domain growth proceed.
 
+DB と Storage を独立に復元できることの検証手順（未実施）：[`docs/issue141-db-storage-restore-verification-runbook.md`](issue141-db-storage-restore-verification-runbook.md)
+
 ### P7 — Google account login via Supabase Auth
 
 Status: **queued — after Child86 Production scale acceptance**
