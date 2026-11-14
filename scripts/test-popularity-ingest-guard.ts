@@ -9,21 +9,28 @@ import {
   type PopularityInsertRow,
 } from "../src/lib/popularityIngest";
 import {
+  classifyPopularityActorCaps,
   classifyPopularityDailyCap,
   classifyPopularityRequestSource,
   classifyPopularityUserAgent,
   POPULARITY_DAILY_ROW_CAP,
+  POPULARITY_DAILY_SERIES_ROW_CAP,
   type PopularityIngestSkipReason,
 } from "../src/lib/popularityIngestGuard";
 
 const HOST = "www.syosetu-libread.com";
 const ORIGIN = `https://${HOST}`;
-const SERIES = "11111111-1111-4111-8111-111111111111";
+const SERIES_COUNT = 9;
+function seriesIdOf(s: number): string {
+  return `11111111-1111-4111-8111-${String(s).padStart(12, "0")}`;
+}
+const SERIES = seriesIdOf(1);
 const RECORDING = "22222222-2222-4222-8222-222222222222";
 const EPISODE_COUNT = 400;
 
-function episodeId(n: number): string {
-  return `33333333-3333-4333-8333-${String(n).padStart(12, "0")}`;
+// Episode ids encode their series (1..9) and episode number.
+function episodeId(n: number, s = 1): string {
+  return `33333333-3333-4333-8${s}33-${String(n).padStart(12, "0")}`;
 }
 
 const UA = {
@@ -136,6 +143,15 @@ assert.deepEqual(
   classifyPopularityRequestSource(h({ host: HOST, origin: "null" })),
   { accept: false, reason: "foreign_origin" }
 );
+// Review S3-1: an opaque `Origin: null` that the browser marks same-origin is accepted.
+assert.deepEqual(
+  classifyPopularityRequestSource(h({ host: HOST, origin: "null", "sec-fetch-site": "same-origin" })),
+  { accept: true }
+);
+assert.deepEqual(
+  classifyPopularityRequestSource(h({ host: HOST, origin: "null", "sec-fetch-site": "cross-site" })),
+  { accept: false, reason: "cross_site_fetch" }
+);
 // Apex vs www are different origins; the page and API share one host.
 assert.deepEqual(
   classifyPopularityRequestSource(h({ host: HOST, origin: "https://syosetu-libread.com" })),
@@ -176,6 +192,32 @@ assert.deepEqual(classifyPopularityDailyCap(Number.NaN), {
   accept: false,
   reason: "daily_cap_reached",
 });
+assert.equal(POPULARITY_DAILY_SERIES_ROW_CAP, 30);
+assert.equal(POPULARITY_DAILY_ROW_CAP, 100);
+{
+  const a = seriesIdOf(1);
+  const b = seriesIdOf(2);
+  const rows = (n: number, id: string) => Array.from({ length: n }, () => id);
+  assert.deepEqual(classifyPopularityActorCaps({ actorSeriesIds: [], seriesId: a }), { accept: true });
+  assert.deepEqual(classifyPopularityActorCaps({ actorSeriesIds: rows(29, a), seriesId: a }), { accept: true });
+  assert.deepEqual(classifyPopularityActorCaps({ actorSeriesIds: rows(30, a), seriesId: a }), {
+    accept: false,
+    reason: "daily_series_cap_reached",
+  });
+  assert.deepEqual(classifyPopularityActorCaps({ actorSeriesIds: rows(30, a), seriesId: b }), { accept: true });
+  assert.deepEqual(
+    classifyPopularityActorCaps({ actorSeriesIds: [...rows(30, a), ...rows(69, b)], seriesId: seriesIdOf(3) }),
+    { accept: true }
+  );
+  assert.deepEqual(
+    classifyPopularityActorCaps({ actorSeriesIds: [...rows(30, a), ...rows(70, b)], seriesId: seriesIdOf(3) }),
+    { accept: false, reason: "daily_cap_reached" }
+  );
+  assert.deepEqual(classifyPopularityActorCaps({ actorSeriesIds: null, seriesId: a }), {
+    accept: false,
+    reason: "daily_cap_reached",
+  });
+}
 assert.ok(
   POPULARITY_DAILY_ROW_CAP >= 60,
   "the cap must leave room for a reader who binges several dozen episodes a day"
@@ -187,7 +229,9 @@ assert.ok(
 
 type Store = Record<PopularityEventTable, PopularityInsertRow[]>;
 
-function makeHarness(options: { cap?: number; countFails?: boolean } = {}) {
+function makeHarness(
+  options: { cap?: number; seriesCap?: number; countFails?: boolean } = {}
+) {
   const store: Store = { series_view_events: [], recording_play_events: [] };
   const skips: PopularityIngestSkipReason[] = [];
   let dbCalls = 0;
@@ -195,15 +239,16 @@ function makeHarness(options: { cap?: number; countFails?: boolean } = {}) {
     getCurrentUserId: async () => null,
     findEpisode: async (id) => {
       dbCalls += 1;
-      const match = /-(\d{12})$/.exec(id);
-      const n = match ? Number(match[1]) : 0;
-      if (!id.startsWith("33333333-") || n < 1 || n > EPISODE_COUNT) {
+      const match = /^33333333-3333-4333-8(\d)33-(\d{12})$/.exec(id);
+      const s = match ? Number(match[1]) : 0;
+      const n = match ? Number(match[2]) : 0;
+      if (s < 1 || s > SERIES_COUNT || n < 1 || n > EPISODE_COUNT) {
         return { data: null, error: null };
       }
       return {
         data: {
           id,
-          series_id: SERIES,
+          series_id: seriesIdOf(s),
           episode_number: n,
           posting_status: "posted",
           is_published: true,
@@ -213,7 +258,8 @@ function makeHarness(options: { cap?: number; countFails?: boolean } = {}) {
     },
     findSeries: async (id) => {
       dbCalls += 1;
-      return { data: id === SERIES ? { id, publication_status: "public" } : null, error: null };
+      const known = Array.from({ length: SERIES_COUNT }, (_, i) => seriesIdOf(i + 1));
+      return { data: known.includes(id) ? { id, publication_status: "public" } : null, error: null };
     },
     findRecording: async (id) => {
       dbCalls += 1;
@@ -225,10 +271,13 @@ function makeHarness(options: { cap?: number; countFails?: boolean } = {}) {
         error: null,
       };
     },
-    countActorRows: async (table, sessionId) => {
+    listActorSeriesIds: async (table, sessionId, limit) => {
       dbCalls += 1;
       if (options.countFails) return null;
-      return store[table].filter((row) => row.session_id === sessionId).length;
+      return store[table]
+        .filter((row) => row.session_id === sessionId)
+        .slice(0, limit)
+        .map((row) => row.series_id);
     },
     insertEvent: async (table, row) => {
       dbCalls += 1;
@@ -241,6 +290,7 @@ function makeHarness(options: { cap?: number; countFails?: boolean } = {}) {
     },
     now: () => new Date("2026-11-14T03:00:00Z"),
     dailyRowCap: options.cap,
+    dailySeriesRowCap: options.seriesCap,
     onSkip: (reason) => skips.push(reason),
   };
   return { store, skips, deps, dbCalls: () => dbCalls };
@@ -268,8 +318,8 @@ function post(
   });
 }
 
-function view(n: number) {
-  return { kind: "series_view", seriesId: SERIES, episodeId: episodeId(n), episodeNumber: n };
+function view(n: number, s = 1) {
+  return { kind: "series_view", seriesId: seriesIdOf(s), episodeId: episodeId(n, s), episodeNumber: n };
 }
 
 async function main() {
@@ -334,37 +384,110 @@ async function main() {
     assert.deepEqual(t.skips, ["automation_user_agent"]);
   }
 
-  // Ordinary binge reading: 80 episodes in one JST day from one actor all count.
+  // Ordinary binge reading of one work: 30 episodes in one JST day all count.
   {
     const t = makeHarness();
-    for (let n = 1; n <= 80; n += 1) {
+    for (let n = 1; n <= POPULARITY_DAILY_SERIES_ROW_CAP; n += 1) {
       const res = await handlePopularityEvent(post(view(n)), t.deps);
-      assert.equal(res.status, 200, `episode ${n} of a binge read must be recorded`);
+      assert.equal(res.status, 200, `episode ${n} of a one-work binge must be recorded`);
+    }
+    assert.equal(t.store.series_view_events.length, POPULARITY_DAILY_SERIES_ROW_CAP);
+    assert.deepEqual(t.skips, []);
+  }
+
+  // Ordinary reading across works: 80 episodes over 3 works (30+30+20) all count.
+  {
+    const t = makeHarness();
+    for (const [s, count] of [[1, 30], [2, 30], [3, 20]] as const) {
+      for (let n = 1; n <= count; n += 1) {
+        const res = await handlePopularityEvent(post(view(n, s)), t.deps);
+        assert.equal(res.status, 200, `series ${s} episode ${n} must be recorded`);
+      }
     }
     assert.equal(t.store.series_view_events.length, 80);
     assert.deepEqual(t.skips, []);
   }
 
-  // Cap boundary: exactly `cap` rows, then the next new episode is not recorded.
+  // Per-series cap boundary: 30th row recorded, 31st not; another work still is.
   {
     const t = makeHarness();
-    for (let n = 1; n <= POPULARITY_DAILY_ROW_CAP; n += 1) {
+    for (let n = 1; n <= POPULARITY_DAILY_SERIES_ROW_CAP; n += 1) {
       const res = await handlePopularityEvent(post(view(n)), t.deps);
-      assert.equal(res.status, 200, `row ${n} (<= cap) must be recorded`);
+      assert.equal(res.status, 200, `row ${n} (<= series cap) must be recorded`);
+    }
+    const over = await handlePopularityEvent(
+      post(view(POPULARITY_DAILY_SERIES_ROW_CAP + 1)),
+      t.deps
+    );
+    assert.equal(over.status, 202);
+    assert.deepEqual(await over.json(), { ok: true, recorded: false });
+    assert.equal(t.store.series_view_events.length, POPULARITY_DAILY_SERIES_ROW_CAP);
+    assert.deepEqual(t.skips, ["daily_series_cap_reached"]);
+
+    const otherWork = await handlePopularityEvent(post(view(1, 2)), t.deps);
+    assert.equal(otherWork.status, 200, "a different work must still be recorded");
+    assert.equal(t.store.series_view_events.length, POPULARITY_DAILY_SERIES_ROW_CAP + 1);
+
+    // Another actor reading the capped work is unaffected.
+    const otherActor = await handlePopularityEvent(
+      post(view(POPULARITY_DAILY_SERIES_ROW_CAP + 1), {
+        ...READER_HEADERS,
+        "x-forwarded-for": "203.0.113.77",
+      }),
+      t.deps
+    );
+    assert.equal(otherActor.status, 200);
+  }
+
+  // Total cap with the per-series cap: 30+30+30+10 = 100 rows over 4 works,
+  // then the 101st is refused as total even on a fresh work (series 5), and
+  // the per-series refusal still applies to a full work.
+  {
+    const t = makeHarness();
+    for (const [s, count] of [[1, 30], [2, 30], [3, 30], [4, 10]] as const) {
+      for (let n = 1; n <= count; n += 1) {
+        const res = await handlePopularityEvent(post(view(n, s)), t.deps);
+        assert.equal(res.status, 200, `series ${s} episode ${n} must be recorded`);
+      }
     }
     assert.equal(t.store.series_view_events.length, POPULARITY_DAILY_ROW_CAP);
-    const over = await handlePopularityEvent(post(view(POPULARITY_DAILY_ROW_CAP + 1)), t.deps);
-    assert.equal(over.status, 202);
-    assert.equal(t.store.series_view_events.length, POPULARITY_DAILY_ROW_CAP);
+    const fresh = await handlePopularityEvent(post(view(1, 5)), t.deps);
+    assert.equal(fresh.status, 202);
     assert.deepEqual(t.skips, ["daily_cap_reached"]);
+    assert.equal(t.store.series_view_events.length, POPULARITY_DAILY_ROW_CAP);
 
-    // A different actor (another IP) is unaffected by the first actor's cap.
+    // A different actor (another IP) is unaffected by the first actor's caps.
     const other = await handlePopularityEvent(
       post(view(1), { ...READER_HEADERS, "x-forwarded-for": "203.0.113.99" }),
       t.deps
     );
     assert.equal(other.status, 200);
     assert.equal(t.store.series_view_events.length, POPULARITY_DAILY_ROW_CAP + 1);
+  }
+
+  // Before the total cap, a full work is refused with the per-series reason.
+  {
+    const t = makeHarness();
+    for (let n = 1; n <= 30; n += 1) await handlePopularityEvent(post(view(n, 1)), t.deps);
+    for (let n = 1; n <= 10; n += 1) await handlePopularityEvent(post(view(n, 2)), t.deps);
+    const res = await handlePopularityEvent(post(view(31, 1)), t.deps);
+    assert.equal(res.status, 202);
+    assert.deepEqual(t.skips, ["daily_series_cap_reached"]);
+  }
+
+  // Recording plays use the same two levels (the table carries series_id).
+  {
+    const t = makeHarness({ seriesCap: 1 });
+    const play = () =>
+      handlePopularityEvent(
+        post({ kind: "recording_play", seriesId: SERIES, episodeId: episodeId(1), recordingId: RECORDING }),
+        t.deps
+      );
+    assert.equal((await play()).status, 200);
+    // Same recording again is a duplicate, and now also over the series cap.
+    assert.equal((await play()).status, 202);
+    assert.deepEqual(t.skips, ["daily_series_cap_reached"]);
+    assert.equal(t.store.recording_play_events.length, 1);
   }
 
   // The cap is per table: a capped view actor can still log a narration play.
@@ -377,6 +500,17 @@ async function main() {
     );
     assert.equal(play.status, 200);
     assert.equal(t.store.recording_play_events.length, 1);
+  }
+
+  // Review S3-1 through the handler: Origin null + same-origin records a row.
+  {
+    const t = makeHarness();
+    const res = await handlePopularityEvent(
+      post(view(1), { ...READER_HEADERS, origin: "null", "sec-fetch-site": "same-origin" }),
+      t.deps
+    );
+    assert.equal(res.status, 200);
+    assert.equal(t.store.series_view_events.length, 1);
   }
 
   // Unknown count (database error) fails closed for ranking input.

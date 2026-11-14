@@ -5,10 +5,11 @@
 
 import { createHash } from "crypto";
 import {
-  classifyPopularityDailyCap,
+  classifyPopularityActorCaps,
   classifyPopularityIngestRequest,
   logPopularityIngestSkip,
   POPULARITY_DAILY_ROW_CAP,
+  POPULARITY_DAILY_SERIES_ROW_CAP,
   type PopularityIngestSkipReason,
 } from "@/lib/popularityIngestGuard";
 
@@ -48,11 +49,17 @@ export type PopularityIngestDeps = {
   findEpisode: (episodeId: string) => Promise<DbResult<PopularityEpisodeRow>>;
   findSeries: (seriesId: string) => Promise<DbResult<PopularitySeriesRow>>;
   findRecording: (recordingId: string) => Promise<DbResult<PopularityRecordingRow>>;
-  /** Rows this actor (session_id) already has in `table`. null = unknown. */
-  countActorRows: (
+  /**
+   * series_id of the rows this actor (session_id) already has in `table`,
+   * at most `limit` of them. null = could not be read.
+   * Filter on session_id only, so the (session_id, episode_id|recording_id)
+   * unique index serves the lookup.
+   */
+  listActorSeriesIds: (
     table: PopularityEventTable,
-    sessionId: string
-  ) => Promise<number | null>;
+    sessionId: string,
+    limit: number
+  ) => Promise<string[] | null>;
   /** Insert ignoring (session_id, episode_id|recording_id) duplicates. */
   insertEvent: (
     table: PopularityEventTable,
@@ -60,6 +67,7 @@ export type PopularityIngestDeps = {
   ) => Promise<{ error: unknown }>;
   now?: () => Date;
   dailyRowCap?: number;
+  dailySeriesRowCap?: number;
   onSkip?: (reason: PopularityIngestSkipReason) => void;
 };
 
@@ -223,15 +231,26 @@ export async function handlePopularityEvent(
   const table: PopularityEventTable =
     kind === "series_view" ? "series_view_events" : "recording_play_events";
 
-  // 2. Per actor-day cap. session_id already encodes the JST day, so the
-  // actor's rows in this table are exactly today's rows. Counted in the app
+  // 2. Two-level actor-day cap: total per event table, then per series.
+  // session_id already encodes the JST day, so the actor's rows in this table
+  // are exactly today's rows. One read returns up to `totalCap` series ids:
+  // below the total cap that is every row (exact per-series count); at the
+  // total cap the request is refused anyway. Counted in the app
   // (count-then-insert); concurrent requests can overshoot by at most the
   // number in flight, which is acceptable for a ranking backstop.
-  const existingRows = await deps.countActorRows(table, canonicalSessionId);
-  const capDecision = classifyPopularityDailyCap(
-    existingRows ?? Number.NaN,
-    deps.dailyRowCap ?? POPULARITY_DAILY_ROW_CAP
+  // Both tables carry series_id, so recording plays use the same two levels.
+  const totalCap = deps.dailyRowCap ?? POPULARITY_DAILY_ROW_CAP;
+  const actorSeriesIds = await deps.listActorSeriesIds(
+    table,
+    canonicalSessionId,
+    totalCap
   );
+  const capDecision = classifyPopularityActorCaps({
+    actorSeriesIds,
+    seriesId: requestedSeriesId,
+    totalCap,
+    seriesCap: deps.dailySeriesRowCap ?? POPULARITY_DAILY_SERIES_ROW_CAP,
+  });
   if (!capDecision.accept) {
     return skipped(capDecision.reason, onSkip);
   }

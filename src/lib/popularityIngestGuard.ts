@@ -26,7 +26,8 @@ export type PopularityIngestSkipReason =
   | "foreign_origin"
   | "foreign_referer"
   | "missing_origin_and_referer"
-  | "daily_cap_reached";
+  | "daily_cap_reached"
+  | "daily_series_cap_reached";
 
 export type PopularityIngestDecision =
   | { accept: true }
@@ -50,6 +51,19 @@ export type PopularityIngestDecision =
  * against a single-source flood, not the primary crawler defence.
  */
 export const POPULARITY_DAILY_ROW_CAP = 100;
+
+/**
+ * Maximum number of rows one actor may add to ONE series per JST day, per
+ * event table (owner decision on PR #189, 2026-11-14).
+ *
+ * The total cap above only turns "unlimited" into 100, which is still large
+ * next to the current traffic (a handful of honest rows per actor-day), and
+ * 100 rows on one series is enough to move the ranking on its own. Ranking is
+ * per series, so the per-series cap is the one that bounds how far one actor
+ * can push one work. Honest maximum observed: 7 rows per actor-day in total;
+ * 30 still covers reading 30 episodes of one work in a day.
+ */
+export const POPULARITY_DAILY_SERIES_ROW_CAP = 30;
 
 // Declared crawlers / AI agents / link-preview fetchers. Matched
 // case-insensitively against the User-Agent. Kept explicit so that phone model
@@ -233,6 +247,12 @@ export function classifyPopularityRequestSource(
   const ownHost = requestHost(headers, requestUrl);
   const origin = headers.get("origin");
   // Browsers send Origin on every POST fetch, including same-origin ones.
+  // `Origin: null` (opaque origin, e.g. some privacy modes) carries no site
+  // information. When the browser also says same-origin, accept it: both
+  // headers are client-controlled anyway, so this does not weaken the check.
+  if (origin?.trim() === "null" && fetchSite === "same-origin") {
+    return { accept: true };
+  }
   if (origin !== null && origin.trim() !== "") {
     const originHost = hostOf(origin);
     if (!originHost || !ownHost || originHost !== ownHost) {
@@ -277,6 +297,33 @@ export function classifyPopularityDailyCap(
   }
   return existingRows >= cap
     ? { accept: false, reason: "daily_cap_reached" }
+    : { accept: true };
+}
+
+/**
+ * Two-level cap. `actorSeriesIds` is the series_id of each row this actor
+ * already stored today in one event table (null = could not be read).
+ * The total cap is checked first, then the per-series cap for `seriesId`.
+ */
+export function classifyPopularityActorCaps(args: {
+  actorSeriesIds: readonly string[] | null;
+  seriesId: string;
+  totalCap?: number;
+  seriesCap?: number;
+}): PopularityIngestDecision {
+  if (args.actorSeriesIds === null) {
+    // Unknown count: fail closed for ranking input (the reader is unaffected).
+    return { accept: false, reason: "daily_cap_reached" };
+  }
+  const total = classifyPopularityDailyCap(
+    args.actorSeriesIds.length,
+    args.totalCap ?? POPULARITY_DAILY_ROW_CAP
+  );
+  if (!total.accept) return total;
+
+  const seriesRows = args.actorSeriesIds.filter((id) => id === args.seriesId).length;
+  return seriesRows >= (args.seriesCap ?? POPULARITY_DAILY_SERIES_ROW_CAP)
+    ? { accept: false, reason: "daily_series_cap_reached" }
     : { accept: true };
 }
 

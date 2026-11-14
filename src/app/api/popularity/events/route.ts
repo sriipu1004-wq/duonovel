@@ -54,17 +54,19 @@ export async function POST(request: Request) {
         .maybeSingle();
       return { data: data as PopularityRecordingRow | null, error };
     },
-    countActorRows: async (table, sessionId) => {
-      // Uses the (session_id, episode_id|recording_id) unique index.
-      const { count, error } = await db()
+    listActorSeriesIds: async (table, sessionId, limit) => {
+      // Filters on session_id only: the leading column of the
+      // (session_id, episode_id|recording_id) unique index.
+      const { data, error } = await db()
         .from(table)
-        .select("session_id", { count: "exact", head: true })
-        .eq("session_id", sessionId);
-      if (error) {
+        .select("series_id")
+        .eq("session_id", sessionId)
+        .limit(limit);
+      if (error || !Array.isArray(data)) {
         console.error("[popularity-ingest-count]", error);
         return null;
       }
-      return count ?? 0;
+      return data.map((row) => String((row as { series_id: unknown }).series_id));
     },
     insertEvent: async (table, row) => {
       const { error } = await db()
