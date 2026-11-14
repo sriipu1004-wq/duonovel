@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { readSelfChosenDisplayName } from "@/lib/auth/selfChosenDisplayName";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { localizePath } from "@/i18n/navigation";
 import { RecordingLegalFooter } from "@/components/recording/RecordingLegalFooter";
@@ -116,13 +117,9 @@ function resolveCurrentUserReaderName(
     return fromPublicUser;
   }
 
-  const metadata = user?.user_metadata ?? {};
-  return (
-    (typeof metadata.display_name === "string" && metadata.display_name.trim()) ||
-    (typeof metadata.name === "string" && metadata.name.trim()) ||
-    (typeof metadata.full_name === "string" && metadata.full_name.trim()) ||
-    ""
-  );
+  // Only a self-chosen name; provider real names (name/full_name) are never
+  // used as the public reader name (Issue #142 PR1).
+  return readSelfChosenDisplayName(user?.user_metadata);
 }
 
 async function fetchExistingRecordingsForSeriesUser(

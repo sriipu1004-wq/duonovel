@@ -1,0 +1,70 @@
+name: P7 auth identity and callback check
+
+# Issue #142 (Google sign-in) PR1: provider real names must never become
+# public display names, and /auth/callback failures use fixed localized codes.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/p7-auth-identity-check.yml"
+      - "src/app/auth/callback/**"
+      - "src/app/login/**"
+      - "src/app/mypage/page.tsx"
+      - "src/app/register/**"
+      - "src/app/record/create/**"
+      - "src/app/api/account/**"
+      - "src/app/api/recordings/human-publish/**"
+      - "src/app/api/recordings/human-upload-finalize/**"
+      - "src/features/comment/**"
+      - "src/features/review/**"
+      - "src/i18n/dictionaries/auth.ts"
+      - "src/lib/auth/**"
+      - "scripts/test-auth-identity-callback.ts"
+      - "scripts/test-auth-login-redirect.ts"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Auth identity and callback error regression
+        run: npm run test:auth-identity-callback
+      - name: Auth redirect regression
+        run: npm run test:auth-login-redirect
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: ESLint
+        run: >-
+          npx eslint
+          scripts/test-auth-identity-callback.ts
+          src/lib/auth/authCallbackError.ts
+          src/lib/auth/selfChosenDisplayName.ts
+          src/app/auth/callback/route.ts
+          src/app/login/LoginPageClient.tsx
+          src/app/api/account/content-preferences/route.ts
+          src/app/api/recordings/human-publish/route.ts
+          src/app/api/recordings/human-upload-finalize/route.ts
+          src/app/mypage/page.tsx
+          "src/app/record/create/[seriesId]/page.tsx"
+          src/features/comment/EpisodeCommentSection.tsx
+          src/features/review/SeriesReviewSection.tsx
+          src/i18n/dictionaries/auth.ts
+      - name: Next build (offline synthetic public configuration)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.invalid
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-only-non-production-placeholder
+          SUPABASE_SERVICE_ROLE_KEY: ci-only-no-privileges-placeholder
+        run: npm run build

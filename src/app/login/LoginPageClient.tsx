@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeNextPath } from "@/lib/auth/accountSignupConsent";
+import { resolveAuthCallbackNoticeKey } from "@/lib/auth/authCallbackError";
 import { stripUiLocalePrefix } from "@/i18n/config";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { authDictionaries } from "@/i18n/dictionaries/auth";
@@ -65,12 +66,17 @@ export default function LoginPageClient() {
   // links are recognisable by their `next` (same test as /auth/callback) and
   // get their own guidance; the rest get wording valid for signup and email
   // link alike (Issue #138, 2026-11-07).
-  const confirmCallbackFailed =
-    searchParams.get("error") === "email_confirm_callback_failed";
+  // Issue #142 PR1: missing codes and provider (OAuth) errors arrive as fixed
+  // codes too. Each code maps to localized wording; the provider's own
+  // error_description is never shown.
   const normalizedNext = stripUiLocalePrefix(nextPath);
   const failedLinkWasPasswordReset =
     normalizedNext === "/reset-password" ||
     normalizedNext.startsWith("/reset-password?");
+  const callbackNoticeKey = resolveAuthCallbackNoticeKey(
+    searchParams.get("error"),
+    failedLinkWasPasswordReset
+  );
 
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
@@ -115,14 +121,13 @@ export default function LoginPageClient() {
   // URL-derived notice; an explicit action message (setMessage) takes precedence.
   const urlNotice = confirmed
     ? dictionary.confirmed
-    : confirmCallbackFailed
-      ? failedLinkWasPasswordReset
-        ? dictionary.resetCallbackFailed
-        : dictionary.confirmCallbackFailed
+    : callbackNoticeKey
+      ? dictionary[callbackNoticeKey]
       : "";
   const displayedMessage = message || urlNotice;
-  // A failed email link is a warning, not a success notice.
-  const displayedMessageIsWarning = !message && !confirmed && confirmCallbackFailed;
+  // A failed callback is a warning, not a success notice.
+  const displayedMessageIsWarning =
+    !message && !confirmed && callbackNoticeKey !== null;
 
   async function handleSignIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

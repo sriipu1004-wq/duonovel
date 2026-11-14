@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
+import { SELF_CHOSEN_DISPLAY_NAME_KEYS } from "@/lib/auth/selfChosenDisplayName";
 import {
   buildAuthorPageHref,
   buildAuthorSeriesCards,
@@ -30,13 +31,11 @@ function readAuthMetadataText(metadata: unknown, key: string): string {
 function readAuthMetadataDisplayName(metadata: unknown): string {
   if (!metadata || typeof metadata !== "object") return "";
   const values = metadata as Record<string, unknown>;
-  for (const candidate of [
-    values.display_name,
-    values.displayName,
-    values.display_name_candidate,
-    values.name,
-    values.full_name,
-  ]) {
+  // Self-chosen keys only: provider real names (name/full_name) are never
+  // used as the display name (Issue #142 PR1).
+  for (const candidate of SELF_CHOSEN_DISPLAY_NAME_KEYS.map(
+    (key) => values[key]
+  )) {
     if (typeof candidate !== "string") continue;
     const text = candidate.trim();
     if (text && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) return text;

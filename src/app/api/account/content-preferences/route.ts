@@ -1,22 +1,17 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import {
+  NEUTRAL_DISPLAY_NAME_FALLBACK,
+  readSelfChosenDisplayName,
+} from "@/lib/auth/selfChosenDisplayName";
 
 export const runtime = "nodejs";
 
+// Never fall back to provider identity fields (name/full_name): this value is
+// saved to public.users.display_name (Issue #142 PR1).
 function readDisplayName(metadata: unknown): string {
-  if (!metadata || typeof metadata !== "object") return "ユーザー";
-  const row = metadata as Record<string, unknown>;
-  for (const value of [
-    row.display_name,
-    row.displayName,
-    row.display_name_candidate,
-    row.name,
-    row.full_name,
-  ]) {
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "ユーザー";
+  return readSelfChosenDisplayName(metadata) || NEUTRAL_DISPLAY_NAME_FALLBACK;
 }
 
 async function requireUser() {

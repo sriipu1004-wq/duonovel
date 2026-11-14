@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  isEmailOnlyAccount,
+  readSelfChosenDisplayName,
+} from "@/lib/auth/selfChosenDisplayName";
 
 type SeriesReviewSectionProps = {
   seriesId: string;
@@ -58,11 +62,13 @@ function resolveUserDisplayName(user: User | null | undefined): string {
 
   return (
     pickText(
-      metadata.display_name,
+      // Self-chosen names only. Provider real names (metadata.name) are never
+      // used, and the email local part is used only for email-only accounts:
+      // an OAuth account's address can itself be a real name (Issue #142 PR1).
+      readSelfChosenDisplayName(metadata),
       metadata.pen_name,
       metadata.username,
-      metadata.name,
-      user?.email?.split("@")[0]
+      isEmailOnlyAccount(user) ? user?.email?.split("@")[0] : ""
     ) || "ユーザー"
   );
 }

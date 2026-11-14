@@ -27,6 +27,7 @@ import {
 } from "@/lib/recording/recordingConsent";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { readSelfChosenDisplayName } from "@/lib/auth/selfChosenDisplayName";
 
 export const runtime = "nodejs";
 
@@ -59,12 +60,9 @@ function resolveReaderName(
   const publicName = readText(publicUserRow?.display_name);
   if (publicName) return publicName;
 
-  const metadata = user.user_metadata ?? {};
-  return (
-    readText(metadata.display_name) ||
-    readText(metadata.name) ||
-    readText(metadata.full_name)
-  );
+  // Only a self-chosen name; provider real names (name/full_name) are never
+  // published as the reader name (Issue #142 PR1).
+  return readSelfChosenDisplayName(user.user_metadata);
 }
 
 export async function POST(request: Request) {
