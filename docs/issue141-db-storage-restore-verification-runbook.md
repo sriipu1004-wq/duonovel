@@ -19,7 +19,7 @@
 | bucket | 公開：recording-audio、illustrations、bgm-library。非公開：human-recording-audio、ai-narration-private（どちらも object 0件） |
 | `metadata->>'eTag'` | 4,728件すべてにある。うち **2,396件は multipart 形式**（`-` を含む。recording-audio 2,394・bgm-library 2） |
 | object の名前 | recording-audio の **4,720件すべての名前に UUID が入り、うち6件は `auth.users` の id を含む**。名前の一覧は個人に結びつく情報として扱う（3-2） |
-| storage・auth の手直し | `storage` の RLS policy 6件。auth・storage の表にある trigger（内部用を除く）12件。これらは `db dump` の schema に入らない（2-6） |
+| storage・auth の object | **本番の手直し**：`storage.objects` の RLS policy 6件と、trigger `issue137_h2_stage_storage_guard`（`storage.objects`）1件。**サービス自身の object**：auth・storage の表の trigger（内部用を除く）12件のうち残りの11件（`storage.buckets` の9件、`storage.objects` の `protect_objects_delete`・`update_objects_updated_at`）と、`storage.bucket_lifecycle_states` などの表。どちらも `db dump` の schema に入らない（2-6）。auth の表には、内部用以外の trigger と policy は無かった |
 | auth の資格情報を持つ表 | `auth.refresh_tokens`、`auth.sessions`、`auth.flow_state`、`auth.one_time_tokens`、`auth.mfa_factors` がある（2-8） |
 | DB から Storage への参照 | `public.recordings.audio_storage_path` 2,277件（すべて URL 形式で `/recording-audio/` を含む）、`public.bgm_library.audio_path` 2件。`episodes.bgm_*`・`series.bgm_audio_path` は 0件。illustrations を参照する列は、列名の検索では見つからなかった（未確認。本文などに埋め込まれている可能性） |
 | `archive_mode` | `on`（#141 のコメント 6882158260）。これだけでは PITR が有効とは言えない（推論）。 |
@@ -40,10 +40,11 @@
 - 保持期間 7日：時間あたり $0.137（月約 $100）、14日：$0.274（月約 $200）、28日：$0.55（月約 $400）。
 - **PITR の add-on は Spend Cap の対象外**（上限を設けていても課金が止まらない）。
 - PITR を有効にすると、日次のバックアップは取られなくなる（backups の文書）。
-- compute の条件（2026-11-15 に確かめた2つの公式の出典）：
-  - <https://supabase.com/docs/guides/platform/backups> は「PITR には少なくとも Small の compute が要る」と書く。
-  - 上の PITR usage の文書は、条件を文として書かず、請求の例をすべて Small で示す。
-  - 独立レビュー（2026-11-15）は、公式の出典どうしで食い違いがあると指摘した。今回の検索では、条件を否定する文は見つからなかった。採用を検討するときは、その日の Dashboard の Add-ons の表示を正とし、日付つきで記録する。
+- compute の条件は、同じ公式の文書でも、見る経路で記述が違う（どちらも 2026-11-15 に確かめた）：
+  - 公開ページ <https://supabase.com/docs/guides/platform/backups>（ブラウザーで読める版）：「PITR is available on all compute sizes.」（compute の大きさを問わない）。
+  - Supabase MCP の search_docs の索引にある同じページの本文：「少なくとも Small の compute add-on が要る」。
+  - PITR usage の文書は、条件を文として書かず、請求の例をすべて Small で示す。
+  - 索引が古い版を持っている可能性がある（推論）。採用を検討するときは、その日の公開ページと Dashboard の Add-ons の表示を正とし、日付つきで記録する。
 
 ### 1-3. Pro の毎日のバックアップで「戻せるもの」と「戻せないもの」
 出典：<https://supabase.com/docs/guides/platform/backups>、<https://supabase.com/docs/guides/self-hosting/restore-from-platform>（2026-11-15 に search_docs で確かめた）。
@@ -115,9 +116,13 @@ psql --single-transaction --variable ON_ERROR_STOP=1 \
 - かかった時間（dump、戻す、照合のそれぞれ）を測る。
 
 ### 2-6. auth と storage の手直しを別に戻す
-- 公式の CLI の文書では、`db dump` の schema は **auth・storage・拡張機能が作る schema を除く**（<https://supabase.com/docs/reference/cli/supabase-db-dump>）。そのため、本番が auth・storage に加えた手直し（storage の RLS policy 6件、auth・storage の表の trigger など）は schema.sql に入らない。
+- 公式の CLI の文書では、`db dump` の schema は **auth・storage・拡張機能が作る schema を除く**（<https://supabase.com/docs/reference/cli/supabase-db-dump>）。そのため、本番が auth・storage に加えた手直し（`storage.objects` の RLS policy 6件と trigger `issue137_h2_stage_storage_guard`。0 節）は schema.sql に入らない。
 - 別に取り出す：`supabase db diff --schema auth,storage`（接続先の指定は 2-4 と同じく、固定した版の `--help` に従う）。公式の `db pull` の文書も、auth・storage の手直しは `--schema auth,storage` で取り込むよう書いている（<https://supabase.com/docs/reference/cli/supabase-db-pull>）。
 - 出てきた SQL を読み、DDL（policy・trigger・grant）だけであることを確かめてから、手元の DB に `psql` で流す。本番に流す命令ではないことを、接続先で確かめる。
+- **版の違いが出力に入った場合**：手元の stack の Storage・Auth のサービスの版が本番と違うと、diff に「本番の手直し」ではない差（サービス自身の表・列・関数・trigger の追加や削除）が混ざる。これは手元に流さない。出力を次の2つに分け、記録する。
+  - 本番の手直し（0 節の policy 6件と trigger 1件）：手元に流す。
+  - サービスの版の違い：流さず、「版の違い」の一覧に入れる（2-7 の schema の形の照合で説明に使う）。
+  - どちらか判断できない文は流さず、未確認として記録する。
 - この手順は 2-5 の後、2-7 の照合の前に行う。
 
 ### 2-7. 照合：表ごとの件数と主キーの hash、schema の形、grant
@@ -152,18 +157,30 @@ order by 1;
   | `storage.buckets_vectors` | 公式の backup-restore の手順が `-x` で除外している（vector の機能の表。本番での利用なし） |
   | `storage.vector_indexes` | 同上 |
 
-- **schema の形**：表・view・関数・RLS の policy・trigger の数を、schema（public・auth・storage）ごとに比べる（`pg_class`、`pg_proc`、`pg_policies`、`pg_trigger`）。storage の policy が 6件（2026-11-15）あることを確かめる。
+- **schema の形**：
+  - public：表・view・関数・RLS の policy・trigger の数を比べる（`pg_class`、`pg_proc`、`pg_policies`、`pg_trigger`）。
+  - auth・storage の **本番の手直し**：`storage.objects` の policy 6件（`pg_policies` の policyname）と trigger `issue137_h2_stage_storage_guard`（`pg_trigger` の tgname）が、**名前で一つずつ一致する**ことを求める。
+  - auth・storage の **サービス自身の object**（trigger の残り11件、`storage.bucket_lifecycle_states` などの表、関数）：数の一致は求めない。本番と手元の差を名前の一覧にし、手元の stack の版との違いとして説明できれば可とする。説明できない差は不一致とする。
 - **grant**：役割ごとの権限の一覧の hash を比べる。
 
   ```sql
-  select grantee, count(*) as n,
-         md5(string_agg(table_schema || '.' || table_name || ':' || privilege_type, ',' order by table_schema, table_name, privilege_type)) as grant_hash
-  from information_schema.role_table_grants
-  where table_schema in ('public', 'storage')
-    and grantee in ('anon', 'authenticated', 'service_role', 'postgres')
-  group by grantee order by grantee;
+  -- 表・view・sequence の ACL を pg_class.relacl から展開して比べる
+  -- （information_schema.role_table_grants は、実行する role から見える行に限られるので使わない）
+  select r.rolname as grantee, count(*) as n,
+         md5(string_agg(n.nspname || '.' || c.relname || ':' || a.privilege_type || ':' || a.is_grantable::text,
+                        ',' order by n.nspname, c.relname, a.privilege_type)) as grant_hash
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  cross join lateral aclexplode(c.relacl) a
+  join pg_roles r on r.oid = a.grantee
+  where n.nspname in ('public', 'storage')
+    and c.relkind in ('r', 'v', 'm', 'S', 'p')
+    and r.rolname in ('anon', 'authenticated', 'service_role', 'postgres')
+  group by r.rolname order by r.rolname;
   ```
-  関数の実行権限（`information_schema.routine_privileges`）も同じ形で比べる。
+  - `relacl` が NULL（既定の権限のまま）の表は、上の結果に出ない。その表の一覧も別に比べる（`where c.relacl is null`）。
+  - 関数の実行権限は、同じ形で `pg_proc.proacl` を `aclexplode` で展開して比べる。
+  - storage の表のうちサービス自身の表は、上の schema の形と同じく、差を一覧にして版の違いとして説明できれば可とする。
 - 2-4 で「動いている表」とした表の差は、dump の時刻の差として説明できるかを確かめ、説明できない差は不一致とする。
 
 ### 2-8. dump は秘密と同じに扱う。auth と個人データの扱い
@@ -235,6 +252,7 @@ order by 1;
 
 - 手元の stack の bucket（dump から戻した `storage.buckets`）があり、公開・非公開の設定が本番と同じであることを確かめる。
 - 手元のファイルを、**手元の** Storage に上げる。S3 の endpoint は `http://127.0.0.1:54321/storage/v1/s3`、region は `local`、鍵は `supabase status` が出す手元の鍵（S3 Authentication の文書の local development の値）。**endpoint が 127.0.0.1 であることを実行前に確かめる**。本番の endpoint を先にしない。ここでも `sync` は使わず `rclone copy`（元＝手元のフォルダ、先＝手元の Storage）を使い、先に `--dry-run` で流す。
+- dump から戻した `storage.objects` の行が手元に既にあるので、copy の道具が「先に同じものがある」と判断して上げずに飛ばす恐れがある。**必ず全件を上げる**よう、`rclone` なら `--no-check-dest`（先を調べずに全件を送る）を付ける。AWS CLI の `aws s3 cp --recursive` は既定で全件を送る。上げた後、上げた件数 = 一覧の件数であることを記録で確かめる。
 - 上げると、手元の `storage.objects` の行の metadata（ETag・時刻）は作り直されることがある（未確認）。そのため、戻した後の照合は size と、次の匿名の取得での `sha256` の一致で行う。
 - **匿名での取得**：鍵も JWT も付けずに、手元の公開 URL `http://127.0.0.1:54321/storage/v1/object/public/<bucket>/<name>` を全件 GET し、HTTP 200 と、`sha256` が manifest と一致することを確かめる。手元なので egress の費用は無い。
 - 非公開の bucket（いまは0件）に object がある場合は、匿名では取得できない（403 など）ことも確かめる。
@@ -281,7 +299,7 @@ where coalesce(audio_storage_path, '') <> '';
 
 ### 完了の条件（すべて満たしたときだけ「独立した復元を実証した」と書く）
 1. DB：主キーのある全表で、件数と `pk_hash` が本番の基準値と一致する。違いはすべて dump の時刻の差として説明できる。data dump が除外する表（`auth.schema_migrations`、`storage.migrations`、`storage.buckets_vectors`、`storage.vector_indexes`）は対象外とし、理由を記録する。
-2. DB：schema の形（表・view・関数・policy・trigger の数）と grant の hash が一致する。auth・storage の手直し（storage の RLS policy 6件など）を 2-6 の手順で別に戻し、それも一致する。
+2. DB：public の schema の形（表・view・関数・policy・trigger の数）と grant の hash が一致する。auth・storage の本番の手直し（`storage.objects` の policy 6件と trigger `issue137_h2_stage_storage_guard`）を 2-6 の手順で別に戻し、**名前で一つずつ一致**する。Storage・Auth のサービス自身の object（trigger の残り11件、`storage.bucket_lifecycle_states` などの表）の差は、手元の版との違いとして一覧にし、すべて説明できる。
 3. Storage の複製：bucket ごとの件数、各 object の size と ETag が `storage.objects` と一致する。取得に失敗した object が 0件。
 4. Storage の復元：手元の Storage に全件を戻し、匿名で全件を取得でき、`sha256` が manifest と一致する。grant が本番と同じ。
 5. 結合：DB が参照する Storage の path がすべて手元の Storage にあり、Reader の音声1件を DB から object まで通しで解決できる。
@@ -305,7 +323,8 @@ where coalesce(audio_storage_path, '') <> '';
 | 主キーの無い表（件数のみ） | | | |
 | 表・view・関数・policy・trigger の数 | | | |
 | grant の hash（anon・authenticated・service_role・postgres） | | | |
-| auth・storage の手直し（policy・trigger） | | | |
+| auth・storage の本番の手直し（policy 6件・trigger 1件、名前で一致） | | | |
+| サービス自身の object の差（版の違いとして説明できたもの／できないもの） | | | |
 - 除外した表と理由：<…>
 - dump の sha256：roles <…>／schema <…>／data <…>
 - 時間：dump <分>、戻す <分>、照合 <分>
@@ -359,9 +378,11 @@ where coalesce(audio_storage_path, '') <> '';
 - Management API の応答の項目名。
 - 物理の日次バックアップを Dashboard からダウンロードできるか。
 - CLI の `--db-url` の非推奨と `--remote=` への置き換え、stderr の `Target:` の行（独立レビューの指摘。2026-11-15 の公式文書では確かめられなかった。固定した版の `--help` と実際の出力で確かめる）。
+  - 代わりの手順：その版が `Target:` の行を出さないときは、実行前に、渡す接続文字列の host 部分（本番なら `nyxbnccuvmlzffgtdadi` を含む host、手元なら `127.0.0.1` か `localhost`）を、password を表示しない形で確かめてから実行する。
 - CLI の data dump が `auth.schema_migrations`・`storage.migrations` を既定で除くか（独立レビューの指摘。data.sql で確かめる）。
+  - 代わりの手順：data.sql にこれらの表の COPY があったときは、`-x "auth.schema_migrations" -x "storage.migrations"` を足して data の dump をやり直す（2-4）。
 - `db diff --schema auth,storage` が本番に対して読み取りだけで済むか（固定した版の文書・`--help` で確かめる）。
-- PITR の compute の条件についての、公式の出典どうしの食い違い（1-2）。
+- PITR の compute の条件（公開ページと search_docs の索引で記述が違う。1-2）。
 - 公開 URL の応答に、`storage.objects` と同じ ETag が返るか。公開 URL の取得が cached と uncached のどちらの egress に数えられるか。
 - 手元の Storage に上げたとき、`storage.objects` の metadata がどう作り直されるか。
 - illustrations の object を DB のどこが参照しているか。
