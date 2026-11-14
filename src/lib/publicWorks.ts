@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { cache } from "react";
 import { headers } from "next/headers";
 import { createPublicServerClient } from "@/lib/supabase/serverPublic";
 import {
@@ -294,20 +295,23 @@ function summarizeLegacyEpisodes(
 }
 
 async function fetchPublicEpisodeSummariesBySeriesIds(
-  seriesIds: string[]
+  seriesIds?: string[]
 ): Promise<Map<string, PublicEpisodeWorkSummary>> {
-  if (seriesIds.length === 0) return new Map();
+  if (seriesIds?.length === 0) return new Map();
   const supabase = createPublicServerClient();
   const PAGE_SIZE = 1000;
   const summaries = new Map<string, PublicEpisodeWorkSummary>();
 
   for (let start = 0; ; start += PAGE_SIZE) {
-    const { data, error } = await supabase
+    // The view itself requires public series plus posted, published episodes.
+    // Reading all rows lets the public series query run concurrently.
+    let query = supabase
       .from("public_episode_work_summaries")
       .select(
         "series_id, episode_count, first_episode_id, first_episode_number, first_posted_at, latest_posted_at, public_episode_numbers"
-      )
-      .in("series_id", seriesIds)
+      );
+    if (seriesIds) query = query.in("series_id", seriesIds);
+    const { data, error } = await query
       .order("series_id", { ascending: true })
       .range(start, start + PAGE_SIZE - 1);
 
@@ -315,14 +319,15 @@ async function fetchPublicEpisodeSummariesBySeriesIds(
       // Preview / rollout environments may not have the approved migration yet.
       // Do not fall back on transient DB timeouts or permission failures.
       if (start === 0 && isMissingEpisodeSummaryView(error)) {
-        return summarizeLegacyEpisodes(await fetchEpisodesBySeriesIds(seriesIds));
+        const fallbackIds = seriesIds ?? (await fetchPublicSeriesRows()).map((series) => series.id);
+        return summarizeLegacyEpisodes(await fetchEpisodesBySeriesIds(fallbackIds));
       }
       throw new Error(`public episode summaries の取得に失敗: ${error.message}`);
     }
 
     const rows = (data ?? []) as PublicEpisodeWorkSummary[];
     for (const summary of rows) {
-      if (seriesIds.includes(summary.series_id)) {
+      if (!seriesIds || seriesIds.includes(summary.series_id)) {
         summaries.set(summary.series_id, summary);
       }
     }
@@ -408,22 +413,29 @@ function makePublicBaseWorkCard(
   } satisfies PublicBaseWorkCard;
 }
 
-async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
-  const publicSeries = await fetchPublicSeriesRows();
-  if (publicSeries.length === 0) return [];
-
-  const authorIds = Array.from(
-    new Set(
-      publicSeries
-        .map((series) => pickText(series.author_id, series["user_id"], series["userId"]))
-        .filter((value): value is string => !!value)
-    )
-  );
-
-  const [authorAccountMap, summariesBySeriesId] = await Promise.all([
-    fetchAuthorAccountMap(authorIds),
-    fetchPublicEpisodeSummariesBySeriesIds(publicSeries.map((series) => series.id)),
+async function buildPublicBaseWorkCards(includeAuthorDisplayNames = true): Promise<PublicBaseWorkCard[]> {
+  // Fresh public series and posted-only episode summaries begin concurrently.
+  // Start the author lookup as soon as series resolves, without waiting for summaries.
+  const publicSeriesPromise = fetchPublicSeriesRows();
+  const summariesPromise = fetchPublicEpisodeSummariesBySeriesIds();
+  const authorsPromise = publicSeriesPromise.then((publicSeries) => {
+    // Count-only consumers never render author names.
+    if (!includeAuthorDisplayNames) return new Map<string, PublicAuthorAccount>();
+    const authorIds = Array.from(
+      new Set(
+        publicSeries
+          .map((series) => pickText(series.author_id, series["user_id"], series["userId"]))
+          .filter((value): value is string => !!value)
+      )
+    );
+    return fetchAuthorAccountMap(authorIds);
+  });
+  const [publicSeries, summariesBySeriesId, authorAccountMap] = await Promise.all([
+    publicSeriesPromise,
+    summariesPromise,
+    authorsPromise,
   ]);
+  if (publicSeries.length === 0) return [];
 
   return publicSeries
     .map((series) => makePublicBaseWorkCard(series, summariesBySeriesId.get(series.id), authorAccountMap))
@@ -494,11 +506,12 @@ export async function getPublicWorkMetadataCardById(seriesId: string): Promise<P
   return work;
 }
 
-const getCachedPublicBaseWorkCardsInternal = unstable_cache(
-  buildPublicBaseWorkCards,
-  ["public-base-work-cards-v12-canonical-source-language"],
-  { revalidate: 60, tags: ["public-base-work-cards"] }
-);
+// #137: Publication/R18-sensitive public work metadata must not outlive a
+// request. An in-flight stale unstable_cache revalidation can finish after
+// updateTag/revalidateTag and repopulate withdrawn or reclassified work cards.
+// React cache deduplicates callers in the same render without cross-request
+// stale public title, summary, episode, or content-rating exposure.
+const getCachedPublicBaseWorkCardsInternal = cache(buildPublicBaseWorkCards);
 
 function prioritizeForLocale(cards: PublicBaseWorkCard[], locale: "ja" | "en" | "ko"): PublicBaseWorkCard[] {
   return cards
@@ -517,8 +530,10 @@ export async function getCachedPublicBaseWorkCards(options?: {
   ignoreContentLanguageFilter?: boolean;
   ignorePublicSearchLanguageFilter?: boolean;
   prioritizeForUiLocale?: boolean;
+  /** Internal-only count API optimization; callers must not expose author names. */
+  omitAuthorDisplayNames?: boolean;
 }): Promise<PublicBaseWorkCard[]> {
-  const cards = await getCachedPublicBaseWorkCardsInternal();
+  const cards = await getCachedPublicBaseWorkCardsInternal(options?.omitAuthorDisplayNames !== true);
   const visibility = options?.visibility ?? "viewer";
 
   if (visibility === "all") return cards;

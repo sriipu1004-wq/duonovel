@@ -25,7 +25,7 @@ export default async function RankingPage() {
     workCards = await runReadOnlyWithRetry(
       () =>
         getCachedPublicBaseWorkCards({
-          visibility: "all",
+          visibility: "viewer",
           ignoreContentLanguageFilter: true,
           ignorePublicSearchLanguageFilter: true,
           prioritizeForUiLocale: false,

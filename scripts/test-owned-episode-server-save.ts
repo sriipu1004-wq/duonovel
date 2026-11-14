@@ -71,6 +71,8 @@ assert.ok(action.includes('code: "cache_invalidation_failed"'));
 assert.ok(action.includes("persisted: true"));
 assert.equal(action.includes("service_role"), false);
 assert.equal(action.includes('revalidateTag(PUBLIC_WORKS_CACHE_TAG, "max")'), false);
-assert.ok(works.includes('{ revalidate: 60, tags: ["public-base-work-cards"] }'));
+// #137: cached public metadata may not persist between requests even when tags expire.
+assert.ok(works.includes("const getCachedPublicBaseWorkCardsInternal = cache(buildPublicBaseWorkCards);"));
+assert.equal(works.includes('unstable_cache(\n  buildPublicBaseWorkCards,'), false);
 
 console.log("PASS: owner/RLS episode mutations, strict status input, non-SWR cache expiration");
