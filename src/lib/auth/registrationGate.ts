@@ -61,7 +61,54 @@ function identitiesOf(user: RegistrationUserLike | null | undefined): IdentityLi
   return Array.isArray(user?.identities) ? user!.identities! : [];
 }
 
-/** The most recently attached Google identity, or null. */
+/**
+ * A timestamptz text from the Auth API as epoch MICROseconds (the precision
+ * PostgreSQL stores), or null when it cannot be read. Date.parse alone keeps
+ * only milliseconds, and comparing the raw strings breaks when the fraction
+ * has a different number of digits or the offset is not "Z".
+ */
+export function parseTimestampMicros(value: unknown): number | null {
+  const text = readText(value);
+  const match = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.(\d+))?\s*(Z|[+-]\d{2}(?::?\d{2})?)?$/i.exec(text);
+  if (!match) return null;
+  const [, date, time, fraction = "", zoneText = "Z"] = match;
+  let zone = zoneText.toUpperCase();
+  if (zone !== "Z") {
+    const digits = zone.slice(1).replace(":", "").padEnd(4, "0");
+    zone = `${zone[0]}${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
+  }
+  const seconds = Date.parse(`${date}T${time}${zone}`);
+  if (!Number.isFinite(seconds)) return null;
+  const micros = Number((fraction + "000000").slice(0, 6));
+  return seconds * 1000 + micros;
+}
+
+/**
+ * Order used to pick the current Google identity. It must equal the SQL in
+ * public.account_google_consent_satisfied() (migration 20261115180000):
+ *   order by i.created_at desc nulls last, i.id desc
+ * - a later created_at comes first; a missing/unreadable created_at comes
+ *   after every readable one (NULLS LAST);
+ * - on a tie, the larger identity id comes first. auth.identities.id is a
+ *   uuid; PostgreSQL orders uuid by its 16 bytes, which equals comparing the
+ *   lowercase canonical text.
+ * Returns a negative number when `a` should be picked before `b`.
+ */
+export function compareGoogleIdentityRecency(a: IdentityLike, b: IdentityLike): number {
+  const aTime = parseTimestampMicros(a.created_at);
+  const bTime = parseTimestampMicros(b.created_at);
+  if (aTime !== bTime) {
+    if (aTime === null) return 1;
+    if (bTime === null) return -1;
+    return bTime - aTime;
+  }
+  const aId = readText(a.identity_id).toLowerCase();
+  const bId = readText(b.identity_id).toLowerCase();
+  if (aId === bId) return 0;
+  return aId > bId ? -1 : 1;
+}
+
+/** The current Google identity (same choice as the RLS function), or null. */
 export function findGoogleIdentity(
   user: RegistrationUserLike | null | undefined
 ): IdentityLike | null {
@@ -69,9 +116,7 @@ export function findGoogleIdentity(
     (identity) => readText(identity?.provider) === "google"
   );
   if (google.length === 0) return null;
-  return google.reduce((latest, identity) =>
-    readText(identity.created_at) > readText(latest.created_at) ? identity : latest
-  );
+  return [...google].sort(compareGoogleIdentityRecency)[0];
 }
 
 export function hasGoogleIdentity(
@@ -180,26 +225,6 @@ export function isBlockedFromWritesUntilRegistered(
 }
 
 export const REGISTRATION_REQUIRED_ERROR = "registration_required";
-
-/**
- * Issue #142 PR3b: POST /api/account/profile is also how STEP 2 saves the
- * public display name, so an account still in STEP 2 may write the display
- * name only. Any other public profile field (bio, x_url, note_url) is refused
- * until STEP 2 is complete. Email-only accounts are never blocked here.
- */
-export type ProfileWriteFields = {
-  bio: boolean;
-  xUrl: boolean;
-  noteUrl: boolean;
-};
-
-export function isProfileWriteBlockedUntilRegistered(
-  user: RegistrationUserLike | null | undefined,
-  fields: ProfileWriteFields
-): boolean {
-  if (!isBlockedFromWritesUntilRegistered(user)) return false;
-  return fields.bio || fields.xUrl || fields.noteUrl;
-}
 
 /**
  * Where /auth/callback sends a signed-in user (after a successful code

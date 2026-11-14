@@ -22,8 +22,10 @@ import {
   GOOGLE_CONSENT_IDENTITY_KEY,
   decideAuthCallbackDestination,
   hasConfirmedEmailIdentity,
+  compareGoogleIdentityRecency,
+  findGoogleIdentity,
   isBlockedFromWritesUntilRegistered,
-  isProfileWriteBlockedUntilRegistered,
+  parseTimestampMicros,
   resolveGoogleRegistrationState,
   type RegistrationUserLike,
 } from "../src/lib/auth/registrationGate";
@@ -41,7 +43,7 @@ import {
   ACCOUNT_TERMS_VERSION,
   buildCompletedAccountRegistrationMetadata,
 } from "../src/lib/auth/accountSignupConsent";
-import { checkConsentRequest, decideGoogleConsent } from "../src/lib/auth/googleConsent";
+import { checkConsentRequest, decideGoogleConsent, planConsentWrites } from "../src/lib/auth/googleConsent";
 import { OFFICIAL_ACCOUNT_EMAIL, isOfficialAccountUser } from "../src/lib/auth/officialAccount";
 import { isOfficialNarrationAccountUser } from "../src/lib/auth/officialNarrationAccount";
 import { authDictionaries } from "../src/i18n/dictionaries/auth";
@@ -167,10 +169,10 @@ function testConsentApiDecision() {
     acknowledgedPublicSurface: true,
   };
 
-  const ok = decideGoogleConsent({ user: google, payload: body, storedDisplayName: "PenName", now });
+  const ok = decideGoogleConsent({ user: google, payload: body, now });
   assert.equal(ok.ok, true);
   if (ok.ok) {
-    assert.equal(ok.alreadyRecorded, false);
+    assert.equal(ok.metadataRecorded, false);
     assert.equal(ok.identityId, GOOGLE_ID);
     assert.deepEqual(ok.row, {
       user_id: google.id,
@@ -196,23 +198,20 @@ function testConsentApiDecision() {
   const already = decideGoogleConsent({
     user: { ...google, app_metadata: { ...google.app_metadata, [GOOGLE_CONSENT_IDENTITY_KEY]: GOOGLE_ID } },
     payload: body,
-    storedDisplayName: "PenName",
     now,
   });
-  assert.equal(already.ok && already.alreadyRecorded, true);
+  assert.equal(already.ok && already.metadataRecorded, true);
 
   const refusals: Array<[string, Parameters<typeof decideGoogleConsent>[0], string, number]> = [
-    ["no user", { user: null, payload: body, storedDisplayName: "PenName", now }, "invalid_request", 400],
-    ["array body", { user: google, payload: [], storedDisplayName: "PenName", now }, "invalid_request", 400],
-    ["terms missing", { user: google, payload: { ...body, agreedToTerms: false }, storedDisplayName: "PenName", now }, "consent_missing", 400],
-    ["privacy as string", { user: google, payload: { ...body, agreedToPrivacy: "true" }, storedDisplayName: "PenName", now }, "consent_missing", 400],
-    ["public ack missing", { user: google, payload: { ...body, acknowledgedPublicSurface: undefined }, storedDisplayName: "PenName", now }, "consent_missing", 400],
-    ["empty name", { user: google, payload: { ...body, displayName: " " }, storedDisplayName: "", now }, "display_name_invalid", 400],
-    ["url name", { user: google, payload: { ...body, displayName: "https://x.example" }, storedDisplayName: "https://x.example", now }, "display_name_invalid", 400],
-    ["profile not saved", { user: google, payload: body, storedDisplayName: null, now }, "display_name_not_saved", 409],
-    ["other saved name", { user: google, payload: body, storedDisplayName: "Other", now }, "display_name_not_saved", 409],
-    ["email only", { user: { ...google, identities: [emailIdentity] }, payload: body, storedDisplayName: "PenName", now }, "no_google_identity", 409],
-    ["google without id", { user: { ...google, identities: [{ ...googleIdentity, identity_id: "" }] }, payload: body, storedDisplayName: "PenName", now }, "no_google_identity", 409],
+    ["no user", { user: null, payload: body, now }, "invalid_request", 400],
+    ["array body", { user: google, payload: [], now }, "invalid_request", 400],
+    ["terms missing", { user: google, payload: { ...body, agreedToTerms: false }, now }, "consent_missing", 400],
+    ["privacy as string", { user: google, payload: { ...body, agreedToPrivacy: "true" }, now }, "consent_missing", 400],
+    ["public ack missing", { user: google, payload: { ...body, acknowledgedPublicSurface: undefined }, now }, "consent_missing", 400],
+    ["empty name", { user: google, payload: { ...body, displayName: " " }, now }, "display_name_invalid", 400],
+    ["url name", { user: google, payload: { ...body, displayName: "https://x.example" }, now }, "display_name_invalid", 400],
+    ["email only", { user: { ...google, identities: [emailIdentity] }, payload: body, now }, "no_google_identity", 409],
+    ["google without id", { user: { ...google, identities: [{ ...googleIdentity, identity_id: "" }] }, payload: body, now }, "no_google_identity", 409],
   ];
   for (const [label, input, error, status] of refusals) {
     const result = decideGoogleConsent(input);
@@ -237,7 +236,7 @@ function testConsentApiDecision() {
       route.indexOf("checkConsentRequest(") < route.indexOf("request.json()"),
     "Content-Type and Origin are checked before the body is read"
   );
-  assert.equal(route.includes("user_metadata"), false, "consent is never written to user_metadata");
+  assert.equal(route.includes("user_metadata:"), false, "consent is never written to user_metadata");
   assert.ok(
     route.indexOf('from("account_consents").insert') < route.indexOf("updateUserById"),
     "the consent row is appended before app_metadata marks the account complete"
@@ -251,10 +250,19 @@ function testConsentApiDecision() {
   assert.ok(register.includes("await recordGoogleConsent(availableDisplayName)"));
   assert.equal(register.includes("buildGoogleConsentMetadata"), false);
   assert.equal(register.includes("GOOGLE_CONSENT_IDENTITY_KEY"), false);
+  // PR3c (PR #206 review S3-3): for a Google account the consent API saves
+  // the public display name itself, after the consent; the page does not
+  // save it first.
   assert.ok(
-    register.indexOf("await syncPublicUserProfile(availableDisplayName)") <
-      register.indexOf("await recordGoogleConsent(availableDisplayName)"),
-    "the public display name is saved before the consent (the API checks it)"
+    register.indexOf("await recordGoogleConsent(availableDisplayName)") <
+      register.indexOf("await syncPublicUserProfile(availableDisplayName)"),
+    "the consent is recorded before any public display-name save"
+  );
+  assert.ok(
+    register.replace(/\r\n/g, "\n").includes(
+      "if (!isGoogleAccount) {\n      try {\n        await syncPublicUserProfile(availableDisplayName);"
+    ),
+    "Google accounts do not call the profile route in STEP 2"
   );
   const gate = readFileSync("src/lib/auth/registrationGate.ts", "utf8");
   assert.ok(gate.includes("user?.app_metadata"));
@@ -551,10 +559,11 @@ function testWriteGateCoverage() {
   ] as const) {
     assert.ok(readFileSync(file, "utf8").includes(field), `${file} must compute ${field}`);
   }
-  // STEP 2's own profile save must stay reachable.
+  // PR3c: the profile route is fully gated; STEP 2 saves the display name
+  // through the consent API instead.
   assert.equal(
-    readFileSync("src/app/api/account/profile/route.ts", "utf8").includes("registrationRequiredResponse"),
-    false
+    readFileSync("src/app/api/account/profile/route.ts", "utf8").includes('registrationRequiredResponse(user, "text")'),
+    true
   );
   // The register page does not trust pre-existing flags for Google accounts.
   const register = readFileSync("src/app/register/page.tsx", "utf8");
@@ -673,35 +682,176 @@ function testPr3bMigrationSource() {
   assert.ok(workflow.includes("supabase/migrations/20261115180000_issue142_pr3b_identity_bound_consent.sql"));
 }
 
-function testProfileFieldGate() {
-  const none = { bio: false, xUrl: false, noteUrl: false };
+// PR3c (PR #206 review S3-3): POST /api/account/profile refuses every write
+// (display name included) until STEP 2 is complete; STEP 2 saves the display
+// name inside the consent API instead.
+function testProfileRouteGate() {
+  const route = readSource("src/app/api/account/profile/route.ts");
+  const post = route.slice(route.indexOf("export async function POST"));
+  const gateAt = post.indexOf('await registrationRequiredResponse(user, "text")');
+  assert.ok(gateAt > post.indexOf("supabase.auth.getUser()"), "gate after getUser");
+  assert.ok(gateAt < post.indexOf("createAdminClient()"), "gate before any service-role write");
+  assert.equal(route.includes("isProfileWriteBlockedUntilRegistered"), false);
+  const gate = readSource("src/lib/auth/registrationGate.ts");
+  assert.equal(gate.includes("isProfileWriteBlockedUntilRegistered"), false, "the display-name exception is gone");
+  // The same accounts the gate blocks are exactly the ones in STEP 2.
   const pending = user({ identities: [emailIdentity, googleIdentity], app_metadata: { providers: ["email", "google"] } });
   const done = user({
     identities: [emailIdentity, googleIdentity],
     app_metadata: { providers: ["email", "google"], [GOOGLE_CONSENT_IDENTITY_KEY]: GOOGLE_ID },
   });
-  const emailOnly = user({ identities: [emailIdentity] });
-  // STEP 2 saves the display name only: allowed before STEP 2.
-  assert.equal(isProfileWriteBlockedUntilRegistered(pending, none), false);
-  assert.equal(isProfileWriteBlockedUntilRegistered(emailOnly, none), false);
-  for (const field of ["bio", "xUrl", "noteUrl"] as const) {
-    const fields = { ...none, [field]: true };
-    assert.equal(isProfileWriteBlockedUntilRegistered(pending, fields), true, `${field} waits for STEP 2`);
-    assert.equal(isProfileWriteBlockedUntilRegistered(done, fields), false);
-    assert.equal(isProfileWriteBlockedUntilRegistered(emailOnly, fields), false);
+  assert.equal(isBlockedFromWritesUntilRegistered(pending), true);
+  assert.equal(isBlockedFromWritesUntilRegistered(done), false);
+  assert.equal(isBlockedFromWritesUntilRegistered(user({ identities: [emailIdentity] })), false);
+}
+
+// PR3c (PR #206 review S3-2): the app picks the same Google identity as
+//   order by i.created_at desc nulls last, i.id desc
+// in public.account_google_consent_satisfied().
+function testGoogleIdentityOrder() {
+  const A = "aaaaaaaa-0000-4000-8000-000000000000";
+  const B = "bbbbbbbb-0000-4000-8000-000000000000";
+  const C = "cccccccc-0000-4000-8000-000000000000";
+  const pick = (identities: Array<{ identity_id: string; created_at: string | null }>) =>
+    findGoogleIdentity({ identities: identities.map((i) => ({ provider: "google", ...i })) })?.identity_id;
+  const permutations = <T,>(items: T[]): T[][] =>
+    items.length <= 1
+      ? [items]
+      : items.flatMap((item, index) =>
+          permutations([...items.slice(0, index), ...items.slice(index + 1)]).map((rest) => [item, ...rest])
+        );
+
+  // Same created_at: the larger id wins, in every input order.
+  const tie = [
+    { identity_id: A, created_at: "2026-11-15T00:00:00Z" },
+    { identity_id: C, created_at: "2026-11-15T00:00:00Z" },
+    { identity_id: B, created_at: "2026-11-15T00:00:00Z" },
+  ];
+  for (const order of permutations(tie)) assert.equal(pick(order), C, "tie -> id desc");
+  // The id comparison is case-insensitive (uuid bytes), like PostgreSQL.
+  assert.equal(
+    pick([
+      { identity_id: C.toUpperCase(), created_at: "2026-11-15T00:00:00Z" },
+      { identity_id: B, created_at: "2026-11-15T00:00:00Z" },
+    ]),
+    C.toUpperCase()
+  );
+  // The same instant written differently is still a tie.
+  for (const order of permutations([
+    { identity_id: A, created_at: "2026-11-15T09:00:00+09:00" },
+    { identity_id: B, created_at: "2026-11-15T00:00:00.000000Z" },
+  ])) {
+    assert.equal(pick(order), B, "equal instants -> id desc");
   }
-  const route = readSource("src/app/api/account/profile/route.ts");
+  // NULL created_at comes last (NULLS LAST), even with a larger id.
+  for (const order of permutations([
+    { identity_id: C, created_at: null },
+    { identity_id: A, created_at: "2026-01-01T00:00:00Z" },
+  ])) {
+    assert.equal(pick(order), A, "nulls last");
+  }
+  // All NULL: id desc.
+  assert.equal(pick([{ identity_id: A, created_at: null }, { identity_id: B, created_at: null }]), B);
+  // Later instant wins; fractions with different digit counts and offsets are
+  // compared as instants (string comparison got these wrong).
+  for (const [earlier, later] of [
+    ["2026-11-15T00:00:00.9Z", "2026-11-15T00:00:00.95Z"],
+    ["2026-11-15T00:00:00.123456Z", "2026-11-15T00:00:00.123457Z"],
+    ["2026-11-15T09:00:00+09:00", "2026-11-15T00:00:01Z"],
+    ["2026-11-15T00:00:00Z", "2026-11-15T00:00:00.000001+00:00"],
+  ]) {
+    for (const order of permutations([
+      { identity_id: C, created_at: earlier },
+      { identity_id: A, created_at: later },
+    ])) {
+      assert.equal(pick(order), A, `${later} is after ${earlier}`);
+    }
+  }
+  assert.equal(parseTimestampMicros("2026-11-15T00:00:00.123456Z")! - parseTimestampMicros("2026-11-15T00:00:00Z")!, 123456);
+  assert.equal(parseTimestampMicros("2026-11-15 09:00:00+09"), parseTimestampMicros("2026-11-15T00:00:00Z"));
+  assert.equal(parseTimestampMicros("not a time"), null);
+  assert.equal(parseTimestampMicros(null), null);
+  assert.ok(compareGoogleIdentityRecency({ identity_id: A, created_at: null }, { identity_id: A, created_at: null }) === 0);
+
+  // The migration still uses exactly that order (source check).
+  const migration = readSource("supabase/migrations/20261115180000_issue142_pr3b_identity_bound_consent.sql");
+  assert.ok(migration.includes("order by i.created_at desc nulls last, i.id desc"));
+}
+
+// PR3c (PR #206 review S3-1): the key in app_metadata without the row is not
+// a recorded consent; the missing half is written again.
+function testConsentWritePlan() {
+  assert.deepEqual(planConsentWrites({ metadataRecorded: false, rowExists: false }), { insertRow: true, updateAppMetadata: true });
+  assert.deepEqual(planConsentWrites({ metadataRecorded: true, rowExists: false }), { insertRow: true, updateAppMetadata: false });
+  assert.deepEqual(planConsentWrites({ metadataRecorded: false, rowExists: true }), { insertRow: false, updateAppMetadata: true });
+  assert.deepEqual(planConsentWrites({ metadataRecorded: true, rowExists: true }), { insertRow: false, updateAppMetadata: false });
+
+  // A key for the current identity but no row: the decision says only
+  // "metadata recorded", and the plan still inserts the row.
+  const stuck = decideGoogleConsent({
+    user: {
+      id: "00000000-0000-4000-8000-00000000000b",
+      email: "someone@example.com",
+      identities: [emailIdentity, googleIdentity],
+      app_metadata: { providers: ["email", "google"], [GOOGLE_CONSENT_IDENTITY_KEY]: GOOGLE_ID },
+    },
+    payload: { displayName: "PenName", agreedToTerms: true, agreedToPrivacy: true, acknowledgedPublicSurface: true },
+    now: new Date("2026-11-15T12:00:00Z"),
+  });
+  assert.ok(stuck.ok);
+  if (stuck.ok) {
+    assert.equal(stuck.metadataRecorded, true);
+    assert.equal(planConsentWrites({ metadataRecorded: stuck.metadataRecorded, rowExists: false }).insertRow, true);
+    assert.equal(stuck.row.identity_id, GOOGLE_ID);
+  }
+  // A key for an older identity is not "recorded" for the current one.
+  const relinked = decideGoogleConsent({
+    user: {
+      id: "00000000-0000-4000-8000-00000000000c",
+      email: "someone@example.com",
+      identities: [emailIdentity, googleIdentity],
+      app_metadata: { providers: ["email", "google"], [GOOGLE_CONSENT_IDENTITY_KEY]: OTHER_GOOGLE_ID },
+    },
+    payload: { displayName: "PenName", agreedToTerms: true, agreedToPrivacy: true, acknowledgedPublicSurface: true },
+    now: new Date("2026-11-15T12:00:00Z"),
+  });
+  assert.ok(relinked.ok && relinked.metadataRecorded === false);
+}
+
+// PR3c: the consent route looks the row up for the exact identity, records
+// the consent (row, then app_metadata) and only then writes the public name.
+function testConsentRouteOrder() {
+  const route = readSource("src/app/api/account/google-consent/route.ts");
   const post = route.slice(route.indexOf("export async function POST"));
-  const gateAt = post.indexOf("isProfileWriteBlockedUntilRegistered(user, {");
-  assert.ok(gateAt > post.indexOf("supabase.auth.getUser()"), "gate after getUser");
-  assert.ok(gateAt < post.indexOf("createAdminClient()"), "gate before any service-role write");
-  assert.ok(post.includes('bio: typeof bio === "string"'));
-  assert.ok(post.includes('xUrl: typeof xUrl === "string"'));
-  assert.ok(post.includes('noteUrl: typeof noteUrl === "string"'));
-  assert.ok(post.includes('return registrationRequiredJson("text");'));
-  // STEP 2 (register page) sends the display name only.
-  const register = readSource("src/app/register/page.tsx");
-  assert.ok(register.includes("await syncPublicUserProfile(availableDisplayName);"));
+  const at = (needle: string) => {
+    const index = post.indexOf(needle);
+    assert.ok(index >= 0, `consent route must contain ${needle}`);
+    return index;
+  };
+  const decide = at("decideGoogleConsent({");
+  const conflict = at("findDisplayNameConflict({");
+  const lookup = at('.from("account_consents")\n      .select("id")');
+  at('.eq("identity_id", decision.identityId)');
+  at('.eq("provider", GOOGLE_CONSENT_PROVIDER)');
+  const plan = at("planConsentWrites({");
+  const insert = at('admin.from("account_consents").insert(decision.row)');
+  const metadata = at("app_metadata: decision.appMetadata,");
+  const saveMeta = at("await saveMetadata({");
+  const saveProfile = at("await savePublicProfile({");
+  const sync = at("await syncDisplayNameEverywhere({");
+  assert.ok(decide < conflict && conflict < lookup && lookup < plan, "check, then look up the row");
+  assert.ok(plan < insert && insert < metadata, "row before app_metadata");
+  assert.ok(metadata < saveMeta && saveMeta < saveProfile && saveProfile < sync, "public name only after the consent");
+  assert.ok(post.includes("if (plan.insertRow) {"));
+  assert.ok(post.includes("if (plan.updateAppMetadata) {"));
+  // The old "display name must already be saved" precondition is gone.
+  assert.equal(route.includes("storedDisplayName"), false);
+  assert.equal(readSource("src/lib/auth/googleConsent.ts").includes("display_name_not_saved"), false);
+  // The shared display-name writes are the reviewed H1-safe ones.
+  const shared = readSource("src/lib/auth/publicDisplayName.server.ts");
+  assert.ok(shared.startsWith('import "server-only";'));
+  assert.ok(shared.includes("export async function syncDisplayNameEverywhere("));
+  assert.ok(shared.includes('args.admin.rpc("issue137_h1_human_rename"'));
 }
 
 function handlerSlice(source: string, method: string): string {
@@ -738,7 +888,7 @@ const OFFICIAL_ONLY: RoutePolicy = { gated: [], exempt: "official narration acco
 const WRITE_ROUTE_POLICY: Record<string, RoutePolicy> = {
   // Gated: public content, public signals (likes / follows / bookmarks feed
   // public counts) or public work settings.
-  "src/app/api/account/profile/route.ts": { gated: ["POST"], needle: "isProfileWriteBlockedUntilRegistered(user, {" },
+  "src/app/api/account/profile/route.ts": { gated: ["POST"] },
   "src/app/api/authors/follow/route.ts": { gated: ["POST"], exempt: "DELETE: unfollow only removes" },
   "src/app/api/authors/like/route.ts": { gated: ["POST"], exempt: "DELETE: unlike only removes" },
   "src/app/api/readers/like/route.ts": { gated: ["POST"], exempt: "DELETE: unlike only removes" },
@@ -846,7 +996,10 @@ async function main() {
   testWriteGateCoverage();
   testLocalizedGuidance();
   testPr3bMigrationSource();
-  testProfileFieldGate();
+  testProfileRouteGate();
+  testGoogleIdentityOrder();
+  testConsentWritePlan();
+  testConsentRouteOrder();
   testWriteRouteInventory();
   console.log(
     "PASS: Google button is flag-gated; callback sends unregistered Google accounts to STEP 2; consent is server-recorded in app_metadata; write gate, RLS migration source and official-account grant checks hold"

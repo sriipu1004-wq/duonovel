@@ -386,12 +386,13 @@ async function checkHumanAtomicCommitBoundary() {
     }
   }
   assert.deepEqual([...writers].sort(), [
-    "src/app/api/account/profile/route.ts",
+    "src/lib/auth/publicDisplayName.server.ts",
     "src/lib/recording/aivisAutoGeneration.ts",
     "src/lib/recording/aivisGeneration.ts",
     "src/lib/recording/nemoGeneration.ts",
   ], "direct recordings writers must be exactly the reviewed AI/TTS/legacy set");
-  const profile = source("src/app/api/account/profile/route.ts");
+  // Issue #142 PR3c: the display-name writes moved here from the profile route.
+  const profile = source("src/lib/auth/publicDisplayName.server.ts");
   for (const needle of [
     ".or(H1_NON_HUMAN_PATH_POSTGREST_OR)",
     '.is("voice_model_id", null)',
@@ -400,9 +401,14 @@ async function checkHumanAtomicCommitBoundary() {
     "await renameHumanRecordings(args)",
     "throwUnlessMissingColumn(error, `users",
     "throwUnlessMissingColumn(error, `recordings",
-    "await syncDisplayNameEverywhere(",
   ]) {
     assert.equal(profile.includes(needle), true, `profile rename must use H1 and check errors: ${needle}`);
+  }
+  // Both callers rename through the shared H1-safe function.
+  for (const caller of ["src/app/api/account/profile/route.ts", "src/app/api/account/google-consent/route.ts"]) {
+    const text = source(caller);
+    assert.equal(text.includes("await syncDisplayNameEverywhere("), true, `${caller} must use syncDisplayNameEverywhere`);
+    assert.equal(text.includes('from "@/lib/auth/publicDisplayName.server"'), true, `${caller} must import the shared writer`);
   }
   // A bare `await …update(…)` statement (result discarded) is forbidden.
   assert.equal(/^\s*(for \([^)]*\)\s*)?await args\.admin\.from\("(users|recordings)"\)\.update\(/mu.test(

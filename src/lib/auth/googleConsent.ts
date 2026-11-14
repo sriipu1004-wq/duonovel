@@ -28,7 +28,7 @@ export const GOOGLE_CONSENT_PROVIDER = "google";
 export type GoogleConsentErrorCode =
   | "invalid_request"
   | "display_name_invalid"
-  | "display_name_not_saved"
+  | "display_name_taken"
   | "consent_missing"
   | "no_google_identity";
 
@@ -47,8 +47,12 @@ export type AccountConsentRow = {
 export type GoogleConsentDecision =
   | {
       ok: true;
-      /** The current Google identity already has a server-recorded consent. */
-      alreadyRecorded: boolean;
+      /**
+       * app_metadata already names the current Google identity. This alone
+       * does not mean the consent is recorded: RLS also needs an
+       * account_consents row for that identity (see planConsentWrites).
+       */
+      metadataRecorded: boolean;
       identityId: string;
       displayName: string;
       row: AccountConsentRow;
@@ -121,14 +125,14 @@ function readText(value: unknown): string {
  * - `user` must be the result of `auth.getUser()` (verified by the Auth server).
  * - `payload` is the request body: displayName and the three consents, each
  *   strictly `true`.
- * - `storedDisplayName` is the user's current public.users.display_name; it
- *   must equal the submitted name, so the profile save (STEP 2 runs it first)
- *   has actually happened.
+ *
+ * PR3c (PR #206 review S3-3): the display name is no longer saved before this
+ * call. The route records the consent first and saves the public display name
+ * afterwards, so a STEP 2 left half-way never changes the public name.
  */
 export function decideGoogleConsent(args: {
   user: (RegistrationUserLike & { id: string }) | null | undefined;
   payload: unknown;
-  storedDisplayName: string | null | undefined;
   now: Date;
 }): GoogleConsentDecision {
   const { user, payload } = args;
@@ -149,10 +153,6 @@ export function decideGoogleConsent(args: {
   if (!displayName || validateDisplayName(displayName)) {
     return { ok: false, status: 400, error: "display_name_invalid" };
   }
-  if (normalizeDisplayName(readText(args.storedDisplayName)) !== displayName) {
-    return { ok: false, status: 409, error: "display_name_not_saved" };
-  }
-
   const googleIdentity = findGoogleIdentity(user);
   const identityId = readText(googleIdentity?.identity_id);
   if (!identityId) {
@@ -163,7 +163,7 @@ export function decideGoogleConsent(args: {
   const appMetadata = (user.app_metadata ?? {}) as Record<string, unknown>;
   return {
     ok: true,
-    alreadyRecorded: readText(appMetadata[GOOGLE_CONSENT_IDENTITY_KEY]) === identityId,
+    metadataRecorded: readText(appMetadata[GOOGLE_CONSENT_IDENTITY_KEY]) === identityId,
     identityId,
     displayName,
     row: {
@@ -183,5 +183,32 @@ export function decideGoogleConsent(args: {
       [GOOGLE_CONSENT_PRIVACY_VERSION_KEY]: ACCOUNT_PRIVACY_VERSION,
       [GOOGLE_CONSENT_AT_KEY]: consentedAt,
     },
+  };
+}
+
+export type ConsentWritePlan = {
+  /** Append a row to public.account_consents for (user, identity, google). */
+  insertRow: boolean;
+  /** Write the GOOGLE_CONSENT_* keys to app_metadata. */
+  updateAppMetadata: boolean;
+};
+
+/**
+ * PR3c (PR #206 review S3-1): the consent counts only when BOTH stores have
+ * it for the current Google identity (that is what RLS checks:
+ * account_google_consent_satisfied()). Judging by app_metadata alone let an
+ * account whose key was set but whose row was missing pass the app gate while
+ * RLS refused it, with no way out. Each missing half is written again:
+ * - no row for the identity -> insert one (even if app_metadata has the key);
+ * - app_metadata key missing or for another identity -> write the keys.
+ * The row is written before app_metadata (the route keeps that order).
+ */
+export function planConsentWrites(args: {
+  metadataRecorded: boolean;
+  rowExists: boolean;
+}): ConsentWritePlan {
+  return {
+    insertRow: !args.rowExists,
+    updateAppMetadata: !args.metadataRecorded,
   };
 }

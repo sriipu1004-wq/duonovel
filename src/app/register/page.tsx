@@ -93,6 +93,7 @@ async function prepareSignupEmail(
  * Issue #142 PR3: records STEP 2 for a Google account on the server
  * (POST /api/account/google-consent), then refreshes the session so the JWT
  * carries the new app_metadata (read by the app gate and by RLS).
+ * PR3c: the same request saves the public display name after the consent.
  */
 async function recordGoogleConsent(displayName: string): Promise<boolean> {
   const response = await fetch("/api/account/google-consent", {
@@ -268,8 +269,23 @@ export default function RegisterPage() {
       return;
     }
 
+    const isGoogleAccount = hasGoogleIdentity(sessionUser);
+
+    // Issue #142 PR3c (PR #206 review S3-3): for a Google account the server
+    // records the consent first and only then saves the public display name,
+    // in one request. Nothing public is written before the consent, so
+    // leaving STEP 2 half-way keeps the existing public name.
+    if (isGoogleAccount) {
+      const recorded = await recordGoogleConsent(availableDisplayName);
+      if (!recorded) {
+        setErrorMessage(dictionary.profileSaveFailed);
+        setPendingAction(null);
+        return;
+      }
+    }
+
     // user_metadata keeps the profile fields for display only. For a Google
-    // account the consent itself is recorded by the server below
+    // account the consent itself was recorded by the server above
     // (PR3: account_consents + app_metadata, which the user cannot write).
     const metadata = buildCompletedAccountRegistrationMetadata({
       displayName: availableDisplayName,
@@ -285,20 +301,13 @@ export default function RegisterPage() {
       return;
     }
 
-    try {
-      await syncPublicUserProfile(availableDisplayName);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : dictionary.profileSaveFailed
-      );
-      setPendingAction(null);
-      return;
-    }
-
-    if (hasGoogleIdentity(sessionUser)) {
-      const recorded = await recordGoogleConsent(availableDisplayName);
-      if (!recorded) {
-        setErrorMessage(dictionary.profileSaveFailed);
+    if (!isGoogleAccount) {
+      try {
+        await syncPublicUserProfile(availableDisplayName);
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : dictionary.profileSaveFailed
+        );
         setPendingAction(null);
         return;
       }

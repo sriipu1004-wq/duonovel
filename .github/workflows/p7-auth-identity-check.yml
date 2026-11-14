@@ -51,6 +51,7 @@ on:
       - "scripts/test-auth-identity-callback.ts"
       - "scripts/test-auth-google-registration.ts"
       - "scripts/test-auth-login-redirect.ts"
+      - "scripts/test-human-recording-boundaries.ts"
       - "package.json"
       - "package-lock.json"
   workflow_dispatch:
@@ -77,6 +78,10 @@ jobs:
         run: npm run test:auth-google-registration
       - name: Auth redirect regression
         run: npm run test:auth-login-redirect
+      # PR3c: the display-name writes moved to src/lib/auth/publicDisplayName.server.ts;
+      # the H1 recordings-writer inventory checks that file.
+      - name: Human recording boundaries (display-name writer)
+        run: npm run test:human-recording-boundaries
       - name: TypeScript
         run: npx tsc --noEmit
       - name: ESLint
@@ -88,6 +93,8 @@ jobs:
           src/lib/auth/registrationGate.server.ts
           src/lib/auth/googleConsent.ts
           src/app/api/account/google-consent/route.ts
+          src/lib/auth/publicDisplayName.server.ts
+          scripts/test-human-recording-boundaries.ts
           src/features/playback/useBilingualWordExplanation.ts
           src/lib/auth/registrationGateMessage.ts
           src/i18n/dictionaries/registrationGate.ts
