@@ -13,7 +13,10 @@ import {
   JA_WORK_SUMMARY_FALLBACK,
   readerCanonicalLocale,
   readerCanonicalPath,
+  normalizeEpisodeTitleForSeo,
+  publicWorkSchemaName,
   readerEpisodeRepeatsWorkTitle,
+  readerOgLocale,
   resolvePublicWorkAttribution,
   serializeJsonLd,
   stripAuthorSuffixFromTitle,
@@ -42,7 +45,7 @@ assert.equal(
     "The Wind in the Willows — Part 1 — Part 1/4",
     "Kenneth Grahame"
   ),
-  "The Wind in the Willows — Part 1 — Part 1/4 | LIB read"
+  "The Wind in the Willows — Part 1/4 | LIB read"
 );
 assert.ok(readerEpisodeRepeatsWorkTitle("修道院の秋・南部修太郎", "修道院の秋・南部修太郎 — Part 1"));
 assert.equal(readerEpisodeRepeatsWorkTitle("作品", "第1話"), false);
@@ -132,6 +135,7 @@ const pdLd = buildReaderJsonLd({
   publicDomainSourceUrl: "https://www.aozora.gr.jp/cards/000048/card4386.html",
   publicDomainFirstPublicationYear: 1916,
 });
+assert.ok(pdLd);
 assert.equal(pdLd["@type"], "Chapter");
 assert.equal(pdLd.name, "修道院の秋・南部修太郎 — Part 1");
 assert.equal(pdLd.url, `${SITE}/read/${PD_SERIES}/1`);
@@ -139,11 +143,34 @@ assert.deepEqual(pdLd.author, { "@type": "Person", name: "南部修太郎" });
 assert.deepEqual(pdLd.publisher, { "@type": "Organization", name: "LIB read Official" });
 assert.deepEqual(pdLd.isPartOf, {
   "@type": "CreativeWork",
-  name: "修道院の秋・南部修太郎",
+  name: "修道院の秋",
   url: `${SITE}/works/${PD_SERIES}`,
   author: { "@type": "Person", name: "南部修太郎" },
   datePublished: "1916",
 });
+// Verified original title wins for the schema name.
+assert.equal(publicWorkSchemaName("修道院の秋・南部修太郎", "南部修太郎", "修道院の秋（原題）"), "修道院の秋（原題）");
+// Review NO-GO S1: an official-account work WITHOUT Public Domain metadata
+// (e.g. 少年探偵団) must never emit "LIB read Official" as a Person author.
+const officialNonPdLd = buildReaderJsonLd({
+  seriesId: USER_SERIES,
+  seriesTitle: "少年探偵団",
+  episodeTitle: "第1話",
+  episodeNumber: 1,
+  sourceLanguage: "ja",
+  attribution: resolvePublicWorkAttribution({
+    publicDomainOriginalAuthor: null,
+    accountAuthorName: "LIB read Official",
+  }),
+  isShortStory: false,
+});
+assert.equal(officialNonPdLd, null, "non-Public-Domain official work must not emit Reader JSON-LD");
+assert.equal(
+  JSON.stringify(officialNonPdLd ?? {}).includes("LIB read Official"),
+  false,
+  "LIB read Official must not appear as author"
+);
+// User-posted works: no Reader JSON-LD, same as the Work page JSON-LD rule.
 const userLd = buildReaderJsonLd({
   seriesId: USER_SERIES,
   seriesTitle: "Short",
@@ -153,8 +180,16 @@ const userLd = buildReaderJsonLd({
   attribution: resolvePublicWorkAttribution({ publicDomainOriginalAuthor: null, accountAuthorName: "Writer" }),
   isShortStory: true,
 });
-assert.equal("publisher" in userLd, false);
-assert.equal("url" in (userLd.isPartOf as Record<string, unknown>), false);
+assert.equal(userLd, null);
+// Gutenberg duplicate part marker collapses in metadata strings only.
+assert.equal(
+  normalizeEpisodeTitleForSeo("The Wind in the Willows — Part 1 — Part 1/4"),
+  "The Wind in the Willows — Part 1/4"
+);
+assert.equal(normalizeEpisodeTitleForSeo("Part 1 — Part 2/4"), "Part 1 — Part 2/4");
+assert.equal(readerOgLocale("ja"), "ja_JP");
+assert.equal(readerOgLocale("en"), "en_US");
+assert.equal(readerOgLocale("ko"), "ko_KR");
 assert.equal(serializeJsonLd({ a: "</script>" }).includes("</script>"), false);
 
 // 6. Episode lastmod uses the later of posted_at / last_edited_at.
@@ -223,7 +258,7 @@ assert.ok(sitemapBuilderSource.includes("readerCanonicalPath(work.seriesId, epis
 assert.ok(sitemapSource.includes('getCachedPublicBaseWorkCards({ visibility: "general" })'),
   "sitemap must keep excluding R18 works");
 const readerPage = read("src/app/read/[seriesId]/[episodeNumber]/page.tsx");
-assert.ok(readerPage.includes("isPublicReadPage && !isR18Series(series)"),
+assert.ok(readerPage.includes("isPublicReadPage && !isR18Series(series) && publicDomain"),
   "Reader JSON-LD must be gated to public, non-R18 pages");
 assert.ok(readerPage.includes("readerCanonicalPath("));
 assert.equal(/languages:\s*\{\s*ja: localizePath\(baseCanonicalPath/.test(readerPage), false,
@@ -231,6 +266,7 @@ assert.equal(/languages:\s*\{\s*ja: localizePath\(baseCanonicalPath/.test(reader
 assert.ok(readerPage.includes("if (payload.r18Blocked)"), "Reader metadata R18 gate kept");
 const layout = read("src/app/read/[seriesId]/[episodeNumber]/layout.tsx");
 assert.ok(layout.includes("resolvePublicWorkAttribution("));
+assert.ok(layout.includes("await getNormalAuthorName(series"), "layout must resolve the publisher like the Reader page (users.display_name)");
 const workPage = read("src/app/works/[seriesId]/page.tsx");
 assert.equal(workPage.includes('|| "あらすじはまだ登録されていません。"'), false,
   "Work body must use the localized no-summary text");

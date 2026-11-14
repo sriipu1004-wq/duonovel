@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getNormalAuthorName } from "@/lib/readerAuthorName";
 import WebSpeechEpisodePlayback from "@/features/playback/WebSpeechEpisodePlayback";
 import {
   getEpisodeBody,
@@ -11,7 +11,6 @@ import {
   isEpisodePubliclyVisible,
   isSeriesEpisodeCommentVisible,
   pickText,
-  type SeriesRow,
 } from "@/features/write/writeShared";
 import {
   mergeEffectSettings,
@@ -40,6 +39,8 @@ import {
   buildReaderJsonLd,
   buildReaderMetadataTitle,
   readerCanonicalPath,
+  normalizeEpisodeTitleForSeo,
+  readerOgLocale,
   readerEpisodeRepeatsWorkTitle,
   resolvePublicWorkAttribution,
   serializeJsonLd,
@@ -162,41 +163,6 @@ function buildReadHref(
   return `/read/${seriesId}/${episodeNumber}${queryString ? `?${queryString}` : ""}`;
 }
 
-async function getNormalAuthorName(
-  series: SeriesRow,
-  authorUnsetLabel: string
-): Promise<string> {
-  const authorId =
-    pickText(series.author_id, series["user_id"], series["userId"]) || "";
-  const fallbackName = pickText(series["author_name"]) || authorUnsetLabel;
-
-  if (!authorId) {
-    return fallbackName;
-  }
-
-  try {
-    const adminSupabase = createAdminClient();
-    const result = await runReadOnlyWithRetry(
-      async () =>
-        await adminSupabase
-          .from("users")
-          .select("display_name")
-          .eq("id", authorId)
-          .maybeSingle(),
-      { operation: "reader author profile", timeoutMs: 1500, retries: 0 }
-    );
-
-    if (!result.error && result.data) {
-      const displayName = pickText(result.data.display_name);
-      if (displayName) return displayName;
-    }
-  } catch {
-    console.warn("[reader] author profile unavailable");
-  }
-
-  return fallbackName;
-}
-
 export async function generateMetadata({
   params,
 }: Pick<PageProps, "params">): Promise<Metadata> {
@@ -210,7 +176,6 @@ export async function generateMetadata({
         `${seriesTitle}の${episodeTitle}を読む・聴く。`,
       singleDescription: (headline: string) => `${headline}を読む・聴く。`,
       author: "作者",
-      ogLocale: "ja_JP",
     },
     en: {
       notFound: "Public episode not found",
@@ -220,7 +185,6 @@ export async function generateMetadata({
       singleDescription: (headline: string) =>
         `Read and listen to ${headline}.`,
       author: "Author",
-      ogLocale: "en_US",
     },
     ko: {
       notFound: "공개 화를 찾을 수 없습니다",
@@ -230,7 +194,6 @@ export async function generateMetadata({
       singleDescription: (headline: string) =>
         `${headline}를 읽고 들을 수 있습니다.`,
       author: "작가",
-      ogLocale: "ko_KR",
     },
   }[locale];
 
@@ -290,8 +253,11 @@ export async function generateMetadata({
           episodeTitle,
           attribution.authorName
         )
-          ? ui.singleDescription(episodeTitle)
-          : ui.fallbackDescription(seriesTitle, episodeTitle)),
+          ? ui.singleDescription(normalizeEpisodeTitleForSeo(episodeTitle))
+          : ui.fallbackDescription(
+              seriesTitle,
+              normalizeEpisodeTitleForSeo(episodeTitle)
+            )),
       `${ui.author}: ${attribution.authorName}.`,
     ]
       .filter(Boolean)
@@ -321,7 +287,10 @@ export async function generateMetadata({
       robots: { index: true, follow: true },
       openGraph: {
         type: "article",
-        locale: ui.ogLocale,
+        // The canonical copy's language (the body language), not the UI locale.
+        locale: readerOgLocale(
+          inferSeriesSourceLanguage(series, getEpisodeBody(episode))
+        ),
         siteName: "LIB read",
         url: canonicalPath,
         title: metadataTitle,
@@ -573,24 +542,31 @@ export default async function ReadEpisodePage({
   const workAuthorName = attribution.authorName || ui.authorUnset;
   const workEditorName = "";
   const workPublisherName = attribution.publisherName ?? "";
-  // Structured data only for public, non-R18 pages.
-  const readerJsonLd =
-    isPublicReadPage && !isR18Series(series)
-      ? serializeJsonLd(
-          buildReaderJsonLd({
-            seriesId,
-            seriesTitle,
-            episodeTitle,
-            episodeNumber: currentEpisodeNumber,
-            sourceLanguage,
-            attribution,
-            isShortStory,
-            publicDomainSourceUrl: publicDomain?.sourceUrl ?? null,
-            publicDomainFirstPublicationYear:
-              publicDomain?.firstPublicationYear ?? null,
-          })
-        )
+  // Structured data only for public, non-R18, rights-checked Public Domain
+  // works: the same rule as the Work page JSON-LD. buildReaderJsonLd also
+  // returns null for any non-Public-Domain work, so an official-account work
+  // without Public Domain metadata never emits its account name as a Person.
+  const readerJsonLdValue =
+    isPublicReadPage && !isR18Series(series) && publicDomain
+      ? buildReaderJsonLd({
+          seriesId,
+          seriesTitle,
+          episodeTitle,
+          episodeNumber: currentEpisodeNumber,
+          sourceLanguage,
+          attribution,
+          // Same rule as the sitemap (isShortStorySeriesForSitemap) and the
+          // Work page (isShortStorySeries): a Public Domain work always has a
+          // Work page, even when stored as storyFormat "short".
+          isShortStory: false,
+          publicDomainOriginalTitle: publicDomain.originalTitle,
+          publicDomainSourceUrl: publicDomain.sourceUrl,
+          publicDomainFirstPublicationYear: publicDomain.firstPublicationYear,
+        })
       : null;
+  const readerJsonLd = readerJsonLdValue
+    ? serializeJsonLd(readerJsonLdValue)
+    : null;
 
   const prevEpisodeHref =
     prevEpisodeNumber !== null

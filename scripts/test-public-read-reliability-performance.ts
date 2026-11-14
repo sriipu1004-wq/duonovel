@@ -272,11 +272,12 @@ function verifySearchIsolation(): void {
 }
 
 function verifyReaderAuthorProfileColumns(): void {
-  const readerPage = source("src/app/read/[seriesId]/[episodeNumber]/page.tsx");
-  const authorQuery = readerPage.slice(
-    readerPage.indexOf("async function getNormalAuthorName("),
-    readerPage.indexOf("export async function generateMetadata(")
+  // P9: the lookup moved to a shared module used by the Reader page and layout.
+  const authorModule = source("src/lib/readerAuthorName.ts");
+  const authorQuery = authorModule.slice(
+    authorModule.indexOf("export async function getNormalAuthorName(")
   );
+  assert.ok(authorQuery.length > 0);
   assert.ok(authorQuery.includes('.from("users")'));
   assert.ok(authorQuery.includes('.select("display_name")'));
   assert.equal(authorQuery.includes("username, pen_name, name"), false);
@@ -373,7 +374,8 @@ function verifyReaderIsolation(): void {
   assert.ok(readerPage.includes("function ReadTemporaryUnavailable"));
   assert.ok(readerPage.includes("[reader] core public read unavailable"));
   assert.ok(readerPage.includes("loadOptionalReadSubscriber"));
-  assert.ok(readerPage.includes('operation: "reader author profile"'));
+  assert.ok(source("src/lib/readerAuthorName.ts").includes('operation: "reader author profile"'));
+  assert.ok(readerPage.includes('from "@/lib/readerAuthorName"'));
   assert.ok(readerPage.includes("previousEpisode"));
   assert.ok(readerPage.includes("nextEpisode"));
   assert.equal(readerPage.includes("publicEpisodes"), false);

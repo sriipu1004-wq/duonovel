@@ -44,6 +44,7 @@ import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
+import { publicWorkSchemaName } from "@/lib/seo/publicWorkSeo";
 import { getSupportedLanguage, parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { localizeGenreList } from "@/i18n/genreLabels";
 import {
@@ -1587,7 +1588,12 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     ? JSON.stringify({
         "@context": "https://schema.org",
         "@type": "CreativeWork",
-        name: seriesTitle,
+        // Title without the author suffix; author is its own field.
+        name: publicWorkSchemaName(
+          seriesTitle,
+          publicDomain.originalAuthor,
+          publicDomain.originalTitle
+        ),
         author: {
           "@type": "Person",
           name: publicDomain.originalAuthor,

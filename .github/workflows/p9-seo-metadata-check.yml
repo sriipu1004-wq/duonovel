@@ -19,6 +19,7 @@ on:
       - "src/i18n/dictionaries/work.ts"
       - "src/lib/publicDomainMetadata.ts"
       - "src/lib/publicWorks.ts"
+      - "src/lib/readerAuthorName.ts"
       - "src/lib/seo/**"
       - "src/lib/sitemap/**"
 
@@ -69,6 +70,7 @@ jobs:
           src/lib/seo/publicWorkSeo.ts
           src/lib/sitemap/buildSitemapEntries.ts
           src/lib/sitemap/loadSitemapEpisodeDates.ts
+          src/lib/readerAuthorName.ts
 
       - name: Production build
         env:

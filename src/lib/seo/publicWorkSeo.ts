@@ -80,11 +80,22 @@ export function buildReaderHeadline(
   authorName = ""
 ): string {
   const series = seriesTitle.trim();
-  const episode = episodeTitle.trim();
+  const episode = normalizeEpisodeTitleForSeo(episodeTitle);
   if (!series) return episode;
   if (!episode || episode === series) return series;
   if (readerEpisodeRepeatsWorkTitle(series, episode, authorName)) return episode;
   return `${series} ${episode}`;
+}
+
+/**
+ * Some imported episode titles repeat the part marker
+ * (「The Wind in the Willows — Part 1 — Part 1/4」). Keep the more specific
+ * one for metadata strings only; stored titles are not changed.
+ */
+export function normalizeEpisodeTitleForSeo(episodeTitle: string): string {
+  return episodeTitle
+    .trim()
+    .replace(/\s*[—–-]\s*Part\s+(\d+)\s*[—–-]\s*Part\s+\1\s*\/\s*(\d+)\s*$/u, " — Part $1/$2");
 }
 
 /**
@@ -248,7 +259,16 @@ function stripUndefined<T extends Record<string, unknown>>(value: T): T {
   ) as T;
 }
 
-/** schema.org JSON-LD for a Reader page. Callers must not emit it for R18 or non-public pages. */
+/**
+ * schema.org JSON-LD for a Reader page.
+ *
+ * Emitted only for rights-checked Public Domain works, the same rule as the
+ * Work page JSON-LD (works/[seriesId]/page.tsx). Returns null otherwise, so an
+ * official-account work without Public Domain metadata can never publish
+ * "LIB read Official" as a Person author, and user-posted works get no
+ * Reader JSON-LD (as on the Work page). Callers must additionally gate on
+ * public, non-R18 pages.
+ */
 export function buildReaderJsonLd(input: {
   seriesId: string;
   seriesTitle: string;
@@ -256,13 +276,16 @@ export function buildReaderJsonLd(input: {
   episodeNumber: number;
   sourceLanguage: string | null | undefined;
   attribution: PublicWorkAttribution;
+  /** True when no Work page exists for this series (sitemap rule). */
   isShortStory: boolean;
+  publicDomainOriginalTitle?: string | null;
   publicDomainSourceUrl?: string | null;
   publicDomainFirstPublicationYear?: number | null;
-}): Record<string, unknown> {
-  const author = input.attribution.authorName
-    ? { "@type": "Person", name: input.attribution.authorName }
-    : undefined;
+}): Record<string, unknown> | null {
+  if (!input.attribution.isPublicDomain || !input.attribution.authorName) {
+    return null;
+  }
+  const author = { "@type": "Person", name: input.attribution.authorName };
   const publisher = input.attribution.publisherName
     ? { "@type": "Organization", name: input.attribution.publisherName }
     : undefined;
@@ -271,7 +294,11 @@ export function buildReaderJsonLd(input: {
     : `${PUBLIC_SITE_URL}/works/${encodeURIComponent(input.seriesId)}`;
   const isPartOf = stripUndefined({
     "@type": "CreativeWork",
-    name: input.seriesTitle,
+    name: publicWorkSchemaName(
+      input.seriesTitle,
+      input.attribution.authorName,
+      input.publicDomainOriginalTitle
+    ),
     url: workUrl,
     author,
     datePublished: input.publicDomainFirstPublicationYear
@@ -297,6 +324,27 @@ export function buildReaderJsonLd(input: {
     isAccessibleForFree: true,
     isBasedOn: input.publicDomainSourceUrl || undefined,
   });
+}
+
+/**
+ * Work name for structured data: the verified original title when present,
+ * otherwise the display title without an author suffix
+ * (「修道院の秋・南部修太郎」 -> 「修道院の秋」), since author is a separate field.
+ */
+export function publicWorkSchemaName(
+  seriesTitle: string,
+  authorName: string,
+  originalTitle?: string | null
+): string {
+  const original = (originalTitle ?? "").trim();
+  if (original) return original;
+  return stripAuthorSuffixFromTitle(seriesTitle, authorName);
+}
+
+/** open graph locale of the canonical (source-language) Reader copy. */
+export function readerOgLocale(sourceLanguage: string | null | undefined): string {
+  const locale = readerCanonicalLocale(sourceLanguage);
+  return locale === "en" ? "en_US" : locale === "ko" ? "ko_KR" : "ja_JP";
 }
 
 export function serializeJsonLd(value: unknown): string {
