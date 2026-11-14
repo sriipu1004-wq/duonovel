@@ -1,61 +1,14 @@
-import { createHash } from "crypto";
-import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import {
+  handlePopularityEvent,
+  type PopularityEpisodeRow,
+  type PopularityRecordingRow,
+  type PopularitySeriesRow,
+} from "@/lib/popularityIngest";
 
-type EventKind = "series_view" | "recording_play";
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function readText(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function isUuid(value: string): boolean {
-  return UUID_RE.test(value);
-}
-
-function forwardedIp(headers: Headers): string {
-  for (const name of [
-    "x-forwarded-for",
-    "x-vercel-forwarded-for",
-    "cf-connecting-ip",
-    "x-real-ip",
-  ]) {
-    const value = headers.get(name)?.split(",")[0]?.trim();
-    if (value) return value;
-  }
-  return "unknown";
-}
-
-function tokyoCalendarDate(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const values = new Map(parts.map((part) => [part.type, part.value]));
-  return `${values.get("year")}-${values.get("month")}-${values.get("day")}`;
-}
-
-function popularitySessionId(args: {
-  request: Request;
-  userId: string | null;
-}): string {
-  const salt =
-    process.env.IP_HASH_SALT ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "libread-local-popularity";
-  const day = tokyoCalendarDate();
-  const actor = args.userId
-    ? `user:${args.userId}`
-    : `ip:${forwardedIp(args.request.headers)}`;
-  return createHash("sha256")
-    .update(`${salt}:popularity:v2:${day}:${actor}`)
-    .digest("hex");
-}
+// Issue #154 GI-P2: the ingest decisions live in src/lib/popularityIngest.ts
+// (bot / same-site filter, per actor-day cap). This file only wires Supabase.
 
 async function getCurrentUserId(): Promise<string | null> {
   try {
@@ -71,157 +24,59 @@ async function getCurrentUserId(): Promise<string | null> {
 }
 
 export async function POST(request: Request) {
-  let payload: Record<string, unknown>;
+  // Created lazily: requests filtered by headers never touch Supabase.
+  let admin: ReturnType<typeof createAdminClient> | null = null;
+  const db = () => (admin ??= createAdminClient());
 
-  try {
-    payload = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: "リクエストを読めなかった。" },
-      { status: 400 }
-    );
-  }
-
-  const kind = readText(payload.kind) as EventKind;
-  const requestedSeriesId = readText(payload.seriesId);
-  const episodeId = readText(payload.episodeId);
-  const recordingId = readText(payload.recordingId);
-
-  if (kind !== "series_view" && kind !== "recording_play") {
-    return NextResponse.json(
-      { ok: false, error: "event kind が不正。" },
-      { status: 400 }
-    );
-  }
-
-  if (!isUuid(requestedSeriesId) || !isUuid(episodeId)) {
-    return NextResponse.json(
-      { ok: false, error: "作品または話IDが不正。" },
-      { status: 400 }
-    );
-  }
-
-  if (kind === "recording_play" && !isUuid(recordingId)) {
-    return NextResponse.json(
-      { ok: false, error: "recordingId が不正。" },
-      { status: 400 }
-    );
-  }
-
-  const adminSupabase = createAdminClient();
-  const userId = await getCurrentUserId();
-
-  // Do not trust seriesId, episodeNumber, recording relationships, or public
-  // visibility supplied by the browser. Popularity rows feed ranking counters,
-  // so all canonical event dimensions are resolved from the database.
-  const { data: episode, error: episodeError } = await adminSupabase
-    .from("episodes")
-    .select("id, series_id, episode_number, posting_status, is_published")
-    .eq("id", episodeId)
-    .maybeSingle();
-
-  if (
-    episodeError ||
-    !episode ||
-    String(episode.series_id) !== requestedSeriesId ||
-    episode.posting_status !== "posted" ||
-    episode.is_published !== true
-  ) {
-    return NextResponse.json(
-      { ok: false, error: "公開中の話が見つからない。" },
-      { status: 404 }
-    );
-  }
-
-  const { data: series, error: seriesError } = await adminSupabase
-    .from("series")
-    .select("id, publication_status")
-    .eq("id", requestedSeriesId)
-    .maybeSingle();
-
-  if (seriesError || !series || series.publication_status !== "public") {
-    return NextResponse.json(
-      { ok: false, error: "公開中の作品が見つからない。" },
-      { status: 404 }
-    );
-  }
-
-  const canonicalSessionId = popularitySessionId({ request, userId });
-  const canonicalEpisodeNumber = Number(episode.episode_number);
-  if (!Number.isSafeInteger(canonicalEpisodeNumber) || canonicalEpisodeNumber <= 0) {
-    return NextResponse.json(
-      { ok: false, error: "話番号が不正。" },
-      { status: 500 }
-    );
-  }
-
-  if (kind === "series_view") {
-    const { error } = await adminSupabase.from("series_view_events").upsert(
-      {
-        series_id: requestedSeriesId,
-        episode_id: episodeId,
-        episode_number: canonicalEpisodeNumber,
-        user_id: userId,
-        session_id: canonicalSessionId,
-      },
-      {
-        onConflict: "session_id,episode_id",
-        ignoreDuplicates: true,
-      }
-    );
-
-    if (error) {
-      console.error("[popularity-series-view]", error);
-      return NextResponse.json(
-        { ok: false, error: "view_event_unavailable" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ ok: true });
-  }
-
-  const { data: recording, error: recordingError } = await adminSupabase
-    .from("recordings")
-    .select("id, series_id, episode_id, is_public")
-    .eq("id", recordingId)
-    .maybeSingle();
-
-  if (
-    recordingError ||
-    !recording ||
-    recording.is_public !== true ||
-    String(recording.series_id) !== requestedSeriesId ||
-    String(recording.episode_id) !== episodeId
-  ) {
-    return NextResponse.json(
-      { ok: false, error: "公開中の朗読が見つからない。" },
-      { status: 404 }
-    );
-  }
-
-  const { error } = await adminSupabase.from("recording_play_events").upsert(
-    {
-      series_id: requestedSeriesId,
-      episode_id: episodeId,
-      episode_number: canonicalEpisodeNumber,
-      recording_id: recordingId,
-      user_id: userId,
-      session_id: canonicalSessionId,
+  return handlePopularityEvent(request, {
+    getCurrentUserId,
+    findEpisode: async (episodeId) => {
+      const { data, error } = await db()
+        .from("episodes")
+        .select("id, series_id, episode_number, posting_status, is_published")
+        .eq("id", episodeId)
+        .maybeSingle();
+      return { data: data as PopularityEpisodeRow | null, error };
     },
-    {
-      onConflict: "session_id,recording_id",
-      ignoreDuplicates: true,
-    }
-  );
-
-  if (error) {
-    console.error("[popularity-recording-play]", error);
-    return NextResponse.json(
-      { ok: false, error: "recording_play_event_unavailable" },
-      { status: 500 }
-    );
-  }
-
-  return NextResponse.json({ ok: true });
+    findSeries: async (seriesId) => {
+      const { data, error } = await db()
+        .from("series")
+        .select("id, publication_status")
+        .eq("id", seriesId)
+        .maybeSingle();
+      return { data: data as PopularitySeriesRow | null, error };
+    },
+    findRecording: async (recordingId) => {
+      const { data, error } = await db()
+        .from("recordings")
+        .select("id, series_id, episode_id, is_public")
+        .eq("id", recordingId)
+        .maybeSingle();
+      return { data: data as PopularityRecordingRow | null, error };
+    },
+    countActorRows: async (table, sessionId) => {
+      // Uses the (session_id, episode_id|recording_id) unique index.
+      const { count, error } = await db()
+        .from(table)
+        .select("session_id", { count: "exact", head: true })
+        .eq("session_id", sessionId);
+      if (error) {
+        console.error("[popularity-ingest-count]", error);
+        return null;
+      }
+      return count ?? 0;
+    },
+    insertEvent: async (table, row) => {
+      const { error } = await db()
+        .from(table)
+        .upsert(row, {
+          onConflict:
+            table === "series_view_events"
+              ? "session_id,episode_id"
+              : "session_id,recording_id",
+          ignoreDuplicates: true,
+        });
+      return { error };
+    },
+  });
 }
