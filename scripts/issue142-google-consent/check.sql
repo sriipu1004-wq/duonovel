@@ -200,7 +200,12 @@ do $$ begin
     then raise exception 'FAIL: supabase_auth_admin cannot execute the hook'; end if;
   if has_function_privilege('authenticated', 'public.hook_before_user_created_block_google(jsonb)', 'EXECUTE')
     or has_function_privilege('anon', 'public.hook_before_user_created_block_google(jsonb)', 'EXECUTE')
-    then raise exception 'FAIL: hook is executable by authenticated/anon'; end if;
+    or has_function_privilege('service_role', 'public.hook_before_user_created_block_google(jsonb)', 'EXECUTE')
+    then raise exception 'FAIL: hook is executable by authenticated/anon/service_role'; end if;
+  -- lock_timeout is SET LOCAL: it must not leak past the migration.
+  if current_setting('lock_timeout') <> '0' then
+    raise exception 'FAIL: lock_timeout leaked out of the migration: %', current_setting('lock_timeout');
+  end if;
   if has_table_privilege('authenticated', 'public.account_consents', 'INSERT')
     or has_table_privilege('authenticated', 'public.account_consents', 'UPDATE')
     or has_table_privilege('authenticated', 'public.account_consents', 'DELETE')

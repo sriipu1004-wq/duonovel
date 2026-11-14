@@ -36,7 +36,7 @@ import {
   ACCOUNT_TERMS_VERSION,
   buildCompletedAccountRegistrationMetadata,
 } from "../src/lib/auth/accountSignupConsent";
-import { decideGoogleConsent } from "../src/lib/auth/googleConsent";
+import { checkConsentRequest, decideGoogleConsent } from "../src/lib/auth/googleConsent";
 import { OFFICIAL_ACCOUNT_EMAIL, isOfficialAccountUser } from "../src/lib/auth/officialAccount";
 import { isOfficialNarrationAccountUser } from "../src/lib/auth/officialNarrationAccount";
 import { authDictionaries } from "../src/i18n/dictionaries/auth";
@@ -223,7 +223,15 @@ function testConsentApiDecision() {
   assert.ok(route.includes("supabase.auth.getUser()"), "route must verify the session with the Auth server");
   assert.ok(route.includes("admin.auth.admin.getUserById(user.id)"), "route must re-read the user with the service role");
   assert.ok(route.includes('admin.from("account_consents").insert(decision.row)'));
-  assert.ok(route.includes("app_metadata: { ...currentAppMetadata, ...decision.appMetadata }"));
+  // PR #205 review S3: only the new keys are sent (the Auth server merges per
+  // top-level key), never a stale copy of provider/providers.
+  assert.ok(route.includes("app_metadata: decision.appMetadata,"));
+  assert.equal(route.includes("currentAppMetadata"), false);
+  assert.ok(
+    route.indexOf("checkConsentRequest(") > 0 &&
+      route.indexOf("checkConsentRequest(") < route.indexOf("request.json()"),
+    "Content-Type and Origin are checked before the body is read"
+  );
   assert.equal(route.includes("user_metadata"), false, "consent is never written to user_metadata");
   assert.ok(
     route.indexOf('from("account_consents").insert') < route.indexOf("updateUserById"),
@@ -246,6 +254,48 @@ function testConsentApiDecision() {
   const gate = readFileSync("src/lib/auth/registrationGate.ts", "utf8");
   assert.ok(gate.includes("user?.app_metadata"));
   assert.equal(gate.includes("user?.user_metadata"), false, "the gate does not read user_metadata");
+}
+
+function testConsentRequestCheck() {
+  const site = "https://www.syosetu-libread.com";
+  const base = {
+    requestUrl: `${site}/api/account/google-consent`,
+    contentType: "application/json",
+    origin: site,
+    host: "www.syosetu-libread.com",
+  };
+  assert.deepEqual(checkConsentRequest(base), { ok: true });
+  assert.deepEqual(checkConsentRequest({ ...base, contentType: "application/json; charset=utf-8" }), { ok: true });
+  // Behind a proxy the request URL may carry an internal host; Host decides.
+  assert.deepEqual(
+    checkConsentRequest({ ...base, requestUrl: "http://localhost:3000/api/account/google-consent" }),
+    { ok: true }
+  );
+  assert.deepEqual(
+    checkConsentRequest({ ...base, requestUrl: "http://localhost:3000/x", origin: "http://localhost:3000", host: "localhost:3000" }),
+    { ok: true }
+  );
+
+  const refused: Array<[string, Partial<Parameters<typeof checkConsentRequest>[0]>, number, string]> = [
+    ["form post", { contentType: "application/x-www-form-urlencoded" }, 415, "unsupported_media_type"],
+    ["text/plain", { contentType: "text/plain" }, 415, "unsupported_media_type"],
+    ["no content type", { contentType: null }, 415, "unsupported_media_type"],
+    ["json-like", { contentType: "application/jsonp" }, 415, "unsupported_media_type"],
+    ["other site", { origin: "https://evil.example" }, 403, "cross_origin"],
+    ["look-alike", { origin: "https://www.syosetu-libread.com.evil.example" }, 403, "cross_origin"],
+    ["other scheme", { origin: "https://www.syosetu-libread.com:8443" }, 403, "cross_origin"],
+    ["no origin", { origin: null }, 403, "cross_origin"],
+    ["opaque origin", { origin: "null" }, 403, "cross_origin"],
+    ["origin with path", { origin: `${site}/x` }, 403, "cross_origin"],
+  ];
+  for (const [label, override, status, error] of refused) {
+    const result = checkConsentRequest({ ...base, ...override });
+    assert.equal(result.ok, false, label);
+    if (!result.ok) {
+      assert.equal(result.status, status, label);
+      assert.equal(result.error, error, label);
+    }
+  }
 }
 
 function testMigrationSource() {
@@ -276,7 +326,10 @@ function testMigrationSource() {
   assert.ok(code.includes("grant select on table public.account_consents to authenticated"));
   assert.ok(code.includes("grant select, insert on table public.account_consents to service_role"));
   assert.ok(code.includes("to supabase_auth_admin"));
-  assert.ok(code.includes("from authenticated, anon, public"));
+  assert.ok(code.includes("from authenticated, anon, public, service_role"), "hook is not executable by service_role");
+  // PR #205 review S3: fail fast on locks, scoped to the migration transaction.
+  // (comments are already stripped from `code`)
+  assert.ok(/^begin;\s*set local lock_timeout = '5s';/m.test(code), "lock_timeout right after begin");
 
   const workflow = readFileSync(".github/workflows/issue142-google-consent-rls.yml", "utf8");
   assert.ok(workflow.includes("scripts/issue142-google-consent/check.sql"));
@@ -566,6 +619,7 @@ function testLocalizedGuidance() {
 async function main() {
   testCallbackBranches();
   testConsentApiDecision();
+  testConsentRequestCheck();
   testMigrationSource();
   testCallbackRouteWiring();
   testResetNoticeWins();

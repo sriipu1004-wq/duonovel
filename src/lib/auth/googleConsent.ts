@@ -56,6 +56,62 @@ export type GoogleConsentDecision =
     }
   | { ok: false; status: 400 | 409; error: GoogleConsentErrorCode };
 
+export type ConsentRequestCheck =
+  | { ok: true }
+  | { ok: false; status: 403 | 415; error: "cross_origin" | "unsupported_media_type" };
+
+/**
+ * PR #205 review S3: the consent API accepts only a JSON body (so a plain
+ * HTML form cannot post it) sent from this site's own origin.
+ * - Content-Type must be application/json (parameters such as charset are
+ *   allowed).
+ * - Origin must be present and equal to the origin of the request URL, or to
+ *   https://<Host> / http://<Host> (behind a proxy the request URL can carry
+ *   an internal host). A missing Origin is refused: browsers send Origin on
+ *   every cross-site and same-origin POST from fetch.
+ */
+export function checkConsentRequest(args: {
+  requestUrl: string;
+  contentType: string | null;
+  origin: string | null;
+  host: string | null;
+}): ConsentRequestCheck {
+  const mediaType = (args.contentType ?? "").split(";")[0].trim().toLowerCase();
+  if (mediaType !== "application/json") {
+    return { ok: false, status: 415, error: "unsupported_media_type" };
+  }
+
+  const origin = (args.origin ?? "").trim();
+  if (!origin || origin === "null") {
+    return { ok: false, status: 403, error: "cross_origin" };
+  }
+  let originValue: string;
+  try {
+    const parsed = new URL(origin);
+    originValue = parsed.origin;
+    if (originValue !== origin.replace(/\/+$/, "")) {
+      return { ok: false, status: 403, error: "cross_origin" };
+    }
+  } catch {
+    return { ok: false, status: 403, error: "cross_origin" };
+  }
+
+  const allowed = new Set<string>();
+  try {
+    allowed.add(new URL(args.requestUrl).origin);
+  } catch {
+    // ignore an unparsable request URL; the Host header may still match
+  }
+  const host = (args.host ?? "").trim().toLowerCase();
+  if (host && /^[a-z0-9.\-:\[\]]+$/.test(host)) {
+    allowed.add(`https://${host}`);
+    allowed.add(`http://${host}`);
+  }
+  return allowed.has(originValue.toLowerCase())
+    ? { ok: true }
+    : { ok: false, status: 403, error: "cross_origin" };
+}
+
 function readText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }

@@ -41,6 +41,11 @@
 
 begin;
 
+-- Fail fast instead of queueing behind long transactions on the guarded
+-- tables (ALTER/CREATE POLICY takes an ACCESS EXCLUSIVE lock). On a timeout
+-- the whole transaction rolls back; retry at a quieter time.
+set local lock_timeout = '5s';
+
 -- 1. Consent record -----------------------------------------------------------
 
 create table if not exists public.account_consents (
@@ -199,9 +204,11 @@ end;
 $$;
 
 -- Permissions as in the official example: only supabase_auth_admin executes.
+-- service_role is also removed (Supabase default privileges grant EXECUTE on
+-- new public functions to it; the hook is never called through the API).
 -- (supabase_auth_admin already has USAGE on schema public in production,
 -- checked 2026-11-15.)
 grant execute on function public.hook_before_user_created_block_google(jsonb) to supabase_auth_admin;
-revoke execute on function public.hook_before_user_created_block_google(jsonb) from authenticated, anon, public;
+revoke execute on function public.hook_before_user_created_block_google(jsonb) from authenticated, anon, public, service_role;
 
 commit;

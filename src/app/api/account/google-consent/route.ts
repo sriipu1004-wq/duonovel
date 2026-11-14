@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { decideGoogleConsent } from "@/lib/auth/googleConsent";
+import { checkConsentRequest, decideGoogleConsent } from "@/lib/auth/googleConsent";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,6 +13,17 @@ import { createClient } from "@/lib/supabase/server";
 // JWT carries the new app_metadata.
 
 export async function POST(request: Request) {
+  // JSON from this site only (PR #205 review S3).
+  const requestCheck = checkConsentRequest({
+    requestUrl: request.url,
+    contentType: request.headers.get("content-type"),
+    origin: request.headers.get("origin"),
+    host: request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
+  });
+  if (!requestCheck.ok) {
+    return NextResponse.json({ ok: false, error: requestCheck.error }, { status: requestCheck.status });
+  }
+
   let payload: unknown;
   try {
     payload = await request.json();
@@ -60,14 +71,14 @@ export async function POST(request: Request) {
     const inserted = await admin.from("account_consents").insert(decision.row);
     if (inserted.error) throw inserted.error;
 
-    // Sent merged with the current app_metadata so provider/providers stay
-    // intact whether the Auth server merges or replaces the object.
-    const currentAppMetadata =
-      currentUser.app_metadata && typeof currentUser.app_metadata === "object"
-        ? (currentUser.app_metadata as Record<string, unknown>)
-        : {};
+    // Only the new keys are sent. The Auth server merges app_metadata per
+    // top-level key (supabase/auth internal/models/user.go
+    // User.UpdateAppMetaData: "u.AppMetaData[key] = value" for each key, a
+    // null value deletes; called from the admin user update in
+    // internal/api/admin.go; read at commit 3e79d851, 2026-11-15), so
+    // provider/providers are kept and are not overwritten with a stale copy.
     const updated = await admin.auth.admin.updateUserById(user.id, {
-      app_metadata: { ...currentAppMetadata, ...decision.appMetadata },
+      app_metadata: decision.appMetadata,
     });
     if (updated.error) throw updated.error;
 
