@@ -40,6 +40,7 @@ import {
   buildReaderJsonLd,
   buildReaderMetadataTitle,
   readerCanonicalPath,
+  readerEpisodeRepeatsWorkTitle,
   resolvePublicWorkAttribution,
   serializeJsonLd,
 } from "@/lib/seo/publicWorkSeo";
@@ -207,6 +208,7 @@ export async function generateMetadata({
       publicEpisode: "公開話",
       fallbackDescription: (seriesTitle: string, episodeTitle: string) =>
         `${seriesTitle}の${episodeTitle}を読む・聴く。`,
+      singleDescription: (headline: string) => `${headline}を読む・聴く。`,
       author: "作者",
       ogLocale: "ja_JP",
     },
@@ -215,6 +217,8 @@ export async function generateMetadata({
       publicEpisode: "Public episode",
       fallbackDescription: (seriesTitle: string, episodeTitle: string) =>
         `Read and listen to ${episodeTitle} of ${seriesTitle}.`,
+      singleDescription: (headline: string) =>
+        `Read and listen to ${headline}.`,
       author: "Author",
       ogLocale: "en_US",
     },
@@ -223,6 +227,8 @@ export async function generateMetadata({
       publicEpisode: "공개 화",
       fallbackDescription: (seriesTitle: string, episodeTitle: string) =>
         `${seriesTitle}의 ${episodeTitle}를 읽고 들을 수 있습니다.`,
+      singleDescription: (headline: string) =>
+        `${headline}를 읽고 들을 수 있습니다.`,
       author: "작가",
       ogLocale: "ko_KR",
     },
@@ -278,7 +284,14 @@ export async function generateMetadata({
     });
 
     const description = [
-      summary || ui.fallbackDescription(seriesTitle, episodeTitle),
+      summary ||
+        (readerEpisodeRepeatsWorkTitle(
+          seriesTitle,
+          episodeTitle,
+          attribution.authorName
+        )
+          ? ui.singleDescription(episodeTitle)
+          : ui.fallbackDescription(seriesTitle, episodeTitle)),
       `${ui.author}: ${attribution.authorName}.`,
     ]
       .filter(Boolean)
@@ -293,7 +306,11 @@ export async function generateMetadata({
       currentEpisodeNumber,
       inferSeriesSourceLanguage(series, getEpisodeBody(episode))
     );
-    const metadataTitle = buildReaderMetadataTitle(seriesTitle, episodeTitle);
+    const metadataTitle = buildReaderMetadataTitle(
+      seriesTitle,
+      episodeTitle,
+      attribution.authorName
+    );
 
     return {
       title: metadataTitle,

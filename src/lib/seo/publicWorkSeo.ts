@@ -74,17 +74,43 @@ export function stripAuthorSuffixFromTitle(title: string, author: string): strin
  * starts with it (e.g. series「修道院の秋・南部修太郎」+ episode
  * 「修道院の秋・南部修太郎 — Part 1」).
  */
-export function buildReaderHeadline(seriesTitle: string, episodeTitle: string): string {
+export function buildReaderHeadline(
+  seriesTitle: string,
+  episodeTitle: string,
+  authorName = ""
+): string {
   const series = seriesTitle.trim();
   const episode = episodeTitle.trim();
   if (!series) return episode;
   if (!episode || episode === series) return series;
-  if (episode.startsWith(series)) return episode;
+  if (readerEpisodeRepeatsWorkTitle(series, episode, authorName)) return episode;
   return `${series} ${episode}`;
 }
 
-export function buildReaderMetadataTitle(seriesTitle: string, episodeTitle: string): string {
-  return `${buildReaderHeadline(seriesTitle, episodeTitle)} | LIB read`;
+/**
+ * True when the episode title already carries the work title, either in
+ * full or without an author suffix (series「The Wind in the Willows・Kenneth
+ * Grahame」+ episode「The Wind in the Willows — Part 1」).
+ */
+export function readerEpisodeRepeatsWorkTitle(
+  seriesTitle: string,
+  episodeTitle: string,
+  authorName = ""
+): boolean {
+  const series = seriesTitle.trim();
+  const episode = episodeTitle.trim();
+  if (!series || !episode) return false;
+  if (episode.startsWith(series)) return true;
+  const base = stripAuthorSuffixFromTitle(series, authorName);
+  return base !== series && episode.startsWith(base);
+}
+
+export function buildReaderMetadataTitle(
+  seriesTitle: string,
+  episodeTitle: string,
+  authorName = ""
+): string {
+  return `${buildReaderHeadline(seriesTitle, episodeTitle, authorName)} | LIB read`;
 }
 
 /** True when the card summary is only the Japanese "no synopsis" placeholder. */
@@ -255,7 +281,11 @@ export function buildReaderJsonLd(input: {
   return stripUndefined({
     "@context": "https://schema.org",
     "@type": "Chapter",
-    name: buildReaderHeadline(input.seriesTitle, input.episodeTitle),
+    name: buildReaderHeadline(
+      input.seriesTitle,
+      input.episodeTitle,
+      input.attribution.authorName
+    ),
     position: input.episodeNumber,
     url:
       PUBLIC_SITE_URL +

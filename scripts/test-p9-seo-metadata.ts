@@ -13,6 +13,7 @@ import {
   JA_WORK_SUMMARY_FALLBACK,
   readerCanonicalLocale,
   readerCanonicalPath,
+  readerEpisodeRepeatsWorkTitle,
   resolvePublicWorkAttribution,
   serializeJsonLd,
   stripAuthorSuffixFromTitle,
@@ -34,6 +35,17 @@ assert.equal(buildReaderMetadataTitle("作品", "作品"), "作品 | LIB read");
 assert.equal(buildReaderMetadataTitle("作品", "第1話 はじまり"), "作品 第1話 はじまり | LIB read");
 assert.equal(buildReaderMetadataTitle("Work", "Episode 1"), "Work Episode 1 | LIB read");
 assert.equal(buildReaderMetadataTitle("작품", "1화"), "작품 1화 | LIB read");
+// Preview evidence: episode title repeats the work title without its author suffix.
+assert.equal(
+  buildReaderMetadataTitle(
+    "The Wind in the Willows・Kenneth Grahame",
+    "The Wind in the Willows — Part 1 — Part 1/4",
+    "Kenneth Grahame"
+  ),
+  "The Wind in the Willows — Part 1 — Part 1/4 | LIB read"
+);
+assert.ok(readerEpisodeRepeatsWorkTitle("修道院の秋・南部修太郎", "修道院の秋・南部修太郎 — Part 1"));
+assert.equal(readerEpisodeRepeatsWorkTitle("作品", "第1話"), false);
 
 // 2. Attribution: Public Domain -> original author + publisher; user works unchanged.
 assert.deepEqual(
