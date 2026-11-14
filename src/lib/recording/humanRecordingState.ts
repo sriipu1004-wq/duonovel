@@ -65,3 +65,32 @@ export function isPublishedHumanRecording(
 ): boolean {
   return recording.is_public === true && isHumanRecordingRow(recording);
 }
+
+/**
+ * Issue #137 H1: mirror of the DB guard trigger predicate
+ * (libread_internal.h1_guard_human_mutation). A row with no voice model whose
+ * storage path has a `human` path segment can only be written through
+ * issue137_h1_human_commit / issue137_h1_human_rename. AI/TTS writers must
+ * never pick such a row as an update/delete target.
+ */
+export function isH1GuardedHumanRow(recording: HumanRecordingLike): boolean {
+  const voiceModelId = pickText(recording.voice_model_id, recording.voiceModelId);
+  if (voiceModelId) return false;
+  const path = `/${getRecordingAudioStoragePath(recording)}`;
+  return /\/human(\/|$)/u.test(path);
+}
+
+/**
+ * PostgREST `or` filter that keeps exactly the rows NOT guarded by the H1
+ * trigger on the path condition: '/'||path LIKE '%/human/%' OR LIKE '%/human'
+ * (i.e. 'human', 'human/…', '…/human/…', '…/human'). A NULL path is not
+ * guarded by the trigger and is kept here too. Combine with
+ * `.is("voice_model_id", null)` for direct non-Human legacy writes.
+ */
+export const H1_NON_HUMAN_PATH_LIKE_PATTERNS = ["human", "human/*", "*/human/*", "*/human"] as const;
+export const H1_NON_HUMAN_PATH_POSTGREST_OR =
+  "audio_storage_path.is.null,and(" +
+  H1_NON_HUMAN_PATH_LIKE_PATTERNS.map((pattern) =>
+    `audio_storage_path.not.like.${pattern}`
+  ).join(",") +
+  ")";

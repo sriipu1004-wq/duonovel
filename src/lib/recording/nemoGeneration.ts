@@ -21,6 +21,7 @@ import {
   decideRecordingEntryAccess,
   normalizeRecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
+import { isH1GuardedHumanRow } from "@/lib/recording/humanRecordingState";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -503,7 +504,9 @@ async function findExistingRecordings(
     throw new Error(`recording_lookup_failed:${error.message}`);
   }
 
-  const rows = (data ?? []) as RawRow[];
+  // Issue #137 H1: Human narration rows are never NeMo update/delete targets
+  // (the DB guard would reject the write with H1_ATOMIC_RPC_REQUIRED).
+  const rows = ((data ?? []) as RawRow[]).filter((row) => !isH1GuardedHumanRow(row));
 
   return rows.map((row) => ({
     id: String(row.id),
