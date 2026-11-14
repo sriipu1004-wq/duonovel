@@ -1129,7 +1129,8 @@ function testIssue139OwnerApprovedBatch() {
     assert.equal(result.ok, true, `${work.manifest_id}: ${result.errors.join("; ")}`);
     const manifest = result.manifest!;
     assert.equal(manifest.approved, work.approved);
-    assert.equal(manifest.import_status, "prepared");
+    // Imported as private Production Drafts on 2026-11-15 (PR #197); publication is a separate step.
+    assert.equal(manifest.import_status, "imported", work.manifest_id);
     assert.equal(manifest.source_hash, work.source_sha256);
     assert.equal(manifest.chapter_count, work.chapter_count);
     assert.deepEqual(manifest.content_warnings, expectedWarnings[work.manifest_id]);
