@@ -9,6 +9,7 @@ on:
       - ".github/workflows/issue142-google-consent-rls.yml"
       - "scripts/issue142-google-consent/**"
       - "supabase/migrations/20261115120000_issue142_google_consent_rls.sql"
+      - "supabase/migrations/20261115180000_issue142_pr3b_identity_bound_consent.sql"
   workflow_dispatch:
 permissions:
   contents: read
@@ -36,3 +37,14 @@ jobs:
           PGPASSWORD: postgres
           PGDATABASE: postgres
         run: psql -X -v ON_ERROR_STOP=1 -f scripts/issue142-google-consent/check.sql
+      # PR3b: identity-bound consent, illustrations storage guard, rollback.
+      # Fresh database so the PR3 run above cannot leak state into it.
+      - name: Apply PR3 + PR3b migrations to a fresh disposable DB and assert
+        env:
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -c "create database pr3b"
+          PGDATABASE=pr3b psql -X -v ON_ERROR_STOP=1 -f scripts/issue142-google-consent/check-pr3b.sql

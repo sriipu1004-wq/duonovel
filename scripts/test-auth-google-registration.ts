@@ -5,8 +5,12 @@
 // server in app_metadata + account_consents, the RLS migration source and the
 // before-user-created hook function (the SQL itself is exercised by
 // scripts/issue142-google-consent/check.sql on a disposable PostgreSQL).
+// PR3b: identity-bound RLS condition and the illustrations storage guard
+// (source checks here; SQL in check-pr3b.sql), the field-level profile gate
+// and an inventory that classifies every write API route.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -19,6 +23,7 @@ import {
   decideAuthCallbackDestination,
   hasConfirmedEmailIdentity,
   isBlockedFromWritesUntilRegistered,
+  isProfileWriteBlockedUntilRegistered,
   resolveGoogleRegistrationState,
   type RegistrationUserLike,
 } from "../src/lib/auth/registrationGate";
@@ -616,6 +621,219 @@ function testLocalizedGuidance() {
   }
 }
 
+// Line endings normalized so multi-line needles work on any checkout.
+function readSource(file: string): string {
+  return readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+}
+
+function testPr3bMigrationSource() {
+  const migration = readSource(
+    "supabase/migrations/20261115180000_issue142_pr3b_identity_bound_consent.sql"
+  );
+  const code = migration.replace(/^\s*--.*$/gm, "");
+  assert.ok(/^begin;\s*set local lock_timeout = '5s';/m.test(code), "lock_timeout right after begin");
+  // Same signature as PR3, so the 15 PR3 policies pick up the new body.
+  assert.ok(code.includes("create or replace function public.account_google_consent_satisfied()\nreturns boolean"));
+  assert.ok(code.includes("security definer"));
+  assert.ok(code.includes("set search_path = ''"));
+  // Bound to the current Google identity, read from the auth tables.
+  assert.ok(code.includes("from auth.identities i"));
+  assert.ok(code.includes("i.provider = 'google'"));
+  assert.ok(code.includes("order by i.created_at desc"), "latest Google identity, like findGoogleIdentity");
+  assert.ok(code.includes("(u.raw_app_meta_data ->> 'google_consent_identity_id') = g.id::text"));
+  assert.ok(code.includes("from public.account_consents c"));
+  assert.ok(code.includes("c.identity_id = g.id"));
+  assert.equal(code.includes("auth.jwt()"), false, "PR3b does not trust the JWT");
+  assert.equal(code.includes("user_metadata"), false, "RLS never reads user_metadata");
+  assert.ok(code.includes("revoke execute on function public.account_google_consent_satisfied() from public;"));
+  // Storage: RESTRICTIVE insert + update for the public illustrations bucket.
+  for (const command of ["insert", "update"]) {
+    assert.ok(
+      code.includes(
+        `create policy issue142_google_consent_illustrations_${command}\n  on storage.objects\n  as restrictive\n  for ${command}\n  to authenticated`
+      ),
+      `storage ${command} policy`
+    );
+  }
+  assert.equal(
+    (code.match(/bucket_id <> 'illustrations'\s+or \(select public\.account_google_consent_satisfied\(\)\)/g) ?? []).length,
+    3
+  );
+  // Existing storage policies are not touched.
+  assert.equal(/drop policy if exists (?!issue142_google_consent_illustrations_)/i.test(code), false);
+  assert.equal(/alter policy/i.test(code), false);
+
+  const rollback = readSource("scripts/issue142-google-consent/rollback-pr3b.sql");
+  assert.ok(rollback.includes("drop policy if exists issue142_google_consent_illustrations_insert on storage.objects"));
+  assert.ok(rollback.includes("drop policy if exists issue142_google_consent_illustrations_update on storage.objects"));
+  assert.ok(rollback.includes("security invoker"));
+
+  const workflow = readSource(".github/workflows/issue142-google-consent-rls.yml");
+  assert.ok(workflow.includes("scripts/issue142-google-consent/check-pr3b.sql"));
+  assert.ok(workflow.includes("supabase/migrations/20261115180000_issue142_pr3b_identity_bound_consent.sql"));
+}
+
+function testProfileFieldGate() {
+  const none = { bio: false, xUrl: false, noteUrl: false };
+  const pending = user({ identities: [emailIdentity, googleIdentity], app_metadata: { providers: ["email", "google"] } });
+  const done = user({
+    identities: [emailIdentity, googleIdentity],
+    app_metadata: { providers: ["email", "google"], [GOOGLE_CONSENT_IDENTITY_KEY]: GOOGLE_ID },
+  });
+  const emailOnly = user({ identities: [emailIdentity] });
+  // STEP 2 saves the display name only: allowed before STEP 2.
+  assert.equal(isProfileWriteBlockedUntilRegistered(pending, none), false);
+  assert.equal(isProfileWriteBlockedUntilRegistered(emailOnly, none), false);
+  for (const field of ["bio", "xUrl", "noteUrl"] as const) {
+    const fields = { ...none, [field]: true };
+    assert.equal(isProfileWriteBlockedUntilRegistered(pending, fields), true, `${field} waits for STEP 2`);
+    assert.equal(isProfileWriteBlockedUntilRegistered(done, fields), false);
+    assert.equal(isProfileWriteBlockedUntilRegistered(emailOnly, fields), false);
+  }
+  const route = readSource("src/app/api/account/profile/route.ts");
+  const post = route.slice(route.indexOf("export async function POST"));
+  const gateAt = post.indexOf("isProfileWriteBlockedUntilRegistered(user, {");
+  assert.ok(gateAt > post.indexOf("supabase.auth.getUser()"), "gate after getUser");
+  assert.ok(gateAt < post.indexOf("createAdminClient()"), "gate before any service-role write");
+  assert.ok(post.includes('bio: typeof bio === "string"'));
+  assert.ok(post.includes('xUrl: typeof xUrl === "string"'));
+  assert.ok(post.includes('noteUrl: typeof noteUrl === "string"'));
+  assert.ok(post.includes('return registrationRequiredJson("text");'));
+  // STEP 2 (register page) sends the display name only.
+  const register = readSource("src/app/register/page.tsx");
+  assert.ok(register.includes("await syncPublicUserProfile(availableDisplayName);"));
+}
+
+function handlerSlice(source: string, method: string): string {
+  const start = source.indexOf(`export async function ${method}`);
+  if (start < 0) return "";
+  const next = source.indexOf("export async function", start + 1);
+  return source.slice(start, next < 0 ? undefined : next);
+}
+
+function listWriteRoutes(dir: string): Array<{ file: string; methods: string[] }> {
+  const out: Array<{ file: string; methods: string[] }> = [];
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) {
+      out.push(...listWriteRoutes(path));
+    } else if (name === "route.ts") {
+      const source = readSource(path);
+      const methods = ["POST", "PUT", "PATCH", "DELETE"].filter((m) =>
+        new RegExp(`export (async )?function ${m}\\b|export const ${m}\\b`).test(source)
+      );
+      if (methods.length > 0) out.push({ file: path.replace(/\\/g, "/"), methods });
+    }
+  }
+  return out;
+}
+
+// Issue #142 PR3b (PR #205 review S2-3): every write API route is either
+// gated for accounts that have not finished STEP 2, or exempt for a stated
+// reason. A new write route fails this test until it is classified here.
+const GATE = "await registrationRequiredResponse(";
+type RoutePolicy = { gated: string[]; needle?: string; exempt?: string };
+const PRIVATE_LIBRARY: RoutePolicy = { gated: [], exempt: "private library (not public)" };
+const OFFICIAL_ONLY: RoutePolicy = { gated: [], exempt: "official narration account only" };
+const WRITE_ROUTE_POLICY: Record<string, RoutePolicy> = {
+  // Gated: public content, public signals (likes / follows / bookmarks feed
+  // public counts) or public work settings.
+  "src/app/api/account/profile/route.ts": { gated: ["POST"], needle: "isProfileWriteBlockedUntilRegistered(user, {" },
+  "src/app/api/authors/follow/route.ts": { gated: ["POST"], exempt: "DELETE: unfollow only removes" },
+  "src/app/api/authors/like/route.ts": { gated: ["POST"], exempt: "DELETE: unlike only removes" },
+  "src/app/api/readers/like/route.ts": { gated: ["POST"], exempt: "DELETE: unlike only removes" },
+  "src/app/api/series/reaction/route.ts": { gated: ["POST"], exempt: "DELETE: unlike only removes" },
+  "src/app/api/bookmarks/series/route.ts": { gated: ["POST"], exempt: "DELETE: removal only" },
+  "src/app/api/series/[seriesId]/content-rating/route.ts": { gated: ["POST"] },
+  "src/app/api/series/[seriesId]/source-language/route.ts": { gated: ["POST"] },
+  "src/app/api/series/[seriesId]/translation-permission/route.ts": { gated: ["POST"] },
+  "src/app/api/series/[seriesId]/human-translation-permission/route.ts": { gated: ["POST"] },
+  "src/app/api/recordings/human-visibility/route.ts": {
+    gated: ["POST"],
+    needle: 'if (isPublic) {\n    const registrationBlocked = await registrationRequiredResponse(user, "text");',
+  },
+  "src/app/api/recordings/human-upload-session/route.ts": { gated: ["POST"] },
+  "src/app/api/recordings/human-upload-finalize/route.ts": { gated: ["POST"] },
+  "src/app/api/recordings/human-publish/route.ts": { gated: ["POST"] },
+  "src/app/api/word-explanations/route.ts": { gated: ["POST"] },
+  "src/app/api/human-translations/draft/route.ts": { gated: ["POST"], needle: "context.registrationBlocked" },
+  "src/app/api/human-translations/[translationId]/publish/route.ts": { gated: ["POST"], needle: "current.registrationBlocked" },
+  "src/app/api/human-translations/[translationId]/route.ts": { gated: ["PATCH"], needle: "current.registrationBlocked" },
+  "src/app/api/library/translations/generate/route.ts": { gated: ["POST"], needle: "access.registrationBlocked" },
+  "src/app/api/episode-translations/generate/route.ts": { gated: ["POST"], needle: "prepareEpisodeTranslationGeneration(request)" },
+  // Exempt.
+  "src/app/api/account/google-consent/route.ts": { gated: [], exempt: "STEP 2 itself" },
+  "src/app/api/account/content-preferences/route.ts": { gated: [], exempt: "private reading preferences" },
+  "src/app/api/account/delete/route.ts": { gated: [], exempt: "account deletion only removes" },
+  "src/app/api/account/display-name/check/route.ts": { gated: [], exempt: "availability check, no write" },
+  "src/app/api/account/email/check/route.ts": { gated: [], exempt: "availability check, no write" },
+  "src/app/api/account/email/prepare-signup/route.ts": { gated: [], exempt: "before sign-up; no Google identity yet" },
+  "src/app/api/billing/checkout/route.ts": { gated: [], exempt: "private purchase" },
+  "src/app/api/billing/credits/checkout/route.ts": { gated: [], exempt: "private purchase" },
+  "src/app/api/billing/portal/route.ts": { gated: [], exempt: "private billing portal" },
+  "src/app/api/billing/webhook/route.ts": { gated: [], exempt: "Stripe server-to-server" },
+  "src/app/api/episode-translations/unlock/route.ts": { gated: [], exempt: "private unlock for the reader" },
+  "src/app/api/human-translations/[translationId]/withdraw/route.ts": { gated: [], exempt: "withdrawal only reduces exposure" },
+  "src/app/api/library/import-txt/route.ts": PRIVATE_LIBRARY,
+  "src/app/api/library/import/[workId]/complete/route.ts": PRIVATE_LIBRARY,
+  "src/app/api/library/import/[workId]/route.ts": PRIVATE_LIBRARY,
+  "src/app/api/library/import/[workId]/units/route.ts": PRIVATE_LIBRARY,
+  "src/app/api/library/import/start/route.ts": PRIVATE_LIBRARY,
+  "src/app/api/library/progress/route.ts": { gated: [], exempt: "private reading progress" },
+  "src/app/api/library/works/[workId]/glossary/[termId]/route.ts": PRIVATE_LIBRARY,
+  "src/app/api/library/works/[workId]/glossary/route.ts": PRIVATE_LIBRARY,
+  "src/app/api/library/works/[workId]/route.ts": PRIVATE_LIBRARY,
+  "src/app/api/popularity/events/route.ts": { gated: [], exempt: "anonymous view events (anon allowed too)" },
+  "src/app/api/recordings/aivis-generate/route.ts": OFFICIAL_ONLY,
+  "src/app/api/recordings/aivis-autogen-run-pending/route.ts": OFFICIAL_ONLY,
+  "src/app/api/recordings/nemo-generate/route.ts": OFFICIAL_ONLY,
+  "src/app/api/recordings/nemo-autogen/route.ts": OFFICIAL_ONLY,
+  "src/app/api/recordings/nemo-autogen-backfill/route.ts": OFFICIAL_ONLY,
+  "src/app/api/recordings/nemo-autogen-run-pending/route.ts": OFFICIAL_ONLY,
+  "src/app/api/recordings/human-delete/route.ts": { gated: [], exempt: "deletion only removes" },
+  "src/app/api/recordings/human-upload-abort/route.ts": { gated: [], exempt: "abort only removes staging" },
+  "src/app/api/recordings/upload-check/route.ts": { gated: [], exempt: "file check, no write" },
+};
+
+function testWriteRouteInventory() {
+  const routes = listWriteRoutes("src/app/api");
+  const seen = new Set<string>();
+  for (const { file, methods } of routes) {
+    seen.add(file);
+    const policy = WRITE_ROUTE_POLICY[file];
+    assert.ok(policy, `${file} (${methods.join(",")}) is not classified in WRITE_ROUTE_POLICY`);
+    const source = readSource(file);
+    for (const method of methods) {
+      const body = handlerSlice(source, method);
+      if (policy.gated.includes(method)) {
+        const needle = policy.needle ?? GATE;
+        assert.ok(body.includes(needle), `${file} ${method} must call the registration gate`);
+        // The gate runs before the handler's first service-role client.
+        const adminAt = body.indexOf("createAdminClient()");
+        if (adminAt >= 0 && policy.needle === undefined) {
+          assert.ok(body.indexOf(needle) < adminAt, `${file} ${method}: gate before the service-role client`);
+        }
+      } else {
+        assert.ok(policy.exempt, `${file} ${method} needs a stated exemption`);
+        assert.equal(body.includes(GATE), false, `${file} ${method} is exempt but gated; update the table`);
+      }
+    }
+  }
+  for (const file of Object.keys(WRITE_ROUTE_POLICY)) {
+    assert.ok(seen.has(file), `${file} is classified but has no write handler (stale entry)`);
+  }
+  // Series settings routes answer with codes (their clients branch on them).
+  for (const file of [
+    "src/app/api/series/[seriesId]/content-rating/route.ts",
+    "src/app/api/series/[seriesId]/source-language/route.ts",
+    "src/app/api/series/[seriesId]/translation-permission/route.ts",
+    "src/app/api/series/[seriesId]/human-translation-permission/route.ts",
+  ]) {
+    assert.ok(readSource(file).includes('await registrationRequiredResponse('), file);
+    assert.ok(readSource(file).includes('"code");'), `${file} uses the code style`);
+  }
+}
+
 async function main() {
   testCallbackBranches();
   testConsentApiDecision();
@@ -627,6 +845,9 @@ async function main() {
   testOfficialAccount();
   testWriteGateCoverage();
   testLocalizedGuidance();
+  testPr3bMigrationSource();
+  testProfileFieldGate();
+  testWriteRouteInventory();
   console.log(
     "PASS: Google button is flag-gated; callback sends unregistered Google accounts to STEP 2; consent is server-recorded in app_metadata; write gate, RLS migration source and official-account grant checks hold"
   );

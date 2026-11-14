@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { normalizeDisplayName, validateDisplayName } from "@/lib/auth/accountSignupConsent";
 import { findDisplayNameConflict } from "@/lib/auth/displayNameAvailability";
+import { isProfileWriteBlockedUntilRegistered } from "@/lib/auth/registrationGate";
+import { registrationRequiredJson } from "@/lib/auth/registrationGate.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -159,6 +161,17 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) return NextResponse.json({ ok: false, error: "ログイン状態を確認できなかった。" }, { status: 401 });
+
+  // Issue #142 PR3b: STEP 2 saves the display name through this route, so a
+  // Google account that has not finished STEP 2 may save the display name
+  // only; bio / x_url / note_url wait for STEP 2.
+  if (isProfileWriteBlockedUntilRegistered(user, {
+    bio: typeof bio === "string",
+    xUrl: typeof xUrl === "string",
+    noteUrl: typeof noteUrl === "string",
+  })) {
+    return registrationRequiredJson("text");
+  }
 
   try {
     const admin = createAdminClient();

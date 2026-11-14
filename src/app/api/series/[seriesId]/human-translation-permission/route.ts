@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { registrationRequiredResponse } from "@/lib/auth/registrationGate.server";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -21,6 +22,10 @@ export async function POST(request: Request, context: RouteContext) {
   if (authError || !user) {
     return NextResponse.json({ ok: false, error: "authentication_required" }, { status: 401 });
   }
+
+  // Issue #142 PR3b: changing a public work's settings needs STEP 2 for a Google identity.
+  const registrationBlocked = await registrationRequiredResponse(user, "code");
+  if (registrationBlocked) return registrationBlocked;
   const series = await supabase.from("series").select("id,author_id").eq("id", seriesId).maybeSingle();
   if (series.error || !series.data) {
     return NextResponse.json({ ok: false, error: "series_not_found" }, { status: 404 });

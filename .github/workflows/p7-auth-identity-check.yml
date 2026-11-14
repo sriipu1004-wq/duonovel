@@ -6,6 +6,9 @@ name: P7 auth identity and callback check
 # server-side write gate and official-account grant checks.
 # PR3: server-recorded consent (app_metadata + account_consents), RLS
 # migration source checks, word-explanation guidance in every locale.
+# PR3b: identity-bound RLS / illustrations storage migration source, the
+# profile field gate and the inventory of every write API route (any route
+# under src/app/api must be gated or carry a stated exemption).
 on:
   pull_request:
     paths:
@@ -28,6 +31,9 @@ on:
       - "src/features/translation/**"
       - "src/features/playback/**"
       - "supabase/migrations/20261115120000_issue142_google_consent_rls.sql"
+      - "supabase/migrations/20261115180000_issue142_pr3b_identity_bound_consent.sql"
+      - "scripts/issue142-google-consent/**"
+      - "src/app/api/**"
       - ".github/workflows/issue142-google-consent-rls.yml"
       - "src/features/library/PrivateLibraryBilingualPlayback.tsx"
       - "src/lib/auth/**"
@@ -109,6 +115,17 @@ jobs:
           src/app/api/account/content-preferences/route.ts
           src/app/api/recordings/human-publish/route.ts
           src/app/api/recordings/human-upload-finalize/route.ts
+          src/app/api/account/profile/route.ts
+          src/app/api/authors/follow/route.ts
+          src/app/api/authors/like/route.ts
+          src/app/api/readers/like/route.ts
+          src/app/api/series/reaction/route.ts
+          src/app/api/bookmarks/series/route.ts
+          "src/app/api/series/[seriesId]/content-rating/route.ts"
+          "src/app/api/series/[seriesId]/source-language/route.ts"
+          "src/app/api/series/[seriesId]/translation-permission/route.ts"
+          "src/app/api/series/[seriesId]/human-translation-permission/route.ts"
+          src/app/api/recordings/human-visibility/route.ts
           src/app/mypage/page.tsx
           "src/app/record/create/[seriesId]/page.tsx"
           src/features/comment/EpisodeCommentSection.tsx

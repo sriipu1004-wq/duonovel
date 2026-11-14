@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { registrationRequiredResponse } from "@/lib/auth/registrationGate.server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isUuid } from "@/lib/uuid";
@@ -75,6 +76,10 @@ export async function POST(request: Request) {
       { status: 401 }
     );
   }
+
+  // Issue #142 PR3b: a public like needs STEP 2 for a Google identity (DELETE stays open).
+  const registrationBlocked = await registrationRequiredResponse(user, "text");
+  if (registrationBlocked) return registrationBlocked;
 
   if (!seriesId || !isUuid(seriesId)) {
     return NextResponse.json(
