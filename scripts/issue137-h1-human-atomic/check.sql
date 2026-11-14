@@ -298,7 +298,60 @@ select pg_catalog.set_config('libread.h1_atomic_scope',
 select public.t_expect($q$delete from public.recordings
   where id = '50000000-0000-0000-0000-00000000000a'$q$, 'H1_ATOMIC_RPC_REQUIRED');
 commit;
-\echo PASS 7: another owner_id cannot write, replace, flip or delete A's Human row
+\echo PASS 7: another owner_id cannot write, replace, flip or delete the Human row of A
+
+-- 7b. Display-name rename RPC.
+select public.t_ok(not has_function_privilege(r,
+  'public.issue137_h1_human_rename(uuid,text)', 'EXECUTE'),
+  r || ' must not EXECUTE issue137_h1_human_rename')
+  from unnest(array['anon','authenticated']) r;
+set role authenticated;
+select public.t_expect($q$select public.issue137_h1_human_rename(
+  '00000000-0000-0000-0000-00000000000a','Hijack')$q$, 'permission denied');
+reset role;
+set role anon;
+select public.t_expect($q$select public.issue137_h1_human_rename(
+  '00000000-0000-0000-0000-00000000000a','Hijack')$q$, 'permission denied');
+reset role;
+set role service_role;
+-- B gets their own Human row in the same scope (series 1 / episode 1).
+select public.issue137_h1_human_commit(
+  '10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-00000000000b', 0, 'insert',
+  '50000000-0000-0000-0000-0000000000b2', 'Narrator B',
+  'human/10000000-0000-0000-0000-000000000001/20000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-00000000000b/1-bbb/playback-from-wav.m4a',
+  false);
+select public.t_expect($q$select public.issue137_h1_human_rename(
+  '00000000-0000-0000-0000-00000000000a','   ')$q$, 'H1_BAD_INPUT');
+select public.t_ok((public.issue137_h1_human_rename(
+  '00000000-0000-0000-0000-00000000000a', '  Renamed A ') ->> 'updated_count')::int = 1,
+  'rename updates the one Human row of A');
+select public.t_ok((select reader_name from public.recordings
+  where id = '50000000-0000-0000-0000-00000000000a') = 'Renamed A', 'A row renamed (trimmed)');
+select public.t_ok(public.issue137_h1_human_revision(
+  '10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-00000000000a') = 4, 'rename bumps the scope revision of A (3 -> 4)');
+select public.t_ok((select reader_name from public.recordings
+  where id = '50000000-0000-0000-0000-0000000000b2') = 'Narrator B', 'B row unchanged by A rename');
+select public.t_ok(public.issue137_h1_human_revision(
+  '10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-00000000000b') = 1, 'B revision unchanged by A rename');
+select public.t_ok((select reader_name from public.recordings
+  where id = '30000000-0000-0000-0000-000000000001') = 'Aivis X', 'AI row unchanged by rename');
+-- Same name again: nothing changes, revision does not move. In the SAME
+-- transaction, the marker is already cleared: a direct rename is blocked.
+begin;
+select public.t_ok((public.issue137_h1_human_rename(
+  '00000000-0000-0000-0000-00000000000a', 'Renamed A') ->> 'updated_count')::int = 0,
+  'no-op rename updates nothing');
+select public.t_expect($q$update public.recordings set reader_name = 'Direct'
+  where id = '50000000-0000-0000-0000-00000000000a'$q$, 'H1_ATOMIC_RPC_REQUIRED');
+commit;
+select public.t_ok(public.issue137_h1_human_revision(
+  '10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-00000000000a') = 4, 'no-op rename keeps revision');
+reset role;
+\echo PASS 7b: rename RPC renames only the owner rows, bumps revision, is service_role-only
 
 -- 8. Consent / R18 / permission checks inside the commit RPC.
 set role service_role;
@@ -329,7 +382,7 @@ update public.series set recording_permission_mode = 'closed'
 set role service_role;
 select public.t_expect($q$select public.issue137_h1_human_commit(
   '10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-00000000000a', 3, 'visibility',
+  '00000000-0000-0000-0000-00000000000a', 4, 'visibility',
   '50000000-0000-0000-0000-00000000000a', null, null, true)$q$, 'H2_PERMISSION_REVOKED');
 reset role;
 \echo PASS 8: consent, R18 and recording-permission checks reject the commit
@@ -338,13 +391,13 @@ reset role;
 set role service_role;
 select public.t_ok((public.issue137_h1_human_commit(
   '10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-00000000000a', 3, 'delete_all') ->> 'deleted_count')::int = 1,
+  '00000000-0000-0000-0000-00000000000a', 4, 'delete_all') ->> 'deleted_count')::int = 1,
   'delete_all deletes the one Human row');
 select public.t_ok(not exists (select 1 from public.recordings
   where id = '50000000-0000-0000-0000-00000000000a'), 'Human row gone after delete_all');
 select public.t_ok(public.issue137_h1_human_revision(
   '10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-00000000000a') = 4, 'revision persists after deletion (4)');
+  '00000000-0000-0000-0000-00000000000a') = 5, 'revision persists after deletion (5)');
 reset role;
 \echo PASS 5b: delete_all through the RPC (even after permission revocation)
 
@@ -396,5 +449,7 @@ reset role;
 select public.t_ok(to_regnamespace('libread_internal') is null, 'schema dropped');
 select public.t_ok(to_regprocedure('public.issue137_h1_human_revision(uuid,uuid,uuid)') is null,
   'revision RPC dropped');
+select public.t_ok(to_regprocedure('public.issue137_h1_human_rename(uuid,text)') is null,
+  'rename RPC dropped');
 \echo PASS 10: two-stage rollback restores direct writes and removes all H1 objects
 \echo PASS: issue137 H1 human atomic migration

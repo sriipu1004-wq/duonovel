@@ -12,6 +12,11 @@ import {
   readHumanAtomicRevision,
 } from "../src/lib/recording/humanRecordingAtomic";
 import { checkNonproductionMediaWriterBoundary } from "../src/lib/recording/publicMediaWriterBoundary";
+import {
+  H1_NON_HUMAN_PATH_LIKE_PATTERNS,
+  H1_NON_HUMAN_PATH_POSTGREST_OR,
+  isH1GuardedHumanRow,
+} from "../src/lib/recording/humanRecordingState";
 
 function source(path: string): string {
   return readFileSync(path, "utf8");
@@ -341,17 +346,72 @@ async function checkHumanAtomicCommitBoundary() {
   ], "direct recordings writers must be exactly the reviewed AI/TTS/legacy set");
   const profile = source("src/app/api/account/profile/route.ts");
   for (const needle of [
-    '.not("audio_storage_path", "like", "human/%")',
-    '.not("audio_storage_path", "like", "%/human/%")',
+    ".or(H1_NON_HUMAN_PATH_POSTGREST_OR)",
+    '.is("voice_model_id", null)',
+    'args.admin.rpc("issue137_h1_human_rename"',
+    "p_owner_id: args.userId",
+    "await renameHumanRecordings(args)",
+    "throwUnlessMissingColumn(error, `users",
+    "throwUnlessMissingColumn(error, `recordings",
+    "await syncDisplayNameEverywhere(",
   ]) {
-    assert.equal(profile.includes(needle), true, `profile rename must skip Human rows: ${needle}`);
+    assert.equal(profile.includes(needle), true, `profile rename must use H1 and check errors: ${needle}`);
   }
+  // A bare `await …update(…)` statement (result discarded) is forbidden.
+  assert.equal(/^\s*(for \([^)]*\)\s*)?await args\.admin\.from\("(users|recordings)"\)\.update\(/mu.test(
+    profile.slice(profile.indexOf("async function syncDisplayNameEverywhere("))), false,
+  "display-name sync must not discard update errors");
+
+  // The app-side guard predicate mirrors the trigger, and the PostgREST
+  // filter keeps exactly the non-guarded paths (NULL path included).
+  const likeToRegExp = (pattern: string) => new RegExp(
+    `^${pattern.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join(".*")}$`, "u");
+  const keptByFilter = (path: string | null) => path === null ||
+    H1_NON_HUMAN_PATH_LIKE_PATTERNS.every((pattern) => !likeToRegExp(pattern).test(path));
+  for (const [path, guarded] of [
+    ["human/s/e/u/1-x/playback-from-wav.m4a", true],
+    ["human", true],
+    ["a/human", true],
+    ["https://x.supabase.co/storage/v1/object/public/recording-audio/human/a/b.m4a", true],
+    ["nemo/s/e/a.m4a", false],
+    ["aivis/s/e/a.m4a", false],
+    ["humane/s/e/a.m4a", false],
+    ["a/humans/b.m4a", false],
+    ["a/xhuman/b.m4a", false],
+    [null, false],
+  ] as const) {
+    assert.equal(isH1GuardedHumanRow({ voice_model_id: null, audio_storage_path: path }), guarded,
+      `guard predicate for ${path}`);
+    assert.equal(keptByFilter(path), !guarded, `profile filter for ${path}`);
+    assert.equal(isH1GuardedHumanRow({ voice_model_id: "vm", audio_storage_path: path }), false,
+      `voice-model rows are never guarded: ${path}`);
+  }
+  assert.equal(H1_NON_HUMAN_PATH_POSTGREST_OR,
+    "audio_storage_path.is.null,and(audio_storage_path.not.like.human,audio_storage_path.not.like.human/*," +
+    "audio_storage_path.not.like.*/human/*,audio_storage_path.not.like.*/human)");
+
+  // AI/TTS writers never select a guarded Human row as update/delete target.
+  for (const file of ["src/lib/recording/nemoGeneration.ts", "src/lib/recording/aivisGeneration.ts"]) {
+    const text = source(file);
+    assert.equal(text.includes(".filter((row) => !isH1GuardedHumanRow(row))"), true,
+      `${file} must exclude Human rows from existing-row candidates`);
+    assert.ok(text.indexOf("!isH1GuardedHumanRow(row)") < text.indexOf("async function writeRecording("),
+      `${file} excludes Human rows in the lookup used by writeRecording`);
+  }
+  // The stale Aivis cleanup deletes only rows bound to a known voice model.
+  const aivisAuto = source("src/lib/recording/aivisAutoGeneration.ts");
+  const aivisDeleteAt = aivisAuto.search(/\.from\("recordings"\)\s*\.delete\(\)/u);
+  assert.ok(aivisDeleteAt > 0 && aivisAuto.indexOf("if (!voiceModel) {") >= 0 &&
+    aivisAuto.indexOf("if (!voiceModel) {") < aivisDeleteAt,
+    "stale Aivis delete requires a voice model (never a Human row)");
 
   // The migration is standalone (no B2) and closes EXECUTE for end users.
   const migration = source("supabase/migrations/20261114120000_issue137_h1_human_atomic.sql");
   for (const needle of [
     "create schema if not exists libread_internal;",
     "create trigger issue137_h1_human_atomic_guard",
+    "create or replace function public.issue137_h1_human_rename(",
+    "revoke all on function public.issue137_h1_human_rename(uuid,text)",
     "before insert or update or delete on public.recordings",
     "H1_ATOMIC_RPC_REQUIRED",
     "H1_STALE_REVISION",

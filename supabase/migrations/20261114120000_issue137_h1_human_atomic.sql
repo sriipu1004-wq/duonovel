@@ -329,5 +329,71 @@ grant execute on function public.issue137_h1_human_commit(
   uuid,uuid,uuid,bigint,text,uuid,text,text,boolean,text,boolean)
   to service_role;
 
+-- Display-name change: rename the owner's Human rows everywhere, scope by
+-- scope, under the same revision lock and marker as issue137_h1_human_commit,
+-- so an old name never stays on public pages. Scopes are locked in a fixed
+-- (series_id, episode_id) order. Only canonical rows of this owner
+-- (reader_id = owner, no conflicting reader_user_id alias) are touched.
+-- Service-role-only: the route passes the authenticated user's ID.
+create or replace function public.issue137_h1_human_rename(
+  p_owner_id uuid, p_reader_name text
+) returns jsonb language plpgsql security invoker set search_path = ''
+as $$
+declare
+  v_name text := btrim(coalesce(p_reader_name, ''));
+  sc record;
+  n integer;
+  total integer := 0;
+  scopes integer := 0;
+begin
+  if p_owner_id is null or v_name = '' then
+    raise exception using errcode = 'P0001', message = 'H1_BAD_INPUT';
+  end if;
+  for sc in
+    select distinct r.series_id, r.episode_id
+      from public.recordings r
+      where r.reader_id = p_owner_id
+        and (r.reader_user_id is null or r.reader_user_id = p_owner_id)
+        and r.series_id is not null and r.episode_id is not null
+        and libread_internal.h1_known_human(
+          r.voice_model_id::text, r.reader_name, r.reader_id, r.reader_user_id,
+          r.audio_storage_path)
+      order by r.series_id, r.episode_id
+  loop
+    insert into libread_internal.h1_human_scope_revision(series_id, episode_id, owner_id)
+    values (sc.series_id, sc.episode_id, p_owner_id) on conflict do nothing;
+    perform 1 from libread_internal.h1_human_scope_revision
+      where series_id = sc.series_id and episode_id = sc.episode_id
+        and owner_id = p_owner_id
+      for update;
+    perform pg_catalog.set_config('libread.h1_atomic_scope',
+      sc.series_id::text || ':' || sc.episode_id::text || ':' || p_owner_id::text, true);
+    update public.recordings r set reader_name = v_name
+      where r.series_id = sc.series_id and r.episode_id = sc.episode_id
+        and r.reader_id = p_owner_id
+        and (r.reader_user_id is null or r.reader_user_id = p_owner_id)
+        and r.reader_name is distinct from v_name
+        and libread_internal.h1_known_human(
+          r.voice_model_id::text, r.reader_name, r.reader_id, r.reader_user_id,
+          r.audio_storage_path);
+    get diagnostics n = row_count;
+    perform pg_catalog.set_config('libread.h1_atomic_scope', '', true);
+    if n > 0 then
+      update libread_internal.h1_human_scope_revision
+        set revision = revision + 1
+      where series_id = sc.series_id and episode_id = sc.episode_id
+        and owner_id = p_owner_id;
+      total := total + n;
+      scopes := scopes + 1;
+    end if;
+  end loop;
+  return jsonb_build_object('updated_count', total, 'scope_count', scopes);
+end;
+$$;
+revoke all on function public.issue137_h1_human_rename(uuid,text)
+  from public, anon, authenticated;
+grant execute on function public.issue137_h1_human_rename(uuid,text)
+  to service_role;
+
 select pg_catalog.pg_notify('pgrst', 'reload schema');
 commit;

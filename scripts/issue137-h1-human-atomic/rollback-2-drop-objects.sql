@@ -7,6 +7,7 @@ begin;
 drop trigger if exists issue137_h1_human_atomic_guard on public.recordings;
 drop function if exists public.issue137_h1_human_commit(
   uuid,uuid,uuid,bigint,text,uuid,text,text,boolean,text,boolean);
+drop function if exists public.issue137_h1_human_rename(uuid,text);
 drop function if exists public.issue137_h1_human_revision(uuid,uuid,uuid);
 drop function if exists libread_internal.h1_guard_human_mutation();
 drop function if exists libread_internal.h1_known_human(text,text,uuid,uuid,text);

@@ -3,6 +3,10 @@ import { normalizeDisplayName, validateDisplayName } from "@/lib/auth/accountSig
 import { findDisplayNameConflict } from "@/lib/auth/displayNameAvailability";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import {
+  H1_NON_HUMAN_PATH_POSTGREST_OR,
+  isH1GuardedHumanRow,
+} from "@/lib/recording/humanRecordingState";
 
 type AdminSupabase = ReturnType<typeof createAdminClient>;
 
@@ -73,26 +77,71 @@ async function saveMetadata(args: { admin: AdminSupabase; userId: string; displa
   if (error) throw error;
 }
 
+type DbError = { code?: string | null; message: string } | null;
+
+// Legacy multi-shape payloads: a column that does not exist on this schema is
+// expected and skipped. Every other DB error is a real failure.
+function isMissingColumnError(error: DbError): boolean {
+  return error?.code === "PGRST204" || error?.code === "42703";
+}
+
+function throwUnlessMissingColumn(error: DbError, label: string): void {
+  if (!error || isMissingColumnError(error)) return;
+  console.error(`[account-profile-sync] ${label}`, error);
+  throw new Error("表示名の反映に失敗した。もう一度保存して。");
+}
+
+// Issue #137 H1: Human narration rows can be renamed only through the
+// service-role RPC (same revision lock as every other Human mutation).
+async function renameHumanRecordings(args: { admin: AdminSupabase; userId: string; displayName: string }) {
+  const { error } = await args.admin.rpc("issue137_h1_human_rename", {
+    p_owner_id: args.userId,
+    p_reader_name: args.displayName,
+  });
+  if (!error) return;
+  if (error.code === "PGRST202") {
+    // RPC not deployed yet (app shipped before the migration). Only a user
+    // who has no Human rows may proceed; otherwise an old name would remain
+    // on public pages, so fail instead of silently skipping.
+    const lookup = await args.admin.from("recordings")
+      .select("id, voice_model_id, audio_storage_path")
+      .or(`reader_id.eq.${args.userId},reader_user_id.eq.${args.userId}`);
+    if (lookup.error) {
+      console.error("[account-profile-sync] human recording lookup", lookup.error);
+      throw new Error("朗読の表示名を更新できなかった。もう一度保存して。");
+    }
+    const rows = (lookup.data ?? []) as Array<Record<string, unknown>>;
+    if (!rows.some((row) => isH1GuardedHumanRow(row))) {
+      console.warn("[account-profile-sync] issue137_h1_human_rename unavailable; no Human rows to rename");
+      return;
+    }
+  }
+  console.error("[account-profile-sync] issue137_h1_human_rename", error);
+  throw new Error("朗読の表示名を更新できなかった。もう一度保存して。");
+}
+
 async function syncDisplayNameEverywhere(args: { admin: AdminSupabase; userId: string; displayName: string }) {
   const userPayloads = [{ display_name: args.displayName }, { username: args.displayName }, { pen_name: args.displayName }, { name: args.displayName }];
-  for (const payload of userPayloads) await args.admin.from("users").update(payload).eq("id", args.userId);
+  for (const payload of userPayloads) {
+    const { error } = await args.admin.from("users").update(payload).eq("id", args.userId);
+    throwUnlessMissingColumn(error, `users ${Object.keys(payload).join(",")}`);
+  }
   const recordingPayloads = [
     { reader_name: args.displayName, narrator_name: args.displayName, display_name: args.displayName, speaker_name: args.displayName },
     { reader_name: args.displayName },
   ];
-  // Issue #137 H1: Human narration rows (no voice model, a `human` storage
-  // path segment) change only through issue137_h1_human_commit; the DB guard
-  // trigger rejects direct writes. Their reader_name follows the narrator's
-  // next take (RPC `replace`). Only legacy non-Human rows are renamed here.
+  // Legacy non-Human rows only. The `or` filter mirrors the H1 trigger's path
+  // predicate exactly, so this never touches a guarded Human row.
   for (const payload of recordingPayloads) {
     for (const ownerColumn of ["reader_user_id", "reader_id"] as const) {
-      await args.admin.from("recordings").update(payload)
+      const { error } = await args.admin.from("recordings").update(payload)
         .eq(ownerColumn, args.userId)
         .is("voice_model_id", null)
-        .not("audio_storage_path", "like", "human/%")
-        .not("audio_storage_path", "like", "%/human/%");
+        .or(H1_NON_HUMAN_PATH_POSTGREST_OR);
+      throwUnlessMissingColumn(error, `recordings ${ownerColumn} ${Object.keys(payload).join(",")}`);
     }
   }
+  await renameHumanRecordings(args);
 }
 
 export async function POST(request: Request) {

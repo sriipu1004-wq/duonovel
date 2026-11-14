@@ -21,6 +21,7 @@ import {
   decideRecordingEntryAccess,
   normalizeRecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
+import { isH1GuardedHumanRow } from "@/lib/recording/humanRecordingState";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -248,7 +249,10 @@ async function findExistingRecordings(
     throw new Error(`recording_lookup_failed:${error.message}`);
   }
 
-  return ((data ?? []) as RawRow[]).map((row) => ({
+  // Issue #137 H1: Human narration rows are never Aivis update targets.
+  return ((data ?? []) as RawRow[])
+    .filter((row) => !isH1GuardedHumanRow(row))
+    .map((row) => ({
     id: String(row.id),
     audioStoragePath: pickText(row.audio_storage_path),
     readerId: pickText(row.reader_id),
