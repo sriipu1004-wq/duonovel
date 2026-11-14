@@ -1119,7 +1119,7 @@ function testIssue139OwnerApprovedBatch() {
     "aozora-000692": ["violence"],
     "aozora-033200": [],
     "aozora-053520": ["violence"],
-    "aozora-004386": undefined,
+    "aozora-004386": [],
   };
   let rawChecked = 0;
   for (const work of batch.works) {
@@ -1148,7 +1148,8 @@ function testIssue139OwnerApprovedBatch() {
     }
     if (work.manifest_id === "aozora-004386") {
       assert.deepEqual(manifest.chapter_split, { strategy: "blank_line_sections" });
-      assert.equal(manifest.rights_status, "pending");
+      // Owner approved after the re-split review (button answer 2026-11-14).
+      assert.equal(manifest.rights_status, "approved");
     }
     // Raw Aozora TXT files are git-ignored. When present locally, rebuild the
     // chapter plan from the pinned bytes and compare the recorded fingerprint.
