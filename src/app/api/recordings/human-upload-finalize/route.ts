@@ -15,6 +15,8 @@ import {
 } from "@/lib/recording/humanMultipartUploadShared";
 import { publishHumanRecording } from "@/lib/recording/humanRecordingPublish";
 import { assertApprovedPrivateHumanRecordingBucket } from "@/lib/recording/humanRecordingStorage";
+import { closeHumanStagingLease } from "@/lib/recording/humanStagingLease";
+import { isUuid } from "@/lib/uuid";
 import {
   decideRecordingEntryAccess,
   normalizeRecordingPermissionMode,
@@ -110,7 +112,7 @@ export async function POST(request: Request) {
     !episodeId ||
     !fileName ||
     !totalSizeBytes ||
-    !uploadSessionId ||
+    !isUuid(uploadSessionId) ||
     totalSizeBytes < HUMAN_MULTIPART_MIN_TRIGGER_BYTES ||
     totalSizeBytes > HUMAN_MULTIPART_MAX_TOTAL_BYTES
   ) {
@@ -217,7 +219,7 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   let bucketName: string;
   try {
-    // Recheck before reading parts: bucket visibility or server
+    // Recheck before sealing/reading parts: bucket visibility or server
     // configuration may have changed since the signed session was issued.
     bucketName = await assertApprovedPrivateHumanRecordingBucket(admin);
   } catch {
@@ -235,6 +237,28 @@ export async function POST(request: Request) {
     totalSizeBytes,
     uploadSessionId,
   });
+  // H2: seal the exact owner/session/scope BEFORE reading any part. A
+  // missing, expired, foreign, reused, closed or revoked lease (or a missing
+  // H2 migration) fails closed. After the seal the storage guard rejects
+  // every later write with an old signed token.
+  try {
+    await closeHumanStagingLease(admin, {
+      sessionId: session.uploadSessionId,
+      seriesId,
+      episodeId,
+      actorId: user.id,
+      sourceExtension: session.sourceExtension,
+      totalSizeBytes: session.totalSizeBytes,
+    }, "seal");
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "アップロード権限が失効したか、既に確定処理済み。最初からやり直して。" },
+      { status: 409 }
+    );
+  }
+  // Only reached after a successful seal: these parts can no longer be
+  // re-written, and a sealed lease cannot be used again, so removing the
+  // exact part paths afterwards is safe whatever the outcome below.
   const tempObjectPaths = session.parts.map((part) => part.objectPath);
 
   try {

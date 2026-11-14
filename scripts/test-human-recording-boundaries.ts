@@ -13,6 +13,13 @@ import {
 } from "../src/lib/recording/humanRecordingAtomic";
 import { checkNonproductionMediaWriterBoundary } from "../src/lib/recording/publicMediaWriterBoundary";
 import {
+  buildHumanStagingPartPaths,
+  closeHumanStagingLease,
+  openHumanStagingLease,
+  retireMaturedHumanStagingLeases,
+} from "../src/lib/recording/humanStagingLease";
+import { buildHumanMultipartUploadSession } from "../src/lib/recording/humanMultipartUploadShared";
+import {
   H1_NON_HUMAN_PATH_LIKE_PATTERNS,
   H1_NON_HUMAN_PATH_POSTGREST_OR,
   isH1GuardedHumanRow,
@@ -440,9 +447,177 @@ async function checkHumanAtomicCommitBoundary() {
   }), /F2P_MEDIA_WRITER_MODE_UNVERIFIED/u);
 }
 
-void checkHumanPrivateBucketBoundary().then(checkHumanAtomicCommitBoundary).then(() => {
+// #137 H2: multipart temporary staging is bound to a server-side lease.
+async function checkHumanStagingLeaseBoundary() {
+  type RpcResult = { data: unknown; error: { message: string } | null };
+  const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+  const removed: string[][] = [];
+  const fake = (results: Record<string, RpcResult>, removeError: unknown = null) => ({
+    async rpc(fn: string, args: Record<string, unknown>) {
+      calls.push({ fn, args });
+      return results[fn] ?? { data: null, error: { message: "Could not find the function" } };
+    },
+    storage: {
+      from(bucket: string) {
+        assert.equal(bucket, DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET);
+        return {
+          async remove(paths: string[]) {
+            removed.push(paths);
+            return { data: [], error: removeError };
+          },
+        };
+      },
+    },
+  }) as never;
+  const scope = {
+    sessionId: "60000000-0000-0000-0000-000000000001",
+    seriesId: "10000000-0000-0000-0000-000000000001",
+    episodeId: "20000000-0000-0000-0000-000000000001",
+    actorId: "00000000-0000-0000-0000-00000000000a",
+    sourceExtension: "webm",
+    totalSizeBytes: 9437184,
+  };
+
+  // Missing RPC / any error / non-true result: fail closed, no fallback.
+  await assert.rejects(() => openHumanStagingLease(fake({}), scope, 2),
+    /^Error: human_staging_open_unavailable$/u, "missing open RPC fails closed");
+  for (const result of [
+    { data: null, error: { message: "H2_STAGE_SESSION_REUSED" } },
+    { data: false, error: null },
+    { data: "true", error: null },
+  ]) {
+    await assert.rejects(() => openHumanStagingLease(fake({ issue137_h2_stage_open: result }), scope, 2),
+      /human_staging_open_unavailable/u);
+  }
+  for (const message of [
+    "H2_STAGE_NOT_FOUND_OR_NOT_OWNER", "H2_STAGE_ALREADY_CLOSED", "H2_STAGE_EXPIRED", "H2_STAGE_REVOKED",
+  ]) {
+    await assert.rejects(() => closeHumanStagingLease(fake({
+      issue137_h2_stage_close: { data: null, error: { message } },
+    }), scope, "seal"), /^Error: human_staging_seal_unavailable$/u,
+    `seal must fail closed on ${message} without echoing SQL detail`);
+  }
+  await assert.rejects(() => closeHumanStagingLease(fake({}), scope, "abort"),
+    /human_staging_abort_unavailable/u);
+  calls.length = 0;
+  await openHumanStagingLease(fake({ issue137_h2_stage_open: { data: true, error: null } }), scope, 2);
+  await closeHumanStagingLease(fake({ issue137_h2_stage_close: { data: true, error: null } }), scope, "seal");
+  assert.deepEqual(calls.map((c) => c.args), [
+    { p_session: scope.sessionId, p_series: scope.seriesId, p_episode: scope.episodeId,
+      p_actor: scope.actorId, p_extension: "webm", p_total_bytes: 9437184, p_part_count: 2 },
+    { p_session: scope.sessionId, p_series: scope.seriesId, p_episode: scope.episodeId,
+      p_actor: scope.actorId, p_extension: "webm", p_total_bytes: 9437184, p_mode: "seal" },
+  ]);
+
+  // Part paths match the multipart session exactly (what the trigger admits).
+  const session = buildHumanMultipartUploadSession({
+    seriesId: scope.seriesId, episodeId: scope.episodeId, userId: scope.actorId,
+    sourceExtension: "webm", totalSizeBytes: scope.totalSizeBytes, uploadSessionId: scope.sessionId,
+  });
+  const paths = buildHumanStagingPartPaths({ ...scope, partCount: session.parts.length });
+  assert.deepEqual(paths, session.parts.map((part) => part.objectPath));
+  assert.match(paths[1], /^human-temp\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/part-0002\.webm$/u);
+
+  // Retirement: claim -> exact remove -> finish; foreign rows and failures held.
+  const candidate = (sessionId: string, actorId = scope.actorId) => ({
+    session_id: sessionId, series_id: scope.seriesId, episode_id: scope.episodeId,
+    actor_id: actorId, source_extension: "webm", part_count: 2,
+  });
+  removed.length = 0;
+  calls.length = 0;
+  const retired = await retireMaturedHumanStagingLeases(fake({
+    issue137_h2_stage_retire_candidates: { data: [
+      candidate(scope.sessionId),
+      candidate("60000000-0000-0000-0000-000000000002", "00000000-0000-0000-0000-00000000000b"),
+    ], error: null },
+    issue137_h2_stage_claim_retirement: { data: true, error: null },
+    issue137_h2_stage_finish_retirement: { data: true, error: null },
+  }), { actorId: scope.actorId, bucketName: DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET });
+  assert.deepEqual(retired, { retired: 1, held: 1 });
+  assert.deepEqual(removed, [paths], "only the exact part paths of the actor's own lease");
+  assert.deepEqual(calls[0].args, { p_actor: scope.actorId, p_limit: 5 });
+  removed.length = 0;
+  const failedRemove = await retireMaturedHumanStagingLeases(fake({
+    issue137_h2_stage_retire_candidates: { data: [candidate(scope.sessionId)], error: null },
+    issue137_h2_stage_claim_retirement: { data: true, error: null },
+    issue137_h2_stage_finish_retirement: { data: true, error: null },
+  }, { message: "remove failed" }), { actorId: scope.actorId, bucketName: DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET });
+  assert.deepEqual(failedRemove, { retired: 0, held: 1 }, "no receipt after a failed remove");
+  removed.length = 0;
+  const refused = await retireMaturedHumanStagingLeases(fake({
+    issue137_h2_stage_retire_candidates: { data: [candidate(scope.sessionId)], error: null },
+    issue137_h2_stage_claim_retirement: { data: null, error: { message: "H2_STAGE_RECORDING_REFERENCE_HOLD" } },
+  }), { actorId: scope.actorId, bucketName: DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET });
+  assert.deepEqual(refused, { retired: 0, held: 1 });
+  assert.deepEqual(removed, [], "nothing is removed when the claim is refused");
+  await assert.rejects(() => retireMaturedHumanStagingLeases(fake({}),
+    { actorId: scope.actorId, bucketName: DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET }),
+  /human_staging_retire_unavailable/u);
+
+  // Route ordering.
+  const issued = source("src/app/api/recordings/human-upload-session/route.ts");
+  const at = (needle: string) => {
+    const index = issued.indexOf(needle);
+    assert.ok(index >= 0, `upload-session must contain: ${needle}`);
+    return index;
+  };
+  assert.ok(at("await assertApprovedPrivateHumanRecordingBucket(adminSupabase)") <
+    at("await openHumanStagingLease(adminSupabase, lease"), "#181 bucket check before the lease");
+  assert.ok(at("await openHumanStagingLease(adminSupabase, lease") < at(".createSignedUploadUrl("),
+    "lease before any bearer token");
+  assert.ok(at("consent?.consent_version !== RECORDING_GLOBAL_CONSENT_VERSION") <
+    at("await openHumanStagingLease(adminSupabase, lease"), "consent checked before lease");
+  assert.match(issued, /createSignedUploadUrl\(part\.objectPath, \{[\s\S]*?upsert: false/u);
+  assert.doesNotMatch(issued, /upsert: true/u, "bearer must never overwrite a part");
+  assert.ok(issued.includes('await closeHumanStagingLease(adminSupabase, lease, "abort")'),
+    "partial token issuance aborts the lease");
+
+  const finished = source("src/app/api/recordings/human-upload-finalize/route.ts");
+  const seal = finished.indexOf('}, "seal");');
+  assert.ok(seal > 0 && finished.indexOf("await closeHumanStagingLease(admin, {") < seal);
+  assert.ok(finished.indexOf("await assertApprovedPrivateHumanRecordingBucket(admin)") <
+    finished.indexOf("await closeHumanStagingLease(admin, {"), "bucket check before seal");
+  assert.ok(seal < finished.indexOf(".download(part.objectPath)"), "seal before reading parts");
+  assert.ok(seal < finished.indexOf("await publishHumanRecording("), "seal before publication");
+  assert.ok(seal < finished.indexOf(".remove(tempObjectPaths)"), "parts removed only after the seal");
+  assert.ok(finished.includes("!isUuid(uploadSessionId)"), "session id must be a UUID");
+
+  const aborted = source("src/app/api/recordings/human-upload-abort/route.ts");
+  assert.ok(aborted.indexOf("await supabase.auth.getUser()") < aborted.indexOf("closeHumanStagingLease(admin"),
+    "abort authenticates first");
+  assert.ok(aborted.includes("actorId: user.id"), "abort is scoped to the signed-in actor");
+  assert.ok(aborted.indexOf('}, "abort");') < aborted.indexOf(".remove(paths)"),
+    "abort removes parts only after the lease is closed");
+
+  const studio = source("src/components/recording/RecordingStudioPage.tsx");
+  assert.ok(studio.includes("await abortHumanMultipartLease(unfinishedMultipart)"),
+    "studio aborts the lease after a failed multipart save");
+  assert.ok(studio.includes("uploadSessionId: args.sessionId"));
+
+  const migration = source("supabase/migrations/20261114130000_issue137_h2_human_staging_lease.sql");
+  const migrationSql = migration.replace(/--[^\n]*/gu, "");
+  assert.equal(/\bgrant\b[^;]*\bto\b[^;]*\b(anon|authenticated|public)\b/iu.test(migrationSql), false,
+    "H2 migration grants nothing to anon/authenticated/public");
+  assert.equal(/\bgrant\b[^;]*\bon\s+schema\b/iu.test(migrationSql), false,
+    "H2 migration does not change schema grants (no B2 dependency)");
+  for (const needle of [
+    "H2_REQUIRES_H1_LIBREAD_INTERNAL",
+    "create trigger issue137_h2_stage_storage_guard",
+    "before insert or update of bucket_id, name, metadata on storage.objects",
+    "H2_STAGE_SESSION_REUSED",
+    "H2_STAGE_EXPIRED",
+    "H2_STAGE_PHYSICAL_OR_REFERENCE_REMAINS",
+  ]) {
+    assert.ok(migration.includes(needle), `H2 migration must contain: ${needle}`);
+  }
+}
+
+void checkHumanPrivateBucketBoundary()
+  .then(checkHumanAtomicCommitBoundary)
+  .then(checkHumanStagingLeaseBoundary)
+  .then(() => {
   console.log(
-    "PASS: Human identity, access, exact PRIVATE bucket, signed uploads, storage, search, Official, TTS, and H1 atomic-commit boundaries"
+    "PASS: Human identity, access, exact PRIVATE bucket, signed uploads, storage, search, Official, TTS, H1 atomic-commit, and H2 staging-lease boundaries"
   );
 }).catch((error) => {
   console.error(error);

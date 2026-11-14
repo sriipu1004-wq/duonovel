@@ -6,6 +6,15 @@ import {
 } from "@/lib/recording/recordingEntry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertApprovedPrivateHumanRecordingBucket } from "@/lib/recording/humanRecordingStorage";
+import {
+  closeHumanStagingLease,
+  openHumanStagingLease,
+  retireMaturedHumanStagingLeases,
+} from "@/lib/recording/humanStagingLease";
+import {
+  RECORDING_GLOBAL_CONSENT_KEY,
+  RECORDING_GLOBAL_CONSENT_VERSION,
+} from "@/lib/recording/recordingConsent";
 import { createClient } from "@/lib/supabase/server";
 import {
   buildHumanMultipartUploadSession,
@@ -73,6 +82,18 @@ function resolveErrorResponse(message: string) {
     message === "human_private_bucket_name_unapproved"
   ) {
     return { status: 503, error: "Human PRIVATE保存先を確認できない。" };
+  }
+
+  if (message === "recording_consent_required") {
+    return { status: 403, error: "朗読投稿前の初回同意がまだ完了していない。" };
+  }
+
+  if (message === "human_staging_open_unavailable") {
+    // Missing H2 migration, ineligible source/consent/R18 or reused session.
+    return {
+      status: 409,
+      error: "分割アップロードを開始できない。作品の公開状態・録音許可・同意を確認して。",
+    };
   }
 
   return {
@@ -174,10 +195,32 @@ export async function POST(request: Request) {
       throw new Error("episode_not_accessible");
     }
 
-    // Provider-side PRIVATE visibility must be verified before minting any
-    // signed multipart upload token.
+    const { data: consent, error: consentError } = await supabase
+      .from("user_recording_consents")
+      .select("consent_version")
+      .eq("user_id", user.id)
+      .eq("consent_key", RECORDING_GLOBAL_CONSENT_KEY)
+      .maybeSingle();
+    if (consentError || consent?.consent_version !== RECORDING_GLOBAL_CONSENT_VERSION) {
+      throw new Error("recording_consent_required");
+    }
+
+    // #181: provider-side PRIVATE visibility is verified BEFORE the H2 lease
+    // is opened and before any signed multipart upload token is minted.
     const adminSupabase = createAdminClient();
-    await assertApprovedPrivateHumanRecordingBucket(adminSupabase);
+    const privateBucketName = await assertApprovedPrivateHumanRecordingBucket(adminSupabase);
+
+    // H2 cleanup (best-effort, this actor only): retire leases whose 3 h
+    // window has passed. A failure here never blocks the new upload.
+    try {
+      await retireMaturedHumanStagingLeases(adminSupabase, {
+        actorId: user.id,
+        bucketName: privateBucketName,
+      });
+    } catch (cleanupError) {
+      console.warn("[human-upload-session] staging retirement skipped", cleanupError);
+    }
+
     const sourceExtension = getAudioFileExtension(fileName) || "bin";
     const session = buildHumanMultipartUploadSession({
       seriesId,
@@ -188,41 +231,64 @@ export async function POST(request: Request) {
     });
 
     const signedParts: SignedPart[] = [];
-
-    for (const part of session.parts) {
-      const { data, error } = await adminSupabase.storage
-        .from(session.bucketName)
-        .createSignedUploadUrl(part.objectPath, {
-          upsert: true,
-        });
-
-      if (error || !data?.token) {
-        throw new Error(
-          `signed_upload_url_create_failed:${error?.message ?? "token_missing"}`
-        );
-      }
-
-      signedParts.push({
-        index: part.index,
-        objectPath: part.objectPath,
-        byteOffsetStart: part.byteOffsetStart,
-        byteOffsetEndExclusive: part.byteOffsetEndExclusive,
-        expectedSizeBytes: part.expectedSizeBytes,
-        token: data.token,
-      });
-    }
-
-    return NextResponse.json({
-      ok: true,
-      uploadMode: "multipart",
-      uploadSessionId: session.uploadSessionId,
-      bucketName: session.bucketName,
+    // H2: commit the server-only lease BEFORE minting any bearer token.
+    // An absent migration or an ineligible source fails closed here.
+    const lease = {
+      sessionId: session.uploadSessionId,
+      seriesId,
+      episodeId,
+      actorId: user.id,
       sourceExtension: session.sourceExtension,
       totalSizeBytes: session.totalSizeBytes,
-      partSizeBytes: session.partSizeBytes,
-      tempPrefix: session.tempPrefix,
-      parts: signedParts,
-    });
+    };
+    await openHumanStagingLease(adminSupabase, lease, session.parts.length);
+
+    try {
+      for (const part of session.parts) {
+        const { data, error } = await adminSupabase.storage
+          .from(session.bucketName)
+          .createSignedUploadUrl(part.objectPath, {
+            // A bearer must never overwrite a part that already landed.
+            upsert: false,
+          });
+
+        if (error || !data?.token) {
+          throw new Error(
+            `signed_upload_url_create_failed:${error?.message ?? "token_missing"}`
+          );
+        }
+
+        signedParts.push({
+          index: part.index,
+          objectPath: part.objectPath,
+          byteOffsetStart: part.byteOffsetStart,
+          byteOffsetEndExclusive: part.byteOffsetEndExclusive,
+          expectedSizeBytes: part.expectedSizeBytes,
+          token: data.token,
+        });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        uploadMode: "multipart",
+        uploadSessionId: session.uploadSessionId,
+        bucketName: session.bucketName,
+        sourceExtension: session.sourceExtension,
+        totalSizeBytes: session.totalSizeBytes,
+        partSizeBytes: session.partSizeBytes,
+        tempPrefix: session.tempPrefix,
+        parts: signedParts,
+      });
+    } catch (issueError) {
+      // Some tokens may already exist. Aborting the lease makes the storage
+      // guard reject every later write with them.
+      try {
+        await closeHumanStagingLease(adminSupabase, lease, "abort");
+      } catch (abortError) {
+        console.error("[human-upload-session] lease abort failed", abortError);
+      }
+      throw issueError;
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
     const resolved = resolveErrorResponse(message);
