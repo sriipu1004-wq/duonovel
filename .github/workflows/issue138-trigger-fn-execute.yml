@@ -1,0 +1,35 @@
+# Issue #138: prove the EXECUTE revoke keeps the usage trigger working.
+# Disposable PostgreSQL service container only; no Supabase hosted access.
+name: Issue138 trigger function EXECUTE revoke
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue138-trigger-fn-execute.yml"
+      - "scripts/issue138-trigger-fn-execute/**"
+      - "supabase/migrations/20261114030000_revoke_authenticated_execute_trigger_fn.sql"
+permissions:
+  contents: read
+jobs:
+  revoke-keeps-trigger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Apply migration to disposable DB and assert
+        env:
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: psql -X -v ON_ERROR_STOP=1 -f scripts/issue138-trigger-fn-execute/check.sql
