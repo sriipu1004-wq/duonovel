@@ -8,6 +8,10 @@ on:
       - "docs/public-domain-ingestion.md"
       - "scripts/public-domain/**"
       - "scripts/test-public-domain-ingestion.ts"
+      - "scripts/test-aozora-annotation-fidelity.tsx"
+      - "src/lib/aozora/**"
+      - "src/features/effects/EffectPreviewRenderer.tsx"
+      - "src/features/playback/BilingualPane.tsx"
       - "scripts/test-public-classic-translation.ts"
       - "src/lib/translation/episodeTranslationGenerateLimits.ts"
       - "src/lib/translation/prepareEpisodeTranslationGeneration.ts"
@@ -68,6 +72,9 @@ jobs:
       - name: Public Domain ingestion regression
         run: npm run test:public-domain-ingestion
 
+      - name: Issue 140 Aozora notation fidelity (real-source part SKIPs without raw TXT)
+        run: npm run test:aozora-annotation-fidelity
+
       - name: Child65-70 regression
         run: |
           npm run test:security-authz
@@ -102,6 +109,10 @@ jobs:
           scripts/public-domain/prepare.ts
           scripts/public-domain/import.ts
           scripts/test-public-domain-ingestion.ts
+          scripts/test-aozora-annotation-fidelity.tsx
+          src/lib/aozora/aozoraNotation.ts
+          src/features/effects/EffectPreviewRenderer.tsx
+          src/features/playback/BilingualPane.tsx
           scripts/test-public-classic-translation.ts
           src/lib/translation/episodeTranslationGenerateLimits.ts
           src/lib/translation/prepareEpisodeTranslationGeneration.ts

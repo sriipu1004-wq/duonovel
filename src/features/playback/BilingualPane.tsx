@@ -10,6 +10,7 @@ import {
   type WheelEvent,
 } from "react";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
+import { rebalanceAozoraDirectivesAcrossUnits } from "@/lib/aozora/aozoraNotation";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import type { StoredWebSpeechDisplaySettings } from "@/lib/playback/webSpeechPreferences";
 import {
@@ -233,6 +234,14 @@ export default function BilingualPane({
                 paragraphs[index - 1]?.[1]?.[0]?.sourceText.trim() ?? "";
               const followsDialogue =
                 /^[「『]/u.test(firstSource) && /^[「『]/u.test(previousSource);
+              // Issue #140: render-only rebalance of split Aozora directives
+              // (source side only); segment ids/alignment are unchanged.
+              const sourceRenderTexts =
+                side === "source"
+                  ? rebalanceAozoraDirectivesAcrossUnits(
+                      paragraphSegments.map((segment) => segment.sourceText)
+                    )
+                  : null;
 
               return (
                 <p
@@ -243,7 +252,7 @@ export default function BilingualPane({
                       : "whitespace-pre-wrap"
                   }
                 >
-                  {paragraphSegments.map((segment) => {
+                  {paragraphSegments.map((segment, segmentPosition) => {
                     const selected = selectedSegmentId === segment.id;
                     const hovered = hoveredSegmentId === segment.id;
 
@@ -279,7 +288,10 @@ export default function BilingualPane({
                         ].join(" ")}
                       >
                         {side === "source"
-                          ? renderTextWithAozoraRuby(segment.sourceText)
+                          ? renderTextWithAozoraRuby(
+                              sourceRenderTexts?.[segmentPosition] ??
+                                segment.sourceText
+                            )
                           : segment.translatedText}
                         {side === "target" ? " " : null}
                       </span>

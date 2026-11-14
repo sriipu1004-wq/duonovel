@@ -14,6 +14,12 @@ import {
   buildParagraphBlocks,
   buildSceneBreakRuntimeList,
 } from "@/lib/effects/effectTextLayout";
+import {
+  formatAozoraNoteLabel,
+  tokenizeAozoraDisplayText,
+  type AozoraDisplayToken,
+  type AozoraGaijiInfo,
+} from "@/lib/aozora/aozoraNotation";
 
 type EffectPreviewRendererProps = {
   body: string;
@@ -24,9 +30,6 @@ export type TextSegment = {
   text: string;
   marks: EffectInlineMark[];
 };
-
-const AOZORA_RUBY_PATTERN =
-  /｜([^《》\n]+)《([^《》\n]+)》|([一-龯々ヶヵ]+)《([^《》\n]+)》/g;
 
 const AOZORA_CONTROL_PATTERNS = [
   /［＃改ページ］/g,
@@ -67,72 +70,101 @@ export function normalizeAozoraTextForDisplay(text: string): string {
   return normalizeAozoraTextForLayout(text);
 }
 
-export function renderTextWithAozoraRuby(text: string): ReactNode {
-  const normalizedText = normalizeAozoraTextForDisplay(text);
+const AOZORA_EMPHASIS_STYLE = {
+  WebkitTextEmphasis: "filled sesame",
+  textEmphasis: "filled sesame",
+} as CSSProperties;
 
-  if (!normalizedText.includes("《")) {
-    return normalizedText;
-  }
+function gaijiTitle(gaiji: AozoraGaijiInfo): string {
+  return `外字「${gaiji.description}」（JIS X 0213 ${gaiji.code}）`;
+}
 
-  const nodes: ReactNode[] = [];
-  let lastIndex = 0;
-  let partIndex = 0;
-
-  for (const match of normalizedText.matchAll(AOZORA_RUBY_PATTERN)) {
-    const matchIndex = match.index ?? -1;
-
-    if (matchIndex < 0) {
-      continue;
-    }
-
-    if (matchIndex > lastIndex) {
-      nodes.push(
-        <Fragment key={`plain-${partIndex}-${lastIndex}`}>
-          {normalizedText.slice(lastIndex, matchIndex)}
-        </Fragment>
-      );
-    }
-
-    const baseText = (match[1] ?? match[3] ?? "").trim();
-    const rubyText = (match[2] ?? match[4] ?? "").trim();
-
-    if (baseText && rubyText) {
-      nodes.push(
-        <ruby
-          key={`ruby-${partIndex}-${matchIndex}`}
-          className="align-middle"
+function renderAozoraToken(token: AozoraDisplayToken, key: string): ReactNode {
+  switch (token.kind) {
+    case "text":
+      return <Fragment key={key}>{token.text}</Fragment>;
+    case "gaiji":
+      return (
+        <span
+          key={key}
+          data-aozora-gaiji={token.gaiji.code}
+          title={gaijiTitle(token.gaiji)}
         >
-          <span>{baseText}</span>
+          {token.gaiji.char}
+        </span>
+      );
+    case "ruby":
+      return (
+        <ruby
+          key={key}
+          className="align-middle"
+          data-aozora-gaiji={
+            token.gaiji.length > 0
+              ? token.gaiji.map((gaiji) => gaiji.code).join(" ")
+              : undefined
+          }
+          title={
+            token.gaiji.length > 0
+              ? token.gaiji.map(gaijiTitle).join(" / ")
+              : undefined
+          }
+        >
+          <span>{token.base}</span>
           <rt className="text-[0.52em] font-normal not-italic leading-none opacity-80">
-            {rubyText}
+            {token.reading}
           </rt>
         </ruby>
       );
-    } else {
-      nodes.push(
-        <Fragment key={`raw-${partIndex}-${matchIndex}`}>
-          {match[0]}
-        </Fragment>
+    case "emphasis":
+      return (
+        <span key={key} data-aozora-emphasis="sesame" style={AOZORA_EMPHASIS_STYLE}>
+          {token.text}
+        </span>
       );
-    }
-
-    lastIndex = matchIndex + match[0].length;
-    partIndex += 1;
+    case "note":
+      return (
+        <small
+          key={key}
+          data-aozora-note={token.noteKind}
+          className="mx-0.5 align-baseline text-[0.72em] font-normal not-italic text-neutral-500"
+        >
+          {formatAozoraNoteLabel(token.text)}
+        </small>
+      );
+    case "align_end":
+      return (
+        <span key={key} data-aozora-layout="align-end" className="block text-right">
+          {renderAozoraRubyOnly(token.text, key)}
+        </span>
+      );
   }
+}
 
-  if (lastIndex < normalizedText.length) {
-    nodes.push(
-      <Fragment key={`plain-tail-${lastIndex}`}>
-        {normalizedText.slice(lastIndex)}
-      </Fragment>
-    );
-  }
+function renderAozoraRubyOnly(text: string, keyPrefix: string): ReactNode {
+  return tokenizeAozoraDisplayText(text).map((token, index) =>
+    token.kind === "align_end"
+      ? <Fragment key={`${keyPrefix}-${index}`}>{token.text}</Fragment>
+      : renderAozoraToken(token, `${keyPrefix}-${index}`)
+  );
+}
 
-  if (nodes.length === 0) {
+/**
+ * Issue #140: Reader visual rendering of Aozora notation (ruby, bouten,
+ * verified gaiji, edition-variant / ruby notes, end alignment). Display only;
+ * unrecognised directives stay literal.
+ */
+export function renderTextWithAozoraRuby(text: string): ReactNode {
+  const normalizedText = normalizeAozoraTextForDisplay(text);
+
+  if (!normalizedText.includes("《") && !normalizedText.includes("［＃")) {
     return normalizedText;
   }
 
-  return nodes;
+  const tokens = tokenizeAozoraDisplayText(normalizedText);
+  if (tokens.length === 1 && tokens[0]?.kind === "text") {
+    return tokens[0].text;
+  }
+  return tokens.map((token, index) => renderAozoraToken(token, `aozora-${index}`));
 }
 
 export function buildBackgroundTheme(preset: EffectBackgroundPreset) {
