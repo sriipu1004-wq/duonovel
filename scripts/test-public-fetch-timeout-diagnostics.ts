@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { publicReadFetch } from "../src/lib/supabase/serverPublic";
+import { adminReadRetryFetch, publicReadFetch } from "../src/lib/supabase/serverPublic";
 
 /** Exercise real AbortSignal propagation with no external network calls. */
 async function main(): Promise<void> {
@@ -80,6 +80,79 @@ async function main(): Promise<void> {
     globalThis.fetch = async () => { throw new Error("fetch failed"); };
     await assert.rejects(publicReadFetch(requestUrl), /fetch failed/);
     assert.equal(warnings.length, 0, "network errors are not local timeout events");
+
+    // Network-level failure on a read (Issue #137, 2026-11-14): retried once.
+    const networkFailure = (code: string) =>
+      Object.assign(new TypeError("fetch failed"), {
+        cause: Object.assign(new Error(`connect ${code} 10.0.0.1:443 never-log-this`), { code }),
+      });
+    let calls = 0;
+    warnings.length = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      if (calls === 1) throw networkFailure("ECONNRESET");
+      return new Response(null, { status: 200 });
+    };
+    const retried = await publicReadFetch(requestUrl);
+    assert.equal(retried.status, 200, "a stale-socket read failure is retried once");
+    assert.equal(calls, 2);
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0][0], "[supabase-read-network-retry]");
+    assert.deepEqual(warnings[0][1], { client: "public", endpoint: "series", causeCode: "ECONNRESET" });
+
+    // Two failures: exactly one retry, then the original error type propagates.
+    calls = 0;
+    warnings.length = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      throw networkFailure(calls === 1 ? "UND_ERR_SOCKET" : "SOMETHING_NEW");
+    };
+    await assert.rejects(publicReadFetch(requestUrl), { name: "TypeError", message: "fetch failed" });
+    assert.equal(calls, 2, "never more than one retry");
+    assert.equal(warnings.length, 2);
+    assert.equal(warnings[1][0], "[supabase-read-network-retry-failed]");
+    assert.equal((warnings[1][1] as Record<string, unknown>).causeCode, "other", "unknown codes are not logged");
+    const retryJson = JSON.stringify(warnings);
+    for (const forbidden of ["never-log-this", "10.0.0.1", "private-title", "demo.supabase.co"]) {
+      assert.equal(retryJson.includes(forbidden), false);
+    }
+
+    // Writes are never retried.
+    calls = 0;
+    warnings.length = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      throw networkFailure("ECONNRESET");
+    };
+    await assert.rejects(adminReadRetryFetch(requestUrl, { method: "POST", body: "{}" }), {
+      message: "fetch failed",
+    });
+    assert.equal(calls, 1, "POST is not retried");
+    assert.equal(warnings.length, 0);
+
+    // The admin client wrapper retries reads too, labelled as admin.
+    calls = 0;
+    warnings.length = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      if (calls === 1) throw networkFailure("ECONNRESET");
+      return new Response(null, { status: 200 });
+    };
+    const adminRead = await adminReadRetryFetch("https://demo.supabase.co/rest/v1/recordings?select=id");
+    assert.equal(adminRead.status, 200);
+    assert.equal((warnings[0][1] as Record<string, unknown>).client, "admin");
+    assert.equal((warnings[0][1] as Record<string, unknown>).endpoint, "recordings");
+
+    // An HTTP error response is a response, not a network failure: no retry.
+    calls = 0;
+    warnings.length = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return new Response(null, { status: 503 });
+    };
+    assert.equal((await publicReadFetch(requestUrl)).status, 503);
+    assert.equal(calls, 1);
+    assert.equal(warnings.length, 0);
 
     warnings.length = 0;
     globalThis.fetch = async () => new Response(null, { status: 200 });
@@ -202,7 +275,7 @@ async function main(): Promise<void> {
       console.info = realInfo;
     }
 
-    console.log("PASS: real 2500ms local AbortSignal, wall/monotonic/process-CPU diagnostics and endpoint allowlist; caller abort/network/success semantics unchanged; suspension grace recovers late-deadline requests, re-arms after a second suspension and stays capped at 3");
+    console.log("PASS: real 2500ms local AbortSignal, wall/monotonic/process-CPU diagnostics and endpoint allowlist; caller abort/network/success semantics unchanged; suspension grace recovers late-deadline requests, re-arms after a second suspension and stays capped at 3; network-level read failures retry exactly once with allowlisted cause codes, writes and HTTP errors never retry");
   } finally {
     globalThis.fetch = realFetch;
     console.warn = realWarn;
