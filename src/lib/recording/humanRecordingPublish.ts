@@ -23,6 +23,10 @@ import {
   commitHumanAtomicMutation,
 } from "@/lib/recording/humanRecordingAtomic";
 import {
+  cleanupReleasedHumanMedia,
+  retryPendingHumanMediaCleanup,
+} from "@/lib/recording/humanMediaCleanup";
+import {
   buildHumanRecordingPlaybackHref,
   assertApprovedPrivateHumanRecordingBucket,
 } from "@/lib/recording/humanRecordingStorage";
@@ -418,7 +422,7 @@ async function writeRecording(
   input: RecordingWriteInput,
   preUploadRows?: ExistingRecording[],
   preUploadRevision?: string
-): Promise<{ recordingId: string }> {
+): Promise<{ recordingId: string; releasedAudioStoragePath: string | null }> {
   // The publisher passes a snapshot taken BEFORE media uploads. Reading the
   // old publication flag after uploads would miss a mid-upload withdrawal.
   const allEpisodeRows = preUploadRows ?? await findExistingRecordings(
@@ -479,7 +483,11 @@ async function writeRecording(
   if (result.recordingId !== recordingId) {
     throw new Error("human_atomic_recording_id_mismatch");
   }
-  return { recordingId };
+  // The committed `replace` CAS proved the row moved off the prior path.
+  return {
+    recordingId,
+    releasedAudioStoragePath: primary ? primary.audioStoragePath : null,
+  };
 }
 
 export async function publishHumanRecording({
@@ -621,7 +629,7 @@ export async function publishHumanRecording({
 
     await ensureReaderUserRow(adminSupabase, userId, readerName);
 
-    const { recordingId } = await writeRecording(adminSupabase, {
+    const { recordingId, releasedAudioStoragePath } = await writeRecording(adminSupabase, {
       seriesId,
       episodeId: canonicalEpisodeId,
       readerId: userId,
@@ -630,8 +638,17 @@ export async function publishHumanRecording({
       isPublic,
     }, preUploadRows, preUploadRevision);
 
-    // Do not delete older Human rows or any source/playback/timing objects:
-    // an upload or DB response may have been lost after committing remotely.
+    // #137 S2-1: only AFTER the H1 replace committed, remove the previous
+    // take (playback/original/timing) the row no longer points at. Never
+    // throws; a failure is recorded for retry and the publish still succeeds.
+    if (releasedAudioStoragePath) {
+      await cleanupReleasedHumanMedia(adminSupabase, {
+        scope: { seriesId, episodeId: canonicalEpisodeId, ownerId: userId },
+        releasedPaths: [releasedAudioStoragePath],
+        reason: "replace",
+      });
+    }
+    await retryPendingHumanMediaCleanup(adminSupabase, { ownerId: userId });
     return {
       recordingId,
       audioStoragePath: buildHumanRecordingPlaybackHref(recordingId),

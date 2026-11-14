@@ -6,6 +6,10 @@ import {
   readHumanAtomicRevision,
   commitHumanAtomicMutation,
 } from "@/lib/recording/humanRecordingAtomic";
+import {
+  cleanupReleasedHumanMedia,
+  retryPendingHumanMediaCleanup,
+} from "@/lib/recording/humanMediaCleanup";
 
 export const runtime = "nodejs";
 
@@ -159,8 +163,18 @@ export async function POST(request: Request) {
       expectedRevision,
       action: "delete_all",
     });
-    // Preserve Storage bytes; a lost DB reply cannot authorize destructive
-    // cleanup, and a separate storage lifecycle audit remains pending.
+    // #137 S2-1: only AFTER the delete committed, remove the narrator's audio
+    // (playback/original/timing) of the rows read under the same revision.
+    // Never throws; a Storage failure is recorded for retry and the response
+    // stays successful (the rows are already gone).
+    await cleanupReleasedHumanMedia(adminSupabase, {
+      scope: { seriesId, episodeId, ownerId: user.id },
+      releasedPaths: existingRecordings.map((row) =>
+        pickText(row, ["audio_storage_path"])
+      ),
+      reason: "delete",
+    });
+    await retryPendingHumanMediaCleanup(adminSupabase, { ownerId: user.id });
     return NextResponse.json(
       { ok: true, deletedCount: result.deletedCount },
       { status: 200 }
