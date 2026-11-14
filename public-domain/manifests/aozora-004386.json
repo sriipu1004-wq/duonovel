@@ -18,34 +18,34 @@
   "translator": null,
   "translator_death_year": null,
   "translation_language": null,
-  "rights_status": "pending",
-  "rights_basis": "",
-  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review. 2026-11-14: rights research found no rights problem, but the split was on hold (https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6872701172, https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875024200). Per the owner decision (https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875092395) the chapters were re-split at the author's own blank-line section break (the landing from the boat). Not approved: independent review of the new split and a fresh owner approval are still required.",
+  "rights_status": "approved",
+  "rights_basis": "Owner approved on 2026-11-14 for JP/US/KR after AI research and independent review. 南部修太郎 died in 1936; 修道院の秋 first appeared in 三田文學 (November 1916). Japan: life+50 term ended in 1986, before the 2018 extension, and is not revived. U.S.: a 1916 publication is beyond the 95-year maximum; URAA restoration does not apply because the Japanese term had expired before 1996. South Korea: retroactive protection for foreign works covers only authors who died in 1957 or later. Scope is the exact Aozora text file only.",
+  "rights_notes": "Base edition 新進作家叢書22 修道院の秋 (Shinchosha 1918 first edition; Aozora input from the 1922 13th printing). Evidence: AI rights research https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6872701172; independent rights/R18 review https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875024200; owner decision to re-split https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875092395; re-split reviewed GO in PR #191; owner approval (button answer 2026-11-14: approve, no warning) https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875447117. Not a lawyer's opinion. Import status stays prepared: no Production Draft import until after #140 and a separate count-specific approval.",
   "rights_components": {
     "original_work": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Aozora catalog flags are なし and candidate cutoffs passed; verify exact work and jurisdiction before approval."
+      "status": "approved",
+      "basis": "Author died 1936; first published 1916 (三田文學, November 1916). Term expired in JP, US and KR.",
+      "notes": "JP: https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html; US: 17 U.S.C. §304(b), §305, §104A (https://www.law.cornell.edu/uscode/text/17/304); KR: https://www.mcst.go.kr/site/s_policy/copyright/knowledge/know17.jsp"
     },
     "edition": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Verify whether the exact base edition contributes protectable modern editorial matter."
+      "status": "approved",
+      "basis": "Base edition is the 1918 Shinchosha first edition (input from the 1922 13th printing), not a modern critical edition; no separately protected modern editorial layer is reused.",
+      "notes": "Only the exact Aozora transcription pinned by source_hash is reused; no base-edition cover, layout or commentary is imported."
     },
     "translation": {
       "status": "not_applicable",
       "basis": "",
-      "notes": ""
+      "notes": "Original Japanese text; no translator."
     },
     "editorial": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Verify modernization/editorial contribution in the selected source."
+      "status": "approved",
+      "basis": "No modern editorial prose is reused; scope is the Aozora transcription of the 1918/1922 text.",
+      "notes": "Aozora input/proofreading notes are factual transcription notes without creative expression."
     },
     "annotations": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Aozora annotations/provenance are preserved and must be reviewed."
+      "status": "approved",
+      "basis": "Aozora ruby/annotation notation is transcription metadata kept for auditability; no modern commentary is added.",
+      "notes": "Reader display of annotations/ruby is verified separately in #140."
     },
     "illustrations": {
       "status": "not_applicable",
@@ -58,19 +58,23 @@
       "notes": ""
     },
     "digitization": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Review Aozora file handling rules and preserve provenance."
+      "status": "approved",
+      "basis": "Aozora's handling rules permit copying, redistribution and format conversion of copyright-expired work files; exact TXT bytes are pinned by SHA-256.",
+      "notes": "Reviewers re-fetched the card and ZIP and confirmed the SHA-256 on 2026-11-14."
     },
     "provider_terms": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Review current Aozora file handling rules at approval time."
+      "status": "approved",
+      "basis": "Aozora Bunko handling rules reviewed at https://www.aozora.gr.jp/guide/kijyunn.html (2026-11-14).",
+      "notes": "Keeping the base-edition/input credits is requested, not mandatory; LIB read keeps them in public-domain metadata."
     }
   },
-  "jurisdictions_reviewed": [],
-  "reviewed_at": null,
-  "reviewed_by": null,
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-11-14T00:00:00+09:00",
+  "reviewed_by": "LIB read owner (button approval 2026-11-14, Issue #139)",
   "chapter_count": 2,
   "chapter_split": {
     "strategy": "blank_line_sections"
@@ -81,7 +85,7 @@
     "南部修太郎"
   ],
   "source_hash": "90d366172fa7f91e4255e02a460491205f6bf5ac790847470427d92152bda8b2",
-  "approved": false,
+  "approved": true,
   "import_status": "prepared",
   "cover_source": null,
   "cover_rights_status": null,
@@ -90,5 +94,7 @@
     "proof_edition": null,
     "input_by": "小林徹",
     "proofread_by": "林幸雄"
-  }
+  },
+  "content_warnings": [],
+  "content_warning_notes": "Human-confirmed 2026-11-14 (owner button answer: approve, no warning; independent review GO): a monastery visit narrative with reflection on death and suicide only; no concrete violent depiction. The keyword detector reports 3 hits; these are reviewed false positives. Not R18."
 }

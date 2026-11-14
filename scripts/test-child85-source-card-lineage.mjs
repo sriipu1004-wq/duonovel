@@ -5,7 +5,7 @@ const json = JSON.parse(readFileSync("public-domain/audits/child85-source-card-l
 // Issue #139 (2026-11-14): later owner decisions supersede some 2026-10-21 fields.
 const batch = JSON.parse(readFileSync("public-domain/audits/issue139-p5-owner-approved-batch-2026-11-14.json","utf8"));
 const batchById = new Map(batch.works.map((w) => [w.manifest_id, w]));
-const OWNER_APPROVED = new Set(["aozora-000692","aozora-033200","aozora-053520"]);
+const OWNER_APPROVED = new Set(["aozora-000692","aozora-033200","aozora-053520","aozora-004386"]);
 assert.deepEqual(
   batch.works.filter((w) => w.approved).map((w) => w.manifest_id).sort(),
   [...OWNER_APPROVED].sort()
@@ -119,5 +119,5 @@ for (const entry of sourceBinding.candidates) {
 }
 assert.equal(regeneratedChapters, 39);
 
-console.log("PASS: Issue #139 owner-approved batch (3 works, 10 chapters) and aozora-004386 re-split fingerprints are consistent with the Child85 records");
+console.log("PASS: Issue #139 owner-approved batch (4 works, 12 chapters) and aozora-004386 re-split fingerprints are consistent with the Child85 records");
 console.log("PASS: Child85 ten source-card records, raw-body reproducibility audit fingerprints, rights state, chapter totals and edition review queue");

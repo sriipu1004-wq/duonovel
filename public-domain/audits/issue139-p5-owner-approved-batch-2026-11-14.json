@@ -25,7 +25,9 @@
       "chapter_plan_changed": false,
       "rights_status": "approved",
       "approved": true,
-      "content_warnings": ["violence"],
+      "content_warnings": [
+        "violence"
+      ],
       "production_imported": false
     },
     {
@@ -47,30 +49,43 @@
       "chapter_plan_changed": false,
       "rights_status": "approved",
       "approved": true,
-      "content_warnings": ["violence"],
+      "content_warnings": [
+        "violence"
+      ],
       "production_imported": false
     },
     {
       "manifest_id": "aozora-004386",
       "source_sha256": "90d366172fa7f91e4255e02a460491205f6bf5ac790847470427d92152bda8b2",
       "chapter_count": 2,
-      "chapter_character_counts": [3421, 8777],
+      "chapter_character_counts": [
+        3421,
+        8777
+      ],
       "chapter_plan_sha256": "72e0dbab6c53ef0253be231f26cb40fd4ab1be55e587777ccc845a073ce8a95e",
       "chapter_plan_changed": true,
-      "previous_chapter_split": { "strategy": "paragraph_chunks", "max_characters": 7500 },
+      "previous_chapter_split": {
+        "strategy": "paragraph_chunks",
+        "max_characters": 7500
+      },
       "previous_chapter_count": 3,
-      "previous_chapter_character_counts": [3421, 7484, 1293],
+      "previous_chapter_character_counts": [
+        3421,
+        7484,
+        1293
+      ],
       "previous_chapter_plan_sha256": "23502282fec9863400ecc7782f28ee68911e41c3db2895cf4215220f160e808f",
       "split_basis": "The normalized Reader body has exactly one blank line, the author's section break between the boat crossing and the landing on the pier. The old plan cut the second section mid-text at the 8000-character target; the new blank_line_sections plan keeps each author section whole (both are within the 10000-character maximum).",
-      "rights_status": "pending",
-      "approved": false,
-      "production_imported": false
+      "rights_status": "approved",
+      "approved": true,
+      "production_imported": false,
+      "owner_approval": "2026-11-14 button answer: approve, no warning (Issue #139)"
     }
   ],
   "totals": {
-    "approved_works": 3,
-    "approved_chapters": 10,
-    "pending_resplit_works": 1,
+    "approved_works": 4,
+    "approved_chapters": 12,
+    "pending_resplit_works": 0,
     "production_imports": 0
   }
 }
