@@ -285,6 +285,56 @@ export function rebalanceAozoraDirectivesAcrossUnits(texts: readonly string[]): 
   return output;
 }
 
+const RUBY_IMPLICIT_BASE_TAIL = /[一-龯々ヶヵ]$/u;
+
+/**
+ * If `current` ends inside a ruby (`｜親字《読み》` or `漢字《よみ》`), return the
+ * prefix of `following` that completes it, else null. Only a continuation that
+ * closes inside `following` is taken; anything else stays literal.
+ */
+function takeRubyContinuation(current: string, following: string): string | null {
+  let head: RegExpExecArray | null = null;
+  if (current.lastIndexOf("《") > current.lastIndexOf("》")) {
+    // Cut after 《, inside the reading, or right before 》.
+    head = /^[^《》\n]*》/u.exec(following);
+  } else if (/｜[^《》｜\n]*$/u.test(current)) {
+    // Cut right after ｜ or inside an explicit base (before 《).
+    head = /^[^《》｜\n]*《[^《》\n]+》/u.exec(following);
+  } else if (RUBY_IMPLICIT_BASE_TAIL.test(current)) {
+    // Cut before 《 or inside the kanji run of an implicit base.
+    head = /^[一-龯々ヶヵ]*《[^《》\n]+》/u.exec(following);
+  }
+  if (!head || hasUnclosedDirective(head[0])) return null;
+  return head[0];
+}
+
+/**
+ * Issue #195: the Bilingual source segmentation (`segmentSourceDocument`) may
+ * cut long clauses inside a ruby, leaving `《…》` literal. Segment ids, count
+ * and order are persisted (recordings, bookmarks, translations), so the
+ * segmentation is NOT changed. For rendering only, move the ruby continuation
+ * back into the unit where the ruby started. Concatenation of all units is
+ * unchanged and the array length is preserved.
+ */
+export function rebalanceAozoraRubyAcrossUnits(texts: readonly string[]): string[] {
+  const output = [...texts];
+  if (!output.some((text) => text.includes("《"))) return output;
+  for (let index = 0; index + 1 < output.length; index += 1) {
+    const current = output[index] ?? "";
+    const following = output[index + 1] ?? "";
+    const continuation = takeRubyContinuation(current, following);
+    if (!continuation) continue;
+    output[index] = `${current}${continuation}`;
+    output[index + 1] = following.slice(continuation.length);
+  }
+  return output;
+}
+
+/** Directive rebalance (#140) followed by ruby rebalance (#195). Render only. */
+export function rebalanceAozoraNotationAcrossUnits(texts: readonly string[]): string[] {
+  return rebalanceAozoraRubyAcrossUnits(rebalanceAozoraDirectivesAcrossUnits(texts));
+}
+
 /**
  * Render-only text per display unit index for paragraph blocks. Units are
  * rebalanced inside each paragraph only (directives never span paragraphs).
