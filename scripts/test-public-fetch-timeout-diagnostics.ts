@@ -130,6 +130,47 @@ async function main(): Promise<void> {
     assert.equal(calls, 1, "POST is not retried");
     assert.equal(warnings.length, 0);
 
+    // A POST passed as a Request object (method on the Request) is not retried.
+    calls = 0;
+    await assert.rejects(
+      adminReadRetryFetch(new Request(requestUrl, { method: "POST", body: "{}" })),
+      { message: "fetch failed" }
+    );
+    assert.equal(calls, 1, "Request.method is honoured");
+    assert.equal(warnings.length, 0);
+
+    // A TypeError that is not the network-level "fetch failed" is not retried.
+    calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      throw new TypeError("Invalid URL");
+    };
+    await assert.rejects(adminReadRetryFetch(requestUrl), { message: "Invalid URL" });
+    assert.equal(calls, 1);
+
+    // An already-aborted caller signal is not retried.
+    calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      throw networkFailure("ECONNRESET");
+    };
+    const abortedCaller = new AbortController();
+    abortedCaller.abort();
+    await assert.rejects(adminReadRetryFetch(requestUrl, { signal: abortedCaller.signal }));
+    assert.equal(calls, 1, "aborted requests are not retried");
+    assert.equal(warnings.length, 0);
+
+    // HEAD (count queries) is a read and is retried.
+    calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      if (calls === 1) throw networkFailure("UND_ERR_SOCKET");
+      return new Response(null, { status: 200 });
+    };
+    assert.equal((await adminReadRetryFetch(requestUrl, { method: "HEAD" })).status, 200);
+    assert.equal(calls, 2, "HEAD is retried once");
+    warnings.length = 0;
+
     // The admin client wrapper retries reads too, labelled as admin.
     calls = 0;
     warnings.length = 0;
