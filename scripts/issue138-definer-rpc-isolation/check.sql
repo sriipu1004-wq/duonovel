@@ -7,8 +7,10 @@ create role anon nologin;
 create role authenticated nologin;
 create role service_role nologin;
 create schema auth;
+-- Same expression as hosted auth.uid() (claim.sub, then request.jwt.claims JSON).
 create function auth.uid() returns uuid language sql stable as
-$$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+$$ select coalesce(nullif(current_setting('request.jwt.claim.sub', true), ''),
+  (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'))::uuid $$;
 grant usage on schema auth to anon, authenticated, service_role;
 grant execute on function auth.uid() to anon, authenticated, service_role;
 grant usage on schema public to anon, authenticated, service_role;
@@ -30,15 +32,28 @@ create table public.private_library_reading_progress(
   first_opened_at timestamptz, last_opened_at timestamptz, updated_at timestamptz,
   primary key (user_id, chapter_id));
 create table public.private_library_chapter_translations(chapter_id uuid not null, status text not null);
--- Same as hosted: RLS enabled with no policies, so no direct client access.
+-- Hosted table state (read-only, 2026-11-14): RLS on every table; anon has no
+-- table grants; authenticated has SELECT only on the four tables below, each
+-- with an owner-only SELECT policy. The other three have no grant and no policy.
 alter table public.credit_ledger enable row level security;
 alter table public.public_episode_translation_unlocks enable row level security;
 alter table public.ai_narration_official_writers enable row level security;
 alter table public.private_library_works enable row level security;
 alter table public.private_library_chapters enable row level security;
 alter table public.private_library_reading_progress enable row level security;
--- Supabase default table grants; RLS with no policy then returns zero rows.
-grant select on all tables in schema public to anon, authenticated;
+alter table public.private_library_chapter_translations enable row level security;
+grant select on public.credit_ledger, public.public_episode_translation_unlocks,
+  public.private_library_works, public.private_library_chapters to authenticated;
+create policy credit_ledger_select_own on public.credit_ledger
+  for select to authenticated using (auth.uid() = user_id);
+create policy public_episode_translation_unlocks_select_own on public.public_episode_translation_unlocks
+  for select to authenticated using (auth.uid() = user_id);
+create policy private_library_works_owner_select on public.private_library_works
+  for select to authenticated using (owner_user_id = auth.uid());
+create policy private_library_chapters_owner_select on public.private_library_chapters
+  for select to authenticated using (exists (select 1 from public.private_library_works
+    where private_library_works.id = private_library_chapters.work_id
+      and private_library_works.owner_user_id = auth.uid()));
 
 CREATE OR REPLACE FUNCTION public.get_credit_balance()
  RETURNS bigint
@@ -235,6 +250,10 @@ insert into public.private_library_works(id, owner_user_id, import_status) value
 insert into public.private_library_chapters values
   ('33333333-0000-0000-0000-00000000000a', '11111111-0000-0000-0000-00000000000a', 1, 1, 'A section', 1, 10),
   ('44444444-0000-0000-0000-00000000000b', '22222222-0000-0000-0000-00000000000b', 1, 1, 'B section', 1, 10);
+-- A foreign progress row on A's chapter: must never count toward A's progress.
+insert into public.private_library_reading_progress(user_id, work_id, chapter_id, max_progress_ratio, completed) values
+  ('bbbbbbbb-0000-0000-0000-000000000002', '11111111-0000-0000-0000-00000000000a',
+   '33333333-0000-0000-0000-00000000000a', 1, true);
 
 -- Signed in as A: none of B's data, own data works.
 set role authenticated;
@@ -255,6 +274,10 @@ do $$ begin
   if (select count(*) from public.list_private_library_sections('11111111-0000-0000-0000-00000000000a')) <> 1 then
     raise exception 'FAIL: A cannot list own sections';
   end if;
+  if (select progress_ratio from public.list_private_library_sections('11111111-0000-0000-0000-00000000000a')) <> 0
+    or (select is_completed from public.list_private_library_sections('11111111-0000-0000-0000-00000000000a')) then
+    raise exception 'FAIL: B progress counted toward A sections';
+  end if;
   begin
     perform public.update_private_library_reading_progress('44444444-0000-0000-0000-00000000000b', 0.5);
     raise exception 'FAIL: A wrote progress on B chapter';
@@ -263,19 +286,37 @@ do $$ begin
   if not public.update_private_library_reading_progress('33333333-0000-0000-0000-00000000000a', 0.5) then
     raise exception 'FAIL: A cannot write own progress';
   end if;
-  if (select count(*) from public.credit_ledger) <> 0 then
-    raise exception 'FAIL: authenticated can read credit_ledger rows directly';
+  -- Direct reads follow the hosted owner-only policies.
+  if (select count(*) from public.credit_ledger
+      where user_id <> 'aaaaaaaa-0000-0000-0000-000000000001') <> 0 then
+    raise exception 'FAIL: A reads another user credit_ledger row directly';
+  end if;
+  if (select count(*) from public.private_library_chapters) <> 1 then
+    raise exception 'FAIL: A direct chapter read is not owner-only';
   end if;
 end $$;
 reset role;
 do $$ begin
+  if has_function_privilege('anon', 'public.update_private_library_reading_progress(uuid,numeric,integer)', 'EXECUTE')
+    or has_function_privilege('anon', 'public.get_credit_balance()', 'EXECUTE')
+    or has_function_privilege('anon', 'public.has_public_episode_translation_unlock(uuid,text)', 'EXECUTE')
+    or has_function_privilege('anon', 'public.is_ai_narration_official_writer()', 'EXECUTE')
+    or has_function_privilege('anon', 'public.list_private_library_sections(uuid,integer,integer)', 'EXECUTE') then
+    raise exception 'FAIL: anon holds EXECUTE on a definer RPC';
+  end if;
   if (select count(*) from public.private_library_reading_progress
       where chapter_id = '44444444-0000-0000-0000-00000000000b') <> 0 then
     raise exception 'FAIL: progress row created on B chapter';
   end if;
-  if (select user_id::text from public.private_library_reading_progress
-      where chapter_id = '33333333-0000-0000-0000-00000000000a') <> 'aaaaaaaa-0000-0000-0000-000000000001' then
+  if not exists (select 1 from public.private_library_reading_progress
+      where chapter_id = '33333333-0000-0000-0000-00000000000a'
+        and user_id = 'aaaaaaaa-0000-0000-0000-000000000001' and max_progress_ratio = 0.5) then
     raise exception 'FAIL: own progress not attributed to A';
+  end if;
+  if not exists (select 1 from public.private_library_reading_progress
+      where chapter_id = '33333333-0000-0000-0000-00000000000a'
+        and user_id = 'bbbbbbbb-0000-0000-0000-000000000002' and max_progress_ratio = 1) then
+    raise exception 'FAIL: A write changed another user progress row';
   end if;
 end $$;
 
@@ -319,6 +360,10 @@ set role authenticated;
 select set_config('request.jwt.claim.sub', '', false);
 do $$ begin
   if public.get_credit_balance() <> 0 then raise exception 'FAIL: no-sub balance leak'; end if;
+  if public.has_public_episode_translation_unlock('eeeeeeee-0000-0000-0000-00000000000b', 'en') then
+    raise exception 'FAIL: no-sub unlock leak';
+  end if;
+  if public.is_ai_narration_official_writer() then raise exception 'FAIL: no-sub official writer'; end if;
   if (select count(*) from public.list_private_library_sections('11111111-0000-0000-0000-00000000000a')) <> 0 then
     raise exception 'FAIL: no-sub sections leak';
   end if;
@@ -329,4 +374,15 @@ do $$ begin
   end;
 end $$;
 reset role;
-\echo PASS: five authenticated SECURITY DEFINER RPCs are owner-isolated (A/B/anon/no-sub)
+-- Same subject via the request.jwt.claims JSON path (current PostgREST).
+set role authenticated;
+select set_config('request.jwt.claim.sub', '', false);
+select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-000000000001","role":"authenticated"}', false);
+do $$ begin
+  if public.get_credit_balance() <> 100 then raise exception 'FAIL: claims-JSON path balance'; end if;
+  if public.is_ai_narration_official_writer() then raise exception 'FAIL: claims-JSON path official writer'; end if;
+end $$;
+reset role;
+-- Limit: function bodies are a 2026-11-14 snapshot; a later hosted change is
+-- not detected by this job.
+\echo PASS: five authenticated SECURITY DEFINER RPCs are owner-isolated (A/B/anon/no-sub/claims)
