@@ -66,6 +66,7 @@ type BilingualEpisodePlaybackProps = {
   episodeTitle?: string;
   workAuthorName?: string;
   workEditorName?: string;
+  workPublisherName?: string;
   workIndexHref?: string | null;
   prevEpisodeHref?: string | null;
   nextEpisodeHref?: string | null;
@@ -144,6 +145,7 @@ export default function BilingualEpisodePlayback({
   episodeTitle,
   workAuthorName,
   workEditorName,
+  workPublisherName,
   workIndexHref,
   prevEpisodeHref,
   nextEpisodeHref,
@@ -592,6 +594,7 @@ export default function BilingualEpisodePlayback({
   );
   const safeAuthorName = safeText(workAuthorName, dictionary.authorUnknown);
   const safeEditorName = safeText(workEditorName, "");
+  const safePublisherName = safeText(workPublisherName, "");
   const sourceLanguageLabel = getSupportedLanguage(sourceLanguage).nativeLabel;
   const targetLanguageLabel = getSupportedLanguage(targetLanguage).nativeLabel;
 
@@ -622,6 +625,9 @@ export default function BilingualEpisodePlayback({
                 <p className="mt-2 text-xs text-neutral-500">
                   {dictionary.author} {safeAuthorName}
                   {safeEditorName ? ` / ${dictionary.editor} ${safeEditorName}` : ""}
+                  {safePublisherName
+                    ? ` / ${dictionary.publishedBy} ${safePublisherName}`
+                    : ""}
                 </p>
               </div>
 

@@ -19,7 +19,7 @@ const privacy = read("src/app/privacy/page.tsx");
 const commercial = read("src/app/commercial-transactions/page.tsx");
 const readme = read("README.md");
 const robots = read("src/app/robots.ts");
-const sitemap = read("src/app/sitemap.ts");
+const sitemap = read("src/app/sitemap.ts") + read("src/lib/sitemap/buildSitemapEntries.ts");
 
 for (const source of [home, help, faq, guide, jaSeo, currentSeo]) {
   assert.ok(source.includes("Human translation"), "public product copy must distinguish Human translation");

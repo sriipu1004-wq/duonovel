@@ -34,6 +34,15 @@ import { listProjectedAiNarrationOptions } from "@/lib/recording/protectedAiReco
 import { buildRecordingEntryPath } from "@/lib/recording/recordingEntry";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
+import { isR18Series } from "@/lib/contentRating";
+import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
+import {
+  buildReaderJsonLd,
+  buildReaderMetadataTitle,
+  readerCanonicalPath,
+  resolvePublicWorkAttribution,
+  serializeJsonLd,
+} from "@/lib/seo/publicWorkSeo";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -256,35 +265,41 @@ export async function generateMetadata({
       pickText(episode.title, episode["episode_title"]) ||
       readUi.episode(currentEpisodeNumber);
     const summary = getSeriesSummary(series).trim();
-    const authorLabel = await getNormalAuthorName(series, readUi.authorUnset);
+    const publicDomain = readPublicDomainMetadata(
+      series["effect_settings"] ?? series["effectSettings"]
+    );
+    // Public Domain: the original author is the author (owner decision
+    // 2026-11-15). Skip the account lookup entirely in that case.
+    const attribution = resolvePublicWorkAttribution({
+      publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+      accountAuthorName: publicDomain
+        ? ""
+        : await getNormalAuthorName(series, readUi.authorUnset),
+    });
 
     const description = [
       summary || ui.fallbackDescription(seriesTitle, episodeTitle),
-      `${ui.author}: ${authorLabel}.`,
+      `${ui.author}: ${attribution.authorName}.`,
     ]
       .filter(Boolean)
       .join(" ")
       .slice(0, 160);
 
-    const baseCanonicalPath =
-      "/read/" +
-      encodeURIComponent(seriesId) +
-      "/" +
-      encodeURIComponent(String(currentEpisodeNumber));
-    const canonicalPath = localizePath(baseCanonicalPath, locale);
-    const metadataTitle = `${seriesTitle} ${episodeTitle} | LIB read`;
+    // Owner decision 2026-11-15 「元のページにまとめる」: every locale copy of a
+    // Reader page points at the copy in the episode's source language. No
+    // hreflang set here, because the other copies are not canonical.
+    const canonicalPath = readerCanonicalPath(
+      seriesId,
+      currentEpisodeNumber,
+      inferSeriesSourceLanguage(series, getEpisodeBody(episode))
+    );
+    const metadataTitle = buildReaderMetadataTitle(seriesTitle, episodeTitle);
 
     return {
       title: metadataTitle,
       description,
       alternates: {
         canonical: canonicalPath,
-        languages: {
-          ja: localizePath(baseCanonicalPath, "ja"),
-          en: localizePath(baseCanonicalPath, "en"),
-          ko: localizePath(baseCanonicalPath, "ko"),
-          "x-default": localizePath(baseCanonicalPath, "ja"),
-        },
       },
       robots: { index: true, follow: true },
       openGraph: {
@@ -436,6 +451,15 @@ export default async function ReadEpisodePage({
     loadOptionalReadSubscriber(viewerUserId),
     getNormalAuthorName(series, ui.authorUnset),
   ]);
+  const publicDomain = readPublicDomainMetadata(
+    series["effect_settings"] ?? series["effectSettings"]
+  );
+  // Owner decision 2026-11-15 「原作者を作者にする」: Public Domain works show
+  // the original author; the hosting account is shown as 「掲載」.
+  const attribution = resolvePublicWorkAttribution({
+    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    accountAuthorName: normalAuthorName ?? ui.authorUnset,
+  });
   // The server projection (projectReaderEpisodeRecordings) verified the raw
   // Human storage provenance and replaced the path with the proxy href, so
   // the raw-path predicate (isPublishedHumanRecording) can no longer match.
@@ -529,8 +553,27 @@ export default async function ReadEpisodePage({
     ? getSupportedLanguage(sourceLanguage).speechLanguage
     : "ja-JP";
 
-  const workAuthorName = normalAuthorName ?? ui.authorUnset;
+  const workAuthorName = attribution.authorName || ui.authorUnset;
   const workEditorName = "";
+  const workPublisherName = attribution.publisherName ?? "";
+  // Structured data only for public, non-R18 pages.
+  const readerJsonLd =
+    isPublicReadPage && !isR18Series(series)
+      ? serializeJsonLd(
+          buildReaderJsonLd({
+            seriesId,
+            seriesTitle,
+            episodeTitle,
+            episodeNumber: currentEpisodeNumber,
+            sourceLanguage,
+            attribution,
+            isShortStory,
+            publicDomainSourceUrl: publicDomain?.sourceUrl ?? null,
+            publicDomainFirstPublicationYear:
+              publicDomain?.firstPublicationYear ?? null,
+          })
+        )
+      : null;
 
   const prevEpisodeHref =
     prevEpisodeNumber !== null
@@ -602,6 +645,12 @@ export default async function ReadEpisodePage({
 
   return (
     <>
+      {readerJsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: readerJsonLd }}
+        />
+      ) : null}
       {aiNarrationOptions.length > 0 ? (
         <section aria-label="AI朗読" className="mx-auto max-w-4xl px-4 py-3">
           <h2 className="mb-2 text-sm font-semibold">AI朗読音声</h2>
@@ -624,6 +673,7 @@ export default async function ReadEpisodePage({
       episodeTitle={episodeTitle}
       workAuthorName={workAuthorName}
       workEditorName={workEditorName}
+      workPublisherName={workPublisherName}
       body={body}
       selectedReaderKey={selectedReaderKey || undefined}
       selectedReaderName={selectedReaderName}

@@ -87,6 +87,8 @@ type EpisodePlaybackProps = {
   episodeTitle?: string;
   workAuthorName?: string;
   workEditorName?: string;
+  /** Hosting account of a Public Domain work, shown as 「掲載」. */
+  workPublisherName?: string;
   body?: string | null;
   selectedReaderKey?: string;
   selectedReaderName?: string;
@@ -272,6 +274,7 @@ export default function WebSpeechEpisodePlayback({
   episodeTitle,
   workAuthorName,
   workEditorName,
+  workPublisherName,
   body,
   selectedReaderKey,
   selectedReaderName,
@@ -367,6 +370,10 @@ export default function WebSpeechEpisodePlayback({
   const safeEditorName =
     typeof workEditorName === "string" && workEditorName.trim()
       ? workEditorName.trim()
+      : "";
+  const safePublisherName =
+    typeof workPublisherName === "string" && workPublisherName.trim()
+      ? workPublisherName.trim()
       : "";
   const safeBody =
     typeof body === "string" && body.trim()
@@ -1315,6 +1322,13 @@ export default function WebSpeechEpisodePlayback({
                 <span className="inline-flex items-center gap-2">
                   <span>{dictionary.editor}</span>
                   <span>{safeEditorName}</span>
+                </span>
+              ) : null}
+
+              {safePublisherName ? (
+                <span className="inline-flex items-center gap-2">
+                  <span>{dictionary.publishedBy}</span>
+                  <span>{safePublisherName}</span>
                 </span>
               ) : null}
             </div>

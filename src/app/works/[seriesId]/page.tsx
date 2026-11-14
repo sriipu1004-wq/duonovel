@@ -859,6 +859,7 @@ export async function generateMetadata({
     const publicDomain = readPublicDomainMetadata(
       series.effect_settings ?? series["effectSettings"]
     );
+    // Owner decision 2026-11-15 「原作者を作者にする」.
     const authorLabel =
       publicDomain?.originalAuthor ||
       pickText(series["author_name"]) ||
@@ -1564,7 +1565,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const sourceLanguageChipLabel =
     locale === "en" ? "Original" : locale === "ko" ? "원문" : "原文";
 
-  const summary = getSeriesSummary(series) || "あらすじはまだ登録されていません。";
+  const summary = getSeriesSummary(series) || dictionary.noSummary;
   const workHref = (href: string) => localizePath(href, locale);
   const loginHref = workHref(
     `/login?next=${encodeURIComponent(

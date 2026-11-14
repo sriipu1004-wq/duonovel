@@ -7,6 +7,7 @@ import { workDictionaries } from "@/i18n/dictionaries/work";
 import { localizePath } from "@/i18n/navigation";
 import { getPublicWorkMetadataCardById } from "@/lib/publicWorks";
 import { isUuid } from "@/lib/uuid";
+import { buildLocalizedWorkMetadataText } from "@/lib/seo/publicWorkSeo";
 
 type WorkPageProps = Parameters<typeof WorkPage>[0];
 
@@ -46,29 +47,23 @@ export async function generateMetadata({
     };
   }
 
-  const title = work.title || dictionary.untitled;
-  const summary = work.summary.trim() || dictionary.noSummary;
-  const authorLabel = work.publicDomainRightsChecked
-    ? dictionary.originalAuthor
-    : dictionary.author;
-  const metadataDescription = [
-    summary,
-    `${authorLabel}: ${work.authorName}.`,
-    work.sourceLanguage
-      ? `${dictionary.originalLanguage}: ${work.sourceLanguage}.`
-      : "",
-    work.publicDomainRightsChecked && work.publicDomainSourceProvider
-      ? `${dictionary.source}: ${work.publicDomainSourceProvider}.`
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .slice(0, 160);
+  // P9: the localized Work title/description are written in the UI locale
+  // (the card summary carries a Japanese placeholder when none exists).
+  const { title: metadataTitle, description: metadataDescription } =
+    buildLocalizedWorkMetadataText({
+      locale: locale === "ko" ? "ko" : "en",
+      title: work.title || dictionary.untitled,
+      summary: work.summary,
+      authorName: work.authorName,
+      isPublicDomain: work.publicDomainRightsChecked === true,
+      sourceLanguage: work.sourceLanguage,
+      sourceProvider: work.publicDomainSourceProvider,
+    });
   const encodedSeriesId = encodeURIComponent(seriesId);
   const canonical = localizePath(`/works/${encodedSeriesId}`, locale);
 
   return {
-    title: `${title} | LIB read`,
+    title: metadataTitle,
     description: metadataDescription,
     alternates: {
       canonical,
@@ -85,13 +80,13 @@ export async function generateMetadata({
       locale: locale === "en" ? "en_US" : "ko_KR",
       siteName: "LIB read",
       url: canonical,
-      title: `${title} | LIB read`,
+      title: metadataTitle,
       description: metadataDescription,
       images: ["/opengraph-image"],
     },
     twitter: {
       card: "summary_large_image",
-      title: `${title} | LIB read`,
+      title: metadataTitle,
       description: metadataDescription,
       images: ["/opengraph-image"],
     },
