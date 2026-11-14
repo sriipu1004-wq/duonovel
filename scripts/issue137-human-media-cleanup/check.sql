@@ -180,6 +180,37 @@ select public.t_ok((select count(*) from public.issue137_human_media_cleanup_pen
 reset role;
 \echo PASS 5: resolve only when Storage and references are both clear
 
+-- 5b. Attempt cap: after 5 failed attempts a record leaves the owner's retry
+-- list (so it cannot starve newer records) but stays in the operator list.
+set role service_role;
+create temp table t_cap as select public.issue137_human_media_cleanup_record(
+  '00000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  array['human/10000000-0000-0000-0000-000000000001/20000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-00000000000a/2-y/original.webm'],
+  'delete') as id;
+select public.issue137_human_media_cleanup_resolve((select id from t_cap), false)
+  from generate_series(1, 4);
+select public.t_ok(exists (select 1 from public.issue137_human_media_cleanup_pending(
+  '00000000-0000-0000-0000-00000000000a', 10) where id = (select id from t_cap)),
+  'below the cap (4 attempts) the owner retry still lists it');
+select public.issue137_human_media_cleanup_resolve((select id from t_cap), false);
+select public.t_ok(not exists (select 1 from public.issue137_human_media_cleanup_pending(
+  '00000000-0000-0000-0000-00000000000a', 10) where id = (select id from t_cap)),
+  'at the cap (5 attempts) the owner retry no longer lists it');
+select public.t_ok(exists (select 1 from public.issue137_human_media_cleanup_pending(null, 10)
+  where id = (select id from t_cap) and attempts = 5),
+  'the operator list still shows the capped record');
+create temp table t_new as select public.issue137_human_media_cleanup_record(
+  '00000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  array['human/10000000-0000-0000-0000-000000000001/20000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-00000000000a/3-z/original.webm'],
+  'replace') as id;
+select public.t_ok((select array_agg(id) from public.issue137_human_media_cleanup_pending(
+  '00000000-0000-0000-0000-00000000000a', 1)) = array[(select id from t_new)],
+  'a newer record is served first to the owner retry despite the older capped one');
+reset role;
+\echo PASS 5b: attempt cap moves never-resolving records to the operator list only
+
 \i scripts/issue137-human-media-cleanup/rollback.sql
 select public.t_ok(to_regclass('libread_internal.human_media_cleanup_pending') is null, 'table dropped');
 select public.t_ok(to_regprocedure('public.issue137_human_media_cleanup_record(uuid,uuid,uuid,text[],text)') is null,

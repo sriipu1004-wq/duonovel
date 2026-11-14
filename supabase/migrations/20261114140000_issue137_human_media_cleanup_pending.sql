@@ -73,7 +73,11 @@ revoke all on function public.issue137_human_media_cleanup_record(uuid,uuid,uuid
 grant execute on function public.issue137_human_media_cleanup_record(uuid,uuid,uuid,text[],text)
   to service_role;
 
--- Unresolved records, oldest first; one owner, or all for an operator sweep.
+-- Unresolved records, oldest first.
+-- * With p_owner_id (the app's opportunistic retry): only records below the
+--   attempt cap (5), so a few never-resolving records cannot starve newer ones.
+-- * With p_owner_id null (operator list): ALL unresolved records, including
+--   those that reached the cap and need a human decision.
 create or replace function public.issue137_human_media_cleanup_pending(
   p_owner_id uuid default null, p_limit integer default 20
 ) returns table(id uuid, owner_id uuid, series_id uuid, episode_id uuid,
@@ -84,7 +88,8 @@ as $pending$
          p.created_at, p.attempts
     from libread_internal.human_media_cleanup_pending p
     where p.resolved_at is null
-      and (p_owner_id is null or p.owner_id = p_owner_id)
+      and (p_owner_id is null
+        or (p.owner_id = p_owner_id and p.attempts < 5))
     order by p.created_at, p.id
     limit least(greatest(coalesce(p_limit, 20), 1), 100)
 $pending$;

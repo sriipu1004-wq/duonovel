@@ -663,6 +663,7 @@ async function checkHumanMediaCleanupBoundary() {
     events: Events;
     referenced?: (pattern: string) => boolean;
     referenceError?: boolean;
+    referenceThrows?: boolean;
     removeError?: boolean;
     bucketPublic?: boolean;
     recordError?: boolean;
@@ -690,6 +691,7 @@ async function checkHumanMediaCleanupBoundary() {
               return {
                 async limit() {
                   opts.events.push(`ref:${pattern}`);
+                  if (opts.referenceThrows) throw new Error("network");
                   if (opts.referenceError) return { data: null, error: { message: "x" } };
                   return { data: opts.referenced?.(pattern) ? [{ id: "r" }] : [], error: null };
                 },
@@ -727,20 +729,33 @@ async function checkHumanMediaCleanupBoundary() {
     const ok = await cleanupReleasedHumanMedia(makeAdmin({ events, removed }), {
       scope, releasedPaths: [take(), take(B), null], reason: "delete",
     });
-    assert.deepEqual(ok, { released: 2, rejected: 1, stillReferenced: 0, removedTakes: 1, failedTakes: 0, recorded: false });
+    assert.deepEqual(ok, { released: 2, rejected: 1, stillReferenced: 0, referenceUnknown: 0, removedTakes: 1, failedTakes: 0, recorded: false });
     assert.deepEqual(removed, [resolveHumanTakeArtifacts(take(), scope)?.paths],
       "only the owner's exact take artifacts are removed (never another owner's)");
     assert.deepEqual(events, ["bucket", `ref:%human/${S}/${E}/${A}/1731500000000-abc/%`, "remove"],
       "PRIVATE bucket verified, then reference check, then remove");
 
-    // Still referenced by any row (or unknown): no remove.
-    for (const opts of [{ referenced: () => true }, { referenceError: true }]) {
+    // Still referenced by any row: no remove, nothing recorded.
+    events = []; removed = [];
+    const held = await cleanupReleasedHumanMedia(makeAdmin({ events, removed, referenced: () => true }), {
+      scope, releasedPaths: [take()], reason: "replace",
+    });
+    assert.equal(held.stillReferenced, 1);
+    assert.equal(held.recorded, false);
+    assert.deepEqual(removed, [], "a referenced take is never removed");
+    assert.equal(events.some((e) => e.startsWith("rpc:issue137_human_media_cleanup_record")), false);
+
+    // Reference check errors or THROWS: not removed now. It is recorded, but
+    // every retry re-checks references before any removal (see below).
+    for (const opts of [{ referenceError: true }, { referenceThrows: true }]) {
       events = []; removed = [];
-      const held = await cleanupReleasedHumanMedia(makeAdmin({ events, removed, ...opts }), {
-        scope, releasedPaths: [take()], reason: "replace",
+      const unknown = await cleanupReleasedHumanMedia(makeAdmin({ events, removed, ...opts }), {
+        scope, releasedPaths: [take()], reason: "delete",
       });
-      assert.equal(held.stillReferenced, 1);
-      assert.deepEqual(removed, [], "a referenced take is never removed");
+      assert.equal(unknown.referenceUnknown, 1);
+      assert.equal(unknown.failedTakes, 0);
+      assert.equal(unknown.stillReferenced, 0);
+      assert.deepEqual(removed, [], "absence of references not established -> never removed");
     }
 
     // Storage failure: recorded for retry, outcome reported, never throws.
@@ -750,7 +765,7 @@ async function checkHumanMediaCleanupBoundary() {
     const failed = await cleanupReleasedHumanMedia(makeAdmin({ events, removeError: true, rpcArgs }), {
       scope, releasedPaths: [take()], reason: "replace",
     });
-    assert.deepEqual(failed, { released: 1, rejected: 0, stillReferenced: 0, removedTakes: 0, failedTakes: 1, recorded: true });
+    assert.deepEqual(failed, { released: 1, rejected: 0, stillReferenced: 0, referenceUnknown: 0, removedTakes: 0, failedTakes: 1, recorded: true });
     assert.deepEqual(rpcArgs, [{ fn: "issue137_human_media_cleanup_record", args: {
       p_owner_id: A, p_series_id: S, p_episode_id: E,
       p_object_paths: resolveHumanTakeArtifacts(take(), scope)?.paths, p_reason: "replace",
@@ -773,14 +788,42 @@ async function checkHumanMediaCleanupBoundary() {
     });
     assert.equal(unrecorded.recorded, false);
 
-    // Retry: own pending row is removed and resolved; a foreign path is not removed.
+    // Retry: own pending row is reference-checked, removed and resolved;
+    // a foreign path is not removed.
     removed = [];
-    const retried = await retryPendingHumanMediaCleanup(makeAdmin({ events: [], removed, pending: [
+    events = [];
+    const retried = await retryPendingHumanMediaCleanup(makeAdmin({ events, removed, pending: [
       { id: "p1", series_id: S, episode_id: E, owner_id: A, object_paths: [take()] },
       { id: "p2", series_id: S, episode_id: E, owner_id: A, object_paths: [take(B)] },
     ] }), { ownerId: A });
     assert.deepEqual(retried, { resolved: 1, held: 1 });
     assert.deepEqual(removed, [[take()]]);
+    assert.ok(events.indexOf(`ref:%human/${S}/${E}/${A}/1731500000000-abc/%`) >= 0 &&
+      events.indexOf(`ref:%human/${S}/${E}/${A}/1731500000000-abc/%`) < events.indexOf("remove"),
+      "retry checks references BEFORE removing");
+
+    // Retry with a still-referenced take, a reference error, or a THROWING
+    // check: nothing removed, the attempt is reported as not succeeded.
+    const pendingRow = [{ id: "p1", series_id: S, episode_id: E, owner_id: A,
+      object_paths: resolveHumanTakeArtifacts(take(), scope)?.paths }];
+    for (const opts of [{ referenced: () => true }, { referenceError: true }, { referenceThrows: true }]) {
+      removed = [];
+      const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+      const blocked = await retryPendingHumanMediaCleanup(makeAdmin({
+        events: [], removed, rpcArgs: rpcCalls, pending: pendingRow, ...opts,
+      }), { ownerId: A });
+      assert.deepEqual(blocked, { resolved: 0, held: 1 });
+      assert.deepEqual(removed, [], "retry never removes without a confirmed-clear reference check");
+      assert.deepEqual(rpcCalls.find((c) => c.fn === "issue137_human_media_cleanup_resolve")?.args,
+        { p_id: "p1", p_succeeded: false }, "the attempt is counted as not succeeded");
+    }
+    // Retry with an unverified bucket: nothing removed.
+    removed = [];
+    const noBucket = await retryPendingHumanMediaCleanup(makeAdmin({
+      events: [], removed, pending: pendingRow, bucketPublic: true,
+    }), { ownerId: A });
+    assert.deepEqual(noBucket, { resolved: 0, held: 1 });
+    assert.deepEqual(removed, []);
   } finally {
     console.warn = originalWarn;
   }
@@ -805,6 +848,8 @@ async function checkHumanMediaCleanupBoundary() {
   assert.equal(/\bgrant\b[^;]*\bto\b[^;]*\b(anon|authenticated|public)\b/iu.test(migrationSql), false,
     "S2-1 migration grants nothing to anon/authenticated/public");
   assert.ok(migration.includes("S21_PATH_OUTSIDE_OWNER_PREFIX"));
+  assert.ok(migration.includes("(p.owner_id = p_owner_id and p.attempts < 5)"),
+    "owner retry list stops at the attempt cap; the operator list keeps everything");
 }
 
 void checkHumanPrivateBucketBoundary()

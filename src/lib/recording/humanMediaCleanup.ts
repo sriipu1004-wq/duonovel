@@ -13,6 +13,10 @@
 // A Storage failure never changes the user-facing result. It is logged by
 // category/count only (no paths) and recorded through the service-role-only
 // issue137_human_media_cleanup_record RPC so it can be retried later.
+// A reference check that errors or throws never leads to removal: the take
+// is recorded instead, and EVERY retry re-checks references before removing.
+// The owner retry stops at 5 attempts; such records remain in the operator
+// list (issue137_human_media_cleanup_pending(null, n)) only.
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { assertApprovedPrivateHumanRecordingBucket } from "@/lib/recording/humanRecordingStorage";
 
@@ -31,6 +35,8 @@ export type HumanMediaCleanupOutcome = {
   released: number;
   rejected: number;
   stillReferenced: number;
+  /** Reference check errored/threw: not removed now, recorded for a re-checked retry. */
+  referenceUnknown: number;
   removedTakes: number;
   failedTakes: number;
   recorded: boolean;
@@ -75,18 +81,38 @@ export function resolveHumanTakeArtifacts(
   };
 }
 
-async function isTakeStillReferenced(
+type ReferenceState = "clear" | "referenced" | "unknown";
+
+/**
+ * Whether ANY recordings row still references the take directory. Only an
+ * affirmative, error-free empty answer is "clear"; an error, a throw or an
+ * unexpected shape is "unknown", which callers treat as "do not remove".
+ */
+async function takeReferenceState(
   admin: CleanupAdmin,
   takeDirectory: string
-): Promise<boolean> {
-  // The take directory segment is [a-z0-9-] only: no LIKE wildcards inside.
-  const { data, error } = await admin
-    .from("recordings")
-    .select("id")
-    .like("audio_storage_path", `%${takeDirectory}%`)
-    .limit(1);
-  if (error) return true; // Unknown -> treat as referenced (never delete).
-  return Array.isArray(data) && data.length > 0;
+): Promise<ReferenceState> {
+  try {
+    // The take directory segment is [a-z0-9-] only: no LIKE wildcards inside.
+    const { data, error } = await admin
+      .from("recordings")
+      .select("id")
+      .like("audio_storage_path", `%${takeDirectory}%`)
+      .limit(1);
+    if (error || !Array.isArray(data)) return "unknown";
+    return data.length > 0 ? "referenced" : "clear";
+  } catch {
+    return "unknown";
+  }
+}
+
+/** Take directory of a recorded path under exactly this owner's prefix. */
+function takeDirectoryOf(path: unknown, scope: HumanMediaScope): string | null {
+  if (typeof path !== "string") return null;
+  const prefix = `human/${scope.seriesId}/${scope.episodeId}/${scope.ownerId}/`;
+  if (!path.startsWith(prefix) || path.includes("..")) return null;
+  const match = /^([a-z0-9-]+)\/[a-z0-9.-]+$/u.exec(path.slice(prefix.length));
+  return match ? `${prefix}${match[1]}/` : null;
 }
 
 async function recordPending(
@@ -122,7 +148,7 @@ export async function cleanupReleasedHumanMedia(
   }
 ): Promise<HumanMediaCleanupOutcome> {
   const outcome: HumanMediaCleanupOutcome = {
-    released: 0, rejected: 0, stillReferenced: 0,
+    released: 0, rejected: 0, stillReferenced: 0, referenceUnknown: 0,
     removedTakes: 0, failedTakes: 0, recorded: false,
   };
   const takes = new Map<string, HumanTakeArtifacts>();
@@ -148,11 +174,20 @@ export async function cleanupReleasedHumanMedia(
   }
 
   for (const take of takes.values()) {
+    const reference = await takeReferenceState(admin, take.takeDirectory);
+    if (reference === "referenced") {
+      outcome.stillReferenced += 1;
+      continue;
+    }
+    if (reference === "unknown") {
+      // Absence of references was NOT established: do not remove now. It is
+      // recorded only because every retry re-checks references before any
+      // removal (retryPendingHumanMediaCleanup); no record is removed blindly.
+      outcome.referenceUnknown += 1;
+      failedPaths.push(...take.paths);
+      continue;
+    }
     try {
-      if (await isTakeStillReferenced(admin, take.takeDirectory)) {
-        outcome.stillReferenced += 1;
-        continue;
-      }
       if (!bucketName) throw new Error("bucket_not_verified");
       const { error } = await admin.storage.from(bucketName).remove(take.paths);
       if (error) throw new Error("remove_failed");
@@ -166,13 +201,14 @@ export async function cleanupReleasedHumanMedia(
   if (failedPaths.length > 0) {
     outcome.recorded = await recordPending(admin, args.scope, failedPaths, args.reason);
   }
-  if (outcome.rejected > 0 || outcome.failedTakes > 0) {
+  if (outcome.rejected > 0 || outcome.failedTakes > 0 || outcome.referenceUnknown > 0) {
     // Categories and counts only: never paths, IDs or names.
     console.warn("[human-media-cleanup]", {
       reason: args.reason,
       released: outcome.released,
       rejectedOutsideOwnerPrefix: outcome.rejected,
       stillReferenced: outcome.stillReferenced,
+      referenceUnknown: outcome.referenceUnknown,
       removedTakes: outcome.removedTakes,
       failedTakes: outcome.failedTakes,
       recordedForRetry: outcome.recorded,
@@ -189,43 +225,82 @@ type PendingRow = {
   object_paths: string[];
 };
 
+async function reportAttempt(
+  admin: CleanupAdmin,
+  id: string,
+  succeeded: boolean
+): Promise<boolean> {
+  try {
+    const { data, error } = await admin.rpc("issue137_human_media_cleanup_resolve", {
+      p_id: id,
+      p_succeeded: succeeded,
+    });
+    return !error && data === true && succeeded;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Retry this owner's recorded failures (best-effort, never throws). The DB
- * receipt (resolve) refuses while any listed object or reference remains.
+ * Retry this owner's recorded failures (best-effort, never throws).
+ * Every record is treated as "references not yet verified": each take
+ * directory must be confirmed unreferenced (error-free, empty answer) before
+ * its paths are removed. Referenced or unknown -> nothing removed, the
+ * attempt is counted. The DB lists a record to the owner only below the
+ * attempt cap (5); beyond it the record stays only in the operator list.
+ * The DB receipt (resolve) also refuses while any object or reference remains.
  */
 export async function retryPendingHumanMediaCleanup(
   admin: CleanupAdmin,
   args: { ownerId: string; limit?: number }
 ): Promise<{ resolved: number; held: number }> {
   const result = { resolved: 0, held: 0 };
+  let rows: PendingRow[] = [];
   try {
     const { data, error } = await admin.rpc("issue137_human_media_cleanup_pending", {
       p_owner_id: args.ownerId,
       p_limit: args.limit ?? 5,
     });
-    if (error || !Array.isArray(data) || data.length === 0) return result;
-    const bucketName = await assertApprovedPrivateHumanRecordingBucket(admin);
-    for (const row of data as PendingRow[]) {
-      const scope = { seriesId: row.series_id, episodeId: row.episode_id, ownerId: row.owner_id };
-      const owned = row.owner_id === args.ownerId && Array.isArray(row.object_paths) &&
-        row.object_paths.every((path) =>
-          typeof path === "string" &&
-          path.startsWith(`human/${scope.seriesId}/${scope.episodeId}/${scope.ownerId}/`) &&
-          !path.includes(".."));
-      let succeeded = false;
-      if (owned) {
-        const { error: removeError } = await admin.storage.from(bucketName).remove(row.object_paths);
-        succeeded = !removeError;
-      }
-      const { data: resolved, error: resolveError } = await admin.rpc(
-        "issue137_human_media_cleanup_resolve",
-        { p_id: row.id, p_succeeded: succeeded }
-      );
-      if (!resolveError && resolved === true && succeeded) result.resolved += 1;
-      else result.held += 1;
-    }
+    if (error || !Array.isArray(data)) return result;
+    rows = data as PendingRow[];
   } catch {
-    // Retry is opportunistic; the record stays for the next attempt.
+    return result;
+  }
+  if (rows.length === 0) return result;
+
+  let bucketName: string | null = null;
+  try {
+    bucketName = await assertApprovedPrivateHumanRecordingBucket(admin);
+  } catch {
+    bucketName = null;
+  }
+
+  for (const row of rows) {
+    let succeeded = false;
+    try {
+      const scope = { seriesId: row.series_id, episodeId: row.episode_id, ownerId: row.owner_id };
+      const paths = Array.isArray(row.object_paths) ? row.object_paths : [];
+      const takeDirectories = paths.map((path) => takeDirectoryOf(path, scope));
+      const owned = row.owner_id === args.ownerId && paths.length > 0 &&
+        takeDirectories.every((dir): dir is string => dir !== null);
+      if (owned && bucketName) {
+        let allClear = true;
+        for (const dir of new Set(takeDirectories as string[])) {
+          if (await takeReferenceState(admin, dir) !== "clear") {
+            allClear = false;
+            break;
+          }
+        }
+        if (allClear) {
+          const { error: removeError } = await admin.storage.from(bucketName).remove(paths);
+          succeeded = !removeError;
+        }
+      }
+    } catch {
+      succeeded = false;
+    }
+    if (await reportAttempt(admin, row.id, succeeded)) result.resolved += 1;
+    else result.held += 1;
   }
   return result;
 }
