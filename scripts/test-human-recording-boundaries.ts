@@ -20,6 +20,11 @@ import {
 } from "../src/lib/recording/humanStagingLease";
 import { buildHumanMultipartUploadSession } from "../src/lib/recording/humanMultipartUploadShared";
 import {
+  cleanupReleasedHumanMedia,
+  resolveHumanTakeArtifacts,
+  retryPendingHumanMediaCleanup,
+} from "../src/lib/recording/humanMediaCleanup";
+import {
   H1_NON_HUMAN_PATH_LIKE_PATTERNS,
   H1_NON_HUMAN_PATH_POSTGREST_OR,
   isH1GuardedHumanRow,
@@ -612,12 +617,203 @@ async function checkHumanStagingLeaseBoundary() {
   }
 }
 
+// #137 S2-1: released Human media is removed only after the H1 commit,
+// only within the owner's prefix, and failures are recorded, not surfaced.
+async function checkHumanMediaCleanupBoundary() {
+  const S = "10000000-0000-0000-0000-000000000001";
+  const S2 = "10000000-0000-0000-0000-000000000002";
+  const E = "20000000-0000-0000-0000-000000000001";
+  const E2 = "20000000-0000-0000-0000-000000000002";
+  const A = "00000000-0000-0000-0000-00000000000a";
+  const B = "00000000-0000-0000-0000-00000000000b";
+  const scope = { seriesId: S, episodeId: E, ownerId: A };
+  const take = (owner = A, series = S, episode = E, dir = "1731500000000-abc") =>
+    `human/${series}/${episode}/${owner}/${dir}/playback-from-webm.m4a`;
+
+  // Path validation.
+  assert.deepEqual(resolveHumanTakeArtifacts(take(), scope), {
+    takeDirectory: `human/${S}/${E}/${A}/1731500000000-abc/`,
+    paths: [
+      take(),
+      `human/${S}/${E}/${A}/1731500000000-abc/original.webm`,
+      `${take()}.timing.json`,
+    ],
+  });
+  assert.ok(resolveHumanTakeArtifacts(take(), { seriesId: S.toUpperCase(), episodeId: E, ownerId: A }),
+    "scope IDs are compared case-insensitively");
+  for (const [value, label] of [
+    [take(B), "another owner"],
+    [take(A, S2), "another series"],
+    [take(A, S, E2), "another episode"],
+    [`https://x.supabase.co/storage/v1/object/public/recording-audio/${take()}`, "URL form"],
+    [`human/${S}/${E}/${A}/../${B}/x/playback-from-webm.m4a`, "traversal"],
+    [`human/${S}/${E}/${A}/x/y/playback-from-webm.m4a`, "nested"],
+    [`human/${S}/${E}/${A}/x/playback.webm`, "legacy shape"],
+    [`human/${S}/${E}/${A}/x/original.webm`, "not a playback path"],
+    [`human-temp/${S}/${E}/${A}/x/part-0001.webm`, "staging namespace"],
+    ["", "empty"],
+    [null, "null"],
+  ] as const) {
+    assert.equal(resolveHumanTakeArtifacts(value, scope), null, `must not resolve ${label}`);
+  }
+  assert.equal(resolveHumanTakeArtifacts(take(), { ...scope, ownerId: "not-a-uuid" }), null);
+
+  type Events = string[];
+  const makeAdmin = (opts: {
+    events: Events;
+    referenced?: (pattern: string) => boolean;
+    referenceError?: boolean;
+    removeError?: boolean;
+    bucketPublic?: boolean;
+    recordError?: boolean;
+    pending?: unknown[];
+    removed?: string[][];
+    rpcArgs?: Array<{ fn: string; args: Record<string, unknown> }>;
+  }) => ({
+    async rpc(fn: string, args: Record<string, unknown>) {
+      opts.events.push(`rpc:${fn}`);
+      opts.rpcArgs?.push({ fn, args });
+      if (fn === "issue137_human_media_cleanup_record") {
+        return { data: opts.recordError ? null : "id", error: opts.recordError ? { message: "x" } : null };
+      }
+      if (fn === "issue137_human_media_cleanup_pending") return { data: opts.pending ?? [], error: null };
+      if (fn === "issue137_human_media_cleanup_resolve") return { data: args.p_succeeded === true, error: null };
+      return { data: null, error: { message: "unexpected" } };
+    },
+    from(table: string) {
+      assert.equal(table, "recordings");
+      return {
+        select() {
+          return {
+            like(column: string, pattern: string) {
+              assert.equal(column, "audio_storage_path");
+              return {
+                async limit() {
+                  opts.events.push(`ref:${pattern}`);
+                  if (opts.referenceError) return { data: null, error: { message: "x" } };
+                  return { data: opts.referenced?.(pattern) ? [{ id: "r" }] : [], error: null };
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+    storage: {
+      async getBucket(id: string) {
+        opts.events.push("bucket");
+        return { data: { id, name: id, public: opts.bucketPublic === true }, error: null };
+      },
+      from(bucket: string) {
+        assert.equal(bucket, DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET);
+        return {
+          async remove(paths: string[]) {
+            opts.events.push("remove");
+            opts.removed?.push(paths);
+            return { data: [], error: opts.removeError ? { message: "x" } : null };
+          },
+        };
+      },
+    },
+  }) as never;
+
+  const warnings: unknown[] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => { warnings.push(args); };
+  try {
+    // Success: reference check, then exact remove, no record.
+    let events: Events = [];
+    let removed: string[][] = [];
+    const ok = await cleanupReleasedHumanMedia(makeAdmin({ events, removed }), {
+      scope, releasedPaths: [take(), take(B), null], reason: "delete",
+    });
+    assert.deepEqual(ok, { released: 2, rejected: 1, stillReferenced: 0, removedTakes: 1, failedTakes: 0, recorded: false });
+    assert.deepEqual(removed, [resolveHumanTakeArtifacts(take(), scope)?.paths],
+      "only the owner's exact take artifacts are removed (never another owner's)");
+    assert.deepEqual(events, ["bucket", `ref:%human/${S}/${E}/${A}/1731500000000-abc/%`, "remove"],
+      "PRIVATE bucket verified, then reference check, then remove");
+
+    // Still referenced by any row (or unknown): no remove.
+    for (const opts of [{ referenced: () => true }, { referenceError: true }]) {
+      events = []; removed = [];
+      const held = await cleanupReleasedHumanMedia(makeAdmin({ events, removed, ...opts }), {
+        scope, releasedPaths: [take()], reason: "replace",
+      });
+      assert.equal(held.stillReferenced, 1);
+      assert.deepEqual(removed, [], "a referenced take is never removed");
+    }
+
+    // Storage failure: recorded for retry, outcome reported, never throws.
+    events = [];
+    const rpcArgs: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    warnings.length = 0;
+    const failed = await cleanupReleasedHumanMedia(makeAdmin({ events, removeError: true, rpcArgs }), {
+      scope, releasedPaths: [take()], reason: "replace",
+    });
+    assert.deepEqual(failed, { released: 1, rejected: 0, stillReferenced: 0, removedTakes: 0, failedTakes: 1, recorded: true });
+    assert.deepEqual(rpcArgs, [{ fn: "issue137_human_media_cleanup_record", args: {
+      p_owner_id: A, p_series_id: S, p_episode_id: E,
+      p_object_paths: resolveHumanTakeArtifacts(take(), scope)?.paths, p_reason: "replace",
+    } }]);
+    assert.ok(events.indexOf("remove") < events.indexOf("rpc:issue137_human_media_cleanup_record"));
+    const logged = JSON.stringify(warnings);
+    assert.ok(logged.includes("failedTakes") && !logged.includes("human/") && !logged.includes(A),
+      "failure log carries categories/counts only, never paths or IDs");
+
+    // Unverified bucket (PUBLIC): nothing removed, recorded.
+    removed = [];
+    const publicBucket = await cleanupReleasedHumanMedia(makeAdmin({ events: [], removed, bucketPublic: true }), {
+      scope, releasedPaths: [take()], reason: "delete",
+    });
+    assert.deepEqual(removed, []);
+    assert.equal(publicBucket.failedTakes, 1);
+    // Record RPC missing too: still no throw.
+    const unrecorded = await cleanupReleasedHumanMedia(makeAdmin({ events: [], removeError: true, recordError: true }), {
+      scope, releasedPaths: [take()], reason: "delete",
+    });
+    assert.equal(unrecorded.recorded, false);
+
+    // Retry: own pending row is removed and resolved; a foreign path is not removed.
+    removed = [];
+    const retried = await retryPendingHumanMediaCleanup(makeAdmin({ events: [], removed, pending: [
+      { id: "p1", series_id: S, episode_id: E, owner_id: A, object_paths: [take()] },
+      { id: "p2", series_id: S, episode_id: E, owner_id: A, object_paths: [take(B)] },
+    ] }), { ownerId: A });
+    assert.deepEqual(retried, { resolved: 1, held: 1 });
+    assert.deepEqual(removed, [[take()]]);
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  // Ordering in the callers: cleanup strictly after a successful H1 commit.
+  const del = source("src/app/api/recordings/human-delete/route.ts");
+  const delCommit = del.indexOf("await commitHumanAtomicMutation(");
+  const delCleanup = del.indexOf("await cleanupReleasedHumanMedia(");
+  assert.ok(delCommit > 0 && delCleanup > delCommit, "delete: cleanup only after the commit");
+  assert.ok(delCleanup < del.indexOf("} catch (error) {", delCleanup), "delete: cleanup is not in the error path");
+  assert.equal(/\.storage\.from\([^)]*\)\.remove\(/u.test(del), false, "delete: no direct Storage removal");
+  const pub = source("src/lib/recording/humanRecordingPublish.ts");
+  const pubWrite = pub.indexOf("await writeRecording(adminSupabase, {");
+  const pubCleanup = pub.indexOf("await cleanupReleasedHumanMedia(");
+  assert.ok(pubWrite > 0 && pubCleanup > pubWrite, "publish: cleanup only after the commit");
+  assert.ok(pub.includes('reason: "replace"') && pub.includes("releasedAudioStoragePath: primary ? primary.audioStoragePath : null"),
+    "publish: only the replaced row's prior path is released");
+  assert.equal(/\.remove\(/u.test(pub), false, "publish: no direct Storage removal");
+
+  const migration = source("supabase/migrations/20261114140000_issue137_human_media_cleanup_pending.sql");
+  const migrationSql = migration.replace(/--[^\n]*/gu, "");
+  assert.equal(/\bgrant\b[^;]*\bto\b[^;]*\b(anon|authenticated|public)\b/iu.test(migrationSql), false,
+    "S2-1 migration grants nothing to anon/authenticated/public");
+  assert.ok(migration.includes("S21_PATH_OUTSIDE_OWNER_PREFIX"));
+}
+
 void checkHumanPrivateBucketBoundary()
   .then(checkHumanAtomicCommitBoundary)
   .then(checkHumanStagingLeaseBoundary)
+  .then(checkHumanMediaCleanupBoundary)
   .then(() => {
   console.log(
-    "PASS: Human identity, access, exact PRIVATE bucket, signed uploads, storage, search, Official, TTS, H1 atomic-commit, and H2 staging-lease boundaries"
+    "PASS: Human identity, access, exact PRIVATE bucket, signed uploads, storage, search, Official, TTS, H1 atomic-commit, H2 staging-lease, and S2-1 media-cleanup boundaries"
   );
 }).catch((error) => {
   console.error(error);
