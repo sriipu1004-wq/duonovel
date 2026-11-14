@@ -8,6 +8,7 @@ import {
   buildShareIntentUrl,
   buildShareTargetUrl,
   buildShareText,
+  resolveShareAuthorName,
   SHARE_CHANNEL_UTM,
   SHARE_CHANNELS,
   SHARE_INTENT_HOSTS,
@@ -75,7 +76,8 @@ const read = (path: string) => readFileSync(path, "utf8");
   const shared = buildShareTargetUrl(`/works/${SERIES}`, "x", "work");
   const x = new URL(buildShareIntentUrl("x", { url: shared, text: "「題」 作者 | LIB read" })!);
   assert.equal(x.host, SHARE_INTENT_HOSTS.x);
-  assert.equal(x.pathname, "/intent/tweet");
+  assert.equal(x.host, "x.com");
+  assert.equal(x.pathname, "/intent/post");
   assert.equal(x.searchParams.get("url"), shared);
   assert.equal(x.searchParams.get("text"), "「題」 作者 | LIB read");
 
@@ -92,6 +94,51 @@ const read = (path: string) => readFileSync(path, "utf8");
   assert.equal(buildShareIntentUrl("copy", { url: shared, text: "t" }), null);
   assert.equal(buildShareIntentUrl("native", { url: shared, text: "t" }), null);
   for (const href of [x, line, facebook]) assert.equal(href.protocol, "https:");
+}
+
+// 2b. Share-text author (review S2): PD original author or a user author;
+//     never the operator account, never an "author unset" placeholder.
+{
+  const unset = ["作者名未設定", "Author unavailable", "작가 정보 없음", "Author not set"];
+  assert.equal(
+    resolveShareAuthorName({ publicDomainOriginalAuthor: "夏目漱石", accountAuthorName: "LIB read Official", authorIsOfficialAccount: true, unsetLabels: unset }),
+    "夏目漱石"
+  );
+  // Official work without Public Domain metadata: no author at all.
+  assert.equal(
+    resolveShareAuthorName({ publicDomainOriginalAuthor: null, accountAuthorName: "LIB read Official", authorIsOfficialAccount: true, unsetLabels: unset }),
+    ""
+  );
+  // Even if the account lookup fails open, the operator display name is withheld.
+  assert.equal(
+    resolveShareAuthorName({ publicDomainOriginalAuthor: null, accountAuthorName: "LIB read Official", authorIsOfficialAccount: false, unsetLabels: unset }),
+    ""
+  );
+  assert.equal(
+    resolveShareAuthorName({ publicDomainOriginalAuthor: "", accountAuthorName: "公式の別名", authorIsOfficialAccount: true }),
+    ""
+  );
+  for (const placeholder of unset) {
+    assert.equal(
+      resolveShareAuthorName({ publicDomainOriginalAuthor: null, accountAuthorName: placeholder, authorIsOfficialAccount: false, unsetLabels: unset }),
+      "",
+      `placeholder ${placeholder}`
+    );
+  }
+  assert.equal(
+    resolveShareAuthorName({ publicDomainOriginalAuthor: null, accountAuthorName: " 投稿者A ", authorIsOfficialAccount: false, unsetLabels: unset }),
+    "投稿者A"
+  );
+  // The reviewed failure: 「吾輩は猫である・夏目漱石」 LIB read Official.
+  const author = resolveShareAuthorName({ publicDomainOriginalAuthor: null, accountAuthorName: "LIB read Official", authorIsOfficialAccount: true, unsetLabels: unset });
+  assert.equal(
+    buildShareText({ title: "吾輩は猫である・夏目漱石", authorName: author, quote: shareDictionaries.ja.quoteTitle }),
+    "「吾輩は猫である・夏目漱石」 | LIB read"
+  );
+  for (const locale of UI_LOCALES) {
+    const text = buildShareText({ title: "T", authorName: author, quote: shareDictionaries[locale].quoteTitle });
+    assert.ok(!/LIB read Official|作者名未設定/u.test(text), `${locale}: ${text}`);
+  }
 }
 
 // 3. Visibility: public and non-R18 only.
@@ -195,6 +242,13 @@ assert.equal(isWorkOpenGraphImagePath(`/works/${SERIES}/translations`), false);
   assert.ok(workPage.includes("shouldShowShareButtons({"));
   assert.ok(workPage.includes('isR18: getSeriesContentRating(series) === "r18"'));
   assert.ok(workPage.includes("{showShareButtons ? ("));
+  assert.ok(workPage.includes("authorName={shareAuthorName}"), "Work share uses resolveShareAuthorName");
+  assert.ok(
+    !/authorName=\{displayedAuthorName\}\s+className="mt-5"/u.test(workPage),
+    "Work share must not use the displayed (account) author name"
+  );
+  assert.ok(workPage.includes("resolveShareAuthorName({"));
+  assert.ok(workPage.includes("isOfficialAuthorAccountForDisplay(authorId)"));
   assert.ok(workPage.includes("images: [workOgImagePath(seriesId)]"));
   assert.ok(!workPage.includes('images: ["/opengraph-image"]'));
 
@@ -203,6 +257,8 @@ assert.equal(isWorkOpenGraphImagePath(`/works/${SERIES}/translations`), false);
   assert.ok(layout.includes("isEpisodePubliclyVisible(input.episode)"));
   assert.ok(layout.includes('getSeriesPublicationStatus(input.series) === "public"'));
   assert.ok(layout.includes("readerCanonicalPath("), "Reader shares its canonical copy");
+  assert.ok(layout.includes("resolveShareAuthorName({"), "Reader share uses the same author rule");
+  assert.ok(layout.includes("isOfficialAuthorAccountForDisplay("));
   assert.ok(layout.includes("pb-56"), "clear of the fixed Reader player bar (~174px)");
   // Outside the translation shell, so Bilingual / Translation modes keep it.
   const shellEnd = layout.indexOf("</ReadBilingualShell>");
@@ -225,6 +281,15 @@ assert.equal(isWorkOpenGraphImagePath(`/works/${SERIES}/translations`), false);
   assert.ok(!/fonts\.googleapis|fonts:\s*\[/u.test(ogRoute), "no font loading in the route");
 }
 
+// 7b. The official-account check is deny-side and fails closed.
+{
+  const official = read("src/lib/auth/officialAuthor.server.ts");
+  assert.ok(official.includes('import "server-only"'));
+  assert.ok(official.includes("isOfficialAccountEmail("), "deny side matches by email");
+  assert.ok(!official.includes("isOfficialAccountUser("), "never the grant-side check");
+  assert.equal((official.match(/return true;/gu) ?? []).length, 2, "lookup error and exception -> withhold");
+}
+
 // 8. The UTM document matches the code.
 {
   const doc = read("docs/p9-utm-measurement.md");
@@ -235,7 +300,7 @@ assert.equal(isWorkOpenGraphImagePath(`/works/${SERIES}/translations`), false);
       `doc row for ${channel}`
     );
   }
-  for (const heading of ["Vercel Web Analytics での見方", "受け入れの指標の測り方", "最小のイベント"]) {
+  for (const heading of ["Vercel Web Analytics での見方", "受け入れの指標の測り方", "最小のイベント", "最大でおよそ10分", "何日も残りうる"]) {
     assert.ok(doc.includes(heading), heading);
   }
 }

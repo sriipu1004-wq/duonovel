@@ -32,7 +32,11 @@ import {
   resolvePublicWorkAttribution,
 } from "@/lib/seo/publicWorkSeo";
 import ShareButtons from "@/components/share/ShareButtons";
-import { shouldShowShareButtons } from "@/lib/share/shareLinks";
+import {
+  resolveShareAuthorName,
+  shouldShowShareButtons,
+} from "@/lib/share/shareLinks";
+import { isOfficialAuthorAccountForDisplay } from "@/lib/auth/officialAuthor.server";
 import type { UiLocale } from "@/i18n/config";
 import { getNormalAuthorName } from "@/lib/readerAuthorName";
 import {
@@ -283,8 +287,25 @@ export default async function ReadEpisodeLayout({
   }
 
   const attribution = await resolveReadAttribution(payload.series, dictionary);
-  const shareAuthorName =
-    attribution.authorName === dictionary.authorUnset ? "" : attribution.authorName;
+  // Same rule as the Work page share text (resolveShareAuthorName).
+  const shareAuthorName = resolveShareAuthorName({
+    publicDomainOriginalAuthor: publicDomainForShare?.originalAuthor,
+    accountAuthorName: attribution.authorName,
+    // The account lookup runs only when there is an account name to show.
+    authorIsOfficialAccount:
+      publicDomainForShare ||
+      !attribution.authorName ||
+      attribution.authorName === dictionary.authorUnset
+      ? false
+      : await isOfficialAuthorAccountForDisplay(
+          pickText(
+            payload.series.author_id,
+            payload.series["user_id"],
+            payload.series["userId"]
+          )
+        ),
+    unsetLabels: [dictionary.authorUnset, "作者名未設定"],
+  });
   const episodeBody = getEpisodeBody(payload.episode);
   const sourceLanguage = inferSeriesSourceLanguage(payload.series, episodeBody);
 

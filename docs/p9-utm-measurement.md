@@ -90,4 +90,4 @@ URL のコピーと端末の共有は、どこに貼られたかが分からな�
 - 作品の画像は `src/app/works/[seriesId]/opengraph-image.tsx`。題名と作者（Public Domain は原作者）を描く。作品ページ（ja・en・ko）と Reader の `og:image`・`twitter:image` は、この画像を指す。
 - R18・非公開・公開話が無い作品は、共通の画像（`src/app/opengraph-image.tsx` と同じ図柄）にする。閲覧者の R18 の設定には依らない（画像は Cookie を見ない）。
 - 外部の書体は読み込まない。next/og（Satori）に入っている書体は Geist Regular だけで、それに無い文字（日本語・韓国語・中国語・絵文字など）を描こうとすると、@vercel/og が描く時に `fonts.googleapis.com` から Noto の書体を取りに行く（`node_modules/next/dist/compiled/@vercel/og/index.node.js` の `loadDynamicAsset`、実際に fetch を止めて確かめた）。これを避けるため、Geist で描ける文字だけの題名に限って題名を描き、それ以外は共通の画像にする。日本語・韓国語の題名を描く方法は PR の本文に書く。
-- 画像の cache は `s-maxage=300` にする（next/og の既定より短くし、非公開・R18 に変わった作品の題名が長く残らないようにする）。
+- 画像の cache は `max-age=300, s-maxage=300, stale-while-revalidate=300` にする（next/og の既定より短くする）。作品が非公開・R18 に変わった後、このサイトの画像が共通の画像に変わるまでは、CDN の stale-while-revalidate を含めて最大でおよそ10分かかる。X・LINE・Facebook など外部のサービスが取り込んだカードの画像は、それぞれの側の cache に別に何日も残りうる（こちらからは消せない。各サービスの再取得の機能に依る）。

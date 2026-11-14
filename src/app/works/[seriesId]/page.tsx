@@ -56,7 +56,8 @@ import { getSeriesContentRating } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 import { canViewPublicWorkBody } from "@/lib/workBodyVisibility";
 import ShareButtons from "@/components/share/ShareButtons";
-import { shouldShowShareButtons } from "@/lib/share/shareLinks";
+import { resolveShareAuthorName, shouldShowShareButtons } from "@/lib/share/shareLinks";
+import { isOfficialAuthorAccountForDisplay } from "@/lib/auth/officialAuthor.server";
 import { workOgImagePath } from "@/lib/og/workOgContent";
 
 type PageProps = {
@@ -1595,6 +1596,21 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     isPublic: getSeriesPublicationStatus(series) === "public",
     isR18: getSeriesContentRating(series) === "r18",
   });
+  // Share text author: Public Domain original author, or the author of a
+  // user-posted work. Never the operator account for a work without Public
+  // Domain metadata, never the "作者名未設定" placeholder (any locale).
+  const shareAuthorName = showShareButtons
+    ? resolveShareAuthorName({
+        publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+        accountAuthorName: authorName,
+        // The account lookup runs only when there is an account name to show.
+        authorIsOfficialAccount:
+          publicDomain || authorName === "作者名未設定"
+            ? false
+            : await isOfficialAuthorAccountForDisplay(authorId),
+        unsetLabels: ["作者名未設定", dictionary.unknownAuthor],
+      })
+    : "";
   const publicDomainJsonLd = publicDomain
     ? JSON.stringify({
         "@context": "https://schema.org",
@@ -1734,7 +1750,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                 placement="work"
                 locale={locale}
                 title={seriesTitle}
-                authorName={displayedAuthorName}
+                authorName={shareAuthorName}
                 className="mt-5"
               />
             ) : null}

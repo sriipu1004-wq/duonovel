@@ -62,7 +62,7 @@ export function buildShareTargetUrl(
 
 /** Allowed hosts of the intent URLs (asserted by the regression test). */
 export const SHARE_INTENT_HOSTS = {
-  x: "twitter.com",
+  x: "x.com",
   line: "social-plugins.line.me",
   facebook: "www.facebook.com",
 } as const;
@@ -76,7 +76,7 @@ export function buildShareIntentUrl(
   input: { url: string; text: string }
 ): string | null {
   if (channel === "x") {
-    const intent = new URL(`https://${SHARE_INTENT_HOSTS.x}/intent/tweet`);
+    const intent = new URL(`https://${SHARE_INTENT_HOSTS.x}/intent/post`);
     intent.searchParams.set("text", input.text);
     intent.searchParams.set("url", input.url);
     return intent.toString();
@@ -103,6 +103,38 @@ export function shouldShowShareButtons(input: {
   isR18: boolean;
 }): boolean {
   return input.isPublic === true && input.isR18 === false;
+}
+
+/** Account names that are never a work's author in share text. */
+export const NON_AUTHOR_ACCOUNT_NAMES = ["LIB read Official"] as const;
+
+/**
+ * Author shown in share text. Same rule as the Reader JSON-LD: the Public
+ * Domain original author, or the author of a user-posted work. The operator
+ * account (LIB read Official) is never presented as the author of a work
+ * without Public Domain metadata, and a missing name ("作者名未設定" or any
+ * placeholder passed in unsetLabels) gives no author at all.
+ */
+export function resolveShareAuthorName(input: {
+  publicDomainOriginalAuthor: string | null | undefined;
+  accountAuthorName: string | null | undefined;
+  authorIsOfficialAccount: boolean;
+  unsetLabels?: readonly string[];
+}): string {
+  const original = (input.publicDomainOriginalAuthor ?? "").trim();
+  if (original) return original;
+  if (input.authorIsOfficialAccount) return "";
+  const account = (input.accountAuthorName ?? "").trim();
+  if (!account) return "";
+  if ((input.unsetLabels ?? []).some((label) => label.trim() === account)) return "";
+  if (
+    NON_AUTHOR_ACCOUNT_NAMES.some(
+      (name) => name.toLowerCase() === account.toLowerCase()
+    )
+  ) {
+    return "";
+  }
+  return account;
 }
 
 /** Text placed in the X post / native share sheet: 「title」 author | LIB read. */
