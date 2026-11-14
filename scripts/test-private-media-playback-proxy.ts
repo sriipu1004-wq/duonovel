@@ -10,8 +10,10 @@ import {
 import {
   isPrivateMediaProxyBucket,
   isSafePrivateMediaObjectPath,
+  forwardableRange,
   isValidSingleByteRange,
   PRIVATE_MEDIA_NO_STORE,
+  safePrivateMediaContentType,
   streamPrivateMediaObject,
 } from "../src/lib/recording/privateMediaStream";
 import {
@@ -26,9 +28,13 @@ import {
   listProjectedAiNarrationOptions,
   listProtectedAiRecordings,
 } from "../src/lib/recording/protectedAiRecordingOptions";
-import { projectReaderEpisodeRecordings } from "../src/lib/recording/readerEpisodeRecordingProjection";
+import {
+  listPublishedHumanNarratorIds,
+  projectReaderEpisodeRecordings,
+} from "../src/lib/recording/readerEpisodeRecordingProjection";
 import { buildHumanRecordingPlaybackHref } from "../src/lib/recording/humanRecordingStorage";
 import {
+  ACCEPTED_RECORDING_PLAYBACK_CONSENT_VERSIONS,
   isAcceptedRecordingConsentVersion,
   RECORDING_GLOBAL_CONSENT_VERSION,
 } from "../src/lib/recording/recordingConsent";
@@ -105,7 +111,6 @@ const humanPublic = {
   ...publicSource,
   recordingPublic: true,
   viewerIsNarrator: false,
-  currentPermissionOpen: true,
   currentConsent: true,
 };
 assert.equal(canServeHumanRecordingAudio(humanPublic), true, "public Human row, public source, anonymous");
@@ -113,8 +118,7 @@ for (const [override, label] of [
   [{ seriesPublic: false }, "series not public, viewer not owner"],
   [{ episodePublic: false }, "episode not public, viewer not owner"],
   [{ isR18: true }, "R18 without preference"],
-  [{ currentPermissionOpen: false }, "recording permission closed"],
-  [{ currentConsent: false }, "narrator consent not current"],
+  [{ currentConsent: false }, "narrator consent withdrawn / not accepted"],
   [{ episodeBelongsToSeries: false }, "episode mismatch"],
 ] as const) {
   assert.equal(canServeHumanRecordingAudio({ ...humanPublic, ...override }), false, `Human public: reject ${label}`);
@@ -129,10 +133,17 @@ assert.equal(canServeHumanRecordingAudio({ ...humanPrivate, episodePublic: false
   "private Human row: narrator rejected once the source is unreadable for them");
 assert.equal(canServeHumanRecordingAudio({ ...humanPrivate, isR18: true }), false,
   "private Human row: narrator R18-gated by own preference");
+assert.equal(canServeHumanRecordingAudio({ ...humanPrivate, currentConsent: false }), false,
+  "private Human row: narrator's own withdrawn consent stops playback");
+// Owner decision 「過去の朗読は残す」: closing recording is not a playback input.
+assert.equal("currentPermissionOpen" in humanPublic, false);
 assert.equal(isAcceptedRecordingConsentVersion(RECORDING_GLOBAL_CONSENT_VERSION), true);
 assert.equal(RECORDING_GLOBAL_CONSENT_VERSION, "2026-04-16");
-for (const value of [null, undefined, "", "2026-04-15", "2027-01-01"]) {
-  assert.equal(isAcceptedRecordingConsentVersion(value), false, `consent ${String(value)} rejected`);
+assert.deepEqual([...ACCEPTED_RECORDING_PLAYBACK_CONSENT_VERSIONS], ["2026-04-16"]);
+assert.ok(ACCEPTED_RECORDING_PLAYBACK_CONSENT_VERSIONS.includes(RECORDING_GLOBAL_CONSENT_VERSION),
+  "the current consent version must always be accepted for playback");
+for (const value of [null, undefined, "", "2026-04-15", "2027-01-01", 20260416]) {
+  assert.equal(isAcceptedRecordingConsentVersion(value), false, `consent ${String(value)} rejected (null = withdrawn)`);
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +194,23 @@ for (const range of [null, "bytes=0-", "bytes=0-99", "bytes=-500"]) {
 }
 for (const range of ["bytes=0-1,5-9", "items=0-1", "bytes=a-b", "bytes="]) {
   assert.equal(isValidSingleByteRange(range), false, `invalid range ${range}`);
+  assert.equal(forwardableRange(range), null, `malformed/multi range ${range} is ignored, not forwarded`);
+}
+assert.equal(forwardableRange("bytes=0-99"), "bytes=0-99");
+for (const [input, expected] of [
+  ["audio/wav", "audio/wav"],
+  ["audio/mp4", "audio/mp4"],
+  ["Audio/MPEG; charset=binary", "audio/mpeg"],
+  ["application/json", "application/json"],
+  ["application/json; charset=utf-8", "application/json"],
+  ["text/html", "application/octet-stream"],
+  ["image/svg+xml", "application/octet-stream"],
+  ["application/javascript", "application/octet-stream"],
+  ["audio/", "application/octet-stream"],
+  ["", "application/octet-stream"],
+  [null, "application/octet-stream"],
+] as const) {
+  assert.equal(safePrivateMediaContentType(input), expected, `content-type ${String(input)}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -211,7 +239,12 @@ const rows = [
   { id: "88888888-8888-4888-8888-888888888888", episode_id: EPISODE, reader_id: null, reader_name: "非公開AI", is_public: false, voice_model_id: null, audio_storage_path: makePrivateAiNarrationReference(`aivis/${SERIES}/${EPISODE}/b.wav`) },
   { id: "99999999-9999-4999-8999-999999999999", episode_id: OTHER_EPISODE, reader_id: null, reader_name: "他話", is_public: true, voice_model_id: null, audio_storage_path: makePrivateAiNarrationReference(`aivis/${SERIES}/${OTHER_EPISODE}/b.wav`) },
 ];
-const projected = projectReaderEpisodeRecordings(rows, EPISODE);
+assert.deepEqual(listPublishedHumanNarratorIds(rows), [NARRATOR]);
+// Consent parity with the human-audio proxy: no accepted consent row -> the
+// Reader does not list the Human narration (it would 404 on playback).
+assert.deepEqual(projectReaderEpisodeRecordings(rows, EPISODE, new Set()).map((r) => r.id), [REC_AI],
+  "withdrawn narrator consent hides Human narration in the Reader (AI unaffected)");
+const projected = projectReaderEpisodeRecordings(rows, EPISODE, new Set([NARRATOR]));
 assert.deepEqual(projected.map((r) => r.id), [REC_HUMAN, REC_AI],
   "projection keeps published Human + published PRIVATE AI of this episode only (public AI rows were never in the Reader payload)");
 assert.equal(projected[0].audio_storage_path, buildHumanRecordingPlaybackHref(REC_HUMAN));
@@ -263,6 +296,8 @@ async function checkStream() {
   const sentHeaders = calls[0].init.headers as Record<string, string>;
   assert.equal(sentHeaders.Authorization, "Bearer service-key-for-test");
   assert.equal("Range" in sentHeaders, false);
+  assert.equal(sentHeaders["Accept-Encoding"], "identity", "upstream is asked for unencoded bytes");
+  assert.equal(res.headers.get("content-length"), "4");
   for (const [name, value] of res.headers) {
     assert.equal(value.includes("service-key-for-test"), false, `credential leaked in ${name}`);
   }
@@ -307,6 +342,57 @@ async function checkStream() {
     fetchImpl: fakeFetch(() => new Response(null, { status: 416 }), []),
   });
   assert.equal(res.status, 416);
+  assert.equal(res.headers.get("content-range"), null);
+  res = await streamPrivateMediaObject({
+    request: new Request("https://app.test/x", { headers: { range: "bytes=999-" } }),
+    bucket: "ai-narration-private", objectPath: aiObject, ...ENV,
+    fetchImpl: fakeFetch(() => new Response(null, { status: 416, headers: { "content-range": "bytes */4" } }), []),
+  });
+  assert.equal(res.status, 416);
+  assert.equal(res.headers.get("content-range"), "bytes */4", "416 carries the unsatisfied Content-Range");
+  res = await streamPrivateMediaObject({
+    request: new Request("https://app.test/x", { headers: { range: "bytes=999-" } }),
+    bucket: "ai-narration-private", objectPath: aiObject, ...ENV,
+    fetchImpl: fakeFetch(() => new Response(null, { status: 416, headers: { "content-range": "garbage" } }), []),
+  });
+  assert.equal(res.headers.get("content-range"), null, "malformed upstream Content-Range is not copied");
+
+  // Malformed / multi-range is ignored (RFC 9110): full 200, no Range upstream.
+  for (const badRange of ["bytes=0-1,4-5", "items=0-1", "bytes=a-b"]) {
+    const rangeCalls: Call[] = [];
+    res = await streamPrivateMediaObject({
+      request: new Request("https://app.test/x", { headers: { range: badRange } }),
+      bucket: "ai-narration-private", objectPath: aiObject, ...ENV,
+      fetchImpl: fakeFetch(() => new Response("RIFF", { status: 200, headers: { "content-type": "audio/wav" } }), rangeCalls),
+    });
+    assert.equal(res.status, 200, `ignore ${badRange}`);
+    assert.equal(await res.text(), "RIFF");
+    assert.equal("Range" in (rangeCalls[0].init.headers as Record<string, string>), false,
+      `${badRange} is not forwarded upstream`);
+  }
+
+  // content-encoding: fetch decodes the body, so content-length is not copied
+  res = await streamPrivateMediaObject({
+    request: new Request("https://app.test/x"),
+    bucket: "ai-narration-private", objectPath: aiObject, ...ENV,
+    fetchImpl: fakeFetch(() => new Response("RIFF-decoded", {
+      status: 200,
+      headers: { "content-type": "audio/wav", "content-encoding": "gzip", "content-length": "7" },
+    }), []),
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-length"), null, "encoded upstream length is not forwarded");
+  assert.equal(res.headers.get("content-encoding"), null, "decoded body is not labeled as encoded");
+  assert.equal(await res.text(), "RIFF-decoded");
+
+  // Content-Type allowlist on the response
+  res = await streamPrivateMediaObject({
+    request: new Request("https://app.test/x"),
+    bucket: "ai-narration-private", objectPath: aiObject, ...ENV,
+    fetchImpl: fakeFetch(() => new Response("<script>", { status: 200, headers: { "content-type": "text/html" } }), []),
+  });
+  assert.equal(res.headers.get("content-type"), "application/octet-stream");
+  await res.body?.cancel();
   res = await streamPrivateMediaObject({
     request: new Request("https://app.test/x"),
     bucket: "ai-narration-private", objectPath: aiObject, ...ENV,
@@ -322,7 +408,6 @@ async function checkStream() {
     ["r18-recording-audio", aiObject, {}, 404],
     ["ai-narration-private", "nemo/../secret.wav", {}, 404],
     ["ai-narration-private", "/nemo/x.wav", {}, 404],
-    ["ai-narration-private", aiObject, { range: "bytes=0-1,4-5" }, 416],
   ] as const) {
     res = await streamPrivateMediaObject({
       request: new Request("https://app.test/x", { headers }),
@@ -337,6 +422,169 @@ async function checkStream() {
   });
   assert.equal(res.status, 503, "missing server credentials fail closed");
   assert.equal(never.length, 0, "refused requests never reach Storage");
+}
+
+// ---------------------------------------------------------------------------
+// 7b. Timeouts: header timeout only; body may outlive it; client abort stops upstream
+// ---------------------------------------------------------------------------
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Upstream that behaves like fetch: its body errors when the signal aborts. */
+function slowBodyFetch(chunks: string[], gapMs: number, seen: { signal?: AbortSignal }): typeof fetch {
+  return (async (_url: string | URL | Request, init?: RequestInit) => {
+    const signal = init?.signal ?? undefined;
+    seen.signal = signal;
+    const encoder = new TextEncoder();
+    let index = 0;
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        if (index > 0) await sleep(gapMs);
+        if (signal?.aborted) {
+          controller.error(signal.reason ?? new Error("aborted"));
+          return;
+        }
+        if (index >= chunks.length) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(encoder.encode(chunks[index++]));
+      },
+    });
+    return new Response(body, { status: 200, headers: { "content-type": "audio/wav" } });
+  }) as typeof fetch;
+}
+
+async function checkStreamTimeouts() {
+  const HEADER_TIMEOUT = 60;
+  // Body keeps flowing well past the header timeout (scaled stand-in for >15s playback).
+  const seen: { signal?: AbortSignal } = {};
+  let res = await streamPrivateMediaObject({
+    request: new Request("https://app.test/x"),
+    bucket: "ai-narration-private", objectPath: aiObject, ...ENV,
+    timeoutMs: HEADER_TIMEOUT,
+    fetchImpl: slowBodyFetch(["A", "B", "C"], HEADER_TIMEOUT * 3, seen),
+  });
+  assert.equal(res.status, 200);
+  const started = Date.now();
+  assert.equal(await res.text(), "ABC", "body streaming past the header timeout is not cut off");
+  assert.ok(Date.now() - started >= HEADER_TIMEOUT * 5, "the body really outlived the header timeout");
+  assert.equal(seen.signal?.aborted, false, "upstream signal untouched after a complete stream");
+
+  // No headers within the timeout -> 503, promptly.
+  const t0 = Date.now();
+  res = await streamPrivateMediaObject({
+    request: new Request("https://app.test/x"),
+    bucket: "ai-narration-private", objectPath: aiObject, ...ENV,
+    timeoutMs: HEADER_TIMEOUT,
+    fetchImpl: ((_url: string | URL | Request, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+      })) as typeof fetch,
+  });
+  assert.equal(res.status, 503, "missing upstream headers time out");
+  assert.ok(Date.now() - t0 < 2000, "header timeout fires");
+
+  // Client disconnect after headers aborts the upstream request.
+  const client = new AbortController();
+  const seen2: { signal?: AbortSignal } = {};
+  res = await streamPrivateMediaObject({
+    request: new Request("https://app.test/x", { signal: client.signal }),
+    bucket: "ai-narration-private", objectPath: aiObject, ...ENV,
+    timeoutMs: HEADER_TIMEOUT,
+    fetchImpl: slowBodyFetch(["A", "B", "C", "D"], 30, seen2),
+  });
+  assert.equal(res.status, 200);
+  const reader = res.body!.getReader();
+  await reader.read();
+  client.abort(new Error("client gone"));
+  assert.equal(seen2.signal?.aborted, true, "client disconnect aborts the upstream fetch");
+  await reader.read().then(() => undefined, () => undefined);
+
+  // Response body cancelled by the runtime (client gone) also aborts upstream.
+  const seen3: { signal?: AbortSignal } = {};
+  res = await streamPrivateMediaObject({
+    request: new Request("https://app.test/x"),
+    bucket: "ai-narration-private", objectPath: aiObject, ...ENV,
+    timeoutMs: HEADER_TIMEOUT,
+    fetchImpl: slowBodyFetch(["A", "B"], 30, seen3),
+  });
+  await res.body!.cancel("client closed");
+  assert.equal(seen3.signal?.aborted, true, "cancelling the proxied body aborts upstream");
+
+  // Client already gone before the call: no upstream bytes are read.
+  const gone = new AbortController();
+  gone.abort();
+  res = await streamPrivateMediaObject({
+    request: new Request("https://app.test/x", { signal: gone.signal }),
+    bucket: "ai-narration-private", objectPath: aiObject, ...ENV,
+    timeoutMs: HEADER_TIMEOUT,
+    fetchImpl: ((_url: string | URL | Request, init?: RequestInit) =>
+      init?.signal?.aborted
+        ? Promise.reject(init.signal.reason)
+        : Promise.resolve(new Response("x"))) as typeof fetch,
+  });
+  assert.equal(res.status, 503);
+}
+
+// Same checks with Node's real fetch against a loopback HTTP server.
+async function checkStreamWithRealFetch() {
+  const { createServer } = await import("node:http");
+  const { gzipSync } = await import("node:zlib");
+  const seenEncoding: string[] = [];
+  const server = createServer((req, res) => {
+    seenEncoding.push(String(req.headers["accept-encoding"] ?? ""));
+    if (req.url?.includes("/slow.wav")) {
+      res.writeHead(200, { "content-type": "audio/wav", "content-length": "3" });
+      res.write("A");
+      setTimeout(() => res.write("B"), 150);
+      setTimeout(() => res.end("C"), 300);
+      return;
+    }
+    if (req.url?.includes("/gz.wav")) {
+      const zipped = gzipSync(Buffer.from("RIFF".repeat(50)));
+      res.writeHead(200, {
+        "content-type": "audio/wav",
+        "content-encoding": "gzip",
+        "content-length": String(zipped.length),
+      });
+      res.end(zipped);
+      return;
+    }
+    // never send headers
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const endpoint = `http://127.0.0.1:${address.port}`;
+    let res = await streamPrivateMediaObject({
+      request: new Request("https://app.test/x"),
+      bucket: "ai-narration-private", objectPath: "nemo/slow.wav",
+      endpoint, serviceKey: "k", timeoutMs: 50,
+    });
+    assert.equal(res.status, 200);
+    assert.equal(await res.text(), "ABC", "real fetch: body outliving the header timeout is complete");
+    assert.equal(seenEncoding[0], "identity", "real fetch sends Accept-Encoding: identity");
+
+    res = await streamPrivateMediaObject({
+      request: new Request("https://app.test/x"),
+      bucket: "ai-narration-private", objectPath: "nemo/gz.wav",
+      endpoint, serviceKey: "k", timeoutMs: 2000,
+    });
+    assert.equal(res.headers.get("content-length"), null,
+      "real fetch: decoded gzip body is sent without the compressed length");
+    assert.equal(await res.text(), "RIFF".repeat(50));
+
+    res = await streamPrivateMediaObject({
+      request: new Request("https://app.test/x"),
+      bucket: "ai-narration-private", objectPath: "nemo/hang.wav",
+      endpoint, serviceKey: "k", timeoutMs: 50,
+    });
+    assert.equal(res.status, 503, "real fetch: no headers -> timeout");
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -387,12 +635,30 @@ function checkRouteWiring() {
   for (const needle of ['getSeriesPublicationStatus(series) === "public"', "isEpisodePubliclyVisible(episode)", "series.author_id"]) {
     assert.equal(reader.includes(needle), true, `Reader still uses ${needle} (parity anchor)`);
   }
+  assert.equal(human.includes("recording_permission_mode"), false,
+    "owner decision: closing recording does not stop playback of past narration");
+  assert.equal(source("src/lib/recording/privateMediaAccess.ts").includes("recording_permission_mode ===") ||
+    source("src/lib/recording/privateMediaAccess.ts").includes("currentPermissionOpen:"), false,
+    "the playback gate has no recording-permission input");
+  assert.equal(source("src/lib/recording/privateMediaStream.ts").includes("AbortSignal.timeout("), false,
+    "no whole-response timeout (it would cut long playback)");
+  // New-recording checks keep the exact current version (unchanged by this PR).
+  for (const path of [
+    "src/app/api/recordings/human-publish/route.ts",
+    "src/app/api/recordings/human-upload-finalize/route.ts",
+    "src/app/api/recordings/human-upload-session/route.ts",
+  ]) {
+    assert.equal(source(path).includes("!== RECORDING_GLOBAL_CONSENT_VERSION"), true,
+      `${path} still requires the current consent version for NEW recordings`);
+  }
   const proxy = source("src/lib/recording/privateMediaProxy.ts");
   assert.equal(proxy.startsWith('import "server-only";'), true, "credential wrapper is server-only");
 }
 
 async function main() {
   await checkStream();
+  await checkStreamTimeouts();
+  await checkStreamWithRealFetch();
   checkRouteWiring();
   console.log("PASS: private media playback proxy (Reader-parity gates, Human/AI paths, public URL passthrough, byte proxy)");
 }

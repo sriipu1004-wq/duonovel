@@ -3,6 +3,33 @@ import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingS
 import { listProtectedAiRecordings } from "@/lib/recording/protectedAiRecordingOptions";
 import { recordingAudioPlaybackHref } from "@/lib/recording/recordingAudioPlaybackHref";
 
+/** Same precedence as the human-audio route (reader_id first). */
+export function getHumanNarratorId(row: {
+  reader_id?: string | null;
+  reader_user_id?: string | null;
+  readerUserId?: string | null;
+}): string {
+  for (const value of [row.reader_id, row.reader_user_id, row.readerUserId]) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+/**
+ * Narrator IDs of the published Human rows in `rows` (for the consent read).
+ */
+export function listPublishedHumanNarratorIds(
+  rows: Parameters<typeof isPublishedHumanRecording>[0][]
+): string[] {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (!isPublishedHumanRecording(row)) continue;
+    const id = getHumanNarratorId(row);
+    if (id) ids.add(id);
+  }
+  return [...ids];
+}
+
 /**
  * Project one episode's recordings to the server Reader payload.
  *
@@ -28,7 +55,16 @@ export function projectReaderEpisodeRecordings<
     reader_user_id?: string | null;
     reader_name?: string | null;
   }
->(rows: T[], episodeId: string): T[] {
+>(
+  rows: T[],
+  episodeId: string,
+  /**
+   * Narrators whose consent row is currently accepted for playback
+   * (isAcceptedRecordingConsentVersion). Human rows of anyone else are
+   * dropped, matching the human-audio proxy's consent rule.
+   */
+  consentedNarratorIds: ReadonlySet<string>
+): T[] {
   const privateAiIds = new Set(
     listProtectedAiRecordings(rows, new Set([episodeId])).map(
       (option) => option.recordingId
@@ -38,6 +74,8 @@ export function projectReaderEpisodeRecordings<
   for (const row of rows) {
     if ((row.episode_id ?? row.episodeId) !== episodeId) continue;
     if (isPublishedHumanRecording(row)) {
+      const narratorId = getHumanNarratorId(row);
+      if (!narratorId || !consentedNarratorIds.has(narratorId)) continue;
       projected.push({
         ...row,
         audio_storage_path: buildHumanRecordingPlaybackHref(row.id),

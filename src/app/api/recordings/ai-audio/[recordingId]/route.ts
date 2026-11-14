@@ -8,10 +8,7 @@ import {
 import { canServePrivateAiNarration } from "@/lib/recording/privateMediaAccess";
 import { streamAuthorizedPrivateRecording } from "@/lib/recording/privateMediaProxy";
 import { loadPrivateMediaSourceContext } from "@/lib/recording/privateMediaSourceAccess";
-import {
-  isValidSingleByteRange,
-  privateMediaNotFound,
-} from "@/lib/recording/privateMediaStream";
+import { privateMediaNotFound } from "@/lib/recording/privateMediaStream";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isUuid } from "@/lib/uuid";
 
@@ -24,16 +21,14 @@ type RouteProps = {
 
 /**
  * PRIVATE AI narration (bucket ai-narration-private, #167) playback through an
- * access-checked byte proxy, including Range requests. No bearer URL is
+ * access-checked byte proxy, including Range requests (a malformed or
+ * multi-range header is ignored and the full object is returned). No bearer URL is
  * handed out; every request rechecks the recording, the source with the
  * Reader's rules (publication, episode visibility, owner) and R18.
  */
 export async function GET(request: Request, { params }: RouteProps) {
   const { recordingId } = await params;
   if (!isUuid(recordingId)) return privateMediaNotFound();
-  if (!isValidSingleByteRange(request.headers.get("range"))) {
-    return privateMediaNotFound(416);
-  }
 
   const admin = createAdminClient();
   const { data: recording, error } = await admin

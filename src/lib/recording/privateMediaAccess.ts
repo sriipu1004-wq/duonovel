@@ -38,22 +38,27 @@ export type HumanAudioAccessSnapshot = ReaderSourceSnapshot &
   Readonly<{
     recordingPublic: boolean;
     viewerIsNarrator: boolean;
-    /** series.recording_permission_mode === "open" right now */
-    currentPermissionOpen: boolean;
-    /** narrator's current global consent equals RECORDING_GLOBAL_CONSENT_VERSION */
+    /**
+     * The narrator currently has a consent row whose version is in
+     * ACCEPTED_RECORDING_PLAYBACK_CONSENT_VERSIONS (no row = withdrawn).
+     */
     currentConsent: boolean;
   }>;
 
 /**
  * Human narration. A PRIVATE row is playable only by its narrator, and only
- * while that narrator can still read the source in the Reader. The current
- * permission/consent checks come from Draft #160 and are an owner decision
- * (see the PR body): they also stop playback of past recordings after the
- * author closes recording or the narrator's consent version changes.
+ * while that narrator can still read the source in the Reader.
+ *
+ * Owner decisions (2026-11-14):
+ * - consent withdrawn (no accepted consent row) stops playback;
+ * - the author closing recording (recording_permission_mode != "open") does
+ *   NOT stop playback of past narration; it only blocks NEW recordings
+ *   (H1/H2 checks are unchanged).
+ * The Reader projection applies the same consent rule (consentedNarratorIds).
  */
 export function canServeHumanRecordingAudio(s: HumanAudioAccessSnapshot): boolean {
   if (!canViewReaderSource(s)) return false;
-  if (s.currentPermissionOpen !== true || s.currentConsent !== true) return false;
+  if (s.currentConsent !== true) return false;
   if (s.recordingPublic === true) return true;
   return s.recordingPublic === false && s.viewerIsNarrator === true;
 }

@@ -108,7 +108,6 @@ export async function GET(request: Request, { params }: RouteProps) {
       ...context.snapshot,
       recordingPublic: row.is_public === true,
       viewerIsNarrator: context.viewerUserId === readerId,
-      currentPermissionOpen: context.series.recording_permission_mode === "open",
       currentConsent: isAcceptedRecordingConsentVersion(
         consentResult.data?.consent_version
       ),

@@ -9,7 +9,14 @@ import {
 } from "@/features/write/writeShared";
 import { isR18Series } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
-import { projectReaderEpisodeRecordings } from "@/lib/recording/readerEpisodeRecordingProjection";
+import {
+  listPublishedHumanNarratorIds,
+  projectReaderEpisodeRecordings,
+} from "@/lib/recording/readerEpisodeRecordingProjection";
+import {
+  isAcceptedRecordingConsentVersion,
+  RECORDING_GLOBAL_CONSENT_KEY,
+} from "@/lib/recording/recordingConsent";
 import {
   isSchemaCompatibilityReadFailure,
   runReadOnlyWithRetry,
@@ -159,6 +166,41 @@ async function fetchCurrentEpisode(
   return result.data ? (result.data as EpisodeRow) : null;
 }
 
+// Fail closed: a failed consent read lists no Human narration (AI unaffected).
+async function fetchPlaybackConsentedNarratorIds(
+  narratorIds: string[]
+): Promise<Set<string>> {
+  const accepted = new Set<string>();
+  if (narratorIds.length === 0) return accepted;
+  try {
+    const result = await runReadOnlyWithRetry(
+      async (signal) =>
+        await createAdminClient()
+          .from("user_recording_consents")
+          .select("user_id, consent_version")
+          .in("user_id", narratorIds)
+          .eq("consent_key", RECORDING_GLOBAL_CONSENT_KEY)
+          .abortSignal(signal),
+      { operation: "reader narrator consents", timeoutMs: 1800, retries: 0 }
+    );
+    if (result.error) return accepted;
+    for (const row of (result.data ?? []) as Array<{
+      user_id?: unknown;
+      consent_version?: unknown;
+    }>) {
+      if (
+        typeof row.user_id === "string" &&
+        isAcceptedRecordingConsentVersion(row.consent_version)
+      ) {
+        accepted.add(row.user_id);
+      }
+    }
+  } catch {
+    console.warn("[reader] narrator consents unavailable");
+  }
+  return accepted;
+}
+
 async function fetchPublicRecordings(
   episodeId: string
 ): Promise<PublicReadRecordingRow[]> {
@@ -196,11 +238,17 @@ async function fetchPublicRecordings(
     }
 
     if (!firstTry.error) {
+      const rows = (firstTry.data ?? []) as unknown as PublicReadRecordingRow[];
       // Human -> human-audio proxy, PRIVATE AI -> ai-audio proxy, everything
       // else dropped (unchanged). No raw private path reaches client props.
+      // Human rows are listed only while the narrator's consent is accepted,
+      // the same rule the human-audio proxy applies on playback.
       return projectReaderEpisodeRecordings(
-        (firstTry.data ?? []) as unknown as PublicReadRecordingRow[],
-        episodeId
+        rows,
+        episodeId,
+        await fetchPlaybackConsentedNarratorIds(
+          listPublishedHumanNarratorIds(rows)
+        )
       );
     }
   } catch {
