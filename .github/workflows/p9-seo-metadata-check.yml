@@ -1,0 +1,83 @@
+name: P9 SEO metadata checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/p9-seo-metadata-check.yml"
+      - "package.json"
+      - "scripts/test-p9-seo-metadata.ts"
+      - "scripts/test-public-seo-alignment.ts"
+      - "src/app/sitemap.ts"
+      - "src/app/read/[[]seriesId]/**"
+      - "src/app/works/[[]seriesId]/**"
+      - "src/app/locale-work/[[]seriesId]/**"
+      - "src/features/playback/BilingualEpisodePlayback.tsx"
+      - "src/features/playback/ReadBilingualShell.tsx"
+      - "src/features/playback/TranslationOnlyEpisodePlayback.tsx"
+      - "src/features/playback/WebSpeechEpisodePlayback.tsx"
+      - "src/i18n/dictionaries/reader.ts"
+      - "src/i18n/dictionaries/work.ts"
+      - "src/lib/publicDomainMetadata.ts"
+      - "src/lib/publicWorks.ts"
+      - "src/lib/readerAuthorName.ts"
+      - "src/lib/seo/**"
+      - "src/lib/sitemap/**"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: P9 SEO metadata regression
+        run: npm run test:p9-seo-metadata
+
+      - name: Existing SEO, sitemap and Work metadata regressions
+        run: |
+          npm run test:public-seo-alignment
+          npm run test:sitemap-resilience
+          npm run test:public-read-reliability-performance
+          npm run test:child84-locale-work-metadata-fallback
+          npm run test:public-route-params
+          npm run test:en-ko-i18n
+          npm run test:reader-mode-unification
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Changed-scope ESLint
+        run: >
+          npx eslint
+          scripts/test-p9-seo-metadata.ts
+          src/app/sitemap.ts
+          "src/app/read/[seriesId]/[episodeNumber]/page.tsx"
+          "src/app/read/[seriesId]/[episodeNumber]/layout.tsx"
+          "src/app/locale-work/[seriesId]/page.tsx"
+          src/lib/seo/publicWorkSeo.ts
+          src/lib/sitemap/buildSitemapEntries.ts
+          src/lib/sitemap/loadSitemapEpisodeDates.ts
+          src/lib/readerAuthorName.ts
+
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
+
+      - name: Diff whitespace check
+        run: git diff --check origin/main...HEAD

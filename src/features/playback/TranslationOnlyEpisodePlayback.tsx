@@ -52,6 +52,7 @@ type Props = {
   episodeTitle?: string;
   workAuthorName?: string;
   workEditorName?: string;
+  workPublisherName?: string;
   workIndexHref?: string | null;
   prevEpisodeHref?: string | null;
   nextEpisodeHref?: string | null;
@@ -75,6 +76,7 @@ export default function TranslationOnlyEpisodePlayback({
   episodeTitle,
   workAuthorName,
   workEditorName,
+  workPublisherName,
   workIndexHref,
   prevEpisodeHref,
   nextEpisodeHref,
@@ -384,6 +386,7 @@ export default function TranslationOnlyEpisodePlayback({
   const safeEpisodeTitle = safeText(episodeTitle, dictionary.untitledEpisode);
   const safeAuthorName = safeText(workAuthorName, dictionary.authorUnknown);
   const safeEditorName = safeText(workEditorName, "");
+  const safePublisherName = safeText(workPublisherName, "");
   const selectedPositionIndex = selectedSegmentId
     ? segments.findIndex((segment) => segment.id === selectedSegmentId)
     : -1;
@@ -430,6 +433,9 @@ export default function TranslationOnlyEpisodePlayback({
                 <p className="mt-2 text-xs text-neutral-500">
                   {safeAuthorName}
                   {safeEditorName ? ` / ${safeEditorName}` : ""}
+                  {safePublisherName
+                    ? ` / ${dictionary.publishedBy} ${safePublisherName}`
+                    : ""}
                 </p>
               </div>
               <TranslationLanguageSelect

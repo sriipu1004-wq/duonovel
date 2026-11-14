@@ -53,6 +53,7 @@ type ReadBilingualShellProps = {
   episodeTitle?: string;
   workAuthorName?: string;
   workEditorName?: string;
+  workPublisherName?: string;
   sourceLanguage: SupportedLanguageTag;
   hasMultipleEpisodes: boolean;
   workIndexHref?: string | null;
@@ -97,6 +98,7 @@ export default function ReadBilingualShell({
   episodeTitle,
   workAuthorName,
   workEditorName,
+  workPublisherName,
   sourceLanguage,
   hasMultipleEpisodes,
   workIndexHref,
@@ -814,6 +816,7 @@ export default function ReadBilingualShell({
           episodeTitle={episodeTitle}
           workAuthorName={workAuthorName}
           workEditorName={workEditorName}
+          workPublisherName={workPublisherName}
           workIndexHref={workIndexHref}
           prevEpisodeHref={prevEpisodeHref}
           nextEpisodeHref={nextEpisodeHref}
@@ -852,6 +855,7 @@ export default function ReadBilingualShell({
           episodeTitle={episodeTitle}
           workAuthorName={workAuthorName}
           workEditorName={workEditorName}
+          workPublisherName={workPublisherName}
           workIndexHref={workIndexHref}
           prevEpisodeHref={prevEpisodeHref}
           nextEpisodeHref={nextEpisodeHref}

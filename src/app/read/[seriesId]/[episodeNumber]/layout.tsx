@@ -24,6 +24,9 @@ import {
 } from "@/lib/translation/humanTranslationServer";
 import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 import { getUiLocale } from "@/i18n/server";
+import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
+import { resolvePublicWorkAttribution } from "@/lib/seo/publicWorkSeo";
+import { getNormalAuthorName } from "@/lib/readerAuthorName";
 import {
   readPageDictionaries,
   type ReadPageDictionary,
@@ -40,16 +43,32 @@ function parseEpisodeNumber(value: string): number {
 }
 
 
-function resolveReadAttribution(
+async function resolveReadAttribution(
   series: SeriesRow,
   dictionary: ReadPageDictionary
-): {
+): Promise<{
   authorName: string;
   editorName: string;
-} {
+  publisherName: string;
+}> {
+  // Owner decision 2026-11-15 「原作者を作者にする」: a Public Domain work's
+  // author is its original author; the hosting account is shown as 「掲載」.
+  // The account name comes from users.display_name, the same lookup as the
+  // Reader page (series has no author_name column in Production). Non Public
+  // Domain works keep their previous attribution source unchanged.
+  const publicDomain = readPublicDomainMetadata(
+    series["effect_settings"] ?? series["effectSettings"]
+  );
+  const attribution = resolvePublicWorkAttribution({
+    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    accountAuthorName: publicDomain
+      ? await getNormalAuthorName(series, "")
+      : pickText(series["author_name"]) || "",
+  });
   return {
-    authorName: pickText(series["author_name"]) || dictionary.authorUnset,
+    authorName: attribution.authorName || dictionary.authorUnset,
     editorName: "",
+    publisherName: attribution.publisherName ?? "",
   };
 }
 
@@ -185,7 +204,7 @@ export default async function ReadEpisodeLayout({
     );
   }
 
-  const attribution = resolveReadAttribution(payload.series, dictionary);
+  const attribution = await resolveReadAttribution(payload.series, dictionary);
   const episodeBody = getEpisodeBody(payload.episode);
   const sourceLanguage = inferSeriesSourceLanguage(payload.series, episodeBody);
 
@@ -217,6 +236,7 @@ export default async function ReadEpisodeLayout({
         }
         workAuthorName={attribution.authorName}
         workEditorName={attribution.editorName}
+        workPublisherName={attribution.publisherName}
         sourceLanguage={sourceLanguage}
         hasMultipleEpisodes={hasMultipleEpisodes}
         workIndexHref={
