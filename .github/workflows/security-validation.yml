@@ -26,6 +26,8 @@ jobs:
         run: npm audit --omit=dev
       - name: Auth redirect regression
         run: npm run test:auth-login-redirect
+      - name: Auth identity and callback error regression
+        run: npm run test:auth-identity-callback
       - name: Authorization regression
         run: npm run test:security-authz
       - name: Stripe credit webhook regression
@@ -44,6 +46,9 @@ jobs:
         run: >-
           npx eslint
           scripts/test-auth-login-redirect.ts
+          scripts/test-auth-identity-callback.ts
+          src/lib/auth/authCallbackError.ts
+          src/lib/auth/selfChosenDisplayName.ts
           scripts/test-security-authz.ts
           scripts/test-stripe-credit-webhook.ts
           src/app/api/account/display-name/check/route.ts

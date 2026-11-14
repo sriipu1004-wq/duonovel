@@ -11,6 +11,11 @@ import {
 } from "@/lib/auth/accountSignupConsent";
 import { getUiLocaleFromPathname, stripUiLocalePrefix } from "@/i18n/config";
 import { localizePath } from "@/i18n/navigation";
+import {
+  AUTH_CALLBACK_EXCHANGE_FAILED,
+  buildAuthCallbackErrorRedirect,
+  classifyAuthCallbackRequest,
+} from "@/lib/auth/authCallbackError";
 
 function buildRedirect(request: NextRequest, pathname: string) {
   const redirectTo = request.nextUrl.clone();
@@ -89,21 +94,33 @@ export async function GET(request: NextRequest) {
   const locale = getUiLocaleFromPathname(nextPath);
   const loginPath = localizePath("/login", locale);
 
-  if (!code) {
-    const redirectTo = buildRedirect(request, loginPath);
-    redirectTo.searchParams.set("error", "missing_auth_code");
-    redirectTo.searchParams.set("next", nextPath);
-    return NextResponse.redirect(redirectTo);
+  // Provider errors (error / error_code / error_description) and a missing
+  // code are mapped to a fixed code; the provider's text is never forwarded
+  // (Issue #142 PR1).
+  const earlyError = classifyAuthCallbackRequest(requestUrl.searchParams);
+  if (earlyError || !code) {
+    return NextResponse.redirect(
+      buildAuthCallbackErrorRedirect(
+        request.nextUrl.href,
+        loginPath,
+        earlyError ?? "missing_auth_code",
+        nextPath
+      )
+    );
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    const redirectTo = buildRedirect(request, loginPath);
-    redirectTo.searchParams.set("error", "email_confirm_callback_failed");
-    redirectTo.searchParams.set("next", nextPath);
-    return NextResponse.redirect(redirectTo);
+    return NextResponse.redirect(
+      buildAuthCallbackErrorRedirect(
+        request.nextUrl.href,
+        loginPath,
+        AUTH_CALLBACK_EXCHANGE_FAILED,
+        nextPath
+      )
+    );
   }
 
   const {

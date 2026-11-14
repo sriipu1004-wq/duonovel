@@ -13,6 +13,7 @@ import {
 } from "@/lib/recording/recordingEntry";
 import { publishHumanRecording } from "@/lib/recording/humanRecordingPublish";
 import { createClient } from "@/lib/supabase/server";
+import { readSelfChosenDisplayName } from "@/lib/auth/selfChosenDisplayName";
 import {
   RECORDING_GLOBAL_CONSENT_KEY,
   RECORDING_GLOBAL_CONSENT_VERSION,
@@ -95,11 +96,9 @@ function resolveCurrentReaderName(
 
   const metadata = user.user_metadata ?? {};
 
-  const fromMetadata =
-    (typeof metadata.display_name === "string" && metadata.display_name.trim()) ||
-    (typeof metadata.name === "string" && metadata.name.trim()) ||
-    (typeof metadata.full_name === "string" && metadata.full_name.trim()) ||
-    "";
+  // Only a self-chosen name; provider real names (name/full_name) are never
+  // published as the reader name (Issue #142 PR1).
+  const fromMetadata = readSelfChosenDisplayName(metadata);
 
   if (fromMetadata) {
     return fromMetadata;
