@@ -38,6 +38,7 @@
     "public-domain:prepare": "node --import tsx scripts/public-domain/prepare.ts",
     "public-domain:import": "node --import tsx scripts/public-domain/import.ts",
     "test:public-domain-ingestion": "node --import tsx scripts/test-public-domain-ingestion.ts",
+    "test:aozora-annotation-fidelity": "node --import tsx scripts/test-aozora-annotation-fidelity.tsx",
     "public-domain:aozora-candidates": "node --import tsx scripts/public-domain/aozora-candidates.ts",
     "public-domain:source-sync": "node --import tsx scripts/public-domain/source-sync.ts",
     "public-domain:annotation-audit": "node --import tsx scripts/public-domain/annotation-audit.ts",

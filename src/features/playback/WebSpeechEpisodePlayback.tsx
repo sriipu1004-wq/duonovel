@@ -15,6 +15,7 @@ import {
   buildContentBlocks,
   buildSceneBreakRuntimeList,
 } from "@/lib/effects/effectTextLayout";
+import { buildAozoraRenderTextMap } from "@/lib/aozora/aozoraNotation";
 import {
   buildSegments,
   buildTypographyStyle,
@@ -473,6 +474,12 @@ export default function WebSpeechEpisodePlayback({
   const contentBlocks = useMemo(
     () => buildContentBlocks(displayParagraphBlocks, sceneBreaks),
     [displayParagraphBlocks, sceneBreaks]
+  );
+  // Issue #140: render-only text per display unit. Segmentation (and every
+  // persisted index) is unchanged; a split Aozora directive is shown whole.
+  const aozoraRenderTextByIndex = useMemo(
+    () => buildAozoraRenderTextMap(displayParagraphBlocks),
+    [displayParagraphBlocks]
   );
 
   const speechUnits = useMemo(
@@ -1741,9 +1748,13 @@ export default function WebSpeechEpisodePlayback({
                               ].join(" ")}
                             >
                               {displayPreference.hideEffects
-                                ? renderTextWithAozoraRuby(segment.text)
+                                ? renderTextWithAozoraRuby(
+                                    aozoraRenderTextByIndex.get(segment.index) ??
+                                      segment.text
+                                  )
                                 : renderSentenceWithInlineMarks(
-                                    segment.text,
+                                    aozoraRenderTextByIndex.get(segment.index) ??
+                                      segment.text,
                                     appliedEffectSettings.inlineMarks
                                   )}
                             </span>
