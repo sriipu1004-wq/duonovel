@@ -33,14 +33,31 @@ do $$ begin
   then raise exception 'GI_P2_ADJUSTMENT_SCOPE_DRIFT'; end if;
 end $$;
 
-update public.series_popularity_daily d
-  set view_count = d.view_count - a.removed_views, updated_at = now()
-from libread_internal.gi_p2_view_adjustment_20261114 a
-where d.series_id = a.series_id and d.bucket_date = a.bucket_date
-  and d.view_count = a.view_count_before;
-
-do $$ begin
-  if (select sum(view_count) from public.series_popularity_daily) <> 2472 then
+do $$
+declare
+  v_total_before bigint;
+  v_updated integer;
+begin
+  -- Sum only the affected (series, day) rows so concurrent new views on
+  -- today's bucket cannot change the delta.
+  select sum(d.view_count) into v_total_before
+  from public.series_popularity_daily d
+  join libread_internal.gi_p2_view_adjustment_20261114 a
+    on d.series_id = a.series_id and d.bucket_date = a.bucket_date;
+  update public.series_popularity_daily d
+    set view_count = d.view_count - a.removed_views, updated_at = now()
+  from libread_internal.gi_p2_view_adjustment_20261114 a
+  where d.series_id = a.series_id and d.bucket_date = a.bucket_date
+    and d.view_count = a.view_count_before;
+  get diagnostics v_updated = row_count;
+  -- Every stored row must be updated exactly once (no silent skips).
+  if v_updated <> 193 then
+    raise exception 'GI_P2_ADJUSTMENT_ROWCOUNT_MISMATCH %', v_updated;
+  end if;
+  if (select sum(d.view_count)
+      from public.series_popularity_daily d
+      join libread_internal.gi_p2_view_adjustment_20261114 a
+        on d.series_id = a.series_id and d.bucket_date = a.bucket_date) <> v_total_before - 3776 then
     raise exception 'GI_P2_ADJUSTMENT_TOTAL_MISMATCH';
   end if;
 end $$;
