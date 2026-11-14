@@ -1,24 +1,23 @@
-import { NextResponse } from "next/server";
-import {
-  getSeriesPublicationStatus,
-  isEpisodePubliclyVisible,
-  pickText,
-  type EpisodeRow,
-  type SeriesRow,
-} from "@/features/write/writeShared";
-import { isR18Series } from "@/lib/contentRating";
-import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
+import { pickText } from "@/features/write/writeShared";
 import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
 import {
   getHumanRecordingAudioBucketName,
   getHumanRecordingStorageObjectPath,
 } from "@/lib/recording/humanRecordingStorage";
 import { buildNemoTimingObjectPathFromAudioObjectPath } from "@/lib/recording/nemoTiming";
+import { canServeHumanRecordingAudio } from "@/lib/recording/privateMediaAccess";
+import { streamAuthorizedPrivateRecording } from "@/lib/recording/privateMediaProxy";
+import { loadPrivateMediaSourceContext } from "@/lib/recording/privateMediaSourceAccess";
+import { privateMediaNotFound } from "@/lib/recording/privateMediaStream";
+import {
+  isAcceptedRecordingConsentVersion,
+  RECORDING_GLOBAL_CONSENT_KEY,
+} from "@/lib/recording/recordingConsent";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type RouteProps = {
   params: Promise<{ recordingId: string }>;
@@ -28,7 +27,13 @@ function resolveRequestedArtifact(rawValue: string): {
   recordingId: string;
   timing: boolean;
 } {
-  const value = decodeURIComponent(rawValue).trim();
+  let value = rawValue;
+  try {
+    value = decodeURIComponent(rawValue);
+  } catch {
+    return { recordingId: "", timing: false };
+  }
+  value = value.trim();
   const suffix = ".timing.json";
   if (value.endsWith(suffix)) {
     return {
@@ -39,12 +44,17 @@ function resolveRequestedArtifact(rawValue: string): {
   return { recordingId: value, timing: false };
 }
 
-export async function GET(_request: Request, { params }: RouteProps) {
+/**
+ * Human narration playback (audio + timing JSON) through an access-checked
+ * byte proxy. No signed URL ever reaches the client. Every request rechecks
+ * the recording, the source (same rules as the Reader), the viewer and R18.
+ */
+export async function GET(request: Request, { params }: RouteProps) {
   const { recordingId: rawRecordingId } = await params;
   const requested = resolveRequestedArtifact(rawRecordingId);
 
   if (!isUuid(requested.recordingId)) {
-    return new NextResponse(null, { status: 404 });
+    return privateMediaNotFound();
   }
 
   const admin = createAdminClient();
@@ -55,80 +65,65 @@ export async function GET(_request: Request, { params }: RouteProps) {
     .maybeSingle();
 
   if (recordingError || !recordingData || !isHumanRecordingRow(recordingData)) {
-    return new NextResponse(null, { status: 404 });
+    return privateMediaNotFound();
   }
 
   const row = recordingData as Record<string, unknown>;
   const seriesId = pickText(row.series_id, row.seriesId);
   const episodeId = pickText(row.episode_id, row.episodeId);
   const readerId = pickText(row.reader_id, row.reader_user_id, row.readerUserId);
-  const isPublic = row.is_public === true;
 
-  if (!seriesId || !episodeId || !readerId) {
-    return new NextResponse(null, { status: 404 });
+  if (!isUuid(seriesId) || !isUuid(episodeId) || !isUuid(readerId)) {
+    return privateMediaNotFound();
   }
 
-  if (isPublic) {
-    const [seriesResult, episodeResult] = await Promise.all([
-      admin.from("series").select("*").eq("id", seriesId).maybeSingle(),
-      admin.from("episodes").select("*").eq("id", episodeId).maybeSingle(),
-    ]);
-
-    if (
-      seriesResult.error ||
-      episodeResult.error ||
-      !seriesResult.data ||
-      !episodeResult.data
-    ) {
-      return new NextResponse(null, { status: 404 });
-    }
-
-    const series = seriesResult.data as SeriesRow;
-    const episode = episodeResult.data as EpisodeRow;
-    if (
-      getSeriesPublicationStatus(series) !== "public" ||
-      pickText(episode.series_id, episode["seriesId"]) !== seriesId ||
-      !isEpisodePubliclyVisible(episode)
-    ) {
-      return new NextResponse(null, { status: 404 });
-    }
-
-    if (isR18Series(series)) {
-      const preference = await getCurrentR18ViewerPreference();
-      if (!preference.showR18Content) {
-        return new NextResponse(null, { status: 404 });
-      }
-    }
-  } else {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || user.id !== readerId) {
-      return new NextResponse(null, { status: 404 });
-    }
-  }
-
+  // Do not trust a stored Human URL or a narrator UUID alone: the object must
+  // be the canonical PRIVATE playback asset of this work, episode and narrator.
   const storedPath = pickText(row.audio_storage_path, row.audioStoragePath);
   const playbackObjectPath = getHumanRecordingStorageObjectPath(storedPath);
-  if (!playbackObjectPath) {
-    return new NextResponse(null, { status: 404 });
+  const exactPath = new RegExp(
+    "^human/" + seriesId.toLowerCase() + "/" + episodeId.toLowerCase() + "/" +
+      readerId.toLowerCase() + "/[a-z0-9-]+/playback-from-[a-z0-9]+[.]m4a$",
+    "u"
+  );
+  if (!playbackObjectPath || !exactPath.test(playbackObjectPath)) {
+    return privateMediaNotFound();
+  }
+
+  const [context, consentResult] = await Promise.all([
+    loadPrivateMediaSourceContext(admin, seriesId, episodeId),
+    admin
+      .from("user_recording_consents")
+      .select("consent_version")
+      .eq("user_id", readerId)
+      .eq("consent_key", RECORDING_GLOBAL_CONSENT_KEY)
+      .maybeSingle(),
+  ]);
+  if (!context || consentResult.error) {
+    return privateMediaNotFound();
+  }
+
+  if (
+    !canServeHumanRecordingAudio({
+      ...context.snapshot,
+      recordingPublic: row.is_public === true,
+      viewerIsNarrator: context.viewerUserId === readerId,
+      currentPermissionOpen: context.series.recording_permission_mode === "open",
+      currentConsent: isAcceptedRecordingConsentVersion(
+        consentResult.data?.consent_version
+      ),
+    })
+  ) {
+    return privateMediaNotFound();
   }
 
   const objectPath = requested.timing
     ? buildNemoTimingObjectPathFromAudioObjectPath(playbackObjectPath)
     : playbackObjectPath;
 
-  const { data: signedData, error: signedError } = await admin.storage
-    .from(getHumanRecordingAudioBucketName())
-    .createSignedUrl(objectPath, 60);
-
-  if (signedError || !signedData?.signedUrl) {
-    return new NextResponse(null, { status: 404 });
-  }
-
-  const response = NextResponse.redirect(signedData.signedUrl, 307);
-  response.headers.set("Cache-Control", "private, no-store");
-  return response;
+  return streamAuthorizedPrivateRecording(
+    request,
+    getHumanRecordingAudioBucketName(),
+    objectPath
+  );
 }

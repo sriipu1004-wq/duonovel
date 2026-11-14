@@ -130,17 +130,38 @@ assert.equal(
 const audio = source(
   "src/app/api/recordings/human-audio/[recordingId]/route.ts"
 );
+// #137 PR-E: the source/R18 checks moved to the shared Reader-parity helper
+// (privateMediaSourceAccess.ts, covered by test-private-media-playback-proxy)
+// and bytes are streamed by the proxy instead of a signed-URL redirect.
 for (const required of [
   "isHumanRecordingRow(recordingData)",
-  'getSeriesPublicationStatus(series) !== "public"',
-  "!isEpisodePubliclyVisible(episode)",
-  "isR18Series(series)",
-  "createSignedUrl(objectPath, 60)",
+  "loadPrivateMediaSourceContext(",
+  "canServeHumanRecordingAudio({",
+  "streamAuthorizedPrivateRecording(",
 ]) {
   assert.equal(
     audio.includes(required),
     true,
     `Human audio proxy must keep access boundary: ${required}`
+  );
+}
+for (const forbidden of ["createSignedUrl(", "NextResponse.redirect("]) {
+  assert.equal(
+    audio.includes(forbidden),
+    false,
+    `Human audio must never hand a bearer URL to the client: ${forbidden}`
+  );
+}
+const sourceAccess = source("src/lib/recording/privateMediaSourceAccess.ts");
+for (const required of [
+  'getSeriesPublicationStatus(series) === "public"',
+  "isEpisodePubliclyVisible(episode)",
+  "isR18Series(series)",
+]) {
+  assert.equal(
+    sourceAccess.includes(required),
+    true,
+    `private media source access must keep Reader boundary: ${required}`
   );
 }
 
@@ -158,9 +179,23 @@ assert.equal(
 
 const publicRead = source("src/lib/publicRead.ts");
 assert.equal(
-  publicRead.includes("buildHumanRecordingPlaybackHref(recording.id)"),
+  publicRead.includes("projectReaderEpisodeRecordings("),
   true,
   "Reader payload must expose authorization-proxy URLs instead of storage paths"
+);
+assert.equal(
+  source("src/lib/recording/readerEpisodeRecordingProjection.ts").includes(
+    "buildHumanRecordingPlaybackHref(row.id)"
+  ),
+  true,
+  "Reader projection must rewrite Human rows to the authorization proxy"
+);
+assert.equal(
+  source("src/app/read/[seriesId]/[episodeNumber]/page.tsx").includes(
+    "buildHumanRecordingPlaybackHref(recording.id)"
+  ),
+  true,
+  "Reader must match projected Human proxy hrefs, not raw Storage paths"
 );
 
 const recordSearch = source("src/app/record/page.tsx");

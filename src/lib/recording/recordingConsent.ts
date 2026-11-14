@@ -1,5 +1,12 @@
 export const RECORDING_GLOBAL_CONSENT_KEY = "recording_studio_global";
 export const RECORDING_GLOBAL_CONSENT_VERSION = "2026-04-16";
+
+// Pure predicate; the narrator's current consent row must be fetched
+// server-side on each request. Exact match: a future version bump makes
+// older consents fail this check until the narrator consents again.
+export function isAcceptedRecordingConsentVersion(value: unknown): boolean {
+  return value === RECORDING_GLOBAL_CONSENT_VERSION;
+}
 export const RECORDING_CONSENT_HREF = "/record/consent";
 export const RECORDING_TERMS_HREF = "/record/terms";
 
