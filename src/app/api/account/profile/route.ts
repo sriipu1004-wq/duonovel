@@ -80,9 +80,18 @@ async function syncDisplayNameEverywhere(args: { admin: AdminSupabase; userId: s
     { reader_name: args.displayName, narrator_name: args.displayName, display_name: args.displayName, speaker_name: args.displayName },
     { reader_name: args.displayName },
   ];
+  // Issue #137 H1: Human narration rows (no voice model, a `human` storage
+  // path segment) change only through issue137_h1_human_commit; the DB guard
+  // trigger rejects direct writes. Their reader_name follows the narrator's
+  // next take (RPC `replace`). Only legacy non-Human rows are renamed here.
   for (const payload of recordingPayloads) {
-    await args.admin.from("recordings").update(payload).eq("reader_user_id", args.userId).is("voice_model_id", null);
-    await args.admin.from("recordings").update(payload).eq("reader_id", args.userId).is("voice_model_id", null);
+    for (const ownerColumn of ["reader_user_id", "reader_id"] as const) {
+      await args.admin.from("recordings").update(payload)
+        .eq(ownerColumn, args.userId)
+        .is("voice_model_id", null)
+        .not("audio_storage_path", "like", "human/%")
+        .not("audio_storage_path", "like", "%/human/%");
+    }
   }
 }
 

@@ -1,0 +1,37 @@
+# Issue #137 H1: apply the Human atomic-commit migration to a disposable
+# PostgreSQL 17 and assert the guard trigger, RPC actions, revision CAS,
+# owner isolation, EXECUTE privileges and rollback.
+# Disposable PostgreSQL service container only; no Supabase hosted access.
+name: Issue137 H1 human atomic commit
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue137-h1-human-atomic.yml"
+      - "scripts/issue137-h1-human-atomic/**"
+      - "supabase/migrations/20261114120000_issue137_h1_human_atomic.sql"
+permissions:
+  contents: read
+jobs:
+  h1-human-atomic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Apply migration to disposable DB and assert
+        env:
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: psql -X -v ON_ERROR_STOP=1 -f scripts/issue137-h1-human-atomic/check.sql
