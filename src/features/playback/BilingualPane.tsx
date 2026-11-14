@@ -10,7 +10,7 @@ import {
   type WheelEvent,
 } from "react";
 import { renderTextWithAozoraRuby } from "@/features/effects/EffectPreviewRenderer";
-import { rebalanceAozoraDirectivesAcrossUnits } from "@/lib/aozora/aozoraNotation";
+import { rebalanceAozoraNotationAcrossUnits } from "@/lib/aozora/aozoraNotation";
 import type { SupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import type { StoredWebSpeechDisplaySettings } from "@/lib/playback/webSpeechPreferences";
 import {
@@ -234,11 +234,12 @@ export default function BilingualPane({
                 paragraphs[index - 1]?.[1]?.[0]?.sourceText.trim() ?? "";
               const followsDialogue =
                 /^[「『]/u.test(firstSource) && /^[「『]/u.test(previousSource);
-              // Issue #140: render-only rebalance of split Aozora directives
-              // (source side only); segment ids/alignment are unchanged.
+              // Issue #140/#195: render-only rebalance of Aozora directives and
+              // ruby split across units (source side only); segment
+              // ids/count/order and stored text are unchanged.
               const sourceRenderTexts =
                 side === "source"
-                  ? rebalanceAozoraDirectivesAcrossUnits(
+                  ? rebalanceAozoraNotationAcrossUnits(
                       paragraphSegments.map((segment) => segment.sourceText)
                     )
                   : null;
