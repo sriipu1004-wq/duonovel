@@ -8,6 +8,7 @@ import { localizePath } from "@/i18n/navigation";
 import { getPublicWorkMetadataCardById } from "@/lib/publicWorks";
 import { isUuid } from "@/lib/uuid";
 import { buildLocalizedWorkMetadataText } from "@/lib/seo/publicWorkSeo";
+import { workOgImagePath } from "@/lib/og/workOgContent";
 
 type WorkPageProps = Parameters<typeof WorkPage>[0];
 
@@ -82,13 +83,13 @@ export async function generateMetadata({
       url: canonical,
       title: metadataTitle,
       description: metadataDescription,
-      images: ["/opengraph-image"],
+      images: [workOgImagePath(seriesId)],
     },
     twitter: {
       card: "summary_large_image",
       title: metadataTitle,
       description: metadataDescription,
-      images: ["/opengraph-image"],
+      images: [workOgImagePath(seriesId)],
     },
   };
 }

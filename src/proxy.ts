@@ -32,6 +32,12 @@ function hasUiLocalePrefix(pathname: string): boolean {
   );
 }
 
+const WORK_OPEN_GRAPH_IMAGE_PATH = /^\/works\/[^/]+\/opengraph-image(?:-[^/]*)?$/;
+
+export function isWorkOpenGraphImagePath(pathname: string): boolean {
+  return WORK_OPEN_GRAPH_IMAGE_PATH.test(pathname);
+}
+
 function resolveRequestLocale(request: NextRequest): UiLocale {
   if (hasUiLocalePrefix(request.nextUrl.pathname)) {
     return getUiLocaleFromPathname(request.nextUrl.pathname);
@@ -108,6 +114,16 @@ export function proxy(request: NextRequest) {
   const locale = resolveRequestLocale(request);
   const hasLocalePrefix = hasUiLocalePrefix(request.nextUrl.pathname);
   const routePathname = stripUiLocalePrefix(request.nextUrl.pathname);
+
+  // P9 per-work Open Graph image: one locale-independent route. Never
+  // redirect it by the UI-locale cookie or rewrite it to /locale-work, where
+  // no image route exists.
+  if (isWorkOpenGraphImagePath(routePathname)) {
+    if (!hasLocalePrefix) return NextResponse.next();
+    const imageUrl = request.nextUrl.clone();
+    imageUrl.pathname = routePathname;
+    return NextResponse.rewrite(imageUrl);
+  }
 
   if (hasLocalePrefix && JAPANESE_CANONICAL_PATHS.has(routePathname)) {
     const redirectUrl = request.nextUrl.clone();

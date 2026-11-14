@@ -55,6 +55,9 @@ import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
 import { getSeriesContentRating } from "@/lib/contentRating";
 import { getCurrentR18ViewerPreference } from "@/lib/contentRatingServer";
 import { canViewPublicWorkBody } from "@/lib/workBodyVisibility";
+import ShareButtons from "@/components/share/ShareButtons";
+import { shouldShowShareButtons } from "@/lib/share/shareLinks";
+import { workOgImagePath } from "@/lib/og/workOgContent";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -904,13 +907,15 @@ export async function generateMetadata({
         url: canonicalPath,
         title: metadataTitle,
         description,
-        images: ["/opengraph-image"],
+        // P9: per-work image. The route itself draws the common image for
+        // R18 / non-public works and for text the bundled font cannot draw.
+        images: [workOgImagePath(seriesId)],
       },
       twitter: {
         card: "summary_large_image",
         title: metadataTitle,
         description,
-        images: ["/opengraph-image"],
+        images: [workOgImagePath(seriesId)],
       },
     };
   } catch {
@@ -1584,6 +1589,12 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
 
   const reviewsVisible = isSeriesReviewVisible(series);
+  // P9: share buttons only on public, non-R18 works (this body already
+  // returned notFound for non-public works; the R18 check is explicit here).
+  const showShareButtons = shouldShowShareButtons({
+    isPublic: getSeriesPublicationStatus(series) === "public",
+    isR18: getSeriesContentRating(series) === "r18",
+  });
   const publicDomainJsonLd = publicDomain
     ? JSON.stringify({
         "@context": "https://schema.org",
@@ -1716,6 +1727,17 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
               <SeriesReactionButton seriesId={seriesId} loginHref={loginHref} />
 
             </div>
+
+            {showShareButtons ? (
+              <ShareButtons
+                path={workHref(`/works/${encodeURIComponent(seriesId)}`)}
+                placement="work"
+                locale={locale}
+                title={seriesTitle}
+                authorName={displayedAuthorName}
+                className="mt-5"
+              />
+            ) : null}
           </div>
 
           <div className="px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
