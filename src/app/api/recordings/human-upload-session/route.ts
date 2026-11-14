@@ -5,6 +5,7 @@ import {
   normalizeRecordingPermissionMode,
 } from "@/lib/recording/recordingEntry";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { assertApprovedPrivateHumanRecordingBucket } from "@/lib/recording/humanRecordingStorage";
 import { createClient } from "@/lib/supabase/server";
 import {
   buildHumanMultipartUploadSession,
@@ -65,6 +66,13 @@ function resolveErrorResponse(message: string) {
 
   if (message === "episode_not_accessible") {
     return { status: 404, error: "対象話が見つからない。" };
+  }
+
+  if (
+    message === "human_private_bucket_not_verified" ||
+    message === "human_private_bucket_name_unapproved"
+  ) {
+    return { status: 503, error: "Human PRIVATE保存先を確認できない。" };
   }
 
   return {
@@ -166,6 +174,10 @@ export async function POST(request: Request) {
       throw new Error("episode_not_accessible");
     }
 
+    // Provider-side PRIVATE visibility must be verified before minting any
+    // signed multipart upload token.
+    const adminSupabase = createAdminClient();
+    await assertApprovedPrivateHumanRecordingBucket(adminSupabase);
     const sourceExtension = getAudioFileExtension(fileName) || "bin";
     const session = buildHumanMultipartUploadSession({
       seriesId,
@@ -175,7 +187,6 @@ export async function POST(request: Request) {
       totalSizeBytes,
     });
 
-    const adminSupabase = createAdminClient();
     const signedParts: SignedPart[] = [];
 
     for (const part of session.parts) {
