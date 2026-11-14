@@ -1,0 +1,70 @@
+# Issue #139: prove the publish / rollback SQL for the 4 Aozora Drafts.
+# Static scope check + disposable PostgreSQL service container only;
+# no Supabase hosted access and no secrets.
+name: Issue139 Aozora publish SQL
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue139-aozora-publish-sql.yml"
+      - "scripts/issue139-aozora-publish/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publish-sql:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      D: scripts/issue139-aozora-publish
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Static scope check (only the 4 ids, only publication columns)
+        run: node "$D/scope-check.mjs"
+      - name: Fixture and dry run
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-fixture.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/dryrun.sql"
+      - name: Apply, then exact rollback
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql"; then echo "second apply must fail"; exit 1; fi
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/rollback.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+      - name: Rollback refuses after an edit, then succeeds once reverted
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql"
+          psql -X -v ON_ERROR_STOP=1 -c "update public.episodes set last_edited_at = now() where series_id = 'a173c008-3e53-4126-927b-366e44a69b48' and episode_number = 2"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/rollback.sql" 2> err.txt; then echo "rollback must refuse"; exit 1; fi
+          grep -q ISSUE139_ROLLBACK_EPISODE_STATE_DRIFT err.txt
+          psql -X -v ON_ERROR_STOP=1 -c "update public.episodes set last_edited_at = null where series_id = 'a173c008-3e53-4126-927b-366e44a69b48' and episode_number = 2"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/rollback.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+      - name: Apply refuses on drift and leaves nothing behind
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -c "update public.episodes set posting_status = 'posted', posted_at = '2026-01-01T00:00Z' where series_id = '7babc9f9-f015-4135-ba92-da0f54864158' and episode_number = 1"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql" 2> err.txt; then echo "apply must refuse"; exit 1; fi
+          grep -q ISSUE139_PUBLISH_EPISODE_STATE_DRIFT err.txt
+          psql -X -v ON_ERROR_STOP=1 -c "update public.episodes set posting_status = 'draft', posted_at = null where series_id = '7babc9f9-f015-4135-ba92-da0f54864158' and episode_number = 1"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+          psql -X -v ON_ERROR_STOP=1 -c "delete from public.episodes where series_id = '6d832ac6-b457-43ff-97ef-50281b337ca3'"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql" 2> err.txt; then echo "apply must refuse"; exit 1; fi
+          grep -q ISSUE139_PUBLISH_EPISODE_COUNT_MISMATCH err.txt
+          psql -X -At -c "select to_regclass('libread_internal.issue139_publish_series_20261115') is null" | grep -qx t
