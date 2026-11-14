@@ -25,6 +25,8 @@ export default async function RankingPage() {
     workCards = await runReadOnlyWithRetry(
       () =>
         getCachedPublicBaseWorkCards({
+          // #137: "all" skipped the R18 viewer gate, so R18 works reached
+          // anonymous visitors. "viewer" applies the signed-in R18 preference.
           visibility: "viewer",
           ignoreContentLanguageFilter: true,
           ignorePublicSearchLanguageFilter: true,

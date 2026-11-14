@@ -67,6 +67,10 @@ for (const current of [reader, work, catalog]) {
   assert.ok(current.includes('.eq("is_published", true)'));
 }
 assert.ok(reader.includes("if (!isOwner && !isEpisodePubliclyVisible(episode)) return null"));
+// #137: /ranking must apply the viewer R18 gate, never the unfiltered "all" view.
+const ranking = source("app/ranking/page.tsx");
+assert.ok(ranking.includes('visibility: "viewer"'));
+assert.equal(/visibility:\s*"all"/.test(ranking), false);
 // #137: public recording aggregates must be read under anon RLS, never service_role.
 const aggregateBody = catalog.slice(
   catalog.indexOf("async function buildPublicRecordingAggregates("),
