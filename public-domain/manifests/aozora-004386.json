@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review.",
+  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review. 2026-11-14: rights research found no rights problem, but the split was on hold (https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6872701172, https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875024200). Per the owner decision (https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875092395) the chapters were re-split at the author's own blank-line section break (the landing from the boat). Not approved: independent review of the new split and a fresh owner approval are still required.",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
@@ -71,10 +71,9 @@
   "jurisdictions_reviewed": [],
   "reviewed_at": null,
   "reviewed_by": null,
-  "chapter_count": 3,
+  "chapter_count": 2,
   "chapter_split": {
-    "strategy": "paragraph_chunks",
-    "max_characters": 7500
+    "strategy": "blank_line_sections"
   },
   "tags": [
     "Public Domain",

@@ -1,4 +1,10 @@
 import { createHash } from "node:crypto";
+import type { SeriesContentWarning } from "../../src/lib/contentRating";
+
+export const PUBLIC_DOMAIN_CONTENT_WARNINGS = [
+  "sexual_r18",
+  "violence",
+] as const satisfies readonly SeriesContentWarning[];
 
 export const PUBLIC_DOMAIN_SOURCE_LANGUAGES = ["ja", "en", "ko"] as const;
 
@@ -76,6 +82,12 @@ export type ChapterSplitConfig =
   | {
       strategy: "paragraph_chunks";
       max_characters: number;
+    }
+  | {
+      // Author-made section breaks: blank lines in the normalized body. Each
+      // section stays whole when it fits PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS;
+      // an oversized section falls back to bounded paragraph chunking.
+      strategy: "blank_line_sections";
     };
 
 export type PublicDomainSourceProvenance = {
@@ -123,6 +135,14 @@ export type PublicDomainManifest = {
   chapter_split: ChapterSplitConfig;
   genres?: string[];
   tags: string[];
+
+  // Human-recorded content warnings (same values as series.content_warnings).
+  // undefined = not reviewed yet (import is blocked); [] = reviewed, none.
+  content_warnings?: SeriesContentWarning[];
+  content_warning_notes?: string;
+  // Candidate notice text for the series description at import time. Not
+  // inserted automatically.
+  content_notice_candidate?: string | null;
 
   source_hash: string | null;
 
@@ -184,6 +204,7 @@ export type DraftSeriesRow = {
   recording_permission_mode: "open";
   genres: string[];
   tags: string[];
+  content_warnings: SeriesContentWarning[];
   effect_settings: Record<string, unknown>;
 };
 
@@ -515,9 +536,11 @@ export function validateManifest(value: unknown): ManifestValidationResult {
         max_characters: configuredMax,
       };
     }
+  } else if (value.chapter_split.strategy === "blank_line_sections") {
+    chapterSplit = { strategy: "blank_line_sections" };
   } else {
     errors.push(
-      "chapter_split.strategy must be single, heading_regex, or paragraph_chunks"
+      "chapter_split.strategy must be single, heading_regex, paragraph_chunks, or blank_line_sections"
     );
   }
 
@@ -541,6 +564,35 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     : [];
   if (!Array.isArray(tagsRaw) || tags.length !== tagsRaw?.length) {
     errors.push("tags must be an array of strings");
+  }
+
+  const contentWarningsRaw = value.content_warnings;
+  let contentWarnings: SeriesContentWarning[] | undefined;
+  if (contentWarningsRaw !== undefined) {
+    if (
+      !Array.isArray(contentWarningsRaw) ||
+      !contentWarningsRaw.every((item) =>
+        PUBLIC_DOMAIN_CONTENT_WARNINGS.includes(item as SeriesContentWarning)
+      )
+    ) {
+      errors.push("content_warnings must be an array of sexual_r18/violence when provided");
+    } else if (new Set(contentWarningsRaw).size !== contentWarningsRaw.length) {
+      errors.push("content_warnings must not contain duplicates");
+    } else {
+      contentWarnings = [...(contentWarningsRaw as SeriesContentWarning[])];
+    }
+  }
+  const contentWarningNotesRaw = value.content_warning_notes;
+  if (contentWarningNotesRaw !== undefined && typeof contentWarningNotesRaw !== "string") {
+    errors.push("content_warning_notes must be a string when provided");
+  }
+  const contentNoticeCandidateRaw = value.content_notice_candidate;
+  if (
+    contentNoticeCandidateRaw !== undefined &&
+    contentNoticeCandidateRaw !== null &&
+    typeof contentNoticeCandidateRaw !== "string"
+  ) {
+    errors.push("content_notice_candidate must be a string or null when provided");
   }
 
   const sourceHash = readString(value, "source_hash", errors, { nullable: true });
@@ -661,6 +713,13 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     chapter_split: chapterSplit,
     genres,
     tags,
+    ...(contentWarnings !== undefined ? { content_warnings: contentWarnings } : {}),
+    ...(typeof contentWarningNotesRaw === "string"
+      ? { content_warning_notes: contentWarningNotesRaw }
+      : {}),
+    ...(contentNoticeCandidateRaw === null || typeof contentNoticeCandidateRaw === "string"
+      ? { content_notice_candidate: contentNoticeCandidateRaw }
+      : {}),
     source_hash: sourceHash,
     approved,
     import_status: IMPORT_STATUSES.includes(importStatus as ImportStatus)
@@ -920,6 +979,38 @@ export function splitChapters(
     }));
   }
 
+  if (manifest.chapter_split.strategy === "blank_line_sections") {
+    const sections = body
+      .split(/\n\s*\n+/u)
+      .map((section) => section.trim())
+      .filter(Boolean);
+    const pieces: string[] = [];
+    for (const section of sections) {
+      if (section.length <= PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS) {
+        pieces.push(section);
+        continue;
+      }
+      pieces.push(
+        ...splitChapters(section, {
+          title: manifest.title,
+          chapter_split: {
+            strategy: "paragraph_chunks",
+            max_characters: PUBLIC_DOMAIN_EPISODE_TARGET_CHARACTERS,
+          },
+        }).map((chapter) => chapter.body)
+      );
+    }
+    return pieces.map((chapterBody, index) => ({
+      number: index + 1,
+      title:
+        pieces.length === 1
+          ? manifest.title
+          : `${manifest.title} — Part ${index + 1}`,
+      body: chapterBody,
+      characterCount: chapterBody.length,
+    }));
+  }
+
   const pattern = new RegExp(manifest.chapter_split.heading_pattern, "iu");
   const lines = body.split("\n");
   const headings: Array<{ index: number; title: string }> = [];
@@ -978,6 +1069,17 @@ export function splitChapters(
     }
   }
   return chapters;
+}
+
+/**
+ * Fingerprint of the deterministic chapter plan (numbers, titles, bodies and
+ * character counts). This is the `chapter_plan_sha256` recorded in the
+ * reproducibility audits: sha256 of JSON.stringify(artifact.chapters).
+ */
+export function chapterPlanSha256(chapters: PreparedChapter[]): string {
+  return createHash("sha256")
+    .update(JSON.stringify(chapters), "utf8")
+    .digest("hex");
 }
 
 export function canonicalizePublicDomainText(text: string): string {
@@ -1255,6 +1357,13 @@ export function assertImportable(
   if (artifact.chapters.length === 0) {
     throw new Error("CHAPTER_ZERO: import requires at least one chapter");
   }
+  if (manifest.content_warnings === undefined) {
+    // A human must read the text and record the warning decision ([] = none).
+    // The keyword advisory in content-warnings.ts only recommends review.
+    throw new Error(
+      "CONTENT_WARNING_REVIEW_REQUIRED: record content_warnings (use [] for none) after a human reading before import"
+    );
+  }
 }
 
 export function buildDraftImportPlan(args: {
@@ -1284,6 +1393,7 @@ export function buildDraftImportPlan(args: {
       recording_permission_mode: "open",
       genres,
       tags,
+      content_warnings: [...(args.manifest.content_warnings ?? [])],
       effect_settings: {
         version: 1,
         storyFormat,
