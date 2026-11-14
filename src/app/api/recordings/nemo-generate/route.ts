@@ -5,7 +5,7 @@ import {
 } from "@/lib/recording/legacyAutoNarration";
 import { generateNemoRecordingForEpisode } from "@/lib/recording/nemoGeneration";
 import { markEpisodeGeneratedInNemoQueue } from "@/lib/recording/nemoGenerationQueue";
-import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
+import { isOfficialNarrationAccountUser } from "@/lib/auth/officialNarrationAccount";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -268,7 +268,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!isOfficialNarrationAccountEmail(user.email)) {
+  if (!isOfficialNarrationAccountUser(user)) {
     return NextResponse.json(
       {
         ok: false,

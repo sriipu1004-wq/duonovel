@@ -1,5 +1,7 @@
 "use client";
 
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { registrationRequiredMessage } from "@/lib/auth/registrationGateMessage";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -288,6 +290,7 @@ export default function WriteEpisodeForm({
   previousEpisode = null,
   effectSettingsPanel = null,
 }: WriteEpisodeFormProps) {
+  const uiLocale = useUiLocale();
   const router = useRouter();
 
   const [episodeNumber, setEpisodeNumber] = useState(String(initialEpisodeNumber));
@@ -555,6 +558,8 @@ const scheduledBeforePreviousIsBlocked =
           router.push(`/write/series/${seriesId}`);
           router.refresh();
         }
+      } else if (result.code === "registration_required") {
+        setErrorMessage(registrationRequiredMessage(uiLocale));
       } else if (result.code === "authentication_required") {
         setErrorMessage("ログイン状態を確認してから、もう一度保存してください。");
       } else if (result.code === "not_found_or_forbidden") {

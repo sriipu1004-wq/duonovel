@@ -1,4 +1,4 @@
-import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { isOfficialAccountUser } from "@/lib/auth/officialAccount";
 import { requireLoggedInUser } from "@/lib/auth/requireLoggedInUser";
 import WriteSeriesForm from "@/features/write/WriteSeriesForm";
 import ContentRatingWorkspaceBridge from "@/features/write/ContentRatingWorkspaceBridge";
@@ -18,7 +18,7 @@ export default async function WriteSeriesNewPage() {
       </SeriesStatusPortal>
       <TranslationPermissionWorkspaceBridge
         initialMode="open"
-        isOfficialAuthor={isOfficialAccountEmail(user.email)}
+        isOfficialAuthor={isOfficialAccountUser(user)}
       />
       <HumanTranslationPermissionWorkspaceBridge initialMode="open" />
       <ContentRatingWorkspaceBridge initialWarnings={[]} />

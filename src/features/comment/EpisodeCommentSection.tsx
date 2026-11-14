@@ -1,5 +1,7 @@
 "use client";
 
+import { registrationRequiredMessage } from "@/lib/auth/registrationGateMessage";
+import { isBlockedFromWritesUntilRegistered } from "@/lib/auth/registrationGate";
 import Link from "next/link";
 import {
   useCallback,
@@ -301,6 +303,7 @@ export default function EpisodeCommentSection({
   episodeNumber,
   loginHref = "/login",
 }: EpisodeCommentSectionProps) {
+  const uiLocaleForNotice = useUiLocale();
   const dictionary = episodeCommentsDictionaries[useUiLocale()];
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -407,6 +410,14 @@ export default function EpisodeCommentSection({
     if (authError || !user) {
       setIsLoggedIn(false);
       setMessage(dictionary.loginRequiredToPost);
+      return;
+    }
+
+    // Issue #142 PR2: comments are inserted from the browser (RLS only), so
+    // the server-side write gate cannot see them; the UI blocks Google
+    // accounts that have not finished STEP 2. RLS enforcement is a follow-up.
+    if (isBlockedFromWritesUntilRegistered(user)) {
+      setMessage(registrationRequiredMessage(uiLocaleForNotice));
       return;
     }
 

@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { registrationRequiredResponse } from "@/lib/auth/registrationGate.server";
 import { NextResponse } from "next/server";
 import {
   buildPrivateLibraryTranslationSourceHash,
@@ -265,6 +266,14 @@ async function resolveContent(args: {
 }
 
 export async function POST(request: Request) {
+  // Issue #142 PR2: Google accounts must finish STEP 2 before AI operations.
+  {
+    const gateClient = await createClient();
+    const { data: gateAuth } = await gateClient.auth.getUser();
+    const registrationBlocked = await registrationRequiredResponse(gateAuth.user, "code");
+    if (registrationBlocked) return registrationBlocked;
+  }
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;

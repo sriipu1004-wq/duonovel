@@ -1,5 +1,6 @@
 "use client";
 
+import { readRegistrationRequiredNotice } from "@/lib/auth/registrationGateMessage";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BilingualDivider from "@/features/playback/BilingualDivider";
@@ -306,9 +307,10 @@ export default function BilingualEpisodePlayback({
 
       if (!response.ok || !payload.ok) {
         setStatusMessage(
-          locale === "ja" && payload.message
-            ? payload.message
-            : bilingualDictionary.generationFailed
+          readRegistrationRequiredNotice(payload, locale) ??
+            (locale === "ja" && payload.message
+              ? payload.message
+              : bilingualDictionary.generationFailed)
         );
 
         if (

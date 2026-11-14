@@ -1,5 +1,6 @@
 "use server";
 
+import { isBlockedFromWritesUntilRegistered } from "@/lib/auth/registrationGate";
 import { updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { validateOwnedSeriesCreationPayload } from "@/lib/write/ownedSeriesCreatePayload";
@@ -9,7 +10,7 @@ const PUBLIC_WORKS_CACHE_TAG = "public-base-work-cards";
 type CreateResult =
   | { ok: true; persisted: false; seriesId: string }
   | { ok: false; persisted: true; code: "cache_invalidation_failed"; seriesId: string }
-  | { ok: false; persisted: false; code: "invalid_request" | "authentication_required" | "save_failed" };
+  | { ok: false; persisted: false; code: "invalid_request" | "authentication_required" | "registration_required" | "save_failed" };
 
 /**
  * Create through the request's authenticated Supabase session, never an
@@ -26,6 +27,10 @@ export async function createOwnedSeries(candidate: unknown): Promise<CreateResul
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user) {
     return { ok: false, persisted: false, code: "authentication_required" };
+  }
+  // Issue #142 PR2: Google accounts must finish STEP 2 before posting.
+  if (isBlockedFromWritesUntilRegistered(auth.user)) {
+    return { ok: false, persisted: false, code: "registration_required" };
   }
 
   // The owner is determined from the verified user, not caller-controlled

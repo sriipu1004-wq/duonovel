@@ -1,5 +1,7 @@
 "use client";
 
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { registrationRequiredMessage } from "@/lib/auth/registrationGateMessage";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -53,6 +55,7 @@ function buildWorkspaceFields(args: {
 }
 
 export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps) {
+  const uiLocale = useUiLocale();
   const router = useRouter();
   const submittingRef = useRef(false);
 
@@ -167,9 +170,11 @@ export default function WriteSeriesCreateForm(_props: WriteSeriesCreateFormProps
       }
       setSaveState("error");
       setErrorMessage(
-        result.code === "authentication_required"
-          ? "ログイン状態を確認してから、もう一度作成してください。"
-          : "作品作成に失敗した。入力内容を確認してください。"
+        result.code === "registration_required"
+          ? registrationRequiredMessage(uiLocale)
+          : result.code === "authentication_required"
+            ? "ログイン状態を確認してから、もう一度作成してください。"
+            : "作品作成に失敗した。入力内容を確認してください。"
       );
     } catch {
       setSaveState("error");

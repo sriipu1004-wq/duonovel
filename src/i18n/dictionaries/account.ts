@@ -1,6 +1,9 @@
 import type { UiLocale } from "../config";
 
 const ja = {
+  googleRegistration: "Google アカウントで登録",
+  googleRegisterDescription: "Google アカウントでログインした。公開する表示名を決めて、3つの同意をすると登録が完了する。Google の名前やプロフィール画像は公開されない。",
+  googleSignedInHint: "パスワードは不要。登録が完了するまで、投稿・コメント・レビュー・朗読・翻訳などは使えない。",
   loading: "読み込み中...",
   unknownEmail: "メールアドレス不明",
   registerTitle: "アカウント作成",
@@ -55,6 +58,9 @@ type AccountDictionary = {
 };
 
 const en = {
+  googleRegistration: "Registration with Google",
+  googleRegisterDescription: "You signed in with your Google account. Choose a public username and give the three consents to finish registration. Your Google name and profile photo are not made public.",
+  googleSignedInHint: "No password is needed. Until registration is complete, posting, comments, reviews, narration and translation are unavailable.",
   loading: "Loading...",
   unknownEmail: "Email address unavailable",
   registerTitle: "Create account",
@@ -103,6 +109,9 @@ const en = {
 } satisfies AccountDictionary;
 
 const ko = {
+  googleRegistration: "Google 계정으로 가입",
+  googleRegisterDescription: "Google 계정으로 로그인했습니다. 공개 사용자 이름을 정하고 세 가지에 동의하면 가입이 완료됩니다. Google 이름과 프로필 사진은 공개되지 않습니다.",
+  googleSignedInHint: "비밀번호는 필요하지 않습니다. 가입이 완료될 때까지 게시, 댓글, 리뷰, 낭독, 번역 등은 사용할 수 없습니다.",
   loading: "불러오는 중...",
   unknownEmail: "이메일 주소를 확인할 수 없음",
   registerTitle: "회원가입",

@@ -1,5 +1,8 @@
 "use client";
 
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { registrationRequiredMessage } from "@/lib/auth/registrationGateMessage";
+import { isBlockedFromWritesUntilRegistered } from "@/lib/auth/registrationGate";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
@@ -305,6 +308,7 @@ export default function SeriesReviewSection({
   seriesId,
   loginHref = `/login?next=${encodeURIComponent(`/works/${seriesId}`)}`,
 }: SeriesReviewSectionProps) {
+  const uiLocaleForNotice = useUiLocale();
   const [isBooting, setIsBooting] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -404,6 +408,12 @@ export default function SeriesReviewSection({
     if (authError || !user) {
       setIsLoggedIn(false);
       setMessage("レビュー投稿にはログインが必要。");
+      return;
+    }
+
+    // Issue #142 PR2: see EpisodeCommentSection (browser insert, UI gate only).
+    if (isBlockedFromWritesUntilRegistered(user)) {
+      setMessage(registrationRequiredMessage(uiLocaleForNotice));
       return;
     }
 

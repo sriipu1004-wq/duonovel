@@ -68,6 +68,23 @@ export function classifyAuthCallbackRequest(
 export const AUTH_CALLBACK_EXCHANGE_FAILED: AuthCallbackErrorCode =
   "email_confirm_callback_failed";
 
+/**
+ * Query flag the "Continue with Google" button adds to its redirectTo
+ * (`/auth/callback?flow=oauth&next=...`). It only chooses which fixed message
+ * a failed code exchange shows; it is never used for any permission decision.
+ */
+export const AUTH_CALLBACK_OAUTH_FLOW_PARAM = "flow";
+export const AUTH_CALLBACK_OAUTH_FLOW_VALUE = "oauth";
+
+/** The code used when the code exchange fails, by flow. */
+export function resolveExchangeFailureCode(
+  params: URLSearchParams
+): AuthCallbackErrorCode {
+  return params.get(AUTH_CALLBACK_OAUTH_FLOW_PARAM) === AUTH_CALLBACK_OAUTH_FLOW_VALUE
+    ? "oauth_failed"
+    : AUTH_CALLBACK_EXCHANGE_FAILED;
+}
+
 export type AuthCallbackNoticeKey =
   | "confirmCallbackFailed"
   | "resetCallbackFailed"
@@ -86,6 +103,10 @@ export function resolveAuthCallbackNoticeKey(
   failedLinkWasPasswordReset: boolean
 ): AuthCallbackNoticeKey | null {
   if (!isAuthCallbackErrorCode(errorParam)) return null;
+  // Issue #142 PR2 (PR1 review S3): when the failed link was a password-reset
+  // link, the reset guidance wins for every code, including provider errors
+  // that Supabase may report on the same callback.
+  if (failedLinkWasPasswordReset) return "resetCallbackFailed";
   switch (errorParam) {
     case "email_confirm_callback_failed":
       return failedLinkWasPasswordReset

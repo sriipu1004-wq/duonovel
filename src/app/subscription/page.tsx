@@ -9,7 +9,7 @@ import {
 } from "@/lib/billing/billingConfig";
 import { isSubscriber } from "@/lib/aiUsage/aiUsage.server";
 import { createClient } from "@/lib/supabase/server";
-import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { isOfficialAccountUser } from "@/lib/auth/officialAccount";
 import { getUiLocale } from "@/i18n/server";
 import { subscriptionDictionaries } from "@/i18n/dictionaries/subscription";
 import { localizePath } from "@/i18n/navigation";
@@ -146,7 +146,7 @@ export default async function SubscriptionPage({ searchParams }: PageProps) {
   const supabase = await createClient();
   const authResult = await supabase.auth.getUser();
   const user = authResult.data.user ?? null;
-  const officialAccount = isOfficialAccountEmail(user?.email);
+  const officialAccount = isOfficialAccountUser(user);
   const [subscriber, billingSummary] = user
     ? await Promise.all([
         isSubscriber(user.id),

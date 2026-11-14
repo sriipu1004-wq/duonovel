@@ -1,6 +1,9 @@
 import type { UiLocale } from "../config";
 
 const ja = {
+  continueWithGoogle: "Google で続ける",
+  orDivider: "または",
+  googleRedirectFailed: "Google でのログインを始められなかった。時間をおいてもう一度試すか、メールアドレスでログインして。",
   title: "ログイン",
   description: "メールアドレスとパスワードでログインする。",
   email: "メールアドレス",
@@ -36,6 +39,9 @@ const ja = {
 type AuthDictionary = { [K in keyof typeof ja]: string };
 
 const en = {
+  continueWithGoogle: "Continue with Google",
+  orDivider: "or",
+  googleRedirectFailed: "Could not start sign-in with Google. Try again later, or log in with your email address.",
   title: "Log in",
   description: "Log in with your email address and password.",
   email: "Email address",
@@ -69,6 +75,9 @@ const en = {
 } satisfies AuthDictionary;
 
 const ko = {
+  continueWithGoogle: "Google로 계속하기",
+  orDivider: "또는",
+  googleRedirectFailed: "Google 로그인을 시작하지 못했습니다. 잠시 후 다시 시도하거나 이메일 주소로 로그인해 주세요.",
   title: "로그인",
   description: "이메일 주소와 비밀번호로 로그인합니다.",
   email: "이메일 주소",

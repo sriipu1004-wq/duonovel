@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { registrationRequiredJson } from "@/lib/auth/registrationGate.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildHumanDraftPayload,
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
   const context = await resolveHumanTranslationContext(episodeId, payload?.targetLanguage);
   if (!context) return NextResponse.json({ ok: false, error: "translation_unavailable" }, { status: 404 });
   if (!context.currentUserId) return NextResponse.json({ ok: false, error: "authentication_required" }, { status: 401 });
+  if (context.registrationBlocked) return await registrationRequiredJson("code");
 
   const admin = createAdminClient();
   const existing = await admin

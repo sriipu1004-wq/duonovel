@@ -1,5 +1,6 @@
 "use client";
 
+import { readRegistrationRequiredNotice } from "@/lib/auth/registrationGateMessage";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
@@ -190,7 +191,10 @@ export default function HumanTranslationEditor(props: Props) {
         const payload = (await response.json().catch(() => null)) as LoadPayload | null;
         if (cancelled) return;
         if (!response.ok || !payload?.ok || !payload.translationId || !Array.isArray(payload.segments)) {
-          setMessage(payload?.error === "human_translation_permission_closed" ? copy.unavailable : copy.error);
+          setMessage(
+            readRegistrationRequiredNotice(payload, locale) ??
+              (payload?.error === "human_translation_permission_closed" ? copy.unavailable : copy.error)
+          );
           setMessageIsError(true);
           setLoading(false);
           return;
@@ -216,7 +220,7 @@ export default function HumanTranslationEditor(props: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [copy.error, copy.unavailable, props.episodeId, targetLanguage]);
+  }, [copy.error, copy.unavailable, locale, props.episodeId, targetLanguage]);
 
   function translationsSnapshot() {
     return { ...translationsRef.current };
@@ -234,7 +238,7 @@ export default function HumanTranslationEditor(props: Props) {
       });
       const payload = (await response.json().catch(() => null)) as { ok?: boolean } | null;
       if (!response.ok || !payload?.ok) {
-        setMessage(copy.error);
+        setMessage(readRegistrationRequiredNotice(payload, locale) ?? copy.error);
         setMessageIsError(true);
         return false;
       }
@@ -285,13 +289,14 @@ export default function HumanTranslationEditor(props: Props) {
       const payload = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
       if (!response.ok || !payload?.ok) {
         setMessage(
-          payload?.error === "public_display_name_required"
+          readRegistrationRequiredNotice(payload, locale) ??
+          (payload?.error === "public_display_name_required"
             ? copy.identity
             : payload?.error === "incomplete_translation"
               ? copy.incomplete
               : payload?.error === "human_translation_permission_closed"
                 ? copy.permissionClosed
-                : copy.error
+                : copy.error)
         );
         setMessageIsError(true);
         return;
@@ -319,7 +324,7 @@ export default function HumanTranslationEditor(props: Props) {
       );
       const payload = (await response.json().catch(() => null)) as { ok?: boolean } | null;
       if (!response.ok || !payload?.ok) {
-        setMessage(copy.error);
+        setMessage(readRegistrationRequiredNotice(payload, locale) ?? copy.error);
         setMessageIsError(true);
         return;
       }

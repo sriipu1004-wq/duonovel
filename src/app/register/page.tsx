@@ -21,6 +21,14 @@ import { syncPublicUserProfile } from "@/lib/auth/syncPublicUserProfile";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { accountDictionaries } from "@/i18n/dictionaries/account";
 import { localizePath } from "@/i18n/navigation";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+import { isGoogleSignInEnabled } from "@/lib/auth/googleSignInFlag";
+import { authDictionaries } from "@/i18n/dictionaries/auth";
+import {
+  buildGoogleConsentMetadata,
+  hasGoogleIdentity,
+  resolveGoogleRegistrationState,
+} from "@/lib/auth/registrationGate";
 
 type PendingAction = "email-signup" | "complete-profile" | null;
 
@@ -87,6 +95,7 @@ export default function RegisterPage() {
   const searchParams = useSearchParams();
   const locale = useUiLocale();
   const dictionary = accountDictionaries[locale];
+  const authDictionary = authDictionaries[locale];
 
   const nextPath = useMemo(
     () => normalizeNextPath(searchParams.get("next"), localizePath("/mypage", locale)),
@@ -113,6 +122,10 @@ export default function RegisterPage() {
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  // Issue #142 PR2: a signed-in account with a Google identity uses STEP 2
+  // without password fields, and must give the consents again for its current
+  // Google identity (registrationGate.ts).
+  const isGoogleUser = hasGoogleIdentity(user);
 
   const consentComplete = hasRequiredAccountRegistrationConsent({
     agreedToTerms,
@@ -163,6 +176,17 @@ export default function RegisterPage() {
 
     const metadata = user.user_metadata ?? {};
     setEmail((prev) => (prev.trim().length > 0 ? prev : user.email ?? ""));
+
+    if (hasGoogleIdentity(user)) {
+      // Flags already in the metadata may come from an account that was
+      // linked automatically and are not this Google user's consent, so
+      // nothing is pre-filled from them.
+      if (resolveGoogleRegistrationState(user) === "google_complete") {
+        router.replace(nextPath);
+      }
+      return;
+    }
+
     setDisplayName((prev) =>
       prev.trim().length > 0 ? prev : readAccountRegistrationDisplayName(metadata)
     );
@@ -189,7 +213,7 @@ export default function RegisterPage() {
   }
 
   async function completeSignedInRegistration(sessionUser: User) {
-    if (!isEmailConfirmed(sessionUser)) {
+    if (!isEmailConfirmed(sessionUser) && !hasGoogleIdentity(sessionUser)) {
       setErrorMessage(dictionary.openConfirmationFirst);
       return;
     }
@@ -221,12 +245,27 @@ export default function RegisterPage() {
       return;
     }
 
-    const metadata = buildCompletedAccountRegistrationMetadata({
-      displayName: availableDisplayName,
-      agreedToTerms,
-      agreedToPrivacy,
-      acknowledgedPublicSurface,
-    });
+    let googleConsentMetadata: Record<string, string> = {};
+    if (hasGoogleIdentity(sessionUser)) {
+      // Re-read the user so the consent is bound to the current identity id.
+      const { data: freshUser, error: freshUserError } = await supabase.auth.getUser();
+      googleConsentMetadata = buildGoogleConsentMetadata(freshUser.user);
+      if (freshUserError || Object.keys(googleConsentMetadata).length === 0) {
+        setErrorMessage(dictionary.profileSaveFailed);
+        setPendingAction(null);
+        return;
+      }
+    }
+
+    const metadata = {
+      ...buildCompletedAccountRegistrationMetadata({
+        displayName: availableDisplayName,
+        agreedToTerms,
+        agreedToPrivacy,
+        acknowledgedPublicSurface,
+      }),
+      ...googleConsentMetadata,
+    };
 
     const authResult = await supabase.auth.updateUser({ data: metadata });
     if (authResult.error) {
@@ -355,7 +394,7 @@ export default function RegisterPage() {
                 {user ? "STEP 2" : "STEP 1"}
               </span>
               <span className="rounded-full border border-black/10 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
-                {dictionary.passwordRegistration}
+                {isGoogleUser ? dictionary.googleRegistration : dictionary.passwordRegistration}
               </span>
             </div>
 
@@ -364,7 +403,9 @@ export default function RegisterPage() {
               {dictionary.registerTitle}
             </h1>
             <p className="mt-4 text-sm leading-7 text-neutral-600">
-              {dictionary.registerDescription}
+              {isGoogleUser
+                ? dictionary.googleRegisterDescription
+                : dictionary.registerDescription}
             </p>
 
             {user ? (
@@ -374,9 +415,22 @@ export default function RegisterPage() {
                 ) : (
                   <>
                     <p>{dictionary.signedInAs}: {user.email ?? dictionary.unknownEmail}</p>
-                    <p className="mt-2">{dictionary.confirmedEmailHint}</p>
+                    <p className="mt-2">
+                      {isGoogleUser
+                        ? dictionary.googleSignedInHint
+                        : dictionary.confirmedEmailHint}
+                    </p>
                   </>
                 )}
+              </div>
+            ) : null}
+
+            {!user && isGoogleSignInEnabled() ? (
+              <div className="mt-8">
+                <GoogleSignInButton nextPath={nextPath} disabled={pendingAction !== null} />
+                <p className="mt-4 text-center text-xs text-neutral-500">
+                  {authDictionary.orDivider}
+                </p>
               </div>
             ) : null}
 

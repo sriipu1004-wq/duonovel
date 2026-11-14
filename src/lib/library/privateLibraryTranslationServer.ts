@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isBlockedFromWritesUntilRegistered } from "@/lib/auth/registrationGate";
 import { createHash } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -17,6 +18,8 @@ import {
 
 export type PrivateLibraryTranslationAccess = {
   userId: string;
+  /** Issue #142 PR2: Google account that has not finished STEP 2 (write gate). */
+  registrationBlocked: boolean;
   work: PrivateLibraryWork;
   chapter: PrivateLibraryChapter;
   sourceLanguage: SupportedLanguageTag;
@@ -73,6 +76,7 @@ export async function resolvePrivateLibraryTranslationAccess(
 
   return {
     userId: user.id,
+    registrationBlocked: isBlockedFromWritesUntilRegistered(user),
     work,
     chapter,
     sourceLanguage,
