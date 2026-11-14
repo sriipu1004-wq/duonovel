@@ -14,7 +14,7 @@ import {
   HUMAN_MULTIPART_MIN_TRIGGER_BYTES,
 } from "@/lib/recording/humanMultipartUploadShared";
 import { publishHumanRecording } from "@/lib/recording/humanRecordingPublish";
-import { getHumanRecordingAudioBucketName } from "@/lib/recording/humanRecordingStorage";
+import { assertApprovedPrivateHumanRecordingBucket } from "@/lib/recording/humanRecordingStorage";
 import {
   decideRecordingEntryAccess,
   normalizeRecordingPermissionMode,
@@ -214,6 +214,18 @@ export async function POST(request: Request) {
     );
   }
 
+  const admin = createAdminClient();
+  let bucketName: string;
+  try {
+    // Recheck before reading parts: bucket visibility or server
+    // configuration may have changed since the signed session was issued.
+    bucketName = await assertApprovedPrivateHumanRecordingBucket(admin);
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "Human PRIVATE保存先を確認できない。" },
+      { status: 503 }
+    );
+  }
   const sourceExtension = getAudioFileExtension(fileName) || "bin";
   const session = buildHumanMultipartUploadSession({
     seriesId,
@@ -223,8 +235,6 @@ export async function POST(request: Request) {
     totalSizeBytes,
     uploadSessionId,
   });
-  const admin = createAdminClient();
-  const bucketName = getHumanRecordingAudioBucketName();
   const tempObjectPaths = session.parts.map((part) => part.objectPath);
 
   try {

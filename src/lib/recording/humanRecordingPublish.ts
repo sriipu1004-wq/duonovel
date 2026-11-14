@@ -19,7 +19,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isHumanRecordingRow } from "@/lib/recording/humanRecordingState";
 import {
   buildHumanRecordingPlaybackHref,
-  getHumanRecordingAudioBucketName,
+  assertApprovedPrivateHumanRecordingBucket,
   getHumanRecordingStorageObjectPath,
 } from "@/lib/recording/humanRecordingStorage";
 
@@ -571,13 +571,15 @@ export async function publishHumanRecording({
     canonicalEpisodeId
   );
 
+  // Fail before any media bytes are uploaded: bytes that landed in a PUBLIC
+  // bucket cannot be retracted by a later failure.
+  const bucketName = await assertApprovedPrivateHumanRecordingBucket(adminSupabase);
   const fileBytes = new Uint8Array(await sourceFile.arrayBuffer());
 
   if (fileBytes.byteLength <= 0) {
     throw new Error("empty_file");
   }
 
-  const bucketName = getHumanRecordingAudioBucketName();
   const sourceExtension = guessExtension(sourceFile);
   const originalContentType = sourceFile.type || getAudioContentType(sourceExtension);
 

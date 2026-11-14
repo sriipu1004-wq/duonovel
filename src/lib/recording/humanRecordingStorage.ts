@@ -1,10 +1,41 @@
+// Originals, playback, timing JSON and staged Human parts must not be
+// redirected to PUBLIC or unapproved Storage buckets by configuration drift.
 export const DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET = "human-recording-audio";
 
 export function getHumanRecordingAudioBucketName(): string {
-  return (
-    process.env.SUPABASE_HUMAN_RECORDING_BUCKET?.trim() ||
-    DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET
-  );
+  const configured = process.env.SUPABASE_HUMAN_RECORDING_BUCKET?.trim();
+  if (configured && configured !== DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET) {
+    throw new Error("human_private_bucket_name_unapproved");
+  }
+  return DEFAULT_HUMAN_RECORDING_AUDIO_BUCKET;
+}
+
+type PrivateHumanBucketInspector = {
+  storage: {
+    getBucket: (id: string) => Promise<{
+      data: { id: string; name: string; public: boolean } | null;
+      error: unknown;
+    }>;
+  };
+};
+
+// Use a trusted server-side client before issuing signed upload URLs or
+// uploading media bytes. Do not cache provider bucket visibility across calls.
+export async function assertApprovedPrivateHumanRecordingBucket(
+  client: PrivateHumanBucketInspector
+): Promise<string> {
+  const bucketName = getHumanRecordingAudioBucketName();
+  const { data, error } = await client.storage.getBucket(bucketName);
+  if (
+    error ||
+    !data ||
+    data.id !== bucketName ||
+    data.name !== bucketName ||
+    data.public !== false
+  ) {
+    throw new Error("human_private_bucket_not_verified");
+  }
+  return bucketName;
 }
 
 export function buildHumanRecordingPlaybackHref(recordingId: string): string {

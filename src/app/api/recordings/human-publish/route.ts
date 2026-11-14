@@ -265,6 +265,19 @@ function resolveErrorResponse(error: unknown): {
     };
   }
 
+  if (
+    message === "human_private_bucket_not_verified" ||
+    message === "human_private_bucket_name_unapproved"
+  ) {
+    return {
+      status: 503,
+      body: {
+        ok: false,
+        error: "Human PRIVATE保存先を確認できない。",
+      },
+    };
+  }
+
   if (message === "storage_public_url_unavailable") {
     return {
       status: 500,
