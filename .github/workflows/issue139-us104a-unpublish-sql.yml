@@ -1,0 +1,111 @@
+# Issue #139 (rights): prove the unpublish / rollback SQL for the 8 works
+# whose US copyright was restored by 17 U.S.C. §104A.
+# Static scope check + disposable PostgreSQL service container only;
+# no Supabase hosted access and no secrets.
+name: Issue139 US 104A unpublish SQL
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue139-us104a-unpublish-sql.yml"
+      - "scripts/issue139-us104a-unpublish/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unpublish-sql:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      D: scripts/issue139-us104a-unpublish
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Static scope check (only the 8 ids, only series publication columns)
+        run: node "$D/scope-check.mjs"
+      - name: Fixture and dry run (expected aggregates)
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-fixture.sql"
+          out="$(psql -X -v ON_ERROR_STOP=1 -At -F, -f "$D/dryrun.sql" | grep -v '^BEGIN$\|^ROLLBACK$')"
+          echo "$out"
+          test "$out" = "8,8,8,63,63,t,t,t,t,8,63,63,1,0,0"
+      - name: Apply, second apply refused, then exact rollback
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql" 2> err.txt; then echo "second apply must fail"; exit 1; fi
+          grep -q ISSUE139_UNPUBLISH_ALREADY_APPLIED err.txt
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/rollback.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/rollback.sql" 2> err.txt; then echo "second rollback must fail"; exit 1; fi
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+      - name: Rollback refuses after a chapter edit, then succeeds once reverted
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql"
+          psql -X -v ON_ERROR_STOP=1 -c "update public.episodes set posting_status = 'draft', is_published = false where series_id = '4f48c202-3ba1-47cb-b887-90880534c96e' and episode_number = 2"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/rollback.sql" 2> err.txt; then echo "rollback must refuse"; exit 1; fi
+          grep -q ISSUE139_UNPUBLISH_ROLLBACK_EPISODE_STATE_DRIFT err.txt
+          psql -X -v ON_ERROR_STOP=1 -c "update public.episodes set posting_status = 'posted', is_published = true where series_id = '4f48c202-3ba1-47cb-b887-90880534c96e' and episode_number = 2"
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set publication_status = 'public' where id = 'd5cc7bf2-c76e-49e8-a078-150636fc0344'"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/rollback.sql" 2> err.txt; then echo "rollback must refuse"; exit 1; fi
+          grep -q ISSUE139_UNPUBLISH_ROLLBACK_SERIES_STATE_DRIFT err.txt
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set publication_status = 'private' where id = 'd5cc7bf2-c76e-49e8-a078-150636fc0344'"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/rollback.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+      - name: Apply refuses on drift and leaves nothing behind
+        run: |
+          refuse() {
+            if psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql" 2> err.txt; then echo "apply must refuse ($1)"; exit 1; fi
+            grep -q "$1" err.txt
+            psql -X -At -c "select to_regclass('libread_internal.issue139_unpublish_series_20261115') is null" | grep -qx t
+          }
+          # A target already private.
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set publication_status = 'private' where id = '82309887-add7-4406-aa18-d8a435c3b967'"
+          refuse ISSUE139_UNPUBLISH_SERIES_STATE_DRIFT
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set publication_status = 'public' where id = '82309887-add7-4406-aa18-d8a435c3b967'"
+          # A chapter not posted.
+          psql -X -v ON_ERROR_STOP=1 -c "update public.episodes set posting_status = 'draft' where series_id = 'ac25272b-fc09-4f20-a94a-816791e750d0' and episode_number = 3"
+          refuse ISSUE139_UNPUBLISH_EPISODE_STATE_DRIFT
+          psql -X -v ON_ERROR_STOP=1 -c "update public.episodes set posting_status = 'posted' where series_id = 'ac25272b-fc09-4f20-a94a-816791e750d0' and episode_number = 3"
+          # A target owned by a non-official account.
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set author_id = '22222222-2222-4222-8222-222222222222' where id = '833b0303-d034-4ebb-ae6f-e023dd765a64'"
+          refuse ISSUE139_UNPUBLISH_AUTHOR_DRIFT
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set author_id = '11111111-1111-4111-8111-111111111111' where id = '833b0303-d034-4ebb-ae6f-e023dd765a64'"
+          # The single author is not the official account.
+          psql -X -v ON_ERROR_STOP=1 -c "update auth.users set email = 'renamed@example.invalid' where id = '11111111-1111-4111-8111-111111111111'"
+          refuse ISSUE139_UNPUBLISH_AUTHOR_DRIFT
+          psql -X -v ON_ERROR_STOP=1 -c "update auth.users set email = 'libread08@gmail.com' where id = '11111111-1111-4111-8111-111111111111'"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+          # One chapter fewer.
+          psql -X -v ON_ERROR_STOP=1 -c "create table ci.removed as select * from public.episodes where series_id = 'f7ba9cd3-0ede-48df-92d7-2ea297f33475' and episode_number = 13"
+          psql -X -v ON_ERROR_STOP=1 -c "delete from public.episodes where series_id = 'f7ba9cd3-0ede-48df-92d7-2ea297f33475' and episode_number = 13"
+          refuse ISSUE139_UNPUBLISH_EPISODE_COUNT_MISMATCH
+          psql -X -v ON_ERROR_STOP=1 -c "insert into public.episodes select * from ci.removed"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+      - name: Apply gives up on a held row lock (lock_timeout) and changes nothing
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -c "begin; select id from public.series where id = '4d328931-ca04-4843-bcb5-9ac080cfbbf1' for update; select pg_sleep(20); commit;" &
+          holder=$!
+          sleep 2
+          start=$(date +%s)
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql" 2> err.txt; then echo "apply must time out"; exit 1; fi
+          cat err.txt
+          grep -q "lock timeout" err.txt
+          test $(( $(date +%s) - start )) -lt 15
+          wait "$holder"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
