@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { assertExactDraftEpisodeInsert, assertDraftRollbackConfirmed } from "./public-domain/import-integrity";
 import {
   assertImportable,
   assertPreparedArtifactMatchesRawSource,
   buildDraftImportPlan,
+  chapterPlanSha256,
   isDuplicatePublicDomainSeries,
   normalizeSource,
   prepareArtifact,
@@ -15,6 +16,10 @@ import {
   type PreparedArtifact,
   type PublicDomainManifest,
 } from "./public-domain/core";
+import {
+  detectViolenceCues,
+  violenceAdvisoryLines,
+} from "./public-domain/content-warnings";
 import {
   canonicalAozoraIdentityPart,
   classifyAozoraWork,
@@ -88,6 +93,7 @@ function approvedManifest(
     chapter_split: { strategy: "single" },
     genres: ["文芸"],
     tags: ["心理"],
+    content_warnings: [],
     source_hash:
       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     approved: true,
@@ -987,6 +993,184 @@ function testDryRunAndNoPaidGenerationSourceGuards() {
   }
 }
 
+function testBlankLineSectionSplit() {
+  const first = "一".repeat(3_000);
+  const second = "二".repeat(9_500);
+  const oversized = Array.from({ length: 30 }, () => "三".repeat(399) + "。").join("");
+  const source = [first, second, oversized].join("\n\n");
+  const manifest = {
+    title: "Sections",
+    chapter_split: { strategy: "blank_line_sections" as const },
+  };
+  const chapters = splitChapters(source, manifest);
+  // Author sections within 10,000 characters stay whole even above the 8,000 target.
+  assert.equal(chapters[0]?.body, first);
+  assert.equal(chapters[1]?.body, second);
+  assert.equal(chapters[1]?.characterCount, 9_500);
+  // An oversized section falls back to bounded chunking, losslessly.
+  assert.ok(chapters.length > 3);
+  assert.equal(chapters.slice(2).map((chapter) => chapter.body).join(""), oversized);
+  assert.ok(chapters.every((chapter) => chapter.characterCount <= 10_000));
+  assert.deepEqual(
+    chapters.map((chapter) => chapter.number),
+    chapters.map((_, index) => index + 1)
+  );
+  assert.equal(chapters[0]?.title, "Sections — Part 1");
+  // Deterministic: the same input gives the same chapter plan fingerprint.
+  assert.equal(
+    chapterPlanSha256(chapters),
+    chapterPlanSha256(splitChapters(source, manifest))
+  );
+  const single = splitChapters("only one section", manifest);
+  assert.equal(single.length, 1);
+  assert.equal(single[0]?.title, "Sections");
+
+  const parsed = validateManifest({
+    ...approvedManifest(),
+    chapter_split: { strategy: "blank_line_sections" },
+  });
+  assert.equal(parsed.ok, true, parsed.errors.join("\n"));
+  assert.deepEqual(parsed.manifest?.chapter_split, { strategy: "blank_line_sections" });
+}
+
+function testViolenceAdvisoryIsRecommendationOnly() {
+  const violent = detectViolenceCues("男は剃刀で喉を切つて自殺した。死骸が見つかつた。");
+  assert.equal(violent.recommendViolence, true);
+  assert.ok(violent.hits.some((hit) => hit.cue === "自殺"));
+  assert.ok(violent.hits.some((hit) => hit.cue === "死体・死骸"));
+  const calm = detectViolenceCues("秋の海は靜かに輝いてゐた。");
+  assert.equal(calm.recommendViolence, false);
+  assert.equal(calm.totalHits, 0);
+  assert.equal(detectViolenceCues("He was executed; the corpse was bloody.").recommendViolence, true);
+  assert.equal(detectViolenceCues("그는 자살을 생각했다").recommendViolence, true);
+
+  // Advisory lines never quote the source text and never mutate the manifest.
+  const text = "秘密の一文。彼は自殺した。";
+  const manifest = approvedManifest({ content_warnings: undefined });
+  const lines = violenceAdvisoryLines({
+    manifestId: "fixture-ja",
+    text,
+    recordedWarnings: manifest.content_warnings,
+  });
+  assert.ok(lines.some((line) => line.includes("VIOLENCE_REVIEW_RECOMMENDED")));
+  assert.ok(lines.some((line) => line.includes("import is blocked")));
+  assert.ok(lines.every((line) => !line.includes("秘密の一文")));
+  assert.equal(manifest.content_warnings, undefined);
+  // A recorded human "none" decision is respected (keyword false positive).
+  const keep = violenceAdvisoryLines({ manifestId: "x", text, recordedWarnings: [] });
+  assert.ok(keep.some((line) => line.includes("false positive")));
+  assert.ok(keep.every((line) => !line.includes("VIOLENCE_REVIEW_RECOMMENDED")));
+}
+
+function testContentWarningsAreHumanRecordedBeforeImport() {
+  const unreviewed = approvedManifest({ content_warnings: undefined });
+  assert.throws(
+    () => assertImportable(unreviewed, artifact()),
+    /CONTENT_WARNING_REVIEW_REQUIRED/u
+  );
+  assert.doesNotThrow(() => assertImportable(approvedManifest(), artifact()));
+  const plan = buildDraftImportPlan({
+    manifest: approvedManifest({ content_warnings: ["violence"] }),
+    artifact: artifact(),
+    officialUserId: "official-user-id",
+  });
+  assert.deepEqual(plan.series.content_warnings, ["violence"]);
+  assert.deepEqual(
+    buildDraftImportPlan({
+      manifest: approvedManifest(),
+      artifact: artifact(),
+      officialUserId: "official-user-id",
+    }).series.content_warnings,
+    []
+  );
+  const omitted = { ...approvedManifest() } as Record<string, unknown>;
+  delete omitted.content_warnings;
+  const parsedOmitted = validateManifest(omitted);
+  assert.equal(parsedOmitted.ok, true);
+  assert.equal(parsedOmitted.manifest?.content_warnings, undefined);
+  for (const bad of [["gore"], "violence", ["violence", "violence"]]) {
+    const parsed = validateManifest({ ...approvedManifest(), content_warnings: bad });
+    assert.equal(parsed.ok, false, JSON.stringify(bad));
+  }
+  const parsed = validateManifest({
+    ...approvedManifest(),
+    content_warnings: ["violence"],
+    content_warning_notes: "human reading",
+    content_notice_candidate: "notice",
+  });
+  assert.equal(parsed.ok, true, parsed.errors.join("\n"));
+  assert.deepEqual(parsed.manifest?.content_warnings, ["violence"]);
+  assert.equal(parsed.manifest?.content_notice_candidate, "notice");
+}
+
+function testIssue139OwnerApprovedBatch() {
+  const batch = JSON.parse(
+    readFileSync("public-domain/audits/issue139-p5-owner-approved-batch-2026-11-14.json", "utf8")
+  ) as {
+    works: Array<{
+      manifest_id: string;
+      source_sha256: string;
+      chapter_count: number;
+      chapter_plan_sha256: string;
+      approved: boolean;
+    }>;
+  };
+  const expectedWarnings: Record<string, string[] | undefined> = {
+    "aozora-000692": ["violence"],
+    "aozora-033200": [],
+    "aozora-053520": ["violence"],
+    "aozora-004386": undefined,
+  };
+  let rawChecked = 0;
+  for (const work of batch.works) {
+    const result = validateManifest(
+      JSON.parse(readFileSync(`public-domain/manifests/${work.manifest_id}.json`, "utf8"))
+    );
+    assert.equal(result.ok, true, `${work.manifest_id}: ${result.errors.join("; ")}`);
+    const manifest = result.manifest!;
+    assert.equal(manifest.approved, work.approved);
+    assert.equal(manifest.import_status, "prepared");
+    assert.equal(manifest.source_hash, work.source_sha256);
+    assert.equal(manifest.chapter_count, work.chapter_count);
+    assert.deepEqual(manifest.content_warnings, expectedWarnings[work.manifest_id]);
+    if (work.approved) {
+      assert.match(manifest.reviewed_by ?? "", /owner/u);
+      assert.deepEqual(manifest.jurisdictions_reviewed, ["JP", "US", "KR"]);
+    }
+    if (work.manifest_id === "aozora-053520") {
+      assert.match(manifest.rights_notes, /作品について/u);
+      assert.match(manifest.rights_basis, /end of 2019/u);
+      assert.match(manifest.content_notice_candidate ?? "", /不適切と受け取られる可能性のある表現/u);
+    }
+    if (work.manifest_id === "aozora-033200") {
+      assert.match(manifest.rights_notes, /新潮.*1915/u);
+      assert.match(manifest.rights_notes, /文章世界.*1917/u);
+    }
+    if (work.manifest_id === "aozora-004386") {
+      assert.deepEqual(manifest.chapter_split, { strategy: "blank_line_sections" });
+      assert.equal(manifest.rights_status, "pending");
+    }
+    // Raw Aozora TXT files are git-ignored. When present locally, rebuild the
+    // chapter plan from the pinned bytes and compare the recorded fingerprint.
+    if (existsSync(manifest.source_file)) {
+      const raw = readFileSync(manifest.source_file);
+      const prepared = prepareArtifact({
+        manifest,
+        rawBytes: raw,
+        preparedAt: "2026-11-14T00:00:00.000Z",
+      });
+      assert.equal(chapterPlanSha256(prepared.chapters), work.chapter_plan_sha256, work.manifest_id);
+      assert.doesNotThrow(() => assertPreparedArtifactMatchesRawSource(manifest, prepared, raw));
+      rawChecked += 1;
+    }
+  }
+  console.log(
+    rawChecked === batch.works.length
+      ? `PASS: Issue #139 raw-source chapter plans reproduced for ${rawChecked} works`
+      : `SKIP: Issue #139 raw-source reproduction checked ${rawChecked}/${batch.works.length} (raw TXT is git-ignored)`
+  );
+}
+
 function main() {
   testAozoraEditionCollisionPreflight();
   testVerbatimPublicDomainDuplicateProbes();
@@ -1013,6 +1197,10 @@ function main() {
   testVerifiedPublicDomainDisplayMetadata();
   testExistingOfficialAuditSnapshot();
   testDryRunAndNoPaidGenerationSourceGuards();
+  testBlankLineSectionSplit();
+  testViolenceAdvisoryIsRecommendationOnly();
+  testContentWarningsAreHumanRecordedBeforeImport();
+  testIssue139OwnerApprovedBatch();
   console.log(
     "PASS: Public Domain rights gate, verified public metadata display gate, conservative source policy, safe paragraph chunking, content taxonomy/narration Draft plan, hash/idempotency, and non-paid ingestion"
   );

@@ -118,7 +118,7 @@ Prepare performs:
 - explicit decoding (`utf-8`, `shift_jis`, or `euc-kr`);
 - provider-specific conservative normalization;
 - raw/display/archive-metadata separation;
-- single-episode or heading-regex split;
+- single-episode, heading-regex, paragraph-chunk or author blank-line-section split;
 - zero/empty chapter rejection;
 - excessive chapter count, many-short-chapter, duplicate-title, and very-long-chapter warnings;
 - local prepared artifact creation under `.public-domain-work/<id>/`.
@@ -128,6 +128,20 @@ For opt-in Aozora Reader-body candidates, run `npm run public-domain:annotation-
 For Japanese rights-pending candidates, `npm run public-domain:duplicate-probes` generates local-only SHA-256-backed **verbatim-contiguous** Reader excerpts for overlap checks (without outputting literary text by default). `npm run public-domain:duplicate-probes -- --sql` emits a bounded **READ-ONLY** public Japanese/posted episode query that includes its eligible-corpus count. The SQL contains short verbatim text: it must not be committed or used as evidence of complete semantic deduplication. Verify the returned eligible baseline is nonzero; the actual published episode state is `posted`, not `published`.
 
 The prepared artifact is not a rights approval. The operator must review chapter boundaries and update `source_hash`, `chapter_count`, rights fields, and approval fields in the manifest before import.
+
+### 7a. 暴力描写の確認と `violence` 警告（2026-11-14 オーナー判断・Issue #139）
+
+権利の確認と同じ段で、**人が本文を読み**、暴力の描写（自殺・自傷・処刑・死体の具体的な描写など）があれば、manifest の `content_warnings` に `"violence"` を入れることを推奨する。値は `series.content_warnings` と同じ（`sexual_r18` / `violence`）。
+
+- `content_warnings` が manifest に**無い**作品は取り込めない（`CONTENT_WARNING_REVIEW_REQUIRED`）。警告が無いと判断したら `[]` を記録する。判断の理由は `content_warning_notes` に書く（本文の引用はしない）。
+- `npm run public-domain:prepare -- <id>` は、本文に特定の語（自殺・切腹・剃刀・殺す・死刑・処刑・死骸・流血など、英語・韓国語の語も一部）があると `ADVISORY ... VIOLENCE_REVIEW_RECOMMENDED` と語の種類と件数だけを出す（本文は出さない）。実装は `scripts/public-domain/content-warnings.ts`。
+- この検出は**推奨だけ**で、manifest を自動で書き換えない。**誤検出**（比喩・会話・歴史的な言及の「死」「殺」など。例：`aozora-033200` は「自殺」の語が2件あるが、人の確認で警告なし）と**見逃し**（語を使わない描写、旧字の異体）の両方がある。最終判断は必ず人がする。
+- 提供元の表現上の注意（例：青空文庫の「不適切と受け取られる可能性のある表現」）は R18 の判定ではない。取り込むときの説明文の候補として `content_notice_candidate` に記録できる（自動では挿入しない）。図書カードの「作品について」は入力者が書いた別の著作物なので転記しない。
+- 取り込みでは `content_warnings` が `series.content_warnings` に入る（`content_warning_locks` は触らない）。
+
+### 7b. 作者の区切りでの章分け（`blank_line_sections`）
+
+見出しの無い短編で、作者が空行で場面を区切っている場合は `chapter_split: { "strategy": "blank_line_sections" }` を使う。空行ごとの区切りを1話にし、10,000字（`PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS`）以内なら8,000字の目安を超えても分けない。10,000字を超える区切りだけは従来の段落分割に落とす。章の計画の指紋 `chapter_plan_sha256` は `sha256(JSON.stringify(chapters))`（`chapterPlanSha256`）で、`assertPreparedArtifactMatchesRawSource` が元の TXT から同じ章を作り直せることを確かめる。
 
 ## 8. Import safety
 

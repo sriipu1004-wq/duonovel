@@ -18,34 +18,34 @@
   "translator": null,
   "translator_death_year": null,
   "translation_language": null,
-  "rights_status": "pending",
-  "rights_basis": "",
-  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review.",
+  "rights_status": "approved",
+  "rights_basis": "Owner approved on 2026-11-14 for JP/US/KR after AI research and independent review. 上司小剣 died in 1947; 死刑 first appeared in 「ユウモレスク」中央堂 (August 1924). Japan: life+50 term ended in 1997, before the 2018 extension, and is not revived. U.S.: protection restored by the URAA lasts 95 years from the 1924 publication and expired at the end of 2019; any matter first added in the 1930 base edition would have expired at the end of 2025, so the work is expired either way. South Korea: retroactive protection for foreign works covers only authors who died in 1957 or later. Scope is the exact Aozora text file only.",
+  "rights_notes": "Base edition 『現代日本文學全集 23』改造社 1930. The U.S. reason was corrected per the independent review (earlier draft said the term ended 2026-01-01; that applies only to matter first added in 1930). The Aozora card's 「作品について」 is a summary written by the volunteer inputter, a separate work, and must not be copied into the series description. Evidence: AI rights research https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6872701172; independent rights/R18 review (separate subagent, read-only, GO) https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875024200; owner decision https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875092395. Not a lawyer's opinion. Import status stays prepared: no Production Draft import until after #140 and a separate count-specific approval.",
   "rights_components": {
     "original_work": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Aozora catalog flags are なし and candidate cutoffs passed; verify exact work and jurisdiction before approval."
+      "status": "approved",
+      "basis": "Author died 1947; first published 1924. JP term ended 1997; US URAA term ended end of 2019 (1930 additions: end of 2025); KR no retroactive protection. Expired in all three.",
+      "notes": "JP: https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html; US: 17 U.S.C. §304(b), §305, §104A (https://www.law.cornell.edu/uscode/text/17/304); KR: https://www.mcst.go.kr/site/s_policy/copyright/knowledge/know17.jsp"
     },
     "edition": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Verify whether the exact base edition contributes protectable modern editorial matter."
+      "status": "approved",
+      "basis": "Base edition is the 1930 Kaizosha anthology, not a modern critical edition; no separately protected modern editorial layer is reused.",
+      "notes": "Only the exact Aozora transcription pinned by source_hash is reused; no base-edition cover, layout or commentary is imported."
     },
     "translation": {
       "status": "not_applicable",
       "basis": "",
-      "notes": ""
+      "notes": "Original Japanese text; no translator."
     },
     "editorial": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Verify modernization/editorial contribution in the selected source."
+      "status": "approved",
+      "basis": "No modern editorial prose is reused; the Aozora card summary (作品について) is excluded.",
+      "notes": "Aozora input/proofreading notes are factual transcription notes without creative expression."
     },
     "annotations": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Aozora annotations/provenance are preserved and must be reviewed."
+      "status": "approved",
+      "basis": "Aozora ruby/annotation notation is transcription metadata kept for auditability; no modern commentary is added.",
+      "notes": "Reader display of annotations/ruby is verified separately in #140."
     },
     "illustrations": {
       "status": "not_applicable",
@@ -58,19 +58,23 @@
       "notes": ""
     },
     "digitization": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Review Aozora file handling rules and preserve provenance."
+      "status": "approved",
+      "basis": "Aozora's handling rules permit copying, redistribution and format conversion of copyright-expired work files; exact TXT bytes are pinned by SHA-256.",
+      "notes": "Reviewer re-fetched the card and ZIP and confirmed the SHA-256 on 2026-11-14."
     },
     "provider_terms": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Review current Aozora file handling rules at approval time."
+      "status": "approved",
+      "basis": "Aozora Bunko handling rules reviewed at https://www.aozora.gr.jp/guide/kijyunn.html (2026-11-14).",
+      "notes": "Keeping the base-edition/input credits is requested, not mandatory; LIB read keeps them in public-domain metadata."
     }
   },
-  "jurisdictions_reviewed": [],
-  "reviewed_at": null,
-  "reviewed_by": null,
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-11-14T18:18:08+09:00",
+  "reviewed_by": "LIB read owner (button approval 2026-11-14, Issue #139)",
   "chapter_count": 8,
   "chapter_split": {
     "strategy": "heading_regex",
@@ -81,8 +85,13 @@
     "Aozora Bunko",
     "上司小剣"
   ],
+  "content_warnings": [
+    "violence"
+  ],
+  "content_warning_notes": "Human-confirmed 2026-11-14 (owner button answer; independent review GO): execution and a decomposed corpse are described concretely. Not R18.",
+  "content_notice_candidate": "青空文庫の注記：この作品には、今日からみれば、不適切と受け取られる可能性のある表現がみられます。その旨をここに記載した上で、そのままの形で作品を公開します。（青空文庫）",
   "source_hash": "e66e40aba2133adc738e8a38dc0cdfd6d058f09f4a299f193a51d47438abeaf1",
-  "approved": false,
+  "approved": true,
   "import_status": "prepared",
   "cover_source": null,
   "cover_rights_status": null,

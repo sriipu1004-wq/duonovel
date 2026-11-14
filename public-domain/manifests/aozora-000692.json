@@ -18,34 +18,34 @@
   "translator": null,
   "translator_death_year": null,
   "translation_language": null,
-  "rights_status": "pending",
-  "rights_basis": "",
-  "rights_notes": "Conservative catalog candidate only. Aozora copyright flags, original-work term, exact edition/digitization, provider terms, and intended jurisdictions still require human review.",
+  "rights_status": "approved",
+  "rights_basis": "Owner approved on 2026-11-14 for JP/US/KR after AI research and independent review. 森鴎外 died in 1922; 高瀬舟 first appeared in 中央公論 (January 1916). Japan: life+50 term ended in 1972, before the 2018 extension, and is not revived. U.S.: a 1916 publication is beyond the 95-year maximum. South Korea: retroactive protection for foreign works covers only authors who died in 1957 or later. Scope is the exact Aozora text file only.",
+  "rights_notes": "Base edition 中央公論 第三十一年第一號 (1916); the Aozora file notes the bound copy lacks the issue number, so the issue is inferred as January 1916. Evidence: AI rights research https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6872701172; independent rights/R18 review (separate subagent, read-only, GO) https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875024200; owner decision https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875092395. Not a lawyer's opinion. Import status stays prepared: no Production Draft import until after #140 and a separate count-specific approval.",
   "rights_components": {
     "original_work": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Aozora catalog flags are なし and candidate cutoffs passed; verify exact work and jurisdiction before approval."
+      "status": "approved",
+      "basis": "Author died 1922; first published 1916. Term expired in JP, US and KR.",
+      "notes": "JP: https://www.bunka.go.jp/seisaku/chosakuken/hokaisei/kantaiheiyo_chosakuken/1411890.html; US: 17 U.S.C. §304(b), §305, §104A (https://www.law.cornell.edu/uscode/text/17/304); KR: https://www.mcst.go.kr/site/s_policy/copyright/knowledge/know17.jsp"
     },
     "edition": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Verify whether the exact base edition contributes protectable modern editorial matter."
+      "status": "approved",
+      "basis": "Base edition is the 1916 magazine printing, not a modern critical edition; no separately protected modern editorial layer is reused.",
+      "notes": "Only the exact Aozora transcription pinned by source_hash is reused; no base-edition cover, layout or commentary is imported."
     },
     "translation": {
       "status": "not_applicable",
       "basis": "",
-      "notes": ""
+      "notes": "Original Japanese text; no translator."
     },
     "editorial": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Verify modernization/editorial contribution in the selected source."
+      "status": "approved",
+      "basis": "No modern editorial prose is reused; scope is the Aozora transcription of the 1916 text.",
+      "notes": "Aozora input/proofreading notes are factual transcription notes without creative expression."
     },
     "annotations": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Aozora annotations/provenance are preserved and must be reviewed."
+      "status": "approved",
+      "basis": "Aozora ruby/annotation notation is transcription metadata kept for auditability; no modern commentary is added.",
+      "notes": "Reader display of annotations/ruby is verified separately in #140."
     },
     "illustrations": {
       "status": "not_applicable",
@@ -58,19 +58,23 @@
       "notes": ""
     },
     "digitization": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Review Aozora file handling rules and preserve provenance."
+      "status": "approved",
+      "basis": "Aozora's handling rules permit copying, redistribution and format conversion of copyright-expired work files; exact TXT bytes are pinned by SHA-256.",
+      "notes": "Reviewer re-fetched the card and ZIP and confirmed the SHA-256 on 2026-11-14."
     },
     "provider_terms": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": "Review current Aozora file handling rules at approval time."
+      "status": "approved",
+      "basis": "Aozora Bunko handling rules reviewed at https://www.aozora.gr.jp/guide/kijyunn.html (2026-11-14).",
+      "notes": "Keeping the base-edition/input credits is requested, not mandatory; LIB read keeps them in public-domain metadata."
     }
   },
-  "jurisdictions_reviewed": [],
-  "reviewed_at": null,
-  "reviewed_by": null,
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-11-14T18:18:08+09:00",
+  "reviewed_by": "LIB read owner (button approval 2026-11-14, Issue #139)",
   "chapter_count": 1,
   "chapter_split": {
     "strategy": "single"
@@ -80,8 +84,12 @@
     "Aozora Bunko",
     "森鴎外"
   ],
+  "content_warnings": [
+    "violence"
+  ],
+  "content_warning_notes": "Human-confirmed 2026-11-14 (owner button answer; independent review GO): concrete depiction of a suicide by razor and bleeding. Not R18.",
   "source_hash": "2e7cfc79c6dc03f0b3953682401d189e9482e484a0f9793d1bf8cca942abaf68",
-  "approved": false,
+  "approved": true,
   "import_status": "prepared",
   "cover_source": null,
   "cover_rights_status": null,

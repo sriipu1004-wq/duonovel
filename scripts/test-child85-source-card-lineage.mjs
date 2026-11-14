@@ -2,6 +2,23 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const json = JSON.parse(readFileSync("public-domain/audits/child85-source-card-lineage-review-2026-10-21.json","utf8"));
+// Issue #139 (2026-11-14): later owner decisions supersede some 2026-10-21 fields.
+const batch = JSON.parse(readFileSync("public-domain/audits/issue139-p5-owner-approved-batch-2026-11-14.json","utf8"));
+const batchById = new Map(batch.works.map((w) => [w.manifest_id, w]));
+const OWNER_APPROVED = new Set(["aozora-000692","aozora-033200","aozora-053520"]);
+assert.deepEqual(
+  batch.works.filter((w) => w.approved).map((w) => w.manifest_id).sort(),
+  [...OWNER_APPROVED].sort()
+);
+assert.equal(batch.totals.production_imports, 0);
+assert.equal(
+  batch.works.filter((w) => w.approved).reduce((n, w) => n + w.chapter_count, 0),
+  batch.totals.approved_chapters
+);
+const currentChapterCount = (id, recorded) => batchById.get(id)?.chapter_count ?? recorded;
+const chapterDelta = batch.works.reduce(
+  (n, w) => n + (w.chapter_plan_changed ? w.chapter_count - w.previous_chapter_count : 0), 0
+);
 assert.equal(json.audit_version,1);
 assert.equal(json.works.length,10);
 assert.equal(json.totals.metadata_mismatches_found,0);
@@ -20,23 +37,33 @@ for (const w of json.works) {
     ["original_author","author"],["author_death_year","author_death_year"],
     ["first_publication_year","first_publication_year"],["edition","base_edition"],
     ["edition_publication_year","base_first_publication_year"],
-    ["source_hash","source_txt_sha256"],["chapter_count","prepared_reader_chapters"],
+    ["source_hash","source_txt_sha256"],
   ]) assert.equal(manifest[a],w[b],w.manifest_id+" "+a);
+  assert.equal(manifest.chapter_count, currentChapterCount(w.manifest_id, w.prepared_reader_chapters), w.manifest_id+" chapter_count");
   for(const [a,b] of [["input_edition","input_edition"],["proof_edition","proof_edition"],
     ["input_by","input_by"],["proofread_by","proofread_by"]]) {
     assert.equal(manifest.source_provenance?.[a]??null,w[b],w.manifest_id+" provenance "+a);
   }
   assert.match(manifest.source_hash,/^[0-9a-f]{64}$/u);
-  assert.equal(manifest.rights_status,"pending");
-  assert.equal(manifest.approved,false);
-  assert.equal(manifest.reviewed_at,null);
+  if (OWNER_APPROVED.has(w.manifest_id)) {
+    assert.equal(manifest.rights_status,"approved");
+    assert.equal(manifest.approved,true);
+    assert.match(manifest.reviewed_by,/owner/u);
+    assert.match(manifest.rights_notes,/issuecomment-6872701172/u);
+    assert.match(manifest.rights_notes,/issuecomment-6875024200/u);
+    assert(Array.isArray(manifest.content_warnings), w.manifest_id+" content_warnings recorded");
+  } else {
+    assert.equal(manifest.rights_status,"pending");
+    assert.equal(manifest.approved,false);
+    assert.equal(manifest.reviewed_at,null);
+  }
   assert.equal(manifest.import_status,"prepared");
   assert.equal(w.rights_approved,false);
   assert.equal(w.human_rights_review_signed,false);
   assert.equal(w.import_authorized,false);
   chapters+=manifest.chapter_count;
 }
-assert.equal(chapters,39);
+assert.equal(chapters,39+chapterDelta);
 assert.deepEqual([...json.preliminary_first_review_order],["aozora-000692","aozora-033200","aozora-004386","aozora-053520"]);
 assert.equal(new Set(json.preliminary_first_review_order).size,4);
 assert(json.preliminary_first_review_order.every(id=>ids.has(id)));
@@ -77,9 +104,20 @@ for (const entry of sourceBinding.candidates) {
     "public-domain/manifests/" + entry.manifest_id + ".json", "utf8"
   ));
   assert.equal(sourceManifest.source_hash, entry.source_sha256);
-  assert.equal(sourceManifest.chapter_count, entry.prepared_chapter_count);
+  const later = batchById.get(entry.manifest_id);
+  if (later) {
+    assert.equal(later.source_sha256, entry.source_sha256);
+    if (later.chapter_plan_changed) {
+      assert.equal(later.previous_chapter_plan_sha256, entry.chapter_plan_sha256);
+      assert.equal(later.previous_chapter_count, entry.prepared_chapter_count);
+    } else {
+      assert.equal(later.chapter_plan_sha256, entry.chapter_plan_sha256);
+    }
+  }
+  assert.equal(sourceManifest.chapter_count, currentChapterCount(entry.manifest_id, entry.prepared_chapter_count));
   regeneratedChapters += entry.prepared_chapter_count;
 }
 assert.equal(regeneratedChapters, 39);
 
-console.log("PASS: Child85 ten source-card records, raw-body reproducibility audit fingerprints, pending rights, 39 chapters and edition review queue");
+console.log("PASS: Issue #139 owner-approved batch (3 works, 10 chapters) and aozora-004386 re-split fingerprints are consistent with the Child85 records");
+console.log("PASS: Child85 ten source-card records, raw-body reproducibility audit fingerprints, rights state, chapter totals and edition review queue");

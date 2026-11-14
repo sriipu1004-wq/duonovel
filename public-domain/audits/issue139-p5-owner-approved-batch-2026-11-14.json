@@ -1,0 +1,76 @@
+{
+  "audit_version": 1,
+  "audit_name": "Issue #139 P5 owner-approved batch and aozora-004386 author-break re-split",
+  "date": "2026-11-14",
+  "evidence_type": "LOCAL_SOURCE_BINARY_RECOMPUTATION_PLUS_RECORDED_OWNER_DECISION",
+  "contract": "chapter_plan_sha256 = sha256(JSON.stringify(prepareArtifact(...).chapters)); assertPreparedArtifactMatchesRawSource must rebuild the same plan from the pinned raw TXT bytes. Raw TXT files are git-ignored; the test re-checks them only when they exist locally.",
+  "sources": {
+    "research": "https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6872701172",
+    "independent_review": "https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875024200",
+    "owner_decision": "https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875092395"
+  },
+  "owner_decision": {
+    "date": "2026-11-14",
+    "rights_approval": "owner approves aozora-000692, aozora-033200, aozora-053520",
+    "order": "#140 first; no Production import in this change",
+    "content_warnings": "violence for aozora-000692 and aozora-053520; recommend violence review for future works",
+    "aozora_004386": "re-split at the author's section break; not approved until independent review and a fresh owner approval"
+  },
+  "works": [
+    {
+      "manifest_id": "aozora-000692",
+      "source_sha256": "2e7cfc79c6dc03f0b3953682401d189e9482e484a0f9793d1bf8cca942abaf68",
+      "chapter_count": 1,
+      "chapter_plan_sha256": "c55193f395d135092c0f50ae3554d9bfc783a57102925854dc65a42041649960",
+      "chapter_plan_changed": false,
+      "rights_status": "approved",
+      "approved": true,
+      "content_warnings": ["violence"],
+      "production_imported": false
+    },
+    {
+      "manifest_id": "aozora-033200",
+      "source_sha256": "935a2b8b5a0f69df648225f6002ab9249d1516cd096c9fd9bc2c91729ad899bf",
+      "chapter_count": 1,
+      "chapter_plan_sha256": "efe8ba5e94adb80c9df218f4bdbb6a7f266437faa25def1eb1e33c773eb009a6",
+      "chapter_plan_changed": false,
+      "rights_status": "approved",
+      "approved": true,
+      "content_warnings": [],
+      "production_imported": false
+    },
+    {
+      "manifest_id": "aozora-053520",
+      "source_sha256": "e66e40aba2133adc738e8a38dc0cdfd6d058f09f4a299f193a51d47438abeaf1",
+      "chapter_count": 8,
+      "chapter_plan_sha256": "ae89d65e4ea1b3d48750f58099fd200e72bb9f763be31a70e960811e02e5b2fe",
+      "chapter_plan_changed": false,
+      "rights_status": "approved",
+      "approved": true,
+      "content_warnings": ["violence"],
+      "production_imported": false
+    },
+    {
+      "manifest_id": "aozora-004386",
+      "source_sha256": "90d366172fa7f91e4255e02a460491205f6bf5ac790847470427d92152bda8b2",
+      "chapter_count": 2,
+      "chapter_character_counts": [3421, 8777],
+      "chapter_plan_sha256": "72e0dbab6c53ef0253be231f26cb40fd4ab1be55e587777ccc845a073ce8a95e",
+      "chapter_plan_changed": true,
+      "previous_chapter_split": { "strategy": "paragraph_chunks", "max_characters": 7500 },
+      "previous_chapter_count": 3,
+      "previous_chapter_character_counts": [3421, 7484, 1293],
+      "previous_chapter_plan_sha256": "23502282fec9863400ecc7782f28ee68911e41c3db2895cf4215220f160e808f",
+      "split_basis": "The normalized Reader body has exactly one blank line, the author's section break between the boat crossing and the landing on the pier. The old plan cut the second section mid-text at the 8000-character target; the new blank_line_sections plan keeps each author section whole (both are within the 10000-character maximum).",
+      "rights_status": "pending",
+      "approved": false,
+      "production_imported": false
+    }
+  ],
+  "totals": {
+    "approved_works": 3,
+    "approved_chapters": 10,
+    "pending_resplit_works": 1,
+    "production_imports": 0
+  }
+}

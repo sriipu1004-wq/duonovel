@@ -63,3 +63,17 @@ Reader注記は原文8作品で残る合計102箇所を独立S1が確認し、�
 用途は、**「選んだカードIDと底本を特定してから権利審査へ渡す」**ための候補選定チェック。作品名・著者名が一致しても別のカードを自動的に同一権利・同一本文扱いしない。既存候補探索コマンドの重複排除仕様・Production取り込み実装は変更しない。青空文庫の一つの作品ID内に複数の寄与者行がある場合は、作品IDで集約してカード件数を数え重複カウントしない。
 
 CLIが `SOURCE_CARD_MISMATCH` を報告した場合は終了コード2で止めるが、**異版があるというだけではエラーにしない**。人間の版・著作権レビューを促すマーカーであり自動の rightsChecked 承認判定ではない。Regressions は `npm run test:public-domain-ingestion` に追加済み。対応する監査JSONを `public-domain/audits/child85-source-card-lineage-review-2026-10-21.json` に保持する。
+
+## 2026-11-14 オーナーの判断の記録（Issue #139・P5）
+
+出どころ：オーナーのボタンの回答（2026-11-14、[判断のコメント](https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875092395)）。根拠は [AI の調査](https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6872701172) と [独立レビュー](https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875024200)。法律家の判断ではない。記録は `public-domain/audits/issue139-p5-owner-approved-batch-2026-11-14.json`。
+
+| ID | 作品 | 権利 | 章 | `content_warnings` | 補足 |
+| --- | --- | --- | ---: | --- | --- |
+| `aozora-000692` | 高瀬舟 | **approved**（オーナー） | 1 | `violence` | 自殺・出血の描写 |
+| `aozora-033200` | 幸福への道 | **approved**（オーナー） | 1 | なし（`[]`） | 初出の食い違い：図書カードは「新潮」1915年1月、TXT 末尾は「文章世界」1917年8月号。どちらでも結論は同じ |
+| `aozora-053520` | 死刑 | **approved**（オーナー） | 8 | `violence` | 米国：URAA で回復した保護は1924年の発行から95年で2019年末に満了。1930年の底本で加わった部分があっても2025年末に満了。青空文庫の表現上の注意を `content_notice_candidate` に記録。「作品について」は転記しない |
+| `aozora-004386` | 修道院の秋 | pending | 2（旧3） | 未記録 | 作者の空行の区切り（船から桟橋に降りる場面の前）で分け直した（3,421字・8,777字）。独立レビューと改めてのオーナー承認が要る |
+
+- `import_status` は4作品とも `prepared`。本番への Draft の取り込みは #140 の後で、件数を示して改めて承認をもらう。
+- 今後の作品では、権利の確認の段で暴力の描写を人が確かめ、`violence` を推奨する（手順は `docs/public-domain-ingestion.md` の 7a）。
