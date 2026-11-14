@@ -1,0 +1,38 @@
+# Issue #142 PR3: apply the consent / RLS / hook migration to a disposable
+# PostgreSQL and assert (email users unaffected, unconsented Google blocked,
+# consented Google allowed, append-only account_consents, hook function,
+# rollback). Disposable service container only; no Supabase hosted access.
+name: Issue142 Google consent RLS
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue142-google-consent-rls.yml"
+      - "scripts/issue142-google-consent/**"
+      - "supabase/migrations/20261115120000_issue142_google_consent_rls.sql"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  consent-rls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Apply migration to disposable DB and assert
+        env:
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: psql -X -v ON_ERROR_STOP=1 -f scripts/issue142-google-consent/check.sql

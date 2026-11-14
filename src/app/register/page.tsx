@@ -25,7 +25,6 @@ import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import { isGoogleSignInEnabled } from "@/lib/auth/googleSignInFlag";
 import { authDictionaries } from "@/i18n/dictionaries/auth";
 import {
-  buildGoogleConsentMetadata,
   hasGoogleIdentity,
   resolveGoogleRegistrationState,
 } from "@/lib/auth/registrationGate";
@@ -88,6 +87,30 @@ async function prepareSignupEmail(
   }
 
   return payload.normalizedEmail?.trim() || normalizedEmail;
+}
+
+/**
+ * Issue #142 PR3: records STEP 2 for a Google account on the server
+ * (POST /api/account/google-consent), then refreshes the session so the JWT
+ * carries the new app_metadata (read by the app gate and by RLS).
+ */
+async function recordGoogleConsent(displayName: string): Promise<boolean> {
+  const response = await fetch("/api/account/google-consent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      displayName,
+      agreedToTerms: true,
+      agreedToPrivacy: true,
+      acknowledgedPublicSurface: true,
+    }),
+  });
+  const payload = (await response.json().catch(() => null)) as { ok?: boolean } | null;
+  if (!response.ok || !payload?.ok) return false;
+
+  const { data, error } = await supabase.auth.refreshSession();
+  if (error || !data.user) return false;
+  return resolveGoogleRegistrationState(data.user) === "google_complete";
 }
 
 export default function RegisterPage() {
@@ -245,27 +268,15 @@ export default function RegisterPage() {
       return;
     }
 
-    let googleConsentMetadata: Record<string, string> = {};
-    if (hasGoogleIdentity(sessionUser)) {
-      // Re-read the user so the consent is bound to the current identity id.
-      const { data: freshUser, error: freshUserError } = await supabase.auth.getUser();
-      googleConsentMetadata = buildGoogleConsentMetadata(freshUser.user);
-      if (freshUserError || Object.keys(googleConsentMetadata).length === 0) {
-        setErrorMessage(dictionary.profileSaveFailed);
-        setPendingAction(null);
-        return;
-      }
-    }
-
-    const metadata = {
-      ...buildCompletedAccountRegistrationMetadata({
-        displayName: availableDisplayName,
-        agreedToTerms,
-        agreedToPrivacy,
-        acknowledgedPublicSurface,
-      }),
-      ...googleConsentMetadata,
-    };
+    // user_metadata keeps the profile fields for display only. For a Google
+    // account the consent itself is recorded by the server below
+    // (PR3: account_consents + app_metadata, which the user cannot write).
+    const metadata = buildCompletedAccountRegistrationMetadata({
+      displayName: availableDisplayName,
+      agreedToTerms,
+      agreedToPrivacy,
+      acknowledgedPublicSurface,
+    });
 
     const authResult = await supabase.auth.updateUser({ data: metadata });
     if (authResult.error) {
@@ -282,6 +293,15 @@ export default function RegisterPage() {
       );
       setPendingAction(null);
       return;
+    }
+
+    if (hasGoogleIdentity(sessionUser)) {
+      const recorded = await recordGoogleConsent(availableDisplayName);
+      if (!recorded) {
+        setErrorMessage(dictionary.profileSaveFailed);
+        setPendingAction(null);
+        return;
+      }
     }
 
     setMessage(dictionary.registrationComplete);

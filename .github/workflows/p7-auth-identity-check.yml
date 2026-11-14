@@ -4,6 +4,8 @@ name: P7 auth identity and callback check
 # public display names, and /auth/callback failures use fixed localized codes.
 # PR2: flag-gated "Continue with Google", callback branching to STEP 2,
 # server-side write gate and official-account grant checks.
+# PR3: server-recorded consent (app_metadata + account_consents), RLS
+# migration source checks, word-explanation guidance in every locale.
 on:
   pull_request:
     paths:
@@ -25,6 +27,8 @@ on:
       - "src/features/write/**"
       - "src/features/translation/**"
       - "src/features/playback/**"
+      - "supabase/migrations/20261115120000_issue142_google_consent_rls.sql"
+      - ".github/workflows/issue142-google-consent-rls.yml"
       - "src/features/library/PrivateLibraryBilingualPlayback.tsx"
       - "src/lib/auth/**"
       - "src/components/auth/**"
@@ -76,6 +80,9 @@ jobs:
           scripts/test-auth-google-registration.ts
           src/lib/auth/registrationGate.ts
           src/lib/auth/registrationGate.server.ts
+          src/lib/auth/googleConsent.ts
+          src/app/api/account/google-consent/route.ts
+          src/features/playback/useBilingualWordExplanation.ts
           src/lib/auth/registrationGateMessage.ts
           src/i18n/dictionaries/registrationGate.ts
           src/lib/auth/googleSignInFlag.ts

@@ -1,4 +1,4 @@
-// Issue #142 PR2: registration state for accounts that have a Google identity.
+// Issue #142: registration state for accounts that have a Google identity.
 //
 // Pure helpers (no server-only imports) shared by /auth/callback, the
 // register page (STEP 2), the server-side write gate and the tests.
@@ -6,28 +6,37 @@
 // Why the consent is bound to the Google identity id:
 // Supabase links a Google sign-in to an existing user with the same email
 // (automatic identity linking). If that user was created by someone else and
-// never confirmed (a pre-account-takeover attempt), its user_metadata may
-// already contain `account_registration_completed: true` and the three
-// consent flags, written by the other party. Those flags must not count as
-// the Google user's consent. `identity_id` is the uuid Supabase generates for
-// the auth.identities row when the Google identity is attached, so nobody can
-// put the matching value into user_metadata before that identity exists.
-// STEP 2 records it under GOOGLE_CONSENT_IDENTITY_KEY; a Google identity that
-// is new (or re-linked) therefore always has to go through STEP 2 again.
+// never confirmed (a pre-account-takeover attempt), its metadata may already
+// contain "completed" flags written by the other party. Those flags must not
+// count as the Google user's consent. `identity_id` is the uuid Supabase
+// generates for the auth.identities row when the Google identity is attached.
+// A Google identity that is new (or re-linked) therefore always has to go
+// through STEP 2 again.
 //
-// Limitation: user_metadata is writable by the signed-in user themself
-// (supabase.auth.updateUser). A user can set these keys for their own account
-// without the UI. That only lets a user skip their own consent screen; it
-// does not let another person's stale metadata count.
+// PR3 (PR #204 review S1): the consent is read from `app_metadata`, which only
+// the server (service role) can write. STEP 2 calls
+// POST /api/account/google-consent, which appends a row to
+// public.account_consents and writes GOOGLE_CONSENT_IDENTITY_KEY into
+// app_metadata. user_metadata (writable by the user through
+// supabase.auth.updateUser) is no longer read for this decision. The same
+// app_metadata key is checked by RLS (migration 20261115120000).
 
-import {
-  hasRequiredAccountRegistrationConsent,
-  isAccountRegistrationCompleted,
-  readAccountRegistrationConsent,
-  readAccountRegistrationDisplayName,
-} from "@/lib/auth/accountSignupConsent";
+/** app_metadata keys written only by POST /api/account/google-consent (service role). */
+export const GOOGLE_CONSENT_IDENTITY_KEY = "google_consent_identity_id";
+export const GOOGLE_CONSENT_TERMS_VERSION_KEY = "google_consent_terms_version";
+export const GOOGLE_CONSENT_PRIVACY_VERSION_KEY = "google_consent_privacy_version";
+export const GOOGLE_CONSENT_AT_KEY = "google_consent_at";
 
-export const GOOGLE_CONSENT_IDENTITY_KEY = "account_google_consent_identity_id";
+/**
+ * The email confirmation must precede every Google identity by at least this
+ * much for the official-account check (PR #204 review S3). When a Google
+ * sign-in itself confirms an address, `email_confirmed_at` and the Google
+ * identity's `created_at` are written within the same request, possibly in
+ * either order and a few milliseconds apart, so a bare "earlier than" check
+ * could pass by accident. 60 seconds is far longer than one request and far
+ * shorter than any real gap between confirming an email and linking Google.
+ */
+export const EMAIL_CONFIRMATION_BEFORE_GOOGLE_MARGIN_MS = 60_000;
 
 export type IdentityLike = {
   provider?: string | null;
@@ -40,6 +49,7 @@ export type RegistrationUserLike = {
   email?: string | null;
   email_confirmed_at?: string | null;
   user_metadata?: Record<string, unknown> | null;
+  app_metadata?: Record<string, unknown> | null;
   identities?: IdentityLike[] | null;
 };
 
@@ -87,8 +97,9 @@ function parseTime(value: unknown): number | null {
  *    account email.
  * 2. That identity is confirmed when EITHER
  *    a. `identity_data.email_verified === true`, OR
- *    b. `user.email_confirmed_at` is set AND earlier than the creation of
- *       every Google identity on the account (or there is none).
+ *    b. `user.email_confirmed_at` is set AND at least
+ *       EMAIL_CONFIRMATION_BEFORE_GOOGLE_MARGIN_MS earlier than the creation
+ *       of every Google identity on the account (or there is none).
  * `email_verified` alone cannot be used here: production check 2026-11-15
  * (aggregate only) shows the official account's email identity has
  * `email_verified = false` although the account was confirmed through the
@@ -122,30 +133,19 @@ export function hasConfirmedEmailIdentity(
     .map((identity) => parseTime(identity.created_at));
   // A Google identity without a readable creation time cannot be ordered.
   if (googleCreatedTimes.some((time) => time === null)) return false;
-  return googleCreatedTimes.every((time) => confirmedAt < (time as number));
-}
-
-function hasCompleteMetadataProfile(metadata: Record<string, unknown>): boolean {
-  return (
-    isAccountRegistrationCompleted(metadata) &&
-    readAccountRegistrationDisplayName(metadata).length > 0 &&
-    hasRequiredAccountRegistrationConsent({
-      agreedToTerms: readAccountRegistrationConsent(metadata, "account_public_profile_ack"),
-      agreedToPrivacy: readAccountRegistrationConsent(metadata, "account_public_content_ack"),
-      acknowledgedPublicSurface: readAccountRegistrationConsent(
-        metadata,
-        "account_enforcement_ack"
-      ),
-    })
+  return googleCreatedTimes.every(
+    (time) => confirmedAt + EMAIL_CONFIRMATION_BEFORE_GOOGLE_MARGIN_MS <= (time as number)
   );
 }
 
 /**
  * Registration state of an account with a Google identity:
  * - "not_google": no Google identity; the email flow applies unchanged.
- * - "google_complete": STEP 2 was completed for the current Google identity.
- * - "google_needs_profile": display name or consent missing, or the consent
- *   was not given for the current Google identity (first link / re-link).
+ * - "google_complete": the server recorded the consent (display name and the
+ *   three consents were checked by POST /api/account/google-consent) for the
+ *   current Google identity, in app_metadata.
+ * - "google_needs_profile": no server-recorded consent for the current Google
+ *   identity (first link / re-link / never completed).
  */
 export type GoogleRegistrationState =
   | "not_google"
@@ -158,15 +158,11 @@ export function resolveGoogleRegistrationState(
   const googleIdentity = findGoogleIdentity(user);
   if (!googleIdentity) return "not_google";
 
-  const metadata = (user?.user_metadata ?? {}) as Record<string, unknown>;
+  const appMetadata = (user?.app_metadata ?? {}) as Record<string, unknown>;
   const identityId = readText(googleIdentity.identity_id);
-  const consentedIdentityId = readText(metadata[GOOGLE_CONSENT_IDENTITY_KEY]);
+  const consentedIdentityId = readText(appMetadata[GOOGLE_CONSENT_IDENTITY_KEY]);
 
-  if (
-    identityId.length > 0 &&
-    consentedIdentityId === identityId &&
-    hasCompleteMetadataProfile(metadata)
-  ) {
+  if (identityId.length > 0 && consentedIdentityId === identityId) {
     return "google_complete";
   }
   return "google_needs_profile";
@@ -181,16 +177,6 @@ export function isBlockedFromWritesUntilRegistered(
   user: RegistrationUserLike | null | undefined
 ): boolean {
   return resolveGoogleRegistrationState(user) === "google_needs_profile";
-}
-
-/** Metadata keys STEP 2 adds for a Google account (on top of the completed profile). */
-export function buildGoogleConsentMetadata(
-  user: RegistrationUserLike | null | undefined
-): Record<string, string> {
-  const googleIdentity = findGoogleIdentity(user);
-  const identityId = readText(googleIdentity?.identity_id);
-  if (!identityId) return {};
-  return { [GOOGLE_CONSENT_IDENTITY_KEY]: identityId };
 }
 
 export const REGISTRATION_REQUIRED_ERROR = "registration_required";
