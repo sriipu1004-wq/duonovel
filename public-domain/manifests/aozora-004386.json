@@ -73,7 +73,7 @@
     "US",
     "KR"
   ],
-  "reviewed_at": "2026-11-14T00:00:00+09:00",
+  "reviewed_at": "2026-11-14T18:47:47+09:00",
   "reviewed_by": "LIB read owner (button approval 2026-11-14, Issue #139)",
   "chapter_count": 2,
   "chapter_split": {
@@ -96,5 +96,5 @@
     "proofread_by": "林幸雄"
   },
   "content_warnings": [],
-  "content_warning_notes": "Human-confirmed 2026-11-14 (owner button answer: approve, no warning; independent review GO): a monastery visit narrative with reflection on death and suicide only; no concrete violent depiction. The keyword detector reports 3 hits; these are reviewed false positives. Not R18."
+  "content_warning_notes": "Owner decision 2026-11-14 (button answer: approve, no warning, https://github.com/sriipu1004-wq/duonovel/issues/139#issuecomment-6875447117); full-text check in the independent review of PR #193: a monastery visit narrative with reflection on death only. The keyword detector reports 3 hits (a rhetorical question about suicide, counted twice, and a one-line mention of a crucifixion print); reviewed as false positives. Not R18."
 }
