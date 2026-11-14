@@ -11,6 +11,7 @@
  * Read-only: no network, no database, no stored-body mutation.
  */
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -26,6 +27,8 @@ import {
   formatAozoraNoteLabel,
   lookupAozoraGaiji,
   rebalanceAozoraDirectivesAcrossUnits,
+  rebalanceAozoraNotationAcrossUnits,
+  rebalanceAozoraRubyAcrossUnits,
   tokenizeAozoraDisplayText,
 } from "../src/lib/aozora/aozoraNotation";
 import {
@@ -161,6 +164,51 @@ function testSynthetic() {
   console.log("PASS: Issue #140 synthetic Aozora notation rendering");
 }
 
+function rubyPairs(markup: string): string[] {
+  return [...markup.matchAll(/<ruby[^>]*><span>([^<]*)<\/span><rt[^>]*>([^<]*)<\/rt><\/ruby>/gu)].map(
+    (match) => `${match[1]}/${match[2]}`
+  );
+}
+
+function testSyntheticRubySplit() {
+  // Issue #195: a cut at EVERY position of a ruby (after ｜, inside the base,
+  // before/after 《, inside the reading, before 》) is re-joined for rendering
+  // only; unit count, order and concatenation are unchanged.
+  const samples: Array<{ text: string; ruby: string[] }> = [
+    { text: "かねて一｜場《ぢやう》の訓示", ruby: ["場/ぢやう"] },
+    { text: "見ると眞岡木綿《まをかもめん》の紋付", ruby: ["眞岡木綿/まをかもめん"] },
+    { text: "羊の毛《け》のやう", ruby: ["毛/け"] },
+    { text: "と考《かんが》へる", ruby: ["考/かんが"] },
+    { text: "淡絹《※［＃濁点付き片仮名ヱ、1-7-84］エル》をふり", ruby: ["淡絹/ヹエル"] },
+  ];
+  for (const sample of samples) {
+    const whole = html(renderTextWithAozoraRuby(sample.text));
+    assert.deepEqual(rubyPairs(whole), sample.ruby, `whole: ${sample.text}`);
+    for (let cut = 1; cut < sample.text.length; cut += 1) {
+      const units = [sample.text.slice(0, cut), sample.text.slice(cut)];
+      const rebalanced = rebalanceAozoraNotationAcrossUnits(units);
+      const label = `${units[0]}|${units[1]}`;
+      assert.equal(rebalanced.length, units.length, label);
+      assert.equal(rebalanced.join(""), sample.text, label);
+      const markup = rebalanced.map((unit) => html(renderTextWithAozoraRuby(unit))).join("");
+      assert.deepEqual(rubyPairs(markup), sample.ruby, `ruby lost or wrong: ${label}`);
+      assert.doesNotMatch(markup.replace(/<rt[^>]*>[^<]*<\/rt>/gu, ""), /[《》｜]|［＃/u, `literal ruby: ${label}`);
+    }
+  }
+  // Three units: ruby continuation is taken from the next unit only.
+  assert.deepEqual(
+    rebalanceAozoraRubyAcrossUnits(["前の何某《なにが", "し》である。", "次の文。"]),
+    ["前の何某《なにがし》", "である。", "次の文。"]
+  );
+  // Unclosed in the next unit: nothing moves (stays literal, fail visible).
+  assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["漢字《かん", "じ", "》"]), ["漢字《かん", "じ", "》"]);
+  // Not a ruby boundary: untouched.
+  assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["漢字、", "《かな》"]), ["漢字、", "《かな》"]);
+  assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["毛《け》の", "やう"]), ["毛《け》の", "やう"]);
+  assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["ただの文。", "次の文。"]), ["ただの文。", "次の文。"]);
+  console.log("PASS: Issue #195 synthetic ruby split across Bilingual source units");
+}
+
 type ExpectedWork = {
   id: string;
   chapters: number;
@@ -170,13 +218,17 @@ type ExpectedWork = {
   layoutStrippedByExistingNormalizer: number;
   literalAfterRendering: number;
   alignEnd: number;
+  // Issue #195: segmentSourceDocument output per chapter, pinned from main
+  // (the fix must not change segmentation).
+  bilingualSegments: number[];
+  bilingualSegmentFingerprint: string;
 };
 
 const EXPECTED: ExpectedWork[] = [
-  { id: "aozora-000692", chapters: 1, byCategory: { edition_variant: 2, gaiji: 2 }, layoutStrippedByExistingNormalizer: 0, literalAfterRendering: 0, alignEnd: 0 },
-  { id: "aozora-033200", chapters: 1, byCategory: { edition_variant: 2, emphasis: 3, gaiji: 2 }, layoutStrippedByExistingNormalizer: 0, literalAfterRendering: 0, alignEnd: 0 },
-  { id: "aozora-053520", chapters: 8, byCategory: { emphasis: 7, gaiji: 1, ruby_note: 1, layout: 4 }, layoutStrippedByExistingNormalizer: 4, literalAfterRendering: 0, alignEnd: 0 },
-  { id: "aozora-004386", chapters: 2, byCategory: { emphasis: 3, edition_variant: 1, layout: 1 }, layoutStrippedByExistingNormalizer: 0, literalAfterRendering: 0, alignEnd: 1 },
+  { id: "aozora-000692", chapters: 1, byCategory: { edition_variant: 2, gaiji: 2 }, layoutStrippedByExistingNormalizer: 0, literalAfterRendering: 0, alignEnd: 0, bilingualSegments: [247], bilingualSegmentFingerprint: "c5b781d2904ae423" },
+  { id: "aozora-033200", chapters: 1, byCategory: { edition_variant: 2, emphasis: 3, gaiji: 2 }, layoutStrippedByExistingNormalizer: 0, literalAfterRendering: 0, alignEnd: 0, bilingualSegments: [269], bilingualSegmentFingerprint: "16c25684058a8c17" },
+  { id: "aozora-053520", chapters: 8, byCategory: { emphasis: 7, gaiji: 1, ruby_note: 1, layout: 4 }, layoutStrippedByExistingNormalizer: 4, literalAfterRendering: 0, alignEnd: 0, bilingualSegments: [64, 98, 93, 133, 195, 50, 52, 79], bilingualSegmentFingerprint: "e79f940ec5c5481d" },
+  { id: "aozora-004386", chapters: 2, byCategory: { emphasis: 3, edition_variant: 1, layout: 1 }, layoutStrippedByExistingNormalizer: 0, literalAfterRendering: 0, alignEnd: 1, bilingualSegments: [118, 326], bilingualSegmentFingerprint: "a6f35db9bb646cb6" },
 ];
 
 function countMatches(text: string, pattern: RegExp): number {
@@ -233,6 +285,10 @@ function testRealSources() {
     let alignEnd = 0;
     let sourceRuby = 0;
     let renderedRuby = 0;
+    let bilingualRuby = 0;
+    let literalRubyInBilingual = 0;
+    const segmentCounts: number[] = [];
+    const fingerprint = createHash("sha256");
 
     for (const chapter of prepared.chapters) {
       const body = chapter.body;
@@ -295,13 +351,34 @@ function testRealSources() {
         list.push(segment.sourceText);
         byParagraph.set(segment.paragraphIndex, list);
       }
+      // Issue #195: segmentation (count/order/id/offsets) is persisted and
+      // must stay byte-identical; the fix is render-only.
+      segmentCounts.push(document.segments.length);
+      fingerprint.update(
+        document.segments
+          .map((segment) => `${segment.id}:${segment.startOffset}:${segment.endOffset}`)
+          .join("\n")
+      );
+      fingerprint.update("\n#\n");
       let bilingualMarkup = "";
       for (const [paragraphIndex, units] of byParagraph) {
         bilingualMarkup += checkUnits(
           `${expected.id}#${chapter.number} bilingual p${paragraphIndex}`,
           units,
-          rebalanceAozoraDirectivesAcrossUnits(units)
+          rebalanceAozoraNotationAcrossUnits(units)
         );
+      }
+      bilingualRuby += countMatches(bilingualMarkup, /<ruby/gu);
+      {
+        const outsideNotes = bilingualMarkup
+          .replace(/<small data-aozora-note[^>]*>[\s\S]*?<\/small>/gu, "")
+          .replace(/<rt[^>]*>[\s\S]*?<\/rt>/gu, "");
+        for (const hit of outsideNotes.matchAll(/[《》｜]/gu)) {
+          literalRubyInBilingual += 1;
+          literalLog.push(
+            `${expected.id}#${chapter.number} bilingual: …${outsideNotes.slice(Math.max(0, (hit.index ?? 0) - 40), (hit.index ?? 0) + 20)}…`
+          );
+        }
       }
       literalInBilingualSource += countMatches(
         bilingualMarkup.replace(/<small data-aozora-note[^>]*>[\s\S]*?<\/small>/gu, ""),
@@ -335,12 +412,21 @@ function testRealSources() {
     assert.equal(alignEnd, expected.alignEnd, `${expected.id}: end-aligned lines`);
     assert.equal(literalInBilingualSource, 0, `${expected.id}: literal directives in Bilingual source pane`);
     assert.equal(
+      literalRubyInBilingual,
+      0,
+      `${expected.id}: literal ruby markup in Bilingual source pane\n${literalLog.join("\n")}`
+    );
+    assert.equal(bilingualRuby, sourceRuby, `${expected.id}: ruby count source vs Bilingual source pane`);
+    const segmentFingerprint = fingerprint.digest("hex").slice(0, 16);
+    assert.deepEqual(segmentCounts, expected.bilingualSegments, `${expected.id}: Bilingual segment counts changed`);
+    assert.equal(segmentFingerprint, expected.bilingualSegmentFingerprint, `${expected.id}: Bilingual segment ids/offsets changed`);
+    assert.equal(
       bilingualRendered,
       emphasisSpans + noteSpans + gaijiCodes + alignEnd,
       `${expected.id}: Bilingual source pane must render the same notation as Original mode`
     );
     console.log(
-      `${expected.id}: directives=${originalDirectives} ${JSON.stringify(byCategory)} layoutStripped=${originalDirectives - afterLayout} emphasis=${emphasisSpans} notes=${noteSpans} gaiji=${gaijiCodes} alignEnd=${alignEnd} ruby=${renderedRuby}/${sourceRuby} literal(original)=${literalInOriginalMode} literal(bilingual-source)=${literalInBilingualSource} bilingualNotation=${bilingualRendered}`
+      `${expected.id}: directives=${originalDirectives} ${JSON.stringify(byCategory)} layoutStripped=${originalDirectives - afterLayout} emphasis=${emphasisSpans} notes=${noteSpans} gaiji=${gaijiCodes} alignEnd=${alignEnd} ruby=${renderedRuby}/${sourceRuby} bilingualRuby=${bilingualRuby}/${sourceRuby} bilingualSegments=${JSON.stringify(segmentCounts)} fingerprint=${segmentFingerprint} literal(bilingual-ruby)=${literalRubyInBilingual} literal(original)=${literalInOriginalMode} literal(bilingual-source)=${literalInBilingualSource} bilingualNotation=${bilingualRendered}`
     );
     for (const [key, value] of Object.entries(byCategory)) totals[key] = (totals[key] ?? 0) + value;
     checked += 1;
@@ -353,4 +439,5 @@ function testRealSources() {
 }
 
 testSynthetic();
+testSyntheticRubySplit();
 testRealSources();
