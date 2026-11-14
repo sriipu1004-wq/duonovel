@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
+import { adminReadRetryFetch } from "@/lib/supabase/serverPublic";
 
 export function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -14,6 +15,10 @@ export function createAdminClient() {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
+    },
+    global: {
+      // Retries an idempotent GET/HEAD once on a network-level failure (#137).
+      fetch: adminReadRetryFetch,
     },
   });
 }

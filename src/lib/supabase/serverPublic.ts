@@ -46,6 +46,91 @@ export function classifyPublicReadEndpoint(input: Parameters<typeof fetch>[0]): 
   }
 }
 
+// Production evidence (Issue #137, 2026-11-14): background cache revalidation
+// fails with `TypeError: fetch failed` about 190 times a day, several fetches of
+// one request failing within milliseconds of each other. The working hypothesis
+// is pooled keep-alive sockets that the server closed while the instance was
+// suspended. Reads are idempotent, so one retry (which opens a new socket) is
+// safe; the cause code is logged so the hypothesis can be confirmed.
+const NETWORK_FAILURE_CAUSE_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ECONNABORTED",
+  "EPIPE",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "UND_ERR_SOCKET",
+  "UND_ERR_CLOSED",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_BODY_TIMEOUT",
+]);
+
+/** Only an allowlisted error code is logged, never a message or address. */
+export function classifyNetworkFailureCause(error: unknown): string {
+  const cause = (error as { cause?: unknown } | null)?.cause;
+  const code = (cause as { code?: unknown } | null)?.code;
+  return typeof code === "string" && NETWORK_FAILURE_CAUSE_CODES.has(code) ? code : "other";
+}
+
+function requestMethod(input: Parameters<typeof fetch>[0], init?: RequestInit): string {
+  const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+  return method.toUpperCase();
+}
+
+function isRetryableNetworkFailure(
+  error: unknown,
+  input: Parameters<typeof fetch>[0],
+  init?: RequestInit
+): boolean {
+  if (!(error instanceof TypeError) || error.message !== "fetch failed") return false;
+  if (init?.signal?.aborted) return false;
+  const method = requestMethod(input, init);
+  return method === "GET" || method === "HEAD";
+}
+
+/**
+ * Retry an idempotent read once when the network layer fails before any
+ * response. Writes, aborted requests and HTTP error responses are never
+ * retried. Logs carry the client label, an allowlisted endpoint and cause code.
+ */
+export async function fetchWithReadRetry(
+  client: "public" | "admin",
+  input: Parameters<typeof fetch>[0],
+  init?: RequestInit
+): Promise<Response> {
+  try {
+    return await globalThis.fetch(input, init);
+  } catch (error) {
+    if (!isRetryableNetworkFailure(error, input, init)) throw error;
+    const endpoint = classifyPublicReadEndpoint(input);
+    console.warn("[supabase-read-network-retry]", {
+      client,
+      endpoint,
+      causeCode: classifyNetworkFailureCause(error),
+    });
+    try {
+      return await globalThis.fetch(input, init);
+    } catch (retryError) {
+      if (retryError instanceof TypeError && retryError.message === "fetch failed") {
+        console.warn("[supabase-read-network-retry-failed]", {
+          client,
+          endpoint,
+          causeCode: classifyNetworkFailureCause(retryError),
+        });
+      }
+      throw retryError;
+    }
+  }
+}
+
+/** Global fetch for the service-role client: same single read retry, no deadline. */
+export const adminReadRetryFetch: typeof fetch = (input, init) =>
+  fetchWithReadRetry("admin", input, init);
+
 export const publicReadFetch: typeof fetch = async (input, init) => {
   const controller = new AbortController();
   const upstreamSignal = init?.signal;
@@ -101,7 +186,7 @@ export const publicReadFetch: typeof fetch = async (input, init) => {
   let timer = setTimeout(onDeadline, PUBLIC_READ_FETCH_TIMEOUT_MS);
 
   try {
-    const response = await globalThis.fetch(input, {
+    const response = await fetchWithReadRetry("public", input, {
       ...init,
       signal: controller.signal,
     });
