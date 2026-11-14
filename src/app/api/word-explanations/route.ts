@@ -270,7 +270,7 @@ export async function POST(request: Request) {
   {
     const gateClient = await createClient();
     const { data: gateAuth } = await gateClient.auth.getUser();
-    const registrationBlocked = registrationRequiredResponse(gateAuth.user);
+    const registrationBlocked = await registrationRequiredResponse(gateAuth.user, "code");
     if (registrationBlocked) return registrationBlocked;
   }
 

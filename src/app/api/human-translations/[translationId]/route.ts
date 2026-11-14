@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { registrationRequiredJson } from "@/lib/auth/registrationGate.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildHumanDraftPayloadFromTranslations,
@@ -83,7 +84,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const current = await resolveHumanTranslationContext(row.episode_id, row.target_language);
   if (!current) return NextResponse.json({ ok: false, error: "source_unavailable" }, { status: 409 });
   if (!current.currentUserId) return NextResponse.json({ ok: false, error: "authentication_required" }, { status: 401 });
-  if (current.registrationBlocked) return NextResponse.json({ ok: false, error: "registration_required" }, { status: 403 });
+  if (current.registrationBlocked) return await registrationRequiredJson("code");
   if (row.translator_user_id !== current.currentUserId) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }

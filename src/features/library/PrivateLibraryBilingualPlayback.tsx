@@ -1,5 +1,7 @@
 "use client";
 
+import { useUiLocale } from "@/i18n/UiLocaleProvider";
+import { readRegistrationRequiredNotice } from "@/lib/auth/registrationGateMessage";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BilingualDivider from "@/features/playback/BilingualDivider";
@@ -165,6 +167,7 @@ export default function PrivateLibraryBilingualPlayback({
   autoGenerateMissingTranslation,
   targetLanguageLocked,
 }: PrivateLibraryBilingualPlaybackProps) {
+  const uiLocaleForNotice = useUiLocale();
   const { snapshot: aiUsage, refresh: refreshAiUsage } = useAiUsage();
   const { displaySettings, setDisplaySettings } =
     useReaderDisplaySettings(`private-library:${workId}`);
@@ -321,7 +324,7 @@ export default function PrivateLibraryBilingualPlayback({
       if (targetLanguageRef.current !== targetLanguage) return true;
 
       if (!response.ok || !payload.ok) {
-        setStatusMessage(payload.message || "対訳を生成できませんでした。");
+        setStatusMessage(readRegistrationRequiredNotice(payload, uiLocaleForNotice) ?? (payload.message || "対訳を生成できませんでした。"));
         if (
           payload.error === "translation_openai_failed" ||
           payload.error === "translation_exception" ||
@@ -348,7 +351,7 @@ export default function PrivateLibraryBilingualPlayback({
       generationInFlightRef.current = false;
       setIsGenerating(false);
     }
-  }, [chapterId, refreshAiUsage, sourceLanguage, targetLanguage]);
+  }, [chapterId, refreshAiUsage, sourceLanguage, targetLanguage, uiLocaleForNotice]);
 
   const loadTranslation = useCallback(async () => {
     try {

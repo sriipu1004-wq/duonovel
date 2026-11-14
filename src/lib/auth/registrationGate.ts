@@ -33,6 +33,7 @@ export type IdentityLike = {
   provider?: string | null;
   identity_id?: string | null;
   created_at?: string | null;
+  identity_data?: { [key: string]: unknown } | null;
 };
 
 export type RegistrationUserLike = {
@@ -69,19 +70,59 @@ export function hasGoogleIdentity(
   return findGoogleIdentity(user) !== null;
 }
 
+function parseTime(value: unknown): number | null {
+  const text = readText(value);
+  if (!text) return null;
+  const time = Date.parse(text);
+  return Number.isFinite(time) ? time : null;
+}
+
 /**
- * True when the account has a confirmed email identity (signed up with email
- * and confirmed it). Used by the official-account check so that a Google
- * identity alone never makes an account official.
+ * True when the account's EMAIL identity itself was confirmed, not merely the
+ * user row. Used by the official-account check so that a Google identity
+ * never makes an account official (PR #204 review S3).
+ *
+ * What is checked, and why:
+ * 1. An identity with provider "email" whose `identity_data.email` equals the
+ *    account email.
+ * 2. That identity is confirmed when EITHER
+ *    a. `identity_data.email_verified === true`, OR
+ *    b. `user.email_confirmed_at` is set AND earlier than the creation of
+ *       every Google identity on the account (or there is none).
+ * `email_verified` alone cannot be used here: production check 2026-11-15
+ * (aggregate only) shows the official account's email identity has
+ * `email_verified = false` although the account was confirmed through the
+ * email link (only 7 of 17 email identities have it true). (b) is the
+ * identity-level evidence that remains: the account was confirmed before any
+ * Google identity existed, so the confirmation can only have come from the
+ * email identity. If a Google sign-in is what confirmed the address (auto
+ * link onto an unconfirmed account), `email_confirmed_at` is not earlier than
+ * the Google identity and (b) fails.
  */
 export function hasConfirmedEmailIdentity(
   user: RegistrationUserLike | null | undefined
 ): boolean {
-  const confirmed = readText(user?.email_confirmed_at).length > 0;
-  return (
-    confirmed &&
-    identitiesOf(user).some((identity) => readText(identity?.provider) === "email")
+  const accountEmail = readText(user?.email).toLowerCase();
+  if (!accountEmail) return false;
+
+  const emailIdentity = identitiesOf(user).find(
+    (identity) =>
+      readText(identity?.provider) === "email" &&
+      readText(identity?.identity_data?.email).toLowerCase() === accountEmail
   );
+  if (!emailIdentity) return false;
+
+  if (emailIdentity.identity_data?.email_verified === true) return true;
+
+  const confirmedAt = parseTime(user?.email_confirmed_at);
+  if (confirmedAt === null) return false;
+
+  const googleCreatedTimes = identitiesOf(user)
+    .filter((identity) => readText(identity?.provider) === "google")
+    .map((identity) => parseTime(identity.created_at));
+  // A Google identity without a readable creation time cannot be ordered.
+  if (googleCreatedTimes.some((time) => time === null)) return false;
+  return googleCreatedTimes.every((time) => confirmedAt < (time as number));
 }
 
 function hasCompleteMetadataProfile(metadata: Record<string, unknown>): boolean {

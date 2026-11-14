@@ -1,5 +1,6 @@
 "use client";
 
+import { registrationRequiredMessage } from "@/lib/auth/registrationGateMessage";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -832,9 +833,11 @@ const publicVisibleCount = sortedEpisodes.filter(
 
       setSaveState("error");
       setErrorMessage(
-        result.code === "authentication_required"
-          ? "ログイン状態を確認してから、もう一度作成してください。"
-          : "作品を作成できませんでした。入力内容を確認してください。"
+        result.code === "registration_required"
+          ? registrationRequiredMessage(locale)
+          : result.code === "authentication_required"
+            ? "ログイン状態を確認してから、もう一度作成してください。"
+            : "作品を作成できませんでした。入力内容を確認してください。"
       );
     } catch {
       setSaveState("error");
@@ -915,6 +918,8 @@ const publicVisibleCount = sortedEpisodes.filter(
       setErrorMessage(
         result.persisted
           ? "作品情報は保存されたが、公開一覧のキャッシュ更新に失敗した。公開状態がしばらく古い可能性がある。"
+          : result.code === "registration_required"
+            ? registrationRequiredMessage(locale)
           : result.code === "authentication_required"
             ? "ログイン状態を確認してから、もう一度保存してください。"
             : result.code === "not_found_or_forbidden"

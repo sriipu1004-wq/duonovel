@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { registrationRequiredJson } from "@/lib/auth/registrationGate.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildEpisodeTranslationSource,
@@ -74,7 +75,7 @@ export async function prepareEpisodeTranslationGeneration(request: Request): Pro
   accessMs = performance.now() - accessStartedAt;
   if (!access || !access.canRead || !access.body.trim()) return { response: NextResponse.json({ ok: false, error: "episode_not_found" }, { status: 404 }) };
   // Issue #142 PR2: Google accounts must finish STEP 2 before AI translation.
-  if (access.registrationBlocked) return { response: NextResponse.json({ ok: false, error: "registration_required" }, { status: 403 }) };
+  if (access.registrationBlocked) return { response: await registrationRequiredJson("code") };
   if (!access.sourceLanguage || access.sourceLanguage !== sourceLanguage) return { response: NextResponse.json({ ok: false, error: "invalid_source_language" }, { status: 400 }) };
   if (!isSeriesTranslationEligible(access.series)) return { response: NextResponse.json({ ok: false, error: "translation_permission_closed", message: "この作品では翻訳が許可されていません。" }, { status: 403 }) };
   if (!access.isAllowlisted) return { response: NextResponse.json({ ok: false, error: "translation_episode_not_eligible", message: "この話では対訳を生成できません。" }, { status: 403 }) };

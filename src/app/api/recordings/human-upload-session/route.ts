@@ -149,7 +149,7 @@ export async function POST(request: Request) {
     }
 
     // Issue #142 PR2: Google accounts must finish STEP 2 before narration.
-    const registrationBlocked = registrationRequiredResponse(user);
+    const registrationBlocked = await registrationRequiredResponse(user, "text");
     if (registrationBlocked) return registrationBlocked;
 
     if (isOfficialAccountEmail(user.email)) {

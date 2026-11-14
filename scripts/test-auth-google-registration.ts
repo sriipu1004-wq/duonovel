@@ -32,6 +32,12 @@ import { buildCompletedAccountRegistrationMetadata } from "../src/lib/auth/accou
 import { OFFICIAL_ACCOUNT_EMAIL, isOfficialAccountUser } from "../src/lib/auth/officialAccount";
 import { isOfficialNarrationAccountUser } from "../src/lib/auth/officialNarrationAccount";
 import { authDictionaries } from "../src/i18n/dictionaries/auth";
+import { registrationGateDictionaries } from "../src/i18n/dictionaries/registrationGate";
+import {
+  buildRegisterPath,
+  readRegistrationRequiredNotice,
+  registrationRequiredMessage,
+} from "../src/lib/auth/registrationGateMessage";
 import { accountDictionaries } from "../src/i18n/dictionaries/account";
 
 const GOOGLE_ID = "11111111-1111-4111-8111-111111111111";
@@ -201,24 +207,82 @@ async function testFlagAndButton() {
 }
 
 function testOfficialAccount() {
+  // Production shape (2026-11-15, aggregate check): the official account's
+  // email identity has identity_data.email matching and email_verified=false,
+  // and the account was confirmed through the email link.
+  const officialEmailIdentity = {
+    provider: "email",
+    identity_id: "e-official",
+    created_at: "2026-01-01T00:00:00Z",
+    identity_data: { email: OFFICIAL_ACCOUNT_EMAIL, email_verified: false },
+  };
   const official = {
     email: OFFICIAL_ACCOUNT_EMAIL,
-    email_confirmed_at: "2026-01-01T00:00:00Z",
-    identities: [emailIdentity],
+    email_confirmed_at: "2026-01-01T00:05:00Z",
+    identities: [officialEmailIdentity],
   };
   assert.equal(isOfficialAccountUser(official), true);
   assert.equal(isOfficialNarrationAccountUser(official), true);
-  // Google linked onto the official account keeps it official (email identity remains).
-  assert.equal(isOfficialAccountUser({ ...official, identities: [emailIdentity, googleIdentity] }), true);
+  // Google linked later onto the official account keeps it official
+  // (confirmed through email before the Google identity existed).
+  assert.equal(
+    isOfficialAccountUser({ ...official, identities: [officialEmailIdentity, googleIdentity] }),
+    true
+  );
   // A Google-only account with the official address is not official.
   const googleOnly = { ...official, identities: [googleIdentity] };
   assert.equal(isOfficialAccountUser(googleOnly), false);
   assert.equal(isOfficialNarrationAccountUser(googleOnly), false);
+  // Confirmation that came with (or after) the Google identity -- e.g. an
+  // unconfirmed email account auto-linked by a Google sign-in -- is not the
+  // email identity's own confirmation.
+  const confirmedByGoogle = {
+    ...official,
+    email_confirmed_at: googleIdentity.created_at,
+    identities: [officialEmailIdentity, googleIdentity],
+  };
+  assert.equal(isOfficialAccountUser(confirmedByGoogle), false);
+  assert.equal(isOfficialNarrationAccountUser(confirmedByGoogle), false);
+  assert.equal(
+    isOfficialAccountUser({ ...confirmedByGoogle, email_confirmed_at: "2026-11-16T00:00:00Z" }),
+    false
+  );
+  // ...unless the email identity itself carries email_verified=true.
+  assert.equal(
+    isOfficialAccountUser({
+      ...confirmedByGoogle,
+      identities: [
+        { ...officialEmailIdentity, identity_data: { email: OFFICIAL_ACCOUNT_EMAIL, email_verified: true } },
+        googleIdentity,
+      ],
+    }),
+    true
+  );
+  // A Google identity whose creation time is unknown cannot be ordered.
+  assert.equal(
+    isOfficialAccountUser({
+      ...official,
+      identities: [officialEmailIdentity, { ...googleIdentity, created_at: null }],
+    }),
+    false
+  );
+  // The email identity must be for the account's address.
+  assert.equal(
+    isOfficialAccountUser({
+      ...official,
+      identities: [{ ...officialEmailIdentity, identity_data: { email: "other@example.com", email_verified: true } }],
+    }),
+    false
+  );
   // Unconfirmed email is not official.
   assert.equal(isOfficialAccountUser({ ...official, email_confirmed_at: null }), false);
   assert.equal(isOfficialAccountUser({ ...official, email: "other@example.com" }), false);
   assert.equal(isOfficialAccountUser(null), false);
-  assert.equal(hasConfirmedEmailIdentity({ email_confirmed_at: "x", identities: [] }), false);
+  assert.equal(hasConfirmedEmailIdentity({ email: "a@b", email_confirmed_at: "2026-01-01T00:00:00Z", identities: [] }), false);
+  assert.ok(
+    readFileSync("src/lib/auth/registrationGate.ts", "utf8").includes("email_verified === true"),
+    "the email identity's own verification flag is checked"
+  );
 
   // Grant sites use the user-based check, not the email alone.
   const grantSites = [
@@ -246,15 +310,15 @@ function testWriteGateCoverage() {
     ["src/app/actions/createOwnedSeries.ts", "isBlockedFromWritesUntilRegistered(auth.user)"],
     ["src/app/actions/saveOwnedEpisode.ts", "isBlockedFromWritesUntilRegistered(auth.user)"],
     ["src/app/actions/saveOwnedSeriesWorkspace.ts", "isBlockedFromWritesUntilRegistered(auth.user)"],
-    ["src/app/api/recordings/human-upload-session/route.ts", "registrationRequiredResponse(user)"],
-    ["src/app/api/recordings/human-upload-finalize/route.ts", "registrationRequiredResponse(user)"],
-    ["src/app/api/recordings/human-publish/route.ts", "registrationRequiredResponse(user)"],
+    ["src/app/api/recordings/human-upload-session/route.ts", "await registrationRequiredResponse(user, \"text\")"],
+    ["src/app/api/recordings/human-upload-finalize/route.ts", "await registrationRequiredResponse(user, \"text\")"],
+    ["src/app/api/recordings/human-publish/route.ts", "await registrationRequiredResponse(user, \"text\")"],
     ["src/lib/translation/prepareEpisodeTranslationGeneration.ts", "access.registrationBlocked"],
     ["src/app/api/library/translations/generate/route.ts", "access.registrationBlocked"],
     ["src/app/api/human-translations/draft/route.ts", "context.registrationBlocked"],
     ["src/app/api/human-translations/[translationId]/publish/route.ts", "current.registrationBlocked"],
     ["src/app/api/human-translations/[translationId]/route.ts", "current.registrationBlocked"],
-    ["src/app/api/word-explanations/route.ts", "registrationRequiredResponse(gateAuth.user)"],
+    ["src/app/api/word-explanations/route.ts", "await registrationRequiredResponse(gateAuth.user, \"code\")"],
     ["src/features/comment/EpisodeCommentSection.tsx", "isBlockedFromWritesUntilRegistered(user)"],
     ["src/features/review/SeriesReviewSection.tsx", "isBlockedFromWritesUntilRegistered(user)"],
   ];
@@ -278,6 +342,59 @@ function testWriteGateCoverage() {
   assert.ok(register.includes('resolveGoogleRegistrationState(user) === "google_complete"'));
 }
 
+function testLocalizedGuidance() {
+  // PR #204 review S3: the refusal text exists in ja/en/ko and names the
+  // (localized) register page, so a password-login user with a linked Google
+  // identity knows where to finish STEP 2.
+  const texts = new Set<string>();
+  for (const locale of ["ja", "en", "ko"] as const) {
+    const text = registrationRequiredMessage(locale);
+    const registerPath = buildRegisterPath(locale);
+    assert.ok(text.includes(registerPath), `${locale} guidance names ${registerPath}`);
+    assert.ok(registrationGateDictionaries[locale].completeRegistration.trim().length > 0);
+    texts.add(text);
+    assert.equal(readRegistrationRequiredNotice({ ok: false, code: "registration_required" }, locale), text);
+    assert.equal(readRegistrationRequiredNotice({ ok: false, error: "registration_required" }, locale), text);
+    assert.equal(readRegistrationRequiredNotice({ ok: false, error: "forbidden" }, locale), null);
+    assert.equal(readRegistrationRequiredNotice(null, locale), null);
+  }
+  assert.equal(texts.size, 3, "each locale has its own text");
+  assert.equal(buildRegisterPath("ja"), "/register");
+  assert.equal(buildRegisterPath("en"), "/en/register");
+  assert.equal(buildRegisterPath("ko"), "/ko/register");
+
+  // No fixed Japanese refusal text in the server helper or the review section.
+  const server = readFileSync("src/lib/auth/registrationGate.server.ts", "utf8");
+  assert.equal(/[぀-ヿ一-龯]/u.test(server), false, "server helper has no fixed Japanese text");
+  assert.ok(server.includes("registrationRequiredMessage(locale)"));
+  assert.ok(server.includes("UI_LOCALE_COOKIE"), "API locale comes from the locale cookie (proxy does not run on /api)");
+  const review = readFileSync("src/features/review/SeriesReviewSection.tsx", "utf8");
+  assert.equal(review.includes("先に登録（表示名と同意）"), false);
+  assert.ok(review.includes("registrationRequiredMessage(uiLocaleForNotice)"));
+
+  // Every client of a gated write shows the guidance.
+  for (const [file, needle] of [
+    ["src/features/comment/EpisodeCommentSection.tsx", "registrationRequiredMessage(uiLocaleForNotice)"],
+    ["src/features/write/WriteSeriesCreateForm.tsx", 'result.code === "registration_required"'],
+    ["src/features/write/WriteSeriesForm.tsx", 'result.code === "registration_required"'],
+    ["src/features/write/WriteEpisodeForm.tsx", 'result.code === "registration_required"'],
+    ["src/features/translation/HumanTranslationEditor.tsx", "readRegistrationRequiredNotice(payload, locale)"],
+    ["src/features/playback/BilingualEpisodePlayback.tsx", "readRegistrationRequiredNotice(payload, locale)"],
+    ["src/features/playback/TranslationOnlyEpisodePlayback.tsx", "readRegistrationRequiredNotice(payload, uiLocaleForNotice)"],
+    ["src/features/library/PrivateLibraryBilingualPlayback.tsx", "readRegistrationRequiredNotice(payload, uiLocaleForNotice)"],
+  ] as const) {
+    assert.ok(readFileSync(file, "utf8").includes(needle), `${file} must include ${needle}`);
+  }
+  // Recording routes put the localized text in `error` (the studio shows it).
+  for (const file of [
+    "src/app/api/recordings/human-upload-session/route.ts",
+    "src/app/api/recordings/human-upload-finalize/route.ts",
+    "src/app/api/recordings/human-publish/route.ts",
+  ]) {
+    assert.ok(readFileSync(file, "utf8").includes('registrationRequiredResponse(user, "text")'));
+  }
+}
+
 async function main() {
   testCallbackBranches();
   testCallbackRouteWiring();
@@ -285,6 +402,7 @@ async function main() {
   await testFlagAndButton();
   testOfficialAccount();
   testWriteGateCoverage();
+  testLocalizedGuidance();
   console.log(
     "PASS: Google button is flag-gated; callback sends unregistered Google accounts to STEP 2; write gate and official-account grant checks hold"
   );

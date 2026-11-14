@@ -1,5 +1,6 @@
 "use client";
 
+import { readRegistrationRequiredNotice } from "@/lib/auth/registrationGateMessage";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BilingualSegment } from "@/features/playback/BilingualPane";
@@ -84,7 +85,8 @@ export default function TranslationOnlyEpisodePlayback({
   translationProvenance = "ai",
   humanTranslationId = null,
 }: Props) {
-  const dictionary = readerDictionaries[useUiLocale()];
+  const uiLocaleForNotice = useUiLocale();
+  const dictionary = readerDictionaries[uiLocaleForNotice];
   const { snapshot: aiUsage, refresh: refreshAiUsage } =
     useAiUsage(translationProvenance === "ai");
   const { displaySettings, setDisplaySettings } = useReaderDisplaySettings(seriesId);
@@ -178,7 +180,7 @@ export default function TranslationOnlyEpisodePlayback({
       await refreshAiUsage();
       if (targetLanguageRef.current !== targetLanguage) return true;
       if (!response.ok || !payload.ok) {
-        setStatusMessage(payload.message || dictionary.translationFailed);
+        setStatusMessage(readRegistrationRequiredNotice(payload, uiLocaleForNotice) ?? (payload.message || dictionary.translationFailed));
         if (
           payload.error === "translation_openai_failed" ||
           payload.error === "translation_exception" ||
@@ -208,6 +210,7 @@ export default function TranslationOnlyEpisodePlayback({
   }, [
     dictionary.translationFailed,
     dictionary.translationLoadFailed,
+    uiLocaleForNotice,
     episodeId,
     loadTranslation,
     refreshAiUsage,

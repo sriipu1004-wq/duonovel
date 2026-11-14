@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { registrationRequiredJson } from "@/lib/auth/registrationGate.server";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -200,7 +201,7 @@ export async function POST(request: Request) {
 
   // Issue #142 PR2: Google accounts must finish STEP 2 before AI translation.
   if (access.registrationBlocked) {
-    return NextResponse.json({ ok: false, error: "registration_required" }, { status: 403 });
+    return await registrationRequiredJson("code");
   }
 
   const sourceLanguage = requestedSourceLanguage ?? access.sourceLanguage;

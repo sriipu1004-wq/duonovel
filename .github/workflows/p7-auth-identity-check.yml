@@ -21,6 +21,11 @@ on:
       - "src/i18n/dictionaries/auth.ts"
       - "src/i18n/dictionaries/account.ts"
       - "src/i18n/dictionaries/episodeComments.ts"
+      - "src/i18n/dictionaries/registrationGate.ts"
+      - "src/features/write/**"
+      - "src/features/translation/**"
+      - "src/features/playback/**"
+      - "src/features/library/PrivateLibraryBilingualPlayback.tsx"
       - "src/lib/auth/**"
       - "src/components/auth/**"
       - "src/app/actions/**"
@@ -71,6 +76,8 @@ jobs:
           scripts/test-auth-google-registration.ts
           src/lib/auth/registrationGate.ts
           src/lib/auth/registrationGate.server.ts
+          src/lib/auth/registrationGateMessage.ts
+          src/i18n/dictionaries/registrationGate.ts
           src/lib/auth/googleSignInFlag.ts
           src/lib/auth/officialAccount.ts
           src/lib/auth/officialNarrationAccount.ts
