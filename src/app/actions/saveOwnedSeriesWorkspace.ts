@@ -1,12 +1,13 @@
 "use server";
 
+import { isBlockedFromWritesUntilRegistered } from "@/lib/auth/registrationGate";
 import { updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isValidSeriesId, isOwnedSeriesWorkspacePayload, preserveSeriesPublicDomainMetadata } from "@/lib/write/ownedSeriesPayload";
 
 type SaveResult =
   | { ok: true }
-  | { ok: false; code: "invalid_request" | "authentication_required" | "not_found_or_forbidden" | "save_failed" | "cache_invalidation_failed" | "stale_publication_state"; persisted: boolean };
+  | { ok: false; code: "invalid_request" | "authentication_required" | "registration_required" | "not_found_or_forbidden" | "save_failed" | "cache_invalidation_failed" | "stale_publication_state"; persisted: boolean };
 
 const PUBLIC_WORKS_CACHE_TAG = "public-base-work-cards";
 /**
@@ -32,6 +33,10 @@ export async function saveOwnedSeriesWorkspace(
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user) {
     return { ok: false, code: "authentication_required", persisted: false };
+  }
+  // Issue #142 PR2: Google accounts must finish STEP 2 before posting.
+  if (isBlockedFromWritesUntilRegistered(auth.user)) {
+    return { ok: false, code: "registration_required", persisted: false };
   }
 
   // Preserve reviewed Public Domain provenance currently stored in the DB.

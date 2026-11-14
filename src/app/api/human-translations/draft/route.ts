@@ -18,6 +18,7 @@ export async function POST(request: Request) {
   const context = await resolveHumanTranslationContext(episodeId, payload?.targetLanguage);
   if (!context) return NextResponse.json({ ok: false, error: "translation_unavailable" }, { status: 404 });
   if (!context.currentUserId) return NextResponse.json({ ok: false, error: "authentication_required" }, { status: 401 });
+  if (context.registrationBlocked) return NextResponse.json({ ok: false, error: "registration_required" }, { status: 403 });
 
   const admin = createAdminClient();
   const existing = await admin

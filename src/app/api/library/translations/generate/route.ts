@@ -198,6 +198,11 @@ export async function POST(request: Request) {
     );
   }
 
+  // Issue #142 PR2: Google accounts must finish STEP 2 before AI translation.
+  if (access.registrationBlocked) {
+    return NextResponse.json({ ok: false, error: "registration_required" }, { status: 403 });
+  }
+
   const sourceLanguage = requestedSourceLanguage ?? access.sourceLanguage;
   if (
     sourceLanguage !== access.sourceLanguage ||

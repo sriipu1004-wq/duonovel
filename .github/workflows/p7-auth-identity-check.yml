@@ -2,6 +2,8 @@ name: P7 auth identity and callback check
 
 # Issue #142 (Google sign-in) PR1: provider real names must never become
 # public display names, and /auth/callback failures use fixed localized codes.
+# PR2: flag-gated "Continue with Google", callback branching to STEP 2,
+# server-side write gate and official-account grant checks.
 on:
   pull_request:
     paths:
@@ -17,8 +19,22 @@ on:
       - "src/features/comment/**"
       - "src/features/review/**"
       - "src/i18n/dictionaries/auth.ts"
+      - "src/i18n/dictionaries/account.ts"
+      - "src/i18n/dictionaries/episodeComments.ts"
       - "src/lib/auth/**"
+      - "src/components/auth/**"
+      - "src/app/actions/**"
+      - "src/app/api/recordings/**"
+      - "src/app/api/episode-translations/**"
+      - "src/app/api/library/translations/**"
+      - "src/app/api/human-translations/**"
+      - "src/app/api/word-explanations/**"
+      - "src/app/write/series/**"
+      - "src/app/subscription/**"
+      - "src/lib/translation/**"
+      - "src/lib/library/privateLibraryTranslationServer.ts"
       - "scripts/test-auth-identity-callback.ts"
+      - "scripts/test-auth-google-registration.ts"
       - "scripts/test-auth-login-redirect.ts"
       - "package.json"
       - "package-lock.json"
@@ -42,6 +58,8 @@ jobs:
       - run: npm ci
       - name: Auth identity and callback error regression
         run: npm run test:auth-identity-callback
+      - name: Google sign-in registration gate regression
+        run: npm run test:auth-google-registration
       - name: Auth redirect regression
         run: npm run test:auth-login-redirect
       - name: TypeScript
@@ -50,6 +68,26 @@ jobs:
         run: >-
           npx eslint
           scripts/test-auth-identity-callback.ts
+          scripts/test-auth-google-registration.ts
+          src/lib/auth/registrationGate.ts
+          src/lib/auth/registrationGate.server.ts
+          src/lib/auth/googleSignInFlag.ts
+          src/lib/auth/officialAccount.ts
+          src/lib/auth/officialNarrationAccount.ts
+          src/lib/auth/officialAccount.server.ts
+          src/components/auth/GoogleSignInButton.tsx
+          src/app/actions/createOwnedSeries.ts
+          src/app/actions/saveOwnedEpisode.ts
+          src/app/actions/saveOwnedSeriesWorkspace.ts
+          src/app/api/recordings/human-upload-session/route.ts
+          src/app/api/library/translations/generate/route.ts
+          src/app/api/human-translations/draft/route.ts
+          "src/app/api/human-translations/[translationId]/publish/route.ts"
+          "src/app/api/human-translations/[translationId]/route.ts"
+          src/app/api/word-explanations/route.ts
+          src/lib/translation/prepareEpisodeTranslationGeneration.ts
+          src/lib/translation/episodeTranslationServer.ts
+          src/lib/library/privateLibraryTranslationServer.ts
           src/lib/auth/authCallbackError.ts
           src/lib/auth/selfChosenDisplayName.ts
           src/app/auth/callback/route.ts

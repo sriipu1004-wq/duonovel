@@ -12,10 +12,19 @@ import {
 import { getUiLocaleFromPathname, stripUiLocalePrefix } from "@/i18n/config";
 import { localizePath } from "@/i18n/navigation";
 import {
-  AUTH_CALLBACK_EXCHANGE_FAILED,
   buildAuthCallbackErrorRedirect,
   classifyAuthCallbackRequest,
+  resolveExchangeFailureCode,
 } from "@/lib/auth/authCallbackError";
+import { decideAuthCallbackDestination } from "@/lib/auth/registrationGate";
+
+function isPasswordResetPath(nextPath: string): boolean {
+  const normalizedNextPath = stripUiLocalePrefix(nextPath);
+  return (
+    normalizedNextPath === "/reset-password" ||
+    normalizedNextPath.startsWith("/reset-password?")
+  );
+}
 
 function buildRedirect(request: NextRequest, pathname: string) {
   const redirectTo = request.nextUrl.clone();
@@ -117,7 +126,7 @@ export async function GET(request: NextRequest) {
       buildAuthCallbackErrorRedirect(
         request.nextUrl.href,
         loginPath,
-        AUTH_CALLBACK_EXCHANGE_FAILED,
+        resolveExchangeFailureCode(requestUrl.searchParams),
         nextPath
       )
     );
@@ -133,6 +142,25 @@ export async function GET(request: NextRequest) {
 
   if (!user) {
     return NextResponse.redirect(redirectTo);
+  }
+
+  // Issue #142 PR2: accounts with a Google identity. Their metadata flags are
+  // not trusted on their own (an auto-linked, previously unconfirmed account
+  // may carry flags someone else wrote), so the email finalize below is
+  // skipped and STEP 2 is required until the consent is bound to the current
+  // Google identity (registrationGate.ts). Email-only accounts fall through
+  // to the unchanged email flow.
+  const destination = decideAuthCallbackDestination(
+    user,
+    isPasswordResetPath(nextPath)
+  );
+  if (destination === "register") {
+    const registerTo = buildRedirect(request, localizePath("/register", locale));
+    registerTo.searchParams.set("next", nextPath);
+    return NextResponse.redirect(registerTo);
+  }
+  if (destination === "next") {
+    return NextResponse.redirect(new URL(nextPath, request.url));
   }
 
   const metadata = user.user_metadata ?? {};
@@ -185,11 +213,7 @@ export async function GET(request: NextRequest) {
     console.error("[auth-callback finalize]", finalizeError);
   }
 
-  const normalizedNextPath = stripUiLocalePrefix(nextPath);
-  if (
-    normalizedNextPath === "/reset-password" ||
-    normalizedNextPath.startsWith("/reset-password?")
-  ) {
+  if (isPasswordResetPath(nextPath)) {
     return NextResponse.redirect(new URL(nextPath, request.url));
   }
 

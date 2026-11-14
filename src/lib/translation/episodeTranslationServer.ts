@@ -1,9 +1,10 @@
 import "server-only";
 
+import { isBlockedFromWritesUntilRegistered } from "@/lib/auth/registrationGate";
 import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { isOfficialAccountUser } from "@/lib/auth/officialAccount";
 import {
   getEpisodeBody,
   getEpisodeNumber,
@@ -46,6 +47,8 @@ export type EpisodeTranslationAccess = {
   currentUserEmail: string | null;
   isOwner: boolean;
   isOfficialUser: boolean;
+  /** Issue #142 PR2: Google account that has not finished STEP 2 (write gate). */
+  registrationBlocked: boolean;
   canRead: boolean;
   isAllowlisted: boolean;
 };
@@ -178,7 +181,8 @@ export async function resolveEpisodeTranslationAccess(
     currentUserId,
     currentUserEmail,
     isOwner,
-    isOfficialUser: isOfficialAccountEmail(currentUserEmail),
+    isOfficialUser: isOfficialAccountUser(user),
+    registrationBlocked: isBlockedFromWritesUntilRegistered(user),
     canRead: (isPublic || isOwner) && r18Allowed,
     // Translation permission is authoritative. Ownership, preview allowlists,
     // AI-generated attribution, and Official authorship must never bypass a closed work.

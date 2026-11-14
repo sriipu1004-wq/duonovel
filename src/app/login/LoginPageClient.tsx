@@ -11,6 +11,8 @@ import { stripUiLocalePrefix } from "@/i18n/config";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 import { authDictionaries } from "@/i18n/dictionaries/auth";
 import { localizePath } from "@/i18n/navigation";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+import { isGoogleSignInEnabled } from "@/lib/auth/googleSignInFlag";
 
 type PendingAction =
   | "signin"
@@ -300,6 +302,14 @@ export default function LoginPageClient() {
             ) : (
               <form onSubmit={handleSignIn} className="mt-8">
                 <div className="rounded-[28px] border border-black/10 bg-white p-6">
+                  {isGoogleSignInEnabled() ? (
+                    <div className="mb-6">
+                      <GoogleSignInButton nextPath={nextPath} disabled={isPending} />
+                      <p className="mt-4 text-center text-xs text-neutral-500">
+                        {dictionary.orDivider}
+                      </p>
+                    </div>
+                  ) : null}
                   <label className="block">
                     <span className="text-sm text-neutral-700">{dictionary.email}</span>
                     <input

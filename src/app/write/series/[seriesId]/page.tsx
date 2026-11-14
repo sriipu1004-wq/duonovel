@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { requireOwnedSeries } from "@/lib/auth/requireOwnedSeries";
-import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { isOfficialAccountUser } from "@/lib/auth/officialAccount";
 import WriteSeriesForm from "@/features/write/WriteSeriesForm";
 import ContentRatingWorkspaceBridge from "@/features/write/ContentRatingWorkspaceBridge";
 import TranslationPermissionWorkspaceBridge from "@/features/write/TranslationPermissionWorkspaceBridge";
@@ -180,7 +180,7 @@ export default async function WriteSeriesEditPage({ params }: PageProps) {
       <TranslationPermissionWorkspaceBridge
         seriesId={series.id}
         initialMode={translationPermissionMode}
-        isOfficialAuthor={isOfficialAccountEmail(user.email)}
+        isOfficialAuthor={isOfficialAccountUser(user)}
       />
       <HumanTranslationPermissionWorkspaceBridge
         seriesId={series.id}

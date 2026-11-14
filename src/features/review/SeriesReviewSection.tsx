@@ -1,5 +1,6 @@
 "use client";
 
+import { isBlockedFromWritesUntilRegistered } from "@/lib/auth/registrationGate";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
@@ -404,6 +405,12 @@ export default function SeriesReviewSection({
     if (authError || !user) {
       setIsLoggedIn(false);
       setMessage("レビュー投稿にはログインが必要。");
+      return;
+    }
+
+    // Issue #142 PR2: see EpisodeCommentSection (browser insert, UI gate only).
+    if (isBlockedFromWritesUntilRegistered(user)) {
+      setMessage("レビューを投稿するには、先に登録（表示名と同意）を完了して。");
       return;
     }
 

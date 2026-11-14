@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { registrationRequiredResponse } from "@/lib/auth/registrationGate.server";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import {
   decideRecordingEntryAccess,
@@ -146,6 +147,10 @@ export async function POST(request: Request) {
     if (authError || !user) {
       throw new Error("unauthorized");
     }
+
+    // Issue #142 PR2: Google accounts must finish STEP 2 before narration.
+    const registrationBlocked = registrationRequiredResponse(user);
+    if (registrationBlocked) return registrationBlocked;
 
     if (isOfficialAccountEmail(user.email)) {
       return NextResponse.json(

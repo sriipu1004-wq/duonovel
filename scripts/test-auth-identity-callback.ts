@@ -200,7 +200,9 @@ function testLoginNotices() {
   assert.equal(resolveAuthCallbackNoticeKey("missing_auth_code", false), "missingAuthCode");
   assert.equal(resolveAuthCallbackNoticeKey("missing_auth_code", true), "resetCallbackFailed");
   assert.equal(resolveAuthCallbackNoticeKey("oauth_cancelled", false), "oauthCancelled");
-  assert.equal(resolveAuthCallbackNoticeKey("oauth_failed", true), "oauthFailed");
+  assert.equal(resolveAuthCallbackNoticeKey("oauth_failed", false), "oauthFailed");
+  // PR2 (PR1 review S3): reset guidance wins for every code.
+  assert.equal(resolveAuthCallbackNoticeKey("oauth_failed", true), "resetCallbackFailed");
 
   for (const code of AUTH_CALLBACK_ERROR_CODES) {
     for (const reset of [false, true]) {

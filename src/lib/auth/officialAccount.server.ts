@@ -1,6 +1,6 @@
 import "server-only";
 
-import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
+import { isOfficialAccountUser } from "@/lib/auth/officialAccount";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -14,7 +14,7 @@ export async function ensureOfficialSubscriberEntitlement(
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.getUserById(userId);
 
-  if (error || !isOfficialAccountEmail(data.user?.email)) return false;
+  if (error || !isOfficialAccountUser(data.user)) return false;
 
   const { error: entitlementError } = await admin
     .from("libread_user_entitlements")

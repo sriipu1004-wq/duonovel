@@ -1,5 +1,6 @@
 "use server";
 
+import { isBlockedFromWritesUntilRegistered } from "@/lib/auth/registrationGate";
 import { updateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isValidSeriesId } from "@/lib/write/ownedSeriesPayload";
@@ -16,7 +17,7 @@ type EpisodeSaveResult =
   | { ok: false; code: "cache_invalidation_failed"; persisted: true; episodeId: string }
   | {
       ok: false;
-      code: "invalid_request" | "authentication_required" | "not_found_or_forbidden" | "save_failed";
+      code: "invalid_request" | "authentication_required" | "registration_required" | "not_found_or_forbidden" | "save_failed";
       persisted: false;
     };
 
@@ -43,6 +44,10 @@ export async function saveOwnedEpisode(
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user) {
     return { ok: false, code: "authentication_required", persisted: false };
+  }
+  // Issue #142 PR2: Google accounts must finish STEP 2 before posting.
+  if (isBlockedFromWritesUntilRegistered(auth.user)) {
+    return { ok: false, code: "registration_required", persisted: false };
   }
 
   // Verify series ownership even for updates; episode INSERT/UPDATE RLS

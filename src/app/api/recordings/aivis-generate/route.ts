@@ -3,7 +3,7 @@ import {
   AI_NARRATION_GENERATION_SUSPENDED,
   AI_NARRATION_GENERATION_SUSPENDED_REASON,
 } from "@/lib/recording/legacyAutoNarration";
-import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
+import { isOfficialNarrationAccountUser } from "@/lib/auth/officialNarrationAccount";
 import { generateAivisRecordingForEpisode } from "@/lib/recording/aivisGeneration";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -263,7 +263,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!isOfficialNarrationAccountEmail(user.email)) {
+  if (!isOfficialNarrationAccountUser(user)) {
     return NextResponse.json(
       {
         ok: false,

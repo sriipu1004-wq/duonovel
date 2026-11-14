@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isOfficialNarrationAccountEmail } from "@/lib/auth/officialNarrationAccount";
+import { isOfficialNarrationAccountUser } from "@/lib/auth/officialNarrationAccount";
 import {
   LEGACY_AUTO_NARRATION_SUSPENDED,
   LEGACY_AUTO_NARRATION_SUSPENDED_REASON,
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!isOfficialNarrationAccountEmail(user.email)) {
+  if (!isOfficialNarrationAccountUser(user)) {
     return NextResponse.json(
       {
         ok: false,
