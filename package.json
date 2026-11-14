@@ -65,7 +65,8 @@
     "test:child84-locale-work-metadata-fallback": "node --import tsx scripts/test-child84-locale-work-metadata-fallback.ts && node --import tsx scripts/test-issue137-work-metadata-visibility.ts",
     "test:issue137-work-metadata-visibility": "node --import tsx scripts/test-issue137-work-metadata-visibility.ts",
     "test:child84-account-delete-cache": "node --import tsx scripts/test-child84-account-delete-cache.ts",
-    "test:child84-search-bookmarks": "node --import tsx scripts/test-child84-search-bookmarked-works.ts"
+    "test:child84-search-bookmarks": "node --import tsx scripts/test-child84-search-bookmarked-works.ts",
+    "test:popularity-ingest-guard": "node --import tsx scripts/test-popularity-ingest-guard.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
