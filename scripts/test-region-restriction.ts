@@ -190,6 +190,26 @@ async function main() {
   ]) {
     assert.ok(read(path).includes("await regionBlockedApiResponse(request, seriesId)"), path);
   }
+  // Work page / OG image: episode reads must not go through the anon client,
+  // or a restricted (still public) work loses its chapters there (RLS).
+  const workPage = read("src/app/works/[seriesId]/page.tsx");
+  for (const fn of [
+    "async function fetchEpisodeNavigationBySeriesId(",
+    "async function fetchEpisodeRangeBySeriesId(",
+    "const fetchFirstPublicEpisode = cache(",
+  ]) {
+    const body = workPage.slice(workPage.indexOf(fn), workPage.indexOf('.from("episodes")', workPage.indexOf(fn)));
+    assert.ok(/adminSupabase\s*$/.test(body), fn);
+  }
+  assert.ok(
+    !/(?<![A-Za-z])supabase\s*\n\s*\.from\("(episodes|recordings|episode_human_translations)"\)/.test(workPage),
+    "work page anon read of restricted tables"
+  );
+  const ogImage = read("src/app/works/[seriesId]/opengraph-image.tsx");
+  assert.ok(
+    !/(?<![A-Za-z])supabase\s*\n\s*\.from\("episodes"\)/.test(ogImage),
+    "OG image anon episode read"
+  );
   const access = read("src/lib/translation/episodeTranslationServer.ts");
   assert.ok(access.includes("canRead: (isPublic || isOwner) && r18Allowed && !regionBlocked,"));
   const server = read("src/lib/rights/regionRestriction.server.ts");

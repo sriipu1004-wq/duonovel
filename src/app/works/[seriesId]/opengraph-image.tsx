@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { supabase } from "@/lib/supabaseClient";
 import {
   getSeriesPublicationStatus,
@@ -77,7 +78,10 @@ async function loadWorkOgContent(seriesId: string): Promise<WorkOgImageContent> 
 
   const episodeResult = await runReadOnlyWithRetry(
     async (signal) =>
-      await supabase
+      // Service role: a per-country restricted work (D030) hides its episode
+      // rows from anon but stays public. Only reached for a public series;
+      // posted / published filters kept; no body text.
+      await createAdminClient()
         .from("episodes")
         .select("id, episode_number, posting_status, is_published")
         .eq("series_id", seriesId)

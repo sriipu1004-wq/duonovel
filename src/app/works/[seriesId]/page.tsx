@@ -309,6 +309,10 @@ const WORK_PAGE_EPISODE_RANGE_SELECT = `
   last_edited_at
 `;
 
+// Episode reads use the service role: a per-country restricted work (D030)
+// hides its episode rows from anon through RLS but stays public. Every caller
+// runs after the page has confirmed the series is public, and each query keeps
+// the posted / published filters. No body text is selected.
 async function fetchEpisodeNavigationBySeriesId(
   seriesId: string,
   signal?: AbortSignal
@@ -319,7 +323,7 @@ async function fetchEpisodeNavigationBySeriesId(
     const rows: EpisodeRow[] = [];
 
     for (let start = 0; ; start += PAGE_SIZE) {
-      let query = supabase
+      let query = adminSupabase
         .from("episodes")
         .select(selectClause)
         .eq("series_id", seriesId)
@@ -361,7 +365,7 @@ async function fetchEpisodeRangeBySeriesId(
   const from = Math.max(0, start - 1);
   const to = from + 49;
   const run = (selectClause: string) => {
-    let query = supabase
+    let query = adminSupabase
       .from("episodes")
       .select(selectClause)
       .eq("series_id", seriesId)
@@ -410,7 +414,7 @@ const fetchSeriesResult = cache(async (seriesId: string) =>
 const fetchFirstPublicEpisode = cache(async (seriesId: string) =>
   runReadOnlyWithRetry(
     async (signal) => {
-      const result = await supabase
+      const result = await adminSupabase
         .from("episodes")
         .select(WORK_PAGE_EPISODE_NAV_SELECT)
         .eq("series_id", seriesId)
