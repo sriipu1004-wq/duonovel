@@ -5,7 +5,7 @@
   "original_author": "田山花袋",
   "author_death_year": 1930,
   "original_language": "ja",
-  "first_publication_year": 1909,
+  "first_publication_year": 1907,
   "source_provider": "Aozora Bunko",
   "source_url": "https://www.aozora.gr.jp/cards/000214/card1669.html",
   "source_download_url": "https://www.aozora.gr.jp/cards/000214/files/1669_ruby_8218.zip",
@@ -19,12 +19,12 @@
   "translator_death_year": null,
   "translation_language": null,
   "rights_status": "approved",
-  "rights_basis": "Operator review for JP/US/KR distribution, and no per-country restriction (D030). 田山花袋 died in 1930 and the work was first published in 1909. Japan: term expired before the 2018 extension and was not revived. US: published in or before 1930, so outside the 95-year term; an author who died by 1945 was also out of term in Japan on 1996-01-01, so no §104A restoration. Korea: Art. 3(4) (expired abroad). Life+80 countries (CO, GQ) expired at the latest by end-2025; Mexico treats authors who died before 1952 as public domain (docs/rights/region-research-2026-11-15.md). Scope is the exact Aozora text file pinned by SHA-256 only.",
-  "rights_notes": "Operator review recorded 2026-11-15T13:16:39+09:00. Aozora catalog flags なし, author-only contributors; exact source fetched and hashed; chapter plan prepared (9 chapters, no chapter over 10,000 characters). Base edition, cover and modern commentary are not reused. Production import and publication are separate owner approvals.",
+  "rights_basis": "Operator review for JP/US/KR distribution, and no per-country restriction (D030). 田山花袋 died in 1930 and the work was first published in 1907. Japan: term expired before the 2018 extension and was not revived. US: published in or before 1930, so outside the 95-year term; an author who died by 1945 was also out of term in Japan on 1996-01-01, so no §104A restoration. Korea: Art. 3(4) (expired abroad). Life+80 countries (CO, GQ) expired at the latest by end-2025; Mexico treats authors who died before 1952 as public domain (docs/rights/region-research-2026-11-15.md). Scope is the exact Aozora text file pinned by SHA-256 only.",
+  "rights_notes": "Operator review recorded 2026-11-15T13:16:39+09:00. Aozora catalog flags なし, author-only contributors; exact source fetched and hashed; chapter plan prepared (9 chapters, no chapter over 10,000 characters). Base edition, cover and modern commentary are not reused. Production import and publication are separate owner approvals. First publication corrected to 1907 (新小説, 1907-09); the Aozora card shows 1909 with the 明治40 era year.",
   "rights_components": {
     "original_work": {
       "status": "approved",
-      "basis": "田山花袋 (d. 1930), first published 1909: out of term in JP/US/KR and, per docs/rights/region-research-2026-11-15.md, in life+80 countries and Mexico.",
+      "basis": "田山花袋 (d. 1930), first published 1907: out of term in JP/US/KR and, per docs/rights/region-research-2026-11-15.md, in life+80 countries and Mexico.",
       "notes": "Aozora copyright flags なし; author death and first-publication dates pass the batch criteria (death <= 1945, first publication <= 1930)."
     },
     "edition": {

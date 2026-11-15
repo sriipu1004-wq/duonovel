@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "approved",
   "rights_basis": "Operator review for JP/US/KR distribution, and no per-country restriction (D030). 鈴木三重吉 died in 1936 and the work was first published in 1917. Japan: term expired before the 2018 extension and was not revived. US: published in or before 1930, so outside the 95-year term; an author who died by 1945 was also out of term in Japan on 1996-01-01, so no §104A restoration. Korea: Art. 3(4) (expired abroad). Life+80 countries (CO, GQ) expired at the latest by end-2025; Mexico treats authors who died before 1952 as public domain (docs/rights/region-research-2026-11-15.md). Scope is the exact Aozora text file pinned by SHA-256 only.",
-  "rights_notes": "Operator review recorded 2026-11-15T13:16:39+09:00. Aozora catalog flags なし, author-only contributors; exact source fetched and hashed; chapter plan prepared (2 chapters, no chapter over 10,000 characters). Base edition, cover and modern commentary are not reused. Production import and publication are separate owner approvals.",
+  "rights_notes": "Operator review recorded 2026-11-15T13:16:39+09:00. Aozora catalog flags なし, author-only contributors; exact source fetched and hashed; chapter plan prepared (2 chapters, no chapter over 10,000 characters). Base edition, cover and modern commentary are not reused. Production import and publication are separate owner approvals. This is the author's Japanese retelling of a foreign folk/fairy tale (e.g. Grimm); the underlying tale is public domain and the retelling's author is the one reviewed here.",
   "rights_components": {
     "original_work": {
       "status": "approved",

@@ -90,6 +90,8 @@
   "import_status": "prepared",
   "cover_source": null,
   "cover_rights_status": null,
-  "content_warnings": [],
-  "content_warning_notes": "Operator-judged 2026-11-15 (Claude): violence cues are absent, figurative, or brief mentions without depiction; no sexual_r18 content. Owner confirmation is part of the batch approval."
+  "content_warnings": [
+    "violence"
+  ],
+  "content_warning_notes": "Operator-judged 2026-11-15 (Claude), revised after independent review: Yoriie is killed and his daughter Katsura is mortally wounded on stage. Not R18. Owner confirmation is part of the batch approval."
 }
