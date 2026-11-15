@@ -18,14 +18,20 @@ const TTL_MS = 60_000;
 let cached: { map: RegionRestrictionMap; expiresAt: number } | null = null;
 let inflight: Promise<RegionRestrictionMap> | null = null;
 
+const READ_TIMEOUT_MS = 5_000;
+
 async function fetchRegionRestrictionMap(): Promise<RegionRestrictionMap> {
+  // Expiry counts from the start of the read, so a slow read never extends
+  // the life of the copy; a hung read is aborted (and throws, uncached).
+  const startedAt = Date.now();
   const { data, error } = await createAdminClient()
     .from("series_region_restrictions")
-    .select(REGION_RESTRICTION_SELECT);
+    .select(REGION_RESTRICTION_SELECT)
+    .abortSignal(AbortSignal.timeout(READ_TIMEOUT_MS));
   // A read failure must never become "no restrictions": throw (not cached).
   if (error) throw new Error(`region restrictions: ${error.message}`);
   const map: RegionRestrictionMap = parseRegionRestrictionRows(data ?? []);
-  cached = { map, expiresAt: Date.now() + TTL_MS };
+  cached = { map, expiresAt: startedAt + TTL_MS };
   return map;
 }
 

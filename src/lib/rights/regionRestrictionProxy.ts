@@ -20,6 +20,7 @@ async function fetchMap(): Promise<RegionRestrictionMap | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return null;
+  const startedAt = Date.now();
   try {
     const response = await fetch(
       `${url.replace(/\/$/, "")}/rest/v1/series_region_restrictions?select=${REGION_RESTRICTION_SELECT}`,
@@ -31,7 +32,7 @@ async function fetchMap(): Promise<RegionRestrictionMap | null> {
     );
     if (!response.ok) return null;
     const map = parseRegionRestrictionRows(await response.json());
-    cached = { map, expiresAt: Date.now() + TTL_MS };
+    cached = { map, expiresAt: startedAt + TTL_MS };
     return map;
   } catch {
     return null;
