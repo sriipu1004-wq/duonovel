@@ -17,6 +17,7 @@ import { readPublicDomainMetadata } from "../src/lib/publicDomainMetadata";
 import { resolveShareAuthorName } from "../src/lib/share/shareLinks";
 import {
   buildLocalizedWorkMetadataText,
+  summaryForLocaleMetadata,
   buildReaderJsonLd,
   resolvePublicWorkAttribution,
   stripAuthorSuffixFromTitle,
@@ -188,6 +189,27 @@ const legacy = {
     sourceProvider: null,
   });
   assert.ok(userJa.description.startsWith("作者が書いたあらすじです。"), userJa.description);
+}
+
+// 7c. Shared rule for every en/ko description (work, reader, translation pages).
+{
+  const ja = "平安朝の頃、侍の中に五位がいた。";
+  assert.equal(summaryForLocaleMetadata(ja, "en", true), "");
+  assert.equal(summaryForLocaleMetadata(ja, "ko", true), "");
+  assert.equal(summaryForLocaleMetadata(ja, "ja", true), ja);
+  assert.equal(summaryForLocaleMetadata(ja, "en", false), ja);
+  assert.equal(summaryForLocaleMetadata("A plain English blurb.", "en", true), "A plain English blurb.");
+  const koLegacy = buildLocalizedWorkMetadataText({
+    locale: "ko",
+    title: "こころ・夏目漱石",
+    summary: ja,
+    authorName: "夏目漱石",
+    isPublicDomain: false,
+    hasOriginalAuthor: true,
+    sourceLanguage: "ja",
+    sourceProvider: null,
+  });
+  assert.ok(!koLegacy.description.includes("平安朝"), koLegacy.description);
 }
 
 // 7. Localized Work metadata: original author label, no source line.

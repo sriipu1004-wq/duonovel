@@ -47,6 +47,7 @@ import {
   readerEpisodeRepeatsWorkTitle,
   resolvePublicWorkAttribution,
   serializeJsonLd,
+  summaryForLocaleMetadata,
 } from "@/lib/seo/publicWorkSeo";
 import { assertSeriesAvailableInRequestRegion } from "@/lib/rights/regionRestriction.server";
 
@@ -264,8 +265,13 @@ export async function generateMetadata({
         : await getNormalAuthorName(series, readUi.authorUnset),
     });
 
+    const localSummary = summaryForLocaleMetadata(
+      summary,
+      locale,
+      Boolean(publicDomain || metadataLegacyAttribution)
+    );
     const description = [
-      summary ||
+      localSummary ||
         (readerEpisodeRepeatsWorkTitle(
           seriesTitle,
           episodeTitle,
