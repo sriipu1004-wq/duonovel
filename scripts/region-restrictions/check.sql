@@ -233,6 +233,8 @@ select public.test_expect('anon after lifting', public.test_counts(), '2,2,2');
 reset role;
 
 -- 6. Rollback script removes everything and leaves the base policies.
+-- Test-only view on the table goes first (production has none).
+drop view public.series_restrictions_probe;
 \i scripts/region-restrictions/rollback.sql
 select public.test_expect('rollback: table gone',
   (to_regclass('public.series_region_restrictions') is null)::text, 'true');
