@@ -60,6 +60,14 @@ create policy recordings_select_public_visible on public.recordings for select t
 create policy episode_human_translations_select on public.episode_human_translations for select
   using (status = 'published');
 
+-- Same shape as public_episode_work_summaries (security_invoker = true).
+create view public.public_episode_work_summaries with (security_invoker = true) as
+  select e.series_id, count(*)::integer as episode_count
+  from public.episodes e join public.series s on s.id = e.series_id
+  where s.publication_status = 'public' and e.posting_status = 'posted' and e.is_published = true
+  group by e.series_id;
+grant select on public.public_episode_work_summaries to anon, authenticated, service_role;
+
 -- Owner A has a restricted and an unrestricted work; both public.
 insert into public.series(id, author_id) values
   ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-00000000000a'),
@@ -77,6 +85,10 @@ insert into public.episode_human_translations(series_id, episode_id) values
 -- The migration under test, applied twice (must be idempotent).
 \i supabase/migrations/20261116090000_region_restrictions.sql
 \i supabase/migrations/20261116090000_region_restrictions.sql
+
+create view public.series_restrictions_probe with (security_invoker = true) as
+  select series_id from public.series_region_restrictions;
+grant select on public.series_restrictions_probe to anon, authenticated;
 
 create function public.test_counts() returns text language sql as $$
   select (select count(*) from public.episodes)::text || ',' ||
@@ -107,7 +119,23 @@ insert into public.series_region_restrictions(series_id, blocked_countries, reas
 set role anon;
 select public.test_expect('anon sees only the unrestricted work', public.test_counts(), '1,1,1');
 select public.test_expect('anon can read the restriction list',
-  (select count(*)::text from public.series_region_restrictions), '1');
+  (select count(*)::text from public.series_restrictions_probe), '1');
+do $$ begin
+  begin
+    perform reason from public.series_region_restrictions;
+    raise exception 'FAIL: anon read the reason column';
+  exception when insufficient_privilege then raise notice 'ok: reason column hidden from anon';
+  end;
+end $$;
+-- Through RLS the restricted work drops out of the summary view for anon...
+select public.test_expect('anon summary view hides the restricted work',
+  (select count(*)::text from public.public_episode_work_summaries), '1');
+reset role;
+-- ...so the app reads the view with the service role (bypasses RLS): the
+-- restricted work keeps its catalog card.
+set role service_role;
+select public.test_expect('service role summary view keeps both works',
+  (select count(*)::text from public.public_episode_work_summaries), '2');
 reset role;
 
 set role authenticated;

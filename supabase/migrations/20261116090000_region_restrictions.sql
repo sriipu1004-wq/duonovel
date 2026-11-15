@@ -56,7 +56,11 @@ comment on table public.series_region_restrictions is
 alter table public.series_region_restrictions enable row level security;
 
 revoke all on public.series_region_restrictions from public, anon, authenticated;
-grant select on public.series_region_restrictions to anon, authenticated;
+-- Clients may read which works are restricted where, but not the internal
+-- rights note in `reason`.
+grant select (series_id, blocked_countries, allowed_countries)
+  on public.series_region_restrictions to anon, authenticated;
+grant select, insert, update, delete on public.series_region_restrictions to service_role;
 
 drop policy if exists series_region_restrictions_select_all on public.series_region_restrictions;
 create policy series_region_restrictions_select_all
@@ -65,29 +69,11 @@ create policy series_region_restrictions_select_all
   to anon, authenticated
   using (true);
 
--- True when the series has no restriction row, or the caller is its author.
--- SECURITY DEFINER so the check does not depend on the caller's own RLS view
--- of series / series_region_restrictions.
-create or replace function public.series_region_unrestricted_or_owner(target_series_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select not exists (
-      select 1 from public.series_region_restrictions r
-      where r.series_id = target_series_id
-    )
-    or exists (
-      select 1 from public.series s
-      where s.id = target_series_id
-        and s.author_id = (select auth.uid())
-    )
-$$;
-
-revoke all on function public.series_region_unrestricted_or_owner(uuid) from public;
-grant execute on function public.series_region_unrestricted_or_owner(uuid) to anon, authenticated, service_role;
+-- The policies below are plain (SECURITY INVOKER) expressions so the planner
+-- can turn them into an anti-join. They read series_region_restrictions
+-- (series_id is granted to anon / authenticated) and series (the caller's own
+-- RLS shows their own works, which is all the author exception needs).
+drop function if exists public.series_region_unrestricted_or_owner(uuid);
 
 drop policy if exists episodes_region_restricted_select on public.episodes;
 create policy episodes_region_restricted_select
@@ -95,7 +81,17 @@ create policy episodes_region_restricted_select
   as restrictive
   for select
   to anon, authenticated
-  using (public.series_region_unrestricted_or_owner(series_id));
+  using (
+    not exists (
+      select 1 from public.series_region_restrictions r
+      where r.series_id = episodes.series_id
+    )
+    or exists (
+      select 1 from public.series s
+      where s.id = episodes.series_id
+        and s.author_id = (select auth.uid())
+    )
+  );
 
 drop policy if exists recordings_region_restricted_select on public.recordings;
 create policy recordings_region_restricted_select
@@ -103,7 +99,17 @@ create policy recordings_region_restricted_select
   as restrictive
   for select
   to anon, authenticated
-  using (public.series_region_unrestricted_or_owner(series_id));
+  using (
+    not exists (
+      select 1 from public.series_region_restrictions r
+      where r.series_id = recordings.series_id
+    )
+    or exists (
+      select 1 from public.series s
+      where s.id = recordings.series_id
+        and s.author_id = (select auth.uid())
+    )
+  );
 
 drop policy if exists episode_human_translations_region_restricted_select on public.episode_human_translations;
 create policy episode_human_translations_region_restricted_select
@@ -111,4 +117,14 @@ create policy episode_human_translations_region_restricted_select
   as restrictive
   for select
   to anon, authenticated
-  using (public.series_region_unrestricted_or_owner(series_id));
+  using (
+    not exists (
+      select 1 from public.series_region_restrictions r
+      where r.series_id = episode_human_translations.series_id
+    )
+    or exists (
+      select 1 from public.series s
+      where s.id = episode_human_translations.series_id
+        and s.author_id = (select auth.uid())
+    )
+  );

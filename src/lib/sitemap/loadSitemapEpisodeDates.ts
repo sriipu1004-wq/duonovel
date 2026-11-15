@@ -1,4 +1,3 @@
-import { createPublicServerClient } from "@/lib/supabase/serverPublic";
 import { episodeLastModifiedValue } from "@/lib/seo/publicWorkSeo";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 
@@ -18,22 +17,27 @@ const PAGE_SIZE = 1000;
  * Real per-episode modification dates for sitemap <lastmod>: the later of
  * posted_at and last_edited_at (series has no updated_at column).
  *
- * Uses the anonymous public client, so RLS (episodes_public_or_owner_select)
- * returns only posted, published episodes of public series. The filters
- * below repeat that condition; the sitemap additionally intersects with the
+ * Uses the service role (per-country restricted works, D030, hide their
+ * episode rows from anon but stay public), so the public condition is
+ * applied explicitly: posted, published episodes of series that are public
+ * (inner join on series). The sitemap additionally intersects with the
  * public non-R18 work list, so private/R18 rows can never add a URL.
  * Body text is never selected.
  */
 export async function loadSitemapEpisodeDates(
   signal?: AbortSignal
 ): Promise<SitemapEpisodeDates> {
-  const supabase = createPublicServerClient();
+  // Loaded lazily so tests of the Safe wrapper (injected loader) never load
+  // the server-only admin module.
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createAdminClient();
   const dates: SitemapEpisodeDates = new Map();
 
   for (let start = 0; ; start += PAGE_SIZE) {
     let query = supabase
       .from("episodes")
-      .select("series_id, episode_number, posted_at, last_edited_at")
+      .select("series_id, episode_number, posted_at, last_edited_at, series!inner(publication_status)")
+      .eq("series.publication_status", "public")
       .eq("posting_status", "posted")
       .eq("is_published", true)
       .gt("episode_number", 0)
