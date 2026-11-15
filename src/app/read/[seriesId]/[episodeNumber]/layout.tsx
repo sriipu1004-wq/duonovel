@@ -5,6 +5,8 @@ import ReaderSettingsTopBridge from "@/features/playback/ReaderSettingsTopBridge
 import {
   getEpisodeBody,
   getEpisodeNumber,
+  getSeriesPublicationStatus,
+  isEpisodePubliclyVisible,
   pickText,
   type SeriesRow,
 } from "@/features/write/writeShared";
@@ -25,7 +27,17 @@ import {
 import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 import { getUiLocale } from "@/i18n/server";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
-import { resolvePublicWorkAttribution } from "@/lib/seo/publicWorkSeo";
+import {
+  readerCanonicalPath,
+  resolvePublicWorkAttribution,
+} from "@/lib/seo/publicWorkSeo";
+import ShareButtons from "@/components/share/ShareButtons";
+import {
+  resolveShareAuthorName,
+  shouldShowShareButtons,
+} from "@/lib/share/shareLinks";
+import { isOfficialAuthorAccountForDisplay } from "@/lib/auth/officialAuthor.server";
+import type { UiLocale } from "@/i18n/config";
 import { getNormalAuthorName } from "@/lib/readerAuthorName";
 import {
   readPageDictionaries,
@@ -109,12 +121,20 @@ function WarningBadges({
 function withContentWarningSurface(
   content: ReactNode,
   series: SeriesRow,
-  dictionary: ReadPageDictionary
+  dictionary: ReadPageDictionary,
+  footer: ReactNode = null
 ) {
   const warnings = getSeriesContentWarnings(series);
   const r18 = isR18Series(series);
 
-  if (warnings.length === 0) return <>{content}</>;
+  if (warnings.length === 0) {
+    return (
+      <>
+        {content}
+        {footer}
+      </>
+    );
+  }
 
   return (
     <div
@@ -123,6 +143,47 @@ function withContentWarningSurface(
     >
       <WarningBadges warnings={warnings} dictionary={dictionary} />
       {content}
+      {footer}
+    </div>
+  );
+}
+
+/**
+ * P9 share buttons at the end of the Reader, outside ReadBilingualShell so
+ * they stay in Original, Bilingual and Translation modes. Shown only for a
+ * public series, a publicly visible episode and a non-R18 work. The shared
+ * URL is the canonical Reader copy (owner decision 「元のページにまとめる」).
+ */
+function buildReaderShareSection(input: {
+  series: SeriesRow;
+  episode: Parameters<typeof isEpisodePubliclyVisible>[0];
+  seriesId: string;
+  episodeNumber: number;
+  locale: UiLocale;
+  seriesTitle: string;
+  authorName: string;
+}): ReactNode {
+  const visible = shouldShowShareButtons({
+    isPublic:
+      getSeriesPublicationStatus(input.series) === "public" &&
+      isEpisodePubliclyVisible(input.episode),
+    isR18: isR18Series(input.series),
+  });
+  if (!visible) return null;
+  return (
+    <div className="mx-auto w-full max-w-4xl px-4 pb-56 pt-6 sm:px-6">
+      <ShareButtons
+        path={readerCanonicalPath(
+          input.seriesId,
+          input.episodeNumber,
+          inferSeriesSourceLanguage(input.series, getEpisodeBody(input.episode))
+        )}
+        placement="reader"
+        locale={input.locale}
+        title={input.seriesTitle}
+        authorName={input.authorName}
+        className="rounded-[24px] border border-black/10 bg-white p-4"
+      />
     </div>
   );
 }
@@ -196,21 +257,64 @@ export default async function ReadEpisodeLayout({
     humanTranslationPermissionOpen ||
     humanTranslationAvailable;
 
+  const seriesTitle = pickText(payload.series.title) || dictionary.untitled;
+  // Without the translation shell the layout does not resolve the account
+  // name; keep that path free of an extra read and share with the Public
+  // Domain original author only (no author for user-posted works).
+  const publicDomainForShare = readPublicDomainMetadata(
+    payload.series["effect_settings"] ?? payload.series["effectSettings"]
+  );
+  const shareSectionFor = (authorName: string) =>
+    buildReaderShareSection({
+      series: payload.series,
+      episode: payload.episode,
+      seriesId,
+      episodeNumber: currentEpisodeNumber,
+      locale,
+      seriesTitle,
+      authorName,
+    });
+
   if (!translationEligible) {
     return withContentWarningSurface(
-      withSettingsTopBridge(children),
+      <>
+        {withSettingsTopBridge(children)}
+        {shareSectionFor(publicDomainForShare?.originalAuthor ?? "")}
+      </>,
       payload.series,
       dictionary
     );
   }
 
   const attribution = await resolveReadAttribution(payload.series, dictionary);
+  // Same rule as the Work page share text (resolveShareAuthorName).
+  const shareAuthorName = resolveShareAuthorName({
+    publicDomainOriginalAuthor: publicDomainForShare?.originalAuthor,
+    accountAuthorName: attribution.authorName,
+    // The account lookup runs only when there is an account name to show.
+    authorIsOfficialAccount:
+      publicDomainForShare ||
+      !attribution.authorName ||
+      attribution.authorName === dictionary.authorUnset
+      ? false
+      : await isOfficialAuthorAccountForDisplay(
+          pickText(
+            payload.series.author_id,
+            payload.series["user_id"],
+            payload.series["userId"]
+          )
+        ),
+    unsetLabels: [dictionary.authorUnset, "作者名未設定"],
+  });
   const episodeBody = getEpisodeBody(payload.episode);
   const sourceLanguage = inferSeriesSourceLanguage(payload.series, episodeBody);
 
   if (!sourceLanguage) {
     return withContentWarningSurface(
-      withSettingsTopBridge(children),
+      <>
+        {withSettingsTopBridge(children)}
+        {shareSectionFor(shareAuthorName)}
+      </>,
       payload.series,
       dictionary
     );
@@ -257,6 +361,7 @@ export default async function ReadEpisodeLayout({
       </ReadBilingualShell>
     ),
     payload.series,
-    dictionary
+    dictionary,
+    shareSectionFor(shareAuthorName)
   );
 }

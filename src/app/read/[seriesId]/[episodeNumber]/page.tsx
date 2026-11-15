@@ -34,6 +34,7 @@ import { buildRecordingEntryPath } from "@/lib/recording/recordingEntry";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 import { isR18Series } from "@/lib/contentRating";
+import { workOgImagePath } from "@/lib/og/workOgContent";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 import {
   buildReaderJsonLd,
@@ -295,13 +296,13 @@ export async function generateMetadata({
         url: canonicalPath,
         title: metadataTitle,
         description,
-        images: ["/opengraph-image"],
+        images: [workOgImagePath(seriesId)],
       },
       twitter: {
         card: "summary_large_image",
         title: metadataTitle,
         description,
-        images: ["/opengraph-image"],
+        images: [workOgImagePath(seriesId)],
       },
     };
   } catch {

@@ -1,0 +1,80 @@
+name: P9 share and OG image checks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/p9-share-ogp-check.yml"
+      - "package.json"
+      - "docs/p9-utm-measurement.md"
+      - "scripts/test-p9-share-ogp.tsx"
+      - "src/proxy.ts"
+      - "src/app/opengraph-image.tsx"
+      - "src/app/read/**"
+      - "src/app/works/**"
+      - "src/app/locale-work/**"
+      - "src/components/share/**"
+      - "src/i18n/dictionaries/share.ts"
+      - "src/lib/og/**"
+      - "src/lib/share/**"
+      - "src/lib/auth/officialAuthor.server.ts"
+      - "src/lib/seo/**"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: P9 share / OG image regression
+        run: npm run test:p9-share-ogp
+
+      - name: Existing SEO, Reader and Work regressions
+        run: |
+          npm run test:p9-seo-metadata
+          npm run test:public-seo-alignment
+          npm run test:public-read-reliability-performance
+          npm run test:public-route-params
+          npm run test:en-ko-i18n
+          npm run test:reader-mode-unification
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Changed-scope ESLint
+        run: >
+          npx eslint
+          scripts/test-p9-share-ogp.tsx
+          src/proxy.ts
+          src/app/opengraph-image.tsx
+          "src/app/works/[seriesId]/opengraph-image.tsx"
+          "src/app/read/[seriesId]/[episodeNumber]/layout.tsx"
+          src/components/share/ShareButtons.tsx
+          src/i18n/dictionaries/share.ts
+          src/lib/og/workOgContent.ts
+          src/lib/og/ogImageElements.tsx
+          src/lib/share/shareLinks.ts
+          src/lib/auth/officialAuthor.server.ts
+
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
+
+      - name: Diff whitespace check
+        run: git diff --check origin/main...HEAD
