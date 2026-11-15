@@ -249,6 +249,12 @@ assert.equal((ep1?.lastModified as Date).toISOString(), "2026-09-22T00:00:00.000
 assert.equal((ep2?.lastModified as Date).toISOString(), "2026-11-10T00:00:00.000Z");
 assert.equal(ep1?.alternates, undefined, "non-canonical Reader copies must not be offered as hreflang alternates");
 assert.ok(entries.length < 50000, "a single sitemap file must stay under the 50,000 URL limit");
+// P9 author landing page: ja + en listed with hreflang, no /ko copy.
+assert.ok(urls.includes(`${SITE}/for-authors`));
+assert.ok(urls.includes(`${SITE}/en/for-authors`));
+assert.equal(urls.includes(`${SITE}/ko/for-authors`), false);
+const forAuthorsEntry = entries.find((entry) => entry.url === `${SITE}/for-authors`);
+assert.deepEqual(Object.keys(forAuthorsEntry?.alternates?.languages ?? {}).sort(), ["en", "ja", "x-default"]);
 
 // 8. Source contracts: R18/private gates and wiring.
 const read = (path: string) => readFileSync(path, "utf8");

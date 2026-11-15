@@ -101,6 +101,30 @@ function pushPdfReaderEntries(entries: MetadataRoute.Sitemap) {
   );
 }
 
+// P9 author landing page: Japanese and English copies only (/ko shows the
+// English copy as noindex, so it is not listed).
+function pushForAuthorsEntries(entries: MetadataRoute.Sitemap) {
+  const languages = {
+    ja: `${SITE_URL}/for-authors`,
+    en: `${SITE_URL}/en/for-authors`,
+    "x-default": `${SITE_URL}/for-authors`,
+  };
+  entries.push(
+    {
+      url: languages.ja,
+      changeFrequency: "monthly",
+      priority: 0.8,
+      alternates: { languages },
+    },
+    {
+      url: languages.en,
+      changeFrequency: "monthly",
+      priority: 0.75,
+      alternates: { languages },
+    }
+  );
+}
+
 function toDate(value: number): Date | undefined {
   return value > 0 ? new Date(value) : undefined;
 }
@@ -136,6 +160,7 @@ export function buildSitemapEntries(
   pushEnKoSearchEntries(entries, "/japanese-novel-reader", 0.9);
   pushEnKoSearchEntries(entries, "/learn-japanese-with-web-novels", 0.9);
   pushPdfReaderEntries(entries);
+  pushForAuthorsEntries(entries);
 
   // `works` is the public, non-R18 catalog (visibility: "general"); only its
   // members produce URLs. episodeDates can only refine <lastmod>.

@@ -149,7 +149,11 @@ export default function GuidePage() {
           <Link className="underline underline-offset-4" href="/write">
             作品ワークスペース
           </Link>
-          側の導線から進みます。
+          側の導線から進みます。投稿でできることと始め方は
+          <Link className="underline underline-offset-4" href="/for-authors">
+            作品を投稿する方へ
+          </Link>
+          にまとめています。
         </p>
         <p>
           朗読を行いたい場合は、
