@@ -1,0 +1,72 @@
+# Per-country restriction (owner 2026-11-15): apply the migration to a
+# disposable PostgreSQL and assert the RESTRICTIVE select policies, write
+# denial, constraints and rollback; run the Node-level unit/source tests.
+# Disposable service container only; no Supabase hosted access.
+name: Region restrictions
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/region-restrictions.yml"
+      - "scripts/region-restrictions/**"
+      - "scripts/test-region-restriction.ts"
+      - "supabase/migrations/20261116090000_region_restrictions.sql"
+      - "src/lib/rights/**"
+      - "src/proxy.ts"
+      - "src/app/sitemap.ts"
+      - "src/lib/translation/episodeTranslationServer.ts"
+      - "src/app/api/recordings/ai-audio/**"
+      - "src/app/api/recordings/human-audio/**"
+      - "src/app/read/**"
+      - "src/app/works/**"
+      - "src/app/locale-work/**"
+      - "src/app/translate/**"
+      - "src/app/record/create/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  region-restrictions-sql:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Apply migration to disposable DB and assert
+        env:
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: psql -X -v ON_ERROR_STOP=1 -f scripts/region-restrictions/check.sql
+  region-restrictions-unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Region restriction unit / source tests
+        run: npm run test:region-restriction
+      - name: Existing regressions on touched surfaces
+        run: |
+          npm run test:p9-seo-metadata
+          npm run test:p9-share-ogp
+          npm run test:legacy-attribution
+          npm run test:private-media-playback-proxy
+          npm run test:human-translation
+          npm run test:sitemap-resilience

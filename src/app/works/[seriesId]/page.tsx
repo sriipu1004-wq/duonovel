@@ -61,6 +61,7 @@ import ShareButtons from "@/components/share/ShareButtons";
 import { resolveShareAuthorName, shouldShowShareButtons } from "@/lib/share/shareLinks";
 import { isOfficialAuthorAccountForDisplay } from "@/lib/auth/officialAuthor.server";
 import { workOgImagePath } from "@/lib/og/workOgContent";
+import { assertSeriesAvailableInRequestRegion } from "@/lib/rights/regionRestriction.server";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -796,6 +797,7 @@ export async function generateMetadata({
   params,
 }: Pick<PageProps, "params">): Promise<Metadata> {
   const { seriesId } = await params;
+  await assertSeriesAvailableInRequestRegion(seriesId);
 
   if (!isUuid(seriesId)) {
     return {
@@ -1396,6 +1398,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   const locale = await getUiLocale();
   const dictionary = workDictionaries[locale];
   const { seriesId } = await params;
+  await assertSeriesAvailableInRequestRegion(seriesId);
 
   if (!isUuid(seriesId)) notFound();
 

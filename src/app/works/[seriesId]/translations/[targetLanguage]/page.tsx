@@ -17,6 +17,7 @@ import {
 } from "@/lib/translation/languageRegistry";
 import { getPublicWorkTranslationOverview } from "@/lib/translation/publicWorkTranslations";
 import { isUuid } from "@/lib/uuid";
+import { assertSeriesAvailableInRequestRegion } from "@/lib/rights/regionRestriction.server";
 
 type Props = {
   params: Promise<{ seriesId: string; targetLanguage: string }>;
@@ -60,6 +61,7 @@ const copy = {
 
 async function resolvePageData(params: Props["params"]) {
   const { seriesId, targetLanguage: rawTargetLanguage } = await params;
+  await assertSeriesAvailableInRequestRegion(seriesId);
 
   if (!isUuid(seriesId)) {
     return null;
