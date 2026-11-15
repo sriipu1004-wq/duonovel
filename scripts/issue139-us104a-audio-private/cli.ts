@@ -6,7 +6,8 @@
 // flags: --execute                 perform writes (otherwise dry-run)
 //        --confirm-playback-checked  required by delete-public
 //        --deep                    verify: SHA-256 both sides for unproven objects
-//        --state <dir>             state directory (default .issue139-audio-state)
+//        --state <dir>             state directory (default .issue139-audio-state;
+//                                  .issue139-audio-state-kotou with ISSUE139_AUDIO_SET=kotou)
 //        --concurrency <n>         copy workers (default 4)
 //
 // Credentials come only from the environment and are never printed:
@@ -19,7 +20,7 @@ import {
   parsePrivateAiNarrationReference,
 } from "../../src/lib/recording/privateAiNarrationStorage";
 import { buildNemoTimingObjectPathFromAudioObjectPath } from "../../src/lib/recording/nemoTiming";
-import { PRIVATE_BUCKET, PROJECT_REF, TARGET_SERIES, privateReference } from "./lib.mjs";
+import { DEFAULT_STATE_DIR, PRIVATE_BUCKET, PROJECT_REF, TARGET_SERIES, privateReference } from "./lib.mjs";
 import { copy, deletePublic, plan, verify } from "./core.mjs";
 
 type Meta = { path: string; size: number; etag: string; mimetype: string };
@@ -133,7 +134,7 @@ async function anonymousStatus(url: string): Promise<number> {
 }
 
 async function main() {
-  const stateDir = arg("--state") ?? ".issue139-audio-state";
+  const stateDir = arg("--state") ?? DEFAULT_STATE_DIR;
   const common = { db, storage, stateDir, log };
   const execute = flag("--execute");
   switch (stage) {

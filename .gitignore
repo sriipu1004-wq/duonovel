@@ -47,3 +47,4 @@ next-env.d.ts
 
 # Issue #139 narration move: local state (manifest / proofs)
 /.issue139-audio-state/
+/.issue139-audio-state-kotou/

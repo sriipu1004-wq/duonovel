@@ -52,3 +52,10 @@ node --import tsx $S/cli.ts verify                # 660 個・サイズ・中身
 - CI（`.github/workflows/issue139-us104a-audio-private.yml`）：使い捨ての PostgreSQL で
   #210 適用後の状態を作り、apply / 二重 apply の拒否 / コピー不足・サイズ違い・パスのずれでの拒否 /
   #210 rollback.sql との両立 / 削除後の rollback 拒否と復元後の完全な rollback / lock_timeout を確かめる。
+
+## 孤島の鬼（set "kotou"、2026-11-15 追加）
+孤島の鬼（江戸川乱歩）は D030 の許可リストの国でだけ公開しているが、AI 朗読 120 件（240 個）が公開バケットに残っていた。同じ手順で移す。
+- すべてのコマンドに `ISSUE139_AUDIO_SET=kotou` を付ける。状態は `.issue139-audio-state-kotou/` に置く（消さない）。
+- SQL は `kotou/dryrun.sql`、`kotou/db-apply.sql`、`kotou/db-rollback.sql`。snapshot は `libread_internal.issue139_audio_private_kotou_20261115`。
+- 期待値：120 行・240 個。`scope-check.mjs` は両方の組を確かめる。
+- 移した後は、許可リストに無い国（US など）からは `/api/recordings/ai-audio/<id>` が 451 を返す。公開バケットの URL を直接たどる抜け道がなくなる。
