@@ -217,6 +217,8 @@ begin
   raise notice 'ok: constraints';
 end $$;
 
+-- Back to a signed-out caller (step 3 left author A's claim in the session).
+select set_config('request.jwt.claim.sub', '', false);
 -- An allow-list row is accepted and hides the work from the Data API too.
 insert into public.series_region_restrictions(series_id, allowed_countries, reason)
   values ('00000000-0000-4000-8000-0000000000a2', array['JP', 'GB'], 'allow test');

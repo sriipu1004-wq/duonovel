@@ -310,7 +310,12 @@ function verifyPublicEpisodeSummaryReadBoundary(): void {
     works.indexOf("async function fetchAuthorAccountMap(")
   );
   assert.ok(summaryRead.includes('.from("public_episode_work_summaries")'));
-  assert.ok(summaryRead.includes('.in("series_id", seriesIds)'));
+  // D030 / #141: read with the service role (restricted works hide their
+  // episode rows from anon but stay public) and without a long .in() list;
+  // the view itself is limited to public works and ids are intersected.
+  assert.ok(summaryRead.includes("const supabase = createAdminClient();"));
+  assert.ok(!summaryRead.includes('.in("series_id", seriesIds)'));
+  assert.ok(summaryRead.includes("wanted.has(summary.series_id)"));
   assert.ok(summaryRead.includes('.order("series_id", { ascending: true })'));
   assert.ok(summaryRead.includes(".range(start, start + PAGE_SIZE - 1)"));
   assert.ok(summaryRead.includes("isMissingEpisodeSummaryView(error)"));
