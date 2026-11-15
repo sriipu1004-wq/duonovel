@@ -56,11 +56,11 @@ assert.deepEqual(
     publicDomainOriginalAuthor: "南部修太郎",
     accountAuthorName: "LIB read Official",
   }),
-  { authorName: "南部修太郎", publisherName: "LIB read Official", isPublicDomain: true }
+  { authorName: "南部修太郎", publisherName: "LIB read Official", isPublicDomain: true, isLegacyAttribution: false }
 );
 assert.deepEqual(
   resolvePublicWorkAttribution({ publicDomainOriginalAuthor: null, accountAuthorName: "投稿者A" }),
-  { authorName: "投稿者A", publisherName: null, isPublicDomain: false }
+  { authorName: "投稿者A", publisherName: null, isPublicDomain: false, isLegacyAttribution: false }
 );
 assert.equal(stripAuthorSuffixFromTitle("修道院の秋・南部修太郎", "南部修太郎"), "修道院の秋");
 assert.equal(stripAuthorSuffixFromTitle("南部修太郎", "南部修太郎"), "南部修太郎");

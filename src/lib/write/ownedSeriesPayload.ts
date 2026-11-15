@@ -13,6 +13,9 @@ const EDITABLE_KEYS = new Set([
   "effect_settings",
 ]);
 
+/** effect_settings keys only the operator writes (never from a client). */
+const PROTECTED_EFFECT_SETTINGS_KEYS = ["publicDomain", "legacyAttribution"] as const;
+
 export function isValidSeriesId(value: string): boolean {
   return /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value);
 }
@@ -47,10 +50,13 @@ export function isOwnedSeriesWorkspacePayload(value: unknown): value is Record<s
     data.effect_settings !== null &&
     (typeof data.effect_settings !== "object" || Array.isArray(data.effect_settings))
   ) return false;
-  // Public Domain evidence is reviewed metadata, not author-editable styling.
+  // Public Domain evidence and the legacy official attribution are operator
+  // records, not author-editable styling.
   if (
     data.effect_settings !== null &&
-    Object.prototype.hasOwnProperty.call(data.effect_settings, "publicDomain")
+    PROTECTED_EFFECT_SETTINGS_KEYS.some((key) =>
+      Object.prototype.hasOwnProperty.call(data.effect_settings, key)
+    )
   ) return false;
   // Bound serialized input size without inspecting or logging the serialized
   // effect settings (which may contain authored presentation content).
@@ -81,8 +87,9 @@ function settingsRecord(value: unknown): Record<string, unknown> | null {
 
 /**
  * Workspace presentation edits must not discard or forge reviewed rights
- * provenance, which lives inside effect_settings.publicDomain.
- * Only the existing owner-readable database value may supply this field.
+ * provenance (effect_settings.publicDomain) or the legacy official
+ * attribution (effect_settings.legacyAttribution). Only the existing
+ * owner-readable database value may supply these fields.
  */
 export function preserveSeriesPublicDomainMetadata(
   editable: unknown,
@@ -90,10 +97,14 @@ export function preserveSeriesPublicDomainMetadata(
 ): Record<string, unknown> | null {
   const clientSettings = settingsRecord(editable);
   const storedSettings = settingsRecord(stored);
-  const next = clientSettings ? { ...clientSettings } : null;
-  if (next) delete next.publicDomain;
-  if (!storedSettings || !Object.prototype.hasOwnProperty.call(storedSettings, "publicDomain")) {
-    return next;
+  let next: Record<string, unknown> | null = clientSettings ? { ...clientSettings } : null;
+  if (next) {
+    for (const key of PROTECTED_EFFECT_SETTINGS_KEYS) delete next[key];
   }
-  return { ...(next ?? {}), publicDomain: storedSettings.publicDomain };
+  for (const key of PROTECTED_EFFECT_SETTINGS_KEYS) {
+    if (storedSettings && Object.prototype.hasOwnProperty.call(storedSettings, key)) {
+      next = { ...(next ?? {}), [key]: storedSettings[key] };
+    }
+  }
+  return next;
 }

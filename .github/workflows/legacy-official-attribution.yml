@@ -1,0 +1,182 @@
+# Legacy official works: original author without a rights check
+# (owner decision 2026-11-15 「原作者だけ先に表示 (推奨)」).
+# App display regressions + build, and the Production SQL proven on a
+# disposable PostgreSQL service container. No Supabase hosted access, no secrets.
+name: Legacy official attribution
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/legacy-official-attribution.yml"
+      - "package.json"
+      - "scripts/legacy-official-attribution/**"
+      - "scripts/test-legacy-attribution.ts"
+      - "public-domain/audits/legacy-official-*.json"
+      - "src/lib/legacyAttribution.ts"
+      - "src/lib/legacyAttribution.server.ts"
+      - "src/lib/auth/officialAuthorGrant.ts"
+      - "src/lib/auth/officialAuthorGrant.server.ts"
+      - "src/lib/og/**"
+      - "src/lib/publicDomainMetadata.ts"
+      - "src/lib/publicWorks.ts"
+      - "src/lib/seo/**"
+      - "src/lib/share/**"
+      - "src/lib/write/ownedSeriesPayload.ts"
+      - "src/app/read/**"
+      - "src/app/works/**"
+      - "src/app/locale-work/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Legacy attribution display regression
+        run: npm run test:legacy-attribution
+      - name: Existing share / SEO / workspace regressions
+        run: |
+          npm run test:p9-share-ogp
+          npm run test:p9-seo-metadata
+          npm run test:owned-series-server-save
+          npm run test:public-search-language-filters
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Changed-scope ESLint
+        run: >
+          npx eslint
+          scripts/test-legacy-attribution.ts
+          src/lib/legacyAttribution.ts
+          src/lib/legacyAttribution.server.ts
+          src/lib/auth/officialAuthorGrant.ts
+          src/lib/auth/officialAuthorGrant.server.ts
+          src/lib/publicWorks.ts
+          src/lib/seo/publicWorkSeo.ts
+          src/lib/write/ownedSeriesPayload.ts
+          "src/app/works/[seriesId]/page.tsx"
+          "src/app/works/[seriesId]/opengraph-image.tsx"
+          "src/app/read/[seriesId]/[episodeNumber]/page.tsx"
+          "src/app/read/[seriesId]/[episodeNumber]/layout.tsx"
+          "src/app/locale-work/[seriesId]/page.tsx"
+      - name: Production build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role
+        run: npm run build
+
+  sql:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      D: scripts/legacy-official-attribution
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Static scope check (28 targets from the audit files, effect_settings only)
+        run: node "$D/scope-check.mjs"
+      - name: Fixture and dry run (expected aggregates)
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-fixture.sql"
+          node "$D/targets.mjs" --fixture-sql > seed.sql
+          psql -X -v ON_ERROR_STOP=1 -f seed.sql
+          psql -X -v ON_ERROR_STOP=1 -c "create schema ci; create table ci.series_before as select * from public.series;"
+          out="$(psql -X -v ON_ERROR_STOP=1 -At -F, -f "$D/dryrun.sql" | grep -v '^BEGIN$\|^ROLLBACK$')"
+          echo "$out"
+          test "$out" = "28,28,28,t,t,t,28,0,0"
+      - name: Apply, records equal the audit files, second apply refused, exact rollback
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+          psql -X -At -c "select json_agg(json_build_object('id', id, 'la', effect_settings->'legacyAttribution')) from public.series where effect_settings ? 'legacyAttribution'" \
+            | node --import tsx "$D/check-applied.mjs"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql" 2> err.txt; then echo "second apply must fail"; exit 1; fi
+          grep -q LEGACY_ATTRIBUTION_ALREADY_APPLIED err.txt
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/rollback.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/rollback.sql" 2> err.txt; then echo "second rollback must fail"; exit 1; fi
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+      - name: Rollback refuses after a later edit, then succeeds once reverted
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql"
+          psql -X -v ON_ERROR_STOP=1 -c "create table ci.edited as select effect_settings from public.series where id = 'b8b3a2ba-f8a5-4837-90bc-37df2ec49b61'"
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set effect_settings = effect_settings || '{\"storyFormat\":\"long\"}' where id = 'b8b3a2ba-f8a5-4837-90bc-37df2ec49b61'"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/rollback.sql" 2> err.txt; then echo "rollback must refuse"; exit 1; fi
+          grep -q LEGACY_ATTRIBUTION_ROLLBACK_STATE_DRIFT err.txt
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set effect_settings = (select effect_settings from ci.edited) where id = 'b8b3a2ba-f8a5-4837-90bc-37df2ec49b61'"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/rollback.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+      - name: Apply refuses on drift and leaves nothing behind
+        run: |
+          refuse() {
+            if psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql" 2> err.txt; then echo "apply must refuse ($1)"; exit 1; fi
+            grep -q "$1" err.txt
+            psql -X -At -c "select to_regclass('libread_internal.legacy_attribution_series_20261115') is null" | grep -qx t
+            psql -X -At -c "select count(*) from public.series where effect_settings ? 'legacyAttribution'" | grep -qx 0
+          }
+          # A target already has settings (NULL guard).
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set effect_settings = '{\"storyFormat\":\"short\"}' where id = '8e263f81-6348-4fb2-82a5-786b6c080515'"
+          refuse LEGACY_ATTRIBUTION_SETTINGS_NOT_NULL
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set effect_settings = null where id = '8e263f81-6348-4fb2-82a5-786b6c080515'"
+          # A target was renamed (title no longer the audited Production title).
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set title = 'renamed' where id = '1dbf029f-ccd7-4e99-b875-432ad50abb50'"
+          refuse LEGACY_ATTRIBUTION_TITLE_DRIFT
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set title = '吾輩は猫である・夏目漱石' where id = '1dbf029f-ccd7-4e99-b875-432ad50abb50'"
+          # A target owned by a non-official account.
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set author_id = '22222222-2222-4222-8222-222222222222' where id = 'd5e231b1-4f59-4d44-80a8-067cd49f8504'"
+          refuse LEGACY_ATTRIBUTION_AUTHOR_DRIFT
+          psql -X -v ON_ERROR_STOP=1 -c "update public.series set author_id = '11111111-1111-4111-8111-111111111111' where id = 'd5e231b1-4f59-4d44-80a8-067cd49f8504'"
+          # The single author is not the official account.
+          psql -X -v ON_ERROR_STOP=1 -c "update auth.users set email = 'renamed@example.invalid' where id = '11111111-1111-4111-8111-111111111111'"
+          refuse LEGACY_ATTRIBUTION_AUTHOR_DRIFT
+          psql -X -v ON_ERROR_STOP=1 -c "update auth.users set email = 'libread08@gmail.com' where id = '11111111-1111-4111-8111-111111111111'"
+          # A target row is missing.
+          psql -X -v ON_ERROR_STOP=1 -c "create table ci.removed as select * from public.series where id = '85f48ae4-03b9-4338-8bdc-6bd0316333e3'"
+          psql -X -v ON_ERROR_STOP=1 -c "delete from public.series where id = '85f48ae4-03b9-4338-8bdc-6bd0316333e3'"
+          refuse LEGACY_ATTRIBUTION_TARGET_COUNT_MISMATCH
+          psql -X -v ON_ERROR_STOP=1 -c "insert into public.series select * from ci.removed"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+      - name: Apply gives up on a held row lock (lock_timeout) and changes nothing
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -c "begin; select id from public.series where id = '742aa40a-e447-4851-8217-c1959d3fa346' for update; select pg_sleep(20); commit;" &
+          holder=$!
+          sleep 2
+          start=$(date +%s)
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/apply.sql" 2> err.txt; then echo "apply must time out"; exit 1; fi
+          cat err.txt
+          grep -q "lock timeout" err.txt
+          test $(( $(date +%s) - start )) -lt 15
+          wait "$holder"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"

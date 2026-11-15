@@ -42,11 +42,11 @@ for (const guard of [
   "getCurrentR18ViewerPreference()",
   'getSeriesContentRating(series) === "r18"',
   "fetchPublicEpisodeSummariesBySeriesIds([seriesId])",
-  "makePublicBaseWorkCard(series, summaries.get(seriesId), authors)",
+  "makePublicBaseWorkCard(series, summaries.get(seriesId), authors, legacyAttributionAuthorIds)",
   "getPublicSearchLanguageFilters()",
   "matchesPublicWorkLanguageFilters({",
 ]) assert.ok(bounded.includes(guard), `Missing bounded metadata safety guard: ${guard}`);
-assert.ok(bounded.includes("const [summaries, authors] = await Promise.all(["),
+assert.ok(bounded.includes("const [summaries, authors, legacyAttributionAuthorIds] = await Promise.all(["),
   "Individual public episode summaries and optional author profile must load concurrently");
 assert.ok(!bounded.includes("fetchPublicSeriesRows()"), "Never load all series");
 assert.ok(!bounded.includes("getCachedPublicBaseWorkCardsInternal()"), "Never read shared catalog cache");
@@ -58,7 +58,7 @@ const builderStart = works.indexOf("async function buildPublicBaseWorkCards(");
 assert.ok(makerStart >= 0 && makerEnd > makerStart && builderStart === makerEnd);
 const maker = works.slice(makerStart, makerEnd);
 const builder = works.slice(builderStart, boundedStart);
-assert.ok(builder.includes("makePublicBaseWorkCard(series, summariesBySeriesId.get(series.id), authorAccountMap)"),
+assert.ok(builder.includes("makePublicBaseWorkCard(series, summariesBySeriesId.get(series.id), authorAccountMap, legacyAttributionAuthorIds)"),
   "Catalog and individual lookup must use exactly one canonical data-mapping function");
 for (const guard of [
   "if (!episodeSummary || episodeSummary.episode_count === 0) return null",

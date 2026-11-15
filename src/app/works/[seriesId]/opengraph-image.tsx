@@ -9,6 +9,8 @@ import {
 } from "@/features/write/writeShared";
 import { isR18Series } from "@/lib/contentRating";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
+import { resolveOriginalAuthorName } from "@/lib/legacyAttribution";
+import { readLegacyAttributionForDisplay } from "@/lib/legacyAttribution.server";
 import { getNormalAuthorName } from "@/lib/readerAuthorName";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 import { resolvePublicWorkAttribution, stripAuthorSuffixFromTitle } from "@/lib/seo/publicWorkSeo";
@@ -97,26 +99,39 @@ async function loadWorkOgContent(seriesId: string): Promise<WorkOgImageContent> 
   const publicDomain = readPublicDomainMetadata(
     series["effect_settings"] ?? series["effectSettings"]
   );
+  // Legacy official works: recorded original author without a rights check
+  // (owner decision 2026-11-15 「原作者だけ先に表示」).
+  const legacyAttribution = publicDomain
+    ? null
+    : await readLegacyAttributionForDisplay(
+        series["effect_settings"] ?? series["effectSettings"],
+        pickText(series.author_id, series["user_id"], series["userId"])
+      );
+  const originalAuthorName = resolveOriginalAuthorName({
+    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    legacyAttribution,
+  });
   // Owner decision 2026-11-15 「原作者を作者にする」.
-  const accountAuthorName = publicDomain ? "" : await getNormalAuthorName(series, "");
+  const accountAuthorName = originalAuthorName ? "" : await getNormalAuthorName(series, "");
   const attribution = resolvePublicWorkAttribution({
     publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    legacyOriginalAuthor: legacyAttribution?.originalAuthor,
     accountAuthorName,
   });
-  // Same rule as the share text: never draw the operator account
-  // (LIB read Official) as the author of a work without Public Domain
-  // metadata. The account check fails closed (no author).
+  // Same rule as the share text: the original author (Public Domain or
+  // legacy official), and never the operator account (LIB read Official)
+  // as the author of any other work. The account check fails closed.
   const authorId = pickText(series.author_id, series["user_id"], series["userId"]);
   const imageAuthorName = resolveShareAuthorName({
-    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    publicDomainOriginalAuthor: originalAuthorName,
     accountAuthorName,
     authorIsOfficialAccount:
-      publicDomain || !accountAuthorName
+      originalAuthorName || !accountAuthorName
         ? false
         : await isOfficialAuthorAccountForDisplay(authorId),
   });
   const rawTitle = pickText(series.title);
-  const title = attribution.isPublicDomain
+  const title = attribution.isPublicDomain || attribution.isLegacyAttribution
     ? publicDomain?.originalTitle?.trim() ||
       stripAuthorSuffixFromTitle(rawTitle, attribution.authorName)
     : rawTitle;

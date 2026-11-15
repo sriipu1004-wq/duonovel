@@ -331,7 +331,7 @@ function verifyPublicEpisodeSummaryReadBoundary(): void {
   );
   assert.ok(sharedCardMapper.includes("episodeSummary.public_episode_numbers"));
   assert.ok(sharedCardMapper.includes("readCanonicalSeriesSourceLanguage(series)"));
-  assert.ok(build.includes("makePublicBaseWorkCard(series, summariesBySeriesId.get(series.id), authorAccountMap)"));
+  assert.ok(build.includes("makePublicBaseWorkCard(series, summariesBySeriesId.get(series.id), authorAccountMap, legacyAttributionAuthorIds)"));
   assert.equal(build.includes("legacyFirstEpisodeBodyMap"), false);
 }
 
