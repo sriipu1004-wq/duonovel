@@ -88,6 +88,13 @@
     "暗め",
     "人間関係"
   ],
+  "region_restriction": {
+    "blocked_countries": [
+      "CO",
+      "GQ"
+    ],
+    "basis": "D030 block list (as in scripts/region-restrictions/issue139-restrictions.sql). Kim Dong-in d.1951: CO life+80 (no shorter-term rule found), GQ life+80 unverified. docs/rights/region-research-2026-11-15.md"
+  },
   "source_hash": "a0d872fd5b7ac3c7a00144b695bd5a5076dcd75d0b15605d8214ad205efe8876",
   "approved": true,
   "import_status": "imported",

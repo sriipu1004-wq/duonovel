@@ -88,6 +88,13 @@
     "社会批評",
     "心理"
   ],
+  "region_restriction": {
+    "blocked_countries": [
+      "CO",
+      "GQ"
+    ],
+    "basis": "D030 block list (as in scripts/region-restrictions/issue139-restrictions.sql). Kim Dong-in d.1951: CO life+80 (no shorter-term rule found), GQ life+80 unverified. docs/rights/region-research-2026-11-15.md"
+  },
   "source_hash": "3550dc7c633a3ca8b4fd4dc8a7693182eefff4cfa18abeb4971f322985ceff55",
   "approved": true,
   "import_status": "imported",

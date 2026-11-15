@@ -88,6 +88,13 @@
     "社会批評",
     "貧困"
   ],
+  "region_restriction": {
+    "blocked_countries": [
+      "CO",
+      "GQ"
+    ],
+    "basis": "D030 block list (as in scripts/region-restrictions/issue139-restrictions.sql). Kim Dong-in d.1951: CO life+80 (no shorter-term rule found), GQ life+80 unverified. docs/rights/region-research-2026-11-15.md"
+  },
   "source_hash": "a8dce17253eece0a0509307acb9a8968b03111a8fd90c91de4e543164cec08dd",
   "approved": true,
   "import_status": "imported",
