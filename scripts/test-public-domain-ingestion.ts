@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { assertExactDraftEpisodeInsert, assertDraftRollbackConfirmed } from "./public-domain/import-integrity";
 import {
   assertImportable,
@@ -26,6 +26,14 @@ import {
   isAllowedAozoraTextUrl,
   makePendingAozoraManifest,
 } from "./public-domain/aozora";
+import {
+  AOZORA_COUNTRY_LIMITED_BASE_ALLOWED_COUNTRIES,
+  aozoraCountryLimitedRegionRestriction,
+} from "./public-domain/aozora";
+import {
+  buildRegionPublishSql,
+  regionPublishTargetFromManifest,
+} from "./public-domain/region-publish-sql";
 import { isAllowedGutenbergTextUrl } from "./public-domain/gutenberg";
 import {
   chooseGonguTxtSourceFromPopupHtml,
@@ -1202,6 +1210,204 @@ function testIssue139OwnerApprovedBatch() {
   );
 }
 
+function testRegionRestrictionManifestGate() {
+  const allow = {
+    allowed_countries: ["JP", "GB", "KR"],
+    basis: "D030 allow list fixture",
+  };
+  // Death <= 1945: the field may be absent.
+  assert.equal(validateManifest(approvedManifest({ author_death_year: 1945 })).ok, true);
+  // Approved + death after 1945 + no field: rejected.
+  const missing = validateManifest(approvedManifest({ author_death_year: 1950 }));
+  assert.equal(missing.ok, false);
+  assert.ok(missing.errors.some((e) => e.includes("require region_restriction")));
+  // A translator who died after 1945 also triggers it.
+  assert.equal(
+    validateManifest(
+      approvedManifest({
+        translator: "T",
+        translator_death_year: 1960,
+        translation_language: "ja",
+        rights_components: {
+          ...approvedManifest().rights_components,
+          translation: component(),
+        },
+      })
+    ).errors.some((e) => e.includes("require region_restriction")),
+    true
+  );
+  // Pending manifests are not forced.
+  assert.equal(
+    validateManifest(
+      approvedManifest({ author_death_year: 1950, approved: false, rights_status: "pending" })
+    ).ok,
+    true
+  );
+  // Allow list, block list and explicit null are accepted.
+  const ok = validateManifest(approvedManifest({ author_death_year: 1950, region_restriction: allow }));
+  assert.equal(ok.ok, true, ok.errors.join("; "));
+  assert.deepEqual(ok.manifest?.region_restriction, allow);
+  assert.equal(
+    validateManifest(
+      approvedManifest({
+        author_death_year: 1951,
+        region_restriction: { blocked_countries: ["CO", "GQ"], basis: "fixture" },
+      })
+    ).ok,
+    true
+  );
+  const explicitNull = validateManifest(
+    approvedManifest({ author_death_year: 1947, region_restriction: null })
+  );
+  assert.equal(explicitNull.ok, true);
+  assert.ok(explicitNull.warnings.some((w) => w.includes("region_restriction: null")));
+  // Shape errors.
+  const bad = (rr: unknown) =>
+    validateManifest({ ...approvedManifest({ author_death_year: 1950 }), region_restriction: rr });
+  assert.equal(bad({ allowed_countries: ["jp"], basis: "x" }).ok, false);
+  assert.equal(bad({ allowed_countries: ["JPN"], basis: "x" }).ok, false);
+  assert.equal(bad({ allowed_countries: ["JP", "JP"], basis: "x" }).ok, false);
+  assert.equal(bad({ allowed_countries: [], basis: "x" }).ok, false);
+  assert.equal(bad({ allowed_countries: ["JP"], basis: " " }).ok, false);
+  assert.equal(bad({ allowed_countries: ["JP"] }).ok, false);
+  assert.equal(bad({ allowed_countries: ["JP"], blocked_countries: ["US"], basis: "x" }).ok, false);
+  assert.equal(bad({ allowed_countries: ["JP"], basis: "x", extra: 1 }).ok, false);
+  assert.equal(bad("JP").ok, false);
+
+  // Every manifest in the repository passes, and every approved one whose
+  // author/translator died after 1945 states the field.
+  const dir = "public-domain/manifests";
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith(".json") || name.startsWith("_")) continue;
+    const raw = JSON.parse(readFileSync(`${dir}/${name}`, "utf8"));
+    const result = validateManifest(raw);
+    assert.equal(result.ok, true, `${name}: ${result.errors.join("; ")}`);
+    if (
+      raw.approved &&
+      ((raw.author_death_year ?? 0) > 1945 || (raw.translator_death_year ?? 0) > 1945)
+    ) {
+      assert.ok(Object.prototype.hasOwnProperty.call(raw, "region_restriction"), name);
+    }
+  }
+}
+
+function testAozoraCountryLimitedCandidatePolicy() {
+  const row = {
+    "作品ID": "54321",
+    "作品名": "Fixture Postwar",
+    "作品著作権フラグ": "なし",
+    "図書カードURL": "https://www.aozora.gr.jp/cards/000002/card54321.html",
+    "姓": "Fixture",
+    "名": "Postwar",
+    "没年月日": "1950-01-01",
+    "人物著作権フラグ": "なし",
+    "役割フラグ": "著者",
+    "初出": "1948（昭和23）年",
+    "テキストファイルURL": "https://www.aozora.gr.jp/cards/000002/files/54321_ruby_1.zip",
+    "テキストファイル符号化方式": "ShiftJIS",
+    "底本名1": "Fixture Edition",
+    "底本初版発行年1": "1960（昭和35）年",
+  };
+  const options = { minAuthorDeathYear: 1946, maxAuthorDeathYear: 1967, maxFirstPublicationYear: null };
+  // Default behaviour unchanged: death 1950 / first 1948 is rejected.
+  assert.equal(classifyAozoraWork([row]).eligible, false);
+  const item = classifyAozoraWork([row], options);
+  assert.equal(item.eligible, true, item.reasons.join("; "));
+  assert.equal(classifyAozoraWork([{ ...row, "没年月日": "1945-12-31" }], options).eligible, false);
+  assert.equal(classifyAozoraWork([{ ...row, "没年月日": "1968-01-01" }], options).eligible, false);
+  assert.equal(classifyAozoraWork([{ ...row, "初出": "" }], options).eligible, false);
+  assert.equal(classifyAozoraWork([{ ...row, "役割フラグ": "翻訳者" }], options).eligible, false);
+
+  const pending = makePendingAozoraManifest(item, { countryLimited: true }) as Record<string, any>;
+  assert.deepEqual(pending.region_restriction.allowed_countries, [
+    ...AOZORA_COUNTRY_LIMITED_BASE_ALLOWED_COUNTRIES,
+  ]);
+  assert.ok(pending.region_restriction.basis.includes("D030"));
+  assert.ok(pending.region_restriction.basis.includes("region-research-2026-11-15b.md"));
+  assert.equal(pending.region_restriction.allowed_countries.includes("US"), false);
+  assert.equal(pending.region_restriction.allowed_countries.length, 41);
+  assert.equal(validateManifest(pending).ok, true);
+  // Default manifests do not get the field.
+  const prewar = classifyAozoraWork([
+    { ...row, "没年月日": "1920-01-01", "初出": "1910（明治43）年" },
+  ]);
+  assert.equal("region_restriction" in makePendingAozoraManifest(prewar), false);
+  // IN is dropped for deaths in 1966-1967 only.
+  assert.equal(aozoraCountryLimitedRegionRestriction(1965).allowed_countries.includes("IN"), true);
+  assert.equal(aozoraCountryLimitedRegionRestriction(1966).allowed_countries.includes("IN"), false);
+  assert.equal(aozoraCountryLimitedRegionRestriction(1967).allowed_countries.length, 40);
+  assert.throws(() => aozoraCountryLimitedRegionRestriction(1945));
+  assert.throws(() => aozoraCountryLimitedRegionRestriction(1968));
+  assert.equal(new Set(AOZORA_COUNTRY_LIMITED_BASE_ALLOWED_COUNTRIES).size, 41);
+}
+
+function testRegionPublishSqlShape() {
+  const manifest = approvedManifest({
+    id: "aozora-054321",
+    title: "Fixture Postwar・O'Author",
+    original_author: "O'Author",
+    author_death_year: 1950,
+    source_provider: "Aozora Bunko",
+    chapter_count: 3,
+    content_warnings: ["violence"],
+    region_restriction: { allowed_countries: ["JP", "GB"], basis: "D030 fixture O'basis" },
+  });
+  const target = regionPublishTargetFromManifest(manifest);
+  assert.equal(target.mode, "allow");
+  assert.equal(target.expectedEpisodes, 3);
+  assert.throws(() => regionPublishTargetFromManifest({ ...manifest, region_restriction: null }));
+  assert.throws(() =>
+    regionPublishTargetFromManifest({ ...manifest, approved: false, rights_status: "pending" })
+  );
+  assert.throws(() => regionPublishTargetFromManifest({ ...manifest, content_warnings: undefined }));
+
+  const block = regionPublishTargetFromManifest({
+    ...manifest,
+    id: "gongu-1",
+    region_restriction: { blocked_countries: ["CO", "GQ"], basis: "b" },
+  });
+  const sql = buildRegionPublishSql({ tag: "fixture_tag", targets: [target, block] });
+  const apply = sql.apply;
+  // One transaction; restriction rows before publication.
+  assert.equal(apply.match(/^begin;$/gmu)?.length, 1);
+  assert.equal(apply.match(/^commit;$/gmu)?.length, 1);
+  const insertAt = apply.indexOf("insert into public.series_region_restrictions");
+  const publishAt = apply.indexOf("set publication_status = 'public'");
+  assert.ok(insertAt > 0 && publishAt > insertAt);
+  assert.ok(apply.includes("PD_REGION_FIXTURE_TAG_RESTRICTION_MISSING"));
+  assert.ok(apply.includes("PD_REGION_FIXTURE_TAG_PUBLIC_WITHOUT_RESTRICTION"));
+  assert.ok(
+    apply.includes(
+      "and exists (select 1 from public.series_region_restrictions r where r.series_id = s.id)"
+    )
+  );
+  assert.ok(apply.includes("libread_internal.pd_region_fixture_tag_series"));
+  assert.ok(apply.includes("effect_settings->'publicDomain'->>'manifestId'"));
+  assert.ok(apply.includes("O''Author") && apply.includes("O''basis"));
+  assert.ok(apply.includes("array['JP','GB']::text[]") && apply.includes("array['CO','GQ']::text[]"));
+  assert.ok(apply.includes("<> 2 then") && apply.includes("<> 6 then"));
+  assert.equal(apply.includes("RESTRICTION_TOO_RECENT"), false);
+  assert.ok(
+    buildRegionPublishSql({ tag: "t", targets: [target], minRestrictionAgeSeconds: 120 }).apply.includes(
+      "interval '120 seconds'"
+    )
+  );
+  // Rollback: unpublish first, then remove only rows apply.sql inserted.
+  const rb = sql.rollback;
+  assert.ok(
+    rb.indexOf("set publication_status = t.publication_status_before") <
+      rb.indexOf("delete from public.series_region_restrictions")
+  );
+  assert.ok(rb.includes("t.restriction_inserted"));
+  assert.ok(rb.includes("drop table libread_internal.pd_region_fixture_tag_series"));
+  // The restrictions-only script never publishes.
+  assert.equal(sql.restrictions.includes("publication_status = 'public'"), false);
+  assert.ok(sql.restrictions.includes("insert into public.series_region_restrictions"));
+  assert.throws(() => buildRegionPublishSql({ tag: "Bad-Tag", targets: [target] }));
+  assert.throws(() => buildRegionPublishSql({ tag: "t", targets: [target, target] }));
+  assert.throws(() => buildRegionPublishSql({ tag: "t", targets: [] }));
+}
+
 function main() {
   testAozoraEditionCollisionPreflight();
   testVerbatimPublicDomainDuplicateProbes();
@@ -1233,6 +1439,9 @@ function main() {
   testViolenceAdvisoryIsRecommendationOnly();
   testContentWarningsAreHumanRecordedBeforeImport();
   testIssue139OwnerApprovedBatch();
+  testRegionRestrictionManifestGate();
+  testAozoraCountryLimitedCandidatePolicy();
+  testRegionPublishSqlShape();
   console.log(
     "PASS: Public Domain rights gate, verified public metadata display gate, conservative source policy, safe paragraph chunking, content taxonomy/narration Draft plan, hash/idempotency, and non-paid ingestion"
   );

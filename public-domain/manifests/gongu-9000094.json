@@ -88,6 +88,13 @@
     "悲劇",
     "人間関係"
   ],
+  "region_restriction": {
+    "blocked_countries": [
+      "CO",
+      "GQ"
+    ],
+    "basis": "D030 block list (as in scripts/region-restrictions/issue139-restrictions.sql). Kim Dong-in d.1951: CO life+80 (no shorter-term rule found), GQ life+80 unverified. docs/rights/region-research-2026-11-15.md"
+  },
   "source_hash": "337b8ec4d68199b11e326ab4b595adff5e01e748ca161a37b349d3eafab3678d",
   "approved": true,
   "import_status": "imported",

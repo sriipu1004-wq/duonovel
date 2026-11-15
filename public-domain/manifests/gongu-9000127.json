@@ -88,6 +88,13 @@
     "心理",
     "暗め"
   ],
+  "region_restriction": {
+    "blocked_countries": [
+      "CO",
+      "GQ"
+    ],
+    "basis": "D030 block list (as in scripts/region-restrictions/issue139-restrictions.sql). Kim Dong-in d.1951: CO life+80 (no shorter-term rule found), GQ life+80 unverified. docs/rights/region-research-2026-11-15.md"
+  },
   "source_hash": "1bbeb53ca7e459fed55f778841b291dde7121a2fc694a0975284d3e0f4375815",
   "approved": true,
   "import_status": "imported",

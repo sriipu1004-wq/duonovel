@@ -98,6 +98,69 @@ export type PublicDomainSourceProvenance = {
   proofread_by: string;
 };
 
+// D030 per-country restriction recorded with the rights review. Exactly one
+// list, like public.series_region_restrictions: allowed_countries (served only
+// there) or blocked_countries (withheld there). Codes are ISO 3166-1 alpha-2.
+export type PublicDomainRegionRestriction =
+  | { allowed_countries: string[]; basis: string }
+  | { blocked_countries: string[]; basis: string };
+
+// Authors (or translators) who died after this year can still be protected
+// somewhere (life+70/80 countries, US §104A), so an approved manifest must
+// state its D030 decision explicitly (an allow/block list, or null).
+export const REGION_RESTRICTION_REQUIRED_AFTER_DEATH_YEAR = 1945;
+
+export function parseRegionRestriction(
+  value: unknown,
+  errors: string[]
+): PublicDomainRegionRestriction | null {
+  if (value === null) return null;
+  if (!isRecord(value)) {
+    errors.push("region_restriction must be an object or null");
+    return null;
+  }
+  const allowedKeys = new Set(["allowed_countries", "blocked_countries", "basis"]);
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.has(key)) errors.push(`region_restriction has unknown key: ${key}`);
+  }
+  const hasAllowed = value.allowed_countries !== undefined;
+  const hasBlocked = value.blocked_countries !== undefined;
+  if (hasAllowed === hasBlocked) {
+    errors.push("region_restriction needs exactly one of allowed_countries or blocked_countries");
+    return null;
+  }
+  const listKey = hasAllowed ? "allowed_countries" : "blocked_countries";
+  const raw = value[listKey];
+  if (!Array.isArray(raw) || raw.length === 0) {
+    errors.push(`region_restriction.${listKey} must be a non-empty array`);
+    return null;
+  }
+  const codes: string[] = [];
+  for (const code of raw) {
+    if (typeof code !== "string" || !/^[A-Z]{2}$/.test(code)) {
+      errors.push(`region_restriction.${listKey} has an invalid ISO 3166-1 alpha-2 code: ${String(code)}`);
+      continue;
+    }
+    codes.push(code);
+  }
+  if (new Set(codes).size !== codes.length) {
+    errors.push(`region_restriction.${listKey} must not contain duplicates`);
+  }
+  const basis = value.basis;
+  if (typeof basis !== "string" || !basis.trim()) {
+    errors.push("region_restriction.basis must be a non-empty string");
+    return null;
+  }
+  // Stored as series_region_restrictions.reason (1..2000 characters).
+  if (basis.trim().length > 1900) {
+    errors.push("region_restriction.basis must be at most 1900 characters");
+  }
+  if (codes.length !== raw.length) return null;
+  return hasAllowed
+    ? { allowed_countries: codes, basis }
+    : { blocked_countries: codes, basis };
+}
+
 export type PublicDomainManifest = {
   id: string;
   title: string;
@@ -144,6 +207,10 @@ export type PublicDomainManifest = {
   // Candidate notice text for the series description at import time. Not
   // inserted automatically.
   content_notice_candidate?: string | null;
+
+  // undefined = not stated. Required (object or explicit null) on approved
+  // manifests whose author/translator died after 1945.
+  region_restriction?: PublicDomainRegionRestriction | null;
 
   source_hash: string | null;
 
@@ -596,6 +663,14 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     errors.push("content_notice_candidate must be a string or null when provided");
   }
 
+  const regionRestrictionStated = Object.prototype.hasOwnProperty.call(
+    value,
+    "region_restriction"
+  );
+  const regionRestriction = regionRestrictionStated
+    ? parseRegionRestriction(value.region_restriction, errors)
+    : undefined;
+
   const sourceHash = readString(value, "source_hash", errors, { nullable: true });
   if (sourceHash && !/^[a-f0-9]{64}$/.test(sourceHash)) {
     errors.push("source_hash must be a lowercase SHA-256 hex digest or null");
@@ -660,6 +735,18 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     if (coverSource && rightsComponents.cover.status !== "approved") {
       errors.push("approved cover_source requires approved cover rights component");
     }
+    const lateDeath = [authorDeathYear, translatorDeathYear].some(
+      (year) => year !== null && year > REGION_RESTRICTION_REQUIRED_AFTER_DEATH_YEAR
+    );
+    if (lateDeath && !regionRestrictionStated) {
+      errors.push(
+        `approved manifests whose author or translator died after ${REGION_RESTRICTION_REQUIRED_AFTER_DEATH_YEAR} require region_restriction (D030 allow/block list, or null)`
+      );
+    } else if (lateDeath && regionRestriction === null && value.region_restriction === null) {
+      warnings.push(
+        `approved manifest (death after ${REGION_RESTRICTION_REQUIRED_AFTER_DEATH_YEAR}) declares no per-country restriction (region_restriction: null)`
+      );
+    }
   }
 
   if (!approved && normalizedRightsStatus === "pending") {
@@ -721,6 +808,7 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     ...(contentNoticeCandidateRaw === null || typeof contentNoticeCandidateRaw === "string"
       ? { content_notice_candidate: contentNoticeCandidateRaw }
       : {}),
+    ...(regionRestrictionStated ? { region_restriction: regionRestriction ?? null } : {}),
     source_hash: sourceHash,
     approved,
     import_status: IMPORT_STATUSES.includes(importStatus as ImportStatus)
