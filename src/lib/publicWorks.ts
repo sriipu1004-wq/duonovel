@@ -466,14 +466,7 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
   ]);
 
   return publicSeries
-    .map((series) =>
-      makePublicBaseWorkCard(
-        series,
-        summariesBySeriesId.get(series.id),
-        authorAccountMap,
-        legacyAttributionAuthorIds
-      )
-    )
+    .map((series) => makePublicBaseWorkCard(series, summariesBySeriesId.get(series.id), authorAccountMap, legacyAttributionAuthorIds))
     .filter((card): card is NonNullable<typeof card> => card !== null)
     .sort((a, b) => {
       if (b.latestPostedAtValue !== a.latestPostedAtValue) return b.latestPostedAtValue - a.latestPostedAtValue;
