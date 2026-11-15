@@ -166,6 +166,30 @@ const legacy = {
   );
 }
 
+// 7b. A Japanese operator synopsis is not used on en/ko pages (fallback stays).
+{
+  const text = buildLocalizedWorkMetadataText({
+    locale: "en",
+    title: "芋粥・芥川竜之介",
+    summary: "平安朝の頃、摂政藤原基経に仕える侍の中に、風采の上がらない五位がいた。",
+    authorName: "芥川竜之介",
+    isPublicDomain: true,
+    sourceLanguage: "ja",
+    sourceProvider: "Aozora Bunko",
+  });
+  assert.ok(!/[぀-ヿ]/u.test(text.description.split("Original author")[0] ?? ""), text.description);
+  const userJa = buildLocalizedWorkMetadataText({
+    locale: "en",
+    title: "My work",
+    summary: "作者が書いたあらすじです。",
+    authorName: "someone",
+    isPublicDomain: false,
+    sourceLanguage: "ja",
+    sourceProvider: null,
+  });
+  assert.ok(userJa.description.startsWith("作者が書いたあらすじです。"), userJa.description);
+}
+
 // 7. Localized Work metadata: original author label, no source line.
 {
   const text = buildLocalizedWorkMetadataText({

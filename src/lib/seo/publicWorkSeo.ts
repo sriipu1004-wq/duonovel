@@ -222,7 +222,11 @@ export function buildLocalizedWorkMetadataText(input: {
     ? stripAuthorSuffixFromTitle(input.title, author)
     : input.title.trim();
   const titleInput = { title: displayTitle, author, isPublicDomain: originalAuthor };
-  const summary = isWorkSummaryPlaceholder(input.summary)
+  // Operator works carry Japanese synopses (content/synopses); on the en/ko
+  // pages keep the localized fallback instead of a Japanese description.
+  const japaneseOperatorSummary =
+    originalAuthor && /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(input.summary ?? "");
+  const summary = isWorkSummaryPlaceholder(input.summary) || japaneseOperatorSummary
     ? copy.fallbackSummary(titleInput)
     : (input.summary ?? "").trim();
   const languageName = localizedLanguageName(input.sourceLanguage, input.locale);
