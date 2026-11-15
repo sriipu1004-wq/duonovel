@@ -1,7 +1,8 @@
 /**
  * JSX for Open Graph images (next/og). No server or data imports, so the
  * regression test can render these with the real ImageResponse.
- * Text here must stay inside isOgBundledFontText (see workOgContent.ts).
+ * Text here must stay inside isOgBundledFontText, or inside
+ * isOgSubsetFontText when the subset fonts are passed (see workOgContent.ts).
  */
 
 export const OG_IMAGE_SIZE = { width: 1200, height: 630 } as const;
@@ -83,14 +84,22 @@ export function DefaultOgImageElement() {
 export function WorkOgImageElement({
   title,
   authorName,
+  fontFamily,
 }: {
   title: string;
   authorName: string | null;
+  /** Set only with the bundled subset fonts (see ogFonts.ts). */
+  fontFamily?: string;
 }) {
-  const titleFontSize = title.length > 60 ? 54 : title.length > 32 ? 64 : 78;
+  // Count characters, not UTF-16 units; CJK glyphs are about twice as wide.
+  const chars = Array.from(title);
+  const isWide = chars.some((char) => (char.codePointAt(0) ?? 0) >= 0x1100);
+  const visualLength = isWide ? chars.length * 1.8 : chars.length;
+  const titleFontSize = visualLength > 60 ? 54 : visualLength > 32 ? 64 : 78;
   return (
     <div
       style={{
+        ...(fontFamily ? { fontFamily } : {}),
         width: "100%",
         height: "100%",
         display: "flex",
