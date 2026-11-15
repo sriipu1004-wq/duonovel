@@ -36,29 +36,29 @@ values
   ('b641e322-4506-4ae3-a416-cd426ca5a4bd'::uuid, '23ba76aa-b738-49e4-97e7-5e43de8f7d89'::uuid, 295, 'e5c315b5c7ffd35bb920795888452b61'),
   ('ad988696-b0ac-40f3-a71a-090184e92bfb'::uuid, '33fab088-be3a-4989-bb52-ecd9e8d2ece1'::uuid, 292, '806a57c61dfeb6515aacb89822780bb9'),
   ('fa917235-b961-479c-8653-2ef8659dc343'::uuid, '34655f6b-5d9c-4b49-a8bc-99da6a78e0f3'::uuid, 372, '61a2164df8483f6ca0681d9ec7dec974'),
-  ('9942f599-9bf8-4fd5-860f-877bd64a4de8'::uuid, '35d9ba1c-17e7-4699-b31f-a8c7592743cd'::uuid, 249, '7884e989ed4b65c849492a4e64dffcc2'),
+  ('9942f599-9bf8-4fd5-860f-877bd64a4de8'::uuid, '35d9ba1c-17e7-4699-b31f-a8c7592743cd'::uuid, 248, '2d4194773b8b1f2e6e786b676c650aec'),
   ('25a2a7ea-bbe4-4af2-9d34-9214731d69bd'::uuid, '36cba5cb-5e8d-4482-bcae-87f246c53688'::uuid, 280, 'c28f0b9462675ea3bad7106aa86ecff9'),
   ('a884571a-4805-46bc-a3aa-2aa538dddf97'::uuid, '3b1f4c20-707f-4357-86dd-f8e65940c13f'::uuid, 370, '1bfae156071ff2fa06fa3fd5f44d94e3'),
   ('7383ba09-fe5e-444a-bd57-7750c4360143'::uuid, '3d7bfa51-66f7-4d43-9687-3c255c33fe0b'::uuid, 335, '08c363d0f21cfaefa2da16d4c7c3b75c'),
-  ('d576f8fb-04b7-4dec-82db-774d231d6987'::uuid, '3f6018e3-14c5-4f11-ba82-7e0a7e9b3311'::uuid, 311, 'dfc8a44a4d705d8f4b7a10311019224c'),
-  ('a4152a60-3f7d-4052-bea7-9cf075ad7ab6'::uuid, '3f7f2ed0-f7a7-4ee3-8b8a-1180d087186e'::uuid, 274, '55abdc635b71563c5722a4c1e6b8acd2'),
+  ('d576f8fb-04b7-4dec-82db-774d231d6987'::uuid, '3f6018e3-14c5-4f11-ba82-7e0a7e9b3311'::uuid, 310, '6e78ccd72c736c5358442f23636295d8'),
+  ('a4152a60-3f7d-4052-bea7-9cf075ad7ab6'::uuid, '3f7f2ed0-f7a7-4ee3-8b8a-1180d087186e'::uuid, 273, '3280d2c08b9059842bafebbe79e93bdf'),
   ('665f8922-86e2-48cf-a11d-cee26f676c5c'::uuid, '40e47f40-794b-4273-b692-c2bf1dc2ef1e'::uuid, 296, '467105cc93560c67276d75437445d446'),
   ('5dae89f2-2388-4f59-8929-6d70e5b257fd'::uuid, '4f90058e-4452-4a2e-863b-2bed947118ab'::uuid, 244, '8db1da67122b36854a98f27d5044842f'),
   ('87ab3ab5-cfb0-4936-b929-aa98a9c38ba4'::uuid, '51c61aee-90ef-436c-a769-7b42d6be6e6a'::uuid, 306, 'fcb8cd16e27067c6ea39f4cebc9fda2d'),
-  ('1d935abe-afa2-4f3c-958d-692bc9e97da8'::uuid, '588efa06-1896-4355-9355-2aa21397c584'::uuid, 199, '675f955a416aed49d708b727b5c388c2'),
+  ('1d935abe-afa2-4f3c-958d-692bc9e97da8'::uuid, '588efa06-1896-4355-9355-2aa21397c584'::uuid, 198, '3e020f6d31c599880975063956059cfd'),
   ('1eac43e9-8577-44f1-b017-b619e6b9f6b0'::uuid, '5b6485c1-8807-4ef3-b53d-c759f5abf976'::uuid, 294, 'e0e436e920429693b300506f4d853699'),
   ('c758f0e5-4dd6-493d-9e8f-437dd589b930'::uuid, '5fab91c0-d438-4566-8e21-b1fabda3654a'::uuid, 261, '6c06b7fb7f3317c5cb03f905ef693569'),
   ('62647b43-5c48-4e1e-bf49-c5e0e23f4cef'::uuid, '648bb37f-0eff-4a19-84ad-2668381d87dd'::uuid, 316, 'b7f7d862d1939f5ccfa6f6d6573908ee'),
   ('347e6e1f-6f02-4f64-8d7e-03ea10b7de2e'::uuid, '65eb09bf-4c48-4e5e-abbb-544e7e5ab0d8'::uuid, 295, '61768bd4671d7438a2dbc5277146ba32'),
   ('8b89fe79-e4e4-4305-9d1a-6b417c6c78fa'::uuid, '682af3f1-326b-4b7a-a3e1-c84c2598ce87'::uuid, 260, '8e28abbac43bb8f4036ff126d7a11870'),
   ('071a8776-b615-45cd-903f-e970b1d1af5c'::uuid, '68628621-6afb-4cfd-866b-9dc4944ea200'::uuid, 295, '4367892a99ad425bc5d54e0eef03a3c4'),
-  ('5a07d177-2d54-477f-a930-43aa4be984e9'::uuid, '7018b00b-d3ba-49a3-8334-cdada3d87be1'::uuid, 298, 'c2352cd5569ee0a0d6c20f0712b7b6ab'),
+  ('5a07d177-2d54-477f-a930-43aa4be984e9'::uuid, '7018b00b-d3ba-49a3-8334-cdada3d87be1'::uuid, 297, '30d6775eb0b165c59b73d769ad4b7dd4'),
   ('fcfaf822-a85b-40a4-8d58-da07f2f3c683'::uuid, '774f711d-ca09-47c2-b353-26664449e429'::uuid, 208, '95e94b3ecec3976a96c51b1d945c9d0a'),
   ('0455276d-a3d2-4d48-bcb7-abf53a1f1774'::uuid, '7e12cac1-bf9e-4303-b240-642a24077ed4'::uuid, 291, 'e1be1c73ea73c00ba5dca88fe762d4c9'),
   ('d5d24af6-b51a-4235-b538-9227ee717e4a'::uuid, '84bad29b-ce4e-4df7-88c5-518ec60ad091'::uuid, 235, 'da6192d28065ee08aef70e62bb95db6a'),
-  ('cde7b099-dbac-4ac9-a3e6-0d234c40e5eb'::uuid, '915574ba-b5b2-4cfa-be6a-a8718ed2e97d'::uuid, 403, '6237848d278776164a8b4afc7b4e1be3'),
+  ('cde7b099-dbac-4ac9-a3e6-0d234c40e5eb'::uuid, '915574ba-b5b2-4cfa-be6a-a8718ed2e97d'::uuid, 402, '6d56e63f5b886b664ee3b03125871348'),
   ('94c73812-245f-4812-9a83-1559dd5f09ef'::uuid, '91d7f11b-da31-4595-b1e9-5b1c31f3e47c'::uuid, 360, '42eaec818ed8ab5e540461483e9076b5'),
-  ('cf0e6036-1868-4f09-a807-73ccae9d33d5'::uuid, '95f5601c-dc41-4ba2-b86e-9192ef99f2ea'::uuid, 292, '06d5f779eb425a98cff967faa741f4a6'),
+  ('cf0e6036-1868-4f09-a807-73ccae9d33d5'::uuid, '95f5601c-dc41-4ba2-b86e-9192ef99f2ea'::uuid, 285, '1522b44a5da1890c1324c5b8d7a54ce9'),
   ('68df15ce-fbfe-49a3-a454-f11b521ee01f'::uuid, '96160646-5a2f-47fc-a1dd-39fc46e6f63a'::uuid, 331, '6ae6e4f99ef436f2d28d0d4016c14214'),
   ('a9639ed5-7bef-41bf-b015-5452aed18fe8'::uuid, '9c0cba87-ca51-4138-935b-8240d9275ad2'::uuid, 247, '98d9e8f50b906ad1ff2a6ebdc6a7f0de'),
   ('31a65900-d10d-4953-b3fc-f813220c8527'::uuid, 'af0cd5ee-a75c-4861-ae24-22dd841ea964'::uuid, 490, '3f235f9be6e09cdaf40a62b4229f1007'),
@@ -67,9 +67,9 @@ values
   ('d095d106-1cbf-45a5-8535-b89c452219af'::uuid, 'cb7de5cb-0004-4121-8428-c5e6093fa51a'::uuid, 299, '69bca237d32191ae17e8e1f9d8ff6018'),
   ('777133a4-f90e-498e-8b68-f4b6054ef768'::uuid, 'cea05ddd-1ce5-4944-ba93-036b4e4686ac'::uuid, 248, '1e25114a4c003bc6caaa31aa7b321843'),
   ('c5a851e1-ae95-42c3-9594-b7578e20dc73'::uuid, 'd455ecc5-5888-41f5-9a5a-ee315afcbd02'::uuid, 295, '2d90f4c879e1ccaf2a8481e1a9a3f0d5'),
-  ('2f6ba742-6385-436d-a849-0dcd9d012e44'::uuid, 'd7fb43fd-8089-440d-971e-2ad9e8c78019'::uuid, 208, 'a0e0f4a31cc70d5f9415388580aada86'),
+  ('2f6ba742-6385-436d-a849-0dcd9d012e44'::uuid, 'd7fb43fd-8089-440d-971e-2ad9e8c78019'::uuid, 201, 'd31b96624d0c945da0a93f664e35ce5f'),
   ('4860c199-6a71-4946-840e-b06d99a2c504'::uuid, 'fefa4494-a622-42e2-992f-0d28a63ea1bf'::uuid, 295, '90ac280e631e6365526a2c66463f55d4'),
-  ('61792482-27ab-4f79-8569-3607214465ab'::uuid, 'ff7799a0-ceb1-42fc-bc69-39b682cd9c4e'::uuid, 171, '50e3e77ed6fce356bb83e444ca33c49f');
+  ('61792482-27ab-4f79-8569-3607214465ab'::uuid, 'ff7799a0-ceb1-42fc-bc69-39b682cd9c4e'::uuid, 170, '2ce5d994b2eec31fb0ed468012e2993b');
 
 insert into libread_internal.issue139_batch2_legend_drop_20261115 (series_id, dropped_episode_id, carry)
 values
@@ -119,6 +119,9 @@ do $$ begin
        or exists (select 1 from public.recordings x where x.episode_id = t.episode_id)
        or exists (select 1 from public.user_episode_comments x where x.episode_id = t.episode_id)
        or exists (select 1 from public.public_episode_translation_unlocks x where x.episode_id = t.episode_id)
+       or exists (select 1 from public.episode_translation_logs x where x.episode_id = t.episode_id)
+       or exists (select 1 from public.recording_play_events x where x.episode_id = t.episode_id)
+       or exists (select 1 from public.time_fit_story_continuation_reservations x where x.source_episode_id = t.episode_id)
   ) then
     raise exception 'ISSUE139_BATCH2_LEGEND_DEPENDENT_ROWS';
   end if;

@@ -66,8 +66,8 @@ async function main() {
     }
     // Only newlines are removed: a leading full-width space is the first
     // paragraph's indent and stays.
-    const leading = (rest.match(/^[
-]*/) ?? [""])[0].length;
+    let leading = 0;
+    while (rest[leading] === "\n") leading += 1;
     const prefix = row.body.slice(0, match[0].length + leading);
     const md5 = createHash("md5").update(prefix, "utf8").digest("hex");
     strips.push(`  ('${row.id}'::uuid, '${row.series_id}'::uuid, ${[...prefix].length}, '${md5}')`);
