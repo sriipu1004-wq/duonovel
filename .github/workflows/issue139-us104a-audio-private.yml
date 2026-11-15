@@ -90,7 +90,7 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -c "update public.recordings set audio_storage_path = replace(audio_storage_path, '/recording-audio/nemo/', '/recording-audio/nemo/../') where id = '$id'"
           if psql -X -v ON_ERROR_STOP=1 -f "$D/db-apply.sql" 2> err.txt; then echo "apply must fail"; exit 1; fi
           grep -q ISSUE139_AUDIO_PATH_SHAPE_DRIFT err.txt
-          psql -X -v ON_ERROR_STOP=1 -c "update public.recordings r set audio_storage_path = b.audio_storage_path from ci.recordings_before b where b.id = r.id"
+          psql -X -v ON_ERROR_STOP=1 -c "update public.recordings r set audio_storage_path = b.audio_storage_path from ci.recordings_before b where b.id = r.id and r.audio_storage_path is distinct from b.audio_storage_path"
           psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
       - name: Apply, second apply refused
         run: |
