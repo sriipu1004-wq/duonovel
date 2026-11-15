@@ -1,6 +1,5 @@
 import "server-only";
 
-import { unstable_cache } from "next/cache";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -12,31 +11,37 @@ import {
   REGION_BLOCKED_STATUS,
   REQUEST_COUNTRY_HEADER,
   REGION_RESTRICTION_SELECT,
-  type RegionPolicy,
   type RegionRestrictionMap,
 } from "@/lib/rights/regionRestriction";
 
-export const REGION_RESTRICTIONS_CACHE_TAG = "series-region-restrictions";
+const TTL_MS = 60_000;
+let cached: { map: RegionRestrictionMap; expiresAt: number } | null = null;
+let inflight: Promise<RegionRestrictionMap> | null = null;
 
-// Plain array (not a Map) so the value survives the data cache serialization.
-const loadRegionRestrictionRows = unstable_cache(
-  async (): Promise<Array<{ seriesId: string; policy: RegionPolicy }>> => {
-    const { data, error } = await createAdminClient()
-      .from("series_region_restrictions")
-      .select(REGION_RESTRICTION_SELECT);
-    // Throwing is not cached: a read failure must never become "no restrictions".
-    if (error) throw new Error(`region restrictions: ${error.message}`);
-    return [...parseRegionRestrictionRows(data ?? []).entries()].map(
-      ([seriesId, policy]) => ({ seriesId, policy })
-    );
-  },
-  ["series-region-restrictions-v2"],
-  { revalidate: 60, tags: [REGION_RESTRICTIONS_CACHE_TAG] }
-);
+async function fetchRegionRestrictionMap(): Promise<RegionRestrictionMap> {
+  const { data, error } = await createAdminClient()
+    .from("series_region_restrictions")
+    .select(REGION_RESTRICTION_SELECT);
+  // A read failure must never become "no restrictions": throw (not cached).
+  if (error) throw new Error(`region restrictions: ${error.message}`);
+  const map: RegionRestrictionMap = parseRegionRestrictionRows(data ?? []);
+  cached = { map, expiresAt: Date.now() + TTL_MS };
+  return map;
+}
 
+/**
+ * In-process copy with a hard 60 s expiry. Unlike a stale-while-revalidate
+ * data cache, an expired copy is never served: the next caller waits for a
+ * fresh read. So a restriction written N >= 60 s ago is always in effect.
+ */
 export async function loadRegionRestrictionMap(): Promise<RegionRestrictionMap> {
-  const rows = await loadRegionRestrictionRows();
-  return new Map(rows.map((row) => [row.seriesId, row.policy]));
+  if (cached && cached.expiresAt > Date.now()) return cached.map;
+  if (!inflight) {
+    inflight = fetchRegionRestrictionMap().finally(() => {
+      inflight = null;
+    });
+  }
+  return inflight;
 }
 
 export function countryFromHeaders(source: Pick<Headers, "get">): string | null {

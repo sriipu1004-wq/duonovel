@@ -73,8 +73,6 @@ create policy series_region_restrictions_select_all
 -- can turn them into an anti-join. They read series_region_restrictions
 -- (series_id is granted to anon / authenticated) and series (the caller's own
 -- RLS shows their own works, which is all the author exception needs).
-drop function if exists public.series_region_unrestricted_or_owner(uuid);
-
 drop policy if exists episodes_region_restricted_select on public.episodes;
 create policy episodes_region_restricted_select
   on public.episodes
@@ -128,3 +126,7 @@ create policy episode_human_translations_region_restricted_select
         and s.author_id = (select auth.uid())
     )
   );
+
+-- An earlier draft of this migration used a SECURITY DEFINER helper; drop it
+-- (after its policies were replaced above) if a database ever received it.
+drop function if exists public.series_region_unrestricted_or_owner(uuid);

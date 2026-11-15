@@ -1,4 +1,7 @@
 -- Undo issue139-restrictions.sql: deletes exactly its 21 rows.
+-- Note: 13 of them belong to works that were already public before D030
+-- (孤島の鬼 and 12 Korean works). Deleting their rows returns them to the
+-- pre-D030 state: served in every country, including AU/BR/MX for 孤島の鬼.
 -- Refuses while any of the 8 re-published works is public: lifting their
 -- restriction would serve them in countries where they are protected. Make
 -- them private first (scripts/issue139-us104a-unpublish/apply.sql).
