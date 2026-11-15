@@ -1318,7 +1318,9 @@ function testAozoraCountryLimitedCandidatePolicy() {
   assert.equal(classifyAozoraWork([{ ...row, "初出": "" }], options).eligible, false);
   assert.equal(classifyAozoraWork([{ ...row, "役割フラグ": "翻訳者" }], options).eligible, false);
 
-  const pending = makePendingAozoraManifest(item, { countryLimited: true }) as Record<string, any>;
+  const pending = makePendingAozoraManifest(item, { countryLimited: true }) as unknown as {
+    region_restriction: { allowed_countries: string[]; basis: string };
+  };
   assert.deepEqual(pending.region_restriction.allowed_countries, [
     ...AOZORA_COUNTRY_LIMITED_BASE_ALLOWED_COUNTRIES,
   ]);
