@@ -12,6 +12,8 @@
  *   small note, never removed.
  */
 
+import { AOZORA_GENERATED_GAIJI } from "@/lib/aozora/aozoraGaijiGenerated";
+
 export type AozoraGaijiInfo = {
   /** JIS X 0213 plane-row-cell, e.g. "2-88-74". */
   code: string;
@@ -67,7 +69,9 @@ export function lookupAozoraGaiji(
   description: string,
   code: string
 ): AozoraGaijiInfo | null {
-  const entry = AOZORA_VERIFIED_GAIJI[code];
+  // Hand-checked entries first, then the table generated from the gaiji that
+  // appear in published Aozora texts (same JIS X 0213 verification).
+  const entry = AOZORA_VERIFIED_GAIJI[code] ?? AOZORA_GENERATED_GAIJI[code];
   if (!entry || entry.description !== description) return null;
   return { code, description, char: entry.char };
 }
