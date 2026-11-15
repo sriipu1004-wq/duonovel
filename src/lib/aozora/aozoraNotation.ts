@@ -21,7 +21,7 @@ export type AozoraGaijiInfo = {
   char: string;
 };
 
-export type AozoraNoteKind = "edition_variant" | "ruby_note";
+export type AozoraNoteKind = "edition_variant" | "ruby_note" | "sic";
 
 export type AozoraDisplayToken =
   | { kind: "text"; text: string }
@@ -54,16 +54,68 @@ export const AOZORA_VERIFIED_GAIJI: Readonly<
 
 // The Reader clause splitter may re-join clauses with a single space right
 // after 「、」, so one optional space is tolerated there (display only).
+// The description may itself contain quotes (`「筑」の「凡」に代えて「卩」`), see
+// `aozoraGaijiDescription`. Group 2: JIS X 0213 code, group 3: Unicode hex.
 const GAIJI_PATTERN =
-  /※［＃(?:「([^」\n］]+)」|([^、「」\n］]+))、 ?(?:第[34]水準)?([12]-\d{1,2}-\d{1,2})］/gu;
+  /※［＃([^］\n]+?)、 ?(?:(?:第[34]水準)?([12]-\d{1,2}-\d{1,2})|U\+([0-9A-F]{4,5})、[^］\n]*)］/gu;
 
 const DIRECTIVE_PATTERN = /［＃([^］\n]{1,200})］/gu;
 
-const RUBY_PATTERN =
-  /｜([^《》\n]+)《([^《》\n]+)》|([一-龯々ヶヵ]+)《([^《》\n]+)》/g;
+// Ruby without ｜ attaches to the run of one character type right before 《
+// (https://www.aozora.gr.jp/annotation/etc.html#ruby): kanji (仝々〆〇ヶ count
+// as kanji, and so do resolved gaiji), full-width alphanumerics, or Latin.
+const RUBY_IMPLICIT_BASE_CLASSES = [
+  String.raw`[\p{Script=Han}仝々〆〇ヶヵ]`,
+  "[Ａ-Ｚａ-ｚ０-９]",
+  "[A-Za-z]",
+] as const;
+
+const RUBY_PATTERN = new RegExp(
+  String.raw`｜([^《》\n]+)《([^《》\n]+)》|(` +
+    RUBY_IMPLICIT_BASE_CLASSES.map((cls) => `${cls}+`).join("|") +
+    String.raw`)《([^《》\n]+)》`,
+  "gu"
+);
 
 const EMPHASIS_PATTERN = /^「([^「」]+)」に傍点$/u;
 const ALIGN_END_PATTERN = /^地より[０-９0-9]+字上げ$/u;
+// Headings: the heading text stays, only the notation is hidden.
+const HEADING_TARGET_PATTERN = /^「(.+)」は(?:同行|窓)?[大中小]見出し$/u;
+// Pure layout markers hidden in display: heading start/end markers and the
+// one-line indent (the multi-line ここから…字下げ is already removed by
+// normalizeAozoraTextForLayout).
+const LAYOUT_ONLY_PATTERN =
+  /^(?:(?:同行|窓)?[大中小]見出し(?:終わり)?|(?:天から)?[０-９0-9]+字下げ)$/u;
+const SIC_PATTERN = /^「.+」はママ$/u;
+
+function withoutRubyMarkup(text: string): string {
+  return text.replace(/《[^《》\n]*》/gu, "").replace(/｜/gu, "");
+}
+
+/**
+ * Key used for the gaiji tables: a description wholly wrapped in 「」 is stored
+ * without the outer quotes (`「口＋它」` -> `口＋它`, `「筑」の「凡」に代えて「卩」` ->
+ * `筑」の「凡」に代えて「卩`); anything else is kept as written.
+ */
+export function aozoraGaijiDescription(raw: string): string {
+  return raw.length > 2 && raw.startsWith("「") && raw.endsWith("」") ? raw.slice(1, -1) : raw;
+}
+
+/**
+ * `※［＃「門＜兒」、U+49A7、156-9］`: Aozora gives the Unicode code point itself.
+ * Only a single assigned Han character is accepted; anything else stays literal.
+ */
+export function lookupAozoraUnicodeGaiji(
+  description: string,
+  hex: string
+): AozoraGaijiInfo | null {
+  if (!/^[0-9A-F]{4,5}$/u.test(hex)) return null;
+  const codePoint = Number.parseInt(hex, 16);
+  if (codePoint > 0x10ffff) return null;
+  const char = String.fromCodePoint(codePoint);
+  if (!/^\p{Script=Han}$/u.test(char)) return null;
+  return { code: `U+${hex}`, description, char };
+}
 
 export function lookupAozoraGaiji(
   description: string,
@@ -93,8 +145,10 @@ function substituteVerifiedGaiji(text: string): {
   let lastIndex = 0;
   for (const match of text.matchAll(GAIJI_PATTERN)) {
     const index = match.index ?? 0;
-    const description = match[1] ?? match[2] ?? "";
-    const info = lookupAozoraGaiji(description, match[3] ?? "");
+    const description = aozoraGaijiDescription(match[1] ?? "");
+    const info = match[2]
+      ? lookupAozoraGaiji(description, match[2])
+      : lookupAozoraUnicodeGaiji(description, match[3] ?? "");
     if (!info) continue;
     output += text.slice(lastIndex, index);
     marks.push({ offset: output.length, info });
@@ -208,6 +262,31 @@ export function tokenizeAozoraDisplayText(text: string): AozoraDisplayToken[] {
       continue;
     }
 
+    if (SIC_PATTERN.test(content)) {
+      flushRun(lastIndex, index);
+      tokens.push({ kind: "note", noteKind: "sic", text: content, directive });
+      lastIndex = end;
+      continue;
+    }
+
+    const heading = HEADING_TARGET_PATTERN.exec(content);
+    if (heading) {
+      // Same rule as bouten: the heading text must be right before it (the
+      // note quotes it without ruby, `按摩《あんま》の昼火事` -> 「按摩の昼火事」).
+      const target = heading[1] ?? "";
+      if (target && withoutRubyMarkup(substituted.slice(lastIndex, index)).endsWith(target)) {
+        flushRun(lastIndex, index);
+        lastIndex = end;
+      }
+      continue;
+    }
+
+    if (LAYOUT_ONLY_PATTERN.test(content)) {
+      flushRun(lastIndex, index);
+      lastIndex = end;
+      continue;
+    }
+
     if (ALIGN_END_PATTERN.test(content) && pendingAlign === null) {
       flushRun(lastIndex, index);
       pendingAlign = { directive, start: end };
@@ -269,7 +348,9 @@ export function rebalanceAozoraDirectivesAcrossUnits(texts: readonly string[]): 
   const output = [...texts];
   for (let index = 0; index < output.length; index += 1) {
     let next = index + 1;
+    let merged = false;
     while (hasUnclosedDirective(output[index] ?? "") && next < output.length) {
+      merged = true;
       const following = output[next] ?? "";
       const close = following.indexOf("］");
       if (close < 0) {
@@ -281,20 +362,36 @@ export function rebalanceAozoraDirectivesAcrossUnits(texts: readonly string[]): 
       output[index] = `${output[index]}${following.slice(0, close + 1)}`;
       output[next] = following.slice(close + 1);
     }
-    // A gaiji used as a ruby base (`叱※［＃…］《した》`): once the directive is
-    // whole, its ruby reading may start the next unit. Keep them together.
+    // A gaiji used in a ruby (`叱※［＃…］《した》`, `｜※［＃…］忽《…》`,
+    // `淡絹《※［＃…］エル》`): once the directive is whole, the rest of the ruby
+    // may start the unit that holds the remainder. Keep them together.
     const current = output[index] ?? "";
-    const following = output[index + 1] ?? "";
-    const rubyHead = /^《[^《》\n]+》/u.exec(following);
-    if (rubyHead && /※［＃[^］\n]*］$/u.test(current)) {
-      output[index] = `${current}${rubyHead[0]}`;
-      output[index + 1] = following.slice(rubyHead[0].length);
+    if (next < output.length && (merged || GAIJI_TAIL.test(current))) {
+      const following = output[next] ?? "";
+      const continuation = takeRubyContinuation(current, following);
+      if (continuation) {
+        output[index] = `${current}${continuation}`;
+        output[next] = following.slice(continuation.length);
+      }
+    }
+    // A heading note cut from its heading text (`前置` | `［＃「前置」は中見出し］`):
+    // move the note back so the heading rule can match (render only).
+    const heading = /^［＃「([^］\n]+)」は(?:同行|窓)?[大中小]見出し］/u.exec(output[index + 1] ?? "");
+    if (heading && withoutRubyMarkup(output[index] ?? "").endsWith(heading[1] ?? "\u0000")) {
+      output[index] = `${output[index]}${heading[0]}`;
+      output[index + 1] = (output[index + 1] ?? "").slice(heading[0].length);
     }
   }
   return output;
 }
 
-const RUBY_IMPLICIT_BASE_TAIL = /[一-龯々ヶヵ]$/u;
+const GAIJI_TAIL = /※［＃[^］\n]*］$/u;
+const RUBY_SPAN_LIMIT = 4;
+
+const RUBY_IMPLICIT_BASE_TAILS = RUBY_IMPLICIT_BASE_CLASSES.map((cls) => ({
+  tail: new RegExp(`${cls}$`, "u"),
+  head: new RegExp(String.raw`^${cls}*《[^《》\n]+》`, "u"),
+}));
 
 /**
  * If `current` ends inside a ruby (`｜親字《読み》` or `漢字《よみ》`), return the
@@ -309,9 +406,13 @@ function takeRubyContinuation(current: string, following: string): string | null
   } else if (/｜[^《》｜\n]*$/u.test(current)) {
     // Cut right after ｜ or inside an explicit base (before 《).
     head = /^[^《》｜\n]*《[^《》\n]+》/u.exec(following);
-  } else if (RUBY_IMPLICIT_BASE_TAIL.test(current)) {
-    // Cut before 《 or inside the kanji run of an implicit base.
-    head = /^[一-龯々ヶヵ]*《[^《》\n]+》/u.exec(following);
+  } else if (GAIJI_TAIL.test(current)) {
+    // A gaiji counts as kanji in an implicit base (`※［＃…］《よみ》`).
+    head = RUBY_IMPLICIT_BASE_TAILS[0]!.head.exec(following);
+  } else {
+    // Cut before 《 or inside the same-type run of an implicit base.
+    const implicit = RUBY_IMPLICIT_BASE_TAILS.find(({ tail }) => tail.test(current));
+    if (implicit) head = implicit.head.exec(following);
   }
   if (!head || hasUnclosedDirective(head[0])) return null;
   return head[0];
@@ -330,11 +431,23 @@ export function rebalanceAozoraRubyAcrossUnits(texts: readonly string[]): string
   if (!output.some((text) => text.includes("《"))) return output;
   for (let index = 0; index + 1 < output.length; index += 1) {
     const current = output[index] ?? "";
-    const following = output[index + 1] ?? "";
-    const continuation = takeRubyContinuation(current, following);
-    if (!continuation) continue;
-    output[index] = `${current}${continuation}`;
-    output[index + 1] = following.slice(continuation.length);
+    // A long ruby may span several units (#195 S3-1): look at up to
+    // RUBY_SPAN_LIMIT following units joined; take it only if it closes there.
+    let joined = "";
+    for (let span = 1; span <= RUBY_SPAN_LIMIT && index + span < output.length; span += 1) {
+      joined += output[index + span] ?? "";
+      const continuation = takeRubyContinuation(current, joined);
+      if (!continuation) continue;
+      output[index] = `${current}${continuation}`;
+      let remaining = continuation.length;
+      for (let unit = index + 1; unit <= index + span; unit += 1) {
+        const text = output[unit] ?? "";
+        const taken = Math.min(remaining, text.length);
+        output[unit] = text.slice(taken);
+        remaining -= taken;
+      }
+      break;
+    }
   }
   return output;
 }

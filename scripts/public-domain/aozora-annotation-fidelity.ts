@@ -32,7 +32,7 @@ export function classifyAozoraAnnotation(content: string): AozoraAnnotationCateg
   // and non-Unicode gaiji cannot be discarded as pure layout.
   if (content.includes("底本")) return "edition_variant";
   if (content.includes("傍点")) return "emphasis";
-  if (/第[234]水準|[0-9]-[0-9]+-[0-9]+|外字/u.test(content)) return "gaiji";
+  if (/第[234]水準|[0-9]-[0-9]+-[0-9]+|U\+[0-9A-F]{4,5}|外字/u.test(content)) return "gaiji";
   if (content.includes("ルビ")) return "ruby_note";
   if (/ここから|ここで|字下げ|字上げ|地から|地付き|改ページ|改丁|改見開き|改行|小さな文字|太字|段階|中見出し/u.test(content)) {
     return "layout";
