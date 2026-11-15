@@ -738,13 +738,9 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     const lateDeath = [authorDeathYear, translatorDeathYear].some(
       (year) => year !== null && year > REGION_RESTRICTION_REQUIRED_AFTER_DEATH_YEAR
     );
-    if (lateDeath && !regionRestrictionStated) {
+    if (lateDeath && (regionRestriction === null || regionRestriction === undefined)) {
       errors.push(
-        `approved manifests whose author or translator died after ${REGION_RESTRICTION_REQUIRED_AFTER_DEATH_YEAR} require region_restriction (D030 allow/block list, or null)`
-      );
-    } else if (lateDeath && regionRestriction === null && value.region_restriction === null) {
-      warnings.push(
-        `approved manifest (death after ${REGION_RESTRICTION_REQUIRED_AFTER_DEATH_YEAR}) declares no per-country restriction (region_restriction: null)`
+        `approved manifests whose author or translator died after ${REGION_RESTRICTION_REQUIRED_AFTER_DEATH_YEAR} require region_restriction (D030 allow or block list; null is not accepted)`
       );
     }
   }

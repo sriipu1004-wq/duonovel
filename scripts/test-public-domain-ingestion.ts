@@ -1243,7 +1243,7 @@ function testRegionRestrictionManifestGate() {
     ).ok,
     true
   );
-  // Allow list, block list and explicit null are accepted.
+  // Allow list and block list are accepted; explicit null is refused.
   const ok = validateManifest(approvedManifest({ author_death_year: 1950, region_restriction: allow }));
   assert.equal(ok.ok, true, ok.errors.join("; "));
   assert.deepEqual(ok.manifest?.region_restriction, allow);
@@ -1259,8 +1259,8 @@ function testRegionRestrictionManifestGate() {
   const explicitNull = validateManifest(
     approvedManifest({ author_death_year: 1947, region_restriction: null })
   );
-  assert.equal(explicitNull.ok, true);
-  assert.ok(explicitNull.warnings.some((w) => w.includes("region_restriction: null")));
+  assert.equal(explicitNull.ok, false);
+  assert.ok(explicitNull.errors.some((e) => e.includes("null is not accepted")));
   // Shape errors.
   const bad = (rr: unknown) =>
     validateManifest({ ...approvedManifest({ author_death_year: 1950 }), region_restriction: rr });
@@ -1386,7 +1386,15 @@ function testRegionPublishSqlShape() {
   assert.ok(apply.includes("O''Author") && apply.includes("O''basis"));
   assert.ok(apply.includes("array['JP','GB']::text[]") && apply.includes("array['CO','GQ']::text[]"));
   assert.ok(apply.includes("<> 2 then") && apply.includes("<> 6 then"));
-  assert.equal(apply.includes("RESTRICTION_TOO_RECENT"), false);
+  // Default: restriction rows must be at least 120 s old (app cache is 60 s).
+  assert.equal(apply.includes("RESTRICTION_TOO_RECENT"), true);
+  assert.ok(apply.includes("interval '120 seconds'"));
+  assert.equal(
+    buildRegionPublishSql({ tag: "t", targets: [target], minRestrictionAgeSeconds: 0 }).apply.includes(
+      "RESTRICTION_TOO_RECENT"
+    ),
+    false
+  );
   assert.ok(
     buildRegionPublishSql({ tag: "t", targets: [target], minRestrictionAgeSeconds: 120 }).apply.includes(
       "interval '120 seconds'"

@@ -9,7 +9,7 @@
 --   episodes : posting_status 'draft' -> 'posted', is_published false -> true,
 --              posted_at null -> now()
 -- Previous values are stored in libread_internal so rollback.sql restores them.
--- Minimum age of restriction rows before publication: 0 s.
+-- Minimum age of restriction rows before publication: 120 s.
 begin;
 set local lock_timeout = '5s';
 set local statement_timeout = '120s';
@@ -217,6 +217,14 @@ do $$ begin
     )) <> 55 then
     raise exception 'PD_REGION_ISSUE139_CL_20261115_RESTRICTION_MISSING';
   end if;
+end $$;
+
+do $$ begin
+  if exists (
+    select 1 from libread_internal.pd_region_issue139_cl_20261115_series t
+    join public.series_region_restrictions r on r.series_id = t.series_id
+    where r.decided_at > now() - interval '120 seconds'
+  ) then raise exception 'PD_REGION_ISSUE139_CL_20261115_RESTRICTION_TOO_RECENT'; end if;
 end $$;
 
 -- 2) Publish. Only works that now have the reviewed restriction row.

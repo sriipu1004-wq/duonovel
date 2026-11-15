@@ -128,7 +128,7 @@ export function buildRegionPublishSql(args: {
   if (targets.length === 0) throw new Error("no targets");
   const ids = new Set(targets.map((t) => t.manifestId));
   if (ids.size !== targets.length) throw new Error("duplicate manifest id");
-  const minAge = args.minRestrictionAgeSeconds ?? 0;
+  const minAge = args.minRestrictionAgeSeconds ?? 120;
   if (!Number.isInteger(minAge) || minAge < 0 || minAge > 86_400) {
     throw new Error("minRestrictionAgeSeconds must be an integer from 0 to 86400");
   }
@@ -473,7 +473,14 @@ function main() {
       .map((f) => f.slice(0, -5))
       .filter((id) => {
         const raw = JSON.parse(readFileSync(resolve(manifestDir, `${id}.json`), "utf8"));
-        return raw.approved === true && raw.region_restriction && raw.import_status !== "not_imported";
+        // Works published earlier (e.g. Gongu, already restricted in production)
+        // have no reviewed content_warnings in the manifest; list new batches by id.
+        return (
+          raw.approved === true &&
+          raw.region_restriction &&
+          raw.import_status !== "not_imported" &&
+          raw.content_warnings !== undefined
+        );
       });
   }
   if (ids.length === 0) throw new Error("no manifests selected");
@@ -489,7 +496,7 @@ function main() {
   const sql = buildRegionPublishSql({
     tag,
     targets,
-    minRestrictionAgeSeconds: minAgeRaw ? Number(minAgeRaw) : 0,
+    minRestrictionAgeSeconds: minAgeRaw ? Number(minAgeRaw) : 120,
   });
   mkdirSync(out, { recursive: true });
   writeFileSync(resolve(out, "restrictions.sql"), sql.restrictions, "utf8");
