@@ -3,7 +3,7 @@ do $$ begin
   -- The 330 target rows now hold ai-narration-private:<the same object path>.
   if (select count(*) from public.recordings r join ci.recordings_before b using (id)
       where b.audio_storage_path like 'https://nyxbnccuvmlzffgtdadi.supabase.co/storage/v1/object/public/recording-audio/%'
-        and r.series_id in (select series_id from libread_internal.issue139_unpublish_series_20261115)
+        and r.series_id in (select series_id from ci.audio_targets)
         and r.audio_storage_path = 'ai-narration-private:' ||
             substr(b.audio_storage_path, length('https://nyxbnccuvmlzffgtdadi.supabase.co/storage/v1/object/public/recording-audio/') + 1)
      ) <> 330
@@ -19,7 +19,7 @@ do $$ begin
   ) then raise exception 'CI_AUDIO_OTHER_COLUMN_CHANGED'; end if;
   if exists (
     select 1 from public.recordings r join ci.recordings_before b using (id)
-    where r.series_id not in (select series_id from libread_internal.issue139_unpublish_series_20261115)
+    where r.series_id not in (select series_id from ci.audio_targets)
       and r.audio_storage_path is distinct from b.audio_storage_path
   ) then raise exception 'CI_AUDIO_NON_TARGET_CHANGED'; end if;
   if (select count(*) from public.recordings) <> (select count(*) from ci.recordings_before)

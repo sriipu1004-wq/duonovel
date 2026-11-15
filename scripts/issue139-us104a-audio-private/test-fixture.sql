@@ -37,13 +37,16 @@ begin
   return case when TG_OP = 'DELETE' then old else new end;
 end $f$;
 
+create table ci.audio_targets as
+  select series_id from libread_internal.issue139_unpublish_series_20261115;
+
 -- 330 target rows: the 63 existing ones + 4 more per chapter + 15 more.
 insert into public.recordings (series_id, episode_id)
 select e.series_id, e.id from public.episodes e cross join generate_series(1, 4)
-where e.series_id in (select series_id from libread_internal.issue139_unpublish_series_20261115);
+where e.series_id in (select series_id from ci.audio_targets);
 insert into public.recordings (series_id, episode_id)
 select e.series_id, e.id from public.episodes e
-where e.series_id in (select series_id from libread_internal.issue139_unpublish_series_20261115)
+where e.series_id in (select series_id from ci.audio_targets)
 order by e.id limit 15;
 update public.recordings r set
   audio_storage_path = 'https://nyxbnccuvmlzffgtdadi.supabase.co/storage/v1/object/public/recording-audio/'
@@ -85,7 +88,7 @@ create table storage.objects (
 insert into storage.buckets values ('recording-audio', true), ('ai-narration-private', false);
 
 -- Originals: wav + timing.json per row (sizes differ per object).
-create view ci.target_objects as
+create table ci.target_object_list as
 select o.name, o.size
 from public.recordings r
 cross join lateral (
@@ -93,8 +96,7 @@ cross join lateral (
 ) x
 cross join lateral (values (x.p, 1000000 + length(r.id::text) * 7 + ascii(substr(r.id::text, 1, 1))),
                            (regexp_replace(x.p, '\.wav$', '.timing.json'), 2000 + ascii(substr(r.id::text, 2, 1)))) o(name, size)
-where r.series_id in (select series_id from libread_internal.issue139_unpublish_series_20261115);
-create table ci.target_object_list as select * from ci.target_objects;
+where r.series_id in (select series_id from ci.audio_targets);
 
 insert into storage.objects (bucket_id, name, metadata)
 select 'recording-audio', name, jsonb_build_object('size', size) from ci.target_object_list;
