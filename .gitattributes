@@ -1,0 +1,3 @@
+# Upstream OFL text is kept verbatim (it has trailing spaces).
+src/assets/og-fonts/OFL.txt -whitespace
+src/assets/og-fonts/*.ttf binary
