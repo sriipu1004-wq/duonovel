@@ -1,0 +1,96 @@
+{
+  "id": "aozora-001796",
+  "title": "殺された天一坊・浜尾四郎",
+  "original_title": "殺された天一坊",
+  "original_author": "浜尾四郎",
+  "author_death_year": 1935,
+  "original_language": "ja",
+  "first_publication_year": 1929,
+  "source_provider": "Aozora Bunko",
+  "source_url": "https://www.aozora.gr.jp/cards/000289/card1796.html",
+  "source_download_url": "https://www.aozora.gr.jp/cards/000289/files/1796_ruby_22484.zip",
+  "source_file": "public-domain/sources/raw/aozora-001796.txt",
+  "source_retrieved_at": "2026-11-15T06:37:24.195Z",
+  "source_encoding": "shift_jis",
+  "normalization_profile": "aozora_body",
+  "edition": "日本探偵小説全集5　浜尾四郎集",
+  "edition_publication_year": 1985,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "approved",
+  "rights_basis": "Operator review for JP/US/KR distribution, and no per-country restriction (D030). 浜尾四郎 died in 1935 and the work was first published in 1929. Japan: term expired before the 2018 extension and was not revived. US: published in or before 1930, so outside the 95-year term; an author who died by 1945 was also out of term in Japan on 1996-01-01, so no §104A restoration. Korea: Art. 3(4) (expired abroad). Life+80 countries (CO, GQ) expired at the latest by end-2025; Mexico treats authors who died before 1952 as public domain (docs/rights/region-research-2026-11-15.md). Scope is the exact Aozora text file pinned by SHA-256 only.",
+  "rights_notes": "Operator review recorded 2026-11-15T15:43:30+09:00. Aozora catalog flags なし, author-only contributors; exact source fetched and hashed; chapter plan prepared (2 chapters, no chapter over 10,000 characters). Base edition, cover and modern commentary are not reused. Production import and publication are separate owner approvals.",
+  "rights_components": {
+    "original_work": {
+      "status": "approved",
+      "basis": "浜尾四郎 (d. 1935), first published 1929: out of term in JP/US/KR and, per docs/rights/region-research-2026-11-15.md, in life+80 countries and Mexico.",
+      "notes": "Aozora copyright flags なし; author death and first-publication dates pass the batch criteria (death <= 1945, first publication <= 1930)."
+    },
+    "edition": {
+      "status": "approved",
+      "basis": "Only the exact Aozora transcription pinned by SHA-256 is reused; modern base-edition layout, cover and commentary are excluded.",
+      "notes": "Aozora names the base edition for provenance; no separately protected editorial matter is imported."
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "approved",
+      "basis": "Aozora's handling rules permit reuse and format/annotation changes of expired-work files; no modern editorial content is imported.",
+      "notes": "https://www.aozora.gr.jp/guide/kijyunn.html"
+    },
+    "annotations": {
+      "status": "approved",
+      "basis": "Aozora ruby/annotation syntax is transcription metadata; normalized without adding commentary; provenance stays auditable.",
+      "notes": "Preserved by the aozora normalizer."
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "approved",
+      "basis": "Aozora permits copying, redistribution, sharing and format conversion of expired-work files; input/proofreading credits are kept.",
+      "notes": "https://www.aozora.gr.jp/guide/kijyunn.html"
+    },
+    "provider_terms": {
+      "status": "approved",
+      "basis": "Aozora handling rules reviewed at https://www.aozora.gr.jp/guide/kijyunn.html.",
+      "notes": "Checked again 2026-11-15 for this batch."
+    }
+  },
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-11-15T15:43:30+09:00",
+  "reviewed_by": "LIB read operator (Claude; owner direction 2026-11-15 「それぞれの国での無料公開可能な作品をできる限り導入して」; production import and publication need separate owner button approval)",
+  "chapter_count": 2,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 10000
+  },
+  "tags": [
+    "Public Domain",
+    "Aozora Bunko",
+    "浜尾四郎"
+  ],
+  "source_hash": "cf5fdba8d935f0285b3fc0e6579eeb66e0e2f1f5f995c3bb27a3cc64afad707c",
+  "approved": true,
+  "import_status": "prepared",
+  "cover_source": null,
+  "cover_rights_status": null,
+  "content_warnings": [
+    "violence"
+  ]
+}

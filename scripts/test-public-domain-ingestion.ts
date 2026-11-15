@@ -576,6 +576,35 @@ function testAozoraReaderBodyOptIn() {
     /AOZORA_READER_FRONT_MATTER_UNRECOGNIZED/);
 }
 
+function testAozoraBodyProfile() {
+  const marker = "【テキスト中に現れる記号について】";
+  const separator = "-".repeat(55);
+  // Three header lines (title, subtitle, author), as in some Aozora texts.
+  const fixture = ["Test Title", "Subtitle", "Test Author", "", separator, marker,
+    "Ruby notation example", separator, "", "Original story body",
+    "", "Second paragraph"].join("\n");
+  const cleaned = normalizeSource(fixture, "aozora_body");
+  assert.equal(cleaned.displayText, "Original story body\n\nSecond paragraph");
+  assert.equal(cleaned.archiveMetadata.includes(marker), true);
+  assert.equal(cleaned.archiveMetadata.includes("Subtitle"), true);
+  // A text without the legend keeps its body unchanged (no throw).
+  const noLegend = "Test Title\nTest Author\n\nBody only";
+  assert.equal(normalizeSource(noLegend, "aozora_body").displayText, noLegend);
+  // A legend that does not match the header shape (5 header lines here) is
+  // refused rather than left in the Reader body.
+  assert.throws(
+    () => normalizeSource(["1", "2", "3", "4", "5", "", separator, marker, "x", separator, "", "Body"].join("\n"), "aozora_body"),
+    /AOZORA_BODY_FRONT_MATTER_UNRECOGNIZED/
+  );
+  // A legend with nothing after it is refused rather than imported empty.
+  assert.throws(
+    () => normalizeSource(["T", "A", "", separator, marker, "x", separator].join("\n"), "aozora_body"),
+    /AOZORA_BODY_EMPTY_AFTER_FRONT_MATTER/
+  );
+  // The legacy "aozora" profile is unchanged.
+  assert.equal(normalizeSource(fixture, "aozora").displayText.includes(marker), true);
+}
+
 function testNewAozoraSourceAttributionGate() {
   const reviewed = approvedManifest({
     normalization_profile: "aozora_reader_body",
@@ -1178,6 +1207,7 @@ function main() {
   testVerbatimPublicDomainDuplicateProbes();
   testAozoraAnnotationFidelityPreflight();
   testAozoraReaderBodyOptIn();
+  testAozoraBodyProfile();
   testDraftInsertConfirmationAndRollback();
   testPreparedArtifactIsBoundToRawBytes();
   testPendingAndApprovedGates();

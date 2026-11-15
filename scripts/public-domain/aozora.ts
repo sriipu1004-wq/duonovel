@@ -268,7 +268,7 @@ export function makePendingAozoraManifest(
     source_file: `public-domain/sources/raw/aozora-${item.workId}.txt`,
     source_retrieved_at: null,
     source_encoding: item.sourceEncoding,
-    normalization_profile: "aozora",
+    normalization_profile: "aozora_body",
     edition,
     edition_publication_year: editionPublicationYear,
     translator: null,
