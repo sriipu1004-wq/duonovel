@@ -697,6 +697,8 @@ async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<Pub
   // shares the public read deadline. No service_role for public counts.
   const supabase = createPublicServerClient();
   const normalizedSeriesIds = normalizeSeriesIds(seriesIds);
+  const wantedSeriesIds =
+    normalizedSeriesIds.length > 0 ? new Set(normalizedSeriesIds) : null;
   const data: RecordingAggregateRow[] = [];
 
   // isPublishedHumanRecording requires is_public=true and no voice_model_id.
@@ -709,7 +711,10 @@ async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<Pub
       .select(selectClause)
       .eq("is_public", true)
       .is("voice_model_id", null);
-    if (normalizedSeriesIds.length > 0) {
+    // A long id list would hit the URL length limit as the catalog grows
+    // (#141, >1000 works). Small sets keep the filter; large sets read the
+    // RLS-limited public rows and are intersected below.
+    if (normalizedSeriesIds.length > 0 && normalizedSeriesIds.length <= SUMMARY_ID_FILTER_LIMIT) {
       query = query.in("series_id", normalizedSeriesIds);
     }
     return query
@@ -742,6 +747,7 @@ async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<Pub
     if (!isPublishedHumanRecording(rawRecording)) continue;
     const seriesId = getRecordingSeriesId(rawRecording);
     if (!seriesId) continue;
+    if (wantedSeriesIds && !wantedSeriesIds.has(seriesId)) continue;
 
     const current = aggregateMap.get(seriesId) ?? {
       totalRecordingLikes: 0,

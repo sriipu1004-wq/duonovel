@@ -17,6 +17,15 @@ const includeExisting = args.includes("--include-existing");
 const limitRaw = args.find((arg) => arg.startsWith("--limit="))?.slice("--limit=".length);
 const authorFilter = args.find((arg) => arg.startsWith("--author="))?.slice("--author=".length)?.trim();
 const minCharsRaw = args.find((arg) => arg.startsWith("--min-chars="))?.slice("--min-chars=".length);
+const maxDeathRaw = args
+  .find((arg) => arg.startsWith("--max-death-year="))
+  ?.slice("--max-death-year=".length);
+// Default 1955 (unchanged). A stricter cutoff such as 1945 selects authors
+// whose works need no per-country restriction (D030 research note).
+const maxAuthorDeathYear = maxDeathRaw ? Number(maxDeathRaw) : 1955;
+if (!Number.isInteger(maxAuthorDeathYear) || maxAuthorDeathYear < 1800 || maxAuthorDeathYear > 1955) {
+  throw new Error("--max-death-year must be an integer from 1800 to 1955");
+}
 const perAuthorRaw = args
   .find((arg) => arg.startsWith("--per-author-limit="))
   ?.slice("--per-author-limit=".length);
@@ -93,7 +102,7 @@ if (!includeExisting && existsSync(existingAuditPath)) {
 }
 
 const classifications = Array.from(grouped.values()).map((sourceRows) =>
-  classifyAozoraWork(sourceRows)
+  classifyAozoraWork(sourceRows, { maxAuthorDeathYear })
 );
 const rejectionCounts = new Map<string, number>();
 for (const item of classifications) {
