@@ -1,3 +1,7 @@
+-- NOTE (2026-11-15): scripts/content-synopses/apply.sql renames one of the
+-- 28 works (虜美人草 -> 虞美人草). If it was applied, run
+-- scripts/content-synopses/rollback.sql FIRST, or this file stops on the
+-- title check.
 -- Legacy official attribution: exact revert of apply.sql.
 -- Restores series.effect_settings of the 28 works to the value stored by
 -- apply.sql (NULL), then drops the snapshot table. Aborts (no change) if

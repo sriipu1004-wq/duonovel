@@ -1,3 +1,5 @@
+-- NOTE: run this BEFORE scripts/legacy-official-attribution/rollback.sql
+-- when both are being reverted (that file checks the original title).
 -- P9: exact revert of apply.sql. Restores series.description of the 168
 -- works and the one fixed series.title from libread_internal.p9_synopses_20261115,
 -- then drops the snapshot table. Aborts (no change) if anything was edited
