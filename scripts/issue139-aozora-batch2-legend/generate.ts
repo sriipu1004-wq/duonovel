@@ -64,7 +64,10 @@ async function main() {
       drops.push(`  ('${row.series_id}'::uuid, '${row.id}'::uuid, ${sqlText(rest.trim())})`);
       continue;
     }
-    const leading = rest.length - rest.trimStart().length;
+    // Only newlines are removed: a leading full-width space is the first
+    // paragraph's indent and stays.
+    const leading = (rest.match(/^[
+]*/) ?? [""])[0].length;
     const prefix = row.body.slice(0, match[0].length + leading);
     const md5 = createHash("md5").update(prefix, "utf8").digest("hex");
     strips.push(`  ('${row.id}'::uuid, '${row.series_id}'::uuid, ${[...prefix].length}, '${md5}')`);
@@ -152,6 +155,9 @@ do $$ begin
        or exists (select 1 from public.recordings x where x.episode_id = t.episode_id)
        or exists (select 1 from public.user_episode_comments x where x.episode_id = t.episode_id)
        or exists (select 1 from public.public_episode_translation_unlocks x where x.episode_id = t.episode_id)
+       or exists (select 1 from public.episode_translation_logs x where x.episode_id = t.episode_id)
+       or exists (select 1 from public.recording_play_events x where x.episode_id = t.episode_id)
+       or exists (select 1 from public.time_fit_story_continuation_reservations x where x.source_episode_id = t.episode_id)
   ) then
     raise exception 'ISSUE139_BATCH2_LEGEND_DEPENDENT_ROWS';
   end if;
