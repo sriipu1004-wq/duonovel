@@ -833,7 +833,14 @@ const AOZORA_FRONT_MATTER =
 function normalizeAozoraBody(source: string): NormalizationResult {
   const normalized = normalizeAozora(source);
   const frontMatter = AOZORA_FRONT_MATTER.exec(normalized.displayText);
-  if (!frontMatter) return normalized;
+  if (!frontMatter) {
+    // A legend we could not separate (unusual header, missing blank line,
+    // legend later in the text) must not slip into the Reader body.
+    if (/【テキスト中に現れる記号について】/u.test(normalized.displayText)) {
+      throw new Error("AOZORA_BODY_FRONT_MATTER_UNRECOGNIZED: manual review required");
+    }
+    return normalized;
+  }
   const displayText = normalized.displayText.slice(frontMatter[0].length).trim();
   if (!displayText) throw new Error("AOZORA_BODY_EMPTY_AFTER_FRONT_MATTER");
   return {

@@ -590,6 +590,12 @@ function testAozoraBodyProfile() {
   // A text without the legend keeps its body unchanged (no throw).
   const noLegend = "Test Title\nTest Author\n\nBody only";
   assert.equal(normalizeSource(noLegend, "aozora_body").displayText, noLegend);
+  // A legend that does not match the header shape (5 header lines here) is
+  // refused rather than left in the Reader body.
+  assert.throws(
+    () => normalizeSource(["1", "2", "3", "4", "5", "", separator, marker, "x", separator, "", "Body"].join("\n"), "aozora_body"),
+    /AOZORA_BODY_FRONT_MATTER_UNRECOGNIZED/
+  );
   // A legend with nothing after it is refused rather than imported empty.
   assert.throws(
     () => normalizeSource(["T", "A", "", separator, marker, "x", separator].join("\n"), "aozora_body"),
