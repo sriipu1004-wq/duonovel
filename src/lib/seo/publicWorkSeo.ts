@@ -150,6 +150,23 @@ const LANGUAGE_NAMES: Record<UiLocale, Record<string, string>> = {
   ko: { ja: "일본어", en: "영어", ko: "한국어", "zh-Hans": "중국어(간체)", "zh-Hant": "중국어(번체)", es: "스페인어", fr: "프랑스어", de: "독일어" },
 };
 
+/**
+ * Operator works (Public Domain or a recorded original author) carry Japanese
+ * synopses (content/synopses). On en/ko pages such a synopsis is dropped so the
+ * localized fallback description is used; user works keep their own summary.
+ */
+export function summaryForLocaleMetadata(
+  summary: string | null | undefined,
+  locale: string,
+  isOperatorWork: boolean
+): string {
+  const text = (summary ?? "").trim();
+  if (locale !== "ja" && isOperatorWork && /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text)) {
+    return "";
+  }
+  return text;
+}
+
 export function localizedLanguageName(tag: string | null | undefined, locale: UiLocale): string {
   const value = (tag ?? "").trim();
   if (!value) return "";
@@ -222,9 +239,10 @@ export function buildLocalizedWorkMetadataText(input: {
     ? stripAuthorSuffixFromTitle(input.title, author)
     : input.title.trim();
   const titleInput = { title: displayTitle, author, isPublicDomain: originalAuthor };
-  const summary = isWorkSummaryPlaceholder(input.summary)
+  const localSummary = summaryForLocaleMetadata(input.summary, input.locale, originalAuthor);
+  const summary = isWorkSummaryPlaceholder(localSummary)
     ? copy.fallbackSummary(titleInput)
-    : (input.summary ?? "").trim();
+    : localSummary;
   const languageName = localizedLanguageName(input.sourceLanguage, input.locale);
   const description = [
     summary,

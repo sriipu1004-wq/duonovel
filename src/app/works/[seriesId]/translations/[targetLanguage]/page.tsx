@@ -18,6 +18,9 @@ import {
 import { getPublicWorkTranslationOverview } from "@/lib/translation/publicWorkTranslations";
 import { isUuid } from "@/lib/uuid";
 import { assertSeriesAvailableInRequestRegion } from "@/lib/rights/regionRestriction.server";
+import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
+import { readLegacyAttributionForDisplay } from "@/lib/legacyAttribution.server";
+import { summaryForLocaleMetadata } from "@/lib/seo/publicWorkSeo";
 
 type Props = {
   params: Promise<{ seriesId: string; targetLanguage: string }>;
@@ -97,7 +100,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const { seriesId, overview, locale, targetLanguage } = data;
   const title = pickText(overview.series.title) || "Untitled";
-  const summary = getSeriesSummary(overview.series).trim();
+  const operatorSettings =
+    overview.series["effect_settings"] ?? overview.series["effectSettings"];
+  const isOperatorWork = Boolean(
+    readPublicDomainMetadata(operatorSettings) ||
+      (await readLegacyAttributionForDisplay(
+        operatorSettings,
+        pickText(overview.series["author_id"], overview.series["user_id"], overview.series["userId"])
+      ))
+  );
+  const summary = summaryForLocaleMetadata(
+    getSeriesSummary(overview.series),
+    locale,
+    isOperatorWork
+  );
   const encodedSeriesId = encodeURIComponent(seriesId);
   const encodedTarget = encodeURIComponent(targetLanguage);
   const basePath = `/works/${encodedSeriesId}/translations/${encodedTarget}`;
