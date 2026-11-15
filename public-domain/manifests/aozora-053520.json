@@ -90,6 +90,13 @@
   ],
   "content_warning_notes": "Human-confirmed 2026-11-14 (owner button answer; independent review GO): execution and a decomposed corpse are described concretely. Not R18.",
   "content_notice_candidate": "青空文庫の注記：この作品には、今日からみれば、不適切と受け取られる可能性のある表現がみられます。その旨をここに記載した上で、そのままの形で作品を公開します。（青空文庫）",
+  "region_restriction": {
+    "blocked_countries": [
+      "CO",
+      "GQ"
+    ],
+    "basis": "D030 block list. 上司小剣 d.1947: CO life+80 (to end-2027, no shorter-term rule found), GQ life+80 unverified; same treatment as Dazai (d.1948). docs/rights/region-research-2026-11-15.md"
+  },
   "source_hash": "e66e40aba2133adc738e8a38dc0cdfd6d058f09f4a299f193a51d47438abeaf1",
   "approved": true,
   "import_status": "imported",

@@ -147,12 +147,17 @@ export function classifyAozoraWork(
   sourceRows: CsvRow[],
   options: {
     maxAuthorDeathYear?: number;
-    maxFirstPublicationYear?: number;
+    // Lower bound on the (latest) author death year; unset = no lower bound.
+    minAuthorDeathYear?: number;
+    // null = no upper bound (the first publication year must still be known).
+    maxFirstPublicationYear?: number | null;
   } = {}
 ): AozoraCandidateClassification {
   const reasons: string[] = [];
   const maxAuthorDeathYear = options.maxAuthorDeathYear ?? 1955;
-  const maxFirstPublicationYear = options.maxFirstPublicationYear ?? 1930;
+  const minAuthorDeathYear = options.minAuthorDeathYear ?? null;
+  const maxFirstPublicationYear =
+    options.maxFirstPublicationYear === undefined ? 1930 : options.maxFirstPublicationYear;
   const primary = sourceRows[0] ?? {};
   const workId = primary["作品ID"]?.trim() ?? "";
   const title = primary["作品名"]?.trim() ?? "";
@@ -202,10 +207,17 @@ export function classifyAozoraWork(
     reasons.push(
       `author death year ${authorDeathYear} exceeds conservative cutoff ${maxAuthorDeathYear}`
     );
+  } else if (minAuthorDeathYear !== null && authorDeathYear < minAuthorDeathYear) {
+    reasons.push(
+      `author death year ${authorDeathYear} is before the selected range start ${minAuthorDeathYear}`
+    );
   }
   if (firstPublicationYear === null) {
     reasons.push("first publication year is unknown");
-  } else if (firstPublicationYear > maxFirstPublicationYear) {
+  } else if (
+    maxFirstPublicationYear !== null &&
+    firstPublicationYear > maxFirstPublicationYear
+  ) {
     reasons.push(
       `first publication year ${firstPublicationYear} exceeds conservative U.S. cutoff ${maxFirstPublicationYear}`
     );
@@ -234,8 +246,58 @@ export function classifyAozoraWork(
   };
 }
 
+// Country-limited selection (D030 allow list). Japanese authors who died
+// 1946-1967: Japan's life+50 term ended by end-2017 and the 2018 extension did
+// not revive it. The allow list is the parent decision "A" in
+// docs/rights/region-research-2026-11-15b.md: every listed country is public
+// domain for the whole death range; IN is dropped for deaths in 1966-1967
+// (lower confidence); US is never added here (it needs a per-work check that
+// the base text has no 1931+ revision).
+export const AOZORA_COUNTRY_LIMITED_MIN_DEATH_YEAR = 1946;
+export const AOZORA_COUNTRY_LIMITED_MAX_DEATH_YEAR = 1967;
+export const AOZORA_COUNTRY_LIMITED_RESEARCH_NOTE =
+  "docs/rights/region-research-2026-11-15b.md";
+const EU27 = [
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE",
+  "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+] as const;
+export const AOZORA_COUNTRY_LIMITED_BASE_ALLOWED_COUNTRIES: readonly string[] = [
+  "JP", ...EU27, "IS", "LI", "NO", "GB", "CA", "NZ", "KR", "TW", "CN", "HK", "IN", "RU", "SG",
+];
+
+export function aozoraCountryLimitedRegionRestriction(authorDeathYear: number): {
+  allowed_countries: string[];
+  basis: string;
+} {
+  if (
+    !Number.isInteger(authorDeathYear) ||
+    authorDeathYear < AOZORA_COUNTRY_LIMITED_MIN_DEATH_YEAR ||
+    authorDeathYear > AOZORA_COUNTRY_LIMITED_MAX_DEATH_YEAR
+  ) {
+    throw new Error(
+      `country-limited allow list covers authors who died ${AOZORA_COUNTRY_LIMITED_MIN_DEATH_YEAR}-${AOZORA_COUNTRY_LIMITED_MAX_DEATH_YEAR}, not ${authorDeathYear}`
+    );
+  }
+  const dropIndia = authorDeathYear >= 1966;
+  const allowed = AOZORA_COUNTRY_LIMITED_BASE_ALLOWED_COUNTRIES.filter(
+    (code) => !(dropIndia && code === "IN")
+  );
+  return {
+    allowed_countries: [...allowed],
+    basis:
+      `D030 allow list. Japanese author d.${authorDeathYear}: Japan life+50 expired by end-2017 and was not revived by the 2018 extension; ` +
+      `each listed country applies the rule of the shorter term or has already expired this term (EU/EEA/GB/KR/RU/SG comparison of terms; CA pre-2022 expiry not revived; NZ life+50; TW/CN/HK life+50` +
+      (dropIndia
+        ? "); IN left out for deaths in 1966-1967 (lower confidence)"
+        : "; IN life+60 or International Copyright Order 1999 para 7)") +
+      `. US not included (§104A restoration; per-work revision check not done). ` +
+      `${AOZORA_COUNTRY_LIMITED_RESEARCH_NOTE} (parent decision A).`,
+  };
+}
+
 export function makePendingAozoraManifest(
-  item: AozoraCandidateClassification
+  item: AozoraCandidateClassification,
+  options: { countryLimited?: boolean } = {}
 ): Record<string, unknown> {
   if (!item.eligible) {
     throw new Error(
@@ -318,5 +380,10 @@ export function makePendingAozoraManifest(
     import_status: "not_imported",
     cover_source: null,
     cover_rights_status: null,
+    ...(options.countryLimited
+      ? {
+          region_restriction: aozoraCountryLimitedRegionRestriction(item.authorDeathYear!),
+        }
+      : {}),
   };
 }

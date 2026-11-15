@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { unzipSync } from "fflate";
 import {
   AOZORA_CATALOG_URL,
+  AOZORA_COUNTRY_LIMITED_MAX_DEATH_YEAR,
+  AOZORA_COUNTRY_LIMITED_MIN_DEATH_YEAR,
   canonicalAozoraIdentityPart,
   classifyAozoraWork,
   groupAozoraRows,
@@ -22,10 +24,31 @@ const maxDeathRaw = args
   ?.slice("--max-death-year=".length);
 // Default 1955 (unchanged). A stricter cutoff such as 1945 selects authors
 // whose works need no per-country restriction (D030 research note).
-const maxAuthorDeathYear = maxDeathRaw ? Number(maxDeathRaw) : 1955;
-if (!Number.isInteger(maxAuthorDeathYear) || maxAuthorDeathYear < 1800 || maxAuthorDeathYear > 1955) {
+// --country-limited: Japanese authors who died 1946-1967, any (known) first
+// publication year. Every manifest it writes carries the D030 allow list
+// (region_restriction); such works are published only with that row.
+const countryLimited = args.includes("--country-limited");
+if (countryLimited && maxDeathRaw) {
+  throw new Error("--country-limited fixes the death range; do not combine with --max-death-year");
+}
+const maxAuthorDeathYear = countryLimited
+  ? AOZORA_COUNTRY_LIMITED_MAX_DEATH_YEAR
+  : maxDeathRaw
+    ? Number(maxDeathRaw)
+    : 1955;
+if (
+  !countryLimited &&
+  (!Number.isInteger(maxAuthorDeathYear) || maxAuthorDeathYear < 1800 || maxAuthorDeathYear > 1955)
+) {
   throw new Error("--max-death-year must be an integer from 1800 to 1955");
 }
+const classifyOptions = countryLimited
+  ? {
+      minAuthorDeathYear: AOZORA_COUNTRY_LIMITED_MIN_DEATH_YEAR,
+      maxAuthorDeathYear,
+      maxFirstPublicationYear: null,
+    }
+  : { maxAuthorDeathYear };
 const perAuthorRaw = args
   .find((arg) => arg.startsWith("--per-author-limit="))
   ?.slice("--per-author-limit=".length);
@@ -102,7 +125,7 @@ if (!includeExisting && existsSync(existingAuditPath)) {
 }
 
 const classifications = Array.from(grouped.values()).map((sourceRows) =>
-  classifyAozoraWork(sourceRows, { maxAuthorDeathYear })
+  classifyAozoraWork(sourceRows, classifyOptions)
 );
 const rejectionCounts = new Map<string, number>();
 for (const item of classifications) {
@@ -170,7 +193,9 @@ if (candidates.length === 0 || args.includes("--diagnose")) {
   }
 }
 console.log(
-  `Criteria: copyright flags=なし, author-only contributors, death<=1955, first publication<=1930, allowlisted Aozora ZIP, per-author-limit=${perAuthorLimit}`
+  countryLimited
+    ? `Criteria (country-limited, D030 allow list): copyright flags=なし, author-only contributors, death ${AOZORA_COUNTRY_LIMITED_MIN_DEATH_YEAR}-${AOZORA_COUNTRY_LIMITED_MAX_DEATH_YEAR}, first publication known (no upper bound), allowlisted Aozora ZIP, per-author-limit=${perAuthorLimit}`
+    : `Criteria: copyright flags=なし, author-only contributors, death<=${maxAuthorDeathYear}, first publication<=1930, allowlisted Aozora ZIP, per-author-limit=${perAuthorLimit}`
 );
 console.log("Rights state: pending only; this command never approves or imports.");
 
@@ -189,7 +214,7 @@ mkdirSync(outputDir, { recursive: true });
 let created = 0;
 let skipped = 0;
 for (const item of candidates) {
-  const manifest = makePendingAozoraManifest(item);
+  const manifest = makePendingAozoraManifest(item, { countryLimited });
   const path = resolve(outputDir, `aozora-${item.workId}.json`);
   if (existsSync(path)) {
     console.log(`SKIP existing manifest: aozora-${item.workId}`);
