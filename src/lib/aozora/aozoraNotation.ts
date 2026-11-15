@@ -374,8 +374,10 @@ export function rebalanceAozoraDirectivesAcrossUnits(texts: readonly string[]): 
         output[next] = following.slice(continuation.length);
       }
     }
-    // A heading note cut from its heading text (`前置` | `［＃「前置」は中見出し］`):
-    // move the note back so the heading rule can match (render only).
+  }
+  // A heading note cut from its heading text (`前置` | `［＃「前置」は中見出し］`):
+  // once whole, move the note back so the heading rule can match (render only).
+  for (let index = 0; index + 1 < output.length; index += 1) {
     const heading = /^［＃「([^］\n]+)」は(?:同行|窓)?[大中小]見出し］/u.exec(output[index + 1] ?? "");
     if (heading && withoutRubyMarkup(output[index] ?? "").endsWith(heading[1] ?? "\u0000")) {
       output[index] = `${output[index]}${heading[0]}`;

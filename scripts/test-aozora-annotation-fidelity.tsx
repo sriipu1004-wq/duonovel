@@ -77,7 +77,8 @@ function expectedVisibleText(unit: string): string {
   text = text.replace(/［＃(「[^］\n]+?」はママ)］/gu, (_w, content: string) => formatAozoraNoteLabel(content));
   text = text.replace(
     /([^［］]*?)［＃「([^］\n]+)」は(?:同行|窓)?[大中小]見出し］/gu,
-    (whole, before: string, target: string) => (before.endsWith(target) ? before : whole)
+    (whole, before: string, target: string) =>
+      before.replace(/《[^《》\n]*》/gu, "").replace(/｜/gu, "").endsWith(target) ? before : whole
   );
   text = text.replace(/［＃(?:(?:同行|窓)?[大中小]見出し(?:終わり)?|(?:天から)?[０-９0-9]+字下げ)］/gu, "");
   text = text.replace(/［＃([^］\n]*底本[^］\n]*)］/gu, (_w, content: string) =>
@@ -235,8 +236,8 @@ function testSyntheticLiteralNotation() {
   assert.equal(visible("一［＃「一」は窓中見出し］"), "一");
   assert.equal(visible("上［＃「下」は中見出し］"), "上［＃「下」は中見出し］");
   assert.deepEqual(
-    rebalanceAozoraDirectivesAcrossUnits(["前置（著者の）", "［＃「前置（著者の）」は中見出し］", "本文"]),
-    ["前置（著者の）［＃「前置（著者の）」は中見出し］", "", "本文"]
+    rebalanceAozoraDirectivesAcrossUnits(["［＃１０字下げ］前置（著者の）", "［＃「前置（著者の）」", "は中見出し］"]),
+    ["［＃１０字下げ］前置（著者の）［＃「前置（著者の）」は中見出し］", "", ""]
   );
   // 2. Ruby right after a gaiji (gaiji count as kanji), also split across units.
   assert.deepEqual(rubyPairs(html(renderTextWithAozoraRuby("※［＃「ころもへん＋下」、第4水準2-88-10］《かみしも》を"))), ["𧘔/かみしも"]);
