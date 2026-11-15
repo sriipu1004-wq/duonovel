@@ -70,10 +70,18 @@ const RUBY_IMPLICIT_BASE_CLASSES = [
   "[A-Za-z]",
 ] as const;
 
+// Linear time on long runs: an implicit base may only start where its run
+// starts (negative lookbehind), and base/reading lengths are bounded, so a
+// long line of one character class (e.g. user text) cannot cause quadratic
+// backtracking. Longer bases simply stay literal.
+const RUBY_MAX_BASE = 200;
+const RUBY_MAX_READING = 500;
 const RUBY_PATTERN = new RegExp(
-  String.raw`｜([^《》\n]+)《([^《》\n]+)》|(` +
-    RUBY_IMPLICIT_BASE_CLASSES.map((cls) => `${cls}+`).join("|") +
-    String.raw`)《([^《》\n]+)》`,
+  String.raw`｜([^《》\n｜]{1,${RUBY_MAX_BASE}})《([^《》\n]{1,${RUBY_MAX_READING}})》|(` +
+    RUBY_IMPLICIT_BASE_CLASSES.map(
+      (cls) => `(?<!${cls})${cls}{1,${RUBY_MAX_BASE}}`
+    ).join("|") +
+    String.raw`)《([^《》\n]{1,${RUBY_MAX_READING}})》`,
   "gu"
 );
 

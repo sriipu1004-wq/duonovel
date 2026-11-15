@@ -528,6 +528,19 @@ function testRealSources() {
   );
 }
 
+function testRubyLinearTimeOnLongRuns() {
+  // User-written text shares this renderer: a long run of one character class
+  // before a stray 《 must not cause quadratic backtracking.
+  for (const run of ["a", "Ａ", "漢"]) {
+    const text = run.repeat(20000) + "《x》" + run.repeat(20000) + "《" + "y".repeat(20000);
+    const started = performance.now();
+    tokenizeAozoraDisplayText(text);
+    const elapsed = performance.now() - started;
+    assert.ok(elapsed < 200, `ruby tokenize on a 60k-char run took ${Math.round(elapsed)}ms`);
+  }
+  console.log("PASS: ruby base search stays linear on long single-class runs");
+}
+
 function testGaijiEquivalentDescriptions() {
   // Reviewed equivalent wordings for one code both resolve to the same char;
   // an unrelated description for that code still stays literal.
@@ -543,4 +556,5 @@ testSynthetic();
 testSyntheticRubySplit();
 testSyntheticLiteralNotation();
 testGaijiEquivalentDescriptions();
+testRubyLinearTimeOnLongRuns();
 testRealSources();
