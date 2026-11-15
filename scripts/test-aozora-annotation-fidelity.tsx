@@ -254,15 +254,32 @@ function checkUnits(label: string, originalUnits: string[], renderUnitsText: str
   return markups.join("\n");
 }
 
+// Audit mode (Issue #195 follow-up): AOZORA_FIDELITY_AUDIT_IDS="aozora-000024,…"
+// checks any prepared manifests for literal notation/ruby left in Original or
+// Bilingual mode, without the pinned per-work segmentation fixtures.
+const AUDIT_IDS = (process.env.AOZORA_FIDELITY_AUDIT_IDS ?? "")
+  .split(",").map((id) => id.trim()).filter(Boolean);
+
 function testRealSources() {
   let checked = 0;
   const totals: Record<string, number> = {};
-  for (const expected of EXPECTED) {
+  const audit = AUDIT_IDS.length > 0;
+  const works: ExpectedWork[] = audit
+    ? AUDIT_IDS.map((id) => ({
+        id, chapters: -1, byCategory: {}, layoutStrippedByExistingNormalizer: -1,
+        literalAfterRendering: 0, alignEnd: -1, bilingualSegments: [], bilingualSegmentFingerprint: "",
+      }))
+    : EXPECTED;
+  for (const expected of works) {
     const manifestResult = validateManifest(
       JSON.parse(readFileSync(`public-domain/manifests/${expected.id}.json`, "utf8"))
     );
     assert.equal(manifestResult.ok, true, expected.id);
-    const manifest = manifestResult.manifest!;
+    // In audit mode, batch-2 manifests ("aozora") are read as production now
+    // holds them: header and legend removed (#218 SQL), i.e. "aozora_body".
+    const manifest = audit && manifestResult.manifest!.normalization_profile === "aozora"
+      ? { ...manifestResult.manifest!, normalization_profile: "aozora_body" as const }
+      : manifestResult.manifest!;
     if (!existsSync(manifest.source_file)) continue;
     // prepareArtifact verifies the pinned SHA-256 of the raw bytes.
     const prepared = prepareArtifact({
@@ -270,7 +287,7 @@ function testRealSources() {
       rawBytes: readFileSync(manifest.source_file),
       preparedAt: "2026-11-14T00:00:00.000Z",
     });
-    assert.equal(prepared.chapters.length, expected.chapters, expected.id);
+    if (!audit) assert.equal(prepared.chapters.length, expected.chapters, expected.id);
 
     const byCategory: Record<string, number> = {};
     let originalDirectives = 0;
@@ -390,8 +407,10 @@ function testRealSources() {
       );
     }
 
-    assert.deepEqual(byCategory, expected.byCategory, `${expected.id}: directive classification changed`);
-    assert.equal(originalDirectives - afterLayout, expected.layoutStrippedByExistingNormalizer, expected.id);
+    if (!audit) {
+      assert.deepEqual(byCategory, expected.byCategory, `${expected.id}: directive classification changed`);
+      assert.equal(originalDirectives - afterLayout, expected.layoutStrippedByExistingNormalizer, expected.id);
+    }
     assert.equal(
       literalInOriginalMode,
       expected.literalAfterRendering,
@@ -409,7 +428,7 @@ function testRealSources() {
     );
     assert.equal(gaijiCodes, byCategory.gaiji ?? 0, `${expected.id}: every gaiji must render once`);
     assert.equal(sourceRuby, renderedRuby, `${expected.id}: ruby count source vs rendered`);
-    assert.equal(alignEnd, expected.alignEnd, `${expected.id}: end-aligned lines`);
+    if (!audit) assert.equal(alignEnd, expected.alignEnd, `${expected.id}: end-aligned lines`);
     assert.equal(literalInBilingualSource, 0, `${expected.id}: literal directives in Bilingual source pane`);
     assert.equal(
       literalRubyInBilingual,
@@ -418,8 +437,10 @@ function testRealSources() {
     );
     assert.equal(bilingualRuby, sourceRuby, `${expected.id}: ruby count source vs Bilingual source pane`);
     const segmentFingerprint = fingerprint.digest("hex").slice(0, 16);
-    assert.deepEqual(segmentCounts, expected.bilingualSegments, `${expected.id}: Bilingual segment counts changed`);
-    assert.equal(segmentFingerprint, expected.bilingualSegmentFingerprint, `${expected.id}: Bilingual segment ids/offsets changed`);
+    if (!audit) {
+      assert.deepEqual(segmentCounts, expected.bilingualSegments, `${expected.id}: Bilingual segment counts changed`);
+      assert.equal(segmentFingerprint, expected.bilingualSegmentFingerprint, `${expected.id}: Bilingual segment ids/offsets changed`);
+    }
     assert.equal(
       bilingualRendered,
       emphasisSpans + noteSpans + gaijiCodes + alignEnd,
@@ -432,9 +453,9 @@ function testRealSources() {
     checked += 1;
   }
   console.log(
-    checked === EXPECTED.length
+    checked === works.length
       ? `PASS: Issue #140 source-vs-rendered fixture for ${checked} works ${JSON.stringify(totals)}`
-      : `SKIP: Issue #140 source-vs-rendered fixture checked ${checked}/${EXPECTED.length} (raw TXT is git-ignored)`
+      : `SKIP: Issue #140 source-vs-rendered fixture checked ${checked}/${works.length} (raw TXT is git-ignored)`
   );
 }
 
