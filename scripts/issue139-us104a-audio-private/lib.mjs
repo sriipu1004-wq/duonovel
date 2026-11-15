@@ -8,20 +8,49 @@ export const PROJECT_REF = "nyxbnccuvmlzffgtdadi";
 export const PUBLIC_BUCKET = "recording-audio";
 export const PRIVATE_BUCKET = "ai-narration-private";
 export const PRIVATE_REFERENCE_PREFIX = `${PRIVATE_BUCKET}:`;
-export const EXPECTED_RECORDINGS = 330;
-export const EXPECTED_OBJECTS = 660;
+/**
+ * Target sets. "us104a" (default) is the 8 series made private by PR #210
+ * (scripts/issue139-us104a-unpublish). "kotou" is 孤島の鬼 (江戸川乱歩), which
+ * is public only in the allow-listed countries (D030) but whose narration was
+ * still in the public bucket. Pick a set with ISSUE139_AUDIO_SET.
+ */
+export const TARGET_SETS = Object.freeze({
+  us104a: Object.freeze({
+    series: Object.freeze([
+      "8514e9da-7864-4dad-a397-de06abee8fdc",
+      "d5cc7bf2-c76e-49e8-a078-150636fc0344",
+      "4d328931-ca04-4843-bcb5-9ac080cfbbf1",
+      "ac25272b-fc09-4f20-a94a-816791e750d0",
+      "82309887-add7-4406-aa18-d8a435c3b967",
+      "f7ba9cd3-0ede-48df-92d7-2ea297f33475",
+      "833b0303-d034-4ebb-ae6f-e023dd765a64",
+      "4f48c202-3ba1-47cb-b887-90880534c96e",
+    ]),
+    recordings: 330,
+    objects: 660,
+    sqlDir: ".",
+    stateDir: ".issue139-audio-state",
+  }),
+  kotou: Object.freeze({
+    series: Object.freeze(["d5e231b1-4f59-4d44-80a8-067cd49f8504"]),
+    recordings: 120,
+    objects: 240,
+    sqlDir: "kotou",
+    stateDir: ".issue139-audio-state-kotou",
+  }),
+});
 
-/** The 8 series made private by PR #210 (scripts/issue139-us104a-unpublish). */
-export const TARGET_SERIES = Object.freeze([
-  "8514e9da-7864-4dad-a397-de06abee8fdc",
-  "d5cc7bf2-c76e-49e8-a078-150636fc0344",
-  "4d328931-ca04-4843-bcb5-9ac080cfbbf1",
-  "ac25272b-fc09-4f20-a94a-816791e750d0",
-  "82309887-add7-4406-aa18-d8a435c3b967",
-  "f7ba9cd3-0ede-48df-92d7-2ea297f33475",
-  "833b0303-d034-4ebb-ae6f-e023dd765a64",
-  "4f48c202-3ba1-47cb-b887-90880534c96e",
-]);
+export const TARGET_SET_NAME = process.env.ISSUE139_AUDIO_SET ?? "us104a";
+if (!Object.prototype.hasOwnProperty.call(TARGET_SETS, TARGET_SET_NAME)) {
+  throw new Error(`unknown ISSUE139_AUDIO_SET:${TARGET_SET_NAME}`);
+}
+const ACTIVE = TARGET_SETS[TARGET_SET_NAME];
+export const EXPECTED_RECORDINGS = ACTIVE.recordings;
+export const EXPECTED_OBJECTS = ACTIVE.objects;
+export const DEFAULT_STATE_DIR = ACTIVE.stateDir;
+
+/** The series of the active set (default: the 8 series made private by PR #210). */
+export const TARGET_SERIES = ACTIVE.series;
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 // Same shape as PRIVATE_AI_OBJECT_PATH in src/lib/recording/privateAiNarrationStorage.ts.
