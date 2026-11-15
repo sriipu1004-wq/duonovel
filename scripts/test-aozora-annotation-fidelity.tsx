@@ -438,6 +438,18 @@ function testRealSources() {
   );
 }
 
+function testGaijiEquivalentDescriptions() {
+  // Reviewed equivalent wordings for one code both resolve to the same char;
+  // an unrelated description for that code still stays literal.
+  const a = lookupAozoraGaiji("てへん＋主", "1-84-73");
+  const b = lookupAozoraGaiji("てへん＋（麈－鹿）", "1-84-73");
+  assert.equal(a?.char, "拄");
+  assert.equal(b?.char, "拄");
+  assert.equal(lookupAozoraGaiji("てへん＋夫", "1-84-73"), null);
+  console.log("PASS: generated gaiji accepts reviewed equivalent descriptions only");
+}
+
 testSynthetic();
 testSyntheticRubySplit();
+testGaijiEquivalentDescriptions();
 testRealSources();

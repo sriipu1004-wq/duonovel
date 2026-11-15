@@ -44,6 +44,7 @@ export const NORMALIZATION_PROFILES = [
   "plain",
   "aozora",
   "aozora_reader_body",
+  "aozora_body",
   "gutenberg",
   "standard_ebooks",
   "gongu_madang",
@@ -820,6 +821,30 @@ function normalizeAozoraReaderBody(source: string): NormalizationResult {
   };
 }
 
+// Opt-in source profile for new Aozora batches (2026-11 batch 3 onward):
+// like "aozora", and additionally moves the title/author header and the
+// 【テキスト中に現れる記号について】 notation legend to archive metadata when
+// present. Unlike "aozora_reader_body" it does not require the legend, so a
+// text without one keeps its body unchanged. Same block as the batch-2
+// cleanup in scripts/issue139-aozora-batch2-legend/generate.ts.
+const AOZORA_FRONT_MATTER =
+  /^(?:[^\n]+\n){1,4}\n-{30,}\n【テキスト中に現れる記号について】[\s\S]*?\n-{30,}(?:\n+|$)/u;
+
+function normalizeAozoraBody(source: string): NormalizationResult {
+  const normalized = normalizeAozora(source);
+  const frontMatter = AOZORA_FRONT_MATTER.exec(normalized.displayText);
+  if (!frontMatter) return normalized;
+  const displayText = normalized.displayText.slice(frontMatter[0].length).trim();
+  if (!displayText) throw new Error("AOZORA_BODY_EMPTY_AFTER_FRONT_MATTER");
+  return {
+    displayText,
+    archiveMetadata: [frontMatter[0].trim(), normalized.archiveMetadata]
+      .filter(Boolean).join("\n\n--- AOZORA SOURCE METADATA ---\n\n"),
+    changes: [...normalized.changes, "separated Aozora header/notation legend"],
+    warnings: normalized.warnings,
+  };
+}
+
 function normalizeGutenberg(source: string): NormalizationResult {
   const base = normalizeLineEndings(source);
   const startPattern = /^\*\*\*\s*START OF (?:THE|THIS) PROJECT GUTENBERG EBOOK.*\*\*\*\s*$/imu;
@@ -865,6 +890,7 @@ export function normalizeSource(
 ): NormalizationResult {
   if (profile === "aozora") return normalizeAozora(source);
   if (profile === "aozora_reader_body") return normalizeAozoraReaderBody(source);
+  if (profile === "aozora_body") return normalizeAozoraBody(source);
   if (profile === "gutenberg") return normalizeGutenberg(source);
 
   const base = normalizeLineEndings(source);

@@ -71,9 +71,14 @@ export function lookupAozoraGaiji(
 ): AozoraGaijiInfo | null {
   // Hand-checked entries first, then the table generated from the gaiji that
   // appear in published Aozora texts (same JIS X 0213 verification).
-  const entry = AOZORA_VERIFIED_GAIJI[code] ?? AOZORA_GENERATED_GAIJI[code];
-  if (!entry || entry.description !== description) return null;
-  return { code, description, char: entry.char };
+  const verified = AOZORA_VERIFIED_GAIJI[code];
+  if (verified) {
+    if (verified.description !== description) return null;
+    return { code, description, char: verified.char };
+  }
+  const generated = AOZORA_GENERATED_GAIJI[code];
+  if (!generated || !generated.descriptions.includes(description)) return null;
+  return { code, description, char: generated.char };
 }
 
 type GaijiMark = { offset: number; info: AozoraGaijiInfo };
