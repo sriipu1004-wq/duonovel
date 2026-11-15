@@ -2,6 +2,7 @@
  * P9 share buttons, UTM rules and per-work Open Graph image regression.
  */
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { ImageResponse } from "next/og";
 import {
@@ -18,7 +19,10 @@ import { shareDictionaries } from "../src/i18n/dictionaries/share";
 import { UI_LOCALES } from "../src/i18n/config";
 import {
   isOgBundledFontText,
+  isOgSubsetFontText,
   listOgBundledFontCodePoints,
+  listOgSubsetFontCodePoints,
+  prefersKoreanOgFont,
   resolveWorkOgImageContent,
   truncateOgText,
   workOgImagePath,
@@ -29,6 +33,7 @@ import {
   WorkOgImageElement,
 } from "../src/lib/og/ogImageElements";
 import { isWorkOpenGraphImagePath } from "../src/proxy";
+import { loadOgSubsetFonts, ogSubsetFontFamily, type OgFontOption } from "../src/lib/og/ogFonts";
 
 const SITE = "https://www.syosetu-libread.com";
 const SERIES = "11111111-2222-4333-8444-555555555555";
@@ -180,7 +185,7 @@ assert.equal(shouldShowShareButtons({ isPublic: false, isR18: true }), false);
   const base = { isPublic: true, isR18: false, hasPublicEpisode: true };
   assert.deepEqual(
     resolveWorkOgImageContent({ ...base, title: "The Wind in the Willows", authorName: "Kenneth Grahame" }),
-    { kind: "work", title: "The Wind in the Willows", authorName: "Kenneth Grahame" }
+    { kind: "work", title: "The Wind in the Willows", authorName: "Kenneth Grahame", fontSet: "default" }
   );
   assert.deepEqual(
     resolveWorkOgImageContent({ ...base, isR18: true, title: "Latin Title", authorName: "A" }),
@@ -197,17 +202,53 @@ assert.equal(shouldShowShareButtons({ isPublic: false, isR18: true }), false);
   );
   assert.deepEqual(
     resolveWorkOgImageContent({ ...base, title: "吾輩は猫である", authorName: "夏目漱石" }),
-    { kind: "generic", reason: "font_unavailable" }
+    { kind: "work", title: "吾輩は猫である", authorName: "夏目漱石", fontSet: "cjk" }
   );
   assert.deepEqual(
     resolveWorkOgImageContent({ ...base, title: "운수 좋은 날", authorName: "현진건" }),
-    { kind: "generic", reason: "font_unavailable" }
+    { kind: "work", title: "운수 좋은 날", authorName: "현진건", fontSet: "cjk" }
   );
   assert.deepEqual(
     resolveWorkOgImageContent({ ...base, title: "Kokoro", authorName: "夏目漱石" }),
-    { kind: "work", title: "Kokoro", authorName: null },
-    "author the bundled font cannot draw is dropped, not downloaded"
+    { kind: "work", title: "Kokoro", authorName: "夏目漱石", fontSet: "cjk" },
+    "a Latin title with a Japanese author switches to the subset fonts"
   );
+  // Outside every bundled font: never downloaded.
+  assert.deepEqual(
+    resolveWorkOgImageContent({ ...base, title: "憂鬱な朝", authorName: "A" }),
+    { kind: "generic", reason: "font_unavailable" },
+    "JIS level-2 kanji (鬱) is not in the subset"
+  );
+  assert.deepEqual(
+    resolveWorkOgImageContent({ ...base, title: "Kokoro", authorName: "📚 reader" }),
+    { kind: "work", title: "Kokoro", authorName: null, fontSet: "default" },
+    "author no bundled font can draw is dropped, not downloaded"
+  );
+  assert.deepEqual(
+    resolveWorkOgImageContent({ ...base, title: "吾輩は猫である", authorName: "作者😀" }),
+    { kind: "work", title: "吾輩は猫である", authorName: null, fontSet: "cjk" }
+  );
+  assert.deepEqual(
+    resolveWorkOgImageContent({ ...base, title: "边城", authorName: "沈从文" }),
+    { kind: "generic", reason: "font_unavailable" },
+    "Simplified Chinese 边 is not in the subset"
+  );
+  assert.deepEqual(
+    resolveWorkOgImageContent({ ...base, isR18: true, title: "吾輩は猫である", authorName: "夏目漱石" }),
+    { kind: "generic", reason: "r18" }
+  );
+  // Every production title / author character is drawable.
+  const productionChars = read("scripts/og-fonts/production-chars.txt")
+    .split("\n")
+    .filter((line) => !line.startsWith("#"))
+    .join("")
+    .replace(/\s+/gu, "");
+  for (const char of productionChars) {
+    assert.ok(isOgSubsetFontText(char), `production character ${char} in the subset`);
+  }
+  assert.equal(isOgSubsetFontText("こころ ヘンゼル 漢字 한국어"), true);
+  assert.equal(prefersKoreanOgFont("운수 좋은 날"), true);
+  assert.equal(prefersKoreanOgFont("吾輩は猫である"), false);
   assert.deepEqual(resolveWorkOgImageContent({ ...base, title: "  ", authorName: "A" }), {
     kind: "generic",
     reason: "no_title",
@@ -278,7 +319,20 @@ assert.equal(isWorkOpenGraphImagePath(`/works/${SERIES}/translations`), false);
   assert.ok(ogRoute.includes("<DefaultOgImageElement />"));
   assert.ok(ogRoute.includes('"cache-control": OG_CACHE_CONTROL'));
   assert.ok(!/cookies\(|getCurrentR18ViewerPreference|createAdminClient\(\)\s*\.from\("series"\)/u.test(ogRoute), "image does not depend on the viewer");
-  assert.ok(!/fonts\.googleapis|fonts:\s*\[/u.test(ogRoute), "no font loading in the route");
+  assert.ok(!/fonts\.googleapis|https?:\/\/|fetch\(|loadGoogleFont/u.test(ogRoute), "no network font loading in the route");
+  assert.ok(ogRoute.includes("fonts = await loadOgSubsetFonts()"), "only the bundled subset fonts");
+  assert.ok(ogRoute.includes('content.fontSet === "cjk"'));
+  const ogFonts = read("src/lib/og/ogFonts.ts");
+  assert.ok(!/fetch\(|https?:\/\//u.test(ogFonts), "font loader never uses the network");
+  assert.ok(ogFonts.includes("readFile(path.join(rootDir, OG_SUBSET_FONT_DIR, file))"));
+  const nextConfig = read("next.config.ts");
+  assert.ok(nextConfig.includes('"./src/assets/og-fonts/*.ttf"'), "fonts traced into the function bundle");
+  const sources = read("src/assets/og-fonts/SOURCES.md");
+  assert.ok(read("src/assets/og-fonts/OFL.txt").includes("SIL Open Font License, Version 1.1"));
+  for (const file of ["NotoSansJP-OgSubset-400.ttf", "NotoSansJP-OgSubset-700.ttf", "NotoSansKR-OgSubset-400.ttf", "NotoSansKR-OgSubset-700.ttf"]) {
+    const digest = createHash("sha256").update(readFileSync(`src/assets/og-fonts/${file}`)).digest("hex");
+    assert.ok(sources.includes(`\`${file}\``) && sources.includes(digest), `SOURCES.md records ${file} ${digest}`);
+  }
 }
 
 // 7b. The official-account check is deny-side and fails closed.
@@ -308,7 +362,11 @@ assert.equal(isWorkOpenGraphImagePath(`/works/${SERIES}/translations`), false);
 // 9. Real next/og render: the bundled font covers every allowed character,
 //    so no font is downloaded; Japanese would trigger a download (why the
 //    gate exists).
-async function renderAndCollectFontRequests(element: React.ReactElement, size = OG_IMAGE_SIZE) {
+async function renderAndCollectFontRequests(
+  element: React.ReactElement,
+  size: { width: number; height: number } = OG_IMAGE_SIZE,
+  fonts?: OgFontOption[]
+) {
   const originalFetch = globalThis.fetch;
   const requests: string[] = [];
   globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
@@ -320,7 +378,7 @@ async function renderAndCollectFontRequests(element: React.ReactElement, size = 
   const originalError = console.error;
   console.error = () => {};
   try {
-    const response = new ImageResponse(element, size);
+    const response = new ImageResponse(element, fonts ? { ...size, fonts } : size);
     const bytes = new Uint8Array(await response.arrayBuffer());
     assert.deepEqual([...bytes.slice(0, 4)], [0x89, 0x50, 0x4e, 0x47], "PNG");
     return requests;
@@ -353,6 +411,56 @@ async function main() {
     japanese.some((url) => url.includes("fonts.googleapis.com")),
     "Japanese glyphs need a downloaded font in next/og (gate must stay)"
   );
+
+  // 9b. Bundled Noto Sans JP / KR subsets: every code point the gate accepts
+  //     renders with zero network requests, in both weights.
+  const fonts = await loadOgSubsetFonts();
+  assert.equal(fonts.length, 4);
+  const subsetCodePoints = listOgSubsetFontCodePoints();
+  assert.ok(subsetCodePoints.length > 6000, "subset coverage loaded");
+  const subsetText = String.fromCodePoint(...subsetCodePoints);
+  const subsetChars = Array.from(subsetText);
+  for (let index = 0; index < subsetChars.length; index += 400) {
+    const chunk = subsetChars.slice(index, index + 400).join("");
+    for (const fontWeight of [400, 700] as const) {
+      const requests = await renderAndCollectFontRequests(
+        <div style={{ display: "flex", flexWrap: "wrap", fontSize: 20, fontWeight, fontFamily: ogSubsetFontFamily(false) }}>{chunk}</div>,
+        { width: 1200, height: 1200 },
+        fonts
+      );
+      assert.deepEqual(requests, [], `subset fonts must cover (weight ${fontWeight}): ${chunk}`);
+    }
+  }
+  for (const [title, author] of [
+    ["吾輩は猫である", "夏目漱石"],
+    ["운수 좋은 날", "현진건"],
+    ["Kokoro", "夏目漱石"],
+    [truncateOgText("羅生門・鼻・芋粥 ".repeat(20), 90), "芥川龍之介"],
+  ] as const) {
+    const content = resolveWorkOgImageContent({ isPublic: true, isR18: false, hasPublicEpisode: true, title, authorName: author });
+    assert.equal(content.kind, "work");
+    if (content.kind !== "work") continue;
+    assert.equal(content.fontSet, "cjk");
+    assert.equal(content.authorName, author, `${title}: author drawn`);
+    const requests = await renderAndCollectFontRequests(
+      <WorkOgImageElement
+        title={content.title}
+        authorName={content.authorName}
+        fontFamily={ogSubsetFontFamily(prefersKoreanOgFont(title + author))}
+      />,
+      OG_IMAGE_SIZE,
+      fonts
+    );
+    assert.deepEqual(requests, [], `no network request for ${title}`);
+  }
+  // The stub would see a request for a glyph the subsets lack (the gate
+  // keeps such titles away from the renderer).
+  const outside = await renderAndCollectFontRequests(
+    <div style={{ display: "flex", fontFamily: ogSubsetFontFamily(false) }}>憂鬱</div>,
+    OG_IMAGE_SIZE,
+    fonts
+  );
+  assert.ok(outside.length > 0, "a glyph outside the subset would be downloaded (gate must stay)");
   console.log("PASS: P9 share buttons (UTM, intents, visibility, ja/en/ko), per-work OG image (R18/private generic, bundled-font gate, real render), UTM doc");
 }
 

@@ -14,9 +14,11 @@ import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 import { resolvePublicWorkAttribution, stripAuthorSuffixFromTitle } from "@/lib/seo/publicWorkSeo";
 import { isUuid } from "@/lib/uuid";
 import {
+  prefersKoreanOgFont,
   resolveWorkOgImageContent,
   type WorkOgImageContent,
 } from "@/lib/og/workOgContent";
+import { loadOgSubsetFonts, ogSubsetFontFamily } from "@/lib/og/ogFonts";
 import {
   DefaultOgImageElement,
   WorkOgImageElement,
@@ -122,12 +124,38 @@ export default async function WorkOpenGraphImage({ params }: Props) {
     content = { kind: "generic", reason: "not_public" };
   }
 
+  const headers = { "cache-control": OG_CACHE_CONTROL };
+  if (content.kind === "work" && content.fontSet === "cjk") {
+    // Bundled subset fonts only; resolveWorkOgImageContent already checked
+    // that they draw every character, so nothing is downloaded.
+    let fonts: Awaited<ReturnType<typeof loadOgSubsetFonts>> | null = null;
+    try {
+      fonts = await loadOgSubsetFonts();
+    } catch {
+      fonts = null;
+    }
+    if (fonts) {
+      return new ImageResponse(
+        <WorkOgImageElement
+          title={content.title}
+          authorName={content.authorName}
+          fontFamily={ogSubsetFontFamily(
+            prefersKoreanOgFont(`${content.title}${content.authorName ?? ""}`)
+          )}
+        />,
+        { ...size, fonts, headers }
+      );
+    }
+    // Fonts unreadable: the common image (never a network font).
+    return new ImageResponse(<DefaultOgImageElement />, { ...size, headers });
+  }
+
   return new ImageResponse(
     content.kind === "work" ? (
       <WorkOgImageElement title={content.title} authorName={content.authorName} />
     ) : (
       <DefaultOgImageElement />
     ),
-    { ...size, headers: { "cache-control": OG_CACHE_CONTROL } }
+    { ...size, headers }
   );
 }

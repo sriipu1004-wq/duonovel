@@ -18,6 +18,9 @@ on:
       - "src/lib/share/**"
       - "src/lib/auth/officialAuthor.server.ts"
       - "src/lib/seo/**"
+      - "src/assets/og-fonts/**"
+      - "scripts/og-fonts/**"
+      - "next.config.ts"
 
 permissions:
   contents: read
@@ -66,6 +69,9 @@ jobs:
           src/i18n/dictionaries/share.ts
           src/lib/og/workOgContent.ts
           src/lib/og/ogImageElements.tsx
+          src/lib/og/ogFonts.ts
+          src/lib/og/ogFontCoverage.generated.ts
+          next.config.ts
           src/lib/share/shareLinks.ts
           src/lib/auth/officialAuthor.server.ts
 
