@@ -8,6 +8,15 @@ import {
   UI_LOCALE_HEADER,
   type UiLocale,
 } from "@/i18n/config";
+import {
+  extractRegionGuardedSeriesId,
+  isSeriesBlockedInCountry,
+  normalizeCountryCode,
+  REGION_BLOCKED_STATUS,
+  regionBlockedHtml,
+  REQUEST_COUNTRY_HEADER,
+} from "@/lib/rights/regionRestriction";
+import { loadRegionRestrictionMapForProxy } from "@/lib/rights/regionRestrictionProxy";
 
 const SAVED_SEARCH_FILTERS = new Set([
   "bookmarked-works",
@@ -110,10 +119,34 @@ function buildLocaleAwareResponse(
   );
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const locale = resolveRequestLocale(request);
   const hasLocalePrefix = hasUiLocalePrefix(request.nextUrl.pathname);
   const routePathname = stripUiLocalePrefix(request.nextUrl.pathname);
+
+  // Per-country restriction (owner 2026-11-15): a restricted work is answered
+  // 451 to a visitor from a blocked or unknown country before any page, server
+  // action or redirect runs. Pages re-check with the service role.
+  const guardedSeriesId = extractRegionGuardedSeriesId(routePathname);
+  if (guardedSeriesId) {
+    const restrictions = await loadRegionRestrictionMapForProxy();
+    const country = normalizeCountryCode(
+      request.headers.get(REQUEST_COUNTRY_HEADER)
+    );
+    if (
+      restrictions &&
+      isSeriesBlockedInCountry(restrictions, guardedSeriesId, country)
+    ) {
+      return new NextResponse(regionBlockedHtml(locale), {
+        status: REGION_BLOCKED_STATUS,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "private, no-store",
+          "X-Robots-Tag": "noindex",
+        },
+      });
+    }
+  }
 
   // P9 per-work Open Graph image: one locale-independent route. Never
   // redirect it by the UI-locale cookie or rewrite it to /locale-work, where

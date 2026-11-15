@@ -297,21 +297,36 @@ function summarizeLegacyEpisodes(
   return summaries;
 }
 
+const SUMMARY_ID_FILTER_LIMIT = 100;
+
 async function fetchPublicEpisodeSummariesBySeriesIds(
   seriesIds: string[]
 ): Promise<Map<string, PublicEpisodeWorkSummary>> {
   if (seriesIds.length === 0) return new Map();
-  const supabase = createPublicServerClient();
+  // Service role: per-country restricted works (D030) hide their episode rows
+  // from anon through RLS, but they stay public and must keep their catalog
+  // card. The view itself returns only posted, published episodes of public
+  // series and no body text. No `.in(series_id)` filter: the view is already
+  // limited to public works, and a long id list would hit the URL length
+  // limit as the catalog grows (#141); ids are intersected below. Small sets
+  // still use `.in()` (see SUMMARY_ID_FILTER_LIMIT).
+  const supabase = createAdminClient();
+  const wanted = new Set(seriesIds);
   const PAGE_SIZE = 1000;
   const summaries = new Map<string, PublicEpisodeWorkSummary>();
 
+  // A small id set (a single Work page, an author's shelf) keeps the id
+  // filter so it does not aggregate the whole catalog.
+  const filterByIds = seriesIds.length <= SUMMARY_ID_FILTER_LIMIT;
+
   for (let start = 0; ; start += PAGE_SIZE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("public_episode_work_summaries")
       .select(
         "series_id, episode_count, first_episode_id, first_episode_number, first_posted_at, latest_posted_at, public_episode_numbers"
-      )
-      .in("series_id", seriesIds)
+      );
+    if (filterByIds) query = query.in("series_id", seriesIds);
+    const { data, error } = await query
       .order("series_id", { ascending: true })
       .range(start, start + PAGE_SIZE - 1);
 
@@ -326,7 +341,7 @@ async function fetchPublicEpisodeSummariesBySeriesIds(
 
     const rows = (data ?? []) as PublicEpisodeWorkSummary[];
     for (const summary of rows) {
-      if (seriesIds.includes(summary.series_id)) {
+      if (wanted.has(summary.series_id)) {
         summaries.set(summary.series_id, summary);
       }
     }

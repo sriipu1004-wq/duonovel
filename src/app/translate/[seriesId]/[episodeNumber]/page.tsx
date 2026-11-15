@@ -22,6 +22,7 @@ import {
 import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 import { getUiLocale } from "@/i18n/server";
 import { isUuid } from "@/lib/uuid";
+import { assertSeriesAvailableInRequestRegion } from "@/lib/rights/regionRestriction.server";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -46,6 +47,7 @@ function defaultTarget(sourceLanguage: string, locale: "ja" | "en" | "ko"): Publ
 
 export default async function HumanTranslationPage({ params, searchParams }: PageProps) {
   const { seriesId, episodeNumber } = await params;
+  await assertSeriesAvailableInRequestRegion(seriesId);
   const parsedEpisodeNumber = Number(episodeNumber);
   if (!isUuid(seriesId) || !Number.isInteger(parsedEpisodeNumber) || parsedEpisodeNumber < 1) notFound();
 

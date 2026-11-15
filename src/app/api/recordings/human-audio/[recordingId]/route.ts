@@ -15,6 +15,7 @@ import {
 } from "@/lib/recording/recordingConsent";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isUuid } from "@/lib/uuid";
+import { regionBlockedApiResponse } from "@/lib/rights/regionRestriction.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,6 +77,9 @@ export async function GET(request: Request, { params }: RouteProps) {
   if (!isUuid(seriesId) || !isUuid(episodeId) || !isUuid(readerId)) {
     return privateMediaNotFound();
   }
+
+  const regionBlocked = await regionBlockedApiResponse(request, seriesId);
+  if (regionBlocked) return regionBlocked;
 
   // Do not trust a stored Human URL or a narrator UUID alone: the object must
   // be the canonical PRIVATE playback asset of this work, episode and narrator.

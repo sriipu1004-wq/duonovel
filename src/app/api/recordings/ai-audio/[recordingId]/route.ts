@@ -11,6 +11,7 @@ import { loadPrivateMediaSourceContext } from "@/lib/recording/privateMediaSourc
 import { privateMediaNotFound } from "@/lib/recording/privateMediaStream";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isUuid } from "@/lib/uuid";
+import { regionBlockedApiResponse } from "@/lib/rights/regionRestriction.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,6 +66,9 @@ export async function GET(request: Request, { params }: RouteProps) {
   ) {
     return privateMediaNotFound();
   }
+
+  const regionBlocked = await regionBlockedApiResponse(request, seriesId);
+  if (regionBlocked) return regionBlocked;
 
   const mediaPath =
     new URL(request.url).searchParams.get("timing") === "1"

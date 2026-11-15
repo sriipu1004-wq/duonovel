@@ -58,6 +58,7 @@
     "test:p9-seo-metadata": "node --import tsx scripts/test-p9-seo-metadata.ts",
     "test:p9-share-ogp": "node --import tsx scripts/test-p9-share-ogp.tsx",
     "test:legacy-attribution": "node --import tsx scripts/test-legacy-attribution.ts",
+    "test:region-restriction": "node --import tsx scripts/test-region-restriction.ts",
     "test:public-read-reliability-performance": "node --import tsx scripts/test-public-read-reliability-performance.ts",
     "test:public-fetch-timeout-diagnostics": "node --import tsx scripts/test-public-fetch-timeout-diagnostics.ts",
     "test:owned-series-server-save": "node --import tsx scripts/test-owned-series-server-save.ts",

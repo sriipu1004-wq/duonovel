@@ -9,6 +9,7 @@ import { getPublicWorkMetadataCardById } from "@/lib/publicWorks";
 import { isUuid } from "@/lib/uuid";
 import { buildLocalizedWorkMetadataText } from "@/lib/seo/publicWorkSeo";
 import { workOgImagePath } from "@/lib/og/workOgContent";
+import { assertSeriesAvailableInRequestRegion } from "@/lib/rights/regionRestriction.server";
 
 type WorkPageProps = Parameters<typeof WorkPage>[0];
 
@@ -18,6 +19,7 @@ export async function generateMetadata({
   const locale = await getUiLocale();
   const dictionary = workDictionaries[locale];
   const { seriesId } = await params;
+  await assertSeriesAvailableInRequestRegion(seriesId);
 
   // Metadata should fetch one public work rather than refreshing the full
   // catalog. A failed per-work lookup must
@@ -99,6 +101,7 @@ export default async function LocaleWorkPage(props: WorkPageProps) {
   const locale = await getUiLocale();
   if (locale === "ja") notFound();
   const { seriesId } = await props.params;
+  await assertSeriesAvailableInRequestRegion(seriesId);
 
   if (!isUuid(seriesId)) notFound();
 

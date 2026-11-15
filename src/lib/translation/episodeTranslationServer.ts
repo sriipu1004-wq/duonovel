@@ -27,6 +27,11 @@ import {
 } from "@/lib/translation/languageRegistry";
 import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 import { TRANSLATION_SEGMENT_VERSION } from "@/lib/translation/translationPayload";
+import { headers } from "next/headers";
+import {
+  countryFromHeaders,
+  isSeriesRegionBlockedForCountry,
+} from "@/lib/rights/regionRestriction.server";
 
 export const TRANSLATION_SOURCE_LANGUAGE = DEFAULT_TRANSLATION_SOURCE_LANGUAGE;
 export const TRANSLATION_TARGET_LANGUAGE = DEFAULT_TRANSLATION_TARGET_LANGUAGE;
@@ -170,6 +175,12 @@ export async function resolveEpisodeTranslationAccess(
   const r18Allowed =
     !isR18Series(series) ||
     (await getCurrentR18ViewerPreference()).showR18Content;
+  // Per-country restriction (owner 2026-11-15): no source text, translation
+  // or word explanation for a restricted work in a blocked or unknown country.
+  const regionBlocked = await isSeriesRegionBlockedForCountry(
+    seriesId,
+    countryFromHeaders(await headers())
+  );
 
   return {
     episode,
@@ -183,7 +194,7 @@ export async function resolveEpisodeTranslationAccess(
     isOwner,
     isOfficialUser: isOfficialAccountUser(user),
     registrationBlocked: isBlockedFromWritesUntilRegistered(user),
-    canRead: (isPublic || isOwner) && r18Allowed,
+    canRead: (isPublic || isOwner) && r18Allowed && !regionBlocked,
     // Translation permission is authoritative. Ownership, preview allowlists,
     // AI-generated attribution, and Official authorship must never bypass a closed work.
     isAllowlisted: isSeriesTranslationEligible(series),

@@ -24,6 +24,7 @@ import {
   isPublishedEpisode,
   type EpisodeRow,
 } from "@/features/write/writeShared";
+import { assertSeriesAvailableInRequestRegion } from "@/lib/rights/regionRestriction.server";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -198,6 +199,7 @@ async function fetchExistingRecordingsForSeriesUser(
 
 export default async function RecordCreateSeriesPage({ params }: PageProps) {
   const { seriesId } = await params;
+  await assertSeriesAvailableInRequestRegion(seriesId);
   const {
     seriesTitle,
     permissionMode,

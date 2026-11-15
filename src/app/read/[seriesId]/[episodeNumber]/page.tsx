@@ -48,6 +48,7 @@ import {
   resolvePublicWorkAttribution,
   serializeJsonLd,
 } from "@/lib/seo/publicWorkSeo";
+import { assertSeriesAvailableInRequestRegion } from "@/lib/rights/regionRestriction.server";
 
 type PageProps = {
   params: Promise<{ seriesId: string; episodeNumber: string }>;
@@ -201,6 +202,7 @@ export async function generateMetadata({
   }[locale];
 
   const { seriesId, episodeNumber } = await params;
+  await assertSeriesAvailableInRequestRegion(seriesId);
   const parsedEpisodeNumber = parseEpisodeNumber(episodeNumber);
 
   if (!isUuid(seriesId) || !parsedEpisodeNumber) {
@@ -409,6 +411,7 @@ export default async function ReadEpisodePage({
   const locale = await getUiLocale();
   const ui = readPageDictionaries[locale];
   const { seriesId, episodeNumber } = await params;
+  await assertSeriesAvailableInRequestRegion(seriesId);
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const parsedEpisodeNumber = parseEpisodeNumber(episodeNumber);
 

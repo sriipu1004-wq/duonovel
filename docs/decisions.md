@@ -461,3 +461,13 @@ Evidence (P6, PR #200), measured with a valid Preview service key, curl from Tok
 Cost: the sin1 regional price for Fluid CPU and memory is about 25% higher than iad1, and Fast Origin Transfer costs $0.27/GB in sin1 versus $0.06/GB in iad1. At the current daily usage this is estimated at about +$0.075/day (≈ +$2.3/month). This is an estimate, and shorter run time may offset part of it.
 
 Rollback: delete `vercel.json` and redeploy, or use Instant Rollback to the last iad1 Production deployment.
+
+## D030 — Per-country withholding of public works (2026-11-15, #139)
+
+Decision: a public work may carry one row in `public.series_region_restrictions` with either a block list (`blocked_countries`: withheld in those countries) or an allow list (`allowed_countries`: served only in those countries). The owner asked for this on 2026-11-15 (「特定の国では許可されてないけど他の国では問題ない…その国からのアクセス限定でこの作品は非公開みたいな機能…ないなら実装して」).
+
+Enforcement: the visitor's country is Vercel's `x-vercel-ip-country`. A restricted work is withheld from a blocked country and from an unknown country (fail closed). The proxy answers 451 on the work, Reader, translation and recording-entry pages; the pages re-check with the service role and render not-found; translation and word-explanation APIs (through `resolveEpisodeTranslationAccess`) and both audio proxies refuse. The database cannot see the country, so RESTRICTIVE select policies close the direct Data API to restricted works' `episodes`, `recordings` and `episode_human_translations` for everyone but the author. Only the service role can write the table; an author cannot lift a rights restriction. Works withheld in the US are left out of the sitemap (Googlebot crawls from there).
+
+Limits (stated, not hidden): IP geolocation can be bypassed with a VPN; files still in the public `recording-audio` bucket remain reachable by direct URL until moved to the private bucket (#212); listings and search cards (title, author, synopsis) are still shown everywhere; the work's own text is stored on servers in Singapore (Vercel `sin1`, Supabase ap-southeast-1) whatever the visitor's country. Lists change through a reviewed SQL script; the app picks a change up within about 60 seconds, so a restriction is written before a work is published.
+
+Rights inputs: per-country status comes from a dated research note with primary sources where available; uncertain jurisdictions are handled with an allow list. This mechanism does not decide rights by itself and does not relax any approval: every row and every publication still needs the owner's button approval and independent review.
