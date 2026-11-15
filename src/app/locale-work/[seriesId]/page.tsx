@@ -57,6 +57,7 @@ export async function generateMetadata({
       summary: work.summary,
       authorName: work.authorName,
       isPublicDomain: work.publicDomainRightsChecked === true,
+      hasOriginalAuthor: work.originalAuthorAttributed === true,
       sourceLanguage: work.sourceLanguage,
       sourceProvider: work.publicDomainSourceProvider,
     });

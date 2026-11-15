@@ -44,6 +44,8 @@ import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { buildHumanRecordingPlaybackHref } from "@/lib/recording/humanRecordingStorage";
 import { isOfficialAccountEmail } from "@/lib/auth/officialAccount";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
+import { resolveOriginalAuthorName } from "@/lib/legacyAttribution";
+import { readLegacyAttributionForDisplay } from "@/lib/legacyAttribution.server";
 import { publicWorkSchemaName } from "@/lib/seo/publicWorkSeo";
 import { getSupportedLanguage, parseSupportedLanguageTag } from "@/lib/translation/languageRegistry";
 import { localizeGenreList } from "@/i18n/genreLabels";
@@ -864,9 +866,20 @@ export async function generateMetadata({
     const publicDomain = readPublicDomainMetadata(
       series.effect_settings ?? series["effectSettings"]
     );
+    // Legacy official works: original author recorded without a rights
+    // check (owner decision 2026-11-15 「原作者だけ先に表示」).
+    const legacyAttribution = publicDomain
+      ? null
+      : await readLegacyAttributionForDisplay(
+          series.effect_settings ?? series["effectSettings"],
+          pickText(series.author_id, series["user_id"], series["userId"])
+        );
     // Owner decision 2026-11-15 「原作者を作者にする」.
     const authorLabel =
-      publicDomain?.originalAuthor ||
+      resolveOriginalAuthorName({
+        publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+        legacyAttribution,
+      }) ||
       pickText(series["author_name"]) ||
       "LIB read投稿作品";
 
@@ -1443,6 +1456,19 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
     series["user_id"],
     series["userId"]
   ) || null;
+  // Legacy official works: original author without a rights check (owner
+  // decision 2026-11-15 「原作者だけ先に表示」). Never enables the Public
+  // Domain notice, provenance panel or JSON-LD below (those read publicDomain).
+  const legacyAttribution = publicDomain
+    ? null
+    : await readLegacyAttributionForDisplay(
+        series.effect_settings ?? series["effectSettings"],
+        authorId
+      );
+  const originalAuthorName = resolveOriginalAuthorName({
+    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    legacyAttribution,
+  });
 
   let author: UserRow | null;
   let rawEpisodeNavigation: EpisodeRow[];
@@ -1552,8 +1578,10 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
       author?.name,
       series["author_name"]
     ) || "作者名未設定";
-  const displayedAuthorName = publicDomain?.originalAuthor || authorName;
-  const displayedAuthorLabel = publicDomain ? dictionary.originalAuthor : dictionary.author;
+  const displayedAuthorName = originalAuthorName || authorName;
+  const displayedAuthorLabel = originalAuthorName
+    ? dictionary.originalAuthor
+    : dictionary.author;
   const provenanceRows = publicDomain
     ? [
         { label: dictionary.editionLabel, value: publicDomain.edition },
@@ -1601,16 +1629,20 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
   // Domain metadata, never the "作者名未設定" placeholder (any locale).
   const shareAuthorName = showShareButtons
     ? resolveShareAuthorName({
-        publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+        publicDomainOriginalAuthor: originalAuthorName,
         accountAuthorName: authorName,
         // The account lookup runs only when there is an account name to show.
         authorIsOfficialAccount:
-          publicDomain || authorName === "作者名未設定"
+          originalAuthorName || authorName === "作者名未設定"
             ? false
             : await isOfficialAuthorAccountForDisplay(authorId),
         unsetLabels: ["作者名未設定", dictionary.unknownAuthor],
       })
     : "";
+  // JSON-LD stays Public Domain only. A legacy attribution has no verified
+  // source edition (sourceMatchVerified: false), so emitting a CreativeWork
+  // with author / isBasedOn would state to search engines a provenance that
+  // has not been checked. The visible author changes; structured data does not.
   const publicDomainJsonLd = publicDomain
     ? JSON.stringify({
         "@context": "https://schema.org",
@@ -1672,7 +1704,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
 
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-neutral-600">
               <span>{displayedAuthorLabel}</span>
-              {authorId && !publicDomain ? (
+              {authorId && !originalAuthorName ? (
                 <Link
                   href={workHref(buildAuthorHref(authorId))}
                   className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-neutral-800 transition hover:border-sky-200 hover:bg-sky-50"
@@ -1684,7 +1716,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
                   {displayedAuthorName}
                 </span>
               )}
-              {publicDomain ? (
+              {originalAuthorName ? (
                 <span className="text-neutral-500">
                   {dictionary.managedBy}: {authorName}
                 </span>
@@ -1918,7 +1950,7 @@ export default async function WorkPage({ params, searchParams }: PageProps) {
             <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3">
               <p className="text-sm text-neutral-500">{displayedAuthorLabel}</p>
               <p className="mt-2 text-sm font-medium text-black">{displayedAuthorName}</p>
-              {publicDomain ? (
+              {originalAuthorName ? (
                 <p className="mt-2 text-xs text-neutral-500">
                   {dictionary.managedBy}: {authorName}
                 </p>

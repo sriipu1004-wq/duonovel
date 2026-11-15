@@ -36,6 +36,8 @@ import { getPublicSearchLanguageFilters } from "@/lib/search/publicSearchRequest
 import { PUBLIC_RECORDING_AGGREGATE_SELECT } from "@/lib/recording/publicRecordingSelects";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
+import { readLegacyAttribution, resolveOriginalAuthorName } from "@/lib/legacyAttribution";
+import { isOfficialAuthorAccountForGrant } from "@/lib/auth/officialAuthorGrant.server";
 import { isSchemaCompatibilityReadFailure } from "@/lib/reliability/readOnly";
 
 export type PublicBaseWorkCard = {
@@ -60,6 +62,8 @@ export type PublicBaseWorkCard = {
   isShortStory: boolean;
   publicEpisodeNumbers: number[];
   publicDomainRightsChecked?: boolean;
+  /** authorName is an original author (Public Domain or legacy official attribution). */
+  originalAuthorAttributed?: boolean;
   publicDomainSourceProvider?: string | null;
   publicDomainSourceUrl?: string | null;
   publicDomainFirstPublicationYear?: number | null;
@@ -358,7 +362,8 @@ async function fetchAuthorAccountMap(authorIds: string[]): Promise<Map<string, P
 function makePublicBaseWorkCard(
   series: SeriesRow,
   episodeSummary: PublicEpisodeWorkSummary | undefined,
-  authorAccountMap: Map<string, PublicAuthorAccount>
+  authorAccountMap: Map<string, PublicAuthorAccount>,
+  legacyAttributionAuthorIds: ReadonlySet<string>
 ): PublicBaseWorkCard | null {
 
   if (!episodeSummary || episodeSummary.episode_count === 0) return null;
@@ -371,6 +376,17 @@ function makePublicBaseWorkCard(
   const publicDomain = readPublicDomainMetadata(
     series["effect_settings"] ?? series["effectSettings"]
   );
+  // Legacy official works: recorded original author without a rights check
+  // (owner decision 2026-11-15 「原作者だけ先に表示」). Only for authors the
+  // caller confirmed as the official account. Rights fields below stay
+  // Public Domain only.
+  const originalAuthorName = resolveOriginalAuthorName({
+    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    legacyAttribution:
+      !publicDomain && authorId && legacyAttributionAuthorIds.has(authorId)
+        ? readLegacyAttribution(series["effect_settings"] ?? series["effectSettings"])
+        : null,
+  });
   const latestPostedRaw = episodeSummary.latest_posted_at;
   const firstPostedRaw = episodeSummary.first_posted_at;
   const latestPostedAtValue = latestPostedRaw ? new Date(latestPostedRaw).getTime() : 0;
@@ -385,8 +401,8 @@ function makePublicBaseWorkCard(
     title,
     originalTitle: publicDomain?.originalTitle ?? null,
     summary,
-    authorName: publicDomain?.originalAuthor || authorAccount?.displayName || "作者名未設定",
-    authorId: publicDomain ? null : authorId,
+    authorName: originalAuthorName || authorAccount?.displayName || "作者名未設定",
+    authorId: originalAuthorName ? null : authorId,
     episodeCount: episodeSummary.episode_count,
     firstEpisodeNumber: episodeSummary.first_episode_number,
     latestPostedLabel: formatDate(latestPostedRaw),
@@ -400,12 +416,35 @@ function makePublicBaseWorkCard(
     isShortStory: isShortStorySeriesForSitemap(series),
     publicEpisodeNumbers: episodeSummary.public_episode_numbers,
     publicDomainRightsChecked: publicDomain?.rightsChecked === true,
+    originalAuthorAttributed: Boolean(originalAuthorName),
     publicDomainSourceProvider: publicDomain?.sourceProvider ?? null,
     publicDomainSourceUrl: publicDomain?.sourceUrl ?? null,
     publicDomainFirstPublicationYear: publicDomain?.firstPublicationYear ?? null,
     tags: withSystemContentRatingTag(getSeriesTags(series), contentRating),
     genres: getSeriesGenres(series),
   } satisfies PublicBaseWorkCard;
+}
+
+/**
+ * Author ids whose legacy attribution may be shown: authors of series that
+ * carry an effect_settings.legacyAttribution record AND are the official
+ * account (grant-side check, fails closed). Usually zero or one lookup.
+ */
+async function fetchLegacyAttributionAuthorIds(seriesRows: SeriesRow[]): Promise<Set<string>> {
+  const candidates = new Set<string>();
+  for (const series of seriesRows) {
+    if (readPublicDomainMetadata(series["effect_settings"] ?? series["effectSettings"])) continue;
+    if (!readLegacyAttribution(series["effect_settings"] ?? series["effectSettings"])) continue;
+    const authorId = pickText(series.author_id, series["user_id"], series["userId"]);
+    if (authorId) candidates.add(authorId);
+  }
+  const granted = new Set<string>();
+  await Promise.all(
+    Array.from(candidates).map(async (authorId) => {
+      if (await isOfficialAuthorAccountForGrant(authorId)) granted.add(authorId);
+    })
+  );
+  return granted;
 }
 
 async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
@@ -420,13 +459,21 @@ async function buildPublicBaseWorkCards(): Promise<PublicBaseWorkCard[]> {
     )
   );
 
-  const [authorAccountMap, summariesBySeriesId] = await Promise.all([
+  const [authorAccountMap, summariesBySeriesId, legacyAttributionAuthorIds] = await Promise.all([
     fetchAuthorAccountMap(authorIds),
     fetchPublicEpisodeSummariesBySeriesIds(publicSeries.map((series) => series.id)),
+    fetchLegacyAttributionAuthorIds(publicSeries),
   ]);
 
   return publicSeries
-    .map((series) => makePublicBaseWorkCard(series, summariesBySeriesId.get(series.id), authorAccountMap))
+    .map((series) =>
+      makePublicBaseWorkCard(
+        series,
+        summariesBySeriesId.get(series.id),
+        authorAccountMap,
+        legacyAttributionAuthorIds
+      )
+    )
     .filter((card): card is NonNullable<typeof card> => card !== null)
     .sort((a, b) => {
       if (b.latestPostedAtValue !== a.latestPostedAtValue) return b.latestPostedAtValue - a.latestPostedAtValue;
@@ -472,12 +519,13 @@ export async function getPublicWorkMetadataCardById(seriesId: string): Promise<P
   if (!viewer.showR18Content && getSeriesContentRating(series) === "r18") return null;
 
   const authorId = pickText(series.author_id, series["user_id"], series["userId"]);
-  const [summaries, authors] = await Promise.all([
+  const [summaries, authors, legacyAttributionAuthorIds] = await Promise.all([
     fetchPublicEpisodeSummariesBySeriesIds([seriesId]),
     fetchAuthorAccountMap(authorId ? [authorId] : []),
+    fetchLegacyAttributionAuthorIds([series]),
   ]);
   if (!summaries.has(seriesId)) return null;
-  const work = makePublicBaseWorkCard(series, summaries.get(seriesId), authors);
+  const work = makePublicBaseWorkCard(series, summaries.get(seriesId), authors, legacyAttributionAuthorIds);
   if (!work) return null;
 
   const searchFilters = getPublicSearchLanguageFilters();

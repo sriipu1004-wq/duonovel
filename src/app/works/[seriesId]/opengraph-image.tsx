@@ -9,6 +9,8 @@ import {
 } from "@/features/write/writeShared";
 import { isR18Series } from "@/lib/contentRating";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
+import { resolveOriginalAuthorName } from "@/lib/legacyAttribution";
+import { readLegacyAttributionForDisplay } from "@/lib/legacyAttribution.server";
 import { getNormalAuthorName } from "@/lib/readerAuthorName";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 import { resolvePublicWorkAttribution, stripAuthorSuffixFromTitle } from "@/lib/seo/publicWorkSeo";
@@ -93,10 +95,21 @@ async function loadWorkOgContent(seriesId: string): Promise<WorkOgImageContent> 
   const publicDomain = readPublicDomainMetadata(
     series["effect_settings"] ?? series["effectSettings"]
   );
+  // Legacy official works: recorded original author without a rights check
+  // (owner decision 2026-11-15 「原作者だけ先に表示」).
+  const originalAuthorName = resolveOriginalAuthorName({
+    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    legacyAttribution: publicDomain
+      ? null
+      : await readLegacyAttributionForDisplay(
+          series["effect_settings"] ?? series["effectSettings"],
+          pickText(series.author_id, series["user_id"], series["userId"])
+        ),
+  });
   // Owner decision 2026-11-15 「原作者を作者にする」.
   const attribution = resolvePublicWorkAttribution({
-    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
-    accountAuthorName: publicDomain ? "" : await getNormalAuthorName(series, ""),
+    publicDomainOriginalAuthor: originalAuthorName,
+    accountAuthorName: originalAuthorName ? "" : await getNormalAuthorName(series, ""),
   });
   const rawTitle = pickText(series.title);
   const title = attribution.isPublicDomain

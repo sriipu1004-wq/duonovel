@@ -27,6 +27,8 @@ import {
 import { inferSeriesSourceLanguage } from "@/lib/translation/seriesSourceLanguage";
 import { getUiLocale } from "@/i18n/server";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
+import { resolveOriginalAuthorName } from "@/lib/legacyAttribution";
+import { readLegacyAttributionForDisplay } from "@/lib/legacyAttribution.server";
 import {
   readerCanonicalPath,
   resolvePublicWorkAttribution,
@@ -54,6 +56,10 @@ function parseEpisodeNumber(value: string): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
+function seriesAuthorId(series: SeriesRow): string {
+  return pickText(series.author_id, series["user_id"], series["userId"]);
+}
+
 
 async function resolveReadAttribution(
   series: SeriesRow,
@@ -71,9 +77,20 @@ async function resolveReadAttribution(
   const publicDomain = readPublicDomainMetadata(
     series["effect_settings"] ?? series["effectSettings"]
   );
-  const attribution = resolvePublicWorkAttribution({
+  // Legacy official works: recorded original author without a rights check
+  // (owner decision 2026-11-15 「原作者だけ先に表示」), shown the same way.
+  const originalAuthorName = resolveOriginalAuthorName({
     publicDomainOriginalAuthor: publicDomain?.originalAuthor,
-    accountAuthorName: publicDomain
+    legacyAttribution: publicDomain
+      ? null
+      : await readLegacyAttributionForDisplay(
+          series["effect_settings"] ?? series["effectSettings"],
+          seriesAuthorId(series)
+        ),
+  });
+  const attribution = resolvePublicWorkAttribution({
+    publicDomainOriginalAuthor: originalAuthorName,
+    accountAuthorName: originalAuthorName
       ? await getNormalAuthorName(series, "")
       : pickText(series["author_name"]) || "",
   });
@@ -260,10 +277,22 @@ export default async function ReadEpisodeLayout({
   const seriesTitle = pickText(payload.series.title) || dictionary.untitled;
   // Without the translation shell the layout does not resolve the account
   // name; keep that path free of an extra read and share with the Public
-  // Domain original author only (no author for user-posted works).
+  // Domain / legacy official original author only (no author for
+  // user-posted works).
   const publicDomainForShare = readPublicDomainMetadata(
     payload.series["effect_settings"] ?? payload.series["effectSettings"]
   );
+  // Public Domain author, or the legacy official original author (the
+  // account lookup runs only when a legacy record exists).
+  const originalAuthorForShare = resolveOriginalAuthorName({
+    publicDomainOriginalAuthor: publicDomainForShare?.originalAuthor,
+    legacyAttribution: publicDomainForShare
+      ? null
+      : await readLegacyAttributionForDisplay(
+          payload.series["effect_settings"] ?? payload.series["effectSettings"],
+          seriesAuthorId(payload.series)
+        ),
+  });
   const shareSectionFor = (authorName: string) =>
     buildReaderShareSection({
       series: payload.series,
@@ -279,7 +308,7 @@ export default async function ReadEpisodeLayout({
     return withContentWarningSurface(
       <>
         {withSettingsTopBridge(children)}
-        {shareSectionFor(publicDomainForShare?.originalAuthor ?? "")}
+        {shareSectionFor(originalAuthorForShare ?? "")}
       </>,
       payload.series,
       dictionary
@@ -289,11 +318,11 @@ export default async function ReadEpisodeLayout({
   const attribution = await resolveReadAttribution(payload.series, dictionary);
   // Same rule as the Work page share text (resolveShareAuthorName).
   const shareAuthorName = resolveShareAuthorName({
-    publicDomainOriginalAuthor: publicDomainForShare?.originalAuthor,
+    publicDomainOriginalAuthor: originalAuthorForShare,
     accountAuthorName: attribution.authorName,
     // The account lookup runs only when there is an account name to show.
     authorIsOfficialAccount:
-      publicDomainForShare ||
+      originalAuthorForShare ||
       !attribution.authorName ||
       attribution.authorName === dictionary.authorUnset
       ? false

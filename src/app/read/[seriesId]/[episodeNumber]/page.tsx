@@ -36,6 +36,8 @@ import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 import { isR18Series } from "@/lib/contentRating";
 import { workOgImagePath } from "@/lib/og/workOgContent";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
+import { resolveOriginalAuthorName } from "@/lib/legacyAttribution";
+import { readLegacyAttributionForDisplay } from "@/lib/legacyAttribution.server";
 import {
   buildReaderJsonLd,
   buildReaderMetadataTitle,
@@ -238,11 +240,22 @@ export async function generateMetadata({
     const publicDomain = readPublicDomainMetadata(
       series["effect_settings"] ?? series["effectSettings"]
     );
+    // Legacy official works: original author without a rights check
+    // (owner decision 2026-11-15 「原作者だけ先に表示」).
+    const originalAuthorName = resolveOriginalAuthorName({
+      publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+      legacyAttribution: publicDomain
+        ? null
+        : await readLegacyAttributionForDisplay(
+            series["effect_settings"] ?? series["effectSettings"],
+            pickText(series.author_id, series["user_id"], series["userId"])
+          ),
+    });
     // Public Domain: the original author is the author (owner decision
     // 2026-11-15). Skip the account lookup entirely in that case.
     const attribution = resolvePublicWorkAttribution({
-      publicDomainOriginalAuthor: publicDomain?.originalAuthor,
-      accountAuthorName: publicDomain
+      publicDomainOriginalAuthor: originalAuthorName,
+      accountAuthorName: originalAuthorName
         ? ""
         : await getNormalAuthorName(series, readUi.authorUnset),
     });
@@ -441,10 +454,21 @@ export default async function ReadEpisodePage({
   const publicDomain = readPublicDomainMetadata(
     series["effect_settings"] ?? series["effectSettings"]
   );
+  // Legacy official works (no rights check yet) show their recorded original
+  // author the same way; JSON-LD below stays Public Domain only.
+  const legacyAttribution = publicDomain
+    ? null
+    : await readLegacyAttributionForDisplay(
+        series["effect_settings"] ?? series["effectSettings"],
+        pickText(series.author_id, series["user_id"], series["userId"])
+      );
   // Owner decision 2026-11-15 「原作者を作者にする」: Public Domain works show
   // the original author; the hosting account is shown as 「掲載」.
   const attribution = resolvePublicWorkAttribution({
-    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    publicDomainOriginalAuthor: resolveOriginalAuthorName({
+      publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+      legacyAttribution,
+    }),
     accountAuthorName: normalAuthorName ?? ui.authorUnset,
   });
   // The server projection (projectReaderEpisodeRecordings) verified the raw

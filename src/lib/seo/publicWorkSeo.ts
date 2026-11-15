@@ -192,15 +192,22 @@ export function buildLocalizedWorkMetadataText(input: {
   summary: string | null | undefined;
   authorName: string;
   isPublicDomain: boolean;
+  /**
+   * authorName is a recorded original author without a rights check (legacy
+   * official works, owner decision 2026-11-15 「原作者だけ先に表示」). Named
+   * like a Public Domain author; the source line stays Public Domain only.
+   */
+  hasOriginalAuthor?: boolean;
   sourceLanguage: string | null | undefined;
   sourceProvider: string | null | undefined;
 }): { title: string; description: string } {
   const copy = LOCALIZED_WORK_COPY[input.locale];
   const author = input.authorName.trim();
-  const displayTitle = input.isPublicDomain
+  const originalAuthor = input.isPublicDomain || input.hasOriginalAuthor === true;
+  const displayTitle = originalAuthor
     ? stripAuthorSuffixFromTitle(input.title, author)
     : input.title.trim();
-  const titleInput = { title: displayTitle, author, isPublicDomain: input.isPublicDomain };
+  const titleInput = { title: displayTitle, author, isPublicDomain: originalAuthor };
   const summary = isWorkSummaryPlaceholder(input.summary)
     ? copy.fallbackSummary(titleInput)
     : (input.summary ?? "").trim();
@@ -208,7 +215,7 @@ export function buildLocalizedWorkMetadataText(input: {
   const description = [
     summary,
     author
-      ? `${input.isPublicDomain ? copy.originalAuthor : copy.author}: ${author}.`
+      ? `${originalAuthor ? copy.originalAuthor : copy.author}: ${author}.`
       : "",
     languageName ? `${copy.originalLanguage}: ${languageName}.` : "",
     input.isPublicDomain && input.sourceProvider
