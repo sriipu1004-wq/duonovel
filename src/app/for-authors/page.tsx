@@ -78,13 +78,13 @@ const COPY: Record<CopyLocale, Copy> = {
       },
       {
         title: "朗読許可の設定",
-        body: "作品ごとに「朗読許可」「朗読不可」を設定できます。朗読の扱いは朗読規約を確認してください。",
+        body: "作品ごとに「朗読許可」「朗読不可」を設定できます。朗読許可にした公開作品は、人による朗読のほか、AI朗読の自動生成の対象になることがあります。朗読の扱いは朗読規約を確認してください。",
       },
     ],
     translationTitle: "翻訳の扱い（AI翻訳とHuman translationは別の許可）",
     translation: [
       "公開作品は、読者がReaderでOriginal・Bilingual・Translation onlyを切り替えて読みます。",
-      "作品を投稿・公開しただけではOpenAIへ送信しません。AI翻訳を許可した作品で、読者がまだ生成されていない翻訳を利用するとき、対象話の本文と、用語・翻訳方針・直前の公開話など翻訳の一貫性に必要な限定情報をOpenAI APIへ送信することがあります。AI翻訳を許可しない設定では、新しいAI翻訳と新しいAI単語解説を実行しません。",
+      "作品を投稿・公開しただけではOpenAIへ送信しません。AI翻訳を許可した作品で、読者がまだ生成されていない翻訳を利用するとき、対象話の本文と、用語・翻訳方針・直前の公開話など翻訳の一貫性に必要な限定情報をOpenAI APIへ送信することがあります。AI翻訳を許可しない設定では、新しいAI翻訳と新しいAI単語解説を実行しません。新しい作品では、AI翻訳とHuman translationの許可はどちらも最初は「許可」になっています。作品ワークスペースでいつでも変えられます。",
       "Human translationはAI翻訳とは別の許可です。許可すると、他のユーザーがこの作品を自分で翻訳し、LIB read上で公開できます。ONにしても本文をAIサービスへ送信せず、Human translationの処理自体はOpenAIを呼びません。OFFにすると新しいHuman translationの作成・公開を停止します（公開済みの翻訳は削除されません）。",
       "AI翻訳では作品単位の用語集と限定された前話コンテキストを使い、作者は用語集の訳語を修正・固定できます。ただし、完全な一貫性や人間同等の翻訳品質を保証するものではありません。",
     ],
@@ -152,13 +152,13 @@ const COPY: Record<CopyLocale, Copy> = {
       },
       {
         title: "Narration permission",
-        body: "Set narration as allowed or not allowed per work. See the narration terms for how narration is handled.",
+        body: "Set narration as allowed or not allowed per work. A public work with narration allowed may, besides human narration, be included in automatic AI narration. See the narration terms for how narration is handled.",
       },
     ],
     translationTitle: "Translation (AI translation and Human translation are separate permissions)",
     translation: [
       "Readers read public works in the Reader, switching between Original, Bilingual and Translation only.",
-      "Posting or publishing a work does not by itself send it to OpenAI. If you allow AI translation, when a reader requests a translation that has not been generated yet, LIB read may send the relevant episode text and limited consistency context—such as glossary terms, translation guidance, and the immediately preceding published episode—to the OpenAI API. If not allowed, no new AI translation or AI word explanation is generated.",
+      "Posting or publishing a work does not by itself send it to OpenAI. If you allow AI translation, when a reader requests a translation that has not been generated yet, LIB read may send the relevant episode text and limited consistency context—such as glossary terms, translation guidance, and the immediately preceding published episode—to the OpenAI API. If not allowed, no new AI translation or AI word explanation is generated. For a new work, both AI translation and Human translation start as allowed; you can change either in the work workspace at any time.",
       "Human translation is a separate permission. If allowed, other users can translate the work themselves and publish the translation on LIB read. Enabling it does not send the text to an AI provider, and Human translation itself does not call OpenAI. Turning it off stops new Human translations from being created or published; already-published translations are not deleted.",
       "AI translation uses a per-work glossary and limited context from preceding episodes, and the author can correct and lock glossary terms. Full consistency or human-level quality is not guaranteed.",
     ],
