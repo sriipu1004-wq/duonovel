@@ -44,3 +44,6 @@ next-env.d.ts
 /.public-domain-work/
 /public-domain/sources/raw/*
 !/public-domain/sources/raw/.gitkeep
+
+# Issue #139 narration move: local state (manifest / proofs)
+/.issue139-audio-state/
