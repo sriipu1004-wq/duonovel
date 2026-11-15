@@ -13,6 +13,8 @@ import { getNormalAuthorName } from "@/lib/readerAuthorName";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 import { resolvePublicWorkAttribution, stripAuthorSuffixFromTitle } from "@/lib/seo/publicWorkSeo";
 import { isUuid } from "@/lib/uuid";
+import { isOfficialAuthorAccountForDisplay } from "@/lib/auth/officialAuthor.server";
+import { resolveShareAuthorName } from "@/lib/share/shareLinks";
 import {
   prefersKoreanOgFont,
   resolveWorkOgImageContent,
@@ -96,9 +98,22 @@ async function loadWorkOgContent(seriesId: string): Promise<WorkOgImageContent> 
     series["effect_settings"] ?? series["effectSettings"]
   );
   // Owner decision 2026-11-15 「原作者を作者にする」.
+  const accountAuthorName = publicDomain ? "" : await getNormalAuthorName(series, "");
   const attribution = resolvePublicWorkAttribution({
     publicDomainOriginalAuthor: publicDomain?.originalAuthor,
-    accountAuthorName: publicDomain ? "" : await getNormalAuthorName(series, ""),
+    accountAuthorName,
+  });
+  // Same rule as the share text: never draw the operator account
+  // (LIB read Official) as the author of a work without Public Domain
+  // metadata. The account check fails closed (no author).
+  const authorId = pickText(series.author_id, series["user_id"], series["userId"]);
+  const imageAuthorName = resolveShareAuthorName({
+    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    accountAuthorName,
+    authorIsOfficialAccount:
+      publicDomain || !accountAuthorName
+        ? false
+        : await isOfficialAuthorAccountForDisplay(authorId),
   });
   const rawTitle = pickText(series.title);
   const title = attribution.isPublicDomain
@@ -111,7 +126,7 @@ async function loadWorkOgContent(seriesId: string): Promise<WorkOgImageContent> 
     isR18,
     hasPublicEpisode,
     title,
-    authorName: attribution.authorName,
+    authorName: imageAuthorName,
   });
 }
 

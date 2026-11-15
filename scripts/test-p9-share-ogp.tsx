@@ -322,6 +322,11 @@ assert.equal(isWorkOpenGraphImagePath(`/works/${SERIES}/translations`), false);
   assert.ok(!/fonts\.googleapis|https?:\/\/|fetch\(|loadGoogleFont/u.test(ogRoute), "no network font loading in the route");
   assert.ok(ogRoute.includes("fonts = await loadOgSubsetFonts()"), "only the bundled subset fonts");
   assert.ok(ogRoute.includes('content.fontSet === "cjk"'));
+  // The image never names the operator account as the author (same rule as
+  // the share text).
+  assert.ok(ogRoute.includes("resolveShareAuthorName({"), "OG author uses the share author rule");
+  assert.ok(ogRoute.includes("await isOfficialAuthorAccountForDisplay(authorId)"));
+  assert.ok(ogRoute.includes("authorName: imageAuthorName,"));
   const ogFonts = read("src/lib/og/ogFonts.ts");
   assert.ok(!/fetch\(|https?:\/\//u.test(ogFonts), "font loader never uses the network");
   assert.ok(ogFonts.includes("readFile(path.join(rootDir, OG_SUBSET_FONT_DIR, file))"));
