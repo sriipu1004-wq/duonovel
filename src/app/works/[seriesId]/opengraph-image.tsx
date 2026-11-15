@@ -15,10 +15,14 @@ import { getNormalAuthorName } from "@/lib/readerAuthorName";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 import { resolvePublicWorkAttribution, stripAuthorSuffixFromTitle } from "@/lib/seo/publicWorkSeo";
 import { isUuid } from "@/lib/uuid";
+import { isOfficialAuthorAccountForDisplay } from "@/lib/auth/officialAuthor.server";
+import { resolveShareAuthorName } from "@/lib/share/shareLinks";
 import {
+  prefersKoreanOgFont,
   resolveWorkOgImageContent,
   type WorkOgImageContent,
 } from "@/lib/og/workOgContent";
+import { loadOgSubsetFonts, ogSubsetFontFamily } from "@/lib/og/ogFonts";
 import {
   DefaultOgImageElement,
   WorkOgImageElement,
@@ -97,22 +101,37 @@ async function loadWorkOgContent(seriesId: string): Promise<WorkOgImageContent> 
   );
   // Legacy official works: recorded original author without a rights check
   // (owner decision 2026-11-15 「原作者だけ先に表示」).
+  const legacyAttribution = publicDomain
+    ? null
+    : await readLegacyAttributionForDisplay(
+        series["effect_settings"] ?? series["effectSettings"],
+        pickText(series.author_id, series["user_id"], series["userId"])
+      );
   const originalAuthorName = resolveOriginalAuthorName({
     publicDomainOriginalAuthor: publicDomain?.originalAuthor,
-    legacyAttribution: publicDomain
-      ? null
-      : await readLegacyAttributionForDisplay(
-          series["effect_settings"] ?? series["effectSettings"],
-          pickText(series.author_id, series["user_id"], series["userId"])
-        ),
+    legacyAttribution,
   });
   // Owner decision 2026-11-15 「原作者を作者にする」.
+  const accountAuthorName = originalAuthorName ? "" : await getNormalAuthorName(series, "");
   const attribution = resolvePublicWorkAttribution({
+    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    legacyOriginalAuthor: legacyAttribution?.originalAuthor,
+    accountAuthorName,
+  });
+  // Same rule as the share text: the original author (Public Domain or
+  // legacy official), and never the operator account (LIB read Official)
+  // as the author of any other work. The account check fails closed.
+  const authorId = pickText(series.author_id, series["user_id"], series["userId"]);
+  const imageAuthorName = resolveShareAuthorName({
     publicDomainOriginalAuthor: originalAuthorName,
-    accountAuthorName: originalAuthorName ? "" : await getNormalAuthorName(series, ""),
+    accountAuthorName,
+    authorIsOfficialAccount:
+      originalAuthorName || !accountAuthorName
+        ? false
+        : await isOfficialAuthorAccountForDisplay(authorId),
   });
   const rawTitle = pickText(series.title);
-  const title = attribution.isPublicDomain
+  const title = attribution.isPublicDomain || attribution.isLegacyAttribution
     ? publicDomain?.originalTitle?.trim() ||
       stripAuthorSuffixFromTitle(rawTitle, attribution.authorName)
     : rawTitle;
@@ -122,7 +141,7 @@ async function loadWorkOgContent(seriesId: string): Promise<WorkOgImageContent> 
     isR18,
     hasPublicEpisode,
     title,
-    authorName: attribution.authorName,
+    authorName: imageAuthorName,
   });
 }
 
@@ -135,12 +154,38 @@ export default async function WorkOpenGraphImage({ params }: Props) {
     content = { kind: "generic", reason: "not_public" };
   }
 
+  const headers = { "cache-control": OG_CACHE_CONTROL };
+  if (content.kind === "work" && content.fontSet === "cjk") {
+    // Bundled subset fonts only; resolveWorkOgImageContent already checked
+    // that they draw every character, so nothing is downloaded.
+    let fonts: Awaited<ReturnType<typeof loadOgSubsetFonts>> | null = null;
+    try {
+      fonts = await loadOgSubsetFonts();
+    } catch {
+      fonts = null;
+    }
+    if (fonts) {
+      return new ImageResponse(
+        <WorkOgImageElement
+          title={content.title}
+          authorName={content.authorName}
+          fontFamily={ogSubsetFontFamily(
+            prefersKoreanOgFont(`${content.title}${content.authorName ?? ""}`)
+          )}
+        />,
+        { ...size, fonts, headers }
+      );
+    }
+    // Fonts unreadable: the common image (never a network font).
+    return new ImageResponse(<DefaultOgImageElement />, { ...size, headers });
+  }
+
   return new ImageResponse(
     content.kind === "work" ? (
       <WorkOgImageElement title={content.title} authorName={content.authorName} />
     ) : (
       <DefaultOgImageElement />
     ),
-    { ...size, headers: { "cache-control": OG_CACHE_CONTROL } }
+    { ...size, headers }
   );
 }

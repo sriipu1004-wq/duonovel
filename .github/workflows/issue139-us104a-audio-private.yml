@@ -1,0 +1,141 @@
+# Issue #139 (rights): prove the move of the 8 §104A works' AI narration from
+# the PUBLIC bucket recording-audio to the PRIVATE bucket ai-narration-private.
+# Unit tests with in-memory Storage + disposable PostgreSQL service container
+# only; no Supabase hosted access and no secrets.
+name: Issue139 US 104A audio private
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue139-us104a-audio-private.yml"
+      - "scripts/issue139-us104a-audio-private/**"
+      - "scripts/issue139-us104a-unpublish/**"
+      - "scripts/test-issue139-audio-private.ts"
+      - "src/app/api/recordings/ai-audio/**"
+      - "src/lib/recording/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  stages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Static scope check
+        run: node scripts/issue139-us104a-audio-private/scope-check.mjs
+      - name: Proxy compatibility, playback rules and migration stages
+        run: npm run test:issue139-audio-private
+
+  sql:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      U: scripts/issue139-us104a-unpublish
+      D: scripts/issue139-us104a-audio-private
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fixture = Production after PR #210 (8 works private) + narration rows/objects
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f "$U/test-fixture.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$U/apply.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-fixture.sql"
+      - name: Dry run before copy, apply refused while copies are missing
+        run: |
+          dry() { psql -X -v ON_ERROR_STOP=1 -At -F, -f "$D/dryrun.sql" | grep -v '^BEGIN$\|^ROLLBACK$'; }
+          out="$(dry)"; echo "$out"
+          bytes="$(psql -X -At -c "select sum(size) from ci.target_object_list")"
+          test "$out" = "330,330,0,330,330,330,0,0,0,$bytes,f,8"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/db-apply.sql" 2> err.txt; then echo "apply must fail"; exit 1; fi
+          grep -q ISSUE139_AUDIO_PRIVATE_COPIES_MISSING err.txt
+          psql -X -At -c "select to_regclass('libread_internal.issue139_audio_private_20261115') is null" | grep -qx t
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+      - name: Partial copy (659) refused; wrong size refused; full copy accepted
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -c "insert into storage.objects (bucket_id, name, metadata) select 'ai-narration-private', name, jsonb_build_object('size', size) from ci.target_object_list order by name offset 1"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/db-apply.sql" 2> err.txt; then echo "apply must fail"; exit 1; fi
+          grep -q ISSUE139_AUDIO_PRIVATE_COPIES_MISSING err.txt
+          psql -X -v ON_ERROR_STOP=1 -c "insert into storage.objects (bucket_id, name, metadata) select 'ai-narration-private', name, jsonb_build_object('size', size + 1) from ci.target_object_list order by name limit 1"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/db-apply.sql" 2> err.txt; then echo "apply must fail"; exit 1; fi
+          grep -q ISSUE139_AUDIO_PRIVATE_COPIES_MISSING err.txt
+          psql -X -v ON_ERROR_STOP=1 -c "update storage.objects d set metadata = jsonb_build_object('size', l.size) from ci.target_object_list l where d.bucket_id = 'ai-narration-private' and d.name = l.name"
+          out="$(psql -X -v ON_ERROR_STOP=1 -At -F, -f "$D/dryrun.sql" | grep -v '^BEGIN$\|^ROLLBACK$')"; echo "$out"
+          bytes="$(psql -X -At -c "select sum(size) from ci.target_object_list")"
+          test "$out" = "330,330,0,330,330,330,330,330,660,$bytes,f,8"
+      - name: Apply refuses on path drift and leaves nothing behind
+        run: |
+          id="$(psql -X -At -c "select id from public.recordings where series_id = '4f48c202-3ba1-47cb-b887-90880534c96e' order by id limit 1")"
+          psql -X -v ON_ERROR_STOP=1 -c "update public.recordings set audio_storage_path = replace(audio_storage_path, '/recording-audio/aivis/', '/recording-audio/aivis/../') where id = '$id'"
+          psql -X -v ON_ERROR_STOP=1 -c "update public.recordings set audio_storage_path = replace(audio_storage_path, '/recording-audio/nemo/', '/recording-audio/nemo/../') where id = '$id'"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/db-apply.sql" 2> err.txt; then echo "apply must fail"; exit 1; fi
+          grep -q ISSUE139_AUDIO_PATH_SHAPE_DRIFT err.txt
+          psql -X -v ON_ERROR_STOP=1 -c "update public.recordings r set audio_storage_path = b.audio_storage_path from ci.recordings_before b where b.id = r.id and r.audio_storage_path is distinct from b.audio_storage_path"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+      - name: Apply, second apply refused
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f "$D/db-apply.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/db-apply.sql" 2> err.txt; then echo "second apply must fail"; exit 1; fi
+          grep -q ISSUE139_AUDIO_ALREADY_APPLIED err.txt
+          out="$(psql -X -v ON_ERROR_STOP=1 -At -F, -f "$D/dryrun.sql" | grep -v '^BEGIN$\|^ROLLBACK$')"; echo "$out"
+          case "$out" in 330,0,330,330,330,330,330,330,660,*,t,8) ;; *) echo "unexpected dry run"; exit 1;; esac
+      - name: PR #210 rollback.sql still works and keeps the narration rows on the private bucket
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f "$U/rollback.sql"
+          test "$(psql -X -At -c "select count(*) from public.series s join public.public_episode_work_summaries v on v.series_id = s.id where s.id in (select series_id from public.recordings where audio_storage_path like 'ai-narration-private:%')")" = 8
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+          # ... and the works can be made private again afterwards.
+          psql -X -v ON_ERROR_STOP=1 -f "$U/apply.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+      - name: After delete-public, db-rollback refuses until the originals are restored
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -c "delete from storage.objects where bucket_id = 'recording-audio' and name in (select name from ci.target_object_list)"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/db-rollback.sql" 2> err.txt; then echo "rollback must fail"; exit 1; fi
+          grep -q ISSUE139_AUDIO_ROLLBACK_PUBLIC_OBJECTS_MISSING err.txt
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-applied.sql"
+          psql -X -v ON_ERROR_STOP=1 -c "insert into storage.objects (bucket_id, name, metadata) select 'recording-audio', name, jsonb_build_object('size', size) from ci.target_object_list"
+      - name: Rollback refuses on drift, then exact rollback
+        run: |
+          id="$(psql -X -At -c "select id from public.recordings where series_id = 'ac25272b-fc09-4f20-a94a-816791e750d0' order by id limit 1")"
+          psql -X -v ON_ERROR_STOP=1 -c "update public.recordings set audio_storage_path = 'x' where id = '$id'"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/db-rollback.sql" 2> err.txt; then echo "rollback must fail"; exit 1; fi
+          grep -q ISSUE139_AUDIO_ROLLBACK_STATE_DRIFT err.txt
+          psql -X -v ON_ERROR_STOP=1 -c "update public.recordings r set audio_storage_path = t.path_after from libread_internal.issue139_audio_private_20261115 t where t.recording_id = r.id and r.id = '$id'"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/db-rollback.sql"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/db-rollback.sql" 2> err.txt; then echo "second rollback must fail"; exit 1; fi
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"
+      - name: Apply gives up on a held row lock (lock_timeout) and changes nothing
+        run: |
+          id="$(psql -X -At -c "select id from public.recordings where series_id = '4d328931-ca04-4843-bcb5-9ac080cfbbf1' order by id limit 1")"
+          psql -X -v ON_ERROR_STOP=1 -c "begin; select id from public.recordings where id = '$id' for update; select pg_sleep(20); commit;" &
+          holder=$!
+          sleep 2
+          start=$(date +%s)
+          if psql -X -v ON_ERROR_STOP=1 -f "$D/db-apply.sql" 2> err.txt; then echo "apply must time out"; exit 1; fi
+          cat err.txt
+          grep -q "lock timeout" err.txt
+          test $(( $(date +%s) - start )) -lt 15
+          wait "$holder"
+          psql -X -v ON_ERROR_STOP=1 -f "$D/test-assert-restored.sql"

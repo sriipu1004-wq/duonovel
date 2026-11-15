@@ -30,6 +30,9 @@ const nextConfig: NextConfig = {
       "./node_modules/pdfjs-dist/cmaps/**/*",
       "./node_modules/pdfjs-dist/standard_fonts/**/*",
     ],
+    // Bundled Noto Sans JP / KR subsets for per-work OG images (read with
+    // fs at runtime; see src/lib/og/ogFonts.ts).
+    "/works/*/opengraph-image*/**/*":["./src/assets/og-fonts/*.ttf"],
   },
 };
 

@@ -23,29 +23,43 @@ export const JA_WORK_SUMMARY_FALLBACK = "あらすじはまだ登録されてい
 export type PublicWorkAttribution = {
   /** Name shown and emitted as the author. */
   authorName: string;
-  /** The hosting account for a Public Domain work (「掲載」), otherwise null. */
+  /** The hosting account when an original author is shown (「掲載」), otherwise null. */
   publisherName: string | null;
+  /** True only for a rights-checked Public Domain work (publicDomain metadata). */
   isPublicDomain: boolean;
+  /**
+   * True for a legacy official work whose original author is recorded
+   * without a rights check (effect_settings.legacyAttribution). Shown like a
+   * Public Domain author, but never treated as Public Domain (no JSON-LD,
+   * no rights notice).
+   */
+  isLegacyAttribution: boolean;
 };
 
 /**
- * Public Domain metadata wins for the author. The account name becomes the
- * publisher only for Public Domain works; user-posted works are unchanged.
+ * The original author wins: rights-checked Public Domain first, then the
+ * legacy official attribution (owner decision 2026-11-15 「原作者だけ先に表示」).
+ * The account name becomes the publisher only in those two cases;
+ * user-posted works are unchanged.
  */
 export function resolvePublicWorkAttribution(input: {
   publicDomainOriginalAuthor: string | null | undefined;
+  legacyOriginalAuthor?: string | null | undefined;
   accountAuthorName: string;
 }): PublicWorkAttribution {
-  const original = (input.publicDomainOriginalAuthor ?? "").trim();
+  const publicDomain = (input.publicDomainOriginalAuthor ?? "").trim();
+  const legacy = publicDomain ? "" : (input.legacyOriginalAuthor ?? "").trim();
+  const original = publicDomain || legacy;
   const account = input.accountAuthorName.trim();
   if (original) {
     return {
       authorName: original,
       publisherName: account && account !== original ? account : null,
-      isPublicDomain: true,
+      isPublicDomain: Boolean(publicDomain),
+      isLegacyAttribution: Boolean(legacy),
     };
   }
-  return { authorName: account, publisherName: null, isPublicDomain: false };
+  return { authorName: account, publisherName: null, isPublicDomain: false, isLegacyAttribution: false };
 }
 
 const AUTHOR_SUFFIX_SEPARATORS = ["・", "　", " ", "／", "/", " - ", " — "];

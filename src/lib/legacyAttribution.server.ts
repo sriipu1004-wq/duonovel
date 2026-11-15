@@ -1,7 +1,10 @@
 import "server-only";
 
 import { isOfficialAuthorAccountForGrant } from "@/lib/auth/officialAuthorGrant.server";
-import { readLegacyAttribution, type LegacyAttribution } from "@/lib/legacyAttribution";
+import {
+  acceptLegacyAttributionForDisplay,
+  type LegacyAttribution,
+} from "@/lib/legacyAttribution";
 
 /**
  * Legacy attribution accepted for display: a well-formed
@@ -14,7 +17,9 @@ export async function readLegacyAttributionForDisplay(
   effectSettings: unknown,
   authorId: string | null | undefined
 ): Promise<LegacyAttribution | null> {
-  const legacy = readLegacyAttribution(effectSettings);
-  if (!legacy) return null;
-  return (await isOfficialAuthorAccountForGrant(authorId)) ? legacy : null;
+  return acceptLegacyAttributionForDisplay(
+    effectSettings,
+    authorId,
+    isOfficialAuthorAccountForGrant
+  );
 }

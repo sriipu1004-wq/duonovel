@@ -1,15 +1,22 @@
 /**
  * P9 per-work Open Graph image content. Pure functions only.
  *
- * External fonts are not loaded (owner instruction). next/og (Satori) ships
- * only Geist Regular; any glyph it lacks makes @vercel/og download a Noto
- * font from fonts.googleapis.com at render time. To keep that from ever
- * happening, text is drawn only when every character is inside the set the
- * bundled font covers (verified by scripts/test-p9-share-ogp.tsx, which
- * renders the whole set with fetch stubbed and asserts no font request).
- * Anything else (Japanese, Korean, Chinese, emoji, ...) falls back to the
- * common LIB read image. See docs/p9-utm-measurement.md.
+ * External fonts are never loaded (owner instruction). next/og (Satori)
+ * ships only Geist Regular; any glyph missing from the fonts it is given
+ * makes @vercel/og download a font from fonts.googleapis.com at render time.
+ * To keep that from ever happening, text is drawn only when every character
+ * is inside a set a bundled font covers:
+ *   - "default": Geist Regular (next/og's own font), Latin only;
+ *   - "cjk": the Noto Sans JP / KR subset fonts in src/assets/og-fonts
+ *     (owner decision 2026-11-15 「入れる (推奨)」), whose exact coverage is
+ *     generated into ogFontCoverage.generated.ts by
+ *     scripts/og-fonts/build_og_subset_fonts.py.
+ * scripts/test-p9-share-ogp.tsx renders both whole sets with fetch stubbed
+ * and asserts no network request. Anything else (a kanji outside the subset,
+ * Chinese, emoji, ...) falls back to the common LIB read image.
+ * See docs/p9-utm-measurement.md.
  */
+import { OG_SUBSET_FONT_RANGES } from "./ogFontCoverage.generated";
 
 /** Characters in Latin-1 / Latin Extended-A that Geist Regular lacks. */
 const GEIST_MISSING_CODE_POINTS = new Set([
@@ -40,16 +47,55 @@ export function listOgBundledFontCodePoints(): number[] {
   return result;
 }
 
-/** True when the bundled font can draw the whole text without a download. */
-export function isOgBundledFontText(text: string): boolean {
+function everyCodePoint(text: string, accept: (codePoint: number) => boolean): boolean {
   if (!text) return false;
   for (const char of text) {
     const codePoint = char.codePointAt(0);
-    if (codePoint === undefined || !isOgBundledFontCodePoint(codePoint)) {
-      return false;
-    }
+    if (codePoint === undefined || !accept(codePoint)) return false;
   }
   return true;
+}
+
+/** True when the bundled font can draw the whole text without a download. */
+export function isOgBundledFontText(text: string): boolean {
+  return everyCodePoint(text, isOgBundledFontCodePoint);
+}
+
+/** True when the Noto Sans JP / KR subset fonts draw this code point. */
+export function isOgSubsetFontCodePoint(codePoint: number): boolean {
+  let low = 0;
+  let high = OG_SUBSET_FONT_RANGES.length - 1;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    const [start, end] = OG_SUBSET_FONT_RANGES[middle];
+    if (codePoint < start) high = middle - 1;
+    else if (codePoint > end) low = middle + 1;
+    else return true;
+  }
+  return false;
+}
+
+/** Every code point the subset fonts draw (for the test). */
+export function listOgSubsetFontCodePoints(): number[] {
+  const result: number[] = [];
+  for (const [start, end] of OG_SUBSET_FONT_RANGES) {
+    for (let codePoint = start; codePoint <= end; codePoint += 1) {
+      result.push(codePoint);
+    }
+  }
+  return result;
+}
+
+/** True when the subset fonts can draw the whole text without a download. */
+export function isOgSubsetFontText(text: string): boolean {
+  return everyCodePoint(text, isOgSubsetFontCodePoint);
+}
+
+const HANGUL_PATTERN = /[ᄀ-ᇿ㄰-㆏가-힯]/u;
+
+/** Korean text prefers the KR subset (Korean-style glyphs for shared Han). */
+export function prefersKoreanOgFont(text: string): boolean {
+  return HANGUL_PATTERN.test(text);
 }
 
 export function truncateOgText(text: string, maxLength: number): string {
@@ -61,9 +107,12 @@ export function truncateOgText(text: string, maxLength: number): string {
 export const OG_TITLE_MAX_LENGTH = 90;
 export const OG_AUTHOR_MAX_LENGTH = 60;
 
+/** "default" = next/og's Geist only; "cjk" = the bundled Noto JP/KR subsets. */
+export type OgFontSet = "default" | "cjk";
+
 export type WorkOgImageContent =
   | { kind: "generic"; reason: "not_public" | "r18" | "no_public_episode" | "no_title" | "font_unavailable" }
-  | { kind: "work"; title: string; authorName: string | null };
+  | { kind: "work"; title: string; authorName: string | null; fontSet: OgFontSet };
 
 /**
  * Decide what a work's Open Graph image shows. R18, non-public works and
@@ -85,16 +134,27 @@ export function resolveWorkOgImageContent(input: {
   }
   const title = truncateOgText(input.title, OG_TITLE_MAX_LENGTH);
   if (!title) return { kind: "generic", reason: "no_title" };
-  if (!isOgBundledFontText(title)) {
+  const author = truncateOgText(input.authorName ?? "", OG_AUTHOR_MAX_LENGTH);
+
+  if (isOgBundledFontText(title)) {
+    if (!author || isOgBundledFontText(author)) {
+      return { kind: "work", title, authorName: author || null, fontSet: "default" };
+    }
+    // e.g. "Kokoro" by 夏目漱石: use the subset fonts when they draw both;
+    // otherwise keep the title only rather than download a font.
+    if (isOgSubsetFontText(title) && isOgSubsetFontText(author)) {
+      return { kind: "work", title, authorName: author, fontSet: "cjk" };
+    }
+    return { kind: "work", title, authorName: null, fontSet: "default" };
+  }
+  if (!isOgSubsetFontText(title)) {
     return { kind: "generic", reason: "font_unavailable" };
   }
-  const author = truncateOgText(input.authorName ?? "", OG_AUTHOR_MAX_LENGTH);
   return {
     kind: "work",
     title,
-    // A Latin title with an author name the bundled font cannot draw: show
-    // the title only rather than downloading a font.
-    authorName: author && isOgBundledFontText(author) ? author : null,
+    authorName: author && isOgSubsetFontText(author) ? author : null,
+    fontSet: "cjk",
   };
 }
 

@@ -242,19 +242,21 @@ export async function generateMetadata({
     );
     // Legacy official works: original author without a rights check
     // (owner decision 2026-11-15 「原作者だけ先に表示」).
+    const metadataLegacyAttribution = publicDomain
+      ? null
+      : await readLegacyAttributionForDisplay(
+          series["effect_settings"] ?? series["effectSettings"],
+          pickText(series.author_id, series["user_id"], series["userId"])
+        );
     const originalAuthorName = resolveOriginalAuthorName({
       publicDomainOriginalAuthor: publicDomain?.originalAuthor,
-      legacyAttribution: publicDomain
-        ? null
-        : await readLegacyAttributionForDisplay(
-            series["effect_settings"] ?? series["effectSettings"],
-            pickText(series.author_id, series["user_id"], series["userId"])
-          ),
+      legacyAttribution: metadataLegacyAttribution,
     });
     // Public Domain: the original author is the author (owner decision
     // 2026-11-15). Skip the account lookup entirely in that case.
     const attribution = resolvePublicWorkAttribution({
-      publicDomainOriginalAuthor: originalAuthorName,
+      publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+      legacyOriginalAuthor: metadataLegacyAttribution?.originalAuthor,
       accountAuthorName: originalAuthorName
         ? ""
         : await getNormalAuthorName(series, readUi.authorUnset),
@@ -465,10 +467,8 @@ export default async function ReadEpisodePage({
   // Owner decision 2026-11-15 「原作者を作者にする」: Public Domain works show
   // the original author; the hosting account is shown as 「掲載」.
   const attribution = resolvePublicWorkAttribution({
-    publicDomainOriginalAuthor: resolveOriginalAuthorName({
-      publicDomainOriginalAuthor: publicDomain?.originalAuthor,
-      legacyAttribution,
-    }),
+    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    legacyOriginalAuthor: legacyAttribution?.originalAuthor,
     accountAuthorName: normalAuthorName ?? ui.authorUnset,
   });
   // The server projection (projectReaderEpisodeRecordings) verified the raw

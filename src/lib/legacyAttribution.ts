@@ -122,6 +122,22 @@ export function readLegacyAttribution(effectSettings: unknown): LegacyAttributio
 }
 
 /**
+ * Legacy attribution accepted for display: a well-formed record on a work
+ * whose author the grant-side check confirms as the official account. The
+ * check runs only when the record exists. The server wiring is
+ * readLegacyAttributionForDisplay (legacyAttribution.server.ts).
+ */
+export async function acceptLegacyAttributionForDisplay(
+  effectSettings: unknown,
+  authorId: string | null | undefined,
+  isOfficialAuthor: (authorId: string | null | undefined) => Promise<boolean>
+): Promise<LegacyAttribution | null> {
+  const legacy = readLegacyAttribution(effectSettings);
+  if (!legacy) return null;
+  return (await isOfficialAuthor(authorId)) === true ? legacy : null;
+}
+
+/**
  * The name shown as the work's (original) author: the rights-checked Public
  * Domain author first, then a legacy attribution that the server caller has
  * already accepted for display. Null when neither applies.

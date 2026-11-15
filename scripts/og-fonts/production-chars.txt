@@ -1,0 +1,5 @@
+# Non-ASCII characters used in public series titles, Public Domain original
+# titles/authors and author display names on production, collected
+# 2026-11-15 with a read-only aggregate SELECT (distinct characters only;
+# no rows). Re-collect and rebuild when new public works need new characters.
+・ーë가감건고과광그기길김까꼬꽃꿈나난날내년누는니님단달도동돼두따딸때라락란랑래러레려룡룻를리린립마만머먼며명모목문물밀방배벙병보복부브비빈사산삼새서선성셔소손수숨슬신아야약어언엄업염영와용우운원월유윤으은을음의이인일자장접정조종좋죽지진채처초최츠칠타태터파픔피한할해행향혁현형호혼화환후あいかグこコしスそちっづでとドのはブへゃらリるれろん三上中主之尹乱事人介伝侏修個儒光分刑剣十南又司吾命品問四地坊墮変夏外夜夢太妻子孤宣宮小山島川幸從性愁戸招文日明春暗有服朝木本枕森歩歯死永江沢河治浩淋漱瀬猫獄目短石破硝福私秋竜童答粥素編羅美義者自舟芋芥花草落葉虜行言記貧賢車輩道郎部鄕針鉄銀門闇院難革頃風高鬼魂鮮鳥鴎龍

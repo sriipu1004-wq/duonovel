@@ -79,17 +79,19 @@ async function resolveReadAttribution(
   );
   // Legacy official works: recorded original author without a rights check
   // (owner decision 2026-11-15 「原作者だけ先に表示」), shown the same way.
+  const legacyAttribution = publicDomain
+    ? null
+    : await readLegacyAttributionForDisplay(
+        series["effect_settings"] ?? series["effectSettings"],
+        seriesAuthorId(series)
+      );
   const originalAuthorName = resolveOriginalAuthorName({
     publicDomainOriginalAuthor: publicDomain?.originalAuthor,
-    legacyAttribution: publicDomain
-      ? null
-      : await readLegacyAttributionForDisplay(
-          series["effect_settings"] ?? series["effectSettings"],
-          seriesAuthorId(series)
-        ),
+    legacyAttribution,
   });
   const attribution = resolvePublicWorkAttribution({
-    publicDomainOriginalAuthor: originalAuthorName,
+    publicDomainOriginalAuthor: publicDomain?.originalAuthor,
+    legacyOriginalAuthor: legacyAttribution?.originalAuthor,
     accountAuthorName: originalAuthorName
       ? await getNormalAuthorName(series, "")
       : pickText(series["author_name"]) || "",

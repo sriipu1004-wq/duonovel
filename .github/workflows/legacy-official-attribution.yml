@@ -13,7 +13,9 @@ on:
       - "public-domain/audits/legacy-official-*.json"
       - "src/lib/legacyAttribution.ts"
       - "src/lib/legacyAttribution.server.ts"
+      - "src/lib/auth/officialAuthorGrant.ts"
       - "src/lib/auth/officialAuthorGrant.server.ts"
+      - "src/lib/og/**"
       - "src/lib/publicDomainMetadata.ts"
       - "src/lib/publicWorks.ts"
       - "src/lib/seo/**"
@@ -56,6 +58,7 @@ jobs:
           scripts/test-legacy-attribution.ts
           src/lib/legacyAttribution.ts
           src/lib/legacyAttribution.server.ts
+          src/lib/auth/officialAuthorGrant.ts
           src/lib/auth/officialAuthorGrant.server.ts
           src/lib/publicWorks.ts
           src/lib/seo/publicWorkSeo.ts
