@@ -2,6 +2,11 @@
 -- Same as scripts/issue139-us104a-unpublish/rollback.sql, plus a guard that
 -- the restriction rows from issue139-restrictions.sql exist and are >= 2 min old.
 -- Undo: scripts/issue139-us104a-unpublish/apply.sql (makes them private again).
+-- SUPERSEDED for production by scripts/region-restrictions/issue139-republish.sql
+-- (D030): that script refuses unless every work already carries its
+-- per-country restriction. Running THIS file instead re-publishes the 8 works
+-- in every country, including the US where they are protected. Keep it for
+-- the CI history of #210 only.
 -- Restores the stored publication_status and is_public of the 8 series
 -- recorded by apply.sql, then drops the snapshot tables. Chapters were never
 -- written by apply.sql; this script checks they are still exactly as
