@@ -1,7 +1,9 @@
 # JIS X 0213 codes whose differing Aozora descriptions were checked by a
 # person to name the same component structure (only the wording differs:
 # 勹 = つつみがまえ, 匚 = はこがまえ, 麈－鹿 = 主, 淌のつくり = 尚,
-# 諂/陷のつくり = 臽, 鼾のへん = 鼻). Every description seen for these codes is
+# 諂/陷のつくり = 臽, 鼾のへん = 鼻;
+# 2-13-28: three wordings of 「插」 with the right-hand vertical stroke
+# running through, incl. the old form 拔). Every description seen for these codes is
 # accepted. Codes not listed here keep the skip-on-conflict rule.
 1-14-76
 1-84-33
@@ -9,3 +11,4 @@
 1-84-73
 1-87-64
 2-94-72
+2-13-28

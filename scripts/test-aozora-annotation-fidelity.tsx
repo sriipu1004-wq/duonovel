@@ -22,10 +22,12 @@ import {
 } from "../src/features/effects/EffectPreviewRenderer";
 import {
   AOZORA_VERIFIED_GAIJI,
+  aozoraGaijiDescription,
   aozoraTokensToVisibleText,
   buildAozoraRenderTextMap,
   formatAozoraNoteLabel,
   lookupAozoraGaiji,
+  lookupAozoraUnicodeGaiji,
   rebalanceAozoraDirectivesAcrossUnits,
   rebalanceAozoraNotationAcrossUnits,
   rebalanceAozoraRubyAcrossUnits,
@@ -62,13 +64,23 @@ function visibleTextFromHtml(markup: string): string {
 function expectedVisibleText(unit: string): string {
   let text = normalizeAozoraTextForDisplay(unit);
   text = text.replace(
-    /※［＃(?:「([^」\n］]+)」|([^、「」\n］]+))、 ?(?:第[34]水準)?([12]-\d{1,2}-\d{1,2})］/gu,
-    (whole, quoted, plain, code) =>
-      lookupAozoraGaiji(quoted ?? plain ?? "", code)?.char ?? whole
+    /※［＃([^］\n]+?)、 ?(?:(?:第[34]水準)?([12]-\d{1,2}-\d{1,2})|U\+([0-9A-F]{4,5})、[^］\n]*)］/gu,
+    (whole, raw: string, code: string | undefined, hex: string | undefined) => {
+      const description = aozoraGaijiDescription(raw);
+      const info = code ? lookupAozoraGaiji(description, code) : lookupAozoraUnicodeGaiji(description, hex ?? "");
+      return info?.char ?? whole;
+    }
   );
   text = text.replace(/([^［］]*?)［＃「([^「」]+)」に傍点］/gu, (whole, before: string, target: string) =>
     before.endsWith(target) ? before : whole
   );
+  text = text.replace(/［＃(「[^］\n]+?」はママ)］/gu, (_w, content: string) => formatAozoraNoteLabel(content));
+  text = text.replace(
+    /([^［］]*?)［＃「([^］\n]+)」は(?:同行|窓)?[大中小]見出し］/gu,
+    (whole, before: string, target: string) =>
+      before.replace(/《[^《》\n]*》/gu, "").replace(/｜/gu, "").endsWith(target) ? before : whole
+  );
+  text = text.replace(/［＃(?:(?:同行|窓)?[大中小]見出し(?:終わり)?|(?:天から)?[０-９0-9]+字下げ)］/gu, "");
   text = text.replace(/［＃([^］\n]*底本[^］\n]*)］/gu, (_w, content: string) =>
     formatAozoraNoteLabel(content)
   );
@@ -85,7 +97,7 @@ function expectedVisibleText(unit: string): string {
         ? part
         : part
             .replace(/｜([^《》\n]+)《([^《》\n]+)》/gu, "$1")
-            .replace(/([一-龯々ヶヵ]+)《([^《》\n]+)》/gu, "$1")
+            .replace(/([\p{Script=Han}仝々〆〇ヶヵ]+|[Ａ-Ｚａ-ｚ０-９]+|[A-Za-z]+)《([^《》\n]+)》/gu, "$1")
     )
     .join("");
 }
@@ -200,13 +212,60 @@ function testSyntheticRubySplit() {
     rebalanceAozoraRubyAcrossUnits(["前の何某《なにが", "し》である。", "次の文。"]),
     ["前の何某《なにがし》", "である。", "次の文。"]
   );
-  // Unclosed in the next unit: nothing moves (stays literal, fail visible).
-  assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["漢字《かん", "じ", "》"]), ["漢字《かん", "じ", "》"]);
+  // A ruby spanning three units (#195 S3-1) is joined into the first one.
+  assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["漢字《かん", "じ", "》です"]), ["漢字《かんじ》", "", "です"]);
+  assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["前の天人阿", "修羅等《あしゅ", "らとう》。"]), ["前の天人阿修羅等《あしゅらとう》", "", "。"]);
+  // Never closed within the window: nothing moves (stays literal, fail visible).
+  assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["漢字《かん", "じ", "で"]), ["漢字《かん", "じ", "で"]);
   // Not a ruby boundary: untouched.
   assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["漢字、", "《かな》"]), ["漢字、", "《かな》"]);
   assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["毛《け》の", "やう"]), ["毛《け》の", "やう"]);
   assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["ただの文。", "次の文。"]), ["ただの文。", "次の文。"]);
   console.log("PASS: Issue #195 synthetic ruby split across Bilingual source units");
+}
+
+function visible(text: string): string {
+  return visibleTextFromHtml(html(renderTextWithAozoraRuby(text)));
+}
+
+function testSyntheticLiteralNotation() {
+  // 1. Headings: text stays, notation hidden; mismatched target stays literal.
+  assert.equal(visible("［＃５字下げ］上［＃「上」は中見出し］"), "上");
+  assert.equal(visible("［＃４字下げ］［＃大見出し］序の章［＃大見出し終わり］"), "序の章");
+  assert.equal(visible("按摩《あんま》の昼火事［＃「按摩の昼火事」は中見出し］"), "按摩の昼火事");
+  assert.equal(visible("一［＃「一」は窓中見出し］"), "一");
+  assert.equal(visible("上［＃「下」は中見出し］"), "上［＃「下」は中見出し］");
+  assert.deepEqual(
+    rebalanceAozoraDirectivesAcrossUnits(["［＃１０字下げ］前置（著者の）", "［＃「前置（著者の）」", "は中見出し］"]),
+    ["［＃１０字下げ］前置（著者の）［＃「前置（著者の）」は中見出し］", "", ""]
+  );
+  // 2. Ruby right after a gaiji (gaiji count as kanji), also split across units.
+  assert.deepEqual(rubyPairs(html(renderTextWithAozoraRuby("※［＃「ころもへん＋下」、第4水準2-88-10］《かみしも》を"))), ["𧘔/かみしも"]);
+  assert.deepEqual(rubyPairs(html(renderTextWithAozoraRuby("愈※［＃「二の字点」、1-2-22］《いよいよ》"))), ["愈〻/いよいよ"]);
+  assert.deepEqual(
+    rebalanceAozoraDirectivesAcrossUnits(["木部孤※［＃「筑」", "の「凡」に代えて「卩」、", "第3水準1-89-60］《きべこきょう》といった。"]),
+    ["木部孤※［＃「筑」の「凡」に代えて「卩」、第3水準1-89-60］《きべこきょう》", "", "といった。"]
+  );
+  assert.deepEqual(
+    rebalanceAozoraDirectivesAcrossUnits(["又｜※［＃「倏」の「犬」に代えて「火」、", "第4水準2-1-57］忽《しゅっこつ》として"]),
+    ["又｜※［＃「倏」の「犬」に代えて「火」、第4水準2-1-57］忽《しゅっこつ》", "として"]
+  );
+  // 3. Non-kanji implicit bases (〆 is kanji; full-width alnum; Latin).
+  assert.deepEqual(rubyPairs(html(renderTextWithAozoraRuby("抱〆《だきしめ》て"))), ["抱〆/だきしめ"]);
+  assert.deepEqual(rubyPairs(html(renderTextWithAozoraRuby("一切がＸ《エックス》である"))), ["Ｘ/エックス"]);
+  assert.deepEqual(rubyPairs(html(renderTextWithAozoraRuby("憚からず Stumpf《スツンプ》,"))), ["Stumpf/スツンプ"]);
+  assert.deepEqual(rubyPairs(html(renderTextWithAozoraRuby("○《まる》"))), [], "symbols are not an implicit base");
+  // 4. U+ gaiji: only a single Han code point.
+  assert.match(html(renderTextWithAozoraRuby("※［＃「門＜兒」、U+49A7、156-9］")), /data-aozora-gaiji="U\+49A7"[^>]*>䦧</u);
+  assert.equal(lookupAozoraUnicodeGaiji("x", "0041"), null);
+  assert.equal(lookupAozoraUnicodeGaiji("x", "110000"), null);
+  // 5. Unquoted gaiji with a verified JIS code; without a code stays literal.
+  assert.equal(visible("※［＃アステリズム、1-12-94］"), "⁂");
+  assert.equal(visible("ものだ※［＃感嘆符三つ、184-1］"), "ものだ※［＃感嘆符三つ、184-1］");
+  assert.equal(aozoraGaijiDescription("「筑」の「凡」に代えて「卩」"), "筑」の「凡」に代えて「卩");
+  // Sic notes are kept as notes.
+  assert.match(html(renderTextWithAozoraRuby("依體の［＃「依體の」はママ］")), /data-aozora-note="sic"[^>]*>〔注：「依體の」はママ〕/u);
+  console.log("PASS: literal notation types (heading, gaiji ruby, non-kanji base, U+ gaiji, unquoted gaiji, sic)");
 }
 
 type ExpectedWork = {
@@ -233,6 +292,15 @@ const EXPECTED: ExpectedWork[] = [
 
 function countMatches(text: string, pattern: RegExp): number {
   return (text.match(pattern) ?? []).length;
+}
+
+// A ruby whose base holds two gaiji carries both codes in one attribute.
+function countGaijiCodes(markup: string): number {
+  let count = 0;
+  for (const match of markup.matchAll(/data-aozora-gaiji="([^"]+)"/gu)) {
+    count += (match[1] ?? "").split(" ").filter(Boolean).length;
+  }
+  return count;
 }
 
 function renderUnits(units: string[]): string[] {
@@ -299,6 +367,7 @@ function testRealSources() {
     let emphasisSpans = 0;
     let noteSpans = 0;
     let gaijiCodes = 0;
+    let sicNotes = 0;
     let alignEnd = 0;
     let sourceRuby = 0;
     let renderedRuby = 0;
@@ -313,6 +382,7 @@ function testRealSources() {
         const category = classifyAozoraAnnotation(match[1] ?? "");
         byCategory[category] = (byCategory[category] ?? 0) + 1;
         originalDirectives += 1;
+        if (category === "unclassified" && /^「.+」はママ$/u.test(match[1] ?? "")) sicNotes += 1;
       }
       // Ruby written inside a note (e.g. an edition-variant quotation) is part
       // of the note text and is intentionally not rendered as <ruby>.
@@ -347,7 +417,7 @@ function testRealSources() {
       }
       emphasisSpans += countMatches(originalMarkup, /data-aozora-emphasis=/gu);
       noteSpans += countMatches(originalMarkup, /data-aozora-note=/gu);
-      gaijiCodes += countMatches(originalMarkup, /data-aozora-gaiji="[^"]+"/gu);
+      gaijiCodes += countGaijiCodes(originalMarkup);
       alignEnd += countMatches(originalMarkup, /data-aozora-layout="align-end"/gu);
       renderedRuby += countMatches(originalMarkup, /<ruby/gu);
       {
@@ -401,10 +471,9 @@ function testRealSources() {
         bilingualMarkup.replace(/<small data-aozora-note[^>]*>[\s\S]*?<\/small>/gu, ""),
         /［＃/gu
       );
-      bilingualRendered += countMatches(
-        bilingualMarkup,
-        /data-aozora-(?:emphasis|note|gaiji|layout)=/gu
-      );
+      bilingualRendered +=
+        countMatches(bilingualMarkup, /data-aozora-(?:emphasis|note|layout)=/gu) +
+        countGaijiCodes(bilingualMarkup);
     }
 
     if (!audit) {
@@ -423,7 +492,7 @@ function testRealSources() {
     );
     assert.equal(
       noteSpans,
-      (byCategory.edition_variant ?? 0) + (byCategory.ruby_note ?? 0),
+      (byCategory.edition_variant ?? 0) + (byCategory.ruby_note ?? 0) + sicNotes,
       `${expected.id}: every edition/ruby note must render once`
     );
     assert.equal(gaijiCodes, byCategory.gaiji ?? 0, `${expected.id}: every gaiji must render once`);
@@ -459,6 +528,19 @@ function testRealSources() {
   );
 }
 
+function testRubyLinearTimeOnLongRuns() {
+  // User-written text shares this renderer: a long run of one character class
+  // before a stray 《 must not cause quadratic backtracking.
+  for (const run of ["a", "Ａ", "漢"]) {
+    const text = run.repeat(20000) + "《x》" + run.repeat(20000) + "《" + "y".repeat(20000);
+    const started = performance.now();
+    tokenizeAozoraDisplayText(text);
+    const elapsed = performance.now() - started;
+    assert.ok(elapsed < 200, `ruby tokenize on a 60k-char run took ${Math.round(elapsed)}ms`);
+  }
+  console.log("PASS: ruby base search stays linear on long single-class runs");
+}
+
 function testGaijiEquivalentDescriptions() {
   // Reviewed equivalent wordings for one code both resolve to the same char;
   // an unrelated description for that code still stays literal.
@@ -472,5 +554,7 @@ function testGaijiEquivalentDescriptions() {
 
 testSynthetic();
 testSyntheticRubySplit();
+testSyntheticLiteralNotation();
 testGaijiEquivalentDescriptions();
+testRubyLinearTimeOnLongRuns();
 testRealSources();
