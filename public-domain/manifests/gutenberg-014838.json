@@ -1,0 +1,95 @@
+{
+  "id": "gutenberg-014838",
+  "title": "The Tale of Peter Rabbit",
+  "original_title": "The Tale of Peter Rabbit",
+  "original_author": "Beatrix Potter",
+  "author_death_year": 1943,
+  "original_language": "en",
+  "first_publication_year": 1902,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/14838",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/14838/pg14838.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-014838.txt",
+  "source_retrieved_at": null,
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg_body",
+  "edition": "Project Gutenberg eBook #14838 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1902, London (Frederick Warne). Evidence: PG title page: First published 1902, Frederick Warne & Co.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": null,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 10000
+  },
+  "genres": [
+    "児童文学"
+  ],
+  "tags": [
+    "動物"
+  ],
+  "public_attribution": {
+    "source_provider": "Public domain",
+    "source_url": null,
+    "edition": "First published 1902 (London (Frederick Warne))"
+  },
+  "source_hash": null,
+  "approved": false,
+  "import_status": "not_imported",
+  "cover_source": null,
+  "cover_rights_status": null
+}

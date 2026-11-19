@@ -1,0 +1,873 @@
+{
+  "id": "gutenberg-2026-11-19",
+  "description": "English originals from Project Gutenberg that need no per-country restriction (D030), same rights cut-offs as the 2026-09-23 English cohort. Record: docs/rights/pd-batch-2026-11-gutenberg.md.",
+  "selection_policy": {
+    "original_language_only": true,
+    "no_modern_translations": true,
+    "first_publication_year_max": 1930,
+    "author_and_contributor_death_year_max": 1944,
+    "region_restriction": "none (same as the 40 imported English works)",
+    "excluded_from_reader_text": "Project Gutenberg header, license, footer, volunteer credits; no covers or illustrations",
+    "public_attribution": "Project Gutenberg name not shown (trademark); see public_attribution in each manifest"
+  },
+  "works": [
+    {
+      "provider_id": 64317,
+      "title": "The Great Gatsby",
+      "author": "F. Scott Fitzgerald",
+      "author_death_year": 1940,
+      "first_publication_year": 1925,
+      "first_publication_place": "New York (Charles Scribner's Sons)",
+      "evidence": "PG text has no imprint page; year and publisher from the standard bibliography (secondary).",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "恋愛",
+        "社会批評",
+        "欲望"
+      ]
+    },
+    {
+      "provider_id": 805,
+      "title": "This Side of Paradise",
+      "author": "F. Scott Fitzgerald",
+      "author_death_year": 1940,
+      "first_publication_year": 1920,
+      "first_publication_place": "New York (Charles Scribner's Sons)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "文芸",
+        "青春"
+      ],
+      "tags": [
+        "青春",
+        "恋愛"
+      ]
+    },
+    {
+      "provider_id": 4368,
+      "title": "Flappers and Philosophers",
+      "author": "F. Scott Fitzgerald",
+      "author_death_year": 1940,
+      "first_publication_year": 1920,
+      "first_publication_place": "New York (Charles Scribner's Sons)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "短編",
+        "青春",
+        "恋愛"
+      ]
+    },
+    {
+      "provider_id": 284,
+      "title": "The House of Mirth",
+      "author": "Edith Wharton",
+      "author_death_year": 1937,
+      "first_publication_year": 1905,
+      "first_publication_place": "New York (Charles Scribner's Sons)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "社会批評",
+        "恋愛",
+        "悲劇"
+      ]
+    },
+    {
+      "provider_id": 4517,
+      "title": "Ethan Frome",
+      "author": "Edith Wharton",
+      "author_death_year": 1937,
+      "first_publication_year": 1911,
+      "first_publication_place": "New York (Charles Scribner's Sons)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "悲劇",
+        "孤独",
+        "恋愛"
+      ]
+    },
+    {
+      "provider_id": 160,
+      "title": "The Awakening, and Selected Short Stories",
+      "author": "Kate Chopin",
+      "author_death_year": 1904,
+      "first_publication_year": 1899,
+      "first_publication_place": "Chicago (Herbert S. Stone)",
+      "evidence": "PG text has no imprint page; secondary. Stories are from the 1890s (author died 1904).",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "心理",
+        "家族",
+        "社会批評"
+      ]
+    },
+    {
+      "provider_id": 219,
+      "title": "Heart of Darkness",
+      "author": "Joseph Conrad",
+      "author_death_year": 1924,
+      "first_publication_year": 1899,
+      "first_publication_place": "Edinburgh/London (Blackwood's Magazine)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "文芸",
+        "冒険"
+      ],
+      "tags": [
+        "社会批評",
+        "暗め",
+        "狂気"
+      ]
+    },
+    {
+      "provider_id": 5658,
+      "title": "Lord Jim",
+      "author": "Joseph Conrad",
+      "author_death_year": 1924,
+      "first_publication_year": 1900,
+      "first_publication_place": "Edinburgh/London (William Blackwood)",
+      "evidence": "PG text carries the author's note dated 1917 (Conrad, d. 1924); first edition 1900 per secondary bibliography.",
+      "genres": [
+        "文芸",
+        "冒険"
+      ],
+      "tags": [
+        "罪悪感",
+        "心理",
+        "冒険"
+      ]
+    },
+    {
+      "provider_id": 2226,
+      "title": "Kim",
+      "author": "Rudyard Kipling",
+      "author_death_year": 1936,
+      "first_publication_year": 1901,
+      "first_publication_place": "London (Macmillan)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "冒険"
+      ],
+      "tags": [
+        "少年",
+        "冒険",
+        "友情"
+      ]
+    },
+    {
+      "provider_id": 2781,
+      "title": "Just So Stories",
+      "author": "Rudyard Kipling",
+      "author_death_year": 1936,
+      "first_publication_year": 1902,
+      "first_publication_place": "London (Macmillan)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "児童文学",
+        "ファンタジー"
+      ],
+      "tags": [
+        "動物",
+        "不思議",
+        "短編"
+      ]
+    },
+    {
+      "provider_id": 558,
+      "title": "The Thirty-Nine Steps",
+      "author": "John Buchan",
+      "author_death_year": 1940,
+      "first_publication_year": 1915,
+      "first_publication_place": "Edinburgh/London (William Blackwood)",
+      "evidence": "PG text: dedication dated Sept. 1915.",
+      "genres": [
+        "冒険",
+        "ミステリー"
+      ],
+      "tags": [
+        "サスペンス",
+        "冒険"
+      ]
+    },
+    {
+      "provider_id": 71865,
+      "title": "Mrs. Dalloway",
+      "author": "Virginia Woolf",
+      "author_death_year": 1941,
+      "first_publication_year": 1925,
+      "first_publication_place": "London (Hogarth Press) / New York (Harcourt, Brace)",
+      "evidence": "PG title page: New York, Copyright 1925 (US edition).",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "心理",
+        "人間関係"
+      ]
+    },
+    {
+      "provider_id": 139,
+      "title": "The Lost World",
+      "author": "Arthur Conan Doyle",
+      "author_death_year": 1930,
+      "first_publication_year": 1912,
+      "first_publication_place": "London (Hodder & Stoughton; The Strand Magazine)",
+      "evidence": "PG title page: Copyright, 1912.",
+      "genres": [
+        "SF",
+        "冒険"
+      ],
+      "tags": [
+        "冒険",
+        "不思議"
+      ]
+    },
+    {
+      "provider_id": 2097,
+      "title": "The Sign of the Four",
+      "author": "Arthur Conan Doyle",
+      "author_death_year": 1930,
+      "first_publication_year": 1890,
+      "first_publication_place": "London/Philadelphia (Lippincott's Monthly Magazine)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "ミステリー"
+      ],
+      "tags": [
+        "探偵",
+        "ミステリー"
+      ]
+    },
+    {
+      "provider_id": 108,
+      "title": "The Return of Sherlock Holmes",
+      "author": "Arthur Conan Doyle",
+      "author_death_year": 1930,
+      "first_publication_year": 1905,
+      "first_publication_place": "London (George Newnes; The Strand Magazine 1903-04)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "ミステリー"
+      ],
+      "tags": [
+        "探偵",
+        "ミステリー",
+        "短編"
+      ]
+    },
+    {
+      "provider_id": 834,
+      "title": "The Memoirs of Sherlock Holmes",
+      "author": "Arthur Conan Doyle",
+      "author_death_year": 1930,
+      "first_publication_year": 1894,
+      "first_publication_place": "London (George Newnes)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "ミステリー"
+      ],
+      "tags": [
+        "探偵",
+        "ミステリー",
+        "短編"
+      ]
+    },
+    {
+      "provider_id": 3289,
+      "title": "The Valley of Fear",
+      "author": "Arthur Conan Doyle",
+      "author_death_year": 1930,
+      "first_publication_year": 1915,
+      "first_publication_place": "London (Smith, Elder)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "ミステリー"
+      ],
+      "tags": [
+        "探偵",
+        "ミステリー"
+      ]
+    },
+    {
+      "provider_id": 204,
+      "title": "The Innocence of Father Brown",
+      "author": "G. K. Chesterton",
+      "author_death_year": 1936,
+      "first_publication_year": 1911,
+      "first_publication_place": "London (Cassell)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "ミステリー"
+      ],
+      "tags": [
+        "探偵",
+        "短編"
+      ]
+    },
+    {
+      "provider_id": 1450,
+      "title": "Pollyanna",
+      "author": "Eleanor H. Porter",
+      "author_death_year": 1920,
+      "first_publication_year": 1913,
+      "first_publication_place": "Boston (L. C. Page)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "児童文学"
+      ],
+      "tags": [
+        "少女",
+        "家族"
+      ]
+    },
+    {
+      "provider_id": 498,
+      "title": "Rebecca of Sunnybrook Farm",
+      "author": "Kate Douglas Wiggin",
+      "author_death_year": 1923,
+      "first_publication_year": 1903,
+      "first_publication_place": "Boston (Houghton Mifflin)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "児童文学"
+      ],
+      "tags": [
+        "少女",
+        "家族",
+        "青春"
+      ]
+    },
+    {
+      "provider_id": 157,
+      "title": "Daddy-Long-Legs",
+      "author": "Jean Webster",
+      "author_death_year": 1916,
+      "first_publication_year": 1912,
+      "first_publication_place": "New York (The Century Company)",
+      "evidence": "PG title page: Copyright 1912 by The Century Company.",
+      "genres": [
+        "児童文学",
+        "恋愛"
+      ],
+      "tags": [
+        "少女",
+        "青春",
+        "恋愛"
+      ]
+    },
+    {
+      "provider_id": 47,
+      "title": "Anne of Avonlea",
+      "author": "L. M. Montgomery",
+      "author_death_year": 1942,
+      "first_publication_year": 1909,
+      "first_publication_place": "Boston (L. C. Page)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "児童文学"
+      ],
+      "tags": [
+        "少女",
+        "青春",
+        "友情"
+      ]
+    },
+    {
+      "provider_id": 146,
+      "title": "A Little Princess",
+      "author": "Frances Hodgson Burnett",
+      "author_death_year": 1924,
+      "first_publication_year": 1905,
+      "first_publication_place": "New York (Charles Scribner's Sons)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "児童文学"
+      ],
+      "tags": [
+        "少女",
+        "貧困",
+        "友情"
+      ]
+    },
+    {
+      "provider_id": 708,
+      "title": "The Princess and the Goblin",
+      "author": "George MacDonald",
+      "author_death_year": 1905,
+      "first_publication_year": 1872,
+      "first_publication_place": "London (Strahan)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "児童文学",
+        "ファンタジー"
+      ],
+      "tags": [
+        "不思議",
+        "冒険"
+      ]
+    },
+    {
+      "provider_id": 1874,
+      "title": "The Railway Children",
+      "author": "E. Nesbit",
+      "author_death_year": 1924,
+      "first_publication_year": 1906,
+      "first_publication_place": "London (Wells Gardner, Darton)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "児童文学"
+      ],
+      "tags": [
+        "家族",
+        "友情"
+      ]
+    },
+    {
+      "provider_id": 14838,
+      "title": "The Tale of Peter Rabbit",
+      "author": "Beatrix Potter",
+      "author_death_year": 1943,
+      "first_publication_year": 1902,
+      "first_publication_place": "London (Frederick Warne)",
+      "evidence": "PG title page: First published 1902, Frederick Warne & Co.",
+      "genres": [
+        "児童文学"
+      ],
+      "tags": [
+        "動物"
+      ]
+    },
+    {
+      "provider_id": 271,
+      "title": "Black Beauty",
+      "author": "Anna Sewell",
+      "author_death_year": 1878,
+      "first_publication_year": 1877,
+      "first_publication_place": "London (Jarrold & Sons)",
+      "evidence": "PG note: originally published in 1877; transcribed from an American edition of 1911.",
+      "genres": [
+        "児童文学"
+      ],
+      "tags": [
+        "動物",
+        "社会批評"
+      ]
+    },
+    {
+      "provider_id": 32,
+      "title": "Herland",
+      "author": "Charlotte Perkins Gilman",
+      "author_death_year": 1935,
+      "first_publication_year": 1915,
+      "first_publication_place": "New York (The Forerunner, serial)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "SF",
+        "文芸"
+      ],
+      "tags": [
+        "社会批評",
+        "風刺"
+      ]
+    },
+    {
+      "provider_id": 308,
+      "title": "Three Men in a Boat (To Say Nothing of the Dog)",
+      "author": "Jerome K. Jerome",
+      "author_death_year": 1927,
+      "first_publication_year": 1889,
+      "first_publication_place": "London (J. W. Arrowsmith)",
+      "evidence": "PG title page: London 1889; preface dated London, August 1889.",
+      "genres": [
+        "コメディ"
+      ],
+      "tags": [
+        "友情",
+        "風刺"
+      ]
+    },
+    {
+      "provider_id": 95,
+      "title": "The Prisoner of Zenda",
+      "author": "Anthony Hope",
+      "author_death_year": 1933,
+      "first_publication_year": 1894,
+      "first_publication_place": "Bristol/London (J. W. Arrowsmith)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "冒険",
+        "恋愛"
+      ],
+      "tags": [
+        "冒険",
+        "恋愛"
+      ]
+    },
+    {
+      "provider_id": 2166,
+      "title": "King Solomon's Mines",
+      "author": "H. Rider Haggard",
+      "author_death_year": 1925,
+      "first_publication_year": 1885,
+      "first_publication_place": "London (Cassell)",
+      "evidence": "PG note: typed from the 1907 Cassell edition; author's postscript dated 1907 (Haggard, d. 1925).",
+      "genres": [
+        "冒険"
+      ],
+      "tags": [
+        "冒険",
+        "戦闘"
+      ]
+    },
+    {
+      "provider_id": 2360,
+      "title": "The Riddle of the Sands",
+      "author": "Erskine Childers",
+      "author_death_year": 1922,
+      "first_publication_year": 1903,
+      "first_publication_place": "London (Smith, Elder)",
+      "evidence": "PG text: preface and postscript dated March 1903.",
+      "genres": [
+        "冒険",
+        "ミステリー"
+      ],
+      "tags": [
+        "サスペンス",
+        "冒険"
+      ]
+    },
+    {
+      "provider_id": 1298,
+      "title": "The Virginian: A Horseman of the Plains",
+      "author": "Owen Wister",
+      "author_death_year": 1938,
+      "first_publication_year": 1902,
+      "first_publication_place": "New York (Macmillan)",
+      "evidence": "PG text: author's note dated Charleston, S.C., March 31st, 1902.",
+      "genres": [
+        "冒険"
+      ],
+      "tags": [
+        "冒険",
+        "恋愛"
+      ]
+    },
+    {
+      "provider_id": 1300,
+      "title": "Riders of the Purple Sage",
+      "author": "Zane Grey",
+      "author_death_year": 1939,
+      "first_publication_year": 1912,
+      "first_publication_place": "New York (Harper & Brothers)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "冒険"
+      ],
+      "tags": [
+        "冒険",
+        "戦闘",
+        "恋愛"
+      ]
+    },
+    {
+      "provider_id": 1074,
+      "title": "The Sea-Wolf",
+      "author": "Jack London",
+      "author_death_year": 1916,
+      "first_publication_year": 1904,
+      "first_publication_place": "New York (Macmillan) / London (Heinemann)",
+      "evidence": "PG title page: London, William Heinemann, 1917 impression; First published November 1904.",
+      "genres": [
+        "冒険"
+      ],
+      "tags": [
+        "冒険",
+        "心理"
+      ]
+    },
+    {
+      "provider_id": 1056,
+      "title": "Martin Eden",
+      "author": "Jack London",
+      "author_death_year": 1916,
+      "first_publication_year": 1909,
+      "first_publication_place": "New York (Macmillan)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "青春",
+        "社会批評",
+        "恋愛"
+      ]
+    },
+    {
+      "provider_id": 2776,
+      "title": "The Four Million",
+      "author": "O. Henry",
+      "author_death_year": 1910,
+      "first_publication_year": 1906,
+      "first_publication_place": "New York (McClure, Phillips)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "短編",
+        "人間関係"
+      ]
+    },
+    {
+      "provider_id": 155,
+      "title": "The Moonstone",
+      "author": "Wilkie Collins",
+      "author_death_year": 1889,
+      "first_publication_year": 1868,
+      "first_publication_place": "London (Tinsley Brothers)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "ミステリー"
+      ],
+      "tags": [
+        "探偵",
+        "ミステリー"
+      ]
+    },
+    {
+      "provider_id": 550,
+      "title": "Silas Marner",
+      "author": "George Eliot",
+      "author_death_year": 1880,
+      "first_publication_year": 1861,
+      "first_publication_place": "Edinburgh/London (William Blackwood)",
+      "evidence": "PG text: 1861 on the title page.",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "家族",
+        "孤独"
+      ]
+    },
+    {
+      "provider_id": 110,
+      "title": "Tess of the d'Urbervilles: A Pure Woman",
+      "author": "Thomas Hardy",
+      "author_death_year": 1928,
+      "first_publication_year": 1891,
+      "first_publication_place": "London (James R. Osgood, McIlvaine)",
+      "evidence": "PG text: explanatory note dated November 1891 (later prefaces by Hardy, d. 1928).",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "悲劇",
+        "恋愛",
+        "社会批評"
+      ]
+    },
+    {
+      "provider_id": 421,
+      "title": "Kidnapped",
+      "author": "Robert Louis Stevenson",
+      "author_death_year": 1894,
+      "first_publication_year": 1886,
+      "first_publication_place": "London (Cassell)",
+      "evidence": "PG text has no imprint page; secondary. Contains the Biographical Edition preface by Fanny Van de Grift Stevenson (d. 1914).",
+      "genres": [
+        "冒険",
+        "歴史"
+      ],
+      "tags": [
+        "冒険",
+        "友情"
+      ]
+    },
+    {
+      "provider_id": 1837,
+      "title": "The Prince and the Pauper",
+      "author": "Mark Twain",
+      "author_death_year": 1910,
+      "first_publication_year": 1881,
+      "first_publication_place": "Boston (James R. Osgood) / London (Chatto & Windus)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "冒険",
+        "歴史"
+      ],
+      "tags": [
+        "少年",
+        "冒険"
+      ]
+    },
+    {
+      "provider_id": 86,
+      "title": "A Connecticut Yankee in King Arthur's Court",
+      "author": "Mark Twain",
+      "author_death_year": 1910,
+      "first_publication_year": 1889,
+      "first_publication_place": "New York (Charles L. Webster)",
+      "evidence": "PG text: preface dated Hartford, July 21, 1889.",
+      "genres": [
+        "ファンタジー",
+        "コメディ"
+      ],
+      "tags": [
+        "風刺",
+        "冒険"
+      ]
+    },
+    {
+      "provider_id": 208,
+      "title": "Daisy Miller: A Study",
+      "author": "Henry James",
+      "author_death_year": 1916,
+      "first_publication_year": 1878,
+      "first_publication_place": "London (The Cornhill Magazine)",
+      "evidence": "PG note: the text is that of the first American appearance in book form, 1879.",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "恋愛",
+        "社会批評"
+      ]
+    },
+    {
+      "provider_id": 2775,
+      "title": "The Good Soldier",
+      "author": "Ford Madox Ford",
+      "author_death_year": 1939,
+      "first_publication_year": 1915,
+      "first_publication_place": "London (John Lane)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "心理",
+        "恋愛",
+        "悲劇"
+      ]
+    },
+    {
+      "provider_id": 2814,
+      "title": "Dubliners",
+      "author": "James Joyce",
+      "author_death_year": 1941,
+      "first_publication_year": 1914,
+      "first_publication_place": "London (Grant Richards)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "文芸"
+      ],
+      "tags": [
+        "短編",
+        "人間関係"
+      ]
+    },
+    {
+      "provider_id": 902,
+      "title": "The Happy Prince, and Other Tales",
+      "author": "Oscar Wilde",
+      "author_death_year": 1900,
+      "first_publication_year": 1888,
+      "first_publication_place": "London (David Nutt)",
+      "evidence": "PG title page: London, David Nutt, 1910 (7th impression); First Edition May 1888. Illustrators (Walter Crane d. 1915, Jacomb Hood d. 1929) are named but no illustration is imported.",
+      "genres": [
+        "児童文学",
+        "ファンタジー"
+      ],
+      "tags": [
+        "自己犠牲",
+        "短編"
+      ]
+    },
+    {
+      "provider_id": 121,
+      "title": "Northanger Abbey",
+      "author": "Jane Austen",
+      "author_death_year": 1817,
+      "first_publication_year": 1817,
+      "first_publication_place": "London (John Murray)",
+      "evidence": "PG text has no imprint page; secondary (issued December 1817, title page dated 1818).",
+      "genres": [
+        "恋愛",
+        "コメディ"
+      ],
+      "tags": [
+        "恋愛",
+        "風刺"
+      ]
+    },
+    {
+      "provider_id": 848,
+      "title": "The Black Arrow: A Tale of the Two Roses",
+      "author": "Robert Louis Stevenson",
+      "author_death_year": 1894,
+      "first_publication_year": 1888,
+      "first_publication_place": "London (Cassell); serial in Young Folks 1883",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "冒険",
+        "歴史"
+      ],
+      "tags": [
+        "冒険",
+        "戦闘"
+      ]
+    },
+    {
+      "provider_id": 16389,
+      "title": "The Enchanted April",
+      "author": "Elizabeth von Arnim",
+      "author_death_year": 1941,
+      "first_publication_year": 1922,
+      "first_publication_place": "London (Macmillan) / Garden City, NY (Doubleday, Page)",
+      "evidence": "PG text has no imprint page; secondary.",
+      "genres": [
+        "文芸",
+        "恋愛"
+      ],
+      "tags": [
+        "人間関係",
+        "恋愛"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "provider_id": 416,
+      "title": "Winesburg, Ohio",
+      "reason": "PG text includes a modern introduction by Irving Howe (d. 1993) that is still in copyright."
+    },
+    {
+      "provider_id": 1695,
+      "title": "The Man Who Was Thursday",
+      "reason": "PG text opens with an unattributed modern blurb/introduction of unknown date."
+    },
+    {
+      "provider_id": 11757,
+      "title": "The Velveteen Rabbit",
+      "reason": "PG text is from a later Doubleday & Company edition and carries a third-party courtesy line; the illustrator (William Nicholson) died 1949."
+    },
+    {
+      "provider_id": 778,
+      "title": "Five Children and It",
+      "reason": "PG text keeps a PG sign-off and an '*** x-header ***' artifact inside the body; the gutenberg_body profile refuses it (GUTENBERG_BODY_PROVIDER_REFERENCE)."
+    }
+  ]
+}

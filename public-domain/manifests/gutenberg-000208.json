@@ -1,0 +1,96 @@
+{
+  "id": "gutenberg-000208",
+  "title": "Daisy Miller: A Study",
+  "original_title": "Daisy Miller: A Study",
+  "original_author": "Henry James",
+  "author_death_year": 1916,
+  "original_language": "en",
+  "first_publication_year": 1878,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/208",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/208/pg208.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-000208.txt",
+  "source_retrieved_at": null,
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg_body",
+  "edition": "Project Gutenberg eBook #208 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1878, London (The Cornhill Magazine). Evidence: PG note: the text is that of the first American appearance in book form, 1879.",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": null,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 10000
+  },
+  "genres": [
+    "文芸"
+  ],
+  "tags": [
+    "恋愛",
+    "社会批評"
+  ],
+  "public_attribution": {
+    "source_provider": "Public domain",
+    "source_url": null,
+    "edition": "First published 1878 (London (The Cornhill Magazine))"
+  },
+  "source_hash": null,
+  "approved": false,
+  "import_status": "not_imported",
+  "cover_source": null,
+  "cover_rights_status": null
+}

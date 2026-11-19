@@ -1,0 +1,97 @@
+{
+  "id": "gutenberg-000160",
+  "title": "The Awakening, and Selected Short Stories",
+  "original_title": "The Awakening, and Selected Short Stories",
+  "original_author": "Kate Chopin",
+  "author_death_year": 1904,
+  "original_language": "en",
+  "first_publication_year": 1899,
+  "source_provider": "Project Gutenberg",
+  "source_url": "https://www.gutenberg.org/ebooks/160",
+  "source_download_url": "https://www.gutenberg.org/cache/epub/160/pg160.txt",
+  "source_file": "public-domain/sources/raw/gutenberg-000160.txt",
+  "source_retrieved_at": null,
+  "source_encoding": "utf-8",
+  "normalization_profile": "gutenberg_body",
+  "edition": "Project Gutenberg eBook #160 plain text",
+  "edition_publication_year": null,
+  "translator": null,
+  "translator_death_year": null,
+  "translation_language": null,
+  "rights_status": "pending",
+  "rights_basis": "",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1899, Chicago (Herbert S. Stone). Evidence: PG text has no imprint page; secondary. Stories are from the 1890s (author died 1904).",
+  "rights_components": {
+    "original_work": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "edition": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "translation": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "editorial": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "annotations": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "illustrations": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "cover": {
+      "status": "not_applicable",
+      "basis": "",
+      "notes": ""
+    },
+    "digitization": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    },
+    "provider_terms": {
+      "status": "needs_review",
+      "basis": "",
+      "notes": ""
+    }
+  },
+  "jurisdictions_reviewed": [],
+  "reviewed_at": null,
+  "reviewed_by": null,
+  "chapter_count": null,
+  "chapter_split": {
+    "strategy": "paragraph_chunks",
+    "max_characters": 10000
+  },
+  "genres": [
+    "文芸"
+  ],
+  "tags": [
+    "心理",
+    "家族",
+    "社会批評"
+  ],
+  "public_attribution": {
+    "source_provider": "Public domain",
+    "source_url": null,
+    "edition": "First published 1899 (Chicago (Herbert S. Stone))"
+  },
+  "source_hash": null,
+  "approved": false,
+  "import_status": "not_imported",
+  "cover_source": null,
+  "cover_rights_status": null
+}

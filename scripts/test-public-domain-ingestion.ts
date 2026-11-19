@@ -613,6 +613,92 @@ function testAozoraBodyProfile() {
   assert.equal(normalizeSource(fixture, "aozora").displayText.includes(marker), true);
 }
 
+function testGutenbergBodyProfileAndPublicAttribution() {
+  const wrap = (body: string) =>
+    [
+      "The Project Gutenberg eBook of Fixture",
+      "*** START OF THE PROJECT GUTENBERG EBOOK FIXTURE ***",
+      body,
+      "*** END OF THE PROJECT GUTENBERG EBOOK FIXTURE ***",
+      "License footer",
+    ].join("\n");
+  const cleaned = normalizeSource(
+    wrap("Produced by A Volunteer\nand the Online Team\n\nE-text prepared by B\n\nCHAPTER I\n\nBody text."),
+    "gutenberg_body"
+  );
+  assert.equal(cleaned.displayText, "CHAPTER I\n\nBody text.");
+  assert.equal(cleaned.archiveMetadata.includes("Produced by A Volunteer"), true);
+  assert.equal(cleaned.archiveMetadata.includes("E-text prepared by B"), true);
+  assert.equal(cleaned.archiveMetadata.includes("License footer"), true);
+  // A trailing sign-off paragraph is moved out as well; inner spacing is kept.
+  const signedOff = normalizeSource(
+    wrap("CHAPTER I\n\n\n\nBody.\n\n\nEnd of Project Gutenberg's Fixture, by Someone"),
+    "gutenberg_body"
+  );
+  assert.equal(signedOff.displayText, "CHAPTER I\n\n\n\nBody.");
+  assert.equal(signedOff.archiveMetadata.includes("End of Project Gutenberg's Fixture"), true);
+  assert.equal(
+    normalizeSource(wrap("Body.\n\n*Project Gutenberg Etext of Fixture, by Someone*"), "gutenberg_body").displayText,
+    "Body."
+  );
+  // A body without credits is unchanged.
+  assert.equal(normalizeSource(wrap("CHAPTER I\n\nBody."), "gutenberg_body").displayText, "CHAPTER I\n\nBody.");
+  // A remaining provider name or URL anywhere in the body stops preparation.
+  assert.throws(
+    () => normalizeSource(wrap("CHAPTER I\n\nThis etext came from Project Gutenberg."), "gutenberg_body"),
+    /GUTENBERG_BODY_PROVIDER_REFERENCE/
+  );
+  assert.throws(
+    () => normalizeSource(wrap("CHAPTER I\n\nSee https://example.org/ for notes."), "gutenberg_body"),
+    /GUTENBERG_BODY_PROVIDER_REFERENCE/
+  );
+  // Credits only, or no START/END markers, are refused.
+  assert.throws(() => normalizeSource(wrap("Produced by A"), "gutenberg_body"), /GUTENBERG_BODY_EMPTY_AFTER_CREDITS/);
+  assert.throws(() => normalizeSource("Body without markers", "gutenberg_body"), /GUTENBERG_BODY_BOUNDARY_NOT_CONFIRMED/);
+  // The legacy "gutenberg" profile keeps credit lines in the body.
+  assert.equal(
+    normalizeSource(wrap("Produced by A\n\nBody."), "gutenberg").displayText.startsWith("Produced by A"),
+    true
+  );
+
+  const attribution = {
+    source_provider: "Public domain",
+    source_url: null,
+    edition: "First published 1925 (New York)",
+  };
+  const reviewed = approvedManifest({
+    normalization_profile: "gutenberg_body",
+    source_provider: "Project Gutenberg",
+    public_attribution: attribution,
+  });
+  assert.deepEqual(validateManifest(reviewed).errors, []);
+  const missing = validateManifest({ ...reviewed, public_attribution: undefined });
+  assert.equal(missing.errors.includes("gutenberg_body manifests require public_attribution"), true);
+  const named = validateManifest({
+    ...reviewed,
+    public_attribution: { ...attribution, source_provider: "Project Gutenberg" },
+  });
+  assert.equal(named.errors.some((error) => error.includes("must not name Project Gutenberg")), true);
+  const linked = validateManifest({
+    ...reviewed,
+    public_attribution: { ...attribution, source_url: "https://www.gutenberg.org/ebooks/1" },
+  });
+  assert.equal(linked.errors.some((error) => error.includes("must not name Project Gutenberg")), true);
+  const tagged = validateManifest({ ...reviewed, tags: ["Project Gutenberg"] });
+  assert.equal(tagged.errors.some((error) => error.includes("Project Gutenberg tag")), true);
+
+  const plan = buildDraftImportPlan({
+    manifest: validateManifest(reviewed).manifest!,
+    artifact: artifact(),
+    officialUserId: "official-user-id",
+  });
+  const publicMetadata = readPublicDomainMetadata(plan.series.effect_settings);
+  assert.equal(publicMetadata?.sourceProvider, "Public domain");
+  assert.equal(publicMetadata?.sourceUrl, null);
+  assert.equal(publicMetadata?.edition, "First published 1925 (New York)");
+  assert.equal(JSON.stringify(plan.series.effect_settings).includes("gutenberg.org"), false);
+}
+
 function testNewAozoraSourceAttributionGate() {
   const reviewed = approvedManifest({
     normalization_profile: "aozora_reader_body",
@@ -1424,6 +1510,7 @@ function main() {
   testAozoraAnnotationFidelityPreflight();
   testAozoraReaderBodyOptIn();
   testAozoraBodyProfile();
+  testGutenbergBodyProfileAndPublicAttribution();
   testDraftInsertConfirmationAndRollback();
   testPreparedArtifactIsBoundToRawBytes();
   testPendingAndApprovedGates();

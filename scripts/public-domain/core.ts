@@ -46,6 +46,7 @@ export const NORMALIZATION_PROFILES = [
   "aozora_reader_body",
   "aozora_body",
   "gutenberg",
+  "gutenberg_body",
   "standard_ebooks",
   "gongu_madang",
 ] as const;
@@ -212,6 +213,13 @@ export type PublicDomainManifest = {
   // manifests whose author/translator died after 1945.
   region_restriction?: PublicDomainRegionRestriction | null;
 
+  // What the public work page shows as its source (effect_settings.publicDomain
+  // sourceProvider/sourceUrl/edition). When absent, the provider fields above
+  // are shown. Required for the gutenberg_body profile so that the Project
+  // Gutenberg name (a trademark; PG license section 1.C) is not shown
+  // (docs/rights/region-research-2026-11-19-gutenberg.md).
+  public_attribution?: PublicDomainPublicAttribution;
+
   source_hash: string | null;
 
   approved: boolean;
@@ -220,6 +228,49 @@ export type PublicDomainManifest = {
   cover_source: string | null;
   cover_rights_status: RightsComponentStatus | null;
 };
+
+export type PublicDomainPublicAttribution = {
+  source_provider: string;
+  source_url: string | null;
+  edition: string | null;
+};
+
+const PROVIDER_NAME_PATTERN = /gutenberg|pglaf|pgdp/iu;
+
+function parsePublicAttribution(
+  value: unknown,
+  errors: string[]
+): PublicDomainPublicAttribution | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    errors.push("public_attribution must be an object when provided");
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const sourceProvider =
+    typeof record.source_provider === "string" ? record.source_provider.trim() : "";
+  if (!sourceProvider) errors.push("public_attribution.source_provider is required");
+  const sourceUrl = record.source_url;
+  if (sourceUrl !== null && (typeof sourceUrl !== "string" || !/^https:\/\//u.test(sourceUrl))) {
+    errors.push("public_attribution.source_url must be an https URL or null");
+  }
+  const edition = record.edition;
+  if (edition !== null && typeof edition !== "string") {
+    errors.push("public_attribution.edition must be a string or null");
+  }
+  const attribution: PublicDomainPublicAttribution = {
+    source_provider: sourceProvider,
+    source_url: typeof sourceUrl === "string" ? sourceUrl : null,
+    edition: typeof edition === "string" ? edition : null,
+  };
+  if (
+    [attribution.source_provider, attribution.source_url ?? "", attribution.edition ?? ""].some(
+      (text) => PROVIDER_NAME_PATTERN.test(text)
+    )
+  ) {
+    errors.push("public_attribution must not name Project Gutenberg (trademark)");
+  }
+  return attribution;
+}
 
 export type ManifestValidationResult = {
   ok: boolean;
@@ -671,6 +722,19 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     ? parseRegionRestriction(value.region_restriction, errors)
     : undefined;
 
+  const publicAttribution =
+    value.public_attribution === undefined
+      ? undefined
+      : parsePublicAttribution(value.public_attribution, errors);
+  if (value.normalization_profile === "gutenberg_body") {
+    if (value.public_attribution === undefined) {
+      errors.push("gutenberg_body manifests require public_attribution");
+    }
+    if (tags.some((tag) => PROVIDER_NAME_PATTERN.test(tag))) {
+      errors.push("gutenberg_body manifests must not use a Project Gutenberg tag");
+    }
+  }
+
   const sourceHash = readString(value, "source_hash", errors, { nullable: true });
   if (sourceHash && !/^[a-f0-9]{64}$/.test(sourceHash)) {
     errors.push("source_hash must be a lowercase SHA-256 hex digest or null");
@@ -805,6 +869,7 @@ export function validateManifest(value: unknown): ManifestValidationResult {
       ? { content_notice_candidate: contentNoticeCandidateRaw }
       : {}),
     ...(regionRestrictionStated ? { region_restriction: regionRestriction ?? null } : {}),
+    ...(publicAttribution ? { public_attribution: publicAttribution } : {}),
     source_hash: sourceHash,
     approved,
     import_status: IMPORT_STATUSES.includes(importStatus as ImportStatus)
@@ -975,6 +1040,68 @@ function normalizeGutenberg(source: string): NormalizationResult {
   return { displayText, archiveMetadata, changes, warnings };
 }
 
+// Opt-in profile for Gutenberg batches from 2026-11-19 on: like "gutenberg",
+// and additionally moves the volunteer credit paragraphs at the top of the body
+// ("Produced by ...", "E-text prepared by ...", "This eBook is courtesy of ...")
+// and a trailing "End of Project Gutenberg's ..." sign-off to archive
+// metadata. The Reader body must then contain no Project
+// Gutenberg / PGLAF / PGDP reference or URL; otherwise preparation stops so a
+// person can decide (docs/rights/region-research-2026-11-19-gutenberg.md).
+const GUTENBERG_CREDIT_PARAGRAPH =
+  /^(?:produced by|e-?text prepared by|this e-?(?:text|book) (?:was|is) (?:produced|prepared|courtesy)|transcribed (?:from|by))\b/iu;
+// Trailing PG sign-off paragraph inside the START/END markers, e.g.
+// "End of Project Gutenberg's <title>, by <author>" or
+// "*Project Gutenberg Etext of <title>, by <author>*".
+const GUTENBERG_SIGNOFF_PARAGRAPH =
+  /^\*?\s*(?:end of (?:the )?project gutenberg|project gutenberg'?s? e-?(?:text|book) of)\b[^\n]*$/iu;
+const GUTENBERG_BODY_PROVIDER_REFERENCE =
+  /project gutenberg|gutenberg\.org|pglaf|pgdp|distributed proofread|https?:\/\//iu;
+
+function normalizeGutenbergBody(source: string): NormalizationResult {
+  const normalized = normalizeGutenberg(source);
+  if (
+    normalized.warnings.some((warning) =>
+      warning.startsWith("GUTENBERG_BOUNDARY_NOT_CONFIRMED")
+    )
+  ) {
+    throw new Error("GUTENBERG_BODY_BOUNDARY_NOT_CONFIRMED: manual review required");
+  }
+  // Only whole leading/trailing paragraphs are cut; the rest of the body keeps
+  // its exact spacing.
+  let body = normalized.displayText;
+  const credits: string[] = [];
+  for (;;) {
+    const lead = /^([^\n]+(?:\n[^\n]+)*)(?:\n{2,}|$)/u.exec(body);
+    if (!lead || !GUTENBERG_CREDIT_PARAGRAPH.test(lead[1]!.trim())) break;
+    credits.push(lead[1]!.trim());
+    body = body.slice(lead[0].length).trimStart();
+  }
+  for (;;) {
+    const tail = /(?:^|\n{2,})([^\n]+(?:\n[^\n]+)*)$/u.exec(body);
+    if (!tail || !GUTENBERG_SIGNOFF_PARAGRAPH.test(tail[1]!.trim())) break;
+    credits.push(tail[1]!.trim());
+    body = body.slice(0, tail.index).trimEnd();
+  }
+  const displayText = body.trim();
+  if (!displayText) throw new Error("GUTENBERG_BODY_EMPTY_AFTER_CREDITS");
+  if (GUTENBERG_BODY_PROVIDER_REFERENCE.test(displayText)) {
+    throw new Error(
+      "GUTENBERG_BODY_PROVIDER_REFERENCE: the Reader body still names Project Gutenberg/PGDP or a URL; manual review required"
+    );
+  }
+  return {
+    displayText,
+    archiveMetadata: [normalized.archiveMetadata, ...credits]
+      .filter(Boolean)
+      .join("\n\n--- PROJECT GUTENBERG VOLUNTEER CREDITS ---\n\n"),
+    changes:
+      credits.length > 0
+        ? [...normalized.changes, "moved volunteer credit paragraphs to archive metadata"]
+        : normalized.changes,
+    warnings: normalized.warnings,
+  };
+}
+
 export function normalizeSource(
   source: string,
   profile: NormalizationProfile
@@ -983,6 +1110,7 @@ export function normalizeSource(
   if (profile === "aozora_reader_body") return normalizeAozoraReaderBody(source);
   if (profile === "aozora_body") return normalizeAozoraBody(source);
   if (profile === "gutenberg") return normalizeGutenberg(source);
+  if (profile === "gutenberg_body") return normalizeGutenbergBody(source);
 
   const base = normalizeLineEndings(source);
   const warnings: string[] = [];
@@ -1519,9 +1647,15 @@ export function buildDraftImportPlan(args: {
           originalTitle: args.manifest.original_title,
           originalAuthor: args.manifest.original_author,
           firstPublicationYear: args.manifest.first_publication_year,
-          sourceProvider: args.manifest.source_provider,
-          sourceUrl: args.manifest.source_url,
-          edition: args.manifest.edition,
+          sourceProvider:
+            args.manifest.public_attribution?.source_provider ??
+            args.manifest.source_provider,
+          sourceUrl: args.manifest.public_attribution
+            ? args.manifest.public_attribution.source_url
+            : args.manifest.source_url,
+          edition: args.manifest.public_attribution
+            ? args.manifest.public_attribution.edition
+            : args.manifest.edition,
           inputEdition: args.manifest.source_provenance?.input_edition ?? null,
           proofEdition: args.manifest.source_provenance?.proof_edition ?? null,
           inputBy: args.manifest.source_provenance?.input_by ?? null,
