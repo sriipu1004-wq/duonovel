@@ -6,6 +6,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   applyLocalReadEpisode,
+  FOLLOWING_UPDATES_MAX_EPISODES_PER_WORK,
+  runFollowingUpdates,
+  type FollowingUpdateEpisode,
+  type FollowingUpdatesDeps,
   buildFollowingUpdates,
   firstNewEpisodeNumber,
   followingUpdatesSince,
@@ -29,6 +33,7 @@ const ALLOW_JP = "10000000-0000-4000-8000-000000000006";
 const OWN_WORK = "10000000-0000-4000-8000-000000000007";
 const STALE = "10000000-0000-4000-8000-000000000008";
 const OTHERS_BOOKMARK = "10000000-0000-4000-8000-000000000009";
+const OTHER_USER = "22222222-2222-4222-8222-222222222222";
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 10, 19, 12, 0, 0);
@@ -66,8 +71,8 @@ const REGION_MAP = parseRegionRestrictionRows([
   { series_id: ALLOW_JP, blocked_countries: null, allowed_countries: ["JP"] },
 ]);
 
-// The viewer's own rows. OTHERS_BOOKMARK is another user's bookmark and is
-// never passed in (the loader filters by the viewer's user id).
+// The viewer's own bookmarks and follows (selection input). Rows of another
+// user are dropped earlier, in runFollowingUpdates (tested below).
 const bookmarkedSeriesIds = new Set([
   BOOKMARKED,
   R18_WORK,
@@ -97,7 +102,6 @@ function select(country: string | null, showR18 = false) {
   assert.ok(ids.includes(BOOKMARKED), "bookmarked work is included");
   assert.ok(ids.includes(BY_FOLLOWED), "work by a followed author is included");
   assert.ok(!ids.includes(NOT_FOLLOWED), "unrelated work is excluded");
-  assert.ok(!ids.includes(OTHERS_BOOKMARK), "another user's bookmark never enters");
   assert.ok(!ids.includes(OWN_WORK), "own work is excluded");
   assert.ok(!ids.includes(STALE), "work without a recent update is excluded");
 }
@@ -150,15 +154,17 @@ assert.ok(select("JP", true).includes(R18_WORK), "R18 shown with opt-in");
   const items = buildFollowingUpdates({
     works,
     episodes: [
-      { seriesId: BOOKMARKED, episodeNumber: 3, title: "three", postedAtValue: NOW - 2 * DAY },
-      { seriesId: BOOKMARKED, episodeNumber: 4, title: "four", postedAtValue: NOW - DAY },
-      { seriesId: BOOKMARKED, episodeNumber: 4, title: "dup", postedAtValue: NOW - DAY },
-      { seriesId: BOOKMARKED, episodeNumber: 2, title: "old", postedAtValue: NOW - 40 * DAY },
-      { seriesId: BOOKMARKED, episodeNumber: 5, title: "future", postedAtValue: NOW + DAY },
-      { seriesId: BY_FOLLOWED, episodeNumber: 7, title: "read", postedAtValue: NOW - 3 * DAY },
-      { seriesId: BLOCKED_US, episodeNumber: 1, title: "withheld", postedAtValue: NOW - DAY },
-      { seriesId: NOT_FOLLOWED, episodeNumber: 1, title: "x", postedAtValue: NOW - DAY },
-      { seriesId: OTHERS_BOOKMARK, episodeNumber: 1, title: "x", postedAtValue: NOW - DAY },
+      { seriesId: BY_FOLLOWED, episodeNumber: 9, title: "now-private", postedAtValue: NOW - DAY, seriesPublicationStatus: "private" },
+      { seriesId: BY_FOLLOWED, episodeNumber: 10, title: "no-status", postedAtValue: NOW - DAY, seriesPublicationStatus: null },
+      { seriesId: BOOKMARKED, episodeNumber: 3, title: "three", postedAtValue: NOW - 2 * DAY, seriesPublicationStatus: "public" },
+      { seriesId: BOOKMARKED, episodeNumber: 4, title: "four", postedAtValue: NOW - DAY, seriesPublicationStatus: "public" },
+      { seriesId: BOOKMARKED, episodeNumber: 4, title: "dup", postedAtValue: NOW - DAY, seriesPublicationStatus: "public" },
+      { seriesId: BOOKMARKED, episodeNumber: 2, title: "old", postedAtValue: NOW - 40 * DAY, seriesPublicationStatus: "public" },
+      { seriesId: BOOKMARKED, episodeNumber: 5, title: "future", postedAtValue: NOW + DAY, seriesPublicationStatus: "public" },
+      { seriesId: BY_FOLLOWED, episodeNumber: 7, title: "read", postedAtValue: NOW - 3 * DAY, seriesPublicationStatus: "public" },
+      { seriesId: BLOCKED_US, episodeNumber: 1, title: "withheld", postedAtValue: NOW - DAY, seriesPublicationStatus: "public" },
+      { seriesId: NOT_FOLLOWED, episodeNumber: 1, title: "x", postedAtValue: NOW - DAY, seriesPublicationStatus: "public" },
+      { seriesId: OTHERS_BOOKMARK, episodeNumber: 1, title: "x", postedAtValue: NOW - DAY, seriesPublicationStatus: "public" },
     ],
     readMarkers: [
       { seriesId: BY_FOLLOWED, episodeNumber: 7 },
@@ -170,7 +176,7 @@ assert.ok(select("JP", true).includes(R18_WORK), "R18 shown with opt-in");
   assert.deepEqual(
     items.map((item) => item.seriesId),
     [BOOKMARKED],
-    "only selected, unread, in-window works"
+    "only selected, unread, in-window works of a live-public series"
   );
   assert.deepEqual(
     items[0].newEpisodes.map((episode) => episode.episodeNumber),
@@ -210,6 +216,7 @@ assert.ok(select("JP", true).includes(R18_WORK), "R18 shown with opt-in");
       episodeNumber: 1,
       title: "",
       postedAtValue: NOW - index * 1000,
+      seriesPublicationStatus: "public",
     })),
     readMarkers: [],
     sinceValue: SINCE,
@@ -218,37 +225,145 @@ assert.ok(select("JP", true).includes(R18_WORK), "R18 shown with opt-in");
   assert.equal(items.length, 6, "home shows at most 6 works");
 }
 
+
+// --- loader: other users' rows, live publication status, per-work fairness,
+// region read failure
+async function loaderTests() {
+  const episodesFor = new Map<string, FollowingUpdateEpisode[]>();
+  const asked: Array<{ seriesId: string; limit: number }> = [];
+  const baseDeps = (overrides: Partial<FollowingUpdatesDeps> = {}): FollowingUpdatesDeps => ({
+    userId: VIEWER,
+    nowValue: NOW,
+    readViewerRows: async () => ({
+      bookmarks: [
+        { user_id: VIEWER, series_id: BOOKMARKED },
+        // Another user's row returned by a broken source: must be dropped.
+        { user_id: OTHER_USER, series_id: OTHERS_BOOKMARK },
+        { series_id: NOT_FOLLOWED },
+      ],
+      follows: [
+        { follower_user_id: VIEWER, followed_author_id: AUTHOR_A },
+        { follower_user_id: OTHER_USER, followed_author_id: AUTHOR_B },
+      ],
+      playLogs: [
+        { user_id: OTHER_USER, series_id: BOOKMARKED, episode_number: 99 },
+      ],
+    }),
+    loadWorks: async () => WORKS,
+    loadShowR18: async () => false,
+    loadRegionMap: async () => REGION_MAP,
+    country: "JP",
+    loadEpisodesForSeries: async ({ seriesId, limit }) => {
+      asked.push({ seriesId, limit });
+      return (episodesFor.get(seriesId) ?? []).slice(0, limit);
+    },
+    ...overrides,
+  });
+  const ep = (seriesId: string, episodeNumber: number, status: string | null = "public"): FollowingUpdateEpisode => ({
+    seriesId,
+    episodeNumber,
+    title: `e${episodeNumber}`,
+    postedAtValue: NOW - DAY - episodeNumber,
+    seriesPublicationStatus: status,
+  });
+  // BOOKMARKED posts 100 episodes; BY_FOLLOWED posts one. Per-work reads keep both.
+  episodesFor.set(BOOKMARKED, Array.from({ length: 100 }, (_, index) => ep(BOOKMARKED, 100 - index)));
+  episodesFor.set(BY_FOLLOWED, [ep(BY_FOLLOWED, 1)]);
+  episodesFor.set(OTHERS_BOOKMARK, [ep(OTHERS_BOOKMARK, 1)]);
+  episodesFor.set(NOT_FOLLOWED, [ep(NOT_FOLLOWED, 1)]);
+
+  const result = await runFollowingUpdates(baseDeps());
+  const ids = result.items.map((item) => item.seriesId);
+  assert.ok(ids.includes(BOOKMARKED));
+  assert.ok(ids.includes(BY_FOLLOWED), "a work with one new episode is not pushed out");
+  assert.ok(!ids.includes(OTHERS_BOOKMARK), "another user's bookmark row is dropped");
+  assert.ok(!ids.includes(NOT_FOLLOWED), "a row without owner id is dropped");
+  assert.ok(!asked.some((call) => call.seriesId === OTHERS_BOOKMARK), "no episode read for others' works");
+  const bookmarked = result.items.find((item) => item.seriesId === BOOKMARKED);
+  assert.equal(
+    bookmarked?.newEpisodes.length,
+    FOLLOWING_UPDATES_MAX_EPISODES_PER_WORK,
+    "another user's play log does not hide episodes; per-work cap applied"
+  );
+  assert.ok(asked.every((call) => call.limit === FOLLOWING_UPDATES_MAX_EPISODES_PER_WORK));
+
+  // Live status: the work went private after the catalog cache was built.
+  episodesFor.set(BY_FOLLOWED, [ep(BY_FOLLOWED, 1, "private")]);
+  const afterUnpublish = await runFollowingUpdates(baseDeps());
+  assert.ok(
+    !afterUnpublish.items.some((item) => item.seriesId === BY_FOLLOWED),
+    "episode of a now-private series is never shown"
+  );
+
+  // A row of a different work returned for a request is ignored.
+  const crossed = await runFollowingUpdates(
+    baseDeps({ loadEpisodesForSeries: async () => [ep(NOT_FOLLOWED, 1)] })
+  );
+  assert.equal(crossed.items.length, 0, "only the requested work's rows are used");
+
+  // Region restriction read failure: the loader rejects (the home section then
+  // shows "unavailable"), never "no restrictions".
+  await assert.rejects(
+    runFollowingUpdates(
+      baseDeps({ loadRegionMap: async () => { throw new Error("region restrictions: down"); } })
+    ),
+    /region restrictions/
+  );
+
+  // No follow targets: no catalog / region / episode reads.
+  let touched = false;
+  const empty = await runFollowingUpdates(
+    baseDeps({
+      readViewerRows: async () => ({ bookmarks: [], follows: [], playLogs: null }),
+      loadWorks: async () => { touched = true; return WORKS; },
+    })
+  );
+  assert.deepEqual(empty, { items: [], hasFollowTargets: false });
+  assert.equal(touched, false);
+}
+
 // --- source checks: the loader
 {
   const loader = read("src/lib/updates/followingUpdates.server.ts");
   assert.match(
     loader,
-    /from\("user_series_bookmarks"\)\.select\("series_id"\)\.eq\("user_id", userId\)/,
+    /from\("user_series_bookmarks"\)\.select\("user_id, series_id"\)\.eq\("user_id", userId\)/,
     "bookmarks are read for the viewer only"
   );
   assert.match(
     loader,
-    /from\("author_follows"\)\s*\.select\("followed_author_id"\)\s*\.eq\("follower_user_id", userId\)/,
+    /from\("author_follows"\)\s*\.select\("follower_user_id, followed_author_id"\)\s*\.eq\("follower_user_id", userId\)/,
     "follows are read for the viewer only"
   );
   assert.match(
     loader,
-    /from\("play_logs"\)\s*\.select\("series_id, episode_number"\)\s*\.eq\("user_id", userId\)/,
+    /from\("play_logs"\)\s*\.select\("user_id, series_id, episode_number"\)\s*\.eq\("user_id", userId\)/,
     "reading markers are read for the viewer only"
   );
   // The service role is used only for episode metadata of already-filtered works.
   const adminUses = loader.match(/createAdminClient\(\)/g) ?? [];
   assert.equal(adminUses.length, 1, "one service-role read");
-  const episodeBlock = loader.slice(loader.indexOf("async function loadRecentEpisodes"));
+  const episodeBlock = loader.slice(
+    loader.indexOf("async function loadEpisodesForSeries"),
+    loader.indexOf("export async function loadFollowingUpdates")
+  );
   assert.ok(episodeBlock.includes("createAdminClient()"), "service role only in episode read");
+  assert.match(episodeBlock, /\.eq\("series_id", args\.seriesId\)/, "one work per query");
+  assert.match(episodeBlock, /\.limit\(args\.limit\)/, "per-work limit");
+  assert.match(episodeBlock, /\.eq\("series\.publication_status", "public"\)/, "live public check");
+  const selects = episodeBlock.match(/run\(\s*"[^"]*"/g) ?? [];
+  assert.equal(selects.length, 2);
+  for (const select of selects) {
+    assert.match(select, /series!inner\(publication_status\)/, "series joined live");
+    assert.ok(!/body|content|text/.test(select), "no body text selected");
+  }
   assert.match(episodeBlock, /\.eq\("posting_status", "posted"\)/);
   assert.match(episodeBlock, /\.eq\("is_published", true\)/);
-  assert.match(episodeBlock, /\.lte\("posted_at", nowIso\)/, "no scheduled future post");
-  assert.ok(!/body|content_text|\btext\b/.test(episodeBlock.split("\n").filter((line) => line.includes("run(\"")).join("\n")), "no body text selected");
-  assert.match(loader, /loadRegionRestrictionMap\(\)/, "country restriction loaded");
+  assert.match(episodeBlock, /\.lte\("posted_at", args\.nowIso\)/, "no scheduled future post");
+  assert.match(loader, /loadRegionMap: \(\) => loadRegionRestrictionMap\(\)/, "country restriction loaded");
   assert.match(loader, /countryFromHeaders\(requestHeaders\)/, "viewer country from Vercel header");
   assert.match(loader, /visibility: "viewer"/, "public works with viewer R18 preference");
-  assert.match(loader, /showR18: preference\.showR18Content/);
+  assert.match(loader, /showR18Content/);
   assert.ok(!/service_role|SUPABASE_SERVICE_ROLE_KEY/.test(loader), "no direct key use");
 }
 
@@ -258,6 +373,9 @@ assert.ok(select("JP", true).includes(R18_WORK), "R18 shown with opt-in");
   assert.match(home, /<HomeFollowingUpdatesSection/);
   assert.match(home, /if \(!viewerState\.signedIn \|\| !viewerState\.userId\) return null;/);
   assert.match(home, /id="following-updates"/);
+  // A failed load (e.g. region restriction read) shows "unavailable".
+  assert.match(home, /const body: ReactNode = !result\s*\? notice\(copy\.unavailable\)/);
+  assert.match(home, /\} catch \(error\) \{\n\s*console\.warn\(\n\s*"\[home\] following updates unavailable"/);
   const dictionary = read("src/i18n/dictionaries/home.ts");
   const blocks = dictionary.match(/followingUpdates: \{[\s\S]*?\n  \},/g) ?? [];
   assert.equal(blocks.length, 3, "ja / en / ko copy");
@@ -272,6 +390,14 @@ assert.ok(select("JP", true).includes(R18_WORK), "R18 shown with opt-in");
   const list = read("src/features/updates/FollowingUpdatesList.tsx");
   assert.ok(!/localStorage\.setItem/.test(list), "the list writes nothing to the browser");
   assert.ok(!/document\.cookie/.test(list), "no new identifier cookie");
+  assert.match(list, /href=\{localizePath\(`\/works\/\$\{item\.seriesId\}`, locale\)\}/);
+  assert.match(list, /href=\{localizePath\(`\/read\/\$\{item\.seriesId\}\/\$\{startEpisode\}`, locale\)\}/);
 }
 
-console.log("test-p9-following-updates: ok");
+loaderTests().then(
+  () => console.log("test-p9-following-updates: ok"),
+  (error) => {
+    console.error(error);
+    process.exit(1);
+  }
+);

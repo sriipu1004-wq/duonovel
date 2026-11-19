@@ -585,7 +585,7 @@ async function HomeFollowingUpdatesSection({
         <FollowingUpdatesList
           items={result.items}
           copy={copy}
-          dateLocale={locale === "ja" ? "ja-JP" : locale === "ko" ? "ko-KR" : "en-US"}
+          locale={locale}
         />
       );
 

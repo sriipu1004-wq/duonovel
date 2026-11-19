@@ -14,6 +14,8 @@ import {
   type FollowingUpdateItem,
 } from "@/lib/updates/followingUpdates";
 import type { FollowingUpdatesCopy } from "@/i18n/dictionaries/home";
+import { localizePath } from "@/i18n/navigation";
+import type { UiLocale } from "@/i18n/config";
 
 function fill(template: string, value: number): string {
   return template.replace("{n}", String(value));
@@ -37,12 +39,13 @@ function refineWithLocalHistory(items: FollowingUpdateItem[]): FollowingUpdateIt
 export default function FollowingUpdatesList({
   items,
   copy,
-  dateLocale,
+  locale,
 }: {
   items: FollowingUpdateItem[];
   copy: FollowingUpdatesCopy;
-  dateLocale: string;
+  locale: UiLocale;
 }) {
+  const dateLocale = locale === "ja" ? "ja-JP" : locale === "ko" ? "ko-KR" : "en-US";
   const [visibleItems, setVisibleItems] = useState(items);
 
   useEffect(() => {
@@ -95,7 +98,7 @@ export default function FollowingUpdatesList({
               </span>
             </div>
             <h3 className="mt-2 text-base font-semibold text-black">
-              <Link href={`/works/${item.seriesId}`} className="hover:underline">
+              <Link href={localizePath(`/works/${item.seriesId}`, locale)} className="hover:underline">
                 {item.title}
               </Link>
             </h3>
@@ -115,7 +118,7 @@ export default function FollowingUpdatesList({
             ) : null}
             {startEpisode !== null ? (
               <Link
-                href={`/read/${item.seriesId}/${startEpisode}`}
+                href={localizePath(`/read/${item.seriesId}/${startEpisode}`, locale)}
                 className="mt-3 inline-flex rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
               >
                 {fill(copy.readFrom, startEpisode)}

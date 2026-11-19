@@ -7,6 +7,12 @@ on:
       - "package.json"
       - "docs/p9-utm-measurement.md"
       - "scripts/test-p9-share-ogp.tsx"
+      - "scripts/test-p9-following-updates.ts"
+      - "src/app/PublicTopPageLegacy.tsx"
+      - "src/i18n/dictionaries/home.ts"
+      - "src/features/updates/**"
+      - "src/lib/updates/**"
+      - "src/lib/rights/regionRestriction.ts"
       - "src/proxy.ts"
       - "src/app/opengraph-image.tsx"
       - "src/app/read/**"
@@ -45,6 +51,9 @@ jobs:
       - name: P9 share / OG image regression
         run: npm run test:p9-share-ogp
 
+      - name: P9 following updates (PR-P9-5)
+        run: npm run test:p9-following-updates
+
       - name: Existing SEO, Reader and Work regressions
         run: |
           npm run test:p9-seo-metadata
@@ -74,6 +83,12 @@ jobs:
           next.config.ts
           src/lib/share/shareLinks.ts
           src/lib/auth/officialAuthor.server.ts
+          scripts/test-p9-following-updates.ts
+          src/lib/updates/followingUpdates.ts
+          src/lib/updates/followingUpdates.server.ts
+          src/features/updates/FollowingUpdatesList.tsx
+          src/app/PublicTopPageLegacy.tsx
+          src/i18n/dictionaries/home.ts
 
       - name: Production build
         env:

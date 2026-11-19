@@ -22,6 +22,10 @@ export const FOLLOWING_UPDATES_LIMIT = 6;
 export const FOLLOWING_UPDATES_MAX_CANDIDATES = 60;
 /** New episodes kept per work (enough to re-filter by local history). */
 export const FOLLOWING_UPDATES_MAX_EPISODES_PER_WORK = 20;
+/** Works whose episodes are read in parallel per round (one query each). */
+export const FOLLOWING_UPDATES_EPISODE_BATCH = 6;
+/** Rounds at most: bounds the episode queries per page view. */
+export const FOLLOWING_UPDATES_MAX_EPISODE_BATCHES = 4;
 
 export type FollowingUpdateReason = "bookmark" | "author";
 
@@ -39,6 +43,8 @@ export type FollowingUpdateEpisode = {
   episodeNumber: number;
   title: string;
   postedAtValue: number;
+  /** publication_status of the series, read together with the episode. */
+  seriesPublicationStatus: string | null;
 };
 
 /** Last reading position the server knows about (play_logs). */
@@ -136,6 +142,9 @@ export function buildFollowingUpdates(
   for (const episode of input.episodes) {
     const work = workById.get(episode.seriesId);
     if (!work) continue;
+    // Re-checked live with the episode read: a work set back to private after
+    // the catalog cache was built must not leak titles or episode numbers.
+    if (episode.seriesPublicationStatus !== "public") continue;
     if (!(episode.episodeNumber > 0)) continue;
     if (!(episode.postedAtValue >= input.sinceValue)) continue;
     if (episode.postedAtValue > input.nowValue) continue;
@@ -200,4 +209,139 @@ export function firstNewEpisodeNumber(item: FollowingUpdateItem): number | null 
     if (first === null || episode.episodeNumber < first) first = episode.episodeNumber;
   }
   return first;
+}
+
+type Row = Record<string, unknown>;
+
+function rowText(row: Row, column: string): string {
+  const value = row[column];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** Dependencies of the loader; the server module wires Supabase into these. */
+export type FollowingUpdatesDeps = {
+  userId: string;
+  nowValue: number;
+  /** The viewer's own rows (session / RLS). Each row carries its owner id. */
+  readViewerRows: () => Promise<{
+    bookmarks: Row[];
+    follows: Row[];
+    /** null when play_logs cannot be read (the list still works). */
+    playLogs: Row[] | null;
+  }>;
+  /** Public catalog with the viewer's R18 preference applied. */
+  loadWorks: () => Promise<FollowingUpdateWork[]>;
+  loadShowR18: () => Promise<boolean>;
+  /** Must throw on failure; never resolve to "no restrictions". */
+  loadRegionMap: () => Promise<RegionRestrictionMap>;
+  country: string | null;
+  /** Newest posted episodes of one work inside [since, now], at most `limit`. */
+  loadEpisodesForSeries: (args: {
+    seriesId: string;
+    sinceIso: string;
+    nowIso: string;
+    limit: number;
+  }) => Promise<FollowingUpdateEpisode[]>;
+};
+
+export type FollowingUpdatesResult = {
+  items: FollowingUpdateItem[];
+  /** The viewer bookmarked a work or follows an author. */
+  hasFollowTargets: boolean;
+};
+
+/**
+ * Loads the list. Rows that do not belong to the viewer are dropped even if
+ * the source returned them. Episodes are read one work at a time (newest
+ * FOLLOWING_UPDATES_MAX_EPISODES_PER_WORK each), so a work that posts many
+ * episodes cannot push the others out of the list.
+ */
+export async function runFollowingUpdates(
+  deps: FollowingUpdatesDeps
+): Promise<FollowingUpdatesResult> {
+  const sinceValue = followingUpdatesSince(deps.nowValue);
+  const rows = await deps.readViewerRows();
+
+  const bookmarkedSeriesIds = new Set<string>();
+  for (const row of rows.bookmarks) {
+    if (rowText(row, "user_id") !== deps.userId) continue;
+    const seriesId = rowText(row, "series_id");
+    if (seriesId) bookmarkedSeriesIds.add(seriesId);
+  }
+  const followedAuthorIds = new Set<string>();
+  for (const row of rows.follows) {
+    if (rowText(row, "follower_user_id") !== deps.userId) continue;
+    const authorId = rowText(row, "followed_author_id");
+    if (authorId) followedAuthorIds.add(authorId);
+  }
+  const readMarkers: FollowingReadMarker[] = [];
+  for (const row of rows.playLogs ?? []) {
+    if (rowText(row, "user_id") !== deps.userId) continue;
+    const seriesId = rowText(row, "series_id");
+    const episodeNumber = Number(row.episode_number);
+    if (seriesId && Number.isFinite(episodeNumber) && episodeNumber > 0) {
+      readMarkers.push({ seriesId, episodeNumber: Math.floor(episodeNumber) });
+    }
+  }
+
+  const hasFollowTargets = bookmarkedSeriesIds.size > 0 || followedAuthorIds.size > 0;
+  if (!hasFollowTargets) return { items: [], hasFollowTargets };
+
+  const [works, showR18, regionMap] = await Promise.all([
+    deps.loadWorks(),
+    deps.loadShowR18(),
+    deps.loadRegionMap(),
+  ]);
+  const selected = selectFollowedWorks({
+    works,
+    bookmarkedSeriesIds,
+    followedAuthorIds,
+    viewerUserId: deps.userId,
+    showR18,
+    regionMap,
+    country: deps.country,
+    sinceValue,
+  });
+
+  const sinceIso = new Date(sinceValue).toISOString();
+  const nowIso = new Date(deps.nowValue).toISOString();
+  const episodes: FollowingUpdateEpisode[] = [];
+  let items: FollowingUpdateItem[] = [];
+  for (
+    let batch = 0;
+    batch < FOLLOWING_UPDATES_MAX_EPISODE_BATCHES &&
+    batch * FOLLOWING_UPDATES_EPISODE_BATCH < selected.length;
+    batch += 1
+  ) {
+    const slice = selected.slice(
+      batch * FOLLOWING_UPDATES_EPISODE_BATCH,
+      (batch + 1) * FOLLOWING_UPDATES_EPISODE_BATCH
+    );
+    const results = await Promise.all(
+      slice.map((work) =>
+        deps.loadEpisodesForSeries({
+          seriesId: work.seriesId,
+          sinceIso,
+          nowIso,
+          limit: FOLLOWING_UPDATES_MAX_EPISODES_PER_WORK,
+        })
+      )
+    );
+    results.forEach((list, index) => {
+      // Only rows of the work that was asked for.
+      for (const episode of list) {
+        if (episode.seriesId === slice[index].seriesId) episodes.push(episode);
+      }
+    });
+    items = buildFollowingUpdates({
+      works: selected,
+      episodes,
+      readMarkers,
+      sinceValue,
+      nowValue: deps.nowValue,
+    });
+    if (items.length >= FOLLOWING_UPDATES_LIMIT) break;
+  }
+
+  return { items, hasFollowTargets };
 }
