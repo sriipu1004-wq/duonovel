@@ -75,6 +75,18 @@ VIOLENCE = {
     "aozora-049280": "The narrator's father commits suicide.",
     "aozora-049870": "Suspicion that a son poisoned his mother; a sudden suicide.",
 }
+VIOLENCE["aozora-045516"] = (
+    "Independent review (S3-4): a son wishes his dying father dead, beats his wife, and buries "
+    "the father's corpse at night. Added on the safe side."
+)
+
+# Independent review of PR #227 (S3-1): the Aozora book card gives
+# 「1929（昭和14）年12月号」, which contradicts itself (昭和14 = 1939); the text ends
+# 「（昭和十四年十二月）」. 1939 is recorded. Either year keeps the work in batch B.
+CORRECTED_FIRST = {
+    "aozora-004109": 1939,
+}
+
 NO_WARNING_NOTE = (
     "Cue hits (if any) were figurative, a passing mention or non-graphic in context; "
     "no violence or sexual_r18 warning."
@@ -84,6 +96,8 @@ for manifest_id in sys.argv[1:]:
     path = f"public-domain/manifests/{manifest_id}.json"
     with open(path, encoding="utf8") as handle:
         m = json.load(handle)
+    if manifest_id in CORRECTED_FIRST:
+        m["first_publication_year"] = CORRECTED_FIRST[manifest_id]
     death = m["author_death_year"]
     first = m["first_publication_year"]
     is_c = manifest_id in C_WORKS

@@ -5,7 +5,7 @@
   "original_author": "夢野久作",
   "author_death_year": 1936,
   "original_language": "ja",
-  "first_publication_year": 1927,
+  "first_publication_year": 1935,
   "source_provider": "Aozora Bunko",
   "source_url": "https://www.aozora.gr.jp/cards/000096/card933.html",
   "source_download_url": "https://www.aozora.gr.jp/cards/000096/files/933_ruby_22021.zip",
@@ -19,13 +19,13 @@
   "translator_death_year": null,
   "translation_language": null,
   "rights_status": "approved",
-  "rights_basis": "Operator review for JP/US/KR distribution, and no per-country restriction (D030). 夢野久作 died in 1936 and the work was first published in 1927. Japan: term expired before the 2018 extension and was not revived. US: published in or before 1930, so outside the 95-year term; an author who died by 1945 was also out of term in Japan on 1996-01-01, so no §104A restoration. Korea: Art. 3(4) (expired abroad). Life+80 countries (CO, GQ) expired at the latest by end-2025; Mexico treats authors who died before 1952 as public domain (docs/rights/region-research-2026-11-15.md). Scope is the exact Aozora text file pinned by SHA-256 only.",
-  "rights_notes": "Operator review recorded 2026-11-19T18:18:50+09:00. Aozora catalog flags なし, author-only contributors; exact source fetched and hashed; chapter plan prepared (1 chapters, no chapter over 10,000 characters). Base edition, cover and modern commentary are not reused. Production import and publication are separate owner approvals.",
+  "rights_basis": "Operator review for JP/US/KR distribution, and no per-country restriction (D030). 夢野久作 died in 1936 and the work was first published in 1935. Japan: term expired before the 2018 extension and was not revived. US: first published 1935 (after 1930), but the author died by 1945, so the work was already out of term in Japan on 1996-01-01 and was not restored under §104A; it is public domain in the US. (Ryoki-uta: serialized 1927-1935 (探偵趣味, 猟奇, ぷろふいる per the Aozora book card).) Korea: Art. 3(4) (expired abroad). Life+80 countries (CO, GQ) expired at the latest by end-2025; Mexico treats authors who died before 1952 as public domain (docs/rights/region-research-2026-11-15.md). Scope is the exact Aozora text file pinned by SHA-256 only.",
+  "rights_notes": "Operator review recorded 2026-11-19T18:39:35+09:00. Aozora catalog flags なし, author-only contributors; exact source fetched and hashed; chapter plan prepared (1 chapters, no chapter over 10,000 characters). Base edition, cover and modern commentary are not reused. Production import and publication are separate owner approvals.",
   "rights_components": {
     "original_work": {
       "status": "approved",
-      "basis": "夢野久作 (d. 1936), first published 1927: out of term in JP/US/KR and, per docs/rights/region-research-2026-11-15.md, in life+80 countries and Mexico.",
-      "notes": "Aozora copyright flags なし; author death and first-publication dates pass the batch criteria (death <= 1945, first publication <= 1930)."
+      "basis": "夢野久作 (d. 1936), first published 1935: out of term in JP/US/KR and, per docs/rights/region-research-2026-11-15.md, in life+80 countries and Mexico.",
+      "notes": "Aozora copyright flags なし; author death <= 1945 (batch criterion); first publication after 1930 corrected after independent review (S2-1), US status rests on the death year."
     },
     "edition": {
       "status": "approved",
@@ -73,7 +73,7 @@
     "US",
     "KR"
   ],
-  "reviewed_at": "2026-11-19T18:18:50+09:00",
+  "reviewed_at": "2026-11-19T18:39:35+09:00",
   "reviewed_by": "LIB read operator (Claude; owner direction 2026-11-15 「それぞれの国での無料公開可能な作品をできる限り導入して」; production import and publication need separate owner button approval)",
   "chapter_count": 1,
   "chapter_split": {

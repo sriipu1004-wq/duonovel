@@ -75,7 +75,7 @@ insert into issue139_batch4_targets values
   ('aozora-004078', 1, array[]::text[]),
   ('aozora-004088', 1, array[]::text[]),
   ('aozora-004094', 1, array[]::text[]),
-  ('aozora-004102', 3, array[]::text[]),
+  ('aozora-004102', 3, array['violence']::text[]),
   ('aozora-004262', 1, array[]::text[]),
   ('aozora-004263', 1, array[]::text[]),
   ('aozora-004393', 1, array[]::text[]),

@@ -4,7 +4,8 @@
 # decision (as in approve-batch-2026-11-country-limited.py).
 # Mechanical preconditions were already enforced by aozora-candidates
 # (copyright flags なし, author-only contributors, death <= 1945,
-# first publication <= 1930) and source-sync/prepare (pinned SHA-256,
+# catalog first publication <= 1930; three collections were later corrected
+# to the year of the whole work, see CORRECTED_FIRST) and source-sync/prepare (pinned SHA-256,
 # deterministic chapter plan). This script records the operator review in the
 # same shape as earlier approved manifests. It does NOT import or publish:
 # production import and publication each need the owner's separate approval.
@@ -41,19 +42,40 @@ VIOLENCE = {
     "aozora-043557": "Sword killings and corpses in a period adventure.",
     "aozora-043648": "Murder; a woman's corpse woven into a cane chair; a body washed ashore.",
 }
+VIOLENCE["aozora-004102"] = (
+    "Independent review (S3-4): a child's leg streaming with blood after an accident, and the child's death; "
+    "a bleeding beggar woman kicked by a horse; a hanging mentioned. Added on the safe side."
+)
 NO_WARNING_NOTE = (
     "Cue hits (if any) were figurative, a passing mention or non-graphic in context; "
     "no violence or sexual_r18 warning."
 )
 
+# Independent review of PR #227 (S2-1): the catalog's first-publication year
+# is that of the earliest piece. For these collections the whole work was
+# first published later (latest initial publication or the first book).
+CORRECTED_FIRST = {
+    "aozora-004869": (1934, "Hyoto: most poems first appeared 1931-1933 (latest 1933); first book 第一書房 1934, author's preface dated 昭和九年."),
+    "aozora-001790": (1939, "Shukumei: pieces first appeared up to 1937; first book 創元社 1939, preface dated 昭和十四年."),
+    "aozora-000933": (1935, "Ryoki-uta: serialized 1927-1935 (探偵趣味, 猟奇, ぷろふいる per the Aozora book card)."),
+}
+LATEST_FIRST = 1930
+
 for manifest_id in sys.argv[1:]:
     path = f"public-domain/manifests/{manifest_id}.json"
     with open(path, encoding="utf8") as handle:
         m = json.load(handle)
+    if manifest_id in CORRECTED_FIRST:
+        m["first_publication_year"] = CORRECTED_FIRST[manifest_id][0]
     death = m["author_death_year"]
     first = m["first_publication_year"]
-    if not (isinstance(death, int) and death <= 1945 and isinstance(first, int) and first <= 1930):
+    # death <= 1945 is the batch criterion. A work first published after 1930
+    # is still public domain in the US: the author died by 1945, so the work
+    # was out of term in Japan on 1996-01-01 and §104A did not restore it.
+    if not (isinstance(death, int) and death <= 1945 and isinstance(first, int)):
         raise SystemExit(f"{manifest_id}: outside batch criteria (death={death}, first={first})")
+    if first > LATEST_FIRST and manifest_id not in CORRECTED_FIRST:
+        raise SystemExit(f"{manifest_id}: first publication {first} > 1930 needs a recorded reason")
     if m.get("translator") or m["rights_components"]["translation"]["status"] != "not_applicable":
         raise SystemExit(f"{manifest_id}: translation present")
     if m.get("import_status") != "prepared" or not m.get("chapter_count"):
@@ -66,12 +88,22 @@ for manifest_id in sys.argv[1:]:
     m["jurisdictions_reviewed"] = ["JP", "US", "KR"]
     m["reviewed_at"] = REVIEWED_AT
     m["reviewed_by"] = REVIEWER
+    if first <= LATEST_FIRST:
+        us_basis = (
+            "US: published in or before 1930, so outside the 95-year term; an author who died by 1945 "
+            "was also out of term in Japan on 1996-01-01, so no §104A restoration. "
+        )
+    else:
+        us_basis = (
+            f"US: first published {first} (after 1930), but the author died by 1945, so the work was "
+            f"already out of term in Japan on 1996-01-01 and was not restored under §104A; it is "
+            f"public domain in the US. ({CORRECTED_FIRST[manifest_id][1]}) "
+        )
     m["rights_basis"] = (
         f"Operator review for JP/US/KR distribution, and no per-country restriction (D030). "
         f"{author} died in {death} and the work was first published in {first}. "
         f"Japan: term expired before the 2018 extension and was not revived. "
-        f"US: published in or before 1930, so outside the 95-year term; an author who died by 1945 "
-        f"was also out of term in Japan on 1996-01-01, so no §104A restoration. Korea: Art. 3(4) "
+        f"{us_basis}Korea: Art. 3(4) "
         f"(expired abroad). Life+80 countries (CO, GQ) expired at the latest by end-2025; Mexico "
         f"treats authors who died before 1952 as public domain ({NOTE}). Scope is the exact Aozora "
         f"text file pinned by SHA-256 only."
@@ -87,7 +119,11 @@ for manifest_id in sys.argv[1:]:
     rc["original_work"] = {
         "status": "approved",
         "basis": f"{author} (d. {death}), first published {first}: out of term in JP/US/KR and, per {NOTE}, in life+80 countries and Mexico.",
-        "notes": "Aozora copyright flags なし; author death and first-publication dates pass the batch criteria (death <= 1945, first publication <= 1930).",
+        "notes": (
+            "Aozora copyright flags なし; author death and first-publication dates pass the batch criteria (death <= 1945, first publication <= 1930)."
+            if first <= LATEST_FIRST
+            else "Aozora copyright flags なし; author death <= 1945 (batch criterion); first publication after 1930 corrected after independent review (S2-1), US status rests on the death year."
+        ),
     }
     rc["edition"] = {
         "status": "approved",

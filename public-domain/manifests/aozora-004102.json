@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "approved",
   "rights_basis": "Operator review for JP/US/KR distribution, and no per-country restriction (D030). 石川啄木 died in 1912 and the work was first published in 1908. Japan: term expired before the 2018 extension and was not revived. US: published in or before 1930, so outside the 95-year term; an author who died by 1945 was also out of term in Japan on 1996-01-01, so no §104A restoration. Korea: Art. 3(4) (expired abroad). Life+80 countries (CO, GQ) expired at the latest by end-2025; Mexico treats authors who died before 1952 as public domain (docs/rights/region-research-2026-11-15.md). Scope is the exact Aozora text file pinned by SHA-256 only.",
-  "rights_notes": "Operator review recorded 2026-11-19T18:18:50+09:00. Aozora catalog flags なし, author-only contributors; exact source fetched and hashed; chapter plan prepared (3 chapters, no chapter over 10,000 characters). Base edition, cover and modern commentary are not reused. Production import and publication are separate owner approvals.",
+  "rights_notes": "Operator review recorded 2026-11-19T18:39:35+09:00. Aozora catalog flags なし, author-only contributors; exact source fetched and hashed; chapter plan prepared (3 chapters, no chapter over 10,000 characters). Base edition, cover and modern commentary are not reused. Production import and publication are separate owner approvals.",
   "rights_components": {
     "original_work": {
       "status": "approved",
@@ -73,7 +73,7 @@
     "US",
     "KR"
   ],
-  "reviewed_at": "2026-11-19T18:18:50+09:00",
+  "reviewed_at": "2026-11-19T18:39:35+09:00",
   "reviewed_by": "LIB read operator (Claude; owner direction 2026-11-15 「それぞれの国での無料公開可能な作品をできる限り導入して」; production import and publication need separate owner button approval)",
   "chapter_count": 3,
   "chapter_split": {
@@ -90,6 +90,8 @@
   "import_status": "prepared",
   "cover_source": null,
   "cover_rights_status": null,
-  "content_warnings": [],
-  "content_warning_notes": "Cue hits (if any) were figurative, a passing mention or non-graphic in context; no violence or sexual_r18 warning."
+  "content_warnings": [
+    "violence"
+  ],
+  "content_warning_notes": "Independent review (S3-4): a child's leg streaming with blood after an accident, and the child's death; a bleeding beggar woman kicked by a horse; a hanging mentioned. Added on the safe side."
 }
