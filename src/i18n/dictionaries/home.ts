@@ -1,5 +1,19 @@
 import type { UiLocale } from "../config";
 
+/** Plain strings only (passed to a client component). `{n}` is replaced. */
+export type FollowingUpdatesCopy = {
+  title: string;
+  description: string;
+  empty: string;
+  noTargets: string;
+  reasonBookmark: string;
+  reasonAuthor: string;
+  newCount: string;
+  readFrom: string;
+  episode: string;
+  unavailable: string;
+};
+
 export type HomeDictionary = {
   eyebrow: string;
   title: string;
@@ -39,6 +53,7 @@ export type HomeDictionary = {
   bookmarkSignedIn: string;
   bookmarkSignedOut: string;
   bookmarkLoginPrompt: string;
+  followingUpdates: FollowingUpdatesCopy;
   login: string;
   latestTitle: string;
   latestDescription: string;
@@ -129,6 +144,18 @@ const ja: HomeDictionary = {
   bookmarkSignedIn: "ブックマークした作品のうち、最近更新された作品。",
   bookmarkSignedOut: "ログインすると、ブックマークした作品の更新をここで確認できる。",
   bookmarkLoginPrompt: "ブックマーク更新を表示するにはログインが必要。",
+  followingUpdates: {
+    title: "フォロー中の新しい話",
+    description: "ブックマークした作品とフォローした作者の作品のうち、最近30日に公開されたまだ読んでいない話。",
+    empty: "最近30日に公開された、まだ読んでいない新しい話はない。",
+    noTargets: "作品をブックマークするか作者をフォローすると、新しい話がここに出る。",
+    reasonBookmark: "ブックマーク",
+    reasonAuthor: "フォロー中の作者",
+    newCount: "新しい話 {n}件",
+    readFrom: "第{n}話から読む",
+    episode: "第{n}話",
+    unavailable: "新しい話の一覧を一時的に読み込めない。",
+  },
   login: "ログインする",
   latestTitle: "新着更新",
   latestDescription: "最近更新された公開作品。",
@@ -219,6 +246,18 @@ const en: HomeDictionary = {
   bookmarkSignedIn: "Recently updated works from your bookmarks.",
   bookmarkSignedOut: "Sign in to see recent updates from works you bookmarked.",
   bookmarkLoginPrompt: "Sign in to show updates from your bookmarked works.",
+  followingUpdates: {
+    title: "New episodes you follow",
+    description: "Unread episodes posted in the last 30 days in works you bookmarked and works by authors you follow.",
+    empty: "No unread episodes were posted in the last 30 days.",
+    noTargets: "Bookmark works or follow authors to see their new episodes here.",
+    reasonBookmark: "Bookmarked",
+    reasonAuthor: "Followed author",
+    newCount: "{n} new",
+    readFrom: "Read from episode {n}",
+    episode: "Episode {n}",
+    unavailable: "New episodes cannot be loaded right now.",
+  },
   login: "Sign in",
   latestTitle: "Latest updates",
   latestDescription: "Public works updated recently.",
@@ -309,6 +348,18 @@ const ko: HomeDictionary = {
   bookmarkSignedIn: "책갈피에 저장한 작품 중 최근 업데이트된 작품입니다.",
   bookmarkSignedOut: "로그인하면 책갈피에 저장한 작품의 최근 업데이트를 확인할 수 있습니다.",
   bookmarkLoginPrompt: "책갈피 작품 업데이트를 보려면 로그인하세요.",
+  followingUpdates: {
+    title: "팔로우 중인 새 회차",
+    description: "책갈피에 저장한 작품과 팔로우한 작가의 작품 중 최근 30일 안에 공개된, 아직 읽지 않은 회차입니다.",
+    empty: "최근 30일 안에 공개된 읽지 않은 새 회차가 없습니다.",
+    noTargets: "작품을 책갈피에 저장하거나 작가를 팔로우하면 새 회차가 여기에 표시됩니다.",
+    reasonBookmark: "책갈피",
+    reasonAuthor: "팔로우한 작가",
+    newCount: "새 회차 {n}개",
+    readFrom: "{n}화부터 읽기",
+    episode: "{n}화",
+    unavailable: "새 회차 목록을 지금 불러올 수 없습니다.",
+  },
   login: "로그인",
   latestTitle: "최근 업데이트",
   latestDescription: "최근 업데이트된 공개 작품입니다.",
