@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1905, New York (Charles Scribner's Sons). Evidence: PG text has no imprint page; secondary.",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1905, New York (Charles Scribner's Sons). Evidence: PG text has no imprint page; secondary. Base printing: The PG transcriber modernized contractions and corrected one name (transcriber's note kept in archive metadata only).",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
@@ -84,6 +84,11 @@
     "恋愛",
     "悲劇"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [],
+    "remove_tail_from": "=Transcriber",
+    "allowed_markers": []
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

@@ -16,6 +16,7 @@ import {
   validateManifest,
   type PreparedArtifact,
   type PublicDomainManifest,
+  normalizationOptionsFor,
 } from "./core";
 
 const MANIFEST_DIR = "public-domain/manifests";
@@ -125,7 +126,7 @@ export function prepareManifest(id: string): PreparedArtifact {
   const raw = readFileSync(sourcePath);
   const artifact = prepareArtifact({ manifest, rawBytes: raw });
   const decoded = decodeSourceBytes(raw, manifest.source_encoding);
-  const normalized = normalizeSource(decoded, manifest.normalization_profile);
+  const normalized = normalizeSource(decoded, manifest.normalization_profile, normalizationOptionsFor(manifest));
   const outputDirectory = dirname(preparedArtifactPath(id));
   mkdirSync(outputDirectory, { recursive: true });
   writeFileSync(preparedArtifactPath(id), `${JSON.stringify(artifact, null, 2)}\n`, "utf8");

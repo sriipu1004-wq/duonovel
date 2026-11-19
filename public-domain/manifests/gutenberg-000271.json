@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1877, London (Jarrold & Sons). Evidence: PG note: originally published in 1877; transcribed from an American edition of 1911.",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1877, London (Jarrold & Sons). Evidence: PG note: originally published in 1877; transcribed from an American edition of 1911. Base printing: PG transcribed an American edition of 1911 (first published 1877). The PG note is removed.",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
@@ -83,6 +83,14 @@
     "動物",
     "社会批評"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [
+      "by Anna Sewell [English Quaker",
+      "[Note: "
+    ],
+    "remove_tail_from": null,
+    "allowed_markers": []
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

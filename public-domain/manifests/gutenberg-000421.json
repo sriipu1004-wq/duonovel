@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1886, London (Cassell). Evidence: PG text has no imprint page; secondary. Contains the Biographical Edition preface by Fanny Van de Grift Stevenson (d. 1914).",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1886, London (Cassell). Evidence: PG text has no imprint page; secondary. Contains the Biographical Edition preface by Fanny Van de Grift Stevenson (d. 1914). Other contributors: Fanny Van de Grift Stevenson (preface (Biographical Edition), d. 1914, imported).",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
@@ -84,6 +84,11 @@
     "冒険",
     "友情"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [],
+    "remove_tail_from": null,
+    "allowed_markers": []
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

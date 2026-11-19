@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1888, London (David Nutt). Evidence: PG title page: London, David Nutt, 1910 (7th impression); First Edition May 1888. Illustrators (Walter Crane d. 1915, Jacomb Hood d. 1929) are named but no illustration is imported.",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1888, London (David Nutt). Evidence: PG title page: London, David Nutt, 1910 (7th impression); First Edition May 1888. Illustrators (Walter Crane d. 1915, Jacomb Hood d. 1929) are named but no illustration is imported. Base printing: PG transcribed David Nutt's 1910 seventh impression (first edition May 1888). Imprint lines removed; illustrations are not imported. Other contributors: Walter Crane (illustrator, d. 1915, not imported); Jacomb Hood (illustrator, d. 1929, not imported).",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
@@ -84,6 +84,15 @@
     "自己犠牲",
     "短編"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [
+      "SEVENTH IMPRESSION",
+      "LONDON DAVID NUTT",
+      "_First Edition_"
+    ],
+    "remove_tail_from": "Printed by BALLANTYNE",
+    "allowed_markers": []
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

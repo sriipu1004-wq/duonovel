@@ -84,6 +84,14 @@
     "恋愛",
     "社会批評"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [],
+    "remove_tail_from": null,
+    "allowed_markers": [
+      "since the book was first published",
+      "The novel was first published complete, in three volumes"
+    ]
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

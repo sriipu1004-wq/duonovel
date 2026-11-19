@@ -5,8 +5,12 @@
 # - public_attribution, so the work page does not show the Project Gutenberg
 #   name (docs/rights/region-research-2026-11-19-gutenberg.md),
 # - the first-publication evidence kept in rights_notes.
-# Refuses entries outside the cut-offs and never overwrites an existing file.
-#   python scripts/public-domain/generate-gutenberg-batch-2026-11.py
+# - gutenberg_body (paragraphs to move out of the Reader body, allowed passages),
+# - the base printing and other contributors in rights_notes.
+# Refuses entries outside the cut-offs. An existing manifest is only replaced
+# with --replace-pending and only while it is still pending (never approved or
+# imported).
+#   python scripts/public-domain/generate-gutenberg-batch-2026-11.py [--replace-pending]
 import json
 import os
 import sys
@@ -23,6 +27,7 @@ def component(status="needs_review"):
 
 
 ids = [w["provider_id"] for w in batch["works"]]
+replace_pending = "--replace-pending" in sys.argv[1:]
 if len(ids) != len(set(ids)) or len(ids) > 50:
     sys.exit("duplicate provider ids or more than 50 works")
 
@@ -34,7 +39,12 @@ for w in batch["works"]:
     mid = f"gutenberg-{n:06d}"
     path = f"public-domain/manifests/{mid}.json"
     if os.path.exists(path):
-        sys.exit(f"{mid}: manifest already exists (existing works are not re-imported)")
+        old = json.load(open(path, encoding="utf8"))
+        if not replace_pending or old.get("approved") or old.get("rights_status") != "pending" or old.get("import_status") not in ("not_imported", "prepared"):
+            sys.exit(f"{mid}: manifest already exists (existing works are not re-imported)")
+    for c in w.get("contributors", []):
+        if c.get("imported") and (not isinstance(c.get("death_year"), int) or c["death_year"] > DEATH_MAX):
+            sys.exit(f"{n}: imported contribution by {c.get('name')} outside the cut-offs")
     manifest = {
         "id": mid,
         "title": w["title"],
@@ -60,6 +70,18 @@ for w in batch["works"]:
         "rights_notes": (
             f"Selected for batch {batch['id']}. First publication: {w['first_publication_year']}, "
             f"{w['first_publication_place']}. Evidence: {w['evidence']}"
+            + (f" Base printing: {w['base_printing']}" if w.get("base_printing") else "")
+            + (
+                " Other contributors: "
+                + "; ".join(
+                    f"{c['name']} ({c['role']}, d. {c['death_year'] if c['death_year'] else 'unknown'}, "
+                    f"{'imported' if c['imported'] else 'not imported'})"
+                    for c in w["contributors"]
+                )
+                + "."
+                if w.get("contributors")
+                else ""
+            )
         ),
         "rights_components": {
             "original_work": component(),
@@ -79,6 +101,7 @@ for w in batch["works"]:
         "chapter_split": {"strategy": "paragraph_chunks", "max_characters": 10000},
         "genres": w["genres"],
         "tags": w["tags"],
+        "gutenberg_body": w["gutenberg_body"],
         "public_attribution": {
             "source_provider": "Public domain",
             "source_url": None,

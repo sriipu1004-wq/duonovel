@@ -83,6 +83,13 @@
     "家族",
     "孤独"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [
+      "cover"
+    ],
+    "remove_tail_from": null,
+    "allowed_markers": []
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

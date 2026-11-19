@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1925, London (Hogarth Press) / New York (Harcourt, Brace). Evidence: PG title page: New York, Copyright 1925 (US edition).",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1925, London (Hogarth Press) / New York (Harcourt, Brace). Evidence: PG title page: New York, Copyright 1925 (US edition). Base printing: PG transcribed a later US printing: Harcourt, Brace & World, Inc., New York, 'Twenty-third printing' (copyright 1925, renewed by Leonard Woolf). Only the 1925 novel text is used; the later printing's imprint, list of the author's books and the transcriber's note are removed from the Reader body.",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
@@ -83,6 +83,25 @@
     "心理",
     "人間関係"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [
+      "_BY VIRGINIA WOOLF_",
+      "_Fiction_",
+      "THE VOYAGE OUT NIGHT AND DAY",
+      "_Biography_",
+      "FLUSH ROGER FRY",
+      "_Criticism, etc._",
+      "THE COMMON READER THE SECOND",
+      "[Illustration: HBMC]",
+      "_New York_ HARCOURT",
+      "COPYRIGHT, 1925, BY HARCOURT",
+      "_All rights reserved, including",
+      "Twenty-third printing",
+      "PRINTED IN THE UNITED STATES"
+    ],
+    "remove_tail_from": "Transcriber",
+    "allowed_markers": []
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

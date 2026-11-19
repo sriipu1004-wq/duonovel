@@ -59,6 +59,14 @@ for name in ["apply.sql", "rollback.sql"]:
     )
     s = s.replace("issue139_publish3_", "issue139_publish_gut1_").replace("_20261115", "_20261119")
     s = s.replace("ISSUE139_BATCH3_", "ISSUE139_GUT1_")
+    guard = "       or s.effect_settings->'publicDomain'->>'sourceProvider' is distinct from 'Aozora Bunko'\n"
+    assert s.count(guard) == (1 if name == "apply.sql" else 0), (name, "sourceProvider guard")
+    s = s.replace(
+        guard,
+        guard
+        + "       or s.effect_settings->'publicDomain'->>'sourceUrl' is not null\n"
+        + "       or coalesce(s.effect_settings->'publicDomain'->>'edition', '') ilike '%gutenberg%'\n",
+    )
     s = s.replace("'Aozora Bunko'", "'Public domain'")
     s = s.replace("reviewed Aozora rights metadata", "reviewed Gutenberg-batch rights metadata")
     s = re.sub(r"<> 63\b", f"<> {n_series}", s)

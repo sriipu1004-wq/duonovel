@@ -8,7 +8,9 @@
     "author_and_contributor_death_year_max": 1944,
     "region_restriction": "none (same as the 40 imported English works)",
     "excluded_from_reader_text": "Project Gutenberg header, license, footer, volunteer credits; no covers or illustrations",
-    "public_attribution": "Project Gutenberg name not shown (trademark); see public_attribution in each manifest"
+    "public_attribution": "Project Gutenberg name not shown (trademark); see public_attribution in each manifest",
+    "collections": "A collection is included only when the first publication of every piece in it has been confirmed (all within the cut-offs).",
+    "contributors": "Every other named person (preface writer, illustrator, editor) is recorded in contributors; imported contributions need a known death year <= 1944."
   },
   "works": [
     {
@@ -26,7 +28,14 @@
         "恋愛",
         "社会批評",
         "欲望"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 805,
@@ -43,7 +52,14 @@
       "tags": [
         "青春",
         "恋愛"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": "Appendix: Production notes",
+        "allowed_markers": []
+      },
+      "base_printing": "PG eBook edition 11; its production notes name a 1960 reprint and an undated post-1948 reprint as references (notes kept in archive metadata only). The novel's text is the 1920 text.",
+      "contributors": []
     },
     {
       "provider_id": 4368,
@@ -60,7 +76,16 @@
         "短編",
         "青春",
         "恋愛"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": [
+          "From its first published instalment"
+        ]
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 284,
@@ -77,7 +102,14 @@
         "社会批評",
         "恋愛",
         "悲劇"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": "=Transcriber",
+        "allowed_markers": []
+      },
+      "base_printing": "The PG transcriber modernized contractions and corrected one name (transcriber's note kept in archive metadata only).",
+      "contributors": []
     },
     {
       "provider_id": 4517,
@@ -94,24 +126,14 @@
         "悲劇",
         "孤独",
         "恋愛"
-      ]
-    },
-    {
-      "provider_id": 160,
-      "title": "The Awakening, and Selected Short Stories",
-      "author": "Kate Chopin",
-      "author_death_year": 1904,
-      "first_publication_year": 1899,
-      "first_publication_place": "Chicago (Herbert S. Stone)",
-      "evidence": "PG text has no imprint page; secondary. Stories are from the 1890s (author died 1904).",
-      "genres": [
-        "文芸"
       ],
-      "tags": [
-        "心理",
-        "家族",
-        "社会批評"
-      ]
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 219,
@@ -129,7 +151,14 @@
         "社会批評",
         "暗め",
         "狂気"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 5658,
@@ -147,7 +176,14 @@
         "罪悪感",
         "心理",
         "冒険"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 2226,
@@ -164,7 +200,16 @@
         "少年",
         "冒険",
         "友情"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": [
+          "papers, printed in Angrezi"
+        ]
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 2781,
@@ -182,7 +227,14 @@
         "動物",
         "不思議",
         "短編"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 558,
@@ -199,7 +251,14 @@
       "tags": [
         "サスペンス",
         "冒険"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 71865,
@@ -215,7 +274,28 @@
       "tags": [
         "心理",
         "人間関係"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "_BY VIRGINIA WOOLF_",
+          "_Fiction_",
+          "THE VOYAGE OUT NIGHT AND DAY",
+          "_Biography_",
+          "FLUSH ROGER FRY",
+          "_Criticism, etc._",
+          "THE COMMON READER THE SECOND",
+          "[Illustration: HBMC]",
+          "_New York_ HARCOURT",
+          "COPYRIGHT, 1925, BY HARCOURT",
+          "_All rights reserved, including",
+          "Twenty-third printing",
+          "PRINTED IN THE UNITED STATES"
+        ],
+        "remove_tail_from": "Transcriber",
+        "allowed_markers": []
+      },
+      "base_printing": "PG transcribed a later US printing: Harcourt, Brace & World, Inc., New York, 'Twenty-third printing' (copyright 1925, renewed by Leonard Woolf). Only the 1925 novel text is used; the later printing's imprint, list of the author's books and the transcriber's note are removed from the Reader body.",
+      "contributors": []
     },
     {
       "provider_id": 139,
@@ -232,7 +312,16 @@
       "tags": [
         "冒険",
         "不思議"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "COPYRIGHT, 1912"
+        ],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": "PG title page: Copyright, 1912 (removed from the Reader body).",
+      "contributors": []
     },
     {
       "provider_id": 2097,
@@ -248,7 +337,14 @@
       "tags": [
         "探偵",
         "ミステリー"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 108,
@@ -265,7 +361,14 @@
         "探偵",
         "ミステリー",
         "短編"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 834,
@@ -282,7 +385,16 @@
         "探偵",
         "ミステリー",
         "短編"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "cover"
+        ],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 3289,
@@ -298,7 +410,14 @@
       "tags": [
         "探偵",
         "ミステリー"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 204,
@@ -314,7 +433,14 @@
       "tags": [
         "探偵",
         "短編"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 1450,
@@ -330,7 +456,14 @@
       "tags": [
         "少女",
         "家族"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 498,
@@ -347,7 +480,16 @@
         "少女",
         "家族",
         "青春"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": [
+          "newspaper printed at Wareham"
+        ]
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 157,
@@ -365,7 +507,16 @@
         "少女",
         "青春",
         "恋愛"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "Copyright 1912 by The Century"
+        ],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": "PG title page: Copyright 1912 by The Century Company (removed from the Reader body).",
+      "contributors": []
     },
     {
       "provider_id": 47,
@@ -382,7 +533,14 @@
         "少女",
         "青春",
         "友情"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 146,
@@ -399,7 +557,16 @@
         "少女",
         "貧困",
         "友情"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "Summary: Sara Crewe"
+        ],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 708,
@@ -416,7 +583,14 @@
       "tags": [
         "不思議",
         "冒険"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 1874,
@@ -432,7 +606,14 @@
       "tags": [
         "家族",
         "友情"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 14838,
@@ -447,7 +628,20 @@
       ],
       "tags": [
         "動物"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "FREDERICK WARNE",
+          "FREDERICK WARNE",
+          "First published 1902",
+          "Frederick Warne & Co., 1902",
+          "Printed and bound in Great Britain"
+        ],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": "PG transcribed a later Frederick Warne printing (printed and bound by William Clowes Limited); the text is the 1902 text. Imprint lines removed; illustrations are not imported.",
+      "contributors": []
     },
     {
       "provider_id": 271,
@@ -463,7 +657,17 @@
       "tags": [
         "動物",
         "社会批評"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "by Anna Sewell [English Quaker",
+          "[Note: "
+        ],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": "PG transcribed an American edition of 1911 (first published 1877). The PG note is removed.",
+      "contributors": []
     },
     {
       "provider_id": 32,
@@ -480,7 +684,14 @@
       "tags": [
         "社会批評",
         "風刺"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 308,
@@ -496,6 +707,25 @@
       "tags": [
         "友情",
         "風刺"
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "Illustrations by A. Frederics",
+          "BRISTOL J. W. ARROWSMITH",
+          "LONDON SIMPKIN, MARSHALL",
+          "1889 _All rights reserved_"
+        ],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": "PG transcribed the 1889 J. W. Arrowsmith edition. Imprint lines removed; illustrations are not imported.",
+      "contributors": [
+        {
+          "name": "A. Frederics",
+          "role": "illustrator",
+          "death_year": null,
+          "imported": false
+        }
       ]
     },
     {
@@ -513,7 +743,14 @@
       "tags": [
         "冒険",
         "恋愛"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 2166,
@@ -529,7 +766,17 @@
       "tags": [
         "冒険",
         "戦闘"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "PREPARER",
+          "This was typed from a 1907 edition"
+        ],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": "PG transcribed the 1907 Cassell edition (author's note 1898 and postscript 1907 by Haggard). The preparer's note is removed.",
+      "contributors": []
     },
     {
       "provider_id": 2360,
@@ -546,6 +793,20 @@
       "tags": [
         "サスペンス",
         "冒険"
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": [
+        {
+          "name": "Erskine Childers",
+          "role": "named as editor (the author)",
+          "death_year": 1922,
+          "imported": true
+        }
       ]
     },
     {
@@ -562,7 +823,14 @@
       "tags": [
         "冒険",
         "恋愛"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 1300,
@@ -579,7 +847,14 @@
         "冒険",
         "戦闘",
         "恋愛"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 1074,
@@ -595,7 +870,21 @@
       "tags": [
         "冒険",
         "心理"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "_POPULAR EDITION_",
+          "LONDON WILLIAM HEINEMANN 1917",
+          "_First published_",
+          "_New Impression_",
+          "_Popular Edition_, _July_",
+          "_Copyright_, _London_"
+        ],
+        "remove_tail_from": "PRINTED IN GREAT BRITAIN",
+        "allowed_markers": []
+      },
+      "base_printing": "PG transcribed William Heinemann's 1917 'Popular Edition' impression (first published November 1904). Imprint lines removed.",
+      "contributors": []
     },
     {
       "provider_id": 1056,
@@ -612,7 +901,16 @@
         "青春",
         "社会批評",
         "恋愛"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": [
+          "when they were first published"
+        ]
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 2776,
@@ -628,7 +926,14 @@
       "tags": [
         "短編",
         "人間関係"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 155,
@@ -644,7 +949,14 @@
       "tags": [
         "探偵",
         "ミステリー"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 550,
@@ -660,7 +972,16 @@
       "tags": [
         "家族",
         "孤独"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "cover"
+        ],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 110,
@@ -677,7 +998,17 @@
         "悲劇",
         "恋愛",
         "社会批評"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": [
+          "since the book was first published",
+          "The novel was first published complete, in three volumes"
+        ]
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 421,
@@ -694,6 +1025,20 @@
       "tags": [
         "冒険",
         "友情"
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": [
+        {
+          "name": "Fanny Van de Grift Stevenson",
+          "role": "preface (Biographical Edition)",
+          "death_year": 1914,
+          "imported": true
+        }
       ]
     },
     {
@@ -711,7 +1056,14 @@
       "tags": [
         "少年",
         "冒険"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 86,
@@ -728,7 +1080,14 @@
       "tags": [
         "風刺",
         "冒険"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 208,
@@ -744,7 +1103,16 @@
       "tags": [
         "恋愛",
         "社会批評"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "The text is that of the first American appearance"
+        ],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": "PG note: the text is that of the first American appearance in book form, 1879 (removed from the Reader body).",
+      "contributors": []
     },
     {
       "provider_id": 2775,
@@ -761,7 +1129,14 @@
         "心理",
         "恋愛",
         "悲劇"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 2814,
@@ -777,7 +1152,16 @@
       "tags": [
         "短編",
         "人間関係"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "cover"
+        ],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 902,
@@ -794,23 +1178,30 @@
       "tags": [
         "自己犠牲",
         "短編"
-      ]
-    },
-    {
-      "provider_id": 121,
-      "title": "Northanger Abbey",
-      "author": "Jane Austen",
-      "author_death_year": 1817,
-      "first_publication_year": 1817,
-      "first_publication_place": "London (John Murray)",
-      "evidence": "PG text has no imprint page; secondary (issued December 1817, title page dated 1818).",
-      "genres": [
-        "恋愛",
-        "コメディ"
       ],
-      "tags": [
-        "恋愛",
-        "風刺"
+      "gutenberg_body": {
+        "remove_paragraphs": [
+          "SEVENTH IMPRESSION",
+          "LONDON DAVID NUTT",
+          "_First Edition_"
+        ],
+        "remove_tail_from": "Printed by BALLANTYNE",
+        "allowed_markers": []
+      },
+      "base_printing": "PG transcribed David Nutt's 1910 seventh impression (first edition May 1888). Imprint lines removed; illustrations are not imported.",
+      "contributors": [
+        {
+          "name": "Walter Crane",
+          "role": "illustrator",
+          "death_year": 1915,
+          "imported": false
+        },
+        {
+          "name": "Jacomb Hood",
+          "role": "illustrator",
+          "death_year": 1929,
+          "imported": false
+        }
       ]
     },
     {
@@ -828,7 +1219,14 @@
       "tags": [
         "冒険",
         "戦闘"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     },
     {
       "provider_id": 16389,
@@ -845,7 +1243,14 @@
       "tags": [
         "人間関係",
         "恋愛"
-      ]
+      ],
+      "gutenberg_body": {
+        "remove_paragraphs": [],
+        "remove_tail_from": null,
+        "allowed_markers": []
+      },
+      "base_printing": null,
+      "contributors": []
     }
   ],
   "excluded": [
@@ -868,6 +1273,16 @@
       "provider_id": 778,
       "title": "Five Children and It",
       "reason": "PG text keeps a PG sign-off and an '*** x-header ***' artifact inside the body; the gutenberg_body profile refuses it (GUTENBERG_BODY_PROVIDER_REFERENCE)."
+    },
+    {
+      "provider_id": 160,
+      "title": "The Awakening, and Selected Short Stories",
+      "reason": "Independent review (S1-1): the collection includes 'The Locket', first published in 1969. Collections are only included when every piece's first publication is confirmed."
+    },
+    {
+      "provider_id": 121,
+      "title": "Northanger Abbey",
+      "reason": "PG text ends with a note from the Signet Classic edition (a modern edition); the base text is a modern edition."
     }
   ]
 }

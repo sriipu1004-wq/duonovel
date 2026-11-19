@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import {
   decodeSourceBytes,
   normalizeSource,
+  normalizationOptionsFor,
   prepareArtifact,
   validateManifest,
   PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS,
@@ -18,7 +19,8 @@ for (const id of ids) {
   const raw = readFileSync(resolve(root, manifest.source_file));
   const text = normalizeSource(
     decodeSourceBytes(new Uint8Array(raw), manifest.source_encoding),
-    manifest.normalization_profile
+    manifest.normalization_profile,
+    normalizationOptionsFor(manifest)
   ).displayText;
   manifest.chapter_split =
     text.length <= PUBLIC_DOMAIN_EPISODE_MAX_CHARACTERS

@@ -84,6 +84,13 @@
     "家族",
     "青春"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [],
+    "remove_tail_from": null,
+    "allowed_markers": [
+      "newspaper printed at Wareham"
+    ]
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

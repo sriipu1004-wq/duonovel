@@ -84,6 +84,13 @@
     "冒険",
     "友情"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [],
+    "remove_tail_from": null,
+    "allowed_markers": [
+      "papers, printed in Angrezi"
+    ]
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

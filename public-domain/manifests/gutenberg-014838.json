@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1902, London (Frederick Warne). Evidence: PG title page: First published 1902, Frederick Warne & Co.",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1902, London (Frederick Warne). Evidence: PG title page: First published 1902, Frederick Warne & Co. Base printing: PG transcribed a later Frederick Warne printing (printed and bound by William Clowes Limited); the text is the 1902 text. Imprint lines removed; illustrations are not imported.",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
@@ -82,6 +82,17 @@
   "tags": [
     "動物"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [
+      "FREDERICK WARNE",
+      "FREDERICK WARNE",
+      "First published 1902",
+      "Frederick Warne & Co., 1902",
+      "Printed and bound in Great Britain"
+    ],
+    "remove_tail_from": null,
+    "allowed_markers": []
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

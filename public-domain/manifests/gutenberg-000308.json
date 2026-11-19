@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1889, London (J. W. Arrowsmith). Evidence: PG title page: London 1889; preface dated London, August 1889.",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1889, London (J. W. Arrowsmith). Evidence: PG title page: London 1889; preface dated London, August 1889. Base printing: PG transcribed the 1889 J. W. Arrowsmith edition. Imprint lines removed; illustrations are not imported. Other contributors: A. Frederics (illustrator, d. unknown, not imported).",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
@@ -83,6 +83,16 @@
     "友情",
     "風刺"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [
+      "Illustrations by A. Frederics",
+      "BRISTOL J. W. ARROWSMITH",
+      "LONDON SIMPKIN, MARSHALL",
+      "1889 _All rights reserved_"
+    ],
+    "remove_tail_from": null,
+    "allowed_markers": []
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

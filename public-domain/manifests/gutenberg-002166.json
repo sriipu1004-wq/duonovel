@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1885, London (Cassell). Evidence: PG note: typed from the 1907 Cassell edition; author's postscript dated 1907 (Haggard, d. 1925).",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1885, London (Cassell). Evidence: PG note: typed from the 1907 Cassell edition; author's postscript dated 1907 (Haggard, d. 1925). Base printing: PG transcribed the 1907 Cassell edition (author's note 1898 and postscript 1907 by Haggard). The preparer's note is removed.",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
@@ -83,6 +83,14 @@
     "冒険",
     "戦闘"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [
+      "PREPARER",
+      "This was typed from a 1907 edition"
+    ],
+    "remove_tail_from": null,
+    "allowed_markers": []
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

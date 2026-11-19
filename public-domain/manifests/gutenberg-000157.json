@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1912, New York (The Century Company). Evidence: PG title page: Copyright 1912 by The Century Company.",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1912, New York (The Century Company). Evidence: PG title page: Copyright 1912 by The Century Company. Base printing: PG title page: Copyright 1912 by The Century Company (removed from the Reader body).",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
@@ -85,6 +85,13 @@
     "青春",
     "恋愛"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [
+      "Copyright 1912 by The Century"
+    ],
+    "remove_tail_from": null,
+    "allowed_markers": []
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

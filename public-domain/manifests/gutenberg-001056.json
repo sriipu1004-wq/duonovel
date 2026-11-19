@@ -84,6 +84,13 @@
     "社会批評",
     "恋愛"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [],
+    "remove_tail_from": null,
+    "allowed_markers": [
+      "when they were first published"
+    ]
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

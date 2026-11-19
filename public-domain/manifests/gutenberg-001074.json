@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1904, New York (Macmillan) / London (Heinemann). Evidence: PG title page: London, William Heinemann, 1917 impression; First published November 1904.",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1904, New York (Macmillan) / London (Heinemann). Evidence: PG title page: London, William Heinemann, 1917 impression; First published November 1904. Base printing: PG transcribed William Heinemann's 1917 'Popular Edition' impression (first published November 1904). Imprint lines removed.",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
@@ -83,6 +83,18 @@
     "冒険",
     "心理"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [
+      "_POPULAR EDITION_",
+      "LONDON WILLIAM HEINEMANN 1917",
+      "_First published_",
+      "_New Impression_",
+      "_Popular Edition_, _July_",
+      "_Copyright_, _London_"
+    ],
+    "remove_tail_from": "PRINTED IN GREAT BRITAIN",
+    "allowed_markers": []
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

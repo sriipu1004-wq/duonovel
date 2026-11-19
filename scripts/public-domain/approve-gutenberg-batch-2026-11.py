@@ -27,10 +27,45 @@ FRAMEWORK = "public-domain/audits/en-ko-parity-rights-framework-2026-09-23.json"
 # Content warnings decided for this batch (Claude, from the cue counts of
 # content-warnings.ts and the known plot; not a full reading). sexual_r18: none.
 VIOLENCE = {
-    64317, 284, 4517, 160, 219, 5658, 558, 71865, 139, 2097, 108, 834, 3289,
-    204, 271, 308, 95, 2166, 1298, 1300, 1074, 1056, 2776, 155, 110, 421, 1837,
-    86, 2775, 2814, 848,
+    64317, 805, 284, 4517, 219, 5658, 558, 71865, 139, 2097, 108, 834, 3289,
+    204, 271, 308, 95, 2166, 1298, 1300, 1074, 1056, 2776, 155, 550, 110, 421,
+    1837, 86, 2775, 2814, 848,
 }
+
+BATCH = "public-domain/batches/gutenberg-2026-11-19.json"
+WORKS = {w["provider_id"]: w for w in json.load(open(BATCH, encoding="utf8"))["works"]}
+# Credits for other people near the start of the Reader body ("Illustrated by
+# ...", "with a preface by ..."); each must name a recorded contributor (or the
+# author). Checked on the prepared normalized text.
+CREDIT_RE = re.compile(
+    r"(?:illustrat(?:ed|ions?)|introduction|preface|edited|translated|notes|foreword)\s+by\s+((?:\S+\s+){0,5}\S+)",
+    re.I,
+)
+
+
+def check_contributors(manifest_id, number, author):
+    work = WORKS.get(number)
+    if work is None:
+        raise SystemExit(f"{manifest_id}: not in {BATCH}")
+    contributors = work.get("contributors", [])
+    for c in contributors:
+        died = c.get("death_year")
+        if c.get("imported") and (not isinstance(died, int) or died > 1944):
+            raise SystemExit(f"{manifest_id}: imported contribution by {c.get('name')} without a death year <= 1944")
+    normalized = open(f".public-domain-work/{manifest_id}/normalized.txt", encoding="utf8").read()
+    head = " ".join(re.split(r"\n[ \t]*\n", normalized)[:60])
+    head = re.sub(r"\s+", " ", head)
+    for match in CREDIT_RE.finditer(head):
+        credited = match.group(1).lower()
+        # Covered by a recorded contributor's surname, or by the author's full
+        # name (a surname alone may be someone else, e.g. "Mrs. Stevenson").
+        covered = any(c["name"].split()[-1].lower() in credited for c in contributors) or (
+            author.lower() in credited
+        )
+        if not covered:
+            raise SystemExit(f"{manifest_id}: unrecorded contributor credit '{match.group(0)}'")
+    return contributors
+
 VIOLENCE_NOTE = (
     "violence: killing, suicide, execution or a described corpse appears in the story "
     "(Claude's judgement from cue words and the known plot; not a full reading)."
@@ -58,6 +93,7 @@ for manifest_id in sys.argv[1:]:
     if m.get("import_status") != "prepared" or not m.get("chapter_count") or not m.get("source_hash"):
         raise SystemExit(f"{manifest_id}: not prepared")
     author = m["original_author"]
+    contributors = check_contributors(manifest_id, number, author)
     m["content_warnings"] = ["violence"] if number in VIOLENCE else []
     m["content_warning_notes"] = VIOLENCE_NOTE if number in VIOLENCE else NONE_NOTE
     m["rights_status"] = "approved"
@@ -87,7 +123,13 @@ for manifest_id in sys.argv[1:]:
     rc["original_work"] = {
         "status": "approved",
         "basis": f"{author} (d. {death}), first published {first}: out of term in JP/US/KR, life+70/80 countries and Mexico ({NOTE}).",
-        "notes": "Batch criteria: every named author/contributor died in or before 1944; first publication in or before 1930; English original.",
+        "notes": "Batch criteria: every named author/contributor died in or before 1944; first publication in or before 1930; English original."
+        + (
+            " Contributors: "
+            + "; ".join(f"{c['name']} ({c['role']}, d. {c['death_year'] or 'unknown'}, {'imported' if c['imported'] else 'not imported'})" for c in contributors)
+            if contributors
+            else ""
+        ),
     }
     shared = "Exact provider source is hash-pinned; no modern translation, cover, illustration, annotation or editorial layer is imported (texts with a modern introduction were excluded)."
     rc["edition"] = {"status": "approved", "basis": shared, "notes": m["rights_notes"].split(" Evidence: ")[-1][:300]}

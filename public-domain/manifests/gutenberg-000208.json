@@ -20,7 +20,7 @@
   "translation_language": null,
   "rights_status": "pending",
   "rights_basis": "",
-  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1878, London (The Cornhill Magazine). Evidence: PG note: the text is that of the first American appearance in book form, 1879.",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1878, London (The Cornhill Magazine). Evidence: PG note: the text is that of the first American appearance in book form, 1879. Base printing: PG note: the text is that of the first American appearance in book form, 1879 (removed from the Reader body).",
   "rights_components": {
     "original_work": {
       "status": "needs_review",
@@ -83,6 +83,13 @@
     "恋愛",
     "社会批評"
   ],
+  "gutenberg_body": {
+    "remove_paragraphs": [
+      "The text is that of the first American appearance"
+    ],
+    "remove_tail_from": null,
+    "allowed_markers": []
+  },
   "public_attribution": {
     "source_provider": "Public domain",
     "source_url": null,

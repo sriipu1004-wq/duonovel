@@ -3,7 +3,6 @@ gutenberg-000805
 gutenberg-004368
 gutenberg-000284
 gutenberg-004517
-gutenberg-000160
 gutenberg-000219
 gutenberg-005658
 gutenberg-002226
@@ -45,6 +44,5 @@ gutenberg-000208
 gutenberg-002775
 gutenberg-002814
 gutenberg-000902
-gutenberg-000121
 gutenberg-000848
 gutenberg-016389
