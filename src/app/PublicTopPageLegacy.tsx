@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import PublicWorkBoardCard from "@/components/public/PublicWorkBoardCard";
 import {
@@ -17,6 +17,8 @@ import { localizeTagLabel } from "@/i18n/tagLabels";
 import type { UiLocale } from "@/i18n/config";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
+import FollowingUpdatesList from "@/features/updates/FollowingUpdatesList";
+import { loadFollowingUpdates } from "@/lib/updates/followingUpdates.server";
 
 const HOME_DESCRIPTION =
   "外国語の長編を管理して読む個人本棚、多言語対訳、読み上げ、Web小説の閲覧・投稿に対応した読書サービスです。";
@@ -294,6 +296,7 @@ type HomeViewerState = {
   subscriberAvailable: boolean;
   bookmarksAvailable: boolean;
   signedIn: boolean;
+  userId: string | null;
   subscriber: boolean;
   bookmarkedSeriesIds: Set<string>;
 };
@@ -319,6 +322,7 @@ async function loadHomeViewerState(): Promise<HomeViewerState> {
         subscriberAvailable: true,
         bookmarksAvailable: true,
         signedIn: false,
+        userId: null,
         subscriber: false,
         bookmarkedSeriesIds: new Set(),
       };
@@ -359,6 +363,7 @@ async function loadHomeViewerState(): Promise<HomeViewerState> {
       subscriberAvailable: subscriberResult.status === "fulfilled",
       bookmarksAvailable: bookmarkResult.status === "fulfilled",
       signedIn: true,
+      userId: user.id,
       subscriber:
         subscriberResult.status === "fulfilled" ? subscriberResult.value : false,
       bookmarkedSeriesIds: new Set(
@@ -377,6 +382,7 @@ async function loadHomeViewerState(): Promise<HomeViewerState> {
       subscriberAvailable: false,
       bookmarksAvailable: false,
       signedIn: false,
+      userId: null,
       subscriber: false,
       bookmarkedSeriesIds: new Set(),
     };
@@ -531,6 +537,69 @@ function HomeWorkSectionsFallback({ mode }: { mode: string }) {
         <HomeSingleSectionFallback key={id} id={id} />
       ))}
     </>
+  );
+}
+
+/**
+ * P9 PR-P9-5: signed-in readers see unread episodes posted recently in works
+ * they bookmarked or by authors they follow. Nothing is rendered for a
+ * signed-out visitor (the bookmark section below already prompts sign-in).
+ */
+async function HomeFollowingUpdatesSection({
+  viewerStatePromise,
+  locale,
+  dictionary,
+}: {
+  viewerStatePromise: Promise<HomeViewerState>;
+  locale: UiLocale;
+  dictionary: HomeDictionary;
+}) {
+  const viewerState = await viewerStatePromise;
+  if (!viewerState.signedIn || !viewerState.userId) return null;
+  const copy = dictionary.followingUpdates;
+
+  let result: Awaited<ReturnType<typeof loadFollowingUpdates>> | null = null;
+  try {
+    const supabase = await createServerClient();
+    result = await runReadOnlyWithRetry(
+      () => loadFollowingUpdates({ supabase, userId: viewerState.userId as string }),
+      { operation: "home following updates", timeoutMs: 3000, retries: 0 }
+    );
+  } catch (error) {
+    console.warn(
+      "[home] following updates unavailable",
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+
+  const notice = (text: string) => (
+    <div className="mt-6 rounded-[24px] border border-dashed border-black/15 bg-neutral-50 px-5 py-6 text-sm leading-7 text-neutral-600">
+      {text}
+    </div>
+  );
+  const body: ReactNode = !result
+    ? notice(copy.unavailable)
+    : !result.hasFollowTargets
+      ? notice(copy.noTargets)
+      : (
+        <FollowingUpdatesList
+          items={result.items}
+          copy={copy}
+          dateLocale={locale === "ja" ? "ja-JP" : locale === "ko" ? "ko-KR" : "en-US"}
+        />
+      );
+
+  return (
+    <section id="following-updates" className="pt-10">
+      <SectionHeading
+        eyebrow="FOLLOWING UPDATES"
+        title={copy.title}
+        description={copy.description}
+        moreHref={localizePath("/search?saved=bookmarked-works&order=updated", locale)}
+        showMore={dictionary.showMore}
+      />
+      {body}
+    </section>
   );
 }
 
@@ -776,6 +845,14 @@ async function HomeWorkSections({
 
   return (
     <>
+      <Suspense fallback={null}>
+        <HomeFollowingUpdatesSection
+          viewerStatePromise={viewerStatePromise}
+          locale={locale}
+          dictionary={dictionary}
+        />
+      </Suspense>
+
       <Suspense fallback={<HomeSingleSectionFallback id="bookmark-updates" />}>
         <HomeBookmarkSection
           workCards={workCards}

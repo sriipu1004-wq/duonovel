@@ -57,6 +57,7 @@
     "test:public-seo-alignment": "node --import tsx scripts/test-public-seo-alignment.ts",
     "test:p9-seo-metadata": "node --import tsx scripts/test-p9-seo-metadata.ts",
     "test:p9-share-ogp": "node --import tsx scripts/test-p9-share-ogp.tsx",
+    "test:p9-following-updates": "node --import tsx scripts/test-p9-following-updates.ts",
     "test:legacy-attribution": "node --import tsx scripts/test-legacy-attribution.ts",
     "test:region-restriction": "node --import tsx scripts/test-region-restriction.ts",
     "test:public-read-reliability-performance": "node --import tsx scripts/test-public-read-reliability-performance.ts",
