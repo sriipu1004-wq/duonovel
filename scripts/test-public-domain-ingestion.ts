@@ -8,6 +8,8 @@ import {
   chapterPlanSha256,
   isDuplicatePublicDomainSeries,
   normalizeSource,
+  normalizationOptionsFor,
+  type GutenbergBodyOptions,
   prepareArtifact,
   sha256Bytes,
   splitChapters,
@@ -34,7 +36,13 @@ import {
   buildRegionPublishSql,
   regionPublishTargetFromManifest,
 } from "./public-domain/region-publish-sql";
-import { isAllowedGutenbergTextUrl } from "./public-domain/gutenberg";
+import {
+  gutenbergArchiveDir,
+  gutenbergBodyBetweenMarkers,
+  gutenbergMirrorUrls,
+  gutenbergRdfDeclaresUsPublicDomain,
+  isAllowedGutenbergTextUrl,
+} from "./public-domain/gutenberg";
 import {
   chooseGonguTxtSourceFromPopupHtml,
   detectGonguTextEncoding,
@@ -611,6 +619,169 @@ function testAozoraBodyProfile() {
   );
   // The legacy "aozora" profile is unchanged.
   assert.equal(normalizeSource(fixture, "aozora").displayText.includes(marker), true);
+}
+
+function testGutenbergBodyProfileAndPublicAttribution() {
+  const wrap = (body: string) =>
+    [
+      "The Project Gutenberg eBook of Fixture",
+      "*** START OF THE PROJECT GUTENBERG EBOOK FIXTURE ***",
+      body,
+      "*** END OF THE PROJECT GUTENBERG EBOOK FIXTURE ***",
+      "License footer",
+    ].join("\n");
+  const gb = (body: string, options?: Partial<GutenbergBodyOptions>) =>
+    normalizeSource(wrap(body), "gutenberg_body", {
+      gutenbergBody: options
+        ? { remove_paragraphs: [], remove_tail_from: null, allowed_markers: [], ...options }
+        : undefined,
+    });
+  // Volunteer credits (names only, or naming PGDP/a URL) among the first
+  // paragraphs move to archive metadata; a whitespace-only line separates
+  // paragraphs like an empty one.
+  const cleaned = gb(
+    "Produced by David Reed, Ken Reeder, and David Widger\n \nE-text prepared by Judith Boss and the Online Distributed\nProofreading Team at https://www.pgdp.net\n\t\nCHAPTER I\n\nBody text."
+  );
+  assert.equal(cleaned.displayText, "CHAPTER I\n\nBody text.");
+  assert.equal(cleaned.archiveMetadata.includes("Produced by David Reed"), true);
+  assert.equal(cleaned.archiveMetadata.includes("E-text prepared by Judith Boss"), true);
+  assert.equal(cleaned.archiveMetadata.includes("License footer"), true);
+  // Prose that merely starts like a credit is kept.
+  const prose = "Produced by the hand of fate, the boy walked into the town before dawn.";
+  assert.equal(gb(`${prose}\n\nBody.`).displayText, `${prose}\n\nBody.`);
+  // A credit-like paragraph after the first 3 paragraphs, or a very long one, is kept.
+  assert.equal(
+    gb("Title\n\nBy Someone\n\nContents\n\nProduced by David Reed\n\nBody.").displayText.includes("Produced by David Reed"),
+    true
+  );
+  assert.equal(
+    gb(`Produced by ${"Name ".repeat(90)}\n\nBody.`).displayText.startsWith("Produced by"),
+    true
+  );
+  // Trailing sign-off, also when wrapped onto two lines; inner spacing is kept.
+  const signedOff = gb("CHAPTER I\n\n\n\nBody.\n\n\nEnd of Project Gutenberg's Fixture, by\nSomeone Else");
+  assert.equal(signedOff.displayText, "CHAPTER I\n\n\n\nBody.");
+  assert.equal(signedOff.archiveMetadata.includes("End of Project Gutenberg's Fixture"), true);
+  assert.equal(gb("Body.\n\n*Project Gutenberg Etext of Fixture, by Someone*").displayText, "Body.");
+  // A body without credits is unchanged.
+  assert.equal(gb("CHAPTER I\n\nBody.").displayText, "CHAPTER I\n\nBody.");
+  // A remaining provider name or URL anywhere in the body stops preparation,
+  // including scheme-less PG hosts.
+  for (const leftover of [
+    "This came from Project Gutenberg.",
+    "See https://example.org/ for notes.",
+    "Visit www.gutenberg.net for more.",
+    "Mirror at gutenberg.org today.",
+    "Old site promo.net/pg had it.",
+  ]) {
+    assert.throws(() => gb(`CHAPTER I\n\n${leftover}`), /GUTENBERG_BODY_PROVIDER_REFERENCE/, leftover);
+  }
+  // Transcriber/production notes and later-printing imprint wording stop
+  // preparation unless removed or explicitly allowed.
+  for (const leftover of [
+    "Transcriber's Note: spelling kept.",
+    "Appendix: Production notes for eBook edition 11",
+    "[Note: This etext was transcribed from an American edition of 1911.]",
+    "_All rights reserved_",
+    "COPYRIGHT, 1925, BY X. RENEWED BY Y",
+    "_Copyright_, _London_, 1904",
+    "PRINTED IN GREAT BRITAIN BY R. CLAY",
+    "First published 1902",
+  ]) {
+    assert.throws(() => gb(`CHAPTER I\n\nBody.\n\n${leftover}`), /GUTENBERG_BODY_EDITORIAL_MARKER/, leftover);
+  }
+  // Ordinary words are not markers.
+  assert.equal(gb("He made a pretext; the copyrighted song was renewed.").displayText.length > 0, true);
+  // Manifest-listed paragraphs (exact starts, line breaks compared as spaces)
+  // and a tail section are moved out; an allowed passage passes.
+  const trimmed = gb(
+    "TITLE\n\nCOPYRIGHT, 1925, BY HARCOURT,\nBRACE. RENEWED BY L. W.\n\nWARNE\n\nWARNE\n\nCHAPTER I\n\nHe said the book was first published\nin March.\n\nTHE END\n\nTranscriber's note\n\nPage 159: changed.",
+    {
+      remove_paragraphs: ["COPYRIGHT, 1925, BY HARCOURT, BRACE", "WARNE", "WARNE"],
+      remove_tail_from: "Transcriber",
+      allowed_markers: ["the book was first published in March"],
+    }
+  );
+  assert.equal(
+    trimmed.displayText,
+    "TITLE\n\nCHAPTER I\n\nHe said the book was first published\nin March.\n\nTHE END"
+  );
+  assert.equal(trimmed.archiveMetadata.includes("RENEWED BY L. W."), true);
+  assert.equal(trimmed.archiveMetadata.includes("Page 159: changed."), true);
+  // A listed start that is missing, or matches a different number of
+  // paragraphs, stops preparation; so does an allowed passage that is absent.
+  assert.throws(() => gb("CHAPTER I\n\nBody.", { remove_paragraphs: ["COPYRIGHT 1999"] }), /GUTENBERG_BODY_TRIM_NOT_FOUND/);
+  assert.throws(() => gb("WARNE\n\nWARNE\n\nBody.", { remove_paragraphs: ["WARNE"] }), /GUTENBERG_BODY_TRIM_NOT_FOUND/);
+  assert.throws(() => gb("CHAPTER I\n\nBody.", { remove_tail_from: "Transcriber" }), /GUTENBERG_BODY_TRIM_NOT_FOUND/);
+  assert.throws(() => gb("CHAPTER I\n\nBody.", { allowed_markers: ["not in the body"] }), /GUTENBERG_BODY_ALLOWED_MARKER_NOT_FOUND/);
+  // Credits only, or no START/END markers, are refused.
+  assert.throws(() => gb("Produced by A"), /GUTENBERG_BODY_EMPTY_AFTER_CREDITS/);
+  assert.throws(() => normalizeSource("Body without markers", "gutenberg_body"), /GUTENBERG_BODY_BOUNDARY_NOT_CONFIRMED/);
+  // The legacy "gutenberg" profile keeps credit lines in the body.
+  assert.equal(
+    normalizeSource(wrap("Produced by A\n\nBody."), "gutenberg").displayText.startsWith("Produced by A"),
+    true
+  );
+  // The manifest field is validated and only allowed with gutenberg_body.
+  const withTrim = approvedManifest({
+    normalization_profile: "gutenberg_body",
+    public_attribution: { source_provider: "Public domain", source_url: null, edition: null },
+    gutenberg_body: { remove_paragraphs: ["COPYRIGHT, 1912"], remove_tail_from: null, allowed_markers: [] },
+  });
+  assert.deepEqual(validateManifest(withTrim).errors, []);
+  assert.deepEqual(normalizationOptionsFor(validateManifest(withTrim).manifest!), {
+    gutenbergBody: { remove_paragraphs: ["COPYRIGHT, 1912"], remove_tail_from: null, allowed_markers: [] },
+  });
+  assert.equal(
+    validateManifest({ ...withTrim, normalization_profile: "gutenberg" }).errors.some((error) =>
+      error.includes("only valid with the gutenberg_body profile")
+    ),
+    true
+  );
+  assert.equal(
+    validateManifest({
+      ...withTrim,
+      gutenberg_body: { remove_paragraphs: ["ab"], remove_tail_from: null, allowed_markers: [] },
+    }).ok,
+    false
+  );
+
+  const attribution = {
+    source_provider: "Public domain",
+    source_url: null,
+    edition: "First published 1925 (New York)",
+  };
+  const reviewed = approvedManifest({
+    normalization_profile: "gutenberg_body",
+    source_provider: "Project Gutenberg",
+    public_attribution: attribution,
+  });
+  assert.deepEqual(validateManifest(reviewed).errors, []);
+  const missing = validateManifest({ ...reviewed, public_attribution: undefined });
+  assert.equal(missing.errors.includes("gutenberg_body manifests require public_attribution"), true);
+  const named = validateManifest({
+    ...reviewed,
+    public_attribution: { ...attribution, source_provider: "Project Gutenberg" },
+  });
+  assert.equal(named.errors.some((error) => error.includes("must not name Project Gutenberg")), true);
+  const linked = validateManifest({
+    ...reviewed,
+    public_attribution: { ...attribution, source_url: "https://www.gutenberg.org/ebooks/1" },
+  });
+  assert.equal(linked.errors.some((error) => error.includes("must not name Project Gutenberg")), true);
+  const tagged = validateManifest({ ...reviewed, tags: ["Project Gutenberg"] });
+  assert.equal(tagged.errors.some((error) => error.includes("Project Gutenberg tag")), true);
+
+  const plan = buildDraftImportPlan({
+    manifest: validateManifest(reviewed).manifest!,
+    artifact: artifact(),
+    officialUserId: "official-user-id",
+  });
+  const publicMetadata = readPublicDomainMetadata(plan.series.effect_settings);
+  assert.equal(publicMetadata?.sourceProvider, "Public domain");
+  assert.equal(publicMetadata?.sourceUrl, null);
+  assert.equal(publicMetadata?.edition, "First published 1925 (New York)");
+  assert.equal(JSON.stringify(plan.series.effect_settings).includes("gutenberg.org"), false);
 }
 
 function testNewAozoraSourceAttributionGate() {
@@ -1424,6 +1595,7 @@ function main() {
   testAozoraAnnotationFidelityPreflight();
   testAozoraReaderBodyOptIn();
   testAozoraBodyProfile();
+  testGutenbergBodyProfileAndPublicAttribution();
   testDraftInsertConfirmationAndRollback();
   testPreparedArtifactIsBoundToRawBytes();
   testPendingAndApprovedGates();
@@ -1452,6 +1624,54 @@ function main() {
   testRegionRestrictionManifestGate();
   testAozoraCountryLimitedCandidatePolicy();
   testRegionPublishSqlShape();
+  // PGLAF mirror fallback (2026-11-20): archive paths, RDF rights gate, body cross-check normalization.
+  assert.equal(gutenbergArchiveDir(5), "0/5");
+  assert.equal(gutenbergArchiveDir(11), "1/11");
+  assert.equal(gutenbergArchiveDir(64317), "6/4/3/1/64317");
+  assert.deepEqual(gutenbergMirrorUrls(1837).crossCheck, [
+    "https://mirrors.xmission.com/gutenberg/1/8/3/1837/1837-0.txt",
+    "https://mirrors.xmission.com/gutenberg/1/8/3/1837/1837.txt",
+  ]);
+  assert.equal(gutenbergMirrorUrls(1837).text, "https://gutenberg.pglaf.org/cache/epub/1837/pg1837.txt");
+  const pgRdf =
+    '<pgterms:ebook rdf:about="ebooks/64317"><dcterms:rights>Public domain in the USA.</dcterms:rights>';
+  assert.equal(gutenbergRdfDeclaresUsPublicDomain(pgRdf, 64317), true);
+  assert.equal(gutenbergRdfDeclaresUsPublicDomain(pgRdf, 6431), false);
+  assert.equal(
+    gutenbergRdfDeclaresUsPublicDomain(pgRdf.replace("Public domain in the USA.", "Copyrighted."), 64317),
+    false
+  );
+  const cacheCopy = [
+    "header",
+    "*** START OF THE PROJECT GUTENBERG EBOOK X ***",
+    "Line one  ",
+    "",
+    "Last line.",
+    "",
+    "",
+    "*** END OF THE PROJECT GUTENBERG EBOOK X ***",
+    "license",
+  ].join("\r\n");
+  const archiveCopy = [
+    "*** START OF THIS PROJECT GUTENBERG EBOOK X ***",
+    "Line one",
+    "",
+    "Last line.",
+    "",
+    "End of the Project Gutenberg EBook of X,",
+    "Complete by Y",
+    "",
+    "*** END OF THIS PROJECT GUTENBERG EBOOK X ***",
+    "",
+  ].join("\n");
+  assert.equal(gutenbergBodyBetweenMarkers(cacheCopy), ["Line one", "", "Last line."].join("\n"));
+  assert.equal(gutenbergBodyBetweenMarkers(archiveCopy), gutenbergBodyBetweenMarkers(cacheCopy));
+  assert.notEqual(
+    gutenbergBodyBetweenMarkers(archiveCopy.replace("Last line.", "Last line!")),
+    gutenbergBodyBetweenMarkers(cacheCopy)
+  );
+  assert.equal(gutenbergBodyBetweenMarkers("no markers"), null);
+
   console.log(
     "PASS: Public Domain rights gate, verified public metadata display gate, conservative source policy, safe paragraph chunking, content taxonomy/narration Draft plan, hash/idempotency, and non-paid ingestion"
   );

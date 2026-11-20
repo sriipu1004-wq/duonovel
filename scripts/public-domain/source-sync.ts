@@ -7,7 +7,13 @@ import {
 import { resolve } from "node:path";
 import { unzipSync } from "fflate";
 import { isAllowedAozoraTextUrl } from "./aozora";
-import { isAllowedGutenbergTextUrl } from "./gutenberg";
+import {
+  gutenbergBodyBetweenMarkers,
+  gutenbergEbookNumberFromTextUrl,
+  gutenbergMirrorUrls,
+  gutenbergRdfDeclaresUsPublicDomain,
+  isAllowedGutenbergTextUrl,
+} from "./gutenberg";
 import {
   chooseGonguTxtSourceFromPopupHtml,
   detectGonguTextEncoding,
@@ -146,7 +152,31 @@ for (const [index, id] of ids.entries()) {
     throw new Error(`${id}: source_download_url is missing or not allowlisted`);
   }
 
-  if (sourceKind === "gutenberg" || sourceKind === "gongu") {
+  const gutenbergMirror =
+    sourceKind === "gutenberg" && process.env.PUBLIC_DOMAIN_GUTENBERG_MIRROR === "pglaf"
+      ? (() => {
+          const ebookNumber = gutenbergEbookNumberFromTextUrl(downloadUrl!);
+          if (!ebookNumber) throw new Error(`${id}: Gutenberg ebook number could not be resolved`);
+          if (manifest.source_url !== `https://www.gutenberg.org/ebooks/${ebookNumber}`) {
+            throw new Error(`${id}: source_url does not match the ebook number ${ebookNumber}`);
+          }
+          return { ebookNumber, ...gutenbergMirrorUrls(ebookNumber) };
+        })()
+      : null;
+
+  if (gutenbergMirror) {
+    const rdfResponse = await fetchWithTransientRetry(
+      gutenbergMirror.rdf,
+      { redirect: "error", headers: { "user-agent": "LIB-read-Public-Domain-Operator/1.0 (+https://www.syosetu-libread.com)" } },
+      `${id} PGLAF mirror catalog RDF`
+    );
+    if (!rdfResponse.ok) {
+      throw new Error(`${id}: PGLAF mirror RDF fetch failed with HTTP ${rdfResponse.status}`);
+    }
+    if (!gutenbergRdfDeclaresUsPublicDomain(await rdfResponse.text(), gutenbergMirror.ebookNumber)) {
+      throw new Error(`${id}: PGLAF mirror RDF does not declare Public domain in the USA for this ebook`);
+    }
+  } else if (sourceKind === "gutenberg" || sourceKind === "gongu") {
     const landingResponse = await fetchWithTransientRetry(
       manifest.source_url,
       {
@@ -251,7 +281,7 @@ for (const [index, id] of ids.entries()) {
 
   if (index > 0) await sleep(delayMs);
   const response = await fetchWithTransientRetry(
-    downloadUrl,
+    gutenbergMirror ? gutenbergMirror.text : downloadUrl,
     {
       redirect: "error",
       headers: {
@@ -325,6 +355,35 @@ for (const [index, id] of ids.entries()) {
         `ENCODING ${id}: ${manifest.source_encoding} -> ${detectedEncoding}`
       );
     }
+  }
+
+  if (gutenbergMirror) {
+    const mirrorBody = gutenbergBodyBetweenMarkers(new TextDecoder("utf-8", { fatal: true }).decode(sourceBytes));
+    if (!mirrorBody) throw new Error(`${id}: PGLAF mirror text has no START/END markers`);
+    let crossChecked: string | null = null;
+    for (const url of gutenbergMirror.crossCheck) {
+      const check = await fetchWithTransientRetry(
+        url,
+        { redirect: "error", headers: { "user-agent": "LIB-read-Public-Domain-Operator/1.0 (+https://www.syosetu-libread.com)" } },
+        `${id} cross-check mirror`
+      );
+      if (check.status === 404) continue;
+      if (!check.ok) throw new Error(`${id}: cross-check mirror failed with HTTP ${check.status}`);
+      let checkText: string;
+      try {
+        checkText = new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(await check.arrayBuffer()));
+      } catch {
+        continue;
+      }
+      if (gutenbergBodyBetweenMarkers(checkText) === mirrorBody) {
+        crossChecked = url;
+        break;
+      }
+    }
+    if (!crossChecked) {
+      throw new Error(`${id}: PGLAF mirror body does not match the independent mirror copy`);
+    }
+    console.log(`CROSSCHECK ${id}: body matches ${crossChecked}`);
   }
 
   const hash = sha256Bytes(sourceBytes);

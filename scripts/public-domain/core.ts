@@ -46,6 +46,7 @@ export const NORMALIZATION_PROFILES = [
   "aozora_reader_body",
   "aozora_body",
   "gutenberg",
+  "gutenberg_body",
   "standard_ebooks",
   "gongu_madang",
 ] as const;
@@ -212,6 +213,17 @@ export type PublicDomainManifest = {
   // manifests whose author/translator died after 1945.
   region_restriction?: PublicDomainRegionRestriction | null;
 
+  // What the public work page shows as its source (effect_settings.publicDomain
+  // sourceProvider/sourceUrl/edition). When absent, the provider fields above
+  // are shown. Required for the gutenberg_body profile so that the Project
+  // Gutenberg name (a trademark; PG license section 1.C) is not shown
+  // (docs/rights/region-research-2026-11-19-gutenberg.md).
+  public_attribution?: PublicDomainPublicAttribution;
+
+  // gutenberg_body only: editorial paragraphs to move out of the Reader body
+  // and marker words allowed in exact passages (see normalizeGutenbergBody).
+  gutenberg_body?: GutenbergBodyOptions;
+
   source_hash: string | null;
 
   approved: boolean;
@@ -220,6 +232,49 @@ export type PublicDomainManifest = {
   cover_source: string | null;
   cover_rights_status: RightsComponentStatus | null;
 };
+
+export type PublicDomainPublicAttribution = {
+  source_provider: string;
+  source_url: string | null;
+  edition: string | null;
+};
+
+const PROVIDER_NAME_PATTERN = /gutenberg|pglaf|pgdp/iu;
+
+function parsePublicAttribution(
+  value: unknown,
+  errors: string[]
+): PublicDomainPublicAttribution | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    errors.push("public_attribution must be an object when provided");
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const sourceProvider =
+    typeof record.source_provider === "string" ? record.source_provider.trim() : "";
+  if (!sourceProvider) errors.push("public_attribution.source_provider is required");
+  const sourceUrl = record.source_url;
+  if (sourceUrl !== null && (typeof sourceUrl !== "string" || !/^https:\/\//u.test(sourceUrl))) {
+    errors.push("public_attribution.source_url must be an https URL or null");
+  }
+  const edition = record.edition;
+  if (edition !== null && typeof edition !== "string") {
+    errors.push("public_attribution.edition must be a string or null");
+  }
+  const attribution: PublicDomainPublicAttribution = {
+    source_provider: sourceProvider,
+    source_url: typeof sourceUrl === "string" ? sourceUrl : null,
+    edition: typeof edition === "string" ? edition : null,
+  };
+  if (
+    [attribution.source_provider, attribution.source_url ?? "", attribution.edition ?? ""].some(
+      (text) => PROVIDER_NAME_PATTERN.test(text)
+    )
+  ) {
+    errors.push("public_attribution must not name Project Gutenberg (trademark)");
+  }
+  return attribution;
+}
 
 export type ManifestValidationResult = {
   ok: boolean;
@@ -671,6 +726,50 @@ export function validateManifest(value: unknown): ManifestValidationResult {
     ? parseRegionRestriction(value.region_restriction, errors)
     : undefined;
 
+  const publicAttribution =
+    value.public_attribution === undefined
+      ? undefined
+      : parsePublicAttribution(value.public_attribution, errors);
+  let gutenbergBody: GutenbergBodyOptions | undefined;
+  if (value.gutenberg_body !== undefined) {
+    const raw = value.gutenberg_body as Record<string, unknown> | null;
+    const stringList = (key: string) => {
+      const list = raw?.[key];
+      if (
+        !Array.isArray(list) ||
+        !list.every((item) => typeof item === "string" && item.trim().length >= 4)
+      ) {
+        errors.push(`gutenberg_body.${key} must be an array of strings of at least 4 characters`);
+        return [];
+      }
+      return list as string[];
+    };
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      errors.push("gutenberg_body must be an object when provided");
+    } else {
+      const tail = raw.remove_tail_from;
+      if (tail !== null && (typeof tail !== "string" || tail.trim().length < 4)) {
+        errors.push("gutenberg_body.remove_tail_from must be null or a string of at least 4 characters");
+      }
+      gutenbergBody = {
+        remove_paragraphs: stringList("remove_paragraphs"),
+        remove_tail_from: typeof tail === "string" ? tail : null,
+        allowed_markers: stringList("allowed_markers"),
+      };
+    }
+    if (value.normalization_profile !== "gutenberg_body") {
+      errors.push("gutenberg_body is only valid with the gutenberg_body profile");
+    }
+  }
+  if (value.normalization_profile === "gutenberg_body") {
+    if (value.public_attribution === undefined) {
+      errors.push("gutenberg_body manifests require public_attribution");
+    }
+    if (tags.some((tag) => PROVIDER_NAME_PATTERN.test(tag))) {
+      errors.push("gutenberg_body manifests must not use a Project Gutenberg tag");
+    }
+  }
+
   const sourceHash = readString(value, "source_hash", errors, { nullable: true });
   if (sourceHash && !/^[a-f0-9]{64}$/.test(sourceHash)) {
     errors.push("source_hash must be a lowercase SHA-256 hex digest or null");
@@ -805,6 +904,8 @@ export function validateManifest(value: unknown): ManifestValidationResult {
       ? { content_notice_candidate: contentNoticeCandidateRaw }
       : {}),
     ...(regionRestrictionStated ? { region_restriction: regionRestriction ?? null } : {}),
+    ...(publicAttribution ? { public_attribution: publicAttribution } : {}),
+    ...(gutenbergBody ? { gutenberg_body: gutenbergBody } : {}),
     source_hash: sourceHash,
     approved,
     import_status: IMPORT_STATUSES.includes(importStatus as ImportStatus)
@@ -975,14 +1076,251 @@ function normalizeGutenberg(source: string): NormalizationResult {
   return { displayText, archiveMetadata, changes, warnings };
 }
 
+// Opt-in profile for Gutenberg batches from 2026-11-19 on: like "gutenberg",
+// and additionally moves out of the Reader body, into archive metadata:
+// - volunteer credit paragraphs among the first 3 paragraphs ("Produced by
+//   <names>", "E-text prepared by ...") — only when short and clearly a credit
+//   (names only, or naming PG/PGDP/a URL), so prose such as "Produced by the
+//   hand of fate, ..." stays;
+// - a trailing "End of Project Gutenberg's ..." sign-off (also when wrapped);
+// - the paragraphs that the manifest lists in `gutenberg_body`
+//   (transcriber's notes, later-printing imprints and copyright lines), each
+//   identified by the exact start of the paragraph; a listed start that is not
+//   found stops preparation.
+// The Reader body must then contain no PG/PGDP name or URL, and no
+// transcriber/production note or copyright/imprint wording unless the manifest
+// allows that exact text; otherwise preparation stops so a person can decide
+// (docs/rights/pd-batch-2026-11-gutenberg.md).
+export type GutenbergBodyOptions = {
+  // Exact starts of paragraphs to remove. Each must match exactly one
+  // paragraph among the first 60 or the last 40 paragraphs.
+  remove_paragraphs: string[];
+  // Exact start of a paragraph among the last 40; it and every later
+  // paragraph are removed (e.g. an appended production-notes section).
+  remove_tail_from: string | null;
+  // Exact body substrings that may contain a checked marker word
+  // (e.g. a story sentence using "Copyright"). Each must occur in the body.
+  allowed_markers: string[];
+};
+
+const GUTENBERG_CREDIT_START =
+  /^(?:produced by|e-?text prepared by|this e-?(?:text|book) (?:was|is) (?:produced|prepared|courtesy)|transcribed (?:from|by))\b/iu;
+const GUTENBERG_CREDIT_KEYWORD =
+  /gutenberg|\bPG\b|pgdp|distributed proofread|online distributed|https?:\/\/|www\./iu;
+const GUTENBERG_SIGNOFF_PARAGRAPH =
+  /^\*?\s*(?:end of (?:the )?project gutenberg|project gutenberg'?s? e-?(?:text|book) of)\b/iu;
+const GUTENBERG_BODY_PROVIDER_REFERENCE =
+  /project gutenberg|gutenberg\.(?:org|net)|promo\.net\/pg|pglaf|pgdp|distributed proofread|https?:\/\//iu;
+// Letter boundaries (not \b) so that "_Copyright_" (italic underscores) is
+// caught while "pretext" or "copyrighted" are not.
+const GUTENBERG_BODY_EDITORIAL_MARKERS: ReadonlyArray<RegExp> = [
+  /transcriber/iu,
+  /production notes?/iu,
+  /(?<!\p{L})e-?texts?(?!\p{L})/iu,
+  /all rights reserved/iu,
+  /(?<!\p{L})RENEWED(?!\p{L})/u,
+  /(?<!\p{L})copyright(?!\p{L})/iu,
+  /(?<!\p{L})first published(?!\p{L})/iu,
+  /(?<!\p{L})(?:printed|Printed|PRINTED) (?:and bound |AND BOUND )?(?:in|by|at|IN|BY|AT) (?:the |THE )?\p{Lu}/u,
+];
+const GUTENBERG_CREDIT_MAX_PARAGRAPHS = 3;
+const GUTENBERG_CREDIT_MAX_CHARACTERS = 400;
+const GUTENBERG_TRIM_HEAD_WINDOW = 60;
+const GUTENBERG_TRIM_TAIL_WINDOW = 40;
+
+type BodyParagraph = { start: number; end: number; text: string };
+
+// Paragraphs are runs of lines that contain a non-space character; a line of
+// only spaces/tabs separates paragraphs like an empty line.
+function splitBodyParagraphs(body: string): BodyParagraph[] {
+  const paragraphs: BodyParagraph[] = [];
+  for (const match of body.matchAll(/[^\n]*\S[^\n]*(?:\n[^\n]*\S[^\n]*)*/gu)) {
+    paragraphs.push({
+      start: match.index!,
+      end: match.index! + match[0].length,
+      text: match[0],
+    });
+  }
+  return paragraphs;
+}
+
+function oneLine(text: string): string {
+  return text.replace(/\s+/gu, " ").trim();
+}
+
+function isVolunteerCredit(text: string): boolean {
+  const flat = oneLine(text);
+  if (flat.length > GUTENBERG_CREDIT_MAX_CHARACTERS || text.trim().split("\n").length > 4) {
+    return false;
+  }
+  const start = GUTENBERG_CREDIT_START.exec(flat);
+  if (!start) return false;
+  if (GUTENBERG_CREDIT_KEYWORD.test(flat)) return true;
+  // Otherwise only a list of capitalised names: "Produced by David Reed,
+  // Ken Reeder, and David Widger", "Produced by Charles Keller for Tina".
+  const rest = flat.slice(start[0].length).replace(/[.,;:]+$/u, "");
+  const words = rest.split(/\s+/u).filter(Boolean);
+  return (
+    words.length > 0 &&
+    words.every(
+      (word) =>
+        /^(?:and|&|for|with)$/u.test(word) ||
+        /^[A-Z][\p{L}.'’-]*[,]?$/u.test(word)
+    )
+  );
+}
+
+function normalizeGutenbergBody(
+  source: string,
+  options?: GutenbergBodyOptions
+): NormalizationResult {
+  const normalized = normalizeGutenberg(source);
+  if (
+    normalized.warnings.some((warning) =>
+      warning.startsWith("GUTENBERG_BOUNDARY_NOT_CONFIRMED")
+    )
+  ) {
+    throw new Error("GUTENBERG_BODY_BOUNDARY_NOT_CONFIRMED: manual review required");
+  }
+  const body = normalized.displayText;
+  const paragraphs = splitBodyParagraphs(body);
+  const remove = new Set<number>();
+  const removedCredits: string[] = [];
+  const removedEditorial: string[] = [];
+
+  for (let i = 0; i < Math.min(GUTENBERG_CREDIT_MAX_PARAGRAPHS, paragraphs.length); i += 1) {
+    if (!isVolunteerCredit(paragraphs[i]!.text)) break;
+    remove.add(i);
+  }
+  for (let i = paragraphs.length - 1; i >= 0 && i >= paragraphs.length - 2; i -= 1) {
+    const flat = oneLine(paragraphs[i]!.text);
+    if (
+      flat.length <= 300 &&
+      paragraphs[i]!.text.trim().split("\n").length <= 3 &&
+      GUTENBERG_SIGNOFF_PARAGRAPH.test(flat)
+    ) {
+      remove.add(i);
+    } else {
+      break;
+    }
+  }
+
+  const inWindow = (index: number) =>
+    index < GUTENBERG_TRIM_HEAD_WINDOW ||
+    index >= paragraphs.length - GUTENBERG_TRIM_TAIL_WINDOW;
+  // A start listed n times must match exactly n paragraphs in the window
+  // (e.g. a publisher name printed twice on the title page).
+  const findStarts = (
+    prefix: string,
+    expected: number,
+    window: (index: number) => boolean
+  ) => {
+    const hits = paragraphs
+      .map((paragraph, index) => ({ paragraph, index }))
+      .filter(({ paragraph, index }) => window(index) && oneLine(paragraph.text).startsWith(oneLine(prefix)));
+    if (hits.length !== expected) {
+      throw new Error(
+        `GUTENBERG_BODY_TRIM_NOT_FOUND: ${hits.length} paragraphs (expected ${expected}) start with ${JSON.stringify(prefix.slice(0, 60))}; manual review required`
+      );
+    }
+    return hits.map((hit) => hit.index);
+  };
+  const listed = new Map<string, number>();
+  for (const prefix of options?.remove_paragraphs ?? []) {
+    listed.set(prefix, (listed.get(prefix) ?? 0) + 1);
+  }
+  for (const [prefix, count] of listed) {
+    for (const index of findStarts(prefix, count, inWindow)) remove.add(index);
+  }
+  if (options?.remove_tail_from) {
+    const [from] = findStarts(
+      options.remove_tail_from,
+      1,
+      (index) => index >= paragraphs.length - GUTENBERG_TRIM_TAIL_WINDOW
+    );
+    for (let i = from!; i < paragraphs.length; i += 1) remove.add(i);
+  }
+
+  let displayText = "";
+  let cursor = 0;
+  paragraphs.forEach((paragraph, index) => {
+    if (!remove.has(index)) return;
+    (isVolunteerCredit(paragraph.text) && index < GUTENBERG_CREDIT_MAX_PARAGRAPHS
+      ? removedCredits
+      : removedEditorial
+    ).push(paragraph.text.trim());
+    displayText += body.slice(cursor, paragraph.start);
+    // Drop the paragraph and the blank lines that follow it.
+    const next = paragraphs[index + 1];
+    cursor = next ? next.start : paragraph.end;
+  });
+  displayText = (displayText + body.slice(cursor)).trim();
+  if (!displayText) throw new Error("GUTENBERG_BODY_EMPTY_AFTER_CREDITS");
+  if (GUTENBERG_BODY_PROVIDER_REFERENCE.test(displayText)) {
+    throw new Error(
+      "GUTENBERG_BODY_PROVIDER_REFERENCE: the Reader body still names Project Gutenberg/PGDP or a URL; manual review required"
+    );
+  }
+  // Allowed passages and listed paragraph starts compare with runs of
+  // whitespace (line breaks included) treated as one space.
+  let checked = oneLine(displayText);
+  for (const allowed of options?.allowed_markers ?? []) {
+    const passage = oneLine(allowed);
+    if (!passage || !checked.includes(passage)) {
+      throw new Error(
+        `GUTENBERG_BODY_ALLOWED_MARKER_NOT_FOUND: ${JSON.stringify(allowed.slice(0, 60))}`
+      );
+    }
+    checked = checked.split(passage).join(" ");
+  }
+  for (const marker of GUTENBERG_BODY_EDITORIAL_MARKERS) {
+    const hit = marker.exec(checked);
+    if (hit) {
+      const context = oneLine(checked.slice(Math.max(0, hit.index - 40), hit.index + 40));
+      throw new Error(
+        `GUTENBERG_BODY_EDITORIAL_MARKER: ${JSON.stringify(context)}; remove it via gutenberg_body or allow it explicitly`
+      );
+    }
+  }
+  const changes = [...normalized.changes];
+  if (removedCredits.length > 0) changes.push("moved volunteer credit paragraphs to archive metadata");
+  if (removedEditorial.length > 0) {
+    changes.push(`moved ${removedEditorial.length} transcriber/imprint/sign-off paragraphs to archive metadata`);
+  }
+  return {
+    displayText,
+    archiveMetadata: [
+      normalized.archiveMetadata,
+      ...removedCredits,
+      ...removedEditorial,
+    ]
+      .filter(Boolean)
+      .join("\n\n--- PROJECT GUTENBERG BODY EDITORIAL MATTER ---\n\n"),
+    changes,
+    warnings: normalized.warnings,
+  };
+}
+
+export type NormalizeSourceOptions = {
+  gutenbergBody?: GutenbergBodyOptions;
+};
+
+export function normalizationOptionsFor(
+  manifest: Pick<PublicDomainManifest, "gutenberg_body">
+): NormalizeSourceOptions {
+  return manifest.gutenberg_body ? { gutenbergBody: manifest.gutenberg_body } : {};
+}
+
 export function normalizeSource(
   source: string,
-  profile: NormalizationProfile
+  profile: NormalizationProfile,
+  options: NormalizeSourceOptions = {}
 ): NormalizationResult {
   if (profile === "aozora") return normalizeAozora(source);
   if (profile === "aozora_reader_body") return normalizeAozoraReaderBody(source);
   if (profile === "aozora_body") return normalizeAozoraBody(source);
   if (profile === "gutenberg") return normalizeGutenberg(source);
+  if (profile === "gutenberg_body") return normalizeGutenbergBody(source, options.gutenbergBody);
 
   const base = normalizeLineEndings(source);
   const warnings: string[] = [];
@@ -1367,7 +1705,11 @@ export function prepareArtifact(args: {
 }): PreparedArtifact {
   const sourceHash = sha256Bytes(args.rawBytes);
   const decoded = decodeSourceBytes(args.rawBytes, args.manifest.source_encoding);
-  const normalized = normalizeSource(decoded, args.manifest.normalization_profile);
+  const normalized = normalizeSource(
+    decoded,
+    args.manifest.normalization_profile,
+    normalizationOptionsFor(args.manifest)
+  );
   const chapters = splitChapters(normalized.displayText, args.manifest);
   const validation = validateChapters(chapters);
   if (validation.fatals.length > 0) {
@@ -1519,9 +1861,15 @@ export function buildDraftImportPlan(args: {
           originalTitle: args.manifest.original_title,
           originalAuthor: args.manifest.original_author,
           firstPublicationYear: args.manifest.first_publication_year,
-          sourceProvider: args.manifest.source_provider,
-          sourceUrl: args.manifest.source_url,
-          edition: args.manifest.edition,
+          sourceProvider:
+            args.manifest.public_attribution?.source_provider ??
+            args.manifest.source_provider,
+          sourceUrl: args.manifest.public_attribution
+            ? args.manifest.public_attribution.source_url
+            : args.manifest.source_url,
+          edition: args.manifest.public_attribution
+            ? args.manifest.public_attribution.edition
+            : args.manifest.edition,
           inputEdition: args.manifest.source_provenance?.input_edition ?? null,
           proofEdition: args.manifest.source_provenance?.proof_edition ?? null,
           inputBy: args.manifest.source_provenance?.input_by ?? null,
