@@ -36,7 +36,13 @@ import {
   buildRegionPublishSql,
   regionPublishTargetFromManifest,
 } from "./public-domain/region-publish-sql";
-import { isAllowedGutenbergTextUrl } from "./public-domain/gutenberg";
+import {
+  gutenbergArchiveDir,
+  gutenbergBodyBetweenMarkers,
+  gutenbergMirrorUrls,
+  gutenbergRdfDeclaresUsPublicDomain,
+  isAllowedGutenbergTextUrl,
+} from "./public-domain/gutenberg";
 import {
   chooseGonguTxtSourceFromPopupHtml,
   detectGonguTextEncoding,
@@ -1618,6 +1624,54 @@ function main() {
   testRegionRestrictionManifestGate();
   testAozoraCountryLimitedCandidatePolicy();
   testRegionPublishSqlShape();
+  // PGLAF mirror fallback (2026-11-20): archive paths, RDF rights gate, body cross-check normalization.
+  assert.equal(gutenbergArchiveDir(5), "0/5");
+  assert.equal(gutenbergArchiveDir(11), "1/11");
+  assert.equal(gutenbergArchiveDir(64317), "6/4/3/1/64317");
+  assert.deepEqual(gutenbergMirrorUrls(1837).crossCheck, [
+    "https://mirrors.xmission.com/gutenberg/1/8/3/1837/1837-0.txt",
+    "https://mirrors.xmission.com/gutenberg/1/8/3/1837/1837.txt",
+  ]);
+  assert.equal(gutenbergMirrorUrls(1837).text, "https://gutenberg.pglaf.org/cache/epub/1837/pg1837.txt");
+  const pgRdf =
+    '<pgterms:ebook rdf:about="ebooks/64317"><dcterms:rights>Public domain in the USA.</dcterms:rights>';
+  assert.equal(gutenbergRdfDeclaresUsPublicDomain(pgRdf, 64317), true);
+  assert.equal(gutenbergRdfDeclaresUsPublicDomain(pgRdf, 6431), false);
+  assert.equal(
+    gutenbergRdfDeclaresUsPublicDomain(pgRdf.replace("Public domain in the USA.", "Copyrighted."), 64317),
+    false
+  );
+  const cacheCopy = [
+    "header",
+    "*** START OF THE PROJECT GUTENBERG EBOOK X ***",
+    "Line one  ",
+    "",
+    "Last line.",
+    "",
+    "",
+    "*** END OF THE PROJECT GUTENBERG EBOOK X ***",
+    "license",
+  ].join("\r\n");
+  const archiveCopy = [
+    "*** START OF THIS PROJECT GUTENBERG EBOOK X ***",
+    "Line one",
+    "",
+    "Last line.",
+    "",
+    "End of the Project Gutenberg EBook of X,",
+    "Complete by Y",
+    "",
+    "*** END OF THIS PROJECT GUTENBERG EBOOK X ***",
+    "",
+  ].join("\n");
+  assert.equal(gutenbergBodyBetweenMarkers(cacheCopy), ["Line one", "", "Last line."].join("\n"));
+  assert.equal(gutenbergBodyBetweenMarkers(archiveCopy), gutenbergBodyBetweenMarkers(cacheCopy));
+  assert.notEqual(
+    gutenbergBodyBetweenMarkers(archiveCopy.replace("Last line.", "Last line!")),
+    gutenbergBodyBetweenMarkers(cacheCopy)
+  );
+  assert.equal(gutenbergBodyBetweenMarkers("no markers"), null);
+
   console.log(
     "PASS: Public Domain rights gate, verified public metadata display gate, conservative source policy, safe paragraph chunking, content taxonomy/narration Draft plan, hash/idempotency, and non-paid ingestion"
   );

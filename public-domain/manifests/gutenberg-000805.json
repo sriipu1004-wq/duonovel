@@ -10,7 +10,7 @@
   "source_url": "https://www.gutenberg.org/ebooks/805",
   "source_download_url": "https://www.gutenberg.org/cache/epub/805/pg805.txt",
   "source_file": "public-domain/sources/raw/gutenberg-000805.txt",
-  "source_retrieved_at": null,
+  "source_retrieved_at": "2026-11-20T06:19:16.487Z",
   "source_encoding": "utf-8",
   "normalization_profile": "gutenberg_body",
   "edition": "Project Gutenberg eBook #805 plain text",
@@ -18,19 +18,19 @@
   "translator": null,
   "translator_death_year": null,
   "translation_language": null,
-  "rights_status": "pending",
-  "rights_basis": "",
-  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1920, New York (Charles Scribner's Sons). Evidence: PG text has no imprint page; secondary. Base printing: PG eBook edition 11; its production notes name a 1960 reprint and an undated post-1948 reprint as references (notes kept in archive metadata only). The novel's text is the 1920 text.",
+  "rights_status": "approved",
+  "rights_basis": "Operator review for worldwide distribution with no per-country restriction (D030), same cut-offs as the 2026-09-23 English cohort (public-domain/audits/en-ko-parity-rights-framework-2026-09-23.json). F. Scott Fitzgerald died in 1940 and the work was first published in 1920. US: published in or before 1930, so outside the 95-year term (17 U.S.C. 304; 104A restoration also gives at most the remainder of that term). Japan: life+50 plus the 3,794-day wartime addition for Allied works ended by 2005 for authors who died by 1944, before the 2018 extension, and is not revived. Korea: life+50 before 2013 / Art. 3(4). Life+70 and life+80 countries (CO, GQ) expired at the latest by end-2024; Mexico treats authors who died before 1952 as public domain (docs/rights/pd-batch-2026-11-gutenberg.md). Scope is the exact Project Gutenberg plain-text file pinned by SHA-256, without the PG header, license, footer, volunteer credits or name.",
+  "rights_notes": "Selected for batch gutenberg-2026-11-19. First publication: 1920, New York (Charles Scribner's Sons). Evidence: PG text has no imprint page; secondary. Base printing: PG eBook edition 11; its production notes name a 1960 reprint and an undated post-1948 reprint as references (notes kept in archive metadata only). The novel's text is the 1920 text. Operator review recorded 2026-11-20T15:24:48+09:00; exact source fetched from the PGLAF mirror gutenberg.pglaf.org while www.gutenberg.org was down for rebuilding (2026-11-20; the mirror catalog RDF states 'Public domain in the USA.'; the body was cross-checked against the mirrors.xmission.com archive copy) and hashed; chapter plan prepared (65 chapters). Production import and publication are separate owner approvals.",
   "rights_components": {
     "original_work": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": ""
+      "status": "approved",
+      "basis": "F. Scott Fitzgerald (d. 1940), first published 1920: out of term in JP/US/KR, life+70/80 countries and Mexico (docs/rights/pd-batch-2026-11-gutenberg.md).",
+      "notes": "Batch criteria: every named author/contributor died in or before 1944; first publication in or before 1930; English original."
     },
     "edition": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": ""
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned; no modern translation, cover, illustration, annotation or editorial layer is imported (texts with a modern introduction were excluded).",
+      "notes": "PG text has no imprint page; secondary. Base printing: PG eBook edition 11; its production notes name a 1960 reprint and an undated post-1948 reprint as references (notes kept in archive metadata only). The novel's text is the 1920 text. Operator review recorded 2026-11-20T15:24:48+09:00; exact sour"
     },
     "translation": {
       "status": "not_applicable",
@@ -38,13 +38,13 @@
       "notes": ""
     },
     "editorial": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned; no modern translation, cover, illustration, annotation or editorial layer is imported (texts with a modern introduction were excluded).",
       "notes": ""
     },
     "annotations": {
-      "status": "needs_review",
-      "basis": "",
+      "status": "approved",
+      "basis": "Exact provider source is hash-pinned; no modern translation, cover, illustration, annotation or editorial layer is imported (texts with a modern introduction were excluded).",
       "notes": ""
     },
     "illustrations": {
@@ -58,20 +58,24 @@
       "notes": ""
     },
     "digitization": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": ""
+      "status": "approved",
+      "basis": "Volunteer transcription of a public-domain text; PG states that once its license and all references to Project Gutenberg are removed, the remaining text is not restricted by US intellectual property law.",
+      "notes": "https://www.gutenberg.org/policy/license.html"
     },
     "provider_terms": {
-      "status": "needs_review",
-      "basis": "",
-      "notes": ""
+      "status": "approved",
+      "basis": "PG license reviewed at https://www.gutenberg.org/policy/license.html. Header, license, footer and volunteer credits are kept only in archive metadata (gutenberg_body profile); the work page shows public_attribution without the Project Gutenberg trademark.",
+      "notes": "Source landing: https://www.gutenberg.org/ebooks/805"
     }
   },
-  "jurisdictions_reviewed": [],
-  "reviewed_at": null,
-  "reviewed_by": null,
-  "chapter_count": null,
+  "jurisdictions_reviewed": [
+    "JP",
+    "US",
+    "KR"
+  ],
+  "reviewed_at": "2026-11-20T15:24:48+09:00",
+  "reviewed_by": "LIB read operator (Claude; owner direction 2026-11-15 「それぞれの国での無料公開可能な作品をできる限り導入して」; parent decision 2026-11-19 (docs/rights/region-research-2026-11-19-gutenberg.md); production import and publication need separate owner button approval)",
+  "chapter_count": 65,
   "chapter_split": {
     "strategy": "paragraph_chunks",
     "max_characters": 10000
@@ -94,9 +98,13 @@
     "source_url": null,
     "edition": "First published 1920 (New York (Charles Scribner's Sons))"
   },
-  "source_hash": null,
-  "approved": false,
-  "import_status": "not_imported",
+  "source_hash": "1ed81df9b66442fad035ad0a2af19e6a473f5245f99abc6b5ea40b4cbe1053fb",
+  "approved": true,
+  "import_status": "prepared",
   "cover_source": null,
-  "cover_rights_status": null
+  "cover_rights_status": null,
+  "content_warnings": [
+    "violence"
+  ],
+  "content_warning_notes": "violence: killing, suicide, execution or a described corpse appears in the story (Claude's judgement from cue words and the known plot; not a full reading)."
 }

@@ -115,7 +115,9 @@ for manifest_id in sys.argv[1:]:
     )
     m["rights_notes"] = (
         f"{m['rights_notes']} Operator review recorded {REVIEWED_AT}; exact source fetched from "
-        f"www.gutenberg.org (landing states 'Public domain in the USA') and hashed; chapter plan "
+        f"the PGLAF mirror gutenberg.pglaf.org while www.gutenberg.org was down for rebuilding "
+        f"(2026-11-20; the mirror catalog RDF states 'Public domain in the USA.'; the body was "
+        f"cross-checked against the mirrors.xmission.com archive copy) and hashed; chapter plan "
         f"prepared ({m['chapter_count']} chapters). Production import and publication are separate "
         f"owner approvals."
     )

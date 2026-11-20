@@ -107,3 +107,11 @@
 3. dry run：`npm run public-domain:batch -- $(cat scripts/issue139-gutenberg-publish-batch1/manifest-ids.txt) --prepare --max=50`。
 4. 取り込み（下書き）：`PUBLIC_DOMAIN_IMPORT_TARGET=production PUBLIC_DOMAIN_IMPORT_CONFIRM=PRODUCTION_DRAFT_ONLY node --env-file=.env.local --import tsx scripts/public-domain/batch.ts $(cat scripts/issue139-gutenberg-publish-batch1/manifest-ids.txt) --execute --target=production --production --max=50`。
 5. 公開：取り込みで出た series id から `python scripts/issue139-gutenberg-publish-batch1/generate.py <map.txt>` で apply.sql・rollback.sql を作る（Aozora 第3バッチの SQL と同じ形。tag `issue139_publish_gut1_*_20261119`。出典は 'Public domain'、sourceUrl は null、edition に gutenberg を含まないことを確かめる）。
+
+## 2026-11-20：本文の取得経路（www.gutenberg.org の停止中）
+- www.gutenberg.org は 2026-11-19 18 時ごろから 503 を返していた。運営する財団（PGLAF）のサイトには、荒らしを受けてサイトを作り直しているという告知があった。オーナーの指示（「別のサイトでやらない？…別経路無理なら後回しで」）を受けて、次の経路で取得した。
+- 本文は PGLAF の運営するミラーから取った：`https://gutenberg.pglaf.org/cache/epub/<n>/pg<n>.txt`。www.gutenberg.org の `cache/epub` と同じ形式。
+- 米国で PD であることは、同じミラーにある目録 RDF（`pg<n>.rdf`）で確かめた。作品番号が一致し、`<dcterms:rights>Public domain in the USA.</dcterms:rights>` を含むことを見る。
+- 荒らしへの備えとして、`*** START OF` と `*** END OF` の間の本文を、独立したミラー（`mirrors.xmission.com/gutenberg/<dir>/<n>/<n>-0.txt`。無ければ `<n>.txt`）の写しと照らし合わせた。比べる前に、行末の空白、末尾の空行、`End of the Project Gutenberg EBook…` の定型の段落を除く。48/48 件が一致した。一致しないものは取得で止まる。
+- この経路は `PUBLIC_DOMAIN_GUTENBERG_MIRROR=pglaf` を付けたときだけ使う（`scripts/public-domain/gutenberg.ts`・`source-sync.ts`）。manifest の source_url と source_download_url は、正規の www.gutenberg.org の URL のままにした。取得した経路は rights_notes に書いた。
+- 実行したコマンド：`PUBLIC_DOMAIN_GUTENBERG_MIRROR=pglaf npm run public-domain:source-sync -- <48 ids> --prepare --limit=50 --force` → `plan-chapters` → `approve-gutenberg-batch-2026-11.py` → `batch.ts --prepare --max=50`。結果は ok=48、failed=0。レビュー済みの `gutenberg_body` の指定は、変えずにすべて通った。
