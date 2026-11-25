@@ -28,3 +28,12 @@
 11. 後片付け: `scripts/dev/local-supabase.sh stop` の後、`docker ps -a` で何も残っていないことを確かめる。
 
 結果は `LOCAL` と書いて記録する。本番での E2E は設計文書 §6 のとおり別の承認が要る。
+
+## 実行の記録
+
+### LOCAL 2026-11-25（クラウドの使い捨てコンテナ、Supabase CLI 2.122.0、Postgres 17.11、接続先 127.0.0.1:54322）
+- `fixture.sql`: 成功。`FIXTURE_LOADED`、合成ユーザー 3、Storage の行 4。2回目は `acctdel_fx already exists` で止まった（二重実行の防止が効く）。
+- `snapshot.sql -v label=before`: 28項目を記録。値は `expected.md` の before と一致。
+- `check-fk-behavior.sql`: 今の外部キーのままでは本人の `auth.users` を消せない（`series_author_id_fkey` で BLOCKED、設計 §3-1 と一致）。作品と朗読を先に消した場合、他人（B）の人間翻訳・朗読のうち A の作品に付いたものは cascade で 0 件、課金の顧客は 0 件、クレジットの台帳 2 件・購入ロット 1 件は残り、set null の2件は行が残って紐づけだけ外れ、Storage の行 3 件は残る。ROLLBACK の後、合成ユーザー 3・作品 3 のままで何も変わっていない。
+- 後片付け: `scripts/dev/local-supabase.sh stop` の後、`docker ps -a` は 0 件。
+- 未検証: 削除処理が無いので、after の照合・再実行・途中の失敗からの再開（手順 6〜10）はしていない。fixture は本番の列のすべてではなく、外部キーの動作は設計 §2（2026-11-07 の本番の読み取り）を写したもので、本番そのものは見ていない。

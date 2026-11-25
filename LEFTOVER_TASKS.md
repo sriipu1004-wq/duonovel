@@ -50,7 +50,8 @@ LIB read 固有の制約（全項目共通）:
 - 1コミットの単位: テーブル・関数・route を5件ずつ
 - 追加: 2026-11-08
 
-## LT-004｜未着手
+## LT-004｜完了（2026-11-26 の週）
+- 結果: `scripts/account-deletion/` に README・fixture・照合の SQL と期待値の表。ローカルで fixture が入ることを確かめた（LOCAL、README の「実行の記録」）。削除処理は無いので after の照合は未検証。
 - 種類: 下書き（一度で済む作業）
 - 内容: `docs/account-deletion-design.md` の §6 にある検証計画を、ローカル用の fixture SQL とテスト手順の下書きにする。合成ユーザーに、作品・人間翻訳・課金記録・Storage オブジェクトを持たせる。削除の前後で、残るべき行と消えるべき行を照合する手順を書く。削除処理そのものは実装しない。
 - 触ってよい範囲: `scripts/account-deletion/`（新規。README、fixture SQL、テストの雛形）
