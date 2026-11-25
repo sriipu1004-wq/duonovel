@@ -11,9 +11,9 @@
 | `src/lib/recording/audioUploadPolicy.ts` | `scripts/test-audio-upload-policy.ts` | `test:audio-upload-policy` | 2026-11-25 | PASS、tsc PASS |
 | `src/lib/recording/nemoRegenerationDiff.ts` | `scripts/test-nemo-regeneration-diff.ts` | `test:nemo-regeneration-diff` | 2026-11-25 | PASS、tsc PASS。`猫…`→`猫...` を「読みが変わった」と判定する今の挙動も固定した |
 | `src/lib/searchSavedFilters.ts` | `scripts/test-search-saved-filters.ts` | `test:search-saved-filters` | 2026-11-25 | PASS、tsc PASS |
+| `src/lib/translation/segmentJapaneseEpisode.ts` | `scripts/test-segment-japanese-episode.ts` | `test:segment-japanese-episode` | 2026-11-25 | PASS、tsc PASS（ラッパーが `segmentSourceDocument(body, "ja")` と同じ結果を返すことだけ） |
 
 ## 候補（未着手、上から順に）
-- `src/lib/translation/segmentJapaneseEpisode.ts`
 - `src/lib/recording/nemoPronunciationDictionary.ts`
 - `src/lib/seo/jaSearchDiscovery.ts`
 - `src/lib/bgm/bgmSettings.ts`、`src/lib/effects/effectSettings.ts`
