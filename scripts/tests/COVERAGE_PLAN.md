@@ -17,11 +17,22 @@
 | `src/lib/bgm/bgmSettings.ts` | `scripts/test-bgm-settings.ts` | `test:bgm-settings` | 2026-11-25 | PASS、tsc PASS。`clampBgmSeconds` は空白だけの文字列・`[]` を 0、`true` を 1 にする（`Number()` の変換。不具合とまでは言えないので記録だけ） |
 | `src/lib/effects/effectSettings.ts` | `scripts/test-effect-settings.ts` | `test:effect-settings` | 2026-11-25 | PASS、tsc PASS。挿絵の `imageUrl` は前後の空白を取るだけで、URL の形式は見ていない（今の挙動として固定） |
 
-## 候補（未着手、上から順に）
+## 候補（未着手、上から順に。2026-11-25 に洗い直し）
+最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
+- `src/lib/auth/operator.ts`
+- `src/lib/aiUsage/aiUsage.ts`
+- `src/lib/translation/openAITranslationModel.ts`
+- `src/lib/recording/audioUploadValidation.ts`
+- `src/lib/recording/audioUploadServerValidation.ts`
+- `src/lib/recording/nemoWav.ts`
+- `src/lib/library/zipBook.ts`
+- `src/lib/recording/humanRecordingAlignment.ts`
+- `src/lib/seo/currentSearchDiscovery.ts`（今のテストはソースの文字列を見るだけ）
+- `src/lib/effects/effectTextLayout.ts`
 
 ## 後回し（純粋でない）
 - `src/lib/playback/translationReaderPreference.ts`、`src/lib/translation/bilingualSessionPreference.ts`（`window.localStorage`）
-- `src/lib/authorFollow.ts`、`src/lib/authorProfileLike.ts`、`src/lib/readerCardLike.ts`、`src/lib/auth/*`（Supabase）
+- `src/lib/authorFollow.ts`、`src/lib/authorProfileLike.ts`、`src/lib/readerCardLike.ts`、`src/lib/bgm/bgmLibrary.ts`、`src/lib/auth/*` の Supabase を使うもの（Supabase のモックが要る）
 - `src/lib/recording/aivisClient.ts`、`src/lib/recording/nemoClient.ts`（ネットワーク）
 
 ## 不具合の疑い
