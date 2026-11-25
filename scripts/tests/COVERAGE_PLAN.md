@@ -18,10 +18,10 @@
 | `src/lib/effects/effectSettings.ts` | `scripts/test-effect-settings.ts` | `test:effect-settings` | 2026-11-25 | PASS、tsc PASS。挿絵の `imageUrl` は前後の空白を取るだけで、URL の形式は見ていない（今の挙動として固定） |
 | `src/lib/auth/operator.ts` | `scripts/test-auth-operator.ts` | `test:auth-operator` | 2026-11-25 | PASS、tsc PASS。`LIBREAD_OPERATOR_EMAILS` が無いときだけ `NEXT_PUBLIC_LIBREAD_OPERATOR_EMAILS` を使う（空文字なら使わない）。`NEXT_PUBLIC_` の名前はブラウザ用の bundle に入りうる名前（実際に入っているかは見ていない） |
 | `src/lib/aiUsage/aiUsage.ts` | `scripts/test-ai-usage-format.ts` | `test:ai-usage-format` | 2026-11-25 | PASS、tsc PASS |
+| `src/lib/translation/openAITranslationModel.ts` | `scripts/test-openai-translation-model.ts` | `test:openai-translation-model` | 2026-11-25 | PASS、tsc PASS。表に無いモデル名は gpt-4.1-mini の単価になる（高いモデルを環境変数で指定すると原価の見積もりが低く出うる。記録だけ） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
-- `src/lib/translation/openAITranslationModel.ts`
 - `src/lib/recording/audioUploadValidation.ts`
 - `src/lib/recording/audioUploadServerValidation.ts`
 - `src/lib/recording/nemoWav.ts`

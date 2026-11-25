@@ -25,7 +25,7 @@ LIB read 固有の制約（全項目共通）:
 - 追加: 2026-11-08
 
 ## LT-002｜毎週・進行中
-- 次の一歩: `scripts/tests/COVERAGE_PLAN.md` の「候補」の先頭（`openAITranslationModel.ts`）から続ける。済み11件、不具合の疑い1件（nemoChunking の重複読み上げ）。
+- 次の一歩: `scripts/tests/COVERAGE_PLAN.md` の「候補」の先頭（`audioUploadValidation.ts`）から続ける。済み12件、不具合の疑い1件（nemoChunking の重複読み上げ）。
 - 種類: テスト追加（繰り返し型）
 - 内容: テストの無いモジュールを1つずつ選び、今の挙動を固定するテストを足す。
   - 優先する対象: `src/lib/` の純粋な関数（入力から出力が決まるもの）

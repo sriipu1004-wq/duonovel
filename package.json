@@ -86,7 +86,8 @@
     "test:bgm-settings": "node --import tsx scripts/test-bgm-settings.ts",
     "test:effect-settings": "node --import tsx scripts/test-effect-settings.ts",
     "test:auth-operator": "node --import tsx scripts/test-auth-operator.ts",
-    "test:ai-usage-format": "node --import tsx scripts/test-ai-usage-format.ts"
+    "test:ai-usage-format": "node --import tsx scripts/test-ai-usage-format.ts",
+    "test:openai-translation-model": "node --import tsx scripts/test-openai-translation-model.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
