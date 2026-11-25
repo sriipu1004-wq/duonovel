@@ -128,3 +128,8 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/library/works/[workId]/glossary/route.ts` | POST | `:45` | `:57` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/library/works/[workId]/route.ts` | PATCH,DELETE | `:33` | `:49`, `:79` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/pdf-assets/[kind]/[name]/route.ts` | GET | 見つからず | 自動抽出で見つからず | admin なし | 未認証の静的ファイル（pdfjs の cmaps・fonts）。名前は `^[A-Za-z0-9._-]+$` で `/` を通さない。要確認（軽）: `kind` を `ASSET_FOLDERS[kind]` で引くため `__proto__`・`toString` などで `path.join` に文字列以外が渡り、try の外なので 404 でなく 500 になりうる（読める範囲は広がらない） |
+| `src/app/api/popularity/events/route.ts` | POST | `:18` | 自動抽出で見つからず | admin あり | ログインは任意（閲覧の記録）。admin で書く。要確認（軽）: 未ログインの大量送信の抑え方（`src/lib/popularityIngestGuard.ts` があり、テスト `test:popularity-ingest-guard` は PASS） |
+| `src/app/api/public/work-language-counts/route.ts` | GET | 見つからず | 自動抽出で見つからず | admin なし | 未認証の公開集計。公開作品のキャッシュ（`getCachedPublicBaseWorkCards`）だけを数える。問題の疑いなし（公開判定は `src/lib/publicWorks.ts` 側） |
+| `src/app/api/readers/like/route.ts` | POST,DELETE | `:15` | `:82`, `:163` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/recordings/ai-audio/[recordingId]/route.ts` | GET | `:59` | 自動抽出で見つからず | admin あり | `loadPrivateMediaSourceContext` と `canServePrivateAiNarration`、地域制限（`regionBlockedApiResponse`）の後に配信。テスト `test:private-media-playback-proxy` PASS |
+| `src/app/api/recordings/aivis-autogen-run-pending/route.ts` | POST | `:21` | 自動抽出で見つからず | admin なし | ログイン必須、公式朗読アカウントだけ（`isOfficialNarrationAccountUser` `:33`）。AI 朗読の生成は停止中の応答あり（`ai_narration_generation_suspended`）。問題の疑いなし |
