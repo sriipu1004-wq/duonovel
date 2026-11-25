@@ -135,7 +135,8 @@
     "test:prepare-episode-translation-generation": "node --import tsx scripts/test-prepare-episode-translation-generation.ts",
     "test:audio-playback-normalization": "node --import tsx scripts/test-audio-playback-normalization.ts",
     "test:series-translation-glossary-auto-server": "node --import tsx scripts/test-series-translation-glossary-auto-server.ts",
-    "test:public-work-translations": "node --import tsx scripts/test-public-work-translations.ts"
+    "test:public-work-translations": "node --import tsx scripts/test-public-work-translations.ts",
+    "test:series-translation-consistency-server": "node --import tsx scripts/test-series-translation-consistency-server.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
