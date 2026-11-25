@@ -37,12 +37,12 @@
 | `src/lib/playLogs.ts` | `scripts/test-play-logs.ts` | `test:play-logs` | 2026-11-25 | PASS、tsc PASS（モック） |
 | `src/lib/auth/displayNameAvailability.ts` | `scripts/test-display-name-availability.ts` | `test:display-name-availability` | 2026-11-25 | PASS、tsc PASS（モック） |
 | `src/lib/auth/checkDisplayNameAvailability.ts` | `scripts/test-check-display-name-availability.ts` | `test:check-display-name-availability` | 2026-11-25 | PASS、tsc PASS（fetch は差し替え） |
+| `src/lib/auth/checkEmailAvailability.ts` | `scripts/test-check-email-availability.ts` | `test:check-email-availability` | 2026-11-25 | PASS、tsc PASS（fetch は差し替え） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
 
-- `src/lib/auth/checkEmailAvailability.ts`（fetch を差し替えればテストできる）
 
 ## 後回し（純粋でない）
 - `src/lib/recording/audioUploadValidation.ts`（ブラウザの `AudioContext` が要る）
