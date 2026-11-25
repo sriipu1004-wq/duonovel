@@ -8,10 +8,10 @@
 | モジュール | テスト | package.json | 日付 | 結果 |
 |---|---|---|---|---|
 | `src/lib/readerAuthorHref.ts` | `scripts/test-reader-author-href.ts` | `test:reader-author-href` | 2026-11-25 | PASS、tsc PASS |
+| `src/lib/recording/audioUploadPolicy.ts` | `scripts/test-audio-upload-policy.ts` | `test:audio-upload-policy` | 2026-11-25 | PASS、tsc PASS |
 
 ## 候補（未着手、上から順に）
 - `src/lib/searchSavedFilters.ts`（キーの解決とラベル）
-- `src/lib/recording/audioUploadPolicy.ts`
 - `src/lib/recording/nemoChunking.ts`
 - `src/lib/recording/nemoRegenerationDiff.ts`
 - `src/lib/translation/segmentJapaneseEpisode.ts`
