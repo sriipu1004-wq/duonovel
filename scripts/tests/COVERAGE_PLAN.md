@@ -27,16 +27,17 @@
 | `src/lib/effects/effectTextLayout.ts` | `scripts/test-effect-text-layout.ts` | `test:effect-text-layout` | 2026-11-25 | PASS、tsc PASS。短い場面転換のきっかけ（例「見当」）や文の一部だけのタイムスタンプは、しきい値（0.12・長さの比 0.55）に届かず捨てられる（今の挙動として固定） |
 | `src/lib/authorFollow.ts` | `scripts/test-author-follow.ts` | `test:author-follow` | 2026-11-25 | PASS、tsc PASS（Supabase は呼び出しを記録するモック） |
 | `src/lib/authorProfileLike.ts` | `scripts/test-author-profile-like.ts` | `test:author-profile-like` | 2026-11-25 | PASS、tsc PASS（モック） |
+| `src/lib/readerCardLike.ts` | `scripts/test-reader-card-like.ts` | `test:reader-card-like` | 2026-11-25 | PASS、tsc PASS（モック） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
-- `src/lib/readerCardLike.ts`（Supabase を引数で受けるので、簡単なモックでテストできる）
+- `src/lib/bgm/bgmLibrary.ts`（Supabase を引数で受ける。モックでテストできる）
+- `src/lib/playback/translationReaderPreference.ts`、`src/lib/translation/bilingualSessionPreference.ts`（`window` を差し替えればテストできる）
 
 ## 後回し（純粋でない）
-- `src/lib/playback/translationReaderPreference.ts`、`src/lib/translation/bilingualSessionPreference.ts`（`window.localStorage`）
 - `src/lib/recording/audioUploadValidation.ts`（ブラウザの `AudioContext` が要る）
-- `src/lib/bgm/bgmLibrary.ts`、`src/lib/auth/*` の Supabase を使うもの（Supabase のモックが要る）
+- `src/lib/auth/*` の Supabase を使うもの（Supabase のモックが要る）
 - `src/lib/recording/aivisClient.ts`、`src/lib/recording/nemoClient.ts`（ネットワーク）
 
 ## 不具合の疑い
