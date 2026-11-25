@@ -39,13 +39,16 @@
 | `src/lib/auth/checkDisplayNameAvailability.ts` | `scripts/test-check-display-name-availability.ts` | `test:check-display-name-availability` | 2026-11-25 | PASS、tsc PASS（fetch は差し替え） |
 | `src/lib/auth/checkEmailAvailability.ts` | `scripts/test-check-email-availability.ts` | `test:check-email-availability` | 2026-11-25 | PASS、tsc PASS（fetch は差し替え） |
 | `src/lib/billing/billingConfig.ts` | `scripts/test-billing-config.ts` | `test:billing-config` | 2026-11-25 | PASS、tsc PASS（環境変数は偽の値をこのプロセスの中でだけ設定。Stripe には接続していない）。チェックアウトは明示的に無効化しない限り有効 |
+| `src/lib/billing/creditPackCatalog.ts` | `scripts/test-credit-pack-catalog.ts` | `test:credit-pack-catalog` | 2026-11-25 | PASS、tsc PASS（環境変数は偽の値。Stripe・Supabase には接続していない） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
 
 
-- `src/lib/billing/creditPackCatalog.ts`（`server-only` を差し替えれば読める）
+- `src/lib/search/publicSearchRequestContext.ts`
+- `src/lib/rights/regionRestriction.server.ts`
+- `src/lib/contentRatingServer.ts`
 
 ## 後回し（純粋でない）
 - `src/lib/recording/audioUploadValidation.ts`（ブラウザの `AudioContext` が要る）
