@@ -100,7 +100,8 @@
     "test:bgm-library": "node --import tsx scripts/test-bgm-library.ts",
     "test:translation-reader-preference": "node --import tsx scripts/test-translation-reader-preference.ts",
     "test:bilingual-session-preference": "node --import tsx scripts/test-bilingual-session-preference.ts",
-    "test:loading-feedback": "node --import tsx scripts/test-loading-feedback.ts"
+    "test:loading-feedback": "node --import tsx scripts/test-loading-feedback.ts",
+    "test:nemo-playback-compatibility": "node --import tsx scripts/test-nemo-playback-compatibility.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
