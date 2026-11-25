@@ -118,3 +118,8 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/human-translations/episode/[episodeId]/route.ts` | GET | `:16` | 自動抽出で見つからず | admin あり | `resolveHumanTranslationContext` で閲覧の可否を決める。中身は見ていない |
 | `src/app/api/library/import-txt/route.ts` | POST | `:116` | `:125` | admin なし | ログイン必須。RPC（`auth.uid()` で本人に限る SECURITY DEFINER 関数、2節）を利用者の権限で呼ぶ。問題の疑いなし |
 | `src/app/api/library/import/[workId]/complete/route.ts` | POST | `:14` | `:23` | admin なし | ログイン必須。RPC（`auth.uid()` で本人に限る SECURITY DEFINER 関数、2節）を利用者の権限で呼ぶ。問題の疑いなし |
+| `src/app/api/library/import/[workId]/route.ts` | DELETE | `:13` | `:22` | admin なし | ログイン必須。RPC（`auth.uid()` で本人に限る SECURITY DEFINER 関数、2節）を利用者の権限で呼ぶ。問題の疑いなし |
+| `src/app/api/library/import/[workId]/units/route.ts` | POST | `:43` | `:52` | admin なし | ログイン必須。RPC（`auth.uid()` で本人に限る SECURITY DEFINER 関数、2節）を利用者の権限で呼ぶ。問題の疑いなし |
+| `src/app/api/library/import/start/route.ts` | POST | `:74` | `:87` | admin なし | ログイン必須。RPC（`auth.uid()` で本人に限る SECURITY DEFINER 関数、2節）を利用者の権限で呼ぶ。問題の疑いなし |
+| `src/app/api/library/progress/route.ts` | POST | `:42` | `:51` | admin なし | ログイン必須。RPC（`auth.uid()` で本人に限る SECURITY DEFINER 関数、2節）を利用者の権限で呼ぶ。問題の疑いなし |
+| `src/app/api/library/translations/[chapterId]/route.ts` | GET | `:20` | 自動抽出で見つからず | admin あり | `resolvePrivateLibraryTranslationAccess` で所有者を判定してから admin で読む |
