@@ -138,3 +138,8 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/recordings/human-delete/route.ts` | POST | `:120` | `:138`, `:162` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/recordings/human-publish/route.ts` | POST | `:358` | `:502` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/recordings/human-upload-abort/route.ts` | POST | `:30` | `:71` | admin あり | ログイン必須。本人の `user.id` を入れたセッションを組み立て、その lease だけを閉じる。問題の疑いなし（lease 側の照合までは見ていない） |
+| `src/app/api/recordings/human-upload-finalize/route.ts` | POST | `:74` | `:188` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/recordings/human-upload-session/route.ts` | POST | `:145` | `:206` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/recordings/human-visibility/route.ts` | POST | `:130` | `:158`, `:198` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/recordings/nemo-autogen-backfill/route.ts` | POST | `:21` | 自動抽出で見つからず | admin なし | ログイン必須、公式朗読アカウントだけ（`isOfficialNarrationAccountUser` `:33`）。AI 朗読の生成は停止中の応答あり（`ai_narration_generation_suspended`）。問題の疑いなし |
+| `src/app/api/recordings/nemo-autogen-run-pending/route.ts` | POST | `:21` | 自動抽出で見つからず | admin なし | ログイン必須、公式朗読アカウントだけ（`isOfficialNarrationAccountUser` `:33`）。AI 朗読の生成は停止中の応答あり（`ai_narration_generation_suspended`）。問題の疑いなし |
