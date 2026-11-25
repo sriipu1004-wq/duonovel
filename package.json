@@ -94,7 +94,8 @@
     "test:human-recording-alignment": "node --import tsx scripts/test-human-recording-alignment.ts",
     "test:current-search-discovery": "node --import tsx scripts/test-current-search-discovery.ts",
     "test:effect-text-layout": "node --import tsx scripts/test-effect-text-layout.ts",
-    "test:author-follow": "node --import tsx scripts/test-author-follow.ts"
+    "test:author-follow": "node --import tsx scripts/test-author-follow.ts",
+    "test:author-profile-like": "node --import tsx scripts/test-author-profile-like.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
