@@ -143,3 +143,8 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/recordings/human-visibility/route.ts` | POST | `:130` | `:158`, `:198` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/recordings/nemo-autogen-backfill/route.ts` | POST | `:21` | 自動抽出で見つからず | admin なし | ログイン必須、公式朗読アカウントだけ（`isOfficialNarrationAccountUser` `:33`）。AI 朗読の生成は停止中の応答あり（`ai_narration_generation_suspended`）。問題の疑いなし |
 | `src/app/api/recordings/nemo-autogen-run-pending/route.ts` | POST | `:21` | 自動抽出で見つからず | admin なし | ログイン必須、公式朗読アカウントだけ（`isOfficialNarrationAccountUser` `:33`）。AI 朗読の生成は停止中の応答あり（`ai_narration_generation_suspended`）。問題の疑いなし |
+| `src/app/api/recordings/nemo-autogen/route.ts` | POST | `:22` | 自動抽出で見つからず | admin なし | ログイン必須、公式朗読アカウントだけ（`isOfficialNarrationAccountUser` `:34`）。AI 朗読の生成は停止中の応答あり（`ai_narration_generation_suspended`）。問題の疑いなし |
+| `src/app/api/recordings/nemo-generate/route.ts` | POST | `:259` | 自動抽出で見つからず | admin あり | ログイン必須、公式朗読アカウントだけ（`isOfficialNarrationAccountUser` `:271`）。AI 朗読の生成は停止中の応答あり（`ai_narration_generation_suspended`）。問題の疑いなし |
+| `src/app/api/recordings/upload-check/route.ts` | POST | `:16` | 自動抽出で見つからず | admin なし | ログイン必須。中身は音声の検査だけで DB の所有物を触らない（見た範囲）。問題の疑いなし |
+| `src/app/api/series/[seriesId]/content-rating/route.ts` | POST | `:100` | `:127`, `:180` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/series/[seriesId]/human-translation-permission/route.ts` | POST | `:20` | `:33`, `:40` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
