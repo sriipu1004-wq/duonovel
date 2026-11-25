@@ -74,12 +74,12 @@
 | `src/lib/publicRead.ts` | `scripts/test-public-read.ts` | `test:public-read` | 2026-11-25 | PASS、tsc PASS（react の cache・Supabase の server/admin クライアント・R18 設定は差し替え）。R18 の作品は表示を許していない閲覧者でも payload（本文の行を含む）を返し、`r18Blocked: true` で録音だけを空にする（隠すのは呼び出し側）。非公開の作品で最初の認証の読み出しが失敗すると、もう1回読み直す |
 | `src/lib/og/ogFontCoverage.generated.ts` | `scripts/test-og-font-coverage-generated.ts` | `test:og-font-coverage-generated` | 2026-11-25 | PASS、tsc PASS。同梱の4つのサブセットフォント（`src/assets/og-fonts/`）の文字表（cmap、形式4・12）をテストの中で読み、その和集合と範囲表が一致することを固定（6488字）。範囲は並び順・重なりなし・隣接は結合済み |
 | `src/lib/recording/humanRecordingPublish.ts` | `scripts/test-human-recording-publish.ts` | `test:human-recording-publish` | 2026-11-25 | PASS、tsc PASS（admin の DB と Storage・書き込みの境界・音声の変換・文字起こし・時刻合わせ・H1 の RPC・後片付け・バケットの確認はすべて差し替え。Storage・ffmpeg・文字起こしには接続していない）。公開のつもりで、自分の非公開・状態不明の行がある話に上げると、メディアを作る前に止める。途中の失敗でも上げた物は消さない（コードの方針どおり） |
+| `src/lib/recording/nemoGenerationQueue.ts` | `scripts/test-nemo-generation-queue.ts` | `test:nemo-generation-queue` | 2026-11-25 | PASS、tsc PASS（admin クライアントは偽 DB）。本文のハッシュは本物の `buildNemoChunks` の結果から計算して比べるので、chunk の中身（上の不具合の疑い）は固定していない。`is_public` が null の録音は公開扱い。`nemoChunking` を直すと全話のハッシュが変わり、全話が「本文が変わった」として再生成の待ち行列に入る（推定） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
 2026-11-25（夕）の再計算で残ったもの（行数の少ない順。`supabaseClient`・`supabase/client`・`supabase/proxy` はクライアントを作るだけなので外した）:
-- `src/lib/recording/nemoGenerationQueue.ts`
 
 
 ## 後回し（純粋でない）
