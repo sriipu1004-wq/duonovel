@@ -23,10 +23,10 @@
 | `src/lib/recording/nemoWav.ts` | `scripts/test-nemo-wav.ts` | `test:nemo-wav` | 2026-11-25 | PASS、tsc PASS（16bit の合成 PCM で確認） |
 | `src/lib/library/zipBook.ts` | `scripts/test-zip-book.ts` | `test:zip-book` | 2026-11-25 | PASS、tsc PASS。展開前の大きさの上限は ZIP の目次に書かれた値で見る（目次の値が偽のときの挙動は確かめていない） |
 | `src/lib/recording/humanRecordingAlignment.ts` | `scripts/test-human-recording-alignment.ts` | `test:human-recording-alignment` | 2026-11-25 | PASS、tsc PASS（1文ずつのセグメントの場合だけ固定。下の不具合の疑いを参照） |
+| `src/lib/seo/currentSearchDiscovery.ts` | `scripts/test-current-search-discovery.ts` | `test:current-search-discovery` | 2026-11-25 | PASS、tsc PASS |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
-- `src/lib/seo/currentSearchDiscovery.ts`（今のテストはソースの文字列を見るだけ）
 - `src/lib/effects/effectTextLayout.ts`
 
 ## 後回し（純粋でない）
