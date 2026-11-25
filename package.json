@@ -137,7 +137,8 @@
     "test:series-translation-glossary-auto-server": "node --import tsx scripts/test-series-translation-glossary-auto-server.ts",
     "test:public-work-translations": "node --import tsx scripts/test-public-work-translations.ts",
     "test:series-translation-consistency-server": "node --import tsx scripts/test-series-translation-consistency-server.ts",
-    "test:aozora-gaiji-generated": "node --import tsx scripts/test-aozora-gaiji-generated.ts"
+    "test:aozora-gaiji-generated": "node --import tsx scripts/test-aozora-gaiji-generated.ts",
+    "test:popularity": "node --import tsx scripts/test-popularity.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
