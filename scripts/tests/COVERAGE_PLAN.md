@@ -24,15 +24,19 @@
 | `src/lib/library/zipBook.ts` | `scripts/test-zip-book.ts` | `test:zip-book` | 2026-11-25 | PASS、tsc PASS。展開前の大きさの上限は ZIP の目次に書かれた値で見る（目次の値が偽のときの挙動は確かめていない） |
 | `src/lib/recording/humanRecordingAlignment.ts` | `scripts/test-human-recording-alignment.ts` | `test:human-recording-alignment` | 2026-11-25 | PASS、tsc PASS（1文ずつのセグメントの場合だけ固定。下の不具合の疑いを参照） |
 | `src/lib/seo/currentSearchDiscovery.ts` | `scripts/test-current-search-discovery.ts` | `test:current-search-discovery` | 2026-11-25 | PASS、tsc PASS |
+| `src/lib/effects/effectTextLayout.ts` | `scripts/test-effect-text-layout.ts` | `test:effect-text-layout` | 2026-11-25 | PASS、tsc PASS。短い場面転換のきっかけ（例「見当」）や文の一部だけのタイムスタンプは、しきい値（0.12・長さの比 0.55）に届かず捨てられる（今の挙動として固定） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
-- `src/lib/effects/effectTextLayout.ts`
+
+- `src/lib/authorFollow.ts`（Supabase を引数で受けるので、簡単なモックでテストできる）
+- `src/lib/authorProfileLike.ts`（同上）
+- `src/lib/readerCardLike.ts`（同上）
 
 ## 後回し（純粋でない）
 - `src/lib/playback/translationReaderPreference.ts`、`src/lib/translation/bilingualSessionPreference.ts`（`window.localStorage`）
 - `src/lib/recording/audioUploadValidation.ts`（ブラウザの `AudioContext` が要る）
-- `src/lib/authorFollow.ts`、`src/lib/authorProfileLike.ts`、`src/lib/readerCardLike.ts`、`src/lib/bgm/bgmLibrary.ts`、`src/lib/auth/*` の Supabase を使うもの（Supabase のモックが要る）
+- `src/lib/bgm/bgmLibrary.ts`、`src/lib/auth/*` の Supabase を使うもの（Supabase のモックが要る）
 - `src/lib/recording/aivisClient.ts`、`src/lib/recording/nemoClient.ts`（ネットワーク）
 
 ## 不具合の疑い
