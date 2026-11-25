@@ -103,3 +103,8 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/ai-usage/route.ts` | GET | `:10` | 自動抽出で見つからず | admin なし | `getAiUsageSnapshot(request)` の中で利用者を決める（`src/lib/aiUsage/aiUsage.server.ts`）。中身は見ていない。要確認（軽） |
 | `src/app/api/authors/follow/route.ts` | POST,DELETE | `:15` | `:172` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/authors/like/route.ts` | POST,DELETE | `:15` | `:47`, `:109` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/billing/checkout/route.ts` | POST | `:59` | 自動抽出で見つからず | admin なし | ログイン必須。本人の購入 |
+| `src/app/api/billing/credits/checkout/route.ts` | POST | `:51` | 自動抽出で見つからず | admin なし | ログイン必須。本人の購入 |
+| `src/app/api/billing/portal/route.ts` | POST | `:35` | 自動抽出で見つからず | admin なし | ログイン必須。本人の Stripe 顧客 |
+| `src/app/api/billing/webhook/route.ts` | POST | `:221` | `:40`, `:60` | admin あり | 利用者の認証ではなく Stripe の署名の検証（`constructEventAsync`）。所有者は Stripe のメタデータから決める。問題の疑いなし（署名検証の前に本文を使っていないかまでは見ていない） |
+| `src/app/api/bookmarks/series/route.ts` | GET,POST,DELETE | `:37` | `:70`, `:245` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
