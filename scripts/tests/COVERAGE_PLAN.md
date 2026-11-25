@@ -77,6 +77,7 @@
 | `src/lib/recording/nemoGenerationQueue.ts` | `scripts/test-nemo-generation-queue.ts` | `test:nemo-generation-queue` | 2026-11-25 | PASS、tsc PASS（admin クライアントは偽 DB）。本文のハッシュは本物の `buildNemoChunks` の結果から計算して比べるので、chunk の中身（上の不具合の疑い）は固定していない。`is_public` が null の録音は公開扱い。`nemoChunking` を直すと全話のハッシュが変わり、全話が「本文が変わった」として再生成の待ち行列に入る（推定） |
 | `src/lib/recording/nemoClient.ts` | `scripts/test-nemo-client.ts` | `test:nemo-client` | 2026-11-25 | PASS、tsc PASS（fetch はプロセスの中の偽物。エンジンには接続していない）。エンジンの URL にパスがあっても捨てる（`/audio_query` は絶対パス）。数値の上下限で丸め、NaN は送らない |
 | `src/lib/recording/aivisClient.ts` | `scripts/test-aivis-client.ts` | `test:aivis-client` | 2026-11-25 | PASS、tsc PASS（fetch はプロセスの中の偽物。エンジンには接続していない）。nemoClient と同じ形（既定の URL と環境変数の名前だけが違う） |
+| `src/lib/recording/audioUploadValidation.ts` | `scripts/test-audio-upload-validation.ts` | `test:audio-upload-validation` | 2026-11-25 | PASS、tsc PASS（ブラウザの AudioContext はプロセスの中の偽物で、合成した波形を返す）。合成波形（無音・一定の音・雑音・間のある声らしい音・間の少ない音）での判定を固定。実際の録音での判定の正しさは確かめていない |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
@@ -85,7 +86,6 @@
 
 
 ## 後回し（純粋でない）
-- `src/lib/recording/audioUploadValidation.ts`（ブラウザの `AudioContext` が要る）
 
 ## 不具合の疑い
 - `src/lib/recording/nemoChunking.ts` の `buildNemoChunks`（2026-11-25、テストは足していない）

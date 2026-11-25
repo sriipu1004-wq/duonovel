@@ -145,7 +145,8 @@
     "test:human-recording-publish": "node --import tsx scripts/test-human-recording-publish.ts",
     "test:nemo-generation-queue": "node --import tsx scripts/test-nemo-generation-queue.ts",
     "test:nemo-client": "node --import tsx scripts/test-nemo-client.ts",
-    "test:aivis-client": "node --import tsx scripts/test-aivis-client.ts"
+    "test:aivis-client": "node --import tsx scripts/test-aivis-client.ts",
+    "test:audio-upload-validation": "node --import tsx scripts/test-audio-upload-validation.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
