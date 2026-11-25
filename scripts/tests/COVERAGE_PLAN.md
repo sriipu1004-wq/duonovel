@@ -42,13 +42,13 @@
 | `src/lib/billing/creditPackCatalog.ts` | `scripts/test-credit-pack-catalog.ts` | `test:credit-pack-catalog` | 2026-11-25 | PASS、tsc PASS（環境変数は偽の値。Stripe・Supabase には接続していない） |
 | `src/lib/search/publicSearchRequestContext.ts` | `scripts/test-public-search-request-context.ts` | `test:public-search-request-context` | 2026-11-25 | PASS、tsc PASS |
 | `src/lib/rights/regionRestriction.server.ts` | `scripts/test-region-restriction-server.ts` | `test:region-restriction-server` | 2026-11-25 | PASS、tsc PASS（admin クライアント・next/headers・next/navigation はプロセスの中で差し替え。DB には接続していない）。既存の `test:region-restriction` はこのファイルの文字列を見るだけだった |
+| `src/lib/contentRatingServer.ts` | `scripts/test-content-rating-server.ts` | `test:content-rating-server` | 2026-11-25 | PASS、tsc PASS（Supabase の server・admin クライアントはプロセスの中で差し替え）。R18 は本人が表示を選び、かつ年齢確認済みのときだけ表示 |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
 
 
-- `src/lib/contentRatingServer.ts`
 
 ## 後回し（純粋でない）
 - `src/lib/recording/audioUploadValidation.ts`（ブラウザの `AudioContext` が要る）

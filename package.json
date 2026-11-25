@@ -110,7 +110,8 @@
     "test:billing-config": "node --import tsx scripts/test-billing-config.ts",
     "test:credit-pack-catalog": "node --import tsx scripts/test-credit-pack-catalog.ts",
     "test:public-search-request-context": "node --import tsx scripts/test-public-search-request-context.ts",
-    "test:region-restriction-server": "node --import tsx scripts/test-region-restriction-server.ts"
+    "test:region-restriction-server": "node --import tsx scripts/test-region-restriction-server.ts",
+    "test:content-rating-server": "node --import tsx scripts/test-content-rating-server.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
