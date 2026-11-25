@@ -108,3 +108,8 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/billing/portal/route.ts` | POST | `:35` | 自動抽出で見つからず | admin なし | ログイン必須。本人の Stripe 顧客 |
 | `src/app/api/billing/webhook/route.ts` | POST | `:221` | `:40`, `:60` | admin あり | 利用者の認証ではなく Stripe の署名の検証（`constructEventAsync`）。所有者は Stripe のメタデータから決める。問題の疑いなし（署名検証の前に本文を使っていないかまでは見ていない） |
 | `src/app/api/bookmarks/series/route.ts` | GET,POST,DELETE | `:37` | `:70`, `:245` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/episode-translations/[episodeId]/route.ts` | GET | `:62` | 自動抽出で見つからず | admin あり | `resolveEpisodeTranslationAccess` で公開・権利・解放を判定してから admin で読む。判定の中身は見ていない |
+| `src/app/api/episode-translations/generate/route.ts` | POST | `:27` | 自動抽出で見つからず | admin なし | `prepareEpisodeTranslationGeneration(request)` の中で利用者と権限を決める。中身は見ていない |
+| `src/app/api/episode-translations/unlock/route.ts` | POST | `:58` | 自動抽出で見つからず | admin あり | 同上の判定の後、関数で解放する |
+| `src/app/api/human-translations/[translationId]/publish/route.ts` | POST | `:27` | `:31` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/human-translations/[translationId]/route.ts` | GET,PATCH | `:28` | `:88` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
