@@ -68,12 +68,12 @@
 | `src/lib/translation/seriesTranslationGlossaryAutoServer.ts` | `scripts/test-series-translation-glossary-auto-server.ts` | `test:series-translation-glossary-auto-server` | 2026-11-25 | PASS、tsc PASS（admin クライアントはプロセスの中の小さな偽 DB）。作者・編集者の固定した語の分岐は、ほかの語と同じ判定（適用開始の話数）になっている（今の挙動として固定。記録だけ）。失敗はすべて黙って打ち切る |
 | `src/lib/translation/publicWorkTranslations.ts` | `scripts/test-public-work-translations.ts` | `test:public-work-translations` | 2026-11-25 | PASS、tsc PASS（admin クライアントは偽 DB、episodeTranslationServer のサーバー側の依存は差し替え。ハッシュ関数は本物）。話の一覧の読み出しが失敗すると「話が無い」扱いで null になる。翻訳の読み出しの失敗は「翻訳なし」になる |
 | `src/lib/translation/seriesTranslationConsistencyServer.ts` | `scripts/test-series-translation-consistency-server.ts` | `test:series-translation-consistency-server` | 2026-11-25 | PASS、tsc PASS（admin クライアントは偽 DB、episodeTranslationServer のサーバー側の依存は差し替え。用語集の選択などの純粋関数は本物）。読み出しの失敗はその部分を空にし、例外が出たら全体を空の文脈にする |
+| `src/lib/aozora/aozoraGaijiGenerated.ts` | `scripts/test-aozora-gaiji-generated.ts` | `test:aozora-gaiji-generated` | 2026-11-25 | PASS、tsc PASS。生成された表が `scripts/aozora/gaiji-pairs.tsv`・`gaiji-equivalent.tsv` と食い違わないことを固定（208件）。JIS X 0213 からの変換そのものは Node に復号器が無いので試していない。別に生成スクリプトを作業用の場所で走らせ、今の表と1バイトも違わないことを確かめた |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
 2026-11-25（夕）の再計算で残ったもの（行数の少ない順。`supabaseClient`・`supabase/client`・`supabase/proxy` はクライアントを作るだけなので外した）:
-- `src/lib/aozora/aozoraGaijiGenerated.ts`
 - `src/lib/popularity.ts`
 - `src/lib/translation/executeEpisodeTranslationGeneration.ts`
 - `src/lib/publicRead.ts`
