@@ -86,3 +86,15 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `public.unlock_public_episode_translation` | `20260914072000_fix_credit_unlock_append_only.sql:5` | public | なし | 実行可: service_role（revoke: public, anon, authenticated。根拠 `20260914072000_fix_credit_unlock_append_only.sql:140`, `20260914072000_fix_credit_unlock_append_only.sql:142`） | サーバー（service role）からだけ | 問題の疑いなし（ブラウザの役割から外している）。search_path は public（`child65-followup.md:126` の見立てでは今の CREATE 権限の下で安全） |
 | `public.unlock_public_episode_translation_included` | `20260914070000_add_public_translation_credit_runtime.sql:59` | public | なし | 実行可: service_role（revoke: public, anon, authenticated。根拠 `20260914070000_add_public_translation_credit_runtime.sql:357`, `20260914070000_add_public_translation_credit_runtime.sql:358`） | サーバー（service role）からだけ | 問題の疑いなし（ブラウザの役割から外している）。search_path は public（`child65-followup.md:126` の見立てでは今の CREATE 権限の下で安全） |
 | `public.update_private_library_reading_progress` | `20260827121000_add_private_library_reading_progress.sql:24` | public | あり | 実行可: authenticated, service_role（revoke: public, anon。根拠 `20260915190000_security_harden_rls_and_internal_rpcs.sql:137`, `20260915190000_security_harden_rls_and_internal_rpcs.sql:138`） | ブラウザ（ログイン利用者）から呼ぶ RPC | 問題の疑いなし（auth.uid() で本人に限る。中身の分岐までは見ていない）。search_path は public（`child65-followup.md:126` の見立てでは今の CREATE 権限の下で安全） |
+
+## 3. `src/app/api` の route（59件）
+
+「認証」は最初の利用者確認・判定の行、「所有者」は本人・作者の照合の行（自動抽出の後、要確認の行は目で読んだ）。行番号はその route のファイルの中。
+
+| route | メソッド | 認証 | 所有者 | service role | 判定 |
+|---|---|---|---|---|---|
+| `src/app/api/account/content-preferences/route.ts` | GET,POST | `:17` | 自動抽出で見つからず | admin あり | `requireUser()`（`:17`）で本人。本人の設定だけ |
+| `src/app/api/account/delete/route.ts` | POST | `:20` | 自動抽出で見つからず | admin なし | ログイン必須。本人のアカウントだけ（所有者の比較はなく、getUser の本人が対象） |
+| `src/app/api/account/display-name/check/route.ts` | POST | `:54` | 自動抽出で見つからず | admin あり | ログインの状態を見る。名前の重複確認 |
+| `src/app/api/account/email/check/route.ts` | POST | 見つからず | 自動抽出で見つからず | admin なし | 未認証で使える形式チェックだけ。メールアドレスの有無は返さない（コメント `:57-60`）。問題の疑いなし |
+| `src/app/api/account/email/prepare-signup/route.ts` | POST | 見つからず | 自動抽出で見つからず | admin なし | 未認証。登録前の準備。コメント `:57` 付近で第三者に存在を漏らさない方針を書いている。中身の admin API の呼び方は細かく見ていない。要確認（軽）: 回数制限の有無 |
